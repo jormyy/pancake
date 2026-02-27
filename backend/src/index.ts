@@ -90,6 +90,10 @@ app.post('/sync/rankings', async (_req, reply) => {
 
 // ── Draft routes ───────────────────────────────────────────────
 
+function errMsg(e: any): string {
+  return e?.message || e?.details || JSON.stringify(e) || 'Unknown error'
+}
+
 app.post('/draft/start', async (req: any, reply) => {
   try {
     const { leagueId } = req.body as { leagueId: string }
@@ -97,8 +101,9 @@ app.post('/draft/start', async (req: any, reply) => {
     const draft = await startDraft(leagueId)
     return { ok: true, draft }
   } catch (e: any) {
+    console.error('[draft/start]', e)
     reply.status(500)
-    return { ok: false, error: e.message }
+    return { ok: false, error: errMsg(e) }
   }
 })
 
@@ -109,7 +114,7 @@ app.get('/draft/:draftId', async (req: any, reply) => {
     return { ok: true, ...state }
   } catch (e: any) {
     reply.status(500)
-    return { ok: false, error: e.message }
+    return { ok: false, error: errMsg(e) }
   }
 })
 
@@ -122,7 +127,7 @@ app.post('/draft/:draftId/nominate', async (req: any, reply) => {
     return { ok: true, nomination }
   } catch (e: any) {
     reply.status(400)
-    return { ok: false, error: e.message }
+    return { ok: false, error: errMsg(e) }
   }
 })
 
@@ -135,7 +140,7 @@ app.post('/draft/:draftId/bid', async (req: any, reply) => {
     return result
   } catch (e: any) {
     reply.status(400)
-    return { ok: false, error: e.message }
+    return { ok: false, error: errMsg(e) }
   }
 })
 
