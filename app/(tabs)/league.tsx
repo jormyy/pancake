@@ -1,6 +1,6 @@
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
-  ActivityIndicator, Share,
+  ActivityIndicator, Share, Alert,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { router } from 'expo-router'
@@ -10,6 +10,7 @@ import { useLeagueContext } from '@/contexts/league-context'
 import { useAuth } from '@/hooks/use-auth'
 import { getLeagueMembers } from '@/lib/league'
 import { getLeagueStandings, StandingRow } from '@/lib/scoring'
+import { getActiveDraft, startDraft } from '@/lib/draft'
 
 const ROLE_LABELS: Record<string, string> = {
   commissioner: 'Commissioner',
@@ -26,6 +27,7 @@ export default function LeagueScreen() {
   const [members, setMembers] = useState<any[]>([])
   const [standings, setStandings] = useState<StandingRow[]>([])
   const [loading, setLoading] = useState(true)
+  const [draftLoading, setDraftLoading] = useState(false)
 
   const league = current?.leagues as any
   const isCommissioner = league?.commissioner_id === user?.id
@@ -48,6 +50,33 @@ export default function LeagueScreen() {
   }, [current])
 
   useFocusEffect(useCallback(() => { load() }, [load]))
+
+  async function handleStartDraft() {
+    if (!league?.id) return
+    setDraftLoading(true)
+    try {
+      const draft = await startDraft(league.id)
+      router.push({ pathname: '/(modals)/draft-room', params: { draftId: draft.id } })
+    } catch (e: any) {
+      Alert.alert('Could not start draft', e.message)
+    } finally {
+      setDraftLoading(false)
+    }
+  }
+
+  async function handleJoinDraftRoom() {
+    if (!league?.id) return
+    setDraftLoading(true)
+    try {
+      const draft = await getActiveDraft(league.id)
+      if (!draft) { Alert.alert('No active draft found'); return }
+      router.push({ pathname: '/(modals)/draft-room', params: { draftId: draft.id } })
+    } catch (e: any) {
+      Alert.alert('Error', e.message)
+    } finally {
+      setDraftLoading(false)
+    }
+  }
 
   async function shareInviteCode() {
     await Share.share({
@@ -98,6 +127,32 @@ export default function LeagueScreen() {
           <Text style={styles.inviteCode}>{league?.invite_code}</Text>
           <Text style={styles.inviteCopy}>Share</Text>
         </TouchableOpacity>
+
+        {/* Draft actions */}
+        {league?.status === 'setup' && isCommissioner && (
+          <TouchableOpacity
+            style={styles.draftButton}
+            onPress={handleStartDraft}
+            disabled={draftLoading}
+          >
+            {draftLoading
+              ? <ActivityIndicator size="small" color="#fff" />
+              : <Text style={styles.draftButtonText}>Start Auction Draft</Text>
+            }
+          </TouchableOpacity>
+        )}
+        {league?.status === 'drafting' && (
+          <TouchableOpacity
+            style={styles.draftButton}
+            onPress={handleJoinDraftRoom}
+            disabled={draftLoading}
+          >
+            {draftLoading
+              ? <ActivityIndicator size="small" color="#fff" />
+              : <Text style={styles.draftButtonText}>Join Draft Room</Text>
+            }
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Tab switcher */}
@@ -218,6 +273,12 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: '#ddd',
   },
   settingsButtonText: { fontSize: 13, fontWeight: '600', color: '#555' },
+
+  draftButton: {
+    backgroundColor: '#F97316', borderRadius: 10, height: 44,
+    justifyContent: 'center', alignItems: 'center',
+  },
+  draftButtonText: { color: '#fff', fontWeight: '700', fontSize: 15 },
 
   inviteRow: {
     flexDirection: 'row', alignItems: 'center', gap: 8,

@@ -8,6 +8,7 @@ import { syncProjectionsByDate } from './sync/projections'
 import { generateAllMatchups } from './sync/matchups'
 import { syncScores } from './sync/scores'
 import { syncDynastyRankings } from './sync/rankings'
+import { startDraft, nominatePlayer, placeBid, getDraftState, closeExpiredNominations } from './sync/draft'
 import { formatDate } from './lib/sportsdata'
 
 const app = Fastify({ logger: true })
@@ -87,6 +88,57 @@ app.post('/sync/rankings', async (_req, reply) => {
   }
 })
 
+// ── Draft routes ───────────────────────────────────────────────
+
+app.post('/draft/start', async (req: any, reply) => {
+  try {
+    const { leagueId } = req.body as { leagueId: string }
+    if (!leagueId) { reply.status(400); return { ok: false, error: 'leagueId required' } }
+    const draft = await startDraft(leagueId)
+    return { ok: true, draft }
+  } catch (e: any) {
+    reply.status(500)
+    return { ok: false, error: e.message }
+  }
+})
+
+app.get('/draft/:draftId', async (req: any, reply) => {
+  try {
+    const { draftId } = req.params as { draftId: string }
+    const state = await getDraftState(draftId)
+    return { ok: true, ...state }
+  } catch (e: any) {
+    reply.status(500)
+    return { ok: false, error: e.message }
+  }
+})
+
+app.post('/draft/:draftId/nominate', async (req: any, reply) => {
+  try {
+    const { draftId } = req.params as { draftId: string }
+    const { memberId, playerId } = req.body as { memberId: string; playerId: string }
+    if (!memberId || !playerId) { reply.status(400); return { ok: false, error: 'memberId and playerId required' } }
+    const nomination = await nominatePlayer(draftId, memberId, playerId)
+    return { ok: true, nomination }
+  } catch (e: any) {
+    reply.status(400)
+    return { ok: false, error: e.message }
+  }
+})
+
+app.post('/draft/:draftId/bid', async (req: any, reply) => {
+  try {
+    const { draftId } = req.params as { draftId: string }
+    const { memberId, nominationId, amount } = req.body as { memberId: string; nominationId: string; amount: number }
+    if (!memberId || !nominationId || amount == null) { reply.status(400); return { ok: false, error: 'memberId, nominationId, and amount required' } }
+    const result = await placeBid(draftId, memberId, nominationId, amount)
+    return { ok: true, ...result }
+  } catch (e: any) {
+    reply.status(400)
+    return { ok: false, error: e.message }
+  }
+})
+
 // ── Cron jobs ─────────────────────────────────────────────────
 
 // Players: once daily at 6 AM ET
@@ -124,6 +176,11 @@ cron.schedule('0 7 * * 1', async () => {
   console.log('[cron] Running dynasty rankings sync...')
   await syncDynastyRankings().catch(console.error)
 }, { timezone: 'America/New_York' })
+
+// Draft: check for expired nominations every 10 seconds
+setInterval(async () => {
+  await closeExpiredNominations().catch(console.error)
+}, 10_000)
 
 // ── Start ─────────────────────────────────────────────────────
 
