@@ -5,6 +5,8 @@ import { syncPlayers } from './sync/players'
 import { syncSchedule } from './sync/games'
 import { syncStatsByDate } from './sync/stats'
 import { syncProjectionsByDate } from './sync/projections'
+import { generateAllMatchups } from './sync/matchups'
+import { syncScores } from './sync/scores'
 import { formatDate } from './lib/sportsdata'
 
 const app = Fastify({ logger: true })
@@ -54,6 +56,26 @@ app.post('/sync/projections', async (_req, reply) => {
   }
 })
 
+app.post('/sync/matchups', async (_req, reply) => {
+  try {
+    await generateAllMatchups()
+    return { ok: true }
+  } catch (e: any) {
+    reply.status(500)
+    return { ok: false, error: e.message }
+  }
+})
+
+app.post('/sync/scores', async (_req, reply) => {
+  try {
+    await syncScores()
+    return { ok: true }
+  } catch (e: any) {
+    reply.status(500)
+    return { ok: false, error: e.message }
+  }
+})
+
 // ── Cron jobs ─────────────────────────────────────────────────
 
 // Players: once daily at 6 AM ET
@@ -78,6 +100,12 @@ cron.schedule('0 12-23,0 * * *', async () => {
 cron.schedule('0 8 * * *', async () => {
   console.log('[cron] Running projections sync...')
   await syncProjectionsByDate(new Date()).catch(console.error)
+}, { timezone: 'America/New_York' })
+
+// Scores: every 15 minutes during game hours (12 PM – 1 AM ET)
+cron.schedule('*/15 12-23,0 * * *', async () => {
+  console.log('[cron] Running score sync...')
+  await syncScores().catch(console.error)
 }, { timezone: 'America/New_York' })
 
 // ── Start ─────────────────────────────────────────────────────
