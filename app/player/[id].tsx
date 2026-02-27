@@ -1,10 +1,17 @@
 import {
   View, Text, ScrollView, StyleSheet, ActivityIndicator,
+  TouchableOpacity, Alert,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLocalSearchParams, Stack } from 'expo-router'
 import { useEffect, useState } from 'react'
 import { getPlayer, getPlayerSeasonAverages, getPlayerRecentGames } from '@/lib/players'
+import {
+  getPlayerRosterStatus, addFreeAgent, dropPlayer,
+  PlayerRosterStatus,
+} from '@/lib/roster'
+import { useLeagueContext } from '@/contexts/league-context'
+import { useAuth } from '@/hooks/use-auth'
 
 const INJURY_COLORS: Record<string, string> = {
   Questionable: '#F59E0B', Doubtful: '#F97316', Out: '#EF4444', IR: '#7F1D1D',
@@ -12,10 +19,25 @@ const INJURY_COLORS: Record<string, string> = {
 
 export default function PlayerDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
+  const { current } = useLeagueContext()
+  const { user } = useAuth()
   const [player, setPlayer] = useState<any>(null)
   const [averages, setAverages] = useState<any>(null)
   const [recentGames, setRecentGames] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [rosterStatus, setRosterStatus] = useState<PlayerRosterStatus | null>(null)
+  const [actionLoading, setActionLoading] = useState(false)
+
+  async function loadRosterStatus() {
+    if (!current || !user) return
+    const league = current.leagues as any
+    try {
+      const status = await getPlayerRosterStatus(id, current.id, league.id)
+      setRosterStatus(status)
+    } catch (e) {
+      console.error(e)
+    }
+  }
 
   useEffect(() => {
     async function load() {
@@ -36,6 +58,50 @@ export default function PlayerDetailScreen() {
     }
     load()
   }, [id])
+
+  useEffect(() => {
+    loadRosterStatus()
+  }, [id, current])
+
+  async function handleAdd() {
+    if (!current || !user) return
+    const league = current.leagues as any
+    setActionLoading(true)
+    try {
+      await addFreeAgent(current.id, league.id, id)
+      await loadRosterStatus()
+    } catch (e: any) {
+      Alert.alert('Error', e.message)
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  async function handleDrop() {
+    if (rosterStatus?.status !== 'mine') return
+    Alert.alert(
+      'Drop Player',
+      `Drop ${player?.display_name ?? 'this player'}? They will become a free agent.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Drop',
+          style: 'destructive',
+          onPress: async () => {
+            setActionLoading(true)
+            try {
+              await dropPlayer(rosterStatus.rosterPlayerId)
+              await loadRosterStatus()
+            } catch (e: any) {
+              Alert.alert('Error', e.message)
+            } finally {
+              setActionLoading(false)
+            }
+          },
+        },
+      ],
+    )
+  }
 
   if (loading) {
     return (
@@ -61,7 +127,7 @@ export default function PlayerDetailScreen() {
 
           {/* Header */}
           <View style={styles.header}>
-            <View>
+            <View style={styles.headerInfo}>
               <Text style={styles.name}>{player.display_name}</Text>
               <Text style={styles.meta}>
                 {[player.nba_team, player.position].filter(Boolean).join(' · ')}
@@ -72,6 +138,37 @@ export default function PlayerDetailScreen() {
                 </View>
               )}
             </View>
+
+            {/* Roster action button */}
+            {current && rosterStatus && (
+              rosterStatus.status === 'free_agent' ? (
+                <TouchableOpacity
+                  style={styles.addButton}
+                  onPress={handleAdd}
+                  disabled={actionLoading}
+                >
+                  {actionLoading
+                    ? <ActivityIndicator size="small" color="#fff" />
+                    : <Text style={styles.addButtonText}>+ Add</Text>
+                  }
+                </TouchableOpacity>
+              ) : rosterStatus.status === 'mine' ? (
+                <TouchableOpacity
+                  style={styles.dropButton}
+                  onPress={handleDrop}
+                  disabled={actionLoading}
+                >
+                  {actionLoading
+                    ? <ActivityIndicator size="small" color="#EF4444" />
+                    : <Text style={styles.dropButtonText}>Drop</Text>
+                  }
+                </TouchableOpacity>
+              ) : (
+                <View style={styles.takenBadge}>
+                  <Text style={styles.takenText}>{rosterStatus.ownerTeamName}</Text>
+                </View>
+              )
+            )}
           </View>
 
           {/* Season averages */}
@@ -152,6 +249,7 @@ const styles = StyleSheet.create({
   scroll: { padding: 20, gap: 24 },
 
   header: { flexDirection: 'row', alignItems: 'flex-start', gap: 16 },
+  headerInfo: { flex: 1 },
   name: { fontSize: 24, fontWeight: '800' },
   meta: { fontSize: 15, color: '#888', marginTop: 4 },
   injuryBadge: { marginTop: 8, alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 },
@@ -178,4 +276,23 @@ const styles = StyleSheet.create({
   colHeader: { fontSize: 11, fontWeight: '700', color: '#aaa' },
 
   errorText: { textAlign: 'center', marginTop: 40, color: '#888' },
+
+  addButton: {
+    backgroundColor: '#F97316', paddingHorizontal: 16, paddingVertical: 10,
+    borderRadius: 10, minWidth: 72, alignItems: 'center', alignSelf: 'flex-start',
+  },
+  addButtonText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+
+  dropButton: {
+    paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10,
+    borderWidth: 1.5, borderColor: '#EF4444', minWidth: 72,
+    alignItems: 'center', alignSelf: 'flex-start',
+  },
+  dropButtonText: { color: '#EF4444', fontWeight: '700', fontSize: 14 },
+
+  takenBadge: {
+    backgroundColor: '#f3f3f3', paddingHorizontal: 10, paddingVertical: 8,
+    borderRadius: 8, alignSelf: 'flex-start',
+  },
+  takenText: { color: '#888', fontSize: 12, fontWeight: '600' },
 })

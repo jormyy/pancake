@@ -2,7 +2,6 @@ import { Tabs } from 'expo-router'
 import { HapticTab } from '@/components/haptic-tab'
 import { IconSymbol } from '@/components/ui/icon-symbol'
 import { useColorScheme } from '@/hooks/use-color-scheme'
-import { LeagueProvider } from '@/contexts/league-context'
 
 const ORANGE = '#F97316'
 
@@ -11,7 +10,6 @@ export default function TabLayout() {
   const inactive = colorScheme === 'dark' ? '#888' : '#aaa'
 
   return (
-    <LeagueProvider>
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: ORANGE,
@@ -64,6 +62,5 @@ export default function TabLayout() {
         }}
       />
     </Tabs>
-    </LeagueProvider>
   )
 }

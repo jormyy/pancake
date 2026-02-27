@@ -5,7 +5,10 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { router } from 'expo-router'
 import { useState, useEffect, useCallback } from 'react'
+import { useFocusEffect } from '@react-navigation/native'
 import { searchPlayers, PlayerRow } from '@/lib/players'
+import { getOwnedPlayerIds } from '@/lib/roster'
+import { useLeagueContext } from '@/contexts/league-context'
 
 const POSITIONS = ['ALL', 'PG', 'SG', 'SF', 'PF', 'C', 'G', 'F']
 
@@ -19,10 +22,25 @@ const INJURY_COLORS: Record<string, string> = {
 }
 
 export default function PlayersScreen() {
+  const { current } = useLeagueContext()
   const [query, setQuery] = useState('')
   const [position, setPosition] = useState('ALL')
   const [players, setPlayers] = useState<PlayerRow[]>([])
   const [loading, setLoading] = useState(true)
+  const [ownedIds, setOwnedIds] = useState<Set<string>>(new Set())
+
+  const loadOwned = useCallback(async () => {
+    if (!current) return
+    const league = current.leagues as any
+    try {
+      const ids = await getOwnedPlayerIds(league.id)
+      setOwnedIds(ids)
+    } catch (e) {
+      console.error(e)
+    }
+  }, [current])
+
+  useFocusEffect(useCallback(() => { loadOwned() }, [loadOwned]))
 
   const load = useCallback(async (q: string, pos: string) => {
     setLoading(true)
@@ -112,6 +130,15 @@ export default function PlayersScreen() {
                   <Text style={styles.injuryText}>{item.injury_status}</Text>
                 </View>
               )}
+
+              {/* Owned badge */}
+              {current && (
+                <View style={[styles.ownedBadge, ownedIds.has(item.id) && styles.ownedBadgeOwned]}>
+                  <Text style={[styles.ownedBadgeText, ownedIds.has(item.id) && styles.ownedBadgeTextOwned]}>
+                    {ownedIds.has(item.id) ? 'Owned' : 'FA'}
+                  </Text>
+                </View>
+              )}
             </TouchableOpacity>
           )}
           ListEmptyComponent={
@@ -164,4 +191,9 @@ const styles = StyleSheet.create({
 
   emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   emptyText: { color: '#aaa', fontSize: 15 },
+
+  ownedBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, backgroundColor: '#f0f0f0' },
+  ownedBadgeOwned: { backgroundColor: '#FEE2E2' },
+  ownedBadgeText: { fontSize: 11, fontWeight: '700', color: '#aaa' },
+  ownedBadgeTextOwned: { color: '#DC2626' },
 })
