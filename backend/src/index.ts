@@ -132,7 +132,7 @@ app.post('/draft/:draftId/bid', async (req: any, reply) => {
     const { memberId, nominationId, amount } = req.body as { memberId: string; nominationId: string; amount: number }
     if (!memberId || !nominationId || amount == null) { reply.status(400); return { ok: false, error: 'memberId, nominationId, and amount required' } }
     const result = await placeBid(draftId, memberId, nominationId, amount)
-    return { ok: true, ...result }
+    return result
   } catch (e: any) {
     reply.status(400)
     return { ok: false, error: e.message }
