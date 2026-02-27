@@ -7,6 +7,7 @@ import { syncStatsByDate } from './sync/stats'
 import { syncProjectionsByDate } from './sync/projections'
 import { generateAllMatchups } from './sync/matchups'
 import { syncScores } from './sync/scores'
+import { syncDynastyRankings } from './sync/rankings'
 import { formatDate } from './lib/sportsdata'
 
 const app = Fastify({ logger: true })
@@ -76,6 +77,16 @@ app.post('/sync/scores', async (_req, reply) => {
   }
 })
 
+app.post('/sync/rankings', async (_req, reply) => {
+  try {
+    await syncDynastyRankings()
+    return { ok: true }
+  } catch (e: any) {
+    reply.status(500)
+    return { ok: false, error: e.message }
+  }
+})
+
 // ── Cron jobs ─────────────────────────────────────────────────
 
 // Players: once daily at 6 AM ET
@@ -106,6 +117,12 @@ cron.schedule('0 8 * * *', async () => {
 cron.schedule('*/15 12-23,0 * * *', async () => {
   console.log('[cron] Running score sync...')
   await syncScores().catch(console.error)
+}, { timezone: 'America/New_York' })
+
+// Dynasty rankings: every Monday at 7 AM ET
+cron.schedule('0 7 * * 1', async () => {
+  console.log('[cron] Running dynasty rankings sync...')
+  await syncDynastyRankings().catch(console.error)
 }, { timezone: 'America/New_York' })
 
 // ── Start ─────────────────────────────────────────────────────
