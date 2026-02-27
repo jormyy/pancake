@@ -198,7 +198,13 @@ async function apiPost(path: string, body: object) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })
-  const json = await res.json()
+  const text = await res.text()
+  let json: any
+  try {
+    json = JSON.parse(text)
+  } catch {
+    throw new Error(`Server error (${res.status}): ${text.slice(0, 100)}`)
+  }
   if (!json.ok) throw new Error(json.error ?? 'Request failed')
   return json
 }
