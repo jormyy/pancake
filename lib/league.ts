@@ -102,3 +102,52 @@ export async function fetchUserLeagues(userId: string) {
   if (error) throw error
   return data ?? []
 }
+
+export async function getLeagueMembers(leagueId: string) {
+  const { data, error } = await supabase
+    .from('league_members')
+    .select('id, role, team_name, user_id, profiles ( display_name, username )')
+    .eq('league_id', leagueId)
+    .order('joined_at')
+
+  if (error) throw error
+  return data ?? []
+}
+
+export async function getLineupSlots(leagueId: string) {
+  const { data, error } = await supabase
+    .from('lineup_slot_templates')
+    .select('slot_type, slot_count')
+    .eq('league_id', leagueId)
+
+  if (error) throw error
+  return data ?? []
+}
+
+export async function updateLeague(
+  leagueId: string,
+  updates: {
+    scoring_settings?: Record<string, number>
+    roster_size?: number
+    ir_slots?: number
+    auction_budget?: number
+    playoff_start_week?: number
+  },
+) {
+  const { error } = await supabase
+    .from('leagues')
+    .update(updates)
+    .eq('id', leagueId)
+  if (error) throw error
+}
+
+export async function updateLineupSlots(
+  leagueId: string,
+  slots: { slot_type: string; slot_count: number }[],
+) {
+  const rows = slots.map((s) => ({ league_id: leagueId, ...s }))
+  const { error } = await supabase
+    .from('lineup_slot_templates')
+    .upsert(rows, { onConflict: 'league_id,slot_type' })
+  if (error) throw error
+}
