@@ -1,21 +1,22 @@
 # Dynasty Fantasy Basketball App — Spec
 
 ## Overview
+
 An iOS dynasty fantasy basketball app targeting the gap between ESPN (no dynasty support) and Fantrax/Sleeper (poor UX or flawed scoring systems). Built for managers with busy lifestyles who still want meaningful, skill-rewarding gameplay.
 
 ---
 
 ## Tech Stack
 
-| Layer | Choice |
-|---|---|
-| Mobile | React Native (Expo) |
-| Backend | Node.js (Express or Fastify) |
-| Database | PostgreSQL via Supabase |
-| Auth | Supabase Auth |
-| Real-time | Supabase Realtime or Socket.io |
-| Stats + Projections | SportsData.io |
-| Hosting | Supabase (DB/auth) + Railway (API) |
+| Layer               | Choice                             |
+| ------------------- | ---------------------------------- |
+| Mobile              | React Native (Expo)                |
+| Backend             | Node.js (Express or Fastify)       |
+| Database            | PostgreSQL via Supabase            |
+| Auth                | Supabase Auth                      |
+| Real-time           | Supabase Realtime or Socket.io     |
+| Stats + Projections | SportsData.io                      |
+| Hosting             | Supabase (DB/auth) + Railway (API) |
 
 ---
 
@@ -25,9 +26,9 @@ An iOS dynasty fantasy basketball app targeting the gap between ESPN (no dynasty
 - 20 active roster slots + 2 IR slots = 22 total per manager
 - No taxi squad (tabled for later)
 - Points-based scoring
-  - Default scoring template (ESPN-style)
-  - Commissioners can customize slot counts (number of PG, UTIL, bench slots, etc.) with a sensible default
-  - Commissioners can add/customize scoring categories (e.g. triple-double bonus)
+    - Default scoring template (ESPN-style)
+    - Commissioners can customize slot counts (number of PG, UTIL, bench slots, etc.) with a sensible default
+    - Commissioners can add/customize scoring categories (e.g. triple-double bonus)
 
 ---
 
@@ -66,8 +67,8 @@ An iOS dynasty fantasy basketball app targeting the gap between ESPN (no dynasty
 - **Deadline**: NBA trade deadline + 2 weeks
 - **Veto window**: 24 hours
 - **Veto rules**: Trade is killed if:
-  - Commissioner vetoes, OR
-  - 50%+ of remaining league members veto
+    - Commissioner vetoes, OR
+    - 50%+ of remaining league members veto
 
 ---
 
@@ -75,10 +76,10 @@ An iOS dynasty fantasy basketball app targeting the gap between ESPN (no dynasty
 
 - Head-to-head matchups
 - **Tiebreakers (in order)**:
-  1. Points fielded (total season points scored)
-  2. Max possible points fielded (best lineup you could have set using your actual roster, computed post-week)
-  3. Points against
-  4. Rock paper scissors — in-app mini-game between tied managers (ties re-challenge)
+    1. Points fielded (total season points scored)
+    2. Max possible points fielded (best lineup you could have set using your actual roster, computed post-week)
+    3. Points against
+    4. Rock paper scissors — in-app mini-game between tied managers (ties re-challenge)
 
 ---
 

@@ -40,6 +40,7 @@ CREATE TYPE rps_status AS ENUM ('pending', 'completed');
 ## Tables
 
 ### profiles
+
 Extends Supabase `auth.users`. One row per registered user.
 
 ```sql
@@ -57,6 +58,7 @@ CREATE TABLE profiles (
 ---
 
 ### leagues
+
 Root entity. Persists across seasons.
 
 ```sql
@@ -93,6 +95,7 @@ CREATE TABLE leagues (
 ---
 
 ### league_seasons
+
 Per-season data for a league. Dynasty leagues have one row per year.
 
 ```sql
@@ -116,6 +119,7 @@ CREATE UNIQUE INDEX idx_one_current_season ON league_seasons(league_id) WHERE is
 ---
 
 ### league_members
+
 One row per manager per league. Persists across seasons (dynasty).
 
 ```sql
@@ -134,9 +138,11 @@ CREATE TABLE league_members (
 ---
 
 ### lineup_slot_templates
+
 Defines the starting slot layout for a league (configurable per commissioner, with defaults).
 
 Default template (22 total = 10 starters + 10 bench + 2 IR):
+
 - PG×1, SG×1, SF×1, PF×1, C×1, G×1, F×1, UTIL×3 = 10 starters
 - BE×10 bench
 - IR×2
@@ -155,6 +161,7 @@ CREATE TABLE lineup_slot_templates (
 ---
 
 ### players
+
 Canonical NBA player list. Synced from SportsData.io. Shared across all leagues.
 
 ```sql
@@ -178,6 +185,7 @@ CREATE TABLE players (
 ---
 
 ### roster_players
+
 Authoritative record of who owns which player in which league + season.
 
 ```sql
@@ -199,6 +207,7 @@ CREATE TABLE roster_players (
 ---
 
 ### weekly_lineups
+
 A manager's active lineup for a given week. One row per player-slot per week.
 Mid-week changes update existing rows.
 
@@ -221,6 +230,7 @@ CREATE TABLE weekly_lineups (
 ---
 
 ### nba_games
+
 NBA game schedule and results. Synced from SportsData.io.
 
 ```sql
@@ -243,6 +253,7 @@ CREATE TABLE nba_games (
 ---
 
 ### season_weeks
+
 Canonical week-number-to-date mapping per season.
 
 ```sql
@@ -260,6 +271,7 @@ CREATE TABLE season_weeks (
 ---
 
 ### player_game_stats
+
 Raw box score stats per player per game. Fantasy points are computed at query time.
 
 ```sql
@@ -301,6 +313,7 @@ CREATE TABLE player_game_stats (
 ---
 
 ### player_projections
+
 Weekly projections from SportsData.io. Used for auto-set lineup logic.
 
 ```sql
@@ -320,6 +333,7 @@ CREATE TABLE player_projections (
 ---
 
 ### matchups
+
 H2H weekly matchups. One row per pair per week.
 
 ```sql
@@ -354,6 +368,7 @@ CREATE TABLE matchups (
 ---
 
 ### standings
+
 Append-only weekly standings snapshot. Current standings = latest week_number.
 
 ```sql
@@ -381,6 +396,7 @@ CREATE TABLE standings (
 ---
 
 ### rps_challenges
+
 Rock paper scissors mini-game for the final standings tiebreaker.
 
 ```sql
@@ -405,6 +421,7 @@ CREATE TABLE rps_challenges (
 ---
 
 ### drafts
+
 One row per draft event (initial auction or annual rookie draft).
 
 ```sql
@@ -425,6 +442,7 @@ CREATE TABLE drafts (
 ---
 
 ### draft_orders
+
 Nomination order for auction drafts, or pick order for snake drafts.
 
 ```sql
@@ -442,6 +460,7 @@ CREATE TABLE draft_orders (
 ---
 
 ### draft_budgets
+
 Tracks remaining auction budget per manager.
 
 ```sql
@@ -459,6 +478,7 @@ CREATE TABLE draft_budgets (
 ---
 
 ### nominations
+
 Active bidding item in an auction draft. One row per player nomination.
 
 ```sql
@@ -489,6 +509,7 @@ CREATE TABLE nominations (
 ---
 
 ### bids
+
 Immutable bid history per nomination.
 
 ```sql
@@ -504,6 +525,7 @@ CREATE TABLE bids (
 ---
 
 ### snake_draft_picks
+
 Picks for snake-format rookie drafts. One row per pick slot.
 
 ```sql
@@ -524,6 +546,7 @@ CREATE TABLE snake_draft_picks (
 ---
 
 ### draft_picks
+
 Future draft pick assets. Tradeable. Created eagerly for the next 5 seasons on league creation.
 
 ```sql
@@ -547,6 +570,7 @@ CREATE TABLE draft_picks (
 ---
 
 ### waiver_priorities
+
 Current waiver priority per manager per season. Lower number = higher priority.
 
 ```sql
@@ -565,6 +589,7 @@ CREATE TABLE waiver_priorities (
 ---
 
 ### waiver_claims
+
 A manager's request to claim a player off waivers.
 
 ```sql
@@ -587,6 +612,7 @@ CREATE TABLE waiver_claims (
 ---
 
 ### waiver_wire_log
+
 Log of when players are placed on waivers and when they clear to free agency.
 
 ```sql
@@ -606,6 +632,7 @@ CREATE TABLE waiver_wire_log (
 ---
 
 ### trades
+
 Header record for a trade proposal. 2-team only.
 
 ```sql
@@ -630,6 +657,7 @@ CREATE TABLE trades (
 ---
 
 ### trade_items
+
 Line items within a trade. Each row is one asset (player or pick) moving between sides.
 
 ```sql
@@ -651,6 +679,7 @@ CREATE TABLE trade_items (
 ---
 
 ### trade_vetos
+
 Records individual veto actions within the 24-hour window.
 
 ```sql
@@ -668,6 +697,7 @@ CREATE TABLE trade_vetos (
 ---
 
 ### roster_transactions
+
 Append-only audit log of all roster moves.
 
 ```sql

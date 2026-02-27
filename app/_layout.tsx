@@ -9,33 +9,36 @@ import { useAuth } from '@/hooks/use-auth'
 import { LeagueProvider } from '@/contexts/league-context'
 
 export const unstable_settings = {
-  anchor: '(tabs)',
+    anchor: '(tabs)',
 }
 
 export default function RootLayout() {
-  const colorScheme = useColorScheme()
-  const { session, loading } = useAuth()
+    const colorScheme = useColorScheme()
+    const { session, loading } = useAuth()
 
-  useEffect(() => {
-    if (loading) return
-    if (session) {
-      router.replace('/(tabs)')
-    } else {
-      router.replace('/(auth)/sign-in')
-    }
-  }, [session, loading])
+    useEffect(() => {
+        if (loading) return
+        if (session) {
+            router.replace('/(tabs)')
+        } else {
+            router.replace('/(auth)/sign-in')
+        }
+    }, [session, loading])
 
-  return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <LeagueProvider>
-        <Stack>
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-          <Stack.Screen name="(modals)" options={{ headerShown: false }} />
-          <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-        </Stack>
-      </LeagueProvider>
-      <StatusBar style="auto" />
-    </ThemeProvider>
-  )
+    return (
+        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+            <LeagueProvider>
+                <Stack>
+                    <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                    <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+                    <Stack.Screen name="(modals)" options={{ headerShown: false }} />
+                    <Stack.Screen
+                        name="modal"
+                        options={{ presentation: 'modal', title: 'Modal' }}
+                    />
+                </Stack>
+            </LeagueProvider>
+            <StatusBar style="auto" />
+        </ThemeProvider>
+    )
 }
