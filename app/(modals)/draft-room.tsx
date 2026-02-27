@@ -177,7 +177,7 @@ export default function DraftRoomScreen() {
               <View style={styles.bidInfo}>
                 <Text style={styles.bidAmount}>${openNomination.currentBidAmount}</Text>
                 <Text style={styles.bidLeader}>
-                  {iAmLeading ? 'You're leading' : `${leadingTeam ?? '—'} leads`}
+                  {iAmLeading ? "You're leading" : `${leadingTeam ?? '—'} leads`}
                 </Text>
               </View>
               <View style={[styles.countdown, timeLeft <= 10 && styles.countdownUrgent]}>
