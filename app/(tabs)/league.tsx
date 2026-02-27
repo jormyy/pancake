@@ -9,6 +9,7 @@ import { useFocusEffect } from '@react-navigation/native'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useAuth } from '@/hooks/use-auth'
 import { getLeagueMembers } from '@/lib/league'
+import { getLeagueStandings, StandingRow } from '@/lib/scoring'
 
 const ROLE_LABELS: Record<string, string> = {
   commissioner: 'Commissioner',
@@ -16,10 +17,14 @@ const ROLE_LABELS: Record<string, string> = {
   manager: 'Manager',
 }
 
+type Tab = 'members' | 'standings'
+
 export default function LeagueScreen() {
   const { current, loading: leagueLoading } = useLeagueContext()
   const { user } = useAuth()
+  const [tab, setTab] = useState<Tab>('standings')
   const [members, setMembers] = useState<any[]>([])
+  const [standings, setStandings] = useState<StandingRow[]>([])
   const [loading, setLoading] = useState(true)
 
   const league = current?.leagues as any
@@ -29,8 +34,12 @@ export default function LeagueScreen() {
     if (!current) return
     setLoading(true)
     try {
-      const data = await getLeagueMembers(league.id)
-      setMembers(data)
+      const [memberData, standingsData] = await Promise.all([
+        getLeagueMembers(league.id),
+        getLeagueStandings(league.id),
+      ])
+      setMembers(memberData)
+      setStandings(standingsData)
     } catch (e) {
       console.error(e)
     } finally {
@@ -91,10 +100,25 @@ export default function LeagueScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Members */}
-      <Text style={styles.sectionTitle}>Teams ({members.length})</Text>
+      {/* Tab switcher */}
+      <View style={styles.tabRow}>
+        {(['standings', 'members'] as Tab[]).map((t) => (
+          <TouchableOpacity
+            key={t}
+            style={[styles.tabChip, tab === t && styles.tabChipActive]}
+            onPress={() => setTab(t)}
+          >
+            <Text style={[styles.tabChipText, tab === t && styles.tabChipTextActive]}>
+              {t === 'standings' ? 'Standings' : `Teams (${members.length})`}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
       {loading ? (
         <ActivityIndicator style={{ marginTop: 24 }} color="#F97316" />
+      ) : tab === 'standings' ? (
+        <StandingsTable standings={standings} myMemberId={current?.id} />
       ) : (
         <FlatList
           data={members}
@@ -134,6 +158,49 @@ export default function LeagueScreen() {
         />
       )}
     </SafeAreaView>
+  )
+}
+
+function StandingsTable({ standings, myMemberId }: { standings: StandingRow[]; myMemberId?: string }) {
+  if (standings.length === 0) {
+    return (
+      <View style={styles.empty}>
+        <Text style={styles.emptyText}>No standings yet — matchups will appear once games are scored.</Text>
+      </View>
+    )
+  }
+
+  return (
+    <FlatList
+      data={standings}
+      keyExtractor={(s) => s.memberId}
+      ListHeaderComponent={() => (
+        <View style={[styles.standingsRow, styles.standingsHeader]}>
+          <Text style={[styles.standingsRank, styles.standingsHeaderText]}>#</Text>
+          <Text style={[styles.standingsTeam, styles.standingsHeaderText]}>Team</Text>
+          <Text style={[styles.standingsCell, styles.standingsHeaderText]}>W</Text>
+          <Text style={[styles.standingsCell, styles.standingsHeaderText]}>L</Text>
+          <Text style={[styles.standingsPts, styles.standingsHeaderText]}>PF</Text>
+          <Text style={[styles.standingsPts, styles.standingsHeaderText]}>PA</Text>
+        </View>
+      )}
+      ItemSeparatorComponent={() => <View style={styles.separator} />}
+      renderItem={({ item, index }) => {
+        const isMe = item.memberId === myMemberId
+        return (
+          <View style={[styles.standingsRow, isMe && styles.standingsRowMe]}>
+            <Text style={[styles.standingsRank, isMe && styles.standingsMe]}>{index + 1}</Text>
+            <Text style={[styles.standingsTeam, isMe && styles.standingsMe]} numberOfLines={1}>
+              {item.teamName}
+            </Text>
+            <Text style={[styles.standingsCell, isMe && styles.standingsMe]}>{item.wins}</Text>
+            <Text style={[styles.standingsCell, isMe && styles.standingsMe]}>{item.losses}</Text>
+            <Text style={[styles.standingsPts, isMe && styles.standingsMe]}>{item.pointsFor.toFixed(1)}</Text>
+            <Text style={[styles.standingsPts, isMe && styles.standingsMe]}>{item.pointsAgainst.toFixed(1)}</Text>
+          </View>
+        )
+      }}
+    />
   )
 }
 
@@ -179,6 +246,22 @@ const styles = StyleSheet.create({
   roleText: { fontSize: 11, fontWeight: '700', color: '#888' },
   roleTextCommissioner: { color: '#D97706' },
 
-  empty: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  emptyText: { fontSize: 14, color: '#aaa' },
+  tabRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 20, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#eee' },
+  tabChip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, backgroundColor: '#f3f3f3' },
+  tabChipActive: { backgroundColor: '#F97316' },
+  tabChipText: { fontSize: 13, fontWeight: '600', color: '#555' },
+  tabChipTextActive: { color: '#fff' },
+
+  standingsRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 11 },
+  standingsRowMe: { backgroundColor: '#FFF7ED' },
+  standingsHeader: { borderBottomWidth: 1, borderBottomColor: '#eee', paddingVertical: 8 },
+  standingsHeaderText: { fontSize: 11, fontWeight: '700', color: '#aaa' },
+  standingsRank: { width: 24, fontSize: 14, fontWeight: '700', color: '#555' },
+  standingsTeam: { flex: 1, fontSize: 14, fontWeight: '600', color: '#111' },
+  standingsCell: { width: 28, textAlign: 'center', fontSize: 14, color: '#555' },
+  standingsPts: { width: 52, textAlign: 'right', fontSize: 13, color: '#555' },
+  standingsMe: { color: '#F97316', fontWeight: '700' },
+
+  empty: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
+  emptyText: { fontSize: 14, color: '#aaa', textAlign: 'center' },
 })
