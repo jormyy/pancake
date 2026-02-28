@@ -1,5 +1,6 @@
 import 'dotenv/config'
 import Fastify from 'fastify'
+import { supabase } from './lib/supabase'
 
 process.on('uncaughtException', (err) => console.error('[crash] uncaughtException:', err))
 process.on('unhandledRejection', (err) => console.error('[crash] unhandledRejection:', err))
@@ -29,6 +30,17 @@ app.setErrorHandler((error: any, _req, reply) => {
 
 // ── Health check ──────────────────────────────────────────────
 app.get('/health', async () => ({ status: 'ok' }))
+
+app.get('/health/db', async (_req, reply) => {
+  try {
+    const { error } = await supabase.from('leagues').select('id').limit(1)
+    if (error) { reply.status(500); return { ok: false, error: error.message } }
+    return { ok: true }
+  } catch (e: any) {
+    reply.status(500)
+    return { ok: false, error: e?.message ?? String(e) }
+  }
+})
 
 // ── Manual sync routes (also called by cron) ─────────────────
 
