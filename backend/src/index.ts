@@ -1,5 +1,8 @@
 import 'dotenv/config'
 import Fastify from 'fastify'
+
+process.on('uncaughtException', (err) => console.error('[crash] uncaughtException:', err))
+process.on('unhandledRejection', (err) => console.error('[crash] unhandledRejection:', err))
 import cron from 'node-cron'
 import { syncPlayers } from './sync/players'
 import { syncSchedule } from './sync/games'
@@ -18,6 +21,11 @@ import {
 import { formatDate } from './lib/sportsdata'
 
 const app = Fastify({ logger: true })
+
+app.setErrorHandler((error: any, _req, reply) => {
+  console.error('[fastify error]', error)
+  reply.status(500).send({ ok: false, error: error?.message || String(error) })
+})
 
 // ── Health check ──────────────────────────────────────────────
 app.get('/health', async () => ({ status: 'ok' }))
