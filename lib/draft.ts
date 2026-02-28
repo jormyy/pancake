@@ -209,7 +209,7 @@ async function apiPost(path: string, body: object) {
     } catch {
         throw new Error(`Server error (${res.status}): ${text.slice(0, 100)}`)
     }
-    if (!json.ok) throw new Error(json.error ?? 'Request failed')
+    if (!json.ok) throw new Error(json.error || `Backend error: ${text.slice(0, 200)}`)
     return json
 }
 
