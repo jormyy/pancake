@@ -1,4 +1,15 @@
 import 'dotenv/config'
+
+// Validate required env vars before anything else loads
+const REQUIRED_ENV = ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY'] as const
+for (const key of REQUIRED_ENV) {
+    if (!process.env[key]) {
+        console.error(`[startup] Missing required env var: ${key}`)
+        process.exit(1)
+    }
+}
+console.log('[startup] Env vars OK — starting server')
+
 import Fastify from 'fastify'
 import cron from 'node-cron'
 import { syncPlayers } from './sync/players'
