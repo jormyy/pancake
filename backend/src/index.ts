@@ -1,15 +1,4 @@
 import 'dotenv/config'
-
-// Validate required env vars before anything else loads
-const REQUIRED_ENV = ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY'] as const
-for (const key of REQUIRED_ENV) {
-    if (!process.env[key]) {
-        console.error(`[startup] Missing required env var: ${key}`)
-        process.exit(1)
-    }
-}
-console.log('[startup] Env vars OK — starting server')
-
 import Fastify from 'fastify'
 import cron from 'node-cron'
 import { syncPlayers } from './sync/players'
@@ -30,6 +19,13 @@ import { formatDate } from './lib/sportsdata'
 
 process.on('uncaughtException', (err) => console.error('[crash] uncaughtException:', err))
 process.on('unhandledRejection', (err) => console.error('[crash] unhandledRejection:', err))
+
+// Validate required env vars
+if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    console.error('[startup] Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY')
+    process.exit(1)
+}
+console.log('[startup] Env vars OK — starting server')
 
 const app = Fastify({ logger: true })
 
