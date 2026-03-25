@@ -14,6 +14,7 @@ import { useFocusEffect } from '@react-navigation/native'
 import { useAuth } from '@/hooks/use-auth'
 import { useLeagueContext } from '@/contexts/league-context'
 import { getRoster, toggleIR, RosterPlayer } from '@/lib/roster'
+import { getPicksForMember, TradePickItem } from '@/lib/trades'
 
 const POSITION_COLORS: Record<string, string> = {
     PG: '#3B82F6',
@@ -36,6 +37,7 @@ export default function RosterScreen() {
     const { user } = useAuth()
     const { current, loading: leagueLoading } = useLeagueContext()
     const [roster, setRoster] = useState<RosterPlayer[]>([])
+    const [picks, setPicks] = useState<TradePickItem[]>([])
     const [loading, setLoading] = useState(true)
     const [togglingId, setTogglingId] = useState<string | null>(null)
 
@@ -43,8 +45,13 @@ export default function RosterScreen() {
         if (!current || !user) return
         setLoading(true)
         try {
-            const data = await getRoster(current.id, (current.leagues as any).id)
+            const leagueId = (current.leagues as any).id
+            const [data, pickData] = await Promise.all([
+                getRoster(current.id, leagueId),
+                getPicksForMember(current.id, leagueId),
+            ])
             setRoster(data)
+            setPicks(pickData)
         } catch (e) {
             console.error(e)
         } finally {
@@ -145,14 +152,43 @@ export default function RosterScreen() {
                         ...active.map((p) => ({ ...p, _section: 'active' })),
                         ...(ir.length > 0 ? [{ _isHeader: true, _section: 'ir' } as any] : []),
                         ...ir.map((p) => ({ ...p, _section: 'ir' })),
+                        { _isHeader: true, _section: 'picks' } as any,
+                        ...picks.map((p) => ({ ...p, _section: 'picks' })),
                     ]}
-                    keyExtractor={(item) => (item._isHeader ? 'ir-header' : item.id)}
+                    keyExtractor={(item) =>
+                        item._isHeader ? `header-${item._section}` : (item.id ?? item.pickId)
+                    }
                     ItemSeparatorComponent={() => <View style={styles.separator} />}
                     renderItem={({ item }) => {
                         if (item._isHeader) {
                             return (
                                 <View style={styles.sectionHeader}>
-                                    <Text style={styles.sectionHeaderText}>IR</Text>
+                                    <Text style={styles.sectionHeaderText}>
+                                        {item._section === 'picks' ? 'DRAFT PICKS' : 'IR'}
+                                    </Text>
+                                </View>
+                            )
+                        }
+                        if (item._section === 'picks') {
+                            const pick = item as TradePickItem
+                            const isOwn = pick.originalTeamName === (current?.team_name ?? '')
+                            return (
+                                <View style={styles.pickRow}>
+                                    <View style={styles.pickCircle}>
+                                        <Text style={styles.pickCircleText}>
+                                            {String(pick.seasonYear).slice(2)}
+                                        </Text>
+                                    </View>
+                                    <View style={styles.info}>
+                                        <Text style={styles.playerName}>
+                                            {pick.seasonYear} Round {pick.round}
+                                        </Text>
+                                        {!isOwn && (
+                                            <Text style={styles.playerMeta}>
+                                                via {pick.originalTeamName}
+                                            </Text>
+                                        )}
+                                    </View>
                                 </View>
                             )
                         }
@@ -303,6 +339,23 @@ const styles = StyleSheet.create({
     irButtonActive: { backgroundColor: '#EF4444', borderColor: '#EF4444' },
     irButtonText: { fontSize: 12, fontWeight: '700', color: '#888' },
     irButtonTextActive: { color: '#fff' },
+
+    pickRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        gap: 12,
+    },
+    pickCircle: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: '#6366F1',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    pickCircleText: { color: '#fff', fontWeight: '700', fontSize: 13 },
 
     empty: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 8 },
     emptyTitle: { fontSize: 18, fontWeight: '700' },
