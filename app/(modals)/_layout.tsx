@@ -19,6 +19,10 @@ export default function ModalsLayout() {
                 name="draft-room"
                 options={{ title: 'Draft Room', headerBackVisible: false }}
             />
+            <Stack.Screen
+                name="lineup"
+                options={{ headerShown: false, presentation: 'modal' }}
+            />
         </Stack>
     )
 }

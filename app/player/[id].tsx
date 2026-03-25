@@ -66,7 +66,7 @@ export default function PlayerDetailScreen() {
 
     useEffect(() => {
         loadRosterStatus()
-    }, [id, current])
+    }, [id, current, user])
 
     async function handleAdd() {
         if (!current || !user) return

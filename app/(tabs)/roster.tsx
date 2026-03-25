@@ -116,12 +116,20 @@ export default function RosterScreen() {
         <SafeAreaView style={styles.container}>
             {/* Header */}
             <View style={styles.header}>
-                <Text style={styles.leagueName}>{league?.name}</Text>
-                <Text style={styles.teamName}>{current.team_name}</Text>
-                <Text style={styles.rosterCount}>
-                    {active.length}/{league?.roster_size ?? 20} active · {ir.length}/
-                    {league?.ir_slots ?? 2} IR
-                </Text>
+                <View style={{ flex: 1 }}>
+                    <Text style={styles.leagueName}>{league?.name}</Text>
+                    <Text style={styles.teamName}>{current.team_name}</Text>
+                    <Text style={styles.rosterCount}>
+                        {active.length}/{league?.roster_size ?? 20} active · {ir.length}/
+                        {league?.ir_slots ?? 2} IR
+                    </Text>
+                </View>
+                <TouchableOpacity
+                    style={styles.lineupButton}
+                    onPress={() => router.push('/(modals)/lineup')}
+                >
+                    <Text style={styles.lineupButtonText}>Set Lineup</Text>
+                </TouchableOpacity>
             </View>
 
             {loading ? (
@@ -230,7 +238,22 @@ export default function RosterScreen() {
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#fff' },
 
-    header: { padding: 20, borderBottomWidth: 1, borderBottomColor: '#eee', gap: 2 },
+    header: {
+        padding: 20,
+        borderBottomWidth: 1,
+        borderBottomColor: '#eee',
+        gap: 2,
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    lineupButton: {
+        paddingHorizontal: 14,
+        paddingVertical: 8,
+        backgroundColor: '#F97316',
+        borderRadius: 10,
+        marginLeft: 12,
+    },
+    lineupButtonText: { color: '#fff', fontWeight: '700', fontSize: 13 },
     leagueName: { fontSize: 18, fontWeight: '800' },
     teamName: { fontSize: 14, color: '#555' },
     rosterCount: { fontSize: 12, color: '#aaa', marginTop: 4 },
