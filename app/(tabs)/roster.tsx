@@ -15,6 +15,7 @@ import { useAuth } from '@/hooks/use-auth'
 import { useLeagueContext } from '@/contexts/league-context'
 import { getRoster, toggleIR, RosterPlayer } from '@/lib/roster'
 import { getPicksForMember, TradePickItem } from '@/lib/trades'
+import { getMyWaiverClaims, cancelWaiverClaim, WaiverClaim } from '@/lib/waivers'
 
 const POSITION_COLORS: Record<string, string> = {
     PG: '#3B82F6',
@@ -38,20 +39,24 @@ export default function RosterScreen() {
     const { current, loading: leagueLoading } = useLeagueContext()
     const [roster, setRoster] = useState<RosterPlayer[]>([])
     const [picks, setPicks] = useState<TradePickItem[]>([])
+    const [claims, setClaims] = useState<WaiverClaim[]>([])
     const [loading, setLoading] = useState(true)
     const [togglingId, setTogglingId] = useState<string | null>(null)
+    const [cancellingId, setCancellingId] = useState<string | null>(null)
 
     const load = useCallback(async () => {
         if (!current || !user) return
         setLoading(true)
         try {
             const leagueId = (current.leagues as any).id
-            const [data, pickData] = await Promise.all([
+            const [data, pickData, claimData] = await Promise.all([
                 getRoster(current.id, leagueId),
                 getPicksForMember(current.id, leagueId),
+                getMyWaiverClaims(current.id, leagueId),
             ])
             setRoster(data)
             setPicks(pickData)
+            setClaims(claimData)
         } catch (e) {
             console.error(e)
         } finally {
@@ -94,6 +99,19 @@ export default function RosterScreen() {
             Alert.alert('Error', e.message)
         } finally {
             setTogglingId(null)
+        }
+    }
+
+    async function handleCancelClaim(claimId: string) {
+        if (!user) return
+        setCancellingId(claimId)
+        try {
+            await cancelWaiverClaim(claimId, user.id)
+            await load()
+        } catch (e: any) {
+            Alert.alert('Error', e.message)
+        } finally {
+            setCancellingId(null)
         }
     }
 
@@ -154,6 +172,10 @@ export default function RosterScreen() {
                         ...ir.map((p) => ({ ...p, _section: 'ir' })),
                         { _isHeader: true, _section: 'picks' } as any,
                         ...picks.map((p) => ({ ...p, _section: 'picks' })),
+                        ...(claims.length > 0
+                            ? [{ _isHeader: true, _section: 'claims' } as any]
+                            : []),
+                        ...claims.map((c) => ({ ...c, _section: 'claims' })),
                     ]}
                     keyExtractor={(item) =>
                         item._isHeader ? `header-${item._section}` : (item.id ?? item.pickId)
@@ -161,11 +183,59 @@ export default function RosterScreen() {
                     ItemSeparatorComponent={() => <View style={styles.separator} />}
                     renderItem={({ item }) => {
                         if (item._isHeader) {
+                            const label =
+                                item._section === 'picks'
+                                    ? 'DRAFT PICKS'
+                                    : item._section === 'claims'
+                                      ? 'WAIVER CLAIMS'
+                                      : 'IR'
                             return (
                                 <View style={styles.sectionHeader}>
-                                    <Text style={styles.sectionHeaderText}>
-                                        {item._section === 'picks' ? 'DRAFT PICKS' : 'IR'}
-                                    </Text>
+                                    <Text style={styles.sectionHeaderText}>{label}</Text>
+                                </View>
+                            )
+                        }
+                        if (item._section === 'claims') {
+                            const claim = item as WaiverClaim
+                            const isPending = claim.status === 'pending'
+                            const statusColor =
+                                claim.status === 'succeeded'
+                                    ? '#10B981'
+                                    : claim.status === 'pending'
+                                      ? '#8B5CF6'
+                                      : '#EF4444'
+                            return (
+                                <View style={styles.claimRow}>
+                                    <View style={styles.info}>
+                                        <Text style={styles.playerName}>{claim.playerName}</Text>
+                                        {claim.dropPlayerName && (
+                                            <Text style={styles.playerMeta}>
+                                                Drop: {claim.dropPlayerName}
+                                            </Text>
+                                        )}
+                                        <Text style={[styles.playerMeta, { color: statusColor }]}>
+                                            {claim.status === 'pending'
+                                                ? `Processes ${new Date(claim.processDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+                                                : claim.status === 'succeeded'
+                                                  ? 'Succeeded'
+                                                  : claim.status === 'failed_roster'
+                                                    ? 'Failed: roster full'
+                                                    : 'Failed: outbid'}
+                                        </Text>
+                                    </View>
+                                    {isPending && (
+                                        <TouchableOpacity
+                                            style={styles.cancelButton}
+                                            onPress={() => handleCancelClaim(claim.id)}
+                                            disabled={cancellingId === claim.id}
+                                        >
+                                            {cancellingId === claim.id ? (
+                                                <ActivityIndicator size="small" color="#888" />
+                                            ) : (
+                                                <Text style={styles.cancelButtonText}>Cancel</Text>
+                                            )}
+                                        </TouchableOpacity>
+                                    )}
                                 </View>
                             )
                         }
@@ -356,6 +426,24 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     pickCircleText: { color: '#fff', fontWeight: '700', fontSize: 13 },
+
+    claimRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        gap: 12,
+    },
+    cancelButton: {
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: '#ddd',
+        minWidth: 60,
+        alignItems: 'center',
+    },
+    cancelButtonText: { fontSize: 12, fontWeight: '700', color: '#888' },
 
     empty: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 8 },
     emptyTitle: { fontSize: 18, fontWeight: '700' },

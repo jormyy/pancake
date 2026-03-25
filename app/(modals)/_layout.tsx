@@ -31,6 +31,14 @@ export default function ModalsLayout() {
                 name="trades"
                 options={{ headerShown: false, presentation: 'modal' }}
             />
+            <Stack.Screen
+                name="claim-player"
+                options={{ title: 'Waiver Claim', presentation: 'modal' }}
+            />
+            <Stack.Screen
+                name="bracket"
+                options={{ title: 'Playoff Bracket', presentation: 'modal' }}
+            />
         </Stack>
     )
 }

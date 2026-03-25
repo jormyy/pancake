@@ -8,7 +8,7 @@ import {
     Alert,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { useLocalSearchParams, Stack } from 'expo-router'
+import { useLocalSearchParams, Stack, router } from 'expo-router'
 import { useEffect, useState } from 'react'
 import { getPlayer, getPlayerSeasonAverages, getPlayerRecentGames } from '@/lib/players'
 import { getPlayerRosterStatus, addFreeAgent, dropPlayer, PlayerRosterStatus } from '@/lib/roster'
@@ -165,6 +165,18 @@ export default function PlayerDetailScreen() {
                                     ) : (
                                         <Text style={styles.addButtonText}>+ Add</Text>
                                     )}
+                                </TouchableOpacity>
+                            ) : rosterStatus.status === 'on_waivers' ? (
+                                <TouchableOpacity
+                                    style={styles.claimButton}
+                                    onPress={() =>
+                                        router.push(
+                                            `/(modals)/claim-player?playerId=${id}`,
+                                        )
+                                    }
+                                    disabled={actionLoading}
+                                >
+                                    <Text style={styles.claimButtonText}>Claim</Text>
                                 </TouchableOpacity>
                             ) : rosterStatus.status === 'mine' ? (
                                 <TouchableOpacity
@@ -373,4 +385,15 @@ const styles = StyleSheet.create({
         alignSelf: 'flex-start',
     },
     takenText: { color: '#888', fontSize: 12, fontWeight: '600' },
+
+    claimButton: {
+        backgroundColor: '#8B5CF6',
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        borderRadius: 10,
+        minWidth: 72,
+        alignItems: 'center',
+        alignSelf: 'flex-start',
+    },
+    claimButtonText: { color: '#fff', fontWeight: '700', fontSize: 14 },
 })

@@ -7,6 +7,7 @@ import 'react-native-reanimated'
 import { useColorScheme } from '@/hooks/use-color-scheme'
 import { useAuth } from '@/hooks/use-auth'
 import { LeagueProvider } from '@/contexts/league-context'
+import { usePushNotifications } from '@/hooks/use-push-notifications'
 
 export const unstable_settings = {
     anchor: '(tabs)',
@@ -15,6 +16,7 @@ export const unstable_settings = {
 export default function RootLayout() {
     const colorScheme = useColorScheme()
     const { session, loading } = useAuth()
+    usePushNotifications()
 
     useEffect(() => {
         if (loading) return

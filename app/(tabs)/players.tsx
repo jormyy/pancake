@@ -13,6 +13,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useFocusEffect } from '@react-navigation/native'
 import { searchPlayers, PlayerRow } from '@/lib/players'
 import { getOwnedPlayerIds } from '@/lib/roster'
+import { getWaiverPlayerIds } from '@/lib/waivers'
 import { useLeagueContext } from '@/contexts/league-context'
 
 const POSITIONS = ['ALL', 'PG', 'SG', 'SF', 'PF', 'C', 'G', 'F']
@@ -41,13 +42,18 @@ export default function PlayersScreen() {
     const [players, setPlayers] = useState<PlayerRow[]>([])
     const [loading, setLoading] = useState(true)
     const [ownedIds, setOwnedIds] = useState<Set<string>>(new Set())
+    const [waiverIds, setWaiverIds] = useState<Set<string>>(new Set())
 
     const loadOwned = useCallback(async () => {
         if (!current) return
         const league = current.leagues as any
         try {
-            const ids = await getOwnedPlayerIds(league.id)
+            const [ids, wIds] = await Promise.all([
+                getOwnedPlayerIds(league.id),
+                getWaiverPlayerIds(league.id),
+            ])
             setOwnedIds(ids)
+            setWaiverIds(wIds)
         } catch (e) {
             console.error(e)
         }
@@ -173,21 +179,27 @@ export default function PlayersScreen() {
                                 </View>
                             )}
 
-                            {/* Owned badge */}
+                            {/* Status badge */}
                             {current && (
                                 <View
                                     style={[
                                         styles.ownedBadge,
                                         ownedIds.has(item.id) && styles.ownedBadgeOwned,
+                                        waiverIds.has(item.id) && styles.ownedBadgeWaiver,
                                     ]}
                                 >
                                     <Text
                                         style={[
                                             styles.ownedBadgeText,
                                             ownedIds.has(item.id) && styles.ownedBadgeTextOwned,
+                                            waiverIds.has(item.id) && styles.ownedBadgeTextWaiver,
                                         ]}
                                     >
-                                        {ownedIds.has(item.id) ? 'Owned' : 'FA'}
+                                        {ownedIds.has(item.id)
+                                            ? 'Owned'
+                                            : waiverIds.has(item.id)
+                                              ? 'W'
+                                              : 'FA'}
                                     </Text>
                                 </View>
                             )}
@@ -262,6 +274,8 @@ const styles = StyleSheet.create({
         backgroundColor: '#f0f0f0',
     },
     ownedBadgeOwned: { backgroundColor: '#FEE2E2' },
+    ownedBadgeWaiver: { backgroundColor: '#EDE9FE' },
     ownedBadgeText: { fontSize: 11, fontWeight: '700', color: '#aaa' },
     ownedBadgeTextOwned: { color: '#DC2626' },
+    ownedBadgeTextWaiver: { color: '#7C3AED' },
 })
