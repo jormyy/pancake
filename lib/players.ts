@@ -80,7 +80,7 @@ export async function getPlayerRecentGames(playerId: string) {
         )
         .eq('player_id', playerId)
         .eq('season_year', CURRENT_SEASON)
-        .order('game_id')
+        .order('nba_games(game_date)', { ascending: false })
         .limit(5)
 
     if (error) throw error
