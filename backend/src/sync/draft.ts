@@ -279,6 +279,33 @@ async function closeNomination(nom: {
         .from('drafts')
         .update({ current_nomination_order: draft.current_nomination_order + 1 })
         .eq('id', nom.draft_id)
+
+    // End draft if all teams are bankrupt
+    await checkAllBankrupt(nom.draft_id, draft.league_id)
+}
+
+async function checkAllBankrupt(draftId: string, leagueId: string) {
+    const { data: budgets } = await supabase
+        .from('draft_budgets')
+        .select('remaining')
+        .eq('draft_id', draftId)
+
+    if (!budgets || budgets.length === 0) return
+    const allBroke = budgets.every((b: any) => b.remaining < 1)
+    if (!allBroke) return
+
+    const now = new Date().toISOString()
+    await supabase
+        .from('drafts')
+        .update({ status: 'completed', completed_at: now })
+        .eq('id', draftId)
+
+    await supabase
+        .from('leagues')
+        .update({ status: 'active' })
+        .eq('id', leagueId)
+
+    console.log(`[draft] All teams bankrupt — draft ${draftId} ended automatically`)
 }
 
 // ── Get Draft State ────────────────────────────────────────────
