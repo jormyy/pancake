@@ -15,22 +15,18 @@ const LeagueContext = createContext<LeagueContextType | null>(null)
 export function LeagueProvider({ children }: { children: ReactNode }) {
     const { user } = useAuth()
     const { memberships, loading, refresh } = useLeagues()
-    const [current, setCurrent] = useState<LeagueMembership | null>(null)
+    const [currentId, setCurrentId] = useState<string | null>(null)
 
-    // Auto-select first league once loaded
-    useEffect(() => {
-        if (memberships.length > 0 && !current) {
-            setCurrent(memberships[0])
-        }
-        // If current league was removed, reset
-        if (current && !memberships.find((m) => m.id === current.id)) {
-            setCurrent(memberships[0] ?? null)
-        }
-    }, [memberships])
+    // Derive current from memberships so it always reflects fresh data
+    const current = memberships.find((m) => m.id === currentId) ?? memberships[0] ?? null
+
+    const setCurrent = useCallback((m: LeagueMembership) => {
+        setCurrentId(m.id)
+    }, [])
 
     // Reset when user changes
     useEffect(() => {
-        setCurrent(null)
+        setCurrentId(null)
     }, [user?.id])
 
     return (

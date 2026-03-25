@@ -49,6 +49,7 @@ export default function CommissionerSettingsScreen() {
     const [saving, setSaving] = useState(false)
     const [generatingSchedule, setGeneratingSchedule] = useState(false)
     const [syncingGames, setSyncingGames] = useState(false)
+    const [syncingScores, setSyncingScores] = useState(false)
 
     useEffect(() => {
         async function load() {
@@ -106,8 +107,8 @@ export default function CommissionerSettingsScreen() {
             Alert.alert('Invalid', 'Auction budget must be at least 1.')
             return
         }
-        if (isNaN(parsedPlayoff) || parsedPlayoff < 18 || parsedPlayoff > 22) {
-            Alert.alert('Invalid', 'Playoff start week must be between 18 and 22.')
+        if (isNaN(parsedPlayoff) || parsedPlayoff < 18 || parsedPlayoff > 26) {
+            Alert.alert('Invalid', 'Playoff start week must be between 18 and 26.')
             return
         }
 
@@ -138,6 +139,20 @@ export default function CommissionerSettingsScreen() {
             Alert.alert('Error', e.message)
         } finally {
             setSaving(false)
+        }
+    }
+
+    async function syncScores() {
+        setSyncingScores(true)
+        try {
+            const res = await fetch(`${API_URL}/sync/scores`, { method: 'POST' })
+            const json = await res.json()
+            if (!json.ok) throw new Error(json.error || 'Failed to sync scores')
+            Alert.alert('Done', 'Scores synced.')
+        } catch (e: any) {
+            Alert.alert('Error', e.message)
+        } finally {
+            setSyncingScores(false)
         }
     }
 
@@ -254,7 +269,7 @@ export default function CommissionerSettingsScreen() {
                                 set: setAuctionBudget,
                             },
                             {
-                                label: 'Playoff Start Week (18–22)',
+                                label: 'Playoff Start Week (18–26)',
                                 value: playoffWeek,
                                 set: setPlayoffWeek,
                             },
@@ -286,6 +301,17 @@ export default function CommissionerSettingsScreen() {
 
                     {/* ── Commissioner Actions ───────────────────────── */}
                     <Text style={styles.sectionTitle}>COMMISSIONER ACTIONS</Text>
+                    <TouchableOpacity
+                        style={styles.actionButton}
+                        onPress={syncScores}
+                        disabled={syncingScores}
+                    >
+                        {syncingScores ? (
+                            <ActivityIndicator color="#F97316" />
+                        ) : (
+                            <Text style={styles.actionButtonText}>Sync Scores Now</Text>
+                        )}
+                    </TouchableOpacity>
                     <TouchableOpacity
                         style={styles.actionButton}
                         onPress={syncGameSchedule}
