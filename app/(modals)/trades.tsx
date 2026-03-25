@@ -13,7 +13,16 @@ import { router } from 'expo-router'
 import { useCallback, useEffect, useState } from 'react'
 import { useAuth } from '@/hooks/use-auth'
 import { useLeagueContext } from '@/contexts/league-context'
-import { getMyTrades, acceptTrade, rejectTrade, withdrawTrade, Trade } from '@/lib/trades'
+import {
+    getMyTrades,
+    acceptTrade,
+    rejectTrade,
+    withdrawTrade,
+    Trade,
+    TradeItem,
+    TradePlayerItem,
+    TradePickItem,
+} from '@/lib/trades'
 
 type TabKey = 'inbox' | 'offers' | 'history'
 
@@ -37,9 +46,41 @@ const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
     vetoed: { bg: '#FEE2E2', text: '#991B1B' },
 }
 
-function playerList(items: { playerName: string }[]): string {
-    if (items.length === 0) return 'Nothing'
-    return items.map((i) => i.playerName).join(', ')
+function itemLabel(item: TradeItem): string {
+    if (item.kind === 'player') {
+        return item.playerName
+    }
+    return `${item.seasonYear} Rd ${item.round} (via ${item.originalTeamName})`
+}
+
+function TradeItemLine({ item }: { item: TradeItem }) {
+    if (item.kind === 'player') {
+        return <Text style={styles.assetPlayer}>{item.playerName}</Text>
+    }
+    return (
+        <Text style={styles.assetPick}>
+            {item.seasonYear} Rd {item.round}{' '}
+            <Text style={styles.assetPickVia}>(via {item.originalTeamName})</Text>
+        </Text>
+    )
+}
+
+function AssetList({ items, label }: { items: TradeItem[]; label: string }) {
+    return (
+        <View style={styles.assetBlock}>
+            <Text style={styles.assetLabel}>{label}</Text>
+            {items.length === 0 ? (
+                <Text style={styles.assetEmpty}>Nothing</Text>
+            ) : (
+                items.map((item, idx) => (
+                    <TradeItemLine
+                        key={item.kind === 'player' ? item.playerId : item.pickId}
+                        item={item}
+                    />
+                ))
+            )}
+        </View>
+    )
 }
 
 function TradeCard({
@@ -131,14 +172,8 @@ function TradeCard({
                 </View>
             </View>
 
-            <Text style={styles.cardLine}>
-                <Text style={styles.cardLineLabel}>You receive: </Text>
-                {playerList(iReceive)}
-            </Text>
-            <Text style={styles.cardLine}>
-                <Text style={styles.cardLineLabel}>You give: </Text>
-                {playerList(iGive)}
-            </Text>
+            <AssetList items={iReceive} label="You receive:" />
+            <AssetList items={iGive} label="You give:" />
 
             {trade.notes ? <Text style={styles.cardNotes}>"{trade.notes}"</Text> : null}
 
@@ -365,13 +400,13 @@ const styles = StyleSheet.create({
         borderRadius: 12,
         padding: 14,
         backgroundColor: '#fff',
-        gap: 6,
+        gap: 4,
     },
     cardHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 4,
+        marginBottom: 6,
     },
     cardOpponent: { fontSize: 15, fontWeight: '700', color: '#111', flex: 1 },
     statusBadge: {
@@ -380,8 +415,14 @@ const styles = StyleSheet.create({
         borderRadius: 6,
     },
     statusText: { fontSize: 11, fontWeight: '700' },
-    cardLine: { fontSize: 13, color: '#555' },
-    cardLineLabel: { fontWeight: '600', color: '#333' },
+
+    assetBlock: { marginBottom: 4 },
+    assetLabel: { fontSize: 12, fontWeight: '600', color: '#333', marginBottom: 2 },
+    assetEmpty: { fontSize: 13, color: '#aaa' },
+    assetPlayer: { fontSize: 13, color: '#555' },
+    assetPick: { fontSize: 13, color: '#555', fontStyle: 'italic' },
+    assetPickVia: { fontSize: 12, color: '#999' },
+
     cardNotes: { fontSize: 12, color: '#888', fontStyle: 'italic', marginTop: 2 },
 
     cardActions: {

@@ -1,11 +1,22 @@
 import { supabase } from '@/lib/supabase'
 
-export type TradeItem = {
+export type TradePlayerItem = {
+    kind: 'player'
     playerId: string
     playerName: string
     position: string | null
     nbaTeam: string | null
 }
+
+export type TradePickItem = {
+    kind: 'pick'
+    pickId: string
+    seasonYear: number
+    round: number
+    originalTeamName: string
+}
+
+export type TradeItem = TradePlayerItem | TradePickItem
 
 export type Trade = {
     id: string
@@ -32,6 +43,32 @@ async function getCurrentSeasonId(leagueId: string): Promise<string | null> {
     return data?.id ?? null
 }
 
+export async function getPicksForMember(memberId: string, leagueId: string): Promise<TradePickItem[]> {
+    const { data, error } = await (supabase as any)
+        .from('draft_picks')
+        .select(`
+            id,
+            season_year,
+            round,
+            original_owner:league_members!draft_picks_original_owner_id_fkey ( team_name )
+        `)
+        .eq('current_owner_id', memberId)
+        .eq('league_id', leagueId)
+        .eq('is_used', false)
+        .order('season_year', { ascending: true })
+        .order('round', { ascending: true })
+
+    if (error) throw error
+
+    return (data ?? []).map((row: any) => ({
+        kind: 'pick' as const,
+        pickId: row.id,
+        seasonYear: row.season_year,
+        round: row.round,
+        originalTeamName: row.original_owner?.team_name ?? 'Unknown',
+    }))
+}
+
 export async function proposeTrade(
     memberId: string,
     leagueId: string,
@@ -39,10 +76,15 @@ export async function proposeTrade(
     recipientMemberId: string,
     offerPlayerIds: string[],
     requestPlayerIds: string[],
+    offerPickIds: string[],
+    requestPickIds: string[],
     notes?: string,
 ): Promise<string> {
-    if (offerPlayerIds.length === 0 && requestPlayerIds.length === 0) {
-        throw new Error('A trade must include at least one player on each side.')
+    const hasOfferAssets = offerPlayerIds.length > 0 || offerPickIds.length > 0
+    const hasRequestAssets = requestPlayerIds.length > 0 || requestPickIds.length > 0
+
+    if (!hasOfferAssets || !hasRequestAssets) {
+        throw new Error('A trade must include at least one asset on each side.')
     }
 
     const { data: trade, error: tradeError } = await (supabase as any)
@@ -60,14 +102,22 @@ export async function proposeTrade(
 
     if (tradeError) throw tradeError
 
-    const items: { trade_id: string; side: string; player_id: string }[] = []
+    const items: { trade_id: string; side: string; player_id: string | null; pick_id: string | null }[] = []
 
     for (const playerId of offerPlayerIds) {
-        items.push({ trade_id: trade.id, side: 'proposer', player_id: playerId })
+        items.push({ trade_id: trade.id, side: 'proposer', player_id: playerId, pick_id: null })
     }
 
     for (const playerId of requestPlayerIds) {
-        items.push({ trade_id: trade.id, side: 'recipient', player_id: playerId })
+        items.push({ trade_id: trade.id, side: 'recipient', player_id: playerId, pick_id: null })
+    }
+
+    for (const pickId of offerPickIds) {
+        items.push({ trade_id: trade.id, side: 'proposer', player_id: null, pick_id: pickId })
+    }
+
+    for (const pickId of requestPickIds) {
+        items.push({ trade_id: trade.id, side: 'recipient', player_id: null, pick_id: pickId })
     }
 
     if (items.length > 0) {
@@ -94,7 +144,7 @@ export async function acceptTrade(tradeId: string, memberId: string): Promise<vo
     // Fetch all trade items
     const { data: items, error: itemsError } = await (supabase as any)
         .from('trade_items')
-        .select('id, side, player_id')
+        .select('id, side, player_id, pick_id')
         .eq('trade_id', tradeId)
 
     if (itemsError) throw itemsError
@@ -127,6 +177,28 @@ export async function acceptTrade(tradeId: string, memberId: string): Promise<vo
             .eq('player_id', i.player_id)
             .eq('league_id', t.league_id)
             .eq('league_season_id', t.league_season_id)
+        if (error) throw error
+    }
+
+    // Transfer proposer's picks to recipient
+    for (const item of proposerItems) {
+        const i = item as any
+        if (!i.pick_id) continue
+        const { error } = await (supabase as any)
+            .from('draft_picks')
+            .update({ current_owner_id: t.recipient_member_id })
+            .eq('id', i.pick_id)
+        if (error) throw error
+    }
+
+    // Transfer recipient's picks to proposer
+    for (const item of recipientItems) {
+        const i = item as any
+        if (!i.pick_id) continue
+        const { error } = await (supabase as any)
+            .from('draft_picks')
+            .update({ current_owner_id: t.proposer_member_id })
+            .eq('id', i.pick_id)
         if (error) throw error
     }
 
@@ -198,7 +270,13 @@ export async function getMyTrades(memberId: string, leagueId: string): Promise<T
                 id,
                 side,
                 player_id,
-                players ( display_name, position, nba_team )
+                pick_id,
+                players ( display_name, position, nba_team ),
+                draft_picks (
+                    season_year,
+                    round,
+                    original_owner:league_members!draft_picks_original_owner_id_fkey ( team_name )
+                )
             )
         `,
         )
@@ -214,17 +292,32 @@ export async function getMyTrades(memberId: string, leagueId: string): Promise<T
         const recipientGives: TradeItem[] = []
 
         for (const item of row.trade_items ?? []) {
-            if (!item.player_id) continue
-            const tradeItem: TradeItem = {
-                playerId: item.player_id,
-                playerName: item.players?.display_name ?? 'Unknown',
-                position: item.players?.position ?? null,
-                nbaTeam: item.players?.nba_team ?? null,
+            let tradeItem: TradeItem | null = null
+
+            if (item.player_id != null && item.players) {
+                tradeItem = {
+                    kind: 'player',
+                    playerId: item.player_id,
+                    playerName: item.players?.display_name ?? 'Unknown',
+                    position: item.players?.position ?? null,
+                    nbaTeam: item.players?.nba_team ?? null,
+                } satisfies TradePlayerItem
+            } else if (item.pick_id != null && item.draft_picks) {
+                tradeItem = {
+                    kind: 'pick',
+                    pickId: item.pick_id,
+                    seasonYear: item.draft_picks?.season_year,
+                    round: item.draft_picks?.round,
+                    originalTeamName: item.draft_picks?.original_owner?.team_name ?? 'Unknown',
+                } satisfies TradePickItem
             }
-            if (item.side === 'proposer') {
-                proposerGives.push(tradeItem)
-            } else {
-                recipientGives.push(tradeItem)
+
+            if (tradeItem) {
+                if (item.side === 'proposer') {
+                    proposerGives.push(tradeItem)
+                } else {
+                    recipientGives.push(tradeItem)
+                }
             }
         }
 

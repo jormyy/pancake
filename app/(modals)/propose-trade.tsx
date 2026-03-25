@@ -7,7 +7,6 @@ import {
     Alert,
     ScrollView,
     TextInput,
-    FlatList,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { router, useLocalSearchParams } from 'expo-router'
@@ -16,7 +15,7 @@ import { useAuth } from '@/hooks/use-auth'
 import { useLeagueContext } from '@/contexts/league-context'
 import { getLeagueMembers } from '@/lib/league'
 import { getRoster, RosterPlayer } from '@/lib/roster'
-import { proposeTrade, getCurrentSeasonId } from '@/lib/trades'
+import { proposeTrade, getCurrentSeasonId, getPicksForMember, TradePickItem } from '@/lib/trades'
 
 function getInitials(name: string): string {
     return name
@@ -25,6 +24,10 @@ function getInitials(name: string): string {
         .join('')
         .slice(0, 2)
         .toUpperCase()
+}
+
+function yearShort(year: number): string {
+    return String(year).slice(2)
 }
 
 function PlayerRow({
@@ -64,6 +67,39 @@ function PlayerRow({
     )
 }
 
+function PickRow({
+    pick,
+    selected,
+    onToggle,
+}: {
+    pick: TradePickItem
+    selected: boolean
+    onToggle: () => void
+}) {
+    return (
+        <TouchableOpacity
+            style={[styles.playerRow, selected && styles.playerRowSelected]}
+            onPress={onToggle}
+            activeOpacity={0.7}
+        >
+            <View style={[styles.pickCircle, selected && styles.pickCircleSelected]}>
+                <Text style={styles.pickCircleText}>{yearShort(pick.seasonYear)}</Text>
+            </View>
+            <View style={styles.playerInfo}>
+                <Text style={[styles.playerName, selected && styles.playerNameSelected]}>
+                    {pick.seasonYear} Round {pick.round}
+                </Text>
+                <Text style={styles.playerMeta}>via {pick.originalTeamName}</Text>
+            </View>
+            {selected && (
+                <View style={styles.checkBadge}>
+                    <Text style={styles.checkBadgeText}>+</Text>
+                </View>
+            )}
+        </TouchableOpacity>
+    )
+}
+
 export default function ProposeTradeScreen() {
     const { user } = useAuth()
     const { current } = useLeagueContext()
@@ -79,8 +115,12 @@ export default function ProposeTradeScreen() {
     )
     const [theirRoster, setTheirRoster] = useState<RosterPlayer[]>([])
     const [myRoster, setMyRoster] = useState<RosterPlayer[]>([])
+    const [myPicks, setMyPicks] = useState<TradePickItem[]>([])
+    const [theirPicks, setTheirPicks] = useState<TradePickItem[]>([])
     const [requestIds, setRequestIds] = useState<Set<string>>(new Set())
     const [offerIds, setOfferIds] = useState<Set<string>>(new Set())
+    const [offerPickIds, setOfferPickIds] = useState<Set<string>>(new Set())
+    const [requestPickIds, setRequestPickIds] = useState<Set<string>>(new Set())
     const [notes, setNotes] = useState('')
     const [loading, setLoading] = useState(true)
     const [rosterLoading, setRosterLoading] = useState(false)
@@ -97,19 +137,25 @@ export default function ProposeTradeScreen() {
             .finally(() => setLoading(false))
     }, [leagueId, myMemberId])
 
-    // Load rosters when recipient changes
+    // Load rosters and picks when recipient changes
     const loadRosters = useCallback(async () => {
         if (!selectedRecipientId || !leagueId || !myMemberId) return
         setRosterLoading(true)
         setRequestIds(new Set())
         setOfferIds(new Set())
+        setOfferPickIds(new Set())
+        setRequestPickIds(new Set())
         try {
-            const [theirData, myData] = await Promise.all([
+            const [theirData, myData, theirPicksData, myPicksData] = await Promise.all([
                 getRoster(selectedRecipientId, leagueId),
                 getRoster(myMemberId, leagueId),
+                getPicksForMember(selectedRecipientId, leagueId),
+                getPicksForMember(myMemberId, leagueId),
             ])
             setTheirRoster(theirData)
             setMyRoster(myData)
+            setTheirPicks(theirPicksData)
+            setMyPicks(myPicksData)
         } catch (e) {
             console.error(e)
         } finally {
@@ -139,8 +185,29 @@ export default function ProposeTradeScreen() {
         })
     }
 
+    function toggleOfferPick(pickId: string) {
+        setOfferPickIds((prev) => {
+            const next = new Set(prev)
+            if (next.has(pickId)) next.delete(pickId)
+            else next.add(pickId)
+            return next
+        })
+    }
+
+    function toggleRequestPick(pickId: string) {
+        setRequestPickIds((prev) => {
+            const next = new Set(prev)
+            if (next.has(pickId)) next.delete(pickId)
+            else next.add(pickId)
+            return next
+        })
+    }
+
     async function handleSubmit() {
-        if (!selectedRecipientId || offerIds.size === 0 || requestIds.size === 0) return
+        if (!selectedRecipientId) return
+        const hasOffer = offerIds.size > 0 || offerPickIds.size > 0
+        const hasRequest = requestIds.size > 0 || requestPickIds.size > 0
+        if (!hasOffer || !hasRequest) return
         setSubmitting(true)
         try {
             const seasonId = await getCurrentSeasonId(leagueId)
@@ -153,6 +220,8 @@ export default function ProposeTradeScreen() {
                 selectedRecipientId,
                 Array.from(offerIds),
                 Array.from(requestIds),
+                Array.from(offerPickIds),
+                Array.from(requestPickIds),
                 notes.trim() || undefined,
             )
 
@@ -169,8 +238,9 @@ export default function ProposeTradeScreen() {
     const recipientTeamName =
         members.find((m) => m.id === selectedRecipientId)?.team_name ?? 'Opponent'
 
-    const canSubmit =
-        selectedRecipientId !== null && offerIds.size > 0 && requestIds.size > 0 && !submitting
+    const hasOffer = offerIds.size > 0 || offerPickIds.size > 0
+    const hasRequest = requestIds.size > 0 || requestPickIds.size > 0
+    const canSubmit = selectedRecipientId !== null && hasOffer && hasRequest && !submitting
 
     if (!current) {
         return (
@@ -259,6 +329,20 @@ export default function ProposeTradeScreen() {
                                     ))
                                 )}
 
+                                {theirPicks.length > 0 && (
+                                    <>
+                                        <Text style={styles.subSectionLabel}>DRAFT PICKS</Text>
+                                        {theirPicks.map((pick) => (
+                                            <PickRow
+                                                key={pick.pickId}
+                                                pick={pick}
+                                                selected={requestPickIds.has(pick.pickId)}
+                                                onToggle={() => toggleRequestPick(pick.pickId)}
+                                            />
+                                        ))}
+                                    </>
+                                )}
+
                                 {/* YOU GIVE section */}
                                 <Text style={styles.sectionLabel}>YOU GIVE</Text>
                                 {myRoster.length === 0 ? (
@@ -272,6 +356,20 @@ export default function ProposeTradeScreen() {
                                             onToggle={() => toggleOffer(rp.players.id)}
                                         />
                                     ))
+                                )}
+
+                                {myPicks.length > 0 && (
+                                    <>
+                                        <Text style={styles.subSectionLabel}>DRAFT PICKS</Text>
+                                        {myPicks.map((pick) => (
+                                            <PickRow
+                                                key={pick.pickId}
+                                                pick={pick}
+                                                selected={offerPickIds.has(pick.pickId)}
+                                                onToggle={() => toggleOfferPick(pick.pickId)}
+                                            />
+                                        ))}
+                                    </>
                                 )}
 
                                 {/* Notes */}
@@ -338,6 +436,15 @@ const styles = StyleSheet.create({
         paddingTop: 20,
         paddingBottom: 8,
     },
+    subSectionLabel: {
+        fontSize: 10,
+        fontWeight: '700',
+        color: '#bbb',
+        letterSpacing: 0.5,
+        paddingHorizontal: 16,
+        paddingTop: 12,
+        paddingBottom: 6,
+    },
 
     teamChips: {
         paddingHorizontal: 16,
@@ -375,6 +482,20 @@ const styles = StyleSheet.create({
     },
     playerAvatarSelected: { backgroundColor: '#F97316' },
     playerAvatarText: { color: '#fff', fontWeight: '700', fontSize: 13 },
+
+    pickCircle: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: '#e5e7eb',
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 2,
+        borderColor: '#d1d5db',
+    },
+    pickCircleSelected: { backgroundColor: '#F97316', borderColor: '#F97316' },
+    pickCircleText: { color: '#fff', fontWeight: '700', fontSize: 12 },
+
     playerInfo: { flex: 1 },
     playerName: { fontSize: 15, fontWeight: '600', color: '#111' },
     playerNameSelected: { color: '#F97316' },
