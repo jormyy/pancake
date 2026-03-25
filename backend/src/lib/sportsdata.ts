@@ -35,10 +35,12 @@ export async function fetchProjectionsByDate(date: string) {
 }
 
 // Format a JS Date to SportsData.io date string: YYYY-MMM-DD (uppercase month)
+// Uses Eastern Time since NBA games are scheduled in ET
 export function formatDate(date: Date): string {
-    const year = date.getFullYear()
-    const month = date.toLocaleString('en-US', { month: 'short' }).toUpperCase()
-    const day = String(date.getDate()).padStart(2, '0')
+    const et = new Date(date.toLocaleString('en-US', { timeZone: 'America/New_York' }))
+    const year = et.getFullYear()
+    const month = et.toLocaleString('en-US', { month: 'short' }).toUpperCase()
+    const day = String(et.getDate()).padStart(2, '0')
     return `${year}-${month}-${day}`
 }
 
