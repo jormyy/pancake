@@ -23,12 +23,12 @@ export async function syncSchedule(season?: string) {
 
     // NBA API has no Week field — derive week numbers from game date relative to season start
     const seasonStart = parsed
-        .map((g) => g.game_date)
+        .map((g: any) => g.game_date)
         .sort()[0]
 
     const startMs = new Date(seasonStart).getTime()
 
-    const games = parsed.map((g) => {
+    const games = parsed.map((g: any) => {
         const daysDiff = Math.floor((new Date(g.game_date).getTime() - startMs) / 86_400_000)
         return { ...g, week_number: Math.floor(daysDiff / 7) + 1 }
     })
