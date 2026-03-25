@@ -50,6 +50,7 @@ export default function CommissionerSettingsScreen() {
     const [generatingSchedule, setGeneratingSchedule] = useState(false)
     const [syncingGames, setSyncingGames] = useState(false)
     const [syncingScores, setSyncingScores] = useState(false)
+    const [syncingStats, setSyncingStats] = useState(false)
 
     useEffect(() => {
         async function load() {
@@ -139,6 +140,20 @@ export default function CommissionerSettingsScreen() {
             Alert.alert('Error', e.message)
         } finally {
             setSaving(false)
+        }
+    }
+
+    async function syncStats() {
+        setSyncingStats(true)
+        try {
+            const res = await fetch(`${API_URL}/sync/stats`, { method: 'POST' })
+            const json = await res.json()
+            if (!json.ok) throw new Error(json.error || 'Failed to sync stats')
+            Alert.alert('Done', 'Stats synced.')
+        } catch (e: any) {
+            Alert.alert('Error', e.message)
+        } finally {
+            setSyncingStats(false)
         }
     }
 
@@ -301,6 +316,17 @@ export default function CommissionerSettingsScreen() {
 
                     {/* ── Commissioner Actions ───────────────────────── */}
                     <Text style={styles.sectionTitle}>COMMISSIONER ACTIONS</Text>
+                    <TouchableOpacity
+                        style={styles.actionButton}
+                        onPress={syncStats}
+                        disabled={syncingStats}
+                    >
+                        {syncingStats ? (
+                            <ActivityIndicator color="#F97316" />
+                        ) : (
+                            <Text style={styles.actionButtonText}>Sync Player Stats</Text>
+                        )}
+                    </TouchableOpacity>
                     <TouchableOpacity
                         style={styles.actionButton}
                         onPress={syncScores}
