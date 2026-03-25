@@ -1,6 +1,14 @@
 import { supabase } from '../lib/supabase'
 import { fetchStatsByDate, formatDate } from '../lib/sportsdata'
 
+export async function syncStatsRange(days: number) {
+    for (let i = days - 1; i >= 0; i--) {
+        const d = new Date()
+        d.setDate(d.getDate() - i)
+        await syncStatsByDate(d)
+    }
+}
+
 export async function syncStatsByDate(date: Date) {
     const dateStr = formatDate(date)
     console.log(`[sync] Fetching stats for ${dateStr}...`)
