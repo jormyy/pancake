@@ -3,7 +3,7 @@ import Fastify from 'fastify'
 import cron from 'node-cron'
 import { syncPlayers } from './sync/players'
 import { syncSchedule } from './sync/games'
-import { syncStatsByDate } from './sync/stats'
+import { syncStatsByDate, syncStatsRange } from './sync/stats'
 import { syncProjectionsByDate } from './sync/projections'
 import { generateAllMatchups } from './sync/matchups'
 import { syncScores } from './sync/scores'
@@ -44,8 +44,16 @@ app.post('/sync/schedule', async (_req, reply) => {
   catch (e: any) { reply.status(500); return { ok: false, error: e.message } }
 })
 
-app.post('/sync/stats', async (_req, reply) => {
-  try { await syncStatsByDate(new Date()); return { ok: true } }
+app.post('/sync/stats', async (req: any, reply) => {
+  try {
+    const days = req.body?.days ?? 1
+    if (days > 1) {
+      await syncStatsRange(days)
+    } else {
+      await syncStatsByDate(new Date())
+    }
+    return { ok: true }
+  }
   catch (e: any) { reply.status(500); return { ok: false, error: e.message } }
 })
 

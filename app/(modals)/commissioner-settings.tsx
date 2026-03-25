@@ -146,10 +146,14 @@ export default function CommissionerSettingsScreen() {
     async function syncStats() {
         setSyncingStats(true)
         try {
-            const res = await fetch(`${API_URL}/sync/stats`, { method: 'POST' })
+            const res = await fetch(`${API_URL}/sync/stats`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ days: 7 }),
+            })
             const json = await res.json()
             if (!json.ok) throw new Error(json.error || 'Failed to sync stats')
-            Alert.alert('Done', 'Stats synced.')
+            Alert.alert('Done', 'Stats synced (last 7 days).')
         } catch (e: any) {
             Alert.alert('Error', e.message)
         } finally {
