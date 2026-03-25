@@ -17,6 +17,8 @@ import { useAuth } from '@/hooks/use-auth'
 import { getLeagueMembers } from '@/lib/league'
 import { getLeagueStandings, StandingRow } from '@/lib/scoring'
 import { getActiveDraft, startDraft } from '@/lib/draft'
+import { getWaiverPriorityOrder, WaiverPriorityRow } from '@/lib/waivers'
+import { getLeagueTransactions, TransactionRow, TRANSACTION_LABELS } from '@/lib/transactions'
 
 const ROLE_LABELS: Record<string, string> = {
     commissioner: 'Commissioner',
@@ -24,7 +26,7 @@ const ROLE_LABELS: Record<string, string> = {
     manager: 'Manager',
 }
 
-type Tab = 'members' | 'standings'
+type Tab = 'standings' | 'activity' | 'waivers' | 'members'
 
 export default function LeagueScreen() {
     const { current, loading: leagueLoading } = useLeagueContext()
@@ -32,6 +34,8 @@ export default function LeagueScreen() {
     const [tab, setTab] = useState<Tab>('standings')
     const [members, setMembers] = useState<any[]>([])
     const [standings, setStandings] = useState<StandingRow[]>([])
+    const [waiverOrder, setWaiverOrder] = useState<WaiverPriorityRow[]>([])
+    const [transactions, setTransactions] = useState<TransactionRow[]>([])
     const [loading, setLoading] = useState(true)
     const [draftLoading, setDraftLoading] = useState(false)
 
@@ -42,12 +46,16 @@ export default function LeagueScreen() {
         if (!current) return
         setLoading(true)
         try {
-            const [memberData, standingsData] = await Promise.all([
+            const [memberData, standingsData, waiverData, txData] = await Promise.all([
                 getLeagueMembers(league.id),
                 getLeagueStandings(league.id),
+                getWaiverPriorityOrder(league.id),
+                getLeagueTransactions(league.id),
             ])
             setMembers(memberData)
             setStandings(standingsData)
+            setWaiverOrder(waiverData)
+            setTransactions(txData)
         } catch (e) {
             console.error(e)
         } finally {
@@ -127,6 +135,12 @@ export default function LeagueScreen() {
                     <View style={styles.headerButtons}>
                         <TouchableOpacity
                             style={styles.settingsButton}
+                            onPress={() => router.push('/(modals)/bracket')}
+                        >
+                            <Text style={styles.settingsButtonText}>Bracket</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={styles.settingsButton}
                             onPress={() => router.push('/(modals)/trades')}
                         >
                             <Text style={styles.settingsButtonText}>Trades</Text>
@@ -184,14 +198,20 @@ export default function LeagueScreen() {
 
             {/* Tab switcher */}
             <View style={styles.tabRow}>
-                {(['standings', 'members'] as Tab[]).map((t) => (
+                {(['standings', 'activity', 'waivers', 'members'] as Tab[]).map((t) => (
                     <TouchableOpacity
                         key={t}
                         style={[styles.tabChip, tab === t && styles.tabChipActive]}
                         onPress={() => setTab(t)}
                     >
                         <Text style={[styles.tabChipText, tab === t && styles.tabChipTextActive]}>
-                            {t === 'standings' ? 'Standings' : `Teams (${members.length})`}
+                            {t === 'standings'
+                                ? 'Standings'
+                                : t === 'activity'
+                                  ? 'Activity'
+                                  : t === 'waivers'
+                                    ? 'Waivers'
+                                    : `Teams (${members.length})`}
                         </Text>
                     </TouchableOpacity>
                 ))}
@@ -201,6 +221,10 @@ export default function LeagueScreen() {
                 <ActivityIndicator style={{ marginTop: 24 }} color="#F97316" />
             ) : tab === 'standings' ? (
                 <StandingsTable standings={standings} myMemberId={current?.id} />
+            ) : tab === 'activity' ? (
+                <ActivityFeed transactions={transactions} myMemberId={current?.id} />
+            ) : tab === 'waivers' ? (
+                <WaiverPriorityList rows={waiverOrder} myMemberId={current?.id} />
             ) : (
                 <FlatList
                     data={members}
@@ -309,6 +333,148 @@ function StandingsTable({
                         </Text>
                         <Text style={[styles.standingsPts, isMe && styles.standingsMe]}>
                             {item.pointsAgainst.toFixed(1)}
+                        </Text>
+                    </View>
+                )
+            }}
+        />
+    )
+}
+
+const POSITION_COLORS: Record<string, string> = {
+    PG: '#3B82F6', SG: '#8B5CF6', SF: '#10B981',
+    PF: '#F59E0B', C: '#EF4444', G: '#6366F1', F: '#14B8A6',
+}
+
+const TX_COLORS: Record<string, string> = {
+    fa_add: '#10B981',
+    waiver_add: '#8B5CF6',
+    trade_in: '#3B82F6',
+    fa_drop: '#EF4444',
+    waiver_drop: '#EF4444',
+    trade_out: '#F97316',
+    ir_designate: '#F59E0B',
+    ir_return: '#6366F1',
+    draft_won: '#10B981',
+}
+
+function timeAgo(iso: string): string {
+    const diff = Date.now() - new Date(iso).getTime()
+    const mins = Math.floor(diff / 60_000)
+    if (mins < 60) return `${mins}m ago`
+    const hrs = Math.floor(mins / 60)
+    if (hrs < 24) return `${hrs}h ago`
+    const days = Math.floor(hrs / 24)
+    if (days < 7) return `${days}d ago`
+    return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
+function ActivityFeed({
+    transactions,
+    myMemberId,
+}: {
+    transactions: TransactionRow[]
+    myMemberId?: string
+}) {
+    if (transactions.length === 0) {
+        return (
+            <View style={styles.empty}>
+                <Text style={styles.emptyText}>
+                    No transactions yet. Adds, drops, and trades will appear here.
+                </Text>
+            </View>
+        )
+    }
+
+    return (
+        <FlatList
+            data={transactions}
+            keyExtractor={(t) => t.id}
+            ItemSeparatorComponent={() => <View style={styles.separator} />}
+            renderItem={({ item }) => {
+                const isMe = item.memberId === myMemberId
+                const color = TX_COLORS[item.transactionType] ?? '#888'
+                const label = TRANSACTION_LABELS[item.transactionType] ?? item.transactionType
+                const pos = item.position ?? ''
+                return (
+                    <View style={[styles.txRow, isMe && styles.txRowMe]}>
+                        <View
+                            style={[
+                                styles.txAvatar,
+                                { backgroundColor: POSITION_COLORS[pos] ?? '#ccc' },
+                            ]}
+                        >
+                            <Text style={styles.txAvatarText}>
+                                {item.playerName.split(' ').map((w: string) => w[0]).slice(0, 2).join('')}
+                            </Text>
+                        </View>
+                        <View style={styles.txInfo}>
+                            <Text style={styles.txPlayer} numberOfLines={1}>
+                                {item.playerName}
+                                {pos ? <Text style={styles.txPos}>  {pos}</Text> : null}
+                            </Text>
+                            <Text style={styles.txTeam} numberOfLines={1}>
+                                {item.teamName}
+                                {isMe ? <Text style={styles.meTag}> (you)</Text> : null}
+                            </Text>
+                        </View>
+                        <View style={styles.txRight}>
+                            <View style={[styles.txLabel, { backgroundColor: color + '22' }]}>
+                                <Text style={[styles.txLabelText, { color }]}>{label}</Text>
+                            </View>
+                            <Text style={styles.txTime}>{timeAgo(item.occurredAt)}</Text>
+                        </View>
+                    </View>
+                )
+            }}
+        />
+    )
+}
+
+function WaiverPriorityList({
+    rows,
+    myMemberId,
+}: {
+    rows: WaiverPriorityRow[]
+    myMemberId?: string
+}) {
+    if (rows.length === 0) {
+        return (
+            <View style={styles.empty}>
+                <Text style={styles.emptyText}>
+                    Waiver priorities will appear here once the season starts.
+                </Text>
+            </View>
+        )
+    }
+
+    return (
+        <FlatList
+            data={rows}
+            keyExtractor={(r) => r.memberId}
+            ListHeaderComponent={() => (
+                <View style={[styles.waiverRow, styles.waiverHeader]}>
+                    <Text style={[styles.waiverRank, styles.standingsHeaderText]}>#</Text>
+                    <Text style={[styles.waiverTeam, styles.standingsHeaderText]}>Team</Text>
+                    <Text style={[styles.waiverName, styles.standingsHeaderText]}>Manager</Text>
+                </View>
+            )}
+            ItemSeparatorComponent={() => <View style={styles.separator} />}
+            renderItem={({ item }) => {
+                const isMe = item.memberId === myMemberId
+                return (
+                    <View style={[styles.waiverRow, isMe && styles.standingsRowMe]}>
+                        <Text style={[styles.waiverRank, isMe && styles.standingsMe]}>
+                            {item.priority}
+                        </Text>
+                        <Text
+                            style={[styles.waiverTeam, isMe && styles.standingsMe]}
+                            numberOfLines={1}
+                        >
+                            {item.teamName}
+                        </Text>
+                        <Text style={[styles.waiverName, isMe && styles.standingsMe]} numberOfLines={1}>
+                            {item.displayName}
                         </Text>
                     </View>
                 )
@@ -434,6 +600,46 @@ const styles = StyleSheet.create({
     standingsCell: { width: 28, textAlign: 'center', fontSize: 14, color: '#555' },
     standingsPts: { width: 52, textAlign: 'right', fontSize: 13, color: '#555' },
     standingsMe: { color: '#F97316', fontWeight: '700' },
+
+    waiverRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 16,
+        paddingVertical: 11,
+    },
+    waiverHeader: { borderBottomWidth: 1, borderBottomColor: '#eee', paddingVertical: 8 },
+    waiverRank: { width: 32, fontSize: 14, fontWeight: '700', color: '#555' },
+    waiverTeam: { flex: 1, fontSize: 14, fontWeight: '600', color: '#111' },
+    waiverName: { width: 110, textAlign: 'right', fontSize: 13, color: '#888' },
+
+    txRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        gap: 12,
+    },
+    txRowMe: { backgroundColor: '#FFF7ED' },
+    txAvatar: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    txAvatarText: { color: '#fff', fontWeight: '700', fontSize: 13 },
+    txInfo: { flex: 1, gap: 2 },
+    txPlayer: { fontSize: 14, fontWeight: '600', color: '#111' },
+    txPos: { fontSize: 12, color: '#aaa', fontWeight: '400' },
+    txTeam: { fontSize: 12, color: '#888' },
+    txRight: { alignItems: 'flex-end', gap: 4 },
+    txLabel: {
+        paddingHorizontal: 8,
+        paddingVertical: 3,
+        borderRadius: 6,
+    },
+    txLabelText: { fontSize: 11, fontWeight: '700' },
+    txTime: { fontSize: 11, color: '#aaa' },
 
     empty: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
     emptyText: { fontSize: 14, color: '#aaa', textAlign: 'center' },

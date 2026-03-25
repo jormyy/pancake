@@ -51,6 +51,9 @@ export default function CommissionerSettingsScreen() {
     const [syncingGames, setSyncingGames] = useState(false)
     const [syncingScores, setSyncingScores] = useState(false)
     const [syncingStats, setSyncingStats] = useState(false)
+    const [processingWaivers, setProcessingWaivers] = useState(false)
+    const [generatingPlayoffs, setGeneratingPlayoffs] = useState(false)
+    const [advancingPlayoffs, setAdvancingPlayoffs] = useState(false)
 
     useEffect(() => {
         async function load() {
@@ -189,6 +192,58 @@ export default function CommissionerSettingsScreen() {
         }
     }
 
+    async function processWaivers() {
+        setProcessingWaivers(true)
+        try {
+            const res = await fetch(`${API_URL}/waivers/process`, { method: 'POST' })
+            const json = await res.json()
+            if (!json.ok) throw new Error(json.error || 'Failed to process waivers')
+            Alert.alert('Done', 'Waiver claims processed.')
+        } catch (e: any) {
+            Alert.alert('Error', e.message)
+        } finally {
+            setProcessingWaivers(false)
+        }
+    }
+
+    async function generatePlayoffBracket() {
+        if (!league?.id) return
+        setGeneratingPlayoffs(true)
+        try {
+            const res = await fetch(`${API_URL}/playoffs/generate`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ leagueId: league.id }),
+            })
+            const json = await res.json()
+            if (!json.ok) throw new Error(json.error || 'Failed to generate playoff bracket')
+            Alert.alert('Done', 'Semifinal bracket generated.')
+        } catch (e: any) {
+            Alert.alert('Error', e.message)
+        } finally {
+            setGeneratingPlayoffs(false)
+        }
+    }
+
+    async function advancePlayoffBracket() {
+        if (!league?.id) return
+        setAdvancingPlayoffs(true)
+        try {
+            const res = await fetch(`${API_URL}/playoffs/advance`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ leagueId: league.id }),
+            })
+            const json = await res.json()
+            if (!json.ok) throw new Error(json.error || 'Failed to advance bracket')
+            Alert.alert('Done', 'Championship matchup created.')
+        } catch (e: any) {
+            Alert.alert('Error', e.message)
+        } finally {
+            setAdvancingPlayoffs(false)
+        }
+    }
+
     async function generateSchedule(force = false) {
         setGeneratingSchedule(true)
         try {
@@ -320,6 +375,39 @@ export default function CommissionerSettingsScreen() {
 
                     {/* ── Commissioner Actions ───────────────────────── */}
                     <Text style={styles.sectionTitle}>COMMISSIONER ACTIONS</Text>
+                    <TouchableOpacity
+                        style={styles.actionButton}
+                        onPress={generatePlayoffBracket}
+                        disabled={generatingPlayoffs}
+                    >
+                        {generatingPlayoffs ? (
+                            <ActivityIndicator color="#F97316" />
+                        ) : (
+                            <Text style={styles.actionButtonText}>Generate Playoff Bracket</Text>
+                        )}
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={styles.actionButton}
+                        onPress={advancePlayoffBracket}
+                        disabled={advancingPlayoffs}
+                    >
+                        {advancingPlayoffs ? (
+                            <ActivityIndicator color="#F97316" />
+                        ) : (
+                            <Text style={styles.actionButtonText}>Advance to Championship</Text>
+                        )}
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={styles.actionButton}
+                        onPress={processWaivers}
+                        disabled={processingWaivers}
+                    >
+                        {processingWaivers ? (
+                            <ActivityIndicator color="#F97316" />
+                        ) : (
+                            <Text style={styles.actionButtonText}>Process Waiver Claims</Text>
+                        )}
+                    </TouchableOpacity>
                     <TouchableOpacity
                         style={styles.actionButton}
                         onPress={syncStats}

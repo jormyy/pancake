@@ -15,6 +15,9 @@ import {
   getDraftState,
   closeExpiredNominations,
 } from './sync/draft'
+import { processWaiverClaims } from './sync/waivers'
+import { generateSemifinals, advanceToFinal } from './sync/playoffs'
+import { notifyMember } from './lib/notifications'
 import { formatDate } from './lib/sportsdata'
 
 process.on('uncaughtException', (err) => console.error('[crash] uncaughtException:', err))
@@ -78,6 +81,42 @@ app.post('/sync/scores', async (_req, reply) => {
 
 app.post('/sync/rankings', async (_req, reply) => {
   try { await syncDynastyRankings(); return { ok: true } }
+  catch (e: any) { reply.status(500); return { ok: false, error: e.message } }
+})
+
+app.post('/waivers/process', async (_req, reply) => {
+  try { await processWaiverClaims(); return { ok: true } }
+  catch (e: any) { reply.status(500); return { ok: false, error: e.message } }
+})
+
+app.post('/playoffs/generate', async (req: any, reply) => {
+  try {
+    const { leagueId } = req.body as { leagueId: string }
+    if (!leagueId) { reply.status(400); return { ok: false, error: 'leagueId required' } }
+    await generateSemifinals(leagueId)
+    return { ok: true }
+  }
+  catch (e: any) { reply.status(500); return { ok: false, error: e.message } }
+})
+
+// Client-triggered trade notifications
+app.post('/notify/trade', async (req: any, reply) => {
+  try {
+    const { memberId, title, body } = req.body as { memberId: string; title: string; body: string }
+    if (!memberId || !title || !body) { reply.status(400); return { ok: false, error: 'memberId, title, body required' } }
+    await notifyMember(memberId, title, body)
+    return { ok: true }
+  }
+  catch (e: any) { reply.status(500); return { ok: false, error: e.message } }
+})
+
+app.post('/playoffs/advance', async (req: any, reply) => {
+  try {
+    const { leagueId } = req.body as { leagueId: string }
+    if (!leagueId) { reply.status(400); return { ok: false, error: 'leagueId required' } }
+    await advanceToFinal(leagueId)
+    return { ok: true }
+  }
   catch (e: any) { reply.status(500); return { ok: false, error: e.message } }
 })
 
@@ -163,6 +202,11 @@ cron.schedule('*/15 12-23,0 * * *', async () => {
 cron.schedule('0 7 * * 1', async () => {
   console.log('[cron] Running dynasty rankings sync...')
   await syncDynastyRankings().catch(console.error)
+}, { timezone: 'America/New_York' })
+
+cron.schedule('0 3 * * *', async () => {
+  console.log('[cron] Processing waiver claims...')
+  await processWaiverClaims().catch(console.error)
 }, { timezone: 'America/New_York' })
 
 setInterval(async () => {

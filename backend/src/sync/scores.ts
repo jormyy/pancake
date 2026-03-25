@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase'
 import { calculateFantasyPoints, getWeekNumberForDate } from '../lib/scoring'
+import { notifyMember } from '../lib/notifications'
 
 // Sums fantasy points for all started (non-bench, non-IR) lineup players
 // for a given member across all games in a week.
@@ -74,6 +75,14 @@ async function finalizeWeekIfComplete(
                 finalized_at: new Date().toISOString(),
             })
             .eq('id', m.id)
+
+        const loserId = winnerId === m.home_member_id ? m.away_member_id : m.home_member_id
+        const winnerPts = Math.max(homePoints, awayPoints).toFixed(1)
+        const loserPts = Math.min(homePoints, awayPoints).toFixed(1)
+        await Promise.all([
+            notifyMember(winnerId, `Week ${weekNumber} Final`, `You won ${winnerPts}–${loserPts}! 🏆`),
+            notifyMember(loserId, `Week ${weekNumber} Final`, `You lost ${loserPts}–${winnerPts}.`),
+        ]).catch(console.error)
     }
 
     console.log(`[scores] Finalized week ${weekNumber} for league ${leagueId}`)

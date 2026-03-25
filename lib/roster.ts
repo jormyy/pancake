@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { logTransaction } from '@/lib/transactions'
 
 export type RosterPlayer = {
     id: string
@@ -16,6 +17,7 @@ export type RosterPlayer = {
 export type PlayerRosterStatus =
     | { status: 'mine'; rosterPlayerId: string }
     | { status: 'taken'; ownerTeamName: string }
+    | { status: 'on_waivers'; logId: string; clearsAt: string }
     | { status: 'free_agent' }
 
 async function getCurrentSeasonId(leagueId: string): Promise<string | null> {
@@ -49,11 +51,28 @@ export async function getRoster(memberId: string, leagueId: string): Promise<Ros
 }
 
 export async function toggleIR(rosterPlayerId: string, isOnIR: boolean): Promise<void> {
+    // Fetch row first so we can log with context
+    const { data: rp } = await supabase
+        .from('roster_players')
+        .select('member_id, league_id, league_season_id, player_id')
+        .eq('id', rosterPlayerId)
+        .single()
+
     const { error } = await supabase
         .from('roster_players')
         .update({ is_on_ir: isOnIR })
         .eq('id', rosterPlayerId)
     if (error) throw error
+
+    if (rp) {
+        await logTransaction({
+            leagueId: (rp as any).league_id,
+            leagueSeasonId: (rp as any).league_season_id,
+            memberId: (rp as any).member_id,
+            playerId: (rp as any).player_id,
+            transactionType: isOnIR ? 'ir_designate' : 'ir_return',
+        })
+    }
 }
 
 // Returns a set of player_id values currently owned in the league/season
@@ -88,10 +107,29 @@ export async function getPlayerRosterStatus(
         .maybeSingle()
 
     if (error) throw error
-    if (!data) return { status: 'free_agent' }
-    if (data.member_id === memberId) return { status: 'mine', rosterPlayerId: data.id }
-    const owner = data.league_members as any
-    return { status: 'taken', ownerTeamName: owner?.team_name ?? 'Another team' }
+    if (data) {
+        if (data.member_id === memberId) return { status: 'mine', rosterPlayerId: data.id }
+        const owner = data.league_members as any
+        return { status: 'taken', ownerTeamName: owner?.team_name ?? 'Another team' }
+    }
+
+    // Check if on waivers
+    const now = new Date().toISOString()
+    const { data: waiverLog } = await (supabase as any)
+        .from('waiver_wire_log')
+        .select('id, clears_at')
+        .eq('league_id', leagueId)
+        .eq('league_season_id', seasonId)
+        .eq('player_id', playerId)
+        .is('cleared_at', null)
+        .gt('clears_at', now)
+        .maybeSingle()
+
+    if (waiverLog) {
+        return { status: 'on_waivers', logId: waiverLog.id, clearsAt: waiverLog.clears_at }
+    }
+
+    return { status: 'free_agent' }
 }
 
 export async function addFreeAgent(
@@ -136,9 +174,42 @@ export async function addFreeAgent(
         if (error.code === '23505') throw new Error('This player is already on a roster.')
         throw error
     }
+
+    await logTransaction({ leagueId, leagueSeasonId: seasonId, memberId, playerId, transactionType: 'fa_add' })
 }
 
 export async function dropPlayer(rosterPlayerId: string): Promise<void> {
-    const { error } = await supabase.from('roster_players').delete().eq('id', rosterPlayerId)
-    if (error) throw error
+    // Fetch roster row so we can create the waiver entry
+    const { data: rp, error: fetchErr } = await supabase
+        .from('roster_players')
+        .select('id, member_id, league_id, league_season_id, player_id')
+        .eq('id', rosterPlayerId)
+        .single()
+    if (fetchErr) throw fetchErr
+    if (!rp) throw new Error('Roster player not found.')
+
+    const { error: deleteErr } = await supabase
+        .from('roster_players')
+        .delete()
+        .eq('id', rosterPlayerId)
+    if (deleteErr) throw deleteErr
+
+    // Place on waivers for 48 hours
+    const clearsAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString()
+    const { error: waiverErr } = await (supabase as any).from('waiver_wire_log').insert({
+        league_id: rp.league_id,
+        league_season_id: rp.league_season_id,
+        player_id: rp.player_id,
+        dropped_by_member_id: rp.member_id,
+        clears_at: clearsAt,
+    })
+    if (waiverErr) throw waiverErr
+
+    await logTransaction({
+        leagueId: rp.league_id,
+        leagueSeasonId: rp.league_season_id,
+        memberId: rp.member_id,
+        playerId: rp.player_id,
+        transactionType: 'fa_drop',
+    })
 }
