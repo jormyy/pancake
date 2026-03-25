@@ -124,14 +124,22 @@ export default function LeagueScreen() {
                         <Text style={styles.leagueName}>{league?.name}</Text>
                         <Text style={styles.teamName}>{current.team_name}</Text>
                     </View>
-                    {isCommissioner && (
+                    <View style={styles.headerButtons}>
                         <TouchableOpacity
                             style={styles.settingsButton}
-                            onPress={() => router.push('/(modals)/commissioner-settings')}
+                            onPress={() => router.push('/(modals)/trades')}
                         >
-                            <Text style={styles.settingsButtonText}>⚙ Settings</Text>
+                            <Text style={styles.settingsButtonText}>Trades</Text>
                         </TouchableOpacity>
-                    )}
+                        {isCommissioner && (
+                            <TouchableOpacity
+                                style={styles.settingsButton}
+                                onPress={() => router.push('/(modals)/commissioner-settings')}
+                            >
+                                <Text style={styles.settingsButtonText}>Settings</Text>
+                            </TouchableOpacity>
+                        )}
+                    </View>
                 </View>
 
                 {/* Invite code */}
@@ -318,6 +326,7 @@ const styles = StyleSheet.create({
     leagueName: { fontSize: 20, fontWeight: '800' },
     teamName: { fontSize: 14, color: '#888' },
 
+    headerButtons: { flexDirection: 'row', gap: 8, alignItems: 'center' },
     settingsButton: {
         paddingHorizontal: 12,
         paddingVertical: 7,
