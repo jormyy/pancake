@@ -14,6 +14,8 @@ import { useEffect, useState } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
 import { getLineupSlots, updateLeague, updateLineupSlots } from '@/lib/league'
 
+const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000'
+
 // ── Scoring ───────────────────────────────────────────────────
 const SCORING_FIELDS: { key: string; label: string }[] = [
     { key: 'points', label: 'Points' },
@@ -45,6 +47,8 @@ export default function CommissionerSettingsScreen() {
     const [playoffWeek, setPlayoffWeek] = useState('')
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
+    const [generatingSchedule, setGeneratingSchedule] = useState(false)
+    const [syncingGames, setSyncingGames] = useState(false)
 
     useEffect(() => {
         async function load() {
@@ -134,6 +138,34 @@ export default function CommissionerSettingsScreen() {
             Alert.alert('Error', e.message)
         } finally {
             setSaving(false)
+        }
+    }
+
+    async function syncGameSchedule() {
+        setSyncingGames(true)
+        try {
+            const res = await fetch(`${API_URL}/sync/schedule`, { method: 'POST' })
+            const json = await res.json()
+            if (!json.ok) throw new Error(json.error || 'Failed to sync games')
+            Alert.alert('Done', 'Game schedule synced.')
+        } catch (e: any) {
+            Alert.alert('Error', e.message)
+        } finally {
+            setSyncingGames(false)
+        }
+    }
+
+    async function generateSchedule() {
+        setGeneratingSchedule(true)
+        try {
+            const res = await fetch(`${API_URL}/sync/matchups`, { method: 'POST' })
+            const json = await res.json()
+            if (!json.ok) throw new Error(json.error || 'Failed to generate schedule')
+            Alert.alert('Done', 'Schedule generated successfully.')
+        } catch (e: any) {
+            Alert.alert('Error', e.message)
+        } finally {
+            setGeneratingSchedule(false)
         }
     }
 
@@ -247,6 +279,31 @@ export default function CommissionerSettingsScreen() {
                             <Text style={styles.saveButtonText}>Save Settings</Text>
                         )}
                     </TouchableOpacity>
+
+                    {/* ── Commissioner Actions ───────────────────────── */}
+                    <Text style={styles.sectionTitle}>COMMISSIONER ACTIONS</Text>
+                    <TouchableOpacity
+                        style={styles.actionButton}
+                        onPress={syncGameSchedule}
+                        disabled={syncingGames}
+                    >
+                        {syncingGames ? (
+                            <ActivityIndicator color="#F97316" />
+                        ) : (
+                            <Text style={styles.actionButtonText}>Sync NBA Game Schedule</Text>
+                        )}
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={styles.actionButton}
+                        onPress={generateSchedule}
+                        disabled={generatingSchedule}
+                    >
+                        {generatingSchedule ? (
+                            <ActivityIndicator color="#F97316" />
+                        ) : (
+                            <Text style={styles.actionButtonText}>Generate Season Schedule</Text>
+                        )}
+                    </TouchableOpacity>
                 </ScrollView>
             </SafeAreaView>
         </>
@@ -314,4 +371,15 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     saveButtonText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+
+    actionButton: {
+        backgroundColor: '#fff',
+        borderRadius: 14,
+        borderWidth: 1.5,
+        borderColor: '#F97316',
+        height: 52,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    actionButtonText: { color: '#F97316', fontWeight: '700', fontSize: 16 },
 })

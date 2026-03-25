@@ -6,23 +6,32 @@ export async function syncSchedule(season?: string) {
     console.log(`[sync] Fetching schedule for season ${s}...`)
     const raw = await fetchSeasonSchedule(s)
 
-    const games = raw
+    // Parse dates first so we can calculate week numbers from season start
+    const parsed = raw
         .filter((g: any) => g.DateTime || g.Day)
-        .map((g: any) => {
-            const gameDate = new Date(g.DateTime ?? g.Day)
-            return {
-                sportsdata_game_id: String(g.GameID),
-                season_year: parseInt(s),
-                game_date: gameDate.toISOString().split('T')[0],
-                week_number: g.Week ?? 0,
-                home_team: g.HomeTeam ?? '',
-                away_team: g.AwayTeam ?? '',
-                status: g.Status ?? 'Scheduled',
-                started_at: g.DateTime ? new Date(g.DateTime).toISOString() : null,
-                ended_at: null,
-                updated_at: new Date().toISOString(),
-            }
-        })
+        .map((g: any) => ({
+            sportsdata_game_id: String(g.GameID),
+            season_year: parseInt(s),
+            game_date: new Date(g.DateTime ?? g.Day).toISOString().split('T')[0],
+            home_team: g.HomeTeam ?? '',
+            away_team: g.AwayTeam ?? '',
+            status: g.Status ?? 'Scheduled',
+            started_at: g.DateTime ? new Date(g.DateTime).toISOString() : null,
+            ended_at: null,
+            updated_at: new Date().toISOString(),
+        }))
+
+    // NBA API has no Week field — derive week numbers from game date relative to season start
+    const seasonStart = parsed
+        .map((g) => g.game_date)
+        .sort()[0]
+
+    const startMs = new Date(seasonStart).getTime()
+
+    const games = parsed.map((g) => {
+        const daysDiff = Math.floor((new Date(g.game_date).getTime() - startMs) / 86_400_000)
+        return { ...g, week_number: Math.floor(daysDiff / 7) + 1 }
+    })
 
     const { error } = await supabase
         .from('nba_games')

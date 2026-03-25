@@ -1,7 +1,7 @@
 import { supabase } from '../lib/supabase'
 import { calculateFantasyPoints, getWeekNumberForDate } from '../lib/scoring'
 
-// Sums fantasy points for all active (non-IR) roster players
+// Sums fantasy points for all started (non-bench, non-IR) lineup players
 // for a given member across all games in a week.
 async function calcMemberWeekPoints(
     memberId: string,
@@ -10,15 +10,17 @@ async function calcMemberWeekPoints(
     weekNumber: number,
     settings: Record<string, number>,
 ): Promise<number> {
-    const { data: roster } = await supabase
-        .from('roster_players')
+    const { data: lineup } = await supabase
+        .from('weekly_lineups')
         .select('player_id')
         .eq('member_id', memberId)
         .eq('league_season_id', leagueSeasonId)
-        .eq('is_on_ir', false)
+        .eq('week_number', weekNumber)
+        .neq('slot_type', 'BE')
+        .neq('slot_type', 'IR')
 
-    if (!roster?.length) return 0
-    const playerIds = roster.map((r) => r.player_id)
+    if (!lineup?.length) return 0
+    const playerIds = lineup.map((r) => r.player_id)
 
     const { data: stats } = await supabase
         .from('player_game_stats')
