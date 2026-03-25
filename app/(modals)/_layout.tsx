@@ -23,6 +23,14 @@ export default function ModalsLayout() {
                 name="lineup"
                 options={{ headerShown: false, presentation: 'modal' }}
             />
+            <Stack.Screen
+                name="propose-trade"
+                options={{ headerShown: false, presentation: 'modal' }}
+            />
+            <Stack.Screen
+                name="trades"
+                options={{ headerShown: false, presentation: 'modal' }}
+            />
         </Stack>
     )
 }
