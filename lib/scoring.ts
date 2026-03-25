@@ -47,11 +47,9 @@ async function getCurrentWeekNumber(seasonYear: number): Promise<number | null> 
 
 export async function getMyMatchup(memberId: string, leagueId: string): Promise<Matchup | null> {
     const season = await getCurrentSeason(leagueId)
-    console.log('[matchup] season:', season)
     if (!season) return null
 
     const weekNumber = await getCurrentWeekNumber(season.seasonYear)
-    console.log('[matchup] weekNumber:', weekNumber)
     if (!weekNumber) return null
 
     const { data, error } = await supabase
@@ -65,7 +63,6 @@ export async function getMyMatchup(memberId: string, leagueId: string): Promise<
         .or(`home_member_id.eq.${memberId},away_member_id.eq.${memberId}`)
         .maybeSingle()
 
-    console.log('[matchup] data:', data, 'error:', error)
     if (error) throw error
     if (!data) return null
 
