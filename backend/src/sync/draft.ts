@@ -115,14 +115,6 @@ export async function nominatePlayer(draftId: string, memberId: string, playerId
         .maybeSingle()
     if (alreadyNominated) throw new Error('Player already nominated in this draft')
 
-    const { data: budget } = await supabase
-        .from('draft_budgets')
-        .select('remaining')
-        .eq('draft_id', draftId)
-        .eq('member_id', memberId)
-        .single()
-    if (!budget || budget.remaining < MIN_BID) throw new Error('Insufficient budget to nominate')
-
     const { count } = await supabase
         .from('nominations')
         .select('id', { count: 'exact', head: true })
@@ -139,20 +131,13 @@ export async function nominatePlayer(draftId: string, memberId: string, playerId
             player_id: playerId,
             nomination_order: nominationOrder,
             status: 'open',
-            current_bid_amount: MIN_BID,
-            current_bidder_id: memberId,
+            current_bid_amount: 0,
+            current_bidder_id: null,
             countdown_expires_at: expiresAt,
         })
         .select()
         .single()
     if (nomErr) throw nomErr
-
-    // Auto-bid $1 from nominator
-    await supabase.from('bids').insert({
-        nomination_id: nomination.id,
-        member_id: memberId,
-        amount: MIN_BID,
-    })
 
     return nomination
 }
