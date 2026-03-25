@@ -183,14 +183,14 @@ export async function searchPlayers(query: string, draftId: string) {
     const nominatedIds = new Set((nominated ?? []).map((n: any) => n.player_id))
 
     // Search players by name
-    const { data } = await supabase
+    const { data, error } = await supabase
         .from('players')
         .select('id, display_name, nba_team, position')
         .ilike('display_name', `%${query}%`)
-        .eq('status', 'Active')
-        .order('dynasty_rank', { ascending: true, nullsFirst: false })
+        .order('last_name')
         .limit(20)
 
+    if (error) console.error('[searchPlayers]', error)
     return (data ?? []).filter((p: any) => !nominatedIds.has(p.id))
 }
 

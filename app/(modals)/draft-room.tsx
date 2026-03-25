@@ -78,13 +78,15 @@ export default function DraftRoomScreen() {
         }
     }, [draftId])
 
-    // Load + subscribe
+    // Load + subscribe + poll fallback
     useEffect(() => {
         if (!draftId) return
         load()
         channelRef.current = subscribeToDraft(draftId, load)
+        const poll = setInterval(load, 5000)
         return () => {
             if (channelRef.current) unsubscribeFromDraft(channelRef.current)
+            clearInterval(poll)
         }
     }, [draftId, load])
 
@@ -128,6 +130,7 @@ export default function DraftRoomScreen() {
         setBidding(true)
         try {
             await placeBid(draftId, myMemberId, state.openNomination.id, bidAmount)
+            load()
         } catch (e: any) {
             Alert.alert('Bid failed', e.message)
         } finally {
@@ -143,6 +146,7 @@ export default function DraftRoomScreen() {
             setNominating(false)
             setSearchQuery('')
             setSearchResults([])
+            load()
         } catch (e: any) {
             Alert.alert('Nomination failed', e.message)
         } finally {
@@ -170,8 +174,9 @@ export default function DraftRoomScreen() {
     )?.teamName
     const closedNominations = nominations.filter((n) => n.status !== 'open').reverse()
 
-    // Min bid is always current + 1 (or 1 if no bids yet)
-    const minBid = (openNomination?.currentBidAmount ?? 0) + 1
+    const iAmBankrupt = (myBudget?.remaining ?? 0) < 1
+    // Min bid is current + 1, floored at 1
+    const minBid = Math.max(1, (openNomination?.currentBidAmount ?? 0) + 1)
 
     return (
         <SafeAreaView style={styles.container} edges={['bottom']}>
@@ -201,10 +206,16 @@ export default function DraftRoomScreen() {
                         <View style={styles.bidRow}>
                             <View style={styles.bidInfo}>
                                 <Text style={styles.bidAmount}>
-                                    ${openNomination.currentBidAmount}
+                                    {openNomination.currentBidAmount > 0
+                                        ? `$${openNomination.currentBidAmount}`
+                                        : '—'}
                                 </Text>
                                 <Text style={styles.bidLeader}>
-                                    {iAmLeading ? "You're leading" : `${leadingTeam ?? '—'} leads`}
+                                    {openNomination.currentBidderId == null
+                                        ? 'No bids yet'
+                                        : iAmLeading
+                                          ? "You're leading"
+                                          : `${leadingTeam} leads`}
                                 </Text>
                             </View>
                             <View
@@ -221,7 +232,7 @@ export default function DraftRoomScreen() {
                             </View>
                         </View>
 
-                        {!iAmLeading && (
+                        {!iAmLeading && !iAmBankrupt && (
                             <View style={styles.bidInputRow}>
                                 <TouchableOpacity
                                     style={styles.bidStep}
@@ -229,7 +240,25 @@ export default function DraftRoomScreen() {
                                 >
                                     <Text style={styles.bidStepText}>−</Text>
                                 </TouchableOpacity>
-                                <Text style={styles.bidAmountInput}>${bidAmount}</Text>
+                                <TextInput
+                                    style={styles.bidAmountInput}
+                                    value={String(bidAmount)}
+                                    onChangeText={(v) => {
+                                        const n = parseInt(v, 10)
+                                        if (!isNaN(n)) setBidAmount(n)
+                                        else if (v === '') setBidAmount(minBid)
+                                    }}
+                                    onBlur={() =>
+                                        setBidAmount((v) =>
+                                            Math.min(
+                                                myBudget?.remaining ?? 999,
+                                                Math.max(minBid, v),
+                                            ),
+                                        )
+                                    }
+                                    keyboardType="number-pad"
+                                    selectTextOnFocus
+                                />
                                 <TouchableOpacity
                                     style={styles.bidStep}
                                     onPress={() =>
@@ -253,7 +282,7 @@ export default function DraftRoomScreen() {
                                     {bidding ? (
                                         <ActivityIndicator size="small" color="#fff" />
                                     ) : (
-                                        <Text style={styles.bidButtonText}>Bid ${bidAmount}</Text>
+                                        <Text style={styles.bidButtonText}>Bid ${bidAmount.toLocaleString()}</Text>
                                     )}
                                 </TouchableOpacity>
                             </View>
@@ -517,7 +546,16 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     bidStepText: { fontSize: 20, fontWeight: '600', color: '#555' },
-    bidAmountInput: { fontSize: 18, fontWeight: '800', minWidth: 48, textAlign: 'center' },
+    bidAmountInput: {
+        fontSize: 18,
+        fontWeight: '800',
+        minWidth: 56,
+        textAlign: 'center',
+        backgroundColor: '#f3f3f3',
+        borderRadius: 8,
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+    },
     bidButton: {
         flex: 1,
         height: 44,
