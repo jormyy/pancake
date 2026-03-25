@@ -155,13 +155,17 @@ export default function CommissionerSettingsScreen() {
         }
     }
 
-    async function generateSchedule() {
+    async function generateSchedule(force = false) {
         setGeneratingSchedule(true)
         try {
-            const res = await fetch(`${API_URL}/sync/matchups`, { method: 'POST' })
+            const res = await fetch(`${API_URL}/sync/matchups`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ force }),
+            })
             const json = await res.json()
             if (!json.ok) throw new Error(json.error || 'Failed to generate schedule')
-            Alert.alert('Done', 'Schedule generated successfully.')
+            Alert.alert('Done', force ? 'Schedule reset and regenerated.' : 'Schedule generated successfully.')
         } catch (e: any) {
             Alert.alert('Error', e.message)
         } finally {
@@ -295,7 +299,7 @@ export default function CommissionerSettingsScreen() {
                     </TouchableOpacity>
                     <TouchableOpacity
                         style={styles.actionButton}
-                        onPress={generateSchedule}
+                        onPress={() => generateSchedule(false)}
                         disabled={generatingSchedule}
                     >
                         {generatingSchedule ? (
@@ -303,6 +307,24 @@ export default function CommissionerSettingsScreen() {
                         ) : (
                             <Text style={styles.actionButtonText}>Generate Season Schedule</Text>
                         )}
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[styles.actionButton, { borderColor: '#EF4444' }]}
+                        onPress={() =>
+                            Alert.alert(
+                                'Reset Schedule',
+                                'This will delete all existing matchups and regenerate. Are you sure?',
+                                [
+                                    { text: 'Cancel', style: 'cancel' },
+                                    { text: 'Reset', style: 'destructive', onPress: () => generateSchedule(true) },
+                                ],
+                            )
+                        }
+                        disabled={generatingSchedule}
+                    >
+                        <Text style={[styles.actionButtonText, { color: '#EF4444' }]}>
+                            Reset &amp; Regenerate Schedule
+                        </Text>
                     </TouchableOpacity>
                 </ScrollView>
             </SafeAreaView>

@@ -54,8 +54,12 @@ app.post('/sync/projections', async (_req, reply) => {
   catch (e: any) { reply.status(500); return { ok: false, error: e.message } }
 })
 
-app.post('/sync/matchups', async (_req, reply) => {
-  try { await generateAllMatchups(); return { ok: true } }
+app.post('/sync/matchups', async (req: any, reply) => {
+  try {
+    const force = req.body?.force === true
+    await generateAllMatchups(force)
+    return { ok: true }
+  }
   catch (e: any) { reply.status(500); return { ok: false, error: e.message } }
 })
 

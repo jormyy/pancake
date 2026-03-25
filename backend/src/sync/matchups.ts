@@ -32,6 +32,7 @@ export async function generateMatchups(
     leagueId: string,
     leagueSeasonId: string,
     regularSeasonWeeks: number,
+    force = false,
 ) {
     const { data: members, error: mErr } = await supabase
         .from('league_members')
@@ -44,14 +45,18 @@ export async function generateMatchups(
         return
     }
 
-    // Idempotency check
+    // Idempotency check (skip unless force)
     const { count } = await supabase
         .from('matchups')
         .select('id', { count: 'exact', head: true })
         .eq('league_season_id', leagueSeasonId)
     if ((count ?? 0) > 0) {
-        console.log('[matchups] Schedule already generated for this season.')
-        return
+        if (!force) {
+            console.log('[matchups] Schedule already generated for this season.')
+            return
+        }
+        console.log('[matchups] Force-regenerating — deleting existing matchups...')
+        await supabase.from('matchups').delete().eq('league_season_id', leagueSeasonId)
     }
 
     const memberIds = members.map((m) => m.id)
@@ -78,7 +83,7 @@ export async function generateMatchups(
 }
 
 // Generates matchups for ALL active league seasons that don't have one yet.
-export async function generateAllMatchups() {
+export async function generateAllMatchups(force = false) {
     const { data: seasons, error } = await supabase
         .from('league_seasons')
         .select('id, league_id, leagues ( playoff_start_week )')
@@ -89,6 +94,6 @@ export async function generateAllMatchups() {
         const league = season.leagues as any
         const playoffStart: number = league?.playoff_start_week ?? 20
         const regularSeasonWeeks = playoffStart - 1
-        await generateMatchups(season.league_id, season.id, regularSeasonWeeks)
+        await generateMatchups(season.league_id, season.id, regularSeasonWeeks, force)
     }
 }
