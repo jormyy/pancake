@@ -178,6 +178,25 @@ export default function DraftRoomScreen() {
     // Min bid is current + 1, floored at 1
     const minBid = Math.max(1, (openNomination?.currentBidAmount ?? 0) + 1)
 
+    if (draft.status === 'completed') {
+        return (
+            <SafeAreaView style={styles.container} edges={['bottom']}>
+                <View style={styles.header}>
+                    <Text style={styles.headerTitle}>Auction Draft</Text>
+                </View>
+                <View style={styles.draftEndedContainer}>
+                    <Text style={styles.draftEndedTitle}>Draft Complete</Text>
+                    <Text style={styles.draftEndedSub}>
+                        All teams are out of budget. Remaining players are free agents.
+                    </Text>
+                    <TouchableOpacity style={styles.nominateButton} onPress={() => router.back()}>
+                        <Text style={styles.nominateButtonText}>Back to League</Text>
+                    </TouchableOpacity>
+                </View>
+            </SafeAreaView>
+        )
+    }
+
     return (
         <SafeAreaView style={styles.container} edges={['bottom']}>
             {/* Header */}
@@ -639,4 +658,8 @@ const styles = StyleSheet.create({
 
     empty: { alignItems: 'center', paddingVertical: 24 },
     emptyText: { fontSize: 13, color: '#aaa' },
+
+    draftEndedContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32, gap: 12 },
+    draftEndedTitle: { fontSize: 24, fontWeight: '800', color: '#111' },
+    draftEndedSub: { fontSize: 14, color: '#888', textAlign: 'center', lineHeight: 20 },
 })
