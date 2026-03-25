@@ -15,13 +15,12 @@ import { useAuth } from '@/hooks/use-auth'
 import { getMyMatchup, Matchup } from '@/lib/scoring'
 
 export default function HomeScreen() {
-    const { memberships, current, setCurrent, loading, refresh } = useLeagueContext()
+    const { memberships, current, setCurrent, loading } = useLeagueContext()
     const { user } = useAuth()
     const [matchup, setMatchup] = useState<Matchup | null | undefined>(undefined)
     const [matchupLoading, setMatchupLoading] = useState(true)
 
     const load = useCallback(async () => {
-        await refresh()
         if (!current || !user) return
         const league = current.leagues as any
         setMatchupLoading(true)
