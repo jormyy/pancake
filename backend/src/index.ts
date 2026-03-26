@@ -20,7 +20,6 @@ import { generateSemifinals, advanceToFinal } from './sync/playoffs'
 import { startRookieDraft, makeSnakePick, getRookieDraftState } from './sync/rookieDraft'
 import { advanceSeason } from './sync/seasonReset'
 import { notifyMember } from './lib/notifications'
-import { formatDate } from './lib/sportsdata'
 
 process.on('uncaughtException', (err) => console.error('[crash] uncaughtException:', err))
 process.on('unhandledRejection', (err) => console.error('[crash] unhandledRejection:', err))

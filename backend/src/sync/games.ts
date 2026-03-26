@@ -1,50 +1,96 @@
 import { supabase } from '../lib/supabase'
-import { fetchSeasonSchedule, currentSeason } from '../lib/sportsdata'
+import { fetchSeasonSchedule } from '../lib/nba'
 
-export async function syncSchedule(season?: string) {
-    const s = season ?? currentSeason()
-    console.log(`[sync] Fetching schedule for season ${s}...`)
-    const raw = await fetchSeasonSchedule(s)
+function currentSeasonYear(): number {
+    const now = new Date()
+    return now.getMonth() >= 9 ? now.getFullYear() + 1 : now.getFullYear()
+}
 
-    // Parse dates first so we can calculate week numbers from season start
-    const parsed = raw
-        .filter((g: any) => g.DateTime || g.Day)
-        .map((g: any) => ({
-            sportsdata_game_id: String(g.GameID),
-            season_year: parseInt(s),
-            game_date: new Date(g.DateTime ?? g.Day).toISOString().split('T')[0],
-            home_team: g.HomeTeam ?? '',
-            away_team: g.AwayTeam ?? '',
-            status: g.Status ?? 'Scheduled',
-            started_at: g.DateTime ? new Date(g.DateTime).toISOString() : null,
-            ended_at: null,
-            updated_at: new Date().toISOString(),
-        }))
+export async function syncSchedule() {
+    console.log('[sync] Fetching schedule from NBA CDN...')
+    const raw = await fetchSeasonSchedule()
 
-    // NBA API has no Week field — derive week numbers from game date relative to season start
-    const seasonStart = parsed
-        .map((g: any) => g.game_date)
-        .sort()[0]
+    if (!raw.length) {
+        console.log('[sync] No schedule data returned.')
+        return
+    }
 
+    const seasonYear = currentSeasonYear()
+
+    // Calculate week numbers from season start
+    const sortedDates = raw.map((g) => g.gameDate).sort()
+    const seasonStart = sortedDates[0]
     const startMs = new Date(seasonStart).getTime()
 
-    const games = parsed.map((g: any) => {
-        const daysDiff = Math.floor((new Date(g.game_date).getTime() - startMs) / 86_400_000)
-        return { ...g, week_number: Math.floor(daysDiff / 7) + 1 }
-    })
+    const games = raw
+        .filter((g) => g.homeTeam && g.awayTeam)
+        .map((g) => {
+            const daysDiff = Math.floor((new Date(g.gameDate).getTime() - startMs) / 86_400_000)
+            return {
+                nba_game_id: g.gameId,
+                season_year: seasonYear,
+                game_date: g.gameDate,
+                home_team: g.homeTeam,
+                away_team: g.awayTeam,
+                status: g.status,
+                started_at: g.startedAt,
+                ended_at: null,
+                week_number: Math.floor(daysDiff / 7) + 1,
+                updated_at: new Date().toISOString(),
+            }
+        })
 
-    const { error } = await supabase
+    // Load existing games to match by date+teams (bootstrap nba_game_id population)
+    const { data: existing, error: fetchErr } = await supabase
         .from('nba_games')
-        .upsert(games, { onConflict: 'sportsdata_game_id' })
+        .select('id, game_date, home_team, away_team, nba_game_id')
+    if (fetchErr) throw fetchErr
 
-    if (error) throw error
-    console.log(`[sync] Upserted ${games.length} games.`)
+    const byNbaGameId = new Map<string, string>() // nba_game_id → game.id
+    const byDateTeams = new Map<string, string>() // "date_home_away" → game.id
+    for (const g of existing ?? []) {
+        if (g.nba_game_id) byNbaGameId.set(g.nba_game_id, g.id)
+        byDateTeams.set(`${g.game_date}_${g.home_team}_${g.away_team}`, g.id)
+    }
 
-    await syncSeasonWeeks(games, parseInt(s))
+    const toUpdate: any[] = []
+    const toInsert: any[] = []
+
+    for (const game of games) {
+        const key = `${game.game_date}_${game.home_team}_${game.away_team}`
+        const existingId = byNbaGameId.get(game.nba_game_id) ?? byDateTeams.get(key)
+
+        if (existingId) {
+            toUpdate.push({ id: existingId, ...game })
+        } else {
+            toInsert.push(game)
+        }
+    }
+
+    const CHUNK = 500
+
+    for (let i = 0; i < toUpdate.length; i += CHUNK) {
+        const { error } = await supabase
+            .from('nba_games')
+            .upsert(toUpdate.slice(i, i + CHUNK), { onConflict: 'id' })
+        if (error) throw error
+    }
+
+    if (toInsert.length > 0) {
+        for (let i = 0; i < toInsert.length; i += CHUNK) {
+            const { error } = await supabase
+                .from('nba_games')
+                .insert(toInsert.slice(i, i + CHUNK))
+            if (error) console.error(`[sync] Game insert error (chunk ${i}):`, error.message)
+        }
+    }
+
+    console.log(`[sync] Games: ${toUpdate.length} updated, ${toInsert.length} inserted.`)
+
+    await syncSeasonWeeks([...toUpdate, ...toInsert], seasonYear)
 }
 
 async function syncSeasonWeeks(games: any[], seasonYear: number) {
-    // Derive week start/end from games
     const weekMap: Record<number, { start: string; end: string }> = {}
 
     for (const g of games) {
@@ -66,7 +112,7 @@ async function syncSeasonWeeks(games: any[], seasonYear: number) {
         week_end: range.end,
     }))
 
-    if (weeks.length === 0) return
+    if (!weeks.length) return
 
     const { error } = await supabase
         .from('season_weeks')
