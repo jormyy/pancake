@@ -47,13 +47,18 @@ export async function syncPlayers() {
         }
     }
 
+    // Deduplicate toUpdate by id (multiple Sleeper entries can name-match the same player)
+    const seenIds = new Map<string, any>()
+    for (const p of toUpdate) seenIds.set(p.id, p)
+    const dedupedUpdate = Array.from(seenIds.values())
+
     const CHUNK = 500
 
     // Update existing players
-    for (let i = 0; i < toUpdate.length; i += CHUNK) {
+    for (let i = 0; i < dedupedUpdate.length; i += CHUNK) {
         const { error } = await supabase
             .from('players')
-            .upsert(toUpdate.slice(i, i + CHUNK), { onConflict: 'id' })
+            .upsert(dedupedUpdate.slice(i, i + CHUNK), { onConflict: 'id' })
         if (error) throw error
     }
 
