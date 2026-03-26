@@ -28,9 +28,17 @@ export async function syncSchedule() {
         return
     }
 
-    // Calculate week numbers from regular season start only
-    const sortedDates = regularAndPlayoff.map((g) => g.gameDate).sort()
-    const seasonStart = sortedDates[0]
+    // Calculate week numbers from regular season start.
+    // Use the first date with >= 5 games to skip international openers (Paris/Abu Dhabi Games)
+    // which are 1-2 game days that otherwise push season start 2-3 weeks too early.
+    const regularOnly = regularAndPlayoff.filter((g) => g.gameId.startsWith('002'))
+    const dateCounts = new Map<string, number>()
+    for (const g of regularOnly) dateCounts.set(g.gameDate, (dateCounts.get(g.gameDate) ?? 0) + 1)
+    const bulkStartDates = [...dateCounts.entries()]
+        .filter(([, count]) => count >= 5)
+        .map(([date]) => date)
+        .sort()
+    const seasonStart = bulkStartDates[0] ?? regularOnly.map((g) => g.gameDate).sort()[0]
     const startMs = new Date(seasonStart).getTime()
 
     const games = regularAndPlayoff
