@@ -127,6 +127,14 @@ export async function getLeagueMembers(leagueId: string) {
     return data ?? []
 }
 
+export async function updateTeamName(memberId: string, teamName: string) {
+    const { error } = await supabase
+        .from('league_members')
+        .update({ team_name: teamName })
+        .eq('id', memberId)
+    if (error) throw error
+}
+
 export async function getLineupSlots(leagueId: string) {
     const { data, error } = await supabase
         .from('lineup_slot_templates')

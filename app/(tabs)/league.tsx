@@ -2,6 +2,7 @@ import {
     View,
     Text,
     FlatList,
+    ScrollView,
     TouchableOpacity,
     StyleSheet,
     ActivityIndicator,
@@ -19,6 +20,8 @@ import { getLeagueStandings, StandingRow } from '@/lib/scoring'
 import { getActiveDraft, startDraft } from '@/lib/draft'
 import { getWaiverPriorityOrder, WaiverPriorityRow } from '@/lib/waivers'
 import { getLeagueTransactions, TransactionRow, TRANSACTION_LABELS } from '@/lib/transactions'
+import { getActiveRookieDraft, startRookieDraft, getAllLeaguePicks, type LeaguePickItem } from '@/lib/rookieDraft'
+import { POSITION_COLORS } from '@/constants/positions'
 
 const ROLE_LABELS: Record<string, string> = {
     commissioner: 'Commissioner',
@@ -26,7 +29,7 @@ const ROLE_LABELS: Record<string, string> = {
     manager: 'Manager',
 }
 
-type Tab = 'standings' | 'activity' | 'waivers' | 'members'
+type Tab = 'standings' | 'activity' | 'waivers' | 'members' | 'picks'
 
 export default function LeagueScreen() {
     const { current, loading: leagueLoading } = useLeagueContext()
@@ -36,6 +39,7 @@ export default function LeagueScreen() {
     const [standings, setStandings] = useState<StandingRow[]>([])
     const [waiverOrder, setWaiverOrder] = useState<WaiverPriorityRow[]>([])
     const [transactions, setTransactions] = useState<TransactionRow[]>([])
+    const [leaguePicks, setLeaguePicks] = useState<LeaguePickItem[]>([])
     const [loading, setLoading] = useState(true)
     const [draftLoading, setDraftLoading] = useState(false)
 
@@ -46,16 +50,18 @@ export default function LeagueScreen() {
         if (!current) return
         setLoading(true)
         try {
-            const [memberData, standingsData, waiverData, txData] = await Promise.all([
+            const [memberData, standingsData, waiverData, txData, picksData] = await Promise.all([
                 getLeagueMembers(league.id),
                 getLeagueStandings(league.id),
                 getWaiverPriorityOrder(league.id),
                 getLeagueTransactions(league.id),
+                getAllLeaguePicks(league.id),
             ])
             setMembers(memberData)
             setStandings(standingsData)
             setWaiverOrder(waiverData)
             setTransactions(txData)
+            setLeaguePicks(picksData)
         } catch (e) {
             console.error(e)
         } finally {
@@ -91,7 +97,41 @@ export default function LeagueScreen() {
                 Alert.alert('No active draft found')
                 return
             }
-            router.push({ pathname: '/(modals)/draft-room', params: { draftId: draft.id } })
+            if (draft.draftType === 'snake') {
+                router.push({ pathname: '/(modals)/rookie-draft-room' as any, params: { draftId: draft.id } })
+            } else {
+                router.push({ pathname: '/(modals)/draft-room', params: { draftId: draft.id } })
+            }
+        } catch (e: any) {
+            Alert.alert('Error', e.message)
+        } finally {
+            setDraftLoading(false)
+        }
+    }
+
+    async function handleStartRookieDraft() {
+        if (!league?.id) return
+        setDraftLoading(true)
+        try {
+            const result = await startRookieDraft(league.id)
+            router.push({ pathname: '/(modals)/rookie-draft-room' as any, params: { draftId: result.draft.id } })
+        } catch (e: any) {
+            Alert.alert('Could not start rookie draft', e.message)
+        } finally {
+            setDraftLoading(false)
+        }
+    }
+
+    async function handleJoinRookieDraft() {
+        if (!league?.id) return
+        setDraftLoading(true)
+        try {
+            const draft = await getActiveRookieDraft(league.id)
+            if (!draft) {
+                Alert.alert('No active rookie draft found')
+                return
+            }
+            router.push({ pathname: '/(modals)/rookie-draft-room' as any, params: { draftId: draft.id } })
         } catch (e: any) {
             Alert.alert('Error', e.message)
         } finally {
@@ -194,11 +234,42 @@ export default function LeagueScreen() {
                         )}
                     </TouchableOpacity>
                 )}
+                {league?.status === 'offseason' && isCommissioner && (
+                    <TouchableOpacity
+                        style={styles.draftButton}
+                        onPress={handleStartRookieDraft}
+                        disabled={draftLoading}
+                    >
+                        {draftLoading ? (
+                            <ActivityIndicator size="small" color="#fff" />
+                        ) : (
+                            <Text style={styles.draftButtonText}>Start Rookie Draft</Text>
+                        )}
+                    </TouchableOpacity>
+                )}
+                {league?.status === 'offseason' && !isCommissioner && (
+                    <TouchableOpacity
+                        style={styles.draftButton}
+                        onPress={handleJoinRookieDraft}
+                        disabled={draftLoading}
+                    >
+                        {draftLoading ? (
+                            <ActivityIndicator size="small" color="#fff" />
+                        ) : (
+                            <Text style={styles.draftButtonText}>Join Rookie Draft</Text>
+                        )}
+                    </TouchableOpacity>
+                )}
             </View>
 
             {/* Tab switcher */}
-            <View style={styles.tabRow}>
-                {(['standings', 'activity', 'waivers', 'members'] as Tab[]).map((t) => (
+            <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.tabRow}
+                contentContainerStyle={styles.tabRowContent}
+            >
+                {(['standings', 'activity', 'waivers', 'members', 'picks'] as Tab[]).map((t) => (
                     <TouchableOpacity
                         key={t}
                         style={[styles.tabChip, tab === t && styles.tabChipActive]}
@@ -211,11 +282,13 @@ export default function LeagueScreen() {
                                   ? 'Activity'
                                   : t === 'waivers'
                                     ? 'Waivers'
-                                    : `Teams (${members.length})`}
+                                    : t === 'picks'
+                                      ? 'Picks'
+                                      : `Teams`}
                         </Text>
                     </TouchableOpacity>
                 ))}
-            </View>
+            </ScrollView>
 
             {loading ? (
                 <ActivityIndicator style={{ marginTop: 24 }} color="#F97316" />
@@ -225,6 +298,8 @@ export default function LeagueScreen() {
                 <ActivityFeed transactions={transactions} myMemberId={current?.id} />
             ) : tab === 'waivers' ? (
                 <WaiverPriorityList rows={waiverOrder} myMemberId={current?.id} />
+            ) : tab === 'picks' ? (
+                <PicksBankList picks={leaguePicks} myMemberId={current?.id} />
             ) : (
                 <FlatList
                     data={members}
@@ -341,10 +416,6 @@ function StandingsTable({
     )
 }
 
-const POSITION_COLORS: Record<string, string> = {
-    PG: '#3B82F6', SG: '#8B5CF6', SF: '#10B981',
-    PF: '#F59E0B', C: '#EF4444', G: '#6366F1', F: '#14B8A6',
-}
 
 const TX_COLORS: Record<string, string> = {
     fa_add: '#10B981',
@@ -483,6 +554,80 @@ function WaiverPriorityList({
     )
 }
 
+function PicksBankList({
+    picks,
+    myMemberId,
+}: {
+    picks: LeaguePickItem[]
+    myMemberId?: string
+}) {
+    if (picks.length === 0) {
+        return (
+            <View style={styles.empty}>
+                <Text style={styles.emptyText}>No future draft picks to display.</Text>
+            </View>
+        )
+    }
+
+    // Group by year
+    const byYear = new Map<number, LeaguePickItem[]>()
+    for (const p of picks) {
+        if (!byYear.has(p.seasonYear)) byYear.set(p.seasonYear, [])
+        byYear.get(p.seasonYear)!.push(p)
+    }
+
+    const sections = Array.from(byYear.entries()).sort((a, b) => a[0] - b[0])
+
+    return (
+        <FlatList
+            data={sections}
+            keyExtractor={([year]) => String(year)}
+            ListHeaderComponent={() => (
+                <View style={[styles.picksBankHeader]}>
+                    <Text style={styles.standingsHeaderText}>ROUND</Text>
+                    <Text style={[styles.standingsHeaderText, { flex: 1, marginLeft: 12 }]}>FROM</Text>
+                    <Text style={[styles.standingsHeaderText, { width: 110, textAlign: 'right' }]}>OWNER</Text>
+                </View>
+            )}
+            renderItem={({ item: [year, yearPicks] }) => (
+                <View>
+                    <View style={styles.picksBankYearRow}>
+                        <Text style={styles.picksBankYear}>{year}</Text>
+                    </View>
+                    {yearPicks.map((p) => {
+                        const isTraded = p.originalOwnerMemberId !== p.currentOwnerMemberId
+                        const isMine = p.currentOwnerMemberId === myMemberId
+                        return (
+                            <View
+                                key={p.id}
+                                style={[styles.picksBankRow, isMine && styles.standingsRowMe]}
+                            >
+                                <Text style={[styles.picksBankRound, isMine && styles.standingsMe]}>
+                                    R{p.round}
+                                </Text>
+                                <Text
+                                    style={[styles.picksBankFrom, isMine && styles.standingsMe]}
+                                    numberOfLines={1}
+                                >
+                                    {p.originalTeamName}
+                                    {isTraded ? ' *' : ''}
+                                </Text>
+                                <Text
+                                    style={[styles.picksBankOwner, isMine && styles.standingsMe]}
+                                    numberOfLines={1}
+                                >
+                                    {isMine ? 'You' : p.currentTeamName}
+                                </Text>
+                            </View>
+                        )
+                    })}
+                </View>
+            )}
+            ItemSeparatorComponent={() => <View style={styles.separator} />}
+        />
+    )
+}
+
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#fff' },
 
@@ -569,12 +714,14 @@ const styles = StyleSheet.create({
     roleTextCommissioner: { color: '#D97706' },
 
     tabRow: {
+        borderBottomWidth: 1,
+        borderBottomColor: '#eee',
+    },
+    tabRowContent: {
         flexDirection: 'row',
         gap: 8,
         paddingHorizontal: 20,
         paddingVertical: 12,
-        borderBottomWidth: 1,
-        borderBottomColor: '#eee',
     },
     tabChip: {
         paddingHorizontal: 14,
@@ -643,4 +790,30 @@ const styles = StyleSheet.create({
 
     empty: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
     emptyText: { fontSize: 14, color: '#aaa', textAlign: 'center' },
+
+    picksBankHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        borderBottomWidth: 1,
+        borderBottomColor: '#eee',
+    },
+    picksBankYearRow: {
+        paddingHorizontal: 16,
+        paddingVertical: 6,
+        backgroundColor: '#f9f9f9',
+        borderBottomWidth: 1,
+        borderBottomColor: '#eee',
+    },
+    picksBankYear: { fontSize: 12, fontWeight: '800', color: '#888', letterSpacing: 0.5 },
+    picksBankRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+    },
+    picksBankRound: { width: 36, fontSize: 14, fontWeight: '700', color: '#555' },
+    picksBankFrom: { flex: 1, fontSize: 13, color: '#555', marginLeft: 12 },
+    picksBankOwner: { width: 110, textAlign: 'right', fontSize: 13, fontWeight: '600', color: '#111' },
 })

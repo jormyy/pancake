@@ -9,6 +9,10 @@ export type Matchup = {
     opponentTeamName: string
     isFinalized: boolean
     iWon: boolean | null
+    myMemberId: string
+    opponentMemberId: string
+    seasonId: string
+    seasonYear: number
 }
 
 export type StandingRow = {
@@ -85,6 +89,10 @@ export async function getMyMatchup(memberId: string, leagueId: string): Promise<
         opponentTeamName: memberMap[opponentId] ?? 'Opponent',
         isFinalized: data.is_finalized,
         iWon: data.winner_member_id != null ? data.winner_member_id === memberId : null,
+        myMemberId: memberId,
+        opponentMemberId: opponentId,
+        seasonId: season.id,
+        seasonYear: season.seasonYear,
     }
 }
 

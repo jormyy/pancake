@@ -11,13 +11,17 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { useEffect, useState } from 'react'
 import { useAuth } from '@/hooks/use-auth'
 import { getProfile, updateProfile, signOut } from '@/lib/auth'
+import { updateTeamName } from '@/lib/league'
+import { useLeagueContext } from '@/contexts/league-context'
 
 export default function ProfileScreen() {
     const { user } = useAuth()
+    const { current, refresh } = useLeagueContext()
     const [profile, setProfile] = useState<any>(null)
     const [loading, setLoading] = useState(true)
     const [editing, setEditing] = useState(false)
     const [displayName, setDisplayName] = useState('')
+    const [teamName, setTeamName] = useState('')
     const [saving, setSaving] = useState(false)
 
     useEffect(() => {
@@ -36,18 +40,31 @@ export default function ProfileScreen() {
         load()
     }, [user])
 
+    // Sync team name from context whenever it changes
+    useEffect(() => {
+        setTeamName((current as any)?.team_name ?? '')
+    }, [(current as any)?.team_name])
+
     async function handleSave() {
         if (!user) return
-        const trimmed = displayName.trim()
-        if (!trimmed) {
+        const trimmedDisplay = displayName.trim()
+        const trimmedTeam = teamName.trim()
+        if (!trimmedDisplay) {
             Alert.alert('Invalid', 'Display name cannot be empty.')
             return
         }
         setSaving(true)
         try {
-            await updateProfile(user.id, { display_name: trimmed })
-            setProfile((prev: any) => ({ ...prev, display_name: trimmed }))
+            const saves: Promise<any>[] = [
+                updateProfile(user.id, { display_name: trimmedDisplay }),
+            ]
+            if (current && trimmedTeam) {
+                saves.push(updateTeamName((current as any).id, trimmedTeam))
+            }
+            await Promise.all(saves)
+            setProfile((prev: any) => ({ ...prev, display_name: trimmedDisplay }))
             setEditing(false)
+            refresh() // propagate changes to all screens
         } catch (e: any) {
             Alert.alert('Error', e.message)
         } finally {
@@ -57,6 +74,7 @@ export default function ProfileScreen() {
 
     function handleCancel() {
         setDisplayName(profile?.display_name ?? '')
+        setTeamName((current as any)?.team_name ?? '')
         setEditing(false)
     }
 
@@ -113,8 +131,7 @@ export default function ProfileScreen() {
                                 value={displayName}
                                 onChangeText={setDisplayName}
                                 autoFocus
-                                returnKeyType="done"
-                                onSubmitEditing={handleSave}
+                                returnKeyType="next"
                             />
                         ) : (
                             <Text style={styles.rowValue}>{profile?.display_name ?? '—'}</Text>
@@ -137,6 +154,35 @@ export default function ProfileScreen() {
                         <Text style={styles.rowValue}>{user?.email}</Text>
                     </View>
                 </View>
+
+                {/* Team name (league-specific) */}
+                {current && (
+                    <>
+                        <Text style={styles.sectionLabel}>
+                            {(current as any).leagues?.name?.toUpperCase() ?? 'LEAGUE'}
+                        </Text>
+                        <View style={styles.card}>
+                            <View style={styles.row}>
+                                <Text style={styles.rowLabel}>Team Name</Text>
+                                {editing ? (
+                                    <TextInput
+                                        style={styles.input}
+                                        value={teamName}
+                                        onChangeText={setTeamName}
+                                        returnKeyType="done"
+                                        onSubmitEditing={handleSave}
+                                        placeholder="Your team name"
+                                        placeholderTextColor="#ccc"
+                                    />
+                                ) : (
+                                    <Text style={styles.rowValue}>
+                                        {(current as any).team_name ?? '—'}
+                                    </Text>
+                                )}
+                            </View>
+                        </View>
+                    </>
+                )}
 
                 {/* Edit / Save / Cancel buttons */}
                 {editing ? (
@@ -185,6 +231,16 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     avatarText: { color: '#fff', fontSize: 30, fontWeight: '800' },
+
+    sectionLabel: {
+        fontSize: 11,
+        fontWeight: '700',
+        color: '#aaa',
+        letterSpacing: 0.8,
+        marginTop: 8,
+        marginBottom: 4,
+        marginLeft: 4,
+    },
 
     card: {
         backgroundColor: '#fff',

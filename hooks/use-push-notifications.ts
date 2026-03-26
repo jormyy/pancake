@@ -45,8 +45,14 @@ export function usePushNotifications() {
                 })
             }
 
-            const tokenData = await Notifications.getExpoPushTokenAsync()
-            const token = tokenData.data
+            let token: string
+            try {
+                const tokenData = await Notifications.getExpoPushTokenAsync()
+                token = tokenData.data
+            } catch {
+                // No EAS project ID — push tokens unavailable in dev builds without EAS
+                return
+            }
 
             // Save to Supabase profile
             if (!user) return
