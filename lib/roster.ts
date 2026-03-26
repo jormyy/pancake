@@ -75,6 +75,30 @@ export async function toggleIR(rosterPlayerId: string, isOnIR: boolean): Promise
     }
 }
 
+export type OwnedEntry = { teamName: string; memberId: string }
+
+// Returns a map of player_id → { teamName, memberId } for all owned players in the league
+export async function getOwnedPlayerMap(leagueId: string): Promise<Map<string, OwnedEntry>> {
+    const seasonId = await getCurrentSeasonId(leagueId)
+    if (!seasonId) return new Map()
+
+    const { data, error } = await supabase
+        .from('roster_players')
+        .select('player_id, member_id, league_members(team_name)')
+        .eq('league_id', leagueId)
+        .eq('league_season_id', seasonId)
+
+    if (error) throw error
+    const map = new Map<string, OwnedEntry>()
+    for (const r of data ?? []) {
+        map.set((r as any).player_id, {
+            teamName: (r as any).league_members?.team_name ?? 'Team',
+            memberId: (r as any).member_id,
+        })
+    }
+    return map
+}
+
 // Returns a set of player_id values currently owned in the league/season
 export async function getOwnedPlayerIds(leagueId: string): Promise<Set<string>> {
     const seasonId = await getCurrentSeasonId(leagueId)

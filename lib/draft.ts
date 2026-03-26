@@ -38,6 +38,7 @@ export type Draft = {
     id: string
     leagueId: string
     status: string
+    draftType: string
     currentNominationOrder: number
     budgetPerTeam: number | null
     startedAt: string | null
@@ -57,7 +58,7 @@ export type DraftState = {
 export async function getActiveDraft(leagueId: string): Promise<Draft | null> {
     const { data } = await supabase
         .from('drafts')
-        .select('id, league_id, status, current_nomination_order, budget_per_team, started_at')
+        .select('id, league_id, status, draft_type, current_nomination_order, budget_per_team, started_at')
         .eq('league_id', leagueId)
         .in('status', ['in_progress', 'pending'])
         .order('created_at', { ascending: false })
@@ -70,6 +71,7 @@ export async function getActiveDraft(leagueId: string): Promise<Draft | null> {
         id: data.id,
         leagueId: data.league_id,
         status: data.status,
+        draftType: data.draft_type,
         currentNominationOrder: data.current_nomination_order,
         budgetPerTeam: data.budget_per_team,
         startedAt: data.started_at,
@@ -82,7 +84,7 @@ export async function getDraftState(draftId: string): Promise<DraftState | null>
             supabase
                 .from('drafts')
                 .select(
-                    'id, league_id, status, current_nomination_order, budget_per_team, started_at',
+                    'id, league_id, status, draft_type, current_nomination_order, budget_per_team, started_at',
                 )
                 .eq('id', draftId)
                 .single(),
@@ -114,6 +116,7 @@ export async function getDraftState(draftId: string): Promise<DraftState | null>
         id: draft.id,
         leagueId: draft.league_id,
         status: draft.status,
+        draftType: draft.draft_type,
         currentNominationOrder: draft.current_nomination_order,
         budgetPerTeam: draft.budget_per_team,
         startedAt: draft.started_at,
@@ -219,6 +222,7 @@ export async function startDraft(leagueId: string): Promise<Draft> {
         id: json.draft.id,
         leagueId: json.draft.league_id,
         status: json.draft.status,
+        draftType: json.draft.draft_type ?? 'auction',
         currentNominationOrder: json.draft.current_nomination_order,
         budgetPerTeam: json.draft.budget_per_team,
         startedAt: json.draft.started_at,

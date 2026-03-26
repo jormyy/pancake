@@ -16,16 +16,7 @@ import { useLeagueContext } from '@/contexts/league-context'
 import { getRoster, toggleIR, RosterPlayer } from '@/lib/roster'
 import { getPicksForMember, TradePickItem } from '@/lib/trades'
 import { getMyWaiverClaims, cancelWaiverClaim, WaiverClaim } from '@/lib/waivers'
-
-const POSITION_COLORS: Record<string, string> = {
-    PG: '#3B82F6',
-    SG: '#8B5CF6',
-    SF: '#10B981',
-    PF: '#F59E0B',
-    C: '#EF4444',
-    G: '#6366F1',
-    F: '#14B8A6',
-}
+import { POSITION_COLORS } from '@/constants/positions'
 
 const INJURY_COLORS: Record<string, string> = {
     Questionable: '#F59E0B',

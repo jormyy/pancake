@@ -7,6 +7,8 @@ import {
     Alert,
     FlatList,
     RefreshControl,
+    Modal,
+    ScrollView,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { router } from 'expo-router'
@@ -23,6 +25,7 @@ import {
     TradePlayerItem,
     TradePickItem,
 } from '@/lib/trades'
+import { getRoster, dropPlayer, RosterPlayer } from '@/lib/roster'
 
 type TabKey = 'inbox' | 'offers' | 'history'
 
@@ -86,11 +89,15 @@ function AssetList({ items, label }: { items: TradeItem[]; label: string }) {
 function TradeCard({
     trade,
     myMemberId,
+    leagueId,
+    rosterSize,
     tab,
     onAction,
 }: {
     trade: Trade
     myMemberId: string
+    leagueId: string
+    rosterSize: number
     tab: TabKey
     onAction: () => void
 }) {
@@ -106,16 +113,67 @@ function TradeCard({
     const statusStyle = STATUS_COLORS[trade.status] ?? STATUS_COLORS.pending
 
     const [acting, setActing] = useState(false)
+    const [dropPickerVisible, setDropPickerVisible] = useState(false)
+    const [myRoster, setMyRoster] = useState<RosterPlayer[]>([])
+    const [droppedIds, setDroppedIds] = useState<Set<string>>(new Set())
+    const [neededDrops, setNeededDrops] = useState(0)
+    const [dropping, setDropping] = useState<string | null>(null)
 
     async function handleAccept() {
         setActing(true)
         try {
+            const roster = await getRoster(myMemberId, leagueId)
+            const activeCount = roster.filter((p) => !p.is_on_ir).length
+            const incomingPlayers = iReceive.filter((i) => i.kind === 'player').length
+            const outgoingPlayers = iGive.filter((i) => i.kind === 'player').length
+            const newCount = activeCount - outgoingPlayers + incomingPlayers
+            const overflow = newCount - rosterSize
+
+            if (overflow > 0) {
+                // Need to drop players first
+                const activeRoster = roster.filter((p) => !p.is_on_ir)
+                setMyRoster(activeRoster)
+                setNeededDrops(overflow)
+                setDroppedIds(new Set())
+                setActing(false)
+                setDropPickerVisible(true)
+                return
+            }
+
             await acceptTrade(trade.id, myMemberId)
             onAction()
         } catch (e: any) {
             Alert.alert('Error', e.message ?? 'Could not accept trade.')
         } finally {
             setActing(false)
+        }
+    }
+
+    async function handleDropAndAccept(rosterPlayerId: string) {
+        setDropping(rosterPlayerId)
+        try {
+            await dropPlayer(rosterPlayerId)
+            const next = new Set(droppedIds)
+            next.add(rosterPlayerId)
+            setDroppedIds(next)
+            setMyRoster((prev) => prev.filter((p) => p.id !== rosterPlayerId))
+
+            if (next.size >= neededDrops) {
+                setDropPickerVisible(false)
+                setActing(true)
+                try {
+                    await acceptTrade(trade.id, myMemberId)
+                    onAction()
+                } catch (e: any) {
+                    Alert.alert('Error', e.message ?? 'Could not accept trade.')
+                } finally {
+                    setActing(false)
+                }
+            }
+        } catch (e: any) {
+            Alert.alert('Error', e.message ?? 'Could not drop player.')
+        } finally {
+            setDropping(null)
         }
     }
 
@@ -160,6 +218,8 @@ function TradeCard({
             },
         ])
     }
+
+    const remainingDrops = neededDrops - droppedIds.size
 
     return (
         <View style={styles.card}>
@@ -209,6 +269,47 @@ function TradeCard({
                     )}
                 </>
             )}
+
+            {/* Drop picker modal */}
+            <Modal visible={dropPickerVisible} transparent animationType="slide">
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalSheet}>
+                        <Text style={styles.modalTitle}>Drop {remainingDrops} player{remainingDrops !== 1 ? 's' : ''} to accept</Text>
+                        <Text style={styles.modalSubtitle}>
+                            Accepting this trade would exceed your {rosterSize}-player roster limit.
+                        </Text>
+                        <ScrollView style={styles.modalScroll}>
+                            {myRoster.map((rp) => (
+                                <View key={rp.id} style={styles.dropRow}>
+                                    <View style={styles.dropPlayerInfo}>
+                                        <Text style={styles.dropPlayerName}>{rp.players.display_name}</Text>
+                                        <Text style={styles.dropPlayerMeta}>
+                                            {[rp.players.position, rp.players.nba_team].filter(Boolean).join(' · ')}
+                                        </Text>
+                                    </View>
+                                    <TouchableOpacity
+                                        style={styles.dropBtn}
+                                        onPress={() => handleDropAndAccept(rp.id)}
+                                        disabled={dropping !== null}
+                                    >
+                                        {dropping === rp.id ? (
+                                            <ActivityIndicator size="small" color="#fff" />
+                                        ) : (
+                                            <Text style={styles.dropBtnText}>Drop</Text>
+                                        )}
+                                    </TouchableOpacity>
+                                </View>
+                            ))}
+                        </ScrollView>
+                        <TouchableOpacity
+                            style={styles.modalCancelBtn}
+                            onPress={() => setDropPickerVisible(false)}
+                        >
+                            <Text style={styles.modalCancelText}>Cancel</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
         </View>
     )
 }
@@ -220,6 +321,7 @@ export default function TradesScreen() {
     const league = current?.leagues as any
     const myMemberId = current?.id ?? ''
     const leagueId = league?.id ?? ''
+    const rosterSize: number = league?.roster_size ?? 20
 
     const [tab, setTab] = useState<TabKey>('inbox')
     const [trades, setTrades] = useState<Trade[]>([])
@@ -339,6 +441,8 @@ export default function TradesScreen() {
                         <TradeCard
                             trade={item}
                             myMemberId={myMemberId}
+                            leagueId={leagueId}
+                            rosterSize={rosterSize}
                             tab={tab}
                             onAction={load}
                         />
@@ -443,4 +547,50 @@ const styles = StyleSheet.create({
 
     empty: { alignItems: 'center', paddingVertical: 48 },
     emptyText: { fontSize: 14, color: '#aaa', textAlign: 'center' },
+
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.4)',
+        justifyContent: 'flex-end',
+    },
+    modalSheet: {
+        backgroundColor: '#fff',
+        borderTopLeftRadius: 20,
+        borderTopRightRadius: 20,
+        paddingTop: 20,
+        paddingHorizontal: 16,
+        paddingBottom: 32,
+        maxHeight: '75%',
+    },
+    modalTitle: { fontSize: 17, fontWeight: '700', color: '#111', marginBottom: 4 },
+    modalSubtitle: { fontSize: 13, color: '#888', marginBottom: 14 },
+    modalScroll: { flexGrow: 0 },
+    dropRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 10,
+        borderBottomWidth: 1,
+        borderBottomColor: '#f3f3f3',
+        gap: 10,
+    },
+    dropPlayerInfo: { flex: 1 },
+    dropPlayerName: { fontSize: 14, fontWeight: '600', color: '#111' },
+    dropPlayerMeta: { fontSize: 12, color: '#888', marginTop: 1 },
+    dropBtn: {
+        backgroundColor: '#EF4444',
+        paddingHorizontal: 14,
+        paddingVertical: 7,
+        borderRadius: 8,
+        minWidth: 60,
+        alignItems: 'center',
+    },
+    dropBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
+    modalCancelBtn: {
+        marginTop: 14,
+        paddingVertical: 13,
+        borderRadius: 10,
+        backgroundColor: '#f3f3f3',
+        alignItems: 'center',
+    },
+    modalCancelText: { fontSize: 15, fontWeight: '600', color: '#555' },
 })

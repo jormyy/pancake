@@ -13,6 +13,7 @@ import { Stack, router } from 'expo-router'
 import { useEffect, useState } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
 import { getLineupSlots, updateLeague, updateLineupSlots } from '@/lib/league'
+import { advanceSeason } from '@/lib/rookieDraft'
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000'
 
@@ -25,8 +26,10 @@ const SCORING_FIELDS: { key: string; label: string }[] = [
     { key: 'blocks', label: 'Blocks' },
     { key: 'turnovers', label: 'Turnovers' },
     { key: 'three_pointers_made', label: '3-Pointers Made' },
-    { key: 'double_double', label: 'Double-Double Bonus' },
-    { key: 'triple_double', label: 'Triple-Double Bonus' },
+    { key: 'field_goals_attempted', label: 'Field Goals Attempted' },
+    { key: 'field_goals_made', label: 'Field Goals Made' },
+    { key: 'free_throws_attempted', label: 'Free Throws Attempted' },
+    { key: 'free_throws_made', label: 'Free Throws Made' },
 ]
 
 // ── Lineup slots (excludes IR — managed via league.ir_slots) ──
@@ -54,6 +57,7 @@ export default function CommissionerSettingsScreen() {
     const [processingWaivers, setProcessingWaivers] = useState(false)
     const [generatingPlayoffs, setGeneratingPlayoffs] = useState(false)
     const [advancingPlayoffs, setAdvancingPlayoffs] = useState(false)
+    const [advancingSeason, setAdvancingSeason] = useState(false)
 
     useEffect(() => {
         async function load() {
@@ -244,6 +248,33 @@ export default function CommissionerSettingsScreen() {
         }
     }
 
+    async function handleAdvanceSeason() {
+        if (!league?.id) return
+        Alert.alert(
+            'Advance Season',
+            'This will create a new season, carry rosters forward, and set the league to offseason. Continue?',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Advance',
+                    style: 'destructive',
+                    onPress: async () => {
+                        setAdvancingSeason(true)
+                        try {
+                            await advanceSeason(league.id)
+                            Alert.alert('Done', 'Season advanced. Start the rookie draft when ready.')
+                            await refresh()
+                        } catch (e: any) {
+                            Alert.alert('Error', e.message)
+                        } finally {
+                            setAdvancingSeason(false)
+                        }
+                    },
+                },
+            ],
+        )
+    }
+
     async function generateSchedule(force = false) {
         setGeneratingSchedule(true)
         try {
@@ -293,10 +324,13 @@ export default function CommissionerSettingsScreen() {
                                 <TextInput
                                     style={styles.scoreInput}
                                     value={scoring[key] ?? ''}
-                                    onChangeText={(v) =>
-                                        setScoring((prev) => ({ ...prev, [key]: v }))
-                                    }
-                                    keyboardType="numeric"
+                                    onChangeText={(v) => {
+                                        // Allow: leading minus, digits, one decimal point
+                                        if (/^-?\d*\.?\d*$/.test(v) || v === '-') {
+                                            setScoring((prev) => ({ ...prev, [key]: v }))
+                                        }
+                                    }}
+                                    keyboardType="default"
                                     selectTextOnFocus
                                 />
                             </View>
@@ -469,6 +503,22 @@ export default function CommissionerSettingsScreen() {
                         <Text style={[styles.actionButtonText, { color: '#EF4444' }]}>
                             Reset &amp; Regenerate Schedule
                         </Text>
+                    </TouchableOpacity>
+
+                    {/* ── Annual Cycle ───────────────────────────── */}
+                    <Text style={styles.sectionTitle}>ANNUAL CYCLE</Text>
+                    <TouchableOpacity
+                        style={[styles.actionButton, { borderColor: '#8B5CF6' }]}
+                        onPress={handleAdvanceSeason}
+                        disabled={advancingSeason}
+                    >
+                        {advancingSeason ? (
+                            <ActivityIndicator color="#8B5CF6" />
+                        ) : (
+                            <Text style={[styles.actionButtonText, { color: '#8B5CF6' }]}>
+                                Advance to Next Season
+                            </Text>
+                        )}
                     </TouchableOpacity>
                 </ScrollView>
             </SafeAreaView>

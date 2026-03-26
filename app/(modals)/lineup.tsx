@@ -6,6 +6,7 @@ import {
     ActivityIndicator,
     Alert,
     ScrollView,
+    FlatList,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { router } from 'expo-router'
@@ -14,6 +15,7 @@ import { useAuth } from '@/hooks/use-auth'
 import { useLeagueContext } from '@/contexts/league-context'
 import {
     getLineupContext,
+    getWeekDays,
     getWeeklyLineup,
     setPlayerSlot,
     autoSetLineup,
@@ -21,33 +23,41 @@ import {
     LineupSlot,
     LineupPlayer,
     LineupContext,
+    WeekDay,
 } from '@/lib/lineup'
+import { POSITION_COLORS } from '@/constants/positions'
 
 type Selection =
     | { kind: 'starter'; index: number }
     | { kind: 'bench'; index: number }
-
-const POSITION_COLORS: Record<string, string> = {
-    PG: '#3B82F6',
-    SG: '#8B5CF6',
-    SF: '#10B981',
-    PF: '#F59E0B',
-    C: '#EF4444',
-    G: '#6366F1',
-    F: '#14B8A6',
-}
 
 export default function LineupScreen() {
     const { user } = useAuth()
     const { current } = useLeagueContext()
 
     const [ctx, setCtx] = useState<LineupContext | null>(null)
+    const [weekDays, setWeekDays] = useState<WeekDay[]>([])
+    const [selectedDate, setSelectedDate] = useState<string>(
+        () => new Date().toISOString().split('T')[0],
+    )
     const [starters, setStarters] = useState<LineupSlot[]>([])
     const [bench, setBench] = useState<LineupPlayer[]>([])
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
     const [autoSetting, setAutoSetting] = useState(false)
     const [selected, setSelected] = useState<Selection | null>(null)
+
+    const loadLineup = useCallback(async (lineupCtx: LineupContext, league: any, date: string) => {
+        const lineup = await getWeeklyLineup(
+            current!.id,
+            league.id,
+            lineupCtx.seasonId,
+            lineupCtx.weekNumber,
+            date,
+        )
+        setStarters(lineup.starters)
+        setBench(lineup.bench)
+    }, [current])
 
     const load = useCallback(async () => {
         if (!current || !user) return
@@ -57,20 +67,16 @@ export default function LineupScreen() {
             const lineupCtx = await getLineupContext(league.id)
             if (!lineupCtx) { setLoading(false); return }
             setCtx(lineupCtx)
-            const lineup = await getWeeklyLineup(
-                current.id,
-                league.id,
-                lineupCtx.seasonId,
-                lineupCtx.weekNumber,
-            )
-            setStarters(lineup.starters)
-            setBench(lineup.bench)
+            setSelectedDate(lineupCtx.today)
+            const days = await getWeekDays(lineupCtx.weekNumber, lineupCtx.seasonYear)
+            setWeekDays(days)
+            await loadLineup(lineupCtx, league, lineupCtx.today)
         } catch (e) {
             console.error(e)
         } finally {
             setLoading(false)
         }
-    }, [current, user])
+    }, [current, user, loadLineup])
 
     useEffect(() => { load() }, [load])
 
@@ -110,10 +116,10 @@ export default function LineupScreen() {
         setSaving(true)
         try {
             const saves: Promise<void>[] = []
-            if (aPlayer) saves.push(setPlayerSlot(current.id, league.id, ctx.seasonId, ctx.weekNumber, aPlayer.playerId, bSlot))
-            if (bPlayer) saves.push(setPlayerSlot(current.id, league.id, ctx.seasonId, ctx.weekNumber, bPlayer.playerId, aSlot))
+            if (aPlayer) saves.push(setPlayerSlot(current.id, league.id, ctx.seasonId, ctx.weekNumber, selectedDate, aPlayer.playerId, bSlot))
+            if (bPlayer) saves.push(setPlayerSlot(current.id, league.id, ctx.seasonId, ctx.weekNumber, selectedDate, bPlayer.playerId, aSlot))
             await Promise.all(saves)
-            await load()
+            await loadLineup(ctx, league, selectedDate)
         } catch (e: any) {
             Alert.alert('Error', e.message)
         } finally {
@@ -121,18 +127,38 @@ export default function LineupScreen() {
         }
     }
 
-    async function handleAutoSet() {
+    async function doAutoSet(date: string | null) {
         if (!current || !ctx) return
         const league = current.leagues as any
         setAutoSetting(true)
         try {
-            await autoSetLineup(current.id, league.id, ctx.seasonId, ctx.weekNumber, ctx.seasonYear)
-            await load()
+            await autoSetLineup(current.id, league.id, ctx.seasonId, ctx.weekNumber, ctx.seasonYear, date)
+            await loadLineup(ctx, league, selectedDate)
         } catch (e: any) {
             Alert.alert('Auto-set failed', e.message)
         } finally {
             setAutoSetting(false)
         }
+    }
+
+    function handleAutoSet() {
+        Alert.alert(
+            'Auto-Set Lineup',
+            'Optimize for today or the entire week?',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Today', onPress: () => doAutoSet(selectedDate) },
+                { text: 'Full Week', onPress: () => doAutoSet(null) },
+            ],
+        )
+    }
+
+    async function handleDaySelect(date: string) {
+        if (!ctx) return
+        const league = (current as any)?.leagues
+        setSelectedDate(date)
+        setSelected(null)
+        await loadLineup(ctx, league, date)
     }
 
     const selectedPlayer =
@@ -180,6 +206,42 @@ export default function LineupScreen() {
                     )}
                 </TouchableOpacity>
             </View>
+
+            {/* Day selector */}
+            {weekDays.length > 0 && (
+                <FlatList
+                    horizontal
+                    data={weekDays}
+                    keyExtractor={(d) => d.date}
+                    showsHorizontalScrollIndicator={false}
+                    style={styles.daySelectorRow}
+                    contentContainerStyle={styles.daySelectorContent}
+                    renderItem={({ item: day }) => {
+                        const isSelected = day.date === selectedDate
+                        return (
+                            <TouchableOpacity
+                                style={[
+                                    styles.dayCell,
+                                    isSelected && styles.dayCellSelected,
+                                    day.isToday && !isSelected && styles.dayCellToday,
+                                    !day.hasGames && styles.dayCellNoGames,
+                                ]}
+                                onPress={() => handleDaySelect(day.date)}
+                            >
+                                <Text style={[styles.dayLabel, isSelected && styles.dayLabelSelected]}>
+                                    {day.dayLabel}
+                                </Text>
+                                <Text style={[styles.dayNum, isSelected && styles.dayNumSelected]}>
+                                    {day.dateNum}
+                                </Text>
+                                {day.hasGames && (
+                                    <View style={[styles.gameDot, isSelected && styles.gameDotSelected]} />
+                                )}
+                            </TouchableOpacity>
+                        )
+                    }}
+                />
+            )}
 
             {/* Selection hint */}
             {selected && (
@@ -324,6 +386,19 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     autoSetText: { fontSize: 13, fontWeight: '700', color: '#F97316' },
+
+    daySelectorRow: { borderBottomWidth: 1, borderBottomColor: '#eee' },
+    daySelectorContent: { flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 8, gap: 6 },
+    dayCell: { width: 38, alignItems: 'center', paddingVertical: 5, borderRadius: 9, gap: 2 },
+    dayCellSelected: { backgroundColor: '#F97316' },
+    dayCellToday: { backgroundColor: '#FFF7ED' },
+    dayCellNoGames: { opacity: 0.4 },
+    dayLabel: { fontSize: 10, fontWeight: '700', color: '#888' },
+    dayLabelSelected: { color: '#fff' },
+    dayNum: { fontSize: 14, fontWeight: '800', color: '#111' },
+    dayNumSelected: { color: '#fff' },
+    gameDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: '#F97316', marginTop: 1 },
+    gameDotSelected: { backgroundColor: 'rgba(255,255,255,0.7)' },
 
     hint: {
         backgroundColor: '#FFF7ED',

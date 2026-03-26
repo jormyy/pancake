@@ -17,6 +17,8 @@ import {
 } from './sync/draft'
 import { processWaiverClaims } from './sync/waivers'
 import { generateSemifinals, advanceToFinal } from './sync/playoffs'
+import { startRookieDraft, makeSnakePick, getRookieDraftState } from './sync/rookieDraft'
+import { advanceSeason } from './sync/seasonReset'
 import { notifyMember } from './lib/notifications'
 import { formatDate } from './lib/sportsdata'
 
@@ -169,6 +171,59 @@ app.post('/draft/:draftId/bid', async (req: any, reply) => {
     return await placeBid(draftId, memberId, nominationId, amount)
   } catch (e: any) {
     reply.status(400); return { ok: false, error: errMsg(e) }
+  }
+})
+
+// ── Rookie draft routes ────────────────────────────────────────
+
+app.post('/draft/start-rookie', async (req: any, reply) => {
+  try {
+    const { leagueId } = req.body as { leagueId: string }
+    if (!leagueId) { reply.status(400); return { ok: false, error: 'leagueId required' } }
+    const draft = await startRookieDraft(leagueId)
+    return { ok: true, draft }
+  } catch (e: any) {
+    console.error('[draft/start-rookie]', e)
+    reply.status(500)
+    return { ok: false, error: errMsg(e) }
+  }
+})
+
+app.get('/draft/:draftId/rookie-state', async (req: any, reply) => {
+  try {
+    const { draftId } = req.params as { draftId: string }
+    const state = await getRookieDraftState(draftId)
+    if (!state) { reply.status(404); return { ok: false, error: 'Draft not found' } }
+    return { ok: true, ...state }
+  } catch (e: any) {
+    reply.status(500); return { ok: false, error: errMsg(e) }
+  }
+})
+
+app.post('/draft/:draftId/snake-pick', async (req: any, reply) => {
+  try {
+    const { draftId } = req.params as { draftId: string }
+    const { memberId, playerId } = req.body as { memberId: string; playerId: string }
+    if (!memberId || !playerId) { reply.status(400); return { ok: false, error: 'memberId and playerId required' } }
+    const result = await makeSnakePick(draftId, memberId, playerId)
+    return { ok: true, ...result }
+  } catch (e: any) {
+    reply.status(400); return { ok: false, error: errMsg(e) }
+  }
+})
+
+// ── Season reset ───────────────────────────────────────────────
+
+app.post('/league/advance-season', async (req: any, reply) => {
+  try {
+    const { leagueId } = req.body as { leagueId: string }
+    if (!leagueId) { reply.status(400); return { ok: false, error: 'leagueId required' } }
+    const result = await advanceSeason(leagueId)
+    return { ok: true, ...result }
+  } catch (e: any) {
+    console.error('[league/advance-season]', e)
+    reply.status(500)
+    return { ok: false, error: errMsg(e) }
   }
 })
 
