@@ -17,12 +17,23 @@ export async function syncSchedule() {
 
     const seasonYear = currentSeasonYear()
 
-    // Calculate week numbers from season start
-    const sortedDates = raw.map((g) => g.gameDate).sort()
+    // NBA gameId prefixes: 001=preseason, 002=regular season, 003=all-star, 004=playoffs
+    // Exclude preseason — their early dates throw off week number calculations
+    const regularAndPlayoff = raw.filter(
+        (g) => g.gameId.startsWith('002') || g.gameId.startsWith('004'),
+    )
+
+    if (!regularAndPlayoff.length) {
+        console.log('[sync] No regular season games found in schedule.')
+        return
+    }
+
+    // Calculate week numbers from regular season start only
+    const sortedDates = regularAndPlayoff.map((g) => g.gameDate).sort()
     const seasonStart = sortedDates[0]
     const startMs = new Date(seasonStart).getTime()
 
-    const games = raw
+    const games = regularAndPlayoff
         .filter((g) => g.homeTeam && g.awayTeam)
         .map((g) => {
             const daysDiff = Math.floor((new Date(g.gameDate).getTime() - startMs) / 86_400_000)
