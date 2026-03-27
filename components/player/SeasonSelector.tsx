@@ -1,4 +1,5 @@
 import { ScrollView, Text, Pressable, StyleSheet } from 'react-native'
+import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 
 function seasonLabel(year: number): string {
     return `${year - 1}–${String(year).slice(2)}`
@@ -40,15 +41,15 @@ export function SeasonSelector({ seasons, selectedSeason, onSelect }: Props) {
 
 const styles = StyleSheet.create({
     scroll: { marginHorizontal: -20 },
-    row: { flexDirection: 'row', gap: 8, paddingHorizontal: 20, paddingVertical: 2 },
+    row: { flexDirection: 'row', gap: spacing.md, paddingHorizontal: spacing['2xl'], paddingVertical: 2 },
     pill: {
         paddingHorizontal: 14,
         paddingVertical: 7,
-        borderRadius: 20,
+        borderRadius: radii['3xl'],
         borderCurve: 'continuous' as const,
-        backgroundColor: '#f3f3f3',
+        backgroundColor: colors.bgMuted,
     },
-    pillActive: { backgroundColor: '#F97316' },
-    pillText: { fontSize: 13, fontWeight: '600', color: '#333' },
-    pillTextActive: { color: '#fff' },
+    pillActive: { backgroundColor: colors.primary },
+    pillText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: palette.gray900 },
+    pillTextActive: { color: colors.textWhite },
 })

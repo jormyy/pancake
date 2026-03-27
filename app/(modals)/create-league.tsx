@@ -14,6 +14,7 @@ import { useRouter } from 'expo-router'
 import { useState } from 'react'
 import { useAuth } from '@/hooks/use-auth'
 import { createLeague } from '@/lib/league'
+import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 
 export default function CreateLeagueScreen() {
     const { user } = useAuth()
@@ -85,7 +86,7 @@ export default function CreateLeagueScreen() {
                 <TextInput
                     style={styles.input}
                     placeholder="e.g. Hoops Dynasty"
-                    placeholderTextColor="#aaa"
+                    placeholderTextColor={colors.textPlaceholder}
                     value={leagueName}
                     onChangeText={setLeagueName}
                 />
@@ -94,7 +95,7 @@ export default function CreateLeagueScreen() {
                 <TextInput
                     style={styles.input}
                     placeholder="e.g. Buckets FC"
-                    placeholderTextColor="#aaa"
+                    placeholderTextColor={colors.textPlaceholder}
                     value={teamName}
                     onChangeText={setTeamName}
                 />
@@ -103,7 +104,7 @@ export default function CreateLeagueScreen() {
                 <TextInput
                     style={styles.input}
                     placeholder="200"
-                    placeholderTextColor="#aaa"
+                    placeholderTextColor={colors.textPlaceholder}
                     keyboardType="number-pad"
                     value={auctionBudget}
                     onChangeText={setAuctionBudget}
@@ -114,7 +115,7 @@ export default function CreateLeagueScreen() {
 
                 <Pressable style={styles.button} onPress={handleCreate} disabled={loading}>
                     {loading ? (
-                        <ActivityIndicator color="#fff" />
+                        <ActivityIndicator color={colors.textWhite} />
                     ) : (
                         <Text style={styles.buttonText}>Create League</Text>
                     )}
@@ -125,73 +126,73 @@ export default function CreateLeagueScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#fff' },
-    inner: { padding: 24, gap: 8 },
-    label: { fontSize: 14, fontWeight: '600', color: '#333', marginTop: 12 },
+    container: { flex: 1, backgroundColor: colors.bgScreen },
+    inner: { padding: spacing['3xl'], gap: spacing.md },
+    label: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textSecondary, marginTop: spacing.lg },
     input: {
         height: 50,
         borderWidth: 1,
-        borderColor: '#ddd',
-        borderRadius: 10,
+        borderColor: colors.border,
+        borderRadius: radii.lg,
         borderCurve: 'continuous' as const,
-        paddingHorizontal: 16,
-        fontSize: 16,
-        backgroundColor: '#fafafa',
+        paddingHorizontal: spacing.xl,
+        fontSize: fontSize.lg,
+        backgroundColor: colors.bgInput,
     },
-    hint: { fontSize: 12, color: '#aaa' },
-    error: { color: '#d00', fontSize: 14, marginTop: 8 },
+    hint: { fontSize: 12, color: colors.textPlaceholder },
+    error: { color: palette.redBright, fontSize: fontSize.md, marginTop: spacing.md },
     button: {
         height: 50,
-        backgroundColor: '#F97316',
-        borderRadius: 10,
+        backgroundColor: colors.primary,
+        borderRadius: radii.lg,
         borderCurve: 'continuous' as const,
         justifyContent: 'center',
         alignItems: 'center',
-        marginTop: 24,
+        marginTop: spacing['3xl'],
     },
-    buttonText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+    buttonText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.lg },
 
     // Success state
     successContainer: {
         flex: 1,
-        backgroundColor: '#fff',
+        backgroundColor: colors.bgScreen,
         justifyContent: 'center',
         alignItems: 'center',
-        padding: 32,
-        gap: 16,
+        padding: spacing['4xl'],
+        gap: spacing.xl,
     },
-    successTitle: { fontSize: 28, fontWeight: '800' },
-    successSub: { fontSize: 15, color: '#888', textAlign: 'center' },
+    successTitle: { fontSize: fontSize['3xl'], fontWeight: fontWeight.extrabold },
+    successSub: { fontSize: 15, color: colors.textMuted, textAlign: 'center' },
     codeBox: {
-        backgroundColor: '#FFF7ED',
+        backgroundColor: colors.primaryLight,
         borderWidth: 2,
-        borderColor: '#F97316',
-        borderRadius: 16,
+        borderColor: colors.primary,
+        borderRadius: radii['2xl'],
         borderCurve: 'continuous' as const,
-        paddingVertical: 24,
-        paddingHorizontal: 40,
-        marginVertical: 8,
+        paddingVertical: spacing['3xl'],
+        paddingHorizontal: spacing['5xl'],
+        marginVertical: spacing.md,
     },
-    codeText: { fontSize: 36, fontWeight: '800', color: '#F97316', letterSpacing: 8 },
+    codeText: { fontSize: fontSize['5xl'], fontWeight: fontWeight.extrabold, color: colors.primary, letterSpacing: 8 },
     shareButton: {
         width: '100%',
         height: 52,
-        backgroundColor: '#F97316',
-        borderRadius: 12,
+        backgroundColor: colors.primary,
+        borderRadius: radii.xl,
         borderCurve: 'continuous' as const,
         justifyContent: 'center',
         alignItems: 'center',
     },
-    shareButtonText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+    shareButtonText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.lg },
     doneButton: {
         width: '100%',
         height: 52,
         borderWidth: 1.5,
-        borderColor: '#ddd',
-        borderRadius: 12,
+        borderColor: colors.border,
+        borderRadius: radii.xl,
         borderCurve: 'continuous' as const,
         justifyContent: 'center',
         alignItems: 'center',
     },
-    doneButtonText: { color: '#555', fontWeight: '600', fontSize: 16 },
+    doneButtonText: { color: colors.textSecondary, fontWeight: fontWeight.semibold, fontSize: fontSize.lg },
 })

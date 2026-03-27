@@ -27,6 +27,9 @@ import {
 } from '@/lib/lineup'
 import { POSITION_COLORS } from '@/constants/positions'
 import { toggleIR, dropPlayer } from '@/lib/roster'
+import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { LoadingScreen } from '@/components/LoadingScreen'
+import { EmptyState } from '@/components/EmptyState'
 
 type LineupData = { starters: LineupSlot[]; bench: LineupPlayer[]; ir: LineupPlayer[] }
 type Sel = { kind: 'starter'; index: number } | { kind: 'bench'; index: number } | { kind: 'ir'; index: number }
@@ -294,7 +297,7 @@ export default function HomeScreen() {
         : null
 
     if (loading) {
-        return <SafeAreaView style={styles.container}><ActivityIndicator style={{ flex: 1 }} color="#F97316" /></SafeAreaView>
+        return <LoadingScreen />
     }
 
     if (memberships.length === 0) return <NoLeagueState />
@@ -316,7 +319,7 @@ export default function HomeScreen() {
             )}
 
             {matchupLoading ? (
-                <ActivityIndicator color="#F97316" style={{ marginTop: 48 }} />
+                <ActivityIndicator color={colors.primary} style={{ marginTop: 48 }} />
             ) : matchup ? (
                 <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
                     <ScoreCard matchup={matchup} />
@@ -336,7 +339,7 @@ export default function HomeScreen() {
                             disabled={autoSetting || saving}
                         >
                             {autoSetting
-                                ? <ActivityIndicator size="small" color="#F97316" />
+                                ? <ActivityIndicator size="small" color={colors.primary} />
                                 : <Text style={styles.autoSetText}>AUTO</Text>}
                         </Pressable>
                         <Text style={styles.lineupTeamName} numberOfLines={1}>
@@ -359,7 +362,7 @@ export default function HomeScreen() {
                     )}
 
                     {lineupLoading ? (
-                        <ActivityIndicator color="#F97316" style={{ marginTop: 24 }} />
+                        <ActivityIndicator color={colors.primary} style={{ marginTop: 24 }} />
                     ) : myLineup && oppLineup ? (
                         <MatchupLineupView
                             myLineup={myLineup}
@@ -407,19 +410,19 @@ export default function HomeScreen() {
                                     </View>
                                     {isIREligible(p.injuryStatus) && (
                                         <Pressable
-                                            style={[styles.overflowBtn, { backgroundColor: '#991B1B22', marginRight: 6 }]}
+                                            style={[styles.overflowBtn, { backgroundColor: palette.red900 + '22', marginRight: 6 }]}
                                             onPress={() => handleIROverflowMoveToIR(p.rosterPlayerId)}
                                             disabled={irOverflowSaving}
                                         >
-                                            <Text style={[styles.overflowBtnText, { color: '#991B1B' }]}>→ IR</Text>
+                                            <Text style={[styles.overflowBtnText, { color: palette.red900 }]}>→ IR</Text>
                                         </Pressable>
                                     )}
                                     <Pressable
-                                        style={[styles.overflowBtn, { backgroundColor: '#EF444422' }]}
+                                        style={[styles.overflowBtn, { backgroundColor: colors.danger + '22' }]}
                                         onPress={() => handleIROverflowDrop(p.rosterPlayerId)}
                                         disabled={irOverflowSaving}
                                     >
-                                        <Text style={[styles.overflowBtnText, { color: '#EF4444' }]}>Drop</Text>
+                                        <Text style={[styles.overflowBtnText, { color: colors.danger }]}>Drop</Text>
                                     </Pressable>
                                 </View>
                             ))}
@@ -494,7 +497,7 @@ function MatchupLineupView({
 
             {maxIR > 0 && (
                 <>
-                    <SectionDivider label="INJURED RESERVE" color="#EF4444" />
+                    <SectionDivider label="INJURED RESERVE" color={colors.danger} />
                     {Array.from({ length: maxIR }, (_, i) => (
                         <MatchupRow
                             key={`ir${i}`}
@@ -537,7 +540,7 @@ function MatchupRow({
     playingTeams: Set<string>
 }) {
     const isSel = selected?.kind === selKind && selected.index === selIndex
-    const slotColor = slotType === 'IR' ? '#EF4444' : (POSITION_COLORS[slotType] ?? '#aaa')
+    const slotColor = slotType === 'IR' ? colors.danger : (POSITION_COLORS[slotType] ?? colors.textPlaceholder)
     const myHasGame = myPlayer?.nbaTeam ? playingTeams.has(myPlayer.nbaTeam) : false
     const oppHasGame = oppPlayer?.nbaTeam ? playingTeams.has(oppPlayer.nbaTeam) : false
 
@@ -565,7 +568,7 @@ function MatchupRow({
                         </View>
                     </>
                 ) : (
-                    <Text style={[styles.sideName, { color: '#ddd', textAlign: 'right' }]}>—</Text>
+                    <Text style={[styles.sideName, { color: colors.border, textAlign: 'right' }]}>—</Text>
                 )}
             </Pressable>
 
@@ -580,7 +583,7 @@ function MatchupRow({
                 disabled={saving}
                 activeOpacity={0.7}
             >
-                <Text style={[styles.slotChipText, { color: isSel ? '#F97316' : slotColor }]}>
+                <Text style={[styles.slotChipText, { color: isSel ? colors.primary : slotColor }]}>
                     {slotType}
                 </Text>
             </Pressable>
@@ -607,7 +610,7 @@ function MatchupRow({
                         </View>
                     </>
                 ) : (
-                    <Text style={[styles.sideName, { color: '#ddd' }]}>—</Text>
+                    <Text style={[styles.sideName, { color: colors.border }]}>—</Text>
                 )}
             </Pressable>
         </View>
@@ -615,7 +618,7 @@ function MatchupRow({
 }
 
 function PosTag({ position }: { position: string }) {
-    const color = POSITION_COLORS[position] ?? '#ccc'
+    const color = POSITION_COLORS[position] ?? palette.gray500
     return (
         <View style={[styles.posTag, { backgroundColor: color + '22' }]}>
             <Text style={[styles.posTagText, { color }]}>{position}</Text>
@@ -627,11 +630,11 @@ function InjuryBadge({ status }: { status: string | null }) {
     if (!status) return null
     const s = status.toLowerCase()
     let label = status.toUpperCase()
-    let color = '#aaa'
-    if (s === 'out') { color = '#EF4444'; label = 'OUT' }
-    else if (s.startsWith('ir')) { color = '#991B1B'; label = 'IR' }
-    else if (s === 'gtd' || s === 'game time decision') { color = '#D97706'; label = 'GTD' }
-    else if (s === 'd-td' || s === 'day-to-day') { color = '#F97316'; label = 'D-TD' }
+    let color: string = colors.textPlaceholder
+    if (s === 'out') { color = colors.danger; label = 'OUT' }
+    else if (s.startsWith('ir')) { color = palette.red900; label = 'IR' }
+    else if (s === 'gtd' || s === 'game time decision') { color = palette.amber600; label = 'GTD' }
+    else if (s === 'd-td' || s === 'day-to-day') { color = colors.primary; label = 'D-TD' }
     else return null
 
     return (
@@ -641,7 +644,7 @@ function InjuryBadge({ status }: { status: string | null }) {
     )
 }
 
-function SectionDivider({ label, color = '#bbb' }: { label: string; color?: string }) {
+function SectionDivider({ label, color = palette.gray550 }: { label: string; color?: string }) {
     return (
         <View style={styles.dividerRow}>
             <Text style={[styles.dividerText, { color }]}>{label}</Text>
@@ -695,10 +698,10 @@ function ScoreCard({ matchup }: { matchup: Matchup }) {
     const iWinning = myPts > oppPts
 
     let statusLabel = 'In Progress'
-    let statusColor = '#F97316'
+    let statusColor: string = colors.primary
     if (matchup.isFinalized) {
         statusLabel = matchup.iWon ? 'Win' : 'Loss'
-        statusColor = matchup.iWon ? '#10B981' : '#EF4444'
+        statusColor = matchup.iWon ? colors.success : colors.danger
     }
 
     return (
@@ -745,55 +748,55 @@ function NoLeagueState() {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#fff' },
+    container: { flex: 1, backgroundColor: colors.bgScreen },
 
-    switcherRow: { maxHeight: 48, borderBottomWidth: 1, borderBottomColor: '#eee' },
+    switcherRow: { maxHeight: 48, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
     switcherContent: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, gap: 8, paddingVertical: 8 },
-    switcherChip: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, borderCurve: 'continuous' as const, backgroundColor: '#f3f3f3' },
-    switcherChipActive: { backgroundColor: '#F97316' },
-    switcherText: { fontSize: 13, fontWeight: '600', color: '#555' },
-    switcherTextActive: { color: '#fff' },
+    switcherChip: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, borderCurve: 'continuous' as const, backgroundColor: colors.bgMuted },
+    switcherChipActive: { backgroundColor: colors.primary },
+    switcherText: { fontSize: 13, fontWeight: '600', color: colors.textSecondary },
+    switcherTextActive: { color: colors.textWhite },
 
     scrollContent: { paddingBottom: 40 },
 
     // Score card
     matchupCard: {
         margin: 16,
-        backgroundColor: '#fff',
+        backgroundColor: colors.bgCard,
         borderRadius: 16,
         borderCurve: 'continuous' as const,
         borderWidth: 1,
-        borderColor: '#eee',
+        borderColor: colors.borderLight,
         padding: 20,
         gap: 16,
         boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
     },
     matchupHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-    matchupWeek: { fontSize: 13, fontWeight: '700', color: '#aaa', letterSpacing: 0.5 },
+    matchupWeek: { fontSize: 13, fontWeight: '700', color: colors.textPlaceholder, letterSpacing: 0.5 },
     statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, borderCurve: 'continuous' as const },
     statusText: { fontSize: 12, fontWeight: '700' },
     matchupScores: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     matchupSide: { flex: 1, gap: 4 },
     matchupSideRight: { alignItems: 'flex-end' },
-    matchupTeam: { fontSize: 13, color: '#888', fontWeight: '500' },
-    matchupScore: { fontSize: 36, fontWeight: '800', color: '#ccc' },
-    winningScore: { color: '#111' },
-    matchupVs: { fontSize: 14, color: '#ccc', fontWeight: '600', paddingHorizontal: 4 },
+    matchupTeam: { fontSize: 13, color: colors.textMuted, fontWeight: '500' },
+    matchupScore: { fontSize: 36, fontWeight: '800', color: palette.gray500 },
+    winningScore: { color: colors.textPrimary },
+    matchupVs: { fontSize: 14, color: palette.gray500, fontWeight: '600', paddingHorizontal: 4 },
 
     // Day selector
-    daySelectorRow: { borderBottomWidth: 1, borderBottomColor: '#eee' },
+    daySelectorRow: { borderBottomWidth: 1, borderBottomColor: colors.borderLight },
     daySelectorContent: { flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 10, gap: 6 },
     dayCell: { width: 40, alignItems: 'center', paddingVertical: 6, borderRadius: 10, borderCurve: 'continuous' as const, gap: 2 },
-    dayCellSelected: { backgroundColor: '#F97316' },
-    dayCellToday: { backgroundColor: '#FFF7ED' },
+    dayCellSelected: { backgroundColor: colors.primary },
+    dayCellToday: { backgroundColor: colors.primaryLight },
     dayCellNoGames: { opacity: 0.4 },
-    dayLabel: { fontSize: 11, fontWeight: '700', color: '#888' },
-    dayLabelSelected: { color: '#fff' },
-    dayLabelFaint: { color: '#ccc' },
-    dayNum: { fontSize: 15, fontWeight: '800', color: '#111' },
-    dayNumSelected: { color: '#fff' },
-    dayNumFaint: { color: '#ccc' },
-    gameDot: { width: 5, height: 5, borderRadius: 3, borderCurve: 'continuous' as const, backgroundColor: '#F97316', marginTop: 1 },
+    dayLabel: { fontSize: 11, fontWeight: '700', color: colors.textMuted },
+    dayLabelSelected: { color: colors.textWhite },
+    dayLabelFaint: { color: palette.gray500 },
+    dayNum: { fontSize: 15, fontWeight: '800', color: colors.textPrimary },
+    dayNumSelected: { color: colors.textWhite },
+    dayNumFaint: { color: palette.gray500 },
+    gameDot: { width: 5, height: 5, borderRadius: 3, borderCurve: 'continuous' as const, backgroundColor: colors.primary, marginTop: 1 },
     gameDotSelected: { backgroundColor: 'rgba(255,255,255,0.7)' },
 
     // Lineup header
@@ -805,32 +808,32 @@ const styles = StyleSheet.create({
         paddingBottom: 4,
         gap: 0,
     },
-    lineupTeamName: { flex: 1, fontSize: 12, fontWeight: '700', color: '#aaa', letterSpacing: 0.3 },
+    lineupTeamName: { flex: 1, fontSize: 12, fontWeight: '700', color: colors.textPlaceholder, letterSpacing: 0.3 },
     autoSetBtn: {
         height: 28,
         borderRadius: 8,
         borderCurve: 'continuous' as const,
         borderWidth: 1.5,
-        borderColor: '#F97316',
+        borderColor: colors.primary,
         alignItems: 'center',
         justifyContent: 'center',
     },
-    autoSetText: { fontSize: 11, fontWeight: '800', color: '#F97316', letterSpacing: 0.5 },
+    autoSetText: { fontSize: 11, fontWeight: '800', color: colors.primary, letterSpacing: 0.5 },
 
     // Selection hint
     hint: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#FFF7ED',
+        backgroundColor: colors.primaryLight,
         borderTopWidth: 1,
         borderBottomWidth: 1,
-        borderColor: '#FED7AA',
+        borderColor: colors.primaryBorder,
         paddingHorizontal: 16,
         paddingVertical: 9,
         marginTop: 4,
     },
-    hintText: { flex: 1, fontSize: 13, color: '#C2410C', fontWeight: '500' },
-    hintCancel: { fontSize: 13, fontWeight: '700', color: '#F97316', paddingLeft: 12 },
+    hintText: { flex: 1, fontSize: 13, color: colors.primaryDark, fontWeight: '500' },
+    hintCancel: { fontSize: 13, fontWeight: '700', color: colors.primary, paddingLeft: 12 },
 
     // Lineup rows
     lineupContainer: { paddingHorizontal: 16 },
@@ -839,17 +842,17 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingVertical: 8,
         borderBottomWidth: 1,
-        borderBottomColor: '#f3f3f3',
+        borderBottomColor: colors.separator,
         gap: 8,
     },
 
     rowSideLeft: { flex: 1, alignItems: 'flex-end' },
     rowSideRight: { flex: 1, alignItems: 'flex-start' },
 
-    sideName: { fontSize: 13, fontWeight: '600', color: '#111', flexShrink: 1 },
-    noGameName: { color: '#ccc' },
+    sideName: { fontSize: 13, fontWeight: '600', color: colors.textPrimary, flexShrink: 1 },
+    noGameName: { color: palette.gray500 },
     metaRow: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 2 },
-    sideMeta: { fontSize: 11, color: '#aaa' },
+    sideMeta: { fontSize: 11, color: colors.textPlaceholder },
 
     posTag: { paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4, borderCurve: 'continuous' as const, flexShrink: 0 },
     posTagText: { fontSize: 9, fontWeight: '800' },
@@ -863,41 +866,41 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         flexShrink: 0,
     },
-    slotChipSelected: { borderWidth: 1.5, borderColor: '#F97316' },
+    slotChipSelected: { borderWidth: 1.5, borderColor: colors.primary },
     slotChipText: { fontSize: 11, fontWeight: '800', letterSpacing: 0.3 },
     injuryBadge: { paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4, flexShrink: 0 },
     injuryBadgeText: { fontSize: 9, fontWeight: '800' },
 
     dividerRow: { paddingTop: 12, paddingBottom: 3 },
-    dividerText: { fontSize: 10, fontWeight: '800', color: '#bbb', letterSpacing: 0.8 },
+    dividerText: { fontSize: 10, fontWeight: '800', color: palette.gray550, letterSpacing: 0.8 },
 
     noLineup: { padding: 32, alignItems: 'center', gap: 12 },
-    noLineupText: { fontSize: 14, color: '#aaa', textAlign: 'center' },
-    setLineupBtn: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10, borderCurve: 'continuous' as const, backgroundColor: '#F97316' },
-    setLineupBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+    noLineupText: { fontSize: 14, color: colors.textPlaceholder, textAlign: 'center' },
+    setLineupBtn: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10, borderCurve: 'continuous' as const, backgroundColor: colors.primary },
+    setLineupBtnText: { color: colors.textWhite, fontWeight: '700', fontSize: 14 },
 
     noMatchup: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 8, padding: 32 },
-    noMatchupText: { fontSize: 16, fontWeight: '600', color: '#555' },
-    noMatchupSub: { fontSize: 13, color: '#aaa', textAlign: 'center' },
+    noMatchupText: { fontSize: 16, fontWeight: '600', color: colors.textSecondary },
+    noMatchupSub: { fontSize: 13, color: colors.textPlaceholder, textAlign: 'center' },
 
     // IR overflow modal
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-    modalSheet: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, gap: 12 },
-    modalTitle: { fontSize: 17, fontWeight: '800', color: '#111' },
-    modalSub: { fontSize: 13, color: '#888', marginBottom: 4 },
-    overflowRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#f3f3f3', gap: 8 },
-    overflowName: { fontSize: 14, fontWeight: '600', color: '#111' },
-    overflowMeta: { fontSize: 12, color: '#888', marginTop: 1 },
+    modalSheet: { backgroundColor: colors.bgScreen, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, gap: 12 },
+    modalTitle: { fontSize: 17, fontWeight: '800', color: colors.textPrimary },
+    modalSub: { fontSize: 13, color: colors.textMuted, marginBottom: 4 },
+    overflowRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.separator, gap: 8 },
+    overflowName: { fontSize: 14, fontWeight: '600', color: colors.textPrimary },
+    overflowMeta: { fontSize: 12, color: colors.textMuted, marginTop: 1 },
     overflowBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
     overflowBtnText: { fontSize: 12, fontWeight: '700' },
     modalCancel: { paddingVertical: 14, alignItems: 'center' },
-    modalCancelText: { fontSize: 15, fontWeight: '600', color: '#888' },
+    modalCancelText: { fontSize: 15, fontWeight: '600', color: colors.textMuted },
 
     noLeague: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32, gap: 16 },
     noLeagueTitle: { fontSize: 28, fontWeight: '800', textAlign: 'center' },
-    noLeagueSub: { fontSize: 15, color: '#888', textAlign: 'center', marginBottom: 8 },
-    primaryButton: { width: '100%', height: 52, backgroundColor: '#F97316', borderRadius: 12, borderCurve: 'continuous' as const, justifyContent: 'center', alignItems: 'center' },
-    primaryButtonText: { color: '#fff', fontWeight: '700', fontSize: 16 },
-    secondaryButton: { width: '100%', height: 52, borderWidth: 1.5, borderColor: '#F97316', borderRadius: 12, borderCurve: 'continuous' as const, justifyContent: 'center', alignItems: 'center' },
-    secondaryButtonText: { color: '#F97316', fontWeight: '700', fontSize: 16 },
+    noLeagueSub: { fontSize: 15, color: colors.textMuted, textAlign: 'center', marginBottom: 8 },
+    primaryButton: { width: '100%', height: 52, backgroundColor: colors.primary, borderRadius: 12, borderCurve: 'continuous' as const, justifyContent: 'center', alignItems: 'center' },
+    primaryButtonText: { color: colors.textWhite, fontWeight: '700', fontSize: 16 },
+    secondaryButton: { width: '100%', height: 52, borderWidth: 1.5, borderColor: colors.primary, borderRadius: 12, borderCurve: 'continuous' as const, justifyContent: 'center', alignItems: 'center' },
+    secondaryButtonText: { color: colors.primary, fontWeight: '700', fontSize: 16 },
 })

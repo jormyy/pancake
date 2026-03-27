@@ -15,6 +15,8 @@ import { useAuth } from '@/hooks/use-auth'
 import { getRoster, RosterPlayer } from '@/lib/roster'
 import { getPlayer } from '@/lib/players'
 import { submitWaiverClaim, getMyWaiverPriority } from '@/lib/waivers'
+import { LoadingScreen } from '@/components/LoadingScreen'
+import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 
 export default function ClaimPlayerScreen() {
     const { playerId } = useLocalSearchParams<{ playerId: string }>()
@@ -85,11 +87,7 @@ export default function ClaimPlayerScreen() {
     }
 
     if (loading) {
-        return (
-            <SafeAreaView style={styles.container}>
-                <ActivityIndicator style={styles.flex1} color="#F97316" />
-            </SafeAreaView>
-        )
+        return <LoadingScreen />
     }
 
     const tomorrow = new Date()
@@ -171,7 +169,7 @@ export default function ClaimPlayerScreen() {
                         disabled={submitting || (needsDrop && !selectedDrop)}
                     >
                         {submitting ? (
-                            <ActivityIndicator color="#fff" />
+                            <ActivityIndicator color={colors.textWhite} />
                         ) : (
                             <Text style={styles.submitButtonText}>Submit Claim</Text>
                         )}
@@ -183,107 +181,107 @@ export default function ClaimPlayerScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#f5f5f5' },
+    container: { flex: 1, backgroundColor: colors.bgSubtle },
     flex1: { flex: 1 },
 
     claimCard: {
-        margin: 16,
-        padding: 20,
-        backgroundColor: '#fff',
+        margin: spacing.xl,
+        padding: spacing['2xl'],
+        backgroundColor: colors.bgScreen,
         borderRadius: 14,
         borderCurve: 'continuous' as const,
         borderWidth: 1,
-        borderColor: '#eee',
-        gap: 4,
+        borderColor: colors.borderLight,
+        gap: spacing.xs,
     },
-    claimLabel: { fontSize: 11, fontWeight: '700', color: '#8B5CF6', letterSpacing: 1 },
-    claimName: { fontSize: 22, fontWeight: '800', color: '#111' },
-    claimMeta: { fontSize: 14, color: '#888' },
+    claimLabel: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.info, letterSpacing: 1 },
+    claimName: { fontSize: 22, fontWeight: fontWeight.extrabold, color: colors.textPrimary },
+    claimMeta: { fontSize: fontSize.md, color: colors.textMuted },
 
     infoRow: {
         flexDirection: 'row',
-        marginHorizontal: 16,
-        marginBottom: 16,
-        gap: 12,
+        marginHorizontal: spacing.xl,
+        marginBottom: spacing.xl,
+        gap: spacing.lg,
     },
     infoCell: {
         flex: 1,
-        backgroundColor: '#fff',
-        borderRadius: 12,
+        backgroundColor: colors.bgScreen,
+        borderRadius: radii.xl,
         borderCurve: 'continuous' as const,
         borderWidth: 1,
-        borderColor: '#eee',
+        borderColor: colors.borderLight,
         padding: 14,
         alignItems: 'center',
-        gap: 4,
+        gap: spacing.xs,
     },
-    infoLabel: { fontSize: 11, fontWeight: '700', color: '#aaa', letterSpacing: 0.5 },
-    infoValue: { fontSize: 18, fontWeight: '800', color: '#111' },
+    infoLabel: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.textPlaceholder, letterSpacing: 0.5 },
+    infoValue: { fontSize: 18, fontWeight: fontWeight.extrabold, color: colors.textPrimary },
 
     sectionTitle: {
-        fontSize: 11,
-        fontWeight: '700',
-        color: '#aaa',
+        fontSize: fontSize.xs,
+        fontWeight: fontWeight.bold,
+        color: colors.textPlaceholder,
         letterSpacing: 0.8,
-        marginHorizontal: 20,
-        marginBottom: 4,
+        marginHorizontal: spacing['2xl'],
+        marginBottom: spacing.xs,
     },
     sectionSub: {
-        fontSize: 13,
-        color: '#888',
-        marginHorizontal: 20,
-        marginBottom: 12,
+        fontSize: fontSize.sm,
+        color: colors.textMuted,
+        marginHorizontal: spacing['2xl'],
+        marginBottom: spacing.lg,
     },
 
-    rosterList: { paddingHorizontal: 16, gap: 8 },
+    rosterList: { paddingHorizontal: spacing.xl, gap: spacing.md },
     rosterRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#fff',
-        borderRadius: 12,
+        backgroundColor: colors.bgScreen,
+        borderRadius: radii.xl,
         borderCurve: 'continuous' as const,
         borderWidth: 1,
-        borderColor: '#eee',
+        borderColor: colors.borderLight,
         padding: 14,
-        gap: 12,
+        gap: spacing.lg,
     },
-    rosterRowSelected: { borderColor: '#EF4444', backgroundColor: '#FEF2F2' },
-    rosterInfo: { flex: 1, gap: 2 },
-    rosterName: { fontSize: 15, fontWeight: '600', color: '#111' },
-    rosterMeta: { fontSize: 13, color: '#888' },
+    rosterRowSelected: { borderColor: colors.danger, backgroundColor: palette.red50 },
+    rosterInfo: { flex: 1, gap: spacing.xxs },
+    rosterName: { fontSize: 15, fontWeight: fontWeight.semibold, color: colors.textPrimary },
+    rosterMeta: { fontSize: fontSize.sm, color: colors.textMuted },
     check: {
         width: 24,
         height: 24,
-        borderRadius: 12,
+        borderRadius: radii.xl,
         borderCurve: 'continuous' as const,
         borderWidth: 1.5,
-        borderColor: '#ddd',
+        borderColor: colors.border,
         justifyContent: 'center',
         alignItems: 'center',
     },
-    checkSelected: { backgroundColor: '#EF4444', borderColor: '#EF4444' },
-    checkText: { color: '#fff', fontSize: 13, fontWeight: '700' },
+    checkSelected: { backgroundColor: colors.danger, borderColor: colors.danger },
+    checkText: { color: colors.textWhite, fontSize: fontSize.sm, fontWeight: fontWeight.bold },
 
     spaceNote: {
-        margin: 16,
-        padding: 16,
-        backgroundColor: '#F0FDF4',
-        borderRadius: 12,
+        margin: spacing.xl,
+        padding: spacing.xl,
+        backgroundColor: palette.green50,
+        borderRadius: radii.xl,
         borderCurve: 'continuous' as const,
         borderWidth: 1,
-        borderColor: '#BBF7D0',
+        borderColor: palette.green200,
     },
-    spaceNoteText: { fontSize: 14, color: '#166534', fontWeight: '600', textAlign: 'center' },
+    spaceNoteText: { fontSize: fontSize.md, color: palette.green800, fontWeight: fontWeight.semibold, textAlign: 'center' },
 
-    footer: { padding: 16, paddingBottom: 8 },
+    footer: { padding: spacing.xl, paddingBottom: spacing.md },
     submitButton: {
-        backgroundColor: '#8B5CF6',
+        backgroundColor: colors.info,
         borderRadius: 14,
         borderCurve: 'continuous' as const,
         height: 52,
         justifyContent: 'center',
         alignItems: 'center',
     },
-    submitButtonDisabled: { backgroundColor: '#C4B5FD' },
-    submitButtonText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+    submitButtonDisabled: { backgroundColor: palette.purple300 },
+    submitButtonText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.lg },
 })

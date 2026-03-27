@@ -25,6 +25,7 @@ import {
 } from '@/lib/rookieDraft'
 import { POSITION_COLORS } from '@/constants/positions'
 import { bgStyle } from '@/lib/style-cache'
+import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 
 export default function RookieDraftRoomScreen() {
     const { draftId } = useLocalSearchParams<{ draftId: string }>()
@@ -103,7 +104,7 @@ export default function RookieDraftRoomScreen() {
         return (
             <SafeAreaView style={styles.container}>
                 <Stack.Screen options={{ title: 'Rookie Draft', presentation: 'modal' }} />
-                <ActivityIndicator style={{ flex: 1 }} color="#F97316" />
+                <ActivityIndicator style={{ flex: 1 }} color={colors.primary} />
             </SafeAreaView>
         )
     }
@@ -165,7 +166,7 @@ export default function RookieDraftRoomScreen() {
                             <TextInput
                                 style={styles.searchInput}
                                 placeholder="Search players…"
-                                placeholderTextColor="#aaa"
+                                placeholderTextColor={colors.textPlaceholder}
                                 value={query}
                                 onChangeText={setQuery}
                                 autoCorrect={false}
@@ -174,7 +175,7 @@ export default function RookieDraftRoomScreen() {
                             {searching && (
                                 <ActivityIndicator
                                     size="small"
-                                    color="#F97316"
+                                    color={colors.primary}
                                     style={styles.searchSpinner}
                                 />
                             )}
@@ -194,7 +195,7 @@ export default function RookieDraftRoomScreen() {
                                     <View
                                         style={[
                                             styles.posChip,
-                                            { backgroundColor: POSITION_COLORS[p.position] ?? '#ccc' },
+                                            { backgroundColor: POSITION_COLORS[p.position] ?? palette.gray500 },
                                         ]}
                                     >
                                         <Text style={styles.posChipText}>{p.position ?? '?'}</Text>
@@ -204,7 +205,7 @@ export default function RookieDraftRoomScreen() {
                                         <Text style={styles.resultTeam}>{p.nba_team ?? 'FA'}</Text>
                                     </View>
                                     {picking ? (
-                                        <ActivityIndicator size="small" color="#F97316" />
+                                        <ActivityIndicator size="small" color={colors.primary} />
                                     ) : (
                                         <Text style={styles.pickBtn}>Pick</Text>
                                     )}
@@ -262,7 +263,7 @@ function PickRow({
                     <View
                         style={[
                             styles.posChipSm,
-                            bgStyle(POSITION_COLORS[item.player.position ?? ''] ?? '#ccc'),
+                            bgStyle(POSITION_COLORS[item.player.position ?? ''] ?? palette.gray500),
                         ]}
                     >
                         <Text style={styles.posChipSmText}>{item.player.position ?? '?'}</Text>
@@ -286,47 +287,47 @@ function PickRow({
 const ItemSeparator = () => <View style={styles.separator} />
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#fff' },
+    container: { flex: 1, backgroundColor: colors.bgScreen },
     center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-    emptyText: { color: '#aaa', fontSize: 14 },
+    emptyText: { color: colors.textPlaceholder, fontSize: fontSize.md },
 
     banner: {
-        backgroundColor: '#FFF7ED',
+        backgroundColor: colors.primaryLight,
         borderBottomWidth: 1,
-        borderBottomColor: '#FFE4CC',
-        paddingHorizontal: 20,
+        borderBottomColor: palette.orange100,
+        paddingHorizontal: spacing['2xl'],
         paddingVertical: 14,
-        gap: 4,
+        gap: spacing.xs,
     },
-    bannerDone: { backgroundColor: '#F0FDF4', borderBottomColor: '#BBF7D0' },
-    bannerTitle: { fontSize: 16, fontWeight: '800', color: '#111' },
-    bannerSub: { fontSize: 14, color: '#555' },
-    bannerMe: { color: '#F97316', fontWeight: '700' },
+    bannerDone: { backgroundColor: palette.green50, borderBottomColor: palette.green200 },
+    bannerTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.extrabold, color: colors.textPrimary },
+    bannerSub: { fontSize: fontSize.md, color: colors.textSecondary },
+    bannerMe: { color: colors.primary, fontWeight: fontWeight.bold },
 
     searchContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        margin: 12,
+        margin: spacing.lg,
         paddingHorizontal: 14,
         paddingVertical: 10,
-        backgroundColor: '#f5f5f5',
-        borderRadius: 12,
+        backgroundColor: colors.bgSubtle,
+        borderRadius: radii.xl,
         borderCurve: 'continuous' as const,
         borderWidth: 1.5,
-        borderColor: '#F97316',
+        borderColor: colors.primary,
     },
-    searchInput: { flex: 1, fontSize: 15, color: '#111' },
-    searchSpinner: { marginLeft: 8 },
+    searchInput: { flex: 1, fontSize: 15, color: colors.textPrimary },
+    searchSpinner: { marginLeft: spacing.md },
 
     resultsContainer: {
-        marginHorizontal: 12,
-        marginBottom: 8,
-        borderRadius: 12,
+        marginHorizontal: spacing.lg,
+        marginBottom: spacing.md,
+        borderRadius: radii.xl,
         borderCurve: 'continuous' as const,
         borderWidth: 1,
-        borderColor: '#eee',
+        borderColor: colors.borderLight,
         overflow: 'hidden',
-        backgroundColor: '#fff',
+        backgroundColor: colors.bgScreen,
     },
     resultRow: {
         flexDirection: 'row',
@@ -334,59 +335,59 @@ const styles = StyleSheet.create({
         paddingHorizontal: 14,
         paddingVertical: 10,
         borderBottomWidth: 1,
-        borderBottomColor: '#f3f3f3',
+        borderBottomColor: colors.separator,
         gap: 10,
     },
     resultInfo: { flex: 1 },
-    resultName: { fontSize: 14, fontWeight: '600', color: '#111' },
-    resultTeam: { fontSize: 12, color: '#888' },
-    pickBtn: { fontSize: 14, fontWeight: '700', color: '#F97316' },
+    resultName: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textPrimary },
+    resultTeam: { fontSize: 12, color: colors.textMuted },
+    pickBtn: { fontSize: fontSize.md, fontWeight: fontWeight.bold, color: colors.primary },
 
     posChip: {
         width: 36,
         height: 36,
-        borderRadius: 8,
+        borderRadius: radii.md,
         borderCurve: 'continuous' as const,
         justifyContent: 'center',
         alignItems: 'center',
     },
-    posChipText: { color: '#fff', fontSize: 11, fontWeight: '700' },
+    posChipText: { color: colors.textWhite, fontSize: fontSize.xs, fontWeight: fontWeight.bold },
 
     posChipSm: {
         width: 28,
         height: 28,
-        borderRadius: 6,
+        borderRadius: radii.sm,
         borderCurve: 'continuous' as const,
         justifyContent: 'center',
         alignItems: 'center',
     },
-    posChipSmText: { color: '#fff', fontSize: 10, fontWeight: '700' },
+    posChipSmText: { color: colors.textWhite, fontSize: 10, fontWeight: fontWeight.bold },
 
-    separator: { height: 1, backgroundColor: '#f3f3f3' },
+    separator: { height: 1, backgroundColor: colors.separator },
 
-    pickHeader: { borderBottomWidth: 1, borderBottomColor: '#eee', paddingVertical: 8 },
-    headerText: { fontSize: 11, fontWeight: '700', color: '#aaa' },
+    pickHeader: { borderBottomWidth: 1, borderBottomColor: colors.borderLight, paddingVertical: spacing.md },
+    headerText: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.textPlaceholder },
 
     pickRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: 16,
+        paddingHorizontal: spacing.xl,
         paddingVertical: 10,
-        gap: 8,
+        gap: spacing.md,
     },
-    pickRowMe: { backgroundColor: '#FFF7ED' },
-    pickRowOnClock: { backgroundColor: '#F0FDF4' },
+    pickRowMe: { backgroundColor: colors.primaryLight },
+    pickRowOnClock: { backgroundColor: palette.green50 },
 
-    pickNum: { width: 28, fontSize: 13, fontWeight: '700', color: '#888' },
-    pickTeam: { width: 100, fontSize: 13, fontWeight: '600', color: '#111' },
-    pickPlayer: { flex: 1, fontSize: 13, color: '#aaa' },
+    pickNum: { width: 28, fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.textMuted },
+    pickTeam: { width: 100, fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textPrimary },
+    pickPlayer: { flex: 1, fontSize: fontSize.sm, color: colors.textPlaceholder },
 
-    pickPlayerCell: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
-    pickedName: { fontSize: 13, fontWeight: '600', color: '#111' },
-    pickedTeam: { fontSize: 11, color: '#888' },
+    pickPlayerCell: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+    pickedName: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textPrimary },
+    pickedTeam: { fontSize: fontSize.xs, color: colors.textMuted },
 
-    onClockText: { color: '#10B981', fontWeight: '700' },
-    meText: { color: '#F97316', fontWeight: '700' },
+    onClockText: { color: colors.success, fontWeight: fontWeight.bold },
+    meText: { color: colors.primary, fontWeight: fontWeight.bold },
 })
 
 const PickBoardHeader = (

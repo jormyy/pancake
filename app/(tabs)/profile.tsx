@@ -13,6 +13,9 @@ import { useAuth } from '@/hooks/use-auth'
 import { getProfile, updateProfile, signOut } from '@/lib/auth'
 import { updateTeamName } from '@/lib/league'
 import { useLeagueContext } from '@/contexts/league-context'
+import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { LoadingScreen } from '@/components/LoadingScreen'
+import { Avatar } from '@/components/Avatar'
 
 export default function ProfileScreen() {
     const { user } = useAuth()
@@ -64,7 +67,7 @@ export default function ProfileScreen() {
             await Promise.all(saves)
             setProfile((prev: any) => ({ ...prev, display_name: trimmedDisplay }))
             setEditing(false)
-            refresh() // propagate changes to all screens
+            refresh()
         } catch (e: any) {
             Alert.alert('Error', e.message)
         } finally {
@@ -95,34 +98,21 @@ export default function ProfileScreen() {
         ])
     }
 
-    if (loading) {
-        return (
-            <SafeAreaView style={styles.container}>
-                <ActivityIndicator style={{ flex: 1 }} color="#F97316" />
-            </SafeAreaView>
-        )
-    }
-
-    const initials = (profile?.display_name ?? profile?.username ?? '?')
-        .split(' ')
-        .map((w: string) => w[0])
-        .slice(0, 2)
-        .join('')
-        .toUpperCase()
+    if (loading) return <LoadingScreen />
 
     return (
         <SafeAreaView style={styles.container}>
             <View style={styles.scroll}>
                 {/* Avatar */}
                 <View style={styles.avatarSection}>
-                    <View style={styles.avatar}>
-                        <Text style={styles.avatarText}>{initials}</Text>
-                    </View>
+                    <Avatar
+                        name={profile?.display_name ?? profile?.username ?? '?'}
+                        size={84}
+                    />
                 </View>
 
                 {/* Info card */}
                 <View style={styles.card}>
-                    {/* Display name */}
                     <View style={styles.row}>
                         <Text style={styles.rowLabel}>Name</Text>
                         {editing ? (
@@ -140,7 +130,6 @@ export default function ProfileScreen() {
 
                     <View style={styles.divider} />
 
-                    {/* Username */}
                     <View style={styles.row}>
                         <Text style={styles.rowLabel}>Username</Text>
                         <Text style={styles.rowValue}>@{profile?.username}</Text>
@@ -148,7 +137,6 @@ export default function ProfileScreen() {
 
                     <View style={styles.divider} />
 
-                    {/* Email */}
                     <View style={styles.row}>
                         <Text style={styles.rowLabel}>Email</Text>
                         <Text style={styles.rowValue}>{user?.email}</Text>
@@ -172,7 +160,7 @@ export default function ProfileScreen() {
                                         returnKeyType="done"
                                         onSubmitEditing={handleSave}
                                         placeholder="Your team name"
-                                        placeholderTextColor="#ccc"
+                                        placeholderTextColor={palette.gray500}
                                     />
                                 ) : (
                                     <Text style={styles.rowValue}>
@@ -196,7 +184,7 @@ export default function ProfileScreen() {
                             disabled={saving}
                         >
                             {saving ? (
-                                <ActivityIndicator size="small" color="#fff" />
+                                <ActivityIndicator size="small" color={colors.textWhite} />
                             ) : (
                                 <Text style={styles.saveButtonText}>Save</Text>
                             )}
@@ -218,104 +206,94 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#f5f5f5' },
-    scroll: { flex: 1, padding: 24, gap: 16 },
+    container: { flex: 1, backgroundColor: colors.bgSubtle },
+    scroll: { flex: 1, padding: spacing['3xl'], gap: spacing.xl },
 
-    avatarSection: { alignItems: 'center', paddingVertical: 8 },
-    avatar: {
-        width: 84,
-        height: 84,
-        borderRadius: 42,
-        borderCurve: 'continuous' as const,
-        backgroundColor: '#F97316',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    avatarText: { color: '#fff', fontSize: 30, fontWeight: '800' },
+    avatarSection: { alignItems: 'center', paddingVertical: spacing.md },
 
     sectionLabel: {
-        fontSize: 11,
-        fontWeight: '700',
-        color: '#aaa',
+        fontSize: fontSize.xs,
+        fontWeight: fontWeight.bold,
+        color: colors.textPlaceholder,
         letterSpacing: 0.8,
-        marginTop: 8,
-        marginBottom: 4,
-        marginLeft: 4,
+        marginTop: spacing.md,
+        marginBottom: spacing.xs,
+        marginLeft: spacing.xs,
     },
 
     card: {
-        backgroundColor: '#fff',
+        backgroundColor: colors.bgCard,
         borderRadius: 14,
         borderCurve: 'continuous' as const,
         borderWidth: 1,
-        borderColor: '#eee',
+        borderColor: colors.borderLight,
         overflow: 'hidden',
     },
     row: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: 16,
+        paddingHorizontal: spacing.xl,
         paddingVertical: 14,
-        gap: 12,
+        gap: spacing.lg,
     },
-    divider: { height: 1, backgroundColor: '#f3f3f3', marginLeft: 16 },
-    rowLabel: { width: 80, fontSize: 14, color: '#aaa', fontWeight: '500' },
-    rowValue: { flex: 1, fontSize: 15, color: '#111', fontWeight: '500' },
+    divider: { height: 1, backgroundColor: colors.separator, marginLeft: spacing.xl },
+    rowLabel: { width: 80, fontSize: fontSize.md, color: colors.textPlaceholder, fontWeight: fontWeight.medium },
+    rowValue: { flex: 1, fontSize: 15, color: colors.textPrimary, fontWeight: fontWeight.medium },
     input: {
         flex: 1,
         fontSize: 15,
-        color: '#111',
-        fontWeight: '500',
+        color: colors.textPrimary,
+        fontWeight: fontWeight.medium,
         borderBottomWidth: 1.5,
-        borderBottomColor: '#F97316',
+        borderBottomColor: colors.primary,
         padding: 0,
     },
 
-    actionRow: { flexDirection: 'row', gap: 12 },
+    actionRow: { flexDirection: 'row', gap: spacing.lg },
     editButton: {
-        backgroundColor: '#fff',
-        borderRadius: 12,
+        backgroundColor: colors.bgCard,
+        borderRadius: radii.xl,
         borderCurve: 'continuous' as const,
         height: 48,
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 1,
-        borderColor: '#ddd',
+        borderColor: colors.border,
     },
-    editButtonText: { fontSize: 15, fontWeight: '600', color: '#555' },
+    editButtonText: { fontSize: 15, fontWeight: fontWeight.semibold, color: colors.textSecondary },
 
     saveButton: {
         flex: 1,
-        backgroundColor: '#F97316',
-        borderRadius: 12,
+        backgroundColor: colors.primary,
+        borderRadius: radii.xl,
         borderCurve: 'continuous' as const,
         height: 48,
         justifyContent: 'center',
         alignItems: 'center',
     },
-    saveButtonText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+    saveButtonText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: 15 },
     cancelButton: {
         flex: 1,
-        backgroundColor: '#fff',
-        borderRadius: 12,
+        backgroundColor: colors.bgCard,
+        borderRadius: radii.xl,
         borderCurve: 'continuous' as const,
         height: 48,
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 1,
-        borderColor: '#ddd',
+        borderColor: colors.border,
     },
-    cancelButtonText: { fontSize: 15, fontWeight: '600', color: '#555' },
+    cancelButtonText: { fontSize: 15, fontWeight: fontWeight.semibold, color: colors.textSecondary },
 
     signOutButton: {
-        marginTop: 8,
+        marginTop: spacing.md,
         height: 48,
-        borderRadius: 12,
+        borderRadius: radii.xl,
         borderCurve: 'continuous' as const,
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 1,
         borderColor: '#FCA5A5',
     },
-    signOutText: { fontSize: 15, fontWeight: '600', color: '#EF4444' },
+    signOutText: { fontSize: 15, fontWeight: fontWeight.semibold, color: colors.danger },
 })

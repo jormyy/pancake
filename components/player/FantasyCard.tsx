@@ -1,4 +1,5 @@
 import { View, Text, StyleSheet } from 'react-native'
+import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 
 type Props = {
     avgFantasyPoints: number
@@ -26,16 +27,16 @@ export function FantasyCard({ avgFantasyPoints, gamesCount }: Props) {
 
 const styles = StyleSheet.create({
     card: {
-        backgroundColor: '#FFF7ED',
-        borderRadius: 12,
+        backgroundColor: colors.primaryLight,
+        borderRadius: radii.xl,
         borderCurve: 'continuous' as const,
-        padding: 16,
+        padding: spacing.xl,
         gap: 10,
     },
-    title: { fontSize: 13, fontWeight: '700', color: '#C2410C', textTransform: 'uppercase', letterSpacing: 0.5 },
+    title: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.primaryDark, textTransform: 'uppercase', letterSpacing: 0.5 },
     row: { flexDirection: 'row', alignItems: 'center' },
-    stat: { flex: 1, alignItems: 'center', gap: 4 },
-    divider: { width: 1, height: 36, backgroundColor: '#FED7AA' },
-    statValue: { fontSize: 24, fontWeight: '800', color: '#F97316' },
-    statLabel: { fontSize: 11, fontWeight: '600', color: '#9A3412' },
+    stat: { flex: 1, alignItems: 'center', gap: spacing.xs },
+    divider: { width: 1, height: 36, backgroundColor: palette.orange200 },
+    statValue: { fontSize: fontSize['2xl'], fontWeight: fontWeight.extrabold, color: colors.primary },
+    statLabel: { fontSize: fontSize.xs, fontWeight: fontWeight.semibold, color: palette.orange900 },
 })

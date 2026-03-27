@@ -11,8 +11,7 @@ import {
 import { FlashList } from '@shopify/flash-list'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
-import { useCallback, useMemo, useState } from 'react'
-import { useFocusEffect } from '@react-navigation/native'
+import { useMemo, useState } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useAuth } from '@/hooks/use-auth'
 import { getLeagueMembers } from '@/lib/league'
@@ -22,7 +21,15 @@ import { getWaiverPriorityOrder, WaiverPriorityRow } from '@/lib/waivers'
 import { getLeagueTransactions, TransactionRow, TRANSACTION_LABELS } from '@/lib/transactions'
 import { getActiveRookieDraft, startRookieDraft, getAllLeaguePicks, type LeaguePickItem } from '@/lib/rookieDraft'
 import { POSITION_COLORS } from '@/constants/positions'
-import { bgStyle } from '@/lib/style-cache'
+import { colors, palette, fontSize, fontWeight, radii, spacing, TX_COLORS } from '@/constants/tokens'
+import { shortDateFmt } from '@/lib/format'
+import { ItemSeparator } from '@/components/ItemSeparator'
+import { LoadingScreen } from '@/components/LoadingScreen'
+import { EmptyState } from '@/components/EmptyState'
+import { Avatar } from '@/components/Avatar'
+import { Badge } from '@/components/Badge'
+import { SectionHeader } from '@/components/SectionHeader'
+import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
 
 const ROLE_LABELS: Record<string, string> = {
     commissioner: 'Commissioner',
@@ -32,25 +39,14 @@ const ROLE_LABELS: Record<string, string> = {
 
 type Tab = 'standings' | 'activity' | 'waivers' | 'members' | 'picks'
 
-const ItemSeparator = () => <View style={styles.separator} />
-
-const shortDateFmt = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' })
-
-function getInitials(name: string): string {
-    return name.split(' ').map((w: string) => w[0]).slice(0, 2).join('')
-}
-
 // ── Extracted list item components ───────────────────────────────
 
 function MemberRow({ item, isMe }: { item: any; isMe: boolean }) {
     const profile = item.profiles as any
+    const displayName = item.team_name ?? profile?.display_name ?? '?'
     return (
         <View style={styles.memberRow}>
-            <View style={styles.memberAvatar}>
-                <Text style={styles.memberAvatarText}>
-                    {(item.team_name ?? profile?.display_name ?? '?')[0].toUpperCase()}
-                </Text>
-            </View>
+            <Avatar name={displayName} color={colors.primary} size={44} />
             <View style={styles.memberInfo}>
                 <Text style={styles.memberTeam}>
                     {item.team_name ?? 'Unnamed Team'}
@@ -60,11 +56,21 @@ function MemberRow({ item, isMe }: { item: any; isMe: boolean }) {
                     {profile?.display_name ?? profile?.username}
                 </Text>
             </View>
-            <View style={[styles.roleBadge, item.role === 'commissioner' && styles.roleBadgeCommissioner]}>
-                <Text style={[styles.roleText, item.role === 'commissioner' && styles.roleTextCommissioner]}>
-                    {ROLE_LABELS[item.role] ?? item.role}
-                </Text>
-            </View>
+            {item.role === 'commissioner' ? (
+                <Badge
+                    label={ROLE_LABELS[item.role] ?? item.role}
+                    color={colors.warningDark}
+                    textColor={colors.warningDark}
+                    variant="soft"
+                />
+            ) : (
+                <Badge
+                    label={ROLE_LABELS[item.role] ?? item.role}
+                    color={colors.textMuted}
+                    textColor={colors.textMuted}
+                    variant="soft"
+                />
+            )}
         </View>
     )
 }
@@ -85,14 +91,16 @@ function StandingsRow({ item, index, isMe }: { item: StandingRow; index: number;
 }
 
 function ActivityRow({ item, isMe }: { item: TransactionRow; isMe: boolean }) {
-    const color = TX_COLORS[item.transactionType] ?? '#888'
+    const color = TX_COLORS[item.transactionType] ?? colors.textMuted
     const label = TRANSACTION_LABELS[item.transactionType] ?? item.transactionType
     const pos = item.position ?? ''
     return (
         <View style={[styles.txRow, isMe && styles.txRowMe]}>
-            <View style={[styles.txAvatar, bgStyle(POSITION_COLORS[pos] ?? '#ccc')]}>
-                <Text style={styles.txAvatarText}>{getInitials(item.playerName)}</Text>
-            </View>
+            <Avatar
+                name={item.playerName}
+                color={POSITION_COLORS[pos] ?? palette.gray500}
+                size={40}
+            />
             <View style={styles.txInfo}>
                 <Text style={styles.txPlayer} numberOfLines={1}>
                     {item.playerName}
@@ -104,9 +112,7 @@ function ActivityRow({ item, isMe }: { item: TransactionRow; isMe: boolean }) {
                 </Text>
             </View>
             <View style={styles.txRight}>
-                <View style={[styles.txLabel, bgStyle(color + '22')]}>
-                    <Text style={[styles.txLabelText, { color }]}>{label}</Text>
-                </View>
+                <Badge label={label} color={color} variant="soft" />
                 <Text style={styles.txTime}>{timeAgo(item.occurredAt)}</Text>
             </View>
         </View>
@@ -134,11 +140,7 @@ type PicksBankItem =
     | { type: 'pick'; pick: LeaguePickItem; id: string }
 
 function PicksBankYearHeader({ year }: { year: number }) {
-    return (
-        <View style={styles.picksBankYearRow}>
-            <Text style={styles.picksBankYear}>{year}</Text>
-        </View>
-    )
+    return <SectionHeader label={String(year)} />
 }
 
 function PicksBankRow({ pick, isMine }: { pick: LeaguePickItem; isMine: boolean }) {
@@ -163,45 +165,34 @@ export default function LeagueScreen() {
     const { current, loading: leagueLoading } = useLeagueContext()
     const { user } = useAuth()
     const [tab, setTab] = useState<Tab>('standings')
-    const [members, setMembers] = useState<any[]>([])
-    const [standings, setStandings] = useState<StandingRow[]>([])
-    const [waiverOrder, setWaiverOrder] = useState<WaiverPriorityRow[]>([])
-    const [transactions, setTransactions] = useState<TransactionRow[]>([])
-    const [leaguePicks, setLeaguePicks] = useState<LeaguePickItem[]>([])
-    const [loading, setLoading] = useState(true)
     const [draftLoading, setDraftLoading] = useState(false)
 
     const league = current?.leagues as any
     const isCommissioner = league?.commissioner_id === user?.id
 
-    const load = useCallback(async () => {
-        if (!current) return
-        setLoading(true)
-        try {
-            const [memberData, standingsData, waiverData, txData, picksData] = await Promise.all([
-                getLeagueMembers(league.id),
-                getLeagueStandings(league.id),
-                getWaiverPriorityOrder(league.id),
-                getLeagueTransactions(league.id),
-                getAllLeaguePicks(league.id),
-            ])
-            setMembers(memberData)
-            setStandings(standingsData)
-            setWaiverOrder(waiverData)
-            setTransactions(txData)
-            setLeaguePicks(picksData)
-        } catch (e) {
-            console.error(e)
-        } finally {
-            setLoading(false)
+    const { data, loading } = useFocusAsyncData(async () => {
+        if (!current) return null
+        const [memberData, standingsData, waiverData, txData, picksData] = await Promise.all([
+            getLeagueMembers(league.id),
+            getLeagueStandings(league.id),
+            getWaiverPriorityOrder(league.id),
+            getLeagueTransactions(league.id),
+            getAllLeaguePicks(league.id),
+        ])
+        return {
+            members: memberData,
+            standings: standingsData,
+            waiverOrder: waiverData,
+            transactions: txData,
+            leaguePicks: picksData,
         }
     }, [current])
 
-    useFocusEffect(
-        useCallback(() => {
-            load()
-        }, [load]),
-    )
+    const members = data?.members ?? []
+    const standings = data?.standings ?? []
+    const waiverOrder = data?.waiverOrder ?? []
+    const transactions = data?.transactions ?? []
+    const leaguePicks = data?.leaguePicks ?? []
 
     async function handleStartDraft() {
         if (!league?.id) return
@@ -274,21 +265,11 @@ export default function LeagueScreen() {
     }
 
     if (leagueLoading || (!current && loading)) {
-        return (
-            <SafeAreaView style={styles.container}>
-                <ActivityIndicator style={styles.flex1} color="#F97316" />
-            </SafeAreaView>
-        )
+        return <LoadingScreen />
     }
 
     if (!current) {
-        return (
-            <SafeAreaView style={styles.container}>
-                <View style={styles.empty}>
-                    <Text style={styles.emptyText}>Join or create a league first.</Text>
-                </View>
-            </SafeAreaView>
-        )
+        return <EmptyState message="Join or create a league first." />
     }
 
     return (
@@ -337,22 +318,22 @@ export default function LeagueScreen() {
                 {/* Draft actions */}
                 {league?.status === 'setup' && isCommissioner ? (
                     <Pressable style={styles.draftButton} onPress={handleStartDraft} disabled={draftLoading}>
-                        {draftLoading ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.draftButtonText}>Start Auction Draft</Text>}
+                        {draftLoading ? <ActivityIndicator size="small" color={colors.textWhite} /> : <Text style={styles.draftButtonText}>Start Auction Draft</Text>}
                     </Pressable>
                 ) : null}
                 {league?.status === 'drafting' ? (
                     <Pressable style={styles.draftButton} onPress={handleJoinDraftRoom} disabled={draftLoading}>
-                        {draftLoading ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.draftButtonText}>Join Draft Room</Text>}
+                        {draftLoading ? <ActivityIndicator size="small" color={colors.textWhite} /> : <Text style={styles.draftButtonText}>Join Draft Room</Text>}
                     </Pressable>
                 ) : null}
                 {league?.status === 'offseason' && isCommissioner ? (
                     <Pressable style={styles.draftButton} onPress={handleStartRookieDraft} disabled={draftLoading}>
-                        {draftLoading ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.draftButtonText}>Start Rookie Draft</Text>}
+                        {draftLoading ? <ActivityIndicator size="small" color={colors.textWhite} /> : <Text style={styles.draftButtonText}>Start Rookie Draft</Text>}
                     </Pressable>
                 ) : null}
                 {league?.status === 'offseason' && !isCommissioner ? (
                     <Pressable style={styles.draftButton} onPress={handleJoinRookieDraft} disabled={draftLoading}>
-                        {draftLoading ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.draftButtonText}>Join Rookie Draft</Text>}
+                        {draftLoading ? <ActivityIndicator size="small" color={colors.textWhite} /> : <Text style={styles.draftButtonText}>Join Rookie Draft</Text>}
                     </Pressable>
                 ) : null}
             </View>
@@ -382,7 +363,7 @@ export default function LeagueScreen() {
             </ScrollView>
 
             {loading ? (
-                <ActivityIndicator style={styles.loadingMargin} color="#F97316" />
+                <ActivityIndicator style={styles.loadingMargin} color={colors.primary} />
             ) : tab === 'standings' ? (
                 <StandingsTable standings={standings} myMemberId={current?.id} />
             ) : tab === 'activity' ? (
@@ -409,11 +390,7 @@ export default function LeagueScreen() {
 
 function StandingsTable({ standings, myMemberId }: { standings: StandingRow[]; myMemberId?: string }) {
     if (standings.length === 0) {
-        return (
-            <View style={styles.empty}>
-                <Text style={styles.emptyText}>No standings yet — matchups will appear once games are scored.</Text>
-            </View>
-        )
+        return <EmptyState message="No standings yet — matchups will appear once games are scored." fullScreen={false} />
     }
 
     return (
@@ -429,18 +406,6 @@ function StandingsTable({ standings, myMemberId }: { standings: StandingRow[]; m
     )
 }
 
-const TX_COLORS: Record<string, string> = {
-    fa_add: '#10B981',
-    waiver_add: '#8B5CF6',
-    trade_in: '#3B82F6',
-    fa_drop: '#EF4444',
-    waiver_drop: '#EF4444',
-    trade_out: '#F97316',
-    ir_designate: '#F59E0B',
-    ir_return: '#6366F1',
-    draft_won: '#10B981',
-}
-
 function timeAgo(iso: string): string {
     const diff = Date.now() - new Date(iso).getTime()
     const mins = Math.floor(diff / 60_000)
@@ -454,11 +419,7 @@ function timeAgo(iso: string): string {
 
 function ActivityFeed({ transactions, myMemberId }: { transactions: TransactionRow[]; myMemberId?: string }) {
     if (transactions.length === 0) {
-        return (
-            <View style={styles.empty}>
-                <Text style={styles.emptyText}>No transactions yet. Adds, drops, and trades will appear here.</Text>
-            </View>
-        )
+        return <EmptyState message="No transactions yet. Adds, drops, and trades will appear here." fullScreen={false} />
     }
 
     return (
@@ -475,11 +436,7 @@ function ActivityFeed({ transactions, myMemberId }: { transactions: TransactionR
 
 function WaiverPriorityList({ rows, myMemberId }: { rows: WaiverPriorityRow[]; myMemberId?: string }) {
     if (rows.length === 0) {
-        return (
-            <View style={styles.empty}>
-                <Text style={styles.emptyText}>Waiver priorities will appear here once the season starts.</Text>
-            </View>
-        )
+        return <EmptyState message="Waiver priorities will appear here once the season starts." fullScreen={false} />
     }
 
     return (
@@ -513,11 +470,7 @@ function PicksBankList({ picks, myMemberId }: { picks: LeaguePickItem[]; myMembe
     }, [picks])
 
     if (picks.length === 0) {
-        return (
-            <View style={styles.empty}>
-                <Text style={styles.emptyText}>No future draft picks to display.</Text>
-            </View>
-        )
+        return <EmptyState message="No future draft picks to display." fullScreen={false} />
     }
 
     return (
@@ -545,207 +498,146 @@ function PicksBankList({ picks, myMemberId }: { picks: LeaguePickItem[]; myMembe
 // ── Styles ───────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#fff' },
-    flex1: { flex: 1 },
-    loadingMargin: { marginTop: 24 },
+    container: { flex: 1, backgroundColor: colors.bgScreen },
+    loadingMargin: { marginTop: spacing['3xl'] },
 
-    header: { padding: 20, borderBottomWidth: 1, borderBottomColor: '#eee', gap: 12 },
-    headerTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
-    headerInfo: { flex: 1, gap: 2 },
-    leagueName: { fontSize: 20, fontWeight: '800' },
-    teamName: { fontSize: 14, color: '#888' },
+    header: { padding: spacing['2xl'], borderBottomWidth: 1, borderBottomColor: colors.borderLight, gap: spacing.lg },
+    headerTop: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.lg },
+    headerInfo: { flex: 1, gap: spacing.xxs },
+    leagueName: { fontSize: fontSize.xl, fontWeight: fontWeight.extrabold },
+    teamName: { fontSize: fontSize.md, color: colors.textMuted },
 
-    headerButtons: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+    headerButtons: { flexDirection: 'row', gap: spacing.md, alignItems: 'center' },
     settingsButton: {
-        paddingHorizontal: 12,
+        paddingHorizontal: spacing.lg,
         paddingVertical: 7,
-        borderRadius: 8,
+        borderRadius: radii.md,
         borderCurve: 'continuous' as const,
         borderWidth: 1,
-        borderColor: '#ddd',
+        borderColor: colors.border,
     },
-    settingsButtonText: { fontSize: 13, fontWeight: '600', color: '#555' },
+    settingsButtonText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textSecondary },
 
     draftButton: {
-        backgroundColor: '#F97316',
-        borderRadius: 10,
+        backgroundColor: colors.primary,
+        borderRadius: radii.lg,
         borderCurve: 'continuous' as const,
         height: 44,
         justifyContent: 'center',
         alignItems: 'center',
     },
-    draftButtonText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+    draftButtonText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: 15 },
 
     inviteRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 8,
-        backgroundColor: '#f9f9f9',
-        borderRadius: 10,
+        gap: spacing.md,
+        backgroundColor: palette.gray100,
+        borderRadius: radii.lg,
         borderCurve: 'continuous' as const,
         paddingHorizontal: 14,
-        paddingVertical: 10,
+        paddingVertical: spacing.lg,
     },
-    inviteLabel: { fontSize: 13, color: '#888', flex: 1 },
-    inviteCode: { fontSize: 15, fontWeight: '800', color: '#111', letterSpacing: 2 },
-    inviteCopy: { fontSize: 13, color: '#F97316', fontWeight: '600' },
-
-    sectionTitle: {
-        fontSize: 13,
-        fontWeight: '700',
-        color: '#aaa',
-        letterSpacing: 0.5,
-        paddingHorizontal: 20,
-        paddingTop: 16,
-        paddingBottom: 8,
-    },
+    inviteLabel: { fontSize: fontSize.sm, color: colors.textMuted, flex: 1 },
+    inviteCode: { fontSize: 15, fontWeight: fontWeight.extrabold, color: colors.textPrimary, letterSpacing: 2 },
+    inviteCopy: { fontSize: fontSize.sm, color: colors.primary, fontWeight: fontWeight.semibold },
 
     memberRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: 16,
-        paddingVertical: 12,
-        gap: 12,
+        paddingHorizontal: spacing.xl,
+        paddingVertical: spacing.lg,
+        gap: spacing.lg,
     },
-    separator: { height: 1, backgroundColor: '#f3f3f3', marginLeft: 72 },
 
-    memberAvatar: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
-        borderCurve: 'continuous' as const,
-        backgroundColor: '#F97316',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    memberAvatarText: { color: '#fff', fontWeight: '700', fontSize: 16 },
-
-    memberInfo: { flex: 1, gap: 2 },
-    memberTeam: { fontSize: 15, fontWeight: '600' },
-    meTag: { color: '#aaa', fontWeight: '400', fontSize: 13 },
-    memberName: { fontSize: 13, color: '#888' },
-
-    roleBadge: {
-        paddingHorizontal: 8,
-        paddingVertical: 3,
-        borderRadius: 6,
-        borderCurve: 'continuous' as const,
-        backgroundColor: '#f3f3f3',
-    },
-    roleBadgeCommissioner: { backgroundColor: '#FEF3C7' },
-    roleText: { fontSize: 11, fontWeight: '700', color: '#888' },
-    roleTextCommissioner: { color: '#D97706' },
+    memberInfo: { flex: 1, gap: spacing.xxs },
+    memberTeam: { fontSize: 15, fontWeight: fontWeight.semibold },
+    meTag: { color: colors.textPlaceholder, fontWeight: fontWeight.regular, fontSize: fontSize.sm },
+    memberName: { fontSize: fontSize.sm, color: colors.textMuted },
 
     tabRow: {
         borderBottomWidth: 1,
-        borderBottomColor: '#eee',
+        borderBottomColor: colors.borderLight,
         flexGrow: 0,
         flexShrink: 0,
     },
     tabRowContent: {
         flexDirection: 'row',
-        gap: 8,
-        paddingHorizontal: 20,
-        paddingVertical: 12,
+        gap: spacing.md,
+        paddingHorizontal: spacing['2xl'],
+        paddingVertical: spacing.lg,
     },
     tabChip: {
         paddingHorizontal: 14,
         paddingVertical: 7,
-        borderRadius: 20,
+        borderRadius: radii['3xl'],
         borderCurve: 'continuous' as const,
-        backgroundColor: '#f3f3f3',
+        backgroundColor: colors.bgMuted,
     },
-    tabChipActive: { backgroundColor: '#F97316' },
-    tabChipText: { fontSize: 13, fontWeight: '600', color: '#555' },
-    tabChipTextActive: { color: '#fff' },
+    tabChipActive: { backgroundColor: colors.primary },
+    tabChipText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textSecondary },
+    tabChipTextActive: { color: colors.textWhite },
 
     standingsRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: 16,
+        paddingHorizontal: spacing.xl,
         paddingVertical: 11,
     },
-    standingsRowMe: { backgroundColor: '#FFF7ED' },
-    standingsHeader: { borderBottomWidth: 1, borderBottomColor: '#eee', paddingVertical: 8 },
-    standingsHeaderText: { fontSize: 11, fontWeight: '700', color: '#aaa' },
-    standingsRank: { width: 24, fontSize: 14, fontWeight: '700', color: '#555' },
-    standingsTeam: { flex: 1, fontSize: 14, fontWeight: '600', color: '#111' },
-    standingsCell: { width: 28, textAlign: 'center', fontSize: 14, color: '#555' },
-    standingsPts: { width: 52, textAlign: 'right', fontSize: 13, color: '#555' },
-    standingsMe: { color: '#F97316', fontWeight: '700' },
+    standingsRowMe: { backgroundColor: palette.orange50 },
+    standingsHeader: { borderBottomWidth: 1, borderBottomColor: colors.borderLight, paddingVertical: spacing.md },
+    standingsHeaderText: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.textPlaceholder },
+    standingsRank: { width: 24, fontSize: fontSize.md, fontWeight: fontWeight.bold, color: colors.textSecondary },
+    standingsTeam: { flex: 1, fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textPrimary },
+    standingsCell: { width: 28, textAlign: 'center', fontSize: fontSize.md, color: colors.textSecondary },
+    standingsPts: { width: 52, textAlign: 'right', fontSize: fontSize.sm, color: colors.textSecondary },
+    standingsMe: { color: colors.primary, fontWeight: fontWeight.bold },
 
     waiverRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: 16,
+        paddingHorizontal: spacing.xl,
         paddingVertical: 11,
     },
-    waiverHeader: { borderBottomWidth: 1, borderBottomColor: '#eee', paddingVertical: 8 },
-    waiverRank: { width: 32, fontSize: 14, fontWeight: '700', color: '#555' },
-    waiverTeam: { flex: 1, fontSize: 14, fontWeight: '600', color: '#111' },
-    waiverName: { width: 110, textAlign: 'right', fontSize: 13, color: '#888' },
+    waiverHeader: { borderBottomWidth: 1, borderBottomColor: colors.borderLight, paddingVertical: spacing.md },
+    waiverRank: { width: 32, fontSize: fontSize.md, fontWeight: fontWeight.bold, color: colors.textSecondary },
+    waiverTeam: { flex: 1, fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textPrimary },
+    waiverName: { width: 110, textAlign: 'right', fontSize: fontSize.sm, color: colors.textMuted },
 
     txRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: 16,
-        paddingVertical: 10,
-        gap: 12,
+        paddingHorizontal: spacing.xl,
+        paddingVertical: spacing.lg,
+        gap: spacing.lg,
     },
-    txRowMe: { backgroundColor: '#FFF7ED' },
-    txAvatar: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        borderCurve: 'continuous' as const,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    txAvatarText: { color: '#fff', fontWeight: '700', fontSize: 13 },
-    txInfo: { flex: 1, gap: 2 },
-    txPlayer: { fontSize: 14, fontWeight: '600', color: '#111' },
-    txPos: { fontSize: 12, color: '#aaa', fontWeight: '400' },
-    txTeam: { fontSize: 12, color: '#888' },
-    txRight: { alignItems: 'flex-end', gap: 4 },
-    txLabel: {
-        paddingHorizontal: 8,
-        paddingVertical: 3,
-        borderRadius: 6,
-        borderCurve: 'continuous' as const,
-    },
-    txLabelText: { fontSize: 11, fontWeight: '700' },
-    txTime: { fontSize: 11, color: '#aaa' },
-
-    empty: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
-    emptyText: { fontSize: 14, color: '#aaa', textAlign: 'center' },
+    txRowMe: { backgroundColor: palette.orange50 },
+    txInfo: { flex: 1, gap: spacing.xxs },
+    txPlayer: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textPrimary },
+    txPos: { fontSize: 12, color: colors.textPlaceholder, fontWeight: fontWeight.regular },
+    txTeam: { fontSize: 12, color: colors.textMuted },
+    txRight: { alignItems: 'flex-end', gap: spacing.xs },
+    txTime: { fontSize: fontSize.xs, color: colors.textPlaceholder },
 
     picksBankHeader: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: 16,
-        paddingVertical: 8,
+        paddingHorizontal: spacing.xl,
+        paddingVertical: spacing.md,
         borderBottomWidth: 1,
-        borderBottomColor: '#eee',
+        borderBottomColor: colors.borderLight,
     },
-    picksBankHeaderFrom: { flex: 1, marginLeft: 12 },
+    picksBankHeaderFrom: { flex: 1, marginLeft: spacing.lg },
     picksBankHeaderOwner: { width: 110, textAlign: 'right' },
-    picksBankYearRow: {
-        paddingHorizontal: 16,
-        paddingVertical: 6,
-        backgroundColor: '#f9f9f9',
-        borderBottomWidth: 1,
-        borderBottomColor: '#eee',
-    },
-    picksBankYear: { fontSize: 12, fontWeight: '800', color: '#888', letterSpacing: 0.5 },
     picksBankRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: 16,
-        paddingVertical: 10,
+        paddingHorizontal: spacing.xl,
+        paddingVertical: spacing.lg,
     },
-    picksBankRound: { width: 36, fontSize: 14, fontWeight: '700', color: '#555' },
-    picksBankFrom: { flex: 1, fontSize: 13, color: '#555', marginLeft: 12 },
-    picksBankOwner: { width: 110, textAlign: 'right', fontSize: 13, fontWeight: '600', color: '#111' },
+    picksBankRound: { width: 36, fontSize: fontSize.md, fontWeight: fontWeight.bold, color: colors.textSecondary },
+    picksBankFrom: { flex: 1, fontSize: fontSize.sm, color: colors.textSecondary, marginLeft: spacing.lg },
+    picksBankOwner: { width: 110, textAlign: 'right', fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textPrimary },
 })
 
 const StandingsListHeader = (
