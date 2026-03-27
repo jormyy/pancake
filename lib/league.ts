@@ -1,4 +1,6 @@
 import { supabase } from '@/lib/supabase'
+import type { League, RosterSlotType } from '@/types/database'
+import { currentSeasonYear } from '@/lib/shared/season'
 
 function generateInviteCode(): string {
     return Math.random().toString(36).slice(2, 8).toUpperCase()
@@ -11,11 +13,6 @@ function generateSlug(name: string): string {
         .replace(/(^-|-$)/g, '')
     const suffix = Math.random().toString(36).slice(2, 6)
     return `${base}-${suffix}`
-}
-
-function currentSeasonYear(): number {
-    const now = new Date()
-    return now.getMonth() >= 9 ? now.getFullYear() + 1 : now.getFullYear()
 }
 
 export async function createLeague(
@@ -37,7 +34,7 @@ export async function createLeague(
             auction_budget: auctionBudget,
         })
         .select()
-        .single()
+        .single<League>()
 
     if (leagueError) throw leagueError
 
@@ -163,7 +160,7 @@ export async function updateLineupSlots(
     leagueId: string,
     slots: { slot_type: string; slot_count: number }[],
 ) {
-    const rows = slots.map((s) => ({ league_id: leagueId, ...s }))
+    const rows = slots.map((s) => ({ league_id: leagueId, slot_type: s.slot_type as RosterSlotType, slot_count: s.slot_count }))
     const { error } = await supabase
         .from('lineup_slot_templates')
         .upsert(rows, { onConflict: 'league_id,slot_type' })

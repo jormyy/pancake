@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase'
 import { fetchAllPlayers } from '../lib/sleeper'
+import { CONFIG } from '../config'
 
 export async function syncPlayers() {
     console.log('[sync] Fetching players from Sleeper...')
@@ -52,21 +53,19 @@ export async function syncPlayers() {
     for (const p of toUpdate) seenIds.set(p.id, p)
     const dedupedUpdate = Array.from(seenIds.values())
 
-    const CHUNK = 500
-
     // Update existing players
-    for (let i = 0; i < dedupedUpdate.length; i += CHUNK) {
+    for (let i = 0; i < dedupedUpdate.length; i += CONFIG.UPSERT_CHUNK_SIZE) {
         const { error } = await supabase
             .from('players')
-            .upsert(dedupedUpdate.slice(i, i + CHUNK), { onConflict: 'id' })
+            .upsert(dedupedUpdate.slice(i, i + CONFIG.UPSERT_CHUNK_SIZE), { onConflict: 'id' })
         if (error) throw error
     }
 
     // Insert new players
-    for (let i = 0; i < toInsert.length; i += CHUNK) {
+    for (let i = 0; i < toInsert.length; i += CONFIG.UPSERT_CHUNK_SIZE) {
         const { error } = await supabase
             .from('players')
-            .insert(toInsert.slice(i, i + CHUNK))
+            .insert(toInsert.slice(i, i + CONFIG.UPSERT_CHUNK_SIZE))
         if (error) console.error(`[sync] Insert error (chunk ${i}):`, error.message)
     }
 

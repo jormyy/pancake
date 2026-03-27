@@ -1,7 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import { RealtimeChannel } from '@supabase/supabase-js'
-
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000'
+import { apiPost as sharedApiPost } from '@/lib/shared/api'
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -169,33 +168,16 @@ export async function searchDraftablePlayers(query: string, draftId: string) {
 
 // ── API calls ──────────────────────────────────────────────────
 
-async function apiPost(path: string, body: object) {
-    const res = await fetch(`${API_URL}${path}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-    })
-    const text = await res.text()
-    let json: any
-    try {
-        json = JSON.parse(text)
-    } catch {
-        throw new Error(`Server error (${res.status}): ${text.slice(0, 100)}`)
-    }
-    if (!json.ok) throw new Error(json.error || 'Backend error')
-    return json
-}
-
 export async function startRookieDraft(leagueId: string) {
-    return apiPost('/draft/start-rookie', { leagueId })
+    return sharedApiPost<any>('/draft/start-rookie', { leagueId })
 }
 
 export async function makeSnakePick(draftId: string, memberId: string, playerId: string) {
-    return apiPost(`/draft/${draftId}/snake-pick`, { memberId, playerId })
+    return sharedApiPost<any>(`/draft/${draftId}/snake-pick`, { memberId, playerId })
 }
 
 export async function advanceSeason(leagueId: string) {
-    return apiPost('/league/advance-season', { leagueId })
+    return sharedApiPost<any>('/league/advance-season', { leagueId })
 }
 
 // ── Realtime ───────────────────────────────────────────────────

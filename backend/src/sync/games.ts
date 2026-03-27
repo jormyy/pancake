@@ -1,10 +1,7 @@
 import { supabase } from '../lib/supabase'
 import { fetchSeasonSchedule } from '../lib/nba'
-
-function currentSeasonYear(): number {
-    const now = new Date()
-    return now.getMonth() >= 9 ? now.getFullYear() + 1 : now.getFullYear()
-}
+import { currentSeasonYear } from '../lib/utils/season'
+import { CONFIG } from '../config'
 
 export async function syncSchedule() {
     console.log('[sync] Fetching schedule from NBA CDN...')
@@ -86,20 +83,18 @@ export async function syncSchedule() {
         }
     }
 
-    const CHUNK = 500
-
-    for (let i = 0; i < toUpdate.length; i += CHUNK) {
+    for (let i = 0; i < toUpdate.length; i += CONFIG.UPSERT_CHUNK_SIZE) {
         const { error } = await supabase
             .from('nba_games')
-            .upsert(toUpdate.slice(i, i + CHUNK), { onConflict: 'id' })
+            .upsert(toUpdate.slice(i, i + CONFIG.UPSERT_CHUNK_SIZE), { onConflict: 'id' })
         if (error) throw error
     }
 
     if (toInsert.length > 0) {
-        for (let i = 0; i < toInsert.length; i += CHUNK) {
+        for (let i = 0; i < toInsert.length; i += CONFIG.UPSERT_CHUNK_SIZE) {
             const { error } = await supabase
                 .from('nba_games')
-                .insert(toInsert.slice(i, i + CHUNK))
+                .insert(toInsert.slice(i, i + CONFIG.UPSERT_CHUNK_SIZE))
             if (error) console.error(`[sync] Game insert error (chunk ${i}):`, error.message)
         }
     }

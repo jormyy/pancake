@@ -1,5 +1,7 @@
 import { supabase } from '../lib/supabase'
 import { calculateFantasyPoints, getWeekNumberForDate } from '../lib/scoring'
+import { currentSeasonYear } from '../lib/utils/season'
+import { CONFIG } from '../config'
 
 // Standard scoring weights used for projection ranking (not league-specific)
 // Players are ranked relative to each other, so absolute values don't matter
@@ -21,7 +23,7 @@ const STD_SCORING: Record<string, number> = {
 // Stored per-player per-week in player_projections for use in auto-set lineup.
 export async function syncProjectionsByDate(_date: Date) {
     const today = new Date()
-    const seasonYear = today.getMonth() >= 9 ? today.getFullYear() + 1 : today.getFullYear()
+    const seasonYear = currentSeasonYear()
     const weekNumber = await getWeekNumberForDate(today, seasonYear)
 
     if (!weekNumber) {
@@ -31,8 +33,8 @@ export async function syncProjectionsByDate(_date: Date) {
 
     console.log(`[projections] Computing rolling averages for week ${weekNumber}...`)
 
-    // Pull stats from the last 4 weeks (excluding did_not_play)
-    const minWeek = Math.max(1, weekNumber - 3)
+    // Pull stats from the last N weeks (excluding did_not_play)
+    const minWeek = Math.max(1, weekNumber - (CONFIG.PROJECTION_LOOKBACK_WEEKS - 1))
 
     const { data: stats, error } = await supabase
         .from('player_game_stats')
@@ -76,11 +78,10 @@ export async function syncProjectionsByDate(_date: Date) {
 
     if (!projections.length) return
 
-    const CHUNK = 500
-    for (let i = 0; i < projections.length; i += CHUNK) {
+    for (let i = 0; i < projections.length; i += CONFIG.UPSERT_CHUNK_SIZE) {
         const { error: upErr } = await supabase
             .from('player_projections')
-            .upsert(projections.slice(i, i + CHUNK), { onConflict: 'player_id,season_year,week_number' })
+            .upsert(projections.slice(i, i + CONFIG.UPSERT_CHUNK_SIZE), { onConflict: 'player_id,season_year,week_number' })
         if (upErr) throw upErr
     }
 

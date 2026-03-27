@@ -1,19 +1,7 @@
 import { supabase } from '../lib/supabase'
 import { scrapeDynastyRankings } from '../lib/scraper'
-
-// ── Name normalization ────────────────────────────────────────
-// Strips generational suffixes and periods so "O.G. Anunoby Jr."
-// and "OG Anunoby" both normalize to "og anunoby".
-const SUFFIX_RE = /\s+(jr\.?|sr\.?|ii|iii|iv|v)$/i
-
-function normalizeName(name: string): string {
-    return name
-        .toLowerCase()
-        .replace(/\./g, '') // O.G. → OG
-        .replace(SUFFIX_RE, '') // strip Jr. Sr. II III etc.
-        .replace(/\s+/g, ' ')
-        .trim()
-}
+import { normalizeName } from '../lib/utils/nameMatch'
+import { CONFIG } from '../config'
 
 export async function syncDynastyRankings() {
     console.log('[rankings] Scraping dynasty rankings...')
@@ -83,10 +71,9 @@ export async function syncDynastyRankings() {
         }
     }
 
-    // Batch update in chunks of 500
-    const CHUNK = 500
-    for (let i = 0; i < updates.length; i += CHUNK) {
-        const chunk = updates.slice(i, i + CHUNK)
+    // Batch update in chunks
+    for (let i = 0; i < updates.length; i += CONFIG.UPSERT_CHUNK_SIZE) {
+        const chunk = updates.slice(i, i + CONFIG.UPSERT_CHUNK_SIZE)
         const { error: upErr } = await supabase.from('players').upsert(chunk, { onConflict: 'id' })
         if (upErr) throw upErr
     }
