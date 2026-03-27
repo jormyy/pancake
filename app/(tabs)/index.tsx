@@ -307,9 +307,9 @@ export default function HomeScreen() {
                         const ma = m as any
                         const isActive = ma.id === (current as any)?.id
                         return (
-                            <Pressable key={ma.id} style={[styles.switcherChip, isActive && styles.switcherChipActive]} onPress={() => setCurrent(m)}>
+                            <TouchableOpacity key={ma.id} style={[styles.switcherChip, isActive && styles.switcherChipActive]} onPress={() => setCurrent(m)}>
                                 <Text style={[styles.switcherText, isActive && styles.switcherTextActive]}>{ma.leagues?.name ?? 'League'}</Text>
-                            </Pressable>
+                            </TouchableOpacity>
                         )
                     })}
                 </ScrollView>
@@ -406,27 +406,27 @@ export default function HomeScreen() {
                                         <Text style={styles.overflowMeta}>{p.nbaTeam ?? 'FA'}{p.position ? ` · ${p.position}` : ''}</Text>
                                     </View>
                                     {isIREligible(p.injuryStatus) && (
-                                        <Pressable
+                                        <TouchableOpacity
                                             style={[styles.overflowBtn, { backgroundColor: '#991B1B22', marginRight: 6 }]}
                                             onPress={() => handleIROverflowMoveToIR(p.rosterPlayerId)}
                                             disabled={irOverflowSaving}
                                         >
                                             <Text style={[styles.overflowBtnText, { color: '#991B1B' }]}>→ IR</Text>
-                                        </Pressable>
+                                        </TouchableOpacity>
                                     )}
-                                    <Pressable
+                                    <TouchableOpacity
                                         style={[styles.overflowBtn, { backgroundColor: '#EF444422' }]}
                                         onPress={() => handleIROverflowDrop(p.rosterPlayerId)}
                                         disabled={irOverflowSaving}
                                     >
                                         <Text style={[styles.overflowBtnText, { color: '#EF4444' }]}>Drop</Text>
-                                    </Pressable>
+                                    </TouchableOpacity>
                                 </View>
                             ))}
                         </ScrollView>
-                        <Pressable style={styles.modalCancel} onPress={() => setIROverflowPending(null)}>
+                        <TouchableOpacity style={styles.modalCancel} onPress={() => setIROverflowPending(null)}>
                             <Text style={styles.modalCancelText}>Cancel</Text>
-                        </Pressable>
+                        </TouchableOpacity>
                     </View>
                 </View>
             </Modal>
@@ -536,7 +536,6 @@ function MatchupRow({
     saving: boolean
     playingTeams: Set<string>
 }) {
-    const { push } = useRouter()
     const isSel = selected?.kind === selKind && selected.index === selIndex
     const slotColor = slotType === 'IR' ? '#EF4444' : (POSITION_COLORS[slotType] ?? '#aaa')
     const myHasGame = myPlayer?.nbaTeam ? playingTeams.has(myPlayer.nbaTeam) : false
@@ -579,6 +578,7 @@ function MatchupRow({
                 ]}
                 onPress={() => onTap({ kind: selKind, index: selIndex })}
                 disabled={saving}
+                activeOpacity={0.7}
             >
                 <Text style={[styles.slotChipText, { color: isSel ? '#F97316' : slotColor }]}>
                     {slotType}
@@ -865,7 +865,7 @@ const styles = StyleSheet.create({
     },
     slotChipSelected: { borderWidth: 1.5, borderColor: '#F97316' },
     slotChipText: { fontSize: 11, fontWeight: '800', letterSpacing: 0.3 },
-    injuryBadge: { paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4, borderCurve: 'continuous' as const, flexShrink: 0 },
+    injuryBadge: { paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4, flexShrink: 0 },
     injuryBadgeText: { fontSize: 9, fontWeight: '800' },
 
     dividerRow: { paddingTop: 12, paddingBottom: 3 },
@@ -882,13 +882,13 @@ const styles = StyleSheet.create({
 
     // IR overflow modal
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-    modalSheet: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, borderCurve: 'continuous' as const, padding: 24, gap: 12 },
+    modalSheet: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, gap: 12 },
     modalTitle: { fontSize: 17, fontWeight: '800', color: '#111' },
     modalSub: { fontSize: 13, color: '#888', marginBottom: 4 },
     overflowRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#f3f3f3', gap: 8 },
     overflowName: { fontSize: 14, fontWeight: '600', color: '#111' },
     overflowMeta: { fontSize: 12, color: '#888', marginTop: 1 },
-    overflowBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderCurve: 'continuous' as const },
+    overflowBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
     overflowBtnText: { fontSize: 12, fontWeight: '700' },
     modalCancel: { paddingVertical: 14, alignItems: 'center' },
     modalCancelText: { fontSize: 15, fontWeight: '600', color: '#888' },
