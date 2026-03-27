@@ -184,7 +184,7 @@ export async function advanceSeason(leagueId: string) {
 
 export function subscribeToRookieDraft(draftId: string, onChange: () => void): RealtimeChannel {
     return supabase
-        .channel(`rookie-draft:${draftId}`)
+        .channel(`rookie-draft:${draftId}`, { config: { private: true } })
         .on(
             'postgres_changes',
             {

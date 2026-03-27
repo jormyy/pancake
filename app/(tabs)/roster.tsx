@@ -160,19 +160,21 @@ function RosterPlayerItem({
                 ) : null}
             </View>
 
-            <Pressable
-                style={[styles.irButton, item.is_on_ir && styles.irButtonActive]}
-                onPress={() => onToggleIR(item)}
-                disabled={togglingId === item.id}
-            >
-                {togglingId === item.id ? (
-                    <ActivityIndicator size="small" color={item.is_on_ir ? '#fff' : '#888'} />
-                ) : (
-                    <Text style={[styles.irButtonText, item.is_on_ir && styles.irButtonTextActive]}>
-                        {item.is_on_ir ? 'Active' : 'IR'}
-                    </Text>
-                )}
-            </Pressable>
+            {(item.is_on_ir || player.injury_status) ? (
+                <Pressable
+                    style={[styles.irButton, item.is_on_ir && styles.irButtonActive]}
+                    onPress={() => onToggleIR(item)}
+                    disabled={togglingId === item.id}
+                >
+                    {togglingId === item.id ? (
+                        <ActivityIndicator size="small" color={item.is_on_ir ? '#fff' : '#888'} />
+                    ) : (
+                        <Text style={[styles.irButtonText, item.is_on_ir && styles.irButtonTextActive]}>
+                            {item.is_on_ir ? 'Active' : 'IR'}
+                        </Text>
+                    )}
+                </Pressable>
+            ) : null}
         </Pressable>
     )
 }

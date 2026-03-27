@@ -25,4 +25,19 @@ export const CONFIG = {
 
     /** Timezone for all cron jobs */
     CRON_TIMEZONE: 'America/New_York',
+
+    /** Delay between NBA CDN box score fetches during backfill (ms) */
+    BACKFILL_DELAY_MS: 500,
+
+    /** Max concurrent box score fetches per date during backfill */
+    BACKFILL_CONCURRENCY: 3,
+
+    /** Live poller: idle check interval during game window (ms) */
+    LIVE_POLL_IDLE_MS: 5 * 60 * 1000,
+
+    /** Live poller: stats fetch interval when games are active (ms) */
+    LIVE_POLL_ACTIVE_STATS_MS: 30 * 1000,
+
+    /** Live poller: score calc interval when games are active (ms) */
+    LIVE_POLL_ACTIVE_SCORES_MS: 60 * 1000,
 } as const

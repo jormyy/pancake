@@ -92,6 +92,7 @@ export interface NBAScheduledGame {
 export interface NBABoxScore {
     gameId: string
     gameStatus: number
+    gameEt: string | null   // ISO timestamp e.g. "2023-11-03T19:00:00-04:00"
     homeTeam: NBABoxScoreTeam
     awayTeam: NBABoxScoreTeam
 }

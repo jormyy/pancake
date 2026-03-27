@@ -65,3 +65,36 @@ export const SyncMatchupsBody = {
         force: { type: 'boolean' as const, default: false },
     },
 }
+
+export const BackfillBody = {
+    type: 'object' as const,
+    required: ['seasonYear'],
+    properties: {
+        seasonYear: { type: 'integer' as const },
+        fromDate: { type: 'string' as const },
+        toDate: { type: 'string' as const },
+        forceResync: { type: 'boolean' as const, default: false },
+    },
+}
+
+export const BackfillParams = {
+    type: 'object' as const,
+    required: ['jobId'],
+    properties: {
+        jobId: { type: 'string' as const },
+    },
+}
+
+export const VerifyStatsBody = {
+    type: 'object' as const,
+    properties: {
+        sampleSize: { type: 'integer' as const, default: 10 },
+    },
+}
+
+export const ValidateDbBody = {
+    type: 'object' as const,
+    properties: {
+        seasonYear: { type: 'integer' as const },
+    },
+}
