@@ -9,7 +9,7 @@ import {
 import { FlashList } from '@shopify/flash-list'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
-import { useEffect, useState, useCallback } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import { useFocusEffect } from '@react-navigation/native'
 import { useAuth } from '@/hooks/use-auth'
 import { useLeagueContext } from '@/contexts/league-context'
@@ -17,6 +17,7 @@ import { getRoster, toggleIR, RosterPlayer } from '@/lib/roster'
 import { getPicksForMember, TradePickItem } from '@/lib/trades'
 import { getMyWaiverClaims, cancelWaiverClaim, WaiverClaim } from '@/lib/waivers'
 import { POSITION_COLORS } from '@/constants/positions'
+import { bgStyle } from '@/lib/style-cache'
 
 const INJURY_COLORS: Record<string, string> = {
     Questionable: '#F59E0B',
@@ -25,7 +26,158 @@ const INJURY_COLORS: Record<string, string> = {
     IR: '#7F1D1D',
 }
 
+const shortDateFmt = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' })
+
+function getInitials(name: string): string {
+    return name.split(' ').map((w: string) => w[0]).slice(0, 2).join('')
+}
+
+type RosterListItem =
+    | { _isHeader: true; _section: string }
+    | (RosterPlayer & { _isHeader?: false; _section: 'active' | 'ir' })
+    | (TradePickItem & { _isHeader?: false; _section: 'picks' })
+    | (WaiverClaim & { _isHeader?: false; _section: 'claims' })
+
 const ItemSeparator = () => <View style={styles.separator} />
+
+// ── Extracted list item components ───────────────────────────────
+
+function RosterSectionHeader({ section }: { section: string }) {
+    const label =
+        section === 'picks' ? 'DRAFT PICKS'
+        : section === 'claims' ? 'WAIVER CLAIMS'
+        : 'IR'
+    return (
+        <View style={styles.sectionHeader}>
+            <Text style={styles.sectionHeaderText}>{label}</Text>
+        </View>
+    )
+}
+
+function RosterClaimItem({
+    claim,
+    cancellingId,
+    onCancel,
+}: {
+    claim: WaiverClaim
+    cancellingId: string | null
+    onCancel: (id: string) => void
+}) {
+    const isPending = claim.status === 'pending'
+    const statusColor =
+        claim.status === 'succeeded' ? '#10B981'
+        : claim.status === 'pending' ? '#8B5CF6'
+        : '#EF4444'
+    return (
+        <View style={styles.claimRow}>
+            <View style={styles.info}>
+                <Text style={styles.playerName}>{claim.playerName}</Text>
+                {claim.dropPlayerName ? (
+                    <Text style={styles.playerMeta}>Drop: {claim.dropPlayerName}</Text>
+                ) : null}
+                <Text style={[styles.playerMeta, { color: statusColor }]}>
+                    {claim.status === 'pending'
+                        ? `Processes ${shortDateFmt.format(new Date(claim.processDate))}`
+                        : claim.status === 'succeeded'
+                          ? 'Succeeded'
+                          : claim.status === 'failed_roster'
+                            ? 'Failed: roster full'
+                            : 'Failed: outbid'}
+                </Text>
+            </View>
+            {isPending ? (
+                <Pressable
+                    style={styles.cancelButton}
+                    onPress={() => onCancel(claim.id)}
+                    disabled={cancellingId === claim.id}
+                >
+                    {cancellingId === claim.id ? (
+                        <ActivityIndicator size="small" color="#888" />
+                    ) : (
+                        <Text style={styles.cancelButtonText}>Cancel</Text>
+                    )}
+                </Pressable>
+            ) : null}
+        </View>
+    )
+}
+
+function RosterPickItem({
+    pick,
+    myTeamName,
+}: {
+    pick: TradePickItem
+    myTeamName: string
+}) {
+    const isOwn = pick.originalTeamName === myTeamName
+    return (
+        <View style={styles.pickRow}>
+            <View style={styles.pickCircle}>
+                <Text style={styles.pickCircleText}>
+                    {String(pick.seasonYear).slice(2)}
+                </Text>
+            </View>
+            <View style={styles.info}>
+                <Text style={styles.playerName}>
+                    {pick.seasonYear} Round {pick.round}
+                </Text>
+                {!isOwn ? (
+                    <Text style={styles.playerMeta}>via {pick.originalTeamName}</Text>
+                ) : null}
+            </View>
+        </View>
+    )
+}
+
+function RosterPlayerItem({
+    item,
+    togglingId,
+    onPress,
+    onToggleIR,
+}: {
+    item: RosterPlayer
+    togglingId: string | null
+    onPress: () => void
+    onToggleIR: (item: RosterPlayer) => void
+}) {
+    const player = item.players
+    const pos = player.position ?? ''
+    return (
+        <Pressable style={styles.playerRow} onPress={onPress}>
+            <View style={[styles.avatar, bgStyle(POSITION_COLORS[pos] ?? '#ccc')]}>
+                <Text style={styles.avatarText}>{getInitials(player.display_name)}</Text>
+            </View>
+
+            <View style={styles.info}>
+                <Text style={styles.playerName}>{player.display_name}</Text>
+                <Text style={styles.playerMeta}>
+                    {[player.nba_team, pos].filter(Boolean).join(' · ')}
+                </Text>
+                {player.injury_status ? (
+                    <View style={[styles.injuryBadge, bgStyle(INJURY_COLORS[player.injury_status] ?? '#888')]}>
+                        <Text style={styles.injuryText}>{player.injury_status}</Text>
+                    </View>
+                ) : null}
+            </View>
+
+            <Pressable
+                style={[styles.irButton, item.is_on_ir && styles.irButtonActive]}
+                onPress={() => onToggleIR(item)}
+                disabled={togglingId === item.id}
+            >
+                {togglingId === item.id ? (
+                    <ActivityIndicator size="small" color={item.is_on_ir ? '#fff' : '#888'} />
+                ) : (
+                    <Text style={[styles.irButtonText, item.is_on_ir && styles.irButtonTextActive]}>
+                        {item.is_on_ir ? 'Active' : 'IR'}
+                    </Text>
+                )}
+            </Pressable>
+        </Pressable>
+    )
+}
+
+// ── Main screen ──────────────────────────────────────────────────
 
 export default function RosterScreen() {
     const { push } = useRouter()
@@ -64,20 +216,33 @@ export default function RosterScreen() {
         }, [load]),
     )
 
+    const active = useMemo(() => roster.filter((p) => !p.is_on_ir), [roster])
+    const ir = useMemo(() => roster.filter((p) => p.is_on_ir), [roster])
+
+    const listData = useMemo<RosterListItem[]>(() => {
+        const result: RosterListItem[] = []
+        for (const p of active) result.push({ ...p, _section: 'active' as const })
+        if (ir.length > 0) result.push({ _isHeader: true, _section: 'ir' })
+        for (const p of ir) result.push({ ...p, _section: 'ir' as const })
+        result.push({ _isHeader: true, _section: 'picks' })
+        for (const p of picks) result.push({ ...p, _section: 'picks' as const })
+        if (claims.length > 0) result.push({ _isHeader: true, _section: 'claims' })
+        for (const c of claims) result.push({ ...c, _section: 'claims' as const })
+        return result
+    }, [active, ir, picks, claims])
+
     async function handleToggleIR(item: RosterPlayer) {
         const league = current?.leagues as any
         const irSlots = league?.ir_slots ?? 2
         const activeSlots = league?.roster_size ?? 20
 
         if (!item.is_on_ir) {
-            // Moving to IR — check IR slot availability
             const currentIR = roster.filter((p) => p.is_on_ir).length
             if (currentIR >= irSlots) {
                 Alert.alert('IR Full', `You only have ${irSlots} IR slot${irSlots > 1 ? 's' : ''}.`)
                 return
             }
         } else {
-            // Moving off IR — check active roster has room
             const activeCount = roster.filter((p) => !p.is_on_ir).length
             if (activeCount >= activeSlots) {
                 Alert.alert('Roster Full', `Your active roster is full (${activeSlots} players).`)
@@ -112,7 +277,7 @@ export default function RosterScreen() {
     if (leagueLoading || (!current && loading)) {
         return (
             <SafeAreaView style={styles.container}>
-                <ActivityIndicator style={{ flex: 1 }} color="#F97316" />
+                <ActivityIndicator style={styles.flex1} color="#F97316" />
             </SafeAreaView>
         )
     }
@@ -128,14 +293,12 @@ export default function RosterScreen() {
     }
 
     const league = current.leagues as any
-    const active = roster.filter((p) => !p.is_on_ir)
-    const ir = roster.filter((p) => p.is_on_ir)
 
     return (
         <SafeAreaView style={styles.container}>
             {/* Header */}
             <View style={styles.header}>
-                <View style={{ flex: 1 }}>
+                <View style={styles.flex1}>
                     <Text style={styles.leagueName}>{league?.name}</Text>
                     <Text style={styles.teamName}>{current.team_name}</Text>
                     <Text style={styles.rosterCount}>
@@ -152,7 +315,7 @@ export default function RosterScreen() {
             </View>
 
             {loading ? (
-                <ActivityIndicator style={{ flex: 1 }} color="#F97316" />
+                <ActivityIndicator style={styles.flex1} color="#F97316" />
             ) : roster.length === 0 ? (
                 <View style={styles.empty}>
                     <Text style={styles.emptyTitle}>Your roster is empty</Text>
@@ -160,173 +323,41 @@ export default function RosterScreen() {
                 </View>
             ) : (
                 <FlashList
-                    data={[
-                        ...active.map((p) => ({ ...p, _section: 'active' })),
-                        ...(ir.length > 0 ? [{ _isHeader: true, _section: 'ir' } as any] : []),
-                        ...ir.map((p) => ({ ...p, _section: 'ir' })),
-                        { _isHeader: true, _section: 'picks' } as any,
-                        ...picks.map((p) => ({ ...p, _section: 'picks' })),
-                        ...(claims.length > 0
-                            ? [{ _isHeader: true, _section: 'claims' } as any]
-                            : []),
-                        ...claims.map((c) => ({ ...c, _section: 'claims' })),
-                    ]}
+                    data={listData}
                     keyExtractor={(item) =>
-                        item._isHeader ? `header-${item._section}` : (item.id ?? item.pickId)
+                        item._isHeader ? `header-${item._section}` : ((item as any).id ?? (item as any).pickId)
                     }
                     ItemSeparatorComponent={ItemSeparator}
                     getItemType={(item) => item._isHeader ? 'header' : item._section}
                     renderItem={({ item }) => {
                         if (item._isHeader) {
-                            const label =
-                                item._section === 'picks'
-                                    ? 'DRAFT PICKS'
-                                    : item._section === 'claims'
-                                      ? 'WAIVER CLAIMS'
-                                      : 'IR'
-                            return (
-                                <View style={styles.sectionHeader}>
-                                    <Text style={styles.sectionHeaderText}>{label}</Text>
-                                </View>
-                            )
+                            return <RosterSectionHeader section={item._section} />
                         }
                         if (item._section === 'claims') {
-                            const claim = item as WaiverClaim
-                            const isPending = claim.status === 'pending'
-                            const statusColor =
-                                claim.status === 'succeeded'
-                                    ? '#10B981'
-                                    : claim.status === 'pending'
-                                      ? '#8B5CF6'
-                                      : '#EF4444'
                             return (
-                                <View style={styles.claimRow}>
-                                    <View style={styles.info}>
-                                        <Text style={styles.playerName}>{claim.playerName}</Text>
-                                        {claim.dropPlayerName && (
-                                            <Text style={styles.playerMeta}>
-                                                Drop: {claim.dropPlayerName}
-                                            </Text>
-                                        )}
-                                        <Text style={[styles.playerMeta, { color: statusColor }]}>
-                                            {claim.status === 'pending'
-                                                ? `Processes ${new Date(claim.processDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
-                                                : claim.status === 'succeeded'
-                                                  ? 'Succeeded'
-                                                  : claim.status === 'failed_roster'
-                                                    ? 'Failed: roster full'
-                                                    : 'Failed: outbid'}
-                                        </Text>
-                                    </View>
-                                    {isPending && (
-                                        <Pressable
-                                            style={styles.cancelButton}
-                                            onPress={() => handleCancelClaim(claim.id)}
-                                            disabled={cancellingId === claim.id}
-                                        >
-                                            {cancellingId === claim.id ? (
-                                                <ActivityIndicator size="small" color="#888" />
-                                            ) : (
-                                                <Text style={styles.cancelButtonText}>Cancel</Text>
-                                            )}
-                                        </Pressable>
-                                    )}
-                                </View>
+                                <RosterClaimItem
+                                    claim={item as WaiverClaim}
+                                    cancellingId={cancellingId}
+                                    onCancel={handleCancelClaim}
+                                />
                             )
                         }
                         if (item._section === 'picks') {
-                            const pick = item as TradePickItem
-                            const isOwn = pick.originalTeamName === (current?.team_name ?? '')
                             return (
-                                <View style={styles.pickRow}>
-                                    <View style={styles.pickCircle}>
-                                        <Text style={styles.pickCircleText}>
-                                            {String(pick.seasonYear).slice(2)}
-                                        </Text>
-                                    </View>
-                                    <View style={styles.info}>
-                                        <Text style={styles.playerName}>
-                                            {pick.seasonYear} Round {pick.round}
-                                        </Text>
-                                        {!isOwn && (
-                                            <Text style={styles.playerMeta}>
-                                                via {pick.originalTeamName}
-                                            </Text>
-                                        )}
-                                    </View>
-                                </View>
+                                <RosterPickItem
+                                    pick={item as TradePickItem}
+                                    myTeamName={current?.team_name ?? ''}
+                                />
                             )
                         }
-                        const player = item.players
-                        const pos = player.position ?? ''
+                        const rosterItem = item as RosterPlayer
                         return (
-                            <Pressable
-                                style={styles.playerRow}
-                                onPress={() => push(`/player/${player.id}`)}
-                            >
-                                <View
-                                    style={[
-                                        styles.avatar,
-                                        { backgroundColor: POSITION_COLORS[pos] ?? '#ccc' },
-                                    ]}
-                                >
-                                    <Text style={styles.avatarText}>
-                                        {player.display_name
-                                            .split(' ')
-                                            .map((w: string) => w[0])
-                                            .slice(0, 2)
-                                            .join('')}
-                                    </Text>
-                                </View>
-
-                                <View style={styles.info}>
-                                    <Text style={styles.playerName}>{player.display_name}</Text>
-                                    <Text style={styles.playerMeta}>
-                                        {[player.nba_team, pos].filter(Boolean).join(' · ')}
-                                    </Text>
-                                    {player.injury_status && (
-                                        <View
-                                            style={[
-                                                styles.injuryBadge,
-                                                {
-                                                    backgroundColor:
-                                                        INJURY_COLORS[player.injury_status] ??
-                                                        '#888',
-                                                },
-                                            ]}
-                                        >
-                                            <Text style={styles.injuryText}>
-                                                {player.injury_status}
-                                            </Text>
-                                        </View>
-                                    )}
-                                </View>
-
-                                <Pressable
-                                    style={[
-                                        styles.irButton,
-                                        item.is_on_ir && styles.irButtonActive,
-                                    ]}
-                                    onPress={() => handleToggleIR(item)}
-                                    disabled={togglingId === item.id}
-                                >
-                                    {togglingId === item.id ? (
-                                        <ActivityIndicator
-                                            size="small"
-                                            color={item.is_on_ir ? '#fff' : '#888'}
-                                        />
-                                    ) : (
-                                        <Text
-                                            style={[
-                                                styles.irButtonText,
-                                                item.is_on_ir && styles.irButtonTextActive,
-                                            ]}
-                                        >
-                                            {item.is_on_ir ? 'Active' : 'IR'}
-                                        </Text>
-                                    )}
-                                </Pressable>
-                            </Pressable>
+                            <RosterPlayerItem
+                                item={rosterItem}
+                                togglingId={togglingId}
+                                onPress={() => push(`/player/${rosterItem.players.id}`)}
+                                onToggleIR={handleToggleIR}
+                            />
                         )
                     }}
                 />
@@ -337,6 +368,7 @@ export default function RosterScreen() {
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#fff' },
+    flex1: { flex: 1 },
 
     header: {
         padding: 20,

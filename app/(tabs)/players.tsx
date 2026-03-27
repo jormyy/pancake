@@ -26,6 +26,7 @@ import {
 import { getWaiverPlayerIds, submitWaiverClaim } from '@/lib/waivers'
 import { useLeagueContext } from '@/contexts/league-context'
 import { POSITION_COLORS } from '@/constants/positions'
+import { bgStyle } from '@/lib/style-cache'
 
 const POSITIONS = ['ALL', 'PG', 'SG', 'SF', 'PF', 'C', 'G', 'F']
 
@@ -37,6 +38,104 @@ const INJURY_COLORS: Record<string, string> = {
     Out: '#EF4444',
     IR: '#7F1D1D',
 }
+
+function getInitials(name: string): string {
+    return name.split(' ').map((w) => w[0]).slice(0, 2).join('')
+}
+
+// ── Extracted list item component ────────────────────────────────
+
+function PlayerSearchItem({
+    item,
+    currentMemberId,
+    ownedMap,
+    waiverIds,
+    adding,
+    onAdd,
+    onPress,
+}: {
+    item: PlayerRow
+    currentMemberId: string | undefined
+    ownedMap: Map<string, OwnedEntry>
+    waiverIds: Set<string>
+    adding: string | null
+    onAdd: (player: PlayerRow) => void
+    onPress: () => void
+}) {
+    const owned = ownedMap.get(item.id)
+    const isMe = owned?.memberId === currentMemberId
+    const isOther = owned && !isMe
+    const isWaiver = !owned && waiverIds.has(item.id)
+    const isFA = !owned && !isWaiver
+    const canAdd = currentMemberId && (isFA || isWaiver)
+    const isAdding = adding === item.id
+
+    return (
+        <View style={styles.playerRow}>
+            {/* Plus button */}
+            <View style={styles.addCol}>
+                {canAdd ? (
+                    <Pressable
+                        style={styles.addBtn}
+                        onPress={() => onAdd(item)}
+                        disabled={isAdding}
+                    >
+                        {isAdding
+                            ? <ActivityIndicator size="small" color="#F97316" />
+                            : <Text style={styles.addBtnText}>+</Text>}
+                    </Pressable>
+                ) : null}
+            </View>
+
+            {/* Player card (tappable → detail) */}
+            <Pressable style={styles.playerCard} onPress={onPress}>
+                <View style={[styles.avatar, bgStyle(POSITION_COLORS[item.position ?? ''] ?? '#ccc')]}>
+                    <Text style={styles.avatarText}>{getInitials(item.display_name)}</Text>
+                </View>
+
+                <View style={styles.playerInfo}>
+                    <Text style={styles.playerName}>{item.display_name}</Text>
+                    <Text style={styles.playerMeta}>
+                        {[item.nba_team, item.position].filter(Boolean).join(' · ')}
+                    </Text>
+                </View>
+
+                {/* Injury badge */}
+                {item.injury_status ? (
+                    <View style={[styles.injuryBadge, bgStyle(INJURY_COLORS[item.injury_status] ?? '#888')]}>
+                        <Text style={styles.injuryText}>{item.injury_status}</Text>
+                    </View>
+                ) : null}
+
+                {/* Status badge */}
+                {currentMemberId ? (
+                    <View style={[
+                        styles.statusBadge,
+                        isMe && styles.statusBadgeMe,
+                        isWaiver && styles.statusBadgeWaiver,
+                        isFA && styles.statusBadgeFA,
+                    ]}>
+                        <Text
+                            style={[
+                                styles.statusBadgeText,
+                                isMe && styles.statusBadgeTextMe,
+                                isWaiver && styles.statusBadgeTextWaiver,
+                            ]}
+                            numberOfLines={1}
+                        >
+                            {isMe ? 'Mine'
+                                : isOther ? owned!.teamName
+                                : isWaiver ? 'W'
+                                : 'FA'}
+                        </Text>
+                    </View>
+                ) : null}
+            </Pressable>
+        </View>
+    )
+}
+
+// ── Main screen ──────────────────────────────────────────────────
 
 export default function PlayersScreen() {
     const { push } = useRouter()
@@ -187,96 +286,24 @@ export default function PlayersScreen() {
 
             {/* Results */}
             {loading ? (
-                <ActivityIndicator style={{ flex: 1 }} color="#F97316" />
+                <ActivityIndicator style={styles.flex1} color="#F97316" />
             ) : (
                 <FlashList
                     data={players}
                     keyExtractor={(p) => p.id}
                     contentContainerStyle={players.length === 0 ? styles.emptyContainer : undefined}
                     ItemSeparatorComponent={ItemSeparator}
-                    renderItem={({ item }) => {
-                        const owned = ownedMap.get(item.id)
-                        const isMe = owned?.memberId === current?.id
-                        const isOther = owned && !isMe
-                        const isWaiver = !owned && waiverIds.has(item.id)
-                        const isFA = !owned && !isWaiver
-                        const canAdd = current && (isFA || isWaiver)
-                        const isAdding = adding === item.id
-
-                        return (
-                            <View style={styles.playerRow}>
-                                {/* Plus button */}
-                                <View style={styles.addCol}>
-                                    {canAdd && (
-                                        <Pressable
-                                            style={styles.addBtn}
-                                            onPress={() => handleAdd(item)}
-                                            disabled={isAdding}
-                                        >
-                                            {isAdding
-                                                ? <ActivityIndicator size="small" color="#F97316" />
-                                                : <Text style={styles.addBtnText}>+</Text>}
-                                        </Pressable>
-                                    )}
-                                </View>
-
-                                {/* Player card (tappable → detail) */}
-                                <Pressable
-                                    style={styles.playerCard}
-                                    onPress={() => push(`/player/${item.id}`)}
-                                >
-                                    <View
-                                        style={[
-                                            styles.avatar,
-                                            { backgroundColor: POSITION_COLORS[item.position ?? ''] ?? '#ccc' },
-                                        ]}
-                                    >
-                                        <Text style={styles.avatarText}>
-                                            {item.display_name.split(' ').map((w) => w[0]).slice(0, 2).join('')}
-                                        </Text>
-                                    </View>
-
-                                    <View style={styles.playerInfo}>
-                                        <Text style={styles.playerName}>{item.display_name}</Text>
-                                        <Text style={styles.playerMeta}>
-                                            {[item.nba_team, item.position].filter(Boolean).join(' · ')}
-                                        </Text>
-                                    </View>
-
-                                    {/* Injury badge */}
-                                    {item.injury_status && (
-                                        <View style={[styles.injuryBadge, { backgroundColor: INJURY_COLORS[item.injury_status] ?? '#888' }]}>
-                                            <Text style={styles.injuryText}>{item.injury_status}</Text>
-                                        </View>
-                                    )}
-
-                                    {/* Status badge */}
-                                    {current && (
-                                        <View style={[
-                                            styles.statusBadge,
-                                            isMe && styles.statusBadgeMe,
-                                            isWaiver && styles.statusBadgeWaiver,
-                                            isFA && styles.statusBadgeFA,
-                                        ]}>
-                                            <Text
-                                                style={[
-                                                    styles.statusBadgeText,
-                                                    isMe && styles.statusBadgeTextMe,
-                                                    isWaiver && styles.statusBadgeTextWaiver,
-                                                ]}
-                                                numberOfLines={1}
-                                            >
-                                                {isMe ? 'Mine'
-                                                    : isOther ? owned!.teamName
-                                                    : isWaiver ? 'W'
-                                                    : 'FA'}
-                                            </Text>
-                                        </View>
-                                    )}
-                                </Pressable>
-                            </View>
-                        )
-                    }}
+                    renderItem={({ item }) => (
+                        <PlayerSearchItem
+                            item={item}
+                            currentMemberId={current?.id}
+                            ownedMap={ownedMap}
+                            waiverIds={waiverIds}
+                            adding={adding}
+                            onAdd={handleAdd}
+                            onPress={() => push(`/player/${item.id}`)}
+                        />
+                    )}
                     ListEmptyComponent={<Text style={styles.emptyText}>No players found.</Text>}
                 />
             )}
@@ -302,14 +329,9 @@ export default function PlayersScreen() {
                                 const isDroppingThis = dropping === rp.id
                                 return (
                                     <View key={rp.id} style={styles.dropRow}>
-                                        <View
-                                            style={[
-                                                styles.dropAvatar,
-                                                { backgroundColor: POSITION_COLORS[p.position ?? ''] ?? '#ccc' },
-                                            ]}
-                                        >
+                                        <View style={[styles.dropAvatar, bgStyle(POSITION_COLORS[p.position ?? ''] ?? '#ccc')]}>
                                             <Text style={styles.dropAvatarText}>
-                                                {p.display_name.split(' ').map((w) => w[0]).slice(0, 2).join('')}
+                                                {getInitials(p.display_name)}
                                             </Text>
                                         </View>
                                         <View style={styles.dropInfo}>
@@ -348,6 +370,7 @@ export default function PlayersScreen() {
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#fff' },
+    flex1: { flex: 1 },
 
     searchRow: { paddingHorizontal: 16, paddingVertical: 10 },
     searchInput: {

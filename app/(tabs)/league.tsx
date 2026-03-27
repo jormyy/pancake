@@ -11,7 +11,7 @@ import {
 import { FlashList } from '@shopify/flash-list'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useFocusEffect } from '@react-navigation/native'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useAuth } from '@/hooks/use-auth'
@@ -22,6 +22,7 @@ import { getWaiverPriorityOrder, WaiverPriorityRow } from '@/lib/waivers'
 import { getLeagueTransactions, TransactionRow, TRANSACTION_LABELS } from '@/lib/transactions'
 import { getActiveRookieDraft, startRookieDraft, getAllLeaguePicks, type LeaguePickItem } from '@/lib/rookieDraft'
 import { POSITION_COLORS } from '@/constants/positions'
+import { bgStyle } from '@/lib/style-cache'
 
 const ROLE_LABELS: Record<string, string> = {
     commissioner: 'Commissioner',
@@ -32,6 +33,130 @@ const ROLE_LABELS: Record<string, string> = {
 type Tab = 'standings' | 'activity' | 'waivers' | 'members' | 'picks'
 
 const ItemSeparator = () => <View style={styles.separator} />
+
+const shortDateFmt = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' })
+
+function getInitials(name: string): string {
+    return name.split(' ').map((w: string) => w[0]).slice(0, 2).join('')
+}
+
+// ── Extracted list item components ───────────────────────────────
+
+function MemberRow({ item, isMe }: { item: any; isMe: boolean }) {
+    const profile = item.profiles as any
+    return (
+        <View style={styles.memberRow}>
+            <View style={styles.memberAvatar}>
+                <Text style={styles.memberAvatarText}>
+                    {(item.team_name ?? profile?.display_name ?? '?')[0].toUpperCase()}
+                </Text>
+            </View>
+            <View style={styles.memberInfo}>
+                <Text style={styles.memberTeam}>
+                    {item.team_name ?? 'Unnamed Team'}
+                    {isMe ? <Text style={styles.meTag}> (you)</Text> : null}
+                </Text>
+                <Text style={styles.memberName}>
+                    {profile?.display_name ?? profile?.username}
+                </Text>
+            </View>
+            <View style={[styles.roleBadge, item.role === 'commissioner' && styles.roleBadgeCommissioner]}>
+                <Text style={[styles.roleText, item.role === 'commissioner' && styles.roleTextCommissioner]}>
+                    {ROLE_LABELS[item.role] ?? item.role}
+                </Text>
+            </View>
+        </View>
+    )
+}
+
+function StandingsRow({ item, index, isMe }: { item: StandingRow; index: number; isMe: boolean }) {
+    return (
+        <View style={[styles.standingsRow, isMe && styles.standingsRowMe]}>
+            <Text style={[styles.standingsRank, isMe && styles.standingsMe]}>{index + 1}</Text>
+            <Text style={[styles.standingsTeam, isMe && styles.standingsMe]} numberOfLines={1}>
+                {item.teamName}
+            </Text>
+            <Text style={[styles.standingsCell, isMe && styles.standingsMe]}>{item.wins}</Text>
+            <Text style={[styles.standingsCell, isMe && styles.standingsMe]}>{item.losses}</Text>
+            <Text style={[styles.standingsPts, isMe && styles.standingsMe]}>{item.pointsFor.toFixed(1)}</Text>
+            <Text style={[styles.standingsPts, isMe && styles.standingsMe]}>{item.pointsAgainst.toFixed(1)}</Text>
+        </View>
+    )
+}
+
+function ActivityRow({ item, isMe }: { item: TransactionRow; isMe: boolean }) {
+    const color = TX_COLORS[item.transactionType] ?? '#888'
+    const label = TRANSACTION_LABELS[item.transactionType] ?? item.transactionType
+    const pos = item.position ?? ''
+    return (
+        <View style={[styles.txRow, isMe && styles.txRowMe]}>
+            <View style={[styles.txAvatar, bgStyle(POSITION_COLORS[pos] ?? '#ccc')]}>
+                <Text style={styles.txAvatarText}>{getInitials(item.playerName)}</Text>
+            </View>
+            <View style={styles.txInfo}>
+                <Text style={styles.txPlayer} numberOfLines={1}>
+                    {item.playerName}
+                    {pos ? <Text style={styles.txPos}>  {pos}</Text> : null}
+                </Text>
+                <Text style={styles.txTeam} numberOfLines={1}>
+                    {item.teamName}
+                    {isMe ? <Text style={styles.meTag}> (you)</Text> : null}
+                </Text>
+            </View>
+            <View style={styles.txRight}>
+                <View style={[styles.txLabel, bgStyle(color + '22')]}>
+                    <Text style={[styles.txLabelText, { color }]}>{label}</Text>
+                </View>
+                <Text style={styles.txTime}>{timeAgo(item.occurredAt)}</Text>
+            </View>
+        </View>
+    )
+}
+
+function WaiverRow({ item, isMe }: { item: WaiverPriorityRow; isMe: boolean }) {
+    return (
+        <View style={[styles.waiverRow, isMe && styles.standingsRowMe]}>
+            <Text style={[styles.waiverRank, isMe && styles.standingsMe]}>{item.priority}</Text>
+            <Text style={[styles.waiverTeam, isMe && styles.standingsMe]} numberOfLines={1}>
+                {item.teamName}
+            </Text>
+            <Text style={[styles.waiverName, isMe && styles.standingsMe]} numberOfLines={1}>
+                {item.displayName}
+            </Text>
+        </View>
+    )
+}
+
+// ── Picks Bank flattened item types ──────────────────────────────
+
+type PicksBankItem =
+    | { type: 'yearHeader'; year: number; id: string }
+    | { type: 'pick'; pick: LeaguePickItem; id: string }
+
+function PicksBankYearHeader({ year }: { year: number }) {
+    return (
+        <View style={styles.picksBankYearRow}>
+            <Text style={styles.picksBankYear}>{year}</Text>
+        </View>
+    )
+}
+
+function PicksBankRow({ pick, isMine }: { pick: LeaguePickItem; isMine: boolean }) {
+    const isTraded = pick.originalOwnerMemberId !== pick.currentOwnerMemberId
+    return (
+        <View style={[styles.picksBankRow, isMine && styles.standingsRowMe]}>
+            <Text style={[styles.picksBankRound, isMine && styles.standingsMe]}>R{pick.round}</Text>
+            <Text style={[styles.picksBankFrom, isMine && styles.standingsMe]} numberOfLines={1}>
+                {pick.originalTeamName}{isTraded ? ' *' : ''}
+            </Text>
+            <Text style={[styles.picksBankOwner, isMine && styles.standingsMe]} numberOfLines={1}>
+                {isMine ? 'You' : pick.currentTeamName}
+            </Text>
+        </View>
+    )
+}
+
+// ── Main screen ──────────────────────────────────────────────────
 
 export default function LeagueScreen() {
     const { push } = useRouter()
@@ -151,7 +276,7 @@ export default function LeagueScreen() {
     if (leagueLoading || (!current && loading)) {
         return (
             <SafeAreaView style={styles.container}>
-                <ActivityIndicator style={{ flex: 1 }} color="#F97316" />
+                <ActivityIndicator style={styles.flex1} color="#F97316" />
             </SafeAreaView>
         )
     }
@@ -188,14 +313,14 @@ export default function LeagueScreen() {
                         >
                             <Text style={styles.settingsButtonText}>Trades</Text>
                         </Pressable>
-                        {isCommissioner && (
+                        {isCommissioner ? (
                             <Pressable
                                 style={styles.settingsButton}
                                 onPress={() => push('/(modals)/commissioner-settings')}
                             >
                                 <Text style={styles.settingsButtonText}>Settings</Text>
                             </Pressable>
-                        )}
+                        ) : null}
                     </View>
                 </View>
 
@@ -210,58 +335,26 @@ export default function LeagueScreen() {
                 </Pressable>
 
                 {/* Draft actions */}
-                {league?.status === 'setup' && isCommissioner && (
-                    <Pressable
-                        style={styles.draftButton}
-                        onPress={handleStartDraft}
-                        disabled={draftLoading}
-                    >
-                        {draftLoading ? (
-                            <ActivityIndicator size="small" color="#fff" />
-                        ) : (
-                            <Text style={styles.draftButtonText}>Start Auction Draft</Text>
-                        )}
+                {league?.status === 'setup' && isCommissioner ? (
+                    <Pressable style={styles.draftButton} onPress={handleStartDraft} disabled={draftLoading}>
+                        {draftLoading ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.draftButtonText}>Start Auction Draft</Text>}
                     </Pressable>
-                )}
-                {league?.status === 'drafting' && (
-                    <Pressable
-                        style={styles.draftButton}
-                        onPress={handleJoinDraftRoom}
-                        disabled={draftLoading}
-                    >
-                        {draftLoading ? (
-                            <ActivityIndicator size="small" color="#fff" />
-                        ) : (
-                            <Text style={styles.draftButtonText}>Join Draft Room</Text>
-                        )}
+                ) : null}
+                {league?.status === 'drafting' ? (
+                    <Pressable style={styles.draftButton} onPress={handleJoinDraftRoom} disabled={draftLoading}>
+                        {draftLoading ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.draftButtonText}>Join Draft Room</Text>}
                     </Pressable>
-                )}
-                {league?.status === 'offseason' && isCommissioner && (
-                    <Pressable
-                        style={styles.draftButton}
-                        onPress={handleStartRookieDraft}
-                        disabled={draftLoading}
-                    >
-                        {draftLoading ? (
-                            <ActivityIndicator size="small" color="#fff" />
-                        ) : (
-                            <Text style={styles.draftButtonText}>Start Rookie Draft</Text>
-                        )}
+                ) : null}
+                {league?.status === 'offseason' && isCommissioner ? (
+                    <Pressable style={styles.draftButton} onPress={handleStartRookieDraft} disabled={draftLoading}>
+                        {draftLoading ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.draftButtonText}>Start Rookie Draft</Text>}
                     </Pressable>
-                )}
-                {league?.status === 'offseason' && !isCommissioner && (
-                    <Pressable
-                        style={styles.draftButton}
-                        onPress={handleJoinRookieDraft}
-                        disabled={draftLoading}
-                    >
-                        {draftLoading ? (
-                            <ActivityIndicator size="small" color="#fff" />
-                        ) : (
-                            <Text style={styles.draftButtonText}>Join Rookie Draft</Text>
-                        )}
+                ) : null}
+                {league?.status === 'offseason' && !isCommissioner ? (
+                    <Pressable style={styles.draftButton} onPress={handleJoinRookieDraft} disabled={draftLoading}>
+                        {draftLoading ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.draftButtonText}>Join Rookie Draft</Text>}
                     </Pressable>
-                )}
+                ) : null}
             </View>
 
             {/* Tab switcher */}
@@ -278,22 +371,18 @@ export default function LeagueScreen() {
                         onPress={() => setTab(t)}
                     >
                         <Text style={[styles.tabChipText, tab === t && styles.tabChipTextActive]}>
-                            {t === 'standings'
-                                ? 'Standings'
-                                : t === 'activity'
-                                  ? 'Activity'
-                                  : t === 'waivers'
-                                    ? 'Waivers'
-                                    : t === 'picks'
-                                      ? 'Picks'
-                                      : `Teams`}
+                            {t === 'standings' ? 'Standings'
+                                : t === 'activity' ? 'Activity'
+                                : t === 'waivers' ? 'Waivers'
+                                : t === 'picks' ? 'Picks'
+                                : 'Teams'}
                         </Text>
                     </Pressable>
                 ))}
             </ScrollView>
 
             {loading ? (
-                <ActivityIndicator style={{ marginTop: 24 }} color="#F97316" />
+                <ActivityIndicator style={styles.loadingMargin} color="#F97316" />
             ) : tab === 'standings' ? (
                 <StandingsTable standings={standings} myMemberId={current?.id} />
             ) : tab === 'activity' ? (
@@ -307,66 +396,22 @@ export default function LeagueScreen() {
                     data={members}
                     keyExtractor={(m) => m.id}
                     ItemSeparatorComponent={ItemSeparator}
-                    renderItem={({ item }) => {
-                        const profile = item.profiles as any
-                        const isMe = item.user_id === user?.id
-                        return (
-                            <View style={styles.memberRow}>
-                                <View style={styles.memberAvatar}>
-                                    <Text style={styles.memberAvatarText}>
-                                        {(item.team_name ??
-                                            profile?.display_name ??
-                                            '?')[0].toUpperCase()}
-                                    </Text>
-                                </View>
-                                <View style={styles.memberInfo}>
-                                    <Text style={styles.memberTeam}>
-                                        {item.team_name ?? 'Unnamed Team'}
-                                        {isMe && <Text style={styles.meTag}> (you)</Text>}
-                                    </Text>
-                                    <Text style={styles.memberName}>
-                                        {profile?.display_name ?? profile?.username}
-                                    </Text>
-                                </View>
-                                <View
-                                    style={[
-                                        styles.roleBadge,
-                                        item.role === 'commissioner' &&
-                                            styles.roleBadgeCommissioner,
-                                    ]}
-                                >
-                                    <Text
-                                        style={[
-                                            styles.roleText,
-                                            item.role === 'commissioner' &&
-                                                styles.roleTextCommissioner,
-                                        ]}
-                                    >
-                                        {ROLE_LABELS[item.role] ?? item.role}
-                                    </Text>
-                                </View>
-                            </View>
-                        )
-                    }}
+                    renderItem={({ item }) => (
+                        <MemberRow item={item} isMe={item.user_id === user?.id} />
+                    )}
                 />
             )}
         </SafeAreaView>
     )
 }
 
-function StandingsTable({
-    standings,
-    myMemberId,
-}: {
-    standings: StandingRow[]
-    myMemberId?: string
-}) {
+// ── Sub-list components ──────────────────────────────────────────
+
+function StandingsTable({ standings, myMemberId }: { standings: StandingRow[]; myMemberId?: string }) {
     if (standings.length === 0) {
         return (
             <View style={styles.empty}>
-                <Text style={styles.emptyText}>
-                    No standings yet — matchups will appear once games are scored.
-                </Text>
+                <Text style={styles.emptyText}>No standings yet — matchups will appear once games are scored.</Text>
             </View>
         )
     }
@@ -377,38 +422,12 @@ function StandingsTable({
             keyExtractor={(s) => s.memberId}
             ListHeaderComponent={StandingsListHeader}
             ItemSeparatorComponent={ItemSeparator}
-            renderItem={({ item, index }) => {
-                const isMe = item.memberId === myMemberId
-                return (
-                    <View style={[styles.standingsRow, isMe && styles.standingsRowMe]}>
-                        <Text style={[styles.standingsRank, isMe && styles.standingsMe]}>
-                            {index + 1}
-                        </Text>
-                        <Text
-                            style={[styles.standingsTeam, isMe && styles.standingsMe]}
-                            numberOfLines={1}
-                        >
-                            {item.teamName}
-                        </Text>
-                        <Text style={[styles.standingsCell, isMe && styles.standingsMe]}>
-                            {item.wins}
-                        </Text>
-                        <Text style={[styles.standingsCell, isMe && styles.standingsMe]}>
-                            {item.losses}
-                        </Text>
-                        <Text style={[styles.standingsPts, isMe && styles.standingsMe]}>
-                            {item.pointsFor.toFixed(1)}
-                        </Text>
-                        <Text style={[styles.standingsPts, isMe && styles.standingsMe]}>
-                            {item.pointsAgainst.toFixed(1)}
-                        </Text>
-                    </View>
-                )
-            }}
+            renderItem={({ item, index }) => (
+                <StandingsRow item={item} index={index} isMe={item.memberId === myMemberId} />
+            )}
         />
     )
 }
-
 
 const TX_COLORS: Record<string, string> = {
     fa_add: '#10B981',
@@ -430,22 +449,14 @@ function timeAgo(iso: string): string {
     if (hrs < 24) return `${hrs}h ago`
     const days = Math.floor(hrs / 24)
     if (days < 7) return `${days}d ago`
-    return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    return shortDateFmt.format(new Date(iso))
 }
 
-function ActivityFeed({
-    transactions,
-    myMemberId,
-}: {
-    transactions: TransactionRow[]
-    myMemberId?: string
-}) {
+function ActivityFeed({ transactions, myMemberId }: { transactions: TransactionRow[]; myMemberId?: string }) {
     if (transactions.length === 0) {
         return (
             <View style={styles.empty}>
-                <Text style={styles.emptyText}>
-                    No transactions yet. Adds, drops, and trades will appear here.
-                </Text>
+                <Text style={styles.emptyText}>No transactions yet. Adds, drops, and trades will appear here.</Text>
             </View>
         )
     }
@@ -455,59 +466,18 @@ function ActivityFeed({
             data={transactions}
             keyExtractor={(t) => t.id}
             ItemSeparatorComponent={ItemSeparator}
-            renderItem={({ item }) => {
-                const isMe = item.memberId === myMemberId
-                const color = TX_COLORS[item.transactionType] ?? '#888'
-                const label = TRANSACTION_LABELS[item.transactionType] ?? item.transactionType
-                const pos = item.position ?? ''
-                return (
-                    <View style={[styles.txRow, isMe && styles.txRowMe]}>
-                        <View
-                            style={[
-                                styles.txAvatar,
-                                { backgroundColor: POSITION_COLORS[pos] ?? '#ccc' },
-                            ]}
-                        >
-                            <Text style={styles.txAvatarText}>
-                                {item.playerName.split(' ').map((w: string) => w[0]).slice(0, 2).join('')}
-                            </Text>
-                        </View>
-                        <View style={styles.txInfo}>
-                            <Text style={styles.txPlayer} numberOfLines={1}>
-                                {item.playerName}
-                                {pos ? <Text style={styles.txPos}>  {pos}</Text> : null}
-                            </Text>
-                            <Text style={styles.txTeam} numberOfLines={1}>
-                                {item.teamName}
-                                {isMe ? <Text style={styles.meTag}> (you)</Text> : null}
-                            </Text>
-                        </View>
-                        <View style={styles.txRight}>
-                            <View style={[styles.txLabel, { backgroundColor: color + '22' }]}>
-                                <Text style={[styles.txLabelText, { color }]}>{label}</Text>
-                            </View>
-                            <Text style={styles.txTime}>{timeAgo(item.occurredAt)}</Text>
-                        </View>
-                    </View>
-                )
-            }}
+            renderItem={({ item }) => (
+                <ActivityRow item={item} isMe={item.memberId === myMemberId} />
+            )}
         />
     )
 }
 
-function WaiverPriorityList({
-    rows,
-    myMemberId,
-}: {
-    rows: WaiverPriorityRow[]
-    myMemberId?: string
-}) {
+function WaiverPriorityList({ rows, myMemberId }: { rows: WaiverPriorityRow[]; myMemberId?: string }) {
     if (rows.length === 0) {
         return (
             <View style={styles.empty}>
-                <Text style={styles.emptyText}>
-                    Waiver priorities will appear here once the season starts.
-                </Text>
+                <Text style={styles.emptyText}>Waiver priorities will appear here once the season starts.</Text>
             </View>
         )
     }
@@ -518,36 +488,30 @@ function WaiverPriorityList({
             keyExtractor={(r) => r.memberId}
             ListHeaderComponent={WaiverListHeader}
             ItemSeparatorComponent={ItemSeparator}
-            renderItem={({ item }) => {
-                const isMe = item.memberId === myMemberId
-                return (
-                    <View style={[styles.waiverRow, isMe && styles.standingsRowMe]}>
-                        <Text style={[styles.waiverRank, isMe && styles.standingsMe]}>
-                            {item.priority}
-                        </Text>
-                        <Text
-                            style={[styles.waiverTeam, isMe && styles.standingsMe]}
-                            numberOfLines={1}
-                        >
-                            {item.teamName}
-                        </Text>
-                        <Text style={[styles.waiverName, isMe && styles.standingsMe]} numberOfLines={1}>
-                            {item.displayName}
-                        </Text>
-                    </View>
-                )
-            }}
+            renderItem={({ item }) => (
+                <WaiverRow item={item} isMe={item.memberId === myMemberId} />
+            )}
         />
     )
 }
 
-function PicksBankList({
-    picks,
-    myMemberId,
-}: {
-    picks: LeaguePickItem[]
-    myMemberId?: string
-}) {
+function PicksBankList({ picks, myMemberId }: { picks: LeaguePickItem[]; myMemberId?: string }) {
+    const flatData = useMemo<PicksBankItem[]>(() => {
+        const byYear = new Map<number, LeaguePickItem[]>()
+        for (const p of picks) {
+            if (!byYear.has(p.seasonYear)) byYear.set(p.seasonYear, [])
+            byYear.get(p.seasonYear)!.push(p)
+        }
+        const result: PicksBankItem[] = []
+        for (const [year, yearPicks] of Array.from(byYear.entries()).sort((a, b) => a[0] - b[0])) {
+            result.push({ type: 'yearHeader', year, id: `year-${year}` })
+            for (const p of yearPicks) {
+                result.push({ type: 'pick', pick: p, id: p.id })
+            }
+        }
+        return result
+    }, [picks])
+
     if (picks.length === 0) {
         return (
             <View style={styles.empty}>
@@ -556,61 +520,34 @@ function PicksBankList({
         )
     }
 
-    // Group by year
-    const byYear = new Map<number, LeaguePickItem[]>()
-    for (const p of picks) {
-        if (!byYear.has(p.seasonYear)) byYear.set(p.seasonYear, [])
-        byYear.get(p.seasonYear)!.push(p)
-    }
-
-    const sections = Array.from(byYear.entries()).sort((a, b) => a[0] - b[0])
-
     return (
         <FlashList
-            data={sections}
-            keyExtractor={([year]) => String(year)}
+            data={flatData}
+            keyExtractor={(item) => item.id}
             ListHeaderComponent={PicksBankListHeader}
-            renderItem={({ item: [year, yearPicks] }) => (
-                <View>
-                    <View style={styles.picksBankYearRow}>
-                        <Text style={styles.picksBankYear}>{year}</Text>
-                    </View>
-                    {yearPicks.map((p) => {
-                        const isTraded = p.originalOwnerMemberId !== p.currentOwnerMemberId
-                        const isMine = p.currentOwnerMemberId === myMemberId
-                        return (
-                            <View
-                                key={p.id}
-                                style={[styles.picksBankRow, isMine && styles.standingsRowMe]}
-                            >
-                                <Text style={[styles.picksBankRound, isMine && styles.standingsMe]}>
-                                    R{p.round}
-                                </Text>
-                                <Text
-                                    style={[styles.picksBankFrom, isMine && styles.standingsMe]}
-                                    numberOfLines={1}
-                                >
-                                    {p.originalTeamName}
-                                    {isTraded ? ' *' : ''}
-                                </Text>
-                                <Text
-                                    style={[styles.picksBankOwner, isMine && styles.standingsMe]}
-                                    numberOfLines={1}
-                                >
-                                    {isMine ? 'You' : p.currentTeamName}
-                                </Text>
-                            </View>
-                        )
-                    })}
-                </View>
-            )}
+            getItemType={(item) => item.type}
             ItemSeparatorComponent={ItemSeparator}
+            renderItem={({ item }) => {
+                if (item.type === 'yearHeader') {
+                    return <PicksBankYearHeader year={item.year} />
+                }
+                return (
+                    <PicksBankRow
+                        pick={item.pick}
+                        isMine={item.pick.currentOwnerMemberId === myMemberId}
+                    />
+                )
+            }}
         />
     )
 }
 
+// ── Styles ───────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#fff' },
+    flex1: { flex: 1 },
+    loadingMargin: { marginTop: 24 },
 
     header: { padding: 20, borderBottomWidth: 1, borderBottomColor: '#eee', gap: 12 },
     headerTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
@@ -790,6 +727,8 @@ const styles = StyleSheet.create({
         borderBottomWidth: 1,
         borderBottomColor: '#eee',
     },
+    picksBankHeaderFrom: { flex: 1, marginLeft: 12 },
+    picksBankHeaderOwner: { width: 110, textAlign: 'right' },
     picksBankYearRow: {
         paddingHorizontal: 16,
         paddingVertical: 6,
@@ -829,9 +768,9 @@ const WaiverListHeader = (
 )
 
 const PicksBankListHeader = (
-    <View style={[styles.picksBankHeader]}>
+    <View style={styles.picksBankHeader}>
         <Text style={styles.standingsHeaderText}>ROUND</Text>
-        <Text style={[styles.standingsHeaderText, { flex: 1, marginLeft: 12 }]}>FROM</Text>
-        <Text style={[styles.standingsHeaderText, { width: 110, textAlign: 'right' }]}>OWNER</Text>
+        <Text style={[styles.standingsHeaderText, styles.picksBankHeaderFrom]}>FROM</Text>
+        <Text style={[styles.standingsHeaderText, styles.picksBankHeaderOwner]}>OWNER</Text>
     </View>
 )
