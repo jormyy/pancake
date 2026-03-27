@@ -12,6 +12,7 @@ import { useRouter } from 'expo-router'
 import { useState } from 'react'
 import { useAuth } from '@/hooks/use-auth'
 import { joinLeague } from '@/lib/league'
+import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 
 export default function JoinLeagueScreen() {
     const { user } = useAuth()
@@ -48,7 +49,7 @@ export default function JoinLeagueScreen() {
                 <TextInput
                     style={[styles.input, styles.codeInput]}
                     placeholder="XXXXXX"
-                    placeholderTextColor="#aaa"
+                    placeholderTextColor={colors.textPlaceholder}
                     autoCapitalize="characters"
                     autoCorrect={false}
                     value={inviteCode}
@@ -59,7 +60,7 @@ export default function JoinLeagueScreen() {
                 <TextInput
                     style={styles.input}
                     placeholder="e.g. Buckets FC"
-                    placeholderTextColor="#aaa"
+                    placeholderTextColor={colors.textPlaceholder}
                     value={teamName}
                     onChangeText={setTeamName}
                 />
@@ -68,7 +69,7 @@ export default function JoinLeagueScreen() {
 
                 <Pressable style={styles.button} onPress={handleJoin} disabled={loading}>
                     {loading ? (
-                        <ActivityIndicator color="#fff" />
+                        <ActivityIndicator color={colors.textWhite} />
                     ) : (
                         <Text style={styles.buttonText}>Join League</Text>
                     )}
@@ -79,34 +80,34 @@ export default function JoinLeagueScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#fff' },
-    inner: { flex: 1, padding: 24, gap: 8 },
-    label: { fontSize: 14, fontWeight: '600', color: '#333', marginTop: 12 },
+    container: { flex: 1, backgroundColor: colors.bgScreen },
+    inner: { flex: 1, padding: spacing['3xl'], gap: spacing.md },
+    label: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textSecondary, marginTop: spacing.lg },
     input: {
         height: 50,
         borderWidth: 1,
-        borderColor: '#ddd',
-        borderRadius: 10,
+        borderColor: colors.border,
+        borderRadius: radii.lg,
         borderCurve: 'continuous' as const,
-        paddingHorizontal: 16,
-        fontSize: 16,
-        backgroundColor: '#fafafa',
+        paddingHorizontal: spacing.xl,
+        fontSize: fontSize.lg,
+        backgroundColor: colors.bgInput,
     },
     codeInput: {
         fontSize: 22,
-        fontWeight: '700',
+        fontWeight: fontWeight.bold,
         letterSpacing: 6,
         textAlign: 'center',
     },
-    error: { color: '#d00', fontSize: 14, marginTop: 8 },
+    error: { color: palette.redBright, fontSize: fontSize.md, marginTop: spacing.md },
     button: {
         height: 50,
-        backgroundColor: '#F97316',
-        borderRadius: 10,
+        backgroundColor: colors.primary,
+        borderRadius: radii.lg,
         borderCurve: 'continuous' as const,
         justifyContent: 'center',
         alignItems: 'center',
-        marginTop: 24,
+        marginTop: spacing['3xl'],
     },
-    buttonText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+    buttonText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.lg },
 })

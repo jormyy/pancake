@@ -1,4 +1,5 @@
 import { View, Text, StyleSheet } from 'react-native'
+import { colors, fontSize, fontWeight, spacing } from '@/constants/tokens'
 import type { TransactionHistoryEntry } from '@/lib/players'
 
 function fmtDate(dateStr: string): string {
@@ -37,9 +38,9 @@ export function TransactionHistory({ transactions }: Props) {
 }
 
 const styles = StyleSheet.create({
-    section: { gap: 8 },
-    sectionTitle: { fontSize: 17, fontWeight: '700', color: '#111' },
-    noData: { color: '#aaa', fontSize: 14 },
+    section: { gap: spacing.md },
+    sectionTitle: { fontSize: 17, fontWeight: fontWeight.bold, color: colors.textPrimary },
+    noData: { color: colors.textPlaceholder, fontSize: fontSize.md },
 
     row: {
         flexDirection: 'row',
@@ -47,10 +48,10 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         paddingVertical: 10,
         borderBottomWidth: 1,
-        borderBottomColor: '#f3f3f3',
+        borderBottomColor: colors.separator,
     },
-    left: { gap: 2 },
-    label: { fontSize: 14, fontWeight: '600', color: '#111' },
-    team: { fontSize: 12, color: '#888' },
-    date: { fontSize: 12, color: '#aaa' },
+    left: { gap: spacing.xxs },
+    label: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textPrimary },
+    team: { fontSize: 12, color: colors.textMuted },
+    date: { fontSize: 12, color: colors.textPlaceholder },
 })

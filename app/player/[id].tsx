@@ -30,6 +30,8 @@ import { StatsOverview } from '@/components/player/StatsOverview'
 import { FantasyCard } from '@/components/player/FantasyCard'
 import { GameLogTable } from '@/components/player/GameLogTable'
 import { TransactionHistory } from '@/components/player/TransactionHistory'
+import { LoadingScreen } from '@/components/LoadingScreen'
+import { colors, fontSize, fontWeight, spacing } from '@/constants/tokens'
 
 const GAME_LOG_PAGE = 15
 
@@ -244,11 +246,7 @@ export default function PlayerDetailScreen() {
 
     // ── Render ───────────────────────────────────────────────────────────────
     if (loading) {
-        return (
-            <SafeAreaView style={styles.container}>
-                <ActivityIndicator style={{ flex: 1 }} color="#F97316" />
-            </SafeAreaView>
-        )
+        return <LoadingScreen />
     }
 
     if (!player) {
@@ -287,7 +285,7 @@ export default function PlayerDetailScreen() {
                     />
 
                     {seasonLoading ? (
-                        <ActivityIndicator color="#F97316" style={styles.seasonLoader} />
+                        <ActivityIndicator color={colors.primary} style={styles.seasonLoader} />
                     ) : (
                         <>
                             {/* Season averages */}
@@ -336,11 +334,11 @@ export default function PlayerDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#fff' },
-    scroll: { padding: 20, gap: 24 },
-    seasonLoader: { marginVertical: 32 },
-    section: { gap: 12 },
-    sectionTitle: { fontSize: 17, fontWeight: '700', color: '#111' },
-    noData: { color: '#aaa', fontSize: 14 },
-    errorText: { textAlign: 'center', marginTop: 40, color: '#888' },
+    container: { flex: 1, backgroundColor: colors.bgScreen },
+    scroll: { padding: spacing['2xl'], gap: spacing['3xl'] },
+    seasonLoader: { marginVertical: spacing['4xl'] },
+    section: { gap: spacing.lg },
+    sectionTitle: { fontSize: 17, fontWeight: fontWeight.bold, color: colors.textPrimary },
+    noData: { color: colors.textPlaceholder, fontSize: fontSize.md },
+    errorText: { textAlign: 'center', marginTop: spacing['5xl'], color: colors.textMuted },
 })

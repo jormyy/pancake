@@ -17,14 +17,9 @@ import { getLeagueMembers } from '@/lib/league'
 import { getRoster, RosterPlayer } from '@/lib/roster'
 import { proposeTrade, getCurrentSeasonId, getPicksForMember, TradePickItem } from '@/lib/trades'
 
-function getInitials(name: string): string {
-    return name
-        .split(' ')
-        .map((w) => w[0])
-        .join('')
-        .slice(0, 2)
-        .toUpperCase()
-}
+import { getInitials } from '@/lib/format'
+import { Avatar } from '@/components/Avatar'
+import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 
 function yearShort(year: number): string {
     return String(year).slice(2)
@@ -46,9 +41,11 @@ function PlayerRow({
             onPress={onToggle}
 
         >
-            <View style={[styles.playerAvatar, selected && styles.playerAvatarSelected]}>
-                <Text style={styles.playerAvatarText}>{getInitials(p.display_name)}</Text>
-            </View>
+            <Avatar
+                name={p.display_name}
+                color={selected ? colors.primary : palette.gray300}
+                size={40}
+            />
             <View style={styles.playerInfo}>
                 <Text style={[styles.playerName, selected && styles.playerNameSelected]}>
                     {p.display_name}
@@ -267,7 +264,7 @@ export default function ProposeTradeScreen() {
                     disabled={!canSubmit}
                 >
                     {submitting ? (
-                        <ActivityIndicator size="small" color="#fff" />
+                        <ActivityIndicator size="small" color={colors.textWhite} />
                     ) : (
                         <Text style={styles.submitBtnText}>Send</Text>
                     )}
@@ -278,7 +275,7 @@ export default function ProposeTradeScreen() {
                 {/* Team picker */}
                 <Text style={styles.sectionLabel}>TRADE WITH</Text>
                 {loading ? (
-                    <ActivityIndicator color="#F97316" style={{ margin: 16 }} />
+                    <ActivityIndicator color={colors.primary} style={{ margin: spacing.xl }} />
                 ) : (
                     <ScrollView
                         horizontal
@@ -310,7 +307,7 @@ export default function ProposeTradeScreen() {
                 {selectedRecipientId && (
                     <>
                         {rosterLoading ? (
-                            <ActivityIndicator color="#F97316" style={{ margin: 24 }} />
+                            <ActivityIndicator color={colors.primary} style={{ margin: spacing['3xl'] }} />
                         ) : (
                             <>
                                 {/* YOU RECEIVE section */}
@@ -378,7 +375,7 @@ export default function ProposeTradeScreen() {
                                 <TextInput
                                     style={styles.notesInput}
                                     placeholder="Add a message to your trade offer..."
-                                    placeholderTextColor="#bbb"
+                                    placeholderTextColor={colors.textDisabled}
                                     value={notes}
                                     onChangeText={setNotes}
                                     multiline
@@ -402,143 +399,132 @@ export default function ProposeTradeScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#fff' },
+    container: { flex: 1, backgroundColor: colors.bgScreen },
     scroll: { flex: 1 },
 
     header: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingHorizontal: 16,
-        paddingVertical: 12,
+        paddingHorizontal: spacing.xl,
+        paddingVertical: spacing.lg,
         borderBottomWidth: 1,
-        borderBottomColor: '#eee',
+        borderBottomColor: colors.borderLight,
     },
-    headerTitle: { fontSize: 17, fontWeight: '700' },
-    cancelBtn: { paddingVertical: 6, paddingHorizontal: 4 },
-    cancelBtnText: { fontSize: 16, color: '#555' },
+    headerTitle: { fontSize: 17, fontWeight: fontWeight.bold },
+    cancelBtn: { paddingVertical: spacing.sm, paddingHorizontal: spacing.xs },
+    cancelBtnText: { fontSize: fontSize.lg, color: colors.textSecondary },
     submitBtn: {
-        backgroundColor: '#F97316',
-        paddingHorizontal: 16,
+        backgroundColor: colors.primary,
+        paddingHorizontal: spacing.xl,
         paddingVertical: 7,
-        borderRadius: 8,
+        borderRadius: radii.md,
         borderCurve: 'continuous' as const,
         minWidth: 52,
         alignItems: 'center',
     },
-    submitBtnDisabled: { backgroundColor: '#ddd' },
-    submitBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+    submitBtnDisabled: { backgroundColor: colors.border },
+    submitBtnText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: 15 },
 
     sectionLabel: {
-        fontSize: 11,
-        fontWeight: '700',
-        color: '#aaa',
+        fontSize: fontSize.xs,
+        fontWeight: fontWeight.bold,
+        color: colors.textPlaceholder,
         letterSpacing: 0.5,
-        paddingHorizontal: 16,
-        paddingTop: 20,
-        paddingBottom: 8,
+        paddingHorizontal: spacing.xl,
+        paddingTop: spacing['2xl'],
+        paddingBottom: spacing.md,
     },
     subSectionLabel: {
         fontSize: 10,
-        fontWeight: '700',
-        color: '#bbb',
+        fontWeight: fontWeight.bold,
+        color: colors.textDisabled,
         letterSpacing: 0.5,
-        paddingHorizontal: 16,
-        paddingTop: 12,
-        paddingBottom: 6,
+        paddingHorizontal: spacing.xl,
+        paddingTop: spacing.lg,
+        paddingBottom: spacing.sm,
     },
 
     teamChips: {
-        paddingHorizontal: 16,
-        paddingVertical: 4,
-        gap: 8,
+        paddingHorizontal: spacing.xl,
+        paddingVertical: spacing.xs,
+        gap: spacing.md,
         flexDirection: 'row',
     },
     teamChip: {
         paddingHorizontal: 14,
-        paddingVertical: 8,
-        borderRadius: 20,
+        paddingVertical: spacing.md,
+        borderRadius: radii['3xl'],
         borderCurve: 'continuous' as const,
-        backgroundColor: '#f3f3f3',
+        backgroundColor: colors.bgMuted,
     },
-    teamChipActive: { backgroundColor: '#F97316' },
-    teamChipText: { fontSize: 13, fontWeight: '600', color: '#555' },
-    teamChipTextActive: { color: '#fff' },
+    teamChipActive: { backgroundColor: colors.primary },
+    teamChipText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textSecondary },
+    teamChipTextActive: { color: colors.textWhite },
 
     playerRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: 16,
-        paddingVertical: 12,
-        gap: 12,
+        paddingHorizontal: spacing.xl,
+        paddingVertical: spacing.lg,
+        gap: spacing.lg,
         borderBottomWidth: 1,
-        borderBottomColor: '#f3f3f3',
+        borderBottomColor: colors.separator,
     },
-    playerRowSelected: { backgroundColor: '#FFF7ED' },
-    playerAvatar: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        borderCurve: 'continuous' as const,
-        backgroundColor: '#e5e7eb',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    playerAvatarSelected: { backgroundColor: '#F97316' },
-    playerAvatarText: { color: '#fff', fontWeight: '700', fontSize: 13 },
+    playerRowSelected: { backgroundColor: colors.primaryLight },
 
     pickCircle: {
         width: 40,
         height: 40,
         borderRadius: 20,
         borderCurve: 'continuous' as const,
-        backgroundColor: '#e5e7eb',
+        backgroundColor: palette.gray300,
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 2,
-        borderColor: '#d1d5db',
+        borderColor: palette.gray400,
     },
-    pickCircleSelected: { backgroundColor: '#F97316', borderColor: '#F97316' },
-    pickCircleText: { color: '#fff', fontWeight: '700', fontSize: 12 },
+    pickCircleSelected: { backgroundColor: colors.primary, borderColor: colors.primary },
+    pickCircleText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: 12 },
 
     playerInfo: { flex: 1 },
-    playerName: { fontSize: 15, fontWeight: '600', color: '#111' },
-    playerNameSelected: { color: '#F97316' },
-    playerMeta: { fontSize: 12, color: '#888', marginTop: 2 },
+    playerName: { fontSize: 15, fontWeight: fontWeight.semibold, color: colors.textPrimary },
+    playerNameSelected: { color: colors.primary },
+    playerMeta: { fontSize: 12, color: colors.textMuted, marginTop: spacing.xxs },
     checkBadge: {
         width: 24,
         height: 24,
         borderRadius: 12,
         borderCurve: 'continuous' as const,
-        backgroundColor: '#F97316',
+        backgroundColor: colors.primary,
         justifyContent: 'center',
         alignItems: 'center',
     },
-    checkBadgeText: { color: '#fff', fontWeight: '700', fontSize: 16, lineHeight: 22 },
+    checkBadgeText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.lg, lineHeight: 22 },
 
     notesInput: {
-        marginHorizontal: 16,
+        marginHorizontal: spacing.xl,
         borderWidth: 1,
-        borderColor: '#e5e7eb',
-        borderRadius: 10,
+        borderColor: palette.gray300,
+        borderRadius: radii.lg,
         borderCurve: 'continuous' as const,
         paddingHorizontal: 14,
         paddingVertical: 10,
-        fontSize: 14,
-        color: '#111',
+        fontSize: fontSize.md,
+        color: colors.textPrimary,
         minHeight: 80,
         textAlignVertical: 'top',
     },
 
     emptyRowText: {
-        paddingHorizontal: 16,
-        paddingVertical: 12,
-        color: '#aaa',
-        fontSize: 14,
+        paddingHorizontal: spacing.xl,
+        paddingVertical: spacing.lg,
+        color: colors.textPlaceholder,
+        fontSize: fontSize.md,
     },
     emptyCenter: {
         alignItems: 'center',
-        padding: 40,
+        padding: spacing['5xl'],
     },
-    emptyText: { fontSize: 14, color: '#aaa', textAlign: 'center' },
+    emptyText: { fontSize: fontSize.md, color: colors.textPlaceholder, textAlign: 'center' },
 })

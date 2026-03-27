@@ -9,19 +9,10 @@ import {
 import { useState } from 'react'
 import type { PlayerRosterStatus } from '@/lib/roster'
 import { POSITION_COLORS } from '@/constants/positions'
-
-const INJURY_COLORS: Record<string, string> = {
-    Questionable: '#F59E0B',
-    Doubtful: '#F97316',
-    Out: '#EF4444',
-    IR: '#7F1D1D',
-}
-
-function getInitials(name: string): string {
-    const parts = name.trim().split(/\s+/)
-    if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
-    return name.slice(0, 2).toUpperCase()
-}
+import { INJURY_COLORS, colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { getInitials } from '@/lib/format'
+import { Avatar } from '@/components/Avatar'
+import { Badge } from '@/components/Badge'
 
 type Player = {
     display_name: string
@@ -53,7 +44,7 @@ export function PlayerHeader({
     onClaim,
 }: Props) {
     const [headshotError, setHeadshotError] = useState(false)
-    const posColor = POSITION_COLORS[player.position ?? ''] ?? '#888'
+    const posColor = POSITION_COLORS[player.position ?? ''] ?? colors.textMuted
 
     const metaParts = [
         player.jersey_number ? `#${player.jersey_number}` : null,
@@ -72,11 +63,7 @@ export function PlayerHeader({
                         onError={() => setHeadshotError(true)}
                     />
                 ) : (
-                    <View style={[styles.initialsCircle, { backgroundColor: posColor }]}>
-                        <Text style={styles.initialsText}>
-                            {getInitials(player.display_name)}
-                        </Text>
-                    </View>
+                    <Avatar name={player.display_name} color={posColor} size={72} />
                 )}
             </View>
 
@@ -86,26 +73,19 @@ export function PlayerHeader({
                 <Text style={styles.meta}>{metaParts.join(' · ')}</Text>
                 <View style={styles.badges}>
                     {player.injury_status && (
-                        <View
-                            style={[
-                                styles.badge,
-                                {
-                                    backgroundColor:
-                                        INJURY_COLORS[player.injury_status] ?? '#888',
-                                },
-                            ]}
-                        >
-                            <Text style={styles.badgeTextWhite}>
-                                {player.injury_status}
-                            </Text>
-                        </View>
+                        <Badge
+                            label={player.injury_status}
+                            color={INJURY_COLORS[player.injury_status] ?? colors.textMuted}
+                            variant="solid"
+                        />
                     )}
                     {player.dynasty_rank != null && (
-                        <View style={styles.dynastyBadge}>
-                            <Text style={styles.dynastyText}>
-                                Dynasty #{player.dynasty_rank}
-                            </Text>
-                        </View>
+                        <Badge
+                            label={`Dynasty #${player.dynasty_rank}`}
+                            color={colors.textSecondary}
+                            variant="soft"
+                            textColor={colors.textSecondary}
+                        />
                     )}
                 </View>
             </View>
@@ -120,7 +100,7 @@ export function PlayerHeader({
                             disabled={actionLoading}
                         >
                             {actionLoading ? (
-                                <ActivityIndicator size="small" color="#fff" />
+                                <ActivityIndicator size="small" color={colors.textWhite} />
                             ) : (
                                 <Text style={styles.addButtonText}>+ Add</Text>
                             )}
@@ -140,7 +120,7 @@ export function PlayerHeader({
                             disabled={actionLoading}
                         >
                             {actionLoading ? (
-                                <ActivityIndicator size="small" color="#EF4444" />
+                                <ActivityIndicator size="small" color={colors.danger} />
                             ) : (
                                 <Text style={styles.dropButtonText}>Drop</Text>
                             )}
@@ -159,84 +139,57 @@ export function PlayerHeader({
 }
 
 const styles = StyleSheet.create({
-    header: { flexDirection: 'row', alignItems: 'flex-start', gap: 14 },
+    header: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.lg },
     avatarWrap: { flexShrink: 0 },
-    headshot: { width: 72, height: 72, borderRadius: 36, backgroundColor: '#f3f3f3' },
-    initialsCircle: {
-        width: 72,
-        height: 72,
-        borderRadius: 36,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    initialsText: { color: '#fff', fontSize: 22, fontWeight: '700' },
+    headshot: { width: 72, height: 72, borderRadius: radii.full, backgroundColor: colors.bgMuted },
 
-    info: { flex: 1, gap: 4 },
-    name: { fontSize: 22, fontWeight: '800', color: '#111' },
-    meta: { fontSize: 14, color: '#888' },
-    badges: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4 },
-
-    badge: {
-        alignSelf: 'flex-start',
-        paddingHorizontal: 8,
-        paddingVertical: 3,
-        borderRadius: 6,
-        borderCurve: 'continuous' as const,
-    },
-    badgeTextWhite: { color: '#fff', fontSize: 11, fontWeight: '700' },
-
-    dynastyBadge: {
-        alignSelf: 'flex-start',
-        paddingHorizontal: 8,
-        paddingVertical: 3,
-        borderRadius: 6,
-        borderCurve: 'continuous' as const,
-        backgroundColor: '#f3f3f3',
-    },
-    dynastyText: { color: '#555', fontSize: 11, fontWeight: '600' },
+    info: { flex: 1, gap: spacing.xs },
+    name: { fontSize: fontSize['2xl'] - 2, fontWeight: fontWeight.extrabold, color: colors.textPrimary },
+    meta: { fontSize: fontSize.md, color: colors.textMuted },
+    badges: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.xs },
 
     actionWrap: { flexShrink: 0 },
 
     addButton: {
-        backgroundColor: '#F97316',
-        paddingHorizontal: 14,
-        paddingVertical: 9,
-        borderRadius: 10,
+        backgroundColor: colors.primary,
+        paddingHorizontal: spacing.lg + 2,
+        paddingVertical: spacing.md + 1,
+        borderRadius: radii.lg,
         borderCurve: 'continuous' as const,
         minWidth: 68,
         alignItems: 'center',
     },
-    addButtonText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+    addButtonText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.md },
 
     dropButton: {
-        paddingHorizontal: 14,
-        paddingVertical: 9,
-        borderRadius: 10,
+        paddingHorizontal: spacing.lg + 2,
+        paddingVertical: spacing.md + 1,
+        borderRadius: radii.lg,
         borderCurve: 'continuous' as const,
         borderWidth: 1.5,
-        borderColor: '#EF4444',
+        borderColor: colors.danger,
         minWidth: 68,
         alignItems: 'center',
     },
-    dropButtonText: { color: '#EF4444', fontWeight: '700', fontSize: 14 },
+    dropButtonText: { color: colors.danger, fontWeight: fontWeight.bold, fontSize: fontSize.md },
 
     claimButton: {
-        backgroundColor: '#8B5CF6',
-        paddingHorizontal: 14,
-        paddingVertical: 9,
-        borderRadius: 10,
+        backgroundColor: colors.info,
+        paddingHorizontal: spacing.lg + 2,
+        paddingVertical: spacing.md + 1,
+        borderRadius: radii.lg,
         borderCurve: 'continuous' as const,
         minWidth: 68,
         alignItems: 'center',
     },
-    claimButtonText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+    claimButtonText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.md },
 
     takenBadge: {
-        backgroundColor: '#f3f3f3',
-        paddingHorizontal: 10,
-        paddingVertical: 8,
-        borderRadius: 8,
+        backgroundColor: colors.bgMuted,
+        paddingHorizontal: spacing.lg - 2,
+        paddingVertical: spacing.md,
+        borderRadius: radii.md,
         borderCurve: 'continuous' as const,
     },
-    takenText: { color: '#888', fontSize: 12, fontWeight: '600' },
+    takenText: { color: colors.textMuted, fontSize: fontSize.sm - 1, fontWeight: fontWeight.semibold },
 })

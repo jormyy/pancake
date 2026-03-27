@@ -26,6 +26,9 @@ import {
     WeekDay,
 } from '@/lib/lineup'
 import { POSITION_COLORS } from '@/constants/positions'
+import { Avatar } from '@/components/Avatar'
+import { LoadingScreen } from '@/components/LoadingScreen'
+import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 
 type Selection =
     | { kind: 'starter'; index: number }
@@ -170,11 +173,7 @@ export default function LineupScreen() {
               : null
 
     if (loading) {
-        return (
-            <SafeAreaView style={styles.container}>
-                <ActivityIndicator style={{ flex: 1 }} color="#F97316" />
-            </SafeAreaView>
-        )
+        return <LoadingScreen />
     }
 
     if (!ctx) {
@@ -201,7 +200,7 @@ export default function LineupScreen() {
                     disabled={autoSetting || saving}
                 >
                     {autoSetting ? (
-                        <ActivityIndicator size="small" color="#F97316" />
+                        <ActivityIndicator size="small" color={colors.primary} />
                     ) : (
                         <Text style={styles.autoSetText}>Auto-Set</Text>
                     )}
@@ -276,20 +275,11 @@ export default function LineupScreen() {
                                 <Text style={styles.slotLabel}>{slot.slotType}</Text>
                                 {p ? (
                                     <>
-                                        <View
-                                            style={[
-                                                styles.avatar,
-                                                { backgroundColor: POSITION_COLORS[p.position ?? ''] ?? '#ccc' },
-                                            ]}
-                                        >
-                                            <Text style={styles.avatarText}>
-                                                {p.displayName
-                                                    .split(' ')
-                                                    .map((w) => w[0])
-                                                    .slice(0, 2)
-                                                    .join('')}
-                                            </Text>
-                                        </View>
+                                        <Avatar
+                                            name={p.displayName}
+                                            color={POSITION_COLORS[p.position ?? ''] ?? palette.gray500}
+                                            size={36}
+                                        />
                                         <View style={styles.playerInfo}>
                                             <Text style={styles.playerName}>{p.displayName}</Text>
                                             <Text style={styles.playerMeta}>
@@ -324,20 +314,11 @@ export default function LineupScreen() {
                                     onPress={() => handleTap({ kind: 'bench', index: i })}
                                     disabled={saving}
                                 >
-                                    <View
-                                        style={[
-                                            styles.avatar,
-                                            { backgroundColor: POSITION_COLORS[player.position ?? ''] ?? '#ccc' },
-                                        ]}
-                                    >
-                                        <Text style={styles.avatarText}>
-                                            {player.displayName
-                                                .split(' ')
-                                                .map((w) => w[0])
-                                                .slice(0, 2)
-                                                .join('')}
-                                        </Text>
-                                    </View>
+                                    <Avatar
+                                        name={player.displayName}
+                                        color={POSITION_COLORS[player.position ?? ''] ?? palette.gray500}
+                                        size={36}
+                                    />
                                     <View style={styles.playerInfo}>
                                         <Text style={styles.playerName}>{player.displayName}</Text>
                                         <Text style={styles.playerMeta}>
@@ -353,7 +334,7 @@ export default function LineupScreen() {
 
             {saving && (
                 <View style={styles.savingOverlay}>
-                    <ActivityIndicator color="#F97316" />
+                    <ActivityIndicator color={colors.primary} />
                 </View>
             )}
         </SafeAreaView>
@@ -361,72 +342,72 @@ export default function LineupScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#f5f5f5' },
+    container: { flex: 1, backgroundColor: colors.bgSubtle },
 
     header: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: 16,
+        paddingHorizontal: spacing.xl,
         paddingVertical: 14,
-        backgroundColor: '#fff',
+        backgroundColor: colors.bgScreen,
         borderBottomWidth: 1,
-        borderBottomColor: '#eee',
+        borderBottomColor: colors.borderLight,
     },
     closeButton: { minWidth: 48 },
-    closeText: { fontSize: 15, fontWeight: '600', color: '#F97316' },
-    headerTitle: { flex: 1, fontSize: 18, fontWeight: '800', textAlign: 'center' },
+    closeText: { fontSize: 15, fontWeight: fontWeight.semibold, color: colors.primary },
+    headerTitle: { flex: 1, fontSize: 18, fontWeight: fontWeight.extrabold, textAlign: 'center' },
     autoSetButton: {
         paddingHorizontal: 14,
         paddingVertical: 7,
-        borderRadius: 20,
+        borderRadius: radii['3xl'],
         borderCurve: 'continuous' as const,
         borderWidth: 1.5,
-        borderColor: '#F97316',
+        borderColor: colors.primary,
         minWidth: 80,
         alignItems: 'center',
     },
-    autoSetText: { fontSize: 13, fontWeight: '700', color: '#F97316' },
+    autoSetText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.primary },
 
-    daySelectorRow: { borderBottomWidth: 1, borderBottomColor: '#eee' },
-    daySelectorContent: { flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 8, gap: 6 },
-    dayCell: { width: 38, alignItems: 'center', paddingVertical: 5, borderRadius: 9, borderCurve: 'continuous' as const, gap: 2 },
-    dayCellSelected: { backgroundColor: '#F97316' },
-    dayCellToday: { backgroundColor: '#FFF7ED' },
+    daySelectorRow: { borderBottomWidth: 1, borderBottomColor: colors.borderLight },
+    daySelectorContent: { flexDirection: 'row', paddingHorizontal: spacing.lg, paddingVertical: spacing.md, gap: spacing.sm },
+    dayCell: { width: 38, alignItems: 'center', paddingVertical: 5, borderRadius: 9, borderCurve: 'continuous' as const, gap: spacing.xxs },
+    dayCellSelected: { backgroundColor: colors.primary },
+    dayCellToday: { backgroundColor: colors.primaryLight },
     dayCellNoGames: { opacity: 0.4 },
-    dayLabel: { fontSize: 10, fontWeight: '700', color: '#888' },
-    dayLabelSelected: { color: '#fff' },
-    dayNum: { fontSize: 14, fontWeight: '800', color: '#111' },
-    dayNumSelected: { color: '#fff' },
-    gameDot: { width: 4, height: 4, borderRadius: 2, borderCurve: 'continuous' as const, backgroundColor: '#F97316', marginTop: 1 },
+    dayLabel: { fontSize: 10, fontWeight: fontWeight.bold, color: colors.textMuted },
+    dayLabelSelected: { color: colors.textWhite },
+    dayNum: { fontSize: fontSize.md, fontWeight: fontWeight.extrabold, color: colors.textPrimary },
+    dayNumSelected: { color: colors.textWhite },
+    gameDot: { width: 4, height: 4, borderRadius: 2, borderCurve: 'continuous' as const, backgroundColor: colors.primary, marginTop: 1 },
     gameDotSelected: { backgroundColor: 'rgba(255,255,255,0.7)' },
 
     hint: {
-        backgroundColor: '#FFF7ED',
+        backgroundColor: colors.primaryLight,
         borderBottomWidth: 1,
-        borderBottomColor: '#FED7AA',
-        paddingHorizontal: 16,
+        borderBottomColor: palette.orange200,
+        paddingHorizontal: spacing.xl,
         paddingVertical: 10,
     },
-    hintText: { fontSize: 13, color: '#C2410C', fontWeight: '500' },
+    hintText: { fontSize: fontSize.sm, color: colors.primaryDark, fontWeight: fontWeight.medium },
 
-    scroll: { padding: 16, gap: 8 },
+    scroll: { padding: spacing.xl, gap: spacing.md },
 
     sectionLabel: {
-        fontSize: 11,
-        fontWeight: '700',
-        color: '#aaa',
+        fontSize: fontSize.xs,
+        fontWeight: fontWeight.bold,
+        color: colors.textPlaceholder,
         letterSpacing: 0.5,
-        marginBottom: 4,
-        marginLeft: 4,
+        marginBottom: spacing.xs,
+        marginLeft: spacing.xs,
     },
 
     card: {
-        backgroundColor: '#fff',
+        backgroundColor: colors.bgScreen,
         borderRadius: 14,
         borderCurve: 'continuous' as const,
         borderWidth: 1,
-        borderColor: '#eee',
-        marginBottom: 12,
+        borderColor: colors.borderLight,
+        marginBottom: spacing.lg,
         overflow: 'hidden',
     },
 
@@ -446,45 +427,35 @@ const styles = StyleSheet.create({
         gap: 10,
         minHeight: 56,
     },
-    divider: { borderTopWidth: 1, borderTopColor: '#f3f3f3' },
-    selectedRow: { backgroundColor: '#FFF7ED' },
+    divider: { borderTopWidth: 1, borderTopColor: colors.separator },
+    selectedRow: { backgroundColor: colors.primaryLight },
 
     slotLabel: {
         width: 36,
-        fontSize: 11,
-        fontWeight: '800',
-        color: '#aaa',
+        fontSize: fontSize.xs,
+        fontWeight: fontWeight.extrabold,
+        color: colors.textPlaceholder,
         letterSpacing: 0.3,
     },
 
-    avatar: {
-        width: 36,
-        height: 36,
-        borderRadius: 18,
-        borderCurve: 'continuous' as const,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    avatarText: { color: '#fff', fontWeight: '700', fontSize: 12 },
-
     playerInfo: { flex: 1, gap: 1 },
-    playerName: { fontSize: 15, fontWeight: '600', color: '#111' },
-    playerMeta: { fontSize: 12, color: '#888' },
+    playerName: { fontSize: 15, fontWeight: fontWeight.semibold, color: colors.textPrimary },
+    playerMeta: { fontSize: 12, color: colors.textMuted },
 
-    emptySlot: { fontSize: 14, color: '#ccc', fontStyle: 'italic' },
-    benchEmpty: { padding: 16, fontSize: 13, color: '#aaa', textAlign: 'center' },
+    emptySlot: { fontSize: fontSize.md, color: palette.gray500, fontStyle: 'italic' },
+    benchEmpty: { padding: spacing.xl, fontSize: fontSize.sm, color: colors.textPlaceholder, textAlign: 'center' },
 
     empty: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-    emptyText: { fontSize: 14, color: '#aaa' },
+    emptyText: { fontSize: fontSize.md, color: colors.textPlaceholder },
 
     savingOverlay: {
         position: 'absolute',
         bottom: 24,
         alignSelf: 'center',
         backgroundColor: 'rgba(0,0,0,0.6)',
-        borderRadius: 20,
+        borderRadius: radii['3xl'],
         borderCurve: 'continuous' as const,
-        paddingHorizontal: 20,
+        paddingHorizontal: spacing['2xl'],
         paddingVertical: 10,
     },
 })

@@ -9,28 +9,23 @@ import {
 import { FlashList } from '@shopify/flash-list'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
-import { useState, useCallback, useMemo } from 'react'
-import { useFocusEffect } from '@react-navigation/native'
+import { useState, useMemo } from 'react'
 import { useAuth } from '@/hooks/use-auth'
 import { useLeagueContext } from '@/contexts/league-context'
 import { getRoster, toggleIR, RosterPlayer } from '@/lib/roster'
 import { getPicksForMember, TradePickItem } from '@/lib/trades'
 import { getMyWaiverClaims, cancelWaiverClaim, WaiverClaim } from '@/lib/waivers'
 import { POSITION_COLORS } from '@/constants/positions'
+import { INJURY_COLORS, colors, fontSize, fontWeight, radii, spacing, palette } from '@/constants/tokens'
 import { bgStyle } from '@/lib/style-cache'
-
-const INJURY_COLORS: Record<string, string> = {
-    Questionable: '#F59E0B',
-    Doubtful: '#F97316',
-    Out: '#EF4444',
-    IR: '#7F1D1D',
-}
-
-const shortDateFmt = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' })
-
-function getInitials(name: string): string {
-    return name.split(' ').map((w: string) => w[0]).slice(0, 2).join('')
-}
+import { shortDateFmt } from '@/lib/format'
+import { ItemSeparator } from '@/components/ItemSeparator'
+import { LoadingScreen } from '@/components/LoadingScreen'
+import { EmptyState } from '@/components/EmptyState'
+import { Avatar } from '@/components/Avatar'
+import { Badge } from '@/components/Badge'
+import { SectionHeader } from '@/components/SectionHeader'
+import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
 
 type RosterListItem =
     | { _isHeader: true; _section: string }
@@ -38,21 +33,7 @@ type RosterListItem =
     | (TradePickItem & { _isHeader?: false; _section: 'picks' })
     | (WaiverClaim & { _isHeader?: false; _section: 'claims' })
 
-const ItemSeparator = () => <View style={styles.separator} />
-
 // ── Extracted list item components ───────────────────────────────
-
-function RosterSectionHeader({ section }: { section: string }) {
-    const label =
-        section === 'picks' ? 'DRAFT PICKS'
-        : section === 'claims' ? 'WAIVER CLAIMS'
-        : 'IR'
-    return (
-        <View style={styles.sectionHeader}>
-            <Text style={styles.sectionHeaderText}>{label}</Text>
-        </View>
-    )
-}
 
 function RosterClaimItem({
     claim,
@@ -65,9 +46,9 @@ function RosterClaimItem({
 }) {
     const isPending = claim.status === 'pending'
     const statusColor =
-        claim.status === 'succeeded' ? '#10B981'
-        : claim.status === 'pending' ? '#8B5CF6'
-        : '#EF4444'
+        claim.status === 'succeeded' ? colors.success
+        : claim.status === 'pending' ? colors.info
+        : colors.danger
     return (
         <View style={styles.claimRow}>
             <View style={styles.info}>
@@ -92,7 +73,7 @@ function RosterClaimItem({
                     disabled={cancellingId === claim.id}
                 >
                     {cancellingId === claim.id ? (
-                        <ActivityIndicator size="small" color="#888" />
+                        <ActivityIndicator size="small" color={colors.textMuted} />
                     ) : (
                         <Text style={styles.cancelButtonText}>Cancel</Text>
                     )}
@@ -144,9 +125,10 @@ function RosterPlayerItem({
     const pos = player.position ?? ''
     return (
         <Pressable style={styles.playerRow} onPress={onPress}>
-            <View style={[styles.avatar, bgStyle(POSITION_COLORS[pos] ?? '#ccc')]}>
-                <Text style={styles.avatarText}>{getInitials(player.display_name)}</Text>
-            </View>
+            <Avatar
+                name={player.display_name}
+                color={POSITION_COLORS[pos] ?? palette.gray500}
+            />
 
             <View style={styles.info}>
                 <Text style={styles.playerName}>{player.display_name}</Text>
@@ -154,8 +136,12 @@ function RosterPlayerItem({
                     {[player.nba_team, pos].filter(Boolean).join(' · ')}
                 </Text>
                 {player.injury_status ? (
-                    <View style={[styles.injuryBadge, bgStyle(INJURY_COLORS[player.injury_status] ?? '#888')]}>
-                        <Text style={styles.injuryText}>{player.injury_status}</Text>
+                    <View style={{ alignSelf: 'flex-start', marginTop: 2 }}>
+                        <Badge
+                            label={player.injury_status}
+                            color={INJURY_COLORS[player.injury_status] ?? colors.textMuted}
+                            variant="solid"
+                        />
                     </View>
                 ) : null}
             </View>
@@ -167,7 +153,7 @@ function RosterPlayerItem({
                     disabled={togglingId === item.id}
                 >
                     {togglingId === item.id ? (
-                        <ActivityIndicator size="small" color={item.is_on_ir ? '#fff' : '#888'} />
+                        <ActivityIndicator size="small" color={item.is_on_ir ? colors.textWhite : colors.textMuted} />
                     ) : (
                         <Text style={[styles.irButtonText, item.is_on_ir && styles.irButtonTextActive]}>
                             {item.is_on_ir ? 'Active' : 'IR'}
@@ -185,38 +171,23 @@ export default function RosterScreen() {
     const { push } = useRouter()
     const { user } = useAuth()
     const { current, loading: leagueLoading } = useLeagueContext()
-    const [roster, setRoster] = useState<RosterPlayer[]>([])
-    const [picks, setPicks] = useState<TradePickItem[]>([])
-    const [claims, setClaims] = useState<WaiverClaim[]>([])
-    const [loading, setLoading] = useState(true)
     const [togglingId, setTogglingId] = useState<string | null>(null)
     const [cancellingId, setCancellingId] = useState<string | null>(null)
 
-    const load = useCallback(async () => {
-        if (!current || !user) return
-        setLoading(true)
-        try {
-            const leagueId = (current.leagues as any).id
-            const [data, pickData, claimData] = await Promise.all([
-                getRoster(current.id, leagueId),
-                getPicksForMember(current.id, leagueId),
-                getMyWaiverClaims(current.id, leagueId),
-            ])
-            setRoster(data)
-            setPicks(pickData)
-            setClaims(claimData)
-        } catch (e) {
-            console.error(e)
-        } finally {
-            setLoading(false)
-        }
+    const { data, loading, refresh: load } = useFocusAsyncData(async () => {
+        if (!current || !user) return null
+        const leagueId = (current.leagues as any).id
+        const [roster, picks, claims] = await Promise.all([
+            getRoster(current.id, leagueId),
+            getPicksForMember(current.id, leagueId),
+            getMyWaiverClaims(current.id, leagueId),
+        ])
+        return { roster, picks, claims }
     }, [current, user])
 
-    useFocusEffect(
-        useCallback(() => {
-            load()
-        }, [load]),
-    )
+    const roster = data?.roster ?? []
+    const picks = data?.picks ?? []
+    const claims = data?.claims ?? []
 
     const active = useMemo(() => roster.filter((p) => !p.is_on_ir), [roster])
     const ir = useMemo(() => roster.filter((p) => p.is_on_ir), [roster])
@@ -276,23 +247,8 @@ export default function RosterScreen() {
         }
     }
 
-    if (leagueLoading || (!current && loading)) {
-        return (
-            <SafeAreaView style={styles.container}>
-                <ActivityIndicator style={styles.flex1} color="#F97316" />
-            </SafeAreaView>
-        )
-    }
-
-    if (!current) {
-        return (
-            <SafeAreaView style={styles.container}>
-                <View style={styles.empty}>
-                    <Text style={styles.emptyText}>Join or create a league first.</Text>
-                </View>
-            </SafeAreaView>
-        )
-    }
+    if (leagueLoading || (!current && loading)) return <LoadingScreen />
+    if (!current) return <EmptyState message="Join or create a league first." />
 
     const league = current.leagues as any
 
@@ -317,7 +273,7 @@ export default function RosterScreen() {
             </View>
 
             {loading ? (
-                <ActivityIndicator style={styles.flex1} color="#F97316" />
+                <ActivityIndicator style={styles.flex1} color={colors.primary} />
             ) : roster.length === 0 ? (
                 <View style={styles.empty}>
                     <Text style={styles.emptyTitle}>Your roster is empty</Text>
@@ -333,7 +289,11 @@ export default function RosterScreen() {
                     getItemType={(item) => item._isHeader ? 'header' : item._section}
                     renderItem={({ item }) => {
                         if (item._isHeader) {
-                            return <RosterSectionHeader section={item._section} />
+                            const label =
+                                item._section === 'picks' ? 'Draft Picks'
+                                : item._section === 'claims' ? 'Waiver Claims'
+                                : 'IR'
+                            return <SectionHeader label={label} />
                         }
                         if (item._section === 'claims') {
                             return (
@@ -369,117 +329,94 @@ export default function RosterScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#fff' },
+    container: { flex: 1, backgroundColor: colors.bgScreen },
     flex1: { flex: 1 },
 
     header: {
-        padding: 20,
+        padding: spacing['2xl'],
         borderBottomWidth: 1,
-        borderBottomColor: '#eee',
+        borderBottomColor: colors.borderLight,
         gap: 2,
         flexDirection: 'row',
         alignItems: 'center',
     },
     lineupButton: {
         paddingHorizontal: 14,
-        paddingVertical: 8,
-        backgroundColor: '#F97316',
-        borderRadius: 10,
+        paddingVertical: spacing.md,
+        backgroundColor: colors.primary,
+        borderRadius: radii.lg,
         borderCurve: 'continuous' as const,
-        marginLeft: 12,
+        marginLeft: spacing.lg,
     },
-    lineupButtonText: { color: '#fff', fontWeight: '700', fontSize: 13 },
-    leagueName: { fontSize: 18, fontWeight: '800' },
-    teamName: { fontSize: 14, color: '#555' },
-    rosterCount: { fontSize: 12, color: '#aaa', marginTop: 4 },
-
-    sectionHeader: { paddingHorizontal: 16, paddingVertical: 8, backgroundColor: '#f9f9f9' },
-    sectionHeaderText: { fontSize: 12, fontWeight: '700', color: '#888', letterSpacing: 1 },
+    lineupButtonText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.sm },
+    leagueName: { fontSize: 18, fontWeight: fontWeight.extrabold },
+    teamName: { fontSize: fontSize.md, color: colors.textSecondary },
+    rosterCount: { fontSize: 12, color: colors.textPlaceholder, marginTop: spacing.xs },
 
     playerRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: 16,
-        paddingVertical: 12,
-        gap: 12,
+        paddingHorizontal: spacing.xl,
+        paddingVertical: spacing.lg,
+        gap: spacing.lg,
     },
-    separator: { height: 1, backgroundColor: '#f3f3f3', marginLeft: 72 },
-
-    avatar: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
-        borderCurve: 'continuous' as const,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    avatarText: { color: '#fff', fontWeight: '700', fontSize: 14 },
 
     info: { flex: 1, gap: 2 },
-    playerName: { fontSize: 16, fontWeight: '600' },
-    playerMeta: { fontSize: 13, color: '#888' },
-    injuryBadge: {
-        alignSelf: 'flex-start',
-        paddingHorizontal: 6,
-        paddingVertical: 2,
-        borderRadius: 4,
-        borderCurve: 'continuous' as const,
-        marginTop: 2,
-    },
-    injuryText: { color: '#fff', fontSize: 10, fontWeight: '700' },
+    playerName: { fontSize: fontSize.lg, fontWeight: fontWeight.semibold },
+    playerMeta: { fontSize: fontSize.sm, color: colors.textMuted },
 
     irButton: {
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 8,
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.sm,
+        borderRadius: radii.md,
         borderCurve: 'continuous' as const,
         borderWidth: 1,
-        borderColor: '#ddd',
+        borderColor: colors.border,
         minWidth: 52,
         alignItems: 'center',
     },
-    irButtonActive: { backgroundColor: '#EF4444', borderColor: '#EF4444' },
-    irButtonText: { fontSize: 12, fontWeight: '700', color: '#888' },
-    irButtonTextActive: { color: '#fff' },
+    irButtonActive: { backgroundColor: colors.danger, borderColor: colors.danger },
+    irButtonText: { fontSize: 12, fontWeight: fontWeight.bold, color: colors.textMuted },
+    irButtonTextActive: { color: colors.textWhite },
 
     pickRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: 16,
-        paddingVertical: 12,
-        gap: 12,
+        paddingHorizontal: spacing.xl,
+        paddingVertical: spacing.lg,
+        gap: spacing.lg,
     },
     pickCircle: {
         width: 44,
         height: 44,
         borderRadius: 22,
         borderCurve: 'continuous' as const,
-        backgroundColor: '#6366F1',
+        backgroundColor: palette.indigo500,
         justifyContent: 'center',
         alignItems: 'center',
     },
-    pickCircleText: { color: '#fff', fontWeight: '700', fontSize: 13 },
+    pickCircleText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.sm },
 
     claimRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: 16,
-        paddingVertical: 12,
-        gap: 12,
+        paddingHorizontal: spacing.xl,
+        paddingVertical: spacing.lg,
+        gap: spacing.lg,
     },
     cancelButton: {
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 8,
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.sm,
+        borderRadius: radii.md,
         borderCurve: 'continuous' as const,
         borderWidth: 1,
-        borderColor: '#ddd',
+        borderColor: colors.border,
         minWidth: 60,
         alignItems: 'center',
     },
-    cancelButtonText: { fontSize: 12, fontWeight: '700', color: '#888' },
+    cancelButtonText: { fontSize: 12, fontWeight: fontWeight.bold, color: colors.textMuted },
 
-    empty: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 8 },
-    emptyTitle: { fontSize: 18, fontWeight: '700' },
-    emptyText: { fontSize: 14, color: '#aaa' },
+    empty: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: spacing.md },
+    emptyTitle: { fontSize: 18, fontWeight: fontWeight.bold },
+    emptyText: { fontSize: fontSize.md, color: colors.textPlaceholder },
 })

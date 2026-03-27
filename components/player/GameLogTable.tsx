@@ -1,4 +1,5 @@
 import { View, Text, ScrollView, Pressable, ActivityIndicator, StyleSheet } from 'react-native'
+import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 import type { GameLogEntry } from '@/lib/players'
 
 type Props = {
@@ -118,7 +119,7 @@ export function GameLogTable({
                     disabled={loadingMore}
                 >
                     {loadingMore ? (
-                        <ActivityIndicator size="small" color="#F97316" />
+                        <ActivityIndicator size="small" color={colors.primary} />
                     ) : (
                         <Text style={styles.loadMoreText}>Load More</Text>
                     )}
@@ -130,8 +131,8 @@ export function GameLogTable({
 
 const styles = StyleSheet.create({
     section: { gap: 10 },
-    sectionTitle: { fontSize: 17, fontWeight: '700', color: '#111' },
-    noData: { color: '#aaa', fontSize: 14 },
+    sectionTitle: { fontSize: 17, fontWeight: fontWeight.bold, color: colors.textPrimary },
+    noData: { color: colors.textPlaceholder, fontSize: fontSize.md },
 
     row: {
         flexDirection: 'row',
@@ -139,29 +140,29 @@ const styles = StyleSheet.create({
         paddingVertical: 7,
         paddingHorizontal: 2,
     },
-    headerRow: { borderBottomWidth: 1, borderBottomColor: '#eee', paddingBottom: 6 },
-    rowAlt: { backgroundColor: '#fafafa' },
+    headerRow: { borderBottomWidth: 1, borderBottomColor: colors.borderLight, paddingBottom: 6 },
+    rowAlt: { backgroundColor: palette.gray50 },
 
-    dateCell: { width: 58, fontSize: 13, color: '#555' },
-    oppCell: { width: 60, fontSize: 13, color: '#333' },
-    numCell: { width: 38, textAlign: 'center', fontSize: 13, color: '#333' },
-    shotCell: { width: 52, textAlign: 'center', fontSize: 12, color: '#333' },
-    fptsCell: { width: 46, textAlign: 'center', fontSize: 13, color: '#aaa' },
-    fptsValue: { color: '#F97316', fontWeight: '600' },
+    dateCell: { width: 58, fontSize: fontSize.sm, color: colors.textSecondary },
+    oppCell: { width: 60, fontSize: fontSize.sm, color: palette.gray900 },
+    numCell: { width: 38, textAlign: 'center', fontSize: fontSize.sm, color: palette.gray900 },
+    shotCell: { width: 52, textAlign: 'center', fontSize: 12, color: palette.gray900 },
+    fptsCell: { width: 46, textAlign: 'center', fontSize: fontSize.sm, color: colors.textPlaceholder },
+    fptsValue: { color: colors.primary, fontWeight: fontWeight.semibold },
 
-    colHdr: { fontSize: 10, fontWeight: '700', color: '#aaa' },
-    dnpText: { color: '#aaa' },
+    colHdr: { fontSize: 10, fontWeight: fontWeight.bold, color: colors.textPlaceholder },
+    dnpText: { color: colors.textPlaceholder },
 
     loadMoreBtn: {
         alignSelf: 'center',
-        paddingHorizontal: 20,
+        paddingHorizontal: spacing['2xl'],
         paddingVertical: 10,
-        borderRadius: 10,
+        borderRadius: radii.lg,
         borderCurve: 'continuous' as const,
-        backgroundColor: '#f3f3f3',
-        marginTop: 4,
+        backgroundColor: colors.bgMuted,
+        marginTop: spacing.xs,
         minWidth: 100,
         alignItems: 'center',
     },
-    loadMoreText: { fontSize: 14, fontWeight: '600', color: '#555' },
+    loadMoreText: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textSecondary },
 })

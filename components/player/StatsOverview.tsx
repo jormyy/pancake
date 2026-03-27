@@ -1,4 +1,5 @@
 import { View, Text, StyleSheet } from 'react-native'
+import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 import type { PlayerSeasonAverages } from '@/lib/players'
 
 function pct(made: number, attempted: number): string {
@@ -87,43 +88,43 @@ export function StatsOverview({ averages, seasonYear }: Props) {
 
 const styles = StyleSheet.create({
     section: { gap: 10 },
-    sectionTitle: { fontSize: 17, fontWeight: '700', color: '#111' },
-    subTitle: { fontSize: 13, fontWeight: '600', color: '#888', marginTop: 2 },
+    sectionTitle: { fontSize: 17, fontWeight: fontWeight.bold, color: colors.textPrimary },
+    subTitle: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textMuted, marginTop: 2 },
 
     grid: {
         flexDirection: 'row',
         flexWrap: 'wrap',
         gap: 1,
-        backgroundColor: '#eee',
-        borderRadius: 12,
+        backgroundColor: colors.borderLight,
+        borderRadius: radii.xl,
         borderCurve: 'continuous' as const,
         overflow: 'hidden',
     },
     cell: {
         flex: 1,
         minWidth: '22%',
-        backgroundColor: '#fff',
+        backgroundColor: colors.bgScreen,
         alignItems: 'center',
-        paddingVertical: 12,
-        gap: 4,
+        paddingVertical: radii.xl,
+        gap: spacing.xs,
     },
-    cellValue: { fontSize: 18, fontWeight: '700', color: '#111' },
-    cellLabel: { fontSize: 11, color: '#888', fontWeight: '600' },
+    cellValue: { fontSize: 18, fontWeight: fontWeight.bold, color: colors.textPrimary },
+    cellLabel: { fontSize: fontSize.xs, color: colors.textMuted, fontWeight: fontWeight.semibold },
 
     extrasRow: {
         flexDirection: 'row',
         gap: 1,
-        backgroundColor: '#eee',
-        borderRadius: 12,
+        backgroundColor: colors.borderLight,
+        borderRadius: radii.xl,
         borderCurve: 'continuous' as const,
         overflow: 'hidden',
     },
     extraCell: {
         flex: 1,
-        backgroundColor: '#fafafa',
+        backgroundColor: palette.gray50,
         alignItems: 'center',
         paddingVertical: 10,
-        gap: 4,
+        gap: spacing.xs,
     },
-    extraValue: { fontSize: 16, fontWeight: '700', color: '#333' },
+    extraValue: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: palette.gray900 },
 })

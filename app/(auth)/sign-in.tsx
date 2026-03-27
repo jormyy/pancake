@@ -11,6 +11,7 @@ import {
 import { Link } from 'expo-router'
 import { useState } from 'react'
 import { signIn } from '@/lib/auth'
+import { colors, fontSize, fontWeight, radii, spacing, palette } from '@/constants/tokens'
 
 export default function SignInScreen() {
     const [email, setEmail] = useState('')
@@ -27,7 +28,6 @@ export default function SignInScreen() {
         setError(null)
         try {
             await signIn(email.trim(), password)
-            // Root layout handles redirect once session updates
         } catch (e: any) {
             setError(e.message ?? 'Something went wrong.')
         } finally {
@@ -49,7 +49,7 @@ export default function SignInScreen() {
                 <TextInput
                     style={styles.input}
                     placeholder="Email"
-                    placeholderTextColor="#888"
+                    placeholderTextColor={colors.textMuted}
                     autoCapitalize="none"
                     keyboardType="email-address"
                     textContentType="emailAddress"
@@ -59,7 +59,7 @@ export default function SignInScreen() {
                 <TextInput
                     style={styles.input}
                     placeholder="Password"
-                    placeholderTextColor="#888"
+                    placeholderTextColor={colors.textMuted}
                     secureTextEntry
                     textContentType="password"
                     value={password}
@@ -68,7 +68,7 @@ export default function SignInScreen() {
 
                 <Pressable style={styles.button} onPress={handleSignIn} disabled={loading}>
                     {loading ? (
-                        <ActivityIndicator color="#fff" />
+                        <ActivityIndicator color={colors.textWhite} />
                     ) : (
                         <Text style={styles.buttonText}>Sign In</Text>
                     )}
@@ -83,61 +83,58 @@ export default function SignInScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#fff',
-    },
+    container: { flex: 1, backgroundColor: colors.bgScreen },
     inner: {
         flex: 1,
         justifyContent: 'center',
         paddingHorizontal: 28,
-        gap: 12,
+        gap: spacing.lg,
     },
     title: {
-        fontSize: 36,
-        fontWeight: '800',
+        fontSize: fontSize['5xl'],
+        fontWeight: fontWeight.extrabold,
         textAlign: 'center',
-        marginBottom: 4,
+        marginBottom: spacing.xs,
     },
     subtitle: {
         fontSize: 15,
-        color: '#666',
+        color: palette.gray800,
         textAlign: 'center',
-        marginBottom: 24,
+        marginBottom: spacing['3xl'],
     },
     error: {
-        color: '#d00',
-        fontSize: 14,
+        color: palette.redBright,
+        fontSize: fontSize.md,
         textAlign: 'center',
     },
     input: {
         height: 50,
         borderWidth: 1,
-        borderColor: '#ddd',
-        borderRadius: 10,
+        borderColor: colors.border,
+        borderRadius: radii.lg,
         borderCurve: 'continuous' as const,
-        paddingHorizontal: 16,
-        fontSize: 16,
-        backgroundColor: '#fafafa',
+        paddingHorizontal: spacing.xl,
+        fontSize: fontSize.lg,
+        backgroundColor: colors.bgInput,
     },
     button: {
         height: 50,
-        backgroundColor: '#F97316',
-        borderRadius: 10,
+        backgroundColor: colors.primary,
+        borderRadius: radii.lg,
         borderCurve: 'continuous' as const,
         justifyContent: 'center',
         alignItems: 'center',
-        marginTop: 8,
+        marginTop: spacing.md,
     },
     buttonText: {
-        color: '#fff',
-        fontWeight: '700',
-        fontSize: 16,
+        color: colors.textWhite,
+        fontWeight: fontWeight.bold,
+        fontSize: fontSize.lg,
     },
     link: {
         textAlign: 'center',
-        color: '#F97316',
-        marginTop: 12,
-        fontSize: 14,
+        color: colors.primary,
+        marginTop: spacing.lg,
+        fontSize: fontSize.md,
     },
 })

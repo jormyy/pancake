@@ -1,11 +1,10 @@
 import { NativeTabs, Label, Icon } from 'expo-router/unstable-native-tabs'
-
-const ORANGE = '#F97316'
+import { colors } from '@/constants/tokens'
 
 export default function TabLayout() {
     return (
         <NativeTabs
-            tintColor={ORANGE}
+            tintColor={colors.primary}
         >
             <NativeTabs.Trigger name="index">
                 <Label>Home</Label>
