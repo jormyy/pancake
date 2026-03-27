@@ -50,6 +50,7 @@ CREATE TABLE profiles (
   display_name  text,
   avatar_url    text,
   timezone      text NOT NULL DEFAULT 'America/New_York',
+  push_token    text,
   created_at    timestamptz NOT NULL DEFAULT now(),
   updated_at    timestamptz NOT NULL DEFAULT now()
 );
@@ -86,6 +87,9 @@ CREATE TABLE leagues (
 
   -- Trade deadline (NBA deadline + 14 days, set when season is created)
   trade_deadline      date,
+
+  -- Invite code for joining the league
+  invite_code         text UNIQUE,
 
   created_at          timestamptz NOT NULL DEFAULT now(),
   updated_at          timestamptz NOT NULL DEFAULT now()
@@ -162,21 +166,24 @@ CREATE TABLE lineup_slot_templates (
 
 ### players
 
-Canonical NBA player list. Synced from SportsData.io. Shared across all leagues.
+Canonical NBA player list. Synced from NBA CDN and Sleeper API. Shared across all leagues.
 
 ```sql
 CREATE TABLE players (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   sportsdata_id   text NOT NULL UNIQUE,
+  sleeper_id      text UNIQUE,
+  nba_id          text UNIQUE,
   first_name      text NOT NULL,
   last_name       text NOT NULL,
   display_name    text GENERATED ALWAYS AS (first_name || ' ' || last_name) STORED,
   nba_team        text,                           -- abbreviation, NULL if FA / G-League
   position        nba_position,
   jersey_number   text,
-  status          text,                           -- from SportsData: 'Active', 'Injured', etc.
+  status          text,                           -- 'Active', 'Injured', etc.
   injury_status   text,                           -- 'Questionable', 'Doubtful', 'Out', 'IR'
   headshot_url    text,
+  dynasty_rank    integer,                        -- from hashtagbasketball.com, NULL if unranked
   created_at      timestamptz NOT NULL DEFAULT now(),
   updated_at      timestamptz NOT NULL DEFAULT now()
 );
@@ -208,7 +215,7 @@ CREATE TABLE roster_players (
 
 ### weekly_lineups
 
-A manager's active lineup for a given week. One row per player-slot per week.
+A manager's active lineup for a given game date. One row per player-slot per day.
 Mid-week changes update existing rows.
 
 ```sql
@@ -219,11 +226,12 @@ CREATE TABLE weekly_lineups (
   member_id         uuid NOT NULL REFERENCES league_members(id),
   player_id         uuid NOT NULL REFERENCES players(id),
   week_number       int NOT NULL,
+  game_date         date NOT NULL,
   slot_type         roster_slot_type NOT NULL,
   is_auto_set       boolean NOT NULL DEFAULT false,
   set_at            timestamptz NOT NULL DEFAULT now(),
 
-  UNIQUE (league_id, league_season_id, member_id, player_id, week_number)
+  UNIQUE (league_id, league_season_id, member_id, player_id, game_date)
 );
 ```
 
@@ -231,12 +239,13 @@ CREATE TABLE weekly_lineups (
 
 ### nba_games
 
-NBA game schedule and results. Synced from SportsData.io.
+NBA game schedule and results. Synced from NBA CDN.
 
 ```sql
 CREATE TABLE nba_games (
   id                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   sportsdata_game_id  text NOT NULL UNIQUE,
+  nba_game_id         text UNIQUE,
   season_year         int NOT NULL,
   game_date           date NOT NULL,
   week_number         int NOT NULL,
@@ -314,7 +323,7 @@ CREATE TABLE player_game_stats (
 
 ### player_projections
 
-Weekly projections from SportsData.io. Used for auto-set lineup logic.
+Weekly projections computed from rolling averages. Used for auto-set lineup logic.
 
 ```sql
 CREATE TABLE player_projections (
@@ -432,6 +441,7 @@ CREATE TABLE drafts (
   draft_type        draft_type NOT NULL DEFAULT 'auction',
   status            draft_status NOT NULL DEFAULT 'pending',
   budget_per_team   int,                           -- auction only
+  current_nomination_order int NOT NULL DEFAULT 1, -- tracks rotation position in auction
   scheduled_at      timestamptz,
   started_at        timestamptz,
   completed_at      timestamptz,
@@ -728,6 +738,7 @@ CREATE INDEX idx_profiles_username ON profiles(username);
 -- leagues
 CREATE INDEX idx_leagues_commissioner ON leagues(commissioner_id);
 CREATE INDEX idx_leagues_status ON leagues(status);
+CREATE INDEX idx_leagues_invite_code ON leagues(invite_code);
 
 -- league_members
 CREATE INDEX idx_league_members_user ON league_members(user_id);
@@ -738,6 +749,7 @@ CREATE INDEX idx_players_sportsdata_id ON players(sportsdata_id);
 CREATE INDEX idx_players_display_name ON players(display_name);
 CREATE INDEX idx_players_nba_team ON players(nba_team);
 CREATE INDEX idx_players_position ON players(position);
+CREATE INDEX idx_players_dynasty_rank ON players(dynasty_rank) WHERE dynasty_rank IS NOT NULL;
 
 -- roster_players
 CREATE INDEX idx_roster_players_member ON roster_players(member_id);
@@ -811,6 +823,5 @@ CREATE INDEX idx_projections_player_week ON player_projections(player_id, season
 
 - `fantasy_score_cache` — per league per player per game, for query performance
 - `weekly_lineup_history` — audit trail of mid-week lineup changes
-- Push notification tokens table
 - In-app chat / message threads
 - Taxi squad / farm system

@@ -1,7 +1,5 @@
 import { supabase } from '../lib/supabase'
-
-const COUNTDOWN_SECONDS = 30
-const MIN_BID = 1
+import { CONFIG } from '../config'
 
 // ── Start Draft ────────────────────────────────────────────────
 export async function startDraft(leagueId: string) {
@@ -121,7 +119,7 @@ export async function nominatePlayer(draftId: string, memberId: string, playerId
         .eq('draft_id', draftId)
     const nominationOrder = (count ?? 0) + 1
 
-    const expiresAt = new Date(Date.now() + COUNTDOWN_SECONDS * 1000).toISOString()
+    const expiresAt = new Date(Date.now() + CONFIG.NOMINATION_COUNTDOWN_SECONDS * 1000).toISOString()
 
     const { data: nomination, error: nomErr } = await supabase
         .from('nominations')
@@ -149,7 +147,7 @@ export async function placeBid(
     nominationId: string,
     amount: number,
 ) {
-    if (!Number.isInteger(amount) || amount < MIN_BID) {
+    if (!Number.isInteger(amount) || amount < CONFIG.MIN_BID) {
         throw new Error('Bid amount must be a positive integer')
     }
 
@@ -175,7 +173,7 @@ export async function placeBid(
     if (!budget || budget.remaining < amount)
         throw new Error(`Insufficient budget (you have $${budget?.remaining ?? 0} remaining)`)
 
-    const newExpiry = new Date(Date.now() + COUNTDOWN_SECONDS * 1000).toISOString()
+    const newExpiry = new Date(Date.now() + CONFIG.NOMINATION_COUNTDOWN_SECONDS * 1000).toISOString()
     const { error: updateErr } = await supabase
         .from('nominations')
         .update({

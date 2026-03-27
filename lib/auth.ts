@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import type { Profile } from '@/types/database'
 
 export async function signUp(
     email: string,
@@ -32,7 +33,7 @@ export async function signOut() {
 }
 
 export async function getProfile(userId: string) {
-    const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).single()
+    const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).single<Profile>()
     if (error) throw error
     return data
 }

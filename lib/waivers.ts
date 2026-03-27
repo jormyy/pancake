@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { getCurrentSeasonId } from '@/lib/shared/season'
 
 export type WaiverEntry = {
     logId: string
@@ -21,16 +22,6 @@ export type WaiverClaim = {
     submittedAt: string
     processDate: string
     priorityAtSubmission: number
-}
-
-async function getCurrentSeasonId(leagueId: string): Promise<string | null> {
-    const { data } = await supabase
-        .from('league_seasons')
-        .select('id')
-        .eq('league_id', leagueId)
-        .eq('is_current', true)
-        .single()
-    return (data as any)?.id ?? null
 }
 
 export async function getWaiverEntries(leagueId: string): Promise<WaiverEntry[]> {

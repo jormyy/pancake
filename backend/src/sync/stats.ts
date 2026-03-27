@@ -1,14 +1,6 @@
 import { supabase } from '../lib/supabase'
 import { fetchBoxScore, parseNBAMinutes } from '../lib/nba'
 
-export async function syncStatsRange(days: number) {
-    for (let i = days - 1; i >= 0; i--) {
-        const d = new Date()
-        d.setDate(d.getDate() - i)
-        await syncStatsByDate(d)
-    }
-}
-
 export async function syncStatsByDate(date: Date) {
     const dateStr = date.toISOString().split('T')[0] // YYYY-MM-DD
     console.log(`[sync] Fetching stats for ${dateStr}...`)

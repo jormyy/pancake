@@ -1,7 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import { RealtimeChannel } from '@supabase/supabase-js'
-
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000'
+import { apiPost as sharedApiPost } from '@/lib/shared/api'
 
 export type DraftOrderEntry = {
     position: number
@@ -199,25 +198,8 @@ export async function searchPlayers(query: string, draftId: string) {
 
 // ── API calls to backend ───────────────────────────────────────
 
-async function apiPost(path: string, body: object) {
-    const res = await fetch(`${API_URL}${path}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-    })
-    const text = await res.text()
-    let json: any
-    try {
-        json = JSON.parse(text)
-    } catch {
-        throw new Error(`Server error (${res.status}): ${text.slice(0, 100)}`)
-    }
-    if (!json.ok) throw new Error(json.error || `Backend error: ${text.slice(0, 200)}`)
-    return json
-}
-
 export async function startDraft(leagueId: string): Promise<Draft> {
-    const json = await apiPost('/draft/start', { leagueId })
+    const json = await sharedApiPost<any>('/draft/start', { leagueId })
     return {
         id: json.draft.id,
         leagueId: json.draft.league_id,
@@ -234,7 +216,7 @@ export async function nominatePlayer(
     memberId: string,
     playerId: string,
 ): Promise<void> {
-    await apiPost(`/draft/${draftId}/nominate`, { memberId, playerId })
+    await sharedApiPost(`/draft/${draftId}/nominate`, { memberId, playerId })
 }
 
 export async function placeBid(
@@ -243,7 +225,7 @@ export async function placeBid(
     nominationId: string,
     amount: number,
 ): Promise<void> {
-    await apiPost(`/draft/${draftId}/bid`, { memberId, nominationId, amount })
+    await sharedApiPost(`/draft/${draftId}/bid`, { memberId, nominationId, amount })
 }
 
 // ── Realtime subscription ──────────────────────────────────────

@@ -1,7 +1,6 @@
 import { supabase } from '@/lib/supabase'
-
-const CURRENT_SEASON =
-    new Date().getMonth() >= 9 ? new Date().getFullYear() + 1 : new Date().getFullYear()
+import type { NBAPosition } from '@/types/database'
+import { currentSeasonYear } from '@/lib/shared/season'
 
 export type PlayerRow = {
     id: string
@@ -24,7 +23,7 @@ export async function searchPlayers(query: string, position: string): Promise<Pl
         q = q.ilike('display_name', `%${query.trim()}%`)
     }
     if (position !== 'ALL') {
-        q = q.eq('position', position)
+        q = q.eq('position', position as NBAPosition)
     }
 
     const { data, error } = await q
@@ -45,7 +44,7 @@ export async function getPlayerSeasonAverages(playerId: string) {
             'points, rebounds, assists, steals, blocks, turnovers, three_pointers_made, minutes_played',
         )
         .eq('player_id', playerId)
-        .eq('season_year', CURRENT_SEASON)
+        .eq('season_year', currentSeasonYear())
         .eq('did_not_play', false)
 
     if (error) throw error
@@ -79,7 +78,7 @@ export async function getPlayerRecentGames(playerId: string) {
     `,
         )
         .eq('player_id', playerId)
-        .eq('season_year', CURRENT_SEASON)
+        .eq('season_year', currentSeasonYear())
         .order('nba_games(game_date)', { ascending: false })
         .limit(5)
 

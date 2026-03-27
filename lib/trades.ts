@@ -1,15 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import { logTransaction } from '@/lib/transactions'
-
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000'
-
-async function tradeNotify(memberId: string, title: string, body: string) {
-    fetch(`${API_URL}/notify/trade`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ memberId, title, body }),
-    }).catch(console.error)
-}
+import { apiPost } from '@/lib/shared/api'
 
 export type TradePlayerItem = {
     kind: 'player'
@@ -42,16 +33,6 @@ export type Trade = {
     proposerGives: TradeItem[]
     // Items the recipient is giving (proposer receives)
     recipientGives: TradeItem[]
-}
-
-async function getCurrentSeasonId(leagueId: string): Promise<string | null> {
-    const { data } = await supabase
-        .from('league_seasons')
-        .select('id')
-        .eq('league_id', leagueId)
-        .eq('is_current', true)
-        .single()
-    return data?.id ?? null
 }
 
 export async function getPicksForMember(memberId: string, leagueId: string): Promise<TradePickItem[]> {
@@ -137,7 +118,7 @@ export async function proposeTrade(
     }
 
     // Notify recipient
-    tradeNotify(recipientMemberId, 'New Trade Offer', 'You have a new trade offer waiting for your review.')
+    apiPost('/notify/trade', { memberId: recipientMemberId, title: 'New Trade Offer', body: 'You have a new trade offer waiting for your review.' }).catch(console.error)
 
     return trade.id
 }
@@ -225,7 +206,7 @@ export async function acceptTrade(tradeId: string, memberId: string): Promise<vo
     if (updateError) throw updateError
 
     // Notify proposer that their trade was accepted
-    tradeNotify(t.proposer_member_id, 'Trade Accepted', 'Your trade offer has been accepted!')
+    apiPost('/notify/trade', { memberId: t.proposer_member_id, title: 'Trade Accepted', body: 'Your trade offer has been accepted!' }).catch(console.error)
 
     // Log transactions for each player moved
     for (const item of proposerItems) {
@@ -259,7 +240,7 @@ export async function rejectTrade(tradeId: string, memberId: string): Promise<vo
         .eq('id', tradeId)
 
     if (error) throw error
-    tradeNotify(t.proposer_member_id, 'Trade Rejected', 'Your trade offer was declined.')
+    apiPost('/notify/trade', { memberId: t.proposer_member_id, title: 'Trade Rejected', body: 'Your trade offer was declined.' }).catch(console.error)
 }
 
 export async function withdrawTrade(tradeId: string, memberId: string): Promise<void> {
@@ -281,7 +262,7 @@ export async function withdrawTrade(tradeId: string, memberId: string): Promise<
         .eq('id', tradeId)
 
     if (error) throw error
-    tradeNotify(t.recipient_member_id, 'Trade Withdrawn', 'A trade offer sent to you has been withdrawn.')
+    apiPost('/notify/trade', { memberId: t.recipient_member_id, title: 'Trade Withdrawn', body: 'A trade offer sent to you has been withdrawn.' }).catch(console.error)
 }
 
 export async function getMyTrades(memberId: string, leagueId: string): Promise<Trade[]> {
@@ -367,4 +348,4 @@ export async function getMyTrades(memberId: string, leagueId: string): Promise<T
     })
 }
 
-export { getCurrentSeasonId }
+export { getCurrentSeasonId } from '@/lib/shared/season'
