@@ -716,6 +716,8 @@ const styles = StyleSheet.create({
     tabRow: {
         borderBottomWidth: 1,
         borderBottomColor: '#eee',
+        flexGrow: 0,
+        flexShrink: 0,
     },
     tabRowContent: {
         flexDirection: 'row',

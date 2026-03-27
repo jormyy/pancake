@@ -163,14 +163,15 @@ export default function PlayersScreen() {
             </View>
 
             {/* Position filter */}
-            <FlatList
-                data={POSITIONS}
+            <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
-                keyExtractor={(p) => p}
+                style={styles.positionScrollView}
                 contentContainerStyle={styles.positionRow}
-                renderItem={({ item }) => (
+            >
+                {POSITIONS.map((item) => (
                     <TouchableOpacity
+                        key={item}
                         style={[styles.posChip, position === item && styles.posChipActive]}
                         onPress={() => setPosition(item)}
                     >
@@ -178,8 +179,8 @@ export default function PlayersScreen() {
                             {item}
                         </Text>
                     </TouchableOpacity>
-                )}
-            />
+                ))}
+            </ScrollView>
 
             {/* Results */}
             {loading ? (
@@ -355,6 +356,7 @@ const styles = StyleSheet.create({
         fontSize: 16,
     },
 
+    positionScrollView: { flexGrow: 0, flexShrink: 0 },
     positionRow: { paddingHorizontal: 16, paddingBottom: 10, gap: 8 },
     posChip: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, backgroundColor: '#f3f3f3' },
     posChipActive: { backgroundColor: '#F97316' },

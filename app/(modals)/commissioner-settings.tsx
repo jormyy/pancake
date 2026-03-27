@@ -58,6 +58,8 @@ export default function CommissionerSettingsScreen() {
     const [generatingPlayoffs, setGeneratingPlayoffs] = useState(false)
     const [advancingPlayoffs, setAdvancingPlayoffs] = useState(false)
     const [advancingSeason, setAdvancingSeason] = useState(false)
+    const [syncingRankings, setSyncingRankings] = useState(false)
+    const [syncingProjections, setSyncingProjections] = useState(false)
 
     useEffect(() => {
         async function load() {
@@ -207,6 +209,34 @@ export default function CommissionerSettingsScreen() {
             Alert.alert('Error', e.message)
         } finally {
             setProcessingWaivers(false)
+        }
+    }
+
+    async function syncRankings() {
+        setSyncingRankings(true)
+        try {
+            const res = await fetch(`${API_URL}/sync/rankings`, { method: 'POST' })
+            const json = await res.json()
+            if (!json.ok) throw new Error(json.error || 'Failed to sync rankings')
+            Alert.alert('Done', 'Dynasty rankings synced.')
+        } catch (e: any) {
+            Alert.alert('Error', e.message)
+        } finally {
+            setSyncingRankings(false)
+        }
+    }
+
+    async function syncProjections() {
+        setSyncingProjections(true)
+        try {
+            const res = await fetch(`${API_URL}/sync/projections`, { method: 'POST' })
+            const json = await res.json()
+            if (!json.ok) throw new Error(json.error || 'Failed to sync projections')
+            Alert.alert('Done', 'Projections synced.')
+        } catch (e: any) {
+            Alert.alert('Error', e.message)
+        } finally {
+            setSyncingProjections(false)
         }
     }
 
@@ -462,6 +492,28 @@ export default function CommissionerSettingsScreen() {
                             <ActivityIndicator color="#F97316" />
                         ) : (
                             <Text style={styles.actionButtonText}>Sync Scores Now</Text>
+                        )}
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={styles.actionButton}
+                        onPress={syncRankings}
+                        disabled={syncingRankings}
+                    >
+                        {syncingRankings ? (
+                            <ActivityIndicator color="#F97316" />
+                        ) : (
+                            <Text style={styles.actionButtonText}>Sync Dynasty Rankings</Text>
+                        )}
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={styles.actionButton}
+                        onPress={syncProjections}
+                        disabled={syncingProjections}
+                    >
+                        {syncingProjections ? (
+                            <ActivityIndicator color="#F97316" />
+                        ) : (
+                            <Text style={styles.actionButtonText}>Sync Projections</Text>
                         )}
                     </TouchableOpacity>
                     <TouchableOpacity
