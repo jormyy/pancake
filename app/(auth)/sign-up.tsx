@@ -55,7 +55,7 @@ export default function SignUpScreen() {
                 <Text style={styles.title}>Create Account</Text>
                 <Text style={styles.subtitle}>Join the dynasty</Text>
 
-                {error && <Text style={styles.error}>{error}</Text>}
+                {error ? <Text style={styles.error}>{error}</Text> : null}
 
                 <TextInput
                     style={styles.input}

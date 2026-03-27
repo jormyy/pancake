@@ -44,7 +44,7 @@ export default function SignInScreen() {
                 <Text style={styles.title}>Pancake</Text>
                 <Text style={styles.subtitle}>Dynasty Fantasy Basketball</Text>
 
-                {error && <Text style={styles.error}>{error}</Text>}
+                {error ? <Text style={styles.error}>{error}</Text> : null}
 
                 <TextInput
                     style={styles.input}

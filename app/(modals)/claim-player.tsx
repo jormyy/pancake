@@ -87,7 +87,7 @@ export default function ClaimPlayerScreen() {
     if (loading) {
         return (
             <SafeAreaView style={styles.container}>
-                <ActivityIndicator style={{ flex: 1 }} color="#F97316" />
+                <ActivityIndicator style={styles.flex1} color="#F97316" />
             </SafeAreaView>
         )
     }
@@ -184,6 +184,7 @@ export default function ClaimPlayerScreen() {
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#f5f5f5' },
+    flex1: { flex: 1 },
 
     claimCard: {
         margin: 16,

@@ -158,7 +158,7 @@ export default function DraftRoomScreen() {
     if (loading || !state) {
         return (
             <SafeAreaView style={styles.container}>
-                <ActivityIndicator style={{ flex: 1 }} color="#F97316" />
+                <ActivityIndicator style={styles.flex1} color="#F97316" />
             </SafeAreaView>
         )
     }
@@ -344,7 +344,7 @@ export default function DraftRoomScreen() {
                                                         }
                                                         disabled={submittingNom}
                                                     >
-                                                        <View style={{ flex: 1 }}>
+                                                        <View style={styles.flex1}>
                                                             <Text style={styles.playerResultName}>
                                                                 {item.display_name}
                                                             </Text>
@@ -497,6 +497,7 @@ export default function DraftRoomScreen() {
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#f5f5f5' },
+    flex1: { flex: 1 },
     scroll: { flex: 1 },
     scrollContent: { padding: 16, gap: 12 },
 

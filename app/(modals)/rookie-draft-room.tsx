@@ -24,6 +24,7 @@ import {
     type SnakePick,
 } from '@/lib/rookieDraft'
 import { POSITION_COLORS } from '@/constants/positions'
+import { bgStyle } from '@/lib/style-cache'
 
 export default function RookieDraftRoomScreen() {
     const { draftId } = useLocalSearchParams<{ draftId: string }>()
@@ -217,13 +218,7 @@ export default function RookieDraftRoomScreen() {
                         data={picks}
                         keyExtractor={(p) => String(p.overallPick)}
                         ItemSeparatorComponent={ItemSeparator}
-                        ListHeaderComponent={() => (
-                            <View style={[styles.pickRow, styles.pickHeader]}>
-                                <Text style={[styles.pickNum, styles.headerText]}>#</Text>
-                                <Text style={[styles.pickTeam, styles.headerText]}>Team</Text>
-                                <Text style={[styles.pickPlayer, styles.headerText]}>Player</Text>
-                            </View>
-                        )}
+                        ListHeaderComponent={PickBoardHeader}
                         renderItem={({ item }) => <PickRow item={item} myMemberId={myMemberId} nextPick={nextPick} />}
                     />
                 </KeyboardAvoidingView>
@@ -267,10 +262,7 @@ function PickRow({
                     <View
                         style={[
                             styles.posChipSm,
-                            {
-                                backgroundColor:
-                                    POSITION_COLORS[item.player.position ?? ''] ?? '#ccc',
-                            },
+                            bgStyle(POSITION_COLORS[item.player.position ?? ''] ?? '#ccc'),
                         ]}
                     >
                         <Text style={styles.posChipSmText}>{item.player.position ?? '?'}</Text>
@@ -396,3 +388,11 @@ const styles = StyleSheet.create({
     onClockText: { color: '#10B981', fontWeight: '700' },
     meText: { color: '#F97316', fontWeight: '700' },
 })
+
+const PickBoardHeader = (
+    <View style={[styles.pickRow, styles.pickHeader]}>
+        <Text style={[styles.pickNum, styles.headerText]}>#</Text>
+        <Text style={[styles.pickTeam, styles.headerText]}>Team</Text>
+        <Text style={[styles.pickPlayer, styles.headerText]}>Player</Text>
+    </View>
+)
