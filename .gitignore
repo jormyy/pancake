@@ -41,4 +41,17 @@ app-example
 # generated native folders
 /ios
 /android
+
+# env files
 .env
+
+# agent skills
+.agents/
+skills-lock.json
+
+# claude code
+.claude/
+
+# editor
+.vscode/
+.windsurf/
