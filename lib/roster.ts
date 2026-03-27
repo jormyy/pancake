@@ -55,6 +55,18 @@ export async function toggleIR(rosterPlayerId: string, isOnIR: boolean): Promise
         .eq('id', rosterPlayerId)
     if (error) throw error
 
+    // When moving to IR, remove any active lineup slot assignments for this player
+    // so they don't ghost in the starter/bench rows
+    if (isOnIR && rp) {
+        await supabase
+            .from('weekly_lineups')
+            .delete()
+            .eq('member_id', (rp as any).member_id)
+            .eq('league_id', (rp as any).league_id)
+            .eq('league_season_id', (rp as any).league_season_id)
+            .eq('player_id', (rp as any).player_id)
+    }
+
     if (rp) {
         await logTransaction({
             leagueId: (rp as any).league_id,
