@@ -1,5 +1,82 @@
 import { supabase } from '../lib/supabase'
-import { fetchBoxScore, parseNBAMinutes } from '../lib/nba'
+import { fetchBoxScore, parseNBAMinutes, NBABoxScorePlayer } from '../lib/nba'
+
+export interface StatRow {
+    player_id: string
+    game_id: string
+    season_year: number
+    week_number: number | null
+    minutes_played: number | null
+    points: number
+    rebounds: number
+    offensive_rebounds: number | null
+    defensive_rebounds: number | null
+    assists: number
+    steals: number
+    blocks: number
+    turnovers: number | null
+    personal_fouls: number | null
+    field_goals_made: number | null
+    field_goals_attempted: number | null
+    three_pointers_made: number | null
+    three_pointers_attempted: number | null
+    free_throws_made: number | null
+    free_throws_attempted: number | null
+    plus_minus: number | null
+    double_double: boolean
+    triple_double: boolean
+    did_not_play: boolean
+    updated_at: string
+}
+
+// Shared stat-row builder — used by both syncStatsByDate and the backfill module
+export function buildStatRow(
+    p: NBABoxScorePlayer,
+    playerId: string,
+    gameId: string,
+    seasonYear: number,
+    weekNumber: number | null,
+): StatRow {
+    const s = p.statistics
+    const minutesPlayed = parseNBAMinutes(s.minutes)
+    const dnp = !minutesPlayed || minutesPlayed < 0.5
+
+    const reb = s.reboundsTotal ?? 0
+    const ast = s.assists ?? 0
+    const pts = s.points ?? 0
+    const stl = s.steals ?? 0
+    const blk = s.blocks ?? 0
+
+    const statCats = [pts >= 10, reb >= 10, ast >= 10, stl >= 10, blk >= 10].filter(Boolean).length
+
+    return {
+        player_id: playerId,
+        game_id: gameId,
+        season_year: seasonYear,
+        week_number: weekNumber,
+        minutes_played: minutesPlayed,
+        points: pts,
+        rebounds: reb,
+        offensive_rebounds: s.reboundsOffensive ?? null,
+        defensive_rebounds: s.reboundsDefensive ?? null,
+        assists: ast,
+        steals: stl,
+        blocks: blk,
+        turnovers: s.turnovers ?? null,
+        personal_fouls: s.foulsPersonal ?? null,
+        field_goals_made: s.fieldGoalsMade ?? null,
+        field_goals_attempted: s.fieldGoalsAttempted ?? null,
+        three_pointers_made: s.threePointersMade ?? null,
+        three_pointers_attempted: s.threePointersAttempted ?? null,
+        free_throws_made: s.freeThrowsMade ?? null,
+        free_throws_attempted: s.freeThrowsAttempted ?? null,
+        plus_minus: s.plusMinusPoints ?? null,
+        double_double: statCats >= 2,
+        triple_double: statCats >= 3,
+        did_not_play: dnp,
+        updated_at: new Date().toISOString(),
+    }
+}
 
 export async function syncStatsByDate(date: Date) {
     const dateStr = date.toISOString().split('T')[0] // YYYY-MM-DD
@@ -11,7 +88,7 @@ export async function syncStatsByDate(date: Date) {
         .select('id, nba_game_id, week_number, season_year, status')
         .eq('game_date', dateStr)
         .not('nba_game_id', 'is', null)
-        .in('status', ['InProgress', 'Final'])
+        .neq('status', 'Scheduled')
 
     if (gErr) throw gErr
     if (!games?.length) {
@@ -61,50 +138,9 @@ export async function syncStatsByDate(date: Date) {
 
                 if (!playerId) continue
 
-                const s = p.statistics
-                if (!s) continue
+                if (!p.statistics) continue
 
-                const minutesPlayed = parseNBAMinutes(s.minutes)
-                const dnp = !minutesPlayed || minutesPlayed < 0.5
-
-                const reb = s.reboundsTotal ?? 0
-                const ast = s.assists ?? 0
-                const pts = s.points ?? 0
-                const stl = s.steals ?? 0
-                const blk = s.blocks ?? 0
-
-                // Compute double/triple double from this game's stats
-                const statCats = [pts >= 10, reb >= 10, ast >= 10, stl >= 10, blk >= 10].filter(Boolean).length
-                const doubleDouble = statCats >= 2
-                const tripleDouble = statCats >= 3
-
-                stats.push({
-                    player_id: playerId,
-                    game_id: game.id,
-                    season_year: game.season_year,
-                    week_number: game.week_number,
-                    minutes_played: minutesPlayed,
-                    points: pts,
-                    rebounds: reb,
-                    offensive_rebounds: s.reboundsOffensive ?? null,
-                    defensive_rebounds: s.reboundsDefensive ?? null,
-                    assists: ast,
-                    steals: stl,
-                    blocks: blk,
-                    turnovers: s.turnovers ?? null,
-                    personal_fouls: s.foulsPersonal ?? null,
-                    field_goals_made: s.fieldGoalsMade ?? null,
-                    field_goals_attempted: s.fieldGoalsAttempted ?? null,
-                    three_pointers_made: s.threePointersMade ?? null,
-                    three_pointers_attempted: s.threePointersAttempted ?? null,
-                    free_throws_made: s.freeThrowsMade ?? null,
-                    free_throws_attempted: s.freeThrowsAttempted ?? null,
-                    plus_minus: s.plusMinusPoints ?? null,
-                    double_double: doubleDouble,
-                    triple_double: tripleDouble,
-                    did_not_play: dnp,
-                    updated_at: new Date().toISOString(),
-                })
+                stats.push(buildStatRow(p, playerId, game.id, game.season_year, game.week_number))
             }
 
             if (stats.length) {

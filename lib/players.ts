@@ -13,22 +13,25 @@ export type PlayerRow = {
 }
 
 export async function searchPlayers(query: string, position: string): Promise<PlayerRow[]> {
+    // Primary: players with stats this season, ranked by avg points descending
     let q = supabase
-        .from('players')
-        .select('id, display_name, nba_team, position, status, injury_status, headshot_url')
-        .order('last_name')
+        .from('mv_player_season_averages')
+        .select('avg_points, players!inner(id, display_name, nba_team, position, status, injury_status, headshot_url)')
+        .eq('season_year', currentSeasonYear())
+        .order('avg_points', { ascending: false })
         .limit(60)
 
     if (query.trim()) {
-        q = q.ilike('display_name', `%${query.trim()}%`)
+        q = q.ilike('players.display_name', `%${query.trim()}%`)
     }
     if (position !== 'ALL') {
-        q = q.eq('position', position as NBAPosition)
+        q = q.eq('players.position', position as NBAPosition)
     }
 
     const { data, error } = await q
     if (error) throw error
-    return (data ?? []) as PlayerRow[]
+
+    return (data ?? []).map((row: any) => row.players) as PlayerRow[]
 }
 
 export async function getPlayer(id: string) {

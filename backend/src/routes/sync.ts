@@ -1,24 +1,21 @@
 import { FastifyInstance } from 'fastify'
-import { syncPlayers } from '../sync/players'
-import { syncSchedule } from '../sync/games'
 import { syncStatsByDate } from '../sync/stats'
-import { syncProjectionsByDate } from '../sync/projections'
 import { generateAllMatchups } from '../sync/matchups'
 import { syncScores } from '../sync/scores'
-import { syncDynastyRankings } from '../sync/rankings'
-import { SyncStatsBody, SyncMatchupsBody } from '../schemas'
+import { startBackfill, getBackfillProgress, startFullHistoricalBackfill } from '../sync/backfill'
+import { testNBAEndpoints } from '../sync/healthCheck'
+import { verifySampleStats, verifySeasonTotals, validateDatabase } from '../sync/verify'
+import { currentSeasonYear } from '../lib/utils/season'
+import {
+    SyncStatsBody,
+    SyncMatchupsBody,
+    BackfillBody,
+    BackfillParams,
+    VerifyStatsBody,
+    ValidateDbBody,
+} from '../schemas'
 
 export default async function syncRoutes(app: FastifyInstance) {
-    app.post('/players', async () => {
-        await syncPlayers()
-        return { ok: true }
-    })
-
-    app.post('/schedule', async () => {
-        await syncSchedule()
-        return { ok: true }
-    })
-
     app.post('/stats', { schema: { body: SyncStatsBody } }, async (req) => {
         const { days = 1 } = req.body as { days?: number }
         for (let i = days - 1; i >= 0; i--) {
@@ -26,11 +23,6 @@ export default async function syncRoutes(app: FastifyInstance) {
             d.setDate(d.getDate() - i)
             await syncStatsByDate(d)
         }
-        return { ok: true }
-    })
-
-    app.post('/projections', async () => {
-        await syncProjectionsByDate(new Date())
         return { ok: true }
     })
 
@@ -45,8 +37,59 @@ export default async function syncRoutes(app: FastifyInstance) {
         return { ok: true }
     })
 
-    app.post('/rankings', async () => {
-        await syncDynastyRankings()
-        return { ok: true }
+    // ── NBA data backfill ─────────────────────────────────────────
+
+    // Start a background backfill for a full season (or date range)
+    // Body: { seasonYear: number, fromDate?: string, toDate?: string, forceResync?: boolean }
+    app.post('/backfill', { schema: { body: BackfillBody } }, async (req) => {
+        const { seasonYear, fromDate, toDate, forceResync = false } = req.body as {
+            seasonYear: number
+            fromDate?: string
+            toDate?: string
+            forceResync?: boolean
+        }
+        const jobId = await startBackfill(seasonYear, { fromDate, toDate, forceResync })
+        return { ok: true, jobId }
+    })
+
+    // Poll backfill progress
+    app.get('/backfill/:jobId', { schema: { params: BackfillParams } }, async (req) => {
+        const { jobId } = req.params as { jobId: string }
+        const job = await getBackfillProgress(jobId)
+        if (!job) {
+            return (req as any).server.httpErrors?.notFound?.('Job not found') ?? { error: 'Not found' }
+        }
+        return job
+    })
+
+    // ── Testing + verification ────────────────────────────────────
+
+    // Test all NBA CDN endpoints and report status/latency
+    app.post('/test-endpoints', async () => {
+        const results = await testNBAEndpoints()
+        return { ok: true, results }
+    })
+
+    // Cross-reference sample games against CDN — reports any field mismatches
+    app.post('/verify-stats', { schema: { body: VerifyStatsBody } }, async (req) => {
+        const { sampleSize = 10 } = (req.body as { sampleSize?: number }) ?? {}
+        const result = await verifySampleStats(sampleSize)
+        return { ok: true, ...result }
+    })
+
+    // Season totals for top players (manual cross-reference against nba.com/basketball-reference)
+    app.get('/season-totals', async (req) => {
+        const seasonYear = (req.query as any).seasonYear
+            ? parseInt((req.query as any).seasonYear)
+            : currentSeasonYear()
+        const rows = await verifySeasonTotals(seasonYear)
+        return { ok: true, seasonYear, rows }
+    })
+
+    // Check DB completeness — missing stats, missing nba_game_ids, etc.
+    app.post('/validate-db', { schema: { body: ValidateDbBody } }, async (req) => {
+        const { seasonYear } = (req.body as { seasonYear?: number }) ?? {}
+        const report = await validateDatabase(seasonYear)
+        return { ok: true, ...report }
     })
 }

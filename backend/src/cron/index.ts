@@ -1,60 +1,30 @@
-import cron from 'node-cron'
 import { CONFIG } from '../config'
-import { syncPlayers } from '../sync/players'
-import { syncSchedule } from '../sync/games'
-import { syncStatsByDate } from '../sync/stats'
-import { syncProjectionsByDate } from '../sync/projections'
-import { syncScores } from '../sync/scores'
-import { syncDynastyRankings } from '../sync/rankings'
-import { processWaiverClaims } from '../sync/waivers'
 import { closeExpiredNominations } from '../sync/draft'
+import { livePoller } from '../sync/livePoller'
 
-const TZ = { timezone: CONFIG.CRON_TIMEZONE }
+// ── Cron job ownership ────────────────────────────────────────
+//
+// pg_cron + Edge Functions own all scheduled NBA data syncs:
+//   nba-sync-players      → sync-players    Edge Function  (daily 6 AM ET)
+//   nba-sync-schedule     → sync-schedule   Edge Function  (daily 6:05 AM ET)
+//   nba-sync-projections  → sync-projections Edge Function (daily 8 AM ET)
+//   nba-sync-rankings     → sync-rankings   Edge Function  (weekly Mon 7 AM ET)
+//   nba-process-waivers   → process-waivers Edge Function  (daily 3 AM ET)
+//   nba-live-poll         → live-poll       Edge Function  (every min, game hours)
+//
+// The Fastify backend owns only interactive/real-time operations:
+//   closeExpiredNominations — must run frequently (every 10s) to close
+//     auction countdown timers; too latency-sensitive for pg_cron (1-min min).
+//   livePoller — adaptive poller that switches from idle (5 min) to active
+//     (30s stats / 60s scores) when live games are detected. Provides a
+//     faster feedback loop than the Edge Function cron during game windows.
 
 export function registerCronJobs() {
-    // 6 AM ET — daily player + schedule sync
-    cron.schedule('0 6 * * *', async () => {
-        console.log('[cron] Running daily player sync...')
-        await syncPlayers().catch(console.error)
-    }, TZ)
-
-    cron.schedule('0 6 * * *', async () => {
-        console.log('[cron] Running daily schedule sync...')
-        await syncSchedule().catch(console.error)
-    }, TZ)
-
-    // Hourly noon–midnight ET — stats sync
-    cron.schedule('0 12-23,0 * * *', async () => {
-        console.log('[cron] Running stats sync...')
-        await syncStatsByDate(new Date()).catch(console.error)
-    }, TZ)
-
-    // 8 AM ET — projections sync
-    cron.schedule('0 8 * * *', async () => {
-        console.log('[cron] Running projections sync...')
-        await syncProjectionsByDate(new Date()).catch(console.error)
-    }, TZ)
-
-    // Every 15 min noon–midnight ET — score sync
-    cron.schedule('*/15 12-23,0 * * *', async () => {
-        console.log('[cron] Running score sync...')
-        await syncScores().catch(console.error)
-    }, TZ)
-
-    // 7 AM Monday ET — dynasty rankings
-    cron.schedule('0 7 * * 1', async () => {
-        console.log('[cron] Running dynasty rankings sync...')
-        await syncDynastyRankings().catch(console.error)
-    }, TZ)
-
-    // 3 AM ET — waiver claims
-    cron.schedule('0 3 * * *', async () => {
-        console.log('[cron] Processing waiver claims...')
-        await processWaiverClaims().catch(console.error)
-    }, TZ)
-
     // Every 10s — close expired auction nominations
     setInterval(async () => {
         await closeExpiredNominations().catch(console.error)
     }, CONFIG.NOMINATION_POLL_INTERVAL_MS)
+
+    // Adaptive live-game poller
+    livePoller.start()
 }

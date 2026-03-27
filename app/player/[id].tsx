@@ -11,6 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router'
 import { useEffect, useState } from 'react'
 import { getPlayer, getPlayerSeasonAverages, getPlayerRecentGames } from '@/lib/players'
+import { currentSeasonYear } from '@/lib/shared/season'
 import { getPlayerRosterStatus, addFreeAgent, dropPlayer, PlayerRosterStatus } from '@/lib/roster'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useAuth } from '@/hooks/use-auth'
@@ -202,7 +203,7 @@ export default function PlayerDetailScreen() {
 
                     {/* Season averages */}
                     <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>2024–25 Averages</Text>
+                        <Text style={styles.sectionTitle}>{(() => { const y = currentSeasonYear(); return `${y - 1}–${String(y).slice(2)} Averages` })()}</Text>
                         {averages ? (
                             <>
                                 <View style={styles.statsGrid}>

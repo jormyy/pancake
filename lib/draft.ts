@@ -232,7 +232,7 @@ export async function placeBid(
 
 export function subscribeToDraft(draftId: string, onChange: () => void): RealtimeChannel {
     const channel = supabase
-        .channel(`draft:${draftId}`)
+        .channel(`draft:${draftId}`, { config: { private: true } })
         .on(
             'postgres_changes',
             {

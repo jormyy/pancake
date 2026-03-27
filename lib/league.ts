@@ -58,31 +58,14 @@ export async function createLeague(
     return league
 }
 
-export async function joinLeague(inviteCode: string, userId: string, teamName: string) {
-    const { data: league, error: findError } = await supabase
-        .from('leagues')
-        .select('id, name, status')
-        .eq('invite_code', inviteCode.toUpperCase().trim())
-        .single()
+export async function joinLeague(inviteCode: string, _userId: string, teamName: string) {
+    const { data, error } = await supabase.rpc('join_league_by_invite_code', {
+        p_invite_code: inviteCode,
+        p_team_name: teamName,
+    })
 
-    if (findError) throw new Error('League not found. Check your invite code.')
-
-    const { data: existing } = await supabase
-        .from('league_members')
-        .select('id')
-        .eq('league_id', league.id)
-        .eq('user_id', userId)
-        .single()
-
-    if (existing) throw new Error('You are already in this league.')
-
-    const { error: joinError } = await supabase
-        .from('league_members')
-        .insert({ league_id: league.id, user_id: userId, role: 'manager', team_name: teamName })
-
-    if (joinError) throw joinError
-
-    return league
+    if (error) throw new Error(error.message)
+    return data as { id: string; name: string; status: string }
 }
 
 export async function fetchUserLeagues(userId: string) {
