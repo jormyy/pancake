@@ -2,7 +2,7 @@ import {
     View,
     Text,
     TextInput,
-    TouchableOpacity,
+    Pressable,
     StyleSheet,
     KeyboardAvoidingView,
     Platform,
@@ -10,13 +10,14 @@ import {
     ActivityIndicator,
     Share,
 } from 'react-native'
-import { router } from 'expo-router'
+import { useRouter } from 'expo-router'
 import { useState } from 'react'
 import { useAuth } from '@/hooks/use-auth'
 import { createLeague } from '@/lib/league'
 
 export default function CreateLeagueScreen() {
     const { user } = useAuth()
+    const { back } = useRouter()
     const [leagueName, setLeagueName] = useState('')
     const [teamName, setTeamName] = useState('')
     const [auctionBudget, setAuctionBudget] = useState('200')
@@ -63,13 +64,13 @@ export default function CreateLeagueScreen() {
                     <Text style={styles.codeText}>{inviteCode}</Text>
                 </View>
 
-                <TouchableOpacity style={styles.shareButton} onPress={handleShare}>
+                <Pressable style={styles.shareButton} onPress={handleShare}>
                     <Text style={styles.shareButtonText}>Share Invite Code</Text>
-                </TouchableOpacity>
+                </Pressable>
 
-                <TouchableOpacity style={styles.doneButton} onPress={() => router.back()}>
+                <Pressable style={styles.doneButton} onPress={() => back()}>
                     <Text style={styles.doneButtonText}>Done</Text>
-                </TouchableOpacity>
+                </Pressable>
             </View>
         )
     }
@@ -111,13 +112,13 @@ export default function CreateLeagueScreen() {
 
                 {error && <Text style={styles.error}>{error}</Text>}
 
-                <TouchableOpacity style={styles.button} onPress={handleCreate} disabled={loading}>
+                <Pressable style={styles.button} onPress={handleCreate} disabled={loading}>
                     {loading ? (
                         <ActivityIndicator color="#fff" />
                     ) : (
                         <Text style={styles.buttonText}>Create League</Text>
                     )}
-                </TouchableOpacity>
+                </Pressable>
             </ScrollView>
         </KeyboardAvoidingView>
     )
@@ -132,6 +133,7 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: '#ddd',
         borderRadius: 10,
+        borderCurve: 'continuous' as const,
         paddingHorizontal: 16,
         fontSize: 16,
         backgroundColor: '#fafafa',
@@ -142,6 +144,7 @@ const styles = StyleSheet.create({
         height: 50,
         backgroundColor: '#F97316',
         borderRadius: 10,
+        borderCurve: 'continuous' as const,
         justifyContent: 'center',
         alignItems: 'center',
         marginTop: 24,
@@ -164,6 +167,7 @@ const styles = StyleSheet.create({
         borderWidth: 2,
         borderColor: '#F97316',
         borderRadius: 16,
+        borderCurve: 'continuous' as const,
         paddingVertical: 24,
         paddingHorizontal: 40,
         marginVertical: 8,
@@ -174,6 +178,7 @@ const styles = StyleSheet.create({
         height: 52,
         backgroundColor: '#F97316',
         borderRadius: 12,
+        borderCurve: 'continuous' as const,
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -184,6 +189,7 @@ const styles = StyleSheet.create({
         borderWidth: 1.5,
         borderColor: '#ddd',
         borderRadius: 12,
+        borderCurve: 'continuous' as const,
         justifyContent: 'center',
         alignItems: 'center',
     },

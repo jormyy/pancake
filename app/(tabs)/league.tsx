@@ -1,16 +1,16 @@
 import {
     View,
     Text,
-    FlatList,
     ScrollView,
-    TouchableOpacity,
+    Pressable,
     StyleSheet,
     ActivityIndicator,
     Share,
     Alert,
 } from 'react-native'
+import { FlashList } from '@shopify/flash-list'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { router } from 'expo-router'
+import { useRouter } from 'expo-router'
 import { useCallback, useState } from 'react'
 import { useFocusEffect } from '@react-navigation/native'
 import { useLeagueContext } from '@/contexts/league-context'
@@ -31,7 +31,10 @@ const ROLE_LABELS: Record<string, string> = {
 
 type Tab = 'standings' | 'activity' | 'waivers' | 'members' | 'picks'
 
+const ItemSeparator = () => <View style={styles.separator} />
+
 export default function LeagueScreen() {
+    const { push } = useRouter()
     const { current, loading: leagueLoading } = useLeagueContext()
     const { user } = useAuth()
     const [tab, setTab] = useState<Tab>('standings')
@@ -80,7 +83,7 @@ export default function LeagueScreen() {
         setDraftLoading(true)
         try {
             const draft = await startDraft(league.id)
-            router.push({ pathname: '/(modals)/draft-room', params: { draftId: draft.id } })
+            push({ pathname: '/(modals)/draft-room', params: { draftId: draft.id } })
         } catch (e: any) {
             Alert.alert('Could not start draft', e.message)
         } finally {
@@ -98,9 +101,9 @@ export default function LeagueScreen() {
                 return
             }
             if (draft.draftType === 'snake') {
-                router.push({ pathname: '/(modals)/rookie-draft-room' as any, params: { draftId: draft.id } })
+                push({ pathname: '/(modals)/rookie-draft-room' as any, params: { draftId: draft.id } })
             } else {
-                router.push({ pathname: '/(modals)/draft-room', params: { draftId: draft.id } })
+                push({ pathname: '/(modals)/draft-room', params: { draftId: draft.id } })
             }
         } catch (e: any) {
             Alert.alert('Error', e.message)
@@ -114,7 +117,7 @@ export default function LeagueScreen() {
         setDraftLoading(true)
         try {
             const result = await startRookieDraft(league.id)
-            router.push({ pathname: '/(modals)/rookie-draft-room' as any, params: { draftId: result.draft.id } })
+            push({ pathname: '/(modals)/rookie-draft-room' as any, params: { draftId: result.draft.id } })
         } catch (e: any) {
             Alert.alert('Could not start rookie draft', e.message)
         } finally {
@@ -131,7 +134,7 @@ export default function LeagueScreen() {
                 Alert.alert('No active rookie draft found')
                 return
             }
-            router.push({ pathname: '/(modals)/rookie-draft-room' as any, params: { draftId: draft.id } })
+            push({ pathname: '/(modals)/rookie-draft-room' as any, params: { draftId: draft.id } })
         } catch (e: any) {
             Alert.alert('Error', e.message)
         } finally {
@@ -173,43 +176,42 @@ export default function LeagueScreen() {
                         <Text style={styles.teamName}>{current.team_name}</Text>
                     </View>
                     <View style={styles.headerButtons}>
-                        <TouchableOpacity
+                        <Pressable
                             style={styles.settingsButton}
-                            onPress={() => router.push('/(modals)/bracket')}
+                            onPress={() => push('/(modals)/bracket')}
                         >
                             <Text style={styles.settingsButtonText}>Bracket</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
+                        </Pressable>
+                        <Pressable
                             style={styles.settingsButton}
-                            onPress={() => router.push('/(modals)/trades')}
+                            onPress={() => push('/(modals)/trades')}
                         >
                             <Text style={styles.settingsButtonText}>Trades</Text>
-                        </TouchableOpacity>
+                        </Pressable>
                         {isCommissioner && (
-                            <TouchableOpacity
+                            <Pressable
                                 style={styles.settingsButton}
-                                onPress={() => router.push('/(modals)/commissioner-settings')}
+                                onPress={() => push('/(modals)/commissioner-settings')}
                             >
                                 <Text style={styles.settingsButtonText}>Settings</Text>
-                            </TouchableOpacity>
+                            </Pressable>
                         )}
                     </View>
                 </View>
 
                 {/* Invite code */}
-                <TouchableOpacity
+                <Pressable
                     style={styles.inviteRow}
                     onPress={shareInviteCode}
-                    activeOpacity={0.7}
                 >
                     <Text style={styles.inviteLabel}>Invite Code</Text>
                     <Text style={styles.inviteCode}>{league?.invite_code}</Text>
                     <Text style={styles.inviteCopy}>Share</Text>
-                </TouchableOpacity>
+                </Pressable>
 
                 {/* Draft actions */}
                 {league?.status === 'setup' && isCommissioner && (
-                    <TouchableOpacity
+                    <Pressable
                         style={styles.draftButton}
                         onPress={handleStartDraft}
                         disabled={draftLoading}
@@ -219,10 +221,10 @@ export default function LeagueScreen() {
                         ) : (
                             <Text style={styles.draftButtonText}>Start Auction Draft</Text>
                         )}
-                    </TouchableOpacity>
+                    </Pressable>
                 )}
                 {league?.status === 'drafting' && (
-                    <TouchableOpacity
+                    <Pressable
                         style={styles.draftButton}
                         onPress={handleJoinDraftRoom}
                         disabled={draftLoading}
@@ -232,10 +234,10 @@ export default function LeagueScreen() {
                         ) : (
                             <Text style={styles.draftButtonText}>Join Draft Room</Text>
                         )}
-                    </TouchableOpacity>
+                    </Pressable>
                 )}
                 {league?.status === 'offseason' && isCommissioner && (
-                    <TouchableOpacity
+                    <Pressable
                         style={styles.draftButton}
                         onPress={handleStartRookieDraft}
                         disabled={draftLoading}
@@ -245,10 +247,10 @@ export default function LeagueScreen() {
                         ) : (
                             <Text style={styles.draftButtonText}>Start Rookie Draft</Text>
                         )}
-                    </TouchableOpacity>
+                    </Pressable>
                 )}
                 {league?.status === 'offseason' && !isCommissioner && (
-                    <TouchableOpacity
+                    <Pressable
                         style={styles.draftButton}
                         onPress={handleJoinRookieDraft}
                         disabled={draftLoading}
@@ -258,7 +260,7 @@ export default function LeagueScreen() {
                         ) : (
                             <Text style={styles.draftButtonText}>Join Rookie Draft</Text>
                         )}
-                    </TouchableOpacity>
+                    </Pressable>
                 )}
             </View>
 
@@ -270,7 +272,7 @@ export default function LeagueScreen() {
                 contentContainerStyle={styles.tabRowContent}
             >
                 {(['standings', 'activity', 'waivers', 'members', 'picks'] as Tab[]).map((t) => (
-                    <TouchableOpacity
+                    <Pressable
                         key={t}
                         style={[styles.tabChip, tab === t && styles.tabChipActive]}
                         onPress={() => setTab(t)}
@@ -286,7 +288,7 @@ export default function LeagueScreen() {
                                       ? 'Picks'
                                       : `Teams`}
                         </Text>
-                    </TouchableOpacity>
+                    </Pressable>
                 ))}
             </ScrollView>
 
@@ -301,10 +303,10 @@ export default function LeagueScreen() {
             ) : tab === 'picks' ? (
                 <PicksBankList picks={leaguePicks} myMemberId={current?.id} />
             ) : (
-                <FlatList
+                <FlashList
                     data={members}
                     keyExtractor={(m) => m.id}
-                    ItemSeparatorComponent={() => <View style={styles.separator} />}
+                    ItemSeparatorComponent={ItemSeparator}
                     renderItem={({ item }) => {
                         const profile = item.profiles as any
                         const isMe = item.user_id === user?.id
@@ -370,20 +372,11 @@ function StandingsTable({
     }
 
     return (
-        <FlatList
+        <FlashList
             data={standings}
             keyExtractor={(s) => s.memberId}
-            ListHeaderComponent={() => (
-                <View style={[styles.standingsRow, styles.standingsHeader]}>
-                    <Text style={[styles.standingsRank, styles.standingsHeaderText]}>#</Text>
-                    <Text style={[styles.standingsTeam, styles.standingsHeaderText]}>Team</Text>
-                    <Text style={[styles.standingsCell, styles.standingsHeaderText]}>W</Text>
-                    <Text style={[styles.standingsCell, styles.standingsHeaderText]}>L</Text>
-                    <Text style={[styles.standingsPts, styles.standingsHeaderText]}>PF</Text>
-                    <Text style={[styles.standingsPts, styles.standingsHeaderText]}>PA</Text>
-                </View>
-            )}
-            ItemSeparatorComponent={() => <View style={styles.separator} />}
+            ListHeaderComponent={StandingsListHeader}
+            ItemSeparatorComponent={ItemSeparator}
             renderItem={({ item, index }) => {
                 const isMe = item.memberId === myMemberId
                 return (
@@ -458,10 +451,10 @@ function ActivityFeed({
     }
 
     return (
-        <FlatList
+        <FlashList
             data={transactions}
             keyExtractor={(t) => t.id}
-            ItemSeparatorComponent={() => <View style={styles.separator} />}
+            ItemSeparatorComponent={ItemSeparator}
             renderItem={({ item }) => {
                 const isMe = item.memberId === myMemberId
                 const color = TX_COLORS[item.transactionType] ?? '#888'
@@ -520,17 +513,11 @@ function WaiverPriorityList({
     }
 
     return (
-        <FlatList
+        <FlashList
             data={rows}
             keyExtractor={(r) => r.memberId}
-            ListHeaderComponent={() => (
-                <View style={[styles.waiverRow, styles.waiverHeader]}>
-                    <Text style={[styles.waiverRank, styles.standingsHeaderText]}>#</Text>
-                    <Text style={[styles.waiverTeam, styles.standingsHeaderText]}>Team</Text>
-                    <Text style={[styles.waiverName, styles.standingsHeaderText]}>Manager</Text>
-                </View>
-            )}
-            ItemSeparatorComponent={() => <View style={styles.separator} />}
+            ListHeaderComponent={WaiverListHeader}
+            ItemSeparatorComponent={ItemSeparator}
             renderItem={({ item }) => {
                 const isMe = item.memberId === myMemberId
                 return (
@@ -579,16 +566,10 @@ function PicksBankList({
     const sections = Array.from(byYear.entries()).sort((a, b) => a[0] - b[0])
 
     return (
-        <FlatList
+        <FlashList
             data={sections}
             keyExtractor={([year]) => String(year)}
-            ListHeaderComponent={() => (
-                <View style={[styles.picksBankHeader]}>
-                    <Text style={styles.standingsHeaderText}>ROUND</Text>
-                    <Text style={[styles.standingsHeaderText, { flex: 1, marginLeft: 12 }]}>FROM</Text>
-                    <Text style={[styles.standingsHeaderText, { width: 110, textAlign: 'right' }]}>OWNER</Text>
-                </View>
-            )}
+            ListHeaderComponent={PicksBankListHeader}
             renderItem={({ item: [year, yearPicks] }) => (
                 <View>
                     <View style={styles.picksBankYearRow}>
@@ -623,7 +604,7 @@ function PicksBankList({
                     })}
                 </View>
             )}
-            ItemSeparatorComponent={() => <View style={styles.separator} />}
+            ItemSeparatorComponent={ItemSeparator}
         />
     )
 }
@@ -642,6 +623,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 12,
         paddingVertical: 7,
         borderRadius: 8,
+        borderCurve: 'continuous' as const,
         borderWidth: 1,
         borderColor: '#ddd',
     },
@@ -650,6 +632,7 @@ const styles = StyleSheet.create({
     draftButton: {
         backgroundColor: '#F97316',
         borderRadius: 10,
+        borderCurve: 'continuous' as const,
         height: 44,
         justifyContent: 'center',
         alignItems: 'center',
@@ -662,6 +645,7 @@ const styles = StyleSheet.create({
         gap: 8,
         backgroundColor: '#f9f9f9',
         borderRadius: 10,
+        borderCurve: 'continuous' as const,
         paddingHorizontal: 14,
         paddingVertical: 10,
     },
@@ -692,6 +676,7 @@ const styles = StyleSheet.create({
         width: 44,
         height: 44,
         borderRadius: 22,
+        borderCurve: 'continuous' as const,
         backgroundColor: '#F97316',
         justifyContent: 'center',
         alignItems: 'center',
@@ -707,6 +692,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 8,
         paddingVertical: 3,
         borderRadius: 6,
+        borderCurve: 'continuous' as const,
         backgroundColor: '#f3f3f3',
     },
     roleBadgeCommissioner: { backgroundColor: '#FEF3C7' },
@@ -729,6 +715,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 14,
         paddingVertical: 7,
         borderRadius: 20,
+        borderCurve: 'continuous' as const,
         backgroundColor: '#f3f3f3',
     },
     tabChipActive: { backgroundColor: '#F97316' },
@@ -773,6 +760,7 @@ const styles = StyleSheet.create({
         width: 40,
         height: 40,
         borderRadius: 20,
+        borderCurve: 'continuous' as const,
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -786,6 +774,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 8,
         paddingVertical: 3,
         borderRadius: 6,
+        borderCurve: 'continuous' as const,
     },
     txLabelText: { fontSize: 11, fontWeight: '700' },
     txTime: { fontSize: 11, color: '#aaa' },
@@ -819,3 +808,30 @@ const styles = StyleSheet.create({
     picksBankFrom: { flex: 1, fontSize: 13, color: '#555', marginLeft: 12 },
     picksBankOwner: { width: 110, textAlign: 'right', fontSize: 13, fontWeight: '600', color: '#111' },
 })
+
+const StandingsListHeader = (
+    <View style={[styles.standingsRow, styles.standingsHeader]}>
+        <Text style={[styles.standingsRank, styles.standingsHeaderText]}>#</Text>
+        <Text style={[styles.standingsTeam, styles.standingsHeaderText]}>Team</Text>
+        <Text style={[styles.standingsCell, styles.standingsHeaderText]}>W</Text>
+        <Text style={[styles.standingsCell, styles.standingsHeaderText]}>L</Text>
+        <Text style={[styles.standingsPts, styles.standingsHeaderText]}>PF</Text>
+        <Text style={[styles.standingsPts, styles.standingsHeaderText]}>PA</Text>
+    </View>
+)
+
+const WaiverListHeader = (
+    <View style={[styles.waiverRow, styles.waiverHeader]}>
+        <Text style={[styles.waiverRank, styles.standingsHeaderText]}>#</Text>
+        <Text style={[styles.waiverTeam, styles.standingsHeaderText]}>Team</Text>
+        <Text style={[styles.waiverName, styles.standingsHeaderText]}>Manager</Text>
+    </View>
+)
+
+const PicksBankListHeader = (
+    <View style={[styles.picksBankHeader]}>
+        <Text style={styles.standingsHeaderText}>ROUND</Text>
+        <Text style={[styles.standingsHeaderText, { flex: 1, marginLeft: 12 }]}>FROM</Text>
+        <Text style={[styles.standingsHeaderText, { width: 110, textAlign: 'right' }]}>OWNER</Text>
+    </View>
+)

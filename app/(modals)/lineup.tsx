@@ -1,15 +1,15 @@
 import {
     View,
     Text,
-    TouchableOpacity,
+    Pressable,
     StyleSheet,
     ActivityIndicator,
     Alert,
     ScrollView,
-    FlatList,
 } from 'react-native'
+import { FlashList } from '@shopify/flash-list'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { router } from 'expo-router'
+import { useRouter } from 'expo-router'
 import { useEffect, useState, useCallback } from 'react'
 import { useAuth } from '@/hooks/use-auth'
 import { useLeagueContext } from '@/contexts/league-context'
@@ -32,6 +32,7 @@ type Selection =
     | { kind: 'bench'; index: number }
 
 export default function LineupScreen() {
+    const { back } = useRouter()
     const { user } = useAuth()
     const { current } = useLeagueContext()
 
@@ -190,11 +191,11 @@ export default function LineupScreen() {
         <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
             {/* Header */}
             <View style={styles.header}>
-                <TouchableOpacity onPress={() => router.back()} style={styles.closeButton}>
+                <Pressable onPress={() => back()} style={styles.closeButton}>
                     <Text style={styles.closeText}>Done</Text>
-                </TouchableOpacity>
+                </Pressable>
                 <Text style={styles.headerTitle}>Week {ctx.weekNumber} Lineup</Text>
-                <TouchableOpacity
+                <Pressable
                     style={styles.autoSetButton}
                     onPress={handleAutoSet}
                     disabled={autoSetting || saving}
@@ -204,12 +205,12 @@ export default function LineupScreen() {
                     ) : (
                         <Text style={styles.autoSetText}>Auto-Set</Text>
                     )}
-                </TouchableOpacity>
+                </Pressable>
             </View>
 
             {/* Day selector */}
             {weekDays.length > 0 && (
-                <FlatList
+                <FlashList
                     horizontal
                     data={weekDays}
                     keyExtractor={(d) => d.date}
@@ -219,7 +220,7 @@ export default function LineupScreen() {
                     renderItem={({ item: day }) => {
                         const isSelected = day.date === selectedDate
                         return (
-                            <TouchableOpacity
+                            <Pressable
                                 style={[
                                     styles.dayCell,
                                     isSelected && styles.dayCellSelected,
@@ -237,7 +238,7 @@ export default function LineupScreen() {
                                 {day.hasGames && (
                                     <View style={[styles.gameDot, isSelected && styles.gameDotSelected]} />
                                 )}
-                            </TouchableOpacity>
+                            </Pressable>
                         )
                     }}
                 />
@@ -262,7 +263,7 @@ export default function LineupScreen() {
                         const isSelected = selected?.kind === 'starter' && selected.index === i
                         const p = slot.player
                         return (
-                            <TouchableOpacity
+                            <Pressable
                                 key={`starter-${i}`}
                                 style={[
                                     styles.slotRow,
@@ -271,7 +272,6 @@ export default function LineupScreen() {
                                 ]}
                                 onPress={() => handleTap({ kind: 'starter', index: i })}
                                 disabled={saving}
-                                activeOpacity={0.7}
                             >
                                 <Text style={styles.slotLabel}>{slot.slotType}</Text>
                                 {p ? (
@@ -300,7 +300,7 @@ export default function LineupScreen() {
                                 ) : (
                                     <Text style={styles.emptySlot}>Empty</Text>
                                 )}
-                            </TouchableOpacity>
+                            </Pressable>
                         )
                     })}
                 </View>
@@ -314,7 +314,7 @@ export default function LineupScreen() {
                         bench.map((player, i) => {
                             const isSelected = selected?.kind === 'bench' && selected.index === i
                             return (
-                                <TouchableOpacity
+                                <Pressable
                                     key={player.playerId}
                                     style={[
                                         styles.benchRow,
@@ -323,7 +323,6 @@ export default function LineupScreen() {
                                     ]}
                                     onPress={() => handleTap({ kind: 'bench', index: i })}
                                     disabled={saving}
-                                    activeOpacity={0.7}
                                 >
                                     <View
                                         style={[
@@ -345,7 +344,7 @@ export default function LineupScreen() {
                                             {[player.nbaTeam, player.position].filter(Boolean).join(' · ')}
                                         </Text>
                                     </View>
-                                </TouchableOpacity>
+                                </Pressable>
                             )
                         })
                     )}
@@ -380,6 +379,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 14,
         paddingVertical: 7,
         borderRadius: 20,
+        borderCurve: 'continuous' as const,
         borderWidth: 1.5,
         borderColor: '#F97316',
         minWidth: 80,
@@ -389,7 +389,7 @@ const styles = StyleSheet.create({
 
     daySelectorRow: { borderBottomWidth: 1, borderBottomColor: '#eee' },
     daySelectorContent: { flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 8, gap: 6 },
-    dayCell: { width: 38, alignItems: 'center', paddingVertical: 5, borderRadius: 9, gap: 2 },
+    dayCell: { width: 38, alignItems: 'center', paddingVertical: 5, borderRadius: 9, borderCurve: 'continuous' as const, gap: 2 },
     dayCellSelected: { backgroundColor: '#F97316' },
     dayCellToday: { backgroundColor: '#FFF7ED' },
     dayCellNoGames: { opacity: 0.4 },
@@ -397,7 +397,7 @@ const styles = StyleSheet.create({
     dayLabelSelected: { color: '#fff' },
     dayNum: { fontSize: 14, fontWeight: '800', color: '#111' },
     dayNumSelected: { color: '#fff' },
-    gameDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: '#F97316', marginTop: 1 },
+    gameDot: { width: 4, height: 4, borderRadius: 2, borderCurve: 'continuous' as const, backgroundColor: '#F97316', marginTop: 1 },
     gameDotSelected: { backgroundColor: 'rgba(255,255,255,0.7)' },
 
     hint: {
@@ -423,6 +423,7 @@ const styles = StyleSheet.create({
     card: {
         backgroundColor: '#fff',
         borderRadius: 14,
+        borderCurve: 'continuous' as const,
         borderWidth: 1,
         borderColor: '#eee',
         marginBottom: 12,
@@ -460,6 +461,7 @@ const styles = StyleSheet.create({
         width: 36,
         height: 36,
         borderRadius: 18,
+        borderCurve: 'continuous' as const,
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -481,6 +483,7 @@ const styles = StyleSheet.create({
         alignSelf: 'center',
         backgroundColor: 'rgba(0,0,0,0.6)',
         borderRadius: 20,
+        borderCurve: 'continuous' as const,
         paddingHorizontal: 20,
         paddingVertical: 10,
     },

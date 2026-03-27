@@ -1,7 +1,7 @@
 import {
     View,
     Text,
-    TouchableOpacity,
+    Pressable,
     StyleSheet,
     ActivityIndicator,
     ScrollView,
@@ -9,7 +9,7 @@ import {
     Modal,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { router } from 'expo-router'
+import { useRouter } from 'expo-router'
 import { useCallback, useRef, useState } from 'react'
 import { useFocusEffect } from '@react-navigation/native'
 import { useLeagueContext } from '@/contexts/league-context'
@@ -49,6 +49,7 @@ function shortName(name: string): string {
 }
 
 export default function HomeScreen() {
+    const { push } = useRouter()
     const { memberships, current, setCurrent, loading } = useLeagueContext()
     const { user } = useAuth()
 
@@ -306,9 +307,9 @@ export default function HomeScreen() {
                         const ma = m as any
                         const isActive = ma.id === (current as any)?.id
                         return (
-                            <TouchableOpacity key={ma.id} style={[styles.switcherChip, isActive && styles.switcherChipActive]} onPress={() => setCurrent(m)}>
+                            <Pressable key={ma.id} style={[styles.switcherChip, isActive && styles.switcherChipActive]} onPress={() => setCurrent(m)}>
                                 <Text style={[styles.switcherText, isActive && styles.switcherTextActive]}>{ma.leagues?.name ?? 'League'}</Text>
-                            </TouchableOpacity>
+                            </Pressable>
                         )
                     })}
                 </ScrollView>
@@ -329,7 +330,7 @@ export default function HomeScreen() {
                         <Text style={[styles.lineupTeamName, { textAlign: 'right' }]} numberOfLines={1}>
                             {matchup.myTeamName}
                         </Text>
-                        <TouchableOpacity
+                        <Pressable
                             style={[styles.autoSetBtn, { width: SLOT_W }]}
                             onPress={handleAutoSet}
                             disabled={autoSetting || saving}
@@ -337,7 +338,7 @@ export default function HomeScreen() {
                             {autoSetting
                                 ? <ActivityIndicator size="small" color="#F97316" />
                                 : <Text style={styles.autoSetText}>AUTO</Text>}
-                        </TouchableOpacity>
+                        </Pressable>
                         <Text style={styles.lineupTeamName} numberOfLines={1}>
                             {matchup.opponentTeamName}
                         </Text>
@@ -351,9 +352,9 @@ export default function HomeScreen() {
                                     ? `${shortName(selectedPlayer.displayName)} selected — tap another slot to swap`
                                     : `Empty slot selected — tap a player's slot to fill it`}
                             </Text>
-                            <TouchableOpacity onPress={() => setSelected(null)}>
+                            <Pressable onPress={() => setSelected(null)}>
                                 <Text style={styles.hintCancel}>Cancel</Text>
-                            </TouchableOpacity>
+                            </Pressable>
                         </View>
                     )}
 
@@ -371,9 +372,9 @@ export default function HomeScreen() {
                     ) : (
                         <View style={styles.noLineup}>
                             <Text style={styles.noLineupText}>No lineup set for this day.</Text>
-                            <TouchableOpacity style={styles.setLineupBtn} onPress={() => doAutoSet(selectedDate)} disabled={autoSetting}>
+                            <Pressable style={styles.setLineupBtn} onPress={() => doAutoSet(selectedDate)} disabled={autoSetting}>
                                 <Text style={styles.setLineupBtnText}>Auto-Set Today</Text>
-                            </TouchableOpacity>
+                            </Pressable>
                         </View>
                     )}
                 </ScrollView>
@@ -405,27 +406,27 @@ export default function HomeScreen() {
                                         <Text style={styles.overflowMeta}>{p.nbaTeam ?? 'FA'}{p.position ? ` · ${p.position}` : ''}</Text>
                                     </View>
                                     {isIREligible(p.injuryStatus) && (
-                                        <TouchableOpacity
+                                        <Pressable
                                             style={[styles.overflowBtn, { backgroundColor: '#991B1B22', marginRight: 6 }]}
                                             onPress={() => handleIROverflowMoveToIR(p.rosterPlayerId)}
                                             disabled={irOverflowSaving}
                                         >
                                             <Text style={[styles.overflowBtnText, { color: '#991B1B' }]}>→ IR</Text>
-                                        </TouchableOpacity>
+                                        </Pressable>
                                     )}
-                                    <TouchableOpacity
+                                    <Pressable
                                         style={[styles.overflowBtn, { backgroundColor: '#EF444422' }]}
                                         onPress={() => handleIROverflowDrop(p.rosterPlayerId)}
                                         disabled={irOverflowSaving}
                                     >
                                         <Text style={[styles.overflowBtnText, { color: '#EF4444' }]}>Drop</Text>
-                                    </TouchableOpacity>
+                                    </Pressable>
                                 </View>
                             ))}
                         </ScrollView>
-                        <TouchableOpacity style={styles.modalCancel} onPress={() => setIROverflowPending(null)}>
+                        <Pressable style={styles.modalCancel} onPress={() => setIROverflowPending(null)}>
                             <Text style={styles.modalCancelText}>Cancel</Text>
-                        </TouchableOpacity>
+                        </Pressable>
                     </View>
                 </View>
             </Modal>
@@ -535,6 +536,7 @@ function MatchupRow({
     saving: boolean
     playingTeams: Set<string>
 }) {
+    const { push } = useRouter()
     const isSel = selected?.kind === selKind && selected.index === selIndex
     const slotColor = slotType === 'IR' ? '#EF4444' : (POSITION_COLORS[slotType] ?? '#aaa')
     const myHasGame = myPlayer?.nbaTeam ? playingTeams.has(myPlayer.nbaTeam) : false
@@ -543,10 +545,9 @@ function MatchupRow({
     return (
         <View style={styles.matchupRow}>
             {/* Left: my player (right-aligned) */}
-            <TouchableOpacity
+            <Pressable
                 style={styles.rowSideLeft}
-                onPress={myPlayer ? () => router.push(`/player/${myPlayer.playerId}` as any) : undefined}
-                activeOpacity={myPlayer ? 0.7 : 1}
+                onPress={myPlayer ? () => push(`/player/${myPlayer.playerId}` as any) : undefined}
                 disabled={!myPlayer}
             >
                 {myPlayer ? (
@@ -567,10 +568,10 @@ function MatchupRow({
                 ) : (
                     <Text style={[styles.sideName, { color: '#ddd', textAlign: 'right' }]}>—</Text>
                 )}
-            </TouchableOpacity>
+            </Pressable>
 
             {/* Center: slot chip */}
-            <TouchableOpacity
+            <Pressable
                 style={[
                     styles.slotChipCenter,
                     { backgroundColor: slotColor + '22' },
@@ -578,18 +579,16 @@ function MatchupRow({
                 ]}
                 onPress={() => onTap({ kind: selKind, index: selIndex })}
                 disabled={saving}
-                activeOpacity={0.7}
             >
                 <Text style={[styles.slotChipText, { color: isSel ? '#F97316' : slotColor }]}>
                     {slotType}
                 </Text>
-            </TouchableOpacity>
+            </Pressable>
 
             {/* Right: opponent player (left-aligned) */}
-            <TouchableOpacity
+            <Pressable
                 style={styles.rowSideRight}
-                onPress={oppPlayer ? () => router.push(`/player/${oppPlayer.playerId}` as any) : undefined}
-                activeOpacity={oppPlayer ? 0.7 : 1}
+                onPress={oppPlayer ? () => push(`/player/${oppPlayer.playerId}` as any) : undefined}
                 disabled={!oppPlayer}
             >
                 {oppPlayer ? (
@@ -610,7 +609,7 @@ function MatchupRow({
                 ) : (
                     <Text style={[styles.sideName, { color: '#ddd' }]}>—</Text>
                 )}
-            </TouchableOpacity>
+            </Pressable>
         </View>
     )
 }
@@ -663,7 +662,7 @@ function DaySelector({ days, selectedDate, onSelect }: { days: WeekDay[]; select
             {days.map((day) => {
                 const isSelected = day.date === selectedDate
                 return (
-                    <TouchableOpacity
+                    <Pressable
                         key={day.date}
                         style={[
                             styles.dayCell,
@@ -680,7 +679,7 @@ function DaySelector({ days, selectedDate, onSelect }: { days: WeekDay[]; select
                             {day.dateNum}
                         </Text>
                         {day.hasGames && <View style={[styles.gameDot, isSelected && styles.gameDotSelected]} />}
-                    </TouchableOpacity>
+                    </Pressable>
                 )
             })}
         </ScrollView>
@@ -728,17 +727,18 @@ function ScoreCard({ matchup }: { matchup: Matchup }) {
 // ── No league state ────────────────────────────────────────────
 
 function NoLeagueState() {
+    const { push } = useRouter()
     return (
         <SafeAreaView style={styles.container}>
             <View style={styles.noLeague}>
                 <Text style={styles.noLeagueTitle}>Welcome to Pancake</Text>
                 <Text style={styles.noLeagueSub}>Create a new league or join one with an invite code.</Text>
-                <TouchableOpacity style={styles.primaryButton} onPress={() => router.push('/(modals)/create-league')}>
+                <Pressable style={styles.primaryButton} onPress={() => push('/(modals)/create-league')}>
                     <Text style={styles.primaryButtonText}>Create a League</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.secondaryButton} onPress={() => router.push('/(modals)/join-league')}>
+                </Pressable>
+                <Pressable style={styles.secondaryButton} onPress={() => push('/(modals)/join-league')}>
                     <Text style={styles.secondaryButtonText}>Join with Invite Code</Text>
-                </TouchableOpacity>
+                </Pressable>
             </View>
         </SafeAreaView>
     )
@@ -749,7 +749,7 @@ const styles = StyleSheet.create({
 
     switcherRow: { maxHeight: 48, borderBottomWidth: 1, borderBottomColor: '#eee' },
     switcherContent: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, gap: 8, paddingVertical: 8 },
-    switcherChip: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, backgroundColor: '#f3f3f3' },
+    switcherChip: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, borderCurve: 'continuous' as const, backgroundColor: '#f3f3f3' },
     switcherChipActive: { backgroundColor: '#F97316' },
     switcherText: { fontSize: 13, fontWeight: '600', color: '#555' },
     switcherTextActive: { color: '#fff' },
@@ -761,19 +761,16 @@ const styles = StyleSheet.create({
         margin: 16,
         backgroundColor: '#fff',
         borderRadius: 16,
+        borderCurve: 'continuous' as const,
         borderWidth: 1,
         borderColor: '#eee',
         padding: 20,
         gap: 16,
-        shadowColor: '#000',
-        shadowOpacity: 0.06,
-        shadowRadius: 8,
-        shadowOffset: { width: 0, height: 2 },
-        elevation: 2,
+        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
     },
     matchupHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     matchupWeek: { fontSize: 13, fontWeight: '700', color: '#aaa', letterSpacing: 0.5 },
-    statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
+    statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, borderCurve: 'continuous' as const },
     statusText: { fontSize: 12, fontWeight: '700' },
     matchupScores: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     matchupSide: { flex: 1, gap: 4 },
@@ -786,7 +783,7 @@ const styles = StyleSheet.create({
     // Day selector
     daySelectorRow: { borderBottomWidth: 1, borderBottomColor: '#eee' },
     daySelectorContent: { flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 10, gap: 6 },
-    dayCell: { width: 40, alignItems: 'center', paddingVertical: 6, borderRadius: 10, gap: 2 },
+    dayCell: { width: 40, alignItems: 'center', paddingVertical: 6, borderRadius: 10, borderCurve: 'continuous' as const, gap: 2 },
     dayCellSelected: { backgroundColor: '#F97316' },
     dayCellToday: { backgroundColor: '#FFF7ED' },
     dayCellNoGames: { opacity: 0.4 },
@@ -796,7 +793,7 @@ const styles = StyleSheet.create({
     dayNum: { fontSize: 15, fontWeight: '800', color: '#111' },
     dayNumSelected: { color: '#fff' },
     dayNumFaint: { color: '#ccc' },
-    gameDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: '#F97316', marginTop: 1 },
+    gameDot: { width: 5, height: 5, borderRadius: 3, borderCurve: 'continuous' as const, backgroundColor: '#F97316', marginTop: 1 },
     gameDotSelected: { backgroundColor: 'rgba(255,255,255,0.7)' },
 
     // Lineup header
@@ -812,6 +809,7 @@ const styles = StyleSheet.create({
     autoSetBtn: {
         height: 28,
         borderRadius: 8,
+        borderCurve: 'continuous' as const,
         borderWidth: 1.5,
         borderColor: '#F97316',
         alignItems: 'center',
@@ -853,20 +851,21 @@ const styles = StyleSheet.create({
     metaRow: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 2 },
     sideMeta: { fontSize: 11, color: '#aaa' },
 
-    posTag: { paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4, flexShrink: 0 },
+    posTag: { paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4, borderCurve: 'continuous' as const, flexShrink: 0 },
     posTagText: { fontSize: 9, fontWeight: '800' },
 
     slotChipCenter: {
         width: SLOT_W,
         height: 30,
         borderRadius: 8,
+        borderCurve: 'continuous' as const,
         alignItems: 'center',
         justifyContent: 'center',
         flexShrink: 0,
     },
     slotChipSelected: { borderWidth: 1.5, borderColor: '#F97316' },
     slotChipText: { fontSize: 11, fontWeight: '800', letterSpacing: 0.3 },
-    injuryBadge: { paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4, flexShrink: 0 },
+    injuryBadge: { paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4, borderCurve: 'continuous' as const, flexShrink: 0 },
     injuryBadgeText: { fontSize: 9, fontWeight: '800' },
 
     dividerRow: { paddingTop: 12, paddingBottom: 3 },
@@ -874,7 +873,7 @@ const styles = StyleSheet.create({
 
     noLineup: { padding: 32, alignItems: 'center', gap: 12 },
     noLineupText: { fontSize: 14, color: '#aaa', textAlign: 'center' },
-    setLineupBtn: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10, backgroundColor: '#F97316' },
+    setLineupBtn: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10, borderCurve: 'continuous' as const, backgroundColor: '#F97316' },
     setLineupBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
 
     noMatchup: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 8, padding: 32 },
@@ -883,13 +882,13 @@ const styles = StyleSheet.create({
 
     // IR overflow modal
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-    modalSheet: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, gap: 12 },
+    modalSheet: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, borderCurve: 'continuous' as const, padding: 24, gap: 12 },
     modalTitle: { fontSize: 17, fontWeight: '800', color: '#111' },
     modalSub: { fontSize: 13, color: '#888', marginBottom: 4 },
     overflowRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#f3f3f3', gap: 8 },
     overflowName: { fontSize: 14, fontWeight: '600', color: '#111' },
     overflowMeta: { fontSize: 12, color: '#888', marginTop: 1 },
-    overflowBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
+    overflowBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderCurve: 'continuous' as const },
     overflowBtnText: { fontSize: 12, fontWeight: '700' },
     modalCancel: { paddingVertical: 14, alignItems: 'center' },
     modalCancelText: { fontSize: 15, fontWeight: '600', color: '#888' },
@@ -897,8 +896,8 @@ const styles = StyleSheet.create({
     noLeague: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32, gap: 16 },
     noLeagueTitle: { fontSize: 28, fontWeight: '800', textAlign: 'center' },
     noLeagueSub: { fontSize: 15, color: '#888', textAlign: 'center', marginBottom: 8 },
-    primaryButton: { width: '100%', height: 52, backgroundColor: '#F97316', borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+    primaryButton: { width: '100%', height: 52, backgroundColor: '#F97316', borderRadius: 12, borderCurve: 'continuous' as const, justifyContent: 'center', alignItems: 'center' },
     primaryButtonText: { color: '#fff', fontWeight: '700', fontSize: 16 },
-    secondaryButton: { width: '100%', height: 52, borderWidth: 1.5, borderColor: '#F97316', borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+    secondaryButton: { width: '100%', height: 52, borderWidth: 1.5, borderColor: '#F97316', borderRadius: 12, borderCurve: 'continuous' as const, justifyContent: 'center', alignItems: 'center' },
     secondaryButtonText: { color: '#F97316', fontWeight: '700', fontSize: 16 },
 })

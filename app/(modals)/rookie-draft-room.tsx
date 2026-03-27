@@ -1,8 +1,7 @@
 import {
     View,
     Text,
-    FlatList,
-    TouchableOpacity,
+    Pressable,
     TextInput,
     StyleSheet,
     ActivityIndicator,
@@ -10,6 +9,7 @@ import {
     KeyboardAvoidingView,
     Platform,
 } from 'react-native'
+import { FlashList } from '@shopify/flash-list'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Stack, useLocalSearchParams } from 'expo-router'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -184,7 +184,7 @@ export default function RookieDraftRoomScreen() {
                     {isMyTurn && searchResults.length > 0 && (
                         <View style={styles.resultsContainer}>
                             {searchResults.map((p) => (
-                                <TouchableOpacity
+                                <Pressable
                                     key={p.id}
                                     style={styles.resultRow}
                                     onPress={() => handlePick(p)}
@@ -207,16 +207,16 @@ export default function RookieDraftRoomScreen() {
                                     ) : (
                                         <Text style={styles.pickBtn}>Pick</Text>
                                     )}
-                                </TouchableOpacity>
+                                </Pressable>
                             ))}
                         </View>
                     )}
 
                     {/* ── Pick board ───────────────────────────── */}
-                    <FlatList
+                    <FlashList
                         data={picks}
                         keyExtractor={(p) => String(p.overallPick)}
-                        ItemSeparatorComponent={() => <View style={styles.separator} />}
+                        ItemSeparatorComponent={ItemSeparator}
                         ListHeaderComponent={() => (
                             <View style={[styles.pickRow, styles.pickHeader]}>
                                 <Text style={[styles.pickNum, styles.headerText]}>#</Text>
@@ -227,6 +227,7 @@ export default function RookieDraftRoomScreen() {
                         renderItem={({ item }) => <PickRow item={item} myMemberId={myMemberId} nextPick={nextPick} />}
                     />
                 </KeyboardAvoidingView>
+
             </SafeAreaView>
         </>
     )
@@ -290,6 +291,8 @@ function PickRow({
     )
 }
 
+const ItemSeparator = () => <View style={styles.separator} />
+
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#fff' },
     center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
@@ -316,6 +319,7 @@ const styles = StyleSheet.create({
         paddingVertical: 10,
         backgroundColor: '#f5f5f5',
         borderRadius: 12,
+        borderCurve: 'continuous' as const,
         borderWidth: 1.5,
         borderColor: '#F97316',
     },
@@ -326,6 +330,7 @@ const styles = StyleSheet.create({
         marginHorizontal: 12,
         marginBottom: 8,
         borderRadius: 12,
+        borderCurve: 'continuous' as const,
         borderWidth: 1,
         borderColor: '#eee',
         overflow: 'hidden',
@@ -349,6 +354,7 @@ const styles = StyleSheet.create({
         width: 36,
         height: 36,
         borderRadius: 8,
+        borderCurve: 'continuous' as const,
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -358,6 +364,7 @@ const styles = StyleSheet.create({
         width: 28,
         height: 28,
         borderRadius: 6,
+        borderCurve: 'continuous' as const,
         justifyContent: 'center',
         alignItems: 'center',
     },

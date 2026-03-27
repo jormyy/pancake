@@ -2,14 +2,14 @@ import {
     View,
     Text,
     TextInput,
-    TouchableOpacity,
+    Pressable,
     ScrollView,
     StyleSheet,
     ActivityIndicator,
     Alert,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { Stack, router } from 'expo-router'
+import { Stack, useRouter } from 'expo-router'
 import { useEffect, useState } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
 import { getLineupSlots, updateLeague, updateLineupSlots } from '@/lib/league'
@@ -40,6 +40,7 @@ type ScoringMap = Record<string, string> // string for TextInput, parsed on save
 
 export default function CommissionerSettingsScreen() {
     const { current, refresh } = useLeagueContext()
+    const { back } = useRouter()
     const league = current?.leagues as any
 
     const [scoring, setScoring] = useState<ScoringMap>({})
@@ -144,7 +145,7 @@ export default function CommissionerSettingsScreen() {
                 ),
             ])
             await refresh()
-            router.back()
+            back()
         } catch (e: any) {
             Alert.alert('Error', e.message)
         } finally {
@@ -377,19 +378,19 @@ export default function CommissionerSettingsScreen() {
                             >
                                 <Text style={styles.rowLabel}>{type}</Text>
                                 <View style={styles.stepper}>
-                                    <TouchableOpacity
+                                    <Pressable
                                         style={styles.stepBtn}
                                         onPress={() => adjustSlot(type, -1)}
                                     >
                                         <Text style={styles.stepBtnText}>−</Text>
-                                    </TouchableOpacity>
+                                    </Pressable>
                                     <Text style={styles.stepValue}>{slots[type] ?? 0}</Text>
-                                    <TouchableOpacity
+                                    <Pressable
                                         style={styles.stepBtn}
                                         onPress={() => adjustSlot(type, 1)}
                                     >
                                         <Text style={styles.stepBtnText}>+</Text>
-                                    </TouchableOpacity>
+                                    </Pressable>
                                 </View>
                             </View>
                         ))}
@@ -429,17 +430,17 @@ export default function CommissionerSettingsScreen() {
                     </View>
 
                     {/* ── Save ──────────────────────────────────────── */}
-                    <TouchableOpacity style={styles.saveButton} onPress={save} disabled={saving}>
+                    <Pressable style={styles.saveButton} onPress={save} disabled={saving}>
                         {saving ? (
                             <ActivityIndicator color="#fff" />
                         ) : (
                             <Text style={styles.saveButtonText}>Save Settings</Text>
                         )}
-                    </TouchableOpacity>
+                    </Pressable>
 
                     {/* ── Commissioner Actions ───────────────────────── */}
                     <Text style={styles.sectionTitle}>COMMISSIONER ACTIONS</Text>
-                    <TouchableOpacity
+                    <Pressable
                         style={styles.actionButton}
                         onPress={generatePlayoffBracket}
                         disabled={generatingPlayoffs}
@@ -449,8 +450,8 @@ export default function CommissionerSettingsScreen() {
                         ) : (
                             <Text style={styles.actionButtonText}>Generate Playoff Bracket</Text>
                         )}
-                    </TouchableOpacity>
-                    <TouchableOpacity
+                    </Pressable>
+                    <Pressable
                         style={styles.actionButton}
                         onPress={advancePlayoffBracket}
                         disabled={advancingPlayoffs}
@@ -460,8 +461,8 @@ export default function CommissionerSettingsScreen() {
                         ) : (
                             <Text style={styles.actionButtonText}>Advance to Championship</Text>
                         )}
-                    </TouchableOpacity>
-                    <TouchableOpacity
+                    </Pressable>
+                    <Pressable
                         style={styles.actionButton}
                         onPress={processWaivers}
                         disabled={processingWaivers}
@@ -471,8 +472,8 @@ export default function CommissionerSettingsScreen() {
                         ) : (
                             <Text style={styles.actionButtonText}>Process Waiver Claims</Text>
                         )}
-                    </TouchableOpacity>
-                    <TouchableOpacity
+                    </Pressable>
+                    <Pressable
                         style={styles.actionButton}
                         onPress={syncStats}
                         disabled={syncingStats}
@@ -482,8 +483,8 @@ export default function CommissionerSettingsScreen() {
                         ) : (
                             <Text style={styles.actionButtonText}>Sync Player Stats</Text>
                         )}
-                    </TouchableOpacity>
-                    <TouchableOpacity
+                    </Pressable>
+                    <Pressable
                         style={styles.actionButton}
                         onPress={syncScores}
                         disabled={syncingScores}
@@ -493,8 +494,8 @@ export default function CommissionerSettingsScreen() {
                         ) : (
                             <Text style={styles.actionButtonText}>Sync Scores Now</Text>
                         )}
-                    </TouchableOpacity>
-                    <TouchableOpacity
+                    </Pressable>
+                    <Pressable
                         style={styles.actionButton}
                         onPress={syncRankings}
                         disabled={syncingRankings}
@@ -504,8 +505,8 @@ export default function CommissionerSettingsScreen() {
                         ) : (
                             <Text style={styles.actionButtonText}>Sync Dynasty Rankings</Text>
                         )}
-                    </TouchableOpacity>
-                    <TouchableOpacity
+                    </Pressable>
+                    <Pressable
                         style={styles.actionButton}
                         onPress={syncProjections}
                         disabled={syncingProjections}
@@ -515,8 +516,8 @@ export default function CommissionerSettingsScreen() {
                         ) : (
                             <Text style={styles.actionButtonText}>Sync Projections</Text>
                         )}
-                    </TouchableOpacity>
-                    <TouchableOpacity
+                    </Pressable>
+                    <Pressable
                         style={styles.actionButton}
                         onPress={syncGameSchedule}
                         disabled={syncingGames}
@@ -526,8 +527,8 @@ export default function CommissionerSettingsScreen() {
                         ) : (
                             <Text style={styles.actionButtonText}>Sync NBA Game Schedule</Text>
                         )}
-                    </TouchableOpacity>
-                    <TouchableOpacity
+                    </Pressable>
+                    <Pressable
                         style={styles.actionButton}
                         onPress={() => generateSchedule(false)}
                         disabled={generatingSchedule}
@@ -537,8 +538,8 @@ export default function CommissionerSettingsScreen() {
                         ) : (
                             <Text style={styles.actionButtonText}>Generate Season Schedule</Text>
                         )}
-                    </TouchableOpacity>
-                    <TouchableOpacity
+                    </Pressable>
+                    <Pressable
                         style={[styles.actionButton, { borderColor: '#EF4444' }]}
                         onPress={() =>
                             Alert.alert(
@@ -555,11 +556,11 @@ export default function CommissionerSettingsScreen() {
                         <Text style={[styles.actionButtonText, { color: '#EF4444' }]}>
                             Reset &amp; Regenerate Schedule
                         </Text>
-                    </TouchableOpacity>
+                    </Pressable>
 
                     {/* ── Annual Cycle ───────────────────────────── */}
                     <Text style={styles.sectionTitle}>ANNUAL CYCLE</Text>
-                    <TouchableOpacity
+                    <Pressable
                         style={[styles.actionButton, { borderColor: '#8B5CF6' }]}
                         onPress={handleAdvanceSeason}
                         disabled={advancingSeason}
@@ -571,7 +572,7 @@ export default function CommissionerSettingsScreen() {
                                 Advance to Next Season
                             </Text>
                         )}
-                    </TouchableOpacity>
+                    </Pressable>
                 </ScrollView>
             </SafeAreaView>
         </>
@@ -595,6 +596,7 @@ const styles = StyleSheet.create({
     card: {
         backgroundColor: '#fff',
         borderRadius: 14,
+        borderCurve: 'continuous' as const,
         borderWidth: 1,
         borderColor: '#eee',
         overflow: 'hidden',
@@ -617,6 +619,7 @@ const styles = StyleSheet.create({
         width: 30,
         height: 30,
         borderRadius: 8,
+        borderCurve: 'continuous' as const,
         backgroundColor: '#f3f3f3',
         justifyContent: 'center',
         alignItems: 'center',
@@ -634,6 +637,7 @@ const styles = StyleSheet.create({
         marginTop: 16,
         backgroundColor: '#F97316',
         borderRadius: 14,
+        borderCurve: 'continuous' as const,
         height: 52,
         justifyContent: 'center',
         alignItems: 'center',
@@ -643,6 +647,7 @@ const styles = StyleSheet.create({
     actionButton: {
         backgroundColor: '#fff',
         borderRadius: 14,
+        borderCurve: 'continuous' as const,
         borderWidth: 1.5,
         borderColor: '#F97316',
         height: 52,

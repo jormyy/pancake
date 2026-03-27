@@ -1,7 +1,7 @@
 import {
     View,
     Text,
-    TouchableOpacity,
+    Pressable,
     StyleSheet,
     ActivityIndicator,
     Alert,
@@ -9,7 +9,7 @@ import {
     TextInput,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { router, useLocalSearchParams } from 'expo-router'
+import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useEffect, useState, useCallback } from 'react'
 import { useAuth } from '@/hooks/use-auth'
 import { useLeagueContext } from '@/contexts/league-context'
@@ -41,10 +41,10 @@ function PlayerRow({
 }) {
     const p = player.players
     return (
-        <TouchableOpacity
+        <Pressable
             style={[styles.playerRow, selected && styles.playerRowSelected]}
             onPress={onToggle}
-            activeOpacity={0.7}
+
         >
             <View style={[styles.playerAvatar, selected && styles.playerAvatarSelected]}>
                 <Text style={styles.playerAvatarText}>{getInitials(p.display_name)}</Text>
@@ -63,7 +63,7 @@ function PlayerRow({
                     <Text style={styles.checkBadgeText}>+</Text>
                 </View>
             )}
-        </TouchableOpacity>
+        </Pressable>
     )
 }
 
@@ -77,10 +77,10 @@ function PickRow({
     onToggle: () => void
 }) {
     return (
-        <TouchableOpacity
+        <Pressable
             style={[styles.playerRow, selected && styles.playerRowSelected]}
             onPress={onToggle}
-            activeOpacity={0.7}
+
         >
             <View style={[styles.pickCircle, selected && styles.pickCircleSelected]}>
                 <Text style={styles.pickCircleText}>{yearShort(pick.seasonYear)}</Text>
@@ -96,7 +96,7 @@ function PickRow({
                     <Text style={styles.checkBadgeText}>+</Text>
                 </View>
             )}
-        </TouchableOpacity>
+        </Pressable>
     )
 }
 
@@ -104,6 +104,7 @@ export default function ProposeTradeScreen() {
     const { user } = useAuth()
     const { current } = useLeagueContext()
     const params = useLocalSearchParams<{ recipientMemberId?: string }>()
+    const { back } = useRouter()
 
     const league = current?.leagues as any
     const myMemberId = current?.id ?? ''
@@ -226,7 +227,7 @@ export default function ProposeTradeScreen() {
             )
 
             Alert.alert('Trade Proposed', 'Your trade offer has been sent.', [
-                { text: 'OK', onPress: () => router.back() },
+                { text: 'OK', onPress: () => back() },
             ])
         } catch (e: any) {
             Alert.alert('Error', e.message ?? 'Could not propose trade.')
@@ -256,11 +257,11 @@ export default function ProposeTradeScreen() {
         <SafeAreaView style={styles.container} edges={['top']}>
             {/* Header */}
             <View style={styles.header}>
-                <TouchableOpacity onPress={() => router.back()} style={styles.cancelBtn}>
+                <Pressable onPress={() => back()} style={styles.cancelBtn}>
                     <Text style={styles.cancelBtnText}>Cancel</Text>
-                </TouchableOpacity>
+                </Pressable>
                 <Text style={styles.headerTitle}>Propose Trade</Text>
-                <TouchableOpacity
+                <Pressable
                     onPress={handleSubmit}
                     style={[styles.submitBtn, !canSubmit && styles.submitBtnDisabled]}
                     disabled={!canSubmit}
@@ -270,7 +271,7 @@ export default function ProposeTradeScreen() {
                     ) : (
                         <Text style={styles.submitBtnText}>Send</Text>
                     )}
-                </TouchableOpacity>
+                </Pressable>
             </View>
 
             <ScrollView style={styles.scroll} keyboardShouldPersistTaps="handled">
@@ -287,7 +288,7 @@ export default function ProposeTradeScreen() {
                         {members.map((m) => {
                             const active = selectedRecipientId === m.id
                             return (
-                                <TouchableOpacity
+                                <Pressable
                                     key={m.id}
                                     style={[styles.teamChip, active && styles.teamChipActive]}
                                     onPress={() => setSelectedRecipientId(m.id)}
@@ -300,7 +301,7 @@ export default function ProposeTradeScreen() {
                                     >
                                         {m.team_name ?? 'Unnamed'}
                                     </Text>
-                                </TouchableOpacity>
+                                </Pressable>
                             )
                         })}
                     </ScrollView>
@@ -421,6 +422,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         paddingVertical: 7,
         borderRadius: 8,
+        borderCurve: 'continuous' as const,
         minWidth: 52,
         alignItems: 'center',
     },
@@ -456,6 +458,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 14,
         paddingVertical: 8,
         borderRadius: 20,
+        borderCurve: 'continuous' as const,
         backgroundColor: '#f3f3f3',
     },
     teamChipActive: { backgroundColor: '#F97316' },
@@ -476,6 +479,7 @@ const styles = StyleSheet.create({
         width: 40,
         height: 40,
         borderRadius: 20,
+        borderCurve: 'continuous' as const,
         backgroundColor: '#e5e7eb',
         justifyContent: 'center',
         alignItems: 'center',
@@ -487,6 +491,7 @@ const styles = StyleSheet.create({
         width: 40,
         height: 40,
         borderRadius: 20,
+        borderCurve: 'continuous' as const,
         backgroundColor: '#e5e7eb',
         justifyContent: 'center',
         alignItems: 'center',
@@ -504,6 +509,7 @@ const styles = StyleSheet.create({
         width: 24,
         height: 24,
         borderRadius: 12,
+        borderCurve: 'continuous' as const,
         backgroundColor: '#F97316',
         justifyContent: 'center',
         alignItems: 'center',
@@ -515,6 +521,7 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: '#e5e7eb',
         borderRadius: 10,
+        borderCurve: 'continuous' as const,
         paddingHorizontal: 14,
         paddingVertical: 10,
         fontSize: 14,

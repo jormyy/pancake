@@ -4,11 +4,11 @@ import {
     ScrollView,
     StyleSheet,
     ActivityIndicator,
-    TouchableOpacity,
+    Pressable,
     Alert,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { useLocalSearchParams, Stack, router } from 'expo-router'
+import { useLocalSearchParams, Stack, useRouter } from 'expo-router'
 import { useEffect, useState } from 'react'
 import { getPlayer, getPlayerSeasonAverages, getPlayerRecentGames } from '@/lib/players'
 import { getPlayerRosterStatus, addFreeAgent, dropPlayer, PlayerRosterStatus } from '@/lib/roster'
@@ -26,6 +26,7 @@ export default function PlayerDetailScreen() {
     const { id } = useLocalSearchParams<{ id: string }>()
     const { current } = useLeagueContext()
     const { user } = useAuth()
+    const { push } = useRouter()
     const [player, setPlayer] = useState<any>(null)
     const [averages, setAverages] = useState<any>(null)
     const [recentGames, setRecentGames] = useState<any[]>([])
@@ -155,7 +156,7 @@ export default function PlayerDetailScreen() {
                         {current &&
                             rosterStatus &&
                             (rosterStatus.status === 'free_agent' ? (
-                                <TouchableOpacity
+                                <Pressable
                                     style={styles.addButton}
                                     onPress={handleAdd}
                                     disabled={actionLoading}
@@ -165,21 +166,21 @@ export default function PlayerDetailScreen() {
                                     ) : (
                                         <Text style={styles.addButtonText}>+ Add</Text>
                                     )}
-                                </TouchableOpacity>
+                                </Pressable>
                             ) : rosterStatus.status === 'on_waivers' ? (
-                                <TouchableOpacity
+                                <Pressable
                                     style={styles.claimButton}
                                     onPress={() =>
-                                        router.push(
+                                        push(
                                             `/(modals)/claim-player?playerId=${id}`,
                                         )
                                     }
                                     disabled={actionLoading}
                                 >
                                     <Text style={styles.claimButtonText}>Claim</Text>
-                                </TouchableOpacity>
+                                </Pressable>
                             ) : rosterStatus.status === 'mine' ? (
-                                <TouchableOpacity
+                                <Pressable
                                     style={styles.dropButton}
                                     onPress={handleDrop}
                                     disabled={actionLoading}
@@ -189,7 +190,7 @@ export default function PlayerDetailScreen() {
                                     ) : (
                                         <Text style={styles.dropButtonText}>Drop</Text>
                                     )}
-                                </TouchableOpacity>
+                                </Pressable>
                             ) : (
                                 <View style={styles.takenBadge}>
                                     <Text style={styles.takenText}>
@@ -318,6 +319,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 10,
         paddingVertical: 4,
         borderRadius: 6,
+        borderCurve: 'continuous' as const,
     },
     injuryText: { color: '#fff', fontSize: 12, fontWeight: '700' },
 
@@ -332,6 +334,7 @@ const styles = StyleSheet.create({
         gap: 1,
         backgroundColor: '#eee',
         borderRadius: 12,
+        borderCurve: 'continuous' as const,
         overflow: 'hidden',
     },
     statCell: {
@@ -359,6 +362,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         paddingVertical: 10,
         borderRadius: 10,
+        borderCurve: 'continuous' as const,
         minWidth: 72,
         alignItems: 'center',
         alignSelf: 'flex-start',
@@ -369,6 +373,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         paddingVertical: 10,
         borderRadius: 10,
+        borderCurve: 'continuous' as const,
         borderWidth: 1.5,
         borderColor: '#EF4444',
         minWidth: 72,
@@ -382,6 +387,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 10,
         paddingVertical: 8,
         borderRadius: 8,
+        borderCurve: 'continuous' as const,
         alignSelf: 'flex-start',
     },
     takenText: { color: '#888', fontSize: 12, fontWeight: '600' },
@@ -391,6 +397,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         paddingVertical: 10,
         borderRadius: 10,
+        borderCurve: 'continuous' as const,
         minWidth: 72,
         alignItems: 'center',
         alignSelf: 'flex-start',
