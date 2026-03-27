@@ -6,6 +6,7 @@ import {
     ActivityIndicator,
     ScrollView,
     Alert,
+    Modal,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { router } from 'expo-router'
@@ -25,9 +26,19 @@ import {
     WeekDay,
 } from '@/lib/lineup'
 import { POSITION_COLORS } from '@/constants/positions'
+import { toggleIR, dropPlayer } from '@/lib/roster'
 
 type LineupData = { starters: LineupSlot[]; bench: LineupPlayer[]; ir: LineupPlayer[] }
-type Sel = { kind: 'starter'; index: number } | { kind: 'bench'; index: number }
+type Sel = { kind: 'starter'; index: number } | { kind: 'bench'; index: number } | { kind: 'ir'; index: number }
+
+// Pending IR activate — held while user resolves roster overflow
+type PendingIRActivate = { rosterPlayerId: string }
+
+function isIREligible(status: string | null): boolean {
+    if (!status) return false
+    const s = status.toLowerCase()
+    return s === 'out' || s.startsWith('ir')
+}
 
 const SLOT_W = 52
 
@@ -55,8 +66,11 @@ export default function HomeScreen() {
     const [saving, setSaving] = useState(false)
     const [autoSetting, setAutoSetting] = useState(false)
 
+    const [irOverflowPending, setIROverflowPending] = useState<PendingIRActivate | null>(null)
+    const [irOverflowSaving, setIROverflowSaving] = useState(false)
+
     const matchupRef = useRef<Matchup | null>(null)
-    const league = current?.leagues as any
+    const league = (current as any)?.leagues
 
     const loadLineups = useCallback(
         async (m: Matchup, date: string) => {
@@ -90,7 +104,7 @@ export default function HomeScreen() {
         setOppLineup(null)
         setSelected(null)
         try {
-            const m = await getMyMatchup(current.id, league.id)
+            const m = await getMyMatchup((current as any).id, league.id)
             setMatchup(m)
             matchupRef.current = m
             if (m) {
@@ -127,12 +141,68 @@ export default function HomeScreen() {
 
         const starters = myLineup.starters
         const bench = myLineup.bench
+        const ir = myLineup.ir
 
-        const aPlayer = selected.kind === 'starter' ? starters[selected.index].player : bench[selected.index]
-        const bPlayer = newSel.kind === 'starter' ? starters[newSel.index].player : bench[newSel.index]
-        const aSlot = selected.kind === 'starter' ? starters[selected.index].slotType : 'BE'
-        const bSlot = newSel.kind === 'starter' ? starters[newSel.index].slotType : 'BE'
+        const getPlayer = (s: Sel): LineupPlayer | null =>
+            s.kind === 'starter' ? starters[s.index]?.player ?? null
+            : s.kind === 'bench' ? bench[s.index] ?? null
+            : ir[s.index] ?? null
+        const getSlot = (s: Sel): string =>
+            s.kind === 'starter' ? starters[s.index]?.slotType ?? 'BE'
+            : s.kind === 'bench' ? 'BE'
+            : 'IR'
 
+        const aPlayer = getPlayer(selected)
+        const bPlayer = getPlayer(newSel)
+        const aSlot = getSlot(selected)
+        const bSlot = getSlot(newSel)
+
+        // ── IR swap branch ──────────────────────────────────────
+        if (aSlot === 'IR' || bSlot === 'IR') {
+            const irSel   = aSlot === 'IR' ? selected : newSel
+            const actSel  = aSlot === 'IR' ? newSel   : selected
+            const irPlayer  = getPlayer(irSel)
+            const actPlayer = getPlayer(actSel)
+
+            // Active player going to IR must be IR-eligible
+            if (actPlayer && !isIREligible(actPlayer.injuryStatus)) {
+                Alert.alert('Not eligible', `${actPlayer.displayName} must be OUT or IR-designated to be placed on Injured Reserve.`)
+                return
+            }
+
+            // Activating an IR player with no exchange → check overflow
+            if (irPlayer && !actPlayer) {
+                const rosterSize: number = league?.roster_size ?? 20
+                const activeCount = starters.filter(s => s.player !== null).length + bench.length
+                if (activeCount >= rosterSize) {
+                    setIROverflowPending({ rosterPlayerId: irPlayer.rosterPlayerId })
+                    return
+                }
+            }
+
+            setSaving(true)
+            try {
+                if (actPlayer) await toggleIR(actPlayer.rosterPlayerId, true)
+                if (irPlayer) {
+                    await toggleIR(irPlayer.rosterPlayerId, false)
+                    // If being moved into a starter slot, assign it
+                    if (actSel.kind === 'starter') {
+                        const slotType = starters[actSel.index]?.slotType
+                        if (slotType && canPlaySlot(irPlayer.position, slotType)) {
+                            await setPlayerSlot(matchup.myMemberId, league.id, matchup.seasonId, matchup.weekNumber, selectedDate, irPlayer.playerId, slotType)
+                        }
+                    }
+                }
+                await loadMyLineup(matchup, selectedDate)
+            } catch (e: any) {
+                Alert.alert('Error', e.message)
+            } finally {
+                setSaving(false)
+            }
+            return
+        }
+
+        // ── Regular (non-IR) swap ───────────────────────────────
         if (aPlayer && bSlot !== 'BE' && !canPlaySlot(aPlayer.position, bSlot)) {
             Alert.alert('Invalid move', `${aPlayer.displayName} can't play ${bSlot}`); return
         }
@@ -151,6 +221,36 @@ export default function HomeScreen() {
             Alert.alert('Error', e.message)
         } finally {
             setSaving(false)
+        }
+    }
+
+    async function handleIROverflowDrop(dropRosterPlayerId: string) {
+        if (!irOverflowPending || !matchup) return
+        setIROverflowSaving(true)
+        try {
+            await dropPlayer(dropRosterPlayerId)
+            await toggleIR(irOverflowPending.rosterPlayerId, false)
+            setIROverflowPending(null)
+            await loadMyLineup(matchup, selectedDate)
+        } catch (e: any) {
+            Alert.alert('Error', e.message)
+        } finally {
+            setIROverflowSaving(false)
+        }
+    }
+
+    async function handleIROverflowMoveToIR(moveRosterPlayerId: string) {
+        if (!irOverflowPending || !matchup) return
+        setIROverflowSaving(true)
+        try {
+            await toggleIR(moveRosterPlayerId, true)
+            await toggleIR(irOverflowPending.rosterPlayerId, false)
+            setIROverflowPending(null)
+            await loadMyLineup(matchup, selectedDate)
+        } catch (e: any) {
+            Alert.alert('Error', e.message)
+        } finally {
+            setIROverflowSaving(false)
         }
     }
 
@@ -187,9 +287,9 @@ export default function HomeScreen() {
     )
 
     const selectedPlayer = myLineup && selected
-        ? selected.kind === 'starter'
-            ? myLineup.starters[selected.index]?.player
-            : myLineup.bench[selected.index]
+        ? selected.kind === 'starter' ? myLineup.starters[selected.index]?.player
+        : selected.kind === 'bench' ? myLineup.bench[selected.index]
+        : myLineup.ir[selected.index]
         : null
 
     if (loading) {
@@ -203,11 +303,11 @@ export default function HomeScreen() {
             {memberships.length > 1 && (
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.switcherRow} contentContainerStyle={styles.switcherContent}>
                     {memberships.map((m) => {
-                        const l = m.leagues as any
-                        const isActive = m.id === current?.id
+                        const ma = m as any
+                        const isActive = ma.id === (current as any)?.id
                         return (
-                            <TouchableOpacity key={m.id} style={[styles.switcherChip, isActive && styles.switcherChipActive]} onPress={() => setCurrent(m)}>
-                                <Text style={[styles.switcherText, isActive && styles.switcherTextActive]}>{l?.name ?? 'League'}</Text>
+                            <TouchableOpacity key={ma.id} style={[styles.switcherChip, isActive && styles.switcherChipActive]} onPress={() => setCurrent(m)}>
+                                <Text style={[styles.switcherText, isActive && styles.switcherTextActive]}>{ma.leagues?.name ?? 'League'}</Text>
                             </TouchableOpacity>
                         )
                     })}
@@ -283,6 +383,52 @@ export default function HomeScreen() {
                     <Text style={styles.noMatchupSub}>Matchups are generated before each week starts.</Text>
                 </View>
             )}
+
+            {/* IR overflow modal */}
+            <Modal
+                visible={irOverflowPending !== null}
+                transparent
+                animationType="slide"
+                onRequestClose={() => setIROverflowPending(null)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalSheet}>
+                        <Text style={styles.modalTitle}>Active Roster Full</Text>
+                        <Text style={styles.modalSub}>
+                            Drop a player or move one to IR to make room.
+                        </Text>
+                        <ScrollView style={{ maxHeight: 360 }}>
+                            {myLineup && [...myLineup.starters.filter(s => s.player).map(s => s.player!), ...myLineup.bench].map((p) => (
+                                <View key={p.rosterPlayerId} style={styles.overflowRow}>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={styles.overflowName} numberOfLines={1}>{p.displayName}</Text>
+                                        <Text style={styles.overflowMeta}>{p.nbaTeam ?? 'FA'}{p.position ? ` · ${p.position}` : ''}</Text>
+                                    </View>
+                                    {isIREligible(p.injuryStatus) && (
+                                        <TouchableOpacity
+                                            style={[styles.overflowBtn, { backgroundColor: '#991B1B22', marginRight: 6 }]}
+                                            onPress={() => handleIROverflowMoveToIR(p.rosterPlayerId)}
+                                            disabled={irOverflowSaving}
+                                        >
+                                            <Text style={[styles.overflowBtnText, { color: '#991B1B' }]}>→ IR</Text>
+                                        </TouchableOpacity>
+                                    )}
+                                    <TouchableOpacity
+                                        style={[styles.overflowBtn, { backgroundColor: '#EF444422' }]}
+                                        onPress={() => handleIROverflowDrop(p.rosterPlayerId)}
+                                        disabled={irOverflowSaving}
+                                    >
+                                        <Text style={[styles.overflowBtnText, { color: '#EF4444' }]}>Drop</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            ))}
+                        </ScrollView>
+                        <TouchableOpacity style={styles.modalCancel} onPress={() => setIROverflowPending(null)}>
+                            <Text style={styles.modalCancelText}>Cancel</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
         </SafeAreaView>
     )
 }
@@ -316,7 +462,6 @@ function MatchupLineupView({
                     myPlayer={slot.player}
                     oppPlayer={oppLineup.starters[i]?.player ?? null}
                     slotType={slot.slotType}
-                    swappable
                     selKind="starter"
                     selIndex={i}
                     selected={selected}
@@ -335,7 +480,6 @@ function MatchupLineupView({
                             myPlayer={myLineup.bench[i] ?? null}
                             oppPlayer={oppLineup.bench[i] ?? null}
                             slotType="BE"
-                            swappable
                             selKind="bench"
                             selIndex={i}
                             selected={selected}
@@ -349,14 +493,15 @@ function MatchupLineupView({
 
             {maxIR > 0 && (
                 <>
-                    <SectionDivider label="IR" color="#EF4444" />
+                    <SectionDivider label="INJURED RESERVE" color="#EF4444" />
                     {Array.from({ length: maxIR }, (_, i) => (
                         <MatchupRow
                             key={`ir${i}`}
                             myPlayer={myLineup.ir[i] ?? null}
                             oppPlayer={oppLineup.ir[i] ?? null}
                             slotType="IR"
-                            swappable={false}
+                            selKind="ir"
+                            selIndex={i}
                             selected={selected}
                             onTap={onTap}
                             saving={saving}
@@ -373,7 +518,6 @@ function MatchupRow({
     myPlayer,
     oppPlayer,
     slotType,
-    swappable,
     selKind,
     selIndex,
     selected,
@@ -384,17 +528,14 @@ function MatchupRow({
     myPlayer: LineupPlayer | null
     oppPlayer: LineupPlayer | null
     slotType: string
-    swappable: boolean
-    selKind?: 'starter' | 'bench'
-    selIndex?: number
+    selKind: 'starter' | 'bench' | 'ir'
+    selIndex: number
     selected: Sel | null
     onTap: (sel: Sel) => void
     saving: boolean
     playingTeams: Set<string>
 }) {
-    const isSel = swappable && selKind != null && selIndex != null &&
-        selected?.kind === selKind && selected.index === selIndex
-
+    const isSel = selected?.kind === selKind && selected.index === selIndex
     const slotColor = slotType === 'IR' ? '#EF4444' : (POSITION_COLORS[slotType] ?? '#aaa')
     const myHasGame = myPlayer?.nbaTeam ? playingTeams.has(myPlayer.nbaTeam) : false
     const oppHasGame = oppPlayer?.nbaTeam ? playingTeams.has(oppPlayer.nbaTeam) : false
@@ -410,9 +551,12 @@ function MatchupRow({
             >
                 {myPlayer ? (
                     <>
-                        <Text style={[styles.sideName, !myHasGame && styles.noGameName, { textAlign: 'right' }]} numberOfLines={1}>
-                            {shortName(myPlayer.displayName)}
-                        </Text>
+                        <View style={[styles.metaRow, { justifyContent: 'flex-end' }]}>
+                            <InjuryBadge status={myPlayer.injuryStatus} />
+                            <Text style={[styles.sideName, !myHasGame && styles.noGameName]} numberOfLines={1}>
+                                {shortName(myPlayer.displayName)}
+                            </Text>
+                        </View>
                         <View style={[styles.metaRow, { justifyContent: 'flex-end' }]}>
                             {myPlayer.position && <PosTag position={myPlayer.position} />}
                             <Text style={styles.sideMeta} numberOfLines={1}>
@@ -432,11 +576,9 @@ function MatchupRow({
                     { backgroundColor: slotColor + '22' },
                     isSel && styles.slotChipSelected,
                 ]}
-                onPress={swappable && selKind != null && selIndex != null
-                    ? () => onTap({ kind: selKind, index: selIndex })
-                    : undefined}
-                disabled={!swappable || saving}
-                activeOpacity={swappable ? 0.7 : 1}
+                onPress={() => onTap({ kind: selKind, index: selIndex })}
+                disabled={saving}
+                activeOpacity={0.7}
             >
                 <Text style={[styles.slotChipText, { color: isSel ? '#F97316' : slotColor }]}>
                     {slotType}
@@ -452,9 +594,12 @@ function MatchupRow({
             >
                 {oppPlayer ? (
                     <>
-                        <Text style={[styles.sideName, !oppHasGame && styles.noGameName]} numberOfLines={1}>
-                            {shortName(oppPlayer.displayName)}
-                        </Text>
+                        <View style={styles.metaRow}>
+                            <Text style={[styles.sideName, !oppHasGame && styles.noGameName]} numberOfLines={1}>
+                                {shortName(oppPlayer.displayName)}
+                            </Text>
+                            <InjuryBadge status={oppPlayer.injuryStatus} />
+                        </View>
                         <View style={styles.metaRow}>
                             {oppPlayer.position && <PosTag position={oppPlayer.position} />}
                             <Text style={styles.sideMeta} numberOfLines={1}>
@@ -475,6 +620,24 @@ function PosTag({ position }: { position: string }) {
     return (
         <View style={[styles.posTag, { backgroundColor: color + '22' }]}>
             <Text style={[styles.posTagText, { color }]}>{position}</Text>
+        </View>
+    )
+}
+
+function InjuryBadge({ status }: { status: string | null }) {
+    if (!status) return null
+    const s = status.toLowerCase()
+    let label = status.toUpperCase()
+    let color = '#aaa'
+    if (s === 'out') { color = '#EF4444'; label = 'OUT' }
+    else if (s.startsWith('ir')) { color = '#991B1B'; label = 'IR' }
+    else if (s === 'gtd' || s === 'game time decision') { color = '#D97706'; label = 'GTD' }
+    else if (s === 'd-td' || s === 'day-to-day') { color = '#F97316'; label = 'D-TD' }
+    else return null
+
+    return (
+        <View style={[styles.injuryBadge, { backgroundColor: color + '22' }]}>
+            <Text style={[styles.injuryBadgeText, { color }]}>{label}</Text>
         </View>
     )
 }
@@ -703,6 +866,8 @@ const styles = StyleSheet.create({
     },
     slotChipSelected: { borderWidth: 1.5, borderColor: '#F97316' },
     slotChipText: { fontSize: 11, fontWeight: '800', letterSpacing: 0.3 },
+    injuryBadge: { paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4, flexShrink: 0 },
+    injuryBadgeText: { fontSize: 9, fontWeight: '800' },
 
     dividerRow: { paddingTop: 12, paddingBottom: 3 },
     dividerText: { fontSize: 10, fontWeight: '800', color: '#bbb', letterSpacing: 0.8 },
@@ -715,6 +880,19 @@ const styles = StyleSheet.create({
     noMatchup: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 8, padding: 32 },
     noMatchupText: { fontSize: 16, fontWeight: '600', color: '#555' },
     noMatchupSub: { fontSize: 13, color: '#aaa', textAlign: 'center' },
+
+    // IR overflow modal
+    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
+    modalSheet: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, gap: 12 },
+    modalTitle: { fontSize: 17, fontWeight: '800', color: '#111' },
+    modalSub: { fontSize: 13, color: '#888', marginBottom: 4 },
+    overflowRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#f3f3f3', gap: 8 },
+    overflowName: { fontSize: 14, fontWeight: '600', color: '#111' },
+    overflowMeta: { fontSize: 12, color: '#888', marginTop: 1 },
+    overflowBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
+    overflowBtnText: { fontSize: 12, fontWeight: '700' },
+    modalCancel: { paddingVertical: 14, alignItems: 'center' },
+    modalCancelText: { fontSize: 15, fontWeight: '600', color: '#888' },
 
     noLeague: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32, gap: 16 },
     noLeagueTitle: { fontSize: 28, fontWeight: '800', textAlign: 'center' },

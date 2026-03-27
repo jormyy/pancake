@@ -180,6 +180,10 @@ export async function getWeeklyLineup(
         (assignments ?? []).map((a: any) => [a.player_id, a.slot_type]),
     )
 
+    const irPlayerIds = new Set<string>(
+        (roster ?? []).filter((r: any) => r.is_on_ir).map((r: any) => r.player_id as string),
+    )
+
     const rosterByPlayerId = new Map<string, LineupPlayer>()
     for (const r of roster ?? []) {
         const p = (r as any).players
@@ -200,7 +204,8 @@ export async function getWeeklyLineup(
 
     const slotGroups: Record<string, string[]> = {}
     for (const [playerId, slotType] of assignmentMap.entries()) {
-        if (slotType !== 'BE') {
+        // Skip IR players — they shouldn't fill starter slots even if a stale lineup entry exists
+        if (slotType !== 'BE' && !irPlayerIds.has(playerId)) {
             if (!slotGroups[slotType]) slotGroups[slotType] = []
             slotGroups[slotType].push(playerId)
         }
