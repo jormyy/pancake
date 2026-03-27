@@ -307,9 +307,9 @@ export default function HomeScreen() {
                         const ma = m as any
                         const isActive = ma.id === (current as any)?.id
                         return (
-                            <TouchableOpacity key={ma.id} style={[styles.switcherChip, isActive && styles.switcherChipActive]} onPress={() => setCurrent(m)}>
+                            <Pressable key={ma.id} style={[styles.switcherChip, isActive && styles.switcherChipActive]} onPress={() => setCurrent(m)}>
                                 <Text style={[styles.switcherText, isActive && styles.switcherTextActive]}>{ma.leagues?.name ?? 'League'}</Text>
-                            </TouchableOpacity>
+                            </Pressable>
                         )
                     })}
                 </ScrollView>
@@ -406,27 +406,27 @@ export default function HomeScreen() {
                                         <Text style={styles.overflowMeta}>{p.nbaTeam ?? 'FA'}{p.position ? ` · ${p.position}` : ''}</Text>
                                     </View>
                                     {isIREligible(p.injuryStatus) && (
-                                        <TouchableOpacity
+                                        <Pressable
                                             style={[styles.overflowBtn, { backgroundColor: '#991B1B22', marginRight: 6 }]}
                                             onPress={() => handleIROverflowMoveToIR(p.rosterPlayerId)}
                                             disabled={irOverflowSaving}
                                         >
                                             <Text style={[styles.overflowBtnText, { color: '#991B1B' }]}>→ IR</Text>
-                                        </TouchableOpacity>
+                                        </Pressable>
                                     )}
-                                    <TouchableOpacity
+                                    <Pressable
                                         style={[styles.overflowBtn, { backgroundColor: '#EF444422' }]}
                                         onPress={() => handleIROverflowDrop(p.rosterPlayerId)}
                                         disabled={irOverflowSaving}
                                     >
                                         <Text style={[styles.overflowBtnText, { color: '#EF4444' }]}>Drop</Text>
-                                    </TouchableOpacity>
+                                    </Pressable>
                                 </View>
                             ))}
                         </ScrollView>
-                        <TouchableOpacity style={styles.modalCancel} onPress={() => setIROverflowPending(null)}>
+                        <Pressable style={styles.modalCancel} onPress={() => setIROverflowPending(null)}>
                             <Text style={styles.modalCancelText}>Cancel</Text>
-                        </TouchableOpacity>
+                        </Pressable>
                     </View>
                 </View>
             </Modal>
