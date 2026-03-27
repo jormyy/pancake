@@ -1,17 +1,17 @@
 import {
     View,
     Text,
-    TouchableOpacity,
+    Pressable,
     StyleSheet,
     ActivityIndicator,
     Alert,
-    FlatList,
     RefreshControl,
     Modal,
     ScrollView,
 } from 'react-native'
+import { FlashList } from '@shopify/flash-list'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { router } from 'expo-router'
+import { useRouter } from 'expo-router'
 import { useCallback, useEffect, useState } from 'react'
 import { useAuth } from '@/hooks/use-auth'
 import { useLeagueContext } from '@/contexts/league-context'
@@ -48,6 +48,14 @@ const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
     expired: { bg: '#F3F4F6', text: '#6B7280' },
     vetoed: { bg: '#FEE2E2', text: '#991B1B' },
 }
+
+const ItemSeparator = () => <View style={styles.separator} />
+
+const ListEmpty = () => (
+    <View style={styles.empty}>
+        <Text style={styles.emptyText}>No trades to show.</Text>
+    </View>
+)
 
 function itemLabel(item: TradeItem): string {
     if (item.kind === 'player') {
@@ -243,28 +251,28 @@ function TradeCard({
                 <>
                     {tab === 'inbox' && trade.status === 'pending' && (
                         <View style={styles.cardActions}>
-                            <TouchableOpacity
+                            <Pressable
                                 style={[styles.actionBtn, styles.actionBtnAccept]}
                                 onPress={handleAccept}
                             >
                                 <Text style={styles.actionBtnAcceptText}>Accept</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
+                            </Pressable>
+                            <Pressable
                                 style={[styles.actionBtn, styles.actionBtnReject]}
                                 onPress={handleReject}
                             >
                                 <Text style={styles.actionBtnRejectText}>Reject</Text>
-                            </TouchableOpacity>
+                            </Pressable>
                         </View>
                     )}
                     {tab === 'offers' && trade.status === 'pending' && (
                         <View style={styles.cardActions}>
-                            <TouchableOpacity
+                            <Pressable
                                 style={[styles.actionBtn, styles.actionBtnReject]}
                                 onPress={handleWithdraw}
                             >
                                 <Text style={styles.actionBtnRejectText}>Withdraw</Text>
-                            </TouchableOpacity>
+                            </Pressable>
                         </View>
                     )}
                 </>
@@ -287,7 +295,7 @@ function TradeCard({
                                             {[rp.players.position, rp.players.nba_team].filter(Boolean).join(' · ')}
                                         </Text>
                                     </View>
-                                    <TouchableOpacity
+                                    <Pressable
                                         style={styles.dropBtn}
                                         onPress={() => handleDropAndAccept(rp.id)}
                                         disabled={dropping !== null}
@@ -297,16 +305,16 @@ function TradeCard({
                                         ) : (
                                             <Text style={styles.dropBtnText}>Drop</Text>
                                         )}
-                                    </TouchableOpacity>
+                                    </Pressable>
                                 </View>
                             ))}
                         </ScrollView>
-                        <TouchableOpacity
+                        <Pressable
                             style={styles.modalCancelBtn}
                             onPress={() => setDropPickerVisible(false)}
                         >
                             <Text style={styles.modalCancelText}>Cancel</Text>
-                        </TouchableOpacity>
+                        </Pressable>
                     </View>
                 </View>
             </Modal>
@@ -315,6 +323,7 @@ function TradeCard({
 }
 
 export default function TradesScreen() {
+    const { push, back } = useRouter()
     const { user } = useAuth()
     const { current } = useLeagueContext()
 
@@ -379,15 +388,15 @@ export default function TradesScreen() {
                 <View style={{ width: 60 }} />
                 <Text style={styles.headerTitle}>Trades</Text>
                 <View style={styles.headerRight}>
-                    <TouchableOpacity
+                    <Pressable
                         style={styles.proposeBtn}
-                        onPress={() => router.push('/(modals)/propose-trade')}
+                        onPress={() => push('/(modals)/propose-trade')}
                     >
                         <Text style={styles.proposeBtnText}>Propose</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => router.back()} style={styles.doneBtn}>
+                    </Pressable>
+                    <Pressable onPress={() => back()} style={styles.doneBtn}>
                         <Text style={styles.doneBtnText}>Done</Text>
-                    </TouchableOpacity>
+                    </Pressable>
                 </View>
             </View>
 
@@ -397,7 +406,7 @@ export default function TradesScreen() {
                     const active = tab === t.key
                     const badge = t.key === 'inbox' && pendingInboxCount > 0 ? pendingInboxCount : null
                     return (
-                        <TouchableOpacity
+                        <Pressable
                             key={t.key}
                             style={[styles.tabChip, active && styles.tabChipActive]}
                             onPress={() => setTab(t.key)}
@@ -406,7 +415,7 @@ export default function TradesScreen() {
                                 {t.label}
                                 {badge ? ` (${badge})` : ''}
                             </Text>
-                        </TouchableOpacity>
+                        </Pressable>
                     )
                 })}
             </View>
@@ -414,7 +423,7 @@ export default function TradesScreen() {
             {loading ? (
                 <ActivityIndicator color="#F97316" style={{ marginTop: 32 }} />
             ) : (
-                <FlatList
+                <FlashList
                     data={filteredTrades}
                     keyExtractor={(t) => t.id}
                     contentContainerStyle={styles.listContent}
@@ -425,18 +434,8 @@ export default function TradesScreen() {
                             tintColor="#F97316"
                         />
                     }
-                    ItemSeparatorComponent={() => <View style={styles.separator} />}
-                    ListEmptyComponent={() => (
-                        <View style={styles.empty}>
-                            <Text style={styles.emptyText}>
-                                {tab === 'inbox'
-                                    ? 'No pending trade offers.'
-                                    : tab === 'offers'
-                                      ? 'No pending outgoing offers.'
-                                      : 'No trade history yet.'}
-                            </Text>
-                        </View>
-                    )}
+                    ItemSeparatorComponent={ItemSeparator}
+                    ListEmptyComponent={ListEmpty}
                     renderItem={({ item }) => (
                         <TradeCard
                             trade={item}
@@ -472,6 +471,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 12,
         paddingVertical: 6,
         borderRadius: 8,
+        borderCurve: 'continuous' as const,
     },
     proposeBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
     doneBtn: { paddingVertical: 6, paddingHorizontal: 4 },
@@ -489,6 +489,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 14,
         paddingVertical: 7,
         borderRadius: 20,
+        borderCurve: 'continuous' as const,
         backgroundColor: '#f3f3f3',
     },
     tabChipActive: { backgroundColor: '#F97316' },
@@ -502,6 +503,7 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: '#e5e7eb',
         borderRadius: 12,
+        borderCurve: 'continuous' as const,
         padding: 14,
         backgroundColor: '#fff',
         gap: 4,
@@ -517,6 +519,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 8,
         paddingVertical: 3,
         borderRadius: 6,
+        borderCurve: 'continuous' as const,
     },
     statusText: { fontSize: 11, fontWeight: '700' },
 
@@ -538,6 +541,7 @@ const styles = StyleSheet.create({
         flex: 1,
         paddingVertical: 9,
         borderRadius: 8,
+        borderCurve: 'continuous' as const,
         alignItems: 'center',
     },
     actionBtnAccept: { backgroundColor: '#F97316' },
@@ -557,6 +561,7 @@ const styles = StyleSheet.create({
         backgroundColor: '#fff',
         borderTopLeftRadius: 20,
         borderTopRightRadius: 20,
+        borderCurve: 'continuous' as const,
         paddingTop: 20,
         paddingHorizontal: 16,
         paddingBottom: 32,
@@ -581,6 +586,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 14,
         paddingVertical: 7,
         borderRadius: 8,
+        borderCurve: 'continuous' as const,
         minWidth: 60,
         alignItems: 'center',
     },
@@ -589,6 +595,7 @@ const styles = StyleSheet.create({
         marginTop: 14,
         paddingVertical: 13,
         borderRadius: 10,
+        borderCurve: 'continuous' as const,
         backgroundColor: '#f3f3f3',
         alignItems: 'center',
     },

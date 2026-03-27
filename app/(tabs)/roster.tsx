@@ -1,14 +1,14 @@
 import {
     View,
     Text,
-    FlatList,
-    TouchableOpacity,
+    Pressable,
     StyleSheet,
     ActivityIndicator,
     Alert,
 } from 'react-native'
+import { FlashList } from '@shopify/flash-list'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { router } from 'expo-router'
+import { useRouter } from 'expo-router'
 import { useEffect, useState, useCallback } from 'react'
 import { useFocusEffect } from '@react-navigation/native'
 import { useAuth } from '@/hooks/use-auth'
@@ -25,7 +25,10 @@ const INJURY_COLORS: Record<string, string> = {
     IR: '#7F1D1D',
 }
 
+const ItemSeparator = () => <View style={styles.separator} />
+
 export default function RosterScreen() {
+    const { push } = useRouter()
     const { user } = useAuth()
     const { current, loading: leagueLoading } = useLeagueContext()
     const [roster, setRoster] = useState<RosterPlayer[]>([])
@@ -140,12 +143,12 @@ export default function RosterScreen() {
                         {league?.ir_slots ?? 2} IR
                     </Text>
                 </View>
-                <TouchableOpacity
+                <Pressable
                     style={styles.lineupButton}
-                    onPress={() => router.push('/(modals)/lineup')}
+                    onPress={() => push('/(modals)/lineup')}
                 >
                     <Text style={styles.lineupButtonText}>Set Lineup</Text>
-                </TouchableOpacity>
+                </Pressable>
             </View>
 
             {loading ? (
@@ -156,7 +159,7 @@ export default function RosterScreen() {
                     <Text style={styles.emptyText}>Players will appear here after the draft.</Text>
                 </View>
             ) : (
-                <FlatList
+                <FlashList
                     data={[
                         ...active.map((p) => ({ ...p, _section: 'active' })),
                         ...(ir.length > 0 ? [{ _isHeader: true, _section: 'ir' } as any] : []),
@@ -171,7 +174,8 @@ export default function RosterScreen() {
                     keyExtractor={(item) =>
                         item._isHeader ? `header-${item._section}` : (item.id ?? item.pickId)
                     }
-                    ItemSeparatorComponent={() => <View style={styles.separator} />}
+                    ItemSeparatorComponent={ItemSeparator}
+                    getItemType={(item) => item._isHeader ? 'header' : item._section}
                     renderItem={({ item }) => {
                         if (item._isHeader) {
                             const label =
@@ -215,7 +219,7 @@ export default function RosterScreen() {
                                         </Text>
                                     </View>
                                     {isPending && (
-                                        <TouchableOpacity
+                                        <Pressable
                                             style={styles.cancelButton}
                                             onPress={() => handleCancelClaim(claim.id)}
                                             disabled={cancellingId === claim.id}
@@ -225,7 +229,7 @@ export default function RosterScreen() {
                                             ) : (
                                                 <Text style={styles.cancelButtonText}>Cancel</Text>
                                             )}
-                                        </TouchableOpacity>
+                                        </Pressable>
                                     )}
                                 </View>
                             )
@@ -256,10 +260,9 @@ export default function RosterScreen() {
                         const player = item.players
                         const pos = player.position ?? ''
                         return (
-                            <TouchableOpacity
+                            <Pressable
                                 style={styles.playerRow}
-                                onPress={() => router.push(`/player/${player.id}`)}
-                                activeOpacity={0.7}
+                                onPress={() => push(`/player/${player.id}`)}
                             >
                                 <View
                                     style={[
@@ -299,7 +302,7 @@ export default function RosterScreen() {
                                     )}
                                 </View>
 
-                                <TouchableOpacity
+                                <Pressable
                                     style={[
                                         styles.irButton,
                                         item.is_on_ir && styles.irButtonActive,
@@ -322,8 +325,8 @@ export default function RosterScreen() {
                                             {item.is_on_ir ? 'Active' : 'IR'}
                                         </Text>
                                     )}
-                                </TouchableOpacity>
-                            </TouchableOpacity>
+                                </Pressable>
+                            </Pressable>
                         )
                     }}
                 />
@@ -348,6 +351,7 @@ const styles = StyleSheet.create({
         paddingVertical: 8,
         backgroundColor: '#F97316',
         borderRadius: 10,
+        borderCurve: 'continuous' as const,
         marginLeft: 12,
     },
     lineupButtonText: { color: '#fff', fontWeight: '700', fontSize: 13 },
@@ -371,6 +375,7 @@ const styles = StyleSheet.create({
         width: 44,
         height: 44,
         borderRadius: 22,
+        borderCurve: 'continuous' as const,
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -384,6 +389,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 6,
         paddingVertical: 2,
         borderRadius: 4,
+        borderCurve: 'continuous' as const,
         marginTop: 2,
     },
     injuryText: { color: '#fff', fontSize: 10, fontWeight: '700' },
@@ -392,6 +398,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 12,
         paddingVertical: 6,
         borderRadius: 8,
+        borderCurve: 'continuous' as const,
         borderWidth: 1,
         borderColor: '#ddd',
         minWidth: 52,
@@ -412,6 +419,7 @@ const styles = StyleSheet.create({
         width: 44,
         height: 44,
         borderRadius: 22,
+        borderCurve: 'continuous' as const,
         backgroundColor: '#6366F1',
         justifyContent: 'center',
         alignItems: 'center',
@@ -429,6 +437,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 12,
         paddingVertical: 6,
         borderRadius: 8,
+        borderCurve: 'continuous' as const,
         borderWidth: 1,
         borderColor: '#ddd',
         minWidth: 60,

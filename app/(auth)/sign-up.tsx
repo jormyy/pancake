@@ -2,7 +2,7 @@ import {
     View,
     Text,
     TextInput,
-    TouchableOpacity,
+    Pressable,
     StyleSheet,
     KeyboardAvoidingView,
     Platform,
@@ -94,13 +94,13 @@ export default function SignUpScreen() {
                     onChangeText={setPassword}
                 />
 
-                <TouchableOpacity style={styles.button} onPress={handleSignUp} disabled={loading}>
+                <Pressable style={styles.button} onPress={handleSignUp} disabled={loading}>
                     {loading ? (
                         <ActivityIndicator color="#fff" />
                     ) : (
                         <Text style={styles.buttonText}>Create Account</Text>
                     )}
-                </TouchableOpacity>
+                </Pressable>
 
                 <Link href="/(auth)/sign-in" style={styles.link}>
                     Already have an account? Sign in
@@ -144,6 +144,7 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: '#ddd',
         borderRadius: 10,
+        borderCurve: 'continuous' as const,
         paddingHorizontal: 16,
         fontSize: 16,
         backgroundColor: '#fafafa',
@@ -152,6 +153,7 @@ const styles = StyleSheet.create({
         height: 50,
         backgroundColor: '#F97316',
         borderRadius: 10,
+        borderCurve: 'continuous' as const,
         justifyContent: 'center',
         alignItems: 'center',
         marginTop: 8,

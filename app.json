@@ -10,7 +10,6 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-
       "bundleIdentifier": "com.anonymous.pancake"
     },
     "android": {
@@ -48,7 +47,8 @@
           "icon": "./assets/images/icon.png",
           "color": "#F97316"
         }
-      ]
+      ],
+      "react-native-bottom-tabs"
     ],
     "experiments": {
       "typedRoutes": true,

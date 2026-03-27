@@ -2,19 +2,20 @@ import {
     View,
     Text,
     TextInput,
-    TouchableOpacity,
+    Pressable,
     StyleSheet,
     KeyboardAvoidingView,
     Platform,
     ActivityIndicator,
 } from 'react-native'
-import { router } from 'expo-router'
+import { useRouter } from 'expo-router'
 import { useState } from 'react'
 import { useAuth } from '@/hooks/use-auth'
 import { joinLeague } from '@/lib/league'
 
 export default function JoinLeagueScreen() {
     const { user } = useAuth()
+    const { back } = useRouter()
     const [inviteCode, setInviteCode] = useState('')
     const [teamName, setTeamName] = useState('')
     const [loading, setLoading] = useState(false)
@@ -29,7 +30,7 @@ export default function JoinLeagueScreen() {
         setError(null)
         try {
             await joinLeague(inviteCode.trim(), user!.id, teamName.trim())
-            router.back()
+            back()
         } catch (e: any) {
             setError(e.message ?? 'Something went wrong.')
         } finally {
@@ -65,13 +66,13 @@ export default function JoinLeagueScreen() {
 
                 {error && <Text style={styles.error}>{error}</Text>}
 
-                <TouchableOpacity style={styles.button} onPress={handleJoin} disabled={loading}>
+                <Pressable style={styles.button} onPress={handleJoin} disabled={loading}>
                     {loading ? (
                         <ActivityIndicator color="#fff" />
                     ) : (
                         <Text style={styles.buttonText}>Join League</Text>
                     )}
-                </TouchableOpacity>
+                </Pressable>
             </View>
         </KeyboardAvoidingView>
     )
@@ -86,6 +87,7 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: '#ddd',
         borderRadius: 10,
+        borderCurve: 'continuous' as const,
         paddingHorizontal: 16,
         fontSize: 16,
         backgroundColor: '#fafafa',
@@ -101,6 +103,7 @@ const styles = StyleSheet.create({
         height: 50,
         backgroundColor: '#F97316',
         borderRadius: 10,
+        borderCurve: 'continuous' as const,
         justifyContent: 'center',
         alignItems: 'center',
         marginTop: 24,

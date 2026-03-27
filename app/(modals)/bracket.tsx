@@ -201,6 +201,7 @@ const styles = StyleSheet.create({
     championBanner: {
         backgroundColor: '#FEF3C7',
         borderRadius: 14,
+        borderCurve: 'continuous' as const,
         borderWidth: 1,
         borderColor: '#FDE68A',
         padding: 20,
@@ -224,6 +225,7 @@ const styles = StyleSheet.create({
     card: {
         backgroundColor: '#fff',
         borderRadius: 14,
+        borderCurve: 'continuous' as const,
         borderWidth: 1,
         borderColor: '#eee',
         overflow: 'hidden',
@@ -246,6 +248,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 8,
         paddingVertical: 3,
         borderRadius: 20,
+        borderCurve: 'continuous' as const,
     },
     statusPending: { backgroundColor: '#f3f3f3' },
     statusLive: { backgroundColor: '#DCFCE7' },

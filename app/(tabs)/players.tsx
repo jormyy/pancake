@@ -2,16 +2,16 @@ import {
     View,
     Text,
     TextInput,
-    TouchableOpacity,
-    FlatList,
+    Pressable,
     StyleSheet,
     ActivityIndicator,
     Alert,
     Modal,
     ScrollView,
 } from 'react-native'
+import { FlashList } from '@shopify/flash-list'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { router } from 'expo-router'
+import { useRouter } from 'expo-router'
 import { useState, useEffect, useCallback } from 'react'
 import { useFocusEffect } from '@react-navigation/native'
 import { searchPlayers, PlayerRow } from '@/lib/players'
@@ -29,6 +29,8 @@ import { POSITION_COLORS } from '@/constants/positions'
 
 const POSITIONS = ['ALL', 'PG', 'SG', 'SF', 'PF', 'C', 'G', 'F']
 
+const ItemSeparator = () => <View style={styles.separator} />
+
 const INJURY_COLORS: Record<string, string> = {
     Questionable: '#F59E0B',
     Doubtful: '#F97316',
@@ -37,6 +39,7 @@ const INJURY_COLORS: Record<string, string> = {
 }
 
 export default function PlayersScreen() {
+    const { push } = useRouter()
     const { current } = useLeagueContext()
     const [query, setQuery] = useState('')
     const [position, setPosition] = useState('ALL')
@@ -170,7 +173,7 @@ export default function PlayersScreen() {
                 contentContainerStyle={styles.positionRow}
             >
                 {POSITIONS.map((item) => (
-                    <TouchableOpacity
+                    <Pressable
                         key={item}
                         style={[styles.posChip, position === item && styles.posChipActive]}
                         onPress={() => setPosition(item)}
@@ -178,7 +181,7 @@ export default function PlayersScreen() {
                         <Text style={[styles.posChipText, position === item && styles.posChipTextActive]}>
                             {item}
                         </Text>
-                    </TouchableOpacity>
+                    </Pressable>
                 ))}
             </ScrollView>
 
@@ -186,11 +189,11 @@ export default function PlayersScreen() {
             {loading ? (
                 <ActivityIndicator style={{ flex: 1 }} color="#F97316" />
             ) : (
-                <FlatList
+                <FlashList
                     data={players}
                     keyExtractor={(p) => p.id}
                     contentContainerStyle={players.length === 0 ? styles.emptyContainer : undefined}
-                    ItemSeparatorComponent={() => <View style={styles.separator} />}
+                    ItemSeparatorComponent={ItemSeparator}
                     renderItem={({ item }) => {
                         const owned = ownedMap.get(item.id)
                         const isMe = owned?.memberId === current?.id
@@ -205,7 +208,7 @@ export default function PlayersScreen() {
                                 {/* Plus button */}
                                 <View style={styles.addCol}>
                                     {canAdd && (
-                                        <TouchableOpacity
+                                        <Pressable
                                             style={styles.addBtn}
                                             onPress={() => handleAdd(item)}
                                             disabled={isAdding}
@@ -213,15 +216,14 @@ export default function PlayersScreen() {
                                             {isAdding
                                                 ? <ActivityIndicator size="small" color="#F97316" />
                                                 : <Text style={styles.addBtnText}>+</Text>}
-                                        </TouchableOpacity>
+                                        </Pressable>
                                     )}
                                 </View>
 
                                 {/* Player card (tappable → detail) */}
-                                <TouchableOpacity
+                                <Pressable
                                     style={styles.playerCard}
-                                    onPress={() => router.push(`/player/${item.id}`)}
-                                    activeOpacity={0.7}
+                                    onPress={() => push(`/player/${item.id}`)}
                                 >
                                     <View
                                         style={[
@@ -271,7 +273,7 @@ export default function PlayersScreen() {
                                             </Text>
                                         </View>
                                     )}
-                                </TouchableOpacity>
+                                </Pressable>
                             </View>
                         )
                     }}
@@ -316,7 +318,7 @@ export default function PlayersScreen() {
                                                 {[p.nba_team, p.position].filter(Boolean).join(' · ')}
                                             </Text>
                                         </View>
-                                        <TouchableOpacity
+                                        <Pressable
                                             style={styles.dropBtn}
                                             onPress={() => handleDropAndAdd(rp)}
                                             disabled={dropping !== null}
@@ -324,19 +326,19 @@ export default function PlayersScreen() {
                                             {isDroppingThis
                                                 ? <ActivityIndicator size="small" color="#fff" />
                                                 : <Text style={styles.dropBtnText}>Drop</Text>}
-                                        </TouchableOpacity>
+                                        </Pressable>
                                     </View>
                                 )
                             })}
                         </ScrollView>
 
-                        <TouchableOpacity
+                        <Pressable
                             style={styles.modalCancel}
                             onPress={() => setDropPickerPlayer(null)}
                             disabled={dropping !== null}
                         >
                             <Text style={styles.modalCancelText}>Cancel</Text>
-                        </TouchableOpacity>
+                        </Pressable>
                     </View>
                 </View>
             </Modal>
@@ -352,13 +354,14 @@ const styles = StyleSheet.create({
         height: 44,
         backgroundColor: '#f3f3f3',
         borderRadius: 10,
+        borderCurve: 'continuous' as const,
         paddingHorizontal: 14,
         fontSize: 16,
     },
 
     positionScrollView: { flexGrow: 0, flexShrink: 0 },
     positionRow: { paddingHorizontal: 16, paddingBottom: 10, gap: 8 },
-    posChip: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, backgroundColor: '#f3f3f3' },
+    posChip: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, borderCurve: 'continuous' as const, backgroundColor: '#f3f3f3' },
     posChipActive: { backgroundColor: '#F97316' },
     posChipText: { fontSize: 13, fontWeight: '600', color: '#555' },
     posChipTextActive: { color: '#fff' },
@@ -376,6 +379,7 @@ const styles = StyleSheet.create({
         width: 28,
         height: 28,
         borderRadius: 14,
+        borderCurve: 'continuous' as const,
         backgroundColor: '#F97316',
         alignItems: 'center',
         justifyContent: 'center',
@@ -396,6 +400,7 @@ const styles = StyleSheet.create({
         width: 44,
         height: 44,
         borderRadius: 22,
+        borderCurve: 'continuous' as const,
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -405,13 +410,14 @@ const styles = StyleSheet.create({
     playerName: { fontSize: 16, fontWeight: '600' },
     playerMeta: { fontSize: 13, color: '#888', marginTop: 2 },
 
-    injuryBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+    injuryBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, borderCurve: 'continuous' as const },
     injuryText: { color: '#fff', fontSize: 11, fontWeight: '700' },
 
     statusBadge: {
         paddingHorizontal: 7,
         paddingVertical: 3,
         borderRadius: 6,
+        borderCurve: 'continuous' as const,
         backgroundColor: '#f0f0f0',
         maxWidth: 90,
     },
@@ -435,6 +441,7 @@ const styles = StyleSheet.create({
         backgroundColor: '#fff',
         borderTopLeftRadius: 20,
         borderTopRightRadius: 20,
+        borderCurve: 'continuous' as const,
         paddingTop: 24,
         paddingHorizontal: 20,
         paddingBottom: 36,
@@ -463,6 +470,7 @@ const styles = StyleSheet.create({
         width: 38,
         height: 38,
         borderRadius: 19,
+        borderCurve: 'continuous' as const,
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -475,6 +483,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 14,
         paddingVertical: 7,
         borderRadius: 8,
+        borderCurve: 'continuous' as const,
         minWidth: 60,
         alignItems: 'center',
     },
@@ -485,6 +494,7 @@ const styles = StyleSheet.create({
         paddingVertical: 14,
         alignItems: 'center',
         borderRadius: 12,
+        borderCurve: 'continuous' as const,
         backgroundColor: '#f5f5f5',
     },
     modalCancelText: { fontSize: 15, fontWeight: '600', color: '#555' },

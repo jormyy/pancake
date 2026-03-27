@@ -2,15 +2,15 @@ import {
     View,
     Text,
     TextInput,
-    TouchableOpacity,
+    Pressable,
     StyleSheet,
-    FlatList,
     ActivityIndicator,
     Alert,
     ScrollView,
 } from 'react-native'
+import { FlashList } from '@shopify/flash-list'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { useLocalSearchParams, router } from 'expo-router'
+import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useAuth } from '@/hooks/use-auth'
 import { useLeagueContext } from '@/contexts/league-context'
@@ -32,6 +32,7 @@ export default function DraftRoomScreen() {
     const { draftId } = useLocalSearchParams<{ draftId: string }>()
     const { user } = useAuth()
     const { current } = useLeagueContext()
+    const { back } = useRouter()
 
     const [state, setState] = useState<DraftState | null>(null)
     const [loading, setLoading] = useState(true)
@@ -189,9 +190,9 @@ export default function DraftRoomScreen() {
                     <Text style={styles.draftEndedSub}>
                         All teams are out of budget. Remaining players are free agents.
                     </Text>
-                    <TouchableOpacity style={styles.nominateButton} onPress={() => router.back()}>
+                    <Pressable style={styles.nominateButton} onPress={() => back()}>
                         <Text style={styles.nominateButtonText}>Back to League</Text>
-                    </TouchableOpacity>
+                    </Pressable>
                 </View>
             </SafeAreaView>
         )
@@ -253,12 +254,12 @@ export default function DraftRoomScreen() {
 
                         {!iAmLeading && !iAmBankrupt && (
                             <View style={styles.bidInputRow}>
-                                <TouchableOpacity
+                                <Pressable
                                     style={styles.bidStep}
                                     onPress={() => setBidAmount((v) => Math.max(minBid, v - 1))}
                                 >
                                     <Text style={styles.bidStepText}>−</Text>
-                                </TouchableOpacity>
+                                </Pressable>
                                 <TextInput
                                     style={styles.bidAmountInput}
                                     value={String(bidAmount)}
@@ -278,7 +279,7 @@ export default function DraftRoomScreen() {
                                     keyboardType="number-pad"
                                     selectTextOnFocus
                                 />
-                                <TouchableOpacity
+                                <Pressable
                                     style={styles.bidStep}
                                     onPress={() =>
                                         setBidAmount((v) =>
@@ -287,8 +288,8 @@ export default function DraftRoomScreen() {
                                     }
                                 >
                                     <Text style={styles.bidStepText}>+</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity
+                                </Pressable>
+                                <Pressable
                                     style={[styles.bidButton, bidding && styles.bidButtonDisabled]}
                                     onPress={handleBid}
                                     disabled={
@@ -303,7 +304,7 @@ export default function DraftRoomScreen() {
                                     ) : (
                                         <Text style={styles.bidButtonText}>Bid ${bidAmount.toLocaleString()}</Text>
                                     )}
-                                </TouchableOpacity>
+                                </Pressable>
                             </View>
                         )}
                     </View>
@@ -328,12 +329,12 @@ export default function DraftRoomScreen() {
                                                 color="#F97316"
                                             />
                                         ) : (
-                                            <FlatList
+                                            <FlashList
                                                 data={searchResults}
                                                 keyExtractor={(p) => p.id}
                                                 scrollEnabled={false}
                                                 renderItem={({ item }) => (
-                                                    <TouchableOpacity
+                                                    <Pressable
                                                         style={styles.playerResult}
                                                         onPress={() =>
                                                             handleNominate(
@@ -362,7 +363,7 @@ export default function DraftRoomScreen() {
                                                                 Nominate
                                                             </Text>
                                                         )}
-                                                    </TouchableOpacity>
+                                                    </Pressable>
                                                 )}
                                                 ListEmptyComponent={
                                                     searchQuery.length > 0 && !searchLoading ? (
@@ -373,7 +374,7 @@ export default function DraftRoomScreen() {
                                                 }
                                             />
                                         )}
-                                        <TouchableOpacity
+                                        <Pressable
                                             style={styles.cancelNomButton}
                                             onPress={() => {
                                                 setNominating(false)
@@ -382,17 +383,17 @@ export default function DraftRoomScreen() {
                                             }}
                                         >
                                             <Text style={styles.cancelNomText}>Cancel</Text>
-                                        </TouchableOpacity>
+                                        </Pressable>
                                     </>
                                 ) : (
-                                    <TouchableOpacity
+                                    <Pressable
                                         style={styles.nominateButton}
                                         onPress={() => setNominating(true)}
                                     >
                                         <Text style={styles.nominateButtonText}>
                                             Search & Nominate a Player
                                         </Text>
-                                    </TouchableOpacity>
+                                    </Pressable>
                                 )}
                             </>
                         ) : (
@@ -408,7 +409,7 @@ export default function DraftRoomScreen() {
                 {/* Tab switcher */}
                 <View style={styles.tabRow}>
                     {(['budgets', 'history'] as DraftTab[]).map((t) => (
-                        <TouchableOpacity
+                        <Pressable
                             key={t}
                             style={[styles.tabChip, tab === t && styles.tabChipActive]}
                             onPress={() => setTab(t)}
@@ -420,7 +421,7 @@ export default function DraftRoomScreen() {
                                     ? 'Budgets'
                                     : `History (${closedNominations.length})`}
                             </Text>
-                        </TouchableOpacity>
+                        </Pressable>
                     ))}
                 </View>
 
@@ -515,6 +516,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 12,
         paddingVertical: 5,
         borderRadius: 20,
+        borderCurve: 'continuous' as const,
         borderWidth: 1,
         borderColor: '#FDBA74',
     },
@@ -523,6 +525,7 @@ const styles = StyleSheet.create({
     card: {
         backgroundColor: '#fff',
         borderRadius: 14,
+        borderCurve: 'continuous' as const,
         borderWidth: 1,
         borderColor: '#eee',
         padding: 16,
@@ -547,6 +550,7 @@ const styles = StyleSheet.create({
         width: 60,
         height: 60,
         borderRadius: 30,
+        borderCurve: 'continuous' as const,
         backgroundColor: '#f3f3f3',
         justifyContent: 'center',
         alignItems: 'center',
@@ -560,6 +564,7 @@ const styles = StyleSheet.create({
         width: 36,
         height: 36,
         borderRadius: 18,
+        borderCurve: 'continuous' as const,
         backgroundColor: '#f3f3f3',
         justifyContent: 'center',
         alignItems: 'center',
@@ -572,6 +577,7 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         backgroundColor: '#f3f3f3',
         borderRadius: 8,
+        borderCurve: 'continuous' as const,
         paddingHorizontal: 10,
         paddingVertical: 6,
     },
@@ -580,6 +586,7 @@ const styles = StyleSheet.create({
         height: 44,
         backgroundColor: '#F97316',
         borderRadius: 10,
+        borderCurve: 'continuous' as const,
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -592,6 +599,7 @@ const styles = StyleSheet.create({
         height: 48,
         backgroundColor: '#F97316',
         borderRadius: 10,
+        borderCurve: 'continuous' as const,
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -601,6 +609,7 @@ const styles = StyleSheet.create({
         height: 44,
         backgroundColor: '#f3f3f3',
         borderRadius: 10,
+        borderCurve: 'continuous' as const,
         paddingHorizontal: 14,
         fontSize: 15,
         marginTop: 4,
@@ -630,6 +639,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 14,
         paddingVertical: 8,
         borderRadius: 20,
+        borderCurve: 'continuous' as const,
         backgroundColor: '#f3f3f3',
     },
     tabChipActive: { backgroundColor: '#F97316' },
@@ -654,6 +664,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 8,
         paddingVertical: 3,
         borderRadius: 6,
+        borderCurve: 'continuous' as const,
     },
 
     empty: { alignItems: 'center', paddingVertical: 24 },

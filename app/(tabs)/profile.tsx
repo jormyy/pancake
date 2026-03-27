@@ -2,7 +2,7 @@ import {
     View,
     Text,
     TextInput,
-    TouchableOpacity,
+    Pressable,
     StyleSheet,
     ActivityIndicator,
     Alert,
@@ -187,10 +187,10 @@ export default function ProfileScreen() {
                 {/* Edit / Save / Cancel buttons */}
                 {editing ? (
                     <View style={styles.actionRow}>
-                        <TouchableOpacity style={styles.cancelButton} onPress={handleCancel}>
+                        <Pressable style={styles.cancelButton} onPress={handleCancel}>
                             <Text style={styles.cancelButtonText}>Cancel</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
+                        </Pressable>
+                        <Pressable
                             style={styles.saveButton}
                             onPress={handleSave}
                             disabled={saving}
@@ -200,18 +200,18 @@ export default function ProfileScreen() {
                             ) : (
                                 <Text style={styles.saveButtonText}>Save</Text>
                             )}
-                        </TouchableOpacity>
+                        </Pressable>
                     </View>
                 ) : (
-                    <TouchableOpacity style={styles.editButton} onPress={() => setEditing(true)}>
+                    <Pressable style={styles.editButton} onPress={() => setEditing(true)}>
                         <Text style={styles.editButtonText}>Edit Profile</Text>
-                    </TouchableOpacity>
+                    </Pressable>
                 )}
 
                 {/* Sign out */}
-                <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
+                <Pressable style={styles.signOutButton} onPress={handleSignOut}>
                     <Text style={styles.signOutText}>Sign Out</Text>
-                </TouchableOpacity>
+                </Pressable>
             </View>
         </SafeAreaView>
     )
@@ -226,6 +226,7 @@ const styles = StyleSheet.create({
         width: 84,
         height: 84,
         borderRadius: 42,
+        borderCurve: 'continuous' as const,
         backgroundColor: '#F97316',
         justifyContent: 'center',
         alignItems: 'center',
@@ -245,6 +246,7 @@ const styles = StyleSheet.create({
     card: {
         backgroundColor: '#fff',
         borderRadius: 14,
+        borderCurve: 'continuous' as const,
         borderWidth: 1,
         borderColor: '#eee',
         overflow: 'hidden',
@@ -273,6 +275,7 @@ const styles = StyleSheet.create({
     editButton: {
         backgroundColor: '#fff',
         borderRadius: 12,
+        borderCurve: 'continuous' as const,
         height: 48,
         justifyContent: 'center',
         alignItems: 'center',
@@ -285,6 +288,7 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: '#F97316',
         borderRadius: 12,
+        borderCurve: 'continuous' as const,
         height: 48,
         justifyContent: 'center',
         alignItems: 'center',
@@ -294,6 +298,7 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: '#fff',
         borderRadius: 12,
+        borderCurve: 'continuous' as const,
         height: 48,
         justifyContent: 'center',
         alignItems: 'center',
@@ -306,6 +311,7 @@ const styles = StyleSheet.create({
         marginTop: 8,
         height: 48,
         borderRadius: 12,
+        borderCurve: 'continuous' as const,
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 1,

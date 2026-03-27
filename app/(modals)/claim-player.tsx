@@ -1,14 +1,14 @@
 import {
     View,
     Text,
-    TouchableOpacity,
-    FlatList,
+    Pressable,
     StyleSheet,
     ActivityIndicator,
     Alert,
 } from 'react-native'
+import { FlashList } from '@shopify/flash-list'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { Stack, router, useLocalSearchParams } from 'expo-router'
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useEffect, useState } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useAuth } from '@/hooks/use-auth'
@@ -20,6 +20,7 @@ export default function ClaimPlayerScreen() {
     const { playerId } = useLocalSearchParams<{ playerId: string }>()
     const { current } = useLeagueContext()
     const { user } = useAuth()
+    const { back } = useRouter()
 
     const [player, setPlayer] = useState<any>(null)
     const [myRoster, setMyRoster] = useState<RosterPlayer[]>([])
@@ -74,7 +75,7 @@ export default function ClaimPlayerScreen() {
             Alert.alert(
                 'Claim Submitted',
                 'Your waiver claim has been submitted. Claims are processed nightly.',
-                [{ text: 'OK', onPress: () => router.back() }],
+                [{ text: 'OK', onPress: () => back() }],
             )
         } catch (e: any) {
             Alert.alert('Error', e.message)
@@ -127,17 +128,17 @@ export default function ClaimPlayerScreen() {
                     <>
                         <Text style={styles.sectionTitle}>DROP A PLAYER (required)</Text>
                         <Text style={styles.sectionSub}>Your roster is full. Select one player to drop if this claim succeeds.</Text>
-                        <FlatList
+                        <FlashList
                             data={activeRoster}
                             keyExtractor={(item) => item.id}
                             contentContainerStyle={styles.rosterList}
                             renderItem={({ item }) => {
                                 const isSelected = selectedDrop?.id === item.id
                                 return (
-                                    <TouchableOpacity
+                                    <Pressable
                                         style={[styles.rosterRow, isSelected && styles.rosterRowSelected]}
                                         onPress={() => setSelectedDrop(isSelected ? null : item)}
-                                        activeOpacity={0.7}
+
                                     >
                                         <View style={styles.rosterInfo}>
                                             <Text style={styles.rosterName}>{item.players.display_name}</Text>
@@ -150,7 +151,7 @@ export default function ClaimPlayerScreen() {
                                         <View style={[styles.check, isSelected && styles.checkSelected]}>
                                             {isSelected && <Text style={styles.checkText}>✓</Text>}
                                         </View>
-                                    </TouchableOpacity>
+                                    </Pressable>
                                 )
                             }}
                         />
@@ -164,7 +165,7 @@ export default function ClaimPlayerScreen() {
                 )}
 
                 <View style={styles.footer}>
-                    <TouchableOpacity
+                    <Pressable
                         style={[styles.submitButton, (needsDrop && !selectedDrop) && styles.submitButtonDisabled]}
                         onPress={handleSubmit}
                         disabled={submitting || (needsDrop && !selectedDrop)}
@@ -174,7 +175,7 @@ export default function ClaimPlayerScreen() {
                         ) : (
                             <Text style={styles.submitButtonText}>Submit Claim</Text>
                         )}
-                    </TouchableOpacity>
+                    </Pressable>
                 </View>
             </SafeAreaView>
         </>
@@ -189,6 +190,7 @@ const styles = StyleSheet.create({
         padding: 20,
         backgroundColor: '#fff',
         borderRadius: 14,
+        borderCurve: 'continuous' as const,
         borderWidth: 1,
         borderColor: '#eee',
         gap: 4,
@@ -207,6 +209,7 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: '#fff',
         borderRadius: 12,
+        borderCurve: 'continuous' as const,
         borderWidth: 1,
         borderColor: '#eee',
         padding: 14,
@@ -237,6 +240,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         backgroundColor: '#fff',
         borderRadius: 12,
+        borderCurve: 'continuous' as const,
         borderWidth: 1,
         borderColor: '#eee',
         padding: 14,
@@ -250,6 +254,7 @@ const styles = StyleSheet.create({
         width: 24,
         height: 24,
         borderRadius: 12,
+        borderCurve: 'continuous' as const,
         borderWidth: 1.5,
         borderColor: '#ddd',
         justifyContent: 'center',
@@ -263,6 +268,7 @@ const styles = StyleSheet.create({
         padding: 16,
         backgroundColor: '#F0FDF4',
         borderRadius: 12,
+        borderCurve: 'continuous' as const,
         borderWidth: 1,
         borderColor: '#BBF7D0',
     },
@@ -272,6 +278,7 @@ const styles = StyleSheet.create({
     submitButton: {
         backgroundColor: '#8B5CF6',
         borderRadius: 14,
+        borderCurve: 'continuous' as const,
         height: 52,
         justifyContent: 'center',
         alignItems: 'center',
