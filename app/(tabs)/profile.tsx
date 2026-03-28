@@ -209,7 +209,7 @@ const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgSubtle },
     scroll: { flex: 1, padding: spacing['3xl'], gap: spacing.xl },
 
-    avatarSection: { alignItems: 'center', paddingVertical: spacing.md },
+    avatarSection: { alignItems: 'center', paddingTop: 48, paddingBottom: spacing.md },
 
     sectionLabel: {
         fontSize: fontSize.xs,
