@@ -79,8 +79,8 @@ export interface NBAGame {
     gameId: string
     gameStatus: number // 1=Scheduled, 2=Live, 3=Final
     gameStatusText: string
-    homeTeam: { teamTricode: string }
-    awayTeam: { teamTricode: string }
+    homeTeam: { teamTricode: string; score: number }
+    awayTeam: { teamTricode: string; score: number }
 }
 
 export interface NBAScheduledGame {
