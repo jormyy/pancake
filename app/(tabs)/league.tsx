@@ -564,7 +564,8 @@ const styles = StyleSheet.create({
     tabRowContent: {
         flexDirection: 'row',
         gap: spacing.md,
-        paddingHorizontal: spacing['2xl'],
+        paddingLeft: spacing['2xl'],
+        paddingRight: spacing['4xl'],
         paddingVertical: spacing.lg,
     },
     tabChip: {

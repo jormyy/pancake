@@ -757,7 +757,7 @@ const styles = StyleSheet.create({
     switcherText: { fontSize: 13, fontWeight: '600', color: colors.textSecondary },
     switcherTextActive: { color: colors.textWhite },
 
-    scrollContent: { paddingBottom: 40 },
+    scrollContent: { paddingTop: 28, paddingBottom: 40 },
 
     // Score card
     matchupCard: {

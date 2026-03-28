@@ -383,7 +383,7 @@ const styles = StyleSheet.create({
     },
 
     positionScrollView: { flexGrow: 0, flexShrink: 0 },
-    positionRow: { paddingHorizontal: spacing.xl, paddingBottom: spacing.lg, gap: spacing.md },
+    positionRow: { paddingLeft: spacing.xl, paddingRight: spacing['4xl'], paddingBottom: spacing.lg, gap: spacing.md },
     posChip: {
         paddingHorizontal: spacing.lg + spacing.xxs,
         paddingVertical: spacing.sm,
