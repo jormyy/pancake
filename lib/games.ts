@@ -12,6 +12,42 @@ export type NBAGameRow = {
     game_date: string
 }
 
+export type LiveStatLine = {
+    points: number
+    rebounds: number
+    assists: number
+    steals: number
+    blocks: number
+    turnovers: number | null
+    minutesPlayed: number | null
+    didNotPlay: boolean
+}
+
+// Returns a map of playerId → live stats for all players with a game on the given date.
+// Covers both InProgress and Final games so stats persist after a game ends.
+export async function getLivePlayerStats(date: string): Promise<Map<string, LiveStatLine>> {
+    const { data, error } = await supabase
+        .from('player_game_stats')
+        .select('player_id, points, rebounds, assists, steals, blocks, turnovers, minutes_played, did_not_play')
+        .eq('game_date', date)
+
+    if (error) throw error
+    const map = new Map<string, LiveStatLine>()
+    for (const row of data ?? []) {
+        map.set(row.player_id, {
+            points: row.points ?? 0,
+            rebounds: row.rebounds ?? 0,
+            assists: row.assists ?? 0,
+            steals: row.steals ?? 0,
+            blocks: row.blocks ?? 0,
+            turnovers: row.turnovers ?? null,
+            minutesPlayed: row.minutes_played != null ? Number(row.minutes_played) : null,
+            didNotPlay: row.did_not_play ?? false,
+        })
+    }
+    return map
+}
+
 export async function getTodaysGames(): Promise<NBAGameRow[]> {
     const today = new Date().toISOString().split('T')[0]
     const { data, error } = await supabase
