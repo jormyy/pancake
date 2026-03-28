@@ -36,7 +36,7 @@ export const CONFIG = {
     LIVE_POLL_IDLE_MS: 5 * 60 * 1000,
 
     /** Live poller: stats fetch interval when games are active (ms) */
-    LIVE_POLL_ACTIVE_STATS_MS: 30 * 1000,
+    LIVE_POLL_ACTIVE_STATS_MS: 15 * 1000,
 
     /** Live poller: score calc interval when games are active (ms) */
     LIVE_POLL_ACTIVE_SCORES_MS: 60 * 1000,

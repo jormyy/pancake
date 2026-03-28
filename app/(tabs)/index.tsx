@@ -671,9 +671,9 @@ function MatchupRow({
     const oppIsLive = oppPlayer?.nbaTeam ? liveTeams.has(oppPlayer.nbaTeam) : false
     const myFpts = myStats && !myStats.didNotPlay ? computeLiveFantasyPoints(myStats, scoringSettings) : null
     const oppFpts = oppStats && !oppStats.didNotPlay ? computeLiveFantasyPoints(oppStats, scoringSettings) : null
-    // Hide injury badge once a player has active minutes — they're clearly not out
-    const myShowInjury = myPlayer?.injuryStatus && !(myStats && (myStats.minutesPlayed ?? 0) > 0)
-    const oppShowInjury = oppPlayer?.injuryStatus && !(oppStats && (oppStats.minutesPlayed ?? 0) > 0)
+    // Hide injury badge while the game is live — player is clearly active
+    const myShowInjury = myPlayer?.injuryStatus && !myIsLive
+    const oppShowInjury = oppPlayer?.injuryStatus && !oppIsLive
 
     return (
         <View style={styles.matchupRow}>
