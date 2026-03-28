@@ -27,7 +27,8 @@ async function calcMemberWeekPoints(
         .from('player_game_stats')
         .select(
             'points,rebounds,assists,steals,blocks,turnovers,' +
-                'three_pointers_made,double_double,triple_double,did_not_play',
+                'three_pointers_made,field_goals_made,field_goals_attempted,' +
+                'free_throws_made,free_throws_attempted,double_double,triple_double,did_not_play',
         )
         .in('player_id', playerIds)
         .eq('season_year', seasonYear)

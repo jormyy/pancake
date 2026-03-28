@@ -27,7 +27,8 @@ class LiveGamePoller {
         if (this.running) return
         this.running = true
         console.log('[livePoller] Started.')
-        this.scheduleIdleCheck()
+        // Check immediately instead of waiting for the full idle interval
+        this.idleTick()
     }
 
     stop() {
@@ -51,12 +52,11 @@ class LiveGamePoller {
         if (!this.running) return
         try {
             if (isGameWindow()) {
-                const hasLive = await this.checkForLiveGames()
-                if (hasLive) {
-                    console.log('[livePoller] Live games detected — switching to active mode.')
-                    this.switchToActive()
-                    return
-                }
+                // Switch to active whenever we're in the game window —
+                // don't wait for a game to already be InProgress.
+                console.log('[livePoller] Game window active — switching to active mode.')
+                this.switchToActive()
+                return
             }
         } catch (e: any) {
             console.error('[livePoller] Idle tick error:', e.message)
@@ -82,7 +82,8 @@ class LiveGamePoller {
         this.mode = 'idle'
         if (this.statsTimer) { clearInterval(this.statsTimer); this.statsTimer = null }
         if (this.scoresTimer) { clearInterval(this.scoresTimer); this.scoresTimer = null }
-        this.scheduleIdleCheck()
+        // Check again in 1 minute — if still in game window with new games, go active again
+        this.idleTimer = setTimeout(() => this.idleTick(), 60_000)
     }
 
     private async statsTick() {
@@ -93,6 +94,11 @@ class LiveGamePoller {
         this.lastStatsTick = now
 
         try {
+            // Only sync stats when there are InProgress or recently-Final games today
+            const games = await fetchTodaysGames()
+            const hasActiveGames = games.some((g) => g.gameStatus === 2 || g.gameStatus === 3)
+            if (!hasActiveGames) return
+
             await syncStatsByDate(new Date())
         } catch (e: any) {
             console.error('[livePoller] Stats tick error:', e.message)
@@ -106,27 +112,25 @@ class LiveGamePoller {
             const hasLive = games.some((g) => g.gameStatus === 2)
             const allDone = games.length > 0 && games.every((g) => g.gameStatus === 3)
 
-            // Update nba_games status from live scoreboard
+            if (games.length === 0) return // no games today, nothing to do
+
+            // Update nba_games status + scores from live scoreboard
             await updateGameStatuses(games)
 
-            await syncScores()
+            if (hasLive || allDone) {
+                await syncScores()
+            }
 
             if (allDone) {
                 // One final stats sync then go idle
                 await syncStatsByDate(new Date())
                 this.switchToIdle()
-            } else if (!hasLive && !allDone) {
-                // Games not started yet — stay active but don't spam
             }
         } catch (e: any) {
             console.error('[livePoller] Scores tick error:', e.message)
         }
     }
 
-    private async checkForLiveGames(): Promise<boolean> {
-        const games = await fetchTodaysGames()
-        return games.some((g) => g.gameStatus === 2)
-    }
 }
 
 async function updateGameStatuses(games: NBAGame[]) {
