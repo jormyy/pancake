@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase'
+import { CONFIG } from '../config'
 
 // ── Start Rookie Draft (snake format) ─────────────────────────
 export async function startRookieDraft(leagueId: string) {
@@ -96,11 +97,10 @@ export async function startRookieDraft(leagueId: string) {
     }))
     await supabase.from('draft_orders').insert(orderRows)
 
-    // Create snake_draft_picks — 3 rounds by default
-    const ROUNDS = 3
+    // Create snake_draft_picks
     const pickRows = []
     let overall = 1
-    for (let round = 1; round <= ROUNDS; round++) {
+    for (let round = 1; round <= CONFIG.ROOKIE_DRAFT_ROUNDS; round++) {
         const isEvenRound = round % 2 === 0
         const order = isEvenRound ? [...draftOrder].reverse() : draftOrder
         for (let i = 0; i < order.length; i++) {

@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase'
 import { notifyMember } from '../lib/notifications'
+import { CONFIG } from '../config'
 
 async function log(leagueId: string, seasonId: string, memberId: string, playerId: string, type: string, claimId?: string) {
     await (supabase as any).from('roster_transactions').insert({
@@ -141,7 +142,7 @@ export async function processWaiverClaims(): Promise<void> {
                 await (supabase as any).from('roster_players').delete().eq('id', dropRp.id)
 
                 // Place dropped player on waivers
-                const clearsAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString()
+                const clearsAt = new Date(Date.now() + CONFIG.WAIVER_CLEARANCE_HOURS * 60 * 60 * 1000).toISOString()
                 await (supabase as any).from('waiver_wire_log').insert({
                     league_id: claim.league_id,
                     league_season_id: claim.league_season_id,

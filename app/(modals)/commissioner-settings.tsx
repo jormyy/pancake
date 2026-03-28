@@ -2,18 +2,20 @@ import {
     View,
     Text,
     TextInput,
-    TouchableOpacity,
+    Pressable,
     ScrollView,
     StyleSheet,
     ActivityIndicator,
     Alert,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { Stack, router } from 'expo-router'
+import { Stack, useRouter } from 'expo-router'
 import { useEffect, useState } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
 import { getLineupSlots, updateLeague, updateLineupSlots } from '@/lib/league'
 import { advanceSeason } from '@/lib/rookieDraft'
+import { LoadingScreen } from '@/components/LoadingScreen'
+import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000'
 
@@ -40,6 +42,7 @@ type ScoringMap = Record<string, string> // string for TextInput, parsed on save
 
 export default function CommissionerSettingsScreen() {
     const { current, refresh } = useLeagueContext()
+    const { back } = useRouter()
     const league = current?.leagues as any
 
     const [scoring, setScoring] = useState<ScoringMap>({})
@@ -58,6 +61,8 @@ export default function CommissionerSettingsScreen() {
     const [generatingPlayoffs, setGeneratingPlayoffs] = useState(false)
     const [advancingPlayoffs, setAdvancingPlayoffs] = useState(false)
     const [advancingSeason, setAdvancingSeason] = useState(false)
+    const [syncingRankings, setSyncingRankings] = useState(false)
+    const [syncingProjections, setSyncingProjections] = useState(false)
 
     useEffect(() => {
         async function load() {
@@ -142,7 +147,7 @@ export default function CommissionerSettingsScreen() {
                 ),
             ])
             await refresh()
-            router.back()
+            back()
         } catch (e: any) {
             Alert.alert('Error', e.message)
         } finally {
@@ -207,6 +212,34 @@ export default function CommissionerSettingsScreen() {
             Alert.alert('Error', e.message)
         } finally {
             setProcessingWaivers(false)
+        }
+    }
+
+    async function syncRankings() {
+        setSyncingRankings(true)
+        try {
+            const res = await fetch(`${API_URL}/sync/rankings`, { method: 'POST' })
+            const json = await res.json()
+            if (!json.ok) throw new Error(json.error || 'Failed to sync rankings')
+            Alert.alert('Done', 'Dynasty rankings synced.')
+        } catch (e: any) {
+            Alert.alert('Error', e.message)
+        } finally {
+            setSyncingRankings(false)
+        }
+    }
+
+    async function syncProjections() {
+        setSyncingProjections(true)
+        try {
+            const res = await fetch(`${API_URL}/sync/projections`, { method: 'POST' })
+            const json = await res.json()
+            if (!json.ok) throw new Error(json.error || 'Failed to sync projections')
+            Alert.alert('Done', 'Projections synced.')
+        } catch (e: any) {
+            Alert.alert('Error', e.message)
+        } finally {
+            setSyncingProjections(false)
         }
     }
 
@@ -294,11 +327,7 @@ export default function CommissionerSettingsScreen() {
     }
 
     if (loading) {
-        return (
-            <SafeAreaView style={styles.container}>
-                <ActivityIndicator style={{ flex: 1 }} color="#F97316" />
-            </SafeAreaView>
-        )
+        return <LoadingScreen />
     }
 
     return (
@@ -347,19 +376,19 @@ export default function CommissionerSettingsScreen() {
                             >
                                 <Text style={styles.rowLabel}>{type}</Text>
                                 <View style={styles.stepper}>
-                                    <TouchableOpacity
+                                    <Pressable
                                         style={styles.stepBtn}
                                         onPress={() => adjustSlot(type, -1)}
                                     >
                                         <Text style={styles.stepBtnText}>−</Text>
-                                    </TouchableOpacity>
+                                    </Pressable>
                                     <Text style={styles.stepValue}>{slots[type] ?? 0}</Text>
-                                    <TouchableOpacity
+                                    <Pressable
                                         style={styles.stepBtn}
                                         onPress={() => adjustSlot(type, 1)}
                                     >
                                         <Text style={styles.stepBtnText}>+</Text>
-                                    </TouchableOpacity>
+                                    </Pressable>
                                 </View>
                             </View>
                         ))}
@@ -399,95 +428,117 @@ export default function CommissionerSettingsScreen() {
                     </View>
 
                     {/* ── Save ──────────────────────────────────────── */}
-                    <TouchableOpacity style={styles.saveButton} onPress={save} disabled={saving}>
+                    <Pressable style={styles.saveButton} onPress={save} disabled={saving}>
                         {saving ? (
-                            <ActivityIndicator color="#fff" />
+                            <ActivityIndicator color={colors.textWhite} />
                         ) : (
                             <Text style={styles.saveButtonText}>Save Settings</Text>
                         )}
-                    </TouchableOpacity>
+                    </Pressable>
 
                     {/* ── Commissioner Actions ───────────────────────── */}
                     <Text style={styles.sectionTitle}>COMMISSIONER ACTIONS</Text>
-                    <TouchableOpacity
+                    <Pressable
                         style={styles.actionButton}
                         onPress={generatePlayoffBracket}
                         disabled={generatingPlayoffs}
                     >
                         {generatingPlayoffs ? (
-                            <ActivityIndicator color="#F97316" />
+                            <ActivityIndicator color={colors.primary} />
                         ) : (
                             <Text style={styles.actionButtonText}>Generate Playoff Bracket</Text>
                         )}
-                    </TouchableOpacity>
-                    <TouchableOpacity
+                    </Pressable>
+                    <Pressable
                         style={styles.actionButton}
                         onPress={advancePlayoffBracket}
                         disabled={advancingPlayoffs}
                     >
                         {advancingPlayoffs ? (
-                            <ActivityIndicator color="#F97316" />
+                            <ActivityIndicator color={colors.primary} />
                         ) : (
                             <Text style={styles.actionButtonText}>Advance to Championship</Text>
                         )}
-                    </TouchableOpacity>
-                    <TouchableOpacity
+                    </Pressable>
+                    <Pressable
                         style={styles.actionButton}
                         onPress={processWaivers}
                         disabled={processingWaivers}
                     >
                         {processingWaivers ? (
-                            <ActivityIndicator color="#F97316" />
+                            <ActivityIndicator color={colors.primary} />
                         ) : (
                             <Text style={styles.actionButtonText}>Process Waiver Claims</Text>
                         )}
-                    </TouchableOpacity>
-                    <TouchableOpacity
+                    </Pressable>
+                    <Pressable
                         style={styles.actionButton}
                         onPress={syncStats}
                         disabled={syncingStats}
                     >
                         {syncingStats ? (
-                            <ActivityIndicator color="#F97316" />
+                            <ActivityIndicator color={colors.primary} />
                         ) : (
                             <Text style={styles.actionButtonText}>Sync Player Stats</Text>
                         )}
-                    </TouchableOpacity>
-                    <TouchableOpacity
+                    </Pressable>
+                    <Pressable
                         style={styles.actionButton}
                         onPress={syncScores}
                         disabled={syncingScores}
                     >
                         {syncingScores ? (
-                            <ActivityIndicator color="#F97316" />
+                            <ActivityIndicator color={colors.primary} />
                         ) : (
                             <Text style={styles.actionButtonText}>Sync Scores Now</Text>
                         )}
-                    </TouchableOpacity>
-                    <TouchableOpacity
+                    </Pressable>
+                    <Pressable
+                        style={styles.actionButton}
+                        onPress={syncRankings}
+                        disabled={syncingRankings}
+                    >
+                        {syncingRankings ? (
+                            <ActivityIndicator color={colors.primary} />
+                        ) : (
+                            <Text style={styles.actionButtonText}>Sync Dynasty Rankings</Text>
+                        )}
+                    </Pressable>
+                    <Pressable
+                        style={styles.actionButton}
+                        onPress={syncProjections}
+                        disabled={syncingProjections}
+                    >
+                        {syncingProjections ? (
+                            <ActivityIndicator color={colors.primary} />
+                        ) : (
+                            <Text style={styles.actionButtonText}>Sync Projections</Text>
+                        )}
+                    </Pressable>
+                    <Pressable
                         style={styles.actionButton}
                         onPress={syncGameSchedule}
                         disabled={syncingGames}
                     >
                         {syncingGames ? (
-                            <ActivityIndicator color="#F97316" />
+                            <ActivityIndicator color={colors.primary} />
                         ) : (
                             <Text style={styles.actionButtonText}>Sync NBA Game Schedule</Text>
                         )}
-                    </TouchableOpacity>
-                    <TouchableOpacity
+                    </Pressable>
+                    <Pressable
                         style={styles.actionButton}
                         onPress={() => generateSchedule(false)}
                         disabled={generatingSchedule}
                     >
                         {generatingSchedule ? (
-                            <ActivityIndicator color="#F97316" />
+                            <ActivityIndicator color={colors.primary} />
                         ) : (
                             <Text style={styles.actionButtonText}>Generate Season Schedule</Text>
                         )}
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        style={[styles.actionButton, { borderColor: '#EF4444' }]}
+                    </Pressable>
+                    <Pressable
+                        style={[styles.actionButton, { borderColor: colors.danger }]}
                         onPress={() =>
                             Alert.alert(
                                 'Reset Schedule',
@@ -500,26 +551,26 @@ export default function CommissionerSettingsScreen() {
                         }
                         disabled={generatingSchedule}
                     >
-                        <Text style={[styles.actionButtonText, { color: '#EF4444' }]}>
+                        <Text style={[styles.actionButtonText, { color: colors.danger }]}>
                             Reset &amp; Regenerate Schedule
                         </Text>
-                    </TouchableOpacity>
+                    </Pressable>
 
                     {/* ── Annual Cycle ───────────────────────────── */}
                     <Text style={styles.sectionTitle}>ANNUAL CYCLE</Text>
-                    <TouchableOpacity
-                        style={[styles.actionButton, { borderColor: '#8B5CF6' }]}
+                    <Pressable
+                        style={[styles.actionButton, { borderColor: colors.info }]}
                         onPress={handleAdvanceSeason}
                         disabled={advancingSeason}
                     >
                         {advancingSeason ? (
-                            <ActivityIndicator color="#8B5CF6" />
+                            <ActivityIndicator color={colors.info} />
                         ) : (
-                            <Text style={[styles.actionButtonText, { color: '#8B5CF6' }]}>
+                            <Text style={[styles.actionButtonText, { color: colors.info }]}>
                                 Advance to Next Season
                             </Text>
                         )}
-                    </TouchableOpacity>
+                    </Pressable>
                 </ScrollView>
             </SafeAreaView>
         </>
@@ -527,75 +578,79 @@ export default function CommissionerSettingsScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#f5f5f5' },
-    scroll: { padding: 20, gap: 8, paddingBottom: 40 },
+    container: { flex: 1, backgroundColor: colors.bgSubtle },
+    scroll: { padding: spacing['2xl'], gap: spacing.md, paddingBottom: spacing['5xl'] },
 
     sectionTitle: {
-        fontSize: 11,
-        fontWeight: '700',
-        color: '#aaa',
+        fontSize: fontSize.xs,
+        fontWeight: fontWeight.bold,
+        color: colors.textPlaceholder,
         letterSpacing: 0.8,
-        marginTop: 12,
-        marginBottom: 4,
-        marginLeft: 4,
+        marginTop: spacing.lg,
+        marginBottom: spacing.xs,
+        marginLeft: spacing.xs,
     },
 
     card: {
-        backgroundColor: '#fff',
+        backgroundColor: colors.bgScreen,
         borderRadius: 14,
+        borderCurve: 'continuous' as const,
         borderWidth: 1,
-        borderColor: '#eee',
+        borderColor: colors.borderLight,
         overflow: 'hidden',
     },
-    row: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12 },
-    rowBorder: { borderBottomWidth: 1, borderBottomColor: '#f3f3f3' },
-    rowLabel: { flex: 1, fontSize: 15, color: '#111' },
+    row: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.xl, paddingVertical: spacing.lg },
+    rowBorder: { borderBottomWidth: 1, borderBottomColor: colors.separator },
+    rowLabel: { flex: 1, fontSize: 15, color: colors.textPrimary },
 
     scoreInput: {
         width: 72,
         textAlign: 'right',
         fontSize: 15,
-        fontWeight: '600',
-        color: '#F97316',
+        fontWeight: fontWeight.semibold,
+        color: colors.primary,
         padding: 0,
     },
 
-    stepper: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+    stepper: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg },
     stepBtn: {
         width: 30,
         height: 30,
-        borderRadius: 8,
-        backgroundColor: '#f3f3f3',
+        borderRadius: radii.md,
+        borderCurve: 'continuous' as const,
+        backgroundColor: colors.bgMuted,
         justifyContent: 'center',
         alignItems: 'center',
     },
-    stepBtnText: { fontSize: 18, color: '#333', lineHeight: 22 },
+    stepBtnText: { fontSize: 18, color: palette.gray900, lineHeight: 22 },
     stepValue: {
-        fontSize: 16,
-        fontWeight: '700',
-        color: '#111',
+        fontSize: fontSize.lg,
+        fontWeight: fontWeight.bold,
+        color: colors.textPrimary,
         minWidth: 20,
         textAlign: 'center',
     },
 
     saveButton: {
-        marginTop: 16,
-        backgroundColor: '#F97316',
+        marginTop: spacing.xl,
+        backgroundColor: colors.primary,
         borderRadius: 14,
+        borderCurve: 'continuous' as const,
         height: 52,
         justifyContent: 'center',
         alignItems: 'center',
     },
-    saveButtonText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+    saveButtonText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.lg },
 
     actionButton: {
-        backgroundColor: '#fff',
+        backgroundColor: colors.bgScreen,
         borderRadius: 14,
+        borderCurve: 'continuous' as const,
         borderWidth: 1.5,
-        borderColor: '#F97316',
+        borderColor: colors.primary,
         height: 52,
         justifyContent: 'center',
         alignItems: 'center',
     },
-    actionButtonText: { color: '#F97316', fontWeight: '700', fontSize: 16 },
+    actionButtonText: { color: colors.primary, fontWeight: fontWeight.bold, fontSize: fontSize.lg },
 })

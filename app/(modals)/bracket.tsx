@@ -3,7 +3,6 @@ import {
     Text,
     ScrollView,
     StyleSheet,
-    ActivityIndicator,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Stack } from 'expo-router'
@@ -11,6 +10,8 @@ import { useEffect, useState } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useAuth } from '@/hooks/use-auth'
 import { getPlayoffBracket, PlayoffBracket, BracketMatchup } from '@/lib/bracket'
+import { LoadingScreen } from '@/components/LoadingScreen'
+import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 
 export default function BracketScreen() {
     const { current } = useLeagueContext()
@@ -41,7 +42,7 @@ export default function BracketScreen() {
             <Stack.Screen options={{ title: 'Playoff Bracket', presentation: 'modal' }} />
             <SafeAreaView style={styles.container} edges={['bottom']}>
                 {loading ? (
-                    <ActivityIndicator style={{ flex: 1 }} color="#F97316" />
+                    <LoadingScreen />
                 ) : !bracket || (bracket.semifinals.length === 0 && !bracket.final) ? (
                     <View style={styles.empty}>
                         <Text style={styles.emptyTitle}>No Bracket Yet</Text>
@@ -191,89 +192,92 @@ function TeamRow({
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#f5f5f5' },
-    scroll: { padding: 16, gap: 8, paddingBottom: 40 },
+    container: { flex: 1, backgroundColor: colors.bgSubtle },
+    scroll: { padding: spacing.xl, gap: spacing.md, paddingBottom: spacing['5xl'] },
 
-    empty: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32, gap: 10 },
-    emptyTitle: { fontSize: 18, fontWeight: '700', color: '#111' },
-    emptyText: { fontSize: 14, color: '#aaa', textAlign: 'center', lineHeight: 20 },
+    empty: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: spacing['4xl'], gap: 10 },
+    emptyTitle: { fontSize: 18, fontWeight: fontWeight.bold, color: colors.textPrimary },
+    emptyText: { fontSize: fontSize.md, color: colors.textPlaceholder, textAlign: 'center', lineHeight: 20 },
 
     championBanner: {
-        backgroundColor: '#FEF3C7',
+        backgroundColor: palette.amber300,
         borderRadius: 14,
+        borderCurve: 'continuous' as const,
         borderWidth: 1,
-        borderColor: '#FDE68A',
-        padding: 20,
+        borderColor: palette.amber200,
+        padding: spacing['2xl'],
         alignItems: 'center',
-        gap: 4,
-        marginBottom: 8,
+        gap: spacing.xs,
+        marginBottom: spacing.md,
     },
-    championLabel: { fontSize: 13, fontWeight: '800', color: '#D97706', letterSpacing: 1 },
-    championName: { fontSize: 24, fontWeight: '800', color: '#111' },
+    championLabel: { fontSize: fontSize.sm, fontWeight: fontWeight.extrabold, color: palette.amber600, letterSpacing: 1 },
+    championName: { fontSize: fontSize['2xl'], fontWeight: fontWeight.extrabold, color: colors.textPrimary },
 
     roundLabel: {
-        fontSize: 11,
-        fontWeight: '700',
-        color: '#aaa',
+        fontSize: fontSize.xs,
+        fontWeight: fontWeight.bold,
+        color: colors.textPlaceholder,
         letterSpacing: 1,
-        marginTop: 8,
-        marginBottom: 4,
-        marginLeft: 4,
+        marginTop: spacing.md,
+        marginBottom: spacing.xs,
+        marginLeft: spacing.xs,
     },
 
     card: {
-        backgroundColor: '#fff',
+        backgroundColor: colors.bgScreen,
         borderRadius: 14,
+        borderCurve: 'continuous' as const,
         borderWidth: 1,
-        borderColor: '#eee',
+        borderColor: colors.borderLight,
         overflow: 'hidden',
-        marginBottom: 8,
+        marginBottom: spacing.md,
     },
-    cardFinal: { borderColor: '#FDE68A', borderWidth: 1.5 },
+    cardFinal: { borderColor: palette.amber200, borderWidth: 1.5 },
 
     cardHeader: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingHorizontal: 16,
+        paddingHorizontal: spacing.xl,
         paddingVertical: 10,
         borderBottomWidth: 1,
-        borderBottomColor: '#f3f3f3',
+        borderBottomColor: colors.separator,
     },
-    weekLabel: { fontSize: 12, color: '#aaa', fontWeight: '600' },
+    weekLabel: { fontSize: 12, color: colors.textPlaceholder, fontWeight: fontWeight.semibold },
 
     statusPill: {
-        paddingHorizontal: 8,
+        paddingHorizontal: spacing.md,
         paddingVertical: 3,
-        borderRadius: 20,
+        borderRadius: radii['3xl'],
+        borderCurve: 'continuous' as const,
     },
-    statusPending: { backgroundColor: '#f3f3f3' },
-    statusLive: { backgroundColor: '#DCFCE7' },
+    statusPending: { backgroundColor: colors.bgMuted },
+    statusLive: { backgroundColor: palette.green300 },
     statusFinal: { backgroundColor: '#F3F4F6' },
-    statusText: { fontSize: 11, fontWeight: '700' },
-    statusTextPending: { color: '#aaa' },
-    statusTextLive: { color: '#16A34A' },
-    statusTextFinal: { color: '#555' },
+    statusText: { fontSize: fontSize.xs, fontWeight: fontWeight.bold },
+    statusTextPending: { color: colors.textPlaceholder },
+    statusTextLive: { color: palette.green600 },
+    statusTextFinal: { color: colors.textSecondary },
 
-    divider: { height: 1, backgroundColor: '#f3f3f3', marginHorizontal: 16 },
+    divider: { height: 1, backgroundColor: colors.separator, marginHorizontal: spacing.xl },
 
     teamRow: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingHorizontal: 16,
+        paddingHorizontal: spacing.xl,
         paddingVertical: 14,
     },
-    teamRowWon: { backgroundColor: '#F0FDF4' },
+    teamRowWon: { backgroundColor: colors.successLight },
     teamRowLost: { opacity: 0.5 },
-    teamLeft: { flexDirection: 'row', alignItems: 'center', flex: 1, gap: 6 },
-    winIndicator: { fontSize: 10, color: '#16A34A' },
-    teamName: { fontSize: 16, fontWeight: '600', color: '#111', flex: 1 },
-    teamNameWon: { color: '#15803D', fontWeight: '700' },
-    teamNameLost: { color: '#999' },
-    teamNameMe: { color: '#F97316' },
-    meTag: { fontSize: 13, color: '#aaa', fontWeight: '400' },
-    teamPoints: { fontSize: 18, fontWeight: '700', color: '#333', minWidth: 60, textAlign: 'right' },
-    teamPointsWon: { color: '#15803D' },
-    teamPointsLost: { color: '#bbb' },
+    teamLeft: { flexDirection: 'row', alignItems: 'center', flex: 1, gap: spacing.sm },
+    winIndicator: { fontSize: 10, color: palette.green600 },
+    teamName: { fontSize: fontSize.lg, fontWeight: fontWeight.semibold, color: colors.textPrimary, flex: 1 },
+    teamNameWon: { color: palette.green700, fontWeight: fontWeight.bold },
+    teamNameLost: { color: palette.gray650 },
+    teamNameMe: { color: colors.primary },
+    meTag: { fontSize: fontSize.sm, color: colors.textPlaceholder, fontWeight: fontWeight.regular },
+    teamPoints: { fontSize: 18, fontWeight: fontWeight.bold, color: palette.gray900, minWidth: 60, textAlign: 'right' },
+    teamPointsWon: { color: palette.green700 },
+    teamPointsLost: { color: colors.textDisabled },
 })

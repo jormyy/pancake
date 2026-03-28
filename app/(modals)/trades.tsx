@@ -1,17 +1,17 @@
 import {
     View,
     Text,
-    TouchableOpacity,
+    Pressable,
     StyleSheet,
     ActivityIndicator,
     Alert,
-    FlatList,
     RefreshControl,
     Modal,
     ScrollView,
 } from 'react-native'
+import { FlashList } from '@shopify/flash-list'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { router } from 'expo-router'
+import { useRouter } from 'expo-router'
 import { useCallback, useEffect, useState } from 'react'
 import { useAuth } from '@/hooks/use-auth'
 import { useLeagueContext } from '@/contexts/league-context'
@@ -26,6 +26,7 @@ import {
     TradePickItem,
 } from '@/lib/trades'
 import { getRoster, dropPlayer, RosterPlayer } from '@/lib/roster'
+import { TRADE_STATUS_COLORS, colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 
 type TabKey = 'inbox' | 'offers' | 'history'
 
@@ -39,15 +40,15 @@ const STATUS_LABELS: Record<string, string> = {
     vetoed: 'Vetoed',
 }
 
-const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
-    pending: { bg: '#FEF3C7', text: '#D97706' },
-    accepted: { bg: '#D1FAE5', text: '#065F46' },
-    rejected: { bg: '#FEE2E2', text: '#991B1B' },
-    withdrawn: { bg: '#F3F4F6', text: '#6B7280' },
-    completed: { bg: '#D1FAE5', text: '#065F46' },
-    expired: { bg: '#F3F4F6', text: '#6B7280' },
-    vetoed: { bg: '#FEE2E2', text: '#991B1B' },
-}
+const STATUS_COLORS = TRADE_STATUS_COLORS
+
+const ItemSeparator = () => <View style={{ height: spacing.lg }} />
+
+const ListEmpty = () => (
+    <View style={styles.empty}>
+        <Text style={styles.emptyText}>No trades to show.</Text>
+    </View>
+)
 
 function itemLabel(item: TradeItem): string {
     if (item.kind === 'player') {
@@ -238,33 +239,33 @@ function TradeCard({
             {trade.notes ? <Text style={styles.cardNotes}>"{trade.notes}"</Text> : null}
 
             {acting ? (
-                <ActivityIndicator color="#F97316" style={{ marginTop: 12 }} />
+                <ActivityIndicator color={colors.primary} style={{ marginTop: spacing.lg }} />
             ) : (
                 <>
                     {tab === 'inbox' && trade.status === 'pending' && (
                         <View style={styles.cardActions}>
-                            <TouchableOpacity
+                            <Pressable
                                 style={[styles.actionBtn, styles.actionBtnAccept]}
                                 onPress={handleAccept}
                             >
                                 <Text style={styles.actionBtnAcceptText}>Accept</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
+                            </Pressable>
+                            <Pressable
                                 style={[styles.actionBtn, styles.actionBtnReject]}
                                 onPress={handleReject}
                             >
                                 <Text style={styles.actionBtnRejectText}>Reject</Text>
-                            </TouchableOpacity>
+                            </Pressable>
                         </View>
                     )}
                     {tab === 'offers' && trade.status === 'pending' && (
                         <View style={styles.cardActions}>
-                            <TouchableOpacity
+                            <Pressable
                                 style={[styles.actionBtn, styles.actionBtnReject]}
                                 onPress={handleWithdraw}
                             >
                                 <Text style={styles.actionBtnRejectText}>Withdraw</Text>
-                            </TouchableOpacity>
+                            </Pressable>
                         </View>
                     )}
                 </>
@@ -287,26 +288,26 @@ function TradeCard({
                                             {[rp.players.position, rp.players.nba_team].filter(Boolean).join(' · ')}
                                         </Text>
                                     </View>
-                                    <TouchableOpacity
+                                    <Pressable
                                         style={styles.dropBtn}
                                         onPress={() => handleDropAndAccept(rp.id)}
                                         disabled={dropping !== null}
                                     >
                                         {dropping === rp.id ? (
-                                            <ActivityIndicator size="small" color="#fff" />
+                                            <ActivityIndicator size="small" color={colors.textWhite} />
                                         ) : (
                                             <Text style={styles.dropBtnText}>Drop</Text>
                                         )}
-                                    </TouchableOpacity>
+                                    </Pressable>
                                 </View>
                             ))}
                         </ScrollView>
-                        <TouchableOpacity
+                        <Pressable
                             style={styles.modalCancelBtn}
                             onPress={() => setDropPickerVisible(false)}
                         >
                             <Text style={styles.modalCancelText}>Cancel</Text>
-                        </TouchableOpacity>
+                        </Pressable>
                     </View>
                 </View>
             </Modal>
@@ -315,6 +316,7 @@ function TradeCard({
 }
 
 export default function TradesScreen() {
+    const { push, back } = useRouter()
     const { user } = useAuth()
     const { current } = useLeagueContext()
 
@@ -379,15 +381,15 @@ export default function TradesScreen() {
                 <View style={{ width: 60 }} />
                 <Text style={styles.headerTitle}>Trades</Text>
                 <View style={styles.headerRight}>
-                    <TouchableOpacity
+                    <Pressable
                         style={styles.proposeBtn}
-                        onPress={() => router.push('/(modals)/propose-trade')}
+                        onPress={() => push('/(modals)/propose-trade')}
                     >
                         <Text style={styles.proposeBtnText}>Propose</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => router.back()} style={styles.doneBtn}>
+                    </Pressable>
+                    <Pressable onPress={() => back()} style={styles.doneBtn}>
                         <Text style={styles.doneBtnText}>Done</Text>
-                    </TouchableOpacity>
+                    </Pressable>
                 </View>
             </View>
 
@@ -397,7 +399,7 @@ export default function TradesScreen() {
                     const active = tab === t.key
                     const badge = t.key === 'inbox' && pendingInboxCount > 0 ? pendingInboxCount : null
                     return (
-                        <TouchableOpacity
+                        <Pressable
                             key={t.key}
                             style={[styles.tabChip, active && styles.tabChipActive]}
                             onPress={() => setTab(t.key)}
@@ -406,15 +408,15 @@ export default function TradesScreen() {
                                 {t.label}
                                 {badge ? ` (${badge})` : ''}
                             </Text>
-                        </TouchableOpacity>
+                        </Pressable>
                     )
                 })}
             </View>
 
             {loading ? (
-                <ActivityIndicator color="#F97316" style={{ marginTop: 32 }} />
+                <ActivityIndicator color={colors.primary} style={{ marginTop: spacing['4xl'] }} />
             ) : (
-                <FlatList
+                <FlashList
                     data={filteredTrades}
                     keyExtractor={(t) => t.id}
                     contentContainerStyle={styles.listContent}
@@ -422,21 +424,11 @@ export default function TradesScreen() {
                         <RefreshControl
                             refreshing={refreshing}
                             onRefresh={onRefresh}
-                            tintColor="#F97316"
+                            tintColor={colors.primary}
                         />
                     }
-                    ItemSeparatorComponent={() => <View style={styles.separator} />}
-                    ListEmptyComponent={() => (
-                        <View style={styles.empty}>
-                            <Text style={styles.emptyText}>
-                                {tab === 'inbox'
-                                    ? 'No pending trade offers.'
-                                    : tab === 'offers'
-                                      ? 'No pending outgoing offers.'
-                                      : 'No trade history yet.'}
-                            </Text>
-                        </View>
-                    )}
+                    ItemSeparatorComponent={ItemSeparator}
+                    ListEmptyComponent={ListEmpty}
                     renderItem={({ item }) => (
                         <TradeCard
                             trade={item}
@@ -454,80 +446,84 @@ export default function TradesScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#fff' },
+    container: { flex: 1, backgroundColor: colors.bgScreen },
 
     header: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingHorizontal: 16,
-        paddingVertical: 12,
+        paddingHorizontal: spacing.xl,
+        paddingVertical: spacing.lg,
         borderBottomWidth: 1,
-        borderBottomColor: '#eee',
+        borderBottomColor: colors.borderLight,
     },
-    headerTitle: { fontSize: 17, fontWeight: '700' },
-    headerRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    headerTitle: { fontSize: 17, fontWeight: fontWeight.bold },
+    headerRight: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
     proposeBtn: {
-        backgroundColor: '#F97316',
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 8,
+        backgroundColor: colors.primary,
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.sm,
+        borderRadius: radii.md,
+        borderCurve: 'continuous' as const,
     },
-    proposeBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
-    doneBtn: { paddingVertical: 6, paddingHorizontal: 4 },
-    doneBtnText: { fontSize: 16, color: '#F97316', fontWeight: '600' },
+    proposeBtnText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.md },
+    doneBtn: { paddingVertical: spacing.sm, paddingHorizontal: spacing.xs },
+    doneBtnText: { fontSize: fontSize.lg, color: colors.primary, fontWeight: fontWeight.semibold },
 
     tabRow: {
         flexDirection: 'row',
-        gap: 8,
-        paddingHorizontal: 16,
-        paddingVertical: 12,
+        gap: spacing.md,
+        paddingHorizontal: spacing.xl,
+        paddingVertical: spacing.lg,
         borderBottomWidth: 1,
-        borderBottomColor: '#eee',
+        borderBottomColor: colors.borderLight,
     },
     tabChip: {
         paddingHorizontal: 14,
         paddingVertical: 7,
-        borderRadius: 20,
-        backgroundColor: '#f3f3f3',
+        borderRadius: radii['3xl'],
+        borderCurve: 'continuous' as const,
+        backgroundColor: colors.bgMuted,
     },
-    tabChipActive: { backgroundColor: '#F97316' },
-    tabChipText: { fontSize: 13, fontWeight: '600', color: '#555' },
-    tabChipTextActive: { color: '#fff' },
+    tabChipActive: { backgroundColor: colors.primary },
+    tabChipText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textSecondary },
+    tabChipTextActive: { color: colors.textWhite },
 
-    listContent: { paddingHorizontal: 16, paddingVertical: 12 },
-    separator: { height: 12 },
+    listContent: { paddingHorizontal: spacing.xl, paddingVertical: spacing.lg },
+    separator: { height: spacing.lg },
 
     card: {
         borderWidth: 1,
-        borderColor: '#e5e7eb',
-        borderRadius: 12,
+        borderColor: palette.gray300,
+        borderRadius: radii.xl,
+        borderCurve: 'continuous' as const,
         padding: 14,
-        backgroundColor: '#fff',
-        gap: 4,
+        backgroundColor: colors.bgScreen,
+        gap: spacing.xs,
     },
     cardHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 6,
+        marginBottom: spacing.sm,
     },
-    cardOpponent: { fontSize: 15, fontWeight: '700', color: '#111', flex: 1 },
+    cardOpponent: { fontSize: 15, fontWeight: fontWeight.bold, color: colors.textPrimary, flex: 1 },
     statusBadge: {
-        paddingHorizontal: 8,
+        paddingHorizontal: spacing.md,
         paddingVertical: 3,
-        borderRadius: 6,
+        borderRadius: radii.sm,
+        borderCurve: 'continuous' as const,
     },
-    statusText: { fontSize: 11, fontWeight: '700' },
+    statusText: { fontSize: fontSize.xs, fontWeight: fontWeight.bold },
 
-    assetBlock: { marginBottom: 4 },
-    assetLabel: { fontSize: 12, fontWeight: '600', color: '#333', marginBottom: 2 },
-    assetEmpty: { fontSize: 13, color: '#aaa' },
-    assetPlayer: { fontSize: 13, color: '#555' },
-    assetPick: { fontSize: 13, color: '#555', fontStyle: 'italic' },
-    assetPickVia: { fontSize: 12, color: '#999' },
+    assetBlock: { marginBottom: spacing.xs },
+    assetLabel: { fontSize: 12, fontWeight: fontWeight.semibold, color: palette.gray900, marginBottom: spacing.xxs },
+    assetEmpty: { fontSize: fontSize.sm, color: colors.textPlaceholder },
+    assetPlayer: { fontSize: fontSize.sm, color: colors.textSecondary },
+    assetPick: { fontSize: fontSize.sm, color: colors.textSecondary, fontStyle: 'italic' },
+    assetPickVia: { fontSize: 12, color: palette.gray650 },
 
-    cardNotes: { fontSize: 12, color: '#888', fontStyle: 'italic', marginTop: 2 },
+    cardNotes: { fontSize: 12, color: colors.textMuted, fontStyle: 'italic', marginTop: spacing.xxs },
 
     cardActions: {
         flexDirection: 'row',
@@ -537,16 +533,17 @@ const styles = StyleSheet.create({
     actionBtn: {
         flex: 1,
         paddingVertical: 9,
-        borderRadius: 8,
+        borderRadius: radii.md,
+        borderCurve: 'continuous' as const,
         alignItems: 'center',
     },
-    actionBtnAccept: { backgroundColor: '#F97316' },
-    actionBtnReject: { backgroundColor: '#f3f3f3', borderWidth: 1, borderColor: '#e5e7eb' },
-    actionBtnAcceptText: { color: '#fff', fontWeight: '700', fontSize: 14 },
-    actionBtnRejectText: { color: '#555', fontWeight: '600', fontSize: 14 },
+    actionBtnAccept: { backgroundColor: colors.primary },
+    actionBtnReject: { backgroundColor: colors.bgMuted, borderWidth: 1, borderColor: palette.gray300 },
+    actionBtnAcceptText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.md },
+    actionBtnRejectText: { color: colors.textSecondary, fontWeight: fontWeight.semibold, fontSize: fontSize.md },
 
-    empty: { alignItems: 'center', paddingVertical: 48 },
-    emptyText: { fontSize: 14, color: '#aaa', textAlign: 'center' },
+    empty: { alignItems: 'center', paddingVertical: spacing['6xl'] },
+    emptyText: { fontSize: fontSize.md, color: colors.textPlaceholder, textAlign: 'center' },
 
     modalOverlay: {
         flex: 1,
@@ -554,43 +551,46 @@ const styles = StyleSheet.create({
         justifyContent: 'flex-end',
     },
     modalSheet: {
-        backgroundColor: '#fff',
-        borderTopLeftRadius: 20,
-        borderTopRightRadius: 20,
-        paddingTop: 20,
-        paddingHorizontal: 16,
-        paddingBottom: 32,
+        backgroundColor: colors.bgScreen,
+        borderTopLeftRadius: radii['3xl'],
+        borderTopRightRadius: radii['3xl'],
+        borderCurve: 'continuous' as const,
+        paddingTop: spacing['2xl'],
+        paddingHorizontal: spacing.xl,
+        paddingBottom: spacing['4xl'],
         maxHeight: '75%',
     },
-    modalTitle: { fontSize: 17, fontWeight: '700', color: '#111', marginBottom: 4 },
-    modalSubtitle: { fontSize: 13, color: '#888', marginBottom: 14 },
+    modalTitle: { fontSize: 17, fontWeight: fontWeight.bold, color: colors.textPrimary, marginBottom: spacing.xs },
+    modalSubtitle: { fontSize: fontSize.sm, color: colors.textMuted, marginBottom: 14 },
     modalScroll: { flexGrow: 0 },
     dropRow: {
         flexDirection: 'row',
         alignItems: 'center',
         paddingVertical: 10,
         borderBottomWidth: 1,
-        borderBottomColor: '#f3f3f3',
+        borderBottomColor: colors.separator,
         gap: 10,
     },
     dropPlayerInfo: { flex: 1 },
-    dropPlayerName: { fontSize: 14, fontWeight: '600', color: '#111' },
-    dropPlayerMeta: { fontSize: 12, color: '#888', marginTop: 1 },
+    dropPlayerName: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textPrimary },
+    dropPlayerMeta: { fontSize: 12, color: colors.textMuted, marginTop: 1 },
     dropBtn: {
-        backgroundColor: '#EF4444',
+        backgroundColor: colors.danger,
         paddingHorizontal: 14,
         paddingVertical: 7,
-        borderRadius: 8,
+        borderRadius: radii.md,
+        borderCurve: 'continuous' as const,
         minWidth: 60,
         alignItems: 'center',
     },
-    dropBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
+    dropBtnText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.sm },
     modalCancelBtn: {
         marginTop: 14,
-        paddingVertical: 13,
-        borderRadius: 10,
-        backgroundColor: '#f3f3f3',
+        paddingVertical: spacing.sm + 7,
+        borderRadius: radii.lg,
+        borderCurve: 'continuous' as const,
+        backgroundColor: colors.bgMuted,
         alignItems: 'center',
     },
-    modalCancelText: { fontSize: 15, fontWeight: '600', color: '#555' },
+    modalCancelText: { fontSize: 15, fontWeight: fontWeight.semibold, color: colors.textSecondary },
 })

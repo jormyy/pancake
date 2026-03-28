@@ -1,4 +1,6 @@
 import { supabase } from '@/lib/supabase'
+import { getCurrentSeason } from '@/lib/shared/season'
+import { getCurrentWeekNumber } from '@/lib/shared/week'
 
 export type Matchup = {
     id: string
@@ -22,31 +24,6 @@ export type StandingRow = {
     losses: number
     pointsFor: number
     pointsAgainst: number
-}
-
-async function getCurrentSeason(
-    leagueId: string,
-): Promise<{ id: string; seasonYear: number } | null> {
-    const { data } = await supabase
-        .from('league_seasons')
-        .select('id, season_year')
-        .eq('league_id', leagueId)
-        .eq('is_current', true)
-        .single()
-    return data ? { id: data.id, seasonYear: data.season_year } : null
-}
-
-async function getCurrentWeekNumber(seasonYear: number): Promise<number | null> {
-    const today = new Date().toISOString().split('T')[0]
-    const { data } = await supabase
-        .from('nba_games')
-        .select('week_number')
-        .eq('season_year', seasonYear)
-        .lte('game_date', today)
-        .order('game_date', { ascending: false })
-        .limit(1)
-        .maybeSingle()
-    return data?.week_number ?? null
 }
 
 export async function getMyMatchup(memberId: string, leagueId: string): Promise<Matchup | null> {

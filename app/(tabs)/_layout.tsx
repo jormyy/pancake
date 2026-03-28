@@ -1,72 +1,31 @@
-import { Tabs } from 'expo-router'
-import { HapticTab } from '@/components/haptic-tab'
-import { IconSymbol } from '@/components/ui/icon-symbol'
-import { useColorScheme } from '@/hooks/use-color-scheme'
-
-const ORANGE = '#F97316'
+import { NativeTabs, Label, Icon } from 'expo-router/unstable-native-tabs'
+import { colors } from '@/constants/tokens'
 
 export default function TabLayout() {
-    const colorScheme = useColorScheme()
-    const inactive = colorScheme === 'dark' ? '#888' : '#aaa'
-
     return (
-        <Tabs
-            screenOptions={{
-                tabBarActiveTintColor: ORANGE,
-                tabBarInactiveTintColor: inactive,
-                headerShown: false,
-                tabBarButton: HapticTab,
-                tabBarStyle: {
-                    backgroundColor: colorScheme === 'dark' ? '#111' : '#fff',
-                    borderTopColor: colorScheme === 'dark' ? '#222' : '#eee',
-                },
-            }}
+        <NativeTabs
+            tintColor={colors.primary}
         >
-            <Tabs.Screen
-                name="index"
-                options={{
-                    title: 'Home',
-                    tabBarIcon: ({ color }) => (
-                        <IconSymbol size={26} name="house.fill" color={color} />
-                    ),
-                }}
-            />
-            <Tabs.Screen
-                name="players"
-                options={{
-                    title: 'Players',
-                    tabBarIcon: ({ color }) => (
-                        <IconSymbol size={26} name="person.2.fill" color={color} />
-                    ),
-                }}
-            />
-            <Tabs.Screen
-                name="roster"
-                options={{
-                    title: 'Roster',
-                    tabBarIcon: ({ color }) => (
-                        <IconSymbol size={26} name="basketball.fill" color={color} />
-                    ),
-                }}
-            />
-            <Tabs.Screen
-                name="league"
-                options={{
-                    title: 'League',
-                    tabBarIcon: ({ color }) => (
-                        <IconSymbol size={26} name="trophy.fill" color={color} />
-                    ),
-                }}
-            />
-            <Tabs.Screen
-                name="profile"
-                options={{
-                    title: 'Profile',
-                    tabBarIcon: ({ color }) => (
-                        <IconSymbol size={26} name="person.crop.circle.fill" color={color} />
-                    ),
-                }}
-            />
-        </Tabs>
+            <NativeTabs.Trigger name="index">
+                <Label>Home</Label>
+                <Icon sf="house.fill" />
+            </NativeTabs.Trigger>
+            <NativeTabs.Trigger name="players">
+                <Label>Players</Label>
+                <Icon sf="person.2.fill" />
+            </NativeTabs.Trigger>
+            <NativeTabs.Trigger name="roster">
+                <Label>Roster</Label>
+                <Icon sf="basketball.fill" />
+            </NativeTabs.Trigger>
+            <NativeTabs.Trigger name="league">
+                <Label>League</Label>
+                <Icon sf="trophy.fill" />
+            </NativeTabs.Trigger>
+            <NativeTabs.Trigger name="profile">
+                <Label>Profile</Label>
+                <Icon sf="person.crop.circle.fill" />
+            </NativeTabs.Trigger>
+        </NativeTabs>
     )
 }
