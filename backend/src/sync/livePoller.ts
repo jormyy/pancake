@@ -87,9 +87,9 @@ class LiveGamePoller {
 
     private async statsTick() {
         if (!this.running) return
-        // Debounce: skip if last tick was less than 20s ago (handles interval drift)
+        // Debounce: skip if last tick was less than 10s ago (handles interval drift)
         const now = Date.now()
-        if (now - this.lastStatsTick < 20_000) return
+        if (now - this.lastStatsTick < 10_000) return
         this.lastStatsTick = now
 
         try {
