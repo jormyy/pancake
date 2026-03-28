@@ -14,7 +14,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useFocusEffect } from '@react-navigation/native'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useAuth } from '@/hooks/use-auth'
-import { getMyMatchup, Matchup } from '@/lib/scoring'
+import { getMyMatchup, Matchup, computeLiveFantasyPoints } from '@/lib/scoring'
 import { getTodaysGames, getLivePlayerStats, NBAGameRow, LiveStatLine } from '@/lib/games'
 import { supabase } from '@/lib/supabase'
 import { Scoreboard } from '@/components/Scoreboard'
@@ -470,6 +470,7 @@ export default function HomeScreen() {
                             playingTeams={todayPlayingTeams}
                             liveStats={liveStats}
                             liveTeams={liveTeams}
+                            scoringSettings={league?.scoring_settings ?? {}}
                         />
                     ) : (
                         <View style={styles.noLineup}>
@@ -547,6 +548,7 @@ function MatchupLineupView({
     playingTeams,
     liveStats,
     liveTeams,
+    scoringSettings,
 }: {
     myLineup: LineupData
     oppLineup: LineupData
@@ -556,6 +558,7 @@ function MatchupLineupView({
     playingTeams: Set<string>
     liveStats: Map<string, LiveStatLine>
     liveTeams: Set<string>
+    scoringSettings: Record<string, number>
 }) {
     const maxBench = Math.max(myLineup.bench.length, oppLineup.bench.length)
     const maxIR = Math.max(myLineup.ir.length, oppLineup.ir.length)
@@ -577,6 +580,7 @@ function MatchupLineupView({
                     playingTeams={playingTeams}
                     liveStats={liveStats}
                     liveTeams={liveTeams}
+                    scoringSettings={scoringSettings}
                 />
             ))}
 
@@ -597,6 +601,7 @@ function MatchupLineupView({
                             playingTeams={playingTeams}
                             liveStats={liveStats}
                             liveTeams={liveTeams}
+                            scoringSettings={scoringSettings}
                         />
                     ))}
                 </>
@@ -619,6 +624,7 @@ function MatchupLineupView({
                             playingTeams={playingTeams}
                             liveStats={liveStats}
                             liveTeams={liveTeams}
+                            scoringSettings={scoringSettings}
                         />
                     ))}
                 </>
@@ -639,6 +645,7 @@ function MatchupRow({
     playingTeams,
     liveStats,
     liveTeams,
+    scoringSettings,
 }: {
     myPlayer: LineupPlayer | null
     oppPlayer: LineupPlayer | null
@@ -651,6 +658,7 @@ function MatchupRow({
     playingTeams: Set<string>
     liveStats: Map<string, LiveStatLine>
     liveTeams: Set<string>
+    scoringSettings: Record<string, number>
 }) {
     const { push } = useRouter()
     const isSel = selected?.kind === selKind && selected.index === selIndex
@@ -661,6 +669,11 @@ function MatchupRow({
     const oppStats = oppPlayer ? liveStats.get(oppPlayer.playerId) : undefined
     const myIsLive = myPlayer?.nbaTeam ? liveTeams.has(myPlayer.nbaTeam) : false
     const oppIsLive = oppPlayer?.nbaTeam ? liveTeams.has(oppPlayer.nbaTeam) : false
+    const myFpts = myStats && !myStats.didNotPlay ? computeLiveFantasyPoints(myStats, scoringSettings) : null
+    const oppFpts = oppStats && !oppStats.didNotPlay ? computeLiveFantasyPoints(oppStats, scoringSettings) : null
+    // Hide injury badge once a player has active minutes — they're clearly not out
+    const myShowInjury = myPlayer?.injuryStatus && !(myStats && (myStats.minutesPlayed ?? 0) > 0)
+    const oppShowInjury = oppPlayer?.injuryStatus && !(oppStats && (oppStats.minutesPlayed ?? 0) > 0)
 
     return (
         <View style={styles.matchupRow}>
@@ -673,7 +686,7 @@ function MatchupRow({
                 {myPlayer ? (
                     <>
                         <View style={[styles.metaRow, { justifyContent: 'flex-end' }]}>
-                            <InjuryBadge status={myPlayer.injuryStatus} />
+                            {myShowInjury && <InjuryBadge status={myPlayer.injuryStatus} />}
                             <Text style={[styles.sideName, !myHasGame && styles.noGameName]} numberOfLines={1}>
                                 {shortName(myPlayer.displayName)}
                             </Text>
@@ -684,11 +697,15 @@ function MatchupRow({
                                 {myPlayer.nbaTeam ?? 'FA'}{!myHasGame ? ' · No game' : ''}
                             </Text>
                         </View>
-                        {myStats && (
+                        {myIsLive && !myStats ? (
+                            <Text style={[styles.statLine, styles.statLineLive]} numberOfLines={1}>In game</Text>
+                        ) : myStats ? (
                             <Text style={[styles.statLine, myIsLive && styles.statLineLive]} numberOfLines={1}>
-                                {myStats.didNotPlay ? 'DNP' : `${myStats.points}p ${myStats.rebounds}r ${myStats.assists}a`}
+                                {myStats.didNotPlay
+                                    ? 'DNP'
+                                    : `${myStats.points}p ${myStats.rebounds}r ${myStats.assists}a${myFpts != null ? ` · ${myFpts}` : ''}`}
                             </Text>
-                        )}
+                        ) : null}
                     </>
                 ) : (
                     <Text style={[styles.sideName, { color: colors.border, textAlign: 'right' }]}>—</Text>
@@ -723,7 +740,7 @@ function MatchupRow({
                             <Text style={[styles.sideName, !oppHasGame && styles.noGameName]} numberOfLines={1}>
                                 {shortName(oppPlayer.displayName)}
                             </Text>
-                            <InjuryBadge status={oppPlayer.injuryStatus} />
+                            {oppShowInjury && <InjuryBadge status={oppPlayer.injuryStatus} />}
                         </View>
                         <View style={styles.metaRow}>
                             {oppPlayer.position && <PosTag position={oppPlayer.position} />}
@@ -731,11 +748,15 @@ function MatchupRow({
                                 {oppPlayer.nbaTeam ?? 'FA'}{!oppHasGame ? ' · No game' : ''}
                             </Text>
                         </View>
-                        {oppStats && (
+                        {oppIsLive && !oppStats ? (
+                            <Text style={[styles.statLine, { textAlign: 'left' }, styles.statLineLive]} numberOfLines={1}>In game</Text>
+                        ) : oppStats ? (
                             <Text style={[styles.statLine, { textAlign: 'left' }, oppIsLive && styles.statLineLive]} numberOfLines={1}>
-                                {oppStats.didNotPlay ? 'DNP' : `${oppStats.points}p ${oppStats.rebounds}r ${oppStats.assists}a`}
+                                {oppStats.didNotPlay
+                                    ? 'DNP'
+                                    : `${oppStats.points}p ${oppStats.rebounds}r ${oppStats.assists}a${oppFpts != null ? ` · ${oppFpts}` : ''}`}
                             </Text>
-                        )}
+                        ) : null}
                     </>
                 ) : (
                     <Text style={[styles.sideName, { color: colors.border }]}>—</Text>

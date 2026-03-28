@@ -1,6 +1,25 @@
 import { supabase } from '@/lib/supabase'
 import { getCurrentSeason } from '@/lib/shared/season'
 import { getCurrentWeekNumber } from '@/lib/shared/week'
+import { LiveStatLine } from '@/lib/games'
+
+export function computeLiveFantasyPoints(
+    stats: LiveStatLine,
+    settings: Record<string, number>,
+): number {
+    if (stats.didNotPlay) return 0
+    return parseFloat((
+        stats.points             * (settings.points             ?? 0) +
+        stats.rebounds           * (settings.rebounds           ?? 0) +
+        stats.assists            * (settings.assists            ?? 0) +
+        stats.steals             * (settings.steals             ?? 0) +
+        stats.blocks             * (settings.blocks             ?? 0) +
+        (stats.turnovers ?? 0)   * (settings.turnovers          ?? 0) +
+        stats.threeMade          * (settings.three_pointers_made ?? 0) +
+        (stats.doubleDouble ? (settings.double_double ?? 0) : 0) +
+        (stats.tripleDouble ? (settings.triple_double ?? 0) : 0)
+    ).toFixed(2))
+}
 
 export type Matchup = {
     id: string
