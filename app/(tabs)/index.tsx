@@ -680,11 +680,7 @@ function MatchupRow({
                         {myIsLive && !myStats ? (
                             <Text style={[styles.statLine, styles.statLineLive]} numberOfLines={1}>In game</Text>
                         ) : myStats ? (
-                            <Text style={[styles.statLine, myIsLive && styles.statLineLive]} numberOfLines={1}>
-                                {myStats.didNotPlay
-                                    ? 'DNP'
-                                    : `${myStats.points}p ${myStats.rebounds}r ${myStats.assists}a${myFpts != null ? ` · ${myFpts}` : ''}`}
-                            </Text>
+                            <StatLines stats={myStats} isLive={myIsLive} fpts={myFpts} align="right" />
                         ) : null}
                     </>
                 ) : (
@@ -731,11 +727,7 @@ function MatchupRow({
                         {oppIsLive && !oppStats ? (
                             <Text style={[styles.statLine, { textAlign: 'left' }, styles.statLineLive]} numberOfLines={1}>In game</Text>
                         ) : oppStats ? (
-                            <Text style={[styles.statLine, { textAlign: 'left' }, oppIsLive && styles.statLineLive]} numberOfLines={1}>
-                                {oppStats.didNotPlay
-                                    ? 'DNP'
-                                    : `${oppStats.points}p ${oppStats.rebounds}r ${oppStats.assists}a${oppFpts != null ? ` · ${oppFpts}` : ''}`}
-                            </Text>
+                            <StatLines stats={oppStats} isLive={oppIsLive} fpts={oppFpts} align="left" />
                         ) : null}
                     </>
                 ) : (
@@ -743,6 +735,26 @@ function MatchupRow({
                 )}
             </Pressable>
         </View>
+    )
+}
+
+function StatLines({ stats, isLive, fpts, align }: {
+    stats: LiveStatLine
+    isLive: boolean
+    fpts: number | null
+    align: 'left' | 'right'
+}) {
+    const base = [styles.statLine, isLive ? styles.statLineLive : null, { textAlign: align }]
+    if (stats.didNotPlay) return <Text style={base}>DNP</Text>
+    const line1 = `${stats.points}p ${stats.rebounds}r ${stats.assists}a ${stats.steals}s ${stats.blocks}b ${stats.turnovers ?? 0}to`
+    const fg = `${stats.fgMade}/${stats.fgAttempted}`
+    const ft = `${stats.ftMade}/${stats.ftAttempted}`
+    const line2 = `${fg} ${ft} ${stats.threeMade}x3 ${stats.fouls}f${fpts != null ? ` · ${fpts}` : ''}`
+    return (
+        <>
+            <Text style={base} numberOfLines={1}>{line1}</Text>
+            <Text style={base} numberOfLines={1}>{line2}</Text>
+        </>
     )
 }
 

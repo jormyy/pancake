@@ -24,6 +24,7 @@ export type LiveStatLine = {
     fgAttempted: number
     ftMade: number
     ftAttempted: number
+    fouls: number
     doubleDouble: boolean
     tripleDouble: boolean
     minutesPlayed: number | null
@@ -35,7 +36,7 @@ export type LiveStatLine = {
 export async function getLivePlayerStats(date: string): Promise<Map<string, LiveStatLine>> {
     const { data, error } = await supabase
         .from('player_game_stats')
-        .select('player_id, points, rebounds, assists, steals, blocks, turnovers, three_pointers_made, field_goals_made, field_goals_attempted, free_throws_made, free_throws_attempted, double_double, triple_double, minutes_played, did_not_play')
+        .select('player_id, points, rebounds, assists, steals, blocks, turnovers, three_pointers_made, field_goals_made, field_goals_attempted, free_throws_made, free_throws_attempted, personal_fouls, double_double, triple_double, minutes_played, did_not_play')
         .eq('game_date', date)
 
     if (error) throw error
@@ -53,6 +54,7 @@ export async function getLivePlayerStats(date: string): Promise<Map<string, Live
             fgAttempted: (row as any).field_goals_attempted ?? 0,
             ftMade: (row as any).free_throws_made ?? 0,
             ftAttempted: (row as any).free_throws_attempted ?? 0,
+            fouls: (row as any).personal_fouls ?? 0,
             doubleDouble: (row as any).double_double ?? false,
             tripleDouble: (row as any).triple_double ?? false,
             minutesPlayed: row.minutes_played != null ? Number(row.minutes_played) : null,
