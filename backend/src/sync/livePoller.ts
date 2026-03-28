@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase'
-import { fetchTodaysGames } from '../lib/nba'
+import { fetchTodaysGames, NBAGame } from '../lib/nba'
 import { syncStatsByDate } from './stats'
 import { syncScores } from './scores'
 import { CONFIG } from '../config'
@@ -129,7 +129,7 @@ class LiveGamePoller {
     }
 }
 
-async function updateGameStatuses(games: Array<{ gameId: string; gameStatus: number }>) {
+async function updateGameStatuses(games: NBAGame[]) {
     const today = new Date().toISOString().split('T')[0]
     const { data: dbGames } = await supabase
         .from('nba_games')
@@ -139,20 +139,18 @@ async function updateGameStatuses(games: Array<{ gameId: string; gameStatus: num
 
     if (!dbGames?.length) return
 
-    const cdnStatusMap = new Map(games.map((g) => [g.gameId, g.gameStatus]))
+    const cdnMap = new Map(games.map((g) => [g.gameId, g]))
 
-    const updates: Array<{ id: string; status: string }> = []
     for (const dbGame of dbGames) {
-        const cdnStatus = cdnStatusMap.get(dbGame.nba_game_id!)
-        if (cdnStatus === undefined) continue
-        const newStatus = cdnStatus === 2 ? 'InProgress' : cdnStatus === 3 ? 'Final' : 'Scheduled'
-        if (newStatus !== dbGame.status) {
-            updates.push({ id: dbGame.id, status: newStatus })
-        }
-    }
-
-    for (const u of updates) {
-        await supabase.from('nba_games').update({ status: u.status }).eq('id', u.id)
+        const g = cdnMap.get(dbGame.nba_game_id!)
+        if (!g) continue
+        const newStatus = g.gameStatus === 2 ? 'InProgress' : g.gameStatus === 3 ? 'Final' : 'Scheduled'
+        await supabase.from('nba_games').update({
+            status: newStatus,
+            home_score: g.homeTeam.score,
+            away_score: g.awayTeam.score,
+            game_status_text: g.gameStatusText,
+        }).eq('id', dbGame.id)
     }
 }
 

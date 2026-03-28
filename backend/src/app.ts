@@ -8,6 +8,7 @@ import waiverRoutes from './routes/waivers'
 import playoffRoutes from './routes/playoffs'
 import notifyRoutes from './routes/notifications'
 import leagueRoutes from './routes/league'
+import gamesRoutes from './routes/games'
 
 export async function buildApp() {
     const app = Fastify({ logger: true })
@@ -22,6 +23,7 @@ export async function buildApp() {
     await app.register(playoffRoutes, { prefix: '/playoffs' })
     await app.register(notifyRoutes, { prefix: '/notify' })
     await app.register(leagueRoutes, { prefix: '/league' })
+    await app.register(gamesRoutes, { prefix: '/games' })
 
     return app
 }

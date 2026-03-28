@@ -10,11 +10,14 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useFocusEffect } from '@react-navigation/native'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useAuth } from '@/hooks/use-auth'
 import { getMyMatchup, Matchup } from '@/lib/scoring'
+import { getTodaysGames, NBAGameRow } from '@/lib/games'
+import { supabase } from '@/lib/supabase'
+import { Scoreboard } from '@/components/Scoreboard'
 import {
     getWeekDays,
     getWeeklyLineup,
@@ -73,6 +76,8 @@ export default function HomeScreen() {
     const [irOverflowPending, setIROverflowPending] = useState<PendingIRActivate | null>(null)
     const [irOverflowSaving, setIROverflowSaving] = useState(false)
 
+    const [todaysGames, setTodaysGames] = useState<NBAGameRow[]>([])
+
     const matchupRef = useRef<Matchup | null>(null)
     const league = (current as any)?.leagues
 
@@ -127,6 +132,57 @@ export default function HomeScreen() {
     }, [current, user, loadLineups])
 
     useFocusEffect(useCallback(() => { load() }, [load]))
+
+    // ── Scoreboard: load today's games + subscribe to live score updates ──
+    useEffect(() => {
+        getTodaysGames().then(setTodaysGames).catch(() => {})
+
+        const today = new Date().toISOString().split('T')[0]
+        const channel = supabase
+            .channel('nba_games_today')
+            .on('postgres_changes', {
+                event: 'UPDATE',
+                schema: 'public',
+                table: 'nba_games',
+                filter: `game_date=eq.${today}`,
+            }, (payload) => {
+                setTodaysGames((prev) =>
+                    prev.map((g) => g.id === payload.new.id ? { ...g, ...payload.new } as NBAGameRow : g)
+                )
+            })
+            .subscribe()
+
+        return () => { supabase.removeChannel(channel) }
+    }, [])
+
+    // ── Realtime matchup score updates ────────────────────────────────────
+    useEffect(() => {
+        if (!matchup?.id) return
+        const channel = supabase
+            .channel(`matchup_${matchup.id}`)
+            .on('postgres_changes', {
+                event: 'UPDATE',
+                schema: 'public',
+                table: 'matchups',
+                filter: `id=eq.${matchup.id}`,
+            }, (payload) => {
+                const { home_points, away_points, is_finalized, winner_member_id } = payload.new
+                setMatchup((prev) => {
+                    if (!prev) return prev
+                    const isHome = prev.myMemberId === payload.new.home_member_id
+                    return {
+                        ...prev,
+                        myPoints: isHome ? home_points : away_points,
+                        opponentPoints: isHome ? away_points : home_points,
+                        isFinalized: is_finalized,
+                        iWon: winner_member_id ? winner_member_id === prev.myMemberId : null,
+                    }
+                })
+            })
+            .subscribe()
+
+        return () => { supabase.removeChannel(channel) }
+    }, [matchup?.id])
 
     async function handleDaySelect(date: string) {
         if (!matchupRef.current) return
@@ -290,6 +346,17 @@ export default function HomeScreen() {
         weekDays.find((d) => d.date === selectedDate)?.playingTeams ?? [],
     )
 
+    // Teams on my roster — used to highlight those teams in the scoreboard
+    const myTeamSet = new Set<string>(
+        myLineup
+            ? [
+                ...myLineup.starters.map((s) => s.player?.nbaTeam),
+                ...myLineup.bench.map((p) => p.nbaTeam),
+                ...myLineup.ir.map((p) => p.nbaTeam),
+              ].filter(Boolean) as string[]
+            : [],
+    )
+
     const selectedPlayer = myLineup && selected
         ? selected.kind === 'starter' ? myLineup.starters[selected.index]?.player
         : selected.kind === 'bench' ? myLineup.bench[selected.index]
@@ -317,6 +384,8 @@ export default function HomeScreen() {
                     })}
                 </ScrollView>
             )}
+
+            <Scoreboard games={todaysGames} myTeamSet={myTeamSet} />
 
             {matchupLoading ? (
                 <ActivityIndicator color={colors.primary} style={{ marginTop: 48 }} />
