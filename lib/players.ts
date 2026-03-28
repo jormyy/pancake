@@ -162,7 +162,7 @@ export async function getPlayerGameLog(
         `)
         .eq('player_id', playerId)
         .eq('season_year', seasonYear)
-        .order('nba_games(game_date)', { ascending: false })
+        .order('game_date', { ascending: false })
         .range(offset, offset + fetchLimit - 1)
 
     if (error) throw error
@@ -310,7 +310,7 @@ export async function getPlayerRecentGames(playerId: string) {
         )
         .eq('player_id', playerId)
         .eq('season_year', currentSeasonYear())
-        .order('nba_games(game_date)', { ascending: false })
+        .order('game_date', { ascending: false })
         .limit(5)
 
     if (error) throw error

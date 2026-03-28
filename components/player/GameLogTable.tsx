@@ -12,7 +12,8 @@ type Props = {
 
 function fmtDate(dateStr: string): string {
     if (!dateStr) return '—'
-    const d = new Date(dateStr)
+    const [, month, day] = dateStr.split('-').map(Number)
+    const d = new Date(2000, month - 1, day)
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 

@@ -82,13 +82,18 @@ export async function syncStatsByDate(date: Date) {
     const dateStr = date.toISOString().split('T')[0] // YYYY-MM-DD
     console.log(`[sync] Fetching stats for ${dateStr}...`)
 
-    // Get games for this date that have an nba_game_id and are in-progress or final
-    const { data: games, error: gErr } = await supabase
+    const isPast = dateStr < new Date().toISOString().split('T')[0]
+
+    // Get games for this date that have an nba_game_id.
+    // For past dates, include Scheduled games too — they may just have a stale status.
+    const query = supabase
         .from('nba_games')
         .select('id, nba_game_id, week_number, season_year, status')
         .eq('game_date', dateStr)
         .not('nba_game_id', 'is', null)
-        .neq('status', 'Scheduled')
+    if (!isPast) query.neq('status', 'Scheduled')
+
+    const { data: games, error: gErr } = await query
 
     if (gErr) throw gErr
     if (!games?.length) {
@@ -141,6 +146,12 @@ export async function syncStatsByDate(date: Date) {
                 if (!p.statistics) continue
 
                 stats.push(buildStatRow(p, playerId, game.id, game.season_year, game.week_number))
+            }
+
+            if (boxScore.gameStatus !== 3) continue  // not final yet
+
+            if (game.status !== 'Final') {
+                await supabase.from('nba_games').update({ status: 'Final' }).eq('id', game.id)
             }
 
             if (stats.length) {
