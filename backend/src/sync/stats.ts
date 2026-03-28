@@ -1,6 +1,17 @@
 import { supabase } from '../lib/supabase'
 import { fetchBoxScore, parseNBAMinutes, NBABoxScorePlayer } from '../lib/nba'
 
+// Normalize a player name for fuzzy matching:
+// strips suffixes (Jr, Sr, II, III, IV), punctuation, and extra spaces
+function normalizeName(name: string): string {
+    return name
+        .toLowerCase()
+        .replace(/\s+(jr\.?|sr\.?|ii|iii|iv|v)$/i, '')
+        .replace(/['.'\-]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim()
+}
+
 export interface StatRow {
     player_id: string
     game_id: string
@@ -109,9 +120,12 @@ export async function syncStatsByDate(date: Date) {
 
     const byNbaId = new Map<string, string>() // nba personId → player.id
     const byName = new Map<string, string>() // display_name lower → player.id
+    const byNormName = new Map<string, string>() // normalized name → player.id
     for (const p of players ?? []) {
         if (p.nba_id) byNbaId.set(p.nba_id, p.id)
-        byName.set(p.display_name.toLowerCase(), p.id)
+        const lower = p.display_name.toLowerCase()
+        byName.set(lower, p.id)
+        byNormName.set(normalizeName(lower), p.id)
     }
 
     let statCount = 0
@@ -132,12 +146,14 @@ export async function syncStatsByDate(date: Date) {
                 let playerId = byNbaId.get(personId)
 
                 if (!playerId) {
-                    // Fall back to name matching and save nba_id for future use
                     const nameLower = (p.name ?? '').toLowerCase()
-                    playerId = byName.get(nameLower)
+                    playerId = byName.get(nameLower) ?? byNormName.get(normalizeName(nameLower))
                     if (playerId && !byNbaId.has(personId)) {
                         nbaIdUpdates.push({ id: playerId, nba_id: personId })
                         byNbaId.set(personId, playerId)
+                    }
+                    if (!playerId) {
+                        console.log(`[sync] Unmatched player: "${p.name}" (personId ${personId})`)
                     }
                 }
 
