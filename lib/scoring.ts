@@ -9,13 +9,17 @@ export function computeLiveFantasyPoints(
 ): number {
     if (stats.didNotPlay) return 0
     return parseFloat((
-        stats.points             * (settings.points             ?? 0) +
-        stats.rebounds           * (settings.rebounds           ?? 0) +
-        stats.assists            * (settings.assists            ?? 0) +
-        stats.steals             * (settings.steals             ?? 0) +
-        stats.blocks             * (settings.blocks             ?? 0) +
-        (stats.turnovers ?? 0)   * (settings.turnovers          ?? 0) +
-        stats.threeMade          * (settings.three_pointers_made ?? 0) +
+        stats.points             * (settings.points                  ?? 0) +
+        stats.rebounds           * (settings.rebounds                ?? 0) +
+        stats.assists            * (settings.assists                 ?? 0) +
+        stats.steals             * (settings.steals                  ?? 0) +
+        stats.blocks             * (settings.blocks                  ?? 0) +
+        (stats.turnovers ?? 0)   * (settings.turnovers               ?? 0) +
+        stats.threeMade          * (settings.three_pointers_made     ?? 0) +
+        stats.fgMade             * (settings.field_goals_made        ?? 0) +
+        stats.fgAttempted        * (settings.field_goals_attempted   ?? 0) +
+        stats.ftMade             * (settings.free_throws_made        ?? 0) +
+        stats.ftAttempted        * (settings.free_throws_attempted   ?? 0) +
         (stats.doubleDouble ? (settings.double_double ?? 0) : 0) +
         (stats.tripleDouble ? (settings.triple_double ?? 0) : 0)
     ).toFixed(2))
