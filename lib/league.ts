@@ -1,4 +1,6 @@
 import { supabase } from '@/lib/supabase'
+import type { League, RosterSlotType } from '@/types/database'
+import { currentSeasonYear } from '@/lib/shared/season'
 
 function generateInviteCode(): string {
     return Math.random().toString(36).slice(2, 8).toUpperCase()
@@ -11,11 +13,6 @@ function generateSlug(name: string): string {
         .replace(/(^-|-$)/g, '')
     const suffix = Math.random().toString(36).slice(2, 6)
     return `${base}-${suffix}`
-}
-
-function currentSeasonYear(): number {
-    const now = new Date()
-    return now.getMonth() >= 9 ? now.getFullYear() + 1 : now.getFullYear()
 }
 
 export async function createLeague(
@@ -37,7 +34,7 @@ export async function createLeague(
             auction_budget: auctionBudget,
         })
         .select()
-        .single()
+        .single<League>()
 
     if (leagueError) throw leagueError
 
@@ -61,31 +58,14 @@ export async function createLeague(
     return league
 }
 
-export async function joinLeague(inviteCode: string, userId: string, teamName: string) {
-    const { data: league, error: findError } = await supabase
-        .from('leagues')
-        .select('id, name, status')
-        .eq('invite_code', inviteCode.toUpperCase().trim())
-        .single()
+export async function joinLeague(inviteCode: string, _userId: string, teamName: string) {
+    const { data, error } = await supabase.rpc('join_league_by_invite_code', {
+        p_invite_code: inviteCode,
+        p_team_name: teamName,
+    })
 
-    if (findError) throw new Error('League not found. Check your invite code.')
-
-    const { data: existing } = await supabase
-        .from('league_members')
-        .select('id')
-        .eq('league_id', league.id)
-        .eq('user_id', userId)
-        .single()
-
-    if (existing) throw new Error('You are already in this league.')
-
-    const { error: joinError } = await supabase
-        .from('league_members')
-        .insert({ league_id: league.id, user_id: userId, role: 'manager', team_name: teamName })
-
-    if (joinError) throw joinError
-
-    return league
+    if (error) throw new Error(error.message)
+    return data as { id: string; name: string; status: string }
 }
 
 export async function fetchUserLeagues(userId: string) {
@@ -163,7 +143,7 @@ export async function updateLineupSlots(
     leagueId: string,
     slots: { slot_type: string; slot_count: number }[],
 ) {
-    const rows = slots.map((s) => ({ league_id: leagueId, ...s }))
+    const rows = slots.map((s) => ({ league_id: leagueId, slot_type: s.slot_type as RosterSlotType, slot_count: s.slot_count }))
     const { error } = await supabase
         .from('lineup_slot_templates')
         .upsert(rows, { onConflict: 'league_id,slot_type' })

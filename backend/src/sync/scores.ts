@@ -43,12 +43,14 @@ async function finalizeWeekIfComplete(
     leagueId: string,
     leagueSeasonId: string,
     weekNumber: number,
+    seasonYear: number,
 ) {
     const { count: pendingGames } = await supabase
         .from('nba_games')
         .select('id', { count: 'exact', head: true })
+        .eq('season_year', seasonYear)
         .eq('week_number', weekNumber)
-        .neq('status', 'Final')
+        .in('status', ['Scheduled', 'InProgress'])
 
     if ((pendingGames ?? 0) > 0) return // week not done yet
 
@@ -155,7 +157,7 @@ export async function syncScores() {
 
         // Finalize the previous week if all its games are done
         if (weekNumber > 1) {
-            await finalizeWeekIfComplete(season.league_id, season.id, weekNumber - 1)
+            await finalizeWeekIfComplete(season.league_id, season.id, weekNumber - 1, season.season_year)
         }
     }
 

@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import { logTransaction } from '@/lib/transactions'
+import { getCurrentSeasonId } from '@/lib/shared/season'
 
 export type RosterPlayer = {
     id: string
@@ -19,16 +20,6 @@ export type PlayerRosterStatus =
     | { status: 'taken'; ownerTeamName: string }
     | { status: 'on_waivers'; logId: string; clearsAt: string }
     | { status: 'free_agent' }
-
-async function getCurrentSeasonId(leagueId: string): Promise<string | null> {
-    const { data } = await supabase
-        .from('league_seasons')
-        .select('id')
-        .eq('league_id', leagueId)
-        .eq('is_current', true)
-        .single()
-    return data?.id ?? null
-}
 
 export async function getRoster(memberId: string, leagueId: string): Promise<RosterPlayer[]> {
     const seasonId = await getCurrentSeasonId(leagueId)

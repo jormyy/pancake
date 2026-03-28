@@ -1,22 +1,10 @@
 import { supabase } from '@/lib/supabase'
+import type { RosterSlotType } from '@/types/database'
+import { getCurrentSeason } from '@/lib/shared/season'
+import { getCurrentWeekNumber } from '@/lib/shared/week'
+import { canPlaySlot } from '@/constants/slots'
 
-// Which player positions are eligible for each slot type
-export const SLOT_ELIGIBLE: Record<string, string[]> = {
-    PG: ['PG'],
-    SG: ['SG'],
-    SF: ['SF'],
-    PF: ['PF'],
-    C: ['C'],
-    G: ['PG', 'SG'],
-    F: ['SF', 'PF'],
-    UTIL: ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F'],
-    BE: ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F'],
-}
-
-export function canPlaySlot(position: string | null, slotType: string): boolean {
-    if (!position || slotType === 'IR') return false
-    return SLOT_ELIGIBLE[slotType]?.includes(position) ?? false
-}
+export { canPlaySlot, SLOT_ELIGIBLE } from '@/constants/slots'
 
 export type LineupPlayer = {
     rosterPlayerId: string
@@ -48,33 +36,10 @@ export type WeekDay = {
     playingTeams: string[]
 }
 
-async function getCurrentSeason(leagueId: string) {
-    const { data } = await supabase
-        .from('league_seasons')
-        .select('id, season_year')
-        .eq('league_id', leagueId)
-        .eq('is_current', true)
-        .single()
-    return data ? { id: data.id, seasonYear: data.season_year } : null
-}
-
-async function getCurrentWeekNumber(seasonYear: number): Promise<number> {
-    const today = new Date().toISOString().split('T')[0]
-    const { data } = await supabase
-        .from('nba_games')
-        .select('week_number')
-        .eq('season_year', seasonYear)
-        .lte('game_date', today)
-        .order('game_date', { ascending: false })
-        .limit(1)
-        .maybeSingle()
-    return data?.week_number ?? 1
-}
-
 export async function getLineupContext(leagueId: string): Promise<LineupContext | null> {
     const season = await getCurrentSeason(leagueId)
     if (!season) return null
-    const weekNumber = await getCurrentWeekNumber(season.seasonYear)
+    const weekNumber = await getCurrentWeekNumber(season.seasonYear) ?? 1
     const today = new Date().toISOString().split('T')[0]
     return { seasonId: season.id, seasonYear: season.seasonYear, weekNumber, today }
 }
@@ -266,7 +231,7 @@ export async function setPlayerSlot(
                 player_id: playerId,
                 week_number: weekNumber,
                 game_date: gameDate,
-                slot_type: slotType,
+                slot_type: slotType as RosterSlotType,
                 is_auto_set: false,
                 set_at: new Date().toISOString(),
             },
@@ -402,7 +367,7 @@ async function autoSetForDate(
                 player_id: playerId,
                 week_number: weekNumber,
                 game_date: gameDate,
-                slot_type: slotType,
+                slot_type: slotType as RosterSlotType,
                 is_auto_set: true,
                 set_at: new Date().toISOString(),
             })),

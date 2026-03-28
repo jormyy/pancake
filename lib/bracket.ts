@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { getCurrentSeasonId } from '@/lib/shared/season'
 
 export type BracketMatchup = {
     id: string
@@ -21,14 +22,9 @@ export type PlayoffBracket = {
 }
 
 export async function getPlayoffBracket(leagueId: string): Promise<PlayoffBracket> {
-    const { data: season } = await supabase
-        .from('league_seasons')
-        .select('id')
-        .eq('league_id', leagueId)
-        .eq('is_current', true)
-        .single()
+    const seasonId = await getCurrentSeasonId(leagueId)
 
-    if (!season) return { semifinals: [], final: null, champion: null }
+    if (!seasonId) return { semifinals: [], final: null, champion: null }
 
     const { data: rows, error } = await supabase
         .from('matchups')
@@ -36,7 +32,7 @@ export async function getPlayoffBracket(leagueId: string): Promise<PlayoffBracke
             'id, week_number, matchup_type, home_member_id, away_member_id, home_points, away_points, winner_member_id, is_finalized',
         )
         .eq('league_id', leagueId)
-        .eq('league_season_id', (season as any).id)
+        .eq('league_season_id', seasonId)
         .in('matchup_type', ['playoff_semifinal', 'playoff_final'])
         .order('week_number', { ascending: true })
 
