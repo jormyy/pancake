@@ -15,7 +15,7 @@ import { useFocusEffect } from '@react-navigation/native'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useAuth } from '@/hooks/use-auth'
 import { getMyMatchup, Matchup } from '@/lib/scoring'
-import { getTodaysGames, NBAGameRow } from '@/lib/games'
+import { getTodaysGames, getLivePlayerStats, NBAGameRow, LiveStatLine } from '@/lib/games'
 import { supabase } from '@/lib/supabase'
 import { Scoreboard } from '@/components/Scoreboard'
 import {
@@ -77,6 +77,7 @@ export default function HomeScreen() {
     const [irOverflowSaving, setIROverflowSaving] = useState(false)
 
     const [todaysGames, setTodaysGames] = useState<NBAGameRow[]>([])
+    const [liveStats, setLiveStats] = useState<Map<string, LiveStatLine>>(new Map())
 
     const matchupRef = useRef<Matchup | null>(null)
     const league = (current as any)?.leagues
@@ -183,6 +184,26 @@ export default function HomeScreen() {
 
         return () => { supabase.removeChannel(channel) }
     }, [matchup?.id])
+
+    // ── Live player stats: load + subscribe ───────────────────────────────
+    useEffect(() => {
+        getLivePlayerStats(selectedDate).then(setLiveStats).catch(() => {})
+
+        const channel = supabase
+            .channel(`pgs_${selectedDate}`)
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'player_game_stats',
+                filter: `game_date=eq.${selectedDate}`,
+            }, () => {
+                // Re-fetch the whole map on any update — simpler than patching individual rows
+                getLivePlayerStats(selectedDate).then(setLiveStats).catch(() => {})
+            })
+            .subscribe()
+
+        return () => { supabase.removeChannel(channel) }
+    }, [selectedDate])
 
     async function handleDaySelect(date: string) {
         if (!matchupRef.current) return
@@ -346,6 +367,13 @@ export default function HomeScreen() {
         weekDays.find((d) => d.date === selectedDate)?.playingTeams ?? [],
     )
 
+    // Teams whose game is currently InProgress — used for live stat styling
+    const liveTeams = new Set<string>(
+        todaysGames
+            .filter((g) => g.status === 'InProgress')
+            .flatMap((g) => [g.home_team, g.away_team]),
+    )
+
     // Teams on my roster — used to highlight those teams in the scoreboard
     const myTeamSet = new Set<string>(
         myLineup
@@ -440,6 +468,8 @@ export default function HomeScreen() {
                             onTap={handleTap}
                             saving={saving}
                             playingTeams={todayPlayingTeams}
+                            liveStats={liveStats}
+                            liveTeams={liveTeams}
                         />
                     ) : (
                         <View style={styles.noLineup}>
@@ -515,6 +545,8 @@ function MatchupLineupView({
     onTap,
     saving,
     playingTeams,
+    liveStats,
+    liveTeams,
 }: {
     myLineup: LineupData
     oppLineup: LineupData
@@ -522,6 +554,8 @@ function MatchupLineupView({
     onTap: (sel: Sel) => void
     saving: boolean
     playingTeams: Set<string>
+    liveStats: Map<string, LiveStatLine>
+    liveTeams: Set<string>
 }) {
     const maxBench = Math.max(myLineup.bench.length, oppLineup.bench.length)
     const maxIR = Math.max(myLineup.ir.length, oppLineup.ir.length)
@@ -541,6 +575,8 @@ function MatchupLineupView({
                     onTap={onTap}
                     saving={saving}
                     playingTeams={playingTeams}
+                    liveStats={liveStats}
+                    liveTeams={liveTeams}
                 />
             ))}
 
@@ -559,6 +595,8 @@ function MatchupLineupView({
                             onTap={onTap}
                             saving={saving}
                             playingTeams={playingTeams}
+                            liveStats={liveStats}
+                            liveTeams={liveTeams}
                         />
                     ))}
                 </>
@@ -579,6 +617,8 @@ function MatchupLineupView({
                             onTap={onTap}
                             saving={saving}
                             playingTeams={playingTeams}
+                            liveStats={liveStats}
+                            liveTeams={liveTeams}
                         />
                     ))}
                 </>
@@ -597,6 +637,8 @@ function MatchupRow({
     onTap,
     saving,
     playingTeams,
+    liveStats,
+    liveTeams,
 }: {
     myPlayer: LineupPlayer | null
     oppPlayer: LineupPlayer | null
@@ -607,11 +649,18 @@ function MatchupRow({
     onTap: (sel: Sel) => void
     saving: boolean
     playingTeams: Set<string>
+    liveStats: Map<string, LiveStatLine>
+    liveTeams: Set<string>
 }) {
+    const { push } = useRouter()
     const isSel = selected?.kind === selKind && selected.index === selIndex
     const slotColor = slotType === 'IR' ? colors.danger : (POSITION_COLORS[slotType] ?? colors.textPlaceholder)
     const myHasGame = myPlayer?.nbaTeam ? playingTeams.has(myPlayer.nbaTeam) : false
     const oppHasGame = oppPlayer?.nbaTeam ? playingTeams.has(oppPlayer.nbaTeam) : false
+    const myStats = myPlayer ? liveStats.get(myPlayer.playerId) : undefined
+    const oppStats = oppPlayer ? liveStats.get(oppPlayer.playerId) : undefined
+    const myIsLive = myPlayer?.nbaTeam ? liveTeams.has(myPlayer.nbaTeam) : false
+    const oppIsLive = oppPlayer?.nbaTeam ? liveTeams.has(oppPlayer.nbaTeam) : false
 
     return (
         <View style={styles.matchupRow}>
@@ -635,6 +684,11 @@ function MatchupRow({
                                 {myPlayer.nbaTeam ?? 'FA'}{!myHasGame ? ' · No game' : ''}
                             </Text>
                         </View>
+                        {myStats && (
+                            <Text style={[styles.statLine, myIsLive && styles.statLineLive]} numberOfLines={1}>
+                                {myStats.didNotPlay ? 'DNP' : `${myStats.points}p ${myStats.rebounds}r ${myStats.assists}a`}
+                            </Text>
+                        )}
                     </>
                 ) : (
                     <Text style={[styles.sideName, { color: colors.border, textAlign: 'right' }]}>—</Text>
@@ -677,6 +731,11 @@ function MatchupRow({
                                 {oppPlayer.nbaTeam ?? 'FA'}{!oppHasGame ? ' · No game' : ''}
                             </Text>
                         </View>
+                        {oppStats && (
+                            <Text style={[styles.statLine, { textAlign: 'left' }, oppIsLive && styles.statLineLive]} numberOfLines={1}>
+                                {oppStats.didNotPlay ? 'DNP' : `${oppStats.points}p ${oppStats.rebounds}r ${oppStats.assists}a`}
+                            </Text>
+                        )}
                     </>
                 ) : (
                     <Text style={[styles.sideName, { color: colors.border }]}>—</Text>
@@ -922,6 +981,8 @@ const styles = StyleSheet.create({
     noGameName: { color: palette.gray500 },
     metaRow: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 2 },
     sideMeta: { fontSize: 11, color: colors.textPlaceholder },
+    statLine: { fontSize: 11, color: colors.textMuted, textAlign: 'right', marginTop: 1 },
+    statLineLive: { color: colors.primary, fontWeight: fontWeight.semibold },
 
     posTag: { paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4, borderCurve: 'continuous' as const, flexShrink: 0 },
     posTagText: { fontSize: 9, fontWeight: '800' },
