@@ -148,9 +148,10 @@ export async function syncStatsByDate(date: Date) {
                 stats.push(buildStatRow(p, playerId, game.id, game.season_year, game.week_number))
             }
 
-            if (boxScore.gameStatus !== 3) continue  // not final yet
+            // For past dates: skip games the box score says haven't started yet
+            if (isPast && boxScore.gameStatus === 1) continue
 
-            if (game.status !== 'Final') {
+            if (boxScore.gameStatus === 3 && game.status !== 'Final') {
                 await supabase.from('nba_games').update({ status: 'Final' }).eq('id', game.id)
             }
 
