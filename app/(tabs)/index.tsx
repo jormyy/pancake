@@ -134,26 +134,9 @@ export default function HomeScreen() {
 
     useFocusEffect(useCallback(() => { load() }, [load]))
 
-    // ── Scoreboard: load today's games + subscribe to live score updates ──
+    // ── Scoreboard: load today's games on mount ───────────────────────────
     useEffect(() => {
         getTodaysGames().then(setTodaysGames).catch(() => {})
-
-        const today = new Date().toISOString().split('T')[0]
-        const channel = supabase
-            .channel('nba_games_today')
-            .on('postgres_changes', {
-                event: 'UPDATE',
-                schema: 'public',
-                table: 'nba_games',
-                filter: `game_date=eq.${today}`,
-            }, (payload) => {
-                setTodaysGames((prev) =>
-                    prev.map((g) => g.id === payload.new.id ? { ...g, ...payload.new } as NBAGameRow : g)
-                )
-            })
-            .subscribe()
-
-        return () => { supabase.removeChannel(channel) }
     }, [])
 
     // ── Realtime matchup score updates ────────────────────────────────────
@@ -185,24 +168,21 @@ export default function HomeScreen() {
         return () => { supabase.removeChannel(channel) }
     }, [matchup?.id])
 
-    // ── Live player stats: load + subscribe ───────────────────────────────
+    // ── Live player stats + scoreboard: poll every 15s when games are active ─
     useEffect(() => {
         getLivePlayerStats(selectedDate).then(setLiveStats).catch(() => {})
 
-        const channel = supabase
-            .channel(`pgs_${selectedDate}`)
-            .on('postgres_changes', {
-                event: '*',
-                schema: 'public',
-                table: 'player_game_stats',
-                filter: `game_date=eq.${selectedDate}`,
-            }, () => {
-                // Re-fetch the whole map on any update — simpler than patching individual rows
-                getLivePlayerStats(selectedDate).then(setLiveStats).catch(() => {})
-            })
-            .subscribe()
+        const today = new Date().toISOString().split('T')[0]
+        const isToday = selectedDate === today
 
-        return () => { supabase.removeChannel(channel) }
+        if (!isToday) return
+
+        const interval = setInterval(() => {
+            getTodaysGames().then(setTodaysGames).catch(() => {})
+            getLivePlayerStats(selectedDate).then(setLiveStats).catch(() => {})
+        }, 15_000)
+
+        return () => clearInterval(interval)
     }, [selectedDate])
 
     async function handleDaySelect(date: string) {
