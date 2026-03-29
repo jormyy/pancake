@@ -19,6 +19,8 @@ import {
     getWeeklyLineup,
     setPlayerSlot,
     autoSetLineup,
+    getStartedTeams,
+    getLiveTeams,
     canPlaySlot,
     LineupSlot,
     LineupPlayer,
@@ -47,21 +49,29 @@ export default function LineupScreen() {
     )
     const [starters, setStarters] = useState<LineupSlot[]>([])
     const [bench, setBench] = useState<LineupPlayer[]>([])
+    const [startedTeams, setStartedTeams] = useState<Set<string>>(new Set())
+    const [liveTeams, setLiveTeams] = useState<Set<string>>(new Set())
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
     const [autoSetting, setAutoSetting] = useState(false)
     const [selected, setSelected] = useState<Selection | null>(null)
 
     const loadLineup = useCallback(async (lineupCtx: LineupContext, league: any, date: string) => {
-        const lineup = await getWeeklyLineup(
-            current!.id,
-            league.id,
-            lineupCtx.seasonId,
-            lineupCtx.weekNumber,
-            date,
-        )
+        const [lineup, started, live] = await Promise.all([
+            getWeeklyLineup(
+                current!.id,
+                league.id,
+                lineupCtx.seasonId,
+                lineupCtx.weekNumber,
+                date,
+            ),
+            getStartedTeams(date),
+            getLiveTeams(date),
+        ])
         setStarters(lineup.starters)
         setBench(lineup.bench)
+        setStartedTeams(started)
+        setLiveTeams(live)
     }, [current])
 
     const load = useCallback(async () => {
@@ -85,7 +95,24 @@ export default function LineupScreen() {
 
     useEffect(() => { load() }, [load])
 
+    // Refresh started/live teams every 15s when viewing today (games can go InProgress mid-session)
+    useEffect(() => {
+        const today = todayDateString()
+        if (selectedDate !== today) return
+        const interval = setInterval(() => {
+            getStartedTeams(selectedDate).then(setStartedTeams).catch(() => {})
+            getLiveTeams(selectedDate).then(setLiveTeams).catch(() => {})
+        }, 15_000)
+        return () => clearInterval(interval)
+    }, [selectedDate])
+
     async function handleTap(newSel: Selection) {
+        // Block all moves on past days
+        if (selectedDate < todayDateString()) {
+            Alert.alert('Past lineup', 'Lineups for past days cannot be changed.')
+            return
+        }
+
         // First tap — select
         if (!selected) {
             setSelected(newSel)
@@ -107,6 +134,15 @@ export default function LineupScreen() {
         const bPlayer = newSel.kind === 'starter' ? starters[newSel.index].player : bench[newSel.index]
         const aSlot = selected.kind === 'starter' ? starters[selected.index].slotType : 'BE'
         const bSlot = newSel.kind === 'starter' ? starters[newSel.index].slotType : 'BE'
+
+        // Block any move involving a player whose game has already started (InProgress or Final)
+        const aLocked = !!(aPlayer?.nbaTeam && startedTeams.has(aPlayer.nbaTeam))
+        const bLocked = !!(bPlayer?.nbaTeam && startedTeams.has(bPlayer.nbaTeam))
+        if (aLocked || bLocked) {
+            const who = aLocked ? aPlayer! : bPlayer!
+            Alert.alert('Lineup locked', `${who.displayName}'s game has already started. No lineup changes are allowed once a game begins.`)
+            return
+        }
 
         // Validate eligibility
         if (aPlayer && bSlot !== 'BE' && !canPlaySlot(aPlayer.position, bSlot)) {
@@ -147,15 +183,7 @@ export default function LineupScreen() {
     }
 
     function handleAutoSet() {
-        Alert.alert(
-            'Auto-Set Lineup',
-            'Optimize for today or the entire week?',
-            [
-                { text: 'Cancel', style: 'cancel' },
-                { text: 'Today', onPress: () => doAutoSet(selectedDate) },
-                { text: 'Full Week', onPress: () => doAutoSet(null) },
-            ],
-        )
+        doAutoSet(null)
     }
 
     async function handleDaySelect(date: string) {
@@ -262,6 +290,7 @@ export default function LineupScreen() {
                     {starters.map((slot, i) => {
                         const isSelected = selected?.kind === 'starter' && selected.index === i
                         const p = slot.player
+                        const isLocked = !!(p?.nbaTeam && liveTeams.has(p.nbaTeam))
                         return (
                             <Pressable
                                 key={`starter-${i}`}
@@ -287,6 +316,9 @@ export default function LineupScreen() {
                                                 {[p.nbaTeam, p.position].filter(Boolean).join(' · ')}
                                             </Text>
                                         </View>
+                                        {isLocked && (
+                                            <Text style={styles.lockedBadge}>LIVE</Text>
+                                        )}
                                     </>
                                 ) : (
                                     <Text style={styles.emptySlot}>Empty</Text>
@@ -304,6 +336,7 @@ export default function LineupScreen() {
                     ) : (
                         bench.map((player, i) => {
                             const isSelected = selected?.kind === 'bench' && selected.index === i
+                            const isLocked = !!(player.nbaTeam && liveTeams.has(player.nbaTeam))
                             return (
                                 <Pressable
                                     key={player.playerId}
@@ -326,6 +359,9 @@ export default function LineupScreen() {
                                             {[player.nbaTeam, player.position].filter(Boolean).join(' · ')}
                                         </Text>
                                     </View>
+                                    {isLocked && (
+                                        <Text style={styles.lockedBadge}>LIVE</Text>
+                                    )}
                                 </Pressable>
                             )
                         })
@@ -444,6 +480,12 @@ const styles = StyleSheet.create({
     playerMeta: { fontSize: 12, color: colors.textMuted },
 
     emptySlot: { fontSize: fontSize.md, color: palette.gray500, fontStyle: 'italic' },
+    lockedBadge: {
+        fontSize: 10,
+        fontWeight: fontWeight.bold,
+        color: '#16a34a',
+        letterSpacing: 0.4,
+    },
     benchEmpty: { padding: spacing.xl, fontSize: fontSize.sm, color: colors.textPlaceholder, textAlign: 'center' },
 
     empty: { flex: 1, justifyContent: 'center', alignItems: 'center' },
