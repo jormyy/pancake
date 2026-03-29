@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import { getCurrentSeasonId } from '@/lib/shared/season'
+import { isIREligible } from '@/lib/roster'
 
 export type WaiverEntry = {
     logId: string
@@ -83,6 +84,28 @@ export async function submitWaiverClaim(
 ): Promise<void> {
     const seasonId = await getCurrentSeasonId(leagueId)
     if (!seasonId) throw new Error('No active season found.')
+
+    // Check for ineligible IR players before allowing waiver claim
+    const { data: rosterPlayers, error: rosterErr } = await supabase
+        .from('roster_players')
+        .select('is_on_ir, players ( display_name, injury_status )')
+        .eq('member_id', memberId)
+        .eq('league_id', leagueId)
+        .eq('league_season_id', seasonId)
+        .eq('is_on_ir', true)
+    if (rosterErr) throw rosterErr
+
+    if (rosterPlayers && rosterPlayers.length > 0) {
+        const ineligible = rosterPlayers.filter(
+            (rp) => !isIREligible((rp as any).players?.injury_status)
+        )
+        if (ineligible.length > 0) {
+            const names = ineligible.map((rp) => (rp as any).players?.display_name).join(', ')
+            throw new Error(
+                `You have ineligible players on IR (${names}). Activate or drop them before placing waiver claims.`
+            )
+        }
+    }
 
     const { data: priorityRow, error: prioErr } = await (supabase as any)
         .from('waiver_priorities')

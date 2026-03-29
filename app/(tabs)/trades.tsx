@@ -12,7 +12,7 @@ import {
 import { FlashList } from '@shopify/flash-list'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAuth } from '@/hooks/use-auth'
 import { useLeagueContext } from '@/contexts/league-context'
 import {
@@ -24,9 +24,14 @@ import {
     TradeItem,
     TradePlayerItem,
     TradePickItem,
+    getPicksForMember,
 } from '@/lib/trades'
 import { getRoster, dropPlayer, RosterPlayer } from '@/lib/roster'
 import { TRADE_STATUS_COLORS, colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { ItemSeparator } from '@/components/ItemSeparator'
+import { SectionHeader } from '@/components/SectionHeader'
+import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
+import { shortDateFmt } from '@/lib/format'
 
 type TabKey = 'inbox' | 'offers' | 'history'
 
@@ -42,13 +47,14 @@ const STATUS_LABELS: Record<string, string> = {
 
 const STATUS_COLORS = TRADE_STATUS_COLORS
 
-const ItemSeparator = () => <View style={{ height: spacing.lg }} />
+type ListItem =
+    | { _type: 'trade'; trade: Trade }
+    | { _type: 'header'; label: string }
+    | { _type: 'pick'; pick: TradePickItem }
 
-const ListEmpty = () => (
-    <View style={styles.empty}>
-        <Text style={styles.emptyText}>No trades to show.</Text>
-    </View>
-)
+function yearShort(year: number): string {
+    return String(year).slice(2)
+}
 
 function itemLabel(item: TradeItem): string {
     if (item.kind === 'player') {
@@ -105,9 +111,6 @@ function TradeCard({
     const isProposer = trade.proposerMemberId === myMemberId
     const opponentName = isProposer ? trade.recipientTeamName : trade.proposerTeamName
 
-    // From MY perspective:
-    // - I receive: if I'm proposer → recipientGives; if I'm recipient → proposerGives
-    // - I give: if I'm proposer → proposerGives; if I'm recipient → recipientGives
     const iReceive = isProposer ? trade.recipientGives : trade.proposerGives
     const iGive = isProposer ? trade.proposerGives : trade.recipientGives
 
@@ -131,7 +134,6 @@ function TradeCard({
             const overflow = newCount - rosterSize
 
             if (overflow > 0) {
-                // Need to drop players first
                 const activeRoster = roster.filter((p) => !p.is_on_ir)
                 setMyRoster(activeRoster)
                 setNeededDrops(overflow)
@@ -271,7 +273,6 @@ function TradeCard({
                 </>
             )}
 
-            {/* Drop picker modal */}
             <Modal visible={dropPickerVisible} transparent animationType="slide">
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalSheet}>
@@ -315,8 +316,31 @@ function TradeCard({
     )
 }
 
+function PickItemRow({
+    pick,
+    myTeamName,
+}: {
+    pick: TradePickItem
+    myTeamName: string
+}) {
+    const isOwn = pick.originalTeamName === myTeamName
+    return (
+        <View style={styles.pickRow}>
+            <View style={styles.pickCircle}>
+                <Text style={styles.pickCircleText}>{yearShort(pick.seasonYear)}</Text>
+            </View>
+            <View style={styles.pickInfo}>
+                <Text style={styles.pickLabel}>{pick.seasonYear} Round {pick.round}</Text>
+                {!isOwn ? (
+                    <Text style={styles.pickMeta}>via {pick.originalTeamName}</Text>
+                ) : null}
+            </View>
+        </View>
+    )
+}
+
 export default function TradesScreen() {
-    const { push, back } = useRouter()
+    const { push } = useRouter()
     const { user } = useAuth()
     const { current } = useLeagueContext()
 
@@ -324,11 +348,25 @@ export default function TradesScreen() {
     const myMemberId = current?.id ?? ''
     const leagueId = league?.id ?? ''
     const rosterSize: number = league?.roster_size ?? 20
+    const myTeamName = current?.team_name ?? ''
 
     const [tab, setTab] = useState<TabKey>('inbox')
     const [trades, setTrades] = useState<Trade[]>([])
+    const [picks, setPicks] = useState<TradePickItem[]>([])
     const [loading, setLoading] = useState(true)
     const [refreshing, setRefreshing] = useState(false)
+
+    const { data: draftData, loading: draftLoading, refresh: loadDraft } = useFocusAsyncData(async () => {
+        if (!current || !leagueId) return null
+        try {
+            const data = await getPicksForMember(current.id, leagueId)
+            setPicks(data)
+            return data
+        } catch (e) {
+            console.error(e)
+            return null
+        }
+    }, [current, leagueId])
 
     const load = useCallback(async () => {
         if (!myMemberId || !leagueId) return
@@ -350,9 +388,9 @@ export default function TradesScreen() {
     function onRefresh() {
         setRefreshing(true)
         load()
+        loadDraft()
     }
 
-    // Filter by tab
     const filteredTrades = trades.filter((t) => {
         if (tab === 'inbox') {
             return t.recipientMemberId === myMemberId && t.status === 'pending'
@@ -360,13 +398,44 @@ export default function TradesScreen() {
         if (tab === 'offers') {
             return t.proposerMemberId === myMemberId && t.status === 'pending'
         }
-        // history: all non-pending
         return t.status !== 'pending'
     })
 
+    const listData = useMemo<ListItem[]>(() => {
+        const result: ListItem[] = []
+
+        if (tab === 'inbox') {
+            result.push({ _type: 'header', label: 'Incoming Offers' })
+            filteredTrades.forEach((t) => result.push({ _type: 'trade', trade: t }))
+            if (filteredTrades.length === 0 && !loading) {
+                result.push({ _type: 'header', label: '' })
+            }
+            result.push({ _type: 'header', label: 'Draft Picks' })
+            picks.forEach((p) => result.push({ _type: 'pick', pick: p }))
+        } else if (tab === 'offers') {
+            result.push({ _type: 'header', label: 'My Offers' })
+            filteredTrades.forEach((t) => result.push({ _type: 'trade', trade: t }))
+            if (filteredTrades.length === 0 && !loading) {
+                result.push({ _type: 'header', label: '' })
+            }
+            result.push({ _type: 'header', label: 'Draft Picks' })
+            picks.forEach((p) => result.push({ _type: 'pick', pick: p }))
+        } else {
+            result.push({ _type: 'header', label: 'Trade History' })
+            filteredTrades.forEach((t) => result.push({ _type: 'trade', trade: t }))
+            if (filteredTrades.length === 0 && !loading) {
+                result.push({ _type: 'header', label: '' })
+            }
+            result.push({ _type: 'header', label: 'Draft Picks' })
+            picks.forEach((p) => result.push({ _type: 'pick', pick: p }))
+        }
+
+        return result
+    }, [tab, filteredTrades, picks, loading])
+
     const TABS: { key: TabKey; label: string }[] = [
         { key: 'inbox', label: 'Inbox' },
-        { key: 'offers', label: 'My Offers' },
+        { key: 'offers', label: 'Offers' },
         { key: 'history', label: 'History' },
     ]
 
@@ -374,30 +443,31 @@ export default function TradesScreen() {
         (t) => t.recipientMemberId === myMemberId && t.status === 'pending',
     ).length
 
+    const myOffersCount = trades.filter(
+        (t) => t.proposerMemberId === myMemberId && t.status === 'pending',
+    ).length
+
     return (
-        <SafeAreaView style={styles.container} edges={['top']}>
-            {/* Header */}
+        <SafeAreaView style={styles.container}>
             <View style={styles.header}>
-                <View style={{ width: 60 }} />
                 <Text style={styles.headerTitle}>Trades</Text>
-                <View style={styles.headerRight}>
-                    <Pressable
-                        style={styles.proposeBtn}
-                        onPress={() => push('/(modals)/propose-trade')}
-                    >
-                        <Text style={styles.proposeBtnText}>Propose</Text>
-                    </Pressable>
-                    <Pressable onPress={() => back()} style={styles.doneBtn}>
-                        <Text style={styles.doneBtnText}>Done</Text>
-                    </Pressable>
-                </View>
+                <Pressable
+                    style={styles.proposeBtn}
+                    onPress={() => push('/(modals)/propose-trade')}
+                >
+                    <Text style={styles.proposeBtnText}>+ Propose</Text>
+                </Pressable>
             </View>
 
-            {/* Tab switcher */}
             <View style={styles.tabRow}>
                 {TABS.map((t) => {
                     const active = tab === t.key
-                    const badge = t.key === 'inbox' && pendingInboxCount > 0 ? pendingInboxCount : null
+                    const badge =
+                        t.key === 'inbox' && pendingInboxCount > 0
+                            ? pendingInboxCount
+                            : t.key === 'offers' && myOffersCount > 0
+                              ? myOffersCount
+                              : null
                     return (
                         <Pressable
                             key={t.key}
@@ -417,9 +487,14 @@ export default function TradesScreen() {
                 <ActivityIndicator color={colors.primary} style={{ marginTop: spacing['4xl'] }} />
             ) : (
                 <FlashList
-                    data={filteredTrades}
-                    keyExtractor={(t) => t.id}
-                    contentContainerStyle={styles.listContent}
+                    data={listData}
+                    keyExtractor={(item, index) => {
+                        if (item._type === 'header') return `header-${index}`
+                        if (item._type === 'trade') return `trade-${item.trade.id}`
+                        return `pick-${item.pick.pickId}`
+                    }}
+                    getItemType={(item) => item._type}
+                    ItemSeparatorComponent={ItemSeparator}
                     refreshControl={
                         <RefreshControl
                             refreshing={refreshing}
@@ -427,18 +502,46 @@ export default function TradesScreen() {
                             tintColor={colors.primary}
                         />
                     }
-                    ItemSeparatorComponent={ItemSeparator}
-                    ListEmptyComponent={ListEmpty}
-                    renderItem={({ item }) => (
-                        <TradeCard
-                            trade={item}
-                            myMemberId={myMemberId}
-                            leagueId={leagueId}
-                            rosterSize={rosterSize}
-                            tab={tab}
-                            onAction={load}
-                        />
-                    )}
+                    renderItem={({ item }) => {
+                        if (item._type === 'header') {
+                            return item.label ? <SectionHeader label={item.label} /> : null
+                        }
+                        if (item._type === 'pick') {
+                            return (
+                                <Pressable
+                                    style={styles.pickRow}
+                                    onPress={() => push('/(modals)/propose-trade')}
+                                >
+                                    <View style={styles.pickCircle}>
+                                        <Text style={styles.pickCircleText}>
+                                            {yearShort(item.pick.seasonYear)}
+                                        </Text>
+                                    </View>
+                                    <View style={styles.pickInfo}>
+                                        <Text style={styles.pickLabel}>
+                                            {item.pick.seasonYear} Round {item.pick.round}
+                                        </Text>
+                                        {item.pick.originalTeamName !== myTeamName ? (
+                                            <Text style={styles.pickMeta}>
+                                                via {item.pick.originalTeamName}
+                                            </Text>
+                                        ) : null}
+                                    </View>
+                                    <Text style={styles.pickHint}>Tap to trade</Text>
+                                </Pressable>
+                            )
+                        }
+                        return (
+                            <TradeCard
+                                trade={item.trade}
+                                myMemberId={myMemberId}
+                                leagueId={leagueId}
+                                rosterSize={rosterSize}
+                                tab={tab}
+                                onAction={load}
+                            />
+                        )
+                    }}
                 />
             )}
         </SafeAreaView>
@@ -458,17 +561,16 @@ const styles = StyleSheet.create({
         borderBottomColor: colors.borderLight,
     },
     headerTitle: { fontSize: 17, fontWeight: fontWeight.bold },
-    headerRight: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
     proposeBtn: {
         backgroundColor: colors.primary,
         paddingHorizontal: spacing.lg,
-        paddingVertical: spacing.sm,
+        paddingVertical: 7,
         borderRadius: radii.md,
         borderCurve: 'continuous' as const,
+        minWidth: 90,
+        alignItems: 'center',
     },
     proposeBtnText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.md },
-    doneBtn: { paddingVertical: spacing.sm, paddingHorizontal: spacing.xs },
-    doneBtnText: { fontSize: fontSize.lg, color: colors.primary, fontWeight: fontWeight.semibold },
 
     tabRow: {
         flexDirection: 'row',
@@ -489,9 +591,6 @@ const styles = StyleSheet.create({
     tabChipText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textSecondary },
     tabChipTextActive: { color: colors.textWhite },
 
-    listContent: { paddingHorizontal: spacing.xl, paddingVertical: spacing.lg },
-    separator: { height: spacing.lg },
-
     card: {
         borderWidth: 1,
         borderColor: palette.gray300,
@@ -500,6 +599,9 @@ const styles = StyleSheet.create({
         padding: 14,
         backgroundColor: colors.bgScreen,
         gap: spacing.xs,
+        marginHorizontal: spacing.xl,
+        marginTop: spacing.md,
+        marginBottom: spacing.md,
     },
     cardHeader: {
         flexDirection: 'row',
@@ -541,9 +643,6 @@ const styles = StyleSheet.create({
     actionBtnReject: { backgroundColor: colors.bgMuted, borderWidth: 1, borderColor: palette.gray300 },
     actionBtnAcceptText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.md },
     actionBtnRejectText: { color: colors.textSecondary, fontWeight: fontWeight.semibold, fontSize: fontSize.md },
-
-    empty: { alignItems: 'center', paddingVertical: spacing['6xl'] },
-    emptyText: { fontSize: fontSize.md, color: colors.textPlaceholder, textAlign: 'center' },
 
     modalOverlay: {
         flex: 1,
@@ -593,4 +692,26 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     modalCancelText: { fontSize: 15, fontWeight: fontWeight.semibold, color: colors.textSecondary },
+
+    pickRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: spacing.xl,
+        paddingVertical: spacing.lg,
+        gap: spacing.lg,
+    },
+    pickCircle: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        borderCurve: 'continuous' as const,
+        backgroundColor: palette.indigo500,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    pickCircleText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.sm },
+    pickInfo: { flex: 1, gap: 2 },
+    pickLabel: { fontSize: fontSize.md, fontWeight: fontWeight.semibold },
+    pickMeta: { fontSize: fontSize.sm, color: colors.textMuted },
+    pickHint: { fontSize: 12, color: colors.primary, fontWeight: fontWeight.bold },
 })

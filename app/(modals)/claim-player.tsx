@@ -12,7 +12,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useEffect, useState } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useAuth } from '@/hooks/use-auth'
-import { getRoster, RosterPlayer } from '@/lib/roster'
+import { getRoster, RosterPlayer, isIREligible } from '@/lib/roster'
 import { getPlayer } from '@/lib/players'
 import { submitWaiverClaim, getMyWaiverPriority } from '@/lib/waivers'
 import { LoadingScreen } from '@/components/LoadingScreen'
@@ -56,8 +56,40 @@ export default function ClaimPlayerScreen() {
     }, [playerId, current, user])
 
     const activeRoster = myRoster.filter((p) => !p.is_on_ir)
+    const ineligibleIR = myRoster.filter((r) => r.is_on_ir && !isIREligible(r.players.injury_status))
     const rosterFull = activeRoster.length >= rosterSize
     const needsDrop = rosterFull
+
+    // Block waiver claims if there are ineligible players in IR
+    if (ineligibleIR.length > 0) {
+        return (
+            <>
+                <Stack.Screen options={{ title: 'Waiver Claim', presentation: 'modal' }} />
+                <SafeAreaView style={styles.container} edges={['bottom']}>
+                    <View style={styles.blockCard}>
+                        <View style={styles.blockIconContainer}>
+                            <Text style={styles.blockIcon}>⚠️</Text>
+                        </View>
+                        <Text style={styles.blockTitle}>Resolve IR Status First</Text>
+                        <Text style={styles.blockSub}>
+                            You have {ineligibleIR.length} player{ineligibleIR.length > 1 ? 's' : ''} on IR who {' '}
+                            {ineligibleIR.length > 1 ? 'are' : 'is'} not eligible. You must activate or drop
+                            them before placing waiver claims.
+                        </Text>
+                        {ineligibleIR.map((rp) => (
+                            <View key={rp.id} style={styles.blockPlayerRow}>
+                                <Text style={styles.blockPlayerName}>{rp.players.display_name}</Text>
+                                <Text style={styles.blockPlayerStatus}>{rp.players.injury_status ?? 'Healthy'}</Text>
+                            </View>
+                        ))}
+                    </View>
+                    <Pressable style={styles.blockButton} onPress={() => back()}>
+                        <Text style={styles.blockButtonText}>Go to Roster</Text>
+                    </Pressable>
+                </SafeAreaView>
+            </>
+        )
+    }
 
     async function handleSubmit() {
         if (!current || !user || !playerId) return
@@ -284,4 +316,69 @@ const styles = StyleSheet.create({
     },
     submitButtonDisabled: { backgroundColor: palette.purple300 },
     submitButtonText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.lg },
+
+    // IR blocking styles
+    blockCard: {
+        margin: spacing.xl,
+        padding: spacing['2xl'],
+        backgroundColor: colors.bgScreen,
+        borderRadius: radii.xl,
+        borderCurve: 'continuous' as const,
+        borderWidth: 1,
+        borderColor: palette.orange300,
+        gap: spacing.lg,
+    },
+    blockIconContainer: {
+        width: 56,
+        height: 56,
+        borderRadius: 28,
+        borderCurve: 'continuous' as const,
+        backgroundColor: palette.orange100,
+        justifyContent: 'center',
+        alignItems: 'center',
+        alignSelf: 'center',
+        marginBottom: spacing.md,
+    },
+    blockIcon: { fontSize: 28 },
+    blockTitle: {
+        fontSize: 18,
+        fontWeight: fontWeight.extrabold,
+        color: colors.textPrimary,
+        textAlign: 'center',
+    },
+    blockSub: {
+        fontSize: fontSize.md,
+        color: colors.textSecondary,
+        textAlign: 'center',
+        lineHeight: 22,
+    },
+    blockPlayerRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingVertical: spacing.md,
+        paddingHorizontal: spacing.lg,
+        backgroundColor: palette.orange50,
+        borderRadius: radii.lg,
+        borderCurve: 'continuous' as const,
+    },
+    blockPlayerName: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textPrimary },
+    blockPlayerStatus: {
+        fontSize: fontSize.sm,
+        fontWeight: fontWeight.bold,
+        color: palette.orange700,
+    },
+    blockButton: {
+        margin: spacing.xl,
+        backgroundColor: colors.primary,
+        paddingVertical: spacing.lg + spacing.xxs,
+        borderRadius: radii.xl,
+        borderCurve: 'continuous' as const,
+        alignItems: 'center',
+    },
+    blockButtonText: {
+        color: colors.textWhite,
+        fontSize: fontSize.lg,
+        fontWeight: fontWeight.bold,
+    },
 })

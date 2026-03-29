@@ -18,7 +18,9 @@ import {
     getOwnedPlayerMap,
     addFreeAgent,
     dropPlayer,
+    toggleIR,
     getRoster,
+    isIREligible,
     RosterPlayer,
     OwnedEntry,
 } from '@/lib/roster'
@@ -38,6 +40,7 @@ import { ItemSeparator } from '@/components/ItemSeparator'
 import { Avatar } from '@/components/Avatar'
 import { Badge } from '@/components/Badge'
 import { EmptyState } from '@/components/EmptyState'
+import { IRResolutionModal } from '@/components/IRResolutionModal'
 import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
 
 const POSITIONS = ['ALL', 'PG', 'SG', 'SF', 'PF', 'C', 'G', 'F']
@@ -153,6 +156,13 @@ export default function PlayersScreen() {
     const [myRoster, setMyRoster] = useState<RosterPlayer[]>([])
     const [dropping, setDropping] = useState<string | null>(null)
 
+    // IR resolution state
+    const [irModal, setIrModal] = useState<{
+        ineligible: RosterPlayer[]
+        roster: RosterPlayer[]
+        pendingPlayer: PlayerRow
+    } | null>(null)
+
     const leagueId = current ? (current.leagues as any).id : null
 
     const {
@@ -191,6 +201,15 @@ export default function PlayersScreen() {
         const league = current.leagues as any
 
         if (waiverIds.has(player.id)) {
+            // Check for ineligible IR players before allowing waiver claim
+            const roster = await getRoster(current.id, league.id)
+            const ineligible = roster.filter((r) => r.is_on_ir && !isIREligible(r.players.injury_status))
+
+            if (ineligible.length > 0) {
+                setIrModal({ ineligible, roster, pendingPlayer: player })
+                return
+            }
+
             Alert.alert(
                 'Place Waiver Claim',
                 `You sure you wanna put in a waiver claim for ${player.display_name}? Claims process nightly.`,
@@ -215,14 +234,28 @@ export default function PlayersScreen() {
             return
         }
 
+        // Check for ineligible IR players before adding
+        const roster = await getRoster(current.id, league.id)
+        const ineligible = roster.filter((r) => r.is_on_ir && !isIREligible(r.players.injury_status))
+
+        if (ineligible.length > 0) {
+            setIrModal({ ineligible, roster, pendingPlayer: player })
+            return
+        }
+
         // Free agent — try immediate add
+        await tryAddFreeAgent(player, league.id)
+    }
+
+    async function tryAddFreeAgent(player: PlayerRow, leagueId: string) {
+        if (!current) return
         setAdding(player.id)
         try {
-            await addFreeAgent(current.id, league.id, player.id)
+            await addFreeAgent(current.id, leagueId, player.id)
             await refreshOwned()
         } catch (e: any) {
             if (e.message?.includes('full')) {
-                const roster = await getRoster(current.id, league.id)
+                const roster = await getRoster(current.id, leagueId)
                 setMyRoster(roster.filter((r) => !r.is_on_ir))
                 setDropPickerPlayer(player)
             } else {
@@ -236,6 +269,20 @@ export default function PlayersScreen() {
     async function handleDropAndAdd(rosterPlayer: RosterPlayer) {
         if (!current || !dropPickerPlayer) return
         const league = current.leagues as any
+
+        // Check for ineligible IR players before dropping (excluding the one being dropped)
+        const roster = await getRoster(current.id, league.id)
+        const ineligible = roster.filter(
+            (r) => r.is_on_ir && !isIREligible(r.players.injury_status) && r.id !== rosterPlayer.id
+        )
+
+        if (ineligible.length > 0) {
+            // Show IR resolution modal
+            const fullRoster = await getRoster(current.id, league.id)
+            setIrModal({ ineligible, roster: fullRoster, pendingPlayer: dropPickerPlayer })
+            return
+        }
+
         setDropping(rosterPlayer.id)
         try {
             await dropPlayer(rosterPlayer.id)
@@ -246,6 +293,66 @@ export default function PlayersScreen() {
             Alert.alert('Error', e.message)
         } finally {
             setDropping(null)
+        }
+    }
+
+    async function handleIRActivate(rp: RosterPlayer) {
+        if (!current) return
+        await toggleIR(rp.id, false)
+        const league = current.leagues as any
+        const roster = await getRoster(current.id, league.id)
+        const remaining = roster.filter((r) => r.is_on_ir && !isIREligible(r.players.injury_status))
+        if (remaining.length > 0) {
+            setIrModal((prev) => prev ? { ...prev, ineligible: remaining, roster } : null)
+        } else {
+            const pending = irModal!.pendingPlayer
+            setIrModal(null)
+            await proceedAfterIRResolved(pending, league.id)
+        }
+    }
+
+    async function handleDropAndIRActivate(toDrop: RosterPlayer, activatePlayer: RosterPlayer) {
+        if (!current) return
+        const league = current.leagues as any
+        await dropPlayer(toDrop.id)
+        await toggleIR(activatePlayer.id, false)
+        const roster = await getRoster(current.id, league.id)
+        const remaining = roster.filter((r) => r.is_on_ir && !isIREligible(r.players.injury_status))
+        if (remaining.length > 0) {
+            setIrModal((prev) => prev ? { ...prev, ineligible: remaining, roster } : null)
+        } else {
+            const pending = irModal!.pendingPlayer
+            setIrModal(null)
+            await proceedAfterIRResolved(pending, league.id)
+        }
+    }
+
+    async function proceedAfterIRResolved(player: PlayerRow, leagueId: string) {
+        if (!current) return
+        if (waiverIds.has(player.id)) {
+            Alert.alert(
+                'Place Waiver Claim',
+                `You sure you wanna put in a waiver claim for ${player.display_name}? Claims process nightly.`,
+                [
+                    { text: 'Nah', style: 'cancel' },
+                    {
+                        text: 'Claim',
+                        onPress: async () => {
+                            setAdding(player.id)
+                            try {
+                                await submitWaiverClaim(current!.id, leagueId, player.id)
+                                await refreshOwned()
+                            } catch (e: any) {
+                                Alert.alert('Error', e.message)
+                            } finally {
+                                setAdding(null)
+                            }
+                        },
+                    },
+                ],
+            )
+        } else {
+            await tryAddFreeAgent(player, leagueId)
         }
     }
 
@@ -364,6 +471,18 @@ export default function PlayersScreen() {
                     </View>
                 </View>
             </Modal>
+
+            {/* IR resolution modal */}
+            <IRResolutionModal
+                visible={irModal !== null}
+                ineligibleIR={irModal?.ineligible ?? []}
+                activeRoster={(irModal?.roster ?? []).filter((r) => !r.is_on_ir)}
+                rosterSize={(current?.leagues as any)?.roster_size ?? 20}
+                pendingPlayerName={irModal?.pendingPlayer.display_name ?? ''}
+                onActivate={handleIRActivate}
+                onDropAndActivate={handleDropAndIRActivate}
+                onCancel={() => setIrModal(null)}
+            />
         </SafeAreaView>
     )
 }
