@@ -14,9 +14,9 @@ export default function TabLayout() {
                 <Label>Players</Label>
                 <Icon sf="person.2.fill" />
             </NativeTabs.Trigger>
-            <NativeTabs.Trigger name="roster">
-                <Label>Roster</Label>
-                <Icon sf="basketball.fill" />
+            <NativeTabs.Trigger name="trades">
+                <Label>Trades</Label>
+                <Icon sf="arrow.left.arrow.right" />
             </NativeTabs.Trigger>
             <NativeTabs.Trigger name="league">
                 <Label>League</Label>

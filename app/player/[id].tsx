@@ -5,6 +5,8 @@ import {
     StyleSheet,
     ActivityIndicator,
     Alert,
+    Modal,
+    Pressable,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router'
@@ -23,7 +25,7 @@ import {
 import { currentSeasonYear } from '@/lib/shared/season'
 import { todayDateString } from '@/lib/shared/dates'
 import { supabase } from '@/lib/supabase'
-import { getPlayerRosterStatus, addFreeAgent, dropPlayer, type PlayerRosterStatus } from '@/lib/roster'
+import { getPlayerRosterStatus, addFreeAgent, dropPlayer, toggleIR, getRoster, isIREligible, type PlayerRosterStatus, type RosterPlayer } from '@/lib/roster'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useAuth } from '@/hooks/use-auth'
 import { PlayerHeader } from '@/components/player/PlayerHeader'
@@ -33,7 +35,10 @@ import { FantasyCard } from '@/components/player/FantasyCard'
 import { GameLogTable } from '@/components/player/GameLogTable'
 import { TransactionHistory } from '@/components/player/TransactionHistory'
 import { LoadingScreen } from '@/components/LoadingScreen'
-import { colors, fontSize, fontWeight, spacing } from '@/constants/tokens'
+import { IRResolutionModal } from '@/components/IRResolutionModal'
+import { colors, fontSize, fontWeight, spacing, palette, radii } from '@/constants/tokens'
+import { POSITION_COLORS } from '@/constants/positions'
+import { Avatar } from '@/components/Avatar'
 
 const GAME_LOG_PAGE = 15
 
@@ -51,6 +56,15 @@ export default function PlayerDetailScreen() {
     const [rosterStatus, setRosterStatus] = useState<PlayerRosterStatus | null>(null)
     const [actionLoading, setActionLoading] = useState(false)
     const [playedToday, setPlayedToday] = useState(false)
+
+    // Drop picker + IR resolution state
+    const [dropPickerVisible, setDropPickerVisible] = useState(false)
+    const [myRoster, setMyRoster] = useState<RosterPlayer[]>([])
+    const [dropping, setDropping] = useState<string | null>(null)
+    const [irModal, setIrModal] = useState<{
+        ineligible: RosterPlayer[]
+        roster: RosterPlayer[]
+    } | null>(null)
 
     // Season navigation
     const [availableSeasons, setAvailableSeasons] = useState<number[]>([])
@@ -215,12 +229,82 @@ export default function PlayerDetailScreen() {
         if (!current || !user) return
         setActionLoading(true)
         try {
-            await addFreeAgent(current.id, leagueId!, id)
-            await loadRosterStatus()
+            // Check for ineligible IR players before adding
+            const roster = await getRoster(current.id, leagueId!)
+            const ineligible = roster.filter((r) => r.is_on_ir && !isIREligible(r.players.injury_status))
+
+            if (ineligible.length > 0) {
+                setActionLoading(false)
+                setIrModal({ ineligible, roster })
+                return
+            }
+
+            await tryAddFreeAgent()
         } catch (e: any) {
             Alert.alert('Error', e.message)
         } finally {
             setActionLoading(false)
+        }
+    }
+
+    async function tryAddFreeAgent() {
+        if (!current || !leagueId) return
+        setActionLoading(true)
+        try {
+            await addFreeAgent(current.id, leagueId, id)
+            await loadRosterStatus()
+        } catch (e: any) {
+            if (e.message?.includes('full')) {
+                const roster = await getRoster(current.id, leagueId)
+                setMyRoster(roster.filter((r) => !r.is_on_ir))
+                setDropPickerVisible(true)
+            } else {
+                Alert.alert('Error', e.message)
+            }
+        } finally {
+            setActionLoading(false)
+        }
+    }
+
+    async function handleDropAndAdd(rosterPlayer: RosterPlayer) {
+        if (!current || !leagueId) return
+        setDropping(rosterPlayer.id)
+        try {
+            await dropPlayer(rosterPlayer.id)
+            await addFreeAgent(current.id, leagueId, id)
+            setDropPickerVisible(false)
+            await loadRosterStatus()
+        } catch (e: any) {
+            Alert.alert('Error', e.message)
+        } finally {
+            setDropping(null)
+        }
+    }
+
+    async function handleIRActivate(rp: RosterPlayer) {
+        if (!current || !leagueId) return
+        await toggleIR(rp.id, false)
+        const roster = await getRoster(current.id, leagueId)
+        const remaining = roster.filter((r) => r.is_on_ir && !isIREligible(r.players.injury_status))
+        if (remaining.length > 0) {
+            setIrModal((prev) => prev ? { ...prev, ineligible: remaining, roster } : null)
+        } else {
+            setIrModal(null)
+            await tryAddFreeAgent()
+        }
+    }
+
+    async function handleDropAndIRActivate(toDrop: RosterPlayer, activatePlayer: RosterPlayer) {
+        if (!current || !leagueId) return
+        await dropPlayer(toDrop.id)
+        await toggleIR(activatePlayer.id, false)
+        const roster = await getRoster(current.id, leagueId)
+        const remaining = roster.filter((r) => r.is_on_ir && !isIREligible(r.players.injury_status))
+        if (remaining.length > 0) {
+            setIrModal((prev) => prev ? { ...prev, ineligible: remaining, roster } : null)
+        } else {
+            setIrModal(null)
+            await tryAddFreeAgent()
         }
     }
 
@@ -250,7 +334,17 @@ export default function PlayerDetailScreen() {
         )
     }
 
-    function handleClaim() {
+    async function handleClaim() {
+        if (!current || !leagueId) return
+        // Check for ineligible IR players before allowing waiver claim
+        const roster = await getRoster(current.id, leagueId)
+        const ineligible = roster.filter((r) => r.is_on_ir && !isIREligible(r.players.injury_status))
+
+        if (ineligible.length > 0) {
+            setIrModal({ ineligible, roster })
+            return
+        }
+
         push(`/(modals)/claim-player?playerId=${id}`)
     }
 
@@ -340,6 +434,75 @@ export default function PlayerDetailScreen() {
 
                 </ScrollView>
             </SafeAreaView>
+
+            {/* Drop picker modal */}
+            <Modal
+                visible={dropPickerVisible}
+                transparent
+                animationType="slide"
+                onRequestClose={() => setDropPickerVisible(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalCard}>
+                        <Text style={styles.modalTitle}>
+                            Drop a player to add{'\n'}
+                            <Text style={styles.modalPlayerName}>{player?.display_name}</Text>
+                        </Text>
+                        <Text style={styles.modalSub}>Your roster is full. Pick someone to release.</Text>
+
+                        <ScrollView style={styles.dropList} showsVerticalScrollIndicator={false}>
+                            {myRoster.map((rp) => {
+                                const p = rp.players
+                                const isDroppingThis = dropping === rp.id
+                                return (
+                                    <View key={rp.id} style={styles.dropRow}>
+                                        <Avatar
+                                            name={p.display_name}
+                                            color={POSITION_COLORS[p.position ?? ''] ?? palette.gray500}
+                                            size={38}
+                                        />
+                                        <View style={styles.dropInfo}>
+                                            <Text style={styles.dropName} numberOfLines={1}>{p.display_name}</Text>
+                                            <Text style={styles.dropMeta}>
+                                                {[p.nba_team, p.position].filter(Boolean).join(' · ')}
+                                            </Text>
+                                        </View>
+                                        <Pressable
+                                            style={styles.dropBtn}
+                                            onPress={() => handleDropAndAdd(rp)}
+                                            disabled={dropping !== null}
+                                        >
+                                            {isDroppingThis
+                                                ? <ActivityIndicator size="small" color={colors.textWhite} />
+                                                : <Text style={styles.dropBtnText}>Drop</Text>}
+                                        </Pressable>
+                                    </View>
+                                )
+                            })}
+                        </ScrollView>
+
+                        <Pressable
+                            style={styles.modalCancel}
+                            onPress={() => setDropPickerVisible(false)}
+                            disabled={dropping !== null}
+                        >
+                            <Text style={styles.modalCancelText}>Cancel</Text>
+                        </Pressable>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* IR resolution modal */}
+            <IRResolutionModal
+                visible={irModal !== null}
+                ineligibleIR={irModal?.ineligible ?? []}
+                activeRoster={(irModal?.roster ?? []).filter((r) => !r.is_on_ir)}
+                rosterSize={league?.roster_size ?? 20}
+                pendingPlayerName={player?.display_name ?? ''}
+                onActivate={handleIRActivate}
+                onDropAndActivate={handleDropAndIRActivate}
+                onCancel={() => setIrModal(null)}
+            />
         </>
     )
 }
@@ -352,4 +515,61 @@ const styles = StyleSheet.create({
     sectionTitle: { fontSize: 17, fontWeight: fontWeight.bold, color: colors.textPrimary },
     noData: { color: colors.textPlaceholder, fontSize: fontSize.md },
     errorText: { textAlign: 'center', marginTop: spacing['5xl'], color: colors.textMuted },
+
+    // Drop picker modal
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'flex-end',
+    },
+    modalCard: {
+        backgroundColor: colors.bgScreen,
+        borderTopLeftRadius: radii['3xl'],
+        borderTopRightRadius: radii['3xl'],
+        borderCurve: 'continuous' as const,
+        paddingTop: spacing['3xl'],
+        paddingHorizontal: spacing['2xl'],
+        paddingBottom: 36,
+        maxHeight: '80%',
+    },
+    modalTitle: {
+        fontSize: 17,
+        fontWeight: fontWeight.bold,
+        color: colors.textPrimary,
+        textAlign: 'center',
+        marginBottom: spacing.xs,
+    },
+    modalPlayerName: { color: colors.primary },
+    modalSub: { fontSize: fontSize.sm, color: colors.textPlaceholder, textAlign: 'center', marginBottom: spacing.xl },
+    dropList: { maxHeight: 360 },
+    dropRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: spacing.lg,
+        borderBottomWidth: 1,
+        borderBottomColor: colors.separator,
+        gap: spacing.lg,
+    },
+    dropInfo: { flex: 1 },
+    dropName: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textPrimary },
+    dropMeta: { fontSize: 12, color: colors.textMuted, marginTop: 1 },
+    dropBtn: {
+        backgroundColor: colors.danger,
+        paddingHorizontal: spacing.lg + spacing.xxs,
+        paddingVertical: 7,
+        borderRadius: radii.md,
+        borderCurve: 'continuous' as const,
+        minWidth: 60,
+        alignItems: 'center',
+    },
+    dropBtnText: { color: colors.textWhite, fontSize: fontSize.sm, fontWeight: fontWeight.bold },
+    modalCancel: {
+        marginTop: spacing.xl,
+        paddingVertical: spacing.lg + spacing.xxs,
+        alignItems: 'center',
+        borderRadius: radii.xl,
+        borderCurve: 'continuous' as const,
+        backgroundColor: colors.bgSubtle,
+    },
+    modalCancelText: { fontSize: 15, fontWeight: fontWeight.semibold, color: colors.textSecondary },
 })
