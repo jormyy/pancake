@@ -191,5 +191,26 @@ export async function syncStatsByDate(date: Date) {
         console.log(`[sync] Mapped ${nbaIdUpdates.length} new NBA person IDs.`)
     }
 
+    // Clear stale transient injury statuses for players who actually played today.
+    // If a player was listed Out/GTD/Doubtful/Questionable but has non-DNP stats,
+    // their status is clearly stale — clear it so the UI stays consistent.
+    // IR is intentionally excluded: it's a roster designation, not a game-day tag.
+    // Collect player IDs that played today (did_not_play = false) and have an injury status
+    const { data: playedWithInjury } = await supabase
+        .from('player_game_stats')
+        .select('player_id, players!inner(injury_status)')
+        .eq('did_not_play', false)
+        .in('game_id', games.map((g) => g.id))
+        .not('players.injury_status', 'is', null)
+        .not('players.injury_status', 'like', 'IR%')
+    const stalePlayers = (playedWithInjury ?? []).map((r: any) => r.player_id)
+    if (stalePlayers.length > 0) {
+        await supabase
+            .from('players')
+            .update({ injury_status: null })
+            .in('id', stalePlayers)
+        console.log(`[sync] Cleared stale injury status for ${stalePlayers.length} player(s) who played on ${dateStr}.`)
+    }
+
     console.log(`[sync] Upserted ${statCount} stat lines for ${dateStr}.`)
 }
