@@ -29,6 +29,7 @@ type Props = {
     rosterStatus: PlayerRosterStatus | null
     leagueActive: boolean
     actionLoading: boolean
+    playedToday?: boolean
     onAdd: () => void
     onDrop: () => void
     onClaim: () => void
@@ -39,6 +40,7 @@ export function PlayerHeader({
     rosterStatus,
     leagueActive,
     actionLoading,
+    playedToday = false,
     onAdd,
     onDrop,
     onClaim,
@@ -72,7 +74,7 @@ export function PlayerHeader({
                 <Text style={styles.name}>{player.display_name}</Text>
                 <Text style={styles.meta}>{metaParts.join(' · ')}</Text>
                 <View style={styles.badges}>
-                    {player.injury_status && (
+                    {player.injury_status && !playedToday && (
                         <Badge
                             label={player.injury_status}
                             color={INJURY_COLORS[player.injury_status] ?? colors.textMuted}
