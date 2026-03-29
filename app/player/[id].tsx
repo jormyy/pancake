@@ -21,6 +21,8 @@ import {
     type TransactionHistoryEntry,
 } from '@/lib/players'
 import { currentSeasonYear } from '@/lib/shared/season'
+import { todayDateString } from '@/lib/shared/dates'
+import { supabase } from '@/lib/supabase'
 import { getPlayerRosterStatus, addFreeAgent, dropPlayer, type PlayerRosterStatus } from '@/lib/roster'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useAuth } from '@/hooks/use-auth'
@@ -48,6 +50,7 @@ export default function PlayerDetailScreen() {
     // Roster status
     const [rosterStatus, setRosterStatus] = useState<PlayerRosterStatus | null>(null)
     const [actionLoading, setActionLoading] = useState(false)
+    const [playedToday, setPlayedToday] = useState(false)
 
     // Season navigation
     const [availableSeasons, setAvailableSeasons] = useState<number[]>([])
@@ -77,10 +80,17 @@ export default function PlayerDetailScreen() {
     useEffect(() => {
         async function load() {
             try {
-                const [p, seasons] = await Promise.all([
+                const [p, seasons, todayStats] = await Promise.all([
                     getPlayer(id),
                     getAvailableSeasons(id),
+                    supabase
+                        .from('player_game_stats')
+                        .select('did_not_play')
+                        .eq('player_id', id)
+                        .eq('game_date', todayDateString())
+                        .maybeSingle(),
                 ])
+                setPlayedToday(todayStats.data != null && todayStats.data.did_not_play === false)
                 setPlayer(p)
                 setAvailableSeasons(seasons)
                 if (seasons.length > 0 && !seasons.includes(selectedSeason)) {
@@ -272,6 +282,7 @@ export default function PlayerDetailScreen() {
                         rosterStatus={rosterStatus}
                         leagueActive={!!current}
                         actionLoading={actionLoading}
+                        playedToday={playedToday}
                         onAdd={handleAdd}
                         onDrop={handleDrop}
                         onClaim={handleClaim}
