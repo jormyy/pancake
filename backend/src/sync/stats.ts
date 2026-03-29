@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase'
 import { fetchBoxScore, parseNBAMinutes, NBABoxScorePlayer } from '../lib/nba'
+import { todayET } from './livePoller'
 
 // Normalize a player name for fuzzy matching:
 // strips suffixes (Jr, Sr, II, III, IV), punctuation, and extra spaces
@@ -90,10 +91,11 @@ export function buildStatRow(
 }
 
 export async function syncStatsByDate(date: Date) {
-    const dateStr = date.toISOString().split('T')[0] // YYYY-MM-DD
+    // Use ET date — NBA game_date values are ET-based, and UTC rolls over ~4-5h before midnight ET
+    const dateStr = date.toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
     console.log(`[sync] Fetching stats for ${dateStr}...`)
 
-    const isPast = dateStr < new Date().toISOString().split('T')[0]
+    const isPast = dateStr < new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
 
     // Get games for this date that have an nba_game_id.
     // For past dates, include Scheduled games too — they may just have a stale status.

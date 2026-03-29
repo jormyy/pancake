@@ -14,6 +14,12 @@ function isGameWindow(): boolean {
     return etHour >= 11 || etHour < 1
 }
 
+// Returns today's date string in ET (YYYY-MM-DD).
+// NBA game_date values use ET, so this must match — UTC rolls over ~5 hours early.
+export function todayET(): string {
+    return new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
+}
+
 class LiveGamePoller {
     private mode: PollerMode = 'idle'
     private idleTimer: NodeJS.Timeout | null = null
@@ -133,8 +139,8 @@ class LiveGamePoller {
 
 }
 
-async function updateGameStatuses(games: NBAGame[]) {
-    const today = new Date().toISOString().split('T')[0]
+export async function updateGameStatuses(games: NBAGame[]) {
+    const today = todayET()
     const { data: dbGames } = await supabase
         .from('nba_games')
         .select('id, nba_game_id, status')

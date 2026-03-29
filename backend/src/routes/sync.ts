@@ -2,6 +2,8 @@ import { FastifyInstance } from 'fastify'
 import { syncStatsByDate } from '../sync/stats'
 import { generateAllMatchups } from '../sync/matchups'
 import { syncScores } from '../sync/scores'
+import { updateGameStatuses } from '../sync/livePoller'
+import { fetchTodaysGames } from '../lib/nba'
 import { startBackfill, getBackfillProgress, startFullHistoricalBackfill } from '../sync/backfill'
 import { testNBAEndpoints } from '../sync/healthCheck'
 import { verifySampleStats, verifySeasonTotals, validateDatabase } from '../sync/verify'
@@ -33,6 +35,8 @@ export default async function syncRoutes(app: FastifyInstance) {
     })
 
     app.post('/scores', async () => {
+        const games = await fetchTodaysGames()
+        if (games.length) await updateGameStatuses(games)
         await syncScores()
         return { ok: true }
     })
