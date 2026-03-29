@@ -7,6 +7,36 @@ import { todayDateString } from '@/lib/shared/dates'
 
 export { canPlaySlot, SLOT_ELIGIBLE } from '@/constants/slots'
 
+// Returns the set of NBA team abbreviations whose game has already started (InProgress or Final) on the given date.
+export async function getStartedTeams(gameDate: string): Promise<Set<string>> {
+    const { data } = await supabase
+        .from('nba_games')
+        .select('home_team, away_team')
+        .eq('game_date', gameDate)
+        .in('status', ['InProgress', 'Final'])
+    const teams = new Set<string>()
+    for (const g of data ?? []) {
+        if ((g as any).home_team) teams.add((g as any).home_team)
+        if ((g as any).away_team) teams.add((g as any).away_team)
+    }
+    return teams
+}
+
+// Returns the set of NBA team abbreviations with a game currently InProgress on the given date.
+export async function getLiveTeams(gameDate: string): Promise<Set<string>> {
+    const { data } = await supabase
+        .from('nba_games')
+        .select('home_team, away_team')
+        .eq('game_date', gameDate)
+        .eq('status', 'InProgress')
+    const teams = new Set<string>()
+    for (const g of data ?? []) {
+        if ((g as any).home_team) teams.add((g as any).home_team)
+        if ((g as any).away_team) teams.add((g as any).away_team)
+    }
+    return teams
+}
+
 export type LineupPlayer = {
     rosterPlayerId: string
     playerId: string

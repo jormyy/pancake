@@ -24,6 +24,7 @@ import {
     getWeeklyLineup,
     setPlayerSlot,
     autoSetLineup,
+    getStartedTeams,
     canPlaySlot,
     LineupSlot,
     LineupPlayer,
@@ -78,6 +79,7 @@ export default function HomeScreen() {
     const [irOverflowSaving, setIROverflowSaving] = useState(false)
 
     const [todaysGames, setTodaysGames] = useState<NBAGameRow[]>([])
+    const [startedTeams, setStartedTeams] = useState<Set<string>>(new Set())
     const [liveStats, setLiveStats] = useState<Map<string, LiveStatLine>>(new Map())
 
     const matchupRef = useRef<Matchup | null>(null)
@@ -87,12 +89,14 @@ export default function HomeScreen() {
         async (m: Matchup, date: string) => {
             setLineupLoading(true)
             try {
-                const [mine, opp] = await Promise.all([
+                const [mine, opp, started] = await Promise.all([
                     getWeeklyLineup(m.myMemberId, league?.id, m.seasonId, m.weekNumber, date),
                     getWeeklyLineup(m.opponentMemberId, league?.id, m.seasonId, m.weekNumber, date),
+                    getStartedTeams(date),
                 ])
                 setMyLineup(mine)
                 setOppLineup(opp)
+                setStartedTeams(started)
             } finally {
                 setLineupLoading(false)
             }
@@ -181,6 +185,7 @@ export default function HomeScreen() {
         const interval = setInterval(() => {
             getTodaysGames().then(setTodaysGames).catch(() => {})
             getLivePlayerStats(selectedDate).then(setLiveStats).catch(() => {})
+            getStartedTeams(selectedDate).then(setStartedTeams).catch(() => {})
         }, 15_000)
 
         return () => clearInterval(interval)
@@ -194,6 +199,13 @@ export default function HomeScreen() {
     }
 
     async function handleTap(newSel: Sel) {
+        // Block all moves on past days
+        if (selectedDate < todayDateString()) {
+            Alert.alert('Past lineup', 'Lineups for past days cannot be changed.')
+            setSelected(null)
+            return
+        }
+
         if (!selected) { setSelected(newSel); return }
         if (selected.kind === newSel.kind && selected.index === newSel.index) {
             setSelected(null); return
@@ -265,6 +277,15 @@ export default function HomeScreen() {
         }
 
         // ── Regular (non-IR) swap ───────────────────────────────
+        // Block any move involving a player whose game has already started (InProgress or Final)
+        const aLocked = !!(aPlayer?.nbaTeam && startedTeams.has(aPlayer.nbaTeam))
+        const bLocked = !!(bPlayer?.nbaTeam && startedTeams.has(bPlayer.nbaTeam))
+        if (aLocked || bLocked) {
+            const who = aLocked ? aPlayer! : bPlayer!
+            Alert.alert('Lineup locked', `${who.displayName}'s game has already started. No lineup changes are allowed once a game begins.`)
+            return
+        }
+
         if (aPlayer && bSlot !== 'BE' && !canPlaySlot(aPlayer.position, bSlot)) {
             Alert.alert('Invalid move', `${aPlayer.displayName} can't play ${bSlot}`); return
         }
@@ -333,15 +354,7 @@ export default function HomeScreen() {
     }
 
     function handleAutoSet() {
-        Alert.alert(
-            'Auto-Set Lineup',
-            'Optimize for today or every day this week?',
-            [
-                { text: 'Cancel', style: 'cancel' },
-                { text: 'Today', onPress: () => doAutoSet(selectedDate) },
-                { text: 'Full Week', onPress: () => doAutoSet(null) },
-            ],
-        )
+        doAutoSet(null)
     }
 
     const todayPlayingTeams = new Set(
@@ -676,6 +689,7 @@ function MatchupRow({
                             </Text>
                         </View>
                         <View style={[styles.metaRow, { justifyContent: 'flex-end' }]}>
+                            {myIsLive && <Text style={styles.lockedBadge}>LIVE</Text>}
                             {myPlayer.position && <PosTag position={myPlayer.position} />}
                             <Text style={styles.sideMeta} numberOfLines={1}>
                                 {myPlayer.nbaTeam ?? 'FA'}{!myHasGame ? ' · No game' : ''}
@@ -727,6 +741,7 @@ function MatchupRow({
                             <Text style={styles.sideMeta} numberOfLines={1}>
                                 {oppPlayer.nbaTeam ?? 'FA'}{!oppHasGame ? ' · No game' : ''}
                             </Text>
+                            {oppIsLive && <Text style={styles.lockedBadge}>LIVE</Text>}
                         </View>
                         {oppIsLive && !oppStats ? (
                             <Text style={[styles.statLine, { textAlign: 'left' }, styles.statLineLive]} numberOfLines={1}>In game</Text>
@@ -998,6 +1013,7 @@ const styles = StyleSheet.create({
     noGameName: { color: palette.gray500 },
     metaRow: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 2 },
     sideMeta: { fontSize: 11, color: colors.textPlaceholder },
+    lockedBadge: { fontSize: 10, fontWeight: fontWeight.bold, color: '#16a34a', letterSpacing: 0.4, marginHorizontal: 3 },
     statLine: { fontSize: 11, color: colors.textMuted, textAlign: 'right', marginTop: 1 },
     statLineLive: { color: colors.primary, fontWeight: fontWeight.semibold },
 
