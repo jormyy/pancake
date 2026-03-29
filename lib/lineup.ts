@@ -3,6 +3,7 @@ import type { RosterSlotType } from '@/types/database'
 import { getCurrentSeason } from '@/lib/shared/season'
 import { getCurrentWeekNumber } from '@/lib/shared/week'
 import { canPlaySlot } from '@/constants/slots'
+import { todayDateString } from '@/lib/shared/dates'
 
 export { canPlaySlot, SLOT_ELIGIBLE } from '@/constants/slots'
 
@@ -40,7 +41,7 @@ export async function getLineupContext(leagueId: string): Promise<LineupContext 
     const season = await getCurrentSeason(leagueId)
     if (!season) return null
     const weekNumber = await getCurrentWeekNumber(season.seasonYear) ?? 1
-    const today = new Date().toISOString().split('T')[0]
+    const today = todayDateString()
     return { seasonId: season.id, seasonYear: season.seasonYear, weekNumber, today }
 }
 
@@ -60,7 +61,7 @@ export async function getWeekDays(weekNumber: number, seasonYear: number): Promi
             .eq('week_number', weekNumber),
     ])
 
-    const today = new Date().toISOString().split('T')[0]
+    const today = todayDateString()
 
     // Build date → teams map
     const dateTeams = new Map<string, string[]>()

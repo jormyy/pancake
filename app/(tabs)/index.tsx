@@ -16,6 +16,7 @@ import { useLeagueContext } from '@/contexts/league-context'
 import { useAuth } from '@/hooks/use-auth'
 import { getMyMatchup, Matchup, computeLiveFantasyPoints } from '@/lib/scoring'
 import { getTodaysGames, getLivePlayerStats, NBAGameRow, LiveStatLine } from '@/lib/games'
+import { todayDateString } from '@/lib/shared/dates'
 import { supabase } from '@/lib/supabase'
 import { Scoreboard } from '@/components/Scoreboard'
 import {
@@ -62,7 +63,7 @@ export default function HomeScreen() {
     const [matchup, setMatchup] = useState<Matchup | null | undefined>(undefined)
     const [weekDays, setWeekDays] = useState<WeekDay[]>([])
     const [selectedDate, setSelectedDate] = useState<string>(
-        () => new Date().toISOString().split('T')[0],
+        () => todayDateString(),
     )
     const [myLineup, setMyLineup] = useState<LineupData | null>(null)
     const [oppLineup, setOppLineup] = useState<LineupData | null>(null)
@@ -118,7 +119,7 @@ export default function HomeScreen() {
             setMatchup(m)
             matchupRef.current = m
             if (m) {
-                const today = new Date().toISOString().split('T')[0]
+                const today = todayDateString()
                 const days = await getWeekDays(m.weekNumber, m.seasonYear)
                 setWeekDays(days)
                 setSelectedDate(today)
@@ -172,7 +173,7 @@ export default function HomeScreen() {
     useEffect(() => {
         getLivePlayerStats(selectedDate).then(setLiveStats).catch(() => {})
 
-        const today = new Date().toISOString().split('T')[0]
+        const today = todayDateString()
         const isToday = selectedDate === today
 
         if (!isToday) return
