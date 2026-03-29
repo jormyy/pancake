@@ -70,16 +70,19 @@ async function syncPlayers() {
   const dedupedUpdate = Array.from(seenIds.values())
 
   for (let i = 0; i < dedupedUpdate.length; i += CHUNK) {
+    // Strip sleeper_id from updates — it may conflict if a player was matched by
+    // name but a different player already owns that sleeper_id.
+    const chunk = dedupedUpdate.slice(i, i + CHUNK).map(({ sleeper_id: _sid, ...rest }) => rest)
     const { error } = await supabase
       .from('players')
-      .upsert(dedupedUpdate.slice(i, i + CHUNK), { onConflict: 'id' })
+      .upsert(chunk, { onConflict: 'id' })
     if (error) throw error
   }
 
   for (let i = 0; i < toInsert.length; i += CHUNK) {
     const { error } = await supabase
       .from('players')
-      .insert(toInsert.slice(i, i + CHUNK))
+      .upsert(toInsert.slice(i, i + CHUNK), { onConflict: 'sleeper_id' })
     if (error) console.error(`[sync-players] Insert error (chunk ${i}):`, error.message)
   }
 
