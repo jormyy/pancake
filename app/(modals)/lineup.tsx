@@ -29,6 +29,7 @@ import { POSITION_COLORS } from '@/constants/positions'
 import { Avatar } from '@/components/Avatar'
 import { LoadingScreen } from '@/components/LoadingScreen'
 import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { todayDateString } from '@/lib/shared/dates'
 
 type Selection =
     | { kind: 'starter'; index: number }
@@ -42,7 +43,7 @@ export default function LineupScreen() {
     const [ctx, setCtx] = useState<LineupContext | null>(null)
     const [weekDays, setWeekDays] = useState<WeekDay[]>([])
     const [selectedDate, setSelectedDate] = useState<string>(
-        () => new Date().toISOString().split('T')[0],
+        () => todayDateString(),
     )
     const [starters, setStarters] = useState<LineupSlot[]>([])
     const [bench, setBench] = useState<LineupPlayer[]>([])

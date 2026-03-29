@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { todayDateString } from '@/lib/shared/dates'
 
 export type NBAGameRow = {
     id: string
@@ -65,7 +66,7 @@ export async function getLivePlayerStats(date: string): Promise<Map<string, Live
 }
 
 export async function getTodaysGames(): Promise<NBAGameRow[]> {
-    const today = new Date().toISOString().split('T')[0]
+    const today = todayDateString()
     const { data, error } = await supabase
         .from('nba_games')
         .select('id, nba_game_id, home_team, away_team, home_score, away_score, status, game_status_text, game_date')
