@@ -39,6 +39,10 @@ export default function ModalsLayout() {
                 name="bracket"
                 options={{ title: 'Playoff Bracket', presentation: 'modal' }}
             />
+            <Stack.Screen
+                name="team-roster"
+                options={{ headerShown: false, presentation: 'modal' }}
+            />
         </Stack>
     )
 }

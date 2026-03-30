@@ -70,6 +70,7 @@ export async function getLeagueTransactions(
         `)
         .eq('league_id', leagueId)
         .eq('league_season_id', (season as any).id)
+        .in('transaction_type', ['fa_add', 'fa_drop', 'waiver_add', 'waiver_drop', 'trade_in', 'trade_out', 'draft_won'])
         .order('occurred_at', { ascending: false })
         .limit(limit)
 

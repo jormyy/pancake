@@ -53,7 +53,7 @@ async function syncPlayers() {
       position: normalizePosition(p.position),
       status: p.status ?? null,
       injury_status: p.injury_status ?? null,
-      updated_at: new Date().toISOString(),
+updated_at: new Date().toISOString(),
     }
 
     const existingId = bySleeperId.get(p.player_id) ?? byName.get(displayName.toLowerCase())
