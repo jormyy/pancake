@@ -54,7 +54,7 @@ async function syncPlayers() {
       nba_team: p.team ?? null,
       position: normalizePosition(p.position),
       status: p.status ?? null,
-      injury_status: p.injury_status ?? null,
+      injury_status: normalizeInjuryStatus(p.injury_status),
       updated_at: new Date().toISOString(),
     }
 
@@ -161,6 +161,14 @@ function normalizeName(name: string): string {
     .replace(/['.'\-]/g, '')
     .replace(/\s+/g, ' ')
     .trim()
+}
+
+// Sleeper sometimes returns "Scrambled" as a catch-all when injury data is uncertain — treat as null
+const JUNK_INJURY_STATUSES = new Set(['Scrambled'])
+
+function normalizeInjuryStatus(s: string | null | undefined): string | null {
+  if (!s || JUNK_INJURY_STATUSES.has(s)) return null
+  return s
 }
 
 function normalizePosition(pos: string | null | undefined): string | null {
