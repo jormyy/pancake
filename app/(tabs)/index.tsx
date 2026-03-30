@@ -74,6 +74,7 @@ export default function HomeScreen() {
     const [selected, setSelected] = useState<Sel | null>(null)
     const [saving, setSaving] = useState(false)
     const [autoSetting, setAutoSetting] = useState(false)
+    const [autoSetModalVisible, setAutoSetModalVisible] = useState(false)
 
     const [irOverflowPending, setIROverflowPending] = useState<PendingIRActivate | null>(null)
     const [irOverflowSaving, setIROverflowSaving] = useState(false)
@@ -354,7 +355,8 @@ export default function HomeScreen() {
     }
 
     function handleAutoSet() {
-        doAutoSet(null)
+        console.log('[handleAutoSet] Called')
+        setAutoSetModalVisible(true)
     }
 
     const todayPlayingTeams = new Set(
@@ -419,13 +421,10 @@ export default function HomeScreen() {
                         <DaySelector days={weekDays} selectedDate={selectedDate} onSelect={handleDaySelect} />
                     )}
 
-                    {/* Team names header + auto-set */}
+                    {/* Auto-set button */}
                     <View style={styles.lineupHeader}>
-                        <Text style={[styles.lineupTeamName, { textAlign: 'right' }]} numberOfLines={1}>
-                            {matchup.myTeamName}
-                        </Text>
                         <Pressable
-                            style={[styles.autoSetBtn, { width: SLOT_W }]}
+                            style={styles.autoSetBtn}
                             onPress={handleAutoSet}
                             disabled={autoSetting || saving}
                         >
@@ -433,9 +432,6 @@ export default function HomeScreen() {
                                 ? <ActivityIndicator size="small" color={colors.primary} />
                                 : <Text style={styles.autoSetText}>AUTO</Text>}
                         </Pressable>
-                        <Text style={styles.lineupTeamName} numberOfLines={1}>
-                            {matchup.opponentTeamName}
-                        </Text>
                     </View>
 
                     {/* Selection hint */}
@@ -469,8 +465,8 @@ export default function HomeScreen() {
                     ) : (
                         <View style={styles.noLineup}>
                             <Text style={styles.noLineupText}>No lineup set for this day.</Text>
-                            <Pressable style={styles.setLineupBtn} onPress={() => doAutoSet(selectedDate)} disabled={autoSetting}>
-                                <Text style={styles.setLineupBtnText}>Auto-Set Today</Text>
+                            <Pressable style={styles.setLineupBtn} onPress={handleAutoSet} disabled={autoSetting}>
+                                <Text style={styles.setLineupBtnText}>Auto-Set Lineup</Text>
                             </Pressable>
                         </View>
                     )}
@@ -523,6 +519,46 @@ export default function HomeScreen() {
                         </ScrollView>
                         <Pressable style={styles.modalCancel} onPress={() => setIROverflowPending(null)}>
                             <Text style={styles.modalCancelText}>Cancel</Text>
+                        </Pressable>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Auto-Set Options Modal */}
+            <Modal
+                visible={autoSetModalVisible}
+                animationType="fade"
+                transparent={true}
+                onRequestClose={() => setAutoSetModalVisible(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.autoSetModalContent}>
+                        <Text style={styles.autoSetModalTitle}>Auto-Set Lineup</Text>
+                        <Text style={styles.autoSetModalText}>Choose how to set your lineup</Text>
+                        <View style={styles.autoSetModalButtons}>
+                            <Pressable
+                                style={styles.autoSetModalButton}
+                                onPress={() => {
+                                    setAutoSetModalVisible(false)
+                                    console.log('Today pressed')
+                                    doAutoSet(selectedDate)
+                                }}
+                            >
+                                <Text style={styles.autoSetModalButtonText}>Today</Text>
+                            </Pressable>
+                            <Pressable
+                                style={styles.autoSetModalButton}
+                                onPress={() => {
+                                    setAutoSetModalVisible(false)
+                                    console.log('Whole Week pressed')
+                                    doAutoSet(null)
+                                }}
+                            >
+                                <Text style={styles.autoSetModalButtonText}>Whole Week</Text>
+                            </Pressable>
+                        </View>
+                        <Pressable style={styles.autoSetModalCancel} onPress={() => setAutoSetModalVisible(false)}>
+                            <Text style={styles.autoSetModalCancelText}>Cancel</Text>
                         </Pressable>
                     </View>
                 </View>
@@ -682,24 +718,29 @@ function MatchupRow({
             >
                 {myPlayer ? (
                     <>
-                        <View style={[styles.metaRow, { justifyContent: 'flex-end' }]}>
-                            {myShowInjury && <InjuryBadge status={myPlayer.injuryStatus} />}
-                            <Text style={[styles.sideName, !myHasGame && styles.noGameName]} numberOfLines={1}>
-                                {shortName(myPlayer.displayName)}
-                            </Text>
+                        {myFpts != null && (
+                            <Text style={[styles.fptsNum, myIsLive && styles.fptsLive]}>{myFpts}</Text>
+                        )}
+                        <View style={styles.playerBlockRight}>
+                            <View style={[styles.metaRow, { justifyContent: 'flex-end' }]}>
+                                {myShowInjury && <InjuryBadge status={myPlayer.injuryStatus} />}
+                                <Text style={[styles.sideName, !myHasGame && styles.noGameName]} numberOfLines={1}>
+                                    {shortName(myPlayer.displayName)}
+                                </Text>
+                            </View>
+                            <View style={[styles.metaRow, { justifyContent: 'flex-end' }]}>
+                                {myIsLive && <Text style={styles.lockedBadge}>LIVE</Text>}
+                                {myPlayer.position && <PosTag position={myPlayer.position} />}
+                                <Text style={styles.sideMeta} numberOfLines={1}>
+                                    {myPlayer.nbaTeam ?? 'FA'}{!myHasGame ? ' · No game' : ''}
+                                </Text>
+                            </View>
+                            {myIsLive && !myStats ? (
+                                <Text style={[styles.statLine, styles.statLineLive]} numberOfLines={1}>In game</Text>
+                            ) : myStats ? (
+                                <StatLines stats={myStats} isLive={myIsLive} align="right" />
+                            ) : null}
                         </View>
-                        <View style={[styles.metaRow, { justifyContent: 'flex-end' }]}>
-                            {myIsLive && <Text style={styles.lockedBadge}>LIVE</Text>}
-                            {myPlayer.position && <PosTag position={myPlayer.position} />}
-                            <Text style={styles.sideMeta} numberOfLines={1}>
-                                {myPlayer.nbaTeam ?? 'FA'}{!myHasGame ? ' · No game' : ''}
-                            </Text>
-                        </View>
-                        {myIsLive && !myStats ? (
-                            <Text style={[styles.statLine, styles.statLineLive]} numberOfLines={1}>In game</Text>
-                        ) : myStats ? (
-                            <StatLines stats={myStats} isLive={myIsLive} fpts={myFpts} align="right" />
-                        ) : null}
                     </>
                 ) : (
                     <Text style={[styles.sideName, { color: colors.border, textAlign: 'right' }]}>—</Text>
@@ -730,24 +771,29 @@ function MatchupRow({
             >
                 {oppPlayer ? (
                     <>
-                        <View style={styles.metaRow}>
-                            <Text style={[styles.sideName, !oppHasGame && styles.noGameName]} numberOfLines={1}>
-                                {shortName(oppPlayer.displayName)}
-                            </Text>
-                            {oppShowInjury && <InjuryBadge status={oppPlayer.injuryStatus} />}
+                        <View style={styles.playerBlockLeft}>
+                            <View style={styles.metaRow}>
+                                <Text style={[styles.sideName, !oppHasGame && styles.noGameName]} numberOfLines={1}>
+                                    {shortName(oppPlayer.displayName)}
+                                </Text>
+                                {oppShowInjury && <InjuryBadge status={oppPlayer.injuryStatus} />}
+                            </View>
+                            <View style={styles.metaRow}>
+                                {oppPlayer.position && <PosTag position={oppPlayer.position} />}
+                                <Text style={styles.sideMeta} numberOfLines={1}>
+                                    {oppPlayer.nbaTeam ?? 'FA'}{!oppHasGame ? ' · No game' : ''}
+                                </Text>
+                                {oppIsLive && <Text style={styles.lockedBadge}>LIVE</Text>}
+                            </View>
+                            {oppIsLive && !oppStats ? (
+                                <Text style={[styles.statLine, styles.statLineLive]} numberOfLines={1}>In game</Text>
+                            ) : oppStats ? (
+                                <StatLines stats={oppStats} isLive={oppIsLive} align="left" />
+                            ) : null}
                         </View>
-                        <View style={styles.metaRow}>
-                            {oppPlayer.position && <PosTag position={oppPlayer.position} />}
-                            <Text style={styles.sideMeta} numberOfLines={1}>
-                                {oppPlayer.nbaTeam ?? 'FA'}{!oppHasGame ? ' · No game' : ''}
-                            </Text>
-                            {oppIsLive && <Text style={styles.lockedBadge}>LIVE</Text>}
-                        </View>
-                        {oppIsLive && !oppStats ? (
-                            <Text style={[styles.statLine, { textAlign: 'left' }, styles.statLineLive]} numberOfLines={1}>In game</Text>
-                        ) : oppStats ? (
-                            <StatLines stats={oppStats} isLive={oppIsLive} fpts={oppFpts} align="left" />
-                        ) : null}
+                        {oppFpts != null && (
+                            <Text style={[styles.fptsNum, styles.fptsRight, oppIsLive && styles.fptsLive]}>{oppFpts}</Text>
+                        )}
                     </>
                 ) : (
                     <Text style={[styles.sideName, { color: colors.border }]}>—</Text>
@@ -757,22 +803,32 @@ function MatchupRow({
     )
 }
 
-function StatLines({ stats, isLive, fpts, align }: {
+function StatLines({ stats, isLive, align }: {
     stats: LiveStatLine
     isLive: boolean
-    fpts: number | null
     align: 'left' | 'right'
 }) {
     const base = [styles.statLine, isLive ? styles.statLineLive : null, { textAlign: align }]
     if (stats.didNotPlay) return <Text style={base}>DNP</Text>
-    const line1 = `${stats.points}p ${stats.rebounds}r ${stats.assists}a ${stats.steals}s ${stats.blocks}b ${stats.turnovers ?? 0}to`
-    const fg = `${stats.fgMade}/${stats.fgAttempted}`
-    const ft = `${stats.ftMade}/${stats.ftAttempted}`
-    const line2 = `${fg} ${ft} ${stats.threeMade}x3 ${stats.fouls}f${fpts != null ? ` · ${fpts}` : ''}`
+    const to = stats.turnovers ?? 0
+    const line1 = [
+        stats.points   ? `${stats.points} PTS`   : null,
+        stats.rebounds ? `${stats.rebounds} REB`  : null,
+        stats.assists  ? `${stats.assists} AST`   : null,
+        stats.steals   ? `${stats.steals} STL`    : null,
+        stats.blocks   ? `${stats.blocks} BLK`    : null,
+    ].filter(Boolean).join(', ') || '—'
+    const line2 = [
+        stats.fgAttempted ? `${stats.fgMade}/${stats.fgAttempted} FGM` : null,
+        stats.ftAttempted ? `${stats.ftMade}/${stats.ftAttempted} FTM` : null,
+        stats.threeMade   ? `${stats.threeMade} 3PM`                   : null,
+        to                ? `${to} TO`                                  : null,
+        stats.fouls       ? `${stats.fouls} PF`                        : null,
+    ].filter(Boolean).join(', ')
     return (
         <>
             <Text style={base} numberOfLines={1}>{line1}</Text>
-            <Text style={base} numberOfLines={1}>{line2}</Text>
+            {line2 ? <Text style={base} numberOfLines={1}>{line2}</Text> : null}
         </>
     )
 }
@@ -824,6 +880,8 @@ function DaySelector({ days, selectedDate, onSelect }: { days: WeekDay[]; select
         >
             {days.map((day) => {
                 const isSelected = day.date === selectedDate
+                const isPast = day.date < todayDateString()
+                const isFuture = !day.isToday && !isPast
                 return (
                     <Pressable
                         key={day.date}
@@ -841,7 +899,13 @@ function DaySelector({ days, selectedDate, onSelect }: { days: WeekDay[]; select
                         <Text style={[styles.dayNum, isSelected && styles.dayNumSelected, !day.hasGames && styles.dayNumFaint]}>
                             {day.dateNum}
                         </Text>
-                        {day.hasGames && <View style={[styles.gameDot, isSelected && styles.gameDotSelected]} />}
+                        {day.hasGames && day.isToday && (
+                            <View style={[styles.gameDot, isSelected && styles.gameDotSelected]} />
+                        )}
+                        {day.hasGames && isPast && (
+                            <View style={[styles.gameDash, isSelected && styles.gameDashSelected]} />
+                        )}
+                        {isFuture && <View style={styles.dayIndicatorSpacer} />}
                     </Pressable>
                 )
             })}
@@ -945,7 +1009,7 @@ const styles = StyleSheet.create({
 
     // Day selector
     daySelectorRow: { borderBottomWidth: 1, borderBottomColor: colors.borderLight },
-    daySelectorContent: { flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 10, gap: 6 },
+    daySelectorContent: { flexDirection: 'row', justifyContent: 'center', paddingHorizontal: 12, paddingVertical: 10, gap: 6 },
     dayCell: { width: 40, alignItems: 'center', paddingVertical: 6, borderRadius: 10, borderCurve: 'continuous' as const, gap: 2 },
     dayCellSelected: { backgroundColor: colors.primary },
     dayCellToday: { backgroundColor: colors.primaryLight },
@@ -958,19 +1022,19 @@ const styles = StyleSheet.create({
     dayNumFaint: { color: palette.gray500 },
     gameDot: { width: 5, height: 5, borderRadius: 3, borderCurve: 'continuous' as const, backgroundColor: colors.primary, marginTop: 1 },
     gameDotSelected: { backgroundColor: 'rgba(255,255,255,0.7)' },
+    gameDash: { width: 12, height: 2, borderRadius: 1, backgroundColor: colors.border, marginTop: 3 },
+    gameDashSelected: { backgroundColor: 'rgba(255,255,255,0.5)' },
+    dayIndicatorSpacer: { height: 5, marginTop: 1 },
 
     // Lineup header
     lineupHeader: {
-        flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: 16,
         paddingTop: 12,
         paddingBottom: 4,
-        gap: 0,
     },
-    lineupTeamName: { flex: 1, fontSize: 12, fontWeight: '700', color: colors.textPlaceholder, letterSpacing: 0.3 },
     autoSetBtn: {
         height: 28,
+        paddingHorizontal: 16,
         borderRadius: 8,
         borderCurve: 'continuous' as const,
         borderWidth: 1.5,
@@ -1006,8 +1070,13 @@ const styles = StyleSheet.create({
         gap: 8,
     },
 
-    rowSideLeft: { flex: 1, alignItems: 'flex-end' },
-    rowSideRight: { flex: 1, alignItems: 'flex-start' },
+    rowSideLeft: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end' },
+    rowSideRight: { flex: 1, flexDirection: 'row', alignItems: 'center' },
+    playerBlockRight: { flex: 1, alignItems: 'flex-end' },
+    playerBlockLeft: { flex: 1, alignItems: 'flex-start' },
+    fptsNum: { fontSize: 20, fontWeight: '800', color: colors.textMuted, minWidth: 36, textAlign: 'left', marginRight: 6 },
+    fptsRight: { textAlign: 'right', marginRight: 0, marginLeft: 6 },
+    fptsLive: { color: colors.primary },
 
     sideName: { fontSize: 13, fontWeight: '600', color: colors.textPrimary, flexShrink: 1 },
     noGameName: { color: palette.gray500 },
@@ -1066,4 +1135,14 @@ const styles = StyleSheet.create({
     primaryButtonText: { color: colors.textWhite, fontWeight: '700', fontSize: 16 },
     secondaryButton: { width: '100%', height: 52, borderWidth: 1.5, borderColor: colors.primary, borderRadius: 12, borderCurve: 'continuous' as const, justifyContent: 'center', alignItems: 'center' },
     secondaryButtonText: { color: colors.primary, fontWeight: '700', fontSize: 16 },
+
+    // Auto-Set modal
+    autoSetModalContent: { backgroundColor: colors.bgScreen, borderRadius: 16, padding: 20, marginHorizontal: 20, gap: 16 },
+    autoSetModalTitle: { fontSize: 19, fontWeight: '800', color: colors.textPrimary, textAlign: 'center' },
+    autoSetModalText: { fontSize: 14, color: colors.textMuted, textAlign: 'center' },
+    autoSetModalButtons: { flexDirection: 'row', gap: 12 },
+    autoSetModalButton: { flex: 1, height: 48, backgroundColor: colors.primary, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+    autoSetModalButtonText: { fontSize: 15, fontWeight: '700', color: colors.textWhite },
+    autoSetModalCancel: { paddingVertical: 8, alignItems: 'center' },
+    autoSetModalCancelText: { fontSize: 15, fontWeight: '600', color: colors.textMuted },
 })

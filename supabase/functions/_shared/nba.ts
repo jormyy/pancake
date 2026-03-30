@@ -61,6 +61,7 @@ export async function fetchSeasonSchedule(): Promise<NBAScheduledGame[]> {
         awayTeam: g.awayTeam?.teamTricode ?? '',
         status: mapGameStatus(g.gameStatus),
         startedAt: g.gameEt ?? null,
+        weekNumber: g.weekNumber ?? null,
       })
     }
   }
@@ -89,6 +90,7 @@ export interface NBAScheduledGame {
   awayTeam: string
   status: string
   startedAt: string | null
+  weekNumber: number | null
 }
 
 export interface NBABoxScore {

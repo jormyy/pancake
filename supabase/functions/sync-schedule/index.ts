@@ -37,7 +37,6 @@ async function syncSchedule() {
   const games = regularAndPlayoff
     .filter((g) => g.homeTeam && g.awayTeam)
     .map((g) => {
-      const daysDiff = Math.floor((new Date(g.gameDate).getTime() - startMs) / 86_400_000)
       return {
         nba_game_id: g.gameId,
         season_year: seasonYear,
@@ -47,7 +46,7 @@ async function syncSchedule() {
         status: g.status,
         started_at: g.startedAt,
         ended_at: null,
-        week_number: Math.floor(daysDiff / 7) + 1,
+        week_number: g.weekNumber ?? 0,
         updated_at: new Date().toISOString(),
       }
     })

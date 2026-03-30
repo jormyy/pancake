@@ -77,42 +77,48 @@ export async function getLineupContext(leagueId: string): Promise<LineupContext 
 
 // Returns the 7 days of the given fantasy week with game schedule info.
 export async function getWeekDays(weekNumber: number, seasonYear: number): Promise<WeekDay[]> {
-    const [{ data: weekData }, { data: games }] = await Promise.all([
-        supabase
-            .from('season_weeks')
-            .select('week_start')
-            .eq('season_year', seasonYear)
-            .eq('week_number', weekNumber)
-            .maybeSingle(),
-        supabase
-            .from('nba_games')
-            .select('game_date, home_team, away_team')
-            .eq('season_year', seasonYear)
-            .eq('week_number', weekNumber),
-    ])
+    // Fetch week boundaries first, then query games by date range.
+    // Querying by week_number on nba_games is unreliable — rows can have stale/incorrect
+    // week_number values if the schedule was synced out of order or re-seeded.
+    const { data: weekData } = await supabase
+        .from('season_weeks')
+        .select('week_start')
+        .eq('season_year', seasonYear)
+        .eq('week_number', weekNumber)
+        .maybeSingle()
 
     const today = todayDateString()
-
-    // Build date → teams map
-    const dateTeams = new Map<string, string[]>()
-    for (const g of games ?? []) {
-        const date = (g as any).game_date as string
-        if (!dateTeams.has(date)) dateTeams.set(date, [])
-        const arr = dateTeams.get(date)!
-        if ((g as any).home_team) arr.push((g as any).home_team)
-        if ((g as any).away_team) arr.push((g as any).away_team)
-    }
-
+    const DAY_CHARS = ['S', 'M', 'T', 'W', 'R', 'F', 'S']
     const result: WeekDay[] = []
 
-    // S M T W R F S — Thursday is 'R' to avoid collision with Tuesday
-    const DAY_CHARS = ['S', 'M', 'T', 'W', 'R', 'F', 'S']
+    // Build date → teams map from a date-range query when we have week_start
+    const dateTeams = new Map<string, string[]>()
 
     if ((weekData as any)?.week_start) {
         const start = new Date((weekData as any).week_start + 'T12:00:00Z')
-        // Snap to Monday (UTC day: 0=Sun,1=Mon,...,6=Sat)
+        // Snap to Monday
         const dow = start.getUTCDay()
         start.setUTCDate(start.getUTCDate() + (dow === 0 ? -6 : 1 - dow))
+        const end = new Date(start)
+        end.setUTCDate(end.getUTCDate() + 6)
+        const startStr = start.toISOString().split('T')[0]
+        const endStr = end.toISOString().split('T')[0]
+
+        const { data: games } = await supabase
+            .from('nba_games')
+            .select('game_date, home_team, away_team')
+            .eq('season_year', seasonYear)
+            .gte('game_date', startStr)
+            .lte('game_date', endStr)
+
+        for (const g of games ?? []) {
+            const date = (g as any).game_date as string
+            if (!dateTeams.has(date)) dateTeams.set(date, [])
+            const arr = dateTeams.get(date)!
+            if ((g as any).home_team) arr.push((g as any).home_team)
+            if ((g as any).away_team) arr.push((g as any).away_team)
+        }
+
         for (let i = 0; i < 7; i++) {
             const d = new Date(start)
             d.setUTCDate(d.getUTCDate() + i)
@@ -127,6 +133,20 @@ export async function getWeekDays(weekNumber: number, seasonYear: number): Promi
             })
         }
     } else {
+        // Fallback: week_start unknown — fall back to week_number query
+        const { data: games } = await supabase
+            .from('nba_games')
+            .select('game_date, home_team, away_team')
+            .eq('season_year', seasonYear)
+            .eq('week_number', weekNumber)
+
+        for (const g of games ?? []) {
+            const date = (g as any).game_date as string
+            if (!dateTeams.has(date)) dateTeams.set(date, [])
+            const arr = dateTeams.get(date)!
+            if ((g as any).home_team) arr.push((g as any).home_team)
+            if ((g as any).away_team) arr.push((g as any).away_team)
+        }
         // Fallback: use distinct game dates from this week
         const uniqueDates = [...new Set([...dateTeams.keys()])].sort()
         for (const dateStr of uniqueDates) {
