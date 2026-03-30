@@ -21,6 +21,7 @@ export async function syncStatsByDate(date: Date) {
   const { data: players, error: pErr } = await supabase
     .from('players')
     .select('id, display_name, nba_id')
+    .limit(10000)
   if (pErr) throw pErr
 
   const byNbaId = new Map<string, string>()
