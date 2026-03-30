@@ -1,6 +1,16 @@
 import { supabase } from './supabase.ts'
 import { fetchBoxScore, parseNBAMinutes, NBABoxScorePlayer } from './nba.ts'
 
+function normalizeName(name: string): string {
+  return name
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\s+(jr\.?|sr\.?|ii|iii|iv|v)$/i, '')
+    .replace(/['.'\-]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 export async function syncStatsByDate(date: Date) {
   const dateStr = date.toISOString().split('T')[0]
   console.log(`[sync-stats] Fetching stats for ${dateStr}...`)
@@ -26,9 +36,11 @@ export async function syncStatsByDate(date: Date) {
 
   const byNbaId = new Map<string, string>()
   const byName = new Map<string, string>()
+  const byNormName = new Map<string, string>()
   for (const p of players ?? []) {
     if (p.nba_id) byNbaId.set(p.nba_id, p.id)
     byName.set(p.display_name.toLowerCase(), p.id)
+    byNormName.set(normalizeName(p.display_name), p.id)
   }
 
   let statCount = 0
@@ -50,7 +62,7 @@ export async function syncStatsByDate(date: Date) {
 
         if (!playerId) {
           const nameLower = (p.name ?? '').toLowerCase()
-          playerId = byName.get(nameLower)
+          playerId = byName.get(nameLower) ?? byNormName.get(normalizeName(p.name ?? ''))
           if (playerId && !byNbaId.has(personId)) {
             nbaIdUpdates.push({ id: playerId, nba_id: personId })
             byNbaId.set(personId, playerId)

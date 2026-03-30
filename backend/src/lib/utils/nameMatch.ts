@@ -6,6 +6,7 @@ const SUFFIX_RE = /\s+(jr\.?|sr\.?|ii|iii|iv|v)$/i
 
 export function normalizeName(name: string): string {
     return name
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
         .toLowerCase()
         .replace(/\./g, '')
         .replace(SUFFIX_RE, '')

@@ -3,9 +3,10 @@ import { fetchBoxScore, parseNBAMinutes, NBABoxScorePlayer } from '../lib/nba'
 import { todayET } from './livePoller'
 
 // Normalize a player name for fuzzy matching:
-// strips suffixes (Jr, Sr, II, III, IV), punctuation, and extra spaces
+// strips accents (ć→c), suffixes (Jr, Sr, II–IV), punctuation, and extra spaces
 function normalizeName(name: string): string {
     return name
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // strip combining diacritics
         .toLowerCase()
         .replace(/\s+(jr\.?|sr\.?|ii|iii|iv|v)$/i, '')
         .replace(/['.'\-]/g, '')
