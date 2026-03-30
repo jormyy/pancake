@@ -11,6 +11,7 @@ export type PlayerRow = {
     status: string | null
     injury_status: string | null
     headshot_url: string | null
+    nba_id: string | null
 }
 
 export type PlayerSeasonAverages = {
@@ -68,7 +69,7 @@ export async function searchPlayers(query: string, position: string): Promise<Pl
     // Primary: players with stats this season, ranked by avg points descending
     let q = supabase
         .from('mv_player_season_averages')
-        .select('avg_points, players!inner(id, display_name, nba_team, position, status, injury_status, headshot_url)')
+        .select('avg_points, players!inner(id, display_name, nba_team, position, status, injury_status, nba_id)')
         .eq('season_year', currentSeasonYear())
         .order('avg_points', { ascending: false })
         .limit(60)

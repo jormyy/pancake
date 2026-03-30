@@ -8,6 +8,7 @@ import {
     Alert,
     Modal,
     ScrollView,
+    Image,
 } from 'react-native'
 import { FlashList } from '@shopify/flash-list'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -71,6 +72,10 @@ function PlayerSearchItem({
     const isFA = !owned && !isWaiver
     const canAdd = currentMemberId && (isFA || isWaiver)
     const isAdding = adding === item.id
+    const [headshotError, setHeadshotError] = useState(false)
+    const headshotUri = item.nba_id
+        ? `https://cdn.nba.com/headshots/nba/latest/260x190/${item.nba_id}.png`
+        : null
 
     return (
         <View style={styles.playerRow}>
@@ -91,10 +96,18 @@ function PlayerSearchItem({
 
             {/* Player card (tappable → detail) */}
             <Pressable style={styles.playerCard} onPress={onPress}>
-                <Avatar
-                    name={item.display_name}
-                    color={POSITION_COLORS[item.position ?? ''] ?? palette.gray500}
-                />
+                {headshotUri && !headshotError ? (
+                    <Image
+                        source={{ uri: headshotUri }}
+                        style={styles.headshot}
+                        onError={() => setHeadshotError(true)}
+                    />
+                ) : (
+                    <Avatar
+                        name={item.display_name}
+                        color={POSITION_COLORS[item.position ?? ''] ?? palette.gray500}
+                    />
+                )}
 
                 <View style={styles.playerInfo}>
                     <Text style={styles.playerName}>{item.display_name}</Text>
@@ -540,6 +553,13 @@ const styles = StyleSheet.create({
         paddingVertical: spacing.lg,
         paddingLeft: spacing.md,
         gap: spacing.lg,
+    },
+    headshot: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        borderCurve: 'continuous' as const,
+        backgroundColor: colors.bgMuted,
     },
 
     playerInfo: { flex: 1 },

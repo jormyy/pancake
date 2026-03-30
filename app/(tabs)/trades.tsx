@@ -33,7 +33,7 @@ import { SectionHeader } from '@/components/SectionHeader'
 import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
 import { shortDateFmt } from '@/lib/format'
 
-type TabKey = 'inbox' | 'offers' | 'history'
+type TabKey = 'picks' | 'offers' | 'history'
 
 const STATUS_LABELS: Record<string, string> = {
     pending: 'Pending',
@@ -244,7 +244,7 @@ function TradeCard({
                 <ActivityIndicator color={colors.primary} style={{ marginTop: spacing.lg }} />
             ) : (
                 <>
-                    {tab === 'inbox' && trade.status === 'pending' && (
+                    {tab === 'offers' && !isProposer && trade.status === 'pending' && (
                         <View style={styles.cardActions}>
                             <Pressable
                                 style={[styles.actionBtn, styles.actionBtnAccept]}
@@ -260,7 +260,7 @@ function TradeCard({
                             </Pressable>
                         </View>
                     )}
-                    {tab === 'offers' && trade.status === 'pending' && (
+                    {tab === 'offers' && isProposer && trade.status === 'pending' && (
                         <View style={styles.cardActions}>
                             <Pressable
                                 style={[styles.actionBtn, styles.actionBtnReject]}
@@ -350,7 +350,7 @@ export default function TradesScreen() {
     const rosterSize: number = league?.roster_size ?? 20
     const myTeamName = current?.team_name ?? ''
 
-    const [tab, setTab] = useState<TabKey>('inbox')
+    const [tab, setTab] = useState<TabKey>('picks')
     const [trades, setTrades] = useState<Trade[]>([])
     const [picks, setPicks] = useState<TradePickItem[]>([])
     const [loading, setLoading] = useState(true)
@@ -391,61 +391,51 @@ export default function TradesScreen() {
         loadDraft()
     }
 
-    const filteredTrades = trades.filter((t) => {
-        if (tab === 'inbox') {
-            return t.recipientMemberId === myMemberId && t.status === 'pending'
-        }
-        if (tab === 'offers') {
-            return t.proposerMemberId === myMemberId && t.status === 'pending'
-        }
-        return t.status !== 'pending'
-    })
+    const incomingTrades = trades.filter(
+        (t) => t.recipientMemberId === myMemberId && t.status === 'pending',
+    )
+    const outgoingTrades = trades.filter(
+        (t) => t.proposerMemberId === myMemberId && t.status === 'pending',
+    )
+    const historyTrades = trades.filter((t) => t.status !== 'pending')
 
     const listData = useMemo<ListItem[]>(() => {
         const result: ListItem[] = []
 
-        if (tab === 'inbox') {
-            result.push({ _type: 'header', label: 'Incoming Offers' })
-            filteredTrades.forEach((t) => result.push({ _type: 'trade', trade: t }))
-            if (filteredTrades.length === 0 && !loading) {
+        if (tab === 'picks') {
+            if (picks.length === 0 && !loading) {
                 result.push({ _type: 'header', label: '' })
             }
-            result.push({ _type: 'header', label: 'Draft Picks' })
             picks.forEach((p) => result.push({ _type: 'pick', pick: p }))
         } else if (tab === 'offers') {
-            result.push({ _type: 'header', label: 'My Offers' })
-            filteredTrades.forEach((t) => result.push({ _type: 'trade', trade: t }))
-            if (filteredTrades.length === 0 && !loading) {
+            result.push({ _type: 'header', label: 'Incoming' })
+            incomingTrades.forEach((t) => result.push({ _type: 'trade', trade: t }))
+            if (incomingTrades.length === 0 && !loading) {
                 result.push({ _type: 'header', label: '' })
             }
-            result.push({ _type: 'header', label: 'Draft Picks' })
-            picks.forEach((p) => result.push({ _type: 'pick', pick: p }))
+            result.push({ _type: 'header', label: 'Outgoing' })
+            outgoingTrades.forEach((t) => result.push({ _type: 'trade', trade: t }))
+            if (outgoingTrades.length === 0 && !loading) {
+                result.push({ _type: 'header', label: '' })
+            }
         } else {
             result.push({ _type: 'header', label: 'Trade History' })
-            filteredTrades.forEach((t) => result.push({ _type: 'trade', trade: t }))
-            if (filteredTrades.length === 0 && !loading) {
+            historyTrades.forEach((t) => result.push({ _type: 'trade', trade: t }))
+            if (historyTrades.length === 0 && !loading) {
                 result.push({ _type: 'header', label: '' })
             }
-            result.push({ _type: 'header', label: 'Draft Picks' })
-            picks.forEach((p) => result.push({ _type: 'pick', pick: p }))
         }
 
         return result
-    }, [tab, filteredTrades, picks, loading])
+    }, [tab, incomingTrades, outgoingTrades, historyTrades, picks, loading])
 
     const TABS: { key: TabKey; label: string }[] = [
-        { key: 'inbox', label: 'Inbox' },
+        { key: 'picks', label: 'Picks' },
         { key: 'offers', label: 'Offers' },
         { key: 'history', label: 'History' },
     ]
 
-    const pendingInboxCount = trades.filter(
-        (t) => t.recipientMemberId === myMemberId && t.status === 'pending',
-    ).length
-
-    const myOffersCount = trades.filter(
-        (t) => t.proposerMemberId === myMemberId && t.status === 'pending',
-    ).length
+    const pendingInboxCount = incomingTrades.length
 
     return (
         <SafeAreaView style={styles.container}>
@@ -463,11 +453,9 @@ export default function TradesScreen() {
                 {TABS.map((t) => {
                     const active = tab === t.key
                     const badge =
-                        t.key === 'inbox' && pendingInboxCount > 0
+                        t.key === 'offers' && pendingInboxCount > 0
                             ? pendingInboxCount
-                            : t.key === 'offers' && myOffersCount > 0
-                              ? myOffersCount
-                              : null
+                            : null
                     return (
                         <Pressable
                             key={t.key}
@@ -507,6 +495,7 @@ export default function TradesScreen() {
                             return item.label ? <SectionHeader label={item.label} /> : null
                         }
                         if (item._type === 'pick') {
+                            const isOwn = item.pick.originalTeamName === myTeamName
                             return (
                                 <Pressable
                                     style={styles.pickRow}
@@ -519,15 +508,13 @@ export default function TradesScreen() {
                                     </View>
                                     <View style={styles.pickInfo}>
                                         <Text style={styles.pickLabel}>
-                                            {item.pick.seasonYear} Round {item.pick.round}
+                                            {item.pick.seasonYear} · Round {item.pick.round}
                                         </Text>
-                                        {item.pick.originalTeamName !== myTeamName ? (
-                                            <Text style={styles.pickMeta}>
-                                                via {item.pick.originalTeamName}
-                                            </Text>
-                                        ) : null}
+                                        <Text style={styles.pickMeta}>
+                                            {isOwn ? 'Own pick' : `from ${item.pick.originalTeamName}`}
+                                        </Text>
                                     </View>
-                                    <Text style={styles.pickHint}>Tap to trade</Text>
+                                    <Text style={styles.pickHint}>Trade</Text>
                                 </Pressable>
                             )
                         }

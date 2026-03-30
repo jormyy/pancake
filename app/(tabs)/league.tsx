@@ -14,7 +14,6 @@ import { useRouter } from 'expo-router'
 import { useMemo, useState } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useAuth } from '@/hooks/use-auth'
-import { getLeagueMembers } from '@/lib/league'
 import { getLeagueStandings, StandingRow } from '@/lib/scoring'
 import { getActiveDraft, startDraft } from '@/lib/draft'
 import { getWaiverPriorityOrder, WaiverPriorityRow } from '@/lib/waivers'
@@ -31,53 +30,13 @@ import { Badge } from '@/components/Badge'
 import { SectionHeader } from '@/components/SectionHeader'
 import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
 
-const ROLE_LABELS: Record<string, string> = {
-    commissioner: 'Commissioner',
-    co_commissioner: 'Co-Comm',
-    manager: 'Manager',
-}
-
-type Tab = 'standings' | 'activity' | 'waivers' | 'members' | 'picks'
+type Tab = 'standings' | 'activity' | 'waivers' | 'picks'
 
 // ── Extracted list item components ───────────────────────────────
 
-function MemberRow({ item, isMe }: { item: any; isMe: boolean }) {
-    const profile = item.profiles as any
-    const displayName = item.team_name ?? profile?.display_name ?? '?'
+function StandingsRow({ item, index, isMe, onPress }: { item: StandingRow; index: number; isMe: boolean; onPress: () => void }) {
     return (
-        <View style={styles.memberRow}>
-            <Avatar name={displayName} color={colors.primary} size={44} />
-            <View style={styles.memberInfo}>
-                <Text style={styles.memberTeam}>
-                    {item.team_name ?? 'Unnamed Team'}
-                    {isMe ? <Text style={styles.meTag}> (you)</Text> : null}
-                </Text>
-                <Text style={styles.memberName}>
-                    {profile?.display_name ?? profile?.username}
-                </Text>
-            </View>
-            {item.role === 'commissioner' ? (
-                <Badge
-                    label={ROLE_LABELS[item.role] ?? item.role}
-                    color={colors.warningDark}
-                    textColor={colors.warningDark}
-                    variant="soft"
-                />
-            ) : (
-                <Badge
-                    label={ROLE_LABELS[item.role] ?? item.role}
-                    color={colors.textMuted}
-                    textColor={colors.textMuted}
-                    variant="soft"
-                />
-            )}
-        </View>
-    )
-}
-
-function StandingsRow({ item, index, isMe }: { item: StandingRow; index: number; isMe: boolean }) {
-    return (
-        <View style={[styles.standingsRow, isMe && styles.standingsRowMe]}>
+        <Pressable style={[styles.standingsRow, isMe && styles.standingsRowMe]} onPress={onPress}>
             <Text style={[styles.standingsRank, isMe && styles.standingsMe]}>{index + 1}</Text>
             <Text style={[styles.standingsTeam, isMe && styles.standingsMe]} numberOfLines={1}>
                 {item.teamName}
@@ -86,7 +45,7 @@ function StandingsRow({ item, index, isMe }: { item: StandingRow; index: number;
             <Text style={[styles.standingsCell, isMe && styles.standingsMe]}>{item.losses}</Text>
             <Text style={[styles.standingsPts, isMe && styles.standingsMe]}>{item.pointsFor.toFixed(1)}</Text>
             <Text style={[styles.standingsPts, isMe && styles.standingsMe]}>{item.pointsAgainst.toFixed(1)}</Text>
-        </View>
+        </Pressable>
     )
 }
 
@@ -172,15 +131,13 @@ export default function LeagueScreen() {
 
     const { data, loading } = useFocusAsyncData(async () => {
         if (!current) return null
-        const [memberData, standingsData, waiverData, txData, picksData] = await Promise.all([
-            getLeagueMembers(league.id),
+        const [standingsData, waiverData, txData, picksData] = await Promise.all([
             getLeagueStandings(league.id),
             getWaiverPriorityOrder(league.id),
             getLeagueTransactions(league.id),
             getAllLeaguePicks(league.id),
         ])
         return {
-            members: memberData,
             standings: standingsData,
             waiverOrder: waiverData,
             transactions: txData,
@@ -188,7 +145,6 @@ export default function LeagueScreen() {
         }
     }, [current])
 
-    const members = data?.members ?? []
     const standings = data?.standings ?? []
     const waiverOrder = data?.waiverOrder ?? []
     const transactions = data?.transactions ?? []
@@ -345,7 +301,7 @@ export default function LeagueScreen() {
                 style={styles.tabRow}
                 contentContainerStyle={styles.tabRowContent}
             >
-                {(['standings', 'activity', 'waivers', 'members', 'picks'] as Tab[]).map((t) => (
+                {(['standings', 'activity', 'waivers', 'picks'] as Tab[]).map((t) => (
                     <Pressable
                         key={t}
                         style={[styles.tabChip, tab === t && styles.tabChipActive]}
@@ -355,8 +311,7 @@ export default function LeagueScreen() {
                             {t === 'standings' ? 'Standings'
                                 : t === 'activity' ? 'Activity'
                                 : t === 'waivers' ? 'Waivers'
-                                : t === 'picks' ? 'Picks'
-                                : 'Teams'}
+                                : 'Picks'}
                         </Text>
                     </Pressable>
                 ))}
@@ -365,22 +320,19 @@ export default function LeagueScreen() {
             {loading ? (
                 <ActivityIndicator style={styles.loadingMargin} color={colors.primary} />
             ) : tab === 'standings' ? (
-                <StandingsTable standings={standings} myMemberId={current?.id} />
+                <StandingsTable
+                    standings={standings}
+                    myMemberId={current?.id}
+                    onSelectTeam={(memberId, teamName) =>
+                        push({ pathname: '/(modals)/team-roster', params: { memberId, teamName } })
+                    }
+                />
             ) : tab === 'activity' ? (
                 <ActivityFeed transactions={transactions} myMemberId={current?.id} />
             ) : tab === 'waivers' ? (
                 <WaiverPriorityList rows={waiverOrder} myMemberId={current?.id} />
-            ) : tab === 'picks' ? (
-                <PicksBankList picks={leaguePicks} myMemberId={current?.id} />
             ) : (
-                <FlashList
-                    data={members}
-                    keyExtractor={(m) => m.id}
-                    ItemSeparatorComponent={ItemSeparator}
-                    renderItem={({ item }) => (
-                        <MemberRow item={item} isMe={item.user_id === user?.id} />
-                    )}
-                />
+                <PicksBankList picks={leaguePicks} myMemberId={current?.id} />
             )}
         </SafeAreaView>
     )
@@ -388,7 +340,7 @@ export default function LeagueScreen() {
 
 // ── Sub-list components ──────────────────────────────────────────
 
-function StandingsTable({ standings, myMemberId }: { standings: StandingRow[]; myMemberId?: string }) {
+function StandingsTable({ standings, myMemberId, onSelectTeam }: { standings: StandingRow[]; myMemberId?: string; onSelectTeam: (memberId: string, teamName: string) => void }) {
     if (standings.length === 0) {
         return <EmptyState message="No standings yet — matchups will appear once games are scored." fullScreen={false} />
     }
@@ -400,7 +352,12 @@ function StandingsTable({ standings, myMemberId }: { standings: StandingRow[]; m
             ListHeaderComponent={StandingsListHeader}
             ItemSeparatorComponent={ItemSeparator}
             renderItem={({ item, index }) => (
-                <StandingsRow item={item} index={index} isMe={item.memberId === myMemberId} />
+                <StandingsRow
+                    item={item}
+                    index={index}
+                    isMe={item.memberId === myMemberId}
+                    onPress={() => onSelectTeam(item.memberId, item.teamName)}
+                />
             )}
         />
     )
@@ -542,18 +499,7 @@ const styles = StyleSheet.create({
     inviteCode: { fontSize: 15, fontWeight: fontWeight.extrabold, color: colors.textPrimary, letterSpacing: 2 },
     inviteCopy: { fontSize: fontSize.sm, color: colors.primary, fontWeight: fontWeight.semibold },
 
-    memberRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: spacing.xl,
-        paddingVertical: spacing.lg,
-        gap: spacing.lg,
-    },
-
-    memberInfo: { flex: 1, gap: spacing.xxs },
-    memberTeam: { fontSize: 15, fontWeight: fontWeight.semibold },
     meTag: { color: colors.textPlaceholder, fontWeight: fontWeight.regular, fontSize: fontSize.sm },
-    memberName: { fontSize: fontSize.sm, color: colors.textMuted },
 
     tabRow: {
         borderBottomWidth: 1,
