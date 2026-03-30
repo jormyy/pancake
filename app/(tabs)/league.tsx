@@ -59,6 +59,7 @@ function ActivityRow({ item, isMe }: { item: TransactionRow; isMe: boolean }) {
                 name={item.playerName}
                 color={POSITION_COLORS[pos] ?? palette.gray500}
                 size={40}
+                uri={item.nbaId ? `https://cdn.nba.com/headshots/nba/latest/260x190/${item.nbaId}.png` : null}
             />
             <View style={styles.txInfo}>
                 <Text style={styles.txPlayer} numberOfLines={1}>
@@ -78,10 +79,10 @@ function ActivityRow({ item, isMe }: { item: TransactionRow; isMe: boolean }) {
     )
 }
 
-function WaiverRow({ item, isMe }: { item: WaiverPriorityRow; isMe: boolean }) {
+function WaiverRow({ item, isMe, rank }: { item: WaiverPriorityRow; isMe: boolean; rank: number }) {
     return (
         <View style={[styles.waiverRow, isMe && styles.standingsRowMe]}>
-            <Text style={[styles.waiverRank, isMe && styles.standingsMe]}>{item.priority}</Text>
+            <Text style={[styles.waiverRank, isMe && styles.standingsMe]}>{rank}</Text>
             <Text style={[styles.waiverTeam, isMe && styles.standingsMe]} numberOfLines={1}>
                 {item.teamName}
             </Text>
@@ -244,13 +245,7 @@ export default function LeagueScreen() {
                         >
                             <Text style={styles.settingsButtonText}>Bracket</Text>
                         </Pressable>
-                        <Pressable
-                            style={styles.settingsButton}
-                            onPress={() => push('/(modals)/trades')}
-                        >
-                            <Text style={styles.settingsButtonText}>Trades</Text>
-                        </Pressable>
-                        {isCommissioner ? (
+{isCommissioner ? (
                             <Pressable
                                 style={styles.settingsButton}
                                 onPress={() => push('/(modals)/commissioner-settings')}
@@ -402,8 +397,8 @@ function WaiverPriorityList({ rows, myMemberId }: { rows: WaiverPriorityRow[]; m
             keyExtractor={(r) => r.memberId}
             ListHeaderComponent={WaiverListHeader}
             ItemSeparatorComponent={ItemSeparator}
-            renderItem={({ item }) => (
-                <WaiverRow item={item} isMe={item.memberId === myMemberId} />
+            renderItem={({ item, index }) => (
+                <WaiverRow item={item} isMe={item.memberId === myMemberId} rank={index + 1} />
             )}
         />
     )

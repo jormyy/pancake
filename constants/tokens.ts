@@ -3,24 +3,40 @@
 // aliases (below) or domain maps — never raw hex strings.
 
 export const palette = {
-    // Brand
-    orange50: '#FFF7ED',
-    orange100: '#FFE4CC',
-    orange200: '#FED7AA',
-    orange500: '#F97316',
-    orange600: '#C2410C',
-    orange900: '#9A3412',
+    // ── Maple / Brand ── (warm amber — like Grade A dark maple syrup)
+    maple50:  '#FEF6E4',
+    maple100: '#FDEAC0',
+    maple200: '#FAD490',
+    maple500: '#C9660F',   // deep amber maple — the primary brand color
+    maple600: '#A05212',
+    maple900: '#6B3410',
 
-    // Red
-    red50: '#FEF2F2',
-    red100: '#FEE2E2',
-    red500: '#EF4444',
-    red900: '#991B1B',
-    redDark: '#7F1D1D',
-    redBright: '#d00',
+    // ── Cream / Parchment ── (warm backgrounds — like unbleached breakfast paper)
+    cream50:  '#FFFDF8',   // near-white warm — cards, inputs
+    cream100: '#FDF8EE',   // warm screen background
+    cream150: '#FAF2E2',   // subtle section backgrounds
+    cream200: '#F4E8D2',   // muted areas
+    cream300: '#E8D8BE',   // light borders
+    cream400: '#D9C4A5',   // borders
 
-    // Green
-    green50: '#F0FDF4',
+    // ── Espresso / Brown ── (warm text — replaces cold gray text)
+    espresso:   '#2C1A0E', // darkest — primary text
+    coffee:     '#4A2E1C', // very dark — rich headers
+    mocha:      '#6B4535', // secondary text
+    latte:      '#9B7060', // muted text
+    cappuccino: '#B8917F', // placeholder text
+    oatmilk:    '#CCAA99', // disabled text
+
+    // ── Red ──
+    red50:    '#FEF2F2',
+    red100:   '#FEE2E2',
+    red500:   '#EF4444',
+    red900:   '#991B1B',
+    redDark:  '#7F1D1D',
+    redBright:'#d00',
+
+    // ── Green ──
+    green50:  '#F0FDF4',
     green100: '#D1FAE5',
     green200: '#BBF7D0',
     green300: '#DCFCE7',
@@ -30,98 +46,106 @@ export const palette = {
     green800: '#166534',
     green900: '#065F46',
 
-    // Blue
+    // ── Blue ──
     blue500: '#3B82F6',
 
-    // Purple
+    // ── Purple ──
     purple100: '#EDE9FE',
     purple300: '#C4B5FD',
     purple500: '#8B5CF6',
 
-    // Indigo
+    // ── Indigo ──
     indigo500: '#6366F1',
 
-    // Amber / Yellow
+    // ── Amber / Yellow ──
     amber200: '#FDE68A',
     amber300: '#FEF3C7',
     amber400: '#F59E0B',
     amber600: '#D97706',
 
-    // Orange helpers (position)
-    orangeLight: '#FB923C',
+    // ── Position helpers ──
+    orangeLight: '#E8832A', // warm maple-orange for SG/G flex
+    greenLight:  '#34D399',
 
-    // Green helpers (position)
-    greenLight: '#34D399',
+    // ── Orange aliases ── (backward compat for components using palette.orange*)
+    orange50:  '#FEF6E4',   // → maple50
+    orange100: '#FDEAC0',   // → maple100
+    orange200: '#FAD490',   // → maple200
+    orange300: '#F5C070',   // → between maple200 and maple500
+    orange500: '#C9660F',   // → maple500
+    orange600: '#A05212',   // → maple600
+    orange700: '#8A4418',   // → between maple600 and maple900
+    orange900: '#6B3410',   // → maple900
 
-    // Neutrals
-    white: '#fff',
-    gray50: '#fafafa',
-    gray100: '#f9f9f9',
-    gray150: '#f5f5f5',
-    gray200: '#f3f3f3',
-    gray250: '#f0f0f0',
-    gray300: '#e5e7eb',
-    gray350: '#eee',
-    gray400: '#ddd',
-    gray500: '#ccc',
-    gray550: '#bbb',
-    gray600: '#aaa',
-    gray650: '#999',
-    gray700: '#888',
-    gray750: '#6B7280',
-    gray800: '#666',
-    gray850: '#555',
-    gray900: '#333',
-    gray950: '#111',
-    black: '#11181C',
+    // ── Neutrals (kept for backward compat with domain maps) ──
+    white:    '#fff',
+    gray50:   '#fafafa',
+    gray100:  '#f9f9f9',
+    gray150:  '#f5f5f5',
+    gray200:  '#f3f3f3',
+    gray250:  '#f0f0f0',
+    gray300:  '#e5e7eb',
+    gray350:  '#eee',
+    gray400:  '#ddd',
+    gray500:  '#ccc',
+    gray550:  '#bbb',
+    gray600:  '#aaa',
+    gray650:  '#999',
+    gray700:  '#888',
+    gray750:  '#6B7280',
+    gray800:  '#666',
+    gray850:  '#555',
+    gray900:  '#333',
+    gray950:  '#111',
+    black:    '#11181C',
 } as const
 
 // ── Semantic tokens ─────────────────────────────────────────────
 
 export const colors = {
-    // Text
-    textPrimary: palette.gray950,
-    textSecondary: palette.gray850,
-    textMuted: palette.gray700,
-    textPlaceholder: palette.gray600,
-    textDisabled: palette.gray550,
-    textWhite: palette.white,
+    // Text — warm espresso/coffee scale
+    textPrimary:     palette.espresso,    // '#2C1A0E' deep dark brown
+    textSecondary:   palette.mocha,       // '#6B4535' medium brown
+    textMuted:       palette.latte,       // '#9B7060' warm muted
+    textPlaceholder: palette.cappuccino,  // '#B8917F' soft warm placeholder
+    textDisabled:    palette.oatmilk,     // '#CCAA99' very light
+    textWhite:       palette.white,
 
-    // Backgrounds
-    bgScreen: palette.white,
-    bgCard: palette.white,
-    bgMuted: palette.gray200,
-    bgSubtle: palette.gray150,
-    bgInput: palette.gray50,
+    // Backgrounds — warm cream/parchment
+    bgScreen: palette.cream100,  // '#FDF8EE' warm cream screen
+    bgCard:   palette.cream50,   // '#FFFDF8' near-white warm card
+    bgMuted:  palette.cream200,  // '#F4E8D2' warm muted areas
+    bgSubtle: palette.cream150,  // '#FAF2E2' very subtle warm
+    bgInput:  palette.cream50,   // '#FFFDF8' warm input bg
 
-    // Borders / Separators
-    separator: palette.gray200,
-    border: palette.gray400,
-    borderLight: palette.gray350,
+    // Borders / Separators — warm cream
+    separator:   palette.cream300, // '#E8D8BE'
+    border:      palette.cream400, // '#D9C4A5'
+    borderLight: palette.cream300, // '#E8D8BE'
 
-    // Primary (orange)
-    primary: palette.orange500,
-    primaryLight: palette.orange50,
-    primaryBorder: palette.orange200,
-    primaryDark: palette.orange600,
+    // Primary — deep maple amber
+    primary:       palette.maple500, // '#C9660F'
+    primaryLight:  palette.maple50,  // '#FEF6E4'
+    primaryBorder: palette.maple200, // '#FAD490'
+    primaryDark:   palette.maple600, // '#A05212'
 
     // Danger (red)
-    danger: palette.red500,
+    danger:     palette.red500,
     dangerLight: palette.red100,
-    dangerDark: palette.red900,
+    dangerDark:  palette.red900,
 
     // Success (green)
-    success: palette.green500,
+    success:     palette.green500,
     successLight: palette.green100,
-    successDark: palette.green900,
+    successDark:  palette.green900,
 
     // Warning (amber)
-    warning: palette.amber400,
+    warning:     palette.amber400,
     warningLight: palette.amber300,
-    warningDark: palette.amber600,
+    warningDark:  palette.amber600,
 
     // Info (purple)
-    info: palette.purple500,
+    info:      palette.purple500,
     infoLight: palette.purple100,
 
     // Accent (blue)
@@ -214,8 +238,8 @@ export const TRADE_STATUS_COLORS: Record<string, { bg: string; text: string }> =
     pending: { bg: palette.amber300, text: palette.amber600 },
     accepted: { bg: palette.green100, text: palette.green900 },
     rejected: { bg: palette.red100, text: palette.red900 },
-    withdrawn: { bg: '#F3F4F6', text: palette.gray750 },
+    withdrawn: { bg: palette.cream200, text: palette.latte },
     completed: { bg: palette.green100, text: palette.green900 },
-    expired: { bg: '#F3F4F6', text: palette.gray750 },
+    expired: { bg: palette.cream200, text: palette.latte },
     vetoed: { bg: palette.red100, text: palette.red900 },
 }
