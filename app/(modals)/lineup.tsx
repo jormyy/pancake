@@ -1,37 +1,37 @@
-import {
-    View,
-    Text,
-    Pressable,
-    StyleSheet,
-    ActivityIndicator,
-    Alert,
-    ScrollView,
-} from 'react-native'
-import { FlashList } from '@shopify/flash-list'
-import { SafeAreaView } from 'react-native-safe-area-context'
-import { useRouter } from 'expo-router'
-import { useEffect, useState, useCallback } from 'react'
-import { useAuth } from '@/hooks/use-auth'
-import { useLeagueContext } from '@/contexts/league-context'
-import {
-    getLineupContext,
-    getWeekDays,
-    getWeeklyLineup,
-    setPlayerSlot,
-    autoSetLineup,
-    getStartedTeams,
-    getLiveTeams,
-    canPlaySlot,
-    LineupSlot,
-    LineupPlayer,
-    LineupContext,
-    WeekDay,
-} from '@/lib/lineup'
-import { POSITION_COLORS } from '@/constants/positions'
 import { Avatar } from '@/components/Avatar'
 import { LoadingScreen } from '@/components/LoadingScreen'
-import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { POSITION_COLORS } from '@/constants/positions'
+import { colors, fontSize, fontWeight, palette, radii, spacing } from '@/constants/tokens'
+import { useLeagueContext } from '@/contexts/league-context'
+import { useAuth } from '@/hooks/use-auth'
+import {
+    autoSetLineup,
+    canPlaySlot,
+    getLineupContext,
+    getLiveTeams,
+    getStartedTeams,
+    getWeekDays,
+    getWeeklyLineup,
+    LineupContext,
+    LineupPlayer,
+    LineupSlot,
+    setPlayerSlot,
+    WeekDay,
+} from '@/lib/lineup'
 import { todayDateString } from '@/lib/shared/dates'
+import { useRouter } from 'expo-router'
+import { useCallback, useEffect, useState } from 'react'
+import {
+    ActivityIndicator,
+    Alert,
+    Modal,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    View,
+} from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 
 type Selection =
     | { kind: 'starter'; index: number }
@@ -54,6 +54,7 @@ export default function LineupScreen() {
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
     const [autoSetting, setAutoSetting] = useState(false)
+    const [autoSetModalVisible, setAutoSetModalVisible] = useState(false)
     const [selected, setSelected] = useState<Selection | null>(null)
 
     const loadLineup = useCallback(async (lineupCtx: LineupContext, league: any, date: string) => {
@@ -183,7 +184,8 @@ export default function LineupScreen() {
     }
 
     function handleAutoSet() {
-        doAutoSet(null)
+        console.log('[handleAutoSet] Called')
+        setAutoSetModalVisible(true)
     }
 
     async function handleDaySelect(date: string) {
@@ -238,38 +240,39 @@ export default function LineupScreen() {
 
             {/* Day selector */}
             {weekDays.length > 0 && (
-                <FlashList
-                    horizontal
-                    data={weekDays}
-                    keyExtractor={(d) => d.date}
-                    showsHorizontalScrollIndicator={false}
-                    style={styles.daySelectorRow}
-                    contentContainerStyle={styles.daySelectorContent}
-                    renderItem={({ item: day }) => {
-                        const isSelected = day.date === selectedDate
-                        return (
-                            <Pressable
-                                style={[
-                                    styles.dayCell,
-                                    isSelected && styles.dayCellSelected,
-                                    day.isToday && !isSelected && styles.dayCellToday,
-                                    !day.hasGames && styles.dayCellNoGames,
-                                ]}
-                                onPress={() => handleDaySelect(day.date)}
-                            >
-                                <Text style={[styles.dayLabel, isSelected && styles.dayLabelSelected]}>
-                                    {day.dayLabel}
-                                </Text>
-                                <Text style={[styles.dayNum, isSelected && styles.dayNumSelected]}>
-                                    {day.dateNum}
-                                </Text>
-                                {day.hasGames && (
-                                    <View style={[styles.gameDot, isSelected && styles.gameDotSelected]} />
-                                )}
-                            </Pressable>
-                        )
-                    }}
-                />
+                <View style={styles.daySelectorRow}>
+                    <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={styles.daySelectorContent}
+                    >
+                        {weekDays.map((day) => {
+                            const isSelected = day.date === selectedDate
+                            return (
+                                <Pressable
+                                    key={day.date}
+                                    style={[
+                                        styles.dayCell,
+                                        isSelected && styles.dayCellSelected,
+                                        day.isToday && !isSelected && styles.dayCellToday,
+                                        !day.hasGames && styles.dayCellNoGames,
+                                    ]}
+                                    onPress={() => handleDaySelect(day.date)}
+                                >
+                                    <Text style={[styles.dayLabel, isSelected && styles.dayLabelSelected]}>
+                                        {day.dayLabel}
+                                    </Text>
+                                    <Text style={[styles.dayNum, isSelected && styles.dayNumSelected]}>
+                                        {day.dateNum}
+                                    </Text>
+                                    {day.hasGames && (
+                                        <View style={[styles.gameDot, isSelected && styles.gameDotSelected]} />
+                                    )}
+                                </Pressable>
+                            )
+                        })}
+                    </ScrollView>
+                </View>
             )}
 
             {/* Selection hint */}
@@ -374,6 +377,46 @@ export default function LineupScreen() {
                     <ActivityIndicator color={colors.primary} />
                 </View>
             )}
+
+            {/* Auto-Set Options Modal */}
+            <Modal
+                visible={autoSetModalVisible}
+                animationType="fade"
+                transparent={true}
+                onRequestClose={() => setAutoSetModalVisible(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.autoSetModalContent}>
+                        <Text style={styles.autoSetModalTitle}>Auto-Set Lineup</Text>
+                        <Text style={styles.autoSetModalText}>Choose how to set your lineup</Text>
+                        <View style={styles.autoSetModalButtons}>
+                            <Pressable
+                                style={styles.autoSetModalButton}
+                                onPress={() => {
+                                    setAutoSetModalVisible(false)
+                                    console.log('Today pressed')
+                                    doAutoSet(selectedDate)
+                                }}
+                            >
+                                <Text style={styles.autoSetModalButtonText}>Today</Text>
+                            </Pressable>
+                            <Pressable
+                                style={styles.autoSetModalButton}
+                                onPress={() => {
+                                    setAutoSetModalVisible(false)
+                                    console.log('Whole Week pressed')
+                                    doAutoSet(null)
+                                }}
+                            >
+                                <Text style={styles.autoSetModalButtonText}>Whole Week</Text>
+                            </Pressable>
+                        </View>
+                        <Pressable style={styles.autoSetModalCancel} onPress={() => setAutoSetModalVisible(false)}>
+                            <Text style={styles.autoSetModalCancelText}>Cancel</Text>
+                        </Pressable>
+                    </View>
+                </View>
+            </Modal>
         </SafeAreaView>
     )
 }
@@ -405,8 +448,8 @@ const styles = StyleSheet.create({
     },
     autoSetText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.primary },
 
-    daySelectorRow: { borderBottomWidth: 1, borderBottomColor: colors.borderLight },
-    daySelectorContent: { flexDirection: 'row', paddingHorizontal: spacing.lg, paddingVertical: spacing.md, gap: spacing.sm },
+    daySelectorRow: { flex: 1, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
+    daySelectorContent: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', paddingVertical: spacing.md, paddingHorizontal: spacing.lg, gap: spacing.sm },
     dayCell: { width: 38, alignItems: 'center', paddingVertical: 5, borderRadius: 9, borderCurve: 'continuous' as const, gap: spacing.xxs },
     dayCellSelected: { backgroundColor: colors.primary },
     dayCellToday: { backgroundColor: colors.primaryLight },
@@ -501,4 +544,15 @@ const styles = StyleSheet.create({
         paddingHorizontal: spacing['2xl'],
         paddingVertical: 10,
     },
+
+    // Auto-Set modal
+    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center', padding: 20 },
+    autoSetModalContent: { backgroundColor: colors.bgScreen, borderRadius: 16, padding: 20, gap: 16, minWidth: 300 },
+    autoSetModalTitle: { fontSize: 19, fontWeight: fontWeight.extrabold, color: colors.textPrimary, textAlign: 'center' },
+    autoSetModalText: { fontSize: 14, color: colors.textMuted, textAlign: 'center' },
+    autoSetModalButtons: { flexDirection: 'row', gap: 12 },
+    autoSetModalButton: { flex: 1, height: 48, backgroundColor: colors.primary, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+    autoSetModalButtonText: { fontSize: 15, fontWeight: fontWeight.bold, color: colors.textWhite },
+    autoSetModalCancel: { paddingVertical: 8, alignItems: 'center' },
+    autoSetModalCancelText: { fontSize: 15, fontWeight: fontWeight.semibold, color: colors.textMuted },
 })
