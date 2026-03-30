@@ -1,4 +1,4 @@
-import { supabase } from '../lib/supabase'
+import { supabase, fetchAllPlayers } from '../lib/supabase'
 import { fetchBoxScore } from '../lib/nba'
 import { buildStatRow } from './stats'
 import { CONFIG } from '../config'
@@ -105,10 +105,10 @@ async function runBackfill(jobId: string, seasonYear: number, options: BackfillO
     console.log(`[backfill] ${gamesToFetch.length} games to sync for season ${seasonYear}`)
 
     // Load player lookup maps once
-    const { data: players } = await supabase.from('players').select('id, display_name, nba_id').limit(10000)
+    const players = await fetchAllPlayers()
     const byNbaId = new Map<string, string>()
     const byName = new Map<string, string>()
-    for (const p of players ?? []) {
+    for (const p of players) {
         if (p.nba_id) byNbaId.set(p.nba_id, p.id)
         byName.set(p.display_name.toLowerCase(), p.id)
     }

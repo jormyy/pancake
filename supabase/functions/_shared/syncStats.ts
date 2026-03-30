@@ -28,16 +28,23 @@ export async function syncStatsByDate(date: Date) {
     return
   }
 
-  const { data: players, error: pErr } = await supabase
-    .from('players')
-    .select('id, display_name, nba_id')
-    .limit(10000)
-  if (pErr) throw pErr
+  // Paginate to avoid PostgREST max_rows cap
+  const players: { id: string; display_name: string; nba_id: string | null }[] = []
+  const PAGE = 1000
+  let from = 0
+  while (true) {
+    const { data, error } = await supabase.from('players').select('id, display_name, nba_id').range(from, from + PAGE - 1)
+    if (error) throw error
+    if (!data || data.length === 0) break
+    players.push(...data)
+    if (data.length < PAGE) break
+    from += PAGE
+  }
 
   const byNbaId = new Map<string, string>()
   const byName = new Map<string, string>()
   const byNormName = new Map<string, string>()
-  for (const p of players ?? []) {
+  for (const p of players) {
     if (p.nba_id) byNbaId.set(p.nba_id, p.id)
     byName.set(p.display_name.toLowerCase(), p.id)
     byNormName.set(normalizeName(p.display_name), p.id)
