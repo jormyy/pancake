@@ -227,7 +227,7 @@ export async function getPlayerFantasyPoints(
 
     const { data, error } = await supabase
         .from('v_fantasy_points')
-        .select('game_id, fantasy_points')
+        .select('stat_id, fantasy_points')
         .eq('player_id', playerId)
         .eq('league_id', leagueId)
         .eq('season_year', seasonYear)
@@ -235,7 +235,7 @@ export async function getPlayerFantasyPoints(
 
     if (error) throw error
     return (data ?? []).map((r: any) => ({
-        gameId: r.game_id,
+        gameId: r.stat_id,
         fantasyPoints: Number(r.fantasy_points) || 0,
     }))
 }

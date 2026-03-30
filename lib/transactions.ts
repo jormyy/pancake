@@ -7,6 +7,7 @@ export type TransactionRow = {
     playerId: string
     playerName: string
     position: string | null
+    nbaId: string | null
     transactionType: string
     occurredAt: string
 }
@@ -66,7 +67,7 @@ export async function getLeagueTransactions(
             transaction_type,
             occurred_at,
             league_members!roster_transactions_member_id_fkey ( team_name ),
-            players!roster_transactions_player_id_fkey ( display_name, position )
+            players!roster_transactions_player_id_fkey ( display_name, position, nba_id )
         `)
         .eq('league_id', leagueId)
         .eq('league_season_id', (season as any).id)
@@ -83,6 +84,7 @@ export async function getLeagueTransactions(
         playerId: row.player_id,
         playerName: row.players?.display_name ?? 'Unknown',
         position: row.players?.position ?? null,
+        nbaId: row.players?.nba_id ?? null,
         transactionType: row.transaction_type,
         occurredAt: row.occurred_at,
     }))

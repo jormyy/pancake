@@ -72,6 +72,7 @@ export default function TeamRosterScreen() {
                                     name={p.display_name}
                                     color={POSITION_COLORS[pos] ?? palette.gray500}
                                     size={44}
+                                    uri={p.nba_id ? `https://cdn.nba.com/headshots/nba/latest/260x190/${p.nba_id}.png` : null}
                                 />
                                 <View style={styles.playerInfo}>
                                     <Text style={styles.playerName}>{p.display_name}</Text>
