@@ -8,7 +8,7 @@
  *
  * Rate limit: 3s between requests to respect BBRef.
  */
-import { supabase } from '../lib/supabase'
+import { supabase, fetchAllPlayers } from '../lib/supabase'
 import { fetchBBRefSchedule, fetchBBRefBoxScore, BBRefPlayerStat, sleep } from '../lib/bbref'
 
 // BBRef seasons available: ending years 2004-2019 (2003-04 through 2018-19)
@@ -18,10 +18,10 @@ export async function syncBBRefSeason(seasonEndYear: number, jobId: string): Pro
     console.log(`[bbrefHistory] Starting season ${seasonEndYear - 1}-${seasonEndYear}`)
 
     // Load player lookup maps
-    const { data: players } = await supabase.from('players').select('id, display_name, nba_id').limit(10000)
+    const players = await fetchAllPlayers()
     const byNbaId = new Map<string, string>()
     const byName = new Map<string, string>()
-    for (const p of players ?? []) {
+    for (const p of players) {
         if (p.nba_id) byNbaId.set(p.nba_id, p.id)
         byName.set(normalizePlayerName(p.display_name), p.id)
     }

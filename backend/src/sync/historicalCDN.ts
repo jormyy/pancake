@@ -12,7 +12,7 @@
  *   NNNN: 4-digit sequential game number
  */
 import axios from 'axios'
-import { supabase } from '../lib/supabase'
+import { supabase, fetchAllPlayers } from '../lib/supabase'
 import { buildStatRow } from './stats'
 import { CONFIG } from '../config'
 
@@ -44,10 +44,10 @@ export async function syncCDNHistoricalSeason(
     console.log(`[cdnHistory] Starting season ${seasonYear - 1}-${seasonYear} (YY=${yy})`)
 
     // Load player lookup maps
-    const { data: players } = await supabase.from('players').select('id, display_name, nba_id').limit(10000)
+    const players = await fetchAllPlayers()
     const byNbaId = new Map<string, string>()
     const byName = new Map<string, string>()
-    for (const p of players ?? []) {
+    for (const p of players) {
         if (p.nba_id) byNbaId.set(p.nba_id, p.id)
         byName.set(p.display_name.toLowerCase(), p.id)
     }

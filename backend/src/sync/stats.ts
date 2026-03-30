@@ -1,4 +1,4 @@
-import { supabase } from '../lib/supabase'
+import { supabase, fetchAllPlayers } from '../lib/supabase'
 import { fetchBoxScore, parseNBAMinutes, NBABoxScorePlayer } from '../lib/nba'
 import { todayET } from './livePoller'
 
@@ -115,17 +115,13 @@ export async function syncStatsByDate(date: Date) {
         return
     }
 
-    // Load player lookup maps
-    const { data: players, error: pErr } = await supabase
-        .from('players')
-        .select('id, display_name, nba_id')
-        .limit(10000)
-    if (pErr) throw pErr
+    // Load player lookup maps — paginated to avoid PostgREST max_rows cap
+    const players = await fetchAllPlayers()
 
     const byNbaId = new Map<string, string>() // nba personId → player.id
     const byName = new Map<string, string>() // display_name lower → player.id
     const byNormName = new Map<string, string>() // normalized name → player.id
-    for (const p of players ?? []) {
+    for (const p of players) {
         if (p.nba_id) byNbaId.set(p.nba_id, p.id)
         const lower = p.display_name.toLowerCase()
         byName.set(lower, p.id)
