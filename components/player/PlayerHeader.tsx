@@ -10,7 +10,6 @@ import { useState } from 'react'
 import type { PlayerRosterStatus } from '@/lib/roster'
 import { POSITION_COLORS } from '@/constants/positions'
 import { INJURY_COLORS, colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
-import { getInitials } from '@/lib/format'
 import { Avatar } from '@/components/Avatar'
 import { Badge } from '@/components/Badge'
 
@@ -22,6 +21,7 @@ type Player = {
     injury_status: string | null
     dynasty_rank: number | null
     headshot_url: string | null
+    nba_id: string | null
 }
 
 type Props = {
@@ -47,6 +47,9 @@ export function PlayerHeader({
 }: Props) {
     const [headshotError, setHeadshotError] = useState(false)
     const posColor = POSITION_COLORS[player.position ?? ''] ?? colors.textMuted
+    const headshotUri = player.nba_id
+        ? `https://cdn.nba.com/headshots/nba/latest/260x190/${player.nba_id}.png`
+        : null
 
     const metaParts = [
         player.jersey_number ? `#${player.jersey_number}` : null,
@@ -58,9 +61,9 @@ export function PlayerHeader({
         <View style={styles.header}>
             {/* Avatar */}
             <View style={styles.avatarWrap}>
-                {player.headshot_url && !headshotError ? (
+                {headshotUri && !headshotError ? (
                     <Image
-                        source={{ uri: player.headshot_url }}
+                        source={{ uri: headshotUri }}
                         style={styles.headshot}
                         onError={() => setHeadshotError(true)}
                     />
