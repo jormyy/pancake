@@ -44,7 +44,7 @@ export async function syncCDNHistoricalSeason(
     console.log(`[cdnHistory] Starting season ${seasonYear - 1}-${seasonYear} (YY=${yy})`)
 
     // Load player lookup maps
-    const { data: players } = await supabase.from('players').select('id, display_name, nba_id')
+    const { data: players } = await supabase.from('players').select('id, display_name, nba_id').limit(10000)
     const byNbaId = new Map<string, string>()
     const byName = new Map<string, string>()
     for (const p of players ?? []) {

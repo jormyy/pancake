@@ -105,7 +105,7 @@ async function runBackfill(jobId: string, seasonYear: number, options: BackfillO
     console.log(`[backfill] ${gamesToFetch.length} games to sync for season ${seasonYear}`)
 
     // Load player lookup maps once
-    const { data: players } = await supabase.from('players').select('id, display_name, nba_id')
+    const { data: players } = await supabase.from('players').select('id, display_name, nba_id').limit(10000)
     const byNbaId = new Map<string, string>()
     const byName = new Map<string, string>()
     for (const p of players ?? []) {
