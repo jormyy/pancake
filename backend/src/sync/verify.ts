@@ -62,7 +62,7 @@ export async function verifySampleStats(sampleSize = 10): Promise<VerifyResult> 
     const shuffled = allGames.sort(() => Math.random() - 0.5).slice(0, sampleSize)
 
     // Load player lookup (nba_id → { id, display_name })
-    const { data: players } = await supabase.from('players').select('id, display_name, nba_id')
+    const { data: players } = await supabase.from('players').select('id, display_name, nba_id').limit(10000)
     const byNbaId = new Map<string, { id: string; name: string }>()
     for (const p of players ?? []) {
         if (p.nba_id) byNbaId.set(p.nba_id, { id: p.id, name: p.display_name })
@@ -185,7 +185,7 @@ export async function verifySeasonTotals(seasonYear?: number): Promise<SeasonTot
     }
 
     // Load player names
-    const { data: players } = await supabase.from('players').select('id, display_name')
+    const { data: players } = await supabase.from('players').select('id, display_name').limit(10000)
     const nameMap = new Map((players ?? []).map((p: any) => [p.id, p.display_name]))
 
     return Array.from(totals.entries())

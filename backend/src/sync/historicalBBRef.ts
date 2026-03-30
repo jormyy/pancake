@@ -18,7 +18,7 @@ export async function syncBBRefSeason(seasonEndYear: number, jobId: string): Pro
     console.log(`[bbrefHistory] Starting season ${seasonEndYear - 1}-${seasonEndYear}`)
 
     // Load player lookup maps
-    const { data: players } = await supabase.from('players').select('id, display_name, nba_id')
+    const { data: players } = await supabase.from('players').select('id, display_name, nba_id').limit(10000)
     const byNbaId = new Map<string, string>()
     const byName = new Map<string, string>()
     for (const p of players ?? []) {
