@@ -11,6 +11,7 @@
         "start": "tsx src/index.ts"
     },
     "dependencies": {
+        "@fastify/cors": "^11.2.0",
         "@supabase/supabase-js": "^2.49.1",
         "axios": "^1.7.9",
         "cheerio": "^1.2.0",
