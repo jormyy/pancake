@@ -5,50 +5,29 @@ import {
     StyleSheet,
     ActivityIndicator,
     ScrollView,
-    Alert,
     Modal,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { useRouter } from 'expo-router'
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { useFocusEffect } from '@react-navigation/native'
+import { useEffect } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useAuth } from '@/hooks/use-auth'
-import { getMyMatchup, Matchup, computeLiveFantasyPoints } from '@/lib/scoring'
-import { getTodaysGames, getLivePlayerStats, NBAGameRow, LiveStatLine } from '@/lib/games'
-import { todayDateString } from '@/lib/shared/dates'
-import { supabase } from '@/lib/supabase'
 import { Scoreboard } from '@/components/Scoreboard'
-import {
-    getWeekDays,
-    getWeeklyLineup,
-    setPlayerSlot,
-    autoSetLineup,
-    getStartedTeams,
-    canPlaySlot,
-    LineupSlot,
-    LineupPlayer,
-    WeekDay,
-} from '@/lib/lineup'
-import { POSITION_COLORS } from '@/constants/positions'
-import { toggleIR, dropPlayer } from '@/lib/roster'
-import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { LineupSlot, LineupPlayer } from '@/lib/lineup'
+import { LiveStatLine } from '@/lib/games'
+import { isIREligible } from '@/lib/roster'
+import { colors, palette } from '@/constants/tokens'
 import { LoadingScreen } from '@/components/LoadingScreen'
-import { EmptyState } from '@/components/EmptyState'
+import { DaySelector } from '@/components/DaySelector'
+import { ScoreCard } from '@/components/ScoreCard'
+import { NoLeagueState } from '@/components/NoLeagueState'
+import { AutoSetModal } from '@/components/AutoSetModal'
+import { MatchupRow } from '@/components/MatchupRow'
+import { useMatchupData } from '@/hooks/use-matchup-data'
+import { useLiveStats } from '@/hooks/use-live-stats'
+import { useLineupActions } from '@/hooks/use-lineup-actions'
 
 type LineupData = { starters: LineupSlot[]; bench: LineupPlayer[]; ir: LineupPlayer[] }
 type Sel = { kind: 'starter'; index: number } | { kind: 'bench'; index: number } | { kind: 'ir'; index: number }
-
-// Pending IR activate — held while user resolves roster overflow
-type PendingIRActivate = { rosterPlayerId: string }
-
-function isIREligible(status: string | null): boolean {
-    if (!status) return false
-    const s = status.toLowerCase()
-    return s === 'out' || s.startsWith('ir')
-}
-
-const SLOT_W = 52
 
 function shortName(name: string): string {
     const parts = name.trim().split(' ')
@@ -57,140 +36,30 @@ function shortName(name: string): string {
 }
 
 export default function HomeScreen() {
-    const { push } = useRouter()
     const { memberships, current, setCurrent, loading } = useLeagueContext()
     const { user } = useAuth()
-
-    const [matchup, setMatchup] = useState<Matchup | null | undefined>(undefined)
-    const [weekDays, setWeekDays] = useState<WeekDay[]>([])
-    const [selectedDate, setSelectedDate] = useState<string>(
-        () => todayDateString(),
-    )
-    const [myLineup, setMyLineup] = useState<LineupData | null>(null)
-    const [oppLineup, setOppLineup] = useState<LineupData | null>(null)
-    const [matchupLoading, setMatchupLoading] = useState(true)
-    const [lineupLoading, setLineupLoading] = useState(false)
-
-    const [selected, setSelected] = useState<Sel | null>(null)
-    const [saving, setSaving] = useState(false)
-    const [autoSetting, setAutoSetting] = useState(false)
-    const [autoSetModalVisible, setAutoSetModalVisible] = useState(false)
-
-    const [irOverflowPending, setIROverflowPending] = useState<PendingIRActivate | null>(null)
-    const [irOverflowSaving, setIROverflowSaving] = useState(false)
-
-    const [todaysGames, setTodaysGames] = useState<NBAGameRow[]>([])
-    const [startedTeams, setStartedTeams] = useState<Set<string>>(new Set())
-    const [liveStats, setLiveStats] = useState<Map<string, LiveStatLine>>(new Map())
-
-    const matchupRef = useRef<Matchup | null>(null)
     const league = (current as any)?.leagues
 
-    const loadLineups = useCallback(
-        async (m: Matchup, date: string) => {
-            setLineupLoading(true)
-            try {
-                const [mine, opp, started] = await Promise.all([
-                    getWeeklyLineup(m.myMemberId, league?.id, m.seasonId, m.weekNumber, date),
-                    getWeeklyLineup(m.opponentMemberId, league?.id, m.seasonId, m.weekNumber, date),
-                    getStartedTeams(date),
-                ])
-                setMyLineup(mine)
-                setOppLineup(opp)
-                setStartedTeams(started)
-            } finally {
-                setLineupLoading(false)
-            }
-        },
-        [league?.id],
-    )
+    const {
+        matchup, weekDays, selectedDate, setSelectedDate,
+        myLineup, oppLineup, matchupLoading, lineupLoading,
+        loadMyLineup, loadLineups, matchupRef,
+    } = useMatchupData(current, user, league)
 
-    const loadMyLineup = useCallback(
-        async (m: Matchup, date: string) => {
-            const data = await getWeeklyLineup(m.myMemberId, league?.id, m.seasonId, m.weekNumber, date)
-            setMyLineup(data)
-        },
-        [league?.id],
-    )
+    const { todaysGames, liveStats, startedTeams, liveTeams } = useLiveStats(selectedDate)
 
-    const load = useCallback(async () => {
-        if (!current || !user) return
-        setMatchupLoading(true)
-        setMyLineup(null)
-        setOppLineup(null)
-        setSelected(null)
-        try {
-            const m = await getMyMatchup((current as any).id, league.id)
-            setMatchup(m)
-            matchupRef.current = m
-            if (m) {
-                const today = todayDateString()
-                const days = await getWeekDays(m.weekNumber, m.seasonYear)
-                setWeekDays(days)
-                setSelectedDate(today)
-                await loadLineups(m, today)
-            }
-        } catch (e) {
-            console.error(e)
-            setMatchup(null)
-        } finally {
-            setMatchupLoading(false)
-        }
-    }, [current, user, loadLineups])
+    const {
+        selected, setSelected, saving, autoSetting,
+        autoSetModalVisible, setAutoSetModalVisible,
+        irOverflowPending, setIROverflowPending, irOverflowSaving,
+        handleTap, handleIROverflowDrop, handleIROverflowMoveToIR,
+        doAutoSet, handleAutoSet,
+    } = useLineupActions({ matchup, myLineup, league, selectedDate, startedTeams, loadMyLineup })
 
-    useFocusEffect(useCallback(() => { load() }, [load]))
-
-    // ── Scoreboard: load today's games on mount ───────────────────────────
+    // Clear selection whenever lineup reloads (tab focus / league change)
     useEffect(() => {
-        getTodaysGames().then(setTodaysGames).catch(() => {})
-    }, [])
-
-    // ── Realtime matchup score updates ────────────────────────────────────
-    useEffect(() => {
-        if (!matchup?.id) return
-        const channel = supabase
-            .channel(`matchup_${matchup.id}`)
-            .on('postgres_changes', {
-                event: 'UPDATE',
-                schema: 'public',
-                table: 'matchups',
-                filter: `id=eq.${matchup.id}`,
-            }, (payload) => {
-                const { home_points, away_points, is_finalized, winner_member_id } = payload.new
-                setMatchup((prev) => {
-                    if (!prev) return prev
-                    const isHome = prev.myMemberId === payload.new.home_member_id
-                    return {
-                        ...prev,
-                        myPoints: isHome ? home_points : away_points,
-                        opponentPoints: isHome ? away_points : home_points,
-                        isFinalized: is_finalized,
-                        iWon: winner_member_id ? winner_member_id === prev.myMemberId : null,
-                    }
-                })
-            })
-            .subscribe()
-
-        return () => { supabase.removeChannel(channel) }
-    }, [matchup?.id])
-
-    // ── Live player stats + scoreboard: poll every 15s when games are active ─
-    useEffect(() => {
-        getLivePlayerStats(selectedDate).then(setLiveStats).catch(() => {})
-
-        const today = todayDateString()
-        const isToday = selectedDate === today
-
-        if (!isToday) return
-
-        const interval = setInterval(() => {
-            getTodaysGames().then(setTodaysGames).catch(() => {})
-            getLivePlayerStats(selectedDate).then(setLiveStats).catch(() => {})
-            getStartedTeams(selectedDate).then(setStartedTeams).catch(() => {})
-        }, 15_000)
-
-        return () => clearInterval(interval)
-    }, [selectedDate])
+        if (matchupLoading) setSelected(null)
+    }, [matchupLoading, setSelected])
 
     async function handleDaySelect(date: string) {
         if (!matchupRef.current) return
@@ -199,178 +68,8 @@ export default function HomeScreen() {
         await loadLineups(matchupRef.current, date)
     }
 
-    async function handleTap(newSel: Sel) {
-        // Block all moves on past days
-        if (selectedDate < todayDateString()) {
-            Alert.alert('Past lineup', 'Lineups for past days cannot be changed.')
-            setSelected(null)
-            return
-        }
+    const todayPlayingTeams = new Set(weekDays.find((d) => d.date === selectedDate)?.playingTeams ?? [])
 
-        if (!selected) { setSelected(newSel); return }
-        if (selected.kind === newSel.kind && selected.index === newSel.index) {
-            setSelected(null); return
-        }
-        setSelected(null)
-        if (!matchup || !myLineup) return
-
-        const starters = myLineup.starters
-        const bench = myLineup.bench
-        const ir = myLineup.ir
-
-        const getPlayer = (s: Sel): LineupPlayer | null =>
-            s.kind === 'starter' ? starters[s.index]?.player ?? null
-            : s.kind === 'bench' ? bench[s.index] ?? null
-            : ir[s.index] ?? null
-        const getSlot = (s: Sel): string =>
-            s.kind === 'starter' ? starters[s.index]?.slotType ?? 'BE'
-            : s.kind === 'bench' ? 'BE'
-            : 'IR'
-
-        const aPlayer = getPlayer(selected)
-        const bPlayer = getPlayer(newSel)
-        const aSlot = getSlot(selected)
-        const bSlot = getSlot(newSel)
-
-        // ── IR swap branch ──────────────────────────────────────
-        if (aSlot === 'IR' || bSlot === 'IR') {
-            const irSel   = aSlot === 'IR' ? selected : newSel
-            const actSel  = aSlot === 'IR' ? newSel   : selected
-            const irPlayer  = getPlayer(irSel)
-            const actPlayer = getPlayer(actSel)
-
-            // Active player going to IR must be IR-eligible
-            if (actPlayer && !isIREligible(actPlayer.injuryStatus)) {
-                Alert.alert('Not eligible', `${actPlayer.displayName} must be OUT or IR-designated to be placed on Injured Reserve.`)
-                return
-            }
-
-            // Activating an IR player with no exchange → check overflow
-            if (irPlayer && !actPlayer) {
-                const rosterSize: number = league?.roster_size ?? 20
-                const activeCount = starters.filter(s => s.player !== null).length + bench.length
-                if (activeCount >= rosterSize) {
-                    setIROverflowPending({ rosterPlayerId: irPlayer.rosterPlayerId })
-                    return
-                }
-            }
-
-            setSaving(true)
-            try {
-                if (actPlayer) await toggleIR(actPlayer.rosterPlayerId, true)
-                if (irPlayer) {
-                    await toggleIR(irPlayer.rosterPlayerId, false)
-                    // If being moved into a starter slot, assign it
-                    if (actSel.kind === 'starter') {
-                        const slotType = starters[actSel.index]?.slotType
-                        if (slotType && canPlaySlot(irPlayer.position, slotType)) {
-                            await setPlayerSlot(matchup.myMemberId, league.id, matchup.seasonId, matchup.weekNumber, selectedDate, irPlayer.playerId, slotType)
-                        }
-                    }
-                }
-                await loadMyLineup(matchup, selectedDate)
-            } catch (e: any) {
-                Alert.alert('Error', e.message)
-            } finally {
-                setSaving(false)
-            }
-            return
-        }
-
-        // ── Regular (non-IR) swap ───────────────────────────────
-        // Block any move involving a player whose game has already started (InProgress or Final)
-        const aLocked = !!(aPlayer?.nbaTeam && startedTeams.has(aPlayer.nbaTeam))
-        const bLocked = !!(bPlayer?.nbaTeam && startedTeams.has(bPlayer.nbaTeam))
-        if (aLocked || bLocked) {
-            const who = aLocked ? aPlayer! : bPlayer!
-            Alert.alert('Lineup locked', `${who.displayName}'s game has already started. No lineup changes are allowed once a game begins.`)
-            return
-        }
-
-        if (aPlayer && bSlot !== 'BE' && !canPlaySlot(aPlayer.position, bSlot)) {
-            Alert.alert('Invalid move', `${aPlayer.displayName} can't play ${bSlot}`); return
-        }
-        if (bPlayer && aSlot !== 'BE' && !canPlaySlot(bPlayer.position, aSlot)) {
-            Alert.alert('Invalid move', `${bPlayer.displayName} can't play ${aSlot}`); return
-        }
-
-        setSaving(true)
-        try {
-            const saves: Promise<void>[] = []
-            if (aPlayer) saves.push(setPlayerSlot(matchup.myMemberId, league.id, matchup.seasonId, matchup.weekNumber, selectedDate, aPlayer.playerId, bSlot))
-            if (bPlayer) saves.push(setPlayerSlot(matchup.myMemberId, league.id, matchup.seasonId, matchup.weekNumber, selectedDate, bPlayer.playerId, aSlot))
-            await Promise.all(saves)
-            await loadMyLineup(matchup, selectedDate)
-        } catch (e: any) {
-            Alert.alert('Error', e.message)
-        } finally {
-            setSaving(false)
-        }
-    }
-
-    async function handleIROverflowDrop(dropRosterPlayerId: string) {
-        if (!irOverflowPending || !matchup) return
-        setIROverflowSaving(true)
-        try {
-            await dropPlayer(dropRosterPlayerId)
-            await toggleIR(irOverflowPending.rosterPlayerId, false)
-            setIROverflowPending(null)
-            await loadMyLineup(matchup, selectedDate)
-        } catch (e: any) {
-            Alert.alert('Error', e.message)
-        } finally {
-            setIROverflowSaving(false)
-        }
-    }
-
-    async function handleIROverflowMoveToIR(moveRosterPlayerId: string) {
-        if (!irOverflowPending || !matchup) return
-        setIROverflowSaving(true)
-        try {
-            await toggleIR(moveRosterPlayerId, true)
-            await toggleIR(irOverflowPending.rosterPlayerId, false)
-            setIROverflowPending(null)
-            await loadMyLineup(matchup, selectedDate)
-        } catch (e: any) {
-            Alert.alert('Error', e.message)
-        } finally {
-            setIROverflowSaving(false)
-        }
-    }
-
-    async function doAutoSet(date: string | null) {
-        if (!matchup) return
-        setAutoSetting(true)
-        try {
-            await autoSetLineup(
-                matchup.myMemberId, league.id, matchup.seasonId,
-                matchup.weekNumber, matchup.seasonYear, date,
-            )
-            await loadMyLineup(matchup, selectedDate)
-        } catch (e: any) {
-            Alert.alert('Auto-set failed', e.message)
-        } finally {
-            setAutoSetting(false)
-        }
-    }
-
-    function handleAutoSet() {
-        console.log('[handleAutoSet] Called')
-        setAutoSetModalVisible(true)
-    }
-
-    const todayPlayingTeams = new Set(
-        weekDays.find((d) => d.date === selectedDate)?.playingTeams ?? [],
-    )
-
-    // Teams whose game is currently InProgress — used for live stat styling
-    const liveTeams = new Set<string>(
-        todaysGames
-            .filter((g) => g.status === 'InProgress')
-            .flatMap((g) => [g.home_team, g.away_team]),
-    )
-
-    // Teams on my roster — used to highlight those teams in the scoreboard
     const myTeamSet = new Set<string>(
         myLineup
             ? [
@@ -387,10 +86,7 @@ export default function HomeScreen() {
         : myLineup.ir[selected.index]
         : null
 
-    if (loading) {
-        return <LoadingScreen />
-    }
-
+    if (loading) return <LoadingScreen />
     if (memberships.length === 0) return <NoLeagueState />
 
     return (
@@ -524,45 +220,12 @@ export default function HomeScreen() {
                 </View>
             </Modal>
 
-            {/* Auto-Set Options Modal */}
-            <Modal
+            <AutoSetModal
                 visible={autoSetModalVisible}
-                animationType="fade"
-                transparent={true}
-                onRequestClose={() => setAutoSetModalVisible(false)}
-            >
-                <View style={styles.modalOverlay}>
-                    <View style={styles.autoSetModalContent}>
-                        <Text style={styles.autoSetModalTitle}>Auto-Set Lineup</Text>
-                        <Text style={styles.autoSetModalText}>Choose how to set your lineup</Text>
-                        <View style={styles.autoSetModalButtons}>
-                            <Pressable
-                                style={styles.autoSetModalButton}
-                                onPress={() => {
-                                    setAutoSetModalVisible(false)
-                                    console.log('Today pressed')
-                                    doAutoSet(selectedDate)
-                                }}
-                            >
-                                <Text style={styles.autoSetModalButtonText}>Today</Text>
-                            </Pressable>
-                            <Pressable
-                                style={styles.autoSetModalButton}
-                                onPress={() => {
-                                    setAutoSetModalVisible(false)
-                                    console.log('Whole Week pressed')
-                                    doAutoSet(null)
-                                }}
-                            >
-                                <Text style={styles.autoSetModalButtonText}>Whole Week</Text>
-                            </Pressable>
-                        </View>
-                        <Pressable style={styles.autoSetModalCancel} onPress={() => setAutoSetModalVisible(false)}>
-                            <Text style={styles.autoSetModalCancelText}>Cancel</Text>
-                        </Pressable>
-                    </View>
-                </View>
-            </Modal>
+                onClose={() => setAutoSetModalVisible(false)}
+                onToday={() => { setAutoSetModalVisible(false); doAutoSet(selectedDate) }}
+                onWholeWeek={() => { setAutoSetModalVisible(false); doAutoSet(null) }}
+            />
         </SafeAreaView>
     )
 }
@@ -663,311 +326,11 @@ function MatchupLineupView({
     )
 }
 
-function MatchupRow({
-    myPlayer,
-    oppPlayer,
-    slotType,
-    selKind,
-    selIndex,
-    selected,
-    onTap,
-    saving,
-    playingTeams,
-    liveStats,
-    liveTeams,
-    scoringSettings,
-}: {
-    myPlayer: LineupPlayer | null
-    oppPlayer: LineupPlayer | null
-    slotType: string
-    selKind: 'starter' | 'bench' | 'ir'
-    selIndex: number
-    selected: Sel | null
-    onTap: (sel: Sel) => void
-    saving: boolean
-    playingTeams: Set<string>
-    liveStats: Map<string, LiveStatLine>
-    liveTeams: Set<string>
-    scoringSettings: Record<string, number>
-}) {
-    const { push } = useRouter()
-    const isSel = selected?.kind === selKind && selected.index === selIndex
-    const slotColor = slotType === 'IR' ? colors.danger : (POSITION_COLORS[slotType] ?? colors.textPlaceholder)
-    const myHasGame = myPlayer?.nbaTeam ? playingTeams.has(myPlayer.nbaTeam) : false
-    const oppHasGame = oppPlayer?.nbaTeam ? playingTeams.has(oppPlayer.nbaTeam) : false
-    const myStats = myPlayer ? liveStats.get(myPlayer.playerId) : undefined
-    const oppStats = oppPlayer ? liveStats.get(oppPlayer.playerId) : undefined
-    const myIsLive = myPlayer?.nbaTeam ? liveTeams.has(myPlayer.nbaTeam) : false
-    const oppIsLive = oppPlayer?.nbaTeam ? liveTeams.has(oppPlayer.nbaTeam) : false
-    const myFpts = myStats && !myStats.didNotPlay ? computeLiveFantasyPoints(myStats, scoringSettings) : null
-    const oppFpts = oppStats && !oppStats.didNotPlay ? computeLiveFantasyPoints(oppStats, scoringSettings) : null
-    // Hide injury badge if player has stats today and actually played (not DNP).
-    // This covers both in-progress games and finished games.
-    const myPlayedToday = myStats != null && !myStats.didNotPlay
-    const oppPlayedToday = oppStats != null && !oppStats.didNotPlay
-    const myShowInjury = myPlayer?.injuryStatus && !myPlayedToday
-    const oppShowInjury = oppPlayer?.injuryStatus && !oppPlayedToday
-
-    return (
-        <View style={styles.matchupRow}>
-            {/* Left: my player (right-aligned) */}
-            <Pressable
-                style={styles.rowSideLeft}
-                onPress={myPlayer ? () => push(`/player/${myPlayer.playerId}` as any) : undefined}
-                disabled={!myPlayer}
-            >
-                {myPlayer ? (
-                    <>
-                        {myFpts != null && (
-                            <Text style={[styles.fptsNum, myIsLive && styles.fptsLive]}>{myFpts}</Text>
-                        )}
-                        <View style={styles.playerBlockRight}>
-                            <View style={[styles.metaRow, { justifyContent: 'flex-end' }]}>
-                                {myShowInjury && <InjuryBadge status={myPlayer.injuryStatus} />}
-                                <Text style={[styles.sideName, !myHasGame && styles.noGameName]} numberOfLines={1}>
-                                    {shortName(myPlayer.displayName)}
-                                </Text>
-                            </View>
-                            <View style={[styles.metaRow, { justifyContent: 'flex-end' }]}>
-                                {myIsLive && <Text style={styles.lockedBadge}>LIVE</Text>}
-                                {myPlayer.position && <PosTag position={myPlayer.position} />}
-                                <Text style={styles.sideMeta} numberOfLines={1}>
-                                    {myPlayer.nbaTeam ?? 'FA'}{!myHasGame ? ' · No game' : ''}
-                                </Text>
-                            </View>
-                            {myIsLive && !myStats ? (
-                                <Text style={[styles.statLine, styles.statLineLive]} numberOfLines={1}>In game</Text>
-                            ) : myStats ? (
-                                <StatLines stats={myStats} isLive={myIsLive} align="right" />
-                            ) : null}
-                        </View>
-                    </>
-                ) : (
-                    <Text style={[styles.sideName, { color: colors.border, textAlign: 'right' }]}>—</Text>
-                )}
-            </Pressable>
-
-            {/* Center: slot chip */}
-            <Pressable
-                style={[
-                    styles.slotChipCenter,
-                    { backgroundColor: slotColor + '22' },
-                    isSel && styles.slotChipSelected,
-                ]}
-                onPress={() => onTap({ kind: selKind, index: selIndex })}
-                disabled={saving}
-                activeOpacity={0.7}
-            >
-                <Text style={[styles.slotChipText, { color: isSel ? colors.primary : slotColor }]}>
-                    {slotType}
-                </Text>
-            </Pressable>
-
-            {/* Right: opponent player (left-aligned) */}
-            <Pressable
-                style={styles.rowSideRight}
-                onPress={oppPlayer ? () => push(`/player/${oppPlayer.playerId}` as any) : undefined}
-                disabled={!oppPlayer}
-            >
-                {oppPlayer ? (
-                    <>
-                        <View style={styles.playerBlockLeft}>
-                            <View style={styles.metaRow}>
-                                <Text style={[styles.sideName, !oppHasGame && styles.noGameName]} numberOfLines={1}>
-                                    {shortName(oppPlayer.displayName)}
-                                </Text>
-                                {oppShowInjury && <InjuryBadge status={oppPlayer.injuryStatus} />}
-                            </View>
-                            <View style={styles.metaRow}>
-                                {oppPlayer.position && <PosTag position={oppPlayer.position} />}
-                                <Text style={styles.sideMeta} numberOfLines={1}>
-                                    {oppPlayer.nbaTeam ?? 'FA'}{!oppHasGame ? ' · No game' : ''}
-                                </Text>
-                                {oppIsLive && <Text style={styles.lockedBadge}>LIVE</Text>}
-                            </View>
-                            {oppIsLive && !oppStats ? (
-                                <Text style={[styles.statLine, styles.statLineLive]} numberOfLines={1}>In game</Text>
-                            ) : oppStats ? (
-                                <StatLines stats={oppStats} isLive={oppIsLive} align="left" />
-                            ) : null}
-                        </View>
-                        {oppFpts != null && (
-                            <Text style={[styles.fptsNum, styles.fptsRight, oppIsLive && styles.fptsLive]}>{oppFpts}</Text>
-                        )}
-                    </>
-                ) : (
-                    <Text style={[styles.sideName, { color: colors.border }]}>—</Text>
-                )}
-            </Pressable>
-        </View>
-    )
-}
-
-function StatLines({ stats, isLive, align }: {
-    stats: LiveStatLine
-    isLive: boolean
-    align: 'left' | 'right'
-}) {
-    const base = [styles.statLine, isLive ? styles.statLineLive : null, { textAlign: align }]
-    if (stats.didNotPlay) return <Text style={base}>DNP</Text>
-    const to = stats.turnovers ?? 0
-    const line1 = [
-        stats.points   ? `${stats.points} PTS`   : null,
-        stats.rebounds ? `${stats.rebounds} REB`  : null,
-        stats.assists  ? `${stats.assists} AST`   : null,
-        stats.steals   ? `${stats.steals} STL`    : null,
-        stats.blocks   ? `${stats.blocks} BLK`    : null,
-    ].filter(Boolean).join(', ') || '—'
-    const line2 = [
-        stats.fgAttempted ? `${stats.fgMade}/${stats.fgAttempted} FGM` : null,
-        stats.ftAttempted ? `${stats.ftMade}/${stats.ftAttempted} FTM` : null,
-        stats.threeMade   ? `${stats.threeMade} 3PM`                   : null,
-        to                ? `${to} TO`                                  : null,
-        stats.fouls       ? `${stats.fouls} PF`                        : null,
-    ].filter(Boolean).join(', ')
-    return (
-        <>
-            <Text style={base} numberOfLines={1}>{line1}</Text>
-            {line2 ? <Text style={base} numberOfLines={1}>{line2}</Text> : null}
-        </>
-    )
-}
-
-function PosTag({ position }: { position: string }) {
-    const color = POSITION_COLORS[position] ?? palette.gray500
-    return (
-        <View style={[styles.posTag, { backgroundColor: color + '22' }]}>
-            <Text style={[styles.posTagText, { color }]}>{position}</Text>
-        </View>
-    )
-}
-
-function InjuryBadge({ status }: { status: string | null }) {
-    if (!status) return null
-    const s = status.toLowerCase()
-    let label = status.toUpperCase()
-    let color: string = colors.textPlaceholder
-    if (s === 'out') { color = colors.danger; label = 'OUT' }
-    else if (s.startsWith('ir')) { color = palette.red900; label = 'IR' }
-    else if (s === 'gtd' || s === 'game time decision') { color = palette.amber600; label = 'GTD' }
-    else if (s === 'd-td' || s === 'day-to-day') { color = colors.primary; label = 'D-TD' }
-    else return null
-
-    return (
-        <View style={[styles.injuryBadge, { backgroundColor: color + '22' }]}>
-            <Text style={[styles.injuryBadgeText, { color }]}>{label}</Text>
-        </View>
-    )
-}
-
 function SectionDivider({ label, color = palette.gray550 }: { label: string; color?: string }) {
     return (
         <View style={styles.dividerRow}>
             <Text style={[styles.dividerText, { color }]}>{label}</Text>
         </View>
-    )
-}
-
-// ── Day selector ───────────────────────────────────────────────
-
-function DaySelector({ days, selectedDate, onSelect }: { days: WeekDay[]; selectedDate: string; onSelect: (date: string) => void }) {
-    return (
-        <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.daySelectorRow}
-            contentContainerStyle={styles.daySelectorContent}
-        >
-            {days.map((day) => {
-                const isSelected = day.date === selectedDate
-                const isPast = day.date < todayDateString()
-                const isFuture = !day.isToday && !isPast
-                return (
-                    <Pressable
-                        key={day.date}
-                        style={[
-                            styles.dayCell,
-                            isSelected && styles.dayCellSelected,
-                            day.isToday && !isSelected && styles.dayCellToday,
-                            !day.hasGames && styles.dayCellNoGames,
-                        ]}
-                        onPress={() => onSelect(day.date)}
-                    >
-                        <Text style={[styles.dayLabel, isSelected && styles.dayLabelSelected, !day.hasGames && styles.dayLabelFaint]}>
-                            {day.dayLabel}
-                        </Text>
-                        <Text style={[styles.dayNum, isSelected && styles.dayNumSelected, !day.hasGames && styles.dayNumFaint]}>
-                            {day.dateNum}
-                        </Text>
-                        {day.hasGames && day.isToday && (
-                            <View style={[styles.gameDot, isSelected && styles.gameDotSelected]} />
-                        )}
-                        {day.hasGames && isPast && (
-                            <View style={[styles.gameDash, isSelected && styles.gameDashSelected]} />
-                        )}
-                        {isFuture && <View style={styles.dayIndicatorSpacer} />}
-                    </Pressable>
-                )
-            })}
-        </ScrollView>
-    )
-}
-
-// ── Score card ─────────────────────────────────────────────────
-
-function ScoreCard({ matchup }: { matchup: Matchup }) {
-    const fmt = (n: number | null) => (n != null ? n.toFixed(1) : '—')
-    const myPts = matchup.myPoints ?? 0
-    const oppPts = matchup.opponentPoints ?? 0
-    const iWinning = myPts > oppPts
-
-    let statusLabel = 'In Progress'
-    let statusColor: string = colors.primary
-    if (matchup.isFinalized) {
-        statusLabel = matchup.iWon ? 'Win' : 'Loss'
-        statusColor = matchup.iWon ? colors.success : colors.danger
-    }
-
-    return (
-        <View style={styles.matchupCard}>
-            <View style={styles.matchupHeader}>
-                <Text style={styles.matchupWeek}>Week {matchup.weekNumber}</Text>
-                <View style={[styles.statusBadge, { backgroundColor: statusColor + '22' }]}>
-                    <Text style={[styles.statusText, { color: statusColor }]}>{statusLabel}</Text>
-                </View>
-            </View>
-            <View style={styles.matchupScores}>
-                <View style={styles.matchupSide}>
-                    <Text style={styles.matchupTeam} numberOfLines={1}>{matchup.myTeamName}</Text>
-                    <Text style={[styles.matchupScore, iWinning && styles.winningScore]}>{fmt(matchup.myPoints)}</Text>
-                </View>
-                <Text style={styles.matchupVs}>vs</Text>
-                <View style={[styles.matchupSide, styles.matchupSideRight]}>
-                    <Text style={styles.matchupTeam} numberOfLines={1}>{matchup.opponentTeamName}</Text>
-                    <Text style={[styles.matchupScore, !iWinning && styles.winningScore]}>{fmt(matchup.opponentPoints)}</Text>
-                </View>
-            </View>
-        </View>
-    )
-}
-
-// ── No league state ────────────────────────────────────────────
-
-function NoLeagueState() {
-    const { push } = useRouter()
-    return (
-        <SafeAreaView style={styles.container}>
-            <View style={styles.noLeague}>
-                <Text style={styles.noLeagueTitle}>Welcome to Pancake</Text>
-                <Text style={styles.noLeagueSub}>Create a new league or join one with an invite code.</Text>
-                <Pressable style={styles.primaryButton} onPress={() => push('/(modals)/create-league')}>
-                    <Text style={styles.primaryButtonText}>Create a League</Text>
-                </Pressable>
-                <Pressable style={styles.secondaryButton} onPress={() => push('/(modals)/join-league')}>
-                    <Text style={styles.secondaryButtonText}>Join with Invite Code</Text>
-                </Pressable>
-            </View>
-        </SafeAreaView>
     )
 }
 
@@ -983,55 +346,8 @@ const styles = StyleSheet.create({
 
     scrollContent: { paddingTop: 28, paddingBottom: 40 },
 
-    // Score card
-    matchupCard: {
-        margin: 16,
-        backgroundColor: colors.bgCard,
-        borderRadius: 16,
-        borderCurve: 'continuous' as const,
-        borderWidth: 1,
-        borderColor: colors.borderLight,
-        padding: 20,
-        gap: 16,
-        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
-    },
-    matchupHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-    matchupWeek: { fontSize: 13, fontWeight: '700', color: colors.textPlaceholder, letterSpacing: 0.5 },
-    statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, borderCurve: 'continuous' as const },
-    statusText: { fontSize: 12, fontWeight: '700' },
-    matchupScores: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    matchupSide: { flex: 1, gap: 4 },
-    matchupSideRight: { alignItems: 'flex-end' },
-    matchupTeam: { fontSize: 13, color: colors.textMuted, fontWeight: '500' },
-    matchupScore: { fontSize: 36, fontWeight: '800', color: palette.gray500 },
-    winningScore: { color: colors.textPrimary },
-    matchupVs: { fontSize: 14, color: palette.gray500, fontWeight: '600', paddingHorizontal: 4 },
-
-    // Day selector
-    daySelectorRow: { borderBottomWidth: 1, borderBottomColor: colors.borderLight },
-    daySelectorContent: { flexDirection: 'row', justifyContent: 'center', paddingHorizontal: 12, paddingVertical: 10, gap: 6 },
-    dayCell: { width: 40, alignItems: 'center', paddingVertical: 6, borderRadius: 10, borderCurve: 'continuous' as const, gap: 2 },
-    dayCellSelected: { backgroundColor: colors.primary },
-    dayCellToday: { backgroundColor: colors.primaryLight },
-    dayCellNoGames: { opacity: 0.4 },
-    dayLabel: { fontSize: 11, fontWeight: '700', color: colors.textMuted },
-    dayLabelSelected: { color: colors.textWhite },
-    dayLabelFaint: { color: palette.gray500 },
-    dayNum: { fontSize: 15, fontWeight: '800', color: colors.textPrimary },
-    dayNumSelected: { color: colors.textWhite },
-    dayNumFaint: { color: palette.gray500 },
-    gameDot: { width: 5, height: 5, borderRadius: 3, borderCurve: 'continuous' as const, backgroundColor: colors.primary, marginTop: 1 },
-    gameDotSelected: { backgroundColor: 'rgba(255,255,255,0.7)' },
-    gameDash: { width: 12, height: 2, borderRadius: 1, backgroundColor: colors.border, marginTop: 3 },
-    gameDashSelected: { backgroundColor: 'rgba(255,255,255,0.5)' },
-    dayIndicatorSpacer: { height: 5, marginTop: 1 },
-
     // Lineup header
-    lineupHeader: {
-        alignItems: 'center',
-        paddingTop: 12,
-        paddingBottom: 4,
-    },
+    lineupHeader: { alignItems: 'center', paddingTop: 12, paddingBottom: 4 },
     autoSetBtn: {
         height: 28,
         paddingHorizontal: 16,
@@ -1059,50 +375,7 @@ const styles = StyleSheet.create({
     hintText: { flex: 1, fontSize: 13, color: colors.primaryDark, fontWeight: '500' },
     hintCancel: { fontSize: 13, fontWeight: '700', color: colors.primary, paddingLeft: 12 },
 
-    // Lineup rows
     lineupContainer: { paddingHorizontal: 16 },
-    matchupRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: 8,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.separator,
-        gap: 8,
-    },
-
-    rowSideLeft: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end' },
-    rowSideRight: { flex: 1, flexDirection: 'row', alignItems: 'center' },
-    playerBlockRight: { flex: 1, alignItems: 'flex-end' },
-    playerBlockLeft: { flex: 1, alignItems: 'flex-start' },
-    fptsNum: { fontSize: 20, fontWeight: '800', color: colors.textMuted, minWidth: 36, textAlign: 'left', marginRight: 6 },
-    fptsRight: { textAlign: 'right', marginRight: 0, marginLeft: 6 },
-    fptsLive: { color: colors.primary },
-
-    sideName: { fontSize: 13, fontWeight: '600', color: colors.textPrimary, flexShrink: 1 },
-    noGameName: { color: palette.gray500 },
-    metaRow: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 2 },
-    sideMeta: { fontSize: 11, color: colors.textPlaceholder },
-    lockedBadge: { fontSize: 10, fontWeight: fontWeight.bold, color: '#16a34a', letterSpacing: 0.4, marginHorizontal: 3 },
-    statLine: { fontSize: 11, color: colors.textMuted, textAlign: 'right', marginTop: 1 },
-    statLineLive: { color: colors.primary, fontWeight: fontWeight.semibold },
-
-    posTag: { paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4, borderCurve: 'continuous' as const, flexShrink: 0 },
-    posTagText: { fontSize: 9, fontWeight: '800' },
-
-    slotChipCenter: {
-        width: SLOT_W,
-        height: 30,
-        borderRadius: 8,
-        borderCurve: 'continuous' as const,
-        alignItems: 'center',
-        justifyContent: 'center',
-        flexShrink: 0,
-    },
-    slotChipSelected: { borderWidth: 1.5, borderColor: colors.primary },
-    slotChipText: { fontSize: 11, fontWeight: '800', letterSpacing: 0.3 },
-    injuryBadge: { paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4, flexShrink: 0 },
-    injuryBadgeText: { fontSize: 9, fontWeight: '800' },
-
     dividerRow: { paddingTop: 12, paddingBottom: 3 },
     dividerText: { fontSize: 10, fontWeight: '800', color: palette.gray550, letterSpacing: 0.8 },
 
@@ -1127,22 +400,4 @@ const styles = StyleSheet.create({
     overflowBtnText: { fontSize: 12, fontWeight: '700' },
     modalCancel: { paddingVertical: 14, alignItems: 'center' },
     modalCancelText: { fontSize: 15, fontWeight: '600', color: colors.textMuted },
-
-    noLeague: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32, gap: 16 },
-    noLeagueTitle: { fontSize: 28, fontWeight: '800', textAlign: 'center' },
-    noLeagueSub: { fontSize: 15, color: colors.textMuted, textAlign: 'center', marginBottom: 8 },
-    primaryButton: { width: '100%', height: 52, backgroundColor: colors.primary, borderRadius: 12, borderCurve: 'continuous' as const, justifyContent: 'center', alignItems: 'center' },
-    primaryButtonText: { color: colors.textWhite, fontWeight: '700', fontSize: 16 },
-    secondaryButton: { width: '100%', height: 52, borderWidth: 1.5, borderColor: colors.primary, borderRadius: 12, borderCurve: 'continuous' as const, justifyContent: 'center', alignItems: 'center' },
-    secondaryButtonText: { color: colors.primary, fontWeight: '700', fontSize: 16 },
-
-    // Auto-Set modal
-    autoSetModalContent: { backgroundColor: colors.bgScreen, borderRadius: 16, padding: 20, marginHorizontal: 20, gap: 16 },
-    autoSetModalTitle: { fontSize: 19, fontWeight: '800', color: colors.textPrimary, textAlign: 'center' },
-    autoSetModalText: { fontSize: 14, color: colors.textMuted, textAlign: 'center' },
-    autoSetModalButtons: { flexDirection: 'row', gap: 12 },
-    autoSetModalButton: { flex: 1, height: 48, backgroundColor: colors.primary, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
-    autoSetModalButtonText: { fontSize: 15, fontWeight: '700', color: colors.textWhite },
-    autoSetModalCancel: { paddingVertical: 8, alignItems: 'center' },
-    autoSetModalCancelText: { fontSize: 15, fontWeight: '600', color: colors.textMuted },
 })
