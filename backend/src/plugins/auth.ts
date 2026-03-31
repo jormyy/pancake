@@ -45,7 +45,7 @@ function verifySupabaseJwt(token: string, secret: string): { sub: string; exp: n
 
 // ── Plugin ────────────────────────────────────────────────────
 
-const SKIP_ROUTES = new Set(['/health'])
+const SKIP_ROUTES = new Set(['/health', '/games/today'])
 
 export default async function authPlugin(app: FastifyInstance) {
     const secret = process.env.SUPABASE_JWT_SECRET

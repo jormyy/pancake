@@ -1,5 +1,7 @@
 import axios from 'axios'
 import * as cheerio from 'cheerio'
+import { sleep } from './utils/sleep'
+export { sleep }
 
 const client = axios.create({
     baseURL: 'https://www.basketball-reference.com',
@@ -188,6 +190,3 @@ export function parseMpToDecimal(mp: string): number | null {
     return mins + secs / 60
 }
 
-export function sleep(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms))
-}

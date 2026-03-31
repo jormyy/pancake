@@ -9,7 +9,9 @@
  * Rate limit: 3s between requests to respect BBRef.
  */
 import { supabase, fetchAllPlayers } from '../lib/supabase'
-import { fetchBBRefSchedule, fetchBBRefBoxScore, BBRefPlayerStat, sleep } from '../lib/bbref'
+import { fetchBBRefSchedule, fetchBBRefBoxScore, BBRefPlayerStat } from '../lib/bbref'
+import { sleep } from '../lib/utils/sleep'
+import { normalizeName } from '../lib/utils/nameMatch'
 
 // BBRef seasons available: ending years 2004-2019 (2003-04 through 2018-19)
 export const BBREF_SEASONS = Array.from({ length: 16 }, (_, i) => 2004 + i) // 2004..2019
@@ -23,7 +25,7 @@ export async function syncBBRefSeason(seasonEndYear: number, jobId: string): Pro
     const byName = new Map<string, string>()
     for (const p of players) {
         if (p.nba_id) byNbaId.set(p.nba_id, p.id)
-        byName.set(normalizePlayerName(p.display_name), p.id)
+        byName.set(normalizeName(p.display_name), p.id)
     }
 
     // Step 1: Scrape schedule to get all game IDs for the season
@@ -126,7 +128,7 @@ export async function syncBBRefSeason(seasonEndYear: number, jobId: string): Pro
 
             const stats: any[] = []
             for (const { stat } of allPlayers) {
-                const nameLower = normalizePlayerName(stat.playerName)
+                const nameLower = normalizeName(stat.playerName)
                 let playerId = byName.get(nameLower)
 
                 if (!playerId) continue
@@ -205,12 +207,4 @@ export async function syncBBRefSeason(seasonEndYear: number, jobId: string): Pro
     console.log(`[bbrefHistory] Season ${seasonEndYear}: ${completed}/${games.length} games synced, ${failed} errors`)
 }
 
-// Normalize player name for matching: lowercase, remove suffixes, normalize punctuation
-function normalizePlayerName(name: string): string {
-    return name
-        .toLowerCase()
-        .replace(/\s+(jr\.?|sr\.?|ii|iii|iv)$/i, '')
-        .replace(/[.']/g, '')
-        .replace(/\s+/g, ' ')
-        .trim()
-}
+
