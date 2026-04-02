@@ -28,10 +28,14 @@ export function useLiveStats(selectedDate: string) {
         return () => clearInterval(interval)
     }, [selectedDate])
 
+    // Only apply live teams when viewing today — future dates can't have live games
+    const isViewingToday = selectedDate === todayDateString()
     const liveTeams = new Set<string>(
-        todaysGames
-            .filter((g) => g.status === 'InProgress')
-            .flatMap((g) => [g.home_team, g.away_team]),
+        isViewingToday
+            ? todaysGames
+                .filter((g) => g.status === 'InProgress')
+                .flatMap((g) => [g.home_team, g.away_team])
+            : [],
     )
 
     return { todaysGames, liveStats, startedTeams, setStartedTeams, liveTeams }
