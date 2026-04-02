@@ -1,6 +1,7 @@
 import { CONFIG } from '../config'
 import { closeExpiredNominations } from '../sync/draft'
 import { livePoller } from '../sync/livePoller'
+import { syncPlayerStatuses } from '../sync/players'
 
 // ── Cron job ownership ────────────────────────────────────────
 //
@@ -27,4 +28,8 @@ export function registerCronJobs() {
 
     // Adaptive live-game poller
     livePoller.start()
+
+    // Sync player injury statuses every 30 minutes
+    syncPlayerStatuses().catch(console.error)
+    setInterval(() => syncPlayerStatuses().catch(console.error), CONFIG.PLAYER_STATUS_SYNC_MS)
 }
