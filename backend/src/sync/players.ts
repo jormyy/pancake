@@ -8,10 +8,22 @@ function normalizeInjuryStatus(s: string | null | undefined): string | null {
     return s
 }
 
+function normalizeName(name: string): string {
+    return name
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/\s+(jr\.?|sr\.?|ii|iii|iv|v)$/i, '')
+        .replace(/['.'\-]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim()
+}
+
+type StatusFields = { status: string | null; injury_status: string | null; nba_team: string | null }
+
 /**
  * Syncs player status + injury_status from Sleeper for all players in the DB.
- * Runs every 30 minutes so injury designations are up-to-date throughout the day.
- * Full player upsert (including new players) is handled by the daily sync-players Edge Function.
+ * Matches by sleeper_id first, then falls back to normalized display name for
+ * players that don't have a sleeper_id set (e.g. matched by name in Edge Function).
  */
 export async function syncPlayerStatuses(): Promise<void> {
     const raw = await fetchAllPlayers()
@@ -20,53 +32,64 @@ export async function syncPlayerStatuses(): Promise<void> {
     )
     console.log(`[syncPlayerStatuses] Fetched ${sleeperPlayers.length} NBA players from Sleeper`)
 
-    // Build a map of sleeper_id → status fields
-    const statusBySleeperId = new Map<string, { status: string | null; injury_status: string | null; nba_team: string | null }>()
+    const statusBySleeperId = new Map<string, StatusFields>()
+    const statusByName = new Map<string, StatusFields>()
     for (const p of sleeperPlayers) {
         const pid = (p as any).player_id as string
-        statusBySleeperId.set(pid, {
+        const fields: StatusFields = {
             status: p.status ?? null,
             injury_status: normalizeInjuryStatus(p.injury_status),
             nba_team: p.team ?? null,
-        })
+        }
+        statusBySleeperId.set(pid, fields)
+        const fullName = [p.first_name, p.last_name].filter(Boolean).join(' ')
+        if (fullName) statusByName.set(normalizeName(fullName), fields)
     }
 
-    // Fetch all DB players that have a sleeper_id
+    // Fetch all DB players
     const { data: players, error } = await supabase
         .from('players')
-        .select('id, sleeper_id, status, injury_status, nba_team')
-        .not('sleeper_id', 'is', null)
+        .select('id, display_name, sleeper_id, status, injury_status, nba_team')
 
     if (error) throw error
 
     const dbPlayers = players ?? []
-    console.log(`[syncPlayerStatuses] DB players with sleeper_id: ${dbPlayers.length}`)
+    const withId = dbPlayers.filter((p: any) => p.sleeper_id)
+    const withoutId = dbPlayers.filter((p: any) => !p.sleeper_id)
+    console.log(`[syncPlayerStatuses] DB players: ${withId.length} with sleeper_id, ${withoutId.length} name-matched`)
 
-    const toUpdate: { id: string; status: string | null; injury_status: string | null; nba_team: string | null }[] = []
+    const toUpdate: { id: string; fields: StatusFields }[] = []
     let matched = 0
-    for (const p of dbPlayers) {
-        const incoming = statusBySleeperId.get(p.sleeper_id!)
+
+    for (const p of withId) {
+        const incoming = statusBySleeperId.get((p as any).sleeper_id)
         if (!incoming) continue
         matched++
-        if (
-            incoming.status !== p.status ||
-            incoming.injury_status !== p.injury_status ||
-            incoming.nba_team !== p.nba_team
-        ) {
-            toUpdate.push({ id: p.id, ...incoming })
-        }
+        if (changed(incoming, p as any)) toUpdate.push({ id: (p as any).id, fields: incoming })
     }
+
+    for (const p of withoutId) {
+        const incoming = statusByName.get(normalizeName((p as any).display_name))
+        if (!incoming) continue
+        matched++
+        if (changed(incoming, p as any)) toUpdate.push({ id: (p as any).id, fields: incoming })
+    }
+
     console.log(`[syncPlayerStatuses] Matched ${matched} players, ${toUpdate.length} need updates`)
 
-    for (const u of toUpdate) {
+    for (const { id, fields } of toUpdate) {
         const { error: updateErr } = await supabase.from('players').update({
-            status: u.status,
-            injury_status: u.injury_status,
-            nba_team: u.nba_team,
+            status: fields.status,
+            injury_status: fields.injury_status,
+            nba_team: fields.nba_team,
             updated_at: new Date().toISOString(),
-        }).eq('id', u.id)
-        if (updateErr) console.error(`[syncPlayerStatuses] Update failed for ${u.id}:`, updateErr.message)
+        }).eq('id', id)
+        if (updateErr) console.error(`[syncPlayerStatuses] Update failed for ${id}:`, updateErr.message)
     }
 
     console.log(`[syncPlayerStatuses] Done. Updated ${toUpdate.length} player statuses.`)
+}
+
+function changed(incoming: StatusFields, p: { status: string | null; injury_status: string | null; nba_team: string | null }): boolean {
+    return incoming.status !== p.status || incoming.injury_status !== p.injury_status || incoming.nba_team !== p.nba_team
 }
