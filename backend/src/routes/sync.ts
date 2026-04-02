@@ -8,6 +8,7 @@ import { startBackfill, getBackfillProgress, startFullHistoricalBackfill } from 
 import { testNBAEndpoints } from '../sync/healthCheck'
 import { verifySampleStats, verifySeasonTotals, validateDatabase } from '../sync/verify'
 import { currentSeasonYear } from '../lib/utils/season'
+import { syncPlayerStatuses } from '../sync/players'
 import {
     SyncStatsBody,
     SyncMatchupsBody,
@@ -31,6 +32,11 @@ export default async function syncRoutes(app: FastifyInstance) {
     app.post('/matchups', { schema: { body: SyncMatchupsBody } }, async (req) => {
         const { force = false } = req.body as { force?: boolean }
         await generateAllMatchups(force)
+        return { ok: true }
+    })
+
+    app.post('/players', async () => {
+        await syncPlayerStatuses()
         return { ok: true }
     })
 

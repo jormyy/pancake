@@ -40,4 +40,7 @@ export const CONFIG = {
 
     /** Live poller: score calc interval when games are active (ms) */
     LIVE_POLL_ACTIVE_SCORES_MS: 60 * 1000,
+
+    /** How often (ms) to sync player injury statuses from Sleeper */
+    PLAYER_STATUS_SYNC_MS: 60 * 1000,
 } as const
