@@ -1,18 +1,7 @@
 import { supabase, fetchAllPlayers } from '../lib/supabase'
 import { fetchBoxScore, parseNBAMinutes, NBABoxScorePlayer } from '../lib/nba'
 import { todayET } from './livePoller'
-
-// Normalize a player name for fuzzy matching:
-// strips accents (ć→c), suffixes (Jr, Sr, II–IV), punctuation, and extra spaces
-function normalizeName(name: string): string {
-    return name
-        .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // strip combining diacritics
-        .toLowerCase()
-        .replace(/\s+(jr\.?|sr\.?|ii|iii|iv|v)$/i, '')
-        .replace(/['.'\-]/g, '')
-        .replace(/\s+/g, ' ')
-        .trim()
-}
+import { normalizeName } from '../lib/utils/nameMatch'
 
 export interface StatRow {
     player_id: string

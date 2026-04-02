@@ -1,4 +1,6 @@
 import { Avatar } from '@/components/Avatar'
+import { AutoSetModal } from '@/components/AutoSetModal'
+import { DaySelector } from '@/components/DaySelector'
 import { LoadingScreen } from '@/components/LoadingScreen'
 import { POSITION_COLORS } from '@/constants/positions'
 import { colors, fontSize, fontWeight, palette, radii, spacing } from '@/constants/tokens'
@@ -24,7 +26,6 @@ import { useCallback, useEffect, useState } from 'react'
 import {
     ActivityIndicator,
     Alert,
-    Modal,
     Pressable,
     ScrollView,
     StyleSheet,
@@ -184,7 +185,6 @@ export default function LineupScreen() {
     }
 
     function handleAutoSet() {
-        console.log('[handleAutoSet] Called')
         setAutoSetModalVisible(true)
     }
 
@@ -240,39 +240,7 @@ export default function LineupScreen() {
 
             {/* Day selector */}
             {weekDays.length > 0 && (
-                <View style={styles.daySelectorRow}>
-                    <ScrollView
-                        horizontal
-                        showsHorizontalScrollIndicator={false}
-                        contentContainerStyle={styles.daySelectorContent}
-                    >
-                        {weekDays.map((day) => {
-                            const isSelected = day.date === selectedDate
-                            return (
-                                <Pressable
-                                    key={day.date}
-                                    style={[
-                                        styles.dayCell,
-                                        isSelected && styles.dayCellSelected,
-                                        day.isToday && !isSelected && styles.dayCellToday,
-                                        !day.hasGames && styles.dayCellNoGames,
-                                    ]}
-                                    onPress={() => handleDaySelect(day.date)}
-                                >
-                                    <Text style={[styles.dayLabel, isSelected && styles.dayLabelSelected]}>
-                                        {day.dayLabel}
-                                    </Text>
-                                    <Text style={[styles.dayNum, isSelected && styles.dayNumSelected]}>
-                                        {day.dateNum}
-                                    </Text>
-                                    {day.hasGames && (
-                                        <View style={[styles.gameDot, isSelected && styles.gameDotSelected]} />
-                                    )}
-                                </Pressable>
-                            )
-                        })}
-                    </ScrollView>
-                </View>
+                <DaySelector days={weekDays} selectedDate={selectedDate} onSelect={handleDaySelect} />
             )}
 
             {/* Selection hint */}
@@ -378,45 +346,12 @@ export default function LineupScreen() {
                 </View>
             )}
 
-            {/* Auto-Set Options Modal */}
-            <Modal
+            <AutoSetModal
                 visible={autoSetModalVisible}
-                animationType="fade"
-                transparent={true}
-                onRequestClose={() => setAutoSetModalVisible(false)}
-            >
-                <View style={styles.modalOverlay}>
-                    <View style={styles.autoSetModalContent}>
-                        <Text style={styles.autoSetModalTitle}>Auto-Set Lineup</Text>
-                        <Text style={styles.autoSetModalText}>Choose how to set your lineup</Text>
-                        <View style={styles.autoSetModalButtons}>
-                            <Pressable
-                                style={styles.autoSetModalButton}
-                                onPress={() => {
-                                    setAutoSetModalVisible(false)
-                                    console.log('Today pressed')
-                                    doAutoSet(selectedDate)
-                                }}
-                            >
-                                <Text style={styles.autoSetModalButtonText}>Today</Text>
-                            </Pressable>
-                            <Pressable
-                                style={styles.autoSetModalButton}
-                                onPress={() => {
-                                    setAutoSetModalVisible(false)
-                                    console.log('Whole Week pressed')
-                                    doAutoSet(null)
-                                }}
-                            >
-                                <Text style={styles.autoSetModalButtonText}>Whole Week</Text>
-                            </Pressable>
-                        </View>
-                        <Pressable style={styles.autoSetModalCancel} onPress={() => setAutoSetModalVisible(false)}>
-                            <Text style={styles.autoSetModalCancelText}>Cancel</Text>
-                        </Pressable>
-                    </View>
-                </View>
-            </Modal>
+                onClose={() => setAutoSetModalVisible(false)}
+                onToday={() => { setAutoSetModalVisible(false); doAutoSet(selectedDate) }}
+                onWholeWeek={() => { setAutoSetModalVisible(false); doAutoSet(null) }}
+            />
         </SafeAreaView>
     )
 }
@@ -447,19 +382,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     autoSetText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.primary },
-
-    daySelectorRow: { flex: 1, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
-    daySelectorContent: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', paddingVertical: spacing.md, paddingHorizontal: spacing.lg, gap: spacing.sm },
-    dayCell: { width: 38, alignItems: 'center', paddingVertical: 5, borderRadius: 9, borderCurve: 'continuous' as const, gap: spacing.xxs },
-    dayCellSelected: { backgroundColor: colors.primary },
-    dayCellToday: { backgroundColor: colors.primaryLight },
-    dayCellNoGames: { opacity: 0.4 },
-    dayLabel: { fontSize: 10, fontWeight: fontWeight.bold, color: colors.textMuted },
-    dayLabelSelected: { color: colors.textWhite },
-    dayNum: { fontSize: fontSize.md, fontWeight: fontWeight.extrabold, color: colors.textPrimary },
-    dayNumSelected: { color: colors.textWhite },
-    gameDot: { width: 4, height: 4, borderRadius: 2, borderCurve: 'continuous' as const, backgroundColor: colors.primary, marginTop: 1 },
-    gameDotSelected: { backgroundColor: 'rgba(255,255,255,0.7)' },
 
     hint: {
         backgroundColor: colors.primaryLight,
@@ -545,14 +467,4 @@ const styles = StyleSheet.create({
         paddingVertical: 10,
     },
 
-    // Auto-Set modal
-    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center', padding: 20 },
-    autoSetModalContent: { backgroundColor: colors.bgScreen, borderRadius: 16, padding: 20, gap: 16, minWidth: 300 },
-    autoSetModalTitle: { fontSize: 19, fontWeight: fontWeight.extrabold, color: colors.textPrimary, textAlign: 'center' },
-    autoSetModalText: { fontSize: 14, color: colors.textMuted, textAlign: 'center' },
-    autoSetModalButtons: { flexDirection: 'row', gap: 12 },
-    autoSetModalButton: { flex: 1, height: 48, backgroundColor: colors.primary, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
-    autoSetModalButtonText: { fontSize: 15, fontWeight: fontWeight.bold, color: colors.textWhite },
-    autoSetModalCancel: { paddingVertical: 8, alignItems: 'center' },
-    autoSetModalCancelText: { fontSize: 15, fontWeight: fontWeight.semibold, color: colors.textMuted },
 })

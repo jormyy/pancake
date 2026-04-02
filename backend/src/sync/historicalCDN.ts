@@ -15,6 +15,7 @@ import axios from 'axios'
 import { supabase, fetchAllPlayers } from '../lib/supabase'
 import { buildStatRow } from './stats'
 import { CONFIG } from '../config'
+import { sleep } from '../lib/utils/sleep'
 
 const CDN_BASE = 'https://cdn.nba.com/static/json'
 const CDN_HEADERS = {
@@ -240,6 +241,4 @@ async function recalcWeekNumbers(
     }
 }
 
-function sleep(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms))
-}
+
