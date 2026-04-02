@@ -84,9 +84,8 @@ export function MatchupRow({
     const oppHasGame = oppPlayer?.nbaTeam ? playingTeams.has(oppPlayer.nbaTeam) : false
     const myStats = myPlayer ? liveStats.get(myPlayer.playerId) : undefined
     const oppStats = oppPlayer ? liveStats.get(oppPlayer.playerId) : undefined
-    // Don't treat injured/out players as "live" even if their team is in-game
-    const myIsLive = myPlayer?.nbaTeam ? liveTeams.has(myPlayer.nbaTeam) && !myPlayer.injuryStatus : false
-    const oppIsLive = oppPlayer?.nbaTeam ? liveTeams.has(oppPlayer.nbaTeam) && !oppPlayer.injuryStatus : false
+    const myIsLive = myPlayer?.nbaTeam ? liveTeams.has(myPlayer.nbaTeam) : false
+    const oppIsLive = oppPlayer?.nbaTeam ? liveTeams.has(oppPlayer.nbaTeam) : false
     const myFpts = myStats && !myStats.didNotPlay ? computeLiveFantasyPoints(myStats, scoringSettings) : null
     const oppFpts = oppStats && !oppStats.didNotPlay ? computeLiveFantasyPoints(oppStats, scoringSettings) : null
     const myPlayedToday = myStats != null && !myStats.didNotPlay
@@ -121,9 +120,7 @@ export function MatchupRow({
                                     {myPlayer.nbaTeam ?? 'FA'}{!myHasGame ? ' · No game' : ''}
                                 </Text>
                             </View>
-                            {myIsLive && !myStats ? (
-                                <Text style={[styles.statLine, styles.statLineLive]} numberOfLines={1}>In game</Text>
-                            ) : myStats ? (
+                            {myStats ? (
                                 <StatLines stats={myStats} isLive={myIsLive} align="right" />
                             ) : null}
                         </View>
@@ -170,9 +167,7 @@ export function MatchupRow({
                                 </Text>
                                 {oppIsLive && <Text style={styles.lockedBadge}>LIVE</Text>}
                             </View>
-                            {oppIsLive && !oppStats ? (
-                                <Text style={[styles.statLine, styles.statLineLive]} numberOfLines={1}>In game</Text>
-                            ) : oppStats ? (
+                            {oppStats ? (
                                 <StatLines stats={oppStats} isLive={oppIsLive} align="left" />
                             ) : null}
                         </View>
