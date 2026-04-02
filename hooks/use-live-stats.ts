@@ -3,7 +3,7 @@ import { getTodaysGames, getLivePlayerStats, NBAGameRow, LiveStatLine } from '@/
 import { todayDateString } from '@/lib/shared/dates'
 import { getStartedTeams } from '@/lib/lineup'
 
-export function useLiveStats(selectedDate: string) {
+export function useLiveStats(selectedDate: string, onRefreshLineup?: () => void) {
     const [todaysGames, setTodaysGames] = useState<NBAGameRow[]>([])
     const [liveStats, setLiveStats] = useState<Map<string, LiveStatLine>>(new Map())
     const [startedTeams, setStartedTeams] = useState<Set<string>>(new Set())
@@ -23,10 +23,12 @@ export function useLiveStats(selectedDate: string) {
             getTodaysGames().then(setTodaysGames).catch(() => {})
             getLivePlayerStats(selectedDate).then(setLiveStats).catch(() => {})
             getStartedTeams(selectedDate).then(setStartedTeams).catch(() => {})
+            // Refresh lineup data so updated injury statuses appear without re-navigating
+            onRefreshLineup?.()
         }, 15_000)
 
         return () => clearInterval(interval)
-    }, [selectedDate])
+    }, [selectedDate, onRefreshLineup])
 
     // Only apply live teams when viewing today — future dates can't have live games
     const isViewingToday = selectedDate === todayDateString()
