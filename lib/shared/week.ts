@@ -15,7 +15,6 @@ export function calculateWeekNumberFromDate(dateStr: string): number {
     const week1End = new Date('2025-10-26T23:59:59')
 
     if (date >= week1Start && date <= week1End) {
-        console.log(`[week] calculateWeekNumberFromDate: ${dateStr} -> Week 1 (Week 1 special case)`)
         return 1
     }
 
@@ -27,7 +26,6 @@ export function calculateWeekNumberFromDate(dateStr: string): number {
     // Week 2 is 0 weeks after week2Start, so add 2 to get correct week number
     const weekNumber = weeksSinceWeek2 + 2
 
-    console.log(`[week] calculateWeekNumberFromDate: ${dateStr} -> Week ${weekNumber}`)
     return Math.max(1, weekNumber)
 }
 
@@ -49,12 +47,8 @@ export async function getCurrentWeekNumber(seasonYear: number): Promise<number |
         .maybeSingle()
 
     if (todayWeek) {
-        console.log(`[week] Found week containing today: week ${todayWeek.week_number} (${todayWeek.week_start} - ${todayWeek.week_end})`)
         return todayWeek.week_number
     }
-
-    // No week contains today - might be between weeks or week_end is wrong
-    console.log(`[week] No week contains ${today}, finding nearest week`)
 
     // Find week with week_end >= today (current or future week)
     const { data: futureWeek } = await supabase
@@ -67,12 +61,8 @@ export async function getCurrentWeekNumber(seasonYear: number): Promise<number |
         .maybeSingle()
 
     if (futureWeek) {
-        console.log(`[week] Found future week: week ${futureWeek.week_number} (${futureWeek.week_start} - ${futureWeek.week_end})`)
         return futureWeek.week_number
     }
 
-    // Fallback to date-based calculation
-    const calculatedWeek = calculateWeekNumberFromDate(today)
-    console.log(`[week] Using calculated week: ${calculatedWeek}`)
-    return calculatedWeek
+    return calculateWeekNumberFromDate(today)
 }

@@ -2,10 +2,10 @@ import { supabase } from '@/lib/supabase'
 import { logTransaction } from '@/lib/transactions'
 import { getCurrentSeasonId } from '@/lib/shared/season'
 
-const IR_ELIGIBLE_STATUSES = new Set(['Out', 'IR'])
-
 export function isIREligible(injuryStatus: string | null): boolean {
-    return IR_ELIGIBLE_STATUSES.has(injuryStatus ?? '')
+    if (!injuryStatus) return false
+    const s = injuryStatus.toLowerCase()
+    return s === 'out' || s.startsWith('ir')
 }
 
 export type RosterPlayer = {

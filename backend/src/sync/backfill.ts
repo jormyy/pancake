@@ -5,6 +5,7 @@ import { CONFIG } from '../config'
 import { currentSeasonYear } from '../lib/utils/season'
 import { syncCDNHistoricalSeason, CDN_HISTORICAL_SEASONS } from './historicalCDN'
 import { syncBBRefSeason, BBREF_SEASONS } from './historicalBBRef'
+import { sleep } from '../lib/utils/sleep'
 
 export interface BackfillOptions {
     fromDate?: string   // YYYY-MM-DD
@@ -232,10 +233,6 @@ async function runBackfill(jobId: string, seasonYear: number, options: BackfillO
         .eq('id', jobId)
 
     console.log(`[backfill] Done. ${completed} games processed, ${errorLog.length} errors.`)
-}
-
-function sleep(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 // ── Full historical backfill (2003-04 to 2024-25) ──────────────────────────
