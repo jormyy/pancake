@@ -61,6 +61,7 @@ export function MatchupRow({
     liveStats,
     liveTeams,
     scoringSettings,
+    isExtraOppRow = false,
 }: {
     myPlayer: LineupPlayer | null
     oppPlayer: LineupPlayer | null
@@ -74,6 +75,7 @@ export function MatchupRow({
     liveStats: Map<string, LiveStatLine>
     liveTeams: Set<string>
     scoringSettings: Record<string, number>
+    isExtraOppRow?: boolean
 }) {
     const { push } = useRouter()
     const isSel = selected?.kind === selKind && selected.index === selIndex
@@ -82,8 +84,9 @@ export function MatchupRow({
     const oppHasGame = oppPlayer?.nbaTeam ? playingTeams.has(oppPlayer.nbaTeam) : false
     const myStats = myPlayer ? liveStats.get(myPlayer.playerId) : undefined
     const oppStats = oppPlayer ? liveStats.get(oppPlayer.playerId) : undefined
-    const myIsLive = myPlayer?.nbaTeam ? liveTeams.has(myPlayer.nbaTeam) : false
-    const oppIsLive = oppPlayer?.nbaTeam ? liveTeams.has(oppPlayer.nbaTeam) : false
+    // Don't treat injured/out players as "live" even if their team is in-game
+    const myIsLive = myPlayer?.nbaTeam ? liveTeams.has(myPlayer.nbaTeam) && !myPlayer.injuryStatus : false
+    const oppIsLive = oppPlayer?.nbaTeam ? liveTeams.has(oppPlayer.nbaTeam) && !oppPlayer.injuryStatus : false
     const myFpts = myStats && !myStats.didNotPlay ? computeLiveFantasyPoints(myStats, scoringSettings) : null
     const oppFpts = oppStats && !oppStats.didNotPlay ? computeLiveFantasyPoints(oppStats, scoringSettings) : null
     const myPlayedToday = myStats != null && !myStats.didNotPlay
@@ -92,7 +95,7 @@ export function MatchupRow({
     const oppShowInjury = oppPlayer?.injuryStatus && !oppPlayedToday
 
     return (
-        <View style={styles.matchupRow}>
+        <View style={[styles.matchupRow, isExtraOppRow && styles.extraOppRow]}>
             {/* Left: my player (right-aligned) */}
             <Pressable
                 style={styles.rowSideLeft}
@@ -113,7 +116,7 @@ export function MatchupRow({
                             </View>
                             <View style={[styles.metaRow, { justifyContent: 'flex-end' }]}>
                                 {myIsLive && <Text style={styles.lockedBadge}>LIVE</Text>}
-                                {myPlayer.position && <PosTag position={myPlayer.position} />}
+                                {myPlayer.eligiblePositions.map((pos) => <PosTag key={pos} position={pos} />)}
                                 <Text style={styles.sideMeta} numberOfLines={1}>
                                     {myPlayer.nbaTeam ?? 'FA'}{!myHasGame ? ' · No game' : ''}
                                 </Text>
@@ -125,7 +128,7 @@ export function MatchupRow({
                             ) : null}
                         </View>
                     </>
-                ) : (
+                ) : isExtraOppRow ? null : (
                     <Text style={[styles.sideName, { color: colors.border, textAlign: 'right' }]}>—</Text>
                 )}
             </Pressable>
@@ -134,14 +137,14 @@ export function MatchupRow({
             <Pressable
                 style={[
                     styles.slotChipCenter,
-                    { backgroundColor: slotColor + '22' },
+                    { backgroundColor: isExtraOppRow ? colors.separator : slotColor + '22' },
                     isSel && styles.slotChipSelected,
                 ]}
-                onPress={() => onTap({ kind: selKind, index: selIndex })}
-                disabled={saving}
+                onPress={isExtraOppRow ? undefined : () => onTap({ kind: selKind, index: selIndex })}
+                disabled={saving || isExtraOppRow}
             >
-                <Text style={[styles.slotChipText, { color: isSel ? colors.primary : slotColor }]}>
-                    {slotType}
+                <Text style={[styles.slotChipText, { color: isExtraOppRow ? colors.textPlaceholder : (isSel ? colors.primary : slotColor) }]}>
+                    {isExtraOppRow ? '—' : slotType}
                 </Text>
             </Pressable>
 
@@ -161,7 +164,7 @@ export function MatchupRow({
                                 {oppShowInjury && <InjuryBadge status={oppPlayer.injuryStatus} />}
                             </View>
                             <View style={styles.metaRow}>
-                                {oppPlayer.position && <PosTag position={oppPlayer.position} />}
+                                {oppPlayer.eligiblePositions.map((pos) => <PosTag key={pos} position={pos} />)}
                                 <Text style={styles.sideMeta} numberOfLines={1}>
                                     {oppPlayer.nbaTeam ?? 'FA'}{!oppHasGame ? ' · No game' : ''}
                                 </Text>
@@ -193,6 +196,9 @@ const styles = StyleSheet.create({
         borderBottomWidth: 1,
         borderBottomColor: colors.separator,
         gap: 8,
+    },
+    extraOppRow: {
+        opacity: 0.55,
     },
     rowSideLeft: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end' },
     rowSideRight: { flex: 1, flexDirection: 'row', alignItems: 'center' },
