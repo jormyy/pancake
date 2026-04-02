@@ -53,6 +53,18 @@ export async function syncPlayerStatuses(): Promise<void> {
 
     if (error) throw error
 
+    // Don't restore injury status for players who have already played today —
+    // the stats sync correctly clears those, and Sleeper is just slow to update.
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
+    const { data: playedToday } = await supabase
+        .from('player_game_stats')
+        .select('player_id')
+        .eq('did_not_play', false)
+        .in('game_id',
+            (await supabase.from('nba_games').select('id').eq('game_date', today)).data?.map((g: any) => g.id) ?? [],
+        )
+    const playedTodayIds = new Set((playedToday ?? []).map((r: any) => r.player_id as string))
+
     const dbPlayers = players ?? []
     const withId = dbPlayers.filter((p: any) => p.sleeper_id)
     const withoutId = dbPlayers.filter((p: any) => !p.sleeper_id)
@@ -65,14 +77,17 @@ export async function syncPlayerStatuses(): Promise<void> {
         const incoming = statusBySleeperId.get((p as any).sleeper_id)
         if (!incoming) continue
         matched++
-        if (changed(incoming, p as any)) toUpdate.push({ id: (p as any).id, fields: incoming })
+        // Skip injury_status restore for players who already played today
+        const fields = playedTodayIds.has((p as any).id) ? { ...incoming, injury_status: null } : incoming
+        if (changed(fields, p as any)) toUpdate.push({ id: (p as any).id, fields })
     }
 
     for (const p of withoutId) {
         const incoming = statusByName.get(normalizeName((p as any).display_name))
         if (!incoming) continue
         matched++
-        if (changed(incoming, p as any)) toUpdate.push({ id: (p as any).id, fields: incoming })
+        const fields = playedTodayIds.has((p as any).id) ? { ...incoming, injury_status: null } : incoming
+        if (changed(fields, p as any)) toUpdate.push({ id: (p as any).id, fields })
     }
 
     console.log(`[syncPlayerStatuses] Matched ${matched} players, ${toUpdate.length} need updates`)
