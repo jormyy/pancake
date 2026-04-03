@@ -128,8 +128,16 @@ class LiveGamePoller {
             }
 
             if (allDone) {
-                // One final stats sync then go idle
+                // Final stats sync — run now, then again after 2 and 5 minutes
+                // to account for NBA CDN box score cache lag before going idle.
                 await syncStatsByDate(new Date())
+                await syncScores()
+                const date = new Date()
+                setTimeout(() => syncStatsByDate(date).catch(console.error), 2 * 60_000)
+                setTimeout(async () => {
+                    await syncStatsByDate(date).catch(console.error)
+                    await syncScores().catch(console.error)
+                }, 5 * 60_000)
                 this.switchToIdle()
             }
         } catch (e: any) {

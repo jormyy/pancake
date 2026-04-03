@@ -39,6 +39,7 @@ async function syncPlayers() {
   const bySleeperId = new Map<string, string>()
   for (const p of existing ?? []) {
     byName.set(p.display_name.toLowerCase(), p.id)
+    byName.set(normalizeName(p.display_name), p.id)
     if (p.sleeper_id) bySleeperId.set(p.sleeper_id, p.id)
   }
 
@@ -53,12 +54,15 @@ async function syncPlayers() {
       last_name: p.last_name ?? '',
       nba_team: p.team ?? null,
       position: normalizePosition(p.position),
+      eligible_positions: normalizeEligiblePositions(p.fantasy_positions),
       status: p.status ?? null,
       injury_status: normalizeInjuryStatus(p.injury_status),
       updated_at: new Date().toISOString(),
     }
 
-    const existingId = bySleeperId.get(p.player_id) ?? byName.get(displayName.toLowerCase())
+    const existingId = bySleeperId.get(p.player_id)
+      ?? byName.get(displayName.toLowerCase())
+      ?? byName.get(normalizeName(displayName))
     if (existingId) {
       toUpdate.push({ id: existingId, ...playerData })
     } else {
@@ -151,6 +155,11 @@ async function syncNBAIds() {
   }
 
   console.log(`[sync-players] Updated nba_id for ${updates.length} players.`)
+
+  // Merge any players that ended up with the same nba_id (same real person, two DB rows)
+  const { error: mergeErr } = await supabase.rpc('merge_duplicate_players')
+  if (mergeErr) console.error('[sync-players] merge_duplicate_players error:', mergeErr.message)
+  else console.log('[sync-players] Dedup complete.')
 }
 
 function normalizeName(name: string): string {
@@ -158,7 +167,7 @@ function normalizeName(name: string): string {
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // strip diacritics
     .toLowerCase()
     .replace(/\s+(jr\.?|sr\.?|ii|iii|iv|v)$/i, '')   // strip generational suffixes
-    .replace(/['.'\-]/g, '')
+    .replace(/[^a-z0-9 ]/g, '')                        // strip all remaining punctuation (dots, apostrophes, hyphens)
     .replace(/\s+/g, ' ')
     .trim()
 }
@@ -176,4 +185,11 @@ function normalizePosition(pos: string | null | undefined): string | null {
     PG: 'PG', SG: 'SG', SF: 'SF', PF: 'PF', C: 'C', G: 'G', F: 'F',
   }
   return pos ? (map[pos] ?? null) : null
+}
+
+const VALID_POSITIONS = new Set(['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F'])
+
+function normalizeEligiblePositions(positions: string[] | null | undefined): string[] {
+  if (!positions) return []
+  return positions.filter((p) => VALID_POSITIONS.has(p))
 }
