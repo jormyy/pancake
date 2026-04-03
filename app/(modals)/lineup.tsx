@@ -1,5 +1,5 @@
-import { Avatar } from '@/components/Avatar'
 import { AutoSetModal } from '@/components/AutoSetModal'
+import { Avatar } from '@/components/Avatar'
 import { DaySelector } from '@/components/DaySelector'
 import { LoadingScreen } from '@/components/LoadingScreen'
 import { PosTag } from '@/components/PosTag'
@@ -79,6 +79,7 @@ export default function LineupScreen() {
         setStartedTeams(started)
         setLiveTeams(live)
         setTeamMatchups(matchups)
+        console.log('[lineup] teamMatchups size:', matchups.size, [...matchups.entries()])
     }, [current])
 
     const load = useCallback(async () => {
