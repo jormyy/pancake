@@ -2,7 +2,7 @@ import { supabase } from '@/lib/supabase'
 import type { RosterSlotType } from '@/types/database'
 import { getCurrentSeason } from '@/lib/shared/season'
 import { getCurrentWeekNumber } from '@/lib/shared/week'
-import { canPlaySlot } from '@/constants/slots'
+import { canPlaySlot, SLOT_ELIGIBLE } from '@/constants/slots'
 import { todayDateString } from '@/lib/shared/dates'
 
 export { canPlaySlot, SLOT_ELIGIBLE } from '@/constants/slots'
@@ -20,6 +20,24 @@ export async function getStartedTeams(gameDate: string): Promise<Set<string>> {
         if ((g as any).away_team) teams.add((g as any).away_team)
     }
     return teams
+}
+
+// Returns a map of team abbreviation → { opponent, isHome } for all games on the given date.
+export async function getTeamMatchups(gameDate: string): Promise<Map<string, { opponent: string; isHome: boolean }>> {
+    const { data } = await supabase
+        .from('nba_games')
+        .select('home_team, away_team')
+        .eq('game_date', gameDate)
+    const map = new Map<string, { opponent: string; isHome: boolean }>()
+    for (const g of data ?? []) {
+        const home = (g as any).home_team
+        const away = (g as any).away_team
+        if (home && away) {
+            map.set(home, { opponent: away, isHome: true })
+            map.set(away, { opponent: home, isHome: false })
+        }
+    }
+    return map
 }
 
 // Returns the set of NBA team abbreviations with a game currently InProgress on the given date.
@@ -42,6 +60,7 @@ export type LineupPlayer = {
     playerId: string
     displayName: string
     position: string | null
+    eligiblePositions: string[]
     nbaTeam: string | null
     injuryStatus: string | null
 }
@@ -172,6 +191,8 @@ export async function getWeeklyLineup(
     weekNumber: number,
     gameDate: string,
 ): Promise<{ starters: LineupSlot[]; bench: LineupPlayer[]; ir: LineupPlayer[] }> {
+    const isPastDate = gameDate < todayDateString()
+
     const [{ data: templates }, { data: roster }, { data: assignments }] = await Promise.all([
         supabase
             .from('lineup_slot_templates')
@@ -179,7 +200,7 @@ export async function getWeeklyLineup(
             .eq('league_id', leagueId),
         supabase
             .from('roster_players')
-            .select('id, player_id, is_on_ir, players(display_name, position, nba_team, injury_status)')
+            .select('id, player_id, is_on_ir, players(display_name, position, eligible_positions, nba_team, injury_status)')
             .eq('member_id', memberId)
             .eq('league_id', leagueId)
             .eq('league_season_id', seasonId),
@@ -208,9 +229,48 @@ export async function getWeeklyLineup(
             playerId: (r as any).player_id,
             displayName: p?.display_name ?? '',
             position: p?.position ?? null,
+            eligiblePositions: p?.eligible_positions?.length ? p.eligible_positions : (p?.position ? [p.position] : []),
             nbaTeam: p?.nba_team ?? null,
             injuryStatus: p?.injury_status ?? null,
         })
+    }
+
+    // For past dates: players may have been dropped since that day. Fetch their player
+    // data directly so their starter slots still render correctly. Also find which current
+    // roster players were added AFTER this date so they're excluded from bench.
+    let addedAfterDate = new Set<string>()
+    if (isPastDate) {
+        const missingPlayerIds = [...assignmentMap.keys()].filter((pid) => !rosterByPlayerId.has(pid))
+        const [extraPlayersResult, laterAddsResult] = await Promise.all([
+            missingPlayerIds.length > 0
+                ? supabase
+                    .from('players')
+                    .select('id, display_name, position, eligible_positions, nba_team, injury_status')
+                    .in('id', missingPlayerIds)
+                : Promise.resolve({ data: [] }),
+            (supabase as any)
+                .from('roster_transactions')
+                .select('player_id')
+                .eq('member_id', memberId)
+                .eq('league_id', leagueId)
+                .eq('league_season_id', seasonId)
+                .in('transaction_type', ['fa_add', 'waiver_add', 'trade_in', 'draft_won'])
+                .gt('occurred_at', gameDate + 'T23:59:59Z'),
+        ])
+
+        for (const p of (extraPlayersResult.data ?? []) as any[]) {
+            rosterByPlayerId.set(p.id, {
+                rosterPlayerId: '',
+                playerId: p.id,
+                displayName: p.display_name ?? '',
+                position: p.position ?? null,
+                eligiblePositions: p.eligible_positions?.length ? p.eligible_positions : (p.position ? [p.position] : []),
+                nbaTeam: p.nba_team ?? null,
+                injuryStatus: p.injury_status ?? null,
+            })
+        }
+
+        addedAfterDate = new Set((laterAddsResult.data ?? []).map((r: any) => r.player_id as string))
     }
 
     // Build starter slots from templates (excluding BE and IR)
@@ -243,7 +303,7 @@ export async function getWeeklyLineup(
         starters.map((s) => s.player?.playerId).filter(Boolean) as string[],
     )
     const bench: LineupPlayer[] = (roster ?? [])
-        .filter((r: any) => !r.is_on_ir && !starterPlayerIds.has(r.player_id))
+        .filter((r: any) => !r.is_on_ir && !starterPlayerIds.has(r.player_id) && !addedAfterDate.has(r.player_id))
         .map((r: any) => rosterByPlayerId.get(r.player_id)!)
         .filter(Boolean)
 
@@ -306,7 +366,7 @@ export async function autoSetLineup(
     const [{ data: roster }, { data: templates }] = await Promise.all([
         supabase
             .from('roster_players')
-            .select('id, player_id, players(position, nba_team)')
+            .select('id, player_id, players(position, eligible_positions, nba_team)')
             .eq('member_id', memberId)
             .eq('league_id', leagueId)
             .eq('league_season_id', seasonId)
@@ -319,31 +379,67 @@ export async function autoSetLineup(
 
     const playerIds = (roster ?? []).map((r: any) => r.player_id)
 
-    const { data: projections } = await supabase
-        .from('player_projections')
-        .select('player_id, projected_points')
-        .eq('season_year', seasonYear)
-        .eq('week_number', weekNumber)
-        .in('player_id', playerIds)
+    // Use mv_player_season_averages (1 row per player, already excludes did_not_play games)
+    // instead of querying raw player_game_stats. The raw query has no explicit limit and
+    // Supabase truncates at 1000 rows — with 15+ players × 70+ games each, some players'
+    // stats get silently dropped, giving them projected = 0 and leaving them on bench.
+    const [{ data: avgRows }, { data: leagueRow }] = await Promise.all([
+        supabase
+            .from('mv_player_season_averages')
+            .select('player_id, games_played, avg_points, avg_rebounds, avg_assists, avg_steals, avg_blocks, avg_turnovers, avg_three_pointers_made, avg_field_goals_made, avg_field_goals_attempted, avg_free_throws_made, avg_free_throws_attempted, double_doubles, triple_doubles')
+            .eq('season_year', seasonYear)
+            .in('player_id', playerIds),
+        supabase
+            .from('leagues')
+            .select('scoring_settings')
+            .eq('id', leagueId)
+            .single(),
+    ])
 
-    const projMap = new Map<string, number>(
-        (projections ?? []).map((p: any) => [p.player_id, Number(p.projected_points ?? 0)]),
-    )
+    const s = (leagueRow as any)?.scoring_settings ?? {}
+    const val = (key: string) => Number(s[key] ?? 0)
+
+    const avgFptsMap = new Map<string, number>()
+    for (const row of avgRows ?? []) {
+        const r = row as any
+        const gp = Number(r.games_played) || 0
+        const fpts =
+            Number(r.avg_points ?? 0)                * val('points') +
+            Number(r.avg_rebounds ?? 0)              * val('rebounds') +
+            Number(r.avg_assists ?? 0)               * val('assists') +
+            Number(r.avg_steals ?? 0)                * val('steals') +
+            Number(r.avg_blocks ?? 0)                * val('blocks') +
+            Number(r.avg_turnovers ?? 0)             * val('turnovers') +
+            Number(r.avg_three_pointers_made ?? 0)   * val('three_pointers_made') +
+            Number(r.avg_field_goals_made ?? 0)      * val('field_goals_made') +
+            Number(r.avg_field_goals_attempted ?? 0) * val('field_goals_attempted') +
+            Number(r.avg_free_throws_made ?? 0)      * val('free_throws_made') +
+            Number(r.avg_free_throws_attempted ?? 0) * val('free_throws_attempted') +
+            (gp > 0 ? (Number(r.double_doubles ?? 0) / gp) * val('double_double') : 0) +
+            (gp > 0 ? (Number(r.triple_doubles ?? 0) / gp) * val('triple_double') : 0)
+        avgFptsMap.set(r.player_id, fpts)
+    }
 
     const players = (roster ?? []).map((r: any) => ({
         playerId: r.player_id as string,
-        position: r.players?.position as string | null,
+        eligiblePositions: (r.players?.eligible_positions as string[] | null)?.length
+            ? (r.players.eligible_positions as string[])
+            : (r.players?.position ? [r.players.position as string] : []),
         nbaTeam: r.players?.nba_team as string | null,
-        projected: projMap.get(r.player_id) ?? 0,
+        projected: avgFptsMap.get(r.player_id) ?? 0,
     }))
 
     const starterTemplates = (templates ?? []).filter(
         (t: any) => t.slot_type !== 'BE' && t.slot_type !== 'IR',
     )
 
-    const dates = gameDate
+    const allDates = gameDate
         ? [gameDate]
         : (await getWeekDays(weekNumber, seasonYear)).map((d) => d.date)
+
+    // Filter out past dates - skip already-played games
+    const today = todayDateString()
+    const dates = allDates.filter((d) => d >= today)
 
     for (const date of dates) {
         await autoSetForDate(
@@ -360,9 +456,12 @@ async function autoSetForDate(
     weekNumber: number,
     seasonYear: number,
     gameDate: string,
-    players: { playerId: string; position: string | null; nbaTeam: string | null; projected: number }[],
+    players: { playerId: string; eligiblePositions: string[]; nbaTeam: string | null; projected: number }[],
     starterTemplates: any[],
 ): Promise<void> {
+    // Skip past dates - lineups for already-played games should remain locked
+    if (gameDate < todayDateString()) return
+
     // Find which teams play on this date
     const { data: games } = await supabase
         .from('nba_games')
@@ -376,26 +475,50 @@ async function autoSetForDate(
         if ((g as any).away_team) playingTeams.add((g as any).away_team)
     }
 
-    // Sort: players with a game today first (by projected pts), then players without
-    const sorted = [...players].sort((a, b) => {
-        const aHasGame = a.nbaTeam ? playingTeams.has(a.nbaTeam) : false
-        const bHasGame = b.nbaTeam ? playingTeams.has(b.nbaTeam) : false
-        if (aHasGame !== bHasGame) return bHasGame ? 1 : -1
-        return b.projected - a.projected
-    })
+    // Players sorted by avg fpts descending. Game-day players are preferred within each slot
+    // but the fundamental ranking is always avg fpts.
+    const byFpts = [...players].sort((a, b) => b.projected - a.projected)
+    const hasGame = (p: typeof players[number]) => !!(p.nbaTeam && playingTeams.has(p.nbaTeam))
 
-    // Greedy fill starter slots
     const used = new Set<string>()
     const assignments: { playerId: string; slotType: string }[] = []
 
-    for (const t of starterTemplates) {
-        for (let i = 0; i < (t as any).slot_count; i++) {
-            const best = sorted.find(
-                (p) => !used.has(p.playerId) && canPlaySlot(p.position, (t as any).slot_type),
-            )
-            if (best) {
-                assignments.push({ playerId: best.playerId, slotType: (t as any).slot_type })
-                used.add(best.playerId)
+    // Pick the best available player for a slot:
+    // 1. Best avg-fpts player WITH a game today who is eligible for the slot
+    // 2. Fall back to best avg-fpts player WITHOUT a game (leaves slot non-zero only if needed)
+    function pickBest(slotType: string): string | null {
+        const eligible = SLOT_ELIGIBLE[slotType] ?? []
+        const pick =
+            byFpts.find((p) => !used.has(p.playerId) && hasGame(p) && p.eligiblePositions.some((pos) => eligible.includes(pos))) ??
+            byFpts.find((p) => !used.has(p.playerId) && p.eligiblePositions.some((pos) => eligible.includes(pos)))
+        return pick?.playerId ?? null
+    }
+
+    // Fill order mirrors the user-described priority:
+    // Phase 1 — pure position slots (PG, SG, SF, PF, C): best player AT that position
+    // Phase 2 — flex slots (G, F): best remaining player eligible for that slot
+    // Phase 3 — UTIL: best remaining players regardless of position
+    // Any slot type not in this list (shouldn't happen) is appended last.
+    const FILL_ORDER = ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F', 'UTIL']
+
+    const templateMap = new Map<string, number>(
+        starterTemplates.map((t: any) => [t.slot_type as string, t.slot_count as number]),
+    )
+
+    // Fill in explicit order so G/F are always resolved after their pure-position counterparts,
+    // and UTIL gets whatever high-value players remain.
+    const slotOrder = [
+        ...FILL_ORDER.filter((s) => templateMap.has(s)),
+        ...([...templateMap.keys()].filter((s) => !FILL_ORDER.includes(s))),
+    ]
+
+    for (const slotType of slotOrder) {
+        const count = templateMap.get(slotType) ?? 0
+        for (let i = 0; i < count; i++) {
+            const pid = pickBest(slotType)
+            if (pid) {
+                assignments.push({ playerId: pid, slotType })
+                used.add(pid)
             }
         }
     }

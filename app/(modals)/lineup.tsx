@@ -2,6 +2,7 @@ import { Avatar } from '@/components/Avatar'
 import { AutoSetModal } from '@/components/AutoSetModal'
 import { DaySelector } from '@/components/DaySelector'
 import { LoadingScreen } from '@/components/LoadingScreen'
+import { PosTag } from '@/components/PosTag'
 import { POSITION_COLORS } from '@/constants/positions'
 import { colors, fontSize, fontWeight, palette, radii, spacing } from '@/constants/tokens'
 import { useLeagueContext } from '@/contexts/league-context'
@@ -12,6 +13,7 @@ import {
     getLineupContext,
     getLiveTeams,
     getStartedTeams,
+    getTeamMatchups,
     getWeekDays,
     getWeeklyLineup,
     LineupContext,
@@ -52,6 +54,7 @@ export default function LineupScreen() {
     const [bench, setBench] = useState<LineupPlayer[]>([])
     const [startedTeams, setStartedTeams] = useState<Set<string>>(new Set())
     const [liveTeams, setLiveTeams] = useState<Set<string>>(new Set())
+    const [teamMatchups, setTeamMatchups] = useState<Map<string, { opponent: string; isHome: boolean }>>(new Map())
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
     const [autoSetting, setAutoSetting] = useState(false)
@@ -59,7 +62,7 @@ export default function LineupScreen() {
     const [selected, setSelected] = useState<Selection | null>(null)
 
     const loadLineup = useCallback(async (lineupCtx: LineupContext, league: any, date: string) => {
-        const [lineup, started, live] = await Promise.all([
+        const [lineup, started, live, matchups] = await Promise.all([
             getWeeklyLineup(
                 current!.id,
                 league.id,
@@ -69,11 +72,13 @@ export default function LineupScreen() {
             ),
             getStartedTeams(date),
             getLiveTeams(date),
+            getTeamMatchups(date),
         ])
         setStarters(lineup.starters)
         setBench(lineup.bench)
         setStartedTeams(started)
         setLiveTeams(live)
+        setTeamMatchups(matchups)
     }, [current])
 
     const load = useCallback(async () => {
@@ -147,11 +152,11 @@ export default function LineupScreen() {
         }
 
         // Validate eligibility
-        if (aPlayer && bSlot !== 'BE' && !canPlaySlot(aPlayer.position, bSlot)) {
+        if (aPlayer && bSlot !== 'BE' && !canPlaySlot(aPlayer.eligiblePositions, bSlot)) {
             Alert.alert('Invalid move', `${aPlayer.displayName} can't play ${bSlot}`)
             return
         }
-        if (bPlayer && aSlot !== 'BE' && !canPlaySlot(bPlayer.position, aSlot)) {
+        if (bPlayer && aSlot !== 'BE' && !canPlaySlot(bPlayer.eligiblePositions, aSlot)) {
             Alert.alert('Invalid move', `${bPlayer.displayName} can't play ${aSlot}`)
             return
         }
@@ -283,9 +288,14 @@ export default function LineupScreen() {
                                         />
                                         <View style={styles.playerInfo}>
                                             <Text style={styles.playerName}>{p.displayName}</Text>
-                                            <Text style={styles.playerMeta}>
-                                                {[p.nbaTeam, p.position].filter(Boolean).join(' · ')}
-                                            </Text>
+                                            <View style={styles.playerMetaRow}>
+                                                {p.eligiblePositions.map((pos) => <PosTag key={pos} position={pos} />)}
+                                                {p.nbaTeam && (() => {
+                                                    const m = teamMatchups.get(p.nbaTeam)
+                                                    const matchupText = m ? `${m.isHome ? 'vs' : '@'} ${m.opponent}` : 'No game'
+                                                    return <Text style={styles.playerMeta}>{p.nbaTeam} · {matchupText}</Text>
+                                                })()}
+                                            </View>
                                         </View>
                                         {isLocked && (
                                             <Text style={styles.lockedBadge}>LIVE</Text>
@@ -326,9 +336,14 @@ export default function LineupScreen() {
                                     />
                                     <View style={styles.playerInfo}>
                                         <Text style={styles.playerName}>{player.displayName}</Text>
-                                        <Text style={styles.playerMeta}>
-                                            {[player.nbaTeam, player.position].filter(Boolean).join(' · ')}
-                                        </Text>
+                                        <View style={styles.playerMetaRow}>
+                                            {player.eligiblePositions.map((pos) => <PosTag key={pos} position={pos} />)}
+                                            {player.nbaTeam && (() => {
+                                                const m = teamMatchups.get(player.nbaTeam)
+                                                const matchupText = m ? `${m.isHome ? 'vs' : '@'} ${m.opponent}` : 'No game'
+                                                return <Text style={styles.playerMeta}>{player.nbaTeam} · {matchupText}</Text>
+                                            })()}
+                                        </View>
                                     </View>
                                     {isLocked && (
                                         <Text style={styles.lockedBadge}>LIVE</Text>
@@ -442,6 +457,7 @@ const styles = StyleSheet.create({
 
     playerInfo: { flex: 1, gap: 1 },
     playerName: { fontSize: 15, fontWeight: fontWeight.semibold, color: colors.textPrimary },
+    playerMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     playerMeta: { fontSize: 12, color: colors.textMuted },
 
     emptySlot: { fontSize: fontSize.md, color: palette.gray500, fontStyle: 'italic' },
