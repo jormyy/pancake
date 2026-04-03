@@ -20,6 +20,7 @@ export async function syncStatsByDate(date: Date) {
     .select('id, nba_game_id, week_number, season_year, status')
     .eq('game_date', dateStr)
     .not('nba_game_id', 'is', null)
+    .not('nba_game_id', 'like', '003%')
     .neq('status', 'Scheduled')
 
   if (gErr) throw gErr

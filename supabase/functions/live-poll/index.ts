@@ -12,7 +12,7 @@ import { syncScores } from '../_shared/syncScores.ts'
 
 Deno.serve(async () => {
   try {
-    const todayStr = new Date().toISOString().split('T')[0]
+    const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
 
     // 1. Active games already in DB?
     const { data: activeGames } = await supabase

@@ -89,11 +89,13 @@ export async function syncStatsByDate(date: Date) {
 
     // Get games for this date that have an nba_game_id.
     // For past dates, include Scheduled games too — they may just have a stale status.
+    // Exclude All-Star games (003%) — exhibition only, not regular season stats.
     const query = supabase
         .from('nba_games')
         .select('id, nba_game_id, week_number, season_year, status')
         .eq('game_date', dateStr)
         .not('nba_game_id', 'is', null)
+        .not('nba_game_id', 'like', '003%')
     if (!isPast) query.neq('status', 'Scheduled')
 
     const { data: games, error: gErr } = await query
