@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
 import { getTodaysGames, getLivePlayerStats, NBAGameRow, LiveStatLine } from '@/lib/games'
 import { todayDateString } from '@/lib/shared/dates'
-import { getStartedTeams } from '@/lib/lineup'
+import { getStartedTeams, getTeamMatchups } from '@/lib/lineup'
 
 export function useLiveStats(selectedDate: string, onRefreshLineup?: () => void) {
     const [todaysGames, setTodaysGames] = useState<NBAGameRow[]>([])
     const [liveStats, setLiveStats] = useState<Map<string, LiveStatLine>>(new Map())
     const [startedTeams, setStartedTeams] = useState<Set<string>>(new Set())
+    const [teamMatchups, setTeamMatchups] = useState<Map<string, { opponent: string; isHome: boolean }>>(new Map())
 
     useEffect(() => {
         getTodaysGames().then(setTodaysGames).catch(() => {})
@@ -15,6 +16,7 @@ export function useLiveStats(selectedDate: string, onRefreshLineup?: () => void)
     useEffect(() => {
         getLivePlayerStats(selectedDate).then(setLiveStats).catch(() => {})
         getStartedTeams(selectedDate).then(setStartedTeams).catch(() => {})
+        getTeamMatchups(selectedDate).then(setTeamMatchups).catch(() => {})
 
         const isToday = selectedDate === todayDateString()
         if (!isToday) return
@@ -40,5 +42,5 @@ export function useLiveStats(selectedDate: string, onRefreshLineup?: () => void)
             : [],
     )
 
-    return { todaysGames, liveStats, startedTeams, setStartedTeams, liveTeams }
+    return { todaysGames, liveStats, startedTeams, setStartedTeams, liveTeams, teamMatchups }
 }

@@ -62,7 +62,6 @@ export default function LineupScreen() {
     const [selected, setSelected] = useState<Selection | null>(null)
 
     const loadLineup = useCallback(async (lineupCtx: LineupContext, league: any, date: string) => {
-        console.log('[lineup] loadLineup called for date:', date)
         const [lineup, started, live, matchups] = await Promise.all([
             getWeeklyLineup(
                 current!.id,
@@ -80,7 +79,6 @@ export default function LineupScreen() {
         setStartedTeams(started)
         setLiveTeams(live)
         setTeamMatchups(matchups)
-        console.log('[lineup] teamMatchups size:', matchups.size, [...matchups.entries()])
     }, [current])
 
     const load = useCallback(async () => {
