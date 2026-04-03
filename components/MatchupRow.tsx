@@ -61,6 +61,7 @@ export function MatchupRow({
     liveStats,
     liveTeams,
     scoringSettings,
+    teamMatchups,
     isExtraOppRow = false,
 }: {
     myPlayer: LineupPlayer | null
@@ -75,6 +76,7 @@ export function MatchupRow({
     liveStats: Map<string, LiveStatLine>
     liveTeams: Set<string>
     scoringSettings: Record<string, number>
+    teamMatchups: Map<string, { opponent: string; isHome: boolean }>
     isExtraOppRow?: boolean
 }) {
     const { push } = useRouter()
@@ -82,6 +84,14 @@ export function MatchupRow({
     const slotColor = slotType === 'IR' ? colors.danger : (POSITION_COLORS[slotType] ?? colors.textPlaceholder)
     const myHasGame = myPlayer?.nbaTeam ? playingTeams.has(myPlayer.nbaTeam) : false
     const oppHasGame = oppPlayer?.nbaTeam ? playingTeams.has(oppPlayer.nbaTeam) : false
+    const myMatchup = myPlayer?.nbaTeam ? teamMatchups.get(myPlayer.nbaTeam) : undefined
+    const oppMatchup = oppPlayer?.nbaTeam ? teamMatchups.get(oppPlayer.nbaTeam) : undefined
+    const myMatchupLabel = myPlayer?.nbaTeam
+        ? (myMatchup ? `${myMatchup.isHome ? 'vs' : '@'} ${myMatchup.opponent}` : 'No game')
+        : null
+    const oppMatchupLabel = oppPlayer?.nbaTeam
+        ? (oppMatchup ? `${oppMatchup.isHome ? 'vs' : '@'} ${oppMatchup.opponent}` : 'No game')
+        : null
     const myStats = myPlayer ? liveStats.get(myPlayer.playerId) : undefined
     const oppStats = oppPlayer ? liveStats.get(oppPlayer.playerId) : undefined
     const myIsLive = myPlayer?.nbaTeam ? liveTeams.has(myPlayer.nbaTeam) : false
@@ -116,9 +126,11 @@ export function MatchupRow({
                             <View style={[styles.metaRow, { justifyContent: 'flex-end' }]}>
                                 {myIsLive && <Text style={styles.lockedBadge}>LIVE</Text>}
                                 {myPlayer.eligiblePositions.map((pos) => <PosTag key={pos} position={pos} />)}
-                                <Text style={styles.sideMeta} numberOfLines={1}>
-                                    {myPlayer.nbaTeam ?? 'FA'}{!myHasGame ? ' · No game' : ''}
-                                </Text>
+                                {myMatchupLabel !== null && (
+                                    <Text style={styles.sideMeta} numberOfLines={1}>
+                                        {myPlayer.nbaTeam} · {myMatchupLabel}
+                                    </Text>
+                                )}
                             </View>
                             {myStats ? (
                                 <StatLines stats={myStats} isLive={myIsLive} align="right" />
@@ -162,9 +174,11 @@ export function MatchupRow({
                             </View>
                             <View style={styles.metaRow}>
                                 {oppPlayer.eligiblePositions.map((pos) => <PosTag key={pos} position={pos} />)}
-                                <Text style={styles.sideMeta} numberOfLines={1}>
-                                    {oppPlayer.nbaTeam ?? 'FA'}{!oppHasGame ? ' · No game' : ''}
-                                </Text>
+                                {oppMatchupLabel !== null && (
+                                    <Text style={styles.sideMeta} numberOfLines={1}>
+                                        {oppPlayer.nbaTeam} · {oppMatchupLabel}
+                                    </Text>
+                                )}
                                 {oppIsLive && <Text style={styles.lockedBadge}>LIVE</Text>}
                             </View>
                             {oppStats ? (

@@ -50,7 +50,7 @@ export default function HomeScreen() {
         if (matchupRef.current) loadLineups(matchupRef.current, selectedDate).catch(() => {})
     }, [matchupRef, loadLineups, selectedDate])
 
-    const { todaysGames, liveStats, startedTeams, liveTeams } = useLiveStats(selectedDate, refreshLineup)
+    const { todaysGames, liveStats, startedTeams, liveTeams, teamMatchups } = useLiveStats(selectedDate, refreshLineup)
 
     const {
         selected, setSelected, saving, autoSetting,
@@ -161,6 +161,7 @@ export default function HomeScreen() {
                             liveStats={liveStats}
                             liveTeams={liveTeams}
                             scoringSettings={league?.scoring_settings ?? {}}
+                            teamMatchups={teamMatchups}
                         />
                     ) : (
                         <View style={styles.noLineup}>
@@ -246,6 +247,7 @@ function MatchupLineupView({
     liveStats,
     liveTeams,
     scoringSettings,
+    teamMatchups,
 }: {
     myLineup: LineupData
     oppLineup: LineupData
@@ -256,6 +258,7 @@ function MatchupLineupView({
     liveStats: Map<string, LiveStatLine>
     liveTeams: Set<string>
     scoringSettings: Record<string, number>
+    teamMatchups: Map<string, { opponent: string; isHome: boolean }>
 }) {
     const maxBench = Math.max(myLineup.bench.length, oppLineup.bench.length)
     const maxIR = Math.max(myLineup.ir.length, oppLineup.ir.length)
@@ -278,6 +281,7 @@ function MatchupLineupView({
                     liveStats={liveStats}
                     liveTeams={liveTeams}
                     scoringSettings={scoringSettings}
+                    teamMatchups={teamMatchups}
                 />
             ))}
 
@@ -299,6 +303,7 @@ function MatchupLineupView({
                             liveStats={liveStats}
                             liveTeams={liveTeams}
                             scoringSettings={scoringSettings}
+                            teamMatchups={teamMatchups}
                             isExtraOppRow={i >= myLineup.bench.length}
                         />
                     ))}
@@ -323,6 +328,7 @@ function MatchupLineupView({
                             liveStats={liveStats}
                             liveTeams={liveTeams}
                             scoringSettings={scoringSettings}
+                            teamMatchups={teamMatchups}
                         />
                     ))}
                 </>
