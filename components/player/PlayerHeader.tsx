@@ -12,11 +12,13 @@ import { POSITION_COLORS } from '@/constants/positions'
 import { INJURY_COLORS, colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 import { Avatar } from '@/components/Avatar'
 import { Badge } from '@/components/Badge'
+import { PosTag } from '@/components/PosTag'
 
 type Player = {
     display_name: string
     nba_team: string | null
     position: string | null
+    eligible_positions: string[] | null
     jersey_number: string | null
     injury_status: string | null
     dynasty_rank: number | null
@@ -46,7 +48,10 @@ export function PlayerHeader({
     onClaim,
 }: Props) {
     const [headshotError, setHeadshotError] = useState(false)
-    const posColor = POSITION_COLORS[player.position ?? ''] ?? colors.textMuted
+    const eligiblePositions: string[] = player.eligible_positions?.length
+        ? player.eligible_positions
+        : (player.position ? [player.position] : [])
+    const posColor = POSITION_COLORS[eligiblePositions[0] ?? ''] ?? colors.textMuted
     const headshotUri = player.nba_id
         ? `https://cdn.nba.com/headshots/nba/latest/260x190/${player.nba_id}.png`
         : null
@@ -54,7 +59,6 @@ export function PlayerHeader({
     const metaParts = [
         player.jersey_number ? `#${player.jersey_number}` : null,
         player.nba_team,
-        player.position,
     ].filter(Boolean)
 
     return (
@@ -75,7 +79,10 @@ export function PlayerHeader({
             {/* Info */}
             <View style={styles.info}>
                 <Text style={styles.name}>{player.display_name}</Text>
-                <Text style={styles.meta}>{metaParts.join(' · ')}</Text>
+                <View style={styles.metaRow}>
+                    {metaParts.length > 0 && <Text style={styles.meta}>{metaParts.join(' · ')}</Text>}
+                    {eligiblePositions.map((pos) => <PosTag key={pos} position={pos} />)}
+                </View>
                 <View style={styles.badges}>
                     {player.injury_status && !playedToday && (
                         <Badge
@@ -150,6 +157,7 @@ const styles = StyleSheet.create({
 
     info: { flex: 1, gap: spacing.xs },
     name: { fontSize: fontSize['2xl'] - 2, fontWeight: fontWeight.extrabold, color: colors.textPrimary },
+    metaRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
     meta: { fontSize: fontSize.md, color: colors.textMuted },
     badges: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.xs },
 

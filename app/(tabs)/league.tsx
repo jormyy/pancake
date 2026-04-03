@@ -27,6 +27,7 @@ import { LoadingScreen } from '@/components/LoadingScreen'
 import { EmptyState } from '@/components/EmptyState'
 import { Avatar } from '@/components/Avatar'
 import { Badge } from '@/components/Badge'
+import { PosTag } from '@/components/PosTag'
 import { SectionHeader } from '@/components/SectionHeader'
 import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
 
@@ -44,6 +45,7 @@ function StandingsRow({ item, index, isMe, onPress }: { item: StandingRow; index
             <Text style={[styles.standingsCell, isMe && styles.standingsMe]}>{item.wins}</Text>
             <Text style={[styles.standingsCell, isMe && styles.standingsMe]}>{item.losses}</Text>
             <Text style={[styles.standingsPts, isMe && styles.standingsMe]}>{item.pointsFor.toFixed(1)}</Text>
+            <Text style={[styles.standingsPts, isMe && styles.standingsMe]}>{item.maxPointsFor.toFixed(1)}</Text>
             <Text style={[styles.standingsPts, isMe && styles.standingsMe]}>{item.pointsAgainst.toFixed(1)}</Text>
         </Pressable>
     )
@@ -52,20 +54,19 @@ function StandingsRow({ item, index, isMe, onPress }: { item: StandingRow; index
 function ActivityRow({ item, isMe }: { item: TransactionRow; isMe: boolean }) {
     const color = TX_COLORS[item.transactionType] ?? colors.textMuted
     const label = TRANSACTION_LABELS[item.transactionType] ?? item.transactionType
-    const pos = item.position ?? ''
     return (
         <View style={[styles.txRow, isMe && styles.txRowMe]}>
             <Avatar
                 name={item.playerName}
-                color={POSITION_COLORS[pos] ?? palette.gray500}
+                color={POSITION_COLORS[item.eligiblePositions[0] ?? item.position ?? ''] ?? palette.gray500}
                 size={40}
                 uri={item.nbaId ? `https://cdn.nba.com/headshots/nba/latest/260x190/${item.nbaId}.png` : null}
             />
             <View style={styles.txInfo}>
-                <Text style={styles.txPlayer} numberOfLines={1}>
-                    {item.playerName}
-                    {pos ? <Text style={styles.txPos}>  {pos}</Text> : null}
-                </Text>
+                <View style={styles.txNameRow}>
+                    <Text style={styles.txPlayer} numberOfLines={1}>{item.playerName}</Text>
+                    {item.eligiblePositions.map((pos) => <PosTag key={pos} position={pos} />)}
+                </View>
                 <Text style={styles.txTeam} numberOfLines={1}>
                     {item.teamName}
                     {isMe ? <Text style={styles.meTag}> (you)</Text> : null}
@@ -531,8 +532,8 @@ const styles = StyleSheet.create({
     standingsHeaderText: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.textPlaceholder },
     standingsRank: { width: 24, fontSize: fontSize.md, fontWeight: fontWeight.bold, color: colors.textSecondary },
     standingsTeam: { flex: 1, fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textPrimary },
-    standingsCell: { width: 28, textAlign: 'center', fontSize: fontSize.md, color: colors.textSecondary },
-    standingsPts: { width: 52, textAlign: 'right', fontSize: fontSize.sm, color: colors.textSecondary },
+    standingsCell: { width: 32, textAlign: 'center', fontSize: fontSize.md, color: colors.textSecondary },
+    standingsPts: { width: 64, textAlign: 'center', fontSize: fontSize.sm, color: colors.textSecondary },
     standingsMe: { color: colors.primary, fontWeight: fontWeight.bold },
 
     waiverRow: {
@@ -555,8 +556,8 @@ const styles = StyleSheet.create({
     },
     txRowMe: { backgroundColor: palette.orange50 },
     txInfo: { flex: 1, gap: spacing.xxs },
+    txNameRow: { flexDirection: 'row', alignItems: 'center', gap: 4, flexWrap: 'wrap' },
     txPlayer: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textPrimary },
-    txPos: { fontSize: 12, color: colors.textPlaceholder, fontWeight: fontWeight.regular },
     txTeam: { fontSize: 12, color: colors.textMuted },
     txRight: { alignItems: 'flex-end', gap: spacing.xs },
     txTime: { fontSize: fontSize.xs, color: colors.textPlaceholder },
@@ -589,6 +590,7 @@ const StandingsListHeader = (
         <Text style={[styles.standingsCell, styles.standingsHeaderText]}>W</Text>
         <Text style={[styles.standingsCell, styles.standingsHeaderText]}>L</Text>
         <Text style={[styles.standingsPts, styles.standingsHeaderText]}>PF</Text>
+        <Text style={[styles.standingsPts, styles.standingsHeaderText]}>MAX PF</Text>
         <Text style={[styles.standingsPts, styles.standingsHeaderText]}>PA</Text>
     </View>
 )
