@@ -1,44 +1,45 @@
+import { Avatar } from '@/components/Avatar'
+import { IRResolutionModal } from '@/components/IRResolutionModal'
+import { LoadingScreen } from '@/components/LoadingScreen'
+import { FantasyCard } from '@/components/player/FantasyCard'
+import { GameLogTable } from '@/components/player/GameLogTable'
+import { PlayerHeader } from '@/components/player/PlayerHeader'
+import { SeasonSelector } from '@/components/player/SeasonSelector'
+import { StatsOverview } from '@/components/player/StatsOverview'
+import { TransactionHistory } from '@/components/player/TransactionHistory'
+import { PosTag } from '@/components/PosTag'
+import { POSITION_COLORS } from '@/constants/positions'
+import { colors, fontSize, fontWeight, palette, radii, spacing } from '@/constants/tokens'
+import { useLeagueContext } from '@/contexts/league-context'
+import { useAuth } from '@/hooks/use-auth'
 import {
-    View,
-    Text,
-    ScrollView,
-    StyleSheet,
+    getAvailableSeasons,
+    getPlayer,
+    getPlayerFantasyPoints,
+    getPlayerGameLog,
+    getPlayerSeasonAveragesFromView,
+    getPlayerTransactionHistory,
+    type GameLogEntry,
+    type PlayerSeasonAverages,
+    type TransactionHistoryEntry,
+} from '@/lib/players'
+import { addFreeAgent, dropPlayer, getPlayerRosterStatus, getRoster, isIREligible, toggleIR, type PlayerRosterStatus, type RosterPlayer } from '@/lib/roster'
+import { todayDateString } from '@/lib/shared/dates'
+import { currentSeasonYear } from '@/lib/shared/season'
+import { supabase } from '@/lib/supabase'
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
+import { useEffect, useState } from 'react'
+import {
     ActivityIndicator,
     Alert,
     Modal,
     Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    View,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { useLocalSearchParams, Stack, useRouter } from 'expo-router'
-import { useEffect, useState } from 'react'
-import {
-    getPlayer,
-    getAvailableSeasons,
-    getPlayerSeasonAveragesFromView,
-    getPlayerGameLog,
-    getPlayerFantasyPoints,
-    getPlayerTransactionHistory,
-    type PlayerSeasonAverages,
-    type GameLogEntry,
-    type TransactionHistoryEntry,
-} from '@/lib/players'
-import { currentSeasonYear } from '@/lib/shared/season'
-import { todayDateString } from '@/lib/shared/dates'
-import { supabase } from '@/lib/supabase'
-import { getPlayerRosterStatus, addFreeAgent, dropPlayer, toggleIR, getRoster, isIREligible, type PlayerRosterStatus, type RosterPlayer } from '@/lib/roster'
-import { useLeagueContext } from '@/contexts/league-context'
-import { useAuth } from '@/hooks/use-auth'
-import { PlayerHeader } from '@/components/player/PlayerHeader'
-import { SeasonSelector } from '@/components/player/SeasonSelector'
-import { StatsOverview } from '@/components/player/StatsOverview'
-import { FantasyCard } from '@/components/player/FantasyCard'
-import { GameLogTable } from '@/components/player/GameLogTable'
-import { TransactionHistory } from '@/components/player/TransactionHistory'
-import { LoadingScreen } from '@/components/LoadingScreen'
-import { IRResolutionModal } from '@/components/IRResolutionModal'
-import { colors, fontSize, fontWeight, spacing, palette, radii } from '@/constants/tokens'
-import { POSITION_COLORS } from '@/constants/positions'
-import { Avatar } from '@/components/Avatar'
 
 const GAME_LOG_PAGE = 15
 
@@ -456,17 +457,25 @@ export default function PlayerDetailScreen() {
                                 const isDroppingThis = dropping === rp.id
                                 return (
                                     <View key={rp.id} style={styles.dropRow}>
-                                        <Avatar
-                                            name={p.display_name}
-                                            color={POSITION_COLORS[p.position ?? ''] ?? palette.gray500}
-                                            size={38}
-                                        />
-                                        <View style={styles.dropInfo}>
-                                            <Text style={styles.dropName} numberOfLines={1}>{p.display_name}</Text>
-                                            <Text style={styles.dropMeta}>
-                                                {[p.nba_team, p.position].filter(Boolean).join(' · ')}
-                                            </Text>
-                                        </View>
+                                        {(() => {
+                                            const ep: string[] = p.eligible_positions?.length ? p.eligible_positions : (p.position ? [p.position] : [])
+                                            return (
+                                                <>
+                                                    <Avatar
+                                                        name={p.display_name}
+                                                        color={POSITION_COLORS[ep[0] ?? ''] ?? palette.gray500}
+                                                        size={38}
+                                                    />
+                                                    <View style={styles.dropInfo}>
+                                                        <Text style={styles.dropName} numberOfLines={1}>{p.display_name}</Text>
+                                                        <View style={styles.dropMetaRow}>
+                                                            {p.nba_team && <Text style={styles.dropMeta}>{p.nba_team}</Text>}
+                                                            {ep.map((pos) => <PosTag key={pos} position={pos} />)}
+                                                        </View>
+                                                    </View>
+                                                </>
+                                            )
+                                        })()}
                                         <Pressable
                                             style={styles.dropBtn}
                                             onPress={() => handleDropAndAdd(rp)}
@@ -552,7 +561,8 @@ const styles = StyleSheet.create({
     },
     dropInfo: { flex: 1 },
     dropName: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textPrimary },
-    dropMeta: { fontSize: 12, color: colors.textMuted, marginTop: 1 },
+    dropMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 1 },
+    dropMeta: { fontSize: 12, color: colors.textMuted },
     dropBtn: {
         backgroundColor: colors.danger,
         paddingHorizontal: spacing.lg + spacing.xxs,
