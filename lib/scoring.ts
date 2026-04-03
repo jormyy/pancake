@@ -32,6 +32,12 @@ export type Matchup = {
     opponentPoints: number | null
     myTeamName: string
     opponentTeamName: string
+    myUsername: string
+    opponentUsername: string
+    myWins: number
+    myLosses: number
+    opponentWins: number
+    opponentLosses: number
     isFinalized: boolean
     iWon: boolean | null
     myMemberId: string
@@ -47,6 +53,7 @@ export type StandingRow = {
     losses: number
     pointsFor: number
     pointsAgainst: number
+    maxPointsFor: number
 }
 
 export async function getMyMatchup(memberId: string, leagueId: string): Promise<Matchup | null> {
@@ -70,14 +77,38 @@ export async function getMyMatchup(memberId: string, leagueId: string): Promise<
     if (error) throw error
     if (!data) return null
 
-    // Fetch both members' team names
+    // Fetch both members' team names + usernames
     const opponentId = data.home_member_id === memberId ? data.away_member_id : data.home_member_id
-    const { data: members } = await supabase
-        .from('league_members')
-        .select('id, team_name')
-        .in('id', [memberId, opponentId])
+    const [{ data: members }, { data: allMatchups }] = await Promise.all([
+        supabase
+            .from('league_members')
+            .select('id, team_name, profiles(display_name)')
+            .in('id', [memberId, opponentId]),
+        supabase
+            .from('matchups')
+            .select('home_member_id, away_member_id, winner_member_id')
+            .eq('league_id', leagueId)
+            .eq('league_season_id', season.id)
+            .eq('is_finalized', true)
+            .or(`home_member_id.in.(${memberId},${opponentId}),away_member_id.in.(${memberId},${opponentId})`),
+    ])
 
-    const memberMap = Object.fromEntries((members ?? []).map((m) => [m.id, m.team_name]))
+    const memberMap = Object.fromEntries(
+        (members ?? []).map((m) => [m.id, { teamName: m.team_name, username: (m.profiles as any)?.display_name ?? '' }])
+    )
+
+    // Compute records from finalized matchups
+    const records: Record<string, { wins: number; losses: number }> = {
+        [memberId]: { wins: 0, losses: 0 },
+        [opponentId]: { wins: 0, losses: 0 },
+    }
+    for (const m of allMatchups ?? []) {
+        if (!m.winner_member_id) continue
+        const loserId = m.winner_member_id === m.home_member_id ? m.away_member_id : m.home_member_id
+        if (records[m.winner_member_id]) records[m.winner_member_id].wins++
+        if (records[loserId]) records[loserId].losses++
+    }
+
     const isHome = data.home_member_id === memberId
 
     return {
@@ -85,8 +116,14 @@ export async function getMyMatchup(memberId: string, leagueId: string): Promise<
         weekNumber: data.week_number,
         myPoints: isHome ? data.home_points : data.away_points,
         opponentPoints: isHome ? data.away_points : data.home_points,
-        myTeamName: memberMap[memberId] ?? 'My Team',
-        opponentTeamName: memberMap[opponentId] ?? 'Opponent',
+        myTeamName: memberMap[memberId]?.teamName ?? 'My Team',
+        opponentTeamName: memberMap[opponentId]?.teamName ?? 'Opponent',
+        myUsername: memberMap[memberId]?.username ?? '',
+        opponentUsername: memberMap[opponentId]?.username ?? '',
+        myWins: records[memberId].wins,
+        myLosses: records[memberId].losses,
+        opponentWins: records[opponentId].wins,
+        opponentLosses: records[opponentId].losses,
         isFinalized: data.is_finalized,
         iWon: data.winner_member_id != null ? data.winner_member_id === memberId : null,
         myMemberId: memberId,
@@ -122,20 +159,25 @@ export async function getLeagueStandings(leagueId: string): Promise<StandingRow[
             losses: 0,
             pointsFor: 0,
             pointsAgainst: 0,
+            maxPointsFor: 0,
         }
     }
 
     for (const m of matchups ?? []) {
-        const hp = Number(m.home_points ?? 0)
-        const ap = Number(m.away_points ?? 0)
+        if (m.is_finalized) {
+            const hp = Number(m.home_points ?? 0)
+            const ap = Number(m.away_points ?? 0)
 
-        if (map[m.home_member_id]) {
-            map[m.home_member_id].pointsFor += hp
-            map[m.home_member_id].pointsAgainst += ap
-        }
-        if (map[m.away_member_id]) {
-            map[m.away_member_id].pointsFor += ap
-            map[m.away_member_id].pointsAgainst += hp
+            if (map[m.home_member_id]) {
+                map[m.home_member_id].pointsFor += hp
+                map[m.home_member_id].pointsAgainst += ap
+                if (hp > map[m.home_member_id].maxPointsFor) map[m.home_member_id].maxPointsFor = hp
+            }
+            if (map[m.away_member_id]) {
+                map[m.away_member_id].pointsFor += ap
+                map[m.away_member_id].pointsAgainst += hp
+                if (ap > map[m.away_member_id].maxPointsFor) map[m.away_member_id].maxPointsFor = ap
+            }
         }
 
         if (m.is_finalized && m.winner_member_id) {
