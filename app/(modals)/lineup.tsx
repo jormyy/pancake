@@ -267,6 +267,10 @@ export default function LineupScreen() {
                         const isSelected = selected?.kind === 'starter' && selected.index === i
                         const p = slot.player
                         const isLocked = !!(p?.nbaTeam && liveTeams.has(p.nbaTeam))
+                        const starterMatchup = p?.nbaTeam ? teamMatchups.get(p.nbaTeam) : undefined
+                        const starterMatchupLabel = p?.nbaTeam
+                            ? (starterMatchup ? `${starterMatchup.isHome ? 'vs' : '@'} ${starterMatchup.opponent}` : 'No game')
+                            : null
                         return (
                             <Pressable
                                 key={`starter-${i}`}
@@ -290,11 +294,9 @@ export default function LineupScreen() {
                                             <Text style={styles.playerName}>{p.displayName}</Text>
                                             <View style={styles.playerMetaRow}>
                                                 {p.eligiblePositions.map((pos) => <PosTag key={pos} position={pos} />)}
-                                                {p.nbaTeam && (() => {
-                                                    const m = teamMatchups.get(p.nbaTeam)
-                                                    const matchupText = m ? `${m.isHome ? 'vs' : '@'} ${m.opponent}` : 'No game'
-                                                    return <Text style={styles.playerMeta}>{p.nbaTeam} · {matchupText}</Text>
-                                                })()}
+                                                {starterMatchupLabel !== null && (
+                                                    <Text style={styles.playerMeta}>{p.nbaTeam} · {starterMatchupLabel}</Text>
+                                                )}
                                             </View>
                                         </View>
                                         {isLocked && (
@@ -318,6 +320,10 @@ export default function LineupScreen() {
                         bench.map((player, i) => {
                             const isSelected = selected?.kind === 'bench' && selected.index === i
                             const isLocked = !!(player.nbaTeam && liveTeams.has(player.nbaTeam))
+                            const benchMatchup = player.nbaTeam ? teamMatchups.get(player.nbaTeam) : undefined
+                            const benchMatchupLabel = player.nbaTeam
+                                ? (benchMatchup ? `${benchMatchup.isHome ? 'vs' : '@'} ${benchMatchup.opponent}` : 'No game')
+                                : null
                             return (
                                 <Pressable
                                     key={player.playerId}
@@ -338,11 +344,9 @@ export default function LineupScreen() {
                                         <Text style={styles.playerName}>{player.displayName}</Text>
                                         <View style={styles.playerMetaRow}>
                                             {player.eligiblePositions.map((pos) => <PosTag key={pos} position={pos} />)}
-                                            {player.nbaTeam && (() => {
-                                                const m = teamMatchups.get(player.nbaTeam)
-                                                const matchupText = m ? `${m.isHome ? 'vs' : '@'} ${m.opponent}` : 'No game'
-                                                return <Text style={styles.playerMeta}>{player.nbaTeam} · {matchupText}</Text>
-                                            })()}
+                                            {benchMatchupLabel !== null && (
+                                                <Text style={styles.playerMeta}>{player.nbaTeam} · {benchMatchupLabel}</Text>
+                                            )}
                                         </View>
                                     </View>
                                     {isLocked && (
