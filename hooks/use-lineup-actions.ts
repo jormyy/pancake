@@ -90,7 +90,7 @@ export function useLineupActions({
                     await toggleIR(irPlayer.rosterPlayerId, false)
                     if (actSel.kind === 'starter') {
                         const slotType = starters[actSel.index]?.slotType
-                        if (slotType && canPlaySlot(irPlayer.position, slotType)) {
+                        if (slotType && canPlaySlot(irPlayer.eligiblePositions, slotType)) {
                             await setPlayerSlot(matchup.myMemberId, league.id, matchup.seasonId, matchup.weekNumber, selectedDate, irPlayer.playerId, slotType)
                         }
                     }
@@ -112,10 +112,10 @@ export function useLineupActions({
             return
         }
 
-        if (aPlayer && bSlot !== 'BE' && !canPlaySlot(aPlayer.position, bSlot)) {
+        if (aPlayer && bSlot !== 'BE' && !canPlaySlot(aPlayer.eligiblePositions, bSlot)) {
             Alert.alert('Invalid move', `${aPlayer.displayName} can't play ${bSlot}`); return
         }
-        if (bPlayer && aSlot !== 'BE' && !canPlaySlot(bPlayer.position, aSlot)) {
+        if (bPlayer && aSlot !== 'BE' && !canPlaySlot(bPlayer.eligiblePositions, aSlot)) {
             Alert.alert('Invalid move', `${bPlayer.displayName} can't play ${aSlot}`); return
         }
 
