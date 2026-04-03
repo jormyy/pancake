@@ -269,7 +269,7 @@ export default function LineupScreen() {
                         const isLocked = !!(p?.nbaTeam && liveTeams.has(p.nbaTeam))
                         const starterMatchup = p?.nbaTeam ? teamMatchups.get(p.nbaTeam) : undefined
                         const starterMatchupLabel = p?.nbaTeam
-                            ? (starterMatchup ? `${starterMatchup.isHome ? 'vs' : '@'} ${starterMatchup.opponent}` : 'No game')
+                            ? (starterMatchup ? `${starterMatchup.isHome ? 'vs' : '@'} ${starterMatchup.opponent}` : '· No game')
                             : null
                         return (
                             <Pressable
@@ -295,7 +295,7 @@ export default function LineupScreen() {
                                             <View style={styles.playerMetaRow}>
                                                 {p.eligiblePositions.map((pos) => <PosTag key={pos} position={pos} />)}
                                                 {starterMatchupLabel !== null && (
-                                                    <Text style={styles.playerMeta}>{p.nbaTeam} · {starterMatchupLabel}</Text>
+                                                    <Text style={styles.playerMeta}>{p.nbaTeam} {starterMatchupLabel}</Text>
                                                 )}
                                             </View>
                                         </View>
@@ -322,7 +322,7 @@ export default function LineupScreen() {
                             const isLocked = !!(player.nbaTeam && liveTeams.has(player.nbaTeam))
                             const benchMatchup = player.nbaTeam ? teamMatchups.get(player.nbaTeam) : undefined
                             const benchMatchupLabel = player.nbaTeam
-                                ? (benchMatchup ? `${benchMatchup.isHome ? 'vs' : '@'} ${benchMatchup.opponent}` : 'No game')
+                                ? (benchMatchup ? `${benchMatchup.isHome ? 'vs' : '@'} ${benchMatchup.opponent}` : '· No game')
                                 : null
                             return (
                                 <Pressable
@@ -345,7 +345,7 @@ export default function LineupScreen() {
                                         <View style={styles.playerMetaRow}>
                                             {player.eligiblePositions.map((pos) => <PosTag key={pos} position={pos} />)}
                                             {benchMatchupLabel !== null && (
-                                                <Text style={styles.playerMeta}>{player.nbaTeam} · {benchMatchupLabel}</Text>
+                                                <Text style={styles.playerMeta}>{player.nbaTeam} {benchMatchupLabel}</Text>
                                             )}
                                         </View>
                                     </View>

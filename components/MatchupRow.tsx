@@ -87,10 +87,10 @@ export function MatchupRow({
     const myMatchup = myPlayer?.nbaTeam ? teamMatchups.get(myPlayer.nbaTeam) : undefined
     const oppMatchup = oppPlayer?.nbaTeam ? teamMatchups.get(oppPlayer.nbaTeam) : undefined
     const myMatchupLabel = myPlayer?.nbaTeam
-        ? (myMatchup ? `${myMatchup.isHome ? 'vs' : '@'} ${myMatchup.opponent}` : 'No game')
+        ? (myMatchup ? `${myMatchup.isHome ? 'vs' : '@'} ${myMatchup.opponent}` : '· No game')
         : null
     const oppMatchupLabel = oppPlayer?.nbaTeam
-        ? (oppMatchup ? `${oppMatchup.isHome ? 'vs' : '@'} ${oppMatchup.opponent}` : 'No game')
+        ? (oppMatchup ? `${oppMatchup.isHome ? 'vs' : '@'} ${oppMatchup.opponent}` : '· No game')
         : null
     const myStats = myPlayer ? liveStats.get(myPlayer.playerId) : undefined
     const oppStats = oppPlayer ? liveStats.get(oppPlayer.playerId) : undefined
@@ -128,7 +128,7 @@ export function MatchupRow({
                                 {myPlayer.eligiblePositions.map((pos) => <PosTag key={pos} position={pos} />)}
                                 {myMatchupLabel !== null && (
                                     <Text style={styles.sideMeta} numberOfLines={1}>
-                                        {myPlayer.nbaTeam} · {myMatchupLabel}
+                                        {myPlayer.nbaTeam} {myMatchupLabel}
                                     </Text>
                                 )}
                             </View>
@@ -176,7 +176,7 @@ export function MatchupRow({
                                 {oppPlayer.eligiblePositions.map((pos) => <PosTag key={pos} position={pos} />)}
                                 {oppMatchupLabel !== null && (
                                     <Text style={styles.sideMeta} numberOfLines={1}>
-                                        {oppPlayer.nbaTeam} · {oppMatchupLabel}
+                                        {oppPlayer.nbaTeam} {oppMatchupLabel}
                                     </Text>
                                 )}
                                 {oppIsLive && <Text style={styles.lockedBadge}>LIVE</Text>}
