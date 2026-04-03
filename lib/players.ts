@@ -8,6 +8,7 @@ export type PlayerRow = {
     display_name: string
     nba_team: string | null
     position: string | null
+    eligible_positions: string[]
     status: string | null
     injury_status: string | null
     headshot_url: string | null
@@ -65,20 +66,47 @@ export type TransactionHistoryEntry = {
     occurredAt: string
 }
 
-export async function searchPlayers(query: string, position: string): Promise<PlayerRow[]> {
-    // Primary: players with stats this season, ranked by avg points descending
-    let q = supabase
-        .from('mv_player_season_averages')
-        .select('avg_points, players!inner(id, display_name, nba_team, position, status, injury_status, nba_id)')
-        .eq('season_year', currentSeasonYear())
-        .order('avg_points', { ascending: false })
-        .limit(60)
+export async function searchPlayers(query: string, position: string, teams: string[], leagueId?: string | null, playingTeams?: string[] | null): Promise<PlayerRow[]> {
+    const season = currentSeasonYear()
+
+    // Compute effective team filter: intersect explicit teams + playing-on-day teams
+    let effectiveTeams: string[] | null = null
+    if (playingTeams != null && teams.length > 0) {
+        effectiveTeams = teams.filter((t) => playingTeams.includes(t))
+        if (effectiveTeams.length === 0) return [] // no intersection → no results
+    } else if (playingTeams != null) {
+        effectiveTeams = playingTeams
+    } else if (teams.length > 0) {
+        effectiveTeams = teams
+    }
+
+    let q = leagueId
+        ? supabase
+            .from('v_player_avg_fantasy_points')
+            .select('avg_fantasy_points, players!inner(id, display_name, nba_team, position, eligible_positions, status, injury_status, nba_id)')
+            .eq('league_id', leagueId)
+            .eq('season_year', season)
+            .order('avg_fantasy_points', { ascending: false })
+            .limit(60)
+        : supabase
+            .from('mv_player_season_averages')
+            .select('avg_points, players!inner(id, display_name, nba_team, position, eligible_positions, status, injury_status, nba_id)')
+            .eq('season_year', season)
+            .order('avg_points', { ascending: false })
+            .limit(60)
 
     if (query.trim()) {
         q = q.ilike('players.display_name', `%${query.trim()}%`)
     }
     if (position !== 'ALL') {
-        q = q.eq('players.position', position as NBAPosition)
+        const posFilter: string[] =
+            position === 'G' ? ['PG', 'SG']
+            : position === 'F' ? ['SF', 'PF']
+            : [position]
+        q = q.filter('players.eligible_positions', 'ov', `{${posFilter.join(',')}}`)
+    }
+    if (effectiveTeams != null) {
+        q = q.in('players.nba_team', effectiveTeams)
     }
 
     const { data, error } = await q
@@ -86,6 +114,7 @@ export async function searchPlayers(query: string, position: string): Promise<Pl
 
     return (data ?? []).map((row: any) => row.players) as PlayerRow[]
 }
+
 
 export async function getPlayer(id: string) {
     const { data, error } = await supabase.from('players').select('*').eq('id', id).single()

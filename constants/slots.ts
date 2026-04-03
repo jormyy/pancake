@@ -11,7 +11,9 @@ export const SLOT_ELIGIBLE: Record<string, string[]> = {
     BE: ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F'],
 }
 
-export function canPlaySlot(position: string | null, slotType: string): boolean {
-    if (!position || slotType === 'IR') return false
-    return SLOT_ELIGIBLE[slotType]?.includes(position) ?? false
+export function canPlaySlot(positions: string[] | null | undefined, slotType: string): boolean {
+    if (!positions?.length || slotType === 'IR') return false
+    const eligible = SLOT_ELIGIBLE[slotType]
+    if (!eligible) return false
+    return positions.some((p) => eligible.includes(p))
 }

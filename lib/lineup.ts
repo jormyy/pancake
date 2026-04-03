@@ -4,6 +4,7 @@ import { getCurrentSeason } from '@/lib/shared/season'
 import { getCurrentWeekNumber } from '@/lib/shared/week'
 import { canPlaySlot, SLOT_ELIGIBLE } from '@/constants/slots'
 import { todayDateString } from '@/lib/shared/dates'
+import { isIREligible } from '@/lib/roster'
 
 export { canPlaySlot, SLOT_ELIGIBLE } from '@/constants/slots'
 
@@ -366,7 +367,7 @@ export async function autoSetLineup(
     const [{ data: roster }, { data: templates }] = await Promise.all([
         supabase
             .from('roster_players')
-            .select('id, player_id, players(position, eligible_positions, nba_team)')
+            .select('id, player_id, players(position, eligible_positions, nba_team, injury_status)')
             .eq('member_id', memberId)
             .eq('league_id', leagueId)
             .eq('league_season_id', seasonId)
@@ -420,14 +421,17 @@ export async function autoSetLineup(
         avgFptsMap.set(r.player_id, fpts)
     }
 
-    const players = (roster ?? []).map((r: any) => ({
-        playerId: r.player_id as string,
-        eligiblePositions: (r.players?.eligible_positions as string[] | null)?.length
-            ? (r.players.eligible_positions as string[])
-            : (r.players?.position ? [r.players.position as string] : []),
-        nbaTeam: r.players?.nba_team as string | null,
-        projected: avgFptsMap.get(r.player_id) ?? 0,
-    }))
+    const players = (roster ?? []).map((r: any) => {
+        const injured = isIREligible(r.players?.injury_status ?? null)
+        return {
+            playerId: r.player_id as string,
+            eligiblePositions: (r.players?.eligible_positions as string[] | null)?.length
+                ? (r.players.eligible_positions as string[])
+                : (r.players?.position ? [r.players.position as string] : []),
+            nbaTeam: r.players?.nba_team as string | null,
+            projected: injured ? 0 : (avgFptsMap.get(r.player_id) ?? 0),
+        }
+    })
 
     const starterTemplates = (templates ?? []).filter(
         (t: any) => t.slot_type !== 'BE' && t.slot_type !== 'IR',

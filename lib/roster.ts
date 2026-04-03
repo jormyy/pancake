@@ -17,6 +17,7 @@ export type RosterPlayer = {
         display_name: string
         nba_team: string | null
         position: string | null
+        eligible_positions: string[]
         injury_status: string | null
         nba_id: string | null
     }
@@ -37,7 +38,7 @@ export async function getRoster(memberId: string, leagueId: string): Promise<Ros
         .select(
             `
       id, is_on_ir, acquired_via,
-      players ( id, display_name, nba_team, position, injury_status, nba_id )
+      players ( id, display_name, nba_team, position, eligible_positions, injury_status, nba_id )
     `,
         )
         .eq('member_id', memberId)
