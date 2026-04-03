@@ -42,6 +42,21 @@ export function useMatchupData(current: any, user: any, league: any) {
         [league?.id],
     )
 
+    // Silently refreshes both lineups without showing a loading spinner (used by background polls)
+    const refreshSilently = useCallback(
+        async () => {
+            const m = matchupRef.current
+            if (!m) return
+            const [mine, opp] = await Promise.all([
+                getWeeklyLineup(m.myMemberId, league?.id, m.seasonId, m.weekNumber, selectedDate),
+                getWeeklyLineup(m.opponentMemberId, league?.id, m.seasonId, m.weekNumber, selectedDate),
+            ])
+            setMyLineup(mine)
+            setOppLineup(opp)
+        },
+        [league?.id, selectedDate],
+    )
+
     const load = useCallback(async () => {
         if (!current || !user) return
         setMatchupLoading(true)
@@ -109,6 +124,7 @@ export function useMatchupData(current: any, user: any, league: any) {
         refresh: load,
         loadMyLineup,
         loadLineups,
+        refreshSilently,
         matchupRef,
     }
 }
