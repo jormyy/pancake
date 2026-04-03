@@ -9,11 +9,12 @@ import {
     Modal,
     ScrollView,
     Image,
+    Dimensions,
 } from 'react-native'
 import { FlashList } from '@shopify/flash-list'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { searchPlayers, PlayerRow } from '@/lib/players'
 import {
     getOwnedPlayerMap,
@@ -40,11 +41,18 @@ import {
 import { ItemSeparator } from '@/components/ItemSeparator'
 import { Avatar } from '@/components/Avatar'
 import { Badge } from '@/components/Badge'
+import { PosTag } from '@/components/PosTag'
 import { EmptyState } from '@/components/EmptyState'
 import { IRResolutionModal } from '@/components/IRResolutionModal'
 import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
+import { getWeekDays, WeekDay } from '@/lib/lineup'
+import { getCurrentWeekNumber } from '@/lib/shared/week'
+import { currentSeasonYear } from '@/lib/shared/season'
+import { todayDateString } from '@/lib/shared/dates'
 
 const POSITIONS = ['ALL', 'PG', 'SG', 'SF', 'PF', 'C', 'G', 'F']
+const TEAMS = ['ATL', 'BOS', 'BKN', 'CHA', 'CHI', 'CLE', 'DAL', 'DEN', 'DET', 'GSW', 'HOU', 'IND', 'LAC', 'LAL', 'MEM', 'MIA', 'MIL', 'MIN', 'NOP', 'NYK', 'OKC', 'ORL', 'PHI', 'PHX', 'POR', 'SAC', 'SAS', 'TOR', 'UTA', 'WAS']
+
 
 // ── Extracted list item component ────────────────────────────────
 
@@ -54,6 +62,7 @@ function PlayerSearchItem({
     ownedMap,
     waiverIds,
     adding,
+    gamesLeft,
     onAdd,
     onPress,
 }: {
@@ -62,6 +71,7 @@ function PlayerSearchItem({
     ownedMap: Map<string, OwnedEntry>
     waiverIds: Set<string>
     adding: string | null
+    gamesLeft: Map<string, number>
     onAdd: (player: PlayerRow) => void
     onPress: () => void
 }) {
@@ -105,15 +115,21 @@ function PlayerSearchItem({
                 ) : (
                     <Avatar
                         name={item.display_name}
-                        color={POSITION_COLORS[item.position ?? ''] ?? palette.gray500}
+                        color={POSITION_COLORS[item.eligible_positions?.[0] ?? item.position ?? ''] ?? palette.gray500}
                     />
                 )}
 
                 <View style={styles.playerInfo}>
                     <Text style={styles.playerName}>{item.display_name}</Text>
-                    <Text style={styles.playerMeta}>
-                        {[item.nba_team, item.position].filter(Boolean).join(' · ')}
-                    </Text>
+                    <View style={styles.playerMetaRow}>
+                        {item.nba_team && <Text style={styles.playerMeta}>{item.nba_team}</Text>}
+                        {(item.eligible_positions?.length ? item.eligible_positions : (item.position ? [item.position] : [])).map((pos: string) => <PosTag key={pos} position={pos} />)}
+                        {item.nba_team != null && (
+                            <Text style={styles.gamesLeftText}>
+                                {gamesLeft.get(item.nba_team) ?? 0}G left
+                            </Text>
+                        )}
+                    </View>
                 </View>
 
                 {/* Injury badge */}
@@ -160,6 +176,13 @@ export default function PlayersScreen() {
     const { current } = useLeagueContext()
     const [query, setQuery] = useState('')
     const [position, setPosition] = useState('ALL')
+    const [selectedTeams, setSelectedTeams] = useState<string[]>([])
+    const [teamPopover, setTeamPopover] = useState<{ top: number; right: number } | null>(null)
+    const teamBtnRef = useRef<View>(null)
+    const [selectedDays, setSelectedDays] = useState<string[]>([])
+    const [weekDays, setWeekDays] = useState<WeekDay[]>([])
+    const [sortByGamesLeft, setSortByGamesLeft] = useState(false)
+    const [availableOnly, setAvailableOnly] = useState(true)
     const [players, setPlayers] = useState<PlayerRow[]>([])
     const [loading, setLoading] = useState(true)
 
@@ -193,10 +216,63 @@ export default function PlayersScreen() {
     const ownedMap = ownedData?.ownedMap ?? new Map<string, OwnedEntry>()
     const waiverIds = ownedData?.waiverIds ?? new Set<string>()
 
-    const load = useCallback(async (q: string, pos: string) => {
+    const gamesLeft = useMemo(() => {
+        const today = todayDateString()
+        const map = new Map<string, number>()
+        for (const day of weekDays) {
+            if (day.date < today) continue
+            for (const team of day.playingTeams) {
+                map.set(team, (map.get(team) ?? 0) + 1)
+            }
+        }
+        return map
+    }, [weekDays])
+
+    const displayedPlayers = useMemo(() => {
+        const list = availableOnly ? players.filter((p) => !ownedMap.has(p.id)) : players
+        if (!sortByGamesLeft) return list
+        return [...list].sort((a, b) => {
+            const ga = gamesLeft.get(a.nba_team ?? '') ?? 0
+            const gb = gamesLeft.get(b.nba_team ?? '') ?? 0
+            return gb - ga
+        })
+    }, [players, availableOnly, ownedMap, sortByGamesLeft, gamesLeft])
+
+    // Load current matchup week days once on mount
+    useEffect(() => {
+        let cancelled = false
+        const seasonYear = currentSeasonYear()
+        getCurrentWeekNumber(seasonYear).then((weekNum) => {
+            if (cancelled) return
+            return getWeekDays(weekNum ?? 1, seasonYear)
+        }).then((days) => {
+            if (!cancelled && days) setWeekDays(days)
+        }).catch(console.error)
+        return () => { cancelled = true }
+    }, [])
+
+    // Compute playing teams as the intersection of teams playing on all selected days
+    const playingTeams = useMemo<string[] | null>(() => {
+        if (selectedDays.length === 0) return null
+        const sets = selectedDays.map((date) => {
+            const day = weekDays.find((d) => d.date === date)
+            return new Set(day?.playingTeams ?? [])
+        })
+        const [first, ...rest] = sets
+        if (!first) return []
+        const intersection = new Set(first)
+        for (const s of rest) {
+            for (const team of intersection) {
+                if (!s.has(team)) intersection.delete(team)
+            }
+        }
+        return Array.from(intersection)
+    }, [selectedDays, weekDays])
+
+    const load = useCallback(async (q: string, pos: string, teams: string[], lgId: string | null, playing: string[] | null) => {
         setLoading(true)
         try {
-            setPlayers(await searchPlayers(q, pos))
+            setPlayers(await searchPlayers(q, pos, teams, lgId, playing))
         } catch (e) {
             console.error(e)
         } finally {
@@ -205,9 +281,28 @@ export default function PlayersScreen() {
     }, [])
 
     useEffect(() => {
-        const timer = setTimeout(() => load(query, position), 300)
+        const timer = setTimeout(() => load(query, position, selectedTeams, leagueId, playingTeams), 300)
         return () => clearTimeout(timer)
-    }, [query, position, load])
+    }, [query, position, selectedTeams, leagueId, playingTeams, load])
+
+    function toggleTeam(t: string) {
+        setSelectedTeams((prev) =>
+            prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]
+        )
+    }
+
+    function toggleDay(date: string) {
+        setSelectedDays((prev) =>
+            prev.includes(date) ? prev.filter((x) => x !== date) : [...prev, date]
+        )
+    }
+
+    function openTeamPicker() {
+        teamBtnRef.current?.measure((_x, _y, width, _height, pageX, pageY) => {
+            const screenWidth = Dimensions.get('window').width
+            setTeamPopover({ top: pageY, right: screenWidth - pageX })
+        })
+    }
 
     async function handleAdd(player: PlayerRow) {
         if (!current) return
@@ -382,36 +477,129 @@ export default function PlayersScreen() {
                     autoCorrect={false}
                     clearButtonMode="while-editing"
                 />
+                <Pressable
+                    style={[styles.availableChip, availableOnly && styles.availableChipActive]}
+                    onPress={() => setAvailableOnly((v) => !v)}
+                >
+                    <Text style={[styles.availableChipText, availableOnly && styles.availableChipTextActive]}>
+                        Available
+                    </Text>
+                </Pressable>
             </View>
 
-            {/* Position filter */}
-            <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                style={styles.positionScrollView}
-                contentContainerStyle={styles.positionRow}
-            >
-                {POSITIONS.map((item) => (
+            {/* Position + Team filters */}
+            <View style={styles.filterRow}>
+                <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={styles.positionScrollView}
+                    contentContainerStyle={styles.positionChips}
+                >
+                    {POSITIONS.map((item) => (
+                        <Pressable
+                            key={item}
+                            style={[styles.posChip, position === item && styles.posChipActive]}
+                            onPress={() => setPosition(item)}
+                        >
+                            <Text style={[styles.posChipText, position === item && styles.posChipTextActive]}>
+                                {item}
+                            </Text>
+                        </Pressable>
+                    ))}
+                </ScrollView>
+
+                <Pressable
+                    ref={teamBtnRef}
+                    style={[styles.teamDropdown, selectedTeams.length > 0 && styles.teamDropdownActive]}
+                    onPress={openTeamPicker}
+                >
+                    <Text style={[styles.teamDropdownText, selectedTeams.length > 0 && styles.teamDropdownTextActive]}>
+                        {selectedTeams.length === 0 ? 'Team'
+                            : selectedTeams.length === 1 ? selectedTeams[0]
+                            : `${selectedTeams.length} teams`}
+                    </Text>
+                    <Text style={[styles.teamDropdownCaret, selectedTeams.length > 0 && styles.teamDropdownTextActive]}>▾</Text>
+                </Pressable>
+            </View>
+
+            {/* Day filter */}
+            <View style={styles.dayFilterRow}>
+                <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.dayChips}
+                >
                     <Pressable
-                        key={item}
-                        style={[styles.posChip, position === item && styles.posChipActive]}
-                        onPress={() => setPosition(item)}
+                        style={[styles.dayChip, styles.dayChipWide, sortByGamesLeft && styles.dayChipActive]}
+                        onPress={() => setSortByGamesLeft((v) => !v)}
                     >
-                        <Text style={[styles.posChipText, position === item && styles.posChipTextActive]}>
-                            {item}
-                        </Text>
+                        <Text style={[styles.dayChipSortLabel, sortByGamesLeft && styles.dayChipTextActive]}>G Left</Text>
                     </Pressable>
-                ))}
-            </ScrollView>
+                    {weekDays.filter((day) => day.date >= todayDateString()).map((day) => {
+                        const active = selectedDays.includes(day.date)
+                        const label = new Date(day.date + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'short' })
+                        return (
+                            <Pressable
+                                key={day.date}
+                                style={[styles.dayChip, active && styles.dayChipActive]}
+                                onPress={() => toggleDay(day.date)}
+                            >
+                                <Text style={[styles.dayChipLabel, active && styles.dayChipTextActive]}>{label}</Text>
+                                <Text style={[styles.dayChipNum, active && styles.dayChipTextActive]}>{day.dateNum}</Text>
+                            </Pressable>
+                        )
+                    })}
+                    {selectedDays.length > 0 && (
+                        <Pressable style={styles.dayClearBtn} onPress={() => setSelectedDays([])}>
+                            <Text style={styles.dayClearText}>Clear</Text>
+                        </Pressable>
+                    )}
+                </ScrollView>
+            </View>
+
+            {/* Team picker popover */}
+            <Modal
+                visible={teamPopover !== null}
+                transparent
+                animationType="none"
+                onRequestClose={() => setTeamPopover(null)}
+            >
+                <Pressable style={styles.popoverBackdrop} onPress={() => setTeamPopover(null)}>
+                    <View
+                        style={[styles.teamPopover, teamPopover ? { top: teamPopover.top, right: teamPopover.right } : {}]}
+                        onStartShouldSetResponder={() => true}
+                    >
+                        {selectedTeams.length > 0 && (
+                            <Pressable onPress={() => setSelectedTeams([])} style={styles.popoverClear}>
+                                <Text style={styles.popoverClearText}>Clear</Text>
+                            </Pressable>
+                        )}
+                        <View style={styles.teamGrid}>
+                            {TEAMS.map((t) => {
+                                const active = selectedTeams.includes(t)
+                                return (
+                                    <Pressable
+                                        key={t}
+                                        style={[styles.teamCell, active && styles.teamCellActive]}
+                                        onPress={() => toggleTeam(t)}
+                                    >
+                                        <Text style={[styles.teamCellText, active && styles.teamCellTextActive]}>{t}</Text>
+                                    </Pressable>
+                                )
+                            })}
+                        </View>
+                    </View>
+                </Pressable>
+            </Modal>
 
             {/* Results */}
             {loading ? (
                 <ActivityIndicator style={styles.flex1} color={colors.primary} />
             ) : (
                 <FlashList
-                    data={players}
+                    data={displayedPlayers}
                     keyExtractor={(p) => p.id}
-                    contentContainerStyle={players.length === 0 ? styles.emptyContainer : undefined}
+                    contentContainerStyle={displayedPlayers.length === 0 ? styles.emptyContainer : undefined}
                     ItemSeparatorComponent={ItemSeparator}
                     renderItem={({ item }) => (
                         <PlayerSearchItem
@@ -420,6 +608,7 @@ export default function PlayersScreen() {
                             ownedMap={ownedMap}
                             waiverIds={waiverIds}
                             adding={adding}
+                            gamesLeft={gamesLeft}
                             onAdd={handleAdd}
                             onPress={() => push(`/player/${item.id}`)}
                         />
@@ -449,17 +638,25 @@ export default function PlayersScreen() {
                                 const isDroppingThis = dropping === rp.id
                                 return (
                                     <View key={rp.id} style={styles.dropRow}>
-                                        <Avatar
-                                            name={p.display_name}
-                                            color={POSITION_COLORS[p.position ?? ''] ?? palette.gray500}
-                                            size={38}
-                                        />
-                                        <View style={styles.dropInfo}>
-                                            <Text style={styles.dropName} numberOfLines={1}>{p.display_name}</Text>
-                                            <Text style={styles.dropMeta}>
-                                                {[p.nba_team, p.position].filter(Boolean).join(' · ')}
-                                            </Text>
-                                        </View>
+                                        {(() => {
+                                            const ep: string[] = p.eligible_positions?.length ? p.eligible_positions : (p.position ? [p.position] : [])
+                                            return (
+                                                <>
+                                                    <Avatar
+                                                        name={p.display_name}
+                                                        color={POSITION_COLORS[ep[0] ?? ''] ?? palette.gray500}
+                                                        size={38}
+                                                    />
+                                                    <View style={styles.dropInfo}>
+                                                        <Text style={styles.dropName} numberOfLines={1}>{p.display_name}</Text>
+                                                        <View style={styles.playerMetaRow}>
+                                                            {p.nba_team && <Text style={styles.dropMeta}>{p.nba_team}</Text>}
+                                                            {ep.map((pos: string) => <PosTag key={pos} position={pos} />)}
+                                                        </View>
+                                                    </View>
+                                                </>
+                                            )
+                                        })()}
                                         <Pressable
                                             style={styles.dropBtn}
                                             onPress={() => handleDropAndAdd(rp)}
@@ -504,8 +701,9 @@ const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgScreen },
     flex1: { flex: 1 },
 
-    searchRow: { paddingHorizontal: spacing.xl, paddingVertical: spacing.lg },
+    searchRow: { paddingHorizontal: spacing.xl, paddingVertical: spacing.lg, flexDirection: 'row', alignItems: 'center', gap: spacing.md },
     searchInput: {
+        flex: 1,
         height: 44,
         backgroundColor: colors.bgMuted,
         borderRadius: radii.lg,
@@ -514,8 +712,63 @@ const styles = StyleSheet.create({
         fontSize: fontSize.lg,
     },
 
-    positionScrollView: { flexGrow: 0, flexShrink: 0 },
-    positionRow: { paddingLeft: spacing.xl, paddingRight: spacing['4xl'], paddingBottom: spacing.lg, gap: spacing.md },
+    availableChip: {
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.sm,
+        borderRadius: radii['3xl'],
+        borderCurve: 'continuous' as const,
+        backgroundColor: colors.bgMuted,
+        flexShrink: 0,
+    },
+    availableChipActive: { backgroundColor: colors.primary },
+    availableChipText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textSecondary },
+    availableChipTextActive: { color: colors.textWhite },
+
+    filterRow: { flexDirection: 'row', alignItems: 'center', paddingRight: spacing.xl, marginBottom: spacing.lg },
+    positionScrollView: { flexGrow: 1, flexShrink: 1 },
+    positionChips: { paddingLeft: spacing.xl, paddingRight: spacing.md, gap: spacing.md },
+    teamDropdown: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.sm,
+        borderRadius: radii['3xl'],
+        borderCurve: 'continuous' as const,
+        backgroundColor: colors.bgMuted,
+        flexShrink: 0,
+    },
+    teamDropdownActive: { backgroundColor: colors.primary },
+    teamDropdownText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textSecondary },
+    teamDropdownTextActive: { color: colors.textWhite },
+    teamDropdownCaret: { fontSize: 11, color: colors.textSecondary },
+    popoverBackdrop: { flex: 1 },
+    teamPopover: {
+        position: 'absolute',
+        backgroundColor: colors.bgScreen,
+        borderRadius: radii['2xl'],
+        borderCurve: 'continuous' as const,
+        padding: spacing.md,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.18,
+        shadowRadius: 12,
+        elevation: 8,
+    },
+    popoverClear: { alignItems: 'flex-end', paddingHorizontal: spacing.xs, paddingBottom: spacing.sm },
+    popoverClearText: { fontSize: fontSize.sm, color: colors.primary, fontWeight: fontWeight.semibold },
+    teamGrid: { flexDirection: 'row', flexWrap: 'wrap', width: 6 * 44 },
+    teamCell: {
+        width: 44,
+        height: 36,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: radii.md,
+        borderCurve: 'continuous' as const,
+    },
+    teamCellActive: { backgroundColor: colors.primary },
+    teamCellText: { fontSize: fontSize.xs, fontWeight: fontWeight.semibold, color: colors.textSecondary },
+    teamCellTextActive: { color: colors.textWhite },
     posChip: {
         paddingHorizontal: spacing.lg + spacing.xxs,
         paddingVertical: spacing.sm,
@@ -526,6 +779,30 @@ const styles = StyleSheet.create({
     posChipActive: { backgroundColor: colors.primary },
     posChipText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textSecondary },
     posChipTextActive: { color: colors.textWhite },
+
+    dayFilterRow: { marginBottom: spacing.md },
+    dayChips: { paddingHorizontal: spacing.xl, gap: spacing.sm },
+    dayChip: {
+        alignItems: 'center',
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.sm,
+        borderRadius: radii.xl,
+        borderCurve: 'continuous' as const,
+        backgroundColor: colors.bgMuted,
+        minWidth: 46,
+    },
+    dayChipActive: { backgroundColor: colors.primary },
+    dayChipLabel: { fontSize: 10, fontWeight: fontWeight.bold, color: colors.textMuted, textTransform: 'uppercase' as const },
+    dayChipNum: { fontSize: fontSize.md, fontWeight: fontWeight.bold, color: colors.textPrimary },
+    dayChipTextActive: { color: colors.textWhite },
+    dayChipWide: { minWidth: 58 },
+    dayChipSortLabel: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.textMuted, lineHeight: 20 },
+    dayClearBtn: {
+        alignSelf: 'center',
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.sm,
+    },
+    dayClearText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.primary },
 
     playerRow: {
         flexDirection: 'row',
@@ -564,7 +841,9 @@ const styles = StyleSheet.create({
 
     playerInfo: { flex: 1 },
     playerName: { fontSize: fontSize.lg, fontWeight: fontWeight.semibold },
-    playerMeta: { fontSize: fontSize.sm, color: colors.textMuted, marginTop: spacing.xxs },
+    playerMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: spacing.xxs },
+    playerMeta: { fontSize: fontSize.sm, color: colors.textMuted },
+    gamesLeftText: { fontSize: fontSize.xs, fontWeight: fontWeight.semibold, color: colors.textMuted },
 
     statusBadge: {
         paddingHorizontal: 7,
