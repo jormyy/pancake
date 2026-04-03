@@ -24,7 +24,7 @@ import {
 } from '@/lib/lineup'
 import { todayDateString } from '@/lib/shared/dates'
 import { useRouter } from 'expo-router'
-import { useCallback, useEffect, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import {
     ActivityIndicator,
     Alert,
@@ -40,10 +40,145 @@ type Selection =
     | { kind: 'starter'; index: number }
     | { kind: 'bench'; index: number }
 
+// Memoized row component that only re-renders when its props change
+const StarterRow = memo(function StarterRow({
+    slot,
+    index,
+    isSelected,
+    startedTeamsRef,
+    liveTeamsRef,
+    teamMatchups,
+    onPress,
+    disabled,
+}: {
+    slot: LineupSlot
+    index: number
+    isSelected: boolean
+    startedTeamsRef: React.RefObject<Set<string>>
+    liveTeamsRef: React.RefObject<Set<string>>
+    teamMatchups: Map<string, { opponent: string; isHome: boolean }>
+    onPress: () => void
+    disabled: boolean
+}) {
+    const p = slot.player
+    const startedTeams = startedTeamsRef.current
+    const liveTeams = liveTeamsRef.current
+    const isLocked = !!(p?.nbaTeam && liveTeams.has(p.nbaTeam))
+    const starterMatchup = p?.nbaTeam ? teamMatchups.get(p.nbaTeam) : undefined
+    const starterMatchupLabel = p?.nbaTeam
+        ? (starterMatchup ? `${starterMatchup.isHome ? 'vs' : '@'} ${starterMatchup.opponent}` : '· No game')
+        : null
+
+    return (
+        <Pressable
+            style={[
+                styles.slotRow,
+                index > 0 && styles.divider,
+                isSelected && styles.selectedRow,
+            ]}
+            onPress={onPress}
+            disabled={disabled}
+        >
+            <Text style={styles.slotLabel}>{slot.slotType}</Text>
+            {p ? (
+                <>
+                    <Avatar
+                        name={p.displayName}
+                        color={POSITION_COLORS[p.position ?? ''] ?? palette.gray500}
+                        size={36}
+                    />
+                    <View style={styles.playerInfo}>
+                        <Text style={styles.playerName}>{p.displayName}</Text>
+                        <View style={styles.playerMetaRow}>
+                            {p.eligiblePositions.map((pos) => <PosTag key={pos} position={pos} />)}
+                            {starterMatchupLabel !== null && (
+                                <Text style={styles.playerMeta}>{p.nbaTeam} {starterMatchupLabel}</Text>
+                            )}
+                        </View>
+                    </View>
+                    {isLocked && (
+                        <Text style={styles.lockedBadge}>LIVE</Text>
+                    )}
+                </>
+            ) : (
+                <Text style={styles.emptySlot}>Empty</Text>
+            )}
+        </Pressable>
+    )
+})
+
+// Memoized bench player row component
+const BenchRow = memo(function BenchRow({
+    player,
+    index,
+    isSelected,
+    startedTeamsRef,
+    liveTeamsRef,
+    teamMatchups,
+    onPress,
+    disabled,
+}: {
+    player: LineupPlayer
+    index: number
+    isSelected: boolean
+    startedTeamsRef: React.RefObject<Set<string>>
+    liveTeamsRef: React.RefObject<Set<string>>
+    teamMatchups: Map<string, { opponent: string; isHome: boolean }>
+    onPress: () => void
+    disabled: boolean
+}) {
+    const startedTeams = startedTeamsRef.current
+    const liveTeams = liveTeamsRef.current
+    const isLocked = !!(player.nbaTeam && liveTeams.has(player.nbaTeam))
+    const benchMatchup = player.nbaTeam ? teamMatchups.get(player.nbaTeam) : undefined
+    const benchMatchupLabel = player.nbaTeam
+        ? (benchMatchup ? `${benchMatchup.isHome ? 'vs' : '@'} ${benchMatchup.opponent}` : '· No game')
+        : null
+
+    return (
+        <Pressable
+            style={[
+                styles.benchRow,
+                index > 0 && styles.divider,
+                isSelected && styles.selectedRow,
+            ]}
+            onPress={onPress}
+            disabled={disabled}
+        >
+            <Avatar
+                name={player.displayName}
+                color={POSITION_COLORS[player.position ?? ''] ?? palette.gray500}
+                size={36}
+            />
+            <View style={styles.playerInfo}>
+                <Text style={styles.playerName}>{player.displayName}</Text>
+                <View style={styles.playerMetaRow}>
+                    {player.eligiblePositions.map((pos) => <PosTag key={pos} position={pos} />)}
+                    {benchMatchupLabel !== null && (
+                        <Text style={styles.playerMeta}>{player.nbaTeam} {benchMatchupLabel}</Text>
+                    )}
+                </View>
+            </View>
+            {isLocked && (
+                <Text style={styles.lockedBadge}>LIVE</Text>
+            )}
+        </Pressable>
+    )
+})
+
 export default function LineupScreen() {
     const { back } = useRouter()
     const { user } = useAuth()
     const { current } = useLeagueContext()
+
+    console.log('[LineupScreen] Render, current league:', current?.leagues?.id)
+
+    useEffect(() => {
+        console.log('[LineupScreen] Mounted')
+        return () => {
+            console.log('[LineupScreen] Unmounted')
+        }
+    }, [])
 
     const [ctx, setCtx] = useState<LineupContext | null>(null)
     const [weekDays, setWeekDays] = useState<WeekDay[]>([])
@@ -52,10 +187,16 @@ export default function LineupScreen() {
     )
     const [starters, setStarters] = useState<LineupSlot[]>([])
     const [bench, setBench] = useState<LineupPlayer[]>([])
-    const [startedTeams, setStartedTeams] = useState<Set<string>>(new Set())
-    const [liveTeams, setLiveTeams] = useState<Set<string>>(new Set())
+    // Use refs for started/live teams so updates don't trigger full re-render
+    const startedTeamsRef = useRef<Set<string>>(new Set())
+    const liveTeamsRef = useRef<Set<string>>(new Set())
     const [teamMatchups, setTeamMatchups] = useState<Map<string, { opponent: string; isHome: boolean }>>(new Map())
     const [loading, setLoading] = useState(true)
+
+    // Log when loading state changes
+    useEffect(() => {
+        console.log('[LineupScreen] loading changed to:', loading)
+    }, [loading])
     const [saving, setSaving] = useState(false)
     const [autoSetting, setAutoSetting] = useState(false)
     const [autoSetModalVisible, setAutoSetModalVisible] = useState(false)
@@ -76,12 +217,13 @@ export default function LineupScreen() {
         ])
         setStarters(lineup.starters)
         setBench(lineup.bench)
-        setStartedTeams(started)
-        setLiveTeams(live)
+        startedTeamsRef.current = started
+        liveTeamsRef.current = live
         setTeamMatchups(matchups)
     }, [current])
 
     const load = useCallback(async () => {
+        console.log('[LineupScreen] load() called, current league:', current?.leagues?.id)
         if (!current || !user) return
         const league = current.leagues as any
         setLoading(true)
@@ -102,16 +244,21 @@ export default function LineupScreen() {
 
     useEffect(() => { load() }, [load])
 
-    // Refresh started/live teams every 15s when viewing today (games can go InProgress mid-session)
-    useEffect(() => {
-        const today = todayDateString()
-        if (selectedDate !== today) return
-        const interval = setInterval(() => {
-            getStartedTeams(selectedDate).then(setStartedTeams).catch(() => {})
-            getLiveTeams(selectedDate).then(setLiveTeams).catch(() => {})
-        }, 15_000)
-        return () => clearInterval(interval)
-    }, [selectedDate])
+    // TEMPORARILY DISABLED: Refresh started/live teams every 15s when viewing today (games can go InProgress mid-session)
+    // The interval was causing scroll position reset
+    // useEffect(() => {
+    //     const today = todayDateString()
+    //     if (selectedDate !== today) return
+    //     const interval = setInterval(async () => {
+    //         const [started, live] = await Promise.all([
+    //             getStartedTeams(selectedDate).catch(() => new Set<string>()),
+    //             getLiveTeams(selectedDate).catch(() => new Set<string>()),
+    //         ])
+    //         startedTeamsRef.current = started
+    //         liveTeamsRef.current = live
+    //     }, 15_000)
+    //     return () => clearInterval(interval)
+    // }, [selectedDate])
 
     async function handleTap(newSel: Selection) {
         // Block all moves on past days
@@ -143,8 +290,8 @@ export default function LineupScreen() {
         const bSlot = newSel.kind === 'starter' ? starters[newSel.index].slotType : 'BE'
 
         // Block any move involving a player whose game has already started (InProgress or Final)
-        const aLocked = !!(aPlayer?.nbaTeam && startedTeams.has(aPlayer.nbaTeam))
-        const bLocked = !!(bPlayer?.nbaTeam && startedTeams.has(bPlayer.nbaTeam))
+        const aLocked = !!(aPlayer?.nbaTeam && startedTeamsRef.current.has(aPlayer.nbaTeam))
+        const bLocked = !!(bPlayer?.nbaTeam && startedTeamsRef.current.has(bPlayer.nbaTeam))
         if (aLocked || bLocked) {
             const who = aLocked ? aPlayer! : bPlayer!
             Alert.alert('Lineup locked', `${who.displayName}'s game has already started. No lineup changes are allowed once a game begins.`)
@@ -263,52 +410,19 @@ export default function LineupScreen() {
                 {/* Starters */}
                 <Text style={styles.sectionLabel}>STARTERS</Text>
                 <View style={styles.card}>
-                    {starters.map((slot, i) => {
-                        const isSelected = selected?.kind === 'starter' && selected.index === i
-                        const p = slot.player
-                        const isLocked = !!(p?.nbaTeam && liveTeams.has(p.nbaTeam))
-                        const starterMatchup = p?.nbaTeam ? teamMatchups.get(p.nbaTeam) : undefined
-                        const starterMatchupLabel = p?.nbaTeam
-                            ? (starterMatchup ? `${starterMatchup.isHome ? 'vs' : '@'} ${starterMatchup.opponent}` : '· No game')
-                            : null
-                        return (
-                            <Pressable
-                                key={`starter-${i}`}
-                                style={[
-                                    styles.slotRow,
-                                    i > 0 && styles.divider,
-                                    isSelected && styles.selectedRow,
-                                ]}
-                                onPress={() => handleTap({ kind: 'starter', index: i })}
-                                disabled={saving}
-                            >
-                                <Text style={styles.slotLabel}>{slot.slotType}</Text>
-                                {p ? (
-                                    <>
-                                        <Avatar
-                                            name={p.displayName}
-                                            color={POSITION_COLORS[p.position ?? ''] ?? palette.gray500}
-                                            size={36}
-                                        />
-                                        <View style={styles.playerInfo}>
-                                            <Text style={styles.playerName}>{p.displayName}</Text>
-                                            <View style={styles.playerMetaRow}>
-                                                {p.eligiblePositions.map((pos) => <PosTag key={pos} position={pos} />)}
-                                                {starterMatchupLabel !== null && (
-                                                    <Text style={styles.playerMeta}>{p.nbaTeam} {starterMatchupLabel}</Text>
-                                                )}
-                                            </View>
-                                        </View>
-                                        {isLocked && (
-                                            <Text style={styles.lockedBadge}>LIVE</Text>
-                                        )}
-                                    </>
-                                ) : (
-                                    <Text style={styles.emptySlot}>Empty</Text>
-                                )}
-                            </Pressable>
-                        )
-                    })}
+                    {starters.map((slot, i) => (
+                        <StarterRow
+                            key={`starter-${i}`}
+                            slot={slot}
+                            index={i}
+                            isSelected={selected?.kind === 'starter' && selected.index === i}
+                            startedTeamsRef={startedTeamsRef}
+                            liveTeamsRef={liveTeamsRef}
+                            teamMatchups={teamMatchups}
+                            onPress={() => handleTap({ kind: 'starter', index: i })}
+                            disabled={saving}
+                        />
+                    ))}
                 </View>
 
                 {/* Bench */}
@@ -317,44 +431,19 @@ export default function LineupScreen() {
                     {bench.length === 0 ? (
                         <Text style={styles.benchEmpty}>All players are in the starting lineup</Text>
                     ) : (
-                        bench.map((player, i) => {
-                            const isSelected = selected?.kind === 'bench' && selected.index === i
-                            const isLocked = !!(player.nbaTeam && liveTeams.has(player.nbaTeam))
-                            const benchMatchup = player.nbaTeam ? teamMatchups.get(player.nbaTeam) : undefined
-                            const benchMatchupLabel = player.nbaTeam
-                                ? (benchMatchup ? `${benchMatchup.isHome ? 'vs' : '@'} ${benchMatchup.opponent}` : '· No game')
-                                : null
-                            return (
-                                <Pressable
-                                    key={player.playerId}
-                                    style={[
-                                        styles.benchRow,
-                                        i > 0 && styles.divider,
-                                        isSelected && styles.selectedRow,
-                                    ]}
-                                    onPress={() => handleTap({ kind: 'bench', index: i })}
-                                    disabled={saving}
-                                >
-                                    <Avatar
-                                        name={player.displayName}
-                                        color={POSITION_COLORS[player.position ?? ''] ?? palette.gray500}
-                                        size={36}
-                                    />
-                                    <View style={styles.playerInfo}>
-                                        <Text style={styles.playerName}>{player.displayName}</Text>
-                                        <View style={styles.playerMetaRow}>
-                                            {player.eligiblePositions.map((pos) => <PosTag key={pos} position={pos} />)}
-                                            {benchMatchupLabel !== null && (
-                                                <Text style={styles.playerMeta}>{player.nbaTeam} {benchMatchupLabel}</Text>
-                                            )}
-                                        </View>
-                                    </View>
-                                    {isLocked && (
-                                        <Text style={styles.lockedBadge}>LIVE</Text>
-                                    )}
-                                </Pressable>
-                            )
-                        })
+                        bench.map((player, i) => (
+                            <BenchRow
+                                key={player.playerId}
+                                player={player}
+                                index={i}
+                                isSelected={selected?.kind === 'bench' && selected.index === i}
+                                startedTeamsRef={startedTeamsRef}
+                                liveTeamsRef={liveTeamsRef}
+                                teamMatchups={teamMatchups}
+                                onPress={() => handleTap({ kind: 'bench', index: i })}
+                                disabled={saving}
+                            />
+                        ))
                     )}
                 </View>
             </ScrollView>

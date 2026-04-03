@@ -8,7 +8,7 @@ import {
     Modal,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { useCallback, useEffect } from 'react'
+import { useEffect } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useAuth } from '@/hooks/use-auth'
 import { Scoreboard } from '@/components/Scoreboard'
@@ -43,14 +43,10 @@ export default function HomeScreen() {
     const {
         matchup, weekDays, selectedDate, setSelectedDate,
         myLineup, oppLineup, matchupLoading, lineupLoading,
-        loadMyLineup, loadLineups, matchupRef,
+        loadMyLineup, loadLineups, refreshSilently, matchupRef,
     } = useMatchupData(current, user, league)
 
-    const refreshLineup = useCallback(() => {
-        if (matchupRef.current) loadLineups(matchupRef.current, selectedDate).catch(() => {})
-    }, [matchupRef, loadLineups, selectedDate])
-
-    const { todaysGames, liveStats, startedTeams, liveTeams, teamMatchups } = useLiveStats(selectedDate, refreshLineup)
+    const { todaysGames, liveStats, startedTeams, liveTeams, teamMatchups } = useLiveStats(selectedDate, refreshSilently)
 
     const {
         selected, setSelected, saving, autoSetting,
