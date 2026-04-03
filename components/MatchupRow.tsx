@@ -146,13 +146,13 @@ export function MatchupRow({
             <Pressable
                 style={[
                     styles.slotChipCenter,
-                    { backgroundColor: isExtraOppRow ? colors.separator : slotColor + '22' },
+                    { backgroundColor: slotColor + '22' },
                     isSel && styles.slotChipSelected,
                 ]}
                 onPress={isExtraOppRow ? undefined : () => onTap({ kind: selKind, index: selIndex })}
                 disabled={saving || isExtraOppRow}
             >
-                <Text style={[styles.slotChipText, { color: isExtraOppRow ? colors.textPlaceholder : (isSel ? colors.primary : slotColor) }]}>
+                <Text style={[styles.slotChipText, { color: isSel ? colors.primary : slotColor }]}>
                     {isExtraOppRow ? '—' : slotType}
                 </Text>
             </Pressable>
@@ -207,7 +207,6 @@ const styles = StyleSheet.create({
         gap: 8,
     },
     extraOppRow: {
-        opacity: 0.55,
     },
     rowSideLeft: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end' },
     rowSideRight: { flex: 1, flexDirection: 'row', alignItems: 'center' },

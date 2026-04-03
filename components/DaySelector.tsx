@@ -1,4 +1,4 @@
-import { ScrollView, Pressable, View, Text, StyleSheet } from 'react-native'
+import { Pressable, View, Text, StyleSheet } from 'react-native'
 import { WeekDay } from '@/lib/lineup'
 import { todayDateString } from '@/lib/shared/dates'
 import { colors, palette } from '@/constants/tokens'
@@ -13,12 +13,7 @@ export function DaySelector({
     onSelect: (date: string) => void
 }) {
     return (
-        <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.row}
-            contentContainerStyle={styles.content}
-        >
+        <View style={[styles.row, styles.content]}>
             {days.map((day) => {
                 const isSelected = day.date === selectedDate
                 const isPast = day.date < todayDateString()
@@ -50,7 +45,7 @@ export function DaySelector({
                     </Pressable>
                 )
             })}
-        </ScrollView>
+        </View>
     )
 }
 

@@ -28,8 +28,16 @@ export async function signIn(email: string, password: string) {
 }
 
 export async function signOut() {
-    const { error } = await supabase.auth.signOut()
-    if (error) throw error
+    try {
+        const { error } = await supabase.auth.signOut()
+        if (error) {
+            // Server sign-out failed (network error, unexpected server error, etc.).
+            // Force-clear local session so the user can always sign out on their device.
+            await (supabase.auth as any)._removeSession()
+        }
+    } catch {
+        await (supabase.auth as any)._removeSession()
+    }
 }
 
 export async function getProfile(userId: string) {

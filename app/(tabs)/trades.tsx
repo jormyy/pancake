@@ -497,10 +497,7 @@ export default function TradesScreen() {
                         if (item._type === 'pick') {
                             const isOwn = item.pick.originalTeamName === myTeamName
                             return (
-                                <Pressable
-                                    style={styles.pickRow}
-                                    onPress={() => push('/(modals)/propose-trade')}
-                                >
+                                <View style={styles.pickRow}>
                                     <View style={styles.pickCircle}>
                                         <Text style={styles.pickCircleText}>
                                             {yearShort(item.pick.seasonYear)}
@@ -514,8 +511,7 @@ export default function TradesScreen() {
                                             {isOwn ? 'Own pick' : `from ${item.pick.originalTeamName}`}
                                         </Text>
                                     </View>
-                                    <Text style={styles.pickHint}>Trade</Text>
-                                </Pressable>
+                                </View>
                             )
                         }
                         return (

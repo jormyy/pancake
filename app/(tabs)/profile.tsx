@@ -3,9 +3,11 @@ import {
     Text,
     TextInput,
     Pressable,
+    ScrollView,
     StyleSheet,
     ActivityIndicator,
     Alert,
+    Platform,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useEffect, useState } from 'react'
@@ -82,6 +84,15 @@ export default function ProfileScreen() {
     }
 
     async function handleSignOut() {
+        if (Platform.OS === 'web') {
+            if (!window.confirm('Are you sure you want to sign out?')) return
+            try {
+                await signOut()
+            } catch (e) {
+                console.error(e)
+            }
+            return
+        }
         Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
             { text: 'Cancel', style: 'cancel' },
             {
@@ -102,7 +113,7 @@ export default function ProfileScreen() {
 
     return (
         <SafeAreaView style={styles.container}>
-            <View style={styles.scroll}>
+            <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
                 {/* Avatar */}
                 <View style={styles.avatarSection}>
                     <Avatar
@@ -200,14 +211,15 @@ export default function ProfileScreen() {
                 <Pressable style={styles.signOutButton} onPress={handleSignOut}>
                     <Text style={styles.signOutText}>Sign Out</Text>
                 </Pressable>
-            </View>
+            </ScrollView>
         </SafeAreaView>
     )
 }
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgSubtle },
-    scroll: { flex: 1, padding: spacing['3xl'], gap: spacing.xl },
+    scroll: { flex: 1 },
+    scrollContent: { padding: spacing['3xl'], gap: spacing.xl },
 
     avatarSection: { alignItems: 'center', paddingTop: 48, paddingBottom: spacing.md },
 
