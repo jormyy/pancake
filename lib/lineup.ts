@@ -356,6 +356,35 @@ export async function setPlayerSlot(
 // Auto-set lineup for a single day or the full week.
 // For each day: players who have an NBA game that day are prioritized as starters,
 // then filled in by projected points. Players without games land on bench.
+async function getRemainingSeasonDates(
+    fromWeek: number,
+    seasonYear: number,
+): Promise<{ date: string; weekNumber: number }[]> {
+    const today = todayDateString()
+    const { data: weeks } = await supabase
+        .from('season_weeks')
+        .select('week_number, week_start')
+        .eq('season_year', seasonYear)
+        .gte('week_number', fromWeek)
+        .order('week_number', { ascending: true })
+
+    const result: { date: string; weekNumber: number }[] = []
+    for (const w of weeks ?? []) {
+        const start = new Date((w as any).week_start + 'T12:00:00Z')
+        const dow = start.getUTCDay()
+        start.setUTCDate(start.getUTCDate() + (dow === 0 ? -6 : 1 - dow))
+        for (let i = 0; i < 7; i++) {
+            const d = new Date(start)
+            d.setUTCDate(d.getUTCDate() + i)
+            const dateStr = d.toISOString().split('T')[0]
+            if (dateStr >= today) {
+                result.push({ date: dateStr, weekNumber: (w as any).week_number })
+            }
+        }
+    }
+    return result
+}
+
 export async function autoSetLineup(
     memberId: string,
     leagueId: string,
@@ -363,6 +392,7 @@ export async function autoSetLineup(
     weekNumber: number,
     seasonYear: number,
     gameDate: string | null, // null = whole week
+    restOfSeason?: boolean,
 ): Promise<void> {
     const [{ data: roster }, { data: templates }] = await Promise.all([
         supabase
@@ -437,17 +467,23 @@ export async function autoSetLineup(
         (t: any) => t.slot_type !== 'BE' && t.slot_type !== 'IR',
     )
 
-    const allDates = gameDate
-        ? [gameDate]
-        : (await getWeekDays(weekNumber, seasonYear)).map((d) => d.date)
-
-    // Filter out past dates - skip already-played games
     const today = todayDateString()
-    const dates = allDates.filter((d) => d >= today)
+    let datesToProcess: { date: string; weekNumber: number }[]
 
-    for (const date of dates) {
+    if (restOfSeason) {
+        datesToProcess = await getRemainingSeasonDates(weekNumber, seasonYear)
+    } else {
+        const allDates = gameDate
+            ? [gameDate]
+            : (await getWeekDays(weekNumber, seasonYear)).map((d) => d.date)
+        datesToProcess = allDates
+            .filter((d) => d >= today)
+            .map((d) => ({ date: d, weekNumber }))
+    }
+
+    for (const { date, weekNumber: wn } of datesToProcess) {
         await autoSetForDate(
-            memberId, leagueId, seasonId, weekNumber, seasonYear,
+            memberId, leagueId, seasonId, wn, seasonYear,
             date, players, starterTemplates,
         )
     }

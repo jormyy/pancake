@@ -41,38 +41,58 @@ export default function SignInScreen() {
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
             <View style={styles.inner}>
-                <Text style={styles.title}>Pancake</Text>
-                <Text style={styles.subtitle}>Dynasty Fantasy Basketball</Text>
+                {/* Brand mark */}
+                <View style={styles.brandMark}>
+                    <Text style={styles.brandEmoji}>🥞</Text>
+                    <Text style={styles.brandEmoji}>🏀</Text>
+                </View>
+
+                {/* Title block */}
+                <View style={styles.titleBlock}>
+                    <Text style={styles.title}>PANCAKE</Text>
+                    <View style={styles.titleRule} />
+                    <Text style={styles.subtitle}>DYNASTY FANTASY BASKETBALL</Text>
+                    <Text style={styles.tagline}>Stack your roster.</Text>
+                </View>
 
                 {error ? <Text style={styles.error}>{error}</Text> : null}
 
-                <TextInput
-                    style={styles.input}
-                    placeholder="Email"
-                    placeholderTextColor={colors.textMuted}
-                    autoCapitalize="none"
-                    keyboardType="email-address"
-                    textContentType="emailAddress"
-                    value={email}
-                    onChangeText={setEmail}
-                />
-                <TextInput
-                    style={styles.input}
-                    placeholder="Password"
-                    placeholderTextColor={colors.textMuted}
-                    secureTextEntry
-                    textContentType="password"
-                    value={password}
-                    onChangeText={setPassword}
-                />
+                {/* Form */}
+                <View style={styles.formBlock}>
+                    <View style={styles.formDivider}>
+                        <View style={styles.formDividerLine} />
+                        <Text style={styles.formDividerText}>SIGN IN</Text>
+                        <View style={styles.formDividerLine} />
+                    </View>
 
-                <Pressable style={styles.button} onPress={handleSignIn} disabled={loading}>
-                    {loading ? (
-                        <ActivityIndicator color={colors.textWhite} />
-                    ) : (
-                        <Text style={styles.buttonText}>Sign In</Text>
-                    )}
-                </Pressable>
+                    <TextInput
+                        style={styles.input}
+                        placeholder="Email"
+                        placeholderTextColor={colors.textPlaceholder}
+                        autoCapitalize="none"
+                        keyboardType="email-address"
+                        textContentType="emailAddress"
+                        value={email}
+                        onChangeText={setEmail}
+                    />
+                    <TextInput
+                        style={styles.input}
+                        placeholder="Password"
+                        placeholderTextColor={colors.textPlaceholder}
+                        secureTextEntry
+                        textContentType="password"
+                        value={password}
+                        onChangeText={setPassword}
+                    />
+
+                    <Pressable style={styles.button} onPress={handleSignIn} disabled={loading}>
+                        {loading ? (
+                            <ActivityIndicator color={colors.textWhite} />
+                        ) : (
+                            <Text style={styles.buttonText}>Sign In</Text>
+                        )}
+                    </Pressable>
+                </View>
 
                 <Link href="/(auth)/sign-up" style={styles.link}>
                     Don't have an account? Sign up
@@ -88,53 +108,111 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: 'center',
         paddingHorizontal: 28,
-        gap: spacing.lg,
+        gap: spacing['2xl'],
+    },
+
+    brandMark: {
+        flexDirection: 'row',
+        justifyContent: 'center',
+        alignItems: 'center',
+        gap: 6,
+        marginBottom: -4,
+    },
+    brandEmoji: {
+        fontSize: 48,
+    },
+
+    titleBlock: {
+        alignItems: 'center',
+        gap: spacing.sm,
     },
     title: {
         fontSize: fontSize['5xl'],
         fontWeight: fontWeight.extrabold,
+        color: colors.primary,
+        letterSpacing: 6,
         textAlign: 'center',
-        marginBottom: spacing.xs,
+    },
+    titleRule: {
+        width: 40,
+        height: 3,
+        backgroundColor: colors.primary,
+        borderRadius: 2,
+        marginVertical: spacing.xs,
     },
     subtitle: {
-        fontSize: 15,
-        color: palette.gray800,
+        fontSize: 10,
+        color: palette.mocha,
         textAlign: 'center',
-        marginBottom: spacing['3xl'],
+        fontWeight: fontWeight.bold,
+        letterSpacing: 2.5,
     },
+    tagline: {
+        fontSize: 13,
+        color: colors.textPlaceholder,
+        textAlign: 'center',
+        fontStyle: 'italic' as const,
+        marginTop: spacing.xs,
+    },
+
     error: {
         color: palette.redBright,
         fontSize: fontSize.md,
         textAlign: 'center',
     },
+
+    formBlock: {
+        gap: spacing.lg,
+    },
+    formDivider: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.md,
+        marginBottom: spacing.xs,
+    },
+    formDividerLine: {
+        flex: 1,
+        height: 1,
+        backgroundColor: colors.border,
+    },
+    formDividerText: {
+        fontSize: 10,
+        fontWeight: fontWeight.extrabold,
+        color: colors.textMuted,
+        letterSpacing: 2.5,
+    },
+
     input: {
         height: 50,
-        borderWidth: 1,
+        borderWidth: 1.5,
         borderColor: colors.border,
         borderRadius: radii.lg,
         borderCurve: 'continuous' as const,
         paddingHorizontal: spacing.xl,
         fontSize: fontSize.lg,
         backgroundColor: colors.bgInput,
+        color: colors.textPrimary,
     },
     button: {
-        height: 50,
+        height: 52,
         backgroundColor: colors.primary,
         borderRadius: radii.lg,
         borderCurve: 'continuous' as const,
         justifyContent: 'center',
         alignItems: 'center',
         marginTop: spacing.md,
+        boxShadow: '0 4px 14px rgba(201, 102, 15, 0.4)',
     },
     buttonText: {
         color: colors.textWhite,
-        fontWeight: fontWeight.bold,
+        fontWeight: fontWeight.extrabold,
         fontSize: fontSize.lg,
+        letterSpacing: 0.5,
     },
+
     link: {
         textAlign: 'center',
         color: colors.primary,
-        marginTop: spacing.lg,
         fontSize: fontSize.md,
     },
 })

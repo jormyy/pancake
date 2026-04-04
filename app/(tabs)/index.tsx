@@ -105,12 +105,11 @@ export default function HomeScreen() {
                 </ScrollView>
             )}
 
-            <Scoreboard games={todaysGames} myTeamSet={myTeamSet} />
-
             {matchupLoading ? (
                 <ActivityIndicator color={colors.primary} style={{ marginTop: 48 }} />
             ) : matchup ? (
                 <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+                    <Scoreboard games={todaysGames} myTeamSet={myTeamSet} />
                     <ScoreCard matchup={matchup} />
 
                     {weekDays.length > 0 && (
@@ -126,7 +125,7 @@ export default function HomeScreen() {
                         >
                             {autoSetting
                                 ? <ActivityIndicator size="small" color={colors.primary} />
-                                : <Text style={styles.autoSetText}>AUTO</Text>}
+                                : <Text style={styles.autoSetText}>⚡ AUTO</Text>}
                         </Pressable>
                     </View>
 
@@ -169,10 +168,13 @@ export default function HomeScreen() {
                     )}
                 </ScrollView>
             ) : (
-                <View style={styles.noMatchup}>
-                    <Text style={styles.noMatchupText}>No matchup this week yet.</Text>
-                    <Text style={styles.noMatchupSub}>Matchups are generated before each week starts.</Text>
-                </View>
+                <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+                    <Scoreboard games={todaysGames} myTeamSet={myTeamSet} />
+                    <View style={styles.noMatchup}>
+                        <Text style={styles.noMatchupText}>No matchup this week yet.</Text>
+                        <Text style={styles.noMatchupSub}>Matchups are generated before each week starts.</Text>
+                    </View>
+                </ScrollView>
             )}
 
             {/* IR overflow modal */}
@@ -226,6 +228,7 @@ export default function HomeScreen() {
                 onClose={() => setAutoSetModalVisible(false)}
                 onToday={() => { setAutoSetModalVisible(false); doAutoSet(selectedDate) }}
                 onWholeWeek={() => { setAutoSetModalVisible(false); doAutoSet(null) }}
+                onRestOfSeason={() => { setAutoSetModalVisible(false); doAutoSet(null, true) }}
             />
         </SafeAreaView>
     )
@@ -333,10 +336,12 @@ function MatchupLineupView({
     )
 }
 
-function SectionDivider({ label, color = palette.gray550 }: { label: string; color?: string }) {
+function SectionDivider({ label, color = colors.textMuted }: { label: string; color?: string }) {
     return (
         <View style={styles.dividerRow}>
+            <View style={[styles.dividerLine, { backgroundColor: color + '35' }]} />
             <Text style={[styles.dividerText, { color }]}>{label}</Text>
+            <View style={[styles.dividerLine, { backgroundColor: color + '35' }]} />
         </View>
     )
 }
@@ -351,21 +356,22 @@ const styles = StyleSheet.create({
     switcherText: { fontSize: 13, fontWeight: '600', color: colors.textSecondary },
     switcherTextActive: { color: colors.textWhite },
 
-    scrollContent: { paddingTop: 28, paddingBottom: 40 },
+    scrollContent: { paddingTop: 60, paddingBottom: 40 },
 
     // Lineup header
     lineupHeader: { alignItems: 'center', paddingTop: 12, paddingBottom: 4 },
     autoSetBtn: {
-        height: 28,
-        paddingHorizontal: 16,
-        borderRadius: 8,
+        height: 30,
+        paddingHorizontal: 18,
+        borderRadius: 20,
         borderCurve: 'continuous' as const,
+        backgroundColor: colors.primaryLight,
         borderWidth: 1.5,
         borderColor: colors.primary,
         alignItems: 'center',
         justifyContent: 'center',
     },
-    autoSetText: { fontSize: 11, fontWeight: '800', color: colors.primary, letterSpacing: 0.5 },
+    autoSetText: { fontSize: 11, fontWeight: '800', color: colors.primary, letterSpacing: 0.6 },
 
     // Selection hint
     hint: {
@@ -383,8 +389,9 @@ const styles = StyleSheet.create({
     hintCancel: { fontSize: 13, fontWeight: '700', color: colors.primary, paddingLeft: 12 },
 
     lineupContainer: { paddingHorizontal: 16 },
-    dividerRow: { paddingTop: 12, paddingBottom: 3 },
-    dividerText: { fontSize: 10, fontWeight: '800', color: palette.gray550, letterSpacing: 0.8 },
+    dividerRow: { flexDirection: 'row', alignItems: 'center', paddingTop: 16, paddingBottom: 4, gap: 8 },
+    dividerLine: { flex: 1, height: 1 },
+    dividerText: { fontSize: 10, fontWeight: '800', letterSpacing: 1.5 },
 
     noLineup: { padding: 32, alignItems: 'center', gap: 12 },
     noLineupText: { fontSize: 14, color: colors.textPlaceholder, textAlign: 'center' },

@@ -163,17 +163,20 @@ export function useLineupActions({
         }
     }
 
-    async function doAutoSet(date: string | null) {
+    async function doAutoSet(date: string | null, restOfSeason?: boolean) {
         if (!matchup) return
         setAutoSetting(true)
         try {
             await autoSetLineup(
                 matchup.myMemberId, league.id, matchup.seasonId,
-                matchup.weekNumber, matchup.seasonYear, date,
+                matchup.weekNumber, matchup.seasonYear, date, restOfSeason,
             )
             await loadMyLineup(matchup, selectedDate)
+            if (restOfSeason) {
+                Alert.alert('Done', 'Lineup set for the rest of the season.')
+            }
         } catch (e: any) {
-            Alert.alert('Auto-set failed', e.message)
+            Alert.alert('Auto-set failed', e?.message ?? String(e))
         } finally {
             setAutoSetting(false)
         }
