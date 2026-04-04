@@ -6,11 +6,13 @@ export function AutoSetModal({
     onClose,
     onToday,
     onWholeWeek,
+    onRestOfSeason,
 }: {
     visible: boolean
     onClose: () => void
     onToday: () => void
     onWholeWeek: () => void
+    onRestOfSeason: () => void
 }) {
     return (
         <Modal
@@ -31,6 +33,9 @@ export function AutoSetModal({
                             <Text style={styles.buttonText}>Whole Week</Text>
                         </Pressable>
                     </View>
+                    <Pressable style={styles.seasonButton} onPress={onRestOfSeason}>
+                        <Text style={styles.buttonText}>Rest of Season</Text>
+                    </Pressable>
                     <Pressable style={styles.cancel} onPress={onClose}>
                         <Text style={styles.cancelText}>Cancel</Text>
                     </Pressable>
@@ -47,6 +52,7 @@ const styles = StyleSheet.create({
     text: { fontSize: 14, color: colors.textMuted, textAlign: 'center' },
     buttons: { flexDirection: 'row', gap: 12 },
     button: { flex: 1, height: 48, backgroundColor: colors.primary, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+    seasonButton: { height: 48, backgroundColor: colors.primary, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
     buttonText: { fontSize: 15, fontWeight: '700', color: colors.textWhite },
     cancel: { paddingVertical: 8, alignItems: 'center' },
     cancelText: { fontSize: 15, fontWeight: '600', color: colors.textMuted },

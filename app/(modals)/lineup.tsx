@@ -322,15 +322,18 @@ export default function LineupScreen() {
         }
     }
 
-    async function doAutoSet(date: string | null) {
+    async function doAutoSet(date: string | null, restOfSeason?: boolean) {
         if (!current || !ctx) return
         const league = current.leagues as any
         setAutoSetting(true)
         try {
-            await autoSetLineup(current.id, league.id, ctx.seasonId, ctx.weekNumber, ctx.seasonYear, date)
+            await autoSetLineup(current.id, league.id, ctx.seasonId, ctx.weekNumber, ctx.seasonYear, date, restOfSeason)
             await loadLineup(ctx, league, selectedDate)
+            if (restOfSeason) {
+                Alert.alert('Done', 'Lineup set for the rest of the season.')
+            }
         } catch (e: any) {
-            Alert.alert('Auto-set failed', e.message)
+            Alert.alert('Auto-set failed', e?.message ?? String(e))
         } finally {
             setAutoSetting(false)
         }
@@ -459,6 +462,7 @@ export default function LineupScreen() {
                 onClose={() => setAutoSetModalVisible(false)}
                 onToday={() => { setAutoSetModalVisible(false); doAutoSet(selectedDate) }}
                 onWholeWeek={() => { setAutoSetModalVisible(false); doAutoSet(null) }}
+                onRestOfSeason={() => { setAutoSetModalVisible(false); doAutoSet(null, true) }}
             />
         </SafeAreaView>
     )

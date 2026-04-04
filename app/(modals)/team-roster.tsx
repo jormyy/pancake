@@ -15,6 +15,7 @@ import { POSITION_COLORS } from '@/constants/positions'
 import { Avatar } from '@/components/Avatar'
 import { Badge } from '@/components/Badge'
 import { ItemSeparator } from '@/components/ItemSeparator'
+import { PosTag } from '@/components/PosTag'
 import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 
 export default function TeamRosterScreen() {
@@ -62,7 +63,7 @@ export default function TeamRosterScreen() {
                     }
                     renderItem={({ item }) => {
                         const p = item.players
-                        const pos = p.position ?? ''
+                        const eligiblePositions: string[] = p.eligible_positions?.length ? p.eligible_positions : (p.position ? [p.position] : [])
                         return (
                             <Pressable
                                 style={styles.playerRow}
@@ -70,15 +71,16 @@ export default function TeamRosterScreen() {
                             >
                                 <Avatar
                                     name={p.display_name}
-                                    color={POSITION_COLORS[pos] ?? palette.gray500}
+                                    color={POSITION_COLORS[eligiblePositions[0] ?? ''] ?? palette.gray500}
                                     size={44}
                                     uri={p.nba_id ? `https://cdn.nba.com/headshots/nba/latest/260x190/${p.nba_id}.png` : null}
                                 />
                                 <View style={styles.playerInfo}>
                                     <Text style={styles.playerName}>{p.display_name}</Text>
-                                    <Text style={styles.playerMeta}>
-                                        {[p.nba_team, pos].filter(Boolean).join(' · ')}
-                                    </Text>
+                                    <View style={styles.playerMetaRow}>
+                                        {p.nba_team && <Text style={styles.playerMeta}>{p.nba_team}</Text>}
+                                        {eligiblePositions.map((pos) => <PosTag key={pos} position={pos} />)}
+                                    </View>
                                 </View>
                                 <View style={styles.badges}>
                                     {p.injury_status ? (
@@ -135,6 +137,7 @@ const styles = StyleSheet.create({
     },
     playerInfo: { flex: 1, gap: spacing.xxs },
     playerName: { fontSize: 15, fontWeight: fontWeight.semibold, color: colors.textPrimary },
+    playerMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     playerMeta: { fontSize: fontSize.sm, color: colors.textMuted },
     badges: { flexDirection: 'row', gap: spacing.sm, alignItems: 'center' },
 })

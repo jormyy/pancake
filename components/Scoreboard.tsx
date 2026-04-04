@@ -20,7 +20,7 @@ export function Scoreboard({
     myTeamSet,
 }: {
     games: NBAGameRow[]
-    myTeamSet: Set<string>  // tricodes of teams your roster players are on
+    myTeamSet: Set<string>
 }) {
     if (games.length === 0) return null
 
@@ -39,8 +39,16 @@ export function Scoreboard({
                     const myAway = myTeamSet.has(g.away_team)
                     const myHome = myTeamSet.has(g.home_team)
                     return (
-                        <View key={g.id} style={[styles.card, isLive && styles.cardLive]}>
-                            {/* Away team */}
+                        <View
+                            key={g.id}
+                            style={[
+                                styles.card,
+                                isLive && styles.cardLive,
+                                isFinal && styles.cardFinal,
+                            ]}
+                        >
+                            {isLive && <View style={styles.liveBar} />}
+                            {/* Away */}
                             <View style={styles.teamRow}>
                                 <Text style={[styles.tricode, myAway && styles.tricodeHighlight]}>
                                     {g.away_team}
@@ -48,11 +56,12 @@ export function Scoreboard({
                                 <Text style={[
                                     styles.score,
                                     !isFinal && !isLive && styles.scoreHidden,
+                                    myAway && (isFinal || isLive) && styles.scoreHighlight,
                                 ]}>
-                                    {isFinal || isLive ? g.away_score : '—'}
+                                    {isFinal || isLive ? g.away_score : '·'}
                                 </Text>
                             </View>
-                            {/* Home team */}
+                            {/* Home */}
                             <View style={styles.teamRow}>
                                 <Text style={[styles.tricode, myHome && styles.tricodeHighlight]}>
                                     {g.home_team}
@@ -60,14 +69,22 @@ export function Scoreboard({
                                 <Text style={[
                                     styles.score,
                                     !isFinal && !isLive && styles.scoreHidden,
+                                    myHome && (isFinal || isLive) && styles.scoreHighlight,
                                 ]}>
-                                    {isFinal || isLive ? g.home_score : '—'}
+                                    {isFinal || isLive ? g.home_score : '·'}
                                 </Text>
                             </View>
                             {/* Status */}
-                            <Text style={[styles.status, isLive && styles.statusLive]}>
-                                {statusLabel(g)}
-                            </Text>
+                            <View style={styles.statusRow}>
+                                {isLive && <View style={styles.liveDot} />}
+                                <Text style={[
+                                    styles.status,
+                                    isLive && styles.statusLive,
+                                    isFinal && styles.statusFinal,
+                                ]}>
+                                    {statusLabel(g)}
+                                </Text>
+                            </View>
                         </View>
                     )
                 })}
@@ -78,26 +95,42 @@ export function Scoreboard({
 
 const styles = StyleSheet.create({
     container: {
-        borderBottomWidth: 1,
-        borderBottomColor: colors.separator,
+        backgroundColor: palette.espresso,
+        borderBottomWidth: 3,
+        borderBottomColor: colors.primary,
     },
     scroll: {
         paddingHorizontal: spacing.xl,
-        paddingVertical: spacing.lg,
-        gap: spacing.lg,
+        paddingVertical: 10,
+        gap: spacing.md,
     },
     card: {
-        width: 92,
-        backgroundColor: colors.bgSubtle,
+        width: 90,
+        backgroundColor: palette.coffee,
         borderRadius: radii.md,
-        paddingHorizontal: spacing.lg,
-        paddingVertical: spacing.md,
-        gap: 3,
+        borderCurve: 'continuous' as const,
+        paddingHorizontal: 10,
+        paddingVertical: 9,
+        gap: 2,
+        overflow: 'hidden' as const,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.07)',
     },
     cardLive: {
-        backgroundColor: palette.orange50,
-        borderWidth: 1,
-        borderColor: colors.primaryBorder,
+        borderColor: colors.primary,
+        borderWidth: 1.5,
+        boxShadow: '0 0 10px rgba(201, 102, 15, 0.35)',
+    },
+    cardFinal: {
+        opacity: 0.6,
+    },
+    liveBar: {
+        position: 'absolute' as const,
+        top: 0,
+        left: 0,
+        right: 0,
+        height: 2,
+        backgroundColor: colors.primary,
     },
     teamRow: {
         flexDirection: 'row',
@@ -105,32 +138,55 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     tricode: {
-        fontSize: fontSize.sm,
-        fontWeight: fontWeight.semibold,
-        color: colors.textSecondary,
+        fontSize: 11,
+        fontWeight: fontWeight.bold,
+        color: palette.oatmilk,
+        letterSpacing: 0.4,
     },
     tricodeHighlight: {
-        color: colors.primary,
+        color: palette.maple200,
+        fontWeight: fontWeight.extrabold,
     },
     score: {
-        fontSize: fontSize.sm,
-        fontWeight: fontWeight.bold,
-        color: colors.textPrimary,
-        minWidth: 22,
+        fontSize: 13,
+        fontWeight: fontWeight.extrabold,
+        color: palette.maple200,
+        minWidth: 24,
         textAlign: 'right',
     },
     scoreHidden: {
-        color: colors.textMuted,
+        color: 'rgba(255,255,255,0.18)',
+        fontSize: 11,
+    },
+    scoreHighlight: {
+        color: palette.maple100,
+    },
+    statusRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 3,
+        marginTop: 4,
+    },
+    liveDot: {
+        width: 5,
+        height: 5,
+        borderRadius: 3,
+        backgroundColor: colors.primary,
     },
     status: {
-        fontSize: 10,
-        fontWeight: fontWeight.medium,
-        color: colors.textMuted,
-        marginTop: 2,
+        fontSize: 9,
+        fontWeight: fontWeight.bold,
+        color: 'rgba(255,255,255,0.3)',
         textAlign: 'center',
+        letterSpacing: 0.3,
     },
     statusLive: {
         color: colors.primary,
-        fontWeight: fontWeight.semibold,
+        fontWeight: fontWeight.extrabold,
+        letterSpacing: 0.5,
+    },
+    statusFinal: {
+        color: 'rgba(255,255,255,0.2)',
     },
 })
