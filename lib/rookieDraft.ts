@@ -160,9 +160,47 @@ export async function searchDraftablePlayers(query: string, draftId: string) {
         .from('players')
         .select('id, display_name, nba_team, position')
         .ilike('display_name', `%${query}%`)
+        .eq('years_exp', 0)
         .order('last_name')
         .limit(20)
 
+    return (data ?? []).filter((p: any) => !pickedIds.has(p.id))
+}
+
+export async function getRookiePlayers(draftId: string, query?: string) {
+    const { data: picked } = await supabase
+        .from('snake_draft_picks')
+        .select('player_id')
+        .eq('draft_id', draftId)
+        .not('player_id', 'is', null)
+
+    const pickedIds = new Set((picked ?? []).map((p: any) => p.player_id))
+
+    let q = (supabase as any)
+        .from('players')
+        .select('id, display_name, nba_team, position, nba_draft_number')
+        .not('nba_draft_number', 'is', null)
+        .order('nba_draft_number', { ascending: true })
+        .limit(100)
+
+    if (query?.trim()) {
+        q = q.ilike('display_name', `%${query.trim()}%`)
+    }
+
+    const { data, error } = await q
+    if (error) {
+        console.error('[getRookiePlayers] query error:', error.message)
+        // nba_draft_number column may not exist yet — fall back without it
+        let fallback = (supabase as any)
+            .from('players')
+            .select('id, display_name, nba_team, position')
+            .not('nba_draft_number', 'is', null)
+            .order('nba_draft_number', { ascending: true })
+            .limit(100)
+        if (query?.trim()) fallback = fallback.ilike('display_name', `%${query.trim()}%`)
+        const { data: fbData } = await fallback
+        return (fbData ?? []).filter((p: any) => !pickedIds.has(p.id))
+    }
     return (data ?? []).filter((p: any) => !pickedIds.has(p.id))
 }
 

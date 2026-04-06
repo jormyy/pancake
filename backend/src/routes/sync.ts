@@ -9,6 +9,7 @@ import { testNBAEndpoints } from '../sync/healthCheck'
 import { verifySampleStats, verifySeasonTotals, validateDatabase } from '../sync/verify'
 import { currentSeasonYear } from '../lib/utils/season'
 import { syncPlayerStatuses } from '../sync/players'
+import { syncDraftOrder } from '../sync/draftOrder'
 import {
     SyncStatsBody,
     SyncMatchupsBody,
@@ -38,6 +39,12 @@ export default async function syncRoutes(app: FastifyInstance) {
     app.post('/players', async () => {
         await syncPlayerStatuses()
         return { ok: true }
+    })
+
+    app.post('/draft-order', async (req) => {
+        const { seasonYear = new Date().getFullYear() } = (req.body ?? {}) as { seasonYear?: number }
+        const result = await syncDraftOrder(seasonYear)
+        return { ok: true, ...result }
     })
 
     app.post('/scores', async () => {

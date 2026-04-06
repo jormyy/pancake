@@ -148,7 +148,7 @@ const styles = StyleSheet.create({
         color: colors.textPrimary,
     },
     scoreLose: {
-        color: palette.cream400,
+        color: colors.textMuted,
     },
 
     vsDivider: {

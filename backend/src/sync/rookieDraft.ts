@@ -97,6 +97,22 @@ export async function startRookieDraft(leagueId: string) {
     }))
     await supabase.from('draft_orders').insert(orderRows)
 
+    // Build a map of who currently owns each pick (original_owner_id:round -> current_owner_id)
+    // so that traded picks are reflected in the draft slot assignments.
+    // Use the earliest unused season_year picks — those represent the next draft class.
+    const { data: draftPickAssets } = await supabase
+        .from('draft_picks')
+        .select('season_year, round, original_owner_id, current_owner_id')
+        .eq('league_id', leagueId)
+        .eq('is_used', false)
+        .order('season_year', { ascending: true })
+
+    const pickOwnerMap = new Map<string, string>()
+    for (const dp of draftPickAssets ?? []) {
+        const key = `${dp.original_owner_id}:${dp.round}`
+        if (!pickOwnerMap.has(key)) pickOwnerMap.set(key, dp.current_owner_id)
+    }
+
     // Create snake_draft_picks
     const pickRows = []
     let overall = 1
@@ -104,12 +120,15 @@ export async function startRookieDraft(leagueId: string) {
         const isEvenRound = round % 2 === 0
         const order = isEvenRound ? [...draftOrder].reverse() : draftOrder
         for (let i = 0; i < order.length; i++) {
+            const originalOwner = order[i]
+            // If the pick was traded, use the current owner; otherwise keep original
+            const member_id = pickOwnerMap.get(`${originalOwner}:${round}`) ?? originalOwner
             pickRows.push({
                 draft_id: draft.id,
                 overall_pick: overall++,
                 round,
                 pick_in_round: i + 1,
-                member_id: order[i],
+                member_id,
             })
         }
     }
