@@ -125,7 +125,7 @@ export default function HomeScreen() {
                         >
                             {autoSetting
                                 ? <ActivityIndicator size="small" color={colors.primary} />
-                                : <Text style={styles.autoSetText}>⚡ AUTO</Text>}
+                                : <Text style={styles.autoSetText}>AUTO</Text>}
                         </Pressable>
                     </View>
 

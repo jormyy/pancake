@@ -16,8 +16,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
 import {
     getRookieDraftState,
+    getRookiePlayers,
     makeSnakePick,
-    searchDraftablePlayers,
     subscribeToRookieDraft,
     unsubscribeFromRookieDraft,
     type RookieDraftState,
@@ -36,9 +36,10 @@ export default function RookieDraftRoomScreen() {
     const [loading, setLoading] = useState(true)
 
     const [query, setQuery] = useState('')
-    const [searchResults, setSearchResults] = useState<any[]>([])
-    const [searching, setSearching] = useState(false)
+    const [prospects, setProspects] = useState<any[]>([])
+    const [prospectsLoading, setProspectsLoading] = useState(false)
     const [picking, setPicking] = useState(false)
+    const [activeTab, setActiveTab] = useState<'prospects' | 'board'>('prospects')
 
     const channelRef = useRef<any>(null)
     const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -50,32 +51,41 @@ export default function RookieDraftRoomScreen() {
         setLoading(false)
     }, [draftId])
 
+    const loadProspects = useCallback(async (q?: string) => {
+        if (!draftId) return
+        setProspectsLoading(true)
+        const data = await getRookiePlayers(draftId, q)
+        setProspects(data)
+        setProspectsLoading(false)
+    }, [draftId])
+
     useEffect(() => {
         load()
         if (!draftId) return
-        channelRef.current = subscribeToRookieDraft(draftId, load)
+        channelRef.current = subscribeToRookieDraft(draftId, () => {
+            load()
+            loadProspects(query.trim() || undefined)
+        })
         return () => {
             if (channelRef.current) unsubscribeFromRookieDraft(channelRef.current)
         }
-    }, [draftId, load])
+    }, [draftId, load, loadProspects])
 
-    // Debounced player search
+    // Initial prospects load
+    useEffect(() => {
+        loadProspects()
+    }, [loadProspects])
+
+    // Debounced prospects search
     useEffect(() => {
         if (searchTimer.current) clearTimeout(searchTimer.current)
-        if (!query.trim() || !draftId) {
-            setSearchResults([])
-            return
-        }
-        setSearching(true)
-        searchTimer.current = setTimeout(async () => {
-            const results = await searchDraftablePlayers(query.trim(), draftId)
-            setSearchResults(results)
-            setSearching(false)
+        searchTimer.current = setTimeout(() => {
+            loadProspects(query.trim() || undefined)
         }, 300)
         return () => {
             if (searchTimer.current) clearTimeout(searchTimer.current)
         }
-    }, [query, draftId])
+    }, [query])
 
     async function handlePick(player: any) {
         if (!draftId || !myMemberId) return
@@ -89,7 +99,6 @@ export default function RookieDraftRoomScreen() {
                     try {
                         await makeSnakePick(draftId, myMemberId, player.id)
                         setQuery('')
-                        setSearchResults([])
                     } catch (e: any) {
                         Alert.alert('Error', e.message)
                     } finally {
@@ -127,8 +136,6 @@ export default function RookieDraftRoomScreen() {
     const totalPicks = picks.length
     const madePicks = picks.filter((p) => p.player).length
     const currentRound = nextPick?.round ?? Math.ceil(totalPicks / state.orders.length)
-    const pickInRound = nextPick?.pickInRound ?? 0
-    const totalInRound = state.orders.length
 
     return (
         <>
@@ -160,72 +167,137 @@ export default function RookieDraftRoomScreen() {
                         )}
                     </View>
 
-                    {/* ── Search (only when it's your turn) ───── */}
-                    {isMyTurn && !isDone && (
-                        <View style={styles.searchContainer}>
-                            <TextInput
-                                style={styles.searchInput}
-                                placeholder="Search players…"
-                                placeholderTextColor={colors.textPlaceholder}
-                                value={query}
-                                onChangeText={setQuery}
-                                autoCorrect={false}
-                                returnKeyType="search"
-                            />
-                            {searching && (
-                                <ActivityIndicator
-                                    size="small"
-                                    color={colors.primary}
-                                    style={styles.searchSpinner}
+                    {/* ── Tab switcher ─────────────────────────── */}
+                    <View style={styles.tabs}>
+                        <Pressable
+                            style={[styles.tab, activeTab === 'prospects' && styles.tabActive]}
+                            onPress={() => setActiveTab('prospects')}
+                        >
+                            <Text style={[styles.tabText, activeTab === 'prospects' && styles.tabTextActive]}>
+                                Prospects
+                            </Text>
+                        </Pressable>
+                        <Pressable
+                            style={[styles.tab, activeTab === 'board' && styles.tabActive]}
+                            onPress={() => setActiveTab('board')}
+                        >
+                            <Text style={[styles.tabText, activeTab === 'board' && styles.tabTextActive]}>
+                                Pick Board
+                            </Text>
+                        </Pressable>
+                    </View>
+
+                    {activeTab === 'prospects' ? (
+                        <>
+                            {/* ── Search bar ───────────────────────── */}
+                            <View style={styles.searchContainer}>
+                                <TextInput
+                                    style={styles.searchInput}
+                                    placeholder="Search prospects…"
+                                    placeholderTextColor={colors.textPlaceholder}
+                                    value={query}
+                                    onChangeText={setQuery}
+                                    autoCorrect={false}
+                                    returnKeyType="search"
                                 />
+                                {prospectsLoading && (
+                                    <ActivityIndicator
+                                        size="small"
+                                        color={colors.primary}
+                                        style={styles.searchSpinner}
+                                    />
+                                )}
+                            </View>
+
+                            {/* ── Prospects list ───────────────────── */}
+                            <FlashList
+                                data={prospects}
+                                keyExtractor={(p) => p.id}
+                                ItemSeparatorComponent={ItemSeparator}
+                                estimatedItemSize={56}
+                                ListEmptyComponent={
+                                    !prospectsLoading ? (
+                                        <View style={styles.emptyProspects}>
+                                            <Text style={styles.emptyText}>
+                                                {query.trim() ? 'No matching prospects' : 'No prospects available'}
+                                            </Text>
+                                        </View>
+                                    ) : null
+                                }
+                                renderItem={({ item }) => (
+                                    <ProspectRow
+                                        player={item}
+                                        isMyTurn={isMyTurn && !isDone}
+                                        picking={picking}
+                                        onPick={handlePick}
+                                    />
+                                )}
+                            />
+                        </>
+                    ) : (
+                        /* ── Pick board ──────────────────────────── */
+                        <FlashList
+                            data={picks}
+                            keyExtractor={(p) => String(p.overallPick)}
+                            ItemSeparatorComponent={ItemSeparator}
+                            estimatedItemSize={48}
+                            ListHeaderComponent={PickBoardHeader}
+                            renderItem={({ item }) => (
+                                <PickRow item={item} myMemberId={myMemberId} nextPick={nextPick} />
                             )}
-                        </View>
+                        />
                     )}
-
-                    {/* ── Search results ───────────────────────── */}
-                    {isMyTurn && searchResults.length > 0 && (
-                        <View style={styles.resultsContainer}>
-                            {searchResults.map((p) => (
-                                <Pressable
-                                    key={p.id}
-                                    style={styles.resultRow}
-                                    onPress={() => handlePick(p)}
-                                    disabled={picking}
-                                >
-                                    <View
-                                        style={[
-                                            styles.posChip,
-                                            { backgroundColor: POSITION_COLORS[p.position] ?? palette.gray500 },
-                                        ]}
-                                    >
-                                        <Text style={styles.posChipText}>{p.position ?? '?'}</Text>
-                                    </View>
-                                    <View style={styles.resultInfo}>
-                                        <Text style={styles.resultName}>{p.display_name}</Text>
-                                        <Text style={styles.resultTeam}>{p.nba_team ?? 'FA'}</Text>
-                                    </View>
-                                    {picking ? (
-                                        <ActivityIndicator size="small" color={colors.primary} />
-                                    ) : (
-                                        <Text style={styles.pickBtn}>Pick</Text>
-                                    )}
-                                </Pressable>
-                            ))}
-                        </View>
-                    )}
-
-                    {/* ── Pick board ───────────────────────────── */}
-                    <FlashList
-                        data={picks}
-                        keyExtractor={(p) => String(p.overallPick)}
-                        ItemSeparatorComponent={ItemSeparator}
-                        ListHeaderComponent={PickBoardHeader}
-                        renderItem={({ item }) => <PickRow item={item} myMemberId={myMemberId} nextPick={nextPick} />}
-                    />
                 </KeyboardAvoidingView>
-
             </SafeAreaView>
         </>
+    )
+}
+
+function ProspectRow({
+    player,
+    isMyTurn,
+    picking,
+    onPick,
+}: {
+    player: any
+    isMyTurn: boolean
+    picking: boolean
+    onPick: (player: any) => void
+}) {
+    return (
+        <Pressable
+            style={styles.resultRow}
+            onPress={isMyTurn ? () => onPick(player) : undefined}
+            disabled={!isMyTurn || picking}
+        >
+            {player.nba_draft_number != null ? (
+                <View style={styles.draftNumChip}>
+                    <Text style={styles.draftNumText}>{player.nba_draft_number}</Text>
+                </View>
+            ) : (
+                <View style={[styles.posChip, { backgroundColor: POSITION_COLORS[player.position] ?? palette.gray500 }]}>
+                    <Text style={styles.posChipText}>{player.position ?? '?'}</Text>
+                </View>
+            )}
+            <View style={styles.resultInfo}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Text style={styles.resultName}>{player.display_name}</Text>
+                    {player.nba_draft_number != null && (
+                        <View style={[styles.posChipXs, { backgroundColor: POSITION_COLORS[player.position] ?? palette.gray500 }]}>
+                            <Text style={styles.posChipXsText}>{player.position ?? '?'}</Text>
+                        </View>
+                    )}
+                </View>
+                <Text style={styles.resultTeam}>{player.nba_team ?? 'FA'}</Text>
+            </View>
+            {isMyTurn && (
+                picking ? (
+                    <ActivityIndicator size="small" color={colors.primary} />
+                ) : (
+                    <Text style={styles.pickBtn}>Pick</Text>
+                )
+            )}
+        </Pressable>
     )
 }
 
@@ -304,10 +376,28 @@ const styles = StyleSheet.create({
     bannerSub: { fontSize: fontSize.md, color: colors.textSecondary },
     bannerMe: { color: colors.primary, fontWeight: fontWeight.bold },
 
+    tabs: {
+        flexDirection: 'row',
+        borderBottomWidth: 1,
+        borderBottomColor: colors.borderLight,
+    },
+    tab: {
+        flex: 1,
+        paddingVertical: 10,
+        alignItems: 'center',
+    },
+    tabActive: {
+        borderBottomWidth: 2,
+        borderBottomColor: colors.primary,
+    },
+    tabText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textMuted },
+    tabTextActive: { color: colors.primary },
+
     searchContainer: {
         flexDirection: 'row',
         alignItems: 'center',
         margin: spacing.lg,
+        marginBottom: spacing.md,
         paddingHorizontal: 14,
         paddingVertical: 10,
         backgroundColor: colors.bgSubtle,
@@ -319,29 +409,32 @@ const styles = StyleSheet.create({
     searchInput: { flex: 1, fontSize: 15, color: colors.textPrimary },
     searchSpinner: { marginLeft: spacing.md },
 
-    resultsContainer: {
-        marginHorizontal: spacing.lg,
-        marginBottom: spacing.md,
-        borderRadius: radii.xl,
-        borderCurve: 'continuous' as const,
-        borderWidth: 1,
-        borderColor: colors.borderLight,
-        overflow: 'hidden',
-        backgroundColor: colors.bgScreen,
-    },
+    emptyProspects: { paddingVertical: 40, alignItems: 'center' },
+
     resultRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: 14,
+        paddingHorizontal: spacing.xl,
         paddingVertical: 10,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.separator,
         gap: 10,
     },
     resultInfo: { flex: 1 },
     resultName: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textPrimary },
     resultTeam: { fontSize: 12, color: colors.textMuted },
     pickBtn: { fontSize: fontSize.md, fontWeight: fontWeight.bold, color: colors.primary },
+
+    draftNumChip: {
+        width: 36,
+        height: 36,
+        borderRadius: radii.md,
+        borderCurve: 'continuous' as const,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: colors.bgSubtle,
+        borderWidth: 1,
+        borderColor: colors.borderLight,
+    },
+    draftNumText: { fontSize: fontSize.sm, fontWeight: fontWeight.extrabold, color: colors.textPrimary },
 
     posChip: {
         width: 36,
@@ -352,6 +445,14 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     posChipText: { color: colors.textWhite, fontSize: fontSize.xs, fontWeight: fontWeight.bold },
+
+    posChipXs: {
+        paddingHorizontal: 5,
+        paddingVertical: 2,
+        borderRadius: radii.xs ?? 4,
+        borderCurve: 'continuous' as const,
+    },
+    posChipXsText: { color: colors.textWhite, fontSize: 10, fontWeight: fontWeight.bold },
 
     posChipSm: {
         width: 28,

@@ -77,7 +77,7 @@ export async function advanceSeason(leagueId: string) {
         const farYear = newYear + 5
         const pickRows: object[] = []
         for (const member of members) {
-            for (const round of [1, 2]) {
+            for (const round of [1, 2, 3]) {
                 pickRows.push({
                     league_id: leagueId,
                     season_year: farYear,

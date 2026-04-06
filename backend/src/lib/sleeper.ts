@@ -18,6 +18,7 @@ export interface SleeperPlayer {
     injury_notes: string | null
     active: boolean
     sport: string
+    years_exp: number | null
 }
 
 // GET all NBA players — returns a giant object keyed by sleeper player_id

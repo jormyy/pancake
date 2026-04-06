@@ -24,6 +24,7 @@ type Player = {
     dynasty_rank: number | null
     headshot_url: string | null
     nba_id: string | null
+    years_exp: number | null
 }
 
 type Props = {
@@ -97,6 +98,14 @@ export function PlayerHeader({
                             color={colors.textSecondary}
                             variant="soft"
                             textColor={colors.textSecondary}
+                        />
+                    )}
+                    {player.years_exp != null && (
+                        <Badge
+                            label={player.years_exp === 0 ? 'Rookie' : `Yr ${player.years_exp + 1}`}
+                            color={player.years_exp === 0 ? colors.success : colors.textMuted}
+                            variant="soft"
+                            textColor={player.years_exp === 0 ? colors.success : colors.textMuted}
                         />
                     )}
                 </View>

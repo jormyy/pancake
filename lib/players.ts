@@ -13,6 +13,7 @@ export type PlayerRow = {
     injury_status: string | null
     headshot_url: string | null
     nba_id: string | null
+    years_exp: number | null
 }
 
 export type PlayerSeasonAverages = {
@@ -66,31 +67,79 @@ export type TransactionHistoryEntry = {
     occurredAt: string
 }
 
-export async function searchPlayers(query: string, position: string, teams: string[], leagueId?: string | null, playingTeams?: string[] | null): Promise<PlayerRow[]> {
+export async function searchPlayers(query: string, position: string, teams: string[], leagueId?: string | null, playingTeams?: string[] | null, rookiesOnly = false): Promise<PlayerRow[]> {
     const season = currentSeasonYear()
 
     // Compute effective team filter: intersect explicit teams + playing-on-day teams
     let effectiveTeams: string[] | null = null
     if (playingTeams != null && teams.length > 0) {
         effectiveTeams = teams.filter((t) => playingTeams.includes(t))
-        if (effectiveTeams.length === 0) return [] // no intersection → no results
+        if (effectiveTeams.length === 0) return []
     } else if (playingTeams != null) {
         effectiveTeams = playingTeams
     } else if (teams.length > 0) {
         effectiveTeams = teams
     }
 
+    // Rookie filter: get rookies with stats (sorted by fantasy pts) + rookies without stats
+    if (rookiesOnly) {
+        const posFilter: string[] | null = position === 'ALL' ? null
+            : position === 'G' ? ['PG', 'SG']
+            : position === 'F' ? ['SF', 'PF']
+            : [position]
+
+        // 1. Rookies who have stats this season, sorted by avg fantasy pts
+        let statsQ = leagueId
+            ? supabase
+                .from('v_player_avg_fantasy_points')
+                .select('avg_fantasy_points, players!inner(id, display_name, nba_team, position, eligible_positions, status, injury_status, nba_id, years_exp)')
+                .eq('league_id', leagueId)
+                .eq('season_year', season)
+                .filter('players.years_exp', 'eq', 0)
+                .order('avg_fantasy_points', { ascending: false })
+            : supabase
+                .from('mv_player_season_averages')
+                .select('avg_points, players!inner(id, display_name, nba_team, position, eligible_positions, status, injury_status, nba_id, years_exp)')
+                .eq('season_year', season)
+                .filter('players.years_exp', 'eq', 0)
+                .order('avg_points', { ascending: false })
+
+        if (query.trim()) statsQ = statsQ.ilike('players.display_name', `%${query.trim()}%`)
+        if (posFilter) statsQ = statsQ.filter('players.eligible_positions', 'ov', `{${posFilter.join(',')}}`)
+        if (effectiveTeams != null) statsQ = statsQ.in('players.nba_team', effectiveTeams)
+
+        const { data: statsData } = await statsQ
+        const withStats = (statsData ?? []).map((row: any) => row.players) as PlayerRow[]
+        const withStatsIds = new Set(withStats.map((p) => p.id))
+
+        // 2. All rookies (to find those without stats)
+        let allQ = supabase
+            .from('players')
+            .select('id, display_name, nba_team, position, eligible_positions, status, injury_status, nba_id, years_exp')
+            .eq('years_exp', 0)
+            .order('last_name')
+
+        if (query.trim()) allQ = allQ.ilike('display_name', `%${query.trim()}%`)
+        if (posFilter) allQ = allQ.filter('eligible_positions', 'ov', `{${posFilter.join(',')}}`)
+        if (effectiveTeams != null) allQ = allQ.in('nba_team', effectiveTeams)
+
+        const { data: allData } = await allQ
+        const withoutStats = (allData ?? [] as any[]).filter((p: any) => !withStatsIds.has(p.id)) as PlayerRow[]
+
+        return [...withStats, ...withoutStats]
+    }
+
     let q = leagueId
         ? supabase
             .from('v_player_avg_fantasy_points')
-            .select('avg_fantasy_points, players!inner(id, display_name, nba_team, position, eligible_positions, status, injury_status, nba_id)')
+            .select('avg_fantasy_points, players!inner(id, display_name, nba_team, position, eligible_positions, status, injury_status, nba_id, years_exp)')
             .eq('league_id', leagueId)
             .eq('season_year', season)
             .order('avg_fantasy_points', { ascending: false })
             .limit(60)
         : supabase
             .from('mv_player_season_averages')
-            .select('avg_points, players!inner(id, display_name, nba_team, position, eligible_positions, status, injury_status, nba_id)')
+            .select('avg_points, players!inner(id, display_name, nba_team, position, eligible_positions, status, injury_status, nba_id, years_exp)')
             .eq('season_year', season)
             .order('avg_points', { ascending: false })
             .limit(60)

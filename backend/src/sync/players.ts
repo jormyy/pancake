@@ -18,7 +18,7 @@ function normalizeName(name: string): string {
         .trim()
 }
 
-type StatusFields = { status: string | null; injury_status: string | null; nba_team: string | null }
+type StatusFields = { status: string | null; injury_status: string | null; nba_team: string | null; years_exp: number | null }
 
 /**
  * Syncs player status + injury_status from Sleeper for all players in the DB.
@@ -40,6 +40,7 @@ export async function syncPlayerStatuses(): Promise<void> {
             status: p.status ?? null,
             injury_status: normalizeInjuryStatus(p.injury_status),
             nba_team: p.team ?? null,
+            years_exp: p.years_exp ?? null,
         }
         statusBySleeperId.set(pid, fields)
         const fullName = [p.first_name, p.last_name].filter(Boolean).join(' ')
@@ -49,7 +50,7 @@ export async function syncPlayerStatuses(): Promise<void> {
     // Fetch all DB players
     const { data: players, error } = await supabase
         .from('players')
-        .select('id, display_name, sleeper_id, status, injury_status, nba_team')
+        .select('id, display_name, sleeper_id, status, injury_status, nba_team, years_exp')
 
     if (error) throw error
 
@@ -97,6 +98,7 @@ export async function syncPlayerStatuses(): Promise<void> {
             status: fields.status,
             injury_status: fields.injury_status,
             nba_team: fields.nba_team,
+            years_exp: fields.years_exp,
             updated_at: new Date().toISOString(),
         }).eq('id', id)
         if (updateErr) console.error(`[syncPlayerStatuses] Update failed for ${id}:`, updateErr.message)
@@ -105,6 +107,6 @@ export async function syncPlayerStatuses(): Promise<void> {
     console.log(`[syncPlayerStatuses] Done. Updated ${toUpdate.length} player statuses.`)
 }
 
-function changed(incoming: StatusFields, p: { status: string | null; injury_status: string | null; nba_team: string | null }): boolean {
-    return incoming.status !== p.status || incoming.injury_status !== p.injury_status || incoming.nba_team !== p.nba_team
+function changed(incoming: StatusFields, p: { status: string | null; injury_status: string | null; nba_team: string | null; years_exp?: number | null }): boolean {
+    return incoming.status !== p.status || incoming.injury_status !== p.injury_status || incoming.nba_team !== p.nba_team || incoming.years_exp !== p.years_exp
 }

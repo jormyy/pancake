@@ -45,7 +45,7 @@ import { PosTag } from '@/components/PosTag'
 import { EmptyState } from '@/components/EmptyState'
 import { IRResolutionModal } from '@/components/IRResolutionModal'
 import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
-import { getWeekDays, WeekDay } from '@/lib/lineup'
+import { getWeekDays, WeekDay, getStartedTeams } from '@/lib/lineup'
 import { getCurrentWeekNumber } from '@/lib/shared/week'
 import { currentSeasonYear } from '@/lib/shared/season'
 import { todayDateString } from '@/lib/shared/dates'
@@ -124,6 +124,11 @@ function PlayerSearchItem({
                     <View style={styles.playerMetaRow}>
                         {item.nba_team && <Text style={styles.playerMeta}>{item.nba_team}</Text>}
                         {(item.eligible_positions?.length ? item.eligible_positions : (item.position ? [item.position] : [])).map((pos: string) => <PosTag key={pos} position={pos} />)}
+                        {item.years_exp != null && (
+                            <Text style={[styles.gamesLeftText, item.years_exp === 0 && { color: colors.success }]}>
+                                {item.years_exp === 0 ? 'Rookie' : `Yr ${item.years_exp + 1}`}
+                            </Text>
+                        )}
                         {item.nba_team != null && (
                             <Text style={styles.gamesLeftText}>
                                 {gamesLeft.get(item.nba_team) ?? 0}G left
@@ -181,8 +186,10 @@ export default function PlayersScreen() {
     const teamBtnRef = useRef<View>(null)
     const [selectedDays, setSelectedDays] = useState<string[]>([])
     const [weekDays, setWeekDays] = useState<WeekDay[]>([])
+    const [startedTeams, setStartedTeams] = useState<Set<string>>(new Set())
     const [sortByGamesLeft, setSortByGamesLeft] = useState(false)
     const [availableOnly, setAvailableOnly] = useState(true)
+    const [rookiesOnly, setRookiesOnly] = useState(false)
     const [players, setPlayers] = useState<PlayerRow[]>([])
     const [loading, setLoading] = useState(true)
 
@@ -199,6 +206,7 @@ export default function PlayersScreen() {
         pendingPlayer: PlayerRow
     } | null>(null)
 
+    const listRef = useRef<FlashList<PlayerRow>>(null)
     const leagueId = current ? (current.leagues as any).id : null
 
     const {
@@ -222,11 +230,12 @@ export default function PlayersScreen() {
         for (const day of weekDays) {
             if (day.date < today) continue
             for (const team of day.playingTeams) {
+                if (day.date === today && startedTeams.has(team)) continue
                 map.set(team, (map.get(team) ?? 0) + 1)
             }
         }
         return map
-    }, [weekDays])
+    }, [weekDays, startedTeams])
 
     const displayedPlayers = useMemo(() => {
         const list = availableOnly ? players.filter((p) => !ownedMap.has(p.id)) : players
@@ -238,15 +247,24 @@ export default function PlayersScreen() {
         })
     }, [players, availableOnly, ownedMap, sortByGamesLeft, gamesLeft])
 
+    // Scroll to top after sort-by-games-left toggles (after re-render)
+    useEffect(() => {
+        listRef.current?.scrollToOffset({ offset: 0, animated: false })
+    }, [sortByGamesLeft])
+
     // Load current matchup week days once on mount
     useEffect(() => {
         let cancelled = false
         const seasonYear = currentSeasonYear()
+        const today = todayDateString()
         getCurrentWeekNumber(seasonYear).then((weekNum) => {
             if (cancelled) return
             return getWeekDays(weekNum ?? 1, seasonYear)
         }).then((days) => {
             if (!cancelled && days) setWeekDays(days)
+        }).catch(console.error)
+        getStartedTeams(today).then((teams) => {
+            if (!cancelled) setStartedTeams(teams)
         }).catch(console.error)
         return () => { cancelled = true }
     }, [])
@@ -269,10 +287,10 @@ export default function PlayersScreen() {
         return Array.from(intersection)
     }, [selectedDays, weekDays])
 
-    const load = useCallback(async (q: string, pos: string, teams: string[], lgId: string | null, playing: string[] | null) => {
+    const load = useCallback(async (q: string, pos: string, teams: string[], lgId: string | null, playing: string[] | null, rookies: boolean) => {
         setLoading(true)
         try {
-            setPlayers(await searchPlayers(q, pos, teams, lgId, playing))
+            setPlayers(await searchPlayers(q, pos, teams, lgId, playing, rookies))
         } catch (e) {
             console.error(e)
         } finally {
@@ -281,9 +299,9 @@ export default function PlayersScreen() {
     }, [])
 
     useEffect(() => {
-        const timer = setTimeout(() => load(query, position, selectedTeams, leagueId, playingTeams), 300)
+        const timer = setTimeout(() => load(query, position, selectedTeams, leagueId, playingTeams, rookiesOnly), 300)
         return () => clearTimeout(timer)
-    }, [query, position, selectedTeams, leagueId, playingTeams, load])
+    }, [query, position, selectedTeams, leagueId, playingTeams, rookiesOnly, load])
 
     function toggleTeam(t: string) {
         setSelectedTeams((prev) =>
@@ -485,6 +503,14 @@ export default function PlayersScreen() {
                         Available
                     </Text>
                 </Pressable>
+                <Pressable
+                    style={[styles.availableChip, rookiesOnly && styles.rookieChipActive]}
+                    onPress={() => setRookiesOnly((v) => !v)}
+                >
+                    <Text style={[styles.availableChipText, rookiesOnly && styles.rookieChipTextActive]}>
+                        Rookie
+                    </Text>
+                </Pressable>
             </View>
 
             {/* Position + Team filters */}
@@ -597,6 +623,7 @@ export default function PlayersScreen() {
                 <ActivityIndicator style={styles.flex1} color={colors.primary} />
             ) : (
                 <FlashList
+                    ref={listRef}
                     data={displayedPlayers}
                     keyExtractor={(p) => p.id}
                     contentContainerStyle={displayedPlayers.length === 0 ? styles.emptyContainer : undefined}
@@ -723,6 +750,8 @@ const styles = StyleSheet.create({
     availableChipActive: { backgroundColor: colors.primary },
     availableChipText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textSecondary },
     availableChipTextActive: { color: colors.textWhite },
+    rookieChipActive: { backgroundColor: colors.success },
+    rookieChipTextActive: { color: colors.textWhite },
 
     filterRow: { flexDirection: 'row', alignItems: 'center', paddingRight: spacing.xl, marginBottom: spacing.lg },
     positionScrollView: { flexGrow: 1, flexShrink: 1 },
