@@ -33,7 +33,10 @@ const PICK_TIMEOUT_SEC = 90
 export default function RookieDraftRoomScreen() {
     const { draftId } = useLocalSearchParams<{ draftId: string }>()
     const { current } = useLeagueContext()
-    const myMemberId = (current as any)?.id
+    const myMemberId = (current as any)?.id as string | undefined
+    // Persist the last known valid member ID so transient null context doesn't break picks
+    const myMemberIdRef = useRef<string | undefined>(undefined)
+    if (myMemberId) myMemberIdRef.current = myMemberId
 
     const [state, setState] = useState<RookieDraftState | null>(null)
     const [loading, setLoading] = useState(true)
@@ -115,15 +118,16 @@ export default function RookieDraftRoomScreen() {
 
     // Auto-pick when clock hits 0 and it's my turn
     useEffect(() => {
-        if (secondsLeft !== 0 || !draftId || !myMemberId || picking) return
+        const memberId = myMemberIdRef.current
+        if (secondsLeft !== 0 || !draftId || !memberId || picking) return
         if (autoPickFiredRef.current) return
-        const isMyTurnNow = state?.nextPick?.memberId === myMemberId
+        const isMyTurnNow = state?.nextPick?.memberId === memberId
         if (!isMyTurnNow) return
         autoPickFiredRef.current = true
         ;(async () => {
             setPicking(true)
             try {
-                await autoPickBest(draftId, myMemberId)
+                await autoPickBest(draftId, memberId)
                 setQuery('')
                 await Promise.all([load(), loadProspects()])
             } catch (e: any) {
@@ -135,7 +139,11 @@ export default function RookieDraftRoomScreen() {
     }, [secondsLeft])
 
     async function handlePick(player: any) {
-        if (!draftId || !myMemberId) return
+        const memberId = myMemberIdRef.current
+        if (!draftId || !memberId) {
+            Alert.alert('Error', 'Could not identify your team — try reopening the draft.')
+            return
+        }
         Alert.alert('Confirm Pick', `Select ${player.display_name}?`, [
             { text: 'Cancel', style: 'cancel' },
             {
@@ -143,7 +151,7 @@ export default function RookieDraftRoomScreen() {
                 onPress: async () => {
                     setPicking(true)
                     try {
-                        await makeSnakePick(draftId, myMemberId, player.id)
+                        await makeSnakePick(draftId, memberId, player.id)
                         setQuery('')
                         await Promise.all([load(), loadProspects()])
                     } catch (e: any) {
@@ -177,7 +185,7 @@ export default function RookieDraftRoomScreen() {
     }
 
     const { draft, picks, nextPick } = state
-    const isMyTurn = nextPick?.memberId === myMemberId
+    const isMyTurn = nextPick?.memberId === (myMemberId ?? myMemberIdRef.current)
     const isDone = draft.status === 'completed'
 
     const totalPicks = picks.length
