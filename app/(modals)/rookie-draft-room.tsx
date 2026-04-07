@@ -141,28 +141,17 @@ export default function RookieDraftRoomScreen() {
 
     async function handlePick(player: any) {
         const memberId = myMemberIdRef.current
-        if (!draftId || !memberId) {
-            Alert.alert('Error', 'Could not identify your team — try reopening the draft.')
-            return
+        if (!draftId || !memberId || picking) return
+        setPicking(true)
+        try {
+            await makeSnakePick(draftId, memberId, player.id)
+            setQuery('')
+            await Promise.all([load(), loadProspects()])
+        } catch (e: any) {
+            Alert.alert('Error', e.message)
+        } finally {
+            setPicking(false)
         }
-        Alert.alert('Confirm Pick', `Select ${player.display_name}?`, [
-            { text: 'Cancel', style: 'cancel' },
-            {
-                text: 'Pick',
-                onPress: async () => {
-                    setPicking(true)
-                    try {
-                        await makeSnakePick(draftId, memberId, player.id)
-                        setQuery('')
-                        await Promise.all([load(), loadProspects()])
-                    } catch (e: any) {
-                        Alert.alert('Error', e.message)
-                    } finally {
-                        setPicking(false)
-                    }
-                },
-            },
-        ])
     }
 
     if (loading) {
