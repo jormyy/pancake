@@ -10,6 +10,7 @@ import {
     makeSnakePick,
     getRookieDraftState,
     reseedRookieDraftPicks,
+    autoPickBest,
 } from '../sync/rookieDraft'
 import {
     LeagueIdBody,
@@ -92,6 +93,22 @@ export default async function draftRoutes(app: FastifyInstance) {
                 return { ok: false, error: 'Draft not found' }
             }
             return { ok: true, ...state }
+        },
+    )
+
+    app.post(
+        '/:draftId/auto-pick',
+        { schema: { params: DraftParams, body: SnakePickBody } },
+        async (req, reply) => {
+            const { draftId } = req.params as { draftId: string }
+            const { memberId } = req.body as { memberId: string; playerId: string }
+            try {
+                const result = await autoPickBest(draftId, memberId)
+                return { ok: true, ...result }
+            } catch (e) {
+                reply.status(400)
+                return { ok: false, error: errMsg(e) }
+            }
         },
     )
 

@@ -12,12 +12,13 @@ import {
 import { FlashList } from '@shopify/flash-list'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Stack, useLocalSearchParams } from 'expo-router'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
 import {
     getRookieDraftState,
     getRookiePlayers,
     makeSnakePick,
+    autoPickBest,
     subscribeToRookieDraft,
     unsubscribeFromRookieDraft,
     type RookieDraftState,
@@ -26,6 +27,8 @@ import {
 import { POSITION_COLORS } from '@/constants/positions'
 import { bgStyle } from '@/lib/style-cache'
 import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+
+const PICK_TIMEOUT_SEC = 90
 
 export default function RookieDraftRoomScreen() {
     const { draftId } = useLocalSearchParams<{ draftId: string }>()
@@ -40,6 +43,9 @@ export default function RookieDraftRoomScreen() {
     const [prospectsLoading, setProspectsLoading] = useState(false)
     const [picking, setPicking] = useState(false)
     const [activeTab, setActiveTab] = useState<'prospects' | 'board'>('prospects')
+
+    const [secondsLeft, setSecondsLeft] = useState<number | null>(null)
+    const autoPickFiredRef = useRef(false)
 
     const channelRef = useRef<any>(null)
     const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -86,6 +92,47 @@ export default function RookieDraftRoomScreen() {
             if (searchTimer.current) clearTimeout(searchTimer.current)
         }
     }, [query])
+
+    // Derive when the current pick's clock started
+    const clockEnd = useMemo(() => {
+        if (!state || state.draft.status !== 'in_progress') return null
+        const { picks, draft } = state
+        const made = picks.filter((p) => p.player).sort((a, b) => b.overallPick - a.overallPick)
+        const start = made[0]?.pickedAt ?? draft.startedAt
+        if (!start) return null
+        return new Date(start).getTime() + PICK_TIMEOUT_SEC * 1000
+    }, [state?.picks.filter((p) => p.player).length, state?.draft.status])
+
+    // Tick the countdown
+    useEffect(() => {
+        if (!clockEnd) { setSecondsLeft(null); return }
+        autoPickFiredRef.current = false
+        const tick = () => setSecondsLeft(Math.max(0, Math.ceil((clockEnd - Date.now()) / 1000)))
+        tick()
+        const id = setInterval(tick, 500)
+        return () => clearInterval(id)
+    }, [clockEnd])
+
+    // Auto-pick when clock hits 0 and it's my turn
+    useEffect(() => {
+        if (secondsLeft !== 0 || !draftId || !myMemberId || picking) return
+        if (autoPickFiredRef.current) return
+        const isMyTurnNow = state?.nextPick?.memberId === myMemberId
+        if (!isMyTurnNow) return
+        autoPickFiredRef.current = true
+        ;(async () => {
+            setPicking(true)
+            try {
+                await autoPickBest(draftId, myMemberId)
+                setQuery('')
+                await Promise.all([load(), loadProspects()])
+            } catch (e: any) {
+                Alert.alert('Auto-pick failed', e.message)
+            } finally {
+                setPicking(false)
+            }
+        })()
+    }, [secondsLeft])
 
     async function handlePick(player: any) {
         if (!draftId || !myMemberId) return
@@ -152,9 +199,19 @@ export default function RookieDraftRoomScreen() {
                             <Text style={styles.bannerTitle}>Draft Complete</Text>
                         ) : (
                             <>
-                                <Text style={styles.bannerTitle}>
-                                    Round {currentRound} · Pick {madePicks + 1} of {totalPicks}
-                                </Text>
+                                <View style={styles.bannerRow}>
+                                    <Text style={styles.bannerTitle}>
+                                        Round {currentRound} · Pick {madePicks + 1} of {totalPicks}
+                                    </Text>
+                                    {secondsLeft != null && (
+                                        <Text style={[
+                                            styles.bannerClock,
+                                            secondsLeft <= 10 && styles.bannerClockUrgent,
+                                        ]}>
+                                            {secondsLeft}s
+                                        </Text>
+                                    )}
+                                </View>
                                 {nextPick && (
                                     <Text style={styles.bannerSub}>
                                         On the clock:{' '}
@@ -373,7 +430,10 @@ const styles = StyleSheet.create({
         gap: spacing.xs,
     },
     bannerDone: { backgroundColor: palette.green50, borderBottomColor: palette.green200 },
+    bannerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     bannerTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.extrabold, color: colors.textPrimary },
+    bannerClock: { fontSize: fontSize.lg, fontWeight: fontWeight.extrabold, color: colors.textMuted },
+    bannerClockUrgent: { color: colors.danger },
     bannerSub: { fontSize: fontSize.md, color: colors.textSecondary },
     bannerMe: { color: colors.primary, fontWeight: fontWeight.bold },
 
