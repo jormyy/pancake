@@ -99,6 +99,7 @@ export default function RookieDraftRoomScreen() {
                     try {
                         await makeSnakePick(draftId, myMemberId, player.id)
                         setQuery('')
+                        await Promise.all([load(), loadProspects()])
                     } catch (e: any) {
                         Alert.alert('Error', e.message)
                     } finally {
