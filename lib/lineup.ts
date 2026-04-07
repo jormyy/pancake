@@ -502,22 +502,56 @@ async function autoSetForDate(
     // Skip past dates - lineups for already-played games should remain locked
     if (gameDate < todayDateString()) return
 
-    // Find which teams play on this date
-    const { data: games } = await supabase
-        .from('nba_games')
-        .select('home_team, away_team')
-        .eq('season_year', seasonYear)
-        .eq('game_date', gameDate)
+    // Find which teams play on this date and which have already started/finished
+    const [{ data: games }, { data: existingEntries }] = await Promise.all([
+        supabase
+            .from('nba_games')
+            .select('home_team, away_team, status')
+            .eq('season_year', seasonYear)
+            .eq('game_date', gameDate),
+        supabase
+            .from('weekly_lineups')
+            .select('player_id, slot_type')
+            .eq('member_id', memberId)
+            .eq('league_id', leagueId)
+            .eq('league_season_id', seasonId)
+            .eq('game_date', gameDate),
+    ])
 
     const playingTeams = new Set<string>()
+    const startedTeams = new Set<string>()
     for (const g of games ?? []) {
         if ((g as any).home_team) playingTeams.add((g as any).home_team)
         if ((g as any).away_team) playingTeams.add((g as any).away_team)
+        if (['InProgress', 'Final'].includes((g as any).status)) {
+            if ((g as any).home_team) startedTeams.add((g as any).home_team)
+            if ((g as any).away_team) startedTeams.add((g as any).away_team)
+        }
+    }
+
+    // Build a map of playerId → team for quick lookup
+    const playerTeamMap = new Map(players.map((p) => [p.playerId, p.nbaTeam]))
+
+    // Any player whose game has already started is locked — they cannot be moved in any direction.
+    // This covers both locked starters (preserve their slot) and locked bench players (can't promote them).
+    const lockedEntries: { playerId: string; slotType: string }[] = []
+    const lockedPlayerIds = new Set<string>()
+    for (const entry of existingEntries ?? []) {
+        const team = playerTeamMap.get((entry as any).player_id)
+        if (team && startedTeams.has(team)) {
+            lockedPlayerIds.add((entry as any).player_id)
+            const isStarter = (entry as any).slot_type !== 'BE' && (entry as any).slot_type !== 'IR'
+            if (isStarter) {
+                lockedEntries.push({ playerId: (entry as any).player_id, slotType: (entry as any).slot_type })
+            }
+        }
     }
 
     // Players sorted by avg fpts descending. Game-day players are preferred within each slot
     // but the fundamental ranking is always avg fpts.
-    const byFpts = [...players].sort((a, b) => b.projected - a.projected)
+    const byFpts = [...players]
+        .filter((p) => !lockedPlayerIds.has(p.playerId))
+        .sort((a, b) => b.projected - a.projected)
     const hasGame = (p: typeof players[number]) => !!(p.nbaTeam && playingTeams.has(p.nbaTeam))
 
     const used = new Set<string>()
@@ -541,6 +575,12 @@ async function autoSetForDate(
     // Any slot type not in this list (shouldn't happen) is appended last.
     const FILL_ORDER = ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F', 'UTIL']
 
+    // Count how many slots are already filled by locked players per slot type
+    const lockedSlotCounts = new Map<string, number>()
+    for (const { slotType } of lockedEntries) {
+        lockedSlotCounts.set(slotType, (lockedSlotCounts.get(slotType) ?? 0) + 1)
+    }
+
     const templateMap = new Map<string, number>(
         starterTemplates.map((t: any) => [t.slot_type as string, t.slot_count as number]),
     )
@@ -553,8 +593,10 @@ async function autoSetForDate(
     ]
 
     for (const slotType of slotOrder) {
-        const count = templateMap.get(slotType) ?? 0
-        for (let i = 0; i < count; i++) {
+        const totalCount = templateMap.get(slotType) ?? 0
+        const alreadyFilled = lockedSlotCounts.get(slotType) ?? 0
+        const remaining = totalCount - alreadyFilled
+        for (let i = 0; i < remaining; i++) {
             const pid = pickBest(slotType)
             if (pid) {
                 assignments.push({ playerId: pid, slotType })
@@ -563,14 +605,32 @@ async function autoSetForDate(
         }
     }
 
-    // Replace this day's lineup
-    await supabase
-        .from('weekly_lineups')
-        .delete()
-        .eq('member_id', memberId)
-        .eq('league_id', leagueId)
-        .eq('league_season_id', seasonId)
-        .eq('game_date', gameDate)
+    // Delete only unlocked entries, preserving locked starters
+    if (lockedPlayerIds.size > 0) {
+        // Delete all non-locked entries for this day
+        const unlockedEntryPlayerIds = (existingEntries ?? [])
+            .map((e: any) => e.player_id)
+            .filter((pid: string) => !lockedPlayerIds.has(pid))
+        if (unlockedEntryPlayerIds.length > 0) {
+            await supabase
+                .from('weekly_lineups')
+                .delete()
+                .eq('member_id', memberId)
+                .eq('league_id', leagueId)
+                .eq('league_season_id', seasonId)
+                .eq('game_date', gameDate)
+                .in('player_id', unlockedEntryPlayerIds)
+        }
+    } else {
+        // No locked players — safe to wipe and replace entirely
+        await supabase
+            .from('weekly_lineups')
+            .delete()
+            .eq('member_id', memberId)
+            .eq('league_id', leagueId)
+            .eq('league_season_id', seasonId)
+            .eq('game_date', gameDate)
+    }
 
     if (assignments.length > 0) {
         const { error } = await supabase.from('weekly_lineups').insert(

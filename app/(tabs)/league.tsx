@@ -18,7 +18,7 @@ import { getLeagueStandings, StandingRow } from '@/lib/scoring'
 import { getActiveDraft, startDraft } from '@/lib/draft'
 import { getWaiverPriorityOrder, WaiverPriorityRow } from '@/lib/waivers'
 import { getLeagueTransactions, TransactionRow, TRANSACTION_LABELS } from '@/lib/transactions'
-import { getActiveRookieDraft, startRookieDraft, getAllLeaguePicks, type LeaguePickItem } from '@/lib/rookieDraft'
+import { getActiveRookieDraft, startRookieDraft, getAllLeaguePicks, reseedRookieDraftPicks, type LeaguePickItem } from '@/lib/rookieDraft'
 import { POSITION_COLORS } from '@/constants/positions'
 import { colors, palette, fontSize, fontWeight, radii, spacing, TX_COLORS } from '@/constants/tokens'
 import { shortDateFmt } from '@/lib/format'
@@ -199,6 +199,21 @@ export default function LeagueScreen() {
         }
     }
 
+    async function handleReseedRookiePicks() {
+        if (!league?.id) return
+        setDraftLoading(true)
+        try {
+            const draft = await getActiveRookieDraft(league.id)
+            if (!draft) { Alert.alert('No active rookie draft found'); return }
+            await reseedRookieDraftPicks(draft.id)
+            Alert.alert('Done', 'Pick slots updated to reflect traded picks.')
+        } catch (e: any) {
+            Alert.alert('Error', e.message)
+        } finally {
+            setDraftLoading(false)
+        }
+    }
+
     async function handleJoinRookieDraft() {
         if (!league?.id) return
         setDraftLoading(true)
@@ -276,6 +291,11 @@ export default function LeagueScreen() {
                 {league?.status === 'drafting' ? (
                     <Pressable style={styles.draftButton} onPress={handleJoinDraftRoom} disabled={draftLoading}>
                         {draftLoading ? <ActivityIndicator size="small" color={colors.textWhite} /> : <Text style={styles.draftButtonText}>Join Draft Room</Text>}
+                    </Pressable>
+                ) : null}
+                {league?.status === 'drafting' && isCommissioner ? (
+                    <Pressable style={[styles.draftButton, { backgroundColor: colors.bgSubtle, borderWidth: 1, borderColor: colors.border, marginTop: 8 }]} onPress={handleReseedRookiePicks} disabled={draftLoading}>
+                        <Text style={[styles.draftButtonText, { color: colors.textSecondary }]}>Fix Traded Pick Slots</Text>
                     </Pressable>
                 ) : null}
                 {league?.status === 'offseason' && isCommissioner ? (

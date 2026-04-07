@@ -9,6 +9,7 @@ import {
     startRookieDraft,
     makeSnakePick,
     getRookieDraftState,
+    reseedRookieDraftPicks,
 } from '../sync/rookieDraft'
 import {
     LeagueIdBody,
@@ -91,6 +92,21 @@ export default async function draftRoutes(app: FastifyInstance) {
                 return { ok: false, error: 'Draft not found' }
             }
             return { ok: true, ...state }
+        },
+    )
+
+    app.post(
+        '/:draftId/reseed-picks',
+        { schema: { params: DraftParams } },
+        async (req, reply) => {
+            const { draftId } = req.params as { draftId: string }
+            try {
+                const result = await reseedRookieDraftPicks(draftId)
+                return { ok: true, ...result }
+            } catch (e) {
+                reply.status(400)
+                return { ok: false, error: errMsg(e) }
+            }
         },
     )
 
