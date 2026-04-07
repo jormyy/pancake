@@ -214,6 +214,10 @@ export async function makeSnakePick(draftId: string, memberId: string, playerId:
     return sharedApiPost<any>(`/draft/${draftId}/snake-pick`, { memberId, playerId })
 }
 
+export async function reseedRookieDraftPicks(draftId: string) {
+    return sharedApiPost<any>(`/draft/${draftId}/reseed-picks`, {})
+}
+
 export async function advanceSeason(leagueId: string) {
     return sharedApiPost<any>('/league/advance-season', { leagueId })
 }

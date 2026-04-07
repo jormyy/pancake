@@ -228,6 +228,72 @@ export async function makeSnakePick(draftId: string, memberId: string, playerId:
     return { pick: nextPick, remaining: count ?? 0 }
 }
 
+// ── Reseed picks for an in-progress draft (fixes traded-pick ownership) ───
+export async function reseedRookieDraftPicks(draftId: string) {
+    const { data: draft, error: draftErr } = await supabase
+        .from('drafts')
+        .select('id, league_id, status')
+        .eq('id', draftId)
+        .single()
+    if (draftErr || !draft) throw new Error('Draft not found')
+    if (draft.status !== 'in_progress') throw new Error('Draft is not in progress')
+
+    // Ensure no picks have been made yet
+    const { count: madeCount } = await supabase
+        .from('snake_draft_picks')
+        .select('id', { count: 'exact', head: true })
+        .eq('draft_id', draftId)
+        .not('player_id', 'is', null)
+    if ((madeCount ?? 0) > 0) throw new Error('Cannot reseed — picks have already been made')
+
+    // Get the draft order (already saved in draft_orders)
+    const { data: orders, error: ordersErr } = await supabase
+        .from('draft_orders')
+        .select('position, member_id')
+        .eq('draft_id', draftId)
+        .order('position')
+    if (ordersErr || !orders?.length) throw new Error('Draft orders not found')
+    const draftOrder = orders.map((o: any) => o.member_id)
+
+    // Build pickOwnerMap from current draft_picks trade assets
+    const { data: draftPickAssets } = await supabase
+        .from('draft_picks')
+        .select('season_year, round, original_owner_id, current_owner_id')
+        .eq('league_id', draft.league_id)
+        .eq('is_used', false)
+        .order('season_year', { ascending: true })
+
+    const pickOwnerMap = new Map<string, string>()
+    for (const dp of draftPickAssets ?? []) {
+        const key = `${dp.original_owner_id}:${dp.round}`
+        if (!pickOwnerMap.has(key)) pickOwnerMap.set(key, dp.current_owner_id)
+    }
+
+    // Delete existing picks and re-insert with correct ownership
+    await supabase.from('snake_draft_picks').delete().eq('draft_id', draftId)
+
+    const pickRows = []
+    let overall = 1
+    for (let round = 1; round <= CONFIG.ROOKIE_DRAFT_ROUNDS; round++) {
+        const isEvenRound = round % 2 === 0
+        const order = isEvenRound ? [...draftOrder].reverse() : draftOrder
+        for (let i = 0; i < order.length; i++) {
+            const originalOwner = order[i]
+            const member_id = pickOwnerMap.get(`${originalOwner}:${round}`) ?? originalOwner
+            pickRows.push({
+                draft_id: draftId,
+                overall_pick: overall++,
+                round,
+                pick_in_round: i + 1,
+                member_id,
+            })
+        }
+    }
+    await supabase.from('snake_draft_picks').insert(pickRows)
+    console.log(`[rookieDraft] Reseeded ${pickRows.length} picks for draft ${draftId}`)
+    return { reseeded: pickRows.length }
+}
+
 // ── Get Rookie Draft State ─────────────────────────────────────
 export async function getRookieDraftState(draftId: string) {
     const [{ data: draft }, { data: picks }, { data: orders }] = await Promise.all([
