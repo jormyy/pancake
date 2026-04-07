@@ -49,6 +49,7 @@ export default function RookieDraftRoomScreen() {
     const [activeTab, setActiveTab] = useState<'prospects' | 'board'>('prospects')
 
     const [secondsLeft, setSecondsLeft] = useState<number | null>(null)
+    const [pickError, setPickError] = useState<string | null>(null)
     const autoPickFiredRef = useRef(false)
 
     const channelRef = useRef<any>(null)
@@ -142,13 +143,14 @@ export default function RookieDraftRoomScreen() {
     async function handlePick(player: any) {
         const memberId = myMemberIdRef.current
         if (!draftId || !memberId || picking) return
+        setPickError(null)
         setPicking(true)
         try {
             await makeSnakePick(draftId, memberId, player.id)
             setQuery('')
             await Promise.all([load(), loadProspects()])
         } catch (e: any) {
-            Alert.alert('Error', e.message)
+            setPickError(e.message ?? 'Pick failed')
         } finally {
             setPicking(false)
         }
@@ -263,6 +265,13 @@ export default function RookieDraftRoomScreen() {
                                     />
                                 )}
                             </View>
+
+                            {/* ── Pick error ───────────────────────── */}
+                            {pickError && (
+                                <View style={styles.pickErrorBanner}>
+                                    <Text style={styles.pickErrorText}>{pickError}</Text>
+                                </View>
+                            )}
 
                             {/* ── Prospects list ───────────────────── */}
                             <FlashList
@@ -468,6 +477,16 @@ const styles = StyleSheet.create({
     searchSpinner: { marginLeft: spacing.md },
 
     emptyProspects: { paddingVertical: 40, alignItems: 'center' },
+    pickErrorBanner: {
+        marginHorizontal: spacing.lg,
+        marginBottom: spacing.sm,
+        padding: spacing.md,
+        backgroundColor: palette.red50,
+        borderRadius: radii.md,
+        borderWidth: 1,
+        borderColor: '#FECACA',
+    },
+    pickErrorText: { color: colors.danger, fontSize: fontSize.sm, fontWeight: fontWeight.semibold },
 
     resultRow: {
         flexDirection: 'row',
