@@ -228,6 +228,30 @@ export async function makeSnakePick(draftId: string, memberId: string, playerId:
     return { pick: nextPick, remaining: count ?? 0 }
 }
 
+// ── Auto-pick best available player (used when pick clock expires) ────────
+export async function autoPickBest(draftId: string, memberId: string) {
+    // Get already-picked player IDs for this draft
+    const { data: pickedRows } = await supabase
+        .from('snake_draft_picks')
+        .select('player_id')
+        .eq('draft_id', draftId)
+        .not('player_id', 'is', null)
+    const pickedIds = new Set((pickedRows ?? []).map((r: any) => r.player_id))
+
+    // Best available = lowest nba_draft_number not yet picked
+    const { data: players } = await supabase
+        .from('players')
+        .select('id')
+        .not('nba_draft_number', 'is', null)
+        .order('nba_draft_number', { ascending: true })
+        .limit(100)
+
+    const best = (players ?? []).find((p: any) => !pickedIds.has(p.id))
+    if (!best) throw new Error('No available players for auto-pick')
+
+    return makeSnakePick(draftId, memberId, best.id)
+}
+
 // ── Reseed picks for an in-progress draft (fixes traded-pick ownership) ───
 export async function reseedRookieDraftPicks(draftId: string) {
     const { data: draft, error: draftErr } = await supabase
