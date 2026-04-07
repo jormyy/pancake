@@ -136,7 +136,6 @@ export default function RookieDraftRoomScreen() {
 
     async function handlePick(player: any) {
         if (!draftId || !myMemberId) return
-        if (picking) return
         Alert.alert('Confirm Pick', `Select ${player.display_name}?`, [
             { text: 'Cancel', style: 'cancel' },
             {
@@ -285,7 +284,7 @@ export default function RookieDraftRoomScreen() {
                                 renderItem={({ item }) => (
                                     <ProspectRow
                                         player={item}
-                                        isMyTurn={isMyTurn && !isDone}
+                                        isDone={isDone}
                                         picking={picking}
                                         onPick={handlePick}
                                     />
@@ -313,20 +312,20 @@ export default function RookieDraftRoomScreen() {
 
 function ProspectRow({
     player,
-    isMyTurn,
+    isDone,
     picking,
     onPick,
 }: {
     player: any
-    isMyTurn: boolean
+    isDone: boolean
     picking: boolean
     onPick: (player: any) => void
 }) {
     return (
         <Pressable
             style={styles.resultRow}
-            onPress={isMyTurn ? () => onPick(player) : undefined}
-            disabled={!isMyTurn || picking}
+            onPress={isDone ? undefined : () => onPick(player)}
+            disabled={isDone || picking}
         >
             {player.nba_draft_number != null ? (
                 <View style={styles.draftNumChip}>
@@ -348,7 +347,7 @@ function ProspectRow({
                 </View>
                 <Text style={styles.resultTeam}>{player.nba_team ?? 'FA'}</Text>
             </View>
-            {isMyTurn && (
+            {!isDone && (
                 picking ? (
                     <ActivityIndicator size="small" color={colors.primary} />
                 ) : (
