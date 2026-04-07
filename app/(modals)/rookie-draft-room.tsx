@@ -2,6 +2,7 @@ import {
     View,
     Text,
     Pressable,
+    TouchableOpacity,
     TextInput,
     StyleSheet,
     ActivityIndicator,
@@ -330,10 +331,10 @@ function ProspectRow({
     onPick: (player: any) => void
 }) {
     return (
-        <Pressable
+        <TouchableOpacity
             style={styles.resultRow}
-            onPress={isDone ? undefined : () => onPick(player)}
-            disabled={isDone || picking}
+            onPress={isDone || picking ? undefined : () => onPick(player)}
+            activeOpacity={isDone || picking ? 1 : 0.6}
         >
             {player.nba_draft_number != null ? (
                 <View style={styles.draftNumChip}>
@@ -362,7 +363,7 @@ function ProspectRow({
                     <Text style={styles.pickBtn}>Pick</Text>
                 )
             )}
-        </Pressable>
+        </TouchableOpacity>
     )
 }
 
