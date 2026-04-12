@@ -209,11 +209,16 @@ function TaxiPlayerItem({
 }) {
     const player = item.players
     const pos = player.position ?? ''
+    const [headshotError, setHeadshotError] = useState(false)
+    const headshotUri = player.nba_id
+        ? `https://cdn.nba.com/headshots/nba/latest/260x190/${player.nba_id}.png`
+        : null
     return (
         <Pressable style={styles.playerRow} onPress={onPress}>
             <Avatar
                 name={player.display_name}
                 color={POSITION_COLORS[pos] ?? palette.gray500}
+                uri={headshotUri && !headshotError ? headshotUri : undefined}
             />
 
             <View style={styles.info}>
