@@ -8,7 +8,7 @@ import { colors, palette, fontWeight } from '@/constants/tokens'
 import { PosTag } from '@/components/PosTag'
 import { InjuryBadge } from '@/components/InjuryBadge'
 
-type Sel = { kind: 'starter' | 'bench' | 'ir'; index: number }
+type Sel = { kind: 'starter' | 'bench' | 'ir' | 'taxi'; index: number }
 
 const SLOT_W = 52
 
@@ -67,7 +67,7 @@ export function MatchupRow({
     myPlayer: LineupPlayer | null
     oppPlayer: LineupPlayer | null
     slotType: string
-    selKind: 'starter' | 'bench' | 'ir'
+    selKind: 'starter' | 'bench' | 'ir' | 'taxi'
     selIndex: number
     selected: Sel | null
     onTap: (sel: Sel) => void
@@ -81,7 +81,7 @@ export function MatchupRow({
 }) {
     const { push } = useRouter()
     const isSel = selected?.kind === selKind && selected.index === selIndex
-    const slotColor = slotType === 'IR' ? colors.danger : (POSITION_COLORS[slotType] ?? colors.textPlaceholder)
+    const slotColor = slotType === 'IR' ? colors.danger : slotType === 'TX' ? palette.gray500 : (POSITION_COLORS[slotType] ?? colors.textPlaceholder)
     const myHasGame = myPlayer?.nbaTeam ? playingTeams.has(myPlayer.nbaTeam) : false
     const oppHasGame = oppPlayer?.nbaTeam ? playingTeams.has(oppPlayer.nbaTeam) : false
     const myMatchup = myPlayer?.nbaTeam ? teamMatchups.get(myPlayer.nbaTeam) : undefined

@@ -26,8 +26,8 @@ import { useMatchupData } from '@/hooks/use-matchup-data'
 import { useLiveStats } from '@/hooks/use-live-stats'
 import { useLineupActions } from '@/hooks/use-lineup-actions'
 
-type LineupData = { starters: LineupSlot[]; bench: LineupPlayer[]; ir: LineupPlayer[] }
-type Sel = { kind: 'starter'; index: number } | { kind: 'bench'; index: number } | { kind: 'ir'; index: number }
+type LineupData = { starters: LineupSlot[]; bench: LineupPlayer[]; ir: LineupPlayer[]; taxi: LineupPlayer[] }
+type Sel = { kind: 'starter'; index: number } | { kind: 'bench'; index: number } | { kind: 'ir'; index: number } | { kind: 'taxi'; index: number }
 
 function shortName(name: string): string {
     const parts = name.trim().split(' ')
@@ -51,8 +51,8 @@ export default function HomeScreen() {
     const {
         selected, setSelected, saving, autoSetting,
         autoSetModalVisible, setAutoSetModalVisible,
-        irOverflowPending, setIROverflowPending, irOverflowSaving,
-        handleTap, handleIROverflowDrop, handleIROverflowMoveToIR,
+        activationOverflowPending, setActivationOverflowPending, activationOverflowSaving,
+        handleTap, handleOverflowDrop, handleOverflowMoveToIR, handleOverflowMoveToTaxi,
         doAutoSet, handleAutoSet,
     } = useLineupActions({ matchup, myLineup, league, selectedDate, startedTeams, loadMyLineup })
 
@@ -76,6 +76,7 @@ export default function HomeScreen() {
                 ...myLineup.starters.map((s) => s.player?.nbaTeam),
                 ...myLineup.bench.map((p) => p.nbaTeam),
                 ...myLineup.ir.map((p) => p.nbaTeam),
+                ...myLineup.taxi.map((p) => p.nbaTeam),
               ].filter(Boolean) as string[]
             : [],
     )
@@ -83,7 +84,8 @@ export default function HomeScreen() {
     const selectedPlayer = myLineup && selected
         ? selected.kind === 'starter' ? myLineup.starters[selected.index]?.player
         : selected.kind === 'bench' ? myLineup.bench[selected.index]
-        : myLineup.ir[selected.index]
+        : selected.kind === 'ir' ? myLineup.ir[selected.index]
+        : myLineup.taxi[selected.index]
         : null
 
     if (loading) return <LoadingScreen />
@@ -177,18 +179,18 @@ export default function HomeScreen() {
                 </ScrollView>
             )}
 
-            {/* IR overflow modal */}
+            {/* Activation overflow modal (roster full when activating IR/taxi player) */}
             <Modal
-                visible={irOverflowPending !== null}
+                visible={activationOverflowPending !== null}
                 transparent
                 animationType="slide"
-                onRequestClose={() => setIROverflowPending(null)}
+                onRequestClose={() => setActivationOverflowPending(null)}
             >
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalSheet}>
                         <Text style={styles.modalTitle}>Active Roster Full</Text>
                         <Text style={styles.modalSub}>
-                            Drop a player or move one to IR to make room.
+                            Drop a player, move one to IR, or move one to Taxi Squad to make room.
                         </Text>
                         <ScrollView style={{ maxHeight: 360 }}>
                             {myLineup && [...myLineup.starters.filter(s => s.player).map(s => s.player!), ...myLineup.bench].map((p) => (
@@ -200,23 +202,32 @@ export default function HomeScreen() {
                                     {isIREligible(p.injuryStatus) && (
                                         <Pressable
                                             style={[styles.overflowBtn, { backgroundColor: palette.red900 + '22', marginRight: 6 }]}
-                                            onPress={() => handleIROverflowMoveToIR(p.rosterPlayerId)}
-                                            disabled={irOverflowSaving}
+                                            onPress={() => handleOverflowMoveToIR(p.rosterPlayerId)}
+                                            disabled={activationOverflowSaving}
                                         >
                                             <Text style={[styles.overflowBtnText, { color: palette.red900 }]}>→ IR</Text>
                                         </Pressable>
                                     )}
+                                    {(league?.taxi_slots ?? 0) > (myLineup.taxi.length) && (
+                                        <Pressable
+                                            style={[styles.overflowBtn, { backgroundColor: palette.gray500 + '22', marginRight: 6 }]}
+                                            onPress={() => handleOverflowMoveToTaxi(p.rosterPlayerId)}
+                                            disabled={activationOverflowSaving}
+                                        >
+                                            <Text style={[styles.overflowBtnText, { color: palette.gray500 }]}>→ TX</Text>
+                                        </Pressable>
+                                    )}
                                     <Pressable
                                         style={[styles.overflowBtn, { backgroundColor: colors.danger + '22' }]}
-                                        onPress={() => handleIROverflowDrop(p.rosterPlayerId)}
-                                        disabled={irOverflowSaving}
+                                        onPress={() => handleOverflowDrop(p.rosterPlayerId)}
+                                        disabled={activationOverflowSaving}
                                     >
                                         <Text style={[styles.overflowBtnText, { color: colors.danger }]}>Drop</Text>
                                     </Pressable>
                                 </View>
                             ))}
                         </ScrollView>
-                        <Pressable style={styles.modalCancel} onPress={() => setIROverflowPending(null)}>
+                        <Pressable style={styles.modalCancel} onPress={() => setActivationOverflowPending(null)}>
                             <Text style={styles.modalCancelText}>Cancel</Text>
                         </Pressable>
                     </View>
@@ -261,6 +272,7 @@ function MatchupLineupView({
 }) {
     const maxBench = Math.max(myLineup.bench.length, oppLineup.bench.length)
     const maxIR = Math.max(myLineup.ir.length, oppLineup.ir.length)
+    const maxTaxi = Math.max(myLineup.taxi.length, oppLineup.taxi.length)
 
     return (
         <View style={styles.lineupContainer}>
@@ -319,6 +331,30 @@ function MatchupLineupView({
                             oppPlayer={oppLineup.ir[i] ?? null}
                             slotType="IR"
                             selKind="ir"
+                            selIndex={i}
+                            selected={selected}
+                            onTap={onTap}
+                            saving={saving}
+                            playingTeams={playingTeams}
+                            liveStats={liveStats}
+                            liveTeams={liveTeams}
+                            scoringSettings={scoringSettings}
+                            teamMatchups={teamMatchups}
+                        />
+                    ))}
+                </>
+            )}
+
+            {maxTaxi > 0 && (
+                <>
+                    <SectionDivider label="TAXI SQUAD" color={palette.gray500} />
+                    {Array.from({ length: maxTaxi }, (_, i) => (
+                        <MatchupRow
+                            key={`tx${i}`}
+                            myPlayer={myLineup.taxi[i] ?? null}
+                            oppPlayer={oppLineup.taxi[i] ?? null}
+                            slotType="TX"
+                            selKind="taxi"
                             selIndex={i}
                             selected={selected}
                             onTap={onTap}

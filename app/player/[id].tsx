@@ -27,11 +27,11 @@ import { addFreeAgent, dropPlayer, getPlayerRosterStatus, getRoster, isIREligibl
 import { todayDateString } from '@/lib/shared/dates'
 import { currentSeasonYear } from '@/lib/shared/season'
 import { supabase } from '@/lib/supabase'
+import { showAlert, confirmAction } from '@/lib/alert'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useEffect, useState } from 'react'
 import {
     ActivityIndicator,
-    Alert,
     Modal,
     Pressable,
     ScrollView,
@@ -242,7 +242,7 @@ export default function PlayerDetailScreen() {
 
             await tryAddFreeAgent()
         } catch (e: any) {
-            Alert.alert('Error', e.message)
+            showAlert('Error', e.message)
         } finally {
             setActionLoading(false)
         }
@@ -260,7 +260,7 @@ export default function PlayerDetailScreen() {
                 setMyRoster(roster.filter((r) => !r.is_on_ir))
                 setDropPickerVisible(true)
             } else {
-                Alert.alert('Error', e.message)
+                showAlert('Error', e.message)
             }
         } finally {
             setActionLoading(false)
@@ -276,7 +276,7 @@ export default function PlayerDetailScreen() {
             setDropPickerVisible(false)
             await loadRosterStatus()
         } catch (e: any) {
-            Alert.alert('Error', e.message)
+            showAlert('Error', e.message)
         } finally {
             setDropping(null)
         }
@@ -309,29 +309,23 @@ export default function PlayerDetailScreen() {
         }
     }
 
-    async function handleDrop() {
+    function handleDrop() {
         if (rosterStatus?.status !== 'mine') return
-        Alert.alert(
-            'Drop Player',
-            `Drop ${player?.display_name ?? 'this player'}? They will become a free agent.`,
-            [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'Drop',
-                    style: 'destructive',
-                    onPress: async () => {
-                        setActionLoading(true)
-                        try {
-                            await dropPlayer(rosterStatus.rosterPlayerId)
-                            await loadRosterStatus()
-                        } catch (e: any) {
-                            Alert.alert('Error', e.message)
-                        } finally {
-                            setActionLoading(false)
-                        }
-                    },
-                },
-            ],
+        const rosterPlayerId = rosterStatus.rosterPlayerId
+        confirmAction(
+            `Drop ${player?.display_name ?? 'this player'}?`,
+            'They will be placed on waivers for 48 hours.',
+            async () => {
+                setActionLoading(true)
+                try {
+                    await dropPlayer(rosterPlayerId)
+                    push('/(tabs)/roster')
+                } catch (e: any) {
+                    showAlert('Error', e.message)
+                    setActionLoading(false)
+                }
+            },
+            'Drop',
         )
     }
 

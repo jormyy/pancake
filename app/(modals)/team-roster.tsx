@@ -35,8 +35,9 @@ export default function TeamRosterScreen() {
             .finally(() => setLoading(false))
     }, [memberId, current])
 
-    const active = roster.filter((r) => !r.is_on_ir)
+    const active = roster.filter((r) => !r.is_on_ir && !r.is_on_taxi)
     const ir = roster.filter((r) => r.is_on_ir)
+    const taxi = roster.filter((r) => r.is_on_taxi)
 
     return (
         <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
@@ -52,13 +53,17 @@ export default function TeamRosterScreen() {
                 <ActivityIndicator style={styles.loading} color={colors.primary} />
             ) : (
                 <FlashList
-                    data={[...active, ...ir]}
+                    data={[...active, ...ir, ...taxi]}
                     keyExtractor={(r) => r.id}
                     ItemSeparatorComponent={ItemSeparator}
                     estimatedItemSize={64}
                     ListHeaderComponent={
                         <View style={styles.countRow}>
-                            <Text style={styles.countText}>{active.length} active{ir.length > 0 ? ` · ${ir.length} IR` : ''}</Text>
+                            <Text style={styles.countText}>
+                                {active.length} active
+                                {ir.length > 0 ? ` · ${ir.length} IR` : ''}
+                                {taxi.length > 0 ? ` · ${taxi.length} Taxi` : ''}
+                            </Text>
                         </View>
                     }
                     renderItem={({ item }) => {
@@ -92,6 +97,9 @@ export default function TeamRosterScreen() {
                                     ) : null}
                                     {item.is_on_ir ? (
                                         <Badge label="IR" color={palette.gray500} variant="soft" />
+                                    ) : null}
+                                    {item.is_on_taxi ? (
+                                        <Badge label="TX" color={palette.gray500} variant="soft" />
                                     ) : null}
                                 </View>
                             </Pressable>

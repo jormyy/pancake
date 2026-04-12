@@ -49,6 +49,7 @@ export default function CommissionerSettingsScreen() {
     const [slots, setSlots] = useState<SlotMap>({})
     const [rosterSize, setRosterSize] = useState('')
     const [irSlots, setIrSlots] = useState('')
+    const [taxiSlots, setTaxiSlots] = useState('')
     const [auctionBudget, setAuctionBudget] = useState('')
     const [playoffWeek, setPlayoffWeek] = useState('')
     const [loading, setLoading] = useState(true)
@@ -82,6 +83,7 @@ export default function CommissionerSettingsScreen() {
 
                 setRosterSize(String(league.roster_size ?? 20))
                 setIrSlots(String(league.ir_slots ?? 2))
+                setTaxiSlots(String(league.taxi_slots ?? 0))
                 setAuctionBudget(String(league.auction_budget ?? 200))
                 setPlayoffWeek(String(league.playoff_start_week ?? 20))
             } catch (e) {
@@ -105,6 +107,7 @@ export default function CommissionerSettingsScreen() {
 
         const parsedRoster = parseInt(rosterSize)
         const parsedIR = parseInt(irSlots)
+        const parsedTaxi = parseInt(taxiSlots)
         const parsedBudget = parseInt(auctionBudget)
         const parsedPlayoff = parseInt(playoffWeek)
 
@@ -114,6 +117,10 @@ export default function CommissionerSettingsScreen() {
         }
         if (isNaN(parsedIR) || parsedIR < 0) {
             Alert.alert('Invalid', 'IR slots must be 0 or more.')
+            return
+        }
+        if (isNaN(parsedTaxi) || parsedTaxi < 0) {
+            Alert.alert('Invalid', 'Taxi squad slots must be 0 or more.')
             return
         }
         if (isNaN(parsedBudget) || parsedBudget < 1) {
@@ -138,6 +145,7 @@ export default function CommissionerSettingsScreen() {
                     scoring_settings: scoringSettings,
                     roster_size: parsedRoster,
                     ir_slots: parsedIR,
+                    taxi_slots: parsedTaxi,
                     auction_budget: parsedBudget,
                     playoff_start_week: parsedPlayoff,
                 }),
@@ -400,6 +408,7 @@ export default function CommissionerSettingsScreen() {
                         {[
                             { label: 'Active Roster Size', value: rosterSize, set: setRosterSize },
                             { label: 'IR Slots', value: irSlots, set: setIrSlots },
+                            { label: 'Taxi Squad Slots', value: taxiSlots, set: setTaxiSlots },
                             {
                                 label: 'Auction Budget ($)',
                                 value: auctionBudget,

@@ -11,6 +11,7 @@ export function isIREligible(injuryStatus: string | null): boolean {
 export type RosterPlayer = {
     id: string
     is_on_ir: boolean
+    is_on_taxi: boolean
     acquired_via: string
     players: {
         id: string
@@ -37,12 +38,13 @@ export async function getRoster(memberId: string, leagueId: string): Promise<Ros
         .from('roster_players')
         .select(
             `
-      id, is_on_ir, acquired_via,
+      id, is_on_ir, is_on_taxi, acquired_via,
       players ( id, display_name, nba_team, position, eligible_positions, injury_status, nba_id )
     `,
         )
         .eq('member_id', memberId)
         .eq('league_season_id', seasonId)
+        .order('is_on_taxi')
         .order('is_on_ir')
 
     if (error) throw error
@@ -116,7 +118,7 @@ export async function toggleTaxi(rosterPlayerId: string, isOnTaxi: boolean): Pro
             leagueSeasonId: (rp as any).league_season_id,
             memberId: (rp as any).member_id,
             playerId: (rp as any).player_id,
-            transactionType: isOnTaxi ? 'taxi_assign' : 'taxi_return',
+            transactionType: isOnTaxi ? 'taxi_designate' : 'taxi_return',
         })
     }
 }
@@ -213,7 +215,7 @@ export async function addFreeAgent(
     // Check for ineligible IR players before allowing add
     const { data: rosterPlayers, error: rosterErr } = await supabase
         .from('roster_players')
-        .select('is_on_ir, players ( display_name, injury_status )')
+        .select('is_on_ir, is_on_taxi, players ( display_name, injury_status )')
         .eq('member_id', memberId)
         .eq('league_id', leagueId)
         .eq('league_season_id', seasonId)

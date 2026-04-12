@@ -22,6 +22,8 @@ export const TRANSACTION_LABELS: Record<string, string> = {
     trade_out: 'Traded Away',
     ir_designate: 'Placed on IR',
     ir_return: 'Activated from IR',
+    taxi_designate: 'Placed on Taxi Squad',
+    taxi_return: 'Activated from Taxi Squad',
     draft_won: 'Drafted',
 }
 
