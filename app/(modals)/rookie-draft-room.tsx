@@ -8,7 +8,9 @@ import {
     ActivityIndicator,
     Alert,
     KeyboardAvoidingView,
+    Modal,
     Platform,
+    ScrollView,
 } from 'react-native'
 import { FlashList } from '@shopify/flash-list'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -25,6 +27,7 @@ import {
     type RookieDraftState,
     type SnakePick,
 } from '@/lib/rookieDraft'
+import { toggleTaxi, dropPlayer, getRoster } from '@/lib/roster'
 import { POSITION_COLORS } from '@/constants/positions'
 import { bgStyle } from '@/lib/style-cache'
 import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
@@ -52,11 +55,23 @@ export default function RookieDraftRoomScreen() {
     const [pickError, setPickError] = useState<string | null>(null)
     const autoPickFiredRef = useRef(false)
 
+    const [rosterOverflow, setRosterOverflow] = useState<{
+        newPlayerId: string
+        newPlayerName: string
+        newRosterPlayerId: string | null
+        taxiSlotsAvailable: boolean
+    } | null>(null)
+    const [rosterForDrop, setRosterForDrop] = useState<any[]>([])
+    const [resolvingOverflow, setResolvingOverflow] = useState(false)
+
     const channelRef = useRef<any>(null)
     const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
     const load = useCallback(async () => {
-        if (!draftId) return
+        if (!draftId) {
+            setLoading(false)
+            return
+        }
         const data = await getRookieDraftState(draftId)
         setState(data)
         setLoading(false)
@@ -146,13 +161,63 @@ export default function RookieDraftRoomScreen() {
         setPickError(null)
         setPicking(true)
         try {
-            await makeSnakePick(draftId, memberId, player.id)
+            const result = await makeSnakePick(draftId, memberId, player.id)
             setQuery('')
             await Promise.all([load(), loadProspects()])
+
+            if (result?.rosterOverflow) {
+                // Fetch the rosterPlayerId for the newly drafted player so we can move them to taxi
+                const leagueId = (current?.leagues as any)?.id as string | undefined
+                let newRosterPlayerId: string | null = null
+                let dropList: any[] = []
+                if (leagueId) {
+                    try {
+                        const roster = await getRoster(memberId, leagueId)
+                        const match = roster.find((rp: any) => rp.players?.id === player.id)
+                        newRosterPlayerId = match?.id ?? null
+                        dropList = roster.filter(
+                            (rp: any) => !rp.is_on_ir && !(rp as any).is_on_taxi && rp.players?.id !== player.id,
+                        )
+                    } catch {}
+                }
+                setRosterForDrop(dropList)
+                setRosterOverflow({
+                    newPlayerId: player.id,
+                    newPlayerName: player.display_name,
+                    newRosterPlayerId,
+                    taxiSlotsAvailable: result.taxiSlotsAvailable,
+                })
+            }
         } catch (e: any) {
             setPickError(e.message ?? 'Pick failed')
         } finally {
             setPicking(false)
+        }
+    }
+
+    async function resolveByTaxi() {
+        if (!rosterOverflow?.newRosterPlayerId || resolvingOverflow) return
+        setResolvingOverflow(true)
+        try {
+            await toggleTaxi(rosterOverflow.newRosterPlayerId, true)
+            setRosterOverflow(null)
+        } catch (e: any) {
+            Alert.alert('Error', e.message ?? 'Failed to move to taxi')
+        } finally {
+            setResolvingOverflow(false)
+        }
+    }
+
+    async function resolveByDrop(rosterPlayerId: string) {
+        if (resolvingOverflow) return
+        setResolvingOverflow(true)
+        try {
+            await dropPlayer(rosterPlayerId)
+            setRosterOverflow(null)
+        } catch (e: any) {
+            Alert.alert('Error', e.message ?? 'Failed to drop player')
+        } finally {
+            setResolvingOverflow(false)
         }
     }
 
@@ -187,6 +252,60 @@ export default function RookieDraftRoomScreen() {
     return (
         <>
             <Stack.Screen options={{ title: 'Rookie Draft', presentation: 'modal' }} />
+
+            {/* ── Roster overflow resolution modal (non-dismissable) ── */}
+            <Modal visible={!!rosterOverflow} transparent animationType="slide">
+                <View style={styles.overflowOverlay}>
+                    <View style={styles.overflowCard}>
+                        <Text style={styles.overflowTitle}>Roster Full</Text>
+                        <Text style={styles.overflowBody}>
+                            You drafted{' '}
+                            <Text style={{ fontWeight: '700' }}>{rosterOverflow?.newPlayerName}</Text>
+                            {' '}but your active roster is over capacity. Resolve before continuing.
+                        </Text>
+
+                        {rosterOverflow?.taxiSlotsAvailable && (
+                            <Pressable
+                                style={[styles.overflowBtn, styles.overflowBtnPrimary]}
+                                onPress={resolveByTaxi}
+                                disabled={resolvingOverflow}
+                            >
+                                {resolvingOverflow ? (
+                                    <ActivityIndicator color={colors.textWhite} />
+                                ) : (
+                                    <Text style={styles.overflowBtnPrimaryText}>
+                                        Move {rosterOverflow?.newPlayerName} to Taxi Squad
+                                    </Text>
+                                )}
+                            </Pressable>
+                        )}
+
+                        {rosterForDrop.length > 0 && (
+                            <>
+                                <Text style={styles.overflowDropLabel}>Or drop a player:</Text>
+                                <ScrollView style={styles.overflowDropList} showsVerticalScrollIndicator>
+                                    {rosterForDrop.map((rp: any) => (
+                                        <Pressable
+                                            key={rp.id}
+                                            style={styles.overflowDropRow}
+                                            onPress={() => resolveByDrop(rp.id)}
+                                            disabled={resolvingOverflow}
+                                        >
+                                            <Text style={styles.overflowDropName}>
+                                                {rp.players?.display_name ?? 'Player'}
+                                            </Text>
+                                            <Text style={styles.overflowDropPos}>
+                                                {rp.players?.position ?? ''} · {rp.players?.nba_team ?? ''}
+                                            </Text>
+                                        </Pressable>
+                                    ))}
+                                </ScrollView>
+                            </>
+                        )}
+                    </View>
+                </View>
+            </Modal>
+
             <SafeAreaView style={styles.container} edges={['bottom']}>
                 <KeyboardAvoidingView
                     style={{ flex: 1 }}
@@ -566,6 +685,67 @@ const styles = StyleSheet.create({
 
     onClockText: { color: colors.success, fontWeight: fontWeight.bold },
     meText: { color: colors.primary, fontWeight: fontWeight.bold },
+
+    overflowOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.6)',
+        justifyContent: 'flex-end',
+    },
+    overflowCard: {
+        backgroundColor: colors.bgCard,
+        borderTopLeftRadius: radii['2xl'] ?? 24,
+        borderTopRightRadius: radii['2xl'] ?? 24,
+        padding: spacing['2xl'],
+        paddingBottom: spacing['5xl'] ?? 48,
+        gap: spacing.md,
+    },
+    overflowTitle: {
+        fontSize: fontSize.xl,
+        fontWeight: fontWeight.extrabold,
+        color: colors.textPrimary,
+    },
+    overflowBody: {
+        fontSize: fontSize.md,
+        color: colors.textSecondary,
+        lineHeight: 22,
+    },
+    overflowBtn: {
+        paddingVertical: 14,
+        borderRadius: radii.xl,
+        alignItems: 'center',
+        marginTop: spacing.sm,
+    },
+    overflowBtnPrimary: {
+        backgroundColor: colors.primary,
+    },
+    overflowBtnPrimaryText: {
+        color: colors.textWhite,
+        fontSize: fontSize.md,
+        fontWeight: fontWeight.bold,
+    },
+    overflowDropLabel: {
+        fontSize: fontSize.sm,
+        fontWeight: fontWeight.semibold,
+        color: colors.textMuted,
+        marginTop: spacing.md,
+    },
+    overflowDropList: {
+        maxHeight: 220,
+    },
+    overflowDropRow: {
+        paddingVertical: 12,
+        borderBottomWidth: 1,
+        borderBottomColor: colors.separator,
+    },
+    overflowDropName: {
+        fontSize: fontSize.md,
+        fontWeight: fontWeight.semibold,
+        color: colors.danger,
+    },
+    overflowDropPos: {
+        fontSize: fontSize.xs,
+        color: colors.textMuted,
+    },
 })
 
 const PickBoardHeader = (

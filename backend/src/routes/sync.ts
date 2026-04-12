@@ -10,6 +10,7 @@ import { verifySampleStats, verifySeasonTotals, validateDatabase } from '../sync
 import { currentSeasonYear } from '../lib/utils/season'
 import { syncPlayerStatuses } from '../sync/players'
 import { syncDraftOrder } from '../sync/draftOrder'
+import { syncGameTimes } from '../sync/schedule'
 import {
     SyncStatsBody,
     SyncMatchupsBody,
@@ -52,6 +53,11 @@ export default async function syncRoutes(app: FastifyInstance) {
         if (games.length) await updateGameStatuses(games)
         await syncScores()
         return { ok: true }
+    })
+
+    app.post('/schedule', async () => {
+        const result = await syncGameTimes()
+        return { ok: true, ...result }
     })
 
     // ── NBA data backfill ─────────────────────────────────────────
