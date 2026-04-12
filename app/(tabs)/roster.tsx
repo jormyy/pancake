@@ -134,11 +134,16 @@ function RosterPlayerItem({
     const player = item.players
     const pos = player.position ?? ''
     const isBusy = togglingId === item.id || taxiingId === item.id || droppingId === item.id
+    const [headshotError, setHeadshotError] = useState(false)
+    const headshotUri = player.nba_id
+        ? `https://cdn.nba.com/headshots/nba/latest/260x190/${player.nba_id}.png`
+        : null
     return (
         <Pressable style={styles.playerRow} onPress={onPress} onLongPress={onLongPress} delayLongPress={400}>
             <Avatar
                 name={player.display_name}
                 color={POSITION_COLORS[pos] ?? palette.gray500}
+                uri={headshotUri && !headshotError ? headshotUri : undefined}
             />
 
             <View style={styles.info}>
