@@ -108,6 +108,67 @@ async function finalizeWeekIfComplete(
     console.log(`[scores] Finalized week ${weekNumber} for league ${leagueId}`)
 }
 
+// Calculates and persists home/away points for all unfinalized matchups in a given week.
+async function updateWeekPoints(
+    leagueId: string,
+    seasonId: string,
+    seasonYear: number,
+    weekNumber: number,
+    settings: Record<string, number>,
+): Promise<void> {
+    const { data: weekData } = await supabase
+        .from('season_weeks')
+        .select('week_start, week_end')
+        .eq('season_year', seasonYear)
+        .eq('week_number', weekNumber)
+        .maybeSingle()
+
+    if (!weekData) {
+        console.log(`[scores] No season_weeks row for week ${weekNumber}`)
+        return
+    }
+
+    const { data: matchups } = await supabase
+        .from('matchups')
+        .select('id, home_member_id, away_member_id')
+        .eq('league_id', leagueId)
+        .eq('league_season_id', seasonId)
+        .eq('week_number', weekNumber)
+        .eq('is_finalized', false)
+
+    if (!matchups?.length) return
+
+    console.log(`[scores] Updating points for week ${weekNumber} (${weekData.week_start}–${weekData.week_end}), ${matchups.length} matchup(s)`)
+
+    for (const matchup of matchups) {
+        const [homePoints, awayPoints] = await Promise.all([
+            calcMemberWeekPoints(
+                matchup.home_member_id,
+                seasonId,
+                seasonYear,
+                weekNumber,
+                settings,
+                weekData.week_start,
+                weekData.week_end,
+            ),
+            calcMemberWeekPoints(
+                matchup.away_member_id,
+                seasonId,
+                seasonYear,
+                weekNumber,
+                settings,
+                weekData.week_start,
+                weekData.week_end,
+            ),
+        ])
+
+        await supabase
+            .from('matchups')
+            .update({ home_points: homePoints, away_points: awayPoints })
+            .eq('id', matchup.id)
+    }
+}
+
 // Main sync: updates live scores for all current-week matchups across all leagues.
 export async function syncScores() {
     const { data: seasons, error: sErr } = await supabase
@@ -133,64 +194,15 @@ export async function syncScores() {
             continue
         }
 
-        // Get date range for current week
-        const { data: weekData } = await supabase
-            .from('season_weeks')
-            .select('week_start, week_end')
-            .eq('season_year', season.season_year)
-            .eq('week_number', weekNumber)
-            .maybeSingle()
+        console.log(`[scores] Syncing week ${weekNumber} for league ${season.league_id}`)
 
-        if (!weekData) {
-            console.log(`[scores] No season_weeks row for week ${weekNumber}`)
-            continue
+        // Refresh points for current week and previous week (in case last sync missed final games)
+        await updateWeekPoints(season.league_id, season.id, season.season_year, weekNumber, settings)
+        if (weekNumber > 1) {
+            await updateWeekPoints(season.league_id, season.id, season.season_year, weekNumber - 1, settings)
         }
 
-        console.log(`[scores] Syncing week ${weekNumber} (${weekData.week_start}–${weekData.week_end}) for league ${season.league_id}`)
-
-        const { data: matchups, error: mErr } = await supabase
-            .from('matchups')
-            .select('id, home_member_id, away_member_id')
-            .eq('league_id', season.league_id)
-            .eq('league_season_id', season.id)
-            .eq('week_number', weekNumber)
-            .eq('is_finalized', false)
-        if (mErr) throw mErr
-
-        if (!matchups?.length) {
-            console.log(`[scores] No open matchups for week ${weekNumber}`)
-        } else {
-            for (const matchup of matchups) {
-                const [homePoints, awayPoints] = await Promise.all([
-                    calcMemberWeekPoints(
-                        matchup.home_member_id,
-                        season.id,
-                        season.season_year,
-                        weekNumber,
-                        settings,
-                        weekData.week_start,
-                        weekData.week_end,
-                    ),
-                    calcMemberWeekPoints(
-                        matchup.away_member_id,
-                        season.id,
-                        season.season_year,
-                        weekNumber,
-                        settings,
-                        weekData.week_start,
-                        weekData.week_end,
-                    ),
-                ])
-
-                await supabase
-                    .from('matchups')
-                    .update({ home_points: homePoints, away_points: awayPoints })
-                    .eq('id', matchup.id)
-            }
-        }
-
-        // Try to finalize the current week (handles end-of-week / Monday transition)
-        // and the previous week (in case it was missed). Both calls are idempotent.
+        // Try to finalize both weeks (idempotent — only finalizes when all games are done)
         await finalizeWeekIfComplete(season.league_id, season.id, weekNumber, season.season_year)
         if (weekNumber > 1) {
             await finalizeWeekIfComplete(season.league_id, season.id, weekNumber - 1, season.season_year)

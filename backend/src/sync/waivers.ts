@@ -115,6 +115,7 @@ export async function processWaiverClaims(): Promise<void> {
             .eq('member_id', claim.member_id)
             .eq('league_season_id', claim.league_season_id)
             .eq('is_on_ir', false)
+            .eq('is_on_taxi', false)
 
         const hasSpace = (activeCount ?? 0) < rosterSize
 
