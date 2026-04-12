@@ -5,7 +5,7 @@ import { getWeekDays, getWeeklyLineup, LineupSlot, LineupPlayer, WeekDay } from 
 import { todayDateString } from '@/lib/shared/dates'
 import { supabase } from '@/lib/supabase'
 
-type LineupData = { starters: LineupSlot[]; bench: LineupPlayer[]; ir: LineupPlayer[] }
+type LineupData = { starters: LineupSlot[]; bench: LineupPlayer[]; ir: LineupPlayer[]; taxi: LineupPlayer[] }
 
 export function useMatchupData(current: any, user: any, league: any) {
     const [matchup, setMatchup] = useState<Matchup | null | undefined>(undefined)

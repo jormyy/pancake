@@ -191,7 +191,7 @@ export async function getWeeklyLineup(
     seasonId: string,
     weekNumber: number,
     gameDate: string,
-): Promise<{ starters: LineupSlot[]; bench: LineupPlayer[]; ir: LineupPlayer[] }> {
+): Promise<{ starters: LineupSlot[]; bench: LineupPlayer[]; ir: LineupPlayer[]; taxi: LineupPlayer[] }> {
     const isPastDate = gameDate < todayDateString()
 
     const [{ data: templates }, { data: roster }, { data: assignments }] = await Promise.all([
@@ -201,7 +201,7 @@ export async function getWeeklyLineup(
             .eq('league_id', leagueId),
         supabase
             .from('roster_players')
-            .select('id, player_id, is_on_ir, players(display_name, position, eligible_positions, nba_team, injury_status)')
+            .select('id, player_id, is_on_ir, is_on_taxi, players(display_name, position, eligible_positions, nba_team, injury_status)')
             .eq('member_id', memberId)
             .eq('league_id', leagueId)
             .eq('league_season_id', seasonId),
@@ -220,6 +220,9 @@ export async function getWeeklyLineup(
 
     const irPlayerIds = new Set<string>(
         (roster ?? []).filter((r: any) => r.is_on_ir).map((r: any) => r.player_id as string),
+    )
+    const taxiPlayerIds = new Set<string>(
+        (roster ?? []).filter((r: any) => r.is_on_taxi).map((r: any) => r.player_id as string),
     )
 
     const rosterByPlayerId = new Map<string, LineupPlayer>()
@@ -274,15 +277,15 @@ export async function getWeeklyLineup(
         addedAfterDate = new Set((laterAddsResult.data ?? []).map((r: any) => r.player_id as string))
     }
 
-    // Build starter slots from templates (excluding BE and IR)
+    // Build starter slots from templates (excluding BE, IR, TX)
     const starterTemplates = (templates ?? []).filter(
-        (t: any) => t.slot_type !== 'BE' && t.slot_type !== 'IR',
+        (t: any) => t.slot_type !== 'BE' && t.slot_type !== 'IR' && t.slot_type !== 'TX',
     )
 
     const slotGroups: Record<string, string[]> = {}
     for (const [playerId, slotType] of assignmentMap.entries()) {
-        // Skip IR players — they shouldn't fill starter slots even if a stale lineup entry exists
-        if (slotType !== 'BE' && !irPlayerIds.has(playerId)) {
+        // Skip IR and taxi players — they shouldn't fill starter slots even if a stale lineup entry exists
+        if (slotType !== 'BE' && !irPlayerIds.has(playerId) && !taxiPlayerIds.has(playerId)) {
             if (!slotGroups[slotType]) slotGroups[slotType] = []
             slotGroups[slotType].push(playerId)
         }
@@ -304,7 +307,7 @@ export async function getWeeklyLineup(
         starters.map((s) => s.player?.playerId).filter(Boolean) as string[],
     )
     const bench: LineupPlayer[] = (roster ?? [])
-        .filter((r: any) => !r.is_on_ir && !starterPlayerIds.has(r.player_id) && !addedAfterDate.has(r.player_id))
+        .filter((r: any) => !r.is_on_ir && !r.is_on_taxi && !starterPlayerIds.has(r.player_id) && !addedAfterDate.has(r.player_id))
         .map((r: any) => rosterByPlayerId.get(r.player_id)!)
         .filter(Boolean)
 
@@ -313,7 +316,12 @@ export async function getWeeklyLineup(
         .map((r: any) => rosterByPlayerId.get(r.player_id)!)
         .filter(Boolean)
 
-    return { starters, bench, ir }
+    const taxi: LineupPlayer[] = (roster ?? [])
+        .filter((r: any) => r.is_on_taxi)
+        .map((r: any) => rosterByPlayerId.get(r.player_id)!)
+        .filter(Boolean)
+
+    return { starters, bench, ir, taxi }
 }
 
 export async function setPlayerSlot(
@@ -465,7 +473,7 @@ export async function autoSetLineup(
     })
 
     const starterTemplates = (templates ?? []).filter(
-        (t: any) => t.slot_type !== 'BE' && t.slot_type !== 'IR',
+        (t: any) => t.slot_type !== 'BE' && t.slot_type !== 'IR' && t.slot_type !== 'TX',
     )
 
     const today = todayDateString()

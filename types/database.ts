@@ -44,6 +44,7 @@ export type Database = {
                     commissioner_id: string
                     roster_size: number
                     ir_slots: number
+                    taxi_slots: number
                     auction_budget: number
                     scoring_settings: Json
                     playoff_start_week: number
@@ -60,6 +61,7 @@ export type Database = {
                     commissioner_id: string
                     roster_size?: number
                     ir_slots?: number
+                    taxi_slots?: number
                     auction_budget?: number
                     scoring_settings?: Json
                     playoff_start_week?: number
@@ -73,6 +75,7 @@ export type Database = {
                     commissioner_id?: string
                     roster_size?: number
                     ir_slots?: number
+                    taxi_slots?: number
                     auction_budget?: number
                     scoring_settings?: Json
                     playoff_start_week?: number
@@ -246,6 +249,7 @@ export type Database = {
                     member_id: string
                     player_id: string
                     is_on_ir: boolean
+                    is_on_taxi: boolean
                     acquired_at: string
                     acquired_via: string
                     acquisition_cost: number | null
@@ -257,11 +261,13 @@ export type Database = {
                     member_id: string
                     player_id: string
                     is_on_ir?: boolean
+                    is_on_taxi?: boolean
                     acquired_via: string
                     acquisition_cost?: number | null
                 }
                 Update: {
                     is_on_ir?: boolean
+                    is_on_taxi?: boolean
                     acquired_via?: string
                     acquisition_cost?: number | null
                 }

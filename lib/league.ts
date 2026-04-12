@@ -131,6 +131,7 @@ export async function updateLeague(
         scoring_settings?: Record<string, number>
         roster_size?: number
         ir_slots?: number
+        taxi_slots?: number
         auction_budget?: number
         playoff_start_week?: number
     },

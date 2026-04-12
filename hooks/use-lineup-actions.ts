@@ -2,12 +2,13 @@ import { useState } from 'react'
 import { Alert } from 'react-native'
 import { Matchup } from '@/lib/scoring'
 import { setPlayerSlot, autoSetLineup, canPlaySlot, LineupSlot, LineupPlayer } from '@/lib/lineup'
-import { isIREligible, toggleIR, dropPlayer } from '@/lib/roster'
+import { isIREligible, toggleIR, toggleTaxi, dropPlayer } from '@/lib/roster'
 import { todayDateString } from '@/lib/shared/dates'
 
-type LineupData = { starters: LineupSlot[]; bench: LineupPlayer[]; ir: LineupPlayer[] }
-type Sel = { kind: 'starter'; index: number } | { kind: 'bench'; index: number } | { kind: 'ir'; index: number }
-type PendingIRActivate = { rosterPlayerId: string }
+type LineupData = { starters: LineupSlot[]; bench: LineupPlayer[]; ir: LineupPlayer[]; taxi: LineupPlayer[] }
+type Sel = { kind: 'starter'; index: number } | { kind: 'bench'; index: number } | { kind: 'ir'; index: number } | { kind: 'taxi'; index: number }
+// rosterPlayerId = the player being activated from IR/taxi; source tells us which toggle to call
+type PendingActivation = { rosterPlayerId: string; source: 'ir' | 'taxi' }
 
 export function useLineupActions({
     matchup,
@@ -28,8 +29,8 @@ export function useLineupActions({
     const [saving, setSaving] = useState(false)
     const [autoSetting, setAutoSetting] = useState(false)
     const [autoSetModalVisible, setAutoSetModalVisible] = useState(false)
-    const [irOverflowPending, setIROverflowPending] = useState<PendingIRActivate | null>(null)
-    const [irOverflowSaving, setIROverflowSaving] = useState(false)
+    const [activationOverflowPending, setActivationOverflowPending] = useState<PendingActivation | null>(null)
+    const [activationOverflowSaving, setActivationOverflowSaving] = useState(false)
 
     async function handleTap(newSel: Sel) {
         if (selectedDate < todayDateString()) {
@@ -49,19 +50,29 @@ export function useLineupActions({
         const bench = myLineup.bench
         const ir = myLineup.ir
 
+        const taxi = myLineup.taxi
+
         const getPlayer = (s: Sel): LineupPlayer | null =>
             s.kind === 'starter' ? starters[s.index]?.player ?? null
             : s.kind === 'bench' ? bench[s.index] ?? null
-            : ir[s.index] ?? null
+            : s.kind === 'ir' ? ir[s.index] ?? null
+            : taxi[s.index] ?? null
         const getSlot = (s: Sel): string =>
             s.kind === 'starter' ? starters[s.index]?.slotType ?? 'BE'
             : s.kind === 'bench' ? 'BE'
-            : 'IR'
+            : s.kind === 'ir' ? 'IR'
+            : 'TX'
 
         const aPlayer = getPlayer(selected)
         const bPlayer = getPlayer(newSel)
         const aSlot = getSlot(selected)
         const bSlot = getSlot(newSel)
+
+        // Disallow direct IR ↔ taxi swaps
+        if ((aSlot === 'IR' && bSlot === 'TX') || (aSlot === 'TX' && bSlot === 'IR')) {
+            Alert.alert('Invalid move', 'Cannot swap directly between IR and Taxi Squad.')
+            return
+        }
 
         if (aSlot === 'IR' || bSlot === 'IR') {
             const irSel   = aSlot === 'IR' ? selected : newSel
@@ -78,7 +89,7 @@ export function useLineupActions({
                 const rosterSize: number = league?.roster_size ?? 20
                 const activeCount = starters.filter(s => s.player !== null).length + bench.length
                 if (activeCount >= rosterSize) {
-                    setIROverflowPending({ rosterPlayerId: irPlayer.rosterPlayerId })
+                    setActivationOverflowPending({ rosterPlayerId: irPlayer.rosterPlayerId, source: 'ir' })
                     return
                 }
             }
@@ -92,6 +103,56 @@ export function useLineupActions({
                         const slotType = starters[actSel.index]?.slotType
                         if (slotType && canPlaySlot(irPlayer.eligiblePositions, slotType)) {
                             await setPlayerSlot(matchup.myMemberId, league.id, matchup.seasonId, matchup.weekNumber, selectedDate, irPlayer.playerId, slotType)
+                        }
+                    }
+                }
+                await loadMyLineup(matchup, selectedDate)
+            } catch (e: any) {
+                Alert.alert('Error', e.message)
+            } finally {
+                setSaving(false)
+            }
+            return
+        }
+
+        if (aSlot === 'TX' || bSlot === 'TX') {
+            const taxiSel  = aSlot === 'TX' ? selected : newSel
+            const actSel   = aSlot === 'TX' ? newSel   : selected
+            const taxiPlayer = getPlayer(taxiSel)
+            const actPlayer  = getPlayer(actSel)
+
+            if (actPlayer) {
+                // Moving active → taxi: check taxi slot availability
+                const taxiLimit: number = league?.taxi_slots ?? 0
+                if (taxiLimit === 0) {
+                    Alert.alert('Taxi squad disabled', 'This league has no taxi squad slots configured.')
+                    return
+                }
+                if (taxi.length >= taxiLimit) {
+                    Alert.alert('Taxi squad full', `Your taxi squad is full (${taxiLimit} slots).`)
+                    return
+                }
+            }
+
+            if (taxiPlayer && !actPlayer) {
+                // Activating a taxi player: check active roster space
+                const rosterSize: number = league?.roster_size ?? 20
+                const activeCount = starters.filter(s => s.player !== null).length + bench.length
+                if (activeCount >= rosterSize) {
+                    setActivationOverflowPending({ rosterPlayerId: taxiPlayer.rosterPlayerId, source: 'taxi' })
+                    return
+                }
+            }
+
+            setSaving(true)
+            try {
+                if (actPlayer) await toggleTaxi(actPlayer.rosterPlayerId, true)
+                if (taxiPlayer) {
+                    await toggleTaxi(taxiPlayer.rosterPlayerId, false)
+                    if (actSel.kind === 'starter') {
+                        const slotType = starters[actSel.index]?.slotType
+                        if (slotType && canPlaySlot(taxiPlayer.eligiblePositions, slotType)) {
+                            await setPlayerSlot(matchup.myMemberId, league.id, matchup.seasonId, matchup.weekNumber, selectedDate, taxiPlayer.playerId, slotType)
                         }
                     }
                 }
@@ -133,33 +194,57 @@ export function useLineupActions({
         }
     }
 
-    async function handleIROverflowDrop(dropRosterPlayerId: string) {
-        if (!irOverflowPending || !matchup) return
-        setIROverflowSaving(true)
-        try {
-            await dropPlayer(dropRosterPlayerId)
-            await toggleIR(irOverflowPending.rosterPlayerId, false)
-            setIROverflowPending(null)
-            await loadMyLineup(matchup, selectedDate)
-        } catch (e: any) {
-            Alert.alert('Error', e.message)
-        } finally {
-            setIROverflowSaving(false)
+    async function activatePending() {
+        if (!activationOverflowPending) return
+        if (activationOverflowPending.source === 'ir') {
+            await toggleIR(activationOverflowPending.rosterPlayerId, false)
+        } else {
+            await toggleTaxi(activationOverflowPending.rosterPlayerId, false)
         }
     }
 
-    async function handleIROverflowMoveToIR(moveRosterPlayerId: string) {
-        if (!irOverflowPending || !matchup) return
-        setIROverflowSaving(true)
+    async function handleOverflowDrop(dropRosterPlayerId: string) {
+        if (!activationOverflowPending || !matchup) return
+        setActivationOverflowSaving(true)
         try {
-            await toggleIR(moveRosterPlayerId, true)
-            await toggleIR(irOverflowPending.rosterPlayerId, false)
-            setIROverflowPending(null)
+            await dropPlayer(dropRosterPlayerId)
+            await activatePending()
+            setActivationOverflowPending(null)
             await loadMyLineup(matchup, selectedDate)
         } catch (e: any) {
             Alert.alert('Error', e.message)
         } finally {
-            setIROverflowSaving(false)
+            setActivationOverflowSaving(false)
+        }
+    }
+
+    async function handleOverflowMoveToIR(moveRosterPlayerId: string) {
+        if (!activationOverflowPending || !matchup) return
+        setActivationOverflowSaving(true)
+        try {
+            await toggleIR(moveRosterPlayerId, true)
+            await activatePending()
+            setActivationOverflowPending(null)
+            await loadMyLineup(matchup, selectedDate)
+        } catch (e: any) {
+            Alert.alert('Error', e.message)
+        } finally {
+            setActivationOverflowSaving(false)
+        }
+    }
+
+    async function handleOverflowMoveToTaxi(moveRosterPlayerId: string) {
+        if (!activationOverflowPending || !matchup) return
+        setActivationOverflowSaving(true)
+        try {
+            await toggleTaxi(moveRosterPlayerId, true)
+            await activatePending()
+            setActivationOverflowPending(null)
+            await loadMyLineup(matchup, selectedDate)
+        } catch (e: any) {
+            Alert.alert('Error', e.message)
+        } finally {
+            setActivationOverflowSaving(false)
         }
     }
 
@@ -193,12 +278,13 @@ export function useLineupActions({
         autoSetting,
         autoSetModalVisible,
         setAutoSetModalVisible,
-        irOverflowPending,
-        setIROverflowPending,
-        irOverflowSaving,
+        activationOverflowPending,
+        setActivationOverflowPending,
+        activationOverflowSaving,
         handleTap,
-        handleIROverflowDrop,
-        handleIROverflowMoveToIR,
+        handleOverflowDrop,
+        handleOverflowMoveToIR,
+        handleOverflowMoveToTaxi,
         doAutoSet,
         handleAutoSet,
     }
