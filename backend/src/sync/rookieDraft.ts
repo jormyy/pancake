@@ -225,7 +225,39 @@ export async function makeSnakePick(draftId: string, memberId: string, playerId:
         console.log(`[rookieDraft] Draft ${draftId} completed`)
     }
 
-    return { pick: nextPick, remaining: count ?? 0 }
+    // Check if the picking member's roster is now over capacity
+    const { data: leagueRow } = await supabase
+        .from('leagues')
+        .select('roster_size, taxi_slots')
+        .eq('id', draft.league_id)
+        .single()
+
+    const rosterSize = (leagueRow as any)?.roster_size ?? 20
+    const taxiSlots = (leagueRow as any)?.taxi_slots ?? 2
+
+    const [{ count: activeCount }, { count: taxiCount }] = await Promise.all([
+        supabase
+            .from('roster_players')
+            .select('id', { count: 'exact', head: true })
+            .eq('member_id', memberId)
+            .eq('league_season_id', draft.league_season_id)
+            .eq('is_on_ir', false)
+            .eq('is_on_taxi', false),
+        supabase
+            .from('roster_players')
+            .select('id', { count: 'exact', head: true })
+            .eq('member_id', memberId)
+            .eq('league_season_id', draft.league_season_id)
+            .eq('is_on_taxi', true),
+    ])
+
+    return {
+        pick: nextPick,
+        remaining: count ?? 0,
+        rosterOverflow: (activeCount ?? 0) > rosterSize,
+        taxiSlotsAvailable: (taxiCount ?? 0) < taxiSlots,
+        newPlayerId: playerId,
+    }
 }
 
 // ── Auto-pick best available player (used when pick clock expires) ────────

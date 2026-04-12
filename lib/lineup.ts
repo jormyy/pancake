@@ -401,7 +401,8 @@ export async function autoSetLineup(
             .eq('member_id', memberId)
             .eq('league_id', leagueId)
             .eq('league_season_id', seasonId)
-            .eq('is_on_ir', false),
+            .eq('is_on_ir', false)
+            .eq('is_on_taxi', false),
         supabase
             .from('lineup_slot_templates')
             .select('slot_type, slot_count')
@@ -506,7 +507,7 @@ async function autoSetForDate(
     const [{ data: games }, { data: existingEntries }] = await Promise.all([
         supabase
             .from('nba_games')
-            .select('home_team, away_team, status')
+            .select('home_team, away_team, status, game_time')
             .eq('season_year', seasonYear)
             .eq('game_date', gameDate),
         supabase
@@ -520,10 +521,14 @@ async function autoSetForDate(
 
     const playingTeams = new Set<string>()
     const startedTeams = new Set<string>()
+    const now = new Date().toISOString()
     for (const g of games ?? []) {
         if ((g as any).home_team) playingTeams.add((g as any).home_team)
         if ((g as any).away_team) playingTeams.add((g as any).away_team)
-        if (['InProgress', 'Final'].includes((g as any).status)) {
+        const hasStarted =
+            ['InProgress', 'Final'].includes((g as any).status) ||
+            ((g as any).game_time && (g as any).game_time <= now)
+        if (hasStarted) {
             if ((g as any).home_team) startedTeams.add((g as any).home_team)
             if ((g as any).away_team) startedTeams.add((g as any).away_team)
         }

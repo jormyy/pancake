@@ -86,6 +86,41 @@ export async function toggleIR(rosterPlayerId: string, isOnIR: boolean): Promise
     }
 }
 
+export async function toggleTaxi(rosterPlayerId: string, isOnTaxi: boolean): Promise<void> {
+    const { data: rp } = await supabase
+        .from('roster_players')
+        .select('member_id, league_id, league_season_id, player_id')
+        .eq('id', rosterPlayerId)
+        .single()
+
+    const { error } = await supabase
+        .from('roster_players')
+        .update({ is_on_taxi: isOnTaxi } as any)
+        .eq('id', rosterPlayerId)
+    if (error) throw error
+
+    // When moving to taxi, remove any active lineup slot assignments
+    if (isOnTaxi && rp) {
+        await supabase
+            .from('weekly_lineups')
+            .delete()
+            .eq('member_id', (rp as any).member_id)
+            .eq('league_id', (rp as any).league_id)
+            .eq('league_season_id', (rp as any).league_season_id)
+            .eq('player_id', (rp as any).player_id)
+    }
+
+    if (rp) {
+        await logTransaction({
+            leagueId: (rp as any).league_id,
+            leagueSeasonId: (rp as any).league_season_id,
+            memberId: (rp as any).member_id,
+            playerId: (rp as any).player_id,
+            transactionType: isOnTaxi ? 'taxi_assign' : 'taxi_return',
+        })
+    }
+}
+
 export type OwnedEntry = { teamName: string; memberId: string }
 
 // Returns a map of player_id → { teamName, memberId } for all owned players in the league
@@ -205,13 +240,14 @@ export async function addFreeAgent(
         .single()
     if (leagueErr) throw leagueErr
 
-    // Count member's current active (non-IR) roster slots
+    // Count member's current active (non-IR, non-taxi) roster slots
     const { count, error: countErr } = await supabase
         .from('roster_players')
         .select('id', { count: 'exact', head: true })
         .eq('member_id', memberId)
         .eq('league_season_id', seasonId)
         .eq('is_on_ir', false)
+        .eq('is_on_taxi', false)
     if (countErr) throw countErr
 
     const rosterSize = league.roster_size ?? 20
