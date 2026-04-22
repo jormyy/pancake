@@ -4,10 +4,9 @@
 -- 1. function_search_path_mutable — add SET search_path = public
 --    to all 12 affected functions to prevent schema-injection attacks.
 --
--- 2. extension_in_public — move unaccent and pg_jsonschema to an
---    `extensions` schema so they are no longer in the public API.
---    pg_net is excluded: its objects live in the `net` schema, not
---    public, so ALTER EXTENSION would be a no-op / unsupported.
+-- 2. extension_in_public — move unaccent to an `extensions` schema.
+--    pg_jsonschema does not support SET SCHEMA, so it stays in public.
+--    pg_net is excluded: its objects live in the `net` schema, not public.
 --
 -- 3. materialized_view_in_api — revoke anon SELECT on
 --    mv_player_season_averages (authenticated users only).
@@ -19,38 +18,49 @@
 
 
 -- ============================================================
--- PART 1: Move extensions out of the public schema
+-- PART 1: Move unaccent out of the public schema
 -- ============================================================
 
 CREATE SCHEMA IF NOT EXISTS extensions;
 
 -- unaccent: used only in name_key() below. Safe to move.
-ALTER EXTENSION unaccent SET SCHEMA extensions;
+DO $$
+BEGIN
+  -- Skip if already in extensions schema (migration may have partially run)
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_extension
+    WHERE extname = 'unaccent' AND extnamespace = (SELECT oid FROM pg_namespace WHERE nspname = 'extensions')
+  ) THEN
+    ALTER EXTENSION unaccent SET SCHEMA extensions;
+  END IF;
+END $$;
 
--- pg_jsonschema: used in leagues.scoring_settings CHECK constraint.
--- Must drop the constraint, move the extension, then recreate.
-ALTER TABLE leagues DROP CONSTRAINT IF EXISTS scoring_settings_schema;
-ALTER EXTENSION pg_jsonschema SET SCHEMA extensions;
-ALTER TABLE leagues
-  ADD CONSTRAINT scoring_settings_schema CHECK (
-    extensions.jsonb_matches_schema(
-      '{
-        "type": "object",
-        "additionalProperties": { "type": "number" },
-        "propertyNames": {
-          "enum": [
-            "points", "rebounds", "assists", "steals", "blocks",
-            "turnovers", "three_pointers_made", "double_double",
-            "triple_double", "offensive_rebounds", "defensive_rebounds",
-            "field_goals_made", "field_goals_attempted",
-            "free_throws_made", "free_throws_attempted",
-            "personal_fouls", "minutes_played", "plus_minus"
-          ]
-        }
-      }',
-      scoring_settings
-    )
-  );
+-- pg_jsonschema: stays in public (does not support SET SCHEMA)
+-- Re-create the constraint unchanged (idempotent via IF EXISTS / IF NOT EXISTS)
+DO $$
+BEGIN
+  ALTER TABLE leagues DROP CONSTRAINT IF EXISTS scoring_settings_schema;
+  ALTER TABLE leagues
+    ADD CONSTRAINT scoring_settings_schema CHECK (
+      jsonb_matches_schema(
+        '{
+          "type": "object",
+          "additionalProperties": { "type": "number" },
+          "propertyNames": {
+            "enum": [
+              "points", "rebounds", "assists", "steals", "blocks",
+              "turnovers", "three_pointers_made", "double_double",
+              "triple_double", "offensive_rebounds", "defensive_rebounds",
+              "field_goals_made", "field_goals_attempted",
+              "free_throws_made", "free_throws_attempted",
+              "personal_fouls", "minutes_played", "plus_minus"
+            ]
+          }
+        }',
+        scoring_settings
+      )
+    );
+END $$;
 
 
 -- ============================================================
@@ -172,7 +182,7 @@ END;
 $$;
 
 -- name_key ────────────────────────────────────────────────────
--- Also updated to use extensions.unaccent after the schema move above.
+-- Uses extensions.unaccent after moving the extension above.
 CREATE OR REPLACE FUNCTION name_key(n text) RETURNS text
   LANGUAGE sql IMMUTABLE STRICT
   SET search_path = public
