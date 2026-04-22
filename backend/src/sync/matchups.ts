@@ -2,7 +2,7 @@ import { supabase } from '../lib/supabase'
 
 // Standard round-robin: fix teams[0], rotate the rest each round.
 // Returns an array of rounds, each round being a list of home/away pairs.
-function roundRobinRounds(ids: string[]): { home: string; away: string }[][] {
+export function roundRobinRounds(ids: string[]): { home: string; away: string }[][] {
     const teams = ids.length % 2 === 0 ? [...ids] : [...ids, '__bye__']
     const n = teams.length
     const rounds: { home: string; away: string }[][] = []
