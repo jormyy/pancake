@@ -64,6 +64,11 @@ export default function RookieDraftRoomScreen() {
     const [rosterForDrop, setRosterForDrop] = useState<any[]>([])
     const [resolvingOverflow, setResolvingOverflow] = useState(false)
 
+    // End-of-draft roster trim state
+    const [trimOverflow, setTrimOverflow] = useState<{ excess: number; dropList: any[] } | null>(null)
+    const [trimmingId, setTrimmingId] = useState<string | null>(null)
+    const draftEndCheckedRef = useRef(false)
+
     const channelRef = useRef<any>(null)
     const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -154,6 +159,56 @@ export default function RookieDraftRoomScreen() {
             }
         })()
     }, [secondsLeft])
+
+    // Check for roster overflow when draft completes
+    useEffect(() => {
+        const memberId = myMemberIdRef.current ?? myMemberId
+        if (!state || state.draft.status !== 'completed' || !memberId || draftEndCheckedRef.current) return
+        draftEndCheckedRef.current = true
+        const leagueId = (current?.leagues as any)?.id as string | undefined
+        if (!leagueId) return
+        ;(async () => {
+            try {
+                const roster = await getRoster(memberId, leagueId)
+                const league = current?.leagues as any
+                const rosterSize = league?.roster_size ?? 20
+                const active = roster.filter((rp: any) => !rp.is_on_ir && !rp.is_on_taxi)
+                const excess = active.length - rosterSize
+                if (excess > 0) {
+                    setTrimOverflow({ excess, dropList: active })
+                }
+            } catch {}
+        })()
+    }, [state?.draft.status])
+
+    async function handleTrimDrop(rosterPlayerId: string) {
+        if (trimmingId) return
+        setTrimmingId(rosterPlayerId)
+        try {
+            await dropPlayer(rosterPlayerId)
+            // Recheck roster after drop
+            const memberId = myMemberIdRef.current ?? myMemberId
+            const leagueId = (current?.leagues as any)?.id as string | undefined
+            if (memberId && leagueId) {
+                const roster = await getRoster(memberId, leagueId)
+                const league = current?.leagues as any
+                const rosterSize = league?.roster_size ?? 20
+                const active = roster.filter((rp: any) => !rp.is_on_ir && !rp.is_on_taxi)
+                const excess = active.length - rosterSize
+                if (excess <= 0) {
+                    setTrimOverflow(null)
+                } else {
+                    setTrimOverflow({ excess, dropList: active })
+                }
+            } else {
+                setTrimOverflow(null)
+            }
+        } catch (e: any) {
+            Alert.alert('Error', e.message ?? 'Failed to drop player')
+        } finally {
+            setTrimmingId(null)
+        }
+    }
 
     async function handlePick(player: any) {
         const memberId = myMemberIdRef.current
@@ -302,6 +357,44 @@ export default function RookieDraftRoomScreen() {
                                 </ScrollView>
                             </>
                         )}
+                    </View>
+                </View>
+            </Modal>
+
+            {/* ── End-of-draft roster trim modal (non-dismissable) ── */}
+            <Modal visible={!!trimOverflow} transparent animationType="slide">
+                <View style={styles.overflowOverlay}>
+                    <View style={styles.overflowCard}>
+                        <Text style={styles.overflowTitle}>Trim Your Roster</Text>
+                        <Text style={styles.overflowBody}>
+                            Your active roster is{' '}
+                            <Text style={{ fontWeight: '700' }}>{trimOverflow?.excess ?? 0} over</Text>
+                            {' '}the limit. Drop {trimOverflow?.excess === 1 ? 'a player' : `${trimOverflow?.excess} players`} to continue.
+                        </Text>
+                        <Text style={styles.overflowDropLabel}>Select a player to drop:</Text>
+                        <ScrollView style={styles.overflowDropList} showsVerticalScrollIndicator>
+                            {trimOverflow?.dropList.map((rp: any) => (
+                                <Pressable
+                                    key={rp.id}
+                                    style={styles.overflowDropRow}
+                                    onPress={() => handleTrimDrop(rp.id)}
+                                    disabled={!!trimmingId}
+                                >
+                                    {trimmingId === rp.id ? (
+                                        <ActivityIndicator size="small" color={colors.danger} />
+                                    ) : (
+                                        <>
+                                            <Text style={styles.overflowDropName}>
+                                                {rp.players?.display_name ?? 'Player'}
+                                            </Text>
+                                            <Text style={styles.overflowDropPos}>
+                                                {rp.players?.position ?? ''} · {rp.players?.nba_team ?? ''}
+                                            </Text>
+                                        </>
+                                    )}
+                                </Pressable>
+                            ))}
+                        </ScrollView>
                     </View>
                 </View>
             </Modal>

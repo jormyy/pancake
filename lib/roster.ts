@@ -1,11 +1,17 @@
 import { supabase } from '@/lib/supabase'
 import { logTransaction } from '@/lib/transactions'
-import { getCurrentSeasonId } from '@/lib/shared/season'
+import { getCurrentSeasonId, getActiveSeasonId } from '@/lib/shared/season'
 
 export function isIREligible(injuryStatus: string | null): boolean {
     if (!injuryStatus) return false
     const s = injuryStatus.toLowerCase()
+    // DTD players are not IR eligible — only Out and official IR designations
     return s === 'out' || s.startsWith('ir')
+}
+
+export function isDTD(injuryStatus: string | null): boolean {
+    if (!injuryStatus) return false
+    return injuryStatus.toLowerCase() === 'dtd'
 }
 
 export type RosterPlayer = {
@@ -21,7 +27,12 @@ export type RosterPlayer = {
         eligible_positions: string[]
         injury_status: string | null
         nba_id: string | null
+        nba_draft_number: number | null
     }
+}
+
+export function isTaxiEligible(player: RosterPlayer['players']): boolean {
+    return player.nba_draft_number != null
 }
 
 export type PlayerRosterStatus =
@@ -31,7 +42,7 @@ export type PlayerRosterStatus =
     | { status: 'free_agent' }
 
 export async function getRoster(memberId: string, leagueId: string): Promise<RosterPlayer[]> {
-    const seasonId = await getCurrentSeasonId(leagueId)
+    const seasonId = await getActiveSeasonId(leagueId)
     if (!seasonId) return []
 
     const { data, error } = await supabase
@@ -39,7 +50,7 @@ export async function getRoster(memberId: string, leagueId: string): Promise<Ros
         .select(
             `
       id, is_on_ir, is_on_taxi, acquired_via,
-      players ( id, display_name, nba_team, position, eligible_positions, injury_status, nba_id )
+      players ( id, display_name, nba_team, position, eligible_positions, injury_status, nba_id, nba_draft_number )
     `,
         )
         .eq('member_id', memberId)
@@ -127,7 +138,7 @@ export type OwnedEntry = { teamName: string; memberId: string }
 
 // Returns a map of player_id → { teamName, memberId } for all owned players in the league
 export async function getOwnedPlayerMap(leagueId: string): Promise<Map<string, OwnedEntry>> {
-    const seasonId = await getCurrentSeasonId(leagueId)
+    const seasonId = await getActiveSeasonId(leagueId)
     if (!seasonId) return new Map()
 
     const { data, error } = await supabase
@@ -149,7 +160,7 @@ export async function getOwnedPlayerMap(leagueId: string): Promise<Map<string, O
 
 // Returns a set of player_id values currently owned in the league/season
 export async function getOwnedPlayerIds(leagueId: string): Promise<Set<string>> {
-    const seasonId = await getCurrentSeasonId(leagueId)
+    const seasonId = await getActiveSeasonId(leagueId)
     if (!seasonId) return new Set()
 
     const { data, error } = await supabase
@@ -167,7 +178,7 @@ export async function getPlayerRosterStatus(
     memberId: string,
     leagueId: string,
 ): Promise<PlayerRosterStatus> {
-    const seasonId = await getCurrentSeasonId(leagueId)
+    const seasonId = await getActiveSeasonId(leagueId)
     if (!seasonId) return { status: 'free_agent' }
 
     const { data, error } = await supabase
@@ -283,11 +294,12 @@ export async function dropPlayer(rosterPlayerId: string): Promise<void> {
     if (fetchErr) throw fetchErr
     if (!rp) throw new Error('Roster player not found.')
 
-    const { error: deleteErr } = await supabase
+    const { error: deleteErr, count: deleteCount } = await supabase
         .from('roster_players')
-        .delete()
+        .delete({ count: 'exact' })
         .eq('id', rosterPlayerId)
     if (deleteErr) throw deleteErr
+    if (deleteCount === 0) throw new Error('Could not drop player — you may not have permission or they are no longer on your roster.')
 
     // Place on waivers for 48 hours
     const clearsAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString()
