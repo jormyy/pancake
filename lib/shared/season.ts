@@ -31,3 +31,20 @@ export async function getCurrentSeasonId(leagueId: string): Promise<string | nul
     const season = await getCurrentSeason(leagueId)
     return season?.id ?? null
 }
+
+/**
+ * Like getCurrentSeasonId but falls back to the most recent season when
+ * no season is marked is_current (e.g. during the offseason).
+ */
+export async function getActiveSeasonId(leagueId: string): Promise<string | null> {
+    const current = await getCurrentSeasonId(leagueId)
+    if (current) return current
+    const { data } = await supabase
+        .from('league_seasons')
+        .select('id')
+        .eq('league_id', leagueId)
+        .order('season_year', { ascending: false })
+        .limit(1)
+        .single()
+    return data?.id ?? null
+}
