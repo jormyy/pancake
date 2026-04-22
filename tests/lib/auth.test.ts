@@ -5,8 +5,49 @@ vi.mock('@/lib/supabase', () => ({ supabase: { auth: {}, from: vi.fn() } }))
 import { supabase } from '@/lib/supabase'
 import { signUp, signIn, signOut, getProfile, updateProfile } from '@/lib/auth'
 
+// Mock implementation for each Supabase chainable method
+function mockChain<T extends any>(...selects: Array<keyof T>) {
+    const mock: any = {}
+    for (const method of ['select', 'eq', 'single', 'maybeSingle', 'insert', 'update']) {
+        mock[method] = vi.fn(() => {
+            const fn = vi.fn()
+            for (const s of selects) {
+                if (!mock[s]) mock[s] = vi.fn().mockReturnValue({
+                    select: vi.fn().mockReturnValue(fn),
+                })
+            }
+            if (method === 'select') {
+                fn.mockReturnValue({
+                    select: vi.fn().mockReturnValue(mock['select']),
+                    eq: vi.fn().mockReturnValue(fn),
+                    single: vi.fn().mockReturnValue(mock['single']),
+                    maybeSingle: vi.fn().mockReturnValue(mock['maybeSingle']),
+                    insert: vi.fn().mockReturnValue(mock['insert']),
+                    update: vi.fn().mockReturnValue(mock['update']),
+                    upsert: vi.fn().mockReturnValue(mock['upsert']),
+                })
+            }
+        }
+        return mock[method] as any
+    }
+}
+
+const mockSelect = mockChain('select')
+const mockEq = mockChain('eq')
+const mockSingle = mockChain('single')
+const mockMaybeSingle = mockChain('maybeSingle')
+const mockInsert = mockChain('insert')
+const mockUpdate = mockChain('update')
+
 beforeEach(() => {
     vi.clearAllMocks()
+    // Reset mock implementations
+    mockSelect.resetHistory()
+    mockEq.resetHistory()
+    mockSingle.resetHistory()
+    mockMaybeSingle.resetHistory()
+    mockInsert.resetHistory()
+    mockUpdate.resetHistory()
 })
 
 describe('signUp', () => {
