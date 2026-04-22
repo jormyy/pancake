@@ -48,7 +48,7 @@ async function main() {
         await pollUntilDone(jobId, seasonYear)
     }
 
-    console.log('\nAll seasons done. Run REFRESH MATERIALIZED VIEW CONCURRENTLY mv_player_season_averages; to update averages.')
+    console.log('\nAll seasons done. Run REFRESH MATERIALIZED VIEW CONCURRENTLY analytics.mv_player_season_averages; to update averages.')
 }
 
 main().catch((e) => {
