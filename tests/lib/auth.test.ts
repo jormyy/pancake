@@ -24,7 +24,7 @@ describe('signUp', () => {
         const result = await signUp('test@example.com', 'ValidPass123!', 'testuser', 'Test User')
 
         expect(supabase.auth.signUp).toHaveBeenCalledWith('test@example.com', 'ValidPass123!')
-        expect(supabase.from).toHaveBeenCalledWith('profiles')
+        expect(supabase.from()).toHaveBeenCalledWith('profiles')
         expect(result).toEqual({ user: { id: 'user-123' } })
     })
 
@@ -40,11 +40,11 @@ describe('signUp', () => {
     })
 
     it('throws error when profile insert fails', async () => {
+        const dbError = { code: '23505', message: 'Duplicate key' }
         vi.mocked(supabase.auth.signUp).mockResolvedValue({
             data: { user: { id: 'user-123' } },
             error: null,
         })
-        const dbError = { code: '23505', message: 'Duplicate key' }
         vi.mocked(supabase.from).mockReturnValue({
             select: vi.fn().mockReturnValue({
                 insert: vi.fn().mockResolvedValue({ error: dbError }),
@@ -65,6 +65,10 @@ describe('signUp', () => {
                 insert: vi.fn().mockResolvedValue({ error: { message: 'Database constraint violation' } }),
             }),
         })
+
+        await expect(signUp('test@example.com', 'pass123!', 'user', 'User'))
+            .rejects.toThrow('Database constraint violation')
+    })
 
     it('creates account that already exists (email collision)', async () => {
         vi.mocked(supabase.auth.signUp).mockResolvedValue({
@@ -130,7 +134,6 @@ describe('signOut', () => {
     it('calls supabase auth signOut and clears local session on success', async () => {
         vi.mocked(supabase.auth.signOut).mockResolvedValue({ error: null })
 
-        // Mock _removeSession method
         const mockRemoveSession = vi.fn().mockResolvedValue(undefined)
         vi.mocked(supabase.auth as any)._removeSession = mockRemoveSession
 
@@ -149,7 +152,6 @@ describe('signOut', () => {
         await signOut()
 
         expect(supabase.auth.signOut).toHaveBeenCalled()
-        // Should still clear local session even when server fails
         expect(mockRemoveSession).toHaveBeenCalled()
     })
 })
@@ -168,7 +170,7 @@ describe('getProfile', () => {
 
         const result = await getProfile('user-789')
 
-        expect(supabase.from).toHaveBeenCalledWith('profiles')
+        expect(supabase.from()).toHaveBeenCalledWith('profiles')
         expect(result).toEqual(mockProfile)
     })
 
@@ -185,7 +187,7 @@ describe('getProfile', () => {
         await expect(getProfile('user-789')).rejects.toThrow('Profile not found')
     })
 
-    it('throws error when supabase.from chain fails', async () => {
+    it('throws error when from chain fails', async () => {
         vi.mocked(supabase.from).mockReturnValue({
             select: vi.fn().mockRejectedValue(new Error('Database error')),
         })
@@ -202,10 +204,9 @@ describe('updateProfile', () => {
 
         const result = await updateProfile('user-789', { display_name: 'Updated Name' })
 
-        expect(supabase.from).toHaveBeenCalledWith('profiles')
-        expect(supabase.from).toHaveBeenCalledWith('eq', 'id', 'user-789')
-        // Should also include updated_at timestamp
-        const updateCall = vi.mocked(supabase.from).mock.calls[1]
+        expect(supabase.from()).toHaveBeenCalledWith('profiles')
+        expect(supabase.from()).toHaveBeenCalledWith('eq', 'id', 'user-789')
+        const updateCall = vi.mocked(supabase.from).mock.calls[0]
         const args = (updateCall as any)[1] ?? {}
         expect(args.updated_at).toBeInstanceOf(Date)
     })
