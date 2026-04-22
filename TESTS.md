@@ -62,6 +62,11 @@
 - `reseedRookieDraftPicks` — fails if any picks already made
 - Draft auto-completes when all picks made
 - Roster overflow flag returned when active count > `roster_size`
+- **Traded pick accounting** — picks acquired via trade appear under the correct new owner's draft slot, not the original owner
+- **Pick timer** — each manager has exactly 30 seconds to make a selection
+- **Timer expiry — no pause** — when 30 seconds elapse the pick does NOT pause/stall waiting for user input; auto-pick fires immediately
+- **Auto-pick on timeout** — if no pick is made within 30 seconds, the top available rookie (lowest `nba_draft_number`) is automatically assigned
+- **Post-draft roster check** — after the draft ends, every manager with a roster over the size limit is prompted to drop players or modify their taxi squad to comply
 
 ---
 
@@ -99,6 +104,12 @@
 - Pure positions filled before flex (G, F, UTIL)
 - Locked players (game already started) not moved
 - Position eligibility respected (PG can't fill C slot, etc.)
+- **Auto-set button (daily)** — sets best available lineup for today's slate
+- **Auto-set button (weekly)** — sets best available lineup for full week
+- **Auto-set button (season)** — sets best available lineup across remaining season
+- **Locked lineup preservation (daily)** — auto-set does not change a lineup slot where the player's game has already started
+- **Locked lineup preservation (weekly)** — auto-set does not move a player whose game has already started, but does re-optimize remaining unlocked slots (e.g. after injury or trade)
+- **Locked lineup preservation (season)** — auto-set does not move a player whose game has already started, but does re-optimize remaining unlocked slots (e.g. after injury or trade)
 
 ---
 
