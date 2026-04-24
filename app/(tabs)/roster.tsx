@@ -15,7 +15,8 @@ import { useLeagueContext } from '@/contexts/league-context'
 import { getRoster, toggleIR, toggleTaxi, dropPlayer, isIREligible, isTaxiEligible, RosterPlayer } from '@/lib/roster'
 import { getPicksForMember, TradePickItem } from '@/lib/trades'
 import { getMyWaiverClaims, cancelWaiverClaim, WaiverClaim } from '@/lib/waivers'
-import { POSITION_COLORS } from '@/constants/positions'
+import { supabase } from '@/lib/supabase'
+import { currentSeasonYear } from '@/lib/shared/season'
 import { INJURY_COLORS, colors, fontSize, fontWeight, radii, spacing, palette } from '@/constants/tokens'
 import { shortDateFmt } from '@/lib/format'
 import { ItemSeparator } from '@/components/ItemSeparator'
@@ -23,6 +24,7 @@ import { LoadingScreen } from '@/components/LoadingScreen'
 import { EmptyState } from '@/components/EmptyState'
 import { Avatar } from '@/components/Avatar'
 import { Badge } from '@/components/Badge'
+import { PosTag } from '@/components/PosTag'
 import { SectionHeader } from '@/components/SectionHeader'
 import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
 
@@ -132,7 +134,7 @@ function RosterPlayerItem({
     onToggleTaxi: (item: RosterPlayer) => void
 }) {
     const player = item.players
-    const pos = player.position ?? ''
+    const positions: string[] = player.eligible_positions?.length ? player.eligible_positions : (player.position ? [player.position] : [])
     const isBusy = togglingId === item.id || taxiingId === item.id || droppingId === item.id
     const [headshotError, setHeadshotError] = useState(false)
     const headshotUri = player.nba_id
@@ -142,15 +144,16 @@ function RosterPlayerItem({
         <Pressable style={styles.playerRow} onPress={onPress} onLongPress={onLongPress} delayLongPress={400}>
             <Avatar
                 name={player.display_name}
-                color={POSITION_COLORS[pos] ?? palette.gray500}
+                color={colors.bgMuted}
                 uri={headshotUri && !headshotError ? headshotUri : undefined}
             />
 
             <View style={styles.info}>
                 <Text style={styles.playerName}>{player.display_name}</Text>
-                <Text style={styles.playerMeta}>
-                    {[player.nba_team, pos].filter(Boolean).join(' · ')}
-                </Text>
+                <View style={styles.playerMetaRow}>
+                    {player.nba_team ? <Text style={styles.playerMeta}>{player.nba_team}</Text> : null}
+                    {positions.map((pos) => <PosTag key={pos} position={pos} />)}
+                </View>
                 {player.injury_status ? (
                     <View style={{ alignSelf: 'flex-start', marginTop: 2 }}>
                         <Badge
@@ -208,7 +211,7 @@ function TaxiPlayerItem({
     onToggleTaxi: (item: RosterPlayer) => void
 }) {
     const player = item.players
-    const pos = player.position ?? ''
+    const positions: string[] = player.eligible_positions?.length ? player.eligible_positions : (player.position ? [player.position] : [])
     const [headshotError, setHeadshotError] = useState(false)
     const headshotUri = player.nba_id
         ? `https://cdn.nba.com/headshots/nba/latest/260x190/${player.nba_id}.png`
@@ -217,15 +220,16 @@ function TaxiPlayerItem({
         <Pressable style={styles.playerRow} onPress={onPress}>
             <Avatar
                 name={player.display_name}
-                color={POSITION_COLORS[pos] ?? palette.gray500}
+                color={colors.bgMuted}
                 uri={headshotUri && !headshotError ? headshotUri : undefined}
             />
 
             <View style={styles.info}>
                 <Text style={styles.playerName}>{player.display_name}</Text>
-                <Text style={styles.playerMeta}>
-                    {[player.nba_team, pos].filter(Boolean).join(' · ')}
-                </Text>
+                <View style={styles.playerMetaRow}>
+                    {player.nba_team ? <Text style={styles.playerMeta}>{player.nba_team}</Text> : null}
+                    {positions.map((pos) => <PosTag key={pos} position={pos} />)}
+                </View>
             </View>
 
             <Pressable
@@ -262,14 +266,28 @@ export default function RosterScreen() {
             getPicksForMember(current.id, leagueId),
             getMyWaiverClaims(current.id, leagueId),
         ])
-        return { roster, picks, claims }
+        const playerIds = roster.map((r) => r.players.id)
+        const { data: avgData } = await supabase
+            .from('v_player_avg_fantasy_points')
+            .select('player_id, avg_fantasy_points')
+            .eq('league_id', leagueId)
+            .eq('season_year', currentSeasonYear())
+            .in('player_id', playerIds)
+        const avgMap = new Map<string, number>()
+        for (const row of avgData ?? []) avgMap.set(row.player_id, Number(row.avg_fantasy_points))
+        return { roster, picks, claims, avgMap }
     }, [current, user])
 
     const roster = data?.roster ?? []
     const picks = data?.picks ?? []
     const claims = data?.claims ?? []
+    const avgMap = data?.avgMap ?? new Map<string, number>()
 
-    const active = useMemo(() => roster.filter((p) => !p.is_on_ir && !p.is_on_taxi), [roster])
+    const active = useMemo(() => {
+        return roster
+            .filter((p) => !p.is_on_ir && !p.is_on_taxi)
+            .sort((a, b) => (avgMap.get(b.players.id) ?? -1) - (avgMap.get(a.players.id) ?? -1))
+    }, [roster, avgMap])
     const ir = useMemo(() => roster.filter((p) => p.is_on_ir), [roster])
     const taxi = useMemo(() => roster.filter((p) => p.is_on_taxi), [roster])
 
@@ -543,6 +561,7 @@ const styles = StyleSheet.create({
 
     info: { flex: 1, gap: 2 },
     playerName: { fontSize: fontSize.lg, fontWeight: fontWeight.semibold },
+    playerMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     playerMeta: { fontSize: fontSize.sm, color: colors.textMuted },
 
     rowActions: { flexDirection: 'row', gap: spacing.sm },
