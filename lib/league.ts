@@ -38,7 +38,7 @@ export async function createLeague(
 
     if (leagueError) throw leagueError
 
-    const { error: memberError } = await supabase
+    const { data: member, error: memberError } = await supabase
         .from('league_members')
         .insert({
             league_id: league.id,
@@ -46,6 +46,8 @@ export async function createLeague(
             role: 'commissioner',
             team_name: teamName,
         })
+        .select('id')
+        .single()
 
     if (memberError) throw memberError
 
@@ -54,6 +56,23 @@ export async function createLeague(
         .insert({ league_id: league.id, season_year: currentSeasonYear(), is_current: true })
 
     if (seasonError) throw seasonError
+
+    const PICKS = [
+        [2027, 1], [2027, 2], [2027, 3],
+        [2028, 1], [2028, 2], [2028, 3],
+        [2029, 1], [2029, 2], [2029, 3],
+        [2030, 1], [2030, 2],
+    ]
+    const { error: picksError } = await supabase.from('draft_picks').insert(
+        PICKS.map(([season_year, round]) => ({
+            league_id: league.id,
+            season_year,
+            round,
+            original_owner_id: member.id,
+            current_owner_id: member.id,
+        })),
+    )
+    if (picksError) throw picksError
 
     return league
 }

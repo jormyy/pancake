@@ -352,20 +352,12 @@ export default function TradesScreen() {
 
     const [tab, setTab] = useState<TabKey>('picks')
     const [trades, setTrades] = useState<Trade[]>([])
-    const [picks, setPicks] = useState<TradePickItem[]>([])
     const [loading, setLoading] = useState(true)
     const [refreshing, setRefreshing] = useState(false)
 
-    const { data: draftData, loading: draftLoading, refresh: loadDraft } = useFocusAsyncData(async () => {
-        if (!current || !leagueId) return null
-        try {
-            const data = await getPicksForMember(current.id, leagueId)
-            setPicks(data)
-            return data
-        } catch (e) {
-            console.error(e)
-            return null
-        }
+    const { data: picks, loading: picksLoading, error: picksError, refresh: loadDraft } = useFocusAsyncData(async () => {
+        if (!current || !leagueId) return [] as TradePickItem[]
+        return getPicksForMember(current.id, leagueId)
     }, [current, leagueId])
 
     const load = useCallback(async () => {
@@ -399,14 +391,13 @@ export default function TradesScreen() {
     )
     const historyTrades = trades.filter((t) => t.status !== 'pending')
 
+    const picksList = picks ?? []
+
     const listData = useMemo<ListItem[]>(() => {
         const result: ListItem[] = []
 
         if (tab === 'picks') {
-            if (picks.length === 0 && !loading) {
-                result.push({ _type: 'header', label: '' })
-            }
-            picks.forEach((p) => result.push({ _type: 'pick', pick: p }))
+            picksList.forEach((p) => result.push({ _type: 'pick', pick: p }))
         } else if (tab === 'offers') {
             result.push({ _type: 'header', label: 'Incoming' })
             incomingTrades.forEach((t) => result.push({ _type: 'trade', trade: t }))
@@ -427,7 +418,7 @@ export default function TradesScreen() {
         }
 
         return result
-    }, [tab, incomingTrades, outgoingTrades, historyTrades, picks, loading])
+    }, [tab, incomingTrades, outgoingTrades, historyTrades, picksList, loading])
 
     const TABS: { key: TabKey; label: string }[] = [
         { key: 'picks', label: 'Picks' },
@@ -471,7 +462,17 @@ export default function TradesScreen() {
                 })}
             </View>
 
-            {loading ? (
+            {tab === 'picks' && picksLoading ? (
+                <ActivityIndicator color={colors.primary} style={{ marginTop: spacing['4xl'] }} />
+            ) : tab === 'picks' && picksError ? (
+                <View style={styles.emptyState}>
+                    <Text style={styles.emptyStateText}>Error: {picksError.message}</Text>
+                </View>
+            ) : tab === 'picks' && picksList.length === 0 && !picksLoading ? (
+                <View style={styles.emptyState}>
+                    <Text style={styles.emptyStateText}>No draft picks</Text>
+                </View>
+            ) : loading ? (
                 <ActivityIndicator color={colors.primary} style={{ marginTop: spacing['4xl'] }} />
             ) : (
                 <FlashList
@@ -697,4 +698,7 @@ const styles = StyleSheet.create({
     pickLabel: { fontSize: fontSize.md, fontWeight: fontWeight.semibold },
     pickMeta: { fontSize: fontSize.sm, color: colors.textMuted },
     pickHint: { fontSize: 12, color: colors.primary, fontWeight: fontWeight.bold },
+
+    emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', marginTop: spacing['4xl'] },
+    emptyStateText: { fontSize: fontSize.md, color: colors.textPlaceholder },
 })
