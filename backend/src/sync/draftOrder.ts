@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { supabase } from '../lib/supabase'
+import { normalizeName } from '../lib/utils/nameMatch'
 
 // NBA Stats API draft history endpoint
 // Season format: just the year, e.g. "2025" for the 2025 draft
@@ -56,17 +57,6 @@ async function fetchDraftOrder(seasonYear: number): Promise<NBADraftPick[]> {
         roundPick: Number(row[idx.roundPick]),
         teamName: String(row[idx.teamName]),
     }))
-}
-
-function normalizeName(name: string): string {
-    return name
-        .toLowerCase()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .replace(/\s+(jr\.?|sr\.?|ii|iii|iv|v)$/i, '')
-        .replace(/['.'\-]/g, '')
-        .replace(/\s+/g, ' ')
-        .trim()
 }
 
 export async function syncDraftOrder(seasonYear: number): Promise<{ updated: number; unmatched: string[] }> {

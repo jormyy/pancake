@@ -1,6 +1,7 @@
 import { supabase } from '../lib/supabase'
 import { calculateFantasyPoints, getWeekNumberForDate } from '../lib/scoring'
 import { notifyMember } from '../lib/notifications'
+import { CONFIG } from '../config'
 
 // Sums fantasy points for all started (non-bench, non-IR) lineup players
 // for a given member across all games in a week.
@@ -181,7 +182,7 @@ export async function syncScores() {
     for (const season of seasons) {
         const league = season.leagues as any
         const settings: Record<string, number> = league?.scoring_settings ?? {}
-        const playoffStart: number = league?.playoff_start_week ?? 20
+        const playoffStart: number = league?.playoff_start_week ?? CONFIG.DEFAULT_PLAYOFF_START_WEEK
         const regularSeasonWeeks = playoffStart - 1
 
         const weekNumber = await getWeekNumberForDate(new Date(), season.season_year)

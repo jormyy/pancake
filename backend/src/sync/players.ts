@@ -1,21 +1,13 @@
 import { supabase } from '../lib/supabase'
-import { fetchAllPlayers } from '../lib/sleeper'
+import { fetchAllSleeperPlayers } from '../lib/sleeper'
+import { normalizeName } from '../lib/utils/nameMatch'
+import { todayET } from '../lib/utils/date'
 
 const JUNK_INJURY_STATUSES = new Set(['Scrambled'])
 
 function normalizeInjuryStatus(s: string | null | undefined): string | null {
     if (!s || JUNK_INJURY_STATUSES.has(s)) return null
     return s
-}
-
-function normalizeName(name: string): string {
-    return name
-        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-        .toLowerCase()
-        .replace(/\s+(jr\.?|sr\.?|ii|iii|iv|v)$/i, '')
-        .replace(/['.'\-]/g, '')
-        .replace(/\s+/g, ' ')
-        .trim()
 }
 
 type StatusFields = { status: string | null; injury_status: string | null; nba_team: string | null; years_exp: number | null }
@@ -26,7 +18,7 @@ type StatusFields = { status: string | null; injury_status: string | null; nba_t
  * players that don't have a sleeper_id set (e.g. matched by name in Edge Function).
  */
 export async function syncPlayerStatuses(): Promise<void> {
-    const raw = await fetchAllPlayers()
+    const raw = await fetchAllSleeperPlayers()
     const sleeperPlayers = Object.values(raw).filter(
         (p) => p.sport === 'nba' && /^\d+$/.test((p as any).player_id ?? ''),
     )
@@ -56,7 +48,7 @@ export async function syncPlayerStatuses(): Promise<void> {
 
     // Don't restore injury status for players who have already played today —
     // the stats sync correctly clears those, and Sleeper is just slow to update.
-    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
+    const today = todayET()
     const { data: playedToday } = await supabase
         .from('player_game_stats')
         .select('player_id')

@@ -1,6 +1,7 @@
 import { supabase } from '../lib/supabase'
 import { notifyMember } from '../lib/notifications'
 import { CONFIG } from '../config'
+import { todayET } from '../lib/utils/date'
 
 async function log(leagueId: string, seasonId: string, memberId: string, playerId: string, type: string, claimId?: string) {
     await (supabase as any).from('roster_transactions').insert({
@@ -27,7 +28,7 @@ async function log(leagueId: string, seasonId: string, memberId: string, playerI
  * 3. Clear waiver_wire_log entries whose clears_at has passed.
  */
 export async function processWaiverClaims(): Promise<void> {
-    const today = new Date().toISOString().split('T')[0]
+    const today = todayET()
 
     // Fetch pending claims due today, ordered by priority (lower = better)
     const { data: claims, error: claimsErr } = await (supabase as any)
@@ -107,7 +108,7 @@ export async function processWaiverClaims(): Promise<void> {
             .select('roster_size')
             .eq('id', claim.league_id)
             .single()
-        const rosterSize = league?.roster_size ?? 20
+        const rosterSize = league?.roster_size ?? CONFIG.DEFAULT_ROSTER_SIZE
 
         const { count: activeCount } = await (supabase as any)
             .from('roster_players')

@@ -1,6 +1,6 @@
 import { supabase, fetchAllPlayers } from '../lib/supabase'
 import { fetchBoxScore, parseNBAMinutes, NBABoxScorePlayer } from '../lib/nba'
-import { todayET } from './livePoller'
+import { todayET } from '../lib/utils/date'
 import { normalizeName } from '../lib/utils/nameMatch'
 
 export interface StatRow {
@@ -85,7 +85,7 @@ export async function syncStatsByDate(date: Date) {
     const dateStr = date.toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
     console.log(`[sync] Fetching stats for ${dateStr}...`)
 
-    const isPast = dateStr < new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
+    const isPast = dateStr < todayET()
 
     // Get games for this date that have an nba_game_id.
     // For past dates, include Scheduled games too — they may just have a stale status.

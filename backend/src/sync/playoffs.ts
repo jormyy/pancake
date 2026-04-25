@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase'
+import { CONFIG } from '../config'
 
 /**
  * Seeds top 4 teams from regular-season standings into the semifinal bracket.
@@ -21,7 +22,7 @@ export async function generateSemifinals(leagueId: string): Promise<void> {
         .single()
     if (!league) throw new Error('League not found.')
 
-    const playoffStartWeek: number = (league as any).playoff_start_week ?? 20
+    const playoffStartWeek: number = (league as any).playoff_start_week ?? CONFIG.DEFAULT_PLAYOFF_START_WEEK
 
     // Idempotency check
     const { count } = await supabase
@@ -108,7 +109,7 @@ export async function advanceToFinal(leagueId: string): Promise<void> {
         .select('playoff_start_week')
         .eq('id', leagueId)
         .single()
-    const playoffStartWeek: number = (league as any)?.playoff_start_week ?? 20
+    const playoffStartWeek: number = (league as any)?.playoff_start_week ?? CONFIG.DEFAULT_PLAYOFF_START_WEEK
 
     // Idempotency check
     const { count: finalCount } = await supabase

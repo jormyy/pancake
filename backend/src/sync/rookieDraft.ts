@@ -232,8 +232,8 @@ export async function makeSnakePick(draftId: string, memberId: string, playerId:
         .eq('id', draft.league_id)
         .single()
 
-    const rosterSize = (leagueRow as any)?.roster_size ?? 20
-    const taxiSlots = (leagueRow as any)?.taxi_slots ?? 2
+    const rosterSize = (leagueRow as any)?.roster_size ?? CONFIG.DEFAULT_ROSTER_SIZE
+    const taxiSlots = (leagueRow as any)?.taxi_slots ?? CONFIG.DEFAULT_TAXI_SLOTS
 
     const [{ count: activeCount }, { count: taxiCount }] = await Promise.all([
         supabase
