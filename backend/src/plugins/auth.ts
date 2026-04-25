@@ -1,4 +1,4 @@
-import { createHmac } from 'crypto'
+import { jwtVerify, JWTPayload } from 'jose'
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
 import { AppError } from './errorHandler'
 
@@ -11,36 +11,18 @@ declare module 'fastify' {
 // ── JWT verification ──────────────────────────────────────────
 // Supabase issues HS256 JWTs. We verify the signature with the
 // SUPABASE_JWT_SECRET env var (available in Dashboard → Settings → API).
+// Using `jose` library instead of custom crypto for correctness and safety.
 
-function base64urlDecode(str: string): string {
-    const base64 = str.replace(/-/g, '+').replace(/_/g, '/')
-    const padded = base64.padEnd(base64.length + (4 - base64.length % 4) % 4, '=')
-    return Buffer.from(padded, 'base64').toString('utf8')
-}
-
-function verifySupabaseJwt(token: string, secret: string): { sub: string; exp: number } | null {
-    const parts = token.split('.')
-    if (parts.length !== 3) return null
-
-    const [header, payload, sig] = parts
-
-    const expected = createHmac('sha256', secret)
-        .update(`${header}.${payload}`)
-        .digest('base64url')
-
-    if (expected !== sig) return null
-
-    let claims: { sub?: string; exp?: number }
+async function verifySupabaseJwt(token: string, secret: string): Promise<JWTPayload | null> {
     try {
-        claims = JSON.parse(base64urlDecode(payload))
+        const { payload } = await jwtVerify(token, new TextEncoder().encode(secret), {
+            algorithms: ['HS256'],
+            clockTolerance: 60, // 1 minute leeway for clock skew
+        })
+        return payload
     } catch {
         return null
     }
-
-    if (!claims.sub || !claims.exp) return null
-    if (Date.now() / 1000 > claims.exp) return null
-
-    return { sub: claims.sub, exp: claims.exp }
 }
 
 // ── Plugin ────────────────────────────────────────────────────
@@ -63,8 +45,8 @@ export default async function authPlugin(app: FastifyInstance) {
         }
 
         const token = authHeader.slice(7)
-        const claims = verifySupabaseJwt(token, secret)
-        if (!claims) {
+        const claims = await verifySupabaseJwt(token, secret)
+        if (!claims || !claims.sub) {
             throw new AppError('Invalid or expired token', 401)
         }
 

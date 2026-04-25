@@ -10,6 +10,7 @@ import {
     ScrollView,
     Image,
     Dimensions,
+    Platform,
 } from 'react-native'
 import { FlashList } from '@shopify/flash-list'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -795,11 +796,15 @@ const styles = StyleSheet.create({
         borderRadius: radii['2xl'],
         borderCurve: 'continuous' as const,
         padding: spacing.md,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.18,
-        shadowRadius: 12,
-        elevation: 8,
+        ...(Platform.OS === 'web'
+            ? { boxShadow: '0px 4px 12px rgba(0,0,0,0.18)' }
+            : {
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: 4 },
+                  shadowOpacity: 0.18,
+                  shadowRadius: 12,
+                  elevation: 8,
+              }),
     },
     popoverClear: { alignItems: 'flex-end', paddingHorizontal: spacing.xs, paddingBottom: spacing.sm },
     popoverClearText: { fontSize: fontSize.sm, color: colors.primary, fontWeight: fontWeight.semibold },
