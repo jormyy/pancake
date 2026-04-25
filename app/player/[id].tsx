@@ -1,5 +1,5 @@
-import { Avatar } from '@/components/Avatar'
 import { IRResolutionModal } from '@/components/IRResolutionModal'
+import { DropPlayerPickerModal } from '@/components/DropPlayerPickerModal'
 import { LoadingScreen } from '@/components/LoadingScreen'
 import { FantasyCard } from '@/components/player/FantasyCard'
 import { GameLogTable } from '@/components/player/GameLogTable'
@@ -7,8 +7,6 @@ import { PlayerHeader } from '@/components/player/PlayerHeader'
 import { SeasonSelector } from '@/components/player/SeasonSelector'
 import { StatsOverview } from '@/components/player/StatsOverview'
 import { TransactionHistory } from '@/components/player/TransactionHistory'
-import { PosTag } from '@/components/PosTag'
-import { getPositionColor } from "@/constants/positions"
 import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useAuth } from '@/hooks/use-auth'
@@ -19,7 +17,6 @@ import {
     getPlayerGameLog,
     getPlayerSeasonAveragesFromView,
     getPlayerTransactionHistory,
-    getEligiblePositions,
     type GameLogEntry,
     type PlayerSeasonAverages,
     type TransactionHistoryEntry,
@@ -431,70 +428,15 @@ export default function PlayerDetailScreen() {
                 </ScrollView>
             </SafeAreaView>
 
-            {/* Drop picker modal */}
-            <Modal
+            <DropPlayerPickerModal
                 visible={dropPickerVisible}
-                transparent
-                animationType="slide"
-                onRequestClose={() => setDropPickerVisible(false)}
-            >
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalCard}>
-                        <Text style={styles.modalTitle}>
-                            Drop a player to add{'\n'}
-                            <Text style={styles.modalPlayerName}>{player?.display_name}</Text>
-                        </Text>
-                        <Text style={styles.modalSub}>Your roster is full. Pick someone to release.</Text>
-
-                        <ScrollView style={styles.dropList} showsVerticalScrollIndicator={false}>
-                            {myRoster.map((rp) => {
-                                const p = rp.players
-                                const isDroppingThis = dropping === rp.id
-                                return (
-                                    <View key={rp.id} style={styles.dropRow}>
-                                        {(() => {
-                                            const ep = getEligiblePositions(p)
-                                            return (
-                                                <>
-                                                    <Avatar
-                                                        name={p.display_name}
-                                                        color={getPositionColor(ep[0])}
-                                                        size={38}
-                                                    />
-                                                    <View style={styles.dropInfo}>
-                                                        <Text style={styles.dropName} numberOfLines={1}>{p.display_name}</Text>
-                                                        <View style={styles.dropMetaRow}>
-                                                            {p.nba_team && <Text style={styles.dropMeta}>{p.nba_team}</Text>}
-                                                            {ep.map((pos) => <PosTag key={pos} position={pos} />)}
-                                                        </View>
-                                                    </View>
-                                                </>
-                                            )
-                                        })()}
-                                        <Pressable
-                                            style={styles.dropBtn}
-                                            onPress={() => handleDropAndAdd(rp)}
-                                            disabled={dropping !== null}
-                                        >
-                                            {isDroppingThis
-                                                ? <ActivityIndicator size="small" color={colors.textWhite} />
-                                                : <Text style={styles.dropBtnText}>Drop</Text>}
-                                        </Pressable>
-                                    </View>
-                                )
-                            })}
-                        </ScrollView>
-
-                        <Pressable
-                            style={styles.modalCancel}
-                            onPress={() => setDropPickerVisible(false)}
-                            disabled={dropping !== null}
-                        >
-                            <Text style={styles.modalCancelText}>Cancel</Text>
-                        </Pressable>
-                    </View>
-                </View>
-            </Modal>
+                title={`Drop a player to add\n${player?.display_name ?? ''}`}
+                subtitle="Your roster is full. Pick someone to release."
+                roster={myRoster}
+                dropping={dropping}
+                onDrop={handleDropAndAdd}
+                onCancel={() => setDropPickerVisible(false)}
+            />
 
             {/* IR resolution modal */}
             <IRResolutionModal
