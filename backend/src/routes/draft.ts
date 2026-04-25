@@ -12,8 +12,8 @@ import {
     reseedRookieDraftPicks,
     autoPickBest,
 } from '../sync/rookieDraft'
-import { supabase } from '../lib/supabase'
-import { AppError, NotFoundError } from '../plugins/errorHandler'
+import { NotFoundError } from '../plugins/errorHandler'
+import { verifyMemberAccess } from '../lib/authz'
 import {
     LeagueIdBody,
     DraftParams,
@@ -21,36 +21,6 @@ import {
     BidBody,
     SnakePickBody,
 } from '../schemas'
-
-/**
- * Verify the requesting user owns the memberId or is a commissioner.
- */
-async function verifyMemberAccess(userId: string, memberId: string): Promise<void> {
-    const { data, error } = await supabase
-        .from('league_members')
-        .select('user_id, role, league_id')
-        .eq('id', memberId)
-        .single()
-
-    if (error || !data) {
-        throw new NotFoundError('Member not found')
-    }
-
-    if (data.user_id === userId) return
-
-    // Allow commissioners
-    const { data: commissioner } = await supabase
-        .from('league_members')
-        .select('role')
-        .eq('league_id', data.league_id)
-        .eq('user_id', userId)
-        .in('role', ['commissioner', 'co_commissioner'])
-        .maybeSingle()
-
-    if (!commissioner) {
-        throw new AppError('Not authorized', 403)
-    }
-}
 
 export default async function draftRoutes(app: FastifyInstance) {
     app.post('/start', { schema: { body: LeagueIdBody } }, async (req) => {
