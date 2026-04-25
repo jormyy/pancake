@@ -10,22 +10,9 @@ import { TransactionHistory } from '@/components/player/TransactionHistory'
 import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useAuth } from '@/hooks/use-auth'
-import {
-    getAvailableSeasons,
-    getPlayer,
-    getPlayerFantasyPoints,
-    getPlayerGameLog,
-    getPlayerSeasonAveragesFromView,
-    getPlayerTransactionHistory,
-    type GameLogEntry,
-    type PlayerSeasonAverages,
-    type TransactionHistoryEntry,
-} from '@/lib/players'
+import { usePlayerScreenData } from '@/hooks/use-player-screen-data'
 import { addFreeAgent, dropPlayer, getPlayerRosterStatus, getRoster, isIREligible, toggleIR, type PlayerRosterStatus, type RosterPlayer } from '@/lib/roster'
 import { isIneligibleIR } from '@/lib/format'
-import { todayDateString } from '@/lib/shared/dates'
-import { currentSeasonYear } from '@/lib/shared/season'
-import { supabase } from '@/lib/supabase'
 import { showAlert, confirmAction } from '@/lib/alert'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useEffect, useState } from 'react'
@@ -40,22 +27,26 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
-const GAME_LOG_PAGE = 15
-
 export default function PlayerDetailScreen() {
     const { id } = useLocalSearchParams<{ id: string }>()
     const { current, currentLeague } = useLeagueContext()
     const { user } = useAuth()
     const { push } = useRouter()
 
-    // Player core data
-    const [player, setPlayer] = useState<any>(null)
-    const [loading, setLoading] = useState(true)
+    const leagueId = currentLeague?.id ?? null
+
+    const {
+        player, loading, playedToday,
+        availableSeasons, selectedSeason, handleSeasonSelect,
+        seasonAverages, seasonLoading,
+        gameLog, hasMoreGames, gameLogLoading, loadMoreGames,
+        fantasyPointsMap, avgFantasyPoints,
+        transactions,
+    } = usePlayerScreenData(id, leagueId)
 
     // Roster status
     const [rosterStatus, setRosterStatus] = useState<PlayerRosterStatus | null>(null)
     const [actionLoading, setActionLoading] = useState(false)
-    const [playedToday, setPlayedToday] = useState(false)
 
     // Drop picker + IR resolution state
     const [dropPickerVisible, setDropPickerVisible] = useState(false)
@@ -65,58 +56,6 @@ export default function PlayerDetailScreen() {
         ineligible: RosterPlayer[]
         roster: RosterPlayer[]
     } | null>(null)
-
-    // Season navigation
-    const [availableSeasons, setAvailableSeasons] = useState<number[]>([])
-    const [selectedSeason, setSelectedSeason] = useState<number>(currentSeasonYear())
-
-    // Season-dependent data
-    const [seasonAverages, setSeasonAverages] = useState<PlayerSeasonAverages | null>(null)
-    const [seasonLoading, setSeasonLoading] = useState(false)
-
-    // Game log
-    const [gameLog, setGameLog] = useState<GameLogEntry[]>([])
-    const [gameLogOffset, setGameLogOffset] = useState(0)
-    const [hasMoreGames, setHasMoreGames] = useState(false)
-    const [gameLogLoading, setGameLogLoading] = useState(false)
-
-    // Fantasy points (league-aware)
-    const [fantasyPointsMap, setFantasyPointsMap] = useState<Map<string, number> | null>(null)
-    const [avgFantasyPoints, setAvgFantasyPoints] = useState(0)
-
-    // Transaction history (league-aware, once per player/league)
-    const [transactions, setTransactions] = useState<TransactionHistoryEntry[]>([])
-
-    const leagueId = currentLeague?.id ?? null
-
-    // ── Load player core + available seasons ────────────────────────────────
-    useEffect(() => {
-        async function load() {
-            try {
-                const [p, seasons, todayStats] = await Promise.all([
-                    getPlayer(id),
-                    getAvailableSeasons(id),
-                    supabase
-                        .from('player_game_stats')
-                        .select('did_not_play')
-                        .eq('player_id', id)
-                        .eq('game_date', todayDateString())
-                        .maybeSingle(),
-                ])
-                setPlayedToday(todayStats.data != null && todayStats.data.did_not_play === false)
-                setPlayer(p)
-                setAvailableSeasons(seasons)
-                if (seasons.length > 0 && !seasons.includes(selectedSeason)) {
-                    setSelectedSeason(seasons[0])
-                }
-            } catch (e) {
-                console.error(e)
-            } finally {
-                setLoading(false)
-            }
-        }
-        load()
-    }, [id])
 
     // ── Load roster status ───────────────────────────────────────────────────
     async function loadRosterStatus() {
@@ -132,96 +71,6 @@ export default function PlayerDetailScreen() {
     useEffect(() => {
         loadRosterStatus()
     }, [id, current, user])
-
-    // ── Load season-dependent data ───────────────────────────────────────────
-    useEffect(() => {
-        if (!player) return
-        async function loadSeasonData() {
-            setSeasonLoading(true)
-            setGameLog([])
-            setGameLogOffset(0)
-            setHasMoreGames(false)
-            setFantasyPointsMap(null)
-            setAvgFantasyPoints(0)
-
-            try {
-                const [avgs, gameLogResult] = await Promise.all([
-                    getPlayerSeasonAveragesFromView(id, selectedSeason),
-                    getPlayerGameLog(id, player.nba_team, selectedSeason, GAME_LOG_PAGE, 0),
-                ])
-                setSeasonAverages(avgs)
-                setGameLog(gameLogResult.games)
-                setGameLogOffset(gameLogResult.games.length)
-                setHasMoreGames(gameLogResult.hasMore)
-            } catch (e) {
-                console.error(e)
-            } finally {
-                setSeasonLoading(false)
-            }
-        }
-        loadSeasonData()
-    }, [id, selectedSeason, player])
-
-    // ── Load fantasy points when league changes ──────────────────────────────
-    useEffect(() => {
-        if (!leagueId || !player) return
-        async function loadFantasy() {
-            try {
-                const pts = await getPlayerFantasyPoints(id, leagueId!, selectedSeason)
-                const map = new Map(pts.map((p) => [p.gameId, p.fantasyPoints]))
-                setFantasyPointsMap(map)
-                if (pts.length > 0) {
-                    const avg = pts.reduce((sum, p) => sum + p.fantasyPoints, 0) / pts.length
-                    setAvgFantasyPoints(avg)
-                }
-            } catch (e) {
-                console.error(e)
-            }
-        }
-        loadFantasy()
-    }, [id, leagueId, selectedSeason, player])
-
-    // ── Load transaction history once per player/league ─────────────────────
-    useEffect(() => {
-        if (!leagueId) return
-        async function loadTransactions() {
-            try {
-                const tx = await getPlayerTransactionHistory(id, leagueId!)
-                setTransactions(tx)
-            } catch (e) {
-                console.error(e)
-            }
-        }
-        loadTransactions()
-    }, [id, leagueId])
-
-    // ── Load more games ──────────────────────────────────────────────────────
-    async function loadMoreGames() {
-        if (gameLogLoading || !hasMoreGames || !player) return
-        setGameLogLoading(true)
-        try {
-            const result = await getPlayerGameLog(
-                id,
-                player.nba_team,
-                selectedSeason,
-                GAME_LOG_PAGE,
-                gameLogOffset,
-            )
-            setGameLog((prev) => [...prev, ...result.games])
-            setGameLogOffset((prev) => prev + result.games.length)
-            setHasMoreGames(result.hasMore)
-        } catch (e) {
-            console.error(e)
-        } finally {
-            setGameLogLoading(false)
-        }
-    }
-
-    // ── Season selector handler ──────────────────────────────────────────────
-    function handleSeasonSelect(year: number) {
-        if (year === selectedSeason) return
-        setSelectedSeason(year)
-    }
 
     // ── Roster actions ───────────────────────────────────────────────────────
     async function handleAdd() {
