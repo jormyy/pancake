@@ -7,13 +7,11 @@ import { getPositionColor } from "@/constants/positions"
 import { colors, fontSize, fontWeight, palette, radii, spacing } from '@/constants/tokens'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useAuth } from '@/hooks/use-auth'
+import { useLiveStats } from '@/hooks/use-live-stats'
 import {
     autoSetLineup,
     canPlaySlot,
     getLineupContext,
-    getLiveTeams,
-    getStartedTeams,
-    getTeamMatchups,
     getWeekDays,
     getWeeklyLineup,
     LineupContext,
@@ -178,10 +176,6 @@ export default function LineupScreen() {
     )
     const [starters, setStarters] = useState<LineupSlot[]>([])
     const [bench, setBench] = useState<LineupPlayer[]>([])
-    // Use refs for started/live teams so updates don't trigger full re-render
-    const startedTeamsRef = useRef<Set<string>>(new Set())
-    const liveTeamsRef = useRef<Set<string>>(new Set())
-    const [teamMatchups, setTeamMatchups] = useState<Map<string, { opponent: string; isHome: boolean }>>(new Map())
     const [loading, setLoading] = useState(true)
 
     const [saving, setSaving] = useState(false)
@@ -189,24 +183,23 @@ export default function LineupScreen() {
     const [autoSetModalVisible, setAutoSetModalVisible] = useState(false)
     const [selected, setSelected] = useState<Selection | null>(null)
 
+    const { startedTeams, liveTeams, teamMatchups } = useLiveStats(selectedDate)
+    // Wrap in refs so memoized row components read the latest value without re-rendering on poll updates
+    const startedTeamsRef = useRef(startedTeams)
+    const liveTeamsRef = useRef(liveTeams)
+    startedTeamsRef.current = startedTeams
+    liveTeamsRef.current = liveTeams
+
     const loadLineup = useCallback(async (lineupCtx: LineupContext, league: any, date: string) => {
-        const [lineup, started, live, matchups] = await Promise.all([
-            getWeeklyLineup(
-                current!.id,
-                league.id,
-                lineupCtx.seasonId,
-                lineupCtx.weekNumber,
-                date,
-            ),
-            getStartedTeams(date),
-            getLiveTeams(date),
-            getTeamMatchups(date),
-        ])
+        const lineup = await getWeeklyLineup(
+            current!.id,
+            league.id,
+            lineupCtx.seasonId,
+            lineupCtx.weekNumber,
+            date,
+        )
         setStarters(lineup.starters)
         setBench(lineup.bench)
-        startedTeamsRef.current = started
-        liveTeamsRef.current = live
-        setTeamMatchups(matchups)
     }, [current])
 
     const load = useCallback(async () => {
