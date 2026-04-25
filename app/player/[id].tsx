@@ -499,7 +499,7 @@ export default function PlayerDetailScreen() {
                 visible={irModal !== null}
                 ineligibleIR={irModal?.ineligible ?? []}
                 activeRoster={(irModal?.roster ?? []).filter((r) => !r.is_on_ir)}
-                rosterSize={league?.roster_size ?? 20}
+                rosterSize={currentLeague?.roster_size ?? 20}
                 pendingPlayerName={player?.display_name ?? ''}
                 onActivate={handleIRActivate}
                 onDropAndActivate={handleDropAndIRActivate}

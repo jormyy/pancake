@@ -11,7 +11,7 @@ import { currentSeasonYear } from '../lib/utils/season'
 import { syncPlayerStatuses } from '../sync/players'
 import { syncDraftOrder } from '../sync/draftOrder'
 import { syncGameTimes } from '../sync/schedule'
-import { NotFoundError, ValidationError } from '../plugins/errorHandler'
+import { NotFoundError } from '../plugins/errorHandler'
 import {
     SyncStatsBody,
     SyncMatchupsBody,
