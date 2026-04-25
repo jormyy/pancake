@@ -98,3 +98,19 @@ export const ValidateDbBody = {
         seasonYear: { type: 'integer' as const },
     },
 }
+
+export const TaxiBody = {
+    type: 'object' as const,
+    required: ['rosterPlayerId', 'isOnTaxi'],
+    properties: {
+        rosterPlayerId: { type: 'string' as const },
+        isOnTaxi: { type: 'boolean' as const },
+    },
+}
+
+export const DraftOrderBody = {
+    type: 'object' as const,
+    properties: {
+        seasonYear: { type: 'integer' as const },
+    },
+}

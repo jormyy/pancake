@@ -20,9 +20,10 @@ import {
     BackfillParams,
     VerifyStatsBody,
     ValidateDbBody,
+    DraftOrderBody,
 } from '../schemas'
 
-function parseQuerySeasonYear(query: any): number {
+function parseQuerySeasonYear(query: Record<string, string | undefined>): number {
     return query?.seasonYear ? parseInt(query.seasonYear) : currentSeasonYear()
 }
 
@@ -51,7 +52,7 @@ export default async function syncRoutes(app: FastifyInstance) {
         return { ok: true }
     })
 
-    app.post('/draft-order', async (req) => {
+    app.post('/draft-order', { schema: { body: DraftOrderBody } }, async (req) => {
         requireAdmin(req.userId)
         const { seasonYear = new Date().getFullYear() } = (req.body ?? {}) as { seasonYear?: number }
         const result = await syncDraftOrder(seasonYear)
@@ -119,7 +120,7 @@ export default async function syncRoutes(app: FastifyInstance) {
     // Season totals for top players (manual cross-reference against nba.com/basketball-reference)
     app.get('/season-totals', async (req) => {
         requireAdmin(req.userId)
-        const seasonYear = parseQuerySeasonYear(req.query)
+        const seasonYear = parseQuerySeasonYear(req.query as Record<string, string | undefined>)
         const rows = await verifySeasonTotals(seasonYear)
         return { ok: true, seasonYear, rows }
     })
