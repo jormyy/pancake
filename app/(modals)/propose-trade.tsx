@@ -17,13 +17,9 @@ import { getLeagueMembers } from '@/lib/league'
 import { getRoster, RosterPlayer } from '@/lib/roster'
 import { proposeTrade, getCurrentSeasonId, getPicksForMember, TradePickItem } from '@/lib/trades'
 
-import { getInitials } from '@/lib/format'
+import { getInitials, yearShort } from '@/lib/format'
 import { Avatar } from '@/components/Avatar'
 import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
-
-function yearShort(year: number): string {
-    return String(year).slice(2)
-}
 
 function PlayerRow({
     player,

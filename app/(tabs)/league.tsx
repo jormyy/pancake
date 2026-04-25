@@ -21,7 +21,7 @@ import { getLeagueTransactions, TransactionRow, TRANSACTION_LABELS } from '@/lib
 import { getActiveRookieDraft, startRookieDraft, getAllLeaguePicks, reseedRookieDraftPicks, type LeaguePickItem } from '@/lib/rookieDraft'
 import { POSITION_COLORS } from '@/constants/positions'
 import { colors, palette, fontSize, fontWeight, radii, spacing, TX_COLORS } from '@/constants/tokens'
-import { shortDateFmt } from '@/lib/format'
+import { shortDateFmt, playerHeadshotUrl, timeAgo } from '@/lib/format'
 import { ItemSeparator } from '@/components/ItemSeparator'
 import { LoadingScreen } from '@/components/LoadingScreen'
 import { EmptyState } from '@/components/EmptyState'
@@ -60,7 +60,7 @@ function ActivityRow({ item, isMe }: { item: TransactionRow; isMe: boolean }) {
                 name={item.playerName}
                 color={POSITION_COLORS[item.eligiblePositions[0] ?? item.position ?? ''] ?? palette.gray500}
                 size={40}
-                uri={item.nbaId ? `https://cdn.nba.com/headshots/nba/latest/260x190/${item.nbaId}.png` : null}
+                uri={playerHeadshotUrl(item.nbaId)}
             />
             <View style={styles.txInfo}>
                 <View style={styles.txNameRow}>
@@ -375,17 +375,6 @@ function StandingsTable({ standings, myMemberId, onSelectTeam }: { standings: St
             )}
         />
     )
-}
-
-function timeAgo(iso: string): string {
-    const diff = Date.now() - new Date(iso).getTime()
-    const mins = Math.floor(diff / 60_000)
-    if (mins < 60) return `${mins}m ago`
-    const hrs = Math.floor(mins / 60)
-    if (hrs < 24) return `${hrs}h ago`
-    const days = Math.floor(hrs / 24)
-    if (days < 7) return `${days}d ago`
-    return shortDateFmt.format(new Date(iso))
 }
 
 function ActivityFeed({ transactions, myMemberId }: { transactions: TransactionRow[]; myMemberId?: string }) {

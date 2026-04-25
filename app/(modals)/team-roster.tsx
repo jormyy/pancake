@@ -17,6 +17,7 @@ import { Badge } from '@/components/Badge'
 import { ItemSeparator } from '@/components/ItemSeparator'
 import { PosTag } from '@/components/PosTag'
 import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { playerHeadshotUrl } from '@/lib/format'
 
 export default function TeamRosterScreen() {
     const { back, push } = useRouter()
@@ -77,7 +78,7 @@ export default function TeamRosterScreen() {
                                     name={p.display_name}
                                     color={POSITION_COLORS[eligiblePositions[0] ?? ''] ?? palette.gray500}
                                     size={44}
-                                    uri={p.nba_id ? `https://cdn.nba.com/headshots/nba/latest/260x190/${p.nba_id}.png` : null}
+                                    uri={playerHeadshotUrl(p.nba_id)}
                                 />
                                 <View style={styles.playerInfo}>
                                     <Text style={styles.playerName}>{p.display_name}</Text>
