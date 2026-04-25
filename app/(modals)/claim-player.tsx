@@ -322,7 +322,7 @@ const styles = StyleSheet.create({
         borderRadius: radii.xl,
         borderCurve: 'continuous' as const,
         borderWidth: 1,
-        borderColor: palette.orange300,
+        borderColor: palette.maple200,
         gap: spacing.lg,
     },
     blockIconContainer: {
@@ -330,7 +330,7 @@ const styles = StyleSheet.create({
         height: 56,
         borderRadius: 28,
         borderCurve: 'continuous' as const,
-        backgroundColor: palette.orange100,
+        backgroundColor: palette.maple100,
         justifyContent: 'center',
         alignItems: 'center',
         alignSelf: 'center',
@@ -355,7 +355,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingVertical: spacing.md,
         paddingHorizontal: spacing.lg,
-        backgroundColor: palette.orange50,
+        backgroundColor: palette.maple50,
         borderRadius: radii.lg,
         borderCurve: 'continuous' as const,
     },
@@ -363,7 +363,7 @@ const styles = StyleSheet.create({
     blockPlayerStatus: {
         fontSize: fontSize.sm,
         fontWeight: fontWeight.bold,
-        color: palette.orange700,
+        color: palette.maple600,
     },
     blockButton: {
         margin: spacing.xl,

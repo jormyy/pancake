@@ -1,20 +1,24 @@
 import { supabase } from './supabase'
 
-export function calculateFantasyPoints(stats: any, settings: Record<string, number>): number {
+/**
+ * SYNC: Keep formula identical to lib/scoring.ts computeLiveFantasyPoints.
+ * This backend version operates on raw snake_case DB rows.
+ */
+export function calculateFantasyPoints(stats: Record<string, unknown>, settings: Record<string, number>): number {
     if (stats.did_not_play) return 0
     return parseFloat(
         (
-            (stats.points ?? 0)                * (settings.points                  ?? 0) +
-            (stats.rebounds ?? 0)              * (settings.rebounds                ?? 0) +
-            (stats.assists ?? 0)               * (settings.assists                 ?? 0) +
-            (stats.steals ?? 0)                * (settings.steals                  ?? 0) +
-            (stats.blocks ?? 0)                * (settings.blocks                  ?? 0) +
-            (stats.turnovers ?? 0)             * (settings.turnovers               ?? 0) +
-            (stats.three_pointers_made ?? 0)   * (settings.three_pointers_made     ?? 0) +
-            (stats.field_goals_made ?? 0)      * (settings.field_goals_made        ?? 0) +
-            (stats.field_goals_attempted ?? 0) * (settings.field_goals_attempted   ?? 0) +
-            (stats.free_throws_made ?? 0)      * (settings.free_throws_made        ?? 0) +
-            (stats.free_throws_attempted ?? 0) * (settings.free_throws_attempted   ?? 0) +
+            (stats.points as number ?? 0)                * (settings.points                  ?? 0) +
+            (stats.rebounds as number ?? 0)              * (settings.rebounds                ?? 0) +
+            (stats.assists as number ?? 0)               * (settings.assists                 ?? 0) +
+            (stats.steals as number ?? 0)                * (settings.steals                  ?? 0) +
+            (stats.blocks as number ?? 0)                * (settings.blocks                  ?? 0) +
+            (stats.turnovers as number ?? 0)             * (settings.turnovers               ?? 0) +
+            (stats.three_pointers_made as number ?? 0)   * (settings.three_pointers_made     ?? 0) +
+            (stats.field_goals_made as number ?? 0)      * (settings.field_goals_made        ?? 0) +
+            (stats.field_goals_attempted as number ?? 0) * (settings.field_goals_attempted   ?? 0) +
+            (stats.free_throws_made as number ?? 0)      * (settings.free_throws_made        ?? 0) +
+            (stats.free_throws_attempted as number ?? 0) * (settings.free_throws_attempted   ?? 0) +
             (stats.double_double === true ? (settings.double_double ?? 0) : 0) +
             (stats.triple_double === true ? (settings.triple_double ?? 0) : 0)
         ).toFixed(2),

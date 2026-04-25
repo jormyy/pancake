@@ -67,17 +67,7 @@ export const palette = {
     orangeLight: '#E8832A', // warm maple-orange for SG/G flex
     greenLight:  '#34D399',
 
-    // ── Orange aliases ── (backward compat for components using palette.orange*)
-    orange50:  '#FEF6E4',   // → maple50
-    orange100: '#FDEAC0',   // → maple100
-    orange200: '#FAD490',   // → maple200
-    orange300: '#F5C070',   // → between maple200 and maple500
-    orange500: '#C9660F',   // → maple500
-    orange600: '#A05212',   // → maple600
-    orange700: '#8A4418',   // → between maple600 and maple900
-    orange900: '#6B3410',   // → maple900
-
-    // ── Neutrals (kept for backward compat with domain maps) ──
+    // ── Neutrals ──
     white:    '#fff',
     gray50:   '#fafafa',
     gray100:  '#f9f9f9',
@@ -217,7 +207,7 @@ export const avatarSize = {
 
 export const INJURY_COLORS: Record<string, string> = {
     Questionable: palette.amber400,
-    Doubtful: palette.orange500,
+    Doubtful: palette.maple500,
     Out: palette.red500,
     IR: palette.redDark,
 }
@@ -228,7 +218,7 @@ export const TX_COLORS: Record<string, string> = {
     trade_in: palette.blue500,
     fa_drop: palette.red500,
     waiver_drop: palette.red500,
-    trade_out: palette.orange500,
+    trade_out: palette.maple500,
     ir_designate: palette.amber400,
     ir_return: palette.indigo500,
     draft_won: palette.green500,

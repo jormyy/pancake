@@ -28,15 +28,11 @@ export async function signIn(email: string, password: string) {
 }
 
 export async function signOut() {
-    try {
-        const { error } = await supabase.auth.signOut()
-        if (error) {
-            // Server sign-out failed (network error, unexpected server error, etc.).
-            // Force-clear local session so the user can always sign out on their device.
-            await (supabase.auth as any)._removeSession()
-        }
-    } catch {
-        await (supabase.auth as any)._removeSession()
+    const { error } = await supabase.auth.signOut()
+    if (error) {
+        // Server sign-out failed (network error, unexpected server error, etc.).
+        // Fall back to local-only sign-out so the user can always sign out on their device.
+        await supabase.auth.signOut({ scope: 'local' })
     }
 }
 

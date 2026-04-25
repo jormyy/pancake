@@ -43,6 +43,7 @@ export async function getLivePlayerStats(date: string): Promise<Map<string, Live
     if (error) throw error
     const map = new Map<string, LiveStatLine>()
     for (const row of data ?? []) {
+        const r = row as Record<string, unknown>
         map.set(row.player_id, {
             points: row.points ?? 0,
             rebounds: row.rebounds ?? 0,
@@ -50,14 +51,14 @@ export async function getLivePlayerStats(date: string): Promise<Map<string, Live
             steals: row.steals ?? 0,
             blocks: row.blocks ?? 0,
             turnovers: row.turnovers ?? null,
-            threeMade: (row as any).three_pointers_made ?? 0,
-            fgMade: (row as any).field_goals_made ?? 0,
-            fgAttempted: (row as any).field_goals_attempted ?? 0,
-            ftMade: (row as any).free_throws_made ?? 0,
-            ftAttempted: (row as any).free_throws_attempted ?? 0,
-            fouls: (row as any).personal_fouls ?? 0,
-            doubleDouble: (row as any).double_double ?? false,
-            tripleDouble: (row as any).triple_double ?? false,
+            threeMade: (r.three_pointers_made as number | null) ?? 0,
+            fgMade: (r.field_goals_made as number | null) ?? 0,
+            fgAttempted: (r.field_goals_attempted as number | null) ?? 0,
+            ftMade: (r.free_throws_made as number | null) ?? 0,
+            ftAttempted: (r.free_throws_attempted as number | null) ?? 0,
+            fouls: (r.personal_fouls as number | null) ?? 0,
+            doubleDouble: (r.double_double as boolean | null) ?? false,
+            tripleDouble: (r.triple_double as boolean | null) ?? false,
             minutesPlayed: row.minutes_played != null ? Number(row.minutes_played) : null,
             didNotPlay: row.did_not_play ?? false,
         })
@@ -72,7 +73,8 @@ export async function getTodaysGames(): Promise<NBAGameRow[]> {
         .select('id, nba_game_id, home_team, away_team, home_score, away_score, status, game_status_text, game_date')
         .eq('game_date', today)
         .order('status', { ascending: true }) // Final → InProgress → Scheduled
+        .returns<NBAGameRow[]>()
 
     if (error) throw error
-    return (data ?? []) as unknown as NBAGameRow[]
+    return data ?? []
 }

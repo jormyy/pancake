@@ -3,6 +3,10 @@ import { getCurrentSeason } from '@/lib/shared/season'
 import { getCurrentWeekNumber } from '@/lib/shared/week'
 import { LiveStatLine } from '@/lib/games'
 
+/**
+ * SYNC: Keep formula identical to backend/src/lib/scoring.ts calculateFantasyPoints.
+ * This frontend version operates on camelCase LiveStatLine from lib/games.ts.
+ */
 export function computeLiveFantasyPoints(
     stats: LiveStatLine,
     settings: Record<string, number>,
@@ -94,7 +98,10 @@ export async function getMyMatchup(memberId: string, leagueId: string): Promise<
     ])
 
     const memberMap = Object.fromEntries(
-        (members ?? []).map((m) => [m.id, { teamName: m.team_name, username: (m.profiles as any)?.display_name ?? '' }])
+        (members ?? []).map((m) => {
+            const profile = m.profiles as { display_name?: string | null } | null
+            return [m.id, { teamName: m.team_name, username: profile?.display_name ?? '' }]
+        })
     )
 
     // Compute records from finalized matchups

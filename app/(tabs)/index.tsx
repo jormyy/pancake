@@ -5,7 +5,6 @@ import {
     StyleSheet,
     ActivityIndicator,
     ScrollView,
-    Modal,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useEffect } from 'react'
@@ -14,7 +13,6 @@ import { useAuth } from '@/hooks/use-auth'
 import { Scoreboard } from '@/components/Scoreboard'
 import { LineupSlot, LineupPlayer } from '@/lib/lineup'
 import { LiveStatLine } from '@/lib/games'
-import { isIREligible } from '@/lib/roster'
 import { colors, palette } from '@/constants/tokens'
 import { LoadingScreen } from '@/components/LoadingScreen'
 import { DaySelector } from '@/components/DaySelector'
@@ -22,6 +20,8 @@ import { ScoreCard } from '@/components/ScoreCard'
 import { NoLeagueState } from '@/components/NoLeagueState'
 import { AutoSetModal } from '@/components/AutoSetModal'
 import { MatchupRow } from '@/components/MatchupRow'
+import { LeagueSwitcher } from '@/components/LeagueSwitcher'
+import { ActivationOverflowModal } from '@/components/ActivationOverflowModal'
 import { useMatchupData } from '@/hooks/use-matchup-data'
 import { useLiveStats } from '@/hooks/use-live-stats'
 import { useLineupActions } from '@/hooks/use-lineup-actions'
@@ -92,18 +92,11 @@ export default function HomeScreen() {
 
     return (
         <SafeAreaView style={styles.container}>
-            {memberships.length > 1 && (
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.switcherRow} contentContainerStyle={styles.switcherContent}>
-                    {memberships.map((m) => {
-                        const isActive = m.id === current?.id
-                        return (
-                            <Pressable key={m.id} style={[styles.switcherChip, isActive && styles.switcherChipActive]} onPress={() => setCurrent(m)}>
-                                <Text style={[styles.switcherText, isActive && styles.switcherTextActive]}>{m.leagues?.name ?? 'League'}</Text>
-                            </Pressable>
-                        )
-                    })}
-                </ScrollView>
-            )}
+            <LeagueSwitcher
+                memberships={memberships}
+                currentId={current?.id}
+                onSelect={setCurrent}
+            />
 
             {matchupLoading ? (
                 <ActivityIndicator color={colors.primary} style={{ marginTop: 48 }} />
@@ -177,60 +170,16 @@ export default function HomeScreen() {
                 </ScrollView>
             )}
 
-            {/* Activation overflow modal (roster full when activating IR/taxi player) */}
-            <Modal
-                visible={activationOverflowPending !== null}
-                transparent
-                animationType="slide"
-                onRequestClose={() => setActivationOverflowPending(null)}
-            >
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalSheet}>
-                        <Text style={styles.modalTitle}>Active Roster Full</Text>
-                        <Text style={styles.modalSub}>
-                            Drop a player, move one to IR, or move one to Taxi Squad to make room.
-                        </Text>
-                        <ScrollView style={{ maxHeight: 360 }}>
-                            {myLineup && [...myLineup.starters.filter(s => s.player).map(s => s.player!), ...myLineup.bench].map((p) => (
-                                <View key={p.rosterPlayerId} style={styles.overflowRow}>
-                                    <View style={{ flex: 1 }}>
-                                        <Text style={styles.overflowName} numberOfLines={1}>{p.displayName}</Text>
-                                        <Text style={styles.overflowMeta}>{p.nbaTeam ?? 'FA'}{p.position ? ` · ${p.position}` : ''}</Text>
-                                    </View>
-                                    {isIREligible(p.injuryStatus) && (
-                                        <Pressable
-                                            style={[styles.overflowBtn, { backgroundColor: palette.red900 + '22', marginRight: 6 }]}
-                                            onPress={() => handleOverflowMoveToIR(p.rosterPlayerId)}
-                                            disabled={activationOverflowSaving}
-                                        >
-                                            <Text style={[styles.overflowBtnText, { color: palette.red900 }]}>→ IR</Text>
-                                        </Pressable>
-                                    )}
-                                    {(league?.taxi_slots ?? 0) > (myLineup.taxi.length) && (
-                                        <Pressable
-                                            style={[styles.overflowBtn, { backgroundColor: palette.gray500 + '22', marginRight: 6 }]}
-                                            onPress={() => handleOverflowMoveToTaxi(p.rosterPlayerId)}
-                                            disabled={activationOverflowSaving}
-                                        >
-                                            <Text style={[styles.overflowBtnText, { color: palette.gray500 }]}>→ TX</Text>
-                                        </Pressable>
-                                    )}
-                                    <Pressable
-                                        style={[styles.overflowBtn, { backgroundColor: colors.danger + '22' }]}
-                                        onPress={() => handleOverflowDrop(p.rosterPlayerId)}
-                                        disabled={activationOverflowSaving}
-                                    >
-                                        <Text style={[styles.overflowBtnText, { color: colors.danger }]}>Drop</Text>
-                                    </Pressable>
-                                </View>
-                            ))}
-                        </ScrollView>
-                        <Pressable style={styles.modalCancel} onPress={() => setActivationOverflowPending(null)}>
-                            <Text style={styles.modalCancelText}>Cancel</Text>
-                        </Pressable>
-                    </View>
-                </View>
-            </Modal>
+            <ActivationOverflowModal
+                pending={activationOverflowPending}
+                myLineup={myLineup}
+                leagueTaxiSlots={league?.taxi_slots ?? 0}
+                saving={activationOverflowSaving}
+                onDrop={handleOverflowDrop}
+                onMoveToIR={handleOverflowMoveToIR}
+                onMoveToTaxi={handleOverflowMoveToTaxi}
+                onCancel={() => setActivationOverflowPending(null)}
+            />
 
             <AutoSetModal
                 visible={autoSetModalVisible}
@@ -383,13 +332,6 @@ function SectionDivider({ label, color = colors.textMuted }: { label: string; co
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgScreen },
 
-    switcherRow: { maxHeight: 48, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
-    switcherContent: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, gap: 8, paddingVertical: 8 },
-    switcherChip: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, borderCurve: 'continuous' as const, backgroundColor: colors.bgMuted },
-    switcherChipActive: { backgroundColor: colors.primary },
-    switcherText: { fontSize: 13, fontWeight: '600', color: colors.textSecondary },
-    switcherTextActive: { color: colors.textWhite },
-
     scrollContent: { paddingTop: 60, paddingBottom: 40 },
 
     // Lineup header
@@ -436,16 +378,4 @@ const styles = StyleSheet.create({
     noMatchupText: { fontSize: 16, fontWeight: '600', color: colors.textSecondary },
     noMatchupSub: { fontSize: 13, color: colors.textPlaceholder, textAlign: 'center' },
 
-    // IR overflow modal
-    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-    modalSheet: { backgroundColor: colors.bgScreen, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, gap: 12 },
-    modalTitle: { fontSize: 17, fontWeight: '800', color: colors.textPrimary },
-    modalSub: { fontSize: 13, color: colors.textMuted, marginBottom: 4 },
-    overflowRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.separator, gap: 8 },
-    overflowName: { fontSize: 14, fontWeight: '600', color: colors.textPrimary },
-    overflowMeta: { fontSize: 12, color: colors.textMuted, marginTop: 1 },
-    overflowBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
-    overflowBtnText: { fontSize: 12, fontWeight: '700' },
-    modalCancel: { paddingVertical: 14, alignItems: 'center' },
-    modalCancelText: { fontSize: 15, fontWeight: '600', color: colors.textMuted },
 })

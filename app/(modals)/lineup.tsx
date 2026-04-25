@@ -494,7 +494,7 @@ const styles = StyleSheet.create({
     hint: {
         backgroundColor: colors.primaryLight,
         borderBottomWidth: 1,
-        borderBottomColor: palette.orange200,
+        borderBottomColor: palette.maple200,
         paddingHorizontal: spacing.xl,
         paddingVertical: 10,
     },

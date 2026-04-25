@@ -36,7 +36,7 @@ const styles = StyleSheet.create({
     title: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.primaryDark, textTransform: 'uppercase', letterSpacing: 0.5 },
     row: { flexDirection: 'row', alignItems: 'center' },
     stat: { flex: 1, alignItems: 'center', gap: spacing.xs },
-    divider: { width: 1, height: 36, backgroundColor: palette.orange200 },
+    divider: { width: 1, height: 36, backgroundColor: palette.maple200 },
     statValue: { fontSize: fontSize['2xl'], fontWeight: fontWeight.extrabold, color: colors.primary },
-    statLabel: { fontSize: fontSize.xs, fontWeight: fontWeight.semibold, color: palette.orange900 },
+    statLabel: { fontSize: fontSize.xs, fontWeight: fontWeight.semibold, color: palette.maple900 },
 })

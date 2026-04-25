@@ -640,7 +640,7 @@ const styles = StyleSheet.create({
     banner: {
         backgroundColor: colors.primaryLight,
         borderBottomWidth: 1,
-        borderBottomColor: palette.orange100,
+        borderBottomColor: palette.maple100,
         paddingHorizontal: spacing['2xl'],
         paddingVertical: 14,
         gap: spacing.xs,
