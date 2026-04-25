@@ -79,7 +79,7 @@ export default async function draftRoutes(app: FastifyInstance) {
     app.get(
         '/:draftId/rookie-state',
         { schema: { params: DraftParams } },
-        async (req, reply) => {
+        async (req) => {
             const { draftId } = req.params as { draftId: string }
             const state = await getRookieDraftState(draftId)
             if (!state) {
