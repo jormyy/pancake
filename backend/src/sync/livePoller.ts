@@ -5,8 +5,6 @@ import { syncScores } from './scores'
 import { CONFIG } from '../config'
 import { todayET } from '../lib/utils/date'
 
-type PollerMode = 'idle' | 'active'
-
 // Checks if current ET hour is within the NBA game window (11 AM – 1 AM)
 function isGameWindow(): boolean {
     const etHour = new Date(
@@ -16,13 +14,11 @@ function isGameWindow(): boolean {
 }
 
 class LiveGamePoller {
-    private mode: PollerMode = 'idle'
     private idleTimer: NodeJS.Timeout | null = null
     private statsTimer: NodeJS.Timeout | null = null
     private scoresTimer: NodeJS.Timeout | null = null
     private running = false
     private lastStatsTick = 0
-    private lastScoresTick = 0
 
     start() {
         if (this.running) return
@@ -66,9 +62,7 @@ class LiveGamePoller {
     }
 
     private switchToActive() {
-        this.mode = 'active'
         this.lastStatsTick = 0
-        this.lastScoresTick = 0
 
         this.statsTimer = setInterval(() => this.statsTick(), CONFIG.LIVE_POLL_ACTIVE_STATS_MS)
         this.scoresTimer = setInterval(() => this.scoresTick(), CONFIG.LIVE_POLL_ACTIVE_SCORES_MS)
@@ -80,7 +74,6 @@ class LiveGamePoller {
 
     private switchToIdle() {
         console.log('[livePoller] All games finished — switching to idle mode.')
-        this.mode = 'idle'
         if (this.statsTimer) { clearInterval(this.statsTimer); this.statsTimer = null }
         if (this.scoresTimer) { clearInterval(this.scoresTimer); this.scoresTimer = null }
         // Check again in 1 minute — if still in game window with new games, go active again

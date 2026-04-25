@@ -35,7 +35,7 @@ export default async function authPlugin(app: FastifyInstance) {
         throw new Error('SUPABASE_JWT_SECRET env var is required')
     }
 
-    app.addHook('onRequest', async (request: FastifyRequest, reply: FastifyReply) => {
+    app.addHook('onRequest', async (request: FastifyRequest, _reply: FastifyReply) => {
         const pathname = request.url.split('?')[0]
         if (SKIP_ROUTES.has(pathname)) return
 
