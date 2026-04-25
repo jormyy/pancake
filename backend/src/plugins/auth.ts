@@ -54,7 +54,8 @@ export default async function authPlugin(app: FastifyInstance) {
     }
 
     app.addHook('onRequest', async (request: FastifyRequest, reply: FastifyReply) => {
-        if (SKIP_ROUTES.has(request.url)) return
+        const pathname = request.url.split('?')[0]
+        if (SKIP_ROUTES.has(pathname)) return
 
         const authHeader = request.headers.authorization
         if (!authHeader?.startsWith('Bearer ')) {

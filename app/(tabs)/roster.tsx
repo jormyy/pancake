@@ -30,10 +30,10 @@ import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
 
 type RosterListItem =
     | { _isHeader: true; _section: string }
-    | { _isEmpty: true; _section: 'taxi' }
-    | (RosterPlayer & { _isHeader?: false; _isEmpty?: false; _section: 'active' | 'ir' | 'taxi' })
-    | (TradePickItem & { _isHeader?: false; _section: 'picks' })
-    | (WaiverClaim & { _isHeader?: false; _section: 'claims' })
+    | { _isHeader: false; _isEmpty: true; _section: 'taxi' }
+    | (RosterPlayer & { _isHeader: false; _isEmpty: false; _section: 'active' | 'ir' | 'taxi' })
+    | (TradePickItem & { _isHeader: false; _isEmpty: false; _section: 'picks' })
+    | (WaiverClaim & { _isHeader: false; _isEmpty: false; _section: 'claims' })
 
 // ── Extracted list item components ───────────────────────────────
 
@@ -252,7 +252,7 @@ function TaxiPlayerItem({
 export default function RosterScreen() {
     const { push } = useRouter()
     const { user } = useAuth()
-    const { current, loading: leagueLoading } = useLeagueContext()
+    const { current, currentLeague, loading: leagueLoading } = useLeagueContext()
     const [togglingId, setTogglingId] = useState<string | null>(null)
     const [taxiingId, setTaxiingId] = useState<string | null>(null)
     const [cancellingId, setCancellingId] = useState<string | null>(null)
@@ -260,7 +260,8 @@ export default function RosterScreen() {
 
     const { data, loading, refresh: load } = useFocusAsyncData(async () => {
         if (!current || !user) return null
-        const leagueId = (current.leagues as any).id
+        const leagueId = currentLeague?.id
+        if (!leagueId) return null
         const [roster, picks, claims] = await Promise.all([
             getRoster(current.id, leagueId),
             getPicksForMember(current.id, leagueId),
@@ -293,30 +294,29 @@ export default function RosterScreen() {
 
     const listData = useMemo<RosterListItem[]>(() => {
         const result: RosterListItem[] = []
-        for (const p of active) result.push({ ...p, _section: 'active' as const })
+        for (const p of active) result.push({ ...p, _isHeader: false, _isEmpty: false, _section: 'active' as const })
         if (ir.length > 0) {
             result.push({ _isHeader: true, _section: 'ir' })
-            for (const p of ir) result.push({ ...p, _section: 'ir' as const })
+            for (const p of ir) result.push({ ...p, _isHeader: false, _isEmpty: false, _section: 'ir' as const })
         }
         result.push({ _isHeader: true, _section: 'taxi' })
         if (taxi.length === 0) {
-            result.push({ _isEmpty: true, _section: 'taxi' })
+            result.push({ _isHeader: false, _isEmpty: true, _section: 'taxi' })
         } else {
-            for (const p of taxi) result.push({ ...p, _section: 'taxi' as const })
+            for (const p of taxi) result.push({ ...p, _isHeader: false, _isEmpty: false, _section: 'taxi' as const })
         }
         result.push({ _isHeader: true, _section: 'picks' })
-        for (const p of picks) result.push({ ...p, _section: 'picks' as const })
+        for (const p of picks) result.push({ ...p, _isHeader: false, _isEmpty: false, _section: 'picks' as const })
         if (claims.length > 0) {
             result.push({ _isHeader: true, _section: 'claims' })
-            for (const c of claims) result.push({ ...c, _section: 'claims' as const })
+            for (const c of claims) result.push({ ...c, _isHeader: false, _isEmpty: false, _section: 'claims' as const })
         }
         return result
     }, [active, ir, taxi, picks, claims])
 
     async function handleToggleIR(item: RosterPlayer) {
-        const league = current?.leagues as any
-        const irSlots = league?.ir_slots ?? 2
-        const activeSlots = league?.roster_size ?? 20
+        const irSlots = currentLeague?.ir_slots ?? 2
+        const activeSlots = currentLeague?.roster_size ?? 20
 
         if (!item.is_on_ir) {
             if (!isIREligible(item.players.injury_status)) {
@@ -348,9 +348,8 @@ export default function RosterScreen() {
     }
 
     async function handleToggleTaxi(item: RosterPlayer) {
-        const league = current?.leagues as any
-        const taxiSlots = league?.taxi_slots ?? 3
-        const activeSlots = league?.roster_size ?? 20
+        const taxiSlots = currentLeague?.taxi_slots ?? 3
+        const activeSlots = currentLeague?.roster_size ?? 20
 
         if (!item.is_on_taxi) {
             if (!isTaxiEligible(item.players)) {
@@ -416,7 +415,7 @@ export default function RosterScreen() {
     if (leagueLoading || (!current && loading)) return <LoadingScreen />
     if (!current) return <EmptyState message="Join or create a league first." />
 
-    const league = current.leagues as any
+    const league = currentLeague
     const taxiSlots = league?.taxi_slots ?? 3
 
     return (
@@ -450,8 +449,8 @@ export default function RosterScreen() {
                     data={listData}
                     keyExtractor={(item) =>
                         item._isHeader ? `header-${item._section}`
-                        : (item as any)._isEmpty ? `empty-${item._section}`
-                        : ((item as any).id ?? (item as any).pickId)
+                        : item._isEmpty ? `empty-${item._section}`
+                        : ('pickId' in item ? item.pickId : item.id)
                     }
                     ItemSeparatorComponent={ItemSeparator}
                     getItemType={(item) => item._isHeader ? 'header' : item._section}
@@ -488,7 +487,7 @@ export default function RosterScreen() {
                                 />
                             )
                         }
-                        if (item._section === 'taxi' && (item as any)._isEmpty) {
+                        if (item._section === 'taxi' && item._isEmpty) {
                             return (
                                 <View style={styles.taxiEmpty}>
                                     <Text style={styles.taxiEmptyText}>No players on taxi squad</Text>

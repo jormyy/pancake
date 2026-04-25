@@ -36,8 +36,8 @@ const PICK_TIMEOUT_SEC = 90
 
 export default function RookieDraftRoomScreen() {
     const { draftId } = useLocalSearchParams<{ draftId: string }>()
-    const { current } = useLeagueContext()
-    const myMemberId = (current as any)?.id as string | undefined
+    const { current, currentLeague } = useLeagueContext()
+    const myMemberId = current?.id
     // Persist the last known valid member ID so transient null context doesn't break picks
     const myMemberIdRef = useRef<string | undefined>(undefined)
     if (myMemberId) myMemberIdRef.current = myMemberId
@@ -165,14 +165,13 @@ export default function RookieDraftRoomScreen() {
         const memberId = myMemberIdRef.current ?? myMemberId
         if (!state || state.draft.status !== 'completed' || !memberId || draftEndCheckedRef.current) return
         draftEndCheckedRef.current = true
-        const leagueId = (current?.leagues as any)?.id as string | undefined
-        if (!leagueId) return
+        const lid = currentLeague?.id
+        if (!lid) return
         ;(async () => {
             try {
-                const roster = await getRoster(memberId, leagueId)
-                const league = current?.leagues as any
-                const rosterSize = league?.roster_size ?? 20
-                const active = roster.filter((rp: any) => !rp.is_on_ir && !rp.is_on_taxi)
+                const roster = await getRoster(memberId, lid)
+                const rosterSize = currentLeague?.roster_size ?? 20
+                const active = roster.filter((rp) => !rp.is_on_ir && !rp.is_on_taxi)
                 const excess = active.length - rosterSize
                 if (excess > 0) {
                     setTrimOverflow({ excess, dropList: active })
@@ -188,12 +187,11 @@ export default function RookieDraftRoomScreen() {
             await dropPlayer(rosterPlayerId)
             // Recheck roster after drop
             const memberId = myMemberIdRef.current ?? myMemberId
-            const leagueId = (current?.leagues as any)?.id as string | undefined
-            if (memberId && leagueId) {
-                const roster = await getRoster(memberId, leagueId)
-                const league = current?.leagues as any
-                const rosterSize = league?.roster_size ?? 20
-                const active = roster.filter((rp: any) => !rp.is_on_ir && !rp.is_on_taxi)
+            const lid = currentLeague?.id
+            if (memberId && lid) {
+                const roster = await getRoster(memberId, lid)
+                const rosterSize = currentLeague?.roster_size ?? 20
+                const active = roster.filter((rp) => !rp.is_on_ir && !rp.is_on_taxi)
                 const excess = active.length - rosterSize
                 if (excess <= 0) {
                     setTrimOverflow(null)
@@ -222,16 +220,16 @@ export default function RookieDraftRoomScreen() {
 
             if (result?.rosterOverflow) {
                 // Fetch the rosterPlayerId for the newly drafted player so we can move them to taxi
-                const leagueId = (current?.leagues as any)?.id as string | undefined
+                const lid = currentLeague?.id
                 let newRosterPlayerId: string | null = null
                 let dropList: any[] = []
-                if (leagueId) {
+                if (lid) {
                     try {
-                        const roster = await getRoster(memberId, leagueId)
-                        const match = roster.find((rp: any) => rp.players?.id === player.id)
+                        const roster = await getRoster(memberId, lid)
+                        const match = roster.find((rp) => rp.players?.id === player.id)
                         newRosterPlayerId = match?.id ?? null
                         dropList = roster.filter(
-                            (rp: any) => !rp.is_on_ir && !(rp as any).is_on_taxi && rp.players?.id !== player.id,
+                            (rp) => !rp.is_on_ir && !rp.is_on_taxi && rp.players?.id !== player.id,
                         )
                     } catch {}
                 }

@@ -11,6 +11,7 @@ import { currentSeasonYear } from '../lib/utils/season'
 import { syncPlayerStatuses } from '../sync/players'
 import { syncDraftOrder } from '../sync/draftOrder'
 import { syncGameTimes } from '../sync/schedule'
+import { NotFoundError, ValidationError } from '../plugins/errorHandler'
 import {
     SyncStatsBody,
     SyncMatchupsBody,
@@ -19,6 +20,10 @@ import {
     VerifyStatsBody,
     ValidateDbBody,
 } from '../schemas'
+
+function parseQuerySeasonYear(query: any): number {
+    return query?.seasonYear ? parseInt(query.seasonYear) : currentSeasonYear()
+}
 
 export default async function syncRoutes(app: FastifyInstance) {
     app.post('/stats', { schema: { body: SyncStatsBody } }, async (req) => {
@@ -80,7 +85,7 @@ export default async function syncRoutes(app: FastifyInstance) {
         const { jobId } = req.params as { jobId: string }
         const job = await getBackfillProgress(jobId)
         if (!job) {
-            return (req as any).server.httpErrors?.notFound?.('Job not found') ?? { error: 'Not found' }
+            throw new NotFoundError('Job not found')
         }
         return job
     })
@@ -102,9 +107,7 @@ export default async function syncRoutes(app: FastifyInstance) {
 
     // Season totals for top players (manual cross-reference against nba.com/basketball-reference)
     app.get('/season-totals', async (req) => {
-        const seasonYear = (req.query as any).seasonYear
-            ? parseInt((req.query as any).seasonYear)
-            : currentSeasonYear()
+        const seasonYear = parseQuerySeasonYear(req.query)
         const rows = await verifySeasonTotals(seasonYear)
         return { ok: true, seasonYear, rows }
     })

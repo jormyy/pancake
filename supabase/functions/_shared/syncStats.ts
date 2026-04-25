@@ -1,15 +1,6 @@
 import { supabase } from './supabase.ts'
 import { fetchBoxScore, parseNBAMinutes, NBABoxScorePlayer } from './nba.ts'
-
-function normalizeName(name: string): string {
-  return name
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/\s+(jr\.?|sr\.?|ii|iii|iv|v)$/i, '')
-    .replace(/['.'\-]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-}
+import { normalizeName } from './nameMatch.ts'
 
 export async function syncStatsByDate(date: Date) {
   const dateStr = date.toISOString().split('T')[0]

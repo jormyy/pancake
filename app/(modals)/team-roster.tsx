@@ -21,19 +21,18 @@ import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constan
 export default function TeamRosterScreen() {
     const { back, push } = useRouter()
     const { memberId, teamName } = useLocalSearchParams<{ memberId: string; teamName: string }>()
-    const { current } = useLeagueContext()
+    const { current, currentLeague } = useLeagueContext()
     const [roster, setRoster] = useState<RosterPlayer[]>([])
     const [loading, setLoading] = useState(true)
 
     useEffect(() => {
-        if (!memberId || !current) return
-        const leagueId = (current.leagues as any).id
+        if (!memberId || !current || !currentLeague) return
         setLoading(true)
-        getRoster(memberId, leagueId)
+        getRoster(memberId, currentLeague.id)
             .then(setRoster)
             .catch(console.error)
             .finally(() => setLoading(false))
-    }, [memberId, current])
+    }, [memberId, current, currentLeague])
 
     const active = roster.filter((r) => !r.is_on_ir && !r.is_on_taxi)
     const ir = roster.filter((r) => r.is_on_ir)
@@ -91,7 +90,7 @@ export default function TeamRosterScreen() {
                                     {p.injury_status ? (
                                         <Badge
                                             label={p.injury_status}
-                                            color={colors.error}
+                                            color={colors.danger}
                                             variant="soft"
                                         />
                                     ) : null}

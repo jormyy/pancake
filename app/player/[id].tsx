@@ -45,7 +45,7 @@ const GAME_LOG_PAGE = 15
 
 export default function PlayerDetailScreen() {
     const { id } = useLocalSearchParams<{ id: string }>()
-    const { current } = useLeagueContext()
+    const { current, currentLeague } = useLeagueContext()
     const { user } = useAuth()
     const { push } = useRouter()
 
@@ -88,8 +88,7 @@ export default function PlayerDetailScreen() {
     // Transaction history (league-aware, once per player/league)
     const [transactions, setTransactions] = useState<TransactionHistoryEntry[]>([])
 
-    const league = current?.leagues as any
-    const leagueId: string | null = league?.id ?? null
+    const leagueId = currentLeague?.id ?? null
 
     // ── Load player core + available seasons ────────────────────────────────
     useEffect(() => {

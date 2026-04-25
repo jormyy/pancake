@@ -41,9 +41,9 @@ type SlotMap = Record<string, number>
 type ScoringMap = Record<string, string> // string for TextInput, parsed on save
 
 export default function CommissionerSettingsScreen() {
-    const { current, refresh } = useLeagueContext()
+    const { current, currentLeague, refresh } = useLeagueContext()
     const { back } = useRouter()
-    const league = current?.leagues as any
+    const league = currentLeague
 
     const [scoring, setScoring] = useState<ScoringMap>({})
     const [slots, setSlots] = useState<SlotMap>({})
@@ -93,7 +93,7 @@ export default function CommissionerSettingsScreen() {
             }
         }
         load()
-    }, [])
+    }, [league])
 
     function adjustSlot(type: string, delta: number) {
         setSlots((prev) => {

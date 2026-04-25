@@ -123,40 +123,38 @@ function PicksBankRow({ pick, isMine }: { pick: LeaguePickItem; isMine: boolean 
 
 export default function LeagueScreen() {
     const { push } = useRouter()
-    const { current, loading: leagueLoading } = useLeagueContext()
+    const { current, currentLeague, isCommissioner, loading: currentLeagueLoading } = useLeagueContext()
     const { user } = useAuth()
     const [tab, setTab] = useState<Tab>('standings')
     const [draftLoading, setDraftLoading] = useState(false)
 
-    const league = current?.leagues as any
-    const isCommissioner = league?.commissioner_id === user?.id
-
     const { data, loading } = useFocusAsyncData(async () => {
-        if (!current) return null
+        if (!current || !currentLeague) return null
+        const lid = currentLeague.id
         const [standingsData, waiverData, txData, picksData] = await Promise.all([
-            getLeagueStandings(league.id),
-            getWaiverPriorityOrder(league.id),
-            getLeagueTransactions(league.id),
-            getAllLeaguePicks(league.id),
+            getLeagueStandings(lid),
+            getWaiverPriorityOrder(lid),
+            getLeagueTransactions(lid),
+            getAllLeaguePicks(lid),
         ])
         return {
             standings: standingsData,
             waiverOrder: waiverData,
             transactions: txData,
-            leaguePicks: picksData,
+            currentLeaguePicks: picksData,
         }
     }, [current])
 
     const standings = data?.standings ?? []
     const waiverOrder = data?.waiverOrder ?? []
     const transactions = data?.transactions ?? []
-    const leaguePicks = data?.leaguePicks ?? []
+    const currentLeaguePicks = data?.currentLeaguePicks ?? []
 
     async function handleStartDraft() {
-        if (!league?.id) return
+        if (!currentLeague?.id) return
         setDraftLoading(true)
         try {
-            const draft = await startDraft(league.id)
+            const draft = await startDraft(currentLeague.id)
             push({ pathname: '/(modals)/draft-room', params: { draftId: draft.id } })
         } catch (e: any) {
             Alert.alert('Could not start draft', e.message)
@@ -166,16 +164,16 @@ export default function LeagueScreen() {
     }
 
     async function handleJoinDraftRoom() {
-        if (!league?.id) return
+        if (!currentLeague?.id) return
         setDraftLoading(true)
         try {
-            const draft = await getActiveDraft(league.id)
+            const draft = await getActiveDraft(currentLeague.id)
             if (!draft) {
                 Alert.alert('No active draft found')
                 return
             }
             if (draft.draftType === 'snake') {
-                push({ pathname: '/(modals)/rookie-draft-room' as any, params: { draftId: draft.id } })
+                push({ pathname: '/(modals)/rookie-draft-room', params: { draftId: draft.id } })
             } else {
                 push({ pathname: '/(modals)/draft-room', params: { draftId: draft.id } })
             }
@@ -187,11 +185,11 @@ export default function LeagueScreen() {
     }
 
     async function handleStartRookieDraft() {
-        if (!league?.id) return
+        if (!currentLeague?.id) return
         setDraftLoading(true)
         try {
-            const result = await startRookieDraft(league.id)
-            push({ pathname: '/(modals)/rookie-draft-room' as any, params: { draftId: result.draft.id } })
+            const result = await startRookieDraft(currentLeague.id)
+            push({ pathname: '/(modals)/rookie-draft-room', params: { draftId: result.draft.id } })
         } catch (e: any) {
             Alert.alert('Could not start rookie draft', e.message)
         } finally {
@@ -200,10 +198,10 @@ export default function LeagueScreen() {
     }
 
     async function handleReseedRookiePicks() {
-        if (!league?.id) return
+        if (!currentLeague?.id) return
         setDraftLoading(true)
         try {
-            const draft = await getActiveRookieDraft(league.id)
+            const draft = await getActiveRookieDraft(currentLeague.id)
             if (!draft) { Alert.alert('No active rookie draft found'); return }
             await reseedRookieDraftPicks(draft.id)
             Alert.alert('Done', 'Pick slots updated to reflect traded picks.')
@@ -215,15 +213,15 @@ export default function LeagueScreen() {
     }
 
     async function handleJoinRookieDraft() {
-        if (!league?.id) return
+        if (!currentLeague?.id) return
         setDraftLoading(true)
         try {
-            const draft = await getActiveRookieDraft(league.id)
+            const draft = await getActiveRookieDraft(currentLeague.id)
             if (!draft) {
                 Alert.alert('No active rookie draft found')
                 return
             }
-            push({ pathname: '/(modals)/rookie-draft-room' as any, params: { draftId: draft.id } })
+            push({ pathname: '/(modals)/rookie-draft-room', params: { draftId: draft.id } })
         } catch (e: any) {
             Alert.alert('Error', e.message)
         } finally {
@@ -233,16 +231,16 @@ export default function LeagueScreen() {
 
     async function shareInviteCode() {
         await Share.share({
-            message: `Join my Pancake league! Use invite code: ${league?.invite_code}`,
+            message: `Join my Pancake currentLeague! Use invite code: ${currentLeague?.invite_code}`,
         })
     }
 
-    if (leagueLoading || (!current && loading)) {
+    if (currentLeagueLoading || (!current && loading)) {
         return <LoadingScreen />
     }
 
     if (!current) {
-        return <EmptyState message="Join or create a league first." />
+        return <EmptyState message="Join or create a currentLeague first." />
     }
 
     return (
@@ -251,7 +249,7 @@ export default function LeagueScreen() {
             <View style={styles.header}>
                 <View style={styles.headerTop}>
                     <View style={styles.headerInfo}>
-                        <Text style={styles.leagueName}>{league?.name}</Text>
+                        <Text style={styles.currentLeagueName}>{currentLeague?.name}</Text>
                         <Text style={styles.teamName}>{current.team_name}</Text>
                     </View>
                     <View style={styles.headerButtons}>
@@ -278,32 +276,32 @@ export default function LeagueScreen() {
                     onPress={shareInviteCode}
                 >
                     <Text style={styles.inviteLabel}>Invite Code</Text>
-                    <Text style={styles.inviteCode}>{league?.invite_code}</Text>
+                    <Text style={styles.inviteCode}>{currentLeague?.invite_code}</Text>
                     <Text style={styles.inviteCopy}>Share</Text>
                 </Pressable>
 
                 {/* Draft actions */}
-                {league?.status === 'setup' && isCommissioner ? (
+                {currentLeague?.status === 'setup' && isCommissioner ? (
                     <Pressable style={styles.draftButton} onPress={handleStartDraft} disabled={draftLoading}>
                         {draftLoading ? <ActivityIndicator size="small" color={colors.textWhite} /> : <Text style={styles.draftButtonText}>Start Auction Draft</Text>}
                     </Pressable>
                 ) : null}
-                {league?.status === 'drafting' ? (
+                {currentLeague?.status === 'drafting' ? (
                     <Pressable style={styles.draftButton} onPress={handleJoinDraftRoom} disabled={draftLoading}>
                         {draftLoading ? <ActivityIndicator size="small" color={colors.textWhite} /> : <Text style={styles.draftButtonText}>Join Draft Room</Text>}
                     </Pressable>
                 ) : null}
-                {league?.status === 'drafting' && isCommissioner ? (
+                {currentLeague?.status === 'drafting' && isCommissioner ? (
                     <Pressable style={[styles.draftButton, { backgroundColor: colors.bgSubtle, borderWidth: 1, borderColor: colors.border, marginTop: 8 }]} onPress={handleReseedRookiePicks} disabled={draftLoading}>
                         <Text style={[styles.draftButtonText, { color: colors.textSecondary }]}>Fix Traded Pick Slots</Text>
                     </Pressable>
                 ) : null}
-                {league?.status === 'offseason' && isCommissioner ? (
+                {currentLeague?.status === 'offseason' && isCommissioner ? (
                     <Pressable style={styles.draftButton} onPress={handleStartRookieDraft} disabled={draftLoading}>
                         {draftLoading ? <ActivityIndicator size="small" color={colors.textWhite} /> : <Text style={styles.draftButtonText}>Start Rookie Draft</Text>}
                     </Pressable>
                 ) : null}
-                {league?.status === 'offseason' && !isCommissioner ? (
+                {currentLeague?.status === 'offseason' && !isCommissioner ? (
                     <Pressable style={styles.draftButton} onPress={handleJoinRookieDraft} disabled={draftLoading}>
                         {draftLoading ? <ActivityIndicator size="small" color={colors.textWhite} /> : <Text style={styles.draftButtonText}>Join Rookie Draft</Text>}
                     </Pressable>
@@ -348,7 +346,7 @@ export default function LeagueScreen() {
             ) : tab === 'waivers' ? (
                 <WaiverPriorityList rows={waiverOrder} myMemberId={current?.id} />
             ) : (
-                <PicksBankList picks={leaguePicks} myMemberId={current?.id} />
+                <PicksBankList picks={currentLeaguePicks} myMemberId={current?.id} />
             )}
         </SafeAreaView>
     )
@@ -477,7 +475,7 @@ const styles = StyleSheet.create({
     header: { padding: spacing['2xl'], borderBottomWidth: 1, borderBottomColor: colors.borderLight, gap: spacing.lg },
     headerTop: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.lg },
     headerInfo: { flex: 1, gap: spacing.xxs },
-    leagueName: { fontSize: fontSize.xl, fontWeight: fontWeight.extrabold },
+    currentLeagueName: { fontSize: fontSize.xl, fontWeight: fontWeight.extrabold },
     teamName: { fontSize: fontSize.md, color: colors.textMuted },
 
     headerButtons: { flexDirection: 'row', gap: spacing.md, alignItems: 'center' },

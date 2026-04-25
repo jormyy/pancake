@@ -14,19 +14,18 @@ import { LoadingScreen } from '@/components/LoadingScreen'
 import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 
 export default function BracketScreen() {
-    const { current } = useLeagueContext()
+    const { current, currentLeague } = useLeagueContext()
     const { user } = useAuth()
     const [bracket, setBracket] = useState<PlayoffBracket | null>(null)
     const [loading, setLoading] = useState(true)
 
-    const league = current?.leagues as any
     const myMemberId = current?.id
 
     useEffect(() => {
         async function load() {
-            if (!current) return
+            if (!current || !currentLeague) return
             try {
-                const data = await getPlayoffBracket(league.id)
+                const data = await getPlayoffBracket(currentLeague.id)
                 setBracket(data)
             } catch (e) {
                 console.error(e)

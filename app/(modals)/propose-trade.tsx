@@ -99,13 +99,12 @@ function PickRow({
 
 export default function ProposeTradeScreen() {
     const { user } = useAuth()
-    const { current } = useLeagueContext()
+    const { current, currentLeague } = useLeagueContext()
     const params = useLocalSearchParams<{ recipientMemberId?: string }>()
     const { back } = useRouter()
 
-    const league = current?.leagues as any
     const myMemberId = current?.id ?? ''
-    const leagueId = league?.id ?? ''
+    const leagueId = currentLeague?.id ?? ''
 
     const [members, setMembers] = useState<any[]>([])
     const [selectedRecipientId, setSelectedRecipientId] = useState<string | null>(

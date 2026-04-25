@@ -435,7 +435,7 @@ async function runBBRefChunk(seasonYear: number, jobId: string, offset: number) 
   const { data: players } = await supabase.from('players').select('id, display_name')
   const byName = new Map<string, string>()
   for (const p of players ?? []) {
-    byName.set(normalizePlayerName(p.display_name), p.id)
+    byName.set(normalizeName(p.display_name), p.id)
   }
 
   // On first chunk: scrape schedule and upsert all game records
@@ -574,7 +574,7 @@ async function runBBRefChunk(seasonYear: number, jobId: string, offset: number) 
 
       const stats: any[] = []
       for (const { stat } of allPlayers) {
-        const normName = normalizePlayerName(stat.playerName)
+        const normName = normalizeName(stat.playerName)
         let playerId = byName.get(normName)
 
         // Auto-create player if not found
@@ -662,11 +662,4 @@ async function runBBRefChunk(seasonYear: number, jobId: string, offset: number) 
 }
 
 
-function normalizePlayerName(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/\s+(jr\.?|sr\.?|ii|iii|iv)$/i, '')
-    .replace(/[.']/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-}
+import { normalizeName } from '../_shared/nameMatch.ts'

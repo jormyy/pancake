@@ -20,7 +20,7 @@ import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constan
 
 export default function ClaimPlayerScreen() {
     const { playerId } = useLocalSearchParams<{ playerId: string }>()
-    const { current } = useLeagueContext()
+    const { current, currentLeague } = useLeagueContext()
     const { user } = useAuth()
     const { back } = useRouter()
 
@@ -31,17 +31,18 @@ export default function ClaimPlayerScreen() {
     const [selectedDrop, setSelectedDrop] = useState<RosterPlayer | null>(null)
     const [submitting, setSubmitting] = useState(false)
 
-    const league = current?.leagues as any
-    const rosterSize = league?.roster_size ?? 20
+    const rosterSize = currentLeague?.roster_size ?? 20
 
     useEffect(() => {
         async function load() {
             if (!current || !user || !playerId) return
             try {
+                const lid = currentLeague?.id
+                if (!lid) return
                 const [p, roster, prio] = await Promise.all([
                     getPlayer(playerId),
-                    getRoster(current.id, league.id),
-                    getMyWaiverPriority(current.id, league.id),
+                    getRoster(current.id, lid),
+                    getMyWaiverPriority(current.id, lid),
                 ])
                 setPlayer(p)
                 setMyRoster(roster)
@@ -60,39 +61,8 @@ export default function ClaimPlayerScreen() {
     const rosterFull = activeRoster.length >= rosterSize
     const needsDrop = rosterFull
 
-    // Block waiver claims if there are ineligible players in IR
-    if (ineligibleIR.length > 0) {
-        return (
-            <>
-                <Stack.Screen options={{ title: 'Waiver Claim', presentation: 'modal' }} />
-                <SafeAreaView style={styles.container} edges={['bottom']}>
-                    <View style={styles.blockCard}>
-                        <View style={styles.blockIconContainer}>
-                            <Text style={styles.blockIcon}>⚠️</Text>
-                        </View>
-                        <Text style={styles.blockTitle}>Resolve IR Status First</Text>
-                        <Text style={styles.blockSub}>
-                            You have {ineligibleIR.length} player{ineligibleIR.length > 1 ? 's' : ''} on IR who {' '}
-                            {ineligibleIR.length > 1 ? 'are' : 'is'} not eligible. You must activate or drop
-                            them before placing waiver claims.
-                        </Text>
-                        {ineligibleIR.map((rp) => (
-                            <View key={rp.id} style={styles.blockPlayerRow}>
-                                <Text style={styles.blockPlayerName}>{rp.players.display_name}</Text>
-                                <Text style={styles.blockPlayerStatus}>{rp.players.injury_status ?? 'Healthy'}</Text>
-                            </View>
-                        ))}
-                    </View>
-                    <Pressable style={styles.blockButton} onPress={() => back()}>
-                        <Text style={styles.blockButtonText}>Go to Roster</Text>
-                    </Pressable>
-                </SafeAreaView>
-            </>
-        )
-    }
-
     async function handleSubmit() {
-        if (!current || !user || !playerId) return
+        if (!current || !user || !playerId || !currentLeague) return
         if (needsDrop && !selectedDrop) {
             Alert.alert('Select Drop', 'Your roster is full. Select a player to drop.')
             return
@@ -102,7 +72,7 @@ export default function ClaimPlayerScreen() {
         try {
             await submitWaiverClaim(
                 current.id,
-                league.id,
+                currentLeague.id,
                 playerId,
                 selectedDrop?.players.id,
             )
@@ -134,79 +104,106 @@ export default function ClaimPlayerScreen() {
         <>
             <Stack.Screen options={{ title: 'Waiver Claim', presentation: 'modal' }} />
             <SafeAreaView style={styles.container} edges={['bottom']}>
-                {/* Player being claimed */}
-                <View style={styles.claimCard}>
-                    <Text style={styles.claimLabel}>CLAIMING</Text>
-                    <Text style={styles.claimName}>{player?.display_name ?? '—'}</Text>
-                    <Text style={styles.claimMeta}>
-                        {[player?.nba_team, player?.position].filter(Boolean).join(' · ')}
-                    </Text>
-                </View>
-
-                <View style={styles.infoRow}>
-                    <View style={styles.infoCell}>
-                        <Text style={styles.infoLabel}>Your Priority</Text>
-                        <Text style={styles.infoValue}>#{priority ?? '—'}</Text>
-                    </View>
-                    <View style={styles.infoCell}>
-                        <Text style={styles.infoLabel}>Process Date</Text>
-                        <Text style={styles.infoValue}>{processDateStr}</Text>
-                    </View>
-                </View>
-
-                {needsDrop ? (
+                {ineligibleIR.length > 0 ? (
                     <>
-                        <Text style={styles.sectionTitle}>DROP A PLAYER (required)</Text>
-                        <Text style={styles.sectionSub}>Your roster is full. Select one player to drop if this claim succeeds.</Text>
-                        <FlashList
-                            data={activeRoster}
-                            keyExtractor={(item) => item.id}
-                            contentContainerStyle={styles.rosterList}
-                            renderItem={({ item }) => {
-                                const isSelected = selectedDrop?.id === item.id
-                                return (
-                                    <Pressable
-                                        style={[styles.rosterRow, isSelected && styles.rosterRowSelected]}
-                                        onPress={() => setSelectedDrop(isSelected ? null : item)}
-
-                                    >
-                                        <View style={styles.rosterInfo}>
-                                            <Text style={styles.rosterName}>{item.players.display_name}</Text>
-                                            <Text style={styles.rosterMeta}>
-                                                {[item.players.nba_team, item.players.position]
-                                                    .filter(Boolean)
-                                                    .join(' · ')}
-                                            </Text>
-                                        </View>
-                                        <View style={[styles.check, isSelected && styles.checkSelected]}>
-                                            {isSelected && <Text style={styles.checkText}>✓</Text>}
-                                        </View>
-                                    </Pressable>
-                                )
-                            }}
-                        />
+                        <View style={styles.blockCard}>
+                            <View style={styles.blockIconContainer}>
+                                <Text style={styles.blockIcon}>⚠️</Text>
+                            </View>
+                            <Text style={styles.blockTitle}>Resolve IR Status First</Text>
+                            <Text style={styles.blockSub}>
+                                You have {ineligibleIR.length} player{ineligibleIR.length > 1 ? 's' : ''} on IR who {' '}
+                                {ineligibleIR.length > 1 ? 'are' : 'is'} not eligible. You must activate or drop
+                                them before placing waiver claims.
+                            </Text>
+                            {ineligibleIR.map((rp) => (
+                                <View key={rp.id} style={styles.blockPlayerRow}>
+                                    <Text style={styles.blockPlayerName}>{rp.players.display_name}</Text>
+                                    <Text style={styles.blockPlayerStatus}>{rp.players.injury_status ?? 'Healthy'}</Text>
+                                </View>
+                            ))}
+                        </View>
+                        <Pressable style={styles.blockButton} onPress={() => back()}>
+                            <Text style={styles.blockButtonText}>Go to Roster</Text>
+                        </Pressable>
                     </>
                 ) : (
-                    <View style={styles.spaceNote}>
-                        <Text style={styles.spaceNoteText}>
-                            You have roster space. No drop required.
-                        </Text>
-                    </View>
-                )}
+                    <>
+                        {/* Player being claimed */}
+                        <View style={styles.claimCard}>
+                            <Text style={styles.claimLabel}>CLAIMING</Text>
+                            <Text style={styles.claimName}>{player?.display_name ?? '—'}</Text>
+                            <Text style={styles.claimMeta}>
+                                {[player?.nba_team, player?.position].filter(Boolean).join(' · ')}
+                            </Text>
+                        </View>
 
-                <View style={styles.footer}>
-                    <Pressable
-                        style={[styles.submitButton, (needsDrop && !selectedDrop) && styles.submitButtonDisabled]}
-                        onPress={handleSubmit}
-                        disabled={submitting || (needsDrop && !selectedDrop)}
-                    >
-                        {submitting ? (
-                            <ActivityIndicator color={colors.textWhite} />
+                        <View style={styles.infoRow}>
+                            <View style={styles.infoCell}>
+                                <Text style={styles.infoLabel}>Your Priority</Text>
+                                <Text style={styles.infoValue}>#{priority ?? '—'}</Text>
+                            </View>
+                            <View style={styles.infoCell}>
+                                <Text style={styles.infoLabel}>Process Date</Text>
+                                <Text style={styles.infoValue}>{processDateStr}</Text>
+                            </View>
+                        </View>
+
+                        {needsDrop ? (
+                            <>
+                                <Text style={styles.sectionTitle}>DROP A PLAYER (required)</Text>
+                                <Text style={styles.sectionSub}>Your roster is full. Select one player to drop if this claim succeeds.</Text>
+                                <FlashList
+                                    data={activeRoster}
+                                    keyExtractor={(item) => item.id}
+                                    contentContainerStyle={styles.rosterList}
+                                    renderItem={({ item }) => {
+                                        const isSelected = selectedDrop?.id === item.id
+                                        return (
+                                            <Pressable
+                                                style={[styles.rosterRow, isSelected && styles.rosterRowSelected]}
+                                                onPress={() => setSelectedDrop(isSelected ? null : item)}
+
+                                            >
+                                                <View style={styles.rosterInfo}>
+                                                    <Text style={styles.rosterName}>{item.players.display_name}</Text>
+                                                    <Text style={styles.rosterMeta}>
+                                                        {[item.players.nba_team, item.players.position]
+                                                            .filter(Boolean)
+                                                            .join(' · ')}
+                                                    </Text>
+                                                </View>
+                                                <View style={[styles.check, isSelected && styles.checkSelected]}>
+                                                    {isSelected && <Text style={styles.checkText}>✓</Text>}
+                                                </View>
+                                            </Pressable>
+                                        )
+                                    }}
+                                />
+                            </>
                         ) : (
-                            <Text style={styles.submitButtonText}>Submit Claim</Text>
+                            <View style={styles.spaceNote}>
+                                <Text style={styles.spaceNoteText}>
+                                    You have roster space. No drop required.
+                                </Text>
+                            </View>
                         )}
-                    </Pressable>
-                </View>
+
+                        <View style={styles.footer}>
+                            <Pressable
+                                style={[styles.submitButton, (needsDrop && !selectedDrop) && styles.submitButtonDisabled]}
+                                onPress={handleSubmit}
+                                disabled={submitting || (needsDrop && !selectedDrop)}
+                            >
+                                {submitting ? (
+                                    <ActivityIndicator color={colors.textWhite} />
+                                ) : (
+                                    <Text style={styles.submitButtonText}>Submit Claim</Text>
+                                )}
+                            </Pressable>
+                        </View>
+                    </>
+                )}
             </SafeAreaView>
         </>
     )
