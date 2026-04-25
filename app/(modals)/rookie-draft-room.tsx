@@ -28,7 +28,7 @@ import {
     type SnakePick,
 } from '@/lib/rookieDraft'
 import { toggleTaxi, dropPlayer, getRoster } from '@/lib/roster'
-import { POSITION_COLORS } from '@/constants/positions'
+import { getPositionColor } from "@/constants/positions"
 import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 
 const PICK_TIMEOUT_SEC = 90
@@ -548,7 +548,7 @@ function ProspectRow({
                     <Text style={styles.draftNumText}>{player.nba_draft_number}</Text>
                 </View>
             ) : (
-                <View style={[styles.posChip, { backgroundColor: POSITION_COLORS[player.position] ?? palette.gray500 }]}>
+                <View style={[styles.posChip, { backgroundColor: getPositionColor(player.position) }]}>
                     <Text style={styles.posChipText}>{player.position ?? '?'}</Text>
                 </View>
             )}
@@ -556,7 +556,7 @@ function ProspectRow({
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                     <Text style={styles.resultName}>{player.display_name}</Text>
                     {player.nba_draft_number != null && (
-                        <View style={[styles.posChipXs, { backgroundColor: POSITION_COLORS[player.position] ?? palette.gray500 }]}>
+                        <View style={[styles.posChipXs, { backgroundColor: getPositionColor(player.position) }]}>
                             <Text style={styles.posChipXsText}>{player.position ?? '?'}</Text>
                         </View>
                     )}
@@ -608,7 +608,7 @@ function PickRow({
                     <View
                         style={[
                             styles.posChipSm,
-                            { backgroundColor: POSITION_COLORS[item.player.position ?? ''] ?? palette.gray500 },
+                            { backgroundColor: getPositionColor(item.player.position) },
                         ]}
                     >
                         <Text style={styles.posChipSmText}>{item.player.position ?? '?'}</Text>

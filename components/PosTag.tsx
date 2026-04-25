@@ -1,9 +1,8 @@
 import { Text } from 'react-native'
-import { POSITION_COLORS } from '@/constants/positions'
-import { palette } from '@/constants/tokens'
+import { getPositionColor } from '@/constants/positions'
 
 export function PosTag({ position }: { position: string }) {
-    const color = POSITION_COLORS[position] ?? palette.gray500
+    const color = getPositionColor(position)
     return (
         <Text style={{ fontSize: 9, fontWeight: '800', color }}>{position}</Text>
     )

@@ -16,8 +16,8 @@ import { FlashList } from '@shopify/flash-list'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { searchPlayers, PlayerRow } from '@/lib/players'
-import { playerHeadshotUrl } from '@/lib/format'
+import { searchPlayers, PlayerRow, getEligiblePositions } from '@/lib/players'
+import { playerHeadshotUrl, isIneligibleIR } from '@/lib/format'
 import {
     getOwnedPlayerMap,
     addFreeAgent,
@@ -31,7 +31,7 @@ import {
 import { getWaiverPlayerIds, submitWaiverClaim } from '@/lib/waivers'
 import { useAuth } from '@/hooks/use-auth'
 import { useLeagueContext } from '@/contexts/league-context'
-import { POSITION_COLORS } from '@/constants/positions'
+import { getPositionColor } from "@/constants/positions"
 import {
     INJURY_COLORS,
     colors,
@@ -116,7 +116,7 @@ function PlayerSearchItem({
                 ) : (
                     <Avatar
                         name={item.display_name}
-                        color={POSITION_COLORS[item.eligible_positions?.[0] ?? item.position ?? ''] ?? palette.gray500}
+                        color={getPositionColor(item.eligible_positions?.[0] ?? item.position)}
                     />
                 )}
 
@@ -124,7 +124,7 @@ function PlayerSearchItem({
                     <Text style={styles.playerName}>{item.display_name}</Text>
                     <View style={styles.playerMetaRow}>
                         {item.nba_team && <Text style={styles.playerMeta}>{item.nba_team}</Text>}
-                        {(item.eligible_positions?.length ? item.eligible_positions : (item.position ? [item.position] : [])).map((pos: string) => <PosTag key={pos} position={pos} />)}
+                        {getEligiblePositions(item).map((pos: string) => <PosTag key={pos} position={pos} />)}
                         {item.years_exp != null && (
                             <Text style={[styles.gamesLeftText, item.years_exp === 0 && { color: colors.success }]}>
                                 {item.years_exp === 0 ? 'Rookie' : `Yr ${item.years_exp + 1}`}
@@ -332,7 +332,7 @@ export default function PlayersScreen() {
         if (waiverIds.has(player.id)) {
             // Check for ineligible IR players before allowing waiver claim
             const roster = await getRoster(current.id, lid)
-            const ineligible = roster.filter((r) => r.is_on_ir && !isIREligible(r.players.injury_status))
+            const ineligible = roster.filter((r) => isIneligibleIR(r))
 
             if (ineligible.length > 0) {
                 setIrModal({ ineligible, roster, pendingPlayer: player })
@@ -367,7 +367,7 @@ export default function PlayersScreen() {
         // Free-agent add — may require a drop if roster is full
         const roster = await getRoster(current.id, lid)
         const active = roster.filter((r) => !r.is_on_ir)
-        const ineligible = roster.filter((r) => r.is_on_ir && !isIREligible(r.players.injury_status))
+        const ineligible = roster.filter((r) => isIneligibleIR(r))
         if (ineligible.length > 0) {
             setIrModal({ ineligible, roster, pendingPlayer: player })
             return
@@ -416,7 +416,7 @@ export default function PlayersScreen() {
         // Check for ineligible IR players before dropping (excluding the one being dropped)
         const roster = await getRoster(current.id, lid)
         const ineligible = roster.filter(
-            (r) => r.is_on_ir && !isIREligible(r.players.injury_status) && r.id !== rosterPlayer.id
+            (r) => isIneligibleIR(r) && r.id !== rosterPlayer.id
         )
 
         if (ineligible.length > 0) {
@@ -444,7 +444,7 @@ export default function PlayersScreen() {
         await toggleIR(rp.id, false)
         const lid = currentLeague.id
         const roster = await getRoster(current.id, lid)
-        const remaining = roster.filter((r) => r.is_on_ir && !isIREligible(r.players.injury_status))
+        const remaining = roster.filter((r) => isIneligibleIR(r))
         if (remaining.length > 0) {
             setIrModal((prev) => prev ? { ...prev, ineligible: remaining, roster } : null)
         } else {
@@ -460,7 +460,7 @@ export default function PlayersScreen() {
         await dropPlayer(toDrop.id)
         await toggleIR(activatePlayer.id, false)
         const roster = await getRoster(current.id, lid)
-        const remaining = roster.filter((r) => r.is_on_ir && !isIREligible(r.players.injury_status))
+        const remaining = roster.filter((r) => isIneligibleIR(r))
         if (remaining.length > 0) {
             setIrModal((prev) => prev ? { ...prev, ineligible: remaining, roster } : null)
         } else {
@@ -683,12 +683,12 @@ export default function PlayersScreen() {
                                 return (
                                     <View key={rp.id} style={styles.dropRow}>
                                         {(() => {
-                                            const ep: string[] = p.eligible_positions?.length ? p.eligible_positions : (p.position ? [p.position] : [])
+                                            const ep = getEligiblePositions(p)
                                             return (
                                                 <>
                                                     <Avatar
                                                         name={p.display_name}
-                                                        color={POSITION_COLORS[ep[0] ?? ''] ?? palette.gray500}
+                                                        color={getPositionColor(ep[0])}
                                                         size={38}
                                                     />
                                                     <View style={styles.dropInfo}>
