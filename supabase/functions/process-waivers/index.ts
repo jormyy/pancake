@@ -34,8 +34,9 @@ async function processWaiverClaims(): Promise<void> {
   for (const claim of claims as any[]) {
     const key = `${claim.league_id}:${claim.player_id}`
 
-    const { data: playerRow } = await supabase
+    const { data: playerRow, error: playerErr } = await supabase
       .from('players').select('display_name').eq('id', claim.player_id).single()
+    if (playerErr) console.error('[process-waivers] player lookup error:', playerErr.message)
     const playerName = (playerRow as any)?.display_name ?? 'Unknown'
 
     if (claimedPlayers.has(key)) {
@@ -49,7 +50,7 @@ async function processWaiverClaims(): Promise<void> {
     }
 
     const now = new Date().toISOString()
-    const { data: waiverLog } = await (supabase as any)
+    const { data: waiverLog, error: waiverLogErr } = await (supabase as any)
       .from('waiver_wire_log')
       .select('id')
       .eq('league_id', claim.league_id)
@@ -58,6 +59,7 @@ async function processWaiverClaims(): Promise<void> {
       .is('cleared_at', null)
       .gt('clears_at', now)
       .maybeSingle()
+    if (waiverLogErr) console.error('[process-waivers] waiver log lookup error:', waiverLogErr.message)
 
     if (!waiverLog) {
       await (supabase as any).from('waiver_claims').update({
@@ -68,13 +70,14 @@ async function processWaiverClaims(): Promise<void> {
       continue
     }
 
-    const { data: alreadyOwned } = await (supabase as any)
+    const { data: alreadyOwned, error: ownedErr } = await (supabase as any)
       .from('roster_players')
       .select('id')
       .eq('league_id', claim.league_id)
       .eq('league_season_id', claim.league_season_id)
       .eq('player_id', claim.player_id)
       .maybeSingle()
+    if (ownedErr) console.error('[process-waivers] owned lookup error:', ownedErr.message)
 
     if (alreadyOwned) {
       await (supabase as any).from('waiver_claims').update({
@@ -85,16 +88,18 @@ async function processWaiverClaims(): Promise<void> {
       continue
     }
 
-    const { data: league } = await (supabase as any)
+    const { data: league, error: leagueErr } = await (supabase as any)
       .from('leagues').select('roster_size').eq('id', claim.league_id).single()
+    if (leagueErr) console.error('[process-waivers] league lookup error:', leagueErr.message)
     const rosterSize = league?.roster_size ?? 20
 
-    const { count: activeCount } = await (supabase as any)
+    const { count: activeCount, error: countErr } = await (supabase as any)
       .from('roster_players')
       .select('id', { count: 'exact', head: true })
       .eq('member_id', claim.member_id)
       .eq('league_season_id', claim.league_season_id)
       .eq('is_on_ir', false)
+    if (countErr) console.error('[process-waivers] roster count error:', countErr.message)
 
     const hasSpace = (activeCount ?? 0) < rosterSize
 
@@ -109,7 +114,7 @@ async function processWaiverClaims(): Promise<void> {
     }
 
     if (claim.drop_player_id) {
-      const { data: dropRp } = await (supabase as any)
+      const { data: dropRp, error: dropErr } = await (supabase as any)
         .from('roster_players')
         .select('id, player_id')
         .eq('member_id', claim.member_id)
@@ -117,6 +122,7 @@ async function processWaiverClaims(): Promise<void> {
         .eq('league_season_id', claim.league_season_id)
         .eq('player_id', claim.drop_player_id)
         .maybeSingle()
+      if (dropErr) console.error('[process-waivers] drop lookup error:', dropErr.message)
 
       if (dropRp) {
         await (supabase as any).from('roster_players').delete().eq('id', dropRp.id)
@@ -167,12 +173,13 @@ async function processWaiverClaims(): Promise<void> {
 
     await notifyMember(claim.member_id, 'Waiver Claim Succeeded', `${playerName} has been added to your roster.`).catch(console.error)
 
-    await (supabase as any)
+    const { error: clearErr } = await (supabase as any)
       .from('waiver_wire_log')
       .update({ cleared_at: new Date().toISOString(), claimed_by_claim_id: claim.id })
       .eq('id', waiverLog.id)
+    if (clearErr) console.error('[process-waivers] clear waiver log error:', clearErr.message)
 
-    const { data: maxRow } = await (supabase as any)
+    const { data: maxRow, error: maxErr } = await (supabase as any)
       .from('waiver_priorities')
       .select('priority')
       .eq('league_id', claim.league_id)
@@ -180,6 +187,7 @@ async function processWaiverClaims(): Promise<void> {
       .order('priority', { ascending: false })
       .limit(1)
       .single()
+    if (maxErr) console.error('[process-waivers] max priority error:', maxErr.message)
 
     const newPriority = (maxRow?.priority ?? 0) + 1
     await (supabase as any)
@@ -198,11 +206,12 @@ async function processWaiverClaims(): Promise<void> {
   }
 
   // Clear expired waiver_wire_log entries
-  await (supabase as any)
+  const { error: expiredErr } = await (supabase as any)
     .from('waiver_wire_log')
     .update({ cleared_at: new Date().toISOString() })
     .is('cleared_at', null)
     .lt('clears_at', new Date().toISOString())
+  if (expiredErr) console.error('[process-waivers] clear expired error:', expiredErr.message)
 
   console.log('[process-waivers] Complete.')
 }

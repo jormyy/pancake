@@ -162,15 +162,7 @@ async function syncNBAIds() {
   else console.log('[sync-players] Dedup complete.')
 }
 
-function normalizeName(name: string): string {
-  return name
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // strip diacritics
-    .toLowerCase()
-    .replace(/\s+(jr\.?|sr\.?|ii|iii|iv|v)$/i, '')   // strip generational suffixes
-    .replace(/[^a-z0-9 ]/g, '')                        // strip all remaining punctuation (dots, apostrophes, hyphens)
-    .replace(/\s+/g, ' ')
-    .trim()
-}
+import { normalizeName } from '../_shared/nameMatch.ts'
 
 // Sleeper sometimes returns "Scrambled" as a catch-all when injury data is uncertain — treat as null
 const JUNK_INJURY_STATUSES = new Set(['Scrambled'])

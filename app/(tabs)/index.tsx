@@ -36,9 +36,8 @@ function shortName(name: string): string {
 }
 
 export default function HomeScreen() {
-    const { memberships, current, setCurrent, loading } = useLeagueContext()
+    const { memberships, current, currentLeague: league, setCurrent, loading } = useLeagueContext()
     const { user } = useAuth()
-    const league = (current as any)?.leagues
 
     const {
         matchup, weekDays, selectedDate, setSelectedDate,
@@ -96,11 +95,10 @@ export default function HomeScreen() {
             {memberships.length > 1 && (
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.switcherRow} contentContainerStyle={styles.switcherContent}>
                     {memberships.map((m) => {
-                        const ma = m as any
-                        const isActive = ma.id === (current as any)?.id
+                        const isActive = m.id === current?.id
                         return (
-                            <Pressable key={ma.id} style={[styles.switcherChip, isActive && styles.switcherChipActive]} onPress={() => setCurrent(m)}>
-                                <Text style={[styles.switcherText, isActive && styles.switcherTextActive]}>{ma.leagues?.name ?? 'League'}</Text>
+                            <Pressable key={m.id} style={[styles.switcherChip, isActive && styles.switcherChipActive]} onPress={() => setCurrent(m)}>
+                                <Text style={[styles.switcherText, isActive && styles.switcherTextActive]}>{m.leagues?.name ?? 'League'}</Text>
                             </Pressable>
                         )
                     })}

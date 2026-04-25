@@ -1,5 +1,6 @@
 import Fastify from 'fastify'
 import cors from '@fastify/cors'
+import rateLimit from '@fastify/rate-limit'
 import errorHandlerPlugin from './plugins/errorHandler'
 import authPlugin from './plugins/auth'
 import healthRoutes from './routes/health'
@@ -15,6 +16,11 @@ export async function buildApp() {
     const app = Fastify({ logger: true })
 
     await app.register(cors, { origin: true })
+    await app.register(rateLimit, {
+        max: 100,
+        timeWindow: '1 minute',
+        skipOnError: true,
+    })
     await app.register(errorHandlerPlugin)
     await app.register(authPlugin)
 

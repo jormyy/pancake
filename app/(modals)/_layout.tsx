@@ -28,10 +28,6 @@ export default function ModalsLayout() {
                 options={{ headerShown: false, presentation: 'modal' }}
             />
             <Stack.Screen
-                name="trades"
-                options={{ headerShown: false, presentation: 'modal' }}
-            />
-            <Stack.Screen
                 name="claim-player"
                 options={{ title: 'Waiver Claim', presentation: 'modal' }}
             />

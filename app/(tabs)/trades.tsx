@@ -342,12 +342,11 @@ function PickItemRow({
 export default function TradesScreen() {
     const { push } = useRouter()
     const { user } = useAuth()
-    const { current } = useLeagueContext()
+    const { current, currentLeague } = useLeagueContext()
 
-    const league = current?.leagues as any
     const myMemberId = current?.id ?? ''
-    const leagueId = league?.id ?? ''
-    const rosterSize: number = league?.roster_size ?? 20
+    const leagueId = currentLeague?.id ?? ''
+    const rosterSize: number = currentLeague?.roster_size ?? 20
     const myTeamName = current?.team_name ?? ''
 
     const [tab, setTab] = useState<TabKey>('picks')

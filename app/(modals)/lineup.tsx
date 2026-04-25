@@ -169,7 +169,7 @@ const BenchRow = memo(function BenchRow({
 export default function LineupScreen() {
     const { back } = useRouter()
     const { user } = useAuth()
-    const { current } = useLeagueContext()
+    const { current, currentLeague } = useLeagueContext()
 
     console.log('[LineupScreen] Render, current league:', current?.leagues?.id)
 
@@ -223,24 +223,23 @@ export default function LineupScreen() {
     }, [current])
 
     const load = useCallback(async () => {
-        console.log('[LineupScreen] load() called, current league:', current?.leagues?.id)
-        if (!current || !user) return
-        const league = current.leagues as any
+        console.log('[LineupScreen] load() called, current league:', currentLeague?.id)
+        if (!current || !user || !currentLeague) return
         setLoading(true)
         try {
-            const lineupCtx = await getLineupContext(league.id)
+            const lineupCtx = await getLineupContext(currentLeague.id)
             if (!lineupCtx) { setLoading(false); return }
             setCtx(lineupCtx)
             setSelectedDate(lineupCtx.today)
             const days = await getWeekDays(lineupCtx.weekNumber, lineupCtx.seasonYear)
             setWeekDays(days)
-            await loadLineup(lineupCtx, league, lineupCtx.today)
+            await loadLineup(lineupCtx, currentLeague, lineupCtx.today)
         } catch (e) {
             console.error(e)
         } finally {
             setLoading(false)
         }
-    }, [current, user, loadLineup])
+    }, [current, currentLeague, user, loadLineup])
 
     useEffect(() => { load() }, [load])
 
@@ -281,8 +280,7 @@ export default function LineupScreen() {
 
         setSelected(null)
 
-        const league = current?.leagues as any
-        if (!current || !ctx) return
+        if (!current || !ctx || !currentLeague) return
 
         const aPlayer = selected.kind === 'starter' ? starters[selected.index].player : bench[selected.index]
         const bPlayer = newSel.kind === 'starter' ? starters[newSel.index].player : bench[newSel.index]
@@ -311,10 +309,10 @@ export default function LineupScreen() {
         setSaving(true)
         try {
             const saves: Promise<void>[] = []
-            if (aPlayer) saves.push(setPlayerSlot(current.id, league.id, ctx.seasonId, ctx.weekNumber, selectedDate, aPlayer.playerId, bSlot))
-            if (bPlayer) saves.push(setPlayerSlot(current.id, league.id, ctx.seasonId, ctx.weekNumber, selectedDate, bPlayer.playerId, aSlot))
+            if (aPlayer) saves.push(setPlayerSlot(current.id, currentLeague.id, ctx.seasonId, ctx.weekNumber, selectedDate, aPlayer.playerId, bSlot))
+            if (bPlayer) saves.push(setPlayerSlot(current.id, currentLeague.id, ctx.seasonId, ctx.weekNumber, selectedDate, bPlayer.playerId, aSlot))
             await Promise.all(saves)
-            await loadLineup(ctx, league, selectedDate)
+            await loadLineup(ctx, currentLeague, selectedDate)
         } catch (e: any) {
             Alert.alert('Error', e.message)
         } finally {
@@ -323,12 +321,11 @@ export default function LineupScreen() {
     }
 
     async function doAutoSet(date: string | null, restOfSeason?: boolean) {
-        if (!current || !ctx) return
-        const league = current.leagues as any
+        if (!current || !ctx || !currentLeague) return
         setAutoSetting(true)
         try {
-            await autoSetLineup(current.id, league.id, ctx.seasonId, ctx.weekNumber, ctx.seasonYear, date, restOfSeason)
-            await loadLineup(ctx, league, selectedDate)
+            await autoSetLineup(current.id, currentLeague.id, ctx.seasonId, ctx.weekNumber, ctx.seasonYear, date, restOfSeason)
+            await loadLineup(ctx, currentLeague, selectedDate)
             if (restOfSeason) {
                 Alert.alert('Done', 'Lineup set for the rest of the season.')
             }
@@ -344,11 +341,10 @@ export default function LineupScreen() {
     }
 
     async function handleDaySelect(date: string) {
-        if (!ctx) return
-        const league = (current as any)?.leagues
+        if (!ctx || !currentLeague) return
         setSelectedDate(date)
         setSelected(null)
-        await loadLineup(ctx, league, date)
+        await loadLineup(ctx, currentLeague, date)
     }
 
     const selectedPlayer =

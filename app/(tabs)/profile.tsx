@@ -21,7 +21,7 @@ import { Avatar } from '@/components/Avatar'
 
 export default function ProfileScreen() {
     const { user } = useAuth()
-    const { current, refresh } = useLeagueContext()
+    const { current, currentLeague, refresh } = useLeagueContext()
     const [profile, setProfile] = useState<any>(null)
     const [loading, setLoading] = useState(true)
     const [editing, setEditing] = useState(false)
@@ -47,8 +47,8 @@ export default function ProfileScreen() {
 
     // Sync team name from context whenever it changes
     useEffect(() => {
-        setTeamName((current as any)?.team_name ?? '')
-    }, [(current as any)?.team_name])
+        setTeamName(current?.team_name ?? '')
+    }, [current?.team_name])
 
     async function handleSave() {
         if (!user) return
@@ -64,7 +64,7 @@ export default function ProfileScreen() {
                 updateProfile(user.id, { display_name: trimmedDisplay }),
             ]
             if (current && trimmedTeam) {
-                saves.push(updateTeamName((current as any).id, trimmedTeam))
+                saves.push(updateTeamName(current.id, trimmedTeam))
             }
             await Promise.all(saves)
             setProfile((prev: any) => ({ ...prev, display_name: trimmedDisplay }))
@@ -79,7 +79,7 @@ export default function ProfileScreen() {
 
     function handleCancel() {
         setDisplayName(profile?.display_name ?? '')
-        setTeamName((current as any)?.team_name ?? '')
+        setTeamName(current?.team_name ?? '')
         setEditing(false)
     }
 
@@ -158,7 +158,7 @@ export default function ProfileScreen() {
                 {current && (
                     <>
                         <Text style={styles.sectionLabel}>
-                            {(current as any).leagues?.name?.toUpperCase() ?? 'LEAGUE'}
+                            {currentLeague?.name?.toUpperCase() ?? 'LEAGUE'}
                         </Text>
                         <View style={styles.card}>
                             <View style={styles.row}>
@@ -175,7 +175,7 @@ export default function ProfileScreen() {
                                     />
                                 ) : (
                                     <Text style={styles.rowValue}>
-                                        {(current as any).team_name ?? '—'}
+                                        {current?.team_name ?? '—'}
                                     </Text>
                                 )}
                             </View>
