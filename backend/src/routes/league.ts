@@ -2,26 +2,8 @@ import { FastifyInstance } from 'fastify'
 import { advanceSeason } from '../sync/seasonReset'
 import { supabase } from '../lib/supabase'
 import { AppError, NotFoundError, ValidationError } from '../plugins/errorHandler'
+import { requireCommissioner } from '../lib/authz'
 import { LeagueIdBody } from '../schemas'
-
-/**
- * Verify the requesting user is a commissioner or co-commissioner of the league.
- */
-async function requireCommissioner(userId: string, leagueId: string): Promise<void> {
-    const { data, error } = await supabase
-        .from('league_members')
-        .select('role')
-        .eq('league_id', leagueId)
-        .eq('user_id', userId)
-        .single()
-
-    if (error || !data) {
-        throw new AppError('Not authorized for this league', 403)
-    }
-    if (data.role !== 'commissioner' && data.role !== 'co_commissioner') {
-        throw new AppError('Commissioner access required', 403)
-    }
-}
 
 export default async function leagueRoutes(app: FastifyInstance) {
     app.post('/advance-season', { schema: { body: LeagueIdBody } }, async (req) => {
