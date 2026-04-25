@@ -13,6 +13,7 @@ import { INJURY_COLORS, colors, fontSize, fontWeight, radii, spacing } from '@/c
 import { Avatar } from '@/components/Avatar'
 import { Badge } from '@/components/Badge'
 import { PosTag } from '@/components/PosTag'
+import { playerHeadshotUrl } from '@/lib/format'
 
 type Player = {
     display_name: string
@@ -53,9 +54,7 @@ export function PlayerHeader({
         ? player.eligible_positions
         : (player.position ? [player.position] : [])
     const posColor = POSITION_COLORS[eligiblePositions[0] ?? ''] ?? colors.textMuted
-    const headshotUri = player.nba_id
-        ? `https://cdn.nba.com/headshots/nba/latest/260x190/${player.nba_id}.png`
-        : null
+    const headshotUri = playerHeadshotUrl(player.nba_id)
 
     const metaParts = [
         player.jersey_number ? `#${player.jersey_number}` : null,

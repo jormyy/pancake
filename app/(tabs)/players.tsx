@@ -17,6 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { searchPlayers, PlayerRow } from '@/lib/players'
+import { playerHeadshotUrl } from '@/lib/format'
 import {
     getOwnedPlayerMap,
     addFreeAgent,
@@ -85,9 +86,7 @@ function PlayerSearchItem({
     const canAdd = currentMemberId && (isFA || isWaiver)
     const isAdding = adding === item.id
     const [headshotError, setHeadshotError] = useState(false)
-    const headshotUri = item.nba_id
-        ? `https://cdn.nba.com/headshots/nba/latest/260x190/${item.nba_id}.png`
-        : null
+    const headshotUri = playerHeadshotUrl(item.nba_id)
 
     return (
         <View style={styles.playerRow}>

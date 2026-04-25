@@ -25,15 +25,10 @@ import { ActivationOverflowModal } from '@/components/ActivationOverflowModal'
 import { useMatchupData } from '@/hooks/use-matchup-data'
 import { useLiveStats } from '@/hooks/use-live-stats'
 import { useLineupActions } from '@/hooks/use-lineup-actions'
+import { shortName } from '@/lib/format'
 
 type LineupData = { starters: LineupSlot[]; bench: LineupPlayer[]; ir: LineupPlayer[]; taxi: LineupPlayer[] }
 type Sel = { kind: 'starter'; index: number } | { kind: 'bench'; index: number } | { kind: 'ir'; index: number } | { kind: 'taxi'; index: number }
-
-function shortName(name: string): string {
-    const parts = name.trim().split(' ')
-    if (parts.length <= 1) return name
-    return `${parts[0][0]}. ${parts.slice(1).join(' ')}`
-}
 
 export default function HomeScreen() {
     const { memberships, current, currentLeague: league, setCurrent, loading } = useLeagueContext()

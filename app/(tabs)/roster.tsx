@@ -18,7 +18,7 @@ import { getMyWaiverClaims, cancelWaiverClaim, WaiverClaim } from '@/lib/waivers
 import { supabase } from '@/lib/supabase'
 import { currentSeasonYear } from '@/lib/shared/season'
 import { INJURY_COLORS, colors, fontSize, fontWeight, radii, spacing, palette } from '@/constants/tokens'
-import { shortDateFmt } from '@/lib/format'
+import { shortDateFmt, playerHeadshotUrl } from '@/lib/format'
 import { ItemSeparator } from '@/components/ItemSeparator'
 import { LoadingScreen } from '@/components/LoadingScreen'
 import { EmptyState } from '@/components/EmptyState'
@@ -137,9 +137,7 @@ function RosterPlayerItem({
     const positions: string[] = player.eligible_positions?.length ? player.eligible_positions : (player.position ? [player.position] : [])
     const isBusy = togglingId === item.id || taxiingId === item.id || droppingId === item.id
     const [headshotError, setHeadshotError] = useState(false)
-    const headshotUri = player.nba_id
-        ? `https://cdn.nba.com/headshots/nba/latest/260x190/${player.nba_id}.png`
-        : null
+    const headshotUri = playerHeadshotUrl(player.nba_id)
     return (
         <Pressable style={styles.playerRow} onPress={onPress} onLongPress={onLongPress} delayLongPress={400}>
             <Avatar
@@ -213,9 +211,7 @@ function TaxiPlayerItem({
     const player = item.players
     const positions: string[] = player.eligible_positions?.length ? player.eligible_positions : (player.position ? [player.position] : [])
     const [headshotError, setHeadshotError] = useState(false)
-    const headshotUri = player.nba_id
-        ? `https://cdn.nba.com/headshots/nba/latest/260x190/${player.nba_id}.png`
-        : null
+    const headshotUri = playerHeadshotUrl(player.nba_id)
     return (
         <Pressable style={styles.playerRow} onPress={onPress}>
             <Avatar

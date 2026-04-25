@@ -31,7 +31,7 @@ import { TRADE_STATUS_COLORS, colors, palette, fontSize, fontWeight, radii, spac
 import { ItemSeparator } from '@/components/ItemSeparator'
 import { SectionHeader } from '@/components/SectionHeader'
 import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
-import { shortDateFmt } from '@/lib/format'
+import { shortDateFmt, yearShort } from '@/lib/format'
 
 type TabKey = 'picks' | 'offers' | 'history'
 
@@ -51,10 +51,6 @@ type ListItem =
     | { _type: 'trade'; trade: Trade }
     | { _type: 'header'; label: string }
     | { _type: 'pick'; pick: TradePickItem }
-
-function yearShort(year: number): string {
-    return String(year).slice(2)
-}
 
 function itemLabel(item: TradeItem): string {
     if (item.kind === 'player') {
