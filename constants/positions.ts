@@ -7,3 +7,7 @@ export const POSITION_COLORS: Record<string, string> = {
     G:  '#FB923C', // light orange (guard flex)
     F:  '#34D399', // light green (forward flex)
 }
+
+export function getPositionColor(pos: string | null | undefined, fallback = '#ccc'): string {
+    return (pos && POSITION_COLORS[pos]) ? POSITION_COLORS[pos] : fallback
+}

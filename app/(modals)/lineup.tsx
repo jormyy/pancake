@@ -3,7 +3,7 @@ import { Avatar } from '@/components/Avatar'
 import { DaySelector } from '@/components/DaySelector'
 import { LoadingScreen } from '@/components/LoadingScreen'
 import { PosTag } from '@/components/PosTag'
-import { POSITION_COLORS } from '@/constants/positions'
+import { getPositionColor } from "@/constants/positions"
 import { colors, fontSize, fontWeight, palette, radii, spacing } from '@/constants/tokens'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useAuth } from '@/hooks/use-auth'
@@ -84,7 +84,7 @@ const StarterRow = memo(function StarterRow({
                 <>
                     <Avatar
                         name={p.displayName}
-                        color={POSITION_COLORS[p.position ?? ''] ?? palette.gray500}
+                        color={getPositionColor(p.position)}
                         size={36}
                     />
                     <View style={styles.playerInfo}>
@@ -147,7 +147,7 @@ const BenchRow = memo(function BenchRow({
         >
             <Avatar
                 name={player.displayName}
-                color={POSITION_COLORS[player.position ?? ''] ?? palette.gray500}
+                color={getPositionColor(player.position)}
                 size={36}
             />
             <View style={styles.playerInfo}>

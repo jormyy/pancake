@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { getEligiblePositions } from '@/lib/players'
 
 export type TransactionRow = {
     id: string
@@ -87,7 +88,7 @@ export async function getLeagueTransactions(
         playerId: row.player_id,
         playerName: row.players?.display_name ?? 'Unknown',
         position: row.players?.position ?? null,
-        eligiblePositions: row.players?.eligible_positions?.length ? row.players.eligible_positions : (row.players?.position ? [row.players.position] : []),
+        eligiblePositions: getEligiblePositions(row.players ?? {}),
         nbaId: row.players?.nba_id ?? null,
         transactionType: row.transaction_type,
         occurredAt: row.occurred_at,

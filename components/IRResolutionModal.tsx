@@ -9,10 +9,9 @@ import {
 } from 'react-native'
 import { useState } from 'react'
 import type { RosterPlayer } from '@/lib/roster'
-import { POSITION_COLORS } from '@/constants/positions'
+import { getPositionColor } from '@/constants/positions'
 import {
     colors,
-    palette,
     fontSize,
     fontWeight,
     radii,
@@ -113,7 +112,7 @@ export function IRResolutionModal({
                                         <View key={rp.id} style={styles.row}>
                                             <Avatar
                                                 name={p.display_name}
-                                                color={POSITION_COLORS[p.position ?? ''] ?? palette.gray500}
+                                                color={getPositionColor(p.position)}
                                                 size={38}
                                             />
                                             <View style={styles.info}>
@@ -159,7 +158,7 @@ export function IRResolutionModal({
                                         <View key={rp.id} style={styles.row}>
                                             <Avatar
                                                 name={p.display_name}
-                                                color={POSITION_COLORS[p.position ?? ''] ?? palette.gray500}
+                                                color={getPositionColor(p.position)}
                                                 size={38}
                                             />
                                             <View style={styles.info}>

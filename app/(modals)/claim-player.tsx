@@ -13,6 +13,7 @@ import { useEffect, useState } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useAuth } from '@/hooks/use-auth'
 import { getRoster, RosterPlayer, isIREligible } from '@/lib/roster'
+import { isIneligibleIR } from '@/lib/format'
 import { getPlayer } from '@/lib/players'
 import { submitWaiverClaim, getMyWaiverPriority } from '@/lib/waivers'
 import { LoadingScreen } from '@/components/LoadingScreen'
@@ -57,7 +58,7 @@ export default function ClaimPlayerScreen() {
     }, [playerId, current, user])
 
     const activeRoster = myRoster.filter((p) => !p.is_on_ir)
-    const ineligibleIR = myRoster.filter((r) => r.is_on_ir && !isIREligible(r.players.injury_status))
+    const ineligibleIR = myRoster.filter((r) => isIneligibleIR(r))
     const rosterFull = activeRoster.length >= rosterSize
     const needsDrop = rosterFull
 

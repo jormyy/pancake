@@ -13,6 +13,7 @@ import { useState, useMemo } from 'react'
 import { useAuth } from '@/hooks/use-auth'
 import { useLeagueContext } from '@/contexts/league-context'
 import { getRoster, toggleIR, toggleTaxi, dropPlayer, isIREligible, isTaxiEligible, RosterPlayer } from '@/lib/roster'
+import { getEligiblePositions } from '@/lib/players'
 import { getPicksForMember, TradePickItem } from '@/lib/trades'
 import { getMyWaiverClaims, cancelWaiverClaim, WaiverClaim } from '@/lib/waivers'
 import { supabase } from '@/lib/supabase'
@@ -134,7 +135,7 @@ function RosterPlayerItem({
     onToggleTaxi: (item: RosterPlayer) => void
 }) {
     const player = item.players
-    const positions: string[] = player.eligible_positions?.length ? player.eligible_positions : (player.position ? [player.position] : [])
+    const positions = getEligiblePositions(player)
     const isBusy = togglingId === item.id || taxiingId === item.id || droppingId === item.id
     const [headshotError, setHeadshotError] = useState(false)
     const headshotUri = playerHeadshotUrl(player.nba_id)
@@ -209,7 +210,7 @@ function TaxiPlayerItem({
     onToggleTaxi: (item: RosterPlayer) => void
 }) {
     const player = item.players
-    const positions: string[] = player.eligible_positions?.length ? player.eligible_positions : (player.position ? [player.position] : [])
+    const positions = getEligiblePositions(player)
     const [headshotError, setHeadshotError] = useState(false)
     const headshotUri = playerHeadshotUrl(player.nba_id)
     return (

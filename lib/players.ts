@@ -3,6 +3,12 @@ import type { NBAPosition } from '@/types/database'
 import { currentSeasonYear } from '@/lib/shared/season'
 import { TRANSACTION_LABELS } from '@/lib/transactions'
 
+/** Resolves a player's eligible positions, falling back to the primary position. */
+export function getEligiblePositions(player: { eligible_positions?: string[] | null; position?: string | null }): string[] {
+    if (player.eligible_positions?.length) return player.eligible_positions as string[]
+    return player.position ? [player.position] : []
+}
+
 export type PlayerRow = {
     id: string
     display_name: string

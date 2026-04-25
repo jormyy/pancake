@@ -19,7 +19,7 @@ import { getActiveDraft, startDraft } from '@/lib/draft'
 import { getWaiverPriorityOrder, WaiverPriorityRow } from '@/lib/waivers'
 import { getLeagueTransactions, TransactionRow, TRANSACTION_LABELS } from '@/lib/transactions'
 import { getActiveRookieDraft, startRookieDraft, getAllLeaguePicks, reseedRookieDraftPicks, type LeaguePickItem } from '@/lib/rookieDraft'
-import { POSITION_COLORS } from '@/constants/positions'
+import { getPositionColor } from "@/constants/positions"
 import { colors, palette, fontSize, fontWeight, radii, spacing, TX_COLORS } from '@/constants/tokens'
 import { shortDateFmt, playerHeadshotUrl, timeAgo } from '@/lib/format'
 import { ItemSeparator } from '@/components/ItemSeparator'
@@ -58,7 +58,7 @@ function ActivityRow({ item, isMe }: { item: TransactionRow; isMe: boolean }) {
         <View style={[styles.txRow, isMe && styles.txRowMe]}>
             <Avatar
                 name={item.playerName}
-                color={POSITION_COLORS[item.eligiblePositions[0] ?? item.position ?? ''] ?? palette.gray500}
+                color={getPositionColor(item.eligiblePositions[0] ?? item.position)}
                 size={40}
                 uri={playerHeadshotUrl(item.nbaId)}
             />

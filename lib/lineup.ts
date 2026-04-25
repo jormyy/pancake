@@ -5,6 +5,7 @@ import { getCurrentWeekNumber } from '@/lib/shared/week'
 import { canPlaySlot, SLOT_ELIGIBLE } from '@/constants/slots'
 import { todayDateString } from '@/lib/shared/dates'
 import { isIREligible } from '@/lib/roster'
+import { getEligiblePositions } from '@/lib/players'
 
 export { canPlaySlot, SLOT_ELIGIBLE } from '@/constants/slots'
 
@@ -233,7 +234,7 @@ export async function getWeeklyLineup(
             playerId: (r as any).player_id,
             displayName: p?.display_name ?? '',
             position: p?.position ?? null,
-            eligiblePositions: p?.eligible_positions?.length ? p.eligible_positions : (p?.position ? [p.position] : []),
+            eligiblePositions: getEligiblePositions(p ?? {}),
             nbaTeam: p?.nba_team ?? null,
             injuryStatus: p?.injury_status ?? null,
         })
@@ -268,7 +269,7 @@ export async function getWeeklyLineup(
                 playerId: p.id,
                 displayName: p.display_name ?? '',
                 position: p.position ?? null,
-                eligiblePositions: p.eligible_positions?.length ? p.eligible_positions : (p.position ? [p.position] : []),
+                eligiblePositions: getEligiblePositions(p),
                 nbaTeam: p.nba_team ?? null,
                 injuryStatus: p.injury_status ?? null,
             })
@@ -464,9 +465,7 @@ export async function autoSetLineup(
         const injured = isIREligible(r.players?.injury_status ?? null)
         return {
             playerId: r.player_id as string,
-            eligiblePositions: (r.players?.eligible_positions as string[] | null)?.length
-                ? (r.players.eligible_positions as string[])
-                : (r.players?.position ? [r.players.position as string] : []),
+            eligiblePositions: getEligiblePositions(r.players ?? {}),
             nbaTeam: r.players?.nba_team as string | null,
             projected: injured ? 0 : (avgFptsMap.get(r.player_id) ?? 0),
         }

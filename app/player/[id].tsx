@@ -8,8 +8,8 @@ import { SeasonSelector } from '@/components/player/SeasonSelector'
 import { StatsOverview } from '@/components/player/StatsOverview'
 import { TransactionHistory } from '@/components/player/TransactionHistory'
 import { PosTag } from '@/components/PosTag'
-import { POSITION_COLORS } from '@/constants/positions'
-import { colors, fontSize, fontWeight, palette, radii, spacing } from '@/constants/tokens'
+import { getPositionColor } from "@/constants/positions"
+import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useAuth } from '@/hooks/use-auth'
 import {
@@ -19,11 +19,13 @@ import {
     getPlayerGameLog,
     getPlayerSeasonAveragesFromView,
     getPlayerTransactionHistory,
+    getEligiblePositions,
     type GameLogEntry,
     type PlayerSeasonAverages,
     type TransactionHistoryEntry,
 } from '@/lib/players'
 import { addFreeAgent, dropPlayer, getPlayerRosterStatus, getRoster, isIREligible, toggleIR, type PlayerRosterStatus, type RosterPlayer } from '@/lib/roster'
+import { isIneligibleIR } from '@/lib/format'
 import { todayDateString } from '@/lib/shared/dates'
 import { currentSeasonYear } from '@/lib/shared/season'
 import { supabase } from '@/lib/supabase'
@@ -231,7 +233,7 @@ export default function PlayerDetailScreen() {
         try {
             // Check for ineligible IR players before adding
             const roster = await getRoster(current.id, leagueId!)
-            const ineligible = roster.filter((r) => r.is_on_ir && !isIREligible(r.players.injury_status))
+            const ineligible = roster.filter((r) => isIneligibleIR(r))
 
             if (ineligible.length > 0) {
                 setActionLoading(false)
@@ -285,7 +287,7 @@ export default function PlayerDetailScreen() {
         if (!current || !leagueId) return
         await toggleIR(rp.id, false)
         const roster = await getRoster(current.id, leagueId)
-        const remaining = roster.filter((r) => r.is_on_ir && !isIREligible(r.players.injury_status))
+        const remaining = roster.filter((r) => isIneligibleIR(r))
         if (remaining.length > 0) {
             setIrModal((prev) => prev ? { ...prev, ineligible: remaining, roster } : null)
         } else {
@@ -299,7 +301,7 @@ export default function PlayerDetailScreen() {
         await dropPlayer(toDrop.id)
         await toggleIR(activatePlayer.id, false)
         const roster = await getRoster(current.id, leagueId)
-        const remaining = roster.filter((r) => r.is_on_ir && !isIREligible(r.players.injury_status))
+        const remaining = roster.filter((r) => isIneligibleIR(r))
         if (remaining.length > 0) {
             setIrModal((prev) => prev ? { ...prev, ineligible: remaining, roster } : null)
         } else {
@@ -332,7 +334,7 @@ export default function PlayerDetailScreen() {
         if (!current || !leagueId) return
         // Check for ineligible IR players before allowing waiver claim
         const roster = await getRoster(current.id, leagueId)
-        const ineligible = roster.filter((r) => r.is_on_ir && !isIREligible(r.players.injury_status))
+        const ineligible = roster.filter((r) => isIneligibleIR(r))
 
         if (ineligible.length > 0) {
             setIrModal({ ineligible, roster })
@@ -451,12 +453,12 @@ export default function PlayerDetailScreen() {
                                 return (
                                     <View key={rp.id} style={styles.dropRow}>
                                         {(() => {
-                                            const ep: string[] = p.eligible_positions?.length ? p.eligible_positions : (p.position ? [p.position] : [])
+                                            const ep = getEligiblePositions(p)
                                             return (
                                                 <>
                                                     <Avatar
                                                         name={p.display_name}
-                                                        color={POSITION_COLORS[ep[0] ?? ''] ?? palette.gray500}
+                                                        color={getPositionColor(ep[0])}
                                                         size={38}
                                                     />
                                                     <View style={styles.dropInfo}>
