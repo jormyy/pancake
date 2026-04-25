@@ -6,6 +6,7 @@ import { currentSeasonYear } from '../lib/utils/season'
 import { syncCDNHistoricalSeason, CDN_HISTORICAL_SEASONS } from './historicalCDN'
 import { syncBBRefSeason, BBREF_SEASONS } from './historicalBBRef'
 import { sleep } from '../lib/utils/sleep'
+import { todayET } from '../lib/utils/date'
 
 export interface BackfillOptions {
     fromDate?: string   // YYYY-MM-DD
@@ -64,7 +65,7 @@ export async function getBackfillProgress(jobId: string): Promise<SyncJob | null
 }
 
 async function runBackfill(jobId: string, seasonYear: number, options: BackfillOptions) {
-    const today = new Date().toISOString().split('T')[0]
+    const today = todayET()
 
     // Build query for games we should fetch
     let query = supabase

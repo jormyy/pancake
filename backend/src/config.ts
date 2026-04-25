@@ -2,6 +2,15 @@ export const CONFIG = {
     /** Fastify server port */
     PORT: parseInt(process.env.PORT ?? '3000'),
 
+    /** Default league roster size (active spots, not counting IR/taxi) */
+    DEFAULT_ROSTER_SIZE: 20,
+
+    /** Default number of taxi squad slots */
+    DEFAULT_TAXI_SLOTS: 2,
+
+    /** Default week number when playoffs begin */
+    DEFAULT_PLAYOFF_START_WEEK: 20,
+
     /** Max rows per Supabase upsert/insert call */
     UPSERT_CHUNK_SIZE: 500,
 

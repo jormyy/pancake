@@ -22,7 +22,7 @@ export interface SleeperPlayer {
 }
 
 // GET all NBA players — returns a giant object keyed by sleeper player_id
-export async function fetchAllPlayers(): Promise<Record<string, SleeperPlayer>> {
+export async function fetchAllSleeperPlayers(): Promise<Record<string, SleeperPlayer>> {
     const { data } = await client.get<Record<string, SleeperPlayer>>('/players/nba')
     return data
 }

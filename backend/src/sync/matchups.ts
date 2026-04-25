@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase'
+import { CONFIG } from '../config'
 
 // Standard round-robin: fix teams[0], rotate the rest each round.
 // Returns an array of rounds, each round being a list of home/away pairs.
@@ -92,7 +93,7 @@ export async function generateAllMatchups(force = false) {
 
     for (const season of seasons ?? []) {
         const league = season.leagues as any
-        const playoffStart: number = league?.playoff_start_week ?? 20
+        const playoffStart: number = league?.playoff_start_week ?? CONFIG.DEFAULT_PLAYOFF_START_WEEK
         const regularSeasonWeeks = playoffStart - 1
         await generateMatchups(season.league_id, season.id, regularSeasonWeeks, force)
     }

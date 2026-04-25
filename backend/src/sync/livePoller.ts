@@ -3,6 +3,7 @@ import { fetchTodaysGames, NBAGame } from '../lib/nba'
 import { syncStatsByDate } from './stats'
 import { syncScores } from './scores'
 import { CONFIG } from '../config'
+import { todayET } from '../lib/utils/date'
 
 type PollerMode = 'idle' | 'active'
 
@@ -12,12 +13,6 @@ function isGameWindow(): boolean {
         new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }),
     ).getHours()
     return etHour >= 11 || etHour < 1
-}
-
-// Returns today's date string in ET (YYYY-MM-DD).
-// NBA game_date values use ET, so this must match — UTC rolls over ~5 hours early.
-export function todayET(): string {
-    return new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
 }
 
 class LiveGamePoller {
