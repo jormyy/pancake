@@ -32,6 +32,7 @@ import { ItemSeparator } from '@/components/ItemSeparator'
 import { SectionHeader } from '@/components/SectionHeader'
 import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
 import { shortDateFmt, yearShort } from '@/lib/format'
+import { DropPlayerPickerModal } from '@/components/DropPlayerPickerModal'
 
 type TabKey = 'picks' | 'offers' | 'history'
 
@@ -269,45 +270,15 @@ function TradeCard({
                 </>
             )}
 
-            <Modal visible={dropPickerVisible} transparent animationType="slide">
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalSheet}>
-                        <Text style={styles.modalTitle}>Drop {remainingDrops} player{remainingDrops !== 1 ? 's' : ''} to accept</Text>
-                        <Text style={styles.modalSubtitle}>
-                            Accepting this trade would exceed your {rosterSize}-player roster limit.
-                        </Text>
-                        <ScrollView style={styles.modalScroll}>
-                            {myRoster.map((rp) => (
-                                <View key={rp.id} style={styles.dropRow}>
-                                    <View style={styles.dropPlayerInfo}>
-                                        <Text style={styles.dropPlayerName}>{rp.players.display_name}</Text>
-                                        <Text style={styles.dropPlayerMeta}>
-                                            {[rp.players.position, rp.players.nba_team].filter(Boolean).join(' · ')}
-                                        </Text>
-                                    </View>
-                                    <Pressable
-                                        style={styles.dropBtn}
-                                        onPress={() => handleDropAndAccept(rp.id)}
-                                        disabled={dropping !== null}
-                                    >
-                                        {dropping === rp.id ? (
-                                            <ActivityIndicator size="small" color={colors.textWhite} />
-                                        ) : (
-                                            <Text style={styles.dropBtnText}>Drop</Text>
-                                        )}
-                                    </Pressable>
-                                </View>
-                            ))}
-                        </ScrollView>
-                        <Pressable
-                            style={styles.modalCancelBtn}
-                            onPress={() => setDropPickerVisible(false)}
-                        >
-                            <Text style={styles.modalCancelText}>Cancel</Text>
-                        </Pressable>
-                    </View>
-                </View>
-            </Modal>
+            <DropPlayerPickerModal
+                visible={dropPickerVisible}
+                title={`Drop ${remainingDrops} player${remainingDrops !== 1 ? 's' : ''} to accept`}
+                subtitle={`Accepting this trade would exceed your ${rosterSize}-player roster limit.`}
+                roster={myRoster}
+                dropping={dropping}
+                onDrop={(rp) => handleDropAndAccept(rp.id)}
+                onCancel={() => setDropPickerVisible(false)}
+            />
         </View>
     )
 }
