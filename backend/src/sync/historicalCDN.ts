@@ -59,9 +59,6 @@ export async function syncCDNHistoricalSeason(
         { prefix: `004${yy}0`, max: 300 },   // playoffs
     ]
 
-    // First pass: count how many games exist (for total_items estimate)
-    // We skip this and just update progress as we go
-
     const nbaIdUpdates: { id: string; nba_id: string }[] = []
     let completed = 0
     let failed = 0

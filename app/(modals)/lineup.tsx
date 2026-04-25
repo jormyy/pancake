@@ -171,15 +171,6 @@ export default function LineupScreen() {
     const { user } = useAuth()
     const { current, currentLeague } = useLeagueContext()
 
-    console.log('[LineupScreen] Render, current league:', current?.leagues?.id)
-
-    useEffect(() => {
-        console.log('[LineupScreen] Mounted')
-        return () => {
-            console.log('[LineupScreen] Unmounted')
-        }
-    }, [])
-
     const [ctx, setCtx] = useState<LineupContext | null>(null)
     const [weekDays, setWeekDays] = useState<WeekDay[]>([])
     const [selectedDate, setSelectedDate] = useState<string>(
@@ -193,10 +184,6 @@ export default function LineupScreen() {
     const [teamMatchups, setTeamMatchups] = useState<Map<string, { opponent: string; isHome: boolean }>>(new Map())
     const [loading, setLoading] = useState(true)
 
-    // Log when loading state changes
-    useEffect(() => {
-        console.log('[LineupScreen] loading changed to:', loading)
-    }, [loading])
     const [saving, setSaving] = useState(false)
     const [autoSetting, setAutoSetting] = useState(false)
     const [autoSetModalVisible, setAutoSetModalVisible] = useState(false)
@@ -223,7 +210,6 @@ export default function LineupScreen() {
     }, [current])
 
     const load = useCallback(async () => {
-        console.log('[LineupScreen] load() called, current league:', currentLeague?.id)
         if (!current || !user || !currentLeague) return
         setLoading(true)
         try {
@@ -242,22 +228,6 @@ export default function LineupScreen() {
     }, [current, currentLeague, user, loadLineup])
 
     useEffect(() => { load() }, [load])
-
-    // TEMPORARILY DISABLED: Refresh started/live teams every 15s when viewing today (games can go InProgress mid-session)
-    // The interval was causing scroll position reset
-    // useEffect(() => {
-    //     const today = todayDateString()
-    //     if (selectedDate !== today) return
-    //     const interval = setInterval(async () => {
-    //         const [started, live] = await Promise.all([
-    //             getStartedTeams(selectedDate).catch(() => new Set<string>()),
-    //             getLiveTeams(selectedDate).catch(() => new Set<string>()),
-    //         ])
-    //         startedTeamsRef.current = started
-    //         liveTeamsRef.current = live
-    //     }, 15_000)
-    //     return () => clearInterval(interval)
-    // }, [selectedDate])
 
     async function handleTap(newSel: Selection) {
         // Block all moves on past days

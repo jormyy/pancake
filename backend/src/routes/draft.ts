@@ -13,7 +13,7 @@ import {
     autoPickBest,
 } from '../sync/rookieDraft'
 import { supabase } from '../lib/supabase'
-import { AppError, NotFoundError, ValidationError } from '../plugins/errorHandler'
+import { AppError, NotFoundError } from '../plugins/errorHandler'
 import {
     LeagueIdBody,
     DraftParams,
@@ -124,7 +124,7 @@ export default async function draftRoutes(app: FastifyInstance) {
         { schema: { params: DraftParams, body: SnakePickBody } },
         async (req) => {
             const { draftId } = req.params as { draftId: string }
-            const { memberId } = req.body as { memberId: string; playerId: string }
+            const { memberId } = req.body as { memberId: string }
             await verifyMemberAccess(req.userId, memberId)
             const result = await autoPickBest(draftId, memberId)
             return { ok: true, ...result }

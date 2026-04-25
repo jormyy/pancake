@@ -40,7 +40,7 @@ async function calcMemberWeekPoints(
         .lte('game_date', weekEnd)
 
     return parseFloat(
-        (stats ?? []).reduce((sum, s) => sum + calculateFantasyPoints(s, settings), 0).toFixed(2),
+        (stats ?? []).reduce((sum, s) => sum + calculateFantasyPoints(s as unknown as Record<string, unknown>, settings), 0).toFixed(2),
     )
 }
 

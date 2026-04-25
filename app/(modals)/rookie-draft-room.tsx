@@ -29,7 +29,6 @@ import {
 } from '@/lib/rookieDraft'
 import { toggleTaxi, dropPlayer, getRoster } from '@/lib/roster'
 import { POSITION_COLORS } from '@/constants/positions'
-import { bgStyle } from '@/lib/style-cache'
 import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 
 const PICK_TIMEOUT_SEC = 90
@@ -609,7 +608,7 @@ function PickRow({
                     <View
                         style={[
                             styles.posChipSm,
-                            bgStyle(POSITION_COLORS[item.player.position ?? ''] ?? palette.gray500),
+                            { backgroundColor: POSITION_COLORS[item.player.position ?? ''] ?? palette.gray500 },
                         ]}
                     >
                         <Text style={styles.posChipSmText}>{item.player.position ?? '?'}</Text>
