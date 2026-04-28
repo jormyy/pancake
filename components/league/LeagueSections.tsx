@@ -1,5 +1,5 @@
 import { View, Text, Pressable, StyleSheet } from 'react-native'
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { FlashList } from '@shopify/flash-list'
 import { StandingRow } from '@/lib/scoring'
 import { WaiverPriorityRow } from '@/lib/waivers'
@@ -15,6 +15,8 @@ import { Badge } from '@/components/Badge'
 import { PosTag } from '@/components/PosTag'
 import { SectionHeader } from '@/components/SectionHeader'
 
+type StandingsSortKey = 'wins' | 'pf' | 'maxPf' | 'pa'
+
 // Styles must be declared before any const JSX that references them
 const styles = StyleSheet.create({
     standingsRow: {
@@ -26,6 +28,7 @@ const styles = StyleSheet.create({
     standingsRowMe: { backgroundColor: palette.maple50 },
     standingsHeader: { borderBottomWidth: 1, borderBottomColor: colors.borderLight, paddingVertical: spacing.md },
     standingsHeaderText: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.textPlaceholder },
+    standingsHeaderActive: { color: colors.primary },
     standingsRank: { width: 24, fontSize: fontSize.md, fontWeight: fontWeight.bold, color: colors.textSecondary },
     standingsTeam: { flex: 1, fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textPrimary },
     standingsCell: { width: 32, textAlign: 'center', fontSize: fontSize.md, color: colors.textSecondary },
@@ -98,33 +101,79 @@ function StandingsRow({ item, index, isMe, onPress }: { item: StandingRow; index
     )
 }
 
-const StandingsListHeader = (
-    <View style={[styles.standingsRow, styles.standingsHeader]}>
-        <Text style={[styles.standingsRank, styles.standingsHeaderText]}>#</Text>
-        <Text style={[styles.standingsTeam, styles.standingsHeaderText]}>Team</Text>
-        <Text style={[styles.standingsCell, styles.standingsHeaderText]}>W</Text>
-        <Text style={[styles.standingsCell, styles.standingsHeaderText]}>L</Text>
-        <Text style={[styles.standingsPts, styles.standingsHeaderText]}>PF</Text>
-        <Text style={[styles.standingsPts, styles.standingsHeaderText]}>MAX PF</Text>
-        <Text style={[styles.standingsPts, styles.standingsHeaderText]}>PA</Text>
-    </View>
-)
+const StandingsListHeader = ({
+    sortBy,
+    sortDir,
+    onSort,
+}: {
+    sortBy: StandingsSortKey
+    sortDir: 'asc' | 'desc'
+    onSort: (key: StandingsSortKey) => void
+}) => {
+    const arrow = (key: StandingsSortKey) =>
+        sortBy === key ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''
+
+    return (
+        <View style={[styles.standingsRow, styles.standingsHeader]}>
+            <Text style={[styles.standingsRank, styles.standingsHeaderText]}>#</Text>
+            <Text style={[styles.standingsTeam, styles.standingsHeaderText]}>Team</Text>
+            <Pressable style={styles.standingsCell} onPress={() => onSort('wins')}>
+                <Text style={[styles.standingsHeaderText, sortBy === 'wins' && styles.standingsHeaderActive]}>W{arrow('wins')}</Text>
+            </Pressable>
+            <Text style={[styles.standingsCell, styles.standingsHeaderText]}>L</Text>
+            <Pressable style={styles.standingsPts} onPress={() => onSort('pf')}>
+                <Text style={[styles.standingsHeaderText, sortBy === 'pf' && styles.standingsHeaderActive]}>PF{arrow('pf')}</Text>
+            </Pressable>
+            <Pressable style={styles.standingsPts} onPress={() => onSort('maxPf')}>
+                <Text style={[styles.standingsHeaderText, sortBy === 'maxPf' && styles.standingsHeaderActive]}>MAX PF{arrow('maxPf')}</Text>
+            </Pressable>
+            <Pressable style={styles.standingsPts} onPress={() => onSort('pa')}>
+                <Text style={[styles.standingsHeaderText, sortBy === 'pa' && styles.standingsHeaderActive]}>PA{arrow('pa')}</Text>
+            </Pressable>
+        </View>
+    )
+}
 
 export function StandingsTable({ standings, myMemberId, onSelectTeam }: { standings: StandingRow[]; myMemberId?: string; onSelectTeam: (memberId: string, teamName: string) => void }) {
+    const [sortBy, setSortBy] = useState<StandingsSortKey>('wins')
+    const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
+
+    const sorted = useMemo(() => {
+        return [...standings].sort((a, b) => {
+            let cmp = 0
+            switch (sortBy) {
+                case 'wins': cmp = a.wins - b.wins || a.pointsFor - b.pointsFor; break
+                case 'pf': cmp = a.pointsFor - b.pointsFor; break
+                case 'maxPf': cmp = a.maxPointsFor - b.maxPointsFor; break
+                case 'pa': cmp = a.pointsAgainst - b.pointsAgainst; break
+            }
+            return sortDir === 'asc' ? cmp : -cmp
+        })
+    }, [standings, sortBy, sortDir])
+
+    function handleSort(key: StandingsSortKey) {
+        if (sortBy === key) {
+            setSortDir((d) => d === 'asc' ? 'desc' : 'asc')
+        } else {
+            setSortBy(key)
+            setSortDir(key === 'pa' ? 'asc' : 'desc')
+        }
+    }
+
     if (standings.length === 0) {
         return <EmptyState message="No standings yet — matchups will appear once games are scored." fullScreen={false} />
     }
 
     return (
         <FlashList
-            data={standings}
+            data={sorted}
             keyExtractor={(s) => s.memberId}
-            ListHeaderComponent={StandingsListHeader}
+            ListHeaderComponent={<StandingsListHeader sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />}
             ItemSeparatorComponent={ItemSeparator}
             renderItem={({ item, index }) => (
                 <StandingsRow
                     item={item}
-                    index={index}
+                    index={sorted.indexOf(item)}
                     isMe={item.memberId === myMemberId}
                     onPress={() => onSelectTeam(item.memberId, item.teamName)}
                 />

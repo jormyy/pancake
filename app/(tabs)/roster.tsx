@@ -4,6 +4,7 @@ import {
     Pressable,
     StyleSheet,
     ActivityIndicator,
+    ScrollView,
 } from 'react-native'
 import { showAlert, confirmAction } from '@/lib/alert'
 import { FlashList } from '@shopify/flash-list'
@@ -69,13 +70,36 @@ export default function RosterScreen() {
     const claims = data?.claims ?? []
     const avgMap = data?.avgMap ?? new Map<string, number>()
 
+    type RosterSortKey = 'fpts' | 'name' | 'position' | 'team'
+    const [rosterSort, setRosterSort] = useState<RosterSortKey>('fpts')
+    const [rosterSortDir, setRosterSortDir] = useState<'asc' | 'desc'>('desc')
+
+    const sortRoster = (a: RosterPlayer, b: RosterPlayer) => {
+        let cmp = 0
+        switch (rosterSort) {
+            case 'fpts':
+                cmp = (avgMap.get(a.players.id) ?? -1) - (avgMap.get(b.players.id) ?? -1)
+                break
+            case 'name':
+                cmp = (a.players.display_name ?? '').localeCompare(b.players.display_name ?? '')
+                break
+            case 'position':
+                cmp = (a.players.eligible_positions?.[0] ?? a.players.position ?? '').localeCompare(b.players.eligible_positions?.[0] ?? b.players.position ?? '')
+                break
+            case 'team':
+                cmp = (a.players.nba_team ?? '').localeCompare(b.players.nba_team ?? '')
+                break
+        }
+        return rosterSortDir === 'asc' ? cmp : -cmp
+    }
+
     const active = useMemo(() => {
         return roster
             .filter((p) => !p.is_on_ir && !p.is_on_taxi)
-            .sort((a, b) => (avgMap.get(b.players.id) ?? -1) - (avgMap.get(a.players.id) ?? -1))
-    }, [roster, avgMap])
-    const ir = useMemo(() => roster.filter((p) => p.is_on_ir), [roster])
-    const taxi = useMemo(() => roster.filter((p) => p.is_on_taxi), [roster])
+            .sort(sortRoster)
+    }, [roster, sortRoster])
+    const ir = useMemo(() => [...roster.filter((p) => p.is_on_ir)].sort(sortRoster), [roster, sortRoster])
+    const taxi = useMemo(() => [...roster.filter((p) => p.is_on_taxi)].sort(sortRoster), [roster, sortRoster])
 
     const listData = useMemo<RosterListItem[]>(() => {
         const result: RosterListItem[] = []
@@ -203,6 +227,13 @@ export default function RosterScreen() {
     const league = currentLeague
     const taxiSlots = league?.taxi_slots ?? 3
 
+    const ROSTER_SORTS: { key: RosterSortKey; label: string }[] = [
+        { key: 'fpts', label: 'FPts' },
+        { key: 'position', label: 'Pos' },
+        { key: 'name', label: 'Name' },
+        { key: 'team', label: 'Team' },
+    ]
+
     return (
         <SafeAreaView style={styles.container}>
             {/* Header */}
@@ -220,6 +251,38 @@ export default function RosterScreen() {
                 >
                     <Text style={styles.lineupButtonText}>Set Lineup</Text>
                 </Pressable>
+            </View>
+
+            {/* Sort chips */}
+            <View style={styles.sortRow}>
+                <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.sortChips}
+                >
+                    {ROSTER_SORTS.map((opt) => {
+                        const active = rosterSort === opt.key
+                        return (
+                            <Pressable
+                                key={opt.key}
+                                style={[styles.sortChip, active && styles.sortChipActive]}
+                                onPress={() => {
+                                    if (active) {
+                                        setRosterSortDir((d) => d === 'asc' ? 'desc' : 'asc')
+                                    } else {
+                                        setRosterSort(opt.key)
+                                        setRosterSortDir(opt.key === 'name' || opt.key === 'position' || opt.key === 'team' ? 'asc' : 'desc')
+                                    }
+                                }}
+                            >
+                                <Text style={[styles.sortChipText, active && styles.sortChipTextActive]}>
+                                    {opt.label}
+                                    {active ? (rosterSortDir === 'asc' ? ' ↑' : ' ↓') : ''}
+                                </Text>
+                            </Pressable>
+                        )
+                    })}
+                </ScrollView>
             </View>
 
             {loading ? (
@@ -284,6 +347,7 @@ export default function RosterScreen() {
                                 <TaxiPlayerItem
                                     item={item as RosterPlayer}
                                     taxiingId={taxiingId}
+                                    avgFpts={avgMap.get((item as RosterPlayer).players.id)}
                                     onPress={() => push(`/player/${(item as RosterPlayer).players.id}`)}
                                     onToggleTaxi={handleToggleTaxi}
                                 />
@@ -297,6 +361,7 @@ export default function RosterScreen() {
                                 taxiingId={taxiingId}
                                 droppingId={droppingId}
                                 taxiSlotsAvailable={taxi.length < taxiSlots}
+                                avgFpts={avgMap.get(rosterItem.players.id)}
                                 onPress={() => push(`/player/${rosterItem.players.id}`)}
                                 onLongPress={() => handleDropPrompt(rosterItem)}
                                 onToggleIR={handleToggleIR}
@@ -334,6 +399,19 @@ const styles = StyleSheet.create({
     leagueName: { fontSize: 18, fontWeight: fontWeight.extrabold },
     teamName: { fontSize: fontSize.md, color: colors.textSecondary },
     rosterCount: { fontSize: 12, color: colors.textPlaceholder, marginTop: spacing.xs },
+
+    sortRow: { paddingBottom: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
+    sortChips: { paddingHorizontal: spacing.xl, gap: spacing.sm },
+    sortChip: {
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.sm,
+        borderRadius: radii['3xl'],
+        borderCurve: 'continuous' as const,
+        backgroundColor: colors.bgMuted,
+    },
+    sortChipActive: { backgroundColor: colors.primary },
+    sortChipText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textSecondary },
+    sortChipTextActive: { color: colors.textWhite },
 
     taxiHeader: {
         paddingHorizontal: spacing.xl,
