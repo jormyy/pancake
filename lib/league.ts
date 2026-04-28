@@ -1,80 +1,24 @@
 import { supabase } from '@/lib/supabase'
 import type { League, RosterSlotType } from '@/types/database'
-import { currentSeasonYear } from '@/lib/shared/season'
-
-function generateInviteCode(): string {
-    return Math.random().toString(36).slice(2, 8).toUpperCase()
-}
-
-function generateSlug(name: string): string {
-    const base = name
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/(^-|-$)/g, '')
-    const suffix = Math.random().toString(36).slice(2, 6)
-    return `${base}-${suffix}`
-}
 
 export async function createLeague(
-    userId: string,
+    _userId: string,
     name: string,
     teamName: string,
     auctionBudget: number = 200,
 ) {
-    const slug = generateSlug(name)
-    const inviteCode = generateInviteCode()
+    // Uses a SECURITY DEFINER RPC to avoid the PostgREST RLS false-positive:
+    // direct INSERT + RETURNING fails because the SELECT policy (my_league_ids)
+    // blocks the row before the league_members row is created.
+    const { data, error } = await supabase.rpc('create_league', {
+        p_name: name,
+        p_team_name: teamName,
+        p_auction_budget: auctionBudget,
+    })
 
-    const { data: league, error: leagueError } = await supabase
-        .from('leagues')
-        .insert({
-            name,
-            slug,
-            invite_code: inviteCode,
-            commissioner_id: userId,
-            auction_budget: auctionBudget,
-        })
-        .select()
-        .single<League>()
+    if (error) throw error
 
-    if (leagueError) throw leagueError
-
-    const { data: member, error: memberError } = await supabase
-        .from('league_members')
-        .insert({
-            league_id: league.id,
-            user_id: userId,
-            role: 'commissioner',
-            team_name: teamName,
-        })
-        .select('id')
-        .single()
-
-    if (memberError) throw memberError
-
-    const { error: seasonError } = await supabase
-        .from('league_seasons')
-        .insert({ league_id: league.id, season_year: currentSeasonYear(), is_current: true })
-
-    if (seasonError) throw seasonError
-
-    const PICKS = [
-        [2027, 1], [2027, 2], [2027, 3],
-        [2028, 1], [2028, 2], [2028, 3],
-        [2029, 1], [2029, 2], [2029, 3],
-        [2030, 1], [2030, 2],
-    ]
-    const { error: picksError } = await supabase.from('draft_picks').insert(
-        PICKS.map(([season_year, round]) => ({
-            league_id: league.id,
-            season_year,
-            round,
-            original_owner_id: member.id,
-            current_owner_id: member.id,
-        })),
-    )
-    if (picksError) throw picksError
-
-    return league
+    return data as Pick<League, 'id' | 'name' | 'slug' | 'invite_code' | 'commissioner_id' | 'auction_budget' | 'status'>
 }
 
 export async function joinLeague(inviteCode: string, _userId: string, teamName: string) {

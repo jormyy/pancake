@@ -11,11 +11,13 @@ import {
 import { useRouter } from 'expo-router'
 import { useState } from 'react'
 import { useAuth } from '@/hooks/use-auth'
+import { useLeagueContext } from '@/contexts/league-context'
 import { joinLeague } from '@/lib/league'
 import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 
 export default function JoinLeagueScreen() {
     const { user } = useAuth()
+    const { refresh } = useLeagueContext()
     const { back } = useRouter()
     const [inviteCode, setInviteCode] = useState('')
     const [teamName, setTeamName] = useState('')
@@ -31,6 +33,7 @@ export default function JoinLeagueScreen() {
         setError(null)
         try {
             await joinLeague(inviteCode.trim(), user!.id, teamName.trim())
+            await refresh()
             back()
         } catch (e: any) {
             setError(e.message ?? 'Something went wrong.')
