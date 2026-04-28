@@ -91,6 +91,7 @@ export function RosterPlayerItem({
     taxiingId,
     droppingId,
     taxiSlotsAvailable,
+    avgFpts,
     onPress,
     onLongPress,
     onToggleIR,
@@ -101,6 +102,7 @@ export function RosterPlayerItem({
     taxiingId: string | null
     droppingId: string | null
     taxiSlotsAvailable: boolean
+    avgFpts?: number
     onPress: () => void
     onLongPress: () => void
     onToggleIR: (item: RosterPlayer) => void
@@ -124,6 +126,9 @@ export function RosterPlayerItem({
                 <View style={styles.playerMetaRow}>
                     {player.nba_team ? <Text style={styles.playerMeta}>{player.nba_team}</Text> : null}
                     {positions.map((pos) => <PosTag key={pos} position={pos} />)}
+                    {avgFpts != null ? (
+                        <Text style={styles.fptsText}>{avgFpts.toFixed(1)} FPts</Text>
+                    ) : null}
                 </View>
                 {player.injury_status ? (
                     <View style={{ alignSelf: 'flex-start', marginTop: 2 }}>
@@ -173,11 +178,13 @@ export function RosterPlayerItem({
 export function TaxiPlayerItem({
     item,
     taxiingId,
+    avgFpts,
     onPress,
     onToggleTaxi,
 }: {
     item: RosterPlayer
     taxiingId: string | null
+    avgFpts?: number
     onPress: () => void
     onToggleTaxi: (item: RosterPlayer) => void
 }) {
@@ -198,6 +205,9 @@ export function TaxiPlayerItem({
                 <View style={styles.playerMetaRow}>
                     {player.nba_team ? <Text style={styles.playerMeta}>{player.nba_team}</Text> : null}
                     {positions.map((pos) => <PosTag key={pos} position={pos} />)}
+                    {avgFpts != null ? (
+                        <Text style={styles.fptsText}>{avgFpts.toFixed(1)} FPts</Text>
+                    ) : null}
                 </View>
             </View>
 
@@ -229,6 +239,7 @@ const styles = StyleSheet.create({
     playerName: { fontSize: fontSize.lg, fontWeight: fontWeight.semibold },
     playerMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     playerMeta: { fontSize: fontSize.sm, color: colors.textMuted },
+    fptsText: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.primary },
 
     rowActions: { flexDirection: 'row', gap: spacing.sm },
 

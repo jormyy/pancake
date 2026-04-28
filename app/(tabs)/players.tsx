@@ -48,6 +48,7 @@ import { PosTag } from '@/components/PosTag'
 import { EmptyState } from '@/components/EmptyState'
 import { IRResolutionModal } from '@/components/IRResolutionModal'
 import { DropPlayerPickerModal } from '@/components/DropPlayerPickerModal'
+import { ScheduleGrid } from '@/components/ScheduleGrid'
 import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
 import { getWeekDays, WeekDay, getStartedTeams } from '@/lib/lineup'
 import { getCurrentWeekNumber } from '@/lib/shared/week'
@@ -56,6 +57,15 @@ import { todayDateString } from '@/lib/shared/dates'
 
 const POSITIONS = ['ALL', 'PG', 'SG', 'SF', 'PF', 'C', 'G', 'F']
 const TEAMS = ['ATL', 'BOS', 'BKN', 'CHA', 'CHI', 'CLE', 'DAL', 'DEN', 'DET', 'GSW', 'HOU', 'IND', 'LAC', 'LAL', 'MEM', 'MIA', 'MIL', 'MIN', 'NOP', 'NYK', 'OKC', 'ORL', 'PHI', 'PHX', 'POR', 'SAC', 'SAS', 'TOR', 'UTA', 'WAS']
+
+type SortMode = 'fpts' | 'gamesLeft' | 'name' | 'team' | 'yearsExp'
+const SORT_OPTIONS: { key: SortMode; label: string }[] = [
+    { key: 'fpts', label: 'FPts' },
+    { key: 'gamesLeft', label: 'G Left' },
+    { key: 'name', label: 'Name' },
+    { key: 'team', label: 'Team' },
+    { key: 'yearsExp', label: 'Exp' },
+]
 
 
 // ── Extracted list item component ────────────────────────────────
@@ -191,7 +201,8 @@ export default function PlayersScreen() {
     const [selectedDays, setSelectedDays] = useState<string[]>([])
     const [weekDays, setWeekDays] = useState<WeekDay[]>([])
     const [startedTeams, setStartedTeams] = useState<Set<string>>(new Set())
-    const [sortByGamesLeft, setSortByGamesLeft] = useState(false)
+    const [sortMode, setSortMode] = useState<SortMode>('fpts')
+    const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
     const [availableOnly, setAvailableOnly] = useState(true)
     const [rookiesOnly, setRookiesOnly] = useState(false)
     const [players, setPlayers] = useState<PlayerRow[]>([])
@@ -243,18 +254,37 @@ export default function PlayersScreen() {
 
     const displayedPlayers = useMemo(() => {
         const list = availableOnly ? players.filter((p) => !ownedMap.has(p.id)) : players
-        if (!sortByGamesLeft) return list
-        return [...list].sort((a, b) => {
-            const ga = gamesLeft.get(a.nba_team ?? '') ?? 0
-            const gb = gamesLeft.get(b.nba_team ?? '') ?? 0
-            return gb - ga
+        const sorted = [...list].sort((a, b) => {
+            let cmp = 0
+            switch (sortMode) {
+                case 'fpts':
+                    cmp = 0 // already sorted by server
+                    break
+                case 'gamesLeft': {
+                    const ga = gamesLeft.get(a.nba_team ?? '') ?? 0
+                    const gb = gamesLeft.get(b.nba_team ?? '') ?? 0
+                    cmp = gb - ga
+                    break
+                }
+                case 'name':
+                    cmp = (a.display_name ?? '').localeCompare(b.display_name ?? '')
+                    break
+                case 'team':
+                    cmp = (a.nba_team ?? '').localeCompare(b.nba_team ?? '')
+                    break
+                case 'yearsExp':
+                    cmp = (a.years_exp ?? 99) - (b.years_exp ?? 99)
+                    break
+            }
+            return sortDir === 'asc' ? cmp : -cmp
         })
-    }, [players, availableOnly, ownedMap, sortByGamesLeft, gamesLeft])
+        return sorted
+    }, [players, availableOnly, ownedMap, sortMode, sortDir, gamesLeft])
 
-    // Scroll to top after sort-by-games-left toggles (after re-render)
+    // Scroll to top after sort changes (after re-render)
     useEffect(() => {
         listRef.current?.scrollToOffset({ offset: 0, animated: false })
-    }, [sortByGamesLeft])
+    }, [sortMode, sortDir])
 
     // Load current matchup week days once on mount
     useEffect(() => {
@@ -318,6 +348,30 @@ export default function PlayersScreen() {
             prev.includes(date) ? prev.filter((x) => x !== date) : [...prev, date]
         )
     }
+
+    function clearAllFilters() {
+        setQuery('')
+        setPosition('ALL')
+        setSelectedTeams([])
+        setSelectedDays([])
+        setAvailableOnly(true)
+        setRookiesOnly(false)
+        setSortMode('fpts')
+        setSortDir('desc')
+    }
+
+    // Count active filters for badge display
+    const activeFilterCount = useMemo(() => {
+        let count = 0
+        if (query.trim()) count++
+        if (position !== 'ALL') count++
+        if (selectedTeams.length > 0) count++
+        if (selectedDays.length > 0) count++
+        if (!availableOnly) count++
+        if (rookiesOnly) count++
+        if (sortMode !== 'fpts') count++
+        return count
+    }, [query, position, selectedTeams, selectedDays, availableOnly, rookiesOnly, sortMode])
 
     function openTeamPicker() {
         teamBtnRef.current?.measure((_x, _y, width, _height, pageX, pageY) => {
@@ -467,7 +521,7 @@ export default function PlayersScreen() {
         } else {
             const pending = irModal!.pendingPlayer
             setIrModal(null)
-            await proceedAfterIRResolved(pending, league.id)
+            await proceedAfterIRResolved(pending, lid)
         }
     }
 
@@ -566,6 +620,38 @@ export default function PlayersScreen() {
                 </Pressable>
             </View>
 
+            {/* Sort chips */}
+            <View style={styles.sortRow}>
+                <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.sortChips}
+                >
+                    {SORT_OPTIONS.map((opt) => {
+                        const active = sortMode === opt.key
+                        return (
+                            <Pressable
+                                key={opt.key}
+                                style={[styles.sortChip, active && styles.sortChipActive]}
+                                onPress={() => {
+                                    if (active) {
+                                        setSortDir((d) => d === 'asc' ? 'desc' : 'asc')
+                                    } else {
+                                        setSortMode(opt.key)
+                                        setSortDir(opt.key === 'name' || opt.key === 'team' ? 'asc' : 'desc')
+                                    }
+                                }}
+                            >
+                                <Text style={[styles.sortChipText, active && styles.sortChipTextActive]}>
+                                    {opt.label}
+                                    {active ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ''}
+                                </Text>
+                            </Pressable>
+                        )
+                    })}
+                </ScrollView>
+            </View>
+
             {/* Day filter */}
             <View style={styles.dayFilterRow}>
                 <ScrollView
@@ -573,12 +659,6 @@ export default function PlayersScreen() {
                     showsHorizontalScrollIndicator={false}
                     contentContainerStyle={styles.dayChips}
                 >
-                    <Pressable
-                        style={[styles.dayChip, styles.dayChipWide, sortByGamesLeft && styles.dayChipActive]}
-                        onPress={() => setSortByGamesLeft((v) => !v)}
-                    >
-                        <Text style={[styles.dayChipSortLabel, sortByGamesLeft && styles.dayChipTextActive]}>G Left</Text>
-                    </Pressable>
                     {weekDays.filter((day) => day.date >= todayDateString()).map((day) => {
                         const active = selectedDays.includes(day.date)
                         const label = new Date(day.date + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'short' })
@@ -599,6 +679,18 @@ export default function PlayersScreen() {
                         </Pressable>
                     )}
                 </ScrollView>
+            </View>
+
+            {/* Filter status: result count, active badges, clear all */}
+            <View style={styles.filterStatusRow}>
+                <Text style={styles.filterCountText}>
+                    {loading ? 'Searching...' : `${displayedPlayers.length} player${displayedPlayers.length !== 1 ? 's' : ''}`}
+                </Text>
+                {activeFilterCount > 0 && (
+                    <Pressable style={styles.clearAllChip} onPress={clearAllFilters}>
+                        <Text style={styles.clearAllChipText}>Clear all ({activeFilterCount})</Text>
+                    </Pressable>
+                )}
             </View>
 
             {/* Team picker popover */}
@@ -635,6 +727,14 @@ export default function PlayersScreen() {
                     </View>
                 </Pressable>
             </Modal>
+
+            {weekDays.length > 0 && (
+                <ScheduleGrid
+                    weekDays={weekDays}
+                    selectedTeams={selectedTeams}
+                    onToggleTeam={toggleTeam}
+                />
+            )}
 
             {/* Results */}
             {loading ? (
@@ -791,14 +891,42 @@ const styles = StyleSheet.create({
     dayChipLabel: { fontSize: 10, fontWeight: fontWeight.bold, color: colors.textMuted, textTransform: 'uppercase' as const },
     dayChipNum: { fontSize: fontSize.md, fontWeight: fontWeight.bold, color: colors.textPrimary },
     dayChipTextActive: { color: colors.textWhite },
-    dayChipWide: { minWidth: 58 },
-    dayChipSortLabel: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.textMuted, lineHeight: 20 },
     dayClearBtn: {
         alignSelf: 'center',
         paddingHorizontal: spacing.lg,
         paddingVertical: spacing.sm,
     },
     dayClearText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.primary },
+
+    sortRow: { marginBottom: spacing.md },
+    sortChips: { paddingHorizontal: spacing.xl, gap: spacing.sm },
+    sortChip: {
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.sm,
+        borderRadius: radii['3xl'],
+        borderCurve: 'continuous' as const,
+        backgroundColor: colors.bgMuted,
+    },
+    sortChipActive: { backgroundColor: colors.primary },
+    sortChipText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textSecondary },
+    sortChipTextActive: { color: colors.textWhite },
+
+    filterStatusRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: spacing.xl,
+        paddingBottom: spacing.sm,
+    },
+    filterCountText: { fontSize: fontSize.sm, color: colors.textMuted },
+    clearAllChip: {
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.xs,
+        borderRadius: radii.md,
+        borderCurve: 'continuous' as const,
+        backgroundColor: colors.dangerLight,
+    },
+    clearAllChipText: { fontSize: fontSize.xs, fontWeight: fontWeight.semibold, color: colors.danger },
 
     playerRow: {
         flexDirection: 'row',
