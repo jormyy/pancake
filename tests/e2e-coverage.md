@@ -1,8 +1,8 @@
 # E2E Coverage Checklist
 
 - Run status: PARTIAL
-- Started: 2026-05-12T05:01:19.585Z
-- Finished: 2026-05-12T05:01:28.178Z
+- Started: 2026-05-12T05:05:36.866Z
+- Finished: 2026-05-12T05:05:45.017Z
 - Target seasons: 6
 
 ## Prompt-To-Artifact Matrix
@@ -15,7 +15,7 @@
 | Fake NBA CDN/Sleeper upstream | PASS | Fake upstream configured for http://127.0.0.1:4555. |
 | D.SET.1 auth/session/sign-out | PENDING | Enable E2E_ENABLE_BROWSER_AUTH=1 or use prior browser-auth artifact. |
 | D.SET.2 league create/join/pick bank | PARTIAL | Seeded target league 70c70f7e-737d-402d-ad1c-3fd204faac5e; invite, lineup slots, members, and 5y pick-bank proof lives in tests/e2e-seed-report.md. |
-| D.SET.4 initial auction draft | PENDING | No browser-driven auction draft scenario implemented. |
+| D.SET.4 initial auction draft | PARTIAL | Auction mode creates a disposable auction nomination and verifies the atomic bid RPC rejects <=current, >budget, and self-overbid paths before accepting valid bids. |
 | D.0 invariant boundary checks | PASS | Season rows in tests/e2e-report.md include D.0 boundary checks or failure. |
 | D.SEA.1 matchup generation idempotency | PENDING | Requires E2E_ENABLE_BACKEND_TICKS=1. |
 | D.SEA.2 weekly lineup/scoring/waiver/trade loop | PENDING | Full weekly browser gameplay loop is not implemented. |
@@ -51,6 +51,7 @@
 - Standings/champion history retention disabled; set E2E_ENABLE_HISTORY=1 with backend ticks to exercise the D.LONG.3/D.LONG.4 fixture-retention slice.
 - Realtime latency check disabled; set E2E_ENABLE_REALTIME=1 to exercise the D.X.2 matchups update slice.
 - Mid-life migration check enabled after season 5.
+- Auction bid validation enabled through E2E_ENABLE_AUCTION=1.
 - Schema preflight passed: post-refactor RPCs and required columns are present.
-- D.LONG.5 mid-life migration applied before season 6.
+- D.LONG.5 mid-life migration up_to_date before season 6.
 - Perf metrics written to tests/artifacts/perf-metrics.json.

@@ -23,6 +23,7 @@ export E2E_ENABLE_PICK_CHAIN=1
 export E2E_ENABLE_PUSH=1
 export E2E_ENABLE_REALTIME=1
 export E2E_ENABLE_MIDLIFE_MIGRATION=1
+export E2E_ENABLE_AUCTION=1
 export E2E_PERF_DRIFT_LIMIT=1.2
 export E2E_MEMORY_DRIFT_LIMIT=1.2
 export NBA_CDN_BASE_URL=http://127.0.0.1:4555/static/json
@@ -51,6 +52,8 @@ Performance metrics are written to `tests/artifacts/perf-metrics.json`. Runs sho
 
 Future-pick chain checks are available with `E2E_ENABLE_PICK_CHAIN=1` or `--pick-chain=true`. The runner creates three accepted pick-only trades for one five-years-out round-one pick, persists the scenario metadata to `tests/artifacts/future-pick-chain.json`, and checks at every season boundary that the exact `draft_picks.current_owner_id` remains the final multi-hop owner. Once the target pick reaches its draft year during a backend-tick run, the runner starts the real rookie draft and verifies the linked `snake_draft_picks.draft_pick_id` slot belongs to the final traded owner; the slot artifact is written to `tests/artifacts/season-<N>/rookie-draft-pick-chain.json`. This covers D.LONG.1/D.LONG.2 ownership-drift invariants through the real `accept_trade_atomic` and rookie-draft seeding paths; it is not a replacement for the full browser trade or rookie-draft workflow.
 
+Auction bid validation is available with `E2E_ENABLE_AUCTION=1` or `--auction=true`. The runner creates a disposable auction draft/nomination in the seeded league, calls the real service-role-only `place_auction_bid_atomic` RPC, verifies `<= current`, over-budget, and self-overbid attempts are rejected, then verifies two valid bids leave the second bidder as high bidder. Artifacts are written to `tests/artifacts/season-<N>/auction-validation.json`. This covers the server-side bid validation slice of D.SET.4; it does not replace the full browser-driven auction draft.
+
 Push notification interception is available with `E2E_ENABLE_PUSH=1` or `--push=true`. The Fastify backend must be started with `EXPO_PUSH_URL=http://127.0.0.1:4555/--/api/v2/push/send`; the runner fails closed if `/e2e/status` reports any other push URL. Each season sets seeded recipients' `profiles.push_token`, signs in through Supabase Auth as a seeded sender, calls the real authenticated `/notify/trade` route, seeds a real pending waiver claim, runs `/e2e/process-waivers`, and asserts the fake upstream captured both Expo push payloads. Artifacts are written to `tests/artifacts/season-<N>/push-notifications.json`. This covers the trade and waiver notification slices of D.X.1; draft notification assertions remain pending.
 
 Standings/champion history retention is available with `E2E_ENABLE_HISTORY=1` or `--history=true` in backend tick mode. Each season seeds deterministic completed-season standings plus a finalized playoff-final row for the season about to reset, advances the season through the real backend, then verifies all previously seeded standings and champions remain queryable. Artifacts are written to `tests/artifacts/season-<N>/history-retention.json`. This covers the D.LONG.3/D.LONG.4 history-retention slice only; it does not replace full playoff gameplay.
@@ -76,6 +79,7 @@ Outputs:
 - `tests/snapshots/season-<N>/`
 - `tests/snapshots/season-<N>/summary.json`
 - `tests/artifacts/season-<N>/`
+- `tests/artifacts/season-<N>/auction-validation.json`
 - `tests/artifacts/season-<N>/push-notifications.json`
 - `tests/artifacts/season-<N>/midlife-migration.json`
 - `tests/artifacts/season-<N>/rookie-draft-pick-chain.json`

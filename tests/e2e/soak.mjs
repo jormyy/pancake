@@ -50,6 +50,7 @@ const parseArgs = () => {
     history: args.get('history') === 'true' || process.env.E2E_ENABLE_HISTORY === '1',
     realtime: args.get('realtime') === 'true' || process.env.E2E_ENABLE_REALTIME === '1',
     midlifeMigration: args.get('midlife-migration') === 'true' || process.env.E2E_ENABLE_MIDLIFE_MIGRATION === '1',
+    auction: args.get('auction') === 'true' || process.env.E2E_ENABLE_AUCTION === '1',
   }
 }
 
@@ -151,6 +152,9 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
   const midlifeMigrationStatus = args.midlifeMigration
     ? hasFailingNote(rows, /D\.LONG\.5/) ? 'FAIL' : hasPassingNote(rows, /mid-life migration applied/) ? 'PASS' : 'PENDING'
     : 'PENDING'
+  const auctionStatus = args.auction
+    ? hasFailingNote(rows, /D\.SET\.4/) ? 'FAIL' : hasPassingNote(rows, /auction bid validation passed/) ? 'PARTIAL' : 'PENDING'
+    : 'PENDING'
 
   const coverage = [
     {
@@ -185,8 +189,8 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
     },
     {
       requirement: 'D.SET.4 initial auction draft',
-      status: 'PENDING',
-      evidence: 'No browser-driven auction draft scenario implemented.',
+      status: auctionStatus,
+      evidence: args.auction ? 'Auction mode creates a disposable auction nomination and verifies the atomic bid RPC rejects <=current, >budget, and self-overbid paths before accepting valid bids.' : 'No browser-driven auction draft scenario implemented; enable E2E_ENABLE_AUCTION=1 for server-side bid validation slice.',
     },
     {
       requirement: 'D.0 invariant boundary checks',
@@ -1362,6 +1366,145 @@ const findAvailablePlayer = async (supabase, leagueId, leagueSeasonId) => {
   return player
 }
 
+const expectAuctionRpcError = async ({ supabase, label, args, pattern }) => {
+  const { error } = await supabase.rpc('place_auction_bid_atomic', args)
+  if (!error) {
+    throw new Error(`D.SET.4: expected ${label} to fail`)
+  }
+  if (!pattern.test(error.message)) {
+    throw new Error(`D.SET.4: ${label} failed with "${error.message}", expected ${pattern}`)
+  }
+  return error.message
+}
+
+const assertAuctionBidValidation = async ({ supabase, leagueId, season }) => {
+  const currentSeason = await fetchSingle(
+    supabase,
+    'league_seasons',
+    'id',
+    { league_id: leagueId, is_current: true },
+  )
+  const members = await sortedLeagueMembers(supabase, leagueId)
+  if (members.length < 2) throw new Error('D.SET.4: auction validation requires at least two league members')
+  const player = await findAvailablePlayer(supabase, leagueId, currentSeason.id)
+
+  const [{ id: bidderOne }, { id: bidderTwo }] = members
+  const now = new Date().toISOString()
+  const { data: draft, error: draftError } = await supabase
+    .from('drafts')
+    .insert({
+      league_id: leagueId,
+      league_season_id: currentSeason.id,
+      draft_type: 'auction',
+      status: 'in_progress',
+      budget_per_team: 5,
+      started_at: now,
+      current_nomination_order: 1,
+    })
+    .select('id')
+    .single()
+  if (draftError) throw new Error(`D.SET.4 auction draft insert: ${draftError.message}`)
+
+  const [{ error: orderError }, { error: budgetError }] = await Promise.all([
+    supabase.from('draft_orders').insert(members.map((member, index) => ({
+      draft_id: draft.id,
+      member_id: member.id,
+      position: index + 1,
+    }))),
+    supabase.from('draft_budgets').insert(members.map((member) => ({
+      draft_id: draft.id,
+      member_id: member.id,
+      initial_budget: 5,
+      remaining: 5,
+    }))),
+  ])
+  if (orderError) throw new Error(`D.SET.4 auction order insert: ${orderError.message}`)
+  if (budgetError) throw new Error(`D.SET.4 auction budget insert: ${budgetError.message}`)
+
+  const { data: nomination, error: nominationError } = await supabase
+    .from('nominations')
+    .insert({
+      draft_id: draft.id,
+      nominating_member_id: bidderOne,
+      player_id: player.id,
+      nomination_order: 1,
+      status: 'open',
+      current_bid_amount: 1,
+      current_bidder_id: null,
+      countdown_expires_at: new Date(Date.now() + 10 * 365 * 24 * 60 * 60 * 1000).toISOString(),
+    })
+    .select('id')
+    .single()
+  if (nominationError) throw new Error(`D.SET.4 auction nomination insert: ${nominationError.message}`)
+
+  const baseArgs = {
+    p_draft_id: draft.id,
+    p_nomination_id: nomination.id,
+  }
+  const rejected = {
+    currentBid: await expectAuctionRpcError({
+      supabase,
+      label: 'bid at current amount',
+      args: { ...baseArgs, p_member_id: bidderOne, p_amount: 1 },
+      pattern: /Bid must exceed current bid/i,
+    }),
+    overBudget: await expectAuctionRpcError({
+      supabase,
+      label: 'bid over budget',
+      args: { ...baseArgs, p_member_id: bidderOne, p_amount: 6 },
+      pattern: /Insufficient budget/i,
+    }),
+  }
+
+  const { error: firstBidError } = await supabase.rpc('place_auction_bid_atomic', {
+    ...baseArgs,
+    p_member_id: bidderOne,
+    p_amount: 2,
+  })
+  if (firstBidError) throw new Error(`D.SET.4 first valid auction bid: ${firstBidError.message}`)
+
+  rejected.selfOverbid = await expectAuctionRpcError({
+    supabase,
+    label: 'self-overbid',
+    args: { ...baseArgs, p_member_id: bidderOne, p_amount: 3 },
+    pattern: /already the highest bidder/i,
+  })
+
+  const { error: secondBidError } = await supabase.rpc('place_auction_bid_atomic', {
+    ...baseArgs,
+    p_member_id: bidderTwo,
+    p_amount: 3,
+  })
+  if (secondBidError) throw new Error(`D.SET.4 second valid auction bid: ${secondBidError.message}`)
+
+  const { data: finalNomination, error: finalError } = await supabase
+    .from('nominations')
+    .select('current_bid_amount, current_bidder_id')
+    .eq('id', nomination.id)
+    .single()
+  if (finalError) throw new Error(`D.SET.4 auction final nomination lookup: ${finalError.message}`)
+  if (finalNomination.current_bid_amount !== 3 || finalNomination.current_bidder_id !== bidderTwo) {
+    throw new Error(`D.SET.4: final high bid was ${finalNomination.current_bid_amount}/${finalNomination.current_bidder_id}; expected 3/${bidderTwo}`)
+  }
+
+  const artifact = {
+    draftId: draft.id,
+    nominationId: nomination.id,
+    playerId: player.id,
+    bidderOne,
+    bidderTwo,
+    rejected,
+    acceptedBids: [2, 3],
+  }
+  const artifactDir = path.join(ARTIFACT_ROOT, `season-${season}`)
+  await mkdir(artifactDir, { recursive: true })
+  await writeFile(
+    path.join(artifactDir, 'auction-validation.json'),
+    `${JSON.stringify(artifact, null, 2)}\n`,
+  )
+  return artifact
+}
+
 const assertWaiverPushNotification = async ({ supabase, env, state, leagueId, season, fakePort }) => {
   if (!state?.runId || !Array.isArray(state.users) || state.users.length < 3) {
     throw new Error('D.X.1: waiver push scenario requires tests/e2e-state.json from npm run e2e:seed')
@@ -1534,6 +1677,9 @@ const main = async () => {
   if (args.realtime && !targetLeagueId) {
     throw new Error('E2E_ENABLE_REALTIME=1 requires a seeded target league or E2E_LEAGUE_ID')
   }
+  if (args.auction && !targetLeagueId) {
+    throw new Error('E2E_ENABLE_AUCTION=1 requires a seeded target league or E2E_LEAGUE_ID')
+  }
   if (args.midlifeMigration && (!Number.isInteger(MIDLIFE_MIGRATION_AFTER_SEASON) || MIDLIFE_MIGRATION_AFTER_SEASON < 1)) {
     throw new Error('E2E_ENABLE_MIDLIFE_MIGRATION=1 requires a positive integer E2E_MIDLIFE_MIGRATION_AFTER_SEASON')
   }
@@ -1574,6 +1720,9 @@ const main = async () => {
     args.midlifeMigration
       ? `Mid-life migration check enabled after season ${MIDLIFE_MIGRATION_AFTER_SEASON}.`
       : 'Mid-life migration check disabled; set E2E_ENABLE_MIDLIFE_MIGRATION=1 to exercise D.LONG.5.',
+    args.auction
+      ? 'Auction bid validation enabled through E2E_ENABLE_AUCTION=1.'
+      : 'Auction validation disabled; set E2E_ENABLE_AUCTION=1 to exercise the D.SET.4 server-side bid validation slice.',
   ]
 
   try {
@@ -1671,6 +1820,14 @@ const main = async () => {
         }
         if (args.browserAuth) {
           await runBrowserAuthScenario({ season })
+        }
+        let auctionValidation = null
+        if (args.auction && season === 1) {
+          auctionValidation = await assertAuctionBidValidation({
+            supabase,
+            leagueId: targetLeagueId,
+            season,
+          })
         }
         if (args.realtime) {
           await assertRealtimeDelivery({
@@ -1773,6 +1930,7 @@ const main = async () => {
               args.realtime ? 'realtime matchup update delivered' : null,
               args.push ? 'trade and waiver push notification intercepts passed' : null,
               midlifeMigrationReport ? `mid-life migration applied (${midlifeMigrationReport.status})` : null,
+              auctionValidation ? 'auction bid validation passed' : null,
               env.backendTicksEnabled ? 'matchup generation idempotency passed' : null,
               args.pickChain ? 'multi-hop future-pick owner resolved' : null,
               rookieDraftPickChainCheck ? 'rookie draft traded-pick slot resolved' : null,

@@ -1,8 +1,8 @@
 # Multi-Season E2E Soak Report
 
 - Status: PARTIAL
-- Started: 2026-05-12T05:01:19.585Z
-- Finished: 2026-05-12T05:01:28.177Z
+- Started: 2026-05-12T05:05:36.866Z
+- Finished: 2026-05-12T05:05:45.016Z
 - Target seasons: 6
 - Fake upstream: http://127.0.0.1:4555
 
@@ -10,12 +10,12 @@
 
 | Season | Status | Notes |
 | --- | --- | --- |
-| 1 | PASS | D.0 invariant boundary checks passed; full scenario/browser loop pending |
+| 1 | PASS | D.0 invariant boundary checks passed; full scenario/browser loop pending; auction bid validation passed |
 | 2 | PASS | D.0 invariant boundary checks passed; full scenario/browser loop pending; snapshot row-count diff passed |
 | 3 | PASS | D.0 invariant boundary checks passed; full scenario/browser loop pending; snapshot row-count diff passed |
 | 4 | PASS | D.0 invariant boundary checks passed; full scenario/browser loop pending; snapshot row-count diff passed |
 | 5 | PASS | D.0 invariant boundary checks passed; full scenario/browser loop pending; snapshot row-count diff passed |
-| 6 | PASS | D.0 invariant boundary checks passed; full scenario/browser loop pending; mid-life migration applied (APPLIED); snapshot row-count diff passed |
+| 6 | PASS | D.0 invariant boundary checks passed; full scenario/browser loop pending; mid-life migration applied (UP_TO_DATE); snapshot row-count diff passed |
 
 ## Notes
 
@@ -31,6 +31,7 @@
 - Standings/champion history retention disabled; set E2E_ENABLE_HISTORY=1 with backend ticks to exercise the D.LONG.3/D.LONG.4 fixture-retention slice.
 - Realtime latency check disabled; set E2E_ENABLE_REALTIME=1 to exercise the D.X.2 matchups update slice.
 - Mid-life migration check enabled after season 5.
+- Auction bid validation enabled through E2E_ENABLE_AUCTION=1.
 - Schema preflight passed: post-refactor RPCs and required columns are present.
-- D.LONG.5 mid-life migration applied before season 6.
+- D.LONG.5 mid-life migration up_to_date before season 6.
 - Perf metrics written to tests/artifacts/perf-metrics.json.
