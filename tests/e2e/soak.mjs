@@ -243,7 +243,7 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
     {
       requirement: 'D.X.5 UI sweep',
       status: browserStatus,
-      evidence: args.browserFullSweep ? 'Browser full sweep visits auth, tabs, modals, and player routes, with screenshots and console/error artifacts.' : browserStatus === 'PARTIAL' ? 'Browser smoke/auth covers auth and tab routes; enable E2E_BROWSER_FULL_SWEEP=1 for modal/player route sweep.' : 'Enable browser smoke/auth; full app route sweep pending.',
+      evidence: args.browserFullSweep ? 'Browser full sweep visits auth, tabs, modals, player, auction-draft, and rookie-draft routes, with screenshots and console/error artifacts.' : browserStatus === 'PARTIAL' ? 'Browser smoke/auth covers auth and tab routes; enable E2E_BROWSER_FULL_SWEEP=1 for modal/player/draft route sweep.' : 'Enable browser smoke/auth; full app route sweep pending.',
     },
     {
       requirement: 'D.LONG.1/D.LONG.2 long-horizon pick trades',

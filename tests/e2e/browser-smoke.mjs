@@ -45,6 +45,128 @@ const encodeQuery = (pathname, params) => {
   return query ? `${pathname}?${query}` : pathname
 }
 
+const pickRowsForSnakeDraft = (members, rounds = 3) => {
+  const rows = []
+  let overallPick = 1
+  for (let round = 1; round <= rounds; round += 1) {
+    const order = round % 2 === 0 ? [...members].reverse() : members
+    order.forEach((member, index) => {
+      rows.push({
+        overall_pick: overallPick,
+        round,
+        pick_in_round: index + 1,
+        member_id: member.id,
+      })
+      overallPick += 1
+    })
+  }
+  return rows
+}
+
+const ensureSweepDrafts = async (supabase, state, members) => {
+  const { data: season, error: seasonError } = await supabase
+    .from('league_seasons')
+    .select('id')
+    .eq('league_id', state.leagueId)
+    .eq('is_current', true)
+    .single()
+  if (seasonError) throw new Error(`UI sweep current season lookup: ${seasonError.message}`)
+
+  const startedAt = new Date().toISOString()
+
+  const { data: existingAuction, error: auctionLookupError } = await supabase
+    .from('drafts')
+    .select('id')
+    .eq('league_id', state.leagueId)
+    .eq('draft_type', 'auction')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (auctionLookupError) throw new Error(`UI sweep auction draft lookup: ${auctionLookupError.message}`)
+
+  let auctionDraft = existingAuction
+  if (!auctionDraft) {
+    const { data: insertedAuction, error: auctionInsertError } = await supabase
+      .from('drafts')
+      .insert({
+        league_id: state.leagueId,
+        league_season_id: season.id,
+        draft_type: 'auction',
+        status: 'in_progress',
+        budget_per_team: 200,
+        started_at: startedAt,
+        current_nomination_order: 1,
+      })
+      .select('id')
+      .single()
+    if (auctionInsertError) throw new Error(`UI sweep auction draft insert: ${auctionInsertError.message}`)
+    auctionDraft = insertedAuction
+
+    const orderRows = members.map((member, index) => ({
+      draft_id: auctionDraft.id,
+      member_id: member.id,
+      position: index + 1,
+    }))
+    const budgetRows = members.map((member) => ({
+      draft_id: auctionDraft.id,
+      member_id: member.id,
+      initial_budget: 200,
+      remaining: 200,
+    }))
+    const [{ error: orderError }, { error: budgetError }] = await Promise.all([
+      supabase.from('draft_orders').insert(orderRows),
+      supabase.from('draft_budgets').insert(budgetRows),
+    ])
+    if (orderError) throw new Error(`UI sweep auction order insert: ${orderError.message}`)
+    if (budgetError) throw new Error(`UI sweep auction budget insert: ${budgetError.message}`)
+  }
+
+  const { data: existingSnake, error: snakeLookupError } = await supabase
+    .from('drafts')
+    .select('id')
+    .eq('league_id', state.leagueId)
+    .eq('draft_type', 'snake')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (snakeLookupError) throw new Error(`UI sweep snake draft lookup: ${snakeLookupError.message}`)
+
+  let rookieDraft = existingSnake
+  if (!rookieDraft) {
+    const { data: insertedSnake, error: snakeInsertError } = await supabase
+      .from('drafts')
+      .insert({
+        league_id: state.leagueId,
+        league_season_id: season.id,
+        draft_type: 'snake',
+        status: 'in_progress',
+        started_at: startedAt,
+      })
+      .select('id')
+      .single()
+    if (snakeInsertError) throw new Error(`UI sweep snake draft insert: ${snakeInsertError.message}`)
+    rookieDraft = insertedSnake
+
+    const orderRows = members.map((member, index) => ({
+      draft_id: rookieDraft.id,
+      member_id: member.id,
+      position: index + 1,
+    }))
+    const pickRows = pickRowsForSnakeDraft(members).map((row) => ({
+      ...row,
+      draft_id: rookieDraft.id,
+    }))
+    const [{ error: orderError }, { error: pickError }] = await Promise.all([
+      supabase.from('draft_orders').insert(orderRows),
+      supabase.from('snake_draft_picks').insert(pickRows),
+    ])
+    if (orderError) throw new Error(`UI sweep snake order insert: ${orderError.message}`)
+    if (pickError) throw new Error(`UI sweep snake pick insert: ${pickError.message}`)
+  }
+
+  return { auctionDraft, rookieDraft }
+}
+
 const fetchSweepContext = async (env, state, user) => {
   if (!env.serviceRoleKey || !state.leagueId) {
     return { routes: [], notes: ['Full sweep skipped DB-param routes: missing service role key or seeded league id.'] }
@@ -58,9 +180,11 @@ const fetchSweepContext = async (env, state, user) => {
     .eq('league_id', state.leagueId)
     .order('joined_at', { ascending: true })
   if (membersError) throw new Error(`UI sweep league_members lookup: ${membersError.message}`)
+  if (!members?.length) throw new Error('UI sweep requires at least one seeded league member')
 
   const myMember = members?.find((member) => member.user_id === user.id) ?? members?.[0]
   const otherMember = members?.find((member) => member.id !== myMember?.id) ?? members?.[0]
+  const { auctionDraft, rookieDraft } = await ensureSweepDrafts(supabase, state, members)
 
   const { data: rosterRow } = myMember
     ? await supabase
@@ -79,24 +203,6 @@ const fetchSweepContext = async (env, state, user) => {
     .limit(1)
     .maybeSingle()
   const playerId = rosterRow?.player_id ?? firstPlayer?.id ?? null
-
-  const { data: auctionDraft } = await supabase
-    .from('drafts')
-    .select('id')
-    .eq('league_id', state.leagueId)
-    .eq('draft_type', 'auction')
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
-
-  const { data: rookieDraft } = await supabase
-    .from('drafts')
-    .select('id')
-    .eq('league_id', state.leagueId)
-    .eq('draft_type', 'rookie')
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
 
   const routes = [
     ['create-league', '/create-league'],
