@@ -1,8 +1,8 @@
 # Multi-Season E2E Soak Report
 
 - Status: PARTIAL
-- Started: 2026-05-12T03:34:15.850Z
-- Finished: 2026-05-12T03:34:27.167Z
+- Started: 2026-05-12T03:40:41.283Z
+- Finished: 2026-05-12T03:40:59.168Z
 - Target seasons: 2
 - Fake upstream: http://127.0.0.1:4555
 
@@ -10,8 +10,8 @@
 
 | Season | Status | Notes |
 | --- | --- | --- |
-| 1 | PASS | D.0 invariant boundary checks passed before and after real season reset; full scenario loop pending |
-| 2 | PASS | D.0 invariant boundary checks passed before and after real season reset; full scenario loop pending; snapshot row-count diff passed |
+| 1 | PASS | D.0 invariant boundary checks passed before and after real season reset; full scenario loop pending; matchup generation idempotency passed |
+| 2 | PASS | D.0 invariant boundary checks passed before and after real season reset; full scenario loop pending; matchup generation idempotency passed; snapshot row-count diff passed |
 
 ## Notes
 

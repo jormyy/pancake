@@ -226,6 +226,44 @@ const fetchSingle = async (supabase, table, select, filters) => {
   return data
 }
 
+const countRows = async (supabase, table, filters) => {
+  let query = supabase.from(table).select('id', { count: 'exact', head: true })
+  for (const [column, value] of Object.entries(filters)) {
+    query = query.eq(column, value)
+  }
+  const { count, error } = await query
+  if (error) throw new Error(`${table} count: ${error.message}`)
+  return count ?? 0
+}
+
+const assertMatchupGenerationIdempotent = async (supabase, env, leagueId) => {
+  const failures = []
+  const currentSeason = await fetchSingle(
+    supabase,
+    'league_seasons',
+    'id',
+    { league_id: leagueId, is_current: true },
+  )
+  const memberCount = await countRows(supabase, 'league_members', { league_id: leagueId })
+  const before = await countRows(supabase, 'matchups', {
+    league_id: leagueId,
+    league_season_id: currentSeason.id,
+  })
+  await backendJson(env, '/e2e/generate-matchups', { force: false })
+  const after = await countRows(supabase, 'matchups', {
+    league_id: leagueId,
+    league_season_id: currentSeason.id,
+  })
+
+  if (memberCount >= 2 && before === 0) {
+    failures.push(`D.SEA.1: target league ${leagueId} has no generated matchups for current season`)
+  }
+  if (after !== before) {
+    failures.push(`D.SEA.1: matchup generation is not idempotent (${before} -> ${after})`)
+  }
+  return failures
+}
+
 const createAndAcceptPickTrade = async (supabase, leagueId, seasonId, proposerId, recipientId, proposerPickId, recipientPickId) => {
   const { data: trade, error: tradeError } = await supabase
     .from('trades')
@@ -643,6 +681,9 @@ const main = async () => {
 
         const failuresAtStart = await runInvariants(supabase, targetLeagueId, scenarios)
         const failuresAtEnd = await runInvariants(supabase, targetLeagueId, scenarios)
+        const matchupFailures = env.backendTicksEnabled
+          ? await assertMatchupGenerationIdempotent(supabase, env, targetLeagueId)
+          : []
         const failuresAfterReset = []
         if (env.backendTicksEnabled) {
           await backendJson(env, '/e2e/advance-season', { leagueId: targetLeagueId })
@@ -654,7 +695,13 @@ const main = async () => {
           expectResetGrowth: env.backendTicksEnabled,
         })
         previousSnapshot = snapshot
-        const failures = [...failuresAtStart, ...failuresAtEnd, ...failuresAfterReset, ...snapshotFailures]
+        const failures = [
+          ...failuresAtStart,
+          ...failuresAtEnd,
+          ...matchupFailures,
+          ...failuresAfterReset,
+          ...snapshotFailures,
+        ]
 
         if (failures.length > 0) {
           rows.push({ season, status: 'FAIL', notes: failures.join('; ') })
@@ -670,6 +717,7 @@ const main = async () => {
               seasonNotes,
               args.browser ? 'browser smoke passed' : null,
               args.browserAuth ? 'browser auth scenario passed' : null,
+              env.backendTicksEnabled ? 'matchup generation idempotency passed' : null,
               args.pickChain ? 'multi-hop future-pick owner resolved' : null,
               hadPreviousSnapshot ? 'snapshot row-count diff passed' : null,
             ].filter(Boolean).join('; '),
