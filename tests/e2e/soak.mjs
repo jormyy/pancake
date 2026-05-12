@@ -84,6 +84,7 @@ const parseArgs = () => {
     scoring: args.get('scoring') === 'true' || process.env.E2E_ENABLE_SCORING === '1',
     injuryFilter: args.get('injury-filter') === 'true' || process.env.E2E_ENABLE_INJURY_FILTER === '1',
     tradeAccept: args.get('trade-accept') === 'true' || process.env.E2E_ENABLE_TRADE_ACCEPT === '1',
+    tradeVeto: args.get('trade-veto') === 'true' || process.env.E2E_ENABLE_TRADE_VETO === '1',
     rookieDraft: args.get('rookie-draft') === 'true' || process.env.E2E_ENABLE_ROOKIE_DRAFT === '1',
     seasonReset: args.get('season-reset') === 'true' || process.env.E2E_ENABLE_SEASON_RESET === '1',
   }
@@ -240,6 +241,9 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
   const tradeAcceptStatus = args.tradeAccept
     ? hasFailingNote(rows, /D\.SEA\.2 trade/) ? 'FAIL' : hasPassingNote(rows, /trade acceptance atomicity passed/) ? 'PARTIAL' : 'PENDING'
     : 'PENDING'
+  const tradeVetoStatus = args.tradeVeto
+    ? hasFailingNote(rows, /D\.SEA\.2 trade veto/) ? 'FAIL' : hasPassingNote(rows, /trade veto threshold passed/) ? 'PARTIAL' : 'PENDING'
+    : 'PENDING'
   const rookieDraftStatus = args.rookieDraft
     ? hasFailingNote(rows, /D\.SEA\.5/) ? 'FAIL' : hasPassingNote(rows, /rookie draft auto-pick passed/) ? 'PARTIAL' : 'PENDING'
     : pickChainStatus
@@ -297,8 +301,8 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
     },
     {
       requirement: 'D.SEA.2 weekly lineup/scoring/waiver/trade loop',
-      status: args.browserWaiver ? browserWaiverStatus : args.browserTrade ? browserTradeStatus : args.browserTradeFuturePick ? browserTradeFuturePickStatus : args.browserTradeFuturePickAccept ? browserTradeFuturePickAcceptStatus : args.browserTradeOverflowAccept ? browserTradeOverflowAcceptStatus : args.browserTradePostDeadline ? browserTradePostDeadlineStatus : args.browserTradeAccept ? browserTradeAcceptStatus : args.browserTradeTerminal ? browserTradeTerminalStatus : scoringStatus,
-      evidence: args.browserWaiver ? 'Browser waiver mode creates an isolated one-user league, opens the real claim-player modal, submits a no-drop waiver claim, and verifies the backend persisted a pending waiver_claims row.' : args.browserTrade ? 'Browser trade mode creates an isolated two-user league, opens the real propose-trade modal, submits a player-for-player proposal through the authenticated backend route, and verifies pending trades/trade_items rows persisted.' : args.browserTradeFuturePick ? 'Browser future-pick trade mode creates an isolated two-user league, opens the real propose-trade modal, submits a five-years-out pick-for-pick proposal, and verifies pending pick trade_items persisted through the authenticated backend route without moving pick ownership.' : args.browserTradeFuturePickAccept ? 'Browser future-pick trade accept mode creates an isolated pending five-years-out pick-for-pick trade, accepts it through the real Offers tab, and verifies the local backend/RPC swaps draft_picks.current_owner_id without moving roster players.' : args.browserTradeOverflowAccept ? 'Browser trade overflow accept mode creates an isolated mixed player/pick offer, accepts it through the real Offers tab, drops one active player in the overflow modal, and verifies the trade completes with the drop logged on waivers.' : args.browserTradePostDeadline ? 'Browser post-deadline trade mode creates an isolated league with a past trade_deadline, attempts the real propose-trade flow, and verifies the authenticated backend rejects the proposal without inserting trades or trade_items.' : args.browserTradeAccept ? 'Browser trade accept mode creates an isolated pending trade, opens the real recipient Offers tab, accepts through the visible TradeCard button, and verifies the local backend/RPC moved both players and completed the trade.' : args.browserTradeTerminal ? 'Browser trade terminal mode creates isolated pending trades, rejects one as the recipient, withdraws one as the proposer through authenticated Fastify routes, and verifies terminal statuses without moving roster assets.' : args.scoring ? 'Scoring mode seeds a disposable matchup with starter/bench lineups and real player_game_stats, calls the real backend /e2e/sync-scores path, and checks starter-only points, finalization blocking, winner, max-possible points, and standings append.' : 'Full weekly browser gameplay loop is not implemented; enable E2E_ENABLE_BROWSER_WAIVER=1 for waiver claim UI coverage, E2E_ENABLE_BROWSER_TRADE=1 for player proposal UI coverage, E2E_ENABLE_BROWSER_TRADE_FUTURE_PICK=1 for future-pick proposal UI coverage, E2E_ENABLE_BROWSER_TRADE_FUTURE_PICK_ACCEPT=1 for future-pick accept UI coverage, E2E_ENABLE_BROWSER_TRADE_OVERFLOW_ACCEPT=1 for drop-before-accept UI coverage, E2E_ENABLE_BROWSER_TRADE_POST_DEADLINE=1 for post-deadline proposal rejection, E2E_ENABLE_BROWSER_TRADE_ACCEPT=1 for accept UI coverage, E2E_ENABLE_BROWSER_TRADE_TERMINAL=1 for reject/withdraw UI coverage, or E2E_ENABLE_SCORING=1 for the starter-only scoring/finalization slice.',
+      status: args.browserWaiver ? browserWaiverStatus : args.browserTrade ? browserTradeStatus : args.browserTradeFuturePick ? browserTradeFuturePickStatus : args.browserTradeFuturePickAccept ? browserTradeFuturePickAcceptStatus : args.browserTradeOverflowAccept ? browserTradeOverflowAcceptStatus : args.browserTradePostDeadline ? browserTradePostDeadlineStatus : args.browserTradeAccept ? browserTradeAcceptStatus : args.browserTradeTerminal ? browserTradeTerminalStatus : args.tradeVeto ? tradeVetoStatus : scoringStatus,
+      evidence: args.browserWaiver ? 'Browser waiver mode creates an isolated one-user league, opens the real claim-player modal, submits a no-drop waiver claim, and verifies the backend persisted a pending waiver_claims row.' : args.browserTrade ? 'Browser trade mode creates an isolated two-user league, opens the real propose-trade modal, submits a player-for-player proposal through the authenticated backend route, and verifies pending trades/trade_items rows persisted.' : args.browserTradeFuturePick ? 'Browser future-pick trade mode creates an isolated two-user league, opens the real propose-trade modal, submits a five-years-out pick-for-pick proposal, and verifies pending pick trade_items persisted through the authenticated backend route without moving pick ownership.' : args.browserTradeFuturePickAccept ? 'Browser future-pick trade accept mode creates an isolated pending five-years-out pick-for-pick trade, accepts it through the real Offers tab, and verifies the local backend/RPC swaps draft_picks.current_owner_id without moving roster players.' : args.browserTradeOverflowAccept ? 'Browser trade overflow accept mode creates an isolated mixed player/pick offer, accepts it through the real Offers tab, drops one active player in the overflow modal, and verifies the trade completes with the drop logged on waivers.' : args.browserTradePostDeadline ? 'Browser post-deadline trade mode creates an isolated league with a past trade_deadline, attempts the real propose-trade flow, and verifies the authenticated backend rejects the proposal without inserting trades or trade_items.' : args.browserTradeAccept ? 'Browser trade accept mode creates an isolated pending trade, opens the real recipient Offers tab, accepts through the visible TradeCard button, and verifies the local backend/RPC moved both players and completed the trade.' : args.browserTradeTerminal ? 'Browser trade terminal mode creates isolated pending trades, rejects one as the recipient, withdraws one as the proposer through authenticated Fastify routes, and verifies terminal statuses without moving roster assets.' : args.tradeVeto ? 'Trade-veto mode seeds accepted trades, verifies trade parties cannot member-veto, verifies fewer than 50% member vetoes do not kill the trade, verifies the 50% threshold does, and verifies commissioner veto kills immediately.' : args.scoring ? 'Scoring mode seeds a disposable matchup with starter/bench lineups and real player_game_stats, calls the real backend /e2e/sync-scores path, and checks starter-only points, finalization blocking, winner, max-possible points, and standings append.' : 'Full weekly browser gameplay loop is not implemented; enable E2E_ENABLE_BROWSER_WAIVER=1 for waiver claim UI coverage, E2E_ENABLE_BROWSER_TRADE=1 for player proposal UI coverage, E2E_ENABLE_BROWSER_TRADE_FUTURE_PICK=1 for future-pick proposal UI coverage, E2E_ENABLE_BROWSER_TRADE_FUTURE_PICK_ACCEPT=1 for future-pick accept UI coverage, E2E_ENABLE_BROWSER_TRADE_OVERFLOW_ACCEPT=1 for drop-before-accept UI coverage, E2E_ENABLE_BROWSER_TRADE_POST_DEADLINE=1 for post-deadline proposal rejection, E2E_ENABLE_BROWSER_TRADE_ACCEPT=1 for accept UI coverage, E2E_ENABLE_BROWSER_TRADE_TERMINAL=1 for reject/withdraw UI coverage, E2E_ENABLE_TRADE_VETO=1 for trade veto threshold coverage, or E2E_ENABLE_SCORING=1 for the starter-only scoring/finalization slice.',
     },
     {
       requirement: 'D.SEA.2 injury status filtering',
@@ -1421,6 +1425,124 @@ const assertTradeAcceptanceAtomicityScenario = async ({ supabase, env, state, se
   }
   await writeFile(
     path.join(ARTIFACT_ROOT, `season-${season}`, 'trade-acceptance-atomicity.json'),
+    `${JSON.stringify(artifact, null, 2)}\n`,
+  )
+
+  return { failures, artifact }
+}
+
+const assertTradeVetoScenario = async ({ supabase, env, state, season }) => {
+  const label = 'D.SEA.2 trade veto'
+  const failures = []
+  const fixture = await createDisposableLeagueFromSeedUsers({
+    supabase,
+    state,
+    season,
+    label,
+    userCount: 10,
+  })
+  const [commissioner, proposer, recipient, ...voters] = fixture.members
+  const acceptedAt = new Date().toISOString()
+  const vetoWindowExpiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString()
+
+  const createAcceptedTrade = async (notes) => {
+    const { data, error } = await supabase
+      .from('trades')
+      .insert({
+        league_id: fixture.league.id,
+        league_season_id: fixture.leagueSeason.id,
+        proposer_member_id: proposer.id,
+        recipient_member_id: recipient.id,
+        status: 'accepted',
+        accepted_at: acceptedAt,
+        veto_window_expires_at: vetoWindowExpiresAt,
+        notes,
+      })
+      .select('id, status, vetoed_at')
+      .single()
+    if (error || !data) throw new Error(`${label}: accepted trade insert failed: ${error?.message ?? 'missing row'}`)
+    return data
+  }
+
+  const thresholdTrade = await createAcceptedTrade('E2E member veto threshold')
+  const commissionerTrade = await createAcceptedTrade('E2E commissioner veto')
+  const tokens = await Promise.all(
+    [commissioner, proposer, ...voters.slice(0, 4)].map((member) => {
+      const user = state.users.find((candidate) => candidate.id === member.user_id)
+      if (!user) throw new Error(`${label}: missing seeded user for member ${member.id}`)
+      return signInForAccessToken(env, user.email, state.password)
+    }),
+  )
+  const [commissionerToken, proposerToken, ...voterTokens] = tokens
+
+  const partyVetoError = await expectAuthedBackendError({
+    env,
+    path: `/trades/${thresholdTrade.id}/veto`,
+    token: proposerToken,
+    body: { memberId: proposer.id },
+    label: `${label}: trade party member veto`,
+    pattern: /Trade parties cannot veto|400/i,
+  })
+  if (partyVetoError) failures.push(partyVetoError)
+
+  for (const [index, voter] of voters.slice(0, 3).entries()) {
+    const result = await backendAuthedJson(env, `/trades/${thresholdTrade.id}/veto`, voterTokens[index], {
+      memberId: voter.id,
+    })
+    if (result.vetoed) {
+      failures.push(`${label}: voter ${index + 1} vetoed trade before 50% threshold`)
+    }
+  }
+
+  const beforeThreshold = await fetchSingle(supabase, 'trades', 'id, status, vetoed_at', { id: thresholdTrade.id })
+  if (beforeThreshold.status !== 'accepted' || beforeThreshold.vetoed_at) {
+    failures.push(`${label}: trade status=${beforeThreshold.status}, vetoed_at=${beforeThreshold.vetoed_at ?? '<null>'}; expected accepted before threshold`)
+  }
+
+  const thresholdResult = await backendAuthedJson(env, `/trades/${thresholdTrade.id}/veto`, voterTokens[3], {
+    memberId: voters[3].id,
+  })
+  if (!thresholdResult.vetoed || thresholdResult.threshold !== 4 || thresholdResult.vetoCount !== 4) {
+    failures.push(`${label}: threshold result=${JSON.stringify(thresholdResult)}; expected vetoed with count 4 threshold 4`)
+  }
+
+  const afterThreshold = await fetchSingle(supabase, 'trades', 'id, status, vetoed_at', { id: thresholdTrade.id })
+  if (afterThreshold.status !== 'vetoed' || !afterThreshold.vetoed_at) {
+    failures.push(`${label}: threshold trade status=${afterThreshold.status}, vetoed_at=${afterThreshold.vetoed_at ?? '<null>'}; expected vetoed`)
+  }
+
+  const commissionerResult = await backendAuthedJson(env, `/trades/${commissionerTrade.id}/veto`, commissionerToken, {
+    memberId: commissioner.id,
+  })
+  if (!commissionerResult.vetoed) {
+    failures.push(`${label}: commissioner veto did not immediately veto trade`)
+  }
+
+  const [afterCommissioner, vetoRows] = await Promise.all([
+    fetchSingle(supabase, 'trades', 'id, status, vetoed_at', { id: commissionerTrade.id }),
+    fetchAll(supabase, 'trade_vetos', 'id, trade_id, member_id, veto_type', {}),
+  ])
+  const scopedVetoRows = vetoRows.filter((row) => row.trade_id === thresholdTrade.id || row.trade_id === commissionerTrade.id)
+  if (afterCommissioner.status !== 'vetoed' || !afterCommissioner.vetoed_at) {
+    failures.push(`${label}: commissioner trade status=${afterCommissioner.status}, vetoed_at=${afterCommissioner.vetoed_at ?? '<null>'}; expected vetoed`)
+  }
+
+  const artifact = {
+    season,
+    leagueId: fixture.league.id,
+    leagueSeasonId: fixture.leagueSeason.id,
+    thresholdTradeId: thresholdTrade.id,
+    commissionerTradeId: commissionerTrade.id,
+    partyVetoRejected: partyVetoError == null,
+    thresholdResult,
+    commissionerResult,
+    afterThreshold,
+    afterCommissioner,
+    vetoRows: scopedVetoRows,
+    failures,
+  }
+  await writeFile(
+    path.join(ARTIFACT_ROOT, `season-${season}`, 'trade-veto-threshold.json'),
     `${JSON.stringify(artifact, null, 2)}\n`,
   )
 
@@ -3867,6 +3989,9 @@ const main = async () => {
     args.scoring
       ? 'Weekly starter-only scoring/finalization scenario enabled through E2E_ENABLE_SCORING=1.'
       : 'Weekly starter-only scoring/finalization scenario disabled; set E2E_ENABLE_SCORING=1 to exercise the D.SEA.2 scoring slice.',
+    args.tradeVeto
+      ? 'Trade veto threshold scenario enabled through E2E_ENABLE_TRADE_VETO=1.'
+      : 'Trade veto threshold scenario disabled; set E2E_ENABLE_TRADE_VETO=1 to exercise the D.SEA.2 veto-window slice.',
     args.injuryFilter
       ? 'Sleeper injury-status filter scenario enabled through E2E_ENABLE_INJURY_FILTER=1.'
       : 'Sleeper injury-status filter scenario disabled; set E2E_ENABLE_INJURY_FILTER=1 to exercise the D.SEA.2 injury injection slice.',
@@ -4102,6 +4227,17 @@ const main = async () => {
           })
           tradeAcceptFailures.push(...tradeAcceptCheck.failures)
         }
+        let tradeVetoCheck = null
+        const tradeVetoFailures = []
+        if (args.tradeVeto && season === 1) {
+          tradeVetoCheck = await assertTradeVetoScenario({
+            supabase,
+            env,
+            state,
+            season,
+          })
+          tradeVetoFailures.push(...tradeVetoCheck.failures)
+        }
         let rookieDraftCheck = null
         const rookieDraftFailures = []
         if (args.rookieDraft && season === 1) {
@@ -4223,6 +4359,7 @@ const main = async () => {
           ...scoringFailures,
           ...injuryFilterFailures,
           ...tradeAcceptFailures,
+          ...tradeVetoFailures,
           ...rookieDraftFailures,
           ...draftPushFailures,
           ...seasonResetFailures,
@@ -4266,6 +4403,7 @@ const main = async () => {
               scoringCheck ? 'weekly scoring finalization passed' : null,
               injuryFilterCheck ? 'injury status filter passed' : null,
               tradeAcceptCheck ? 'trade acceptance atomicity passed' : null,
+              tradeVetoCheck ? 'trade veto threshold passed' : null,
               rookieDraftCheck ? 'rookie draft auto-pick passed' : null,
               seasonResetCheck ? 'season reset carryover passed' : null,
               env.backendTicksEnabled ? 'matchup generation idempotency passed' : null,

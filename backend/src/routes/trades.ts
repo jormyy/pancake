@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import { verifyOwnMember } from '../lib/authz'
 import { notifyMember } from '../lib/notifications'
 import { AppError, NotFoundError, ValidationError } from '../plugins/errorHandler'
-import { TradeActionBody, TradeParams, TradeProposeBody } from '../schemas'
+import { TradeActionBody, TradeParams, TradeProposeBody, TradeVetoBody } from '../schemas'
 
 type TradeProposeRequest = {
     memberId: string
@@ -15,6 +15,10 @@ type TradeProposeRequest = {
     offerPickIds: string[]
     requestPickIds: string[]
     notes?: string
+}
+
+type TradeVetoRequest = {
+    memberId: string
 }
 
 function assertNoDuplicates(ids: string[], label: string) {
@@ -255,6 +259,109 @@ export default async function tradeRoutes(app: FastifyInstance) {
             if (error) throw error
 
             return { ok: true }
+        },
+    )
+
+    app.post(
+        '/:tradeId/veto',
+        { schema: { params: TradeParams, body: TradeVetoBody } },
+        async (req) => {
+            const { tradeId } = req.params as { tradeId: string }
+            const { memberId } = req.body as TradeVetoRequest
+
+            await verifyOwnMember(req.userId, memberId)
+
+            const { data: trade, error: tradeError } = await supabase
+                .from('trades')
+                .select('id, league_id, proposer_member_id, recipient_member_id, status, veto_window_expires_at')
+                .eq('id', tradeId)
+                .single()
+            if (tradeError || !trade) throw new NotFoundError('Trade not found.')
+
+            if (trade.status !== 'accepted') {
+                throw new ValidationError('This trade is not in its veto window.')
+            }
+            if (!trade.veto_window_expires_at || new Date(trade.veto_window_expires_at) <= new Date()) {
+                throw new ValidationError('The veto window has expired.')
+            }
+
+            const { data: member, error: memberError } = await supabase
+                .from('league_members')
+                .select('id, league_id, role')
+                .eq('id', memberId)
+                .single()
+            if (memberError || !member) throw new NotFoundError('League member not found.')
+            if (member.league_id !== trade.league_id) {
+                throw new AppError('Access denied', 403)
+            }
+
+            const isCommissioner = member.role === 'commissioner' || member.role === 'co_commissioner'
+            const isTradeParty = member.id === trade.proposer_member_id || member.id === trade.recipient_member_id
+            if (isTradeParty && !isCommissioner) {
+                throw new ValidationError('Trade parties cannot veto their own trade.')
+            }
+
+            const { error: insertError } = await supabase
+                .from('trade_vetos')
+                .insert({
+                    trade_id: tradeId,
+                    member_id: memberId,
+                    veto_type: isCommissioner ? 'commissioner' : 'member',
+                })
+            if (insertError) {
+                if (insertError.code === '23505') {
+                    throw new ValidationError('You have already vetoed this trade.')
+                }
+                throw insertError
+            }
+
+            const [{ count: memberVetoCount, error: vetoCountError }, { count: eligibleCount, error: eligibleError }] = await Promise.all([
+                supabase
+                    .from('trade_vetos')
+                    .select('id', { count: 'exact', head: true })
+                    .eq('trade_id', tradeId)
+                    .eq('veto_type', 'member'),
+                supabase
+                    .from('league_members')
+                    .select('id', { count: 'exact', head: true })
+                    .eq('league_id', trade.league_id)
+                    .not('id', 'in', `(${trade.proposer_member_id},${trade.recipient_member_id})`),
+            ])
+            if (vetoCountError) throw vetoCountError
+            if (eligibleError) throw eligibleError
+
+            const threshold = Math.max(1, Math.ceil((eligibleCount ?? 0) / 2))
+            const vetoed = isCommissioner || (memberVetoCount ?? 0) >= threshold
+            if (vetoed) {
+                const { error: updateError } = await supabase
+                    .from('trades')
+                    .update({ status: 'vetoed', vetoed_at: new Date().toISOString() })
+                    .eq('id', tradeId)
+                    .eq('status', 'accepted')
+                if (updateError) throw updateError
+
+                await Promise.all([
+                    notifyMember(
+                        trade.proposer_member_id,
+                        'Trade Vetoed',
+                        'An accepted trade was vetoed before completion.',
+                        { tradeId },
+                    ),
+                    notifyMember(
+                        trade.recipient_member_id,
+                        'Trade Vetoed',
+                        'An accepted trade was vetoed before completion.',
+                        { tradeId },
+                    ),
+                ]).catch((error) => req.log.error({ err: error }, 'Trade veto notification failed'))
+            }
+
+            return {
+                ok: true,
+                vetoed,
+                vetoCount: memberVetoCount ?? 0,
+                threshold,
+            }
         },
     )
 

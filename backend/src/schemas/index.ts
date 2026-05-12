@@ -60,6 +60,14 @@ export const TradeActionBody = {
     },
 }
 
+export const TradeVetoBody = {
+    type: 'object' as const,
+    required: ['memberId'],
+    properties: {
+        memberId: { type: 'string' as const },
+    },
+}
+
 export const TradeProposeBody = {
     type: 'object' as const,
     required: [
