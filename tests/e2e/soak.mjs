@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
 import { createClient } from '@supabase/supabase-js'
@@ -7,6 +7,7 @@ import { resolvedEnv, describeEndpoint } from './env.mjs'
 
 const ROOT = process.cwd()
 const REPORT_PATH = path.join(ROOT, 'tests/e2e-report.md')
+const STATE_PATH = path.join(ROOT, 'tests/e2e-state.json')
 const SNAPSHOT_ROOT = path.join(ROOT, 'tests/snapshots')
 const ARTIFACT_ROOT = path.join(ROOT, 'tests/artifacts')
 
@@ -32,6 +33,15 @@ const parseArgs = () => {
 }
 
 const timestamp = () => new Date().toISOString()
+
+const readState = async () => {
+  try {
+    return JSON.parse(await readFile(STATE_PATH, 'utf8'))
+  } catch (error) {
+    if (error?.code === 'ENOENT') return null
+    throw error
+  }
+}
 
 const writeReport = async ({ status, startedAt, finishedAt, seasons, rows, notes }) => {
   const lines = [
@@ -124,16 +134,20 @@ const runSchemaPreflight = async (supabase) => {
   return checks.filter(Boolean)
 }
 
-const fetchAll = async (supabase, table, select = '*') => {
+const fetchAll = async (supabase, table, select = '*', filters = {}) => {
   const pageSize = 1000
   const rows = []
   let from = 0
 
   while (true) {
-    const { data, error } = await supabase
+    let query = supabase
       .from(table)
       .select(select)
       .range(from, from + pageSize - 1)
+    for (const [column, value] of Object.entries(filters)) {
+      query = query.eq(column, value)
+    }
+    const { data, error } = await query
     if (error) throw new Error(`${table}: ${error.message}`)
     if (!data || data.length === 0) break
     rows.push(...data)
@@ -144,19 +158,20 @@ const fetchAll = async (supabase, table, select = '*') => {
   return rows
 }
 
-const writeSnapshots = async (supabase, season) => {
+const writeSnapshots = async (supabase, season, leagueId) => {
   const dir = path.join(SNAPSHOT_ROOT, `season-${season}`)
   await mkdir(dir, { recursive: true })
 
   for (const table of SNAPSHOT_TABLES) {
-    const rows = await fetchAll(supabase, table)
+    const rows = await fetchAll(supabase, table, '*', leagueId ? { league_id: leagueId } : {})
     await writeFile(path.join(dir, `${table}.json`), `${JSON.stringify(rows, null, 2)}\n`)
   }
 }
 
 const indexById = (rows) => new Map(rows.map((row) => [row.id, row]))
 
-const runInvariants = async (supabase) => {
+const runInvariants = async (supabase, leagueId) => {
+  const leagueFilter = leagueId ? { league_id: leagueId } : {}
   const [
     leagues,
     leagueSeasons,
@@ -167,27 +182,33 @@ const runInvariants = async (supabase) => {
     trades,
     tradeItems,
     draftPicks,
+    drafts,
     nominations,
   ] = await Promise.all([
-    fetchAll(supabase, 'leagues', 'id'),
-    fetchAll(supabase, 'league_seasons', 'id, league_id, is_current'),
-    fetchAll(supabase, 'league_members', 'id, league_id'),
-    fetchAll(supabase, 'roster_players', 'id, league_id, league_season_id, member_id, player_id'),
-    fetchAll(supabase, 'weekly_lineups', 'id, league_id, league_season_id, member_id, player_id'),
-    fetchAll(supabase, 'waiver_claims', 'id, league_id, league_season_id, member_id, player_id, drop_player_id, status, process_date'),
-    fetchAll(supabase, 'trades', 'id, league_id, league_season_id, proposer_member_id, recipient_member_id, status, veto_window_expires_at'),
+    leagueId ? fetchAll(supabase, 'leagues', 'id', { id: leagueId }) : fetchAll(supabase, 'leagues', 'id'),
+    fetchAll(supabase, 'league_seasons', 'id, league_id, is_current', leagueFilter),
+    fetchAll(supabase, 'league_members', 'id, league_id', leagueFilter),
+    fetchAll(supabase, 'roster_players', 'id, league_id, league_season_id, member_id, player_id', leagueFilter),
+    fetchAll(supabase, 'weekly_lineups', 'id, league_id, league_season_id, member_id, player_id', leagueFilter),
+    fetchAll(supabase, 'waiver_claims', 'id, league_id, league_season_id, member_id, player_id, drop_player_id, status, process_date', leagueFilter),
+    fetchAll(supabase, 'trades', 'id, league_id, league_season_id, proposer_member_id, recipient_member_id, status, veto_window_expires_at', leagueFilter),
     fetchAll(supabase, 'trade_items', 'id, trade_id, player_id, pick_id'),
-    fetchAll(supabase, 'draft_picks', 'id, league_id, current_owner_id, original_owner_id'),
-    fetchAll(supabase, 'nominations', 'id, status, countdown_expires_at'),
+    fetchAll(supabase, 'draft_picks', 'id, league_id, current_owner_id, original_owner_id', leagueFilter),
+    fetchAll(supabase, 'drafts', 'id, league_id', leagueFilter),
+    fetchAll(supabase, 'nominations', 'id, draft_id, status, countdown_expires_at'),
   ])
 
   const failures = []
   const leagueIds = new Set(leagues.map((row) => row.id))
   const seasonIds = indexById(leagueSeasons)
   const membersById = indexById(leagueMembers)
+  const draftIds = new Set(drafts.map((draft) => draft.id))
+  const tradeIds = new Set(trades.map((trade) => trade.id))
+  const scopedTradeItems = leagueId ? tradeItems.filter((item) => tradeIds.has(item.trade_id)) : tradeItems
+  const scopedNominations = leagueId ? nominations.filter((nomination) => draftIds.has(nomination.draft_id)) : nominations
 
   if (leagues.length === 0) {
-    failures.push('D.SET.2: no leagues exist in the test project')
+    failures.push(leagueId ? `D.SET.2: target league ${leagueId} does not exist` : 'D.SET.2: no leagues exist in the test project')
   }
 
   for (const league of leagues) {
@@ -233,15 +254,14 @@ const runInvariants = async (supabase) => {
   for (const row of waiverClaims) assertLeagueSeasonMember('waiver_claims', row, ['member_id'])
   for (const row of trades) assertLeagueSeasonMember('trades', row, ['proposer_member_id', 'recipient_member_id'])
 
-  const tradeIds = new Set(trades.map((trade) => trade.id))
   const pickIds = new Set(draftPicks.map((pick) => pick.id))
-  for (const item of tradeItems) {
+  for (const item of scopedTradeItems) {
     if (!tradeIds.has(item.trade_id)) failures.push(`I6: trade_items ${item.id} has orphan trade_id`)
     if (item.pick_id && !pickIds.has(item.pick_id)) failures.push(`I6: trade_items ${item.id} has orphan pick_id`)
   }
 
   const now = new Date()
-  for (const nomination of nominations) {
+  for (const nomination of scopedNominations) {
     if (
       nomination.status === 'open' &&
       nomination.countdown_expires_at &&
@@ -281,6 +301,29 @@ const postJson = async (url, body) => {
   return response.json()
 }
 
+const backendUrl = (env, pathname) => new URL(pathname, env.apiBaseUrl.endsWith('/') ? env.apiBaseUrl : `${env.apiBaseUrl}/`).toString()
+
+const backendJson = async (env, pathname, body = {}) => {
+  const response = await fetch(backendUrl(env, pathname), {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-e2e-secret': env.e2eAdminSecret,
+    },
+    body: JSON.stringify(body),
+  })
+  if (!response.ok) throw new Error(`${pathname} returned ${response.status}`)
+  return response.json()
+}
+
+const backendGetJson = async (env, pathname) => {
+  const response = await fetch(backendUrl(env, pathname), {
+    headers: { 'x-e2e-secret': env.e2eAdminSecret },
+  })
+  if (!response.ok) throw new Error(`${pathname} returned ${response.status}`)
+  return response.json()
+}
+
 const main = async () => {
   const args = parseArgs()
   if (!Number.isInteger(args.seasons) || args.seasons < 1) {
@@ -290,6 +333,11 @@ const main = async () => {
   process.env.FAKE_UPSTREAM_PORT = String(args.fakePort)
   await assertEnv(args.seasons)
   const env = resolvedEnv()
+  const state = await readState()
+  const targetLeagueId = process.env.E2E_LEAGUE_ID ?? state?.leagueId ?? null
+  if (env.backendTicksEnabled && !env.e2eAdminSecret) {
+    throw new Error('E2E_ENABLE_BACKEND_TICKS=1 requires E2E_ADMIN_SECRET')
+  }
 
   const startedAt = timestamp()
   const rows = []
@@ -297,6 +345,12 @@ const main = async () => {
     'This harness is integration/E2E only. It does not run unit tests.',
     `Configured API base: ${describeEndpoint(env.apiBaseUrl)}`,
     `Configured frontend: ${describeEndpoint(env.frontendUrl)}`,
+    targetLeagueId
+      ? `Target league: ${targetLeagueId}${state?.runId ? ` (seed run ${state.runId})` : ''}`
+      : 'No target league was configured; invariants will scan all leagues in the configured Supabase project.',
+    env.backendTicksEnabled
+      ? 'Backend tick endpoints enabled through E2E_ENABLE_BACKEND_TICKS=1.'
+      : 'Backend tick endpoints were not enabled; set E2E_ENABLE_BACKEND_TICKS=1 with a local backend to run them.',
     'Browser-driving scenarios must be run with agent-browser against the configured frontend before declaring the app dynasty-stable.',
   ]
 
@@ -328,15 +382,27 @@ const main = async () => {
     await fake.listen(args.fakePort)
 
     try {
+      if (env.backendTicksEnabled) {
+        await backendGetJson(env, '/e2e/status')
+      }
+
       for (let season = 1; season <= args.seasons; season += 1) {
         await mkdir(path.join(ARTIFACT_ROOT, `season-${season}`), { recursive: true })
         await postJson(`http://127.0.0.1:${args.fakePort}/admin/now`, {
           now: `${2026 + season}-10-20T12:00:00.000Z`,
         })
 
-        const failuresAtStart = await runInvariants(supabase)
-        await writeSnapshots(supabase, season)
-        const failuresAtEnd = await runInvariants(supabase)
+        if (env.backendTicksEnabled) {
+          await backendJson(env, '/e2e/sync-schedule')
+          await backendJson(env, '/e2e/sync-players')
+          await backendJson(env, '/e2e/live-poll', { date: `${2026 + season}-10-20T12:00:00.000Z` })
+          await backendJson(env, '/e2e/process-waivers')
+          await backendJson(env, '/e2e/generate-matchups', { force: false })
+        }
+
+        const failuresAtStart = await runInvariants(supabase, targetLeagueId)
+        await writeSnapshots(supabase, season, targetLeagueId)
+        const failuresAtEnd = await runInvariants(supabase, targetLeagueId)
         const failures = [...failuresAtStart, ...failuresAtEnd]
 
         if (failures.length > 0) {

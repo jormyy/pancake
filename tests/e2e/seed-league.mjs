@@ -6,6 +6,7 @@ import { resolvedEnv, requireEnv } from './env.mjs'
 
 const ROOT = process.cwd()
 const REPORT_PATH = path.join(ROOT, 'tests/e2e-seed-report.md')
+const STATE_PATH = path.join(ROOT, 'tests/e2e-state.json')
 
 const currentSeasonYear = (now = new Date()) => {
   return now.getUTCMonth() >= 9 ? now.getUTCFullYear() + 1 : now.getUTCFullYear()
@@ -27,6 +28,24 @@ const writeReport = async ({ runId, league, users, checks }) => {
     ...checks.map((check) => `| ${check.name} | ${check.status} | ${check.detail} |`),
   ]
   await writeFile(REPORT_PATH, `${lines.join('\n')}\n`)
+}
+
+const writeState = async ({ runId, league, users, password }) => {
+  const state = {
+    runId,
+    leagueId: league.id,
+    inviteCode: league.invite_code,
+    password,
+    users: users.map((user) => ({
+      id: user.id,
+      email: user.email,
+      username: user.username,
+      displayName: user.displayName,
+      teamName: user.teamName,
+    })),
+    createdAt: new Date().toISOString(),
+  }
+  await writeFile(STATE_PATH, `${JSON.stringify(state, null, 2)}\n`)
 }
 
 const createConfirmedUser = async (admin, user) => {
@@ -134,6 +153,9 @@ const main = async () => {
 
     const failures = checks.filter((check) => check.status !== 'PASS')
     await writeReport({ runId, league, users: createdUsers, checks })
+    if (failures.length === 0) {
+      await writeState({ runId, league, users: createdUsers, password })
+    }
     if (failures.length > 0) process.exitCode = 1
   } catch (error) {
     checks.push({ name: 'seed', status: 'ERROR', detail: error instanceof Error ? error.message : String(error) })

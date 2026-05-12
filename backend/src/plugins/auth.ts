@@ -38,6 +38,20 @@ export default async function authPlugin(app: FastifyInstance) {
         const pathname = request.url.split('?')[0]
         if (SKIP_ROUTES.has(pathname)) return
 
+        if (process.env.ENABLE_E2E_ROUTES === '1' && pathname.startsWith('/e2e/')) {
+            const expectedSecret = process.env.E2E_ADMIN_SECRET
+            const providedSecret = request.headers['x-e2e-secret']
+            if (
+                expectedSecret &&
+                typeof providedSecret === 'string' &&
+                providedSecret === expectedSecret
+            ) {
+                request.userId = process.env.E2E_USER_ID ?? 'e2e-admin'
+                return
+            }
+            throw new AppError('Missing or invalid E2E admin secret', 401)
+        }
+
         const authHeader = request.headers.authorization
         if (!authHeader?.startsWith('Bearer ')) {
             throw new AppError('Missing or invalid Authorization header', 401)

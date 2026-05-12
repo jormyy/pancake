@@ -39,6 +39,8 @@ export const resolvedEnv = () => ({
   anonKey: envValue('E2E_SUPABASE_ANON_KEY', 'EXPO_PUBLIC_SUPABASE_ANON_KEY'),
   apiBaseUrl: envValue('E2E_API_BASE_URL', 'EXPO_PUBLIC_API_URL') ?? 'http://127.0.0.1:3000',
   frontendUrl: envValue('E2E_FRONTEND_URL') ?? 'http://127.0.0.1:8081',
+  e2eAdminSecret: envValue('E2E_ADMIN_SECRET'),
+  backendTicksEnabled: envValue('E2E_ENABLE_BACKEND_TICKS') === '1',
 })
 
 export const requireEnv = (env, keys) => {

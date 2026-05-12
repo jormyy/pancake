@@ -15,6 +15,8 @@ export E2E_SUPABASE_URL=...
 export E2E_SUPABASE_SERVICE_ROLE_KEY=...
 export E2E_API_BASE_URL=http://127.0.0.1:3000
 export E2E_FRONTEND_URL=http://127.0.0.1:8081
+export E2E_ADMIN_SECRET=...
+export E2E_ENABLE_BACKEND_TICKS=1
 export NBA_CDN_BASE_URL=http://127.0.0.1:4555/static/json
 export SLEEPER_BASE_URL=http://127.0.0.1:4555/v1
 ```
@@ -26,10 +28,15 @@ npm run e2e:seed
 npm run e2e:soak
 ```
 
+`e2e:seed` writes `tests/e2e-state.json` with the isolated league and test users for the latest run. The file is ignored because it contains local test credentials. `e2e:soak` automatically scopes invariant checks and snapshots to that league, or you can override it with `E2E_LEAGUE_ID`.
+
+Backend tick routes are available only when the Fastify server is started with both `ENABLE_E2E_ROUTES=1` and `E2E_ADMIN_SECRET`. The soak runner calls them only when `E2E_ENABLE_BACKEND_TICKS=1`.
+
 Outputs:
 
 - `tests/e2e-report.md`
 - `tests/e2e-seed-report.md`
+- `tests/e2e-state.json`
 - `tests/snapshots/season-<N>/`
 - `tests/artifacts/season-<N>/`
 
