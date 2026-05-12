@@ -5,6 +5,7 @@ import { createClient } from '@supabase/supabase-js'
 import { createFakeUpstreamServer } from './fake-upstream.mjs'
 import { resolvedEnv, describeEndpoint } from './env.mjs'
 import { runBrowserSmoke } from './browser-smoke.mjs'
+import { runBrowserAuthScenario } from './browser-auth.mjs'
 
 const ROOT = process.cwd()
 const REPORT_PATH = path.join(ROOT, 'tests/e2e-report.md')
@@ -31,6 +32,7 @@ const parseArgs = () => {
     keepGoing: args.get('keep-going') === 'true' || process.env.E2E_KEEP_GOING === '1',
     fakePort: Number(args.get('fake-port') ?? process.env.FAKE_UPSTREAM_PORT ?? 4555),
     browser: args.get('browser') === 'true' || process.env.E2E_ENABLE_BROWSER === '1',
+    browserAuth: args.get('browser-auth') === 'true' || process.env.E2E_ENABLE_BROWSER_AUTH === '1',
     pickChain: args.get('pick-chain') === 'true' || process.env.E2E_ENABLE_PICK_CHAIN === '1',
   }
 }
@@ -524,6 +526,9 @@ const main = async () => {
     args.browser
       ? 'Browser smoke enabled through E2E_ENABLE_BROWSER=1.'
       : 'Browser-driving scenarios must be run with agent-browser against the configured frontend before declaring the app dynasty-stable.',
+    args.browserAuth
+      ? 'Browser auth scenario enabled through E2E_ENABLE_BROWSER_AUTH=1.'
+      : 'Browser auth/sign-out/session-persistence scenario disabled; set E2E_ENABLE_BROWSER_AUTH=1 to exercise D.SET.1.',
     args.pickChain
       ? 'Future-pick multi-hop scenario enabled through E2E_ENABLE_PICK_CHAIN=1.'
       : 'Future-pick multi-hop scenario disabled; set E2E_ENABLE_PICK_CHAIN=1 to exercise D.LONG.2.',
@@ -590,6 +595,9 @@ const main = async () => {
         if (args.browser) {
           await runBrowserSmoke({ season })
         }
+        if (args.browserAuth) {
+          await runBrowserAuthScenario({ season })
+        }
 
         const failuresAtStart = await runInvariants(supabase, targetLeagueId, scenarios)
         await writeSnapshots(supabase, season, targetLeagueId)
@@ -614,6 +622,7 @@ const main = async () => {
             notes: [
               seasonNotes,
               args.browser ? 'browser smoke passed' : null,
+              args.browserAuth ? 'browser auth scenario passed' : null,
               args.pickChain ? 'multi-hop future-pick owner resolved' : null,
             ].filter(Boolean).join('; '),
           })

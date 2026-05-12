@@ -17,6 +17,8 @@ export E2E_API_BASE_URL=http://127.0.0.1:3000
 export E2E_FRONTEND_URL=http://127.0.0.1:8081
 export E2E_ADMIN_SECRET=...
 export E2E_ENABLE_BACKEND_TICKS=1
+export E2E_ENABLE_BROWSER_AUTH=1
+export E2E_BROWSER_AUTH_USERS=10
 export E2E_ENABLE_PICK_CHAIN=1
 export NBA_CDN_BASE_URL=http://127.0.0.1:4555/static/json
 export SLEEPER_BASE_URL=http://127.0.0.1:4555/v1
@@ -37,12 +39,15 @@ Future-pick chain checks are available with `E2E_ENABLE_PICK_CHAIN=1` or `--pick
 
 Browser smoke runs are available through `npm run e2e:browser-smoke` or `E2E_ENABLE_BROWSER=1 npm run e2e:soak`. They use `agent-browser` with an isolated session, sign in as the seeded commissioner, visit the main tab screens, and write screenshots plus console/error logs under `tests/artifacts/season-<N>/smoke/`. This is a smoke sweep only; the full D.SET/D.SEA/D.X/D.LONG browser scenario loop remains separate work.
 
+Browser auth runs are available through `npm run e2e:browser-auth` or `E2E_ENABLE_BROWSER_AUTH=1 npm run e2e:soak`. They use isolated `agent-browser` sessions for seeded users, verify a protected route redirects to sign-in, sign in, verify profile/session persistence, sign out through the real profile UI, and verify the auth guard returns. Set `E2E_BROWSER_AUTH_USERS=10` to exercise all seeded users in parallel. This covers D.SET.1 only; it does not replace auction, trade, waiver, lineup, playoff, or rookie-draft browser scenarios.
+
 Outputs:
 
 - `tests/e2e-report.md`
 - `tests/e2e-seed-report.md`
 - `tests/e2e-state.json`
 - `tests/e2e-browser-report.md`
+- `tests/e2e-browser-auth-report.md`
 - `tests/artifacts/future-pick-chain.json`
 - `tests/snapshots/season-<N>/`
 - `tests/artifacts/season-<N>/`
