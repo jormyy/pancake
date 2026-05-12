@@ -1,36 +1,29 @@
 # Multi-Season E2E Soak Report
 
-- Status: FAIL
-- Started: 2026-05-12T04:24:13.552Z
-- Finished: 2026-05-12T04:24:25.885Z
-- Target seasons: 10
+- Status: ERROR
+- Started: 2026-05-12T04:33:23.562Z
+- Finished: 2026-05-12T04:33:26.616Z
+- Target seasons: 2
 - Fake upstream: http://127.0.0.1:4555
 
 ## Season Summary
 
 | Season | Status | Notes |
 | --- | --- | --- |
-| 1 | PASS | D.0 invariant boundary checks passed; full scenario/browser loop pending |
-| 2 | PASS | D.0 invariant boundary checks passed; full scenario/browser loop pending; snapshot row-count diff passed |
-| 3 | PASS | D.0 invariant boundary checks passed; full scenario/browser loop pending; snapshot row-count diff passed |
-| 4 | PASS | D.0 invariant boundary checks passed; full scenario/browser loop pending; snapshot row-count diff passed |
-| 5 | PASS | D.0 invariant boundary checks passed; full scenario/browser loop pending; snapshot row-count diff passed |
-| 6 | PASS | D.0 invariant boundary checks passed; full scenario/browser loop pending; snapshot row-count diff passed |
-| 7 | PASS | D.0 invariant boundary checks passed; full scenario/browser loop pending; snapshot row-count diff passed |
-| 8 | PASS | D.0 invariant boundary checks passed; full scenario/browser loop pending; snapshot row-count diff passed |
-| 9 | PASS | D.0 invariant boundary checks passed; full scenario/browser loop pending; snapshot row-count diff passed |
-| 10 | FAIL | D.LONG.7: harness RSS memory drifted 22% from season 1 (105.7 MiB) to season 10 (129.1 MiB); limit is 20% |
+| 0 | ERROR | /e2e/process-waivers returned 500 |
 
 ## Notes
 
 - This harness is integration/E2E only. It does not run unit tests.
-- Configured API base: <remote configured>
+- Configured API base: http://127.0.0.1:3101
 - Configured frontend: http://127.0.0.1:8081
 - Target league: fca79d8f-3cda-4fd8-adb9-83608b98a64a (seed run 20260512030735)
-- Backend tick endpoints were not enabled; set E2E_ENABLE_BACKEND_TICKS=1 with a local backend to run them.
+- Backend tick endpoints enabled through E2E_ENABLE_BACKEND_TICKS=1.
 - Browser-driving scenarios must be run with agent-browser against the configured frontend before declaring the app dynasty-stable.
 - Browser auth/sign-out/session-persistence scenario disabled; set E2E_ENABLE_BROWSER_AUTH=1 to exercise D.SET.1.
 - Future-pick multi-hop scenario disabled; set E2E_ENABLE_PICK_CHAIN=1 to exercise D.LONG.2.
 - Push notification intercept disabled; set E2E_ENABLE_PUSH=1 with backend EXPO_PUSH_URL pointed at the fake upstream to exercise the trade-notification slice of D.X.1.
+- Standings/champion history retention enabled through E2E_ENABLE_HISTORY=1.
 - Schema preflight passed: post-refactor RPCs and required columns are present.
-- Perf metrics written to tests/artifacts/perf-metrics.json.
+- CORS preflight check passed for the configured frontend origin.
+- The soak runner failed before completing the requested season loop.

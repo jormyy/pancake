@@ -39,6 +39,7 @@ const parseArgs = () => {
     browserAuth: args.get('browser-auth') === 'true' || process.env.E2E_ENABLE_BROWSER_AUTH === '1',
     pickChain: args.get('pick-chain') === 'true' || process.env.E2E_ENABLE_PICK_CHAIN === '1',
     push: args.get('push') === 'true' || process.env.E2E_ENABLE_PUSH === '1',
+    history: args.get('history') === 'true' || process.env.E2E_ENABLE_HISTORY === '1',
   }
 }
 
@@ -126,6 +127,9 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
     : args.browser || args.browserAuth ? 'PARTIAL' : 'PENDING'
   const pushStatus = args.push
     ? status === 'ERROR' || hasFailingNote(rows, /D\.X\.1|push|waiver/i) ? 'FAIL' : hasPassingNote(rows, /push notification intercepts passed/) ? 'PARTIAL' : 'PENDING'
+    : 'PENDING'
+  const historyStatus = args.history
+    ? hasFailingNote(rows, /D\.LONG\.3|D\.LONG\.4/) ? 'FAIL' : hasPassingNote(rows, /standings\/champion history retained/) ? 'PARTIAL' : 'PENDING'
     : 'PENDING'
 
   const coverage = [
@@ -236,8 +240,8 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
     },
     {
       requirement: 'D.LONG.3/D.LONG.4 standings/champion history',
-      status: 'PENDING',
-      evidence: 'No prior-season standings/champion rollup assertion implemented.',
+      status: historyStatus,
+      evidence: args.history ? 'History mode seeds deterministic completed-season standings/champion fixtures and verifies them after season resets.' : 'Enable E2E_ENABLE_HISTORY=1 with backend tick mode.',
     },
     {
       requirement: 'D.LONG.5 mid-life migration',
@@ -693,6 +697,172 @@ const assertFuturePickMaterializedInRookieDraft = async (supabase, env, leagueId
     `${JSON.stringify(scenario, null, 2)}\n`,
   )
   return artifact
+}
+
+const HISTORY_WEEK_NUMBER = 99
+
+const sortedLeagueMembers = async (supabase, leagueId) => {
+  const members = await fetchAll(supabase, 'league_members', 'id, team_name, joined_at', { league_id: leagueId })
+  members.sort((a, b) => {
+    const joined = String(a.joined_at).localeCompare(String(b.joined_at))
+    return joined === 0 ? String(a.id).localeCompare(String(b.id)) : joined
+  })
+  if (members.length < 2) throw new Error('D.LONG.3/D.LONG.4: history scenario requires at least two league members')
+  return members
+}
+
+const buildHistoryFixture = (leagueId, leagueSeason, members) => {
+  const offset = Number(leagueSeason.season_year) % members.length
+  const ranked = [...members.slice(offset), ...members.slice(0, offset)]
+  const standings = ranked.map((member, index) => ({
+    league_id: leagueId,
+    league_season_id: leagueSeason.id,
+    member_id: member.id,
+    week_number: HISTORY_WEEK_NUMBER,
+    wins: members.length - index,
+    losses: index,
+    ties: 0,
+    points_for: 1200 - index * 25,
+    points_against: 900 + index * 20,
+    max_possible_points: 1300 - index * 20,
+    waiver_priority: index + 1,
+  }))
+
+  return {
+    leagueId,
+    leagueSeasonId: leagueSeason.id,
+    seasonYear: leagueSeason.season_year,
+    weekNumber: HISTORY_WEEK_NUMBER,
+    standings,
+    championMemberId: ranked[0].id,
+    runnerUpMemberId: ranked[1].id,
+    championTeamName: ranked[0].team_name,
+  }
+}
+
+const assertStandingMatchesFixture = (actual, expected, failures) => {
+  for (const key of ['wins', 'losses', 'ties', 'waiver_priority']) {
+    if (Number(actual[key]) !== Number(expected[key])) {
+      failures.push(`D.LONG.3: standing ${actual.id} ${key}=${actual[key]}; expected ${expected[key]}`)
+    }
+  }
+  for (const key of ['points_for', 'points_against', 'max_possible_points']) {
+    if (Number(actual[key]) !== Number(expected[key])) {
+      failures.push(`D.LONG.3: standing ${actual.id} ${key}=${actual[key]}; expected ${expected[key]}`)
+    }
+  }
+}
+
+const ensureHistoryFixtureForSeason = async (supabase, leagueId, leagueSeason) => {
+  const members = await sortedLeagueMembers(supabase, leagueId)
+  const fixture = buildHistoryFixture(leagueId, leagueSeason, members)
+
+  const { data: existingStandings, error: standingsReadError } = await supabase
+    .from('standings')
+    .select('id, member_id, wins, losses, ties, points_for, points_against, max_possible_points, waiver_priority')
+    .eq('league_id', leagueId)
+    .eq('league_season_id', leagueSeason.id)
+    .eq('week_number', HISTORY_WEEK_NUMBER)
+  if (standingsReadError) throw new Error(`D.LONG.3 standings read: ${standingsReadError.message}`)
+
+  if ((existingStandings ?? []).length === 0) {
+    const { error } = await supabase.from('standings').insert(fixture.standings)
+    if (error) throw new Error(`D.LONG.3 standings fixture insert: ${error.message}`)
+  }
+
+  const { data: existingFinals, error: finalsReadError } = await supabase
+    .from('matchups')
+    .select('id, home_member_id, away_member_id, winner_member_id, is_finalized')
+    .eq('league_id', leagueId)
+    .eq('league_season_id', leagueSeason.id)
+    .eq('week_number', HISTORY_WEEK_NUMBER + 1)
+    .eq('matchup_type', 'playoff_final')
+  if (finalsReadError) throw new Error(`D.LONG.4 champion read: ${finalsReadError.message}`)
+
+  const matchingFinal = (existingFinals ?? []).find((row) => (
+    row.home_member_id === fixture.championMemberId &&
+    row.away_member_id === fixture.runnerUpMemberId
+  ))
+  if (!matchingFinal) {
+    const { data: finalRow, error } = await supabase
+      .from('matchups')
+      .insert({
+        league_id: leagueId,
+        league_season_id: leagueSeason.id,
+        week_number: HISTORY_WEEK_NUMBER + 1,
+        matchup_type: 'playoff_final',
+        home_member_id: fixture.championMemberId,
+        away_member_id: fixture.runnerUpMemberId,
+        home_points: 110,
+        away_points: 100,
+        home_max_possible_points: 120,
+        away_max_possible_points: 112,
+        winner_member_id: fixture.championMemberId,
+        is_finalized: true,
+        finalized_at: new Date().toISOString(),
+      })
+      .select('id')
+      .single()
+    if (error) throw new Error(`D.LONG.4 champion fixture insert: ${error.message}`)
+    fixture.championMatchupId = finalRow.id
+  } else {
+    fixture.championMatchupId = matchingFinal.id
+  }
+
+  return fixture
+}
+
+const assertHistoryRetained = async (supabase, fixtures, runSeason) => {
+  const failures = []
+  const retained = []
+  for (const fixture of fixtures) {
+    const { data: standings, error: standingsError } = await supabase
+      .from('standings')
+      .select('id, member_id, wins, losses, ties, points_for, points_against, max_possible_points, waiver_priority')
+      .eq('league_id', fixture.leagueId)
+      .eq('league_season_id', fixture.leagueSeasonId)
+      .eq('week_number', fixture.weekNumber)
+    if (standingsError) {
+      failures.push(`D.LONG.3: standings history query failed for ${fixture.seasonYear}: ${standingsError.message}`)
+      continue
+    }
+
+    const byMember = new Map((standings ?? []).map((row) => [row.member_id, row]))
+    for (const expected of fixture.standings) {
+      const actual = byMember.get(expected.member_id)
+      if (!actual) {
+        failures.push(`D.LONG.3: season ${fixture.seasonYear} missing historical standing for member ${expected.member_id}`)
+        continue
+      }
+      assertStandingMatchesFixture(actual, expected, failures)
+    }
+
+    const { data: final, error: finalError } = await supabase
+      .from('matchups')
+      .select('id, winner_member_id, is_finalized')
+      .eq('id', fixture.championMatchupId)
+      .single()
+    if (finalError || !final) {
+      failures.push(`D.LONG.4: champion matchup ${fixture.championMatchupId} is not queryable: ${finalError?.message ?? 'missing row'}`)
+    } else if (!final.is_finalized || final.winner_member_id !== fixture.championMemberId) {
+      failures.push(`D.LONG.4: champion history for ${fixture.seasonYear} resolved to ${final.winner_member_id}; expected ${fixture.championMemberId}`)
+    }
+
+    retained.push({
+      seasonYear: fixture.seasonYear,
+      leagueSeasonId: fixture.leagueSeasonId,
+      standingsRows: standings?.length ?? 0,
+      championMatchupId: fixture.championMatchupId,
+      championMemberId: fixture.championMemberId,
+      championTeamName: fixture.championTeamName,
+    })
+  }
+
+  await writeFile(
+    path.join(ARTIFACT_ROOT, `season-${runSeason}`, 'history-retention.json'),
+    `${JSON.stringify({ runSeason, retained }, null, 2)}\n`,
+  )
+  return failures
 }
 
 const runInvariants = async (supabase, leagueId, scenarios = {}) => {
@@ -1156,6 +1326,9 @@ const main = async () => {
   if (args.push && (!env.backendTicksEnabled || !targetLeagueId)) {
     throw new Error('E2E_ENABLE_PUSH=1 requires E2E_ENABLE_BACKEND_TICKS=1 and a seeded target league')
   }
+  if (args.history && (!env.backendTicksEnabled || !targetLeagueId)) {
+    throw new Error('E2E_ENABLE_HISTORY=1 requires E2E_ENABLE_BACKEND_TICKS=1 and a seeded target league')
+  }
 
   const startedAt = timestamp()
   const rows = []
@@ -1181,6 +1354,9 @@ const main = async () => {
     args.push
       ? 'Push notification intercept enabled through E2E_ENABLE_PUSH=1.'
       : 'Push notification intercept disabled; set E2E_ENABLE_PUSH=1 with backend EXPO_PUSH_URL pointed at the fake upstream to exercise the trade-notification slice of D.X.1.',
+    args.history
+      ? 'Standings/champion history retention enabled through E2E_ENABLE_HISTORY=1.'
+      : 'Standings/champion history retention disabled; set E2E_ENABLE_HISTORY=1 with backend ticks to exercise the D.LONG.3/D.LONG.4 fixture-retention slice.',
   ]
 
   try {
@@ -1221,6 +1397,9 @@ const main = async () => {
     }
     notes.push('Schema preflight passed: post-refactor RPCs and required columns are present.')
     const scenarios = {}
+    if (args.history) {
+      scenarios.historyFixtures = []
+    }
     if (args.pickChain) {
       scenarios.futurePickChain = await setupFuturePickChain(supabase, targetLeagueId)
       await mkdir(ARTIFACT_ROOT, { recursive: true })
@@ -1288,9 +1467,27 @@ const main = async () => {
           : []
         const failuresAfterReset = []
         let rookieDraftPickChainCheck = null
+        let historyCheck = null
         if (env.backendTicksEnabled) {
+          if (args.history) {
+            const currentSeasonForHistory = await fetchSingle(
+              supabase,
+              'league_seasons',
+              'id, season_year',
+              { league_id: targetLeagueId, is_current: true },
+            )
+            const fixture = await ensureHistoryFixtureForSeason(supabase, targetLeagueId, currentSeasonForHistory)
+            if (!scenarios.historyFixtures.some((existing) => existing.leagueSeasonId === fixture.leagueSeasonId)) {
+              scenarios.historyFixtures.push(fixture)
+            }
+          }
           await backendJson(env, '/e2e/advance-season', { leagueId: targetLeagueId })
           failuresAfterReset.push(...await runInvariants(supabase, targetLeagueId, scenarios))
+          if (args.history) {
+            const historyFailures = await assertHistoryRetained(supabase, scenarios.historyFixtures, season)
+            failuresAfterReset.push(...historyFailures)
+            if (historyFailures.length === 0) historyCheck = true
+          }
           if (scenarios.futurePickChain) {
             rookieDraftPickChainCheck = await assertFuturePickMaterializedInRookieDraft(
               supabase,
@@ -1345,6 +1542,7 @@ const main = async () => {
               env.backendTicksEnabled ? 'matchup generation idempotency passed' : null,
               args.pickChain ? 'multi-hop future-pick owner resolved' : null,
               rookieDraftPickChainCheck ? 'rookie draft traded-pick slot resolved' : null,
+              historyCheck ? 'standings/champion history retained' : null,
               hadPreviousSnapshot ? 'snapshot row-count diff passed' : null,
               args.seasons >= 10 && season >= 10 ? 'runtime drift check passed' : null,
               args.seasons >= 10 && season >= 10 ? 'harness memory drift check passed' : null,
@@ -1387,7 +1585,10 @@ const main = async () => {
   } catch (error) {
     const finishedAt = timestamp()
     const errorRows = [{ season: 0, status: 'ERROR', notes: errorMessage(error) }]
-    const errorNotes = ['The soak runner failed before completing the requested season loop.']
+    const errorNotes = [
+      ...notes,
+      'The soak runner failed before completing the requested season loop.',
+    ]
     await writeReport({
       status: 'ERROR',
       startedAt,
