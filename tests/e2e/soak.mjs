@@ -14,6 +14,7 @@ const SNAPSHOT_ROOT = path.join(ROOT, 'tests/snapshots')
 const ARTIFACT_ROOT = path.join(ROOT, 'tests/artifacts')
 const PERF_METRICS_PATH = path.join(ARTIFACT_ROOT, 'perf-metrics.json')
 const PERF_DRIFT_LIMIT = Number(process.env.E2E_PERF_DRIFT_LIMIT ?? 1.2)
+const MEMORY_DRIFT_LIMIT = Number(process.env.E2E_MEMORY_DRIFT_LIMIT ?? 1.2)
 
 const SNAPSHOT_TABLES = [
   'roster_players',
@@ -44,6 +45,17 @@ const timestamp = () => new Date().toISOString()
 const nowMs = () => Number(process.hrtime.bigint()) / 1_000_000
 
 const roundedMs = (value) => Math.round(value)
+const bytesToMiB = (value) => Math.round((value / 1024 / 1024) * 10) / 10
+
+const currentMemory = () => {
+  const { rss, heapUsed, external, arrayBuffers } = process.memoryUsage()
+  return {
+    rssBytes: rss,
+    heapUsedBytes: heapUsed,
+    externalBytes: external,
+    arrayBuffersBytes: arrayBuffers,
+  }
+}
 
 const readState = async () => {
   try {
@@ -240,6 +252,33 @@ const validatePerfDrift = (metrics, totalSeasons) => {
     ]
   }
   return []
+}
+
+const validateMemoryDrift = (metrics, totalSeasons) => {
+  if (totalSeasons < 10 || metrics.length < 10) return []
+  if (!Number.isFinite(MEMORY_DRIFT_LIMIT) || MEMORY_DRIFT_LIMIT <= 1) {
+    return [`D.LONG.7: invalid E2E_MEMORY_DRIFT_LIMIT ${process.env.E2E_MEMORY_DRIFT_LIMIT}`]
+  }
+
+  const baseline = metrics[0]?.memory
+  const latestMetric = metrics.at(-1)
+  const latest = latestMetric?.memory
+  if (!baseline || !latest) return []
+
+  const failures = []
+  for (const [label, key] of [['RSS', 'rssBytes'], ['heap', 'heapUsedBytes']]) {
+    const before = baseline[key]
+    const after = latest[key]
+    if (!before || !after) continue
+    const maxAllowed = before * MEMORY_DRIFT_LIMIT
+    if (after > maxAllowed) {
+      const percent = Math.round(((after - before) / before) * 100)
+      failures.push(
+        `D.LONG.7: harness ${label} memory drifted ${percent}% from season 1 (${bytesToMiB(before)} MiB) to season ${latestMetric.season} (${bytesToMiB(after)} MiB); limit is ${Math.round((MEMORY_DRIFT_LIMIT - 1) * 100)}%`,
+      )
+    }
+  }
+  return failures
 }
 
 const fetchSingle = async (supabase, table, select, filters) => {
@@ -1057,13 +1096,15 @@ const main = async () => {
         })
         previousSnapshot = snapshot
         const durationMs = nowMs() - seasonStartedMs
-        perfMetrics.push({ season, durationMs: roundedMs(durationMs) })
+        perfMetrics.push({ season, durationMs: roundedMs(durationMs), memory: currentMemory() })
         await mkdir(ARTIFACT_ROOT, { recursive: true })
         await writeFile(PERF_METRICS_PATH, `${JSON.stringify({
-          driftLimit: PERF_DRIFT_LIMIT,
+          runtimeDriftLimit: PERF_DRIFT_LIMIT,
+          memoryDriftLimit: MEMORY_DRIFT_LIMIT,
           metrics: perfMetrics,
         }, null, 2)}\n`)
         const perfFailures = validatePerfDrift(perfMetrics, args.seasons)
+        const memoryFailures = validateMemoryDrift(perfMetrics, args.seasons)
         const failures = [
           ...failuresAtStart,
           ...failuresAtEnd,
@@ -1071,6 +1112,7 @@ const main = async () => {
           ...failuresAfterReset,
           ...snapshotFailures,
           ...perfFailures,
+          ...memoryFailures,
         ]
 
         if (failures.length > 0) {
@@ -1093,6 +1135,7 @@ const main = async () => {
               rookieDraftPickChainCheck ? 'rookie draft traded-pick slot resolved' : null,
               hadPreviousSnapshot ? 'snapshot row-count diff passed' : null,
               args.seasons >= 10 && season >= 10 ? 'runtime drift check passed' : null,
+              args.seasons >= 10 && season >= 10 ? 'harness memory drift check passed' : null,
             ].filter(Boolean).join('; '),
           })
         }

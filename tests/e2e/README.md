@@ -22,6 +22,7 @@ export E2E_BROWSER_AUTH_USERS=10
 export E2E_ENABLE_PICK_CHAIN=1
 export E2E_ENABLE_PUSH=1
 export E2E_PERF_DRIFT_LIMIT=1.2
+export E2E_MEMORY_DRIFT_LIMIT=1.2
 export NBA_CDN_BASE_URL=http://127.0.0.1:4555/static/json
 export SLEEPER_BASE_URL=http://127.0.0.1:4555/v1
 export EXPO_PUSH_URL=http://127.0.0.1:4555/--/api/v2/push/send
@@ -44,7 +45,7 @@ When backend ticks are enabled, the runner also checks D.SEA.1 matchup generatio
 
 Snapshots are written under `tests/snapshots/season-<N>/` after the season boundary checks. When backend ticks are enabled, snapshots are written after the real season reset. Each snapshot includes a `summary.json`, and the runner fails D.SEA.7 if any dynasty-critical table count shrinks across seasons or if `draft_picks`, `league_seasons`, or `waiver_priorities` fail to grow after real resets.
 
-Performance metrics are written to `tests/artifacts/perf-metrics.json`. Runs shorter than 10 seasons record timings only. Runs of 10+ seasons fail D.LONG.6 if the latest season runtime is more than `E2E_PERF_DRIFT_LIMIT` above season 1; the default is `1.2` for the requested 20% drift ceiling.
+Performance metrics are written to `tests/artifacts/perf-metrics.json`. Runs shorter than 10 seasons record timings and harness memory only. Runs of 10+ seasons fail D.LONG.6 if the latest season runtime is more than `E2E_PERF_DRIFT_LIMIT` above season 1; the default is `1.2` for the requested 20% drift ceiling. Runs of 10+ seasons also fail D.LONG.7 if harness RSS or heap memory exceeds `E2E_MEMORY_DRIFT_LIMIT` above season 1; the default is also `1.2`.
 
 Future-pick chain checks are available with `E2E_ENABLE_PICK_CHAIN=1` or `--pick-chain=true`. The runner creates three accepted pick-only trades for one five-years-out round-one pick, persists the scenario metadata to `tests/artifacts/future-pick-chain.json`, and checks at every season boundary that the exact `draft_picks.current_owner_id` remains the final multi-hop owner. Once the target pick reaches its draft year during a backend-tick run, the runner starts the real rookie draft and verifies the linked `snake_draft_picks.draft_pick_id` slot belongs to the final traded owner; the slot artifact is written to `tests/artifacts/season-<N>/rookie-draft-pick-chain.json`. This covers D.LONG.1/D.LONG.2 ownership-drift invariants through the real `accept_trade_atomic` and rookie-draft seeding paths; it is not a replacement for the full browser trade or rookie-draft workflow.
 
