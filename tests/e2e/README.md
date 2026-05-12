@@ -35,6 +35,8 @@ npm run e2e:soak
 
 Backend tick routes are available only when the Fastify server is started with both `ENABLE_E2E_ROUTES=1` and `E2E_ADMIN_SECRET`. The soak runner calls them only when `E2E_ENABLE_BACKEND_TICKS=1`. In that mode it runs sync/admin ticks and calls the real season-reset path for the target league at each season boundary, then re-checks invariants including the rolling five-year pick-bank horizon.
 
+Snapshots are written under `tests/snapshots/season-<N>/` after the season boundary checks. When backend ticks are enabled, snapshots are written after the real season reset. Each snapshot includes a `summary.json`, and the runner fails D.SEA.7 if any dynasty-critical table count shrinks across seasons or if `draft_picks`, `league_seasons`, or `waiver_priorities` fail to grow after real resets.
+
 Future-pick chain checks are available with `E2E_ENABLE_PICK_CHAIN=1` or `--pick-chain=true`. The runner creates three accepted pick-only trades for one five-years-out round-one pick, persists the scenario metadata to `tests/artifacts/future-pick-chain.json`, and checks at every season boundary that the exact `draft_picks.current_owner_id` remains the final multi-hop owner. This covers the D.LONG.2 ownership-drift invariant through the real `accept_trade_atomic` path; it is not a replacement for the full browser trade workflow.
 
 Browser smoke runs are available through `npm run e2e:browser-smoke` or `E2E_ENABLE_BROWSER=1 npm run e2e:soak`. They use `agent-browser` with an isolated session, sign in as the seeded commissioner, visit the main tab screens, and write screenshots plus console/error logs under `tests/artifacts/season-<N>/smoke/`. This is a smoke sweep only; the full D.SET/D.SEA/D.X/D.LONG browser scenario loop remains separate work.
@@ -50,6 +52,7 @@ Outputs:
 - `tests/e2e-browser-auth-report.md`
 - `tests/artifacts/future-pick-chain.json`
 - `tests/snapshots/season-<N>/`
+- `tests/snapshots/season-<N>/summary.json`
 - `tests/artifacts/season-<N>/`
 
 The runner fails closed when the real test Supabase/backend/frontend environment is missing or when the linked Supabase project is missing required post-refactor RPCs/columns. A `PARTIAL` report means only the fake-upstream and database invariant boundary checks ran; browser-driven season scenarios still need the `agent-browser` harness before this can count as a passing dynasty soak.

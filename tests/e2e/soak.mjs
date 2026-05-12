@@ -163,17 +163,58 @@ const fetchAll = async (supabase, table, select = '*', filters = {}) => {
   return rows
 }
 
+const summarizeSnapshot = (tableRows) => {
+  const summary = { counts: {} }
+  for (const [table, rows] of Object.entries(tableRows)) {
+    summary.counts[table] = rows.length
+  }
+  return summary
+}
+
 const writeSnapshots = async (supabase, season, leagueId) => {
   const dir = path.join(SNAPSHOT_ROOT, `season-${season}`)
   await mkdir(dir, { recursive: true })
 
+  const tableRows = {}
   for (const table of SNAPSHOT_TABLES) {
     const rows = await fetchAll(supabase, table, '*', leagueId ? { league_id: leagueId } : {})
+    tableRows[table] = rows
     await writeFile(path.join(dir, `${table}.json`), `${JSON.stringify(rows, null, 2)}\n`)
   }
+  const summary = summarizeSnapshot(tableRows)
+  await writeFile(path.join(dir, 'summary.json'), `${JSON.stringify(summary, null, 2)}\n`)
+  return summary
 }
 
 const indexById = (rows) => new Map(rows.map((row) => [row.id, row]))
+
+const RESET_GROWTH_TABLES = [
+  'draft_picks',
+  'league_seasons',
+  'waiver_priorities',
+]
+
+const validateSnapshotProgress = (previous, current, { expectResetGrowth = false } = {}) => {
+  if (!previous) return []
+  const failures = []
+  for (const table of SNAPSHOT_TABLES) {
+    const before = previous.counts[table] ?? 0
+    const after = current.counts[table] ?? 0
+    if (after < before) {
+      failures.push(`D.SEA.7: ${table} row count shrank from ${before} to ${after}`)
+    }
+  }
+  if (expectResetGrowth) {
+    for (const table of RESET_GROWTH_TABLES) {
+      const before = previous.counts[table] ?? 0
+      const after = current.counts[table] ?? 0
+      if (after <= before) {
+        failures.push(`D.SEA.7: ${table} row count did not grow across season reset (${before} -> ${after})`)
+      }
+    }
+  }
+  return failures
+}
 
 const fetchSingle = async (supabase, table, select, filters) => {
   let query = supabase.from(table).select(select)
@@ -578,6 +619,7 @@ const main = async () => {
         await backendGetJson(env, '/e2e/status')
       }
 
+      let previousSnapshot = null
       for (let season = 1; season <= args.seasons; season += 1) {
         await mkdir(path.join(ARTIFACT_ROOT, `season-${season}`), { recursive: true })
         await postJson(`http://127.0.0.1:${args.fakePort}/admin/now`, {
@@ -600,14 +642,19 @@ const main = async () => {
         }
 
         const failuresAtStart = await runInvariants(supabase, targetLeagueId, scenarios)
-        await writeSnapshots(supabase, season, targetLeagueId)
         const failuresAtEnd = await runInvariants(supabase, targetLeagueId, scenarios)
         const failuresAfterReset = []
         if (env.backendTicksEnabled) {
           await backendJson(env, '/e2e/advance-season', { leagueId: targetLeagueId })
           failuresAfterReset.push(...await runInvariants(supabase, targetLeagueId, scenarios))
         }
-        const failures = [...failuresAtStart, ...failuresAtEnd, ...failuresAfterReset]
+        const snapshot = await writeSnapshots(supabase, season, targetLeagueId)
+        const hadPreviousSnapshot = previousSnapshot != null
+        const snapshotFailures = validateSnapshotProgress(previousSnapshot, snapshot, {
+          expectResetGrowth: env.backendTicksEnabled,
+        })
+        previousSnapshot = snapshot
+        const failures = [...failuresAtStart, ...failuresAtEnd, ...failuresAfterReset, ...snapshotFailures]
 
         if (failures.length > 0) {
           rows.push({ season, status: 'FAIL', notes: failures.join('; ') })
@@ -624,6 +671,7 @@ const main = async () => {
               args.browser ? 'browser smoke passed' : null,
               args.browserAuth ? 'browser auth scenario passed' : null,
               args.pickChain ? 'multi-hop future-pick owner resolved' : null,
+              hadPreviousSnapshot ? 'snapshot row-count diff passed' : null,
             ].filter(Boolean).join('; '),
           })
         }
