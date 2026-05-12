@@ -12,6 +12,7 @@ import { runBrowserAuthScenario } from './browser-auth.mjs'
 import { runBrowserPerfSmoke } from './browser-perf-smoke.mjs'
 import { runBrowserGameplayScenario } from './browser-gameplay.mjs'
 import { runBrowserLineupAutoSetScenario, runBrowserLineupLockedScenario, runBrowserLineupScenario } from './browser-lineup-gameplay.mjs'
+import { runBrowserRookieDraftAutoPickScenario } from './browser-rookie-draft-gameplay.mjs'
 import { runBrowserWaiverDropScenario, runBrowserWaiverIrBlockScenario, runBrowserWaiverScenario } from './browser-waiver-gameplay.mjs'
 import {
   runBrowserTradeScenario,
@@ -67,6 +68,7 @@ const parseArgs = () => {
     browserLineup: args.get('browser-lineup') === 'true' || process.env.E2E_ENABLE_BROWSER_LINEUP === '1',
     browserLineupAutoSet: args.get('browser-lineup-auto-set') === 'true' || process.env.E2E_ENABLE_BROWSER_LINEUP_AUTO_SET === '1',
     browserLineupLocked: args.get('browser-lineup-locked') === 'true' || process.env.E2E_ENABLE_BROWSER_LINEUP_LOCKED === '1',
+    browserRookieDraft: args.get('browser-rookie-draft') === 'true' || process.env.E2E_ENABLE_BROWSER_ROOKIE_DRAFT === '1',
     browserWaiver: args.get('browser-waiver') === 'true' || process.env.E2E_ENABLE_BROWSER_WAIVER === '1',
     browserWaiverDrop: args.get('browser-waiver-drop') === 'true' || process.env.E2E_ENABLE_BROWSER_WAIVER_DROP === '1',
     browserWaiverIrBlock: args.get('browser-waiver-ir-block') === 'true' || process.env.E2E_ENABLE_BROWSER_WAIVER_IR_BLOCK === '1',
@@ -277,6 +279,9 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
   const rookieDraftStatus = args.rookieDraft
     ? hasFailingNote(rows, /D\.SEA\.5/) ? 'FAIL' : hasPassingNote(rows, /rookie draft auto-pick passed/) ? 'PARTIAL' : 'PENDING'
     : pickChainStatus
+  const browserRookieDraftStatus = args.browserRookieDraft
+    ? hasFailingNote(rows, /browser rookie draft/) ? 'FAIL' : hasPassingNote(rows, /browser rookie draft auto-pick passed/) ? 'PARTIAL' : 'PENDING'
+    : 'PENDING'
 
   const coverage = [
     {
@@ -356,8 +361,8 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
     },
     {
       requirement: 'D.SEA.5 rookie draft/traded picks',
-      status: rookieDraftStatus,
-      evidence: args.rookieDraft ? 'Rookie-draft mode starts a disposable offseason draft through the real backend route, verifies inverse-standings snake order, auto-pick lowest nba_draft_number, exact pick asset usage, roster insert, and already-rostered rejection.' : args.pickChain ? 'Pick-chain mode verifies multi-hop future-pick ownership every season and materializes the traded pick in the target rookie draft year.' : 'Enable E2E_ENABLE_ROOKIE_DRAFT=1 for rookie-draft auto-pick/order coverage or E2E_ENABLE_PICK_CHAIN=1 for long-horizon traded-pick materialization.',
+      status: args.browserRookieDraft ? browserRookieDraftStatus : rookieDraftStatus,
+      evidence: args.browserRookieDraft ? 'Browser rookie-draft mode creates an isolated offseason league, opens the real rookie draft room as the first pick owner, lets the 30s timer expire, and verifies the browser-triggered auto-pick, roster insert, and linked pick asset usage.' : args.rookieDraft ? 'Rookie-draft mode starts a disposable offseason draft through the real backend route, verifies inverse-standings snake order, auto-pick lowest nba_draft_number, exact pick asset usage, roster insert, and already-rostered rejection.' : args.pickChain ? 'Pick-chain mode verifies multi-hop future-pick ownership every season and materializes the traded pick in the target rookie draft year.' : 'Enable E2E_ENABLE_BROWSER_ROOKIE_DRAFT=1 for browser timer auto-pick coverage, E2E_ENABLE_ROOKIE_DRAFT=1 for backend rookie-draft auto-pick/order coverage, or E2E_ENABLE_PICK_CHAIN=1 for long-horizon traded-pick materialization.',
     },
     {
       requirement: 'D.SEA.6 season reset',
@@ -4249,6 +4254,9 @@ const main = async () => {
     args.browserLineupLocked
       ? 'Browser lineup locked-player scenario enabled through E2E_ENABLE_BROWSER_LINEUP_LOCKED=1.'
       : 'Browser lineup locked-player scenario disabled; set E2E_ENABLE_BROWSER_LINEUP_LOCKED=1 to exercise locked-player move blocking.',
+    args.browserRookieDraft
+      ? 'Browser rookie draft auto-pick scenario enabled through E2E_ENABLE_BROWSER_ROOKIE_DRAFT=1.'
+      : 'Browser rookie draft auto-pick scenario disabled; set E2E_ENABLE_BROWSER_ROOKIE_DRAFT=1 to exercise the D.SEA.5 30-second timer slice.',
     args.browserWaiver
       ? 'Browser waiver scenario enabled through E2E_ENABLE_BROWSER_WAIVER=1.'
       : 'Browser waiver scenario disabled; set E2E_ENABLE_BROWSER_WAIVER=1 to exercise the D.SEA.2 waiver claim UI slice.',
@@ -4453,6 +4461,10 @@ const main = async () => {
         let browserLineupLockedCheck = null
         if (args.browserLineupLocked && season === 1) {
           browserLineupLockedCheck = await runBrowserLineupLockedScenario({ season })
+        }
+        let browserRookieDraftCheck = null
+        if (args.browserRookieDraft && season === 1) {
+          browserRookieDraftCheck = await runBrowserRookieDraftAutoPickScenario({ season })
         }
         let browserWaiverCheck = null
         if (args.browserWaiver && season === 1) {
@@ -4754,6 +4766,7 @@ const main = async () => {
               browserLineupCheck ? 'browser lineup gameplay passed' : null,
               browserLineupAutoSetCheck ? 'browser lineup auto-set gameplay passed' : null,
               browserLineupLockedCheck ? 'browser lineup locked gameplay passed' : null,
+              browserRookieDraftCheck ? 'browser rookie draft auto-pick passed' : null,
               browserWaiverCheck ? 'browser waiver claim gameplay passed' : null,
               browserWaiverDropCheck ? 'browser waiver drop claim gameplay passed' : null,
               browserWaiverIrBlockCheck ? 'browser waiver IR block gameplay passed' : null,

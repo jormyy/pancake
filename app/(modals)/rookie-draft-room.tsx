@@ -31,7 +31,7 @@ import { toggleTaxi, dropPlayer, getRoster } from '@/lib/roster'
 import { getPositionColor } from "@/constants/positions"
 import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 
-const PICK_TIMEOUT_SEC = 90
+const PICK_TIMEOUT_SEC = 30
 
 export default function RookieDraftRoomScreen() {
     const { draftId } = useLocalSearchParams<{ draftId: string }>()
