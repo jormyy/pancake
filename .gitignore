@@ -45,6 +45,7 @@ tests/e2e-browser-auth-report.md
 tests/e2e-browser-perf-report.md
 tests/e2e-browser-gameplay-report.md
 tests/e2e-browser-waiver-report.md
+tests/e2e-browser-trade-report.md
 tests/e2e-state.json
 
 app-example

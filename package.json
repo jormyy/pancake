@@ -22,6 +22,7 @@
     "e2e:browser-perf": "node tests/e2e/browser-perf-smoke.mjs",
     "e2e:browser-gameplay": "node tests/e2e/browser-gameplay.mjs",
     "e2e:browser-waiver": "node tests/e2e/browser-waiver-gameplay.mjs",
+    "e2e:browser-trade": "node tests/e2e/browser-trade-gameplay.mjs",
     "e2e:fake-upstream": "node tests/e2e/fake-upstream.mjs"
   },
   "dependencies": {

@@ -30,11 +30,13 @@ function PlayerRow({
     onToggle: () => void
 }) {
     const p = player.players
+    const action = selected ? 'Remove' : 'Select'
     return (
         <Pressable
             style={[styles.playerRow, selected && styles.playerRowSelected]}
             onPress={onToggle}
-
+            accessibilityRole="button"
+            accessibilityLabel={`${action} ${p.display_name} for trade`}
         >
             <Avatar
                 name={p.display_name}
@@ -68,11 +70,13 @@ function PickRow({
     selected: boolean
     onToggle: () => void
 }) {
+    const action = selected ? 'Remove' : 'Select'
     return (
         <Pressable
             style={[styles.playerRow, selected && styles.playerRowSelected]}
             onPress={onToggle}
-
+            accessibilityRole="button"
+            accessibilityLabel={`${action} ${pick.seasonYear} round ${pick.round} pick for trade`}
         >
             <View style={[styles.pickCircle, selected && styles.pickCircleSelected]}>
                 <Text style={styles.pickCircleText}>{yearShort(pick.seasonYear)}</Text>
@@ -247,7 +251,12 @@ export default function ProposeTradeScreen() {
         <SafeAreaView style={styles.container} edges={['top']}>
             {/* Header */}
             <View style={styles.header}>
-                <Pressable onPress={() => back()} style={styles.cancelBtn}>
+                <Pressable
+                    onPress={() => back()}
+                    style={styles.cancelBtn}
+                    accessibilityRole="button"
+                    accessibilityLabel="Cancel trade proposal"
+                >
                     <Text style={styles.cancelBtnText}>Cancel</Text>
                 </Pressable>
                 <Text style={styles.headerTitle}>Propose Trade</Text>
@@ -255,6 +264,8 @@ export default function ProposeTradeScreen() {
                     onPress={handleSubmit}
                     style={[styles.submitBtn, !canSubmit && styles.submitBtnDisabled]}
                     disabled={!canSubmit}
+                    accessibilityRole="button"
+                    accessibilityLabel="Send trade proposal"
                 >
                     {submitting ? (
                         <ActivityIndicator size="small" color={colors.textWhite} />
@@ -282,6 +293,8 @@ export default function ProposeTradeScreen() {
                                     key={m.id}
                                     style={[styles.teamChip, active && styles.teamChipActive]}
                                     onPress={() => setSelectedRecipientId(m.id)}
+                                    accessibilityRole="button"
+                                    accessibilityLabel={`Trade with ${m.team_name ?? 'Unnamed team'}`}
                                 >
                                     <Text
                                         style={[
