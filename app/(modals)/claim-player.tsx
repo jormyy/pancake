@@ -123,7 +123,12 @@ export default function ClaimPlayerScreen() {
                                 </View>
                             ))}
                         </View>
-                        <Pressable style={styles.blockButton} onPress={() => back()}>
+                        <Pressable
+                            style={styles.blockButton}
+                            onPress={() => back()}
+                            accessibilityRole="button"
+                            accessibilityLabel="Go to roster"
+                        >
                             <Text style={styles.blockButtonText}>Go to Roster</Text>
                         </Pressable>
                     </>

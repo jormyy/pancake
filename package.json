@@ -23,6 +23,7 @@
     "e2e:browser-gameplay": "node tests/e2e/browser-gameplay.mjs",
     "e2e:browser-waiver": "node tests/e2e/browser-waiver-gameplay.mjs",
     "e2e:browser-waiver-drop": "node tests/e2e/browser-waiver-gameplay.mjs --drop",
+    "e2e:browser-waiver-ir-block": "node tests/e2e/browser-waiver-gameplay.mjs --ir-block",
     "e2e:browser-trade": "node tests/e2e/browser-trade-gameplay.mjs",
     "e2e:browser-trade-accept": "node tests/e2e/browser-trade-gameplay.mjs --accept",
     "e2e:browser-trade-terminal": "node tests/e2e/browser-trade-gameplay.mjs --terminal",

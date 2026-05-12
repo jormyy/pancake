@@ -11,6 +11,7 @@ const ROOT = process.cwd()
 const ARTIFACT_ROOT = path.join(ROOT, 'tests/artifacts')
 const REPORT_PATH = path.join(ROOT, 'tests/e2e-browser-waiver-report.md')
 const DROP_REPORT_PATH = path.join(ROOT, 'tests/e2e-browser-waiver-drop-report.md')
+const IR_BLOCK_REPORT_PATH = path.join(ROOT, 'tests/e2e-browser-waiver-ir-block-report.md')
 
 const browser = async (session, args, options = {}) => {
   const { stdout, stderr } = await execFileAsync('agent-browser', ['--session', session, ...args], {
@@ -93,7 +94,7 @@ const findAvailablePlayers = async (admin, leagueId, leagueSeasonId, count = 1) 
   return available.slice(0, count)
 }
 
-const setupWaiverGameplayFixture = async (env, season, { requiresDrop = false } = {}) => {
+const setupWaiverGameplayFixture = async (env, season, { requiresDrop = false, hasIneligibleIR = false } = {}) => {
   const runId = `${new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)}-${process.pid}-${season}`
   const password = `Pancake-waiver-${runId}!`
   const user = {
@@ -149,7 +150,11 @@ const setupWaiverGameplayFixture = async (env, season, { requiresDrop = false } 
     if (error) throw new Error(`waiver priority insert: ${error.message}`)
   }
 
-  const [player, dropPlayer] = await findAvailablePlayers(admin, league.id, currentSeason.id, requiresDrop ? 2 : 1)
+  const requiredPlayerCount = 1 + (requiresDrop ? 1 : 0) + (hasIneligibleIR ? 1 : 0)
+  const availablePlayers = await findAvailablePlayers(admin, league.id, currentSeason.id, requiredPlayerCount)
+  const player = availablePlayers[0]
+  const dropPlayer = requiresDrop ? availablePlayers[1] : null
+  const irPlayer = hasIneligibleIR ? availablePlayers[requiresDrop ? 2 : 1] : null
   let dropRosterPlayer = null
   if (requiresDrop) {
     const { error: leagueError } = await admin
@@ -171,6 +176,31 @@ const setupWaiverGameplayFixture = async (env, season, { requiresDrop = false } 
       .single()
     if (rosterInsertError) throw new Error(`waiver drop roster seed: ${rosterInsertError.message}`)
     dropRosterPlayer = rosterRow
+  }
+  let irRosterPlayer = null
+  if (hasIneligibleIR && irPlayer) {
+    const [{ error: playerUpdateError }, { data: rosterRow, error: rosterInsertError }] = await Promise.all([
+      admin
+        .from('players')
+        .update({ injury_status: 'DTD' })
+        .eq('id', irPlayer.id),
+      admin
+        .from('roster_players')
+        .insert({
+          league_id: league.id,
+          league_season_id: currentSeason.id,
+          member_id: member.id,
+          player_id: irPlayer.id,
+          is_on_ir: true,
+          acquired_via: 'e2e_waiver_ir_fixture',
+        })
+        .select('id, player_id')
+        .single(),
+    ])
+    if (playerUpdateError) throw new Error(`waiver IR player update: ${playerUpdateError.message}`)
+    if (rosterInsertError) throw new Error(`waiver IR roster seed: ${rosterInsertError.message}`)
+    irRosterPlayer = rosterRow
+    irPlayer.injury_status = 'DTD'
   }
 
   const { data: waiverLog, error: waiverLogError } = await admin
@@ -197,6 +227,8 @@ const setupWaiverGameplayFixture = async (env, season, { requiresDrop = false } 
     player,
     dropPlayer: dropPlayer ?? null,
     dropRosterPlayer,
+    irPlayer: irPlayer ?? null,
+    irRosterPlayer,
     waiverLog,
   }
 }
@@ -300,6 +332,21 @@ const waitForWaiverClaim = async (fixture, timeoutMs = 10_000) => {
     last = await verifyWaiverClaim(fixture)
   }
   return last
+}
+
+const verifyNoWaiverClaim = async (fixture) => {
+  const { data: claims, error } = await fixture.admin
+    .from('waiver_claims')
+    .select('id, status')
+    .eq('league_id', fixture.league.id)
+    .eq('league_season_id', fixture.currentSeason.id)
+    .eq('member_id', fixture.member.id)
+    .eq('player_id', fixture.player.id)
+  if (error) throw new Error(`waiver no-claim verify: ${error.message}`)
+  return {
+    claims: claims ?? [],
+    failures: (claims ?? []).length === 0 ? [] : [`waiver_claim rows=${claims.length}; expected 0`],
+  }
 }
 
 export async function runBrowserWaiverScenario({
@@ -507,10 +554,115 @@ export async function runBrowserWaiverDropScenario({
   }
 }
 
+export async function runBrowserWaiverIrBlockScenario({
+  season = 0,
+  sessionName,
+} = {}) {
+  const env = resolvedEnv()
+  requireEnv(env, ['supabaseUrl', 'serviceRoleKey', 'anonKey'])
+  const fixture = await setupWaiverGameplayFixture(env, season, { hasIneligibleIR: true })
+  const sessionList = await listSessions().catch((error) => `session list unavailable: ${error.message}`)
+  const session = sessionName ?? safeName(`pancake-waiver-ir-block-${fixture.runId}-${process.pid}`)
+  const artifactDir = path.join(ARTIFACT_ROOT, `season-${season}`, 'browser-waiver-ir-block')
+  await mkdir(artifactDir, { recursive: true })
+
+  const notes = [
+    `Frontend: ${describeEndpoint(env.frontendUrl)}`,
+    `Session: ${session}`,
+    `Claimant: ${fixture.user.email}`,
+    sessionList,
+  ]
+  let debug = {}
+
+  try {
+    await signInBrowser(session, env, fixture.user, fixture.password)
+    await browser(session, ['set', 'viewport', '390', '844']).catch(() => {})
+    await browser(session, ['open', joinUrl(env.frontendUrl, `/claim-player?playerId=${fixture.player.id}`)])
+    await browser(session, ['wait', '2500'])
+    await assertPageText(
+      session,
+      ['Waiver Claim', 'Resolve IR Status First', fixture.irPlayer.display_name, 'DTD', 'Go to Roster'],
+      'waiver IR block before submit',
+    )
+    await browser(session, ['screenshot', path.join(artifactDir, 'waiver-ir-block.png')], { timeout: 60_000 })
+    const noClaim = await verifyNoWaiverClaim(fixture)
+    debug = { ...debug, noClaim }
+    if (noClaim.failures.length > 0) {
+      throw new Error(`waiver IR block allowed a claim: ${noClaim.failures.join('; ')}`)
+    }
+
+    const consoleOutput = await browser(session, ['console']).catch((error) => `console unavailable: ${error.message}`)
+    const errorOutput = await browser(session, ['errors']).catch((error) => `errors unavailable: ${error.message}`)
+    await writeFile(path.join(artifactDir, 'console.txt'), `${consoleOutput}\n`)
+    await writeFile(path.join(artifactDir, 'errors.txt'), `${errorOutput}\n`)
+
+    const failures = [...noClaim.failures]
+    if (errorOutput.trim()) failures.push(`browser errors present; see ${path.relative(ROOT, path.join(artifactDir, 'errors.txt'))}`)
+    const report = {
+      status: failures.length === 0 ? 'PASS' : 'FAIL',
+      season,
+      artifactDir,
+      fixture: {
+        runId: fixture.runId,
+        leagueId: fixture.league.id,
+        leagueSeasonId: fixture.currentSeason.id,
+        memberId: fixture.member.id,
+        playerId: fixture.player.id,
+        irPlayerId: fixture.irPlayer.id,
+        irRosterPlayerId: fixture.irRosterPlayer.id,
+        waiverLogId: fixture.waiverLog.id,
+      },
+      noClaim,
+      notes,
+      failures,
+    }
+    await writeFile(IR_BLOCK_REPORT_PATH, `${JSON.stringify(report, null, 2)}\n`)
+    await writeFile(path.join(artifactDir, 'summary.json'), `${JSON.stringify(report, null, 2)}\n`)
+    if (failures.length > 0) throw new Error(`Browser waiver IR block scenario failed: ${failures.join('; ')}`)
+    return report
+  } catch (error) {
+    await browser(session, ['screenshot', path.join(artifactDir, 'failure.png')], { timeout: 60_000 }).catch(() => {})
+    const consoleOutput = await browser(session, ['console']).catch((consoleError) => `console unavailable: ${consoleError.message}`)
+    const errorOutput = await browser(session, ['errors']).catch((errorError) => `errors unavailable: ${errorError.message}`)
+    const networkOutput = await browser(session, ['network', 'requests']).catch((networkError) => `network unavailable: ${networkError.message}`)
+    await writeFile(path.join(artifactDir, 'console.txt'), `${consoleOutput}\n`).catch(() => {})
+    await writeFile(path.join(artifactDir, 'errors.txt'), `${errorOutput}\n`).catch(() => {})
+    await writeFile(path.join(artifactDir, 'network.txt'), `${networkOutput}\n`).catch(() => {})
+    const noClaim = await verifyNoWaiverClaim(fixture).catch((verifyError) => ({
+      failures: [`verify unavailable: ${verifyError.message}`],
+    }))
+    debug = { ...debug, noClaim, consoleOutput, errorOutput, networkOutput }
+    const report = {
+      status: 'FAIL',
+      season,
+      artifactDir,
+      fixture: {
+        runId: fixture.runId,
+        leagueId: fixture.league.id,
+        leagueSeasonId: fixture.currentSeason.id,
+        memberId: fixture.member.id,
+        playerId: fixture.player.id,
+        irPlayerId: fixture.irPlayer.id,
+        irRosterPlayerId: fixture.irRosterPlayer.id,
+        waiverLogId: fixture.waiverLog.id,
+      },
+      error: error instanceof Error ? error.message : String(error),
+      debug,
+      notes,
+    }
+    await writeFile(IR_BLOCK_REPORT_PATH, `${JSON.stringify(report, null, 2)}\n`).catch(() => {})
+    throw error
+  } finally {
+    await browser(session, ['close']).catch(() => {})
+  }
+}
+
 if (import.meta.url === `file://${process.argv[1]}`) {
   const seasonArg = process.argv.find((arg) => arg.startsWith('--season='))
   const season = seasonArg ? Number(seasonArg.split('=')[1]) : 0
-  const runner = process.argv.includes('--drop')
+  const runner = process.argv.includes('--ir-block')
+    ? runBrowserWaiverIrBlockScenario
+    : process.argv.includes('--drop')
     ? runBrowserWaiverDropScenario
     : runBrowserWaiverScenario
   runner({ season }).catch((error) => {
