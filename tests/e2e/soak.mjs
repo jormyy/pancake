@@ -57,6 +57,7 @@ const parseArgs = () => {
     settings: args.get('settings') === 'true' || process.env.E2E_ENABLE_SETTINGS === '1',
     scoring: args.get('scoring') === 'true' || process.env.E2E_ENABLE_SCORING === '1',
     rookieDraft: args.get('rookie-draft') === 'true' || process.env.E2E_ENABLE_ROOKIE_DRAFT === '1',
+    seasonReset: args.get('season-reset') === 'true' || process.env.E2E_ENABLE_SEASON_RESET === '1',
   }
 }
 
@@ -135,9 +136,11 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
   const memoryStatus = hasFailingNote(rows, /D\.LONG\.7/)
     ? 'FAIL'
     : producedTenSeasons ? 'PASS' : 'PENDING'
-  const resetStatus = env.backendTicksEnabled
-    ? hasFailingNote(rows, /\bI[0-7]:|D\.SET\.2|advance-season|season reset/i) ? 'FAIL' : 'PARTIAL'
-    : 'PENDING'
+  const resetStatus = args.seasonReset
+    ? hasFailingNote(rows, /D\.SEA\.6/) ? 'FAIL' : hasPassingNote(rows, /season reset carryover passed/) ? 'PARTIAL' : 'PENDING'
+    : env.backendTicksEnabled
+      ? hasFailingNote(rows, /\bI[0-7]:|D\.SET\.2|advance-season|season reset/i) ? 'FAIL' : 'PARTIAL'
+      : 'PENDING'
   const snapshotStatus = hasPassingNote(rows, /snapshot row-count diff passed/) ? 'PASS' : rows.length > 1 ? rowStatus : 'PENDING'
   const matchupStatus = env.backendTicksEnabled && hasPassingNote(rows, /matchup generation idempotency passed/) ? 'PASS' : 'PENDING'
   const pickChainStatus = args.pickChain
@@ -251,7 +254,7 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
     {
       requirement: 'D.SEA.6 season reset',
       status: resetStatus,
-      evidence: env.backendTicksEnabled ? 'Backend tick mode calls /e2e/advance-season and re-checks invariants.' : 'Requires E2E_ENABLE_BACKEND_TICKS=1.',
+      evidence: args.seasonReset ? 'Season-reset mode creates a disposable league, calls the real /e2e/advance-season endpoint, and verifies current-season flip, roster carryover, waiver reseed, prior-season queryability, and rolling five-year pick horizon.' : env.backendTicksEnabled ? 'Backend tick mode calls /e2e/advance-season and re-checks invariants.' : 'Requires E2E_ENABLE_BACKEND_TICKS=1 or E2E_ENABLE_SEASON_RESET=1.',
     },
     {
       requirement: 'D.SEA.7 snapshots/no shrink',
@@ -1450,6 +1453,246 @@ const assertWeeklyScoringFinalizationScenario = async ({ supabase, env, state, s
   }
   await writeFile(
     path.join(ARTIFACT_ROOT, `season-${season}`, 'weekly-scoring-finalization.json'),
+    `${JSON.stringify(artifact, null, 2)}\n`,
+  )
+
+  return { failures, artifact }
+}
+
+const resetFixtureSeasonYear = () => 9000 + Number(Date.now().toString().slice(-6))
+
+const assertSeasonResetScenario = async ({ supabase, env, state, season }) => {
+  const failures = []
+  const label = 'D.SEA.6'
+  const fixtureSeasonYear = resetFixtureSeasonYear()
+  const fixture = await createDisposableLeagueFromSeedUsers({
+    supabase,
+    state,
+    season,
+    label,
+    userCount: 4,
+    seasonYear: fixtureSeasonYear,
+  })
+  const [member1, member2, member3, member4] = fixture.members
+
+  const { data: players, error: playersError } = await supabase
+    .from('players')
+    .select('id, display_name')
+    .not('display_name', 'is', null)
+    .order('display_name', { ascending: true })
+    .limit(4)
+  if (playersError) throw new Error(`${label}: player lookup failed: ${playersError.message}`)
+  if ((players ?? []).length < 4) throw new Error(`${label}: requires at least four players`)
+
+  const pickRows = []
+  for (const member of fixture.members) {
+    for (let seasonYear = fixtureSeasonYear + 1; seasonYear <= fixtureSeasonYear + 5; seasonYear += 1) {
+      for (let round = 1; round <= 3; round += 1) {
+        pickRows.push({
+          league_id: fixture.league.id,
+          season_year: seasonYear,
+          round,
+          original_owner_id: member.id,
+          current_owner_id: member.id,
+        })
+      }
+    }
+  }
+
+  const standingsRows = [
+    { member: member4, wins: 1, pointsFor: 800, pointsAgainst: 1100, waiverPriority: 4 },
+    { member: member3, wins: 3, pointsFor: 900, pointsAgainst: 1050, waiverPriority: 3 },
+    { member: member2, wins: 6, pointsFor: 1000, pointsAgainst: 1000, waiverPriority: 2 },
+    { member: member1, wins: 9, pointsFor: 1100, pointsAgainst: 900, waiverPriority: 1 },
+  ].map((row) => ({
+    league_id: fixture.league.id,
+    league_season_id: fixture.leagueSeason.id,
+    member_id: row.member.id,
+    week_number: 19,
+    wins: row.wins,
+    losses: 10 - row.wins,
+    ties: 0,
+    points_for: row.pointsFor,
+    points_against: row.pointsAgainst,
+    max_possible_points: row.pointsFor + 50,
+    waiver_priority: row.waiverPriority,
+  }))
+
+  const rosterRows = [
+    { member: member1, player: players[0], is_on_ir: false, is_on_taxi: false },
+    { member: member2, player: players[1], is_on_ir: true, is_on_taxi: false },
+    { member: member3, player: players[2], is_on_ir: false, is_on_taxi: true },
+    { member: member4, player: players[3], is_on_ir: false, is_on_taxi: false },
+  ].map((row) => ({
+    league_id: fixture.league.id,
+    league_season_id: fixture.leagueSeason.id,
+    member_id: row.member.id,
+    player_id: row.player.id,
+    is_on_ir: row.is_on_ir,
+    is_on_taxi: row.is_on_taxi,
+    acquired_via: 'e2e_reset_fixture',
+  }))
+
+  const lineupRows = rosterRows.slice(0, 2).map((row) => ({
+    league_id: row.league_id,
+    league_season_id: row.league_season_id,
+    member_id: row.member_id,
+    player_id: row.player_id,
+    week_number: 19,
+    game_date: `${fixtureSeasonYear}-04-10`,
+    slot_type: 'UTIL',
+  }))
+
+  const waiverRows = fixture.members.map((member, index) => ({
+    league_id: fixture.league.id,
+    league_season_id: fixture.leagueSeason.id,
+    member_id: member.id,
+    priority: fixture.members.length - index,
+  }))
+
+  const [{ error: picksError }, { error: standingsError }, { error: rosterError }, { error: lineupError }, { error: waiverError }] = await Promise.all([
+    supabase.from('draft_picks').insert(pickRows),
+    supabase.from('standings').insert(standingsRows),
+    supabase.from('roster_players').insert(rosterRows),
+    supabase.from('weekly_lineups').insert(lineupRows),
+    supabase.from('waiver_priorities').insert(waiverRows),
+  ])
+  if (picksError) throw new Error(`${label}: draft pick insert failed: ${picksError.message}`)
+  if (standingsError) throw new Error(`${label}: standings insert failed: ${standingsError.message}`)
+  if (rosterError) throw new Error(`${label}: roster insert failed: ${rosterError.message}`)
+  if (lineupError) throw new Error(`${label}: lineup insert failed: ${lineupError.message}`)
+  if (waiverError) throw new Error(`${label}: waiver priority insert failed: ${waiverError.message}`)
+
+  const { data: matchup, error: matchupError } = await supabase
+    .from('matchups')
+    .insert({
+      league_id: fixture.league.id,
+      league_season_id: fixture.leagueSeason.id,
+      week_number: 19,
+      matchup_type: 'regular_season',
+      home_member_id: member1.id,
+      away_member_id: member2.id,
+      home_points: 111,
+      away_points: 99,
+      winner_member_id: member1.id,
+      is_finalized: true,
+      finalized_at: new Date().toISOString(),
+    })
+    .select('id')
+    .single()
+  if (matchupError || !matchup) throw new Error(`${label}: historical matchup insert failed: ${matchupError?.message ?? 'missing row'}`)
+
+  const resetResult = await backendJson(env, '/e2e/advance-season', { leagueId: fixture.league.id })
+  const newSeasonId = resetResult.newSeasonId
+  const newYear = resetResult.newYear
+  if (!newSeasonId || newYear !== fixtureSeasonYear + 1) {
+    failures.push(`${label}: reset returned ${JSON.stringify(resetResult)}; expected newYear ${fixtureSeasonYear + 1}`)
+  }
+
+  const [
+    seasons,
+    newRoster,
+    newWaivers,
+    horizonPicks,
+    oldStandings,
+    oldLineups,
+    oldMatchup,
+    league,
+  ] = await Promise.all([
+    fetchAll(supabase, 'league_seasons', 'id, season_year, is_current', { league_id: fixture.league.id }),
+    fetchAll(supabase, 'roster_players', 'member_id, player_id, is_on_ir, is_on_taxi, acquired_via', {
+      league_id: fixture.league.id,
+      league_season_id: newSeasonId,
+    }),
+    fetchAll(supabase, 'waiver_priorities', 'member_id, priority', {
+      league_id: fixture.league.id,
+      league_season_id: newSeasonId,
+    }),
+    fetchAll(supabase, 'draft_picks', 'season_year, round, original_owner_id, current_owner_id', { league_id: fixture.league.id }),
+    fetchAll(supabase, 'standings', 'id, member_id, week_number', {
+      league_id: fixture.league.id,
+      league_season_id: fixture.leagueSeason.id,
+    }),
+    fetchAll(supabase, 'weekly_lineups', 'id, member_id, player_id, week_number', {
+      league_id: fixture.league.id,
+      league_season_id: fixture.leagueSeason.id,
+    }),
+    fetchSingle(supabase, 'matchups', 'id, winner_member_id, is_finalized', { id: matchup.id }),
+    fetchSingle(supabase, 'leagues', 'id, status', { id: fixture.league.id }),
+  ])
+
+  const currentSeasons = seasons.filter((row) => row.is_current)
+  if (currentSeasons.length !== 1 || currentSeasons[0]?.id !== newSeasonId) {
+    failures.push(`${label}: current seasons after reset ${JSON.stringify(currentSeasons)}; expected exactly ${newSeasonId}`)
+  }
+  const oldSeason = seasons.find((row) => row.id === fixture.leagueSeason.id)
+  if (oldSeason?.is_current !== false) {
+    failures.push(`${label}: old season ${fixture.leagueSeason.id} is_current=${oldSeason?.is_current}; expected false`)
+  }
+  if (league.status !== 'offseason') {
+    failures.push(`${label}: league status ${league.status}; expected offseason after reset`)
+  }
+
+  const expectedRosterKeys = new Set(rosterRows.map((row) => `${row.member_id}:${row.player_id}:${row.is_on_ir}:${row.is_on_taxi}`))
+  const actualRosterKeys = new Set(newRoster.map((row) => `${row.member_id}:${row.player_id}:${row.is_on_ir}:${row.is_on_taxi}`))
+  for (const key of expectedRosterKeys) {
+    if (!actualRosterKeys.has(key)) failures.push(`${label}: carried roster missing ${key}`)
+  }
+  if (newRoster.some((row) => row.acquired_via !== 'carry_over')) {
+    failures.push(`${label}: one or more carried roster rows did not stamp acquired_via=carry_over`)
+  }
+
+  const expectedPriority = new Map([
+    [member4.id, 1],
+    [member3.id, 2],
+    [member2.id, 3],
+    [member1.id, 4],
+  ])
+  for (const [memberId, priority] of expectedPriority) {
+    const row = newWaivers.find((candidate) => candidate.member_id === memberId)
+    if (row?.priority !== priority) {
+      failures.push(`${label}: waiver priority for ${memberId} is ${row?.priority ?? '<missing>'}; expected ${priority}`)
+    }
+  }
+
+  const pickKeys = new Set(horizonPicks.map((pick) => `${pick.season_year}:${pick.round}:${pick.original_owner_id}:${pick.current_owner_id}`))
+  for (let seasonYear = newYear + 1; seasonYear <= newYear + 5; seasonYear += 1) {
+    for (let round = 1; round <= 3; round += 1) {
+      for (const member of fixture.members) {
+        const key = `${seasonYear}:${round}:${member.id}:${member.id}`
+        if (!pickKeys.has(key)) failures.push(`${label}: missing reset horizon pick ${key}`)
+      }
+    }
+  }
+
+  if (oldStandings.length !== standingsRows.length) {
+    failures.push(`${label}: old standings rows query returned ${oldStandings.length}; expected ${standingsRows.length}`)
+  }
+  if (oldLineups.length !== lineupRows.length) {
+    failures.push(`${label}: old weekly_lineups rows query returned ${oldLineups.length}; expected ${lineupRows.length}`)
+  }
+  if (oldMatchup.id !== matchup.id || !oldMatchup.is_finalized || oldMatchup.winner_member_id !== member1.id) {
+    failures.push(`${label}: old matchup history was not retained correctly`)
+  }
+
+  const artifact = {
+    season,
+    leagueId: fixture.league.id,
+    oldSeasonId: fixture.leagueSeason.id,
+    fixtureSeasonYear,
+    resetResult,
+    seasons,
+    carriedRoster: newRoster,
+    waiverPriorities: newWaivers,
+    oldHistory: {
+      standingsRows: oldStandings.length,
+      lineupRows: oldLineups.length,
+      matchup: oldMatchup,
+    },
+    failures,
+  }
+  await writeFile(
+    path.join(ARTIFACT_ROOT, `season-${season}`, 'season-reset.json'),
     `${JSON.stringify(artifact, null, 2)}\n`,
   )
 
@@ -2927,6 +3170,12 @@ const main = async () => {
   if (args.rookieDraft && !env.e2eAdminSecret) {
     throw new Error('E2E_ENABLE_ROOKIE_DRAFT=1 requires E2E_ADMIN_SECRET and a backend started with ENABLE_E2E_ROUTES=1')
   }
+  if (args.seasonReset && (!state?.password || !Array.isArray(state.users) || state.users.length < 4)) {
+    throw new Error('E2E_ENABLE_SEASON_RESET=1 requires tests/e2e-state.json from npm run e2e:seed with at least 4 users')
+  }
+  if (args.seasonReset && !env.e2eAdminSecret) {
+    throw new Error('E2E_ENABLE_SEASON_RESET=1 requires E2E_ADMIN_SECRET and a backend started with ENABLE_E2E_ROUTES=1')
+  }
   if (args.midlifeMigration && (!Number.isInteger(MIDLIFE_MIGRATION_AFTER_SEASON) || MIDLIFE_MIGRATION_AFTER_SEASON < 1)) {
     throw new Error('E2E_ENABLE_MIDLIFE_MIGRATION=1 requires a positive integer E2E_MIDLIFE_MIGRATION_AFTER_SEASON')
   }
@@ -2988,6 +3237,9 @@ const main = async () => {
     args.rookieDraft
       ? 'Rookie draft auto-pick/order scenario enabled through E2E_ENABLE_ROOKIE_DRAFT=1.'
       : 'Rookie draft auto-pick/order scenario disabled; set E2E_ENABLE_ROOKIE_DRAFT=1 to exercise the D.SEA.5 auto-pick slice.',
+    args.seasonReset
+      ? 'Season reset carryover/reseed scenario enabled through E2E_ENABLE_SEASON_RESET=1.'
+      : 'Season reset carryover/reseed scenario disabled; set E2E_ENABLE_SEASON_RESET=1 to exercise the D.SEA.6 reset slice.',
   ]
 
   try {
@@ -3180,6 +3432,17 @@ const main = async () => {
           })
           draftPushFailures.push(...draftPushCheck.failures)
         }
+        let seasonResetCheck = null
+        const seasonResetFailures = []
+        if (args.seasonReset && season === 1) {
+          seasonResetCheck = await assertSeasonResetScenario({
+            supabase,
+            env,
+            state,
+            season,
+          })
+          seasonResetFailures.push(...seasonResetCheck.failures)
+        }
 
         const failuresAtStart = await runInvariants(supabase, targetLeagueId, scenarios)
         const failuresAtEnd = await runInvariants(supabase, targetLeagueId, scenarios)
@@ -3247,6 +3510,7 @@ const main = async () => {
           ...scoringFailures,
           ...rookieDraftFailures,
           ...draftPushFailures,
+          ...seasonResetFailures,
           ...perfFailures,
           ...memoryFailures,
         ]
@@ -3275,6 +3539,7 @@ const main = async () => {
               settingsCheck ? 'commissioner settings propagation passed' : null,
               scoringCheck ? 'weekly scoring finalization passed' : null,
               rookieDraftCheck ? 'rookie draft auto-pick passed' : null,
+              seasonResetCheck ? 'season reset carryover passed' : null,
               env.backendTicksEnabled ? 'matchup generation idempotency passed' : null,
               args.pickChain ? 'multi-hop future-pick owner resolved' : null,
               rookieDraftPickChainCheck ? 'rookie draft traded-pick slot resolved' : null,

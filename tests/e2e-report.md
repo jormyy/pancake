@@ -1,8 +1,8 @@
 # Multi-Season E2E Soak Report
 
-- Status: FAIL
-- Started: 2026-05-12T05:55:56.627Z
-- Finished: 2026-05-12T05:56:00.551Z
+- Status: PARTIAL
+- Started: 2026-05-12T06:03:07.118Z
+- Finished: 2026-05-12T06:03:08.801Z
 - Target seasons: 1
 - Fake upstream: http://127.0.0.1:4555
 
@@ -10,7 +10,7 @@
 
 | Season | Status | Notes |
 | --- | --- | --- |
-| 1 | FAIL | D.X.1: no draft push notification captured for rookie auto-pick to token ExponentPushToken[e2e-draft-20260512045536-1] |
+| 1 | PASS | D.0 invariant boundary checks passed; full scenario/browser loop pending; season reset carryover passed |
 
 ## Notes
 
@@ -23,7 +23,7 @@
 - Browser auth/sign-out/session-persistence scenario disabled; set E2E_ENABLE_BROWSER_AUTH=1 to exercise D.SET.1.
 - Future-pick multi-hop scenario disabled; set E2E_ENABLE_PICK_CHAIN=1 to exercise D.LONG.2.
 - Push notification intercept disabled; set E2E_ENABLE_PUSH=1 with backend EXPO_PUSH_URL pointed at the fake upstream to exercise the trade-notification slice of D.X.1.
-- Draft push notification intercept enabled through E2E_ENABLE_DRAFT_PUSH=1.
+- Draft push notification intercept disabled; set E2E_ENABLE_DRAFT_PUSH=1 to exercise the rookie auto-pick notification slice of D.X.1.
 - Standings/champion history retention disabled; set E2E_ENABLE_HISTORY=1 with backend ticks to exercise the D.LONG.3/D.LONG.4 fixture-retention slice.
 - Realtime latency check disabled; set E2E_ENABLE_REALTIME=1 to exercise the D.X.2 matchups update slice.
 - Mid-life migration check disabled; set E2E_ENABLE_MIDLIFE_MIGRATION=1 to exercise D.LONG.5.
@@ -33,6 +33,6 @@
 - Commissioner settings propagation scenario disabled; set E2E_ENABLE_SETTINGS=1 to exercise D.SET.3.
 - Weekly starter-only scoring/finalization scenario disabled; set E2E_ENABLE_SCORING=1 to exercise the D.SEA.2 scoring slice.
 - Rookie draft auto-pick/order scenario disabled; set E2E_ENABLE_ROOKIE_DRAFT=1 to exercise the D.SEA.5 auto-pick slice.
+- Season reset carryover/reseed scenario enabled through E2E_ENABLE_SEASON_RESET=1.
 - Schema preflight passed: post-refactor RPCs and required columns are present.
-- Backend EXPO_PUSH_URL points at the fake upstream push intercept.
 - Perf metrics written to tests/artifacts/perf-metrics.json.

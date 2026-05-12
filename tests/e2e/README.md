@@ -30,6 +30,7 @@ export E2E_ENABLE_TIEBREAKERS=1
 export E2E_ENABLE_SETTINGS=1
 export E2E_ENABLE_SCORING=1
 export E2E_ENABLE_ROOKIE_DRAFT=1
+export E2E_ENABLE_SEASON_RESET=1
 export E2E_PERF_DRIFT_LIMIT=1.2
 export E2E_MEMORY_DRIFT_LIMIT=1.2
 export NBA_CDN_BASE_URL=http://127.0.0.1:4555/static/json
@@ -70,6 +71,8 @@ Weekly scoring/finalization checks are available with `E2E_ENABLE_SCORING=1` or 
 
 Rookie draft checks are available with `E2E_ENABLE_ROOKIE_DRAFT=1` or `--rookie-draft=true`. The backend must be running with `ENABLE_E2E_ROUTES=1` and `E2E_ADMIN_SECRET`; the runner creates a disposable offseason league, seeds previous-season standings and exact `draft_picks`, starts the real rookie draft through `/e2e/start-rookie-draft`, verifies inverse-standings snake slot order and linked pick assets, runs `/e2e/:draftId/auto-pick`, and checks lowest-`nba_draft_number` selection, immediate `picked_at`, linked pick-asset usage, roster insert, and already-rostered rejection through the authenticated `/draft/:draftId/snake-pick` route. Artifacts are written to `tests/artifacts/season-<N>/rookie-draft-auto-pick.json`. This covers the D.SEA.5 order/auto-pick/rejection slice; browser timer behavior and long-horizon traded-pick materialization remain separate.
 
+Season reset checks are available with `E2E_ENABLE_SEASON_RESET=1` or `--season-reset=true`. The backend must be running with `ENABLE_E2E_ROUTES=1` and `E2E_ADMIN_SECRET`; the runner creates a disposable active league, seeds standings, waiver priorities, roster rows with IR/taxi flags, old-season lineups/matchups, and a rolling five-year pick bank, then calls the real `/e2e/advance-season` endpoint. It verifies exactly one current season, old-season demotion, roster carryover, `carry_over` acquisition stamps, waiver priority reseed by reverse standings, old-season history queryability, league offseason status, and the new rolling five-year pick horizon. Artifacts are written to `tests/artifacts/season-<N>/season-reset.json`. This covers the deterministic D.SEA.6 reset/carryover/reseed slice; crash-in-the-middle rollback still needs a fault-injection scenario.
+
 Push notification interception is available with `E2E_ENABLE_PUSH=1` or `--push=true`. The Fastify backend must be started with `EXPO_PUSH_URL=http://127.0.0.1:4555/--/api/v2/push/send`; the runner fails closed if `/e2e/status` reports any other push URL. Each season sets seeded recipients' `profiles.push_token`, signs in through Supabase Auth as a seeded sender, calls the real authenticated `/notify/trade` route, seeds a real pending waiver claim, runs `/e2e/process-waivers`, and asserts the fake upstream captured both Expo push payloads. Artifacts are written to `tests/artifacts/season-<N>/push-notifications.json`. This covers the trade and waiver notification slices of D.X.1; waiver currently exposes the approval-gated RPC failure documented in the audit report.
 
 Draft push interception is available with `E2E_ENABLE_DRAFT_PUSH=1` or `--draft-push=true`. The backend must be running with `ENABLE_E2E_ROUTES=1`, `E2E_ADMIN_SECRET`, and the fake `EXPO_PUSH_URL`; the runner creates a disposable offseason rookie draft, sets the first pick owner's `profiles.push_token`, runs the real `/e2e/:draftId/auto-pick` path, and asserts the fake upstream captured a draft notification for that token. Artifacts are written to `tests/artifacts/season-<N>/draft-push-notification.json`. This covers the draft-event notification slice of D.X.1 independently from the waiver processor.
@@ -103,6 +106,7 @@ Outputs:
 - `tests/artifacts/season-<N>/commissioner-settings.json`
 - `tests/artifacts/season-<N>/weekly-scoring-finalization.json`
 - `tests/artifacts/season-<N>/rookie-draft-auto-pick.json`
+- `tests/artifacts/season-<N>/season-reset.json`
 - `tests/artifacts/season-<N>/draft-push-notification.json`
 - `tests/artifacts/season-<N>/push-notifications.json`
 - `tests/artifacts/season-<N>/midlife-migration.json`
