@@ -18,6 +18,7 @@ import {
   runBrowserTradeTerminalScenario,
   runBrowserTradeFuturePickScenario,
   runBrowserTradeFuturePickAcceptScenario,
+  runBrowserTradeOverflowAcceptScenario,
 } from './browser-trade-gameplay.mjs'
 
 const execFileAsync = promisify(execFile)
@@ -66,6 +67,7 @@ const parseArgs = () => {
     browserTradeTerminal: args.get('browser-trade-terminal') === 'true' || process.env.E2E_ENABLE_BROWSER_TRADE_TERMINAL === '1',
     browserTradeFuturePick: args.get('browser-trade-future-pick') === 'true' || process.env.E2E_ENABLE_BROWSER_TRADE_FUTURE_PICK === '1',
     browserTradeFuturePickAccept: args.get('browser-trade-future-pick-accept') === 'true' || process.env.E2E_ENABLE_BROWSER_TRADE_FUTURE_PICK_ACCEPT === '1',
+    browserTradeOverflowAccept: args.get('browser-trade-overflow-accept') === 'true' || process.env.E2E_ENABLE_BROWSER_TRADE_OVERFLOW_ACCEPT === '1',
     leagueLifecycle: args.get('league-lifecycle') === 'true' || process.env.E2E_ENABLE_LEAGUE_LIFECYCLE === '1',
     pickChain: args.get('pick-chain') === 'true' || process.env.E2E_ENABLE_PICK_CHAIN === '1',
     push: args.get('push') === 'true' || process.env.E2E_ENABLE_PUSH === '1',
@@ -194,6 +196,9 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
   const browserTradeFuturePickAcceptStatus = args.browserTradeFuturePickAccept
     ? hasFailingNote(rows, /browser future-pick trade accept/) ? 'FAIL' : hasPassingNote(rows, /browser future-pick trade accept gameplay passed/) ? 'PARTIAL' : 'PENDING'
     : 'PENDING'
+  const browserTradeOverflowAcceptStatus = args.browserTradeOverflowAccept
+    ? hasFailingNote(rows, /browser trade overflow accept/) ? 'FAIL' : hasPassingNote(rows, /browser trade overflow accept gameplay passed/) ? 'PARTIAL' : 'PENDING'
+    : 'PENDING'
   const leagueLifecycleStatus = args.leagueLifecycle
     ? hasFailingNote(rows, /D\.SET\.2/) ? 'FAIL' : hasPassingNote(rows, /league lifecycle passed/) ? 'PARTIAL' : 'PENDING'
     : targetLeagueId ? 'PARTIAL' : 'PENDING'
@@ -287,8 +292,8 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
     },
     {
       requirement: 'D.SEA.2 weekly lineup/scoring/waiver/trade loop',
-      status: args.browserWaiver ? browserWaiverStatus : args.browserTrade ? browserTradeStatus : args.browserTradeFuturePick ? browserTradeFuturePickStatus : args.browserTradeFuturePickAccept ? browserTradeFuturePickAcceptStatus : args.browserTradeAccept ? browserTradeAcceptStatus : args.browserTradeTerminal ? browserTradeTerminalStatus : scoringStatus,
-      evidence: args.browserWaiver ? 'Browser waiver mode creates an isolated one-user league, opens the real claim-player modal, submits a no-drop waiver claim, and verifies the backend persisted a pending waiver_claims row.' : args.browserTrade ? 'Browser trade mode creates an isolated two-user league, opens the real propose-trade modal, submits a player-for-player proposal, and verifies pending trades/trade_items rows persisted through authenticated Supabase RLS.' : args.browserTradeFuturePick ? 'Browser future-pick trade mode creates an isolated two-user league, opens the real propose-trade modal, submits a five-years-out pick-for-pick proposal, and verifies pending pick trade_items persisted through authenticated Supabase RLS without moving pick ownership.' : args.browserTradeFuturePickAccept ? 'Browser future-pick trade accept mode creates an isolated pending five-years-out pick-for-pick trade, accepts it through the real Offers tab, and verifies the local backend/RPC swaps draft_picks.current_owner_id without moving roster players.' : args.browserTradeAccept ? 'Browser trade accept mode creates an isolated pending trade, opens the real recipient Offers tab, accepts through the visible TradeCard button, and verifies the local backend/RPC moved both players and completed the trade.' : args.browserTradeTerminal ? 'Browser trade terminal mode creates isolated pending trades, rejects one as the recipient, withdraws one as the proposer, and verifies terminal statuses without moving roster assets.' : args.scoring ? 'Scoring mode seeds a disposable matchup with starter/bench lineups and real player_game_stats, calls the real backend /e2e/sync-scores path, and checks starter-only points, finalization blocking, winner, max-possible points, and standings append.' : 'Full weekly browser gameplay loop is not implemented; enable E2E_ENABLE_BROWSER_WAIVER=1 for waiver claim UI coverage, E2E_ENABLE_BROWSER_TRADE=1 for player proposal UI coverage, E2E_ENABLE_BROWSER_TRADE_FUTURE_PICK=1 for future-pick proposal UI coverage, E2E_ENABLE_BROWSER_TRADE_FUTURE_PICK_ACCEPT=1 for future-pick accept UI coverage, E2E_ENABLE_BROWSER_TRADE_ACCEPT=1 for accept UI coverage, E2E_ENABLE_BROWSER_TRADE_TERMINAL=1 for reject/withdraw UI coverage, or E2E_ENABLE_SCORING=1 for the starter-only scoring/finalization slice.',
+      status: args.browserWaiver ? browserWaiverStatus : args.browserTrade ? browserTradeStatus : args.browserTradeFuturePick ? browserTradeFuturePickStatus : args.browserTradeFuturePickAccept ? browserTradeFuturePickAcceptStatus : args.browserTradeOverflowAccept ? browserTradeOverflowAcceptStatus : args.browserTradeAccept ? browserTradeAcceptStatus : args.browserTradeTerminal ? browserTradeTerminalStatus : scoringStatus,
+      evidence: args.browserWaiver ? 'Browser waiver mode creates an isolated one-user league, opens the real claim-player modal, submits a no-drop waiver claim, and verifies the backend persisted a pending waiver_claims row.' : args.browserTrade ? 'Browser trade mode creates an isolated two-user league, opens the real propose-trade modal, submits a player-for-player proposal, and verifies pending trades/trade_items rows persisted through authenticated Supabase RLS.' : args.browserTradeFuturePick ? 'Browser future-pick trade mode creates an isolated two-user league, opens the real propose-trade modal, submits a five-years-out pick-for-pick proposal, and verifies pending pick trade_items persisted through authenticated Supabase RLS without moving pick ownership.' : args.browserTradeFuturePickAccept ? 'Browser future-pick trade accept mode creates an isolated pending five-years-out pick-for-pick trade, accepts it through the real Offers tab, and verifies the local backend/RPC swaps draft_picks.current_owner_id without moving roster players.' : args.browserTradeOverflowAccept ? 'Browser trade overflow accept mode creates an isolated mixed player/pick offer, accepts it through the real Offers tab, drops one active player in the overflow modal, and verifies the trade completes with the drop logged on waivers.' : args.browserTradeAccept ? 'Browser trade accept mode creates an isolated pending trade, opens the real recipient Offers tab, accepts through the visible TradeCard button, and verifies the local backend/RPC moved both players and completed the trade.' : args.browserTradeTerminal ? 'Browser trade terminal mode creates isolated pending trades, rejects one as the recipient, withdraws one as the proposer, and verifies terminal statuses without moving roster assets.' : args.scoring ? 'Scoring mode seeds a disposable matchup with starter/bench lineups and real player_game_stats, calls the real backend /e2e/sync-scores path, and checks starter-only points, finalization blocking, winner, max-possible points, and standings append.' : 'Full weekly browser gameplay loop is not implemented; enable E2E_ENABLE_BROWSER_WAIVER=1 for waiver claim UI coverage, E2E_ENABLE_BROWSER_TRADE=1 for player proposal UI coverage, E2E_ENABLE_BROWSER_TRADE_FUTURE_PICK=1 for future-pick proposal UI coverage, E2E_ENABLE_BROWSER_TRADE_FUTURE_PICK_ACCEPT=1 for future-pick accept UI coverage, E2E_ENABLE_BROWSER_TRADE_OVERFLOW_ACCEPT=1 for drop-before-accept UI coverage, E2E_ENABLE_BROWSER_TRADE_ACCEPT=1 for accept UI coverage, E2E_ENABLE_BROWSER_TRADE_TERMINAL=1 for reject/withdraw UI coverage, or E2E_ENABLE_SCORING=1 for the starter-only scoring/finalization slice.',
     },
     {
       requirement: 'D.SEA.2 injury status filtering',
@@ -3815,6 +3820,9 @@ const main = async () => {
     args.browserTradeFuturePickAccept
       ? 'Browser future-pick trade accept scenario enabled through E2E_ENABLE_BROWSER_TRADE_FUTURE_PICK_ACCEPT=1.'
       : 'Browser future-pick trade accept scenario disabled; set E2E_ENABLE_BROWSER_TRADE_FUTURE_PICK_ACCEPT=1 to exercise the D.SEA.2 future-pick accept UI slice.',
+    args.browserTradeOverflowAccept
+      ? 'Browser trade overflow accept scenario enabled through E2E_ENABLE_BROWSER_TRADE_OVERFLOW_ACCEPT=1.'
+      : 'Browser trade overflow accept scenario disabled; set E2E_ENABLE_BROWSER_TRADE_OVERFLOW_ACCEPT=1 to exercise the D.SEA.2 drop-before-accept UI slice.',
     args.leagueLifecycle
       ? 'League create/join lifecycle scenario enabled through E2E_ENABLE_LEAGUE_LIFECYCLE=1.'
       : 'League create/join lifecycle scenario disabled; set E2E_ENABLE_LEAGUE_LIFECYCLE=1 to exercise D.SET.2 through real auth RPCs.',
@@ -3992,6 +4000,10 @@ const main = async () => {
         let browserTradeFuturePickAcceptCheck = null
         if (args.browserTradeFuturePickAccept && season === 1) {
           browserTradeFuturePickAcceptCheck = await runBrowserTradeFuturePickAcceptScenario({ season })
+        }
+        let browserTradeOverflowAcceptCheck = null
+        if (args.browserTradeOverflowAccept && season === 1) {
+          browserTradeOverflowAcceptCheck = await runBrowserTradeOverflowAcceptScenario({ season })
         }
         let leagueLifecycleCheck = null
         const leagueLifecycleFailures = []
@@ -4228,6 +4240,7 @@ const main = async () => {
               browserTradeTerminalCheck ? 'browser trade reject/withdraw gameplay passed' : null,
               browserTradeFuturePickCheck ? 'browser future-pick trade gameplay passed' : null,
               browserTradeFuturePickAcceptCheck ? 'browser future-pick trade accept gameplay passed' : null,
+              browserTradeOverflowAcceptCheck ? 'browser trade overflow accept gameplay passed' : null,
               leagueLifecycleCheck ? 'league lifecycle passed' : null,
               args.realtime ? 'realtime matchup update delivered' : null,
               args.push ? 'trade and waiver push notification intercepts passed' : null,

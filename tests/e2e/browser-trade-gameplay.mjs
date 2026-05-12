@@ -14,6 +14,7 @@ const ACCEPT_REPORT_PATH = path.join(ROOT, 'tests/e2e-browser-trade-accept-repor
 const TERMINAL_REPORT_PATH = path.join(ROOT, 'tests/e2e-browser-trade-terminal-report.md')
 const FUTURE_PICK_REPORT_PATH = path.join(ROOT, 'tests/e2e-browser-trade-future-pick-report.md')
 const FUTURE_PICK_ACCEPT_REPORT_PATH = path.join(ROOT, 'tests/e2e-browser-trade-future-pick-accept-report.md')
+const OVERFLOW_ACCEPT_REPORT_PATH = path.join(ROOT, 'tests/e2e-browser-trade-overflow-accept-report.md')
 
 const browser = async (session, args, options = {}) => {
   const { stdout, stderr } = await execFileAsync('agent-browser', ['--session', session, ...args], {
@@ -297,6 +298,62 @@ const setupTradeFuturePickAcceptGameplayFixture = async (env, season) => {
   if (itemError) throw new Error(`future-pick trade item fixture insert: ${itemError.message}`)
 
   return { ...fixture, trade }
+}
+
+const setupTradeOverflowAcceptGameplayFixture = async (env, season) => {
+  const fixture = await setupTradeGameplayFixture(env, season)
+  const { error: leagueError } = await fixture.admin
+    .from('leagues')
+    .update({ roster_size: 1 })
+    .eq('id', fixture.league.id)
+  if (leagueError) throw new Error(`overflow league roster_size update: ${leagueError.message}`)
+
+  const { data: recipientRoster, error: rosterError } = await fixture.admin
+    .from('roster_players')
+    .select('id, member_id, player_id')
+    .eq('league_id', fixture.league.id)
+    .eq('league_season_id', fixture.currentSeason.id)
+    .eq('member_id', fixture.recipient.id)
+    .eq('player_id', fixture.recipientPlayer.id)
+    .single()
+  if (rosterError) throw new Error(`overflow recipient roster lookup: ${rosterError.message}`)
+
+  const { data: trade, error: tradeError } = await fixture.admin
+    .from('trades')
+    .insert({
+      league_id: fixture.league.id,
+      league_season_id: fixture.currentSeason.id,
+      proposer_member_id: fixture.proposer.id,
+      recipient_member_id: fixture.recipient.id,
+      status: 'pending',
+      notes: 'Browser trade overflow accept gameplay',
+    })
+    .select('id')
+    .single()
+  if (tradeError) throw new Error(`overflow trade fixture insert: ${tradeError.message}`)
+
+  const { error: itemError } = await fixture.admin.from('trade_items').insert([
+    {
+      trade_id: trade.id,
+      side: 'proposer',
+      player_id: fixture.proposerPlayer.id,
+      pick_id: null,
+    },
+    {
+      trade_id: trade.id,
+      side: 'recipient',
+      player_id: null,
+      pick_id: fixture.recipientFuturePick.id,
+    },
+  ])
+  if (itemError) throw new Error(`overflow trade item fixture insert: ${itemError.message}`)
+
+  return {
+    ...fixture,
+    trade,
+    rosterSize: 1,
+    dropCandidateRosterId: recipientRoster.id,
+  }
 }
 
 const installBrowserHooks = async (session, env) => {
@@ -625,6 +682,112 @@ const waitForFuturePickTradeAccepted = async (fixture, timeoutMs = 10_000) => {
   while (last.failures.length > 0 && Date.now() - startedAt < timeoutMs) {
     await new Promise((resolve) => setTimeout(resolve, 500))
     last = await verifyFuturePickTradeAccepted(fixture)
+  }
+  return last
+}
+
+const verifyOverflowTradeAccepted = async (fixture) => {
+  const [tradeResult, rosterResult, picksResult, tradeTransactionResult, dropTransactionResult, waiverResult] = await Promise.all([
+    fixture.admin
+      .from('trades')
+      .select('id, status, accepted_at, completed_at')
+      .eq('id', fixture.trade.id)
+      .single(),
+    fixture.admin
+      .from('roster_players')
+      .select('id, member_id, player_id, acquired_via')
+      .eq('league_id', fixture.league.id)
+      .eq('league_season_id', fixture.currentSeason.id),
+    fixture.admin
+      .from('draft_picks')
+      .select('id, season_year, round, original_owner_id, current_owner_id, is_used')
+      .eq('id', fixture.recipientFuturePick.id)
+      .single(),
+    fixture.admin
+      .from('roster_transactions')
+      .select('id, member_id, player_id, transaction_type, related_trade_id')
+      .eq('league_id', fixture.league.id)
+      .eq('league_season_id', fixture.currentSeason.id)
+      .eq('related_trade_id', fixture.trade.id),
+    fixture.admin
+      .from('roster_transactions')
+      .select('id, member_id, player_id, transaction_type, related_trade_id')
+      .eq('league_id', fixture.league.id)
+      .eq('league_season_id', fixture.currentSeason.id)
+      .eq('member_id', fixture.recipient.id)
+      .eq('player_id', fixture.recipientPlayer.id)
+      .eq('transaction_type', 'fa_drop')
+      .is('related_trade_id', null),
+    fixture.admin
+      .from('waiver_wire_log')
+      .select('id, league_id, league_season_id, player_id, dropped_by_member_id, clears_at')
+      .eq('league_id', fixture.league.id)
+      .eq('league_season_id', fixture.currentSeason.id)
+      .eq('player_id', fixture.recipientPlayer.id)
+      .eq('dropped_by_member_id', fixture.recipient.id),
+  ])
+  if (tradeResult.error) throw new Error(`overflow accepted trade verify: ${tradeResult.error.message}`)
+  if (rosterResult.error) throw new Error(`overflow accepted roster verify: ${rosterResult.error.message}`)
+  if (picksResult.error) throw new Error(`overflow accepted pick verify: ${picksResult.error.message}`)
+  if (tradeTransactionResult.error) throw new Error(`overflow accepted trade transactions verify: ${tradeTransactionResult.error.message}`)
+  if (dropTransactionResult.error) throw new Error(`overflow accepted drop transactions verify: ${dropTransactionResult.error.message}`)
+  if (waiverResult.error) throw new Error(`overflow accepted waiver log verify: ${waiverResult.error.message}`)
+
+  const failures = []
+  const trade = tradeResult.data
+  const roster = rosterResult.data ?? []
+  const tradeTransactions = tradeTransactionResult.data ?? []
+  const dropTransactions = dropTransactionResult.data ?? []
+  const waiverLogs = waiverResult.data ?? []
+  const rosterByPlayer = new Map(roster.map((row) => [row.player_id, row]))
+  const recipientActiveRoster = roster.filter((row) => row.member_id === fixture.recipient.id)
+
+  if (trade.status !== 'completed' || !trade.accepted_at || !trade.completed_at) {
+    failures.push(`trade status=${trade.status}, accepted_at=${trade.accepted_at ?? '<null>'}, completed_at=${trade.completed_at ?? '<null>'}; expected completed timestamps`)
+  }
+  if (rosterByPlayer.get(fixture.proposerPlayer.id)?.member_id !== fixture.recipient.id) {
+    failures.push(`incoming player owner=${rosterByPlayer.get(fixture.proposerPlayer.id)?.member_id ?? '<missing>'}; expected recipient ${fixture.recipient.id}`)
+  }
+  if (rosterByPlayer.get(fixture.proposerPlayer.id)?.acquired_via !== 'trade') {
+    failures.push(`incoming player acquired_via=${rosterByPlayer.get(fixture.proposerPlayer.id)?.acquired_via ?? '<missing>'}; expected trade`)
+  }
+  if (rosterByPlayer.has(fixture.recipientPlayer.id)) {
+    failures.push(`drop candidate ${fixture.recipientPlayer.id} still rostered after overflow accept`)
+  }
+  if (recipientActiveRoster.length !== fixture.rosterSize) {
+    failures.push(`recipient active roster count=${recipientActiveRoster.length}; expected roster_size ${fixture.rosterSize}`)
+  }
+  if (picksResult.data.current_owner_id !== fixture.proposer.id) {
+    failures.push(`recipient future pick owner=${picksResult.data.current_owner_id}; expected proposer ${fixture.proposer.id}`)
+  }
+  if (picksResult.data.is_used) failures.push('accepted overflow trade unexpectedly marked the pick used')
+  if (tradeTransactions.length !== 2) {
+    failures.push(`trade roster_transactions count=${tradeTransactions.length}; expected 2 player trade rows`)
+  }
+  if (dropTransactions.length !== 1) {
+    failures.push(`fa_drop transaction count=${dropTransactions.length}; expected 1 drop-before-accept row`)
+  }
+  if (waiverLogs.length !== 1) {
+    failures.push(`waiver_wire_log rows=${waiverLogs.length}; expected 1 dropped player waiver row`)
+  }
+
+  return {
+    trade,
+    roster,
+    pick: picksResult.data,
+    tradeTransactions,
+    dropTransactions,
+    waiverLogs,
+    failures,
+  }
+}
+
+const waitForOverflowTradeAccepted = async (fixture, timeoutMs = 10_000) => {
+  const startedAt = Date.now()
+  let last = await verifyOverflowTradeAccepted(fixture)
+  while (last.failures.length > 0 && Date.now() - startedAt < timeoutMs) {
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    last = await verifyOverflowTradeAccepted(fixture)
   }
   return last
 }
@@ -1183,6 +1346,148 @@ export async function runBrowserTradeFuturePickAcceptScenario({
   }
 }
 
+export async function runBrowserTradeOverflowAcceptScenario({
+  season = 0,
+  sessionName,
+} = {}) {
+  const env = resolvedEnv()
+  requireEnv(env, ['supabaseUrl', 'serviceRoleKey', 'anonKey'])
+  const fixture = await setupTradeOverflowAcceptGameplayFixture(env, season)
+  const sessionList = await listSessions().catch((error) => `session list unavailable: ${error.message}`)
+  const session = sessionName ?? safeName(`pancake-trade-overflow-accept-${fixture.runId}-${process.pid}`)
+  const artifactDir = path.join(ARTIFACT_ROOT, `season-${season}`, 'browser-trade-overflow-accept')
+  await mkdir(artifactDir, { recursive: true })
+
+  const notes = [
+    `Frontend: ${describeEndpoint(env.frontendUrl)}`,
+    `Session: ${session}`,
+    `Recipient: ${fixture.users[1].email}`,
+    `Trade: ${fixture.trade.id}`,
+    `Roster size: ${fixture.rosterSize}`,
+    sessionList,
+  ]
+  let debug = {}
+
+  try {
+    await signInBrowser(session, env, fixture.users[1], fixture.password)
+    await browser(session, ['set', 'viewport', '390', '844']).catch(() => {})
+    await openOffersTab(session, env)
+    await assertPageText(
+      session,
+      [
+        'Trades',
+        'INCOMING',
+        fixture.proposer.team_name,
+        fixture.proposerPlayer.display_name,
+        `${fixture.recipientFuturePick.seasonYear} Rd ${fixture.recipientFuturePick.round}`,
+        'Accept',
+      ],
+      'overflow trade accept before submit',
+    )
+    await browser(session, ['screenshot', path.join(artifactDir, 'overflow-accept-before.png')], { timeout: 60_000 })
+
+    const acceptClick = await clickButton(
+      session,
+      `Accept trade with ${fixture.proposer.team_name}`,
+      'overflow trade accept button',
+    )
+    await browser(session, ['wait', '750'])
+    await assertPageText(
+      session,
+      [
+        'Drop 1 player to accept',
+        `Accepting this trade would exceed your ${fixture.rosterSize}-player roster limit.`,
+        fixture.recipientPlayer.display_name,
+      ],
+      'overflow drop picker',
+    )
+    await browser(session, ['screenshot', path.join(artifactDir, 'overflow-drop-picker.png')], { timeout: 60_000 })
+
+    const dropClick = await clickButton(
+      session,
+      `Drop ${fixture.recipientPlayer.display_name}`,
+      'overflow drop candidate button',
+    )
+    const accepted = await waitForOverflowTradeAccepted(fixture)
+    debug = { ...debug, acceptClick, dropClick, accepted }
+    if (accepted.failures.length > 0) {
+      throw new Error(`overflow trade accept did not complete: ${accepted.failures.join('; ')}`)
+    }
+    await browser(session, ['wait', '1000'])
+    await browser(session, ['screenshot', path.join(artifactDir, 'overflow-accept-after.png')], { timeout: 60_000 })
+
+    const consoleOutput = await browser(session, ['console']).catch((error) => `console unavailable: ${error.message}`)
+    const errorOutput = await browser(session, ['errors']).catch((error) => `errors unavailable: ${error.message}`)
+    await writeFile(path.join(artifactDir, 'console.txt'), `${consoleOutput}\n`)
+    await writeFile(path.join(artifactDir, 'errors.txt'), `${errorOutput}\n`)
+
+    const failures = [...accepted.failures]
+    if (errorOutput.trim()) failures.push(`browser errors present; see ${path.relative(ROOT, path.join(artifactDir, 'errors.txt'))}`)
+    const report = {
+      status: failures.length === 0 ? 'PASS' : 'FAIL',
+      season,
+      artifactDir,
+      fixture: {
+        runId: fixture.runId,
+        leagueId: fixture.league.id,
+        leagueSeasonId: fixture.currentSeason.id,
+        tradeId: fixture.trade.id,
+        proposerMemberId: fixture.proposer.id,
+        recipientMemberId: fixture.recipient.id,
+        incomingPlayerId: fixture.proposerPlayer.id,
+        droppedPlayerId: fixture.recipientPlayer.id,
+        droppedRosterPlayerId: fixture.dropCandidateRosterId,
+        recipientPickId: fixture.recipientFuturePick.id,
+        rosterSize: fixture.rosterSize,
+      },
+      accepted,
+      notes,
+      failures,
+    }
+    await writeFile(OVERFLOW_ACCEPT_REPORT_PATH, `${JSON.stringify(report, null, 2)}\n`)
+    await writeFile(path.join(artifactDir, 'summary.json'), `${JSON.stringify(report, null, 2)}\n`)
+    if (failures.length > 0) throw new Error(`Browser trade overflow accept scenario failed: ${failures.join('; ')}`)
+    return report
+  } catch (error) {
+    await browser(session, ['screenshot', path.join(artifactDir, 'failure.png')], { timeout: 60_000 }).catch(() => {})
+    const consoleOutput = await browser(session, ['console']).catch((consoleError) => `console unavailable: ${consoleError.message}`)
+    const errorOutput = await browser(session, ['errors']).catch((errorError) => `errors unavailable: ${errorError.message}`)
+    const networkOutput = await browser(session, ['network', 'requests']).catch((networkError) => `network unavailable: ${networkError.message}`)
+    await writeFile(path.join(artifactDir, 'console.txt'), `${consoleOutput}\n`).catch(() => {})
+    await writeFile(path.join(artifactDir, 'errors.txt'), `${errorOutput}\n`).catch(() => {})
+    await writeFile(path.join(artifactDir, 'network.txt'), `${networkOutput}\n`).catch(() => {})
+    const accepted = await verifyOverflowTradeAccepted(fixture).catch((verifyError) => ({
+      failures: [`verify unavailable: ${verifyError.message}`],
+    }))
+    debug = { ...debug, accepted, consoleOutput, errorOutput, networkOutput }
+    const report = {
+      status: 'FAIL',
+      season,
+      artifactDir,
+      fixture: {
+        runId: fixture.runId,
+        leagueId: fixture.league.id,
+        leagueSeasonId: fixture.currentSeason.id,
+        tradeId: fixture.trade.id,
+        proposerMemberId: fixture.proposer.id,
+        recipientMemberId: fixture.recipient.id,
+        incomingPlayerId: fixture.proposerPlayer.id,
+        droppedPlayerId: fixture.recipientPlayer.id,
+        droppedRosterPlayerId: fixture.dropCandidateRosterId,
+        recipientPickId: fixture.recipientFuturePick.id,
+        rosterSize: fixture.rosterSize,
+      },
+      error: error instanceof Error ? error.message : String(error),
+      debug,
+      notes,
+    }
+    await writeFile(OVERFLOW_ACCEPT_REPORT_PATH, `${JSON.stringify(report, null, 2)}\n`).catch(() => {})
+    throw error
+  } finally {
+    await browser(session, ['close']).catch(() => {})
+  }
+}
+
 export async function runBrowserTradeTerminalScenario({
   season = 0,
   sessionName,
@@ -1353,6 +1658,8 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const season = seasonArg ? Number(seasonArg.split('=')[1]) : 0
   const runner = process.argv.includes('--terminal')
     ? runBrowserTradeTerminalScenario
+    : process.argv.includes('--overflow-accept')
+      ? runBrowserTradeOverflowAcceptScenario
     : process.argv.includes('--future-pick-accept')
       ? runBrowserTradeFuturePickAcceptScenario
     : process.argv.includes('--future-pick')

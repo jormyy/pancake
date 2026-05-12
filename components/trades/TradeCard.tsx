@@ -84,14 +84,14 @@ export function TradeCard({
         setActing(true)
         try {
             const roster = await getRoster(myMemberId, leagueId)
-            const activeCount = roster.filter((p) => !p.is_on_ir).length
+            const activeCount = roster.filter((p) => !p.is_on_ir && !p.is_on_taxi).length
             const incomingPlayers = iReceive.filter((i) => i.kind === 'player').length
             const outgoingPlayers = iGive.filter((i) => i.kind === 'player').length
             const newCount = activeCount - outgoingPlayers + incomingPlayers
             const overflow = newCount - rosterSize
 
             if (overflow > 0) {
-                const activeRoster = roster.filter((p) => !p.is_on_ir)
+                const activeRoster = roster.filter((p) => !p.is_on_ir && !p.is_on_taxi)
                 setMyRoster(activeRoster)
                 setNeededDrops(overflow)
                 setDroppedIds(new Set())

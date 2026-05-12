@@ -49,6 +49,8 @@ export function DropPlayerPickerModal({ visible, title, subtitle, roster, droppi
                                         style={styles.dropBtn}
                                         onPress={() => onDrop(rp)}
                                         disabled={dropping !== null}
+                                        accessibilityRole="button"
+                                        accessibilityLabel={`Drop ${p.display_name}`}
                                     >
                                         {dropping === rp.id
                                             ? <ActivityIndicator size="small" color={colors.textWhite} />
@@ -58,7 +60,13 @@ export function DropPlayerPickerModal({ visible, title, subtitle, roster, droppi
                             )
                         })}
                     </ScrollView>
-                    <Pressable style={styles.cancel} onPress={onCancel} disabled={dropping !== null}>
+                    <Pressable
+                        style={styles.cancel}
+                        onPress={onCancel}
+                        disabled={dropping !== null}
+                        accessibilityRole="button"
+                        accessibilityLabel="Cancel drop player"
+                    >
                         <Text style={styles.cancelText}>Cancel</Text>
                     </Pressable>
                 </View>

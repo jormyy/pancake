@@ -27,6 +27,7 @@
     "e2e:browser-trade-terminal": "node tests/e2e/browser-trade-gameplay.mjs --terminal",
     "e2e:browser-trade-future-pick": "node tests/e2e/browser-trade-gameplay.mjs --future-pick",
     "e2e:browser-trade-future-pick-accept": "node tests/e2e/browser-trade-gameplay.mjs --future-pick-accept",
+    "e2e:browser-trade-overflow-accept": "node tests/e2e/browser-trade-gameplay.mjs --overflow-accept",
     "e2e:fake-upstream": "node tests/e2e/fake-upstream.mjs"
   },
   "dependencies": {

@@ -50,6 +50,7 @@ tests/e2e-browser-trade-accept-report.md
 tests/e2e-browser-trade-terminal-report.md
 tests/e2e-browser-trade-future-pick-report.md
 tests/e2e-browser-trade-future-pick-accept-report.md
+tests/e2e-browser-trade-overflow-accept-report.md
 tests/e2e-state.json
 
 app-example
