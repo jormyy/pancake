@@ -12,7 +12,7 @@ import { runBrowserAuthScenario } from './browser-auth.mjs'
 import { runBrowserPerfSmoke } from './browser-perf-smoke.mjs'
 import { runBrowserGameplayScenario } from './browser-gameplay.mjs'
 import { runBrowserWaiverScenario } from './browser-waiver-gameplay.mjs'
-import { runBrowserTradeScenario, runBrowserTradeAcceptScenario } from './browser-trade-gameplay.mjs'
+import { runBrowserTradeScenario, runBrowserTradeAcceptScenario, runBrowserTradeTerminalScenario } from './browser-trade-gameplay.mjs'
 
 const execFileAsync = promisify(execFile)
 const ROOT = process.cwd()
@@ -57,6 +57,7 @@ const parseArgs = () => {
     browserWaiver: args.get('browser-waiver') === 'true' || process.env.E2E_ENABLE_BROWSER_WAIVER === '1',
     browserTrade: args.get('browser-trade') === 'true' || process.env.E2E_ENABLE_BROWSER_TRADE === '1',
     browserTradeAccept: args.get('browser-trade-accept') === 'true' || process.env.E2E_ENABLE_BROWSER_TRADE_ACCEPT === '1',
+    browserTradeTerminal: args.get('browser-trade-terminal') === 'true' || process.env.E2E_ENABLE_BROWSER_TRADE_TERMINAL === '1',
     leagueLifecycle: args.get('league-lifecycle') === 'true' || process.env.E2E_ENABLE_LEAGUE_LIFECYCLE === '1',
     pickChain: args.get('pick-chain') === 'true' || process.env.E2E_ENABLE_PICK_CHAIN === '1',
     push: args.get('push') === 'true' || process.env.E2E_ENABLE_PUSH === '1',
@@ -176,6 +177,9 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
   const browserTradeAcceptStatus = args.browserTradeAccept
     ? hasFailingNote(rows, /browser trade accept/) ? 'FAIL' : hasPassingNote(rows, /browser trade accept gameplay passed/) ? 'PARTIAL' : 'PENDING'
     : 'PENDING'
+  const browserTradeTerminalStatus = args.browserTradeTerminal
+    ? hasFailingNote(rows, /browser trade terminal/) ? 'FAIL' : hasPassingNote(rows, /browser trade reject\/withdraw gameplay passed/) ? 'PARTIAL' : 'PENDING'
+    : 'PENDING'
   const leagueLifecycleStatus = args.leagueLifecycle
     ? hasFailingNote(rows, /D\.SET\.2/) ? 'FAIL' : hasPassingNote(rows, /league lifecycle passed/) ? 'PARTIAL' : 'PENDING'
     : targetLeagueId ? 'PARTIAL' : 'PENDING'
@@ -269,8 +273,8 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
     },
     {
       requirement: 'D.SEA.2 weekly lineup/scoring/waiver/trade loop',
-      status: args.browserWaiver ? browserWaiverStatus : args.browserTrade ? browserTradeStatus : args.browserTradeAccept ? browserTradeAcceptStatus : scoringStatus,
-      evidence: args.browserWaiver ? 'Browser waiver mode creates an isolated one-user league, opens the real claim-player modal, submits a no-drop waiver claim, and verifies the backend persisted a pending waiver_claims row.' : args.browserTrade ? 'Browser trade mode creates an isolated two-user league, opens the real propose-trade modal, submits a player-for-player proposal, and verifies pending trades/trade_items rows persisted through authenticated Supabase RLS.' : args.browserTradeAccept ? 'Browser trade accept mode creates an isolated pending trade, opens the real recipient Offers tab, accepts through the visible TradeCard button, and verifies the local backend/RPC moved both players and completed the trade.' : args.scoring ? 'Scoring mode seeds a disposable matchup with starter/bench lineups and real player_game_stats, calls the real backend /e2e/sync-scores path, and checks starter-only points, finalization blocking, winner, max-possible points, and standings append.' : 'Full weekly browser gameplay loop is not implemented; enable E2E_ENABLE_BROWSER_WAIVER=1 for waiver claim UI coverage, E2E_ENABLE_BROWSER_TRADE=1 for proposal UI coverage, E2E_ENABLE_BROWSER_TRADE_ACCEPT=1 for accept UI coverage, or E2E_ENABLE_SCORING=1 for the starter-only scoring/finalization slice.',
+      status: args.browserWaiver ? browserWaiverStatus : args.browserTrade ? browserTradeStatus : args.browserTradeAccept ? browserTradeAcceptStatus : args.browserTradeTerminal ? browserTradeTerminalStatus : scoringStatus,
+      evidence: args.browserWaiver ? 'Browser waiver mode creates an isolated one-user league, opens the real claim-player modal, submits a no-drop waiver claim, and verifies the backend persisted a pending waiver_claims row.' : args.browserTrade ? 'Browser trade mode creates an isolated two-user league, opens the real propose-trade modal, submits a player-for-player proposal, and verifies pending trades/trade_items rows persisted through authenticated Supabase RLS.' : args.browserTradeAccept ? 'Browser trade accept mode creates an isolated pending trade, opens the real recipient Offers tab, accepts through the visible TradeCard button, and verifies the local backend/RPC moved both players and completed the trade.' : args.browserTradeTerminal ? 'Browser trade terminal mode creates isolated pending trades, rejects one as the recipient, withdraws one as the proposer, and verifies terminal statuses without moving roster assets.' : args.scoring ? 'Scoring mode seeds a disposable matchup with starter/bench lineups and real player_game_stats, calls the real backend /e2e/sync-scores path, and checks starter-only points, finalization blocking, winner, max-possible points, and standings append.' : 'Full weekly browser gameplay loop is not implemented; enable E2E_ENABLE_BROWSER_WAIVER=1 for waiver claim UI coverage, E2E_ENABLE_BROWSER_TRADE=1 for proposal UI coverage, E2E_ENABLE_BROWSER_TRADE_ACCEPT=1 for accept UI coverage, E2E_ENABLE_BROWSER_TRADE_TERMINAL=1 for reject/withdraw UI coverage, or E2E_ENABLE_SCORING=1 for the starter-only scoring/finalization slice.',
     },
     {
       requirement: 'D.SEA.2 injury status filtering',
@@ -3788,6 +3792,9 @@ const main = async () => {
     args.browserTradeAccept
       ? 'Browser trade accept scenario enabled through E2E_ENABLE_BROWSER_TRADE_ACCEPT=1.'
       : 'Browser trade accept scenario disabled; set E2E_ENABLE_BROWSER_TRADE_ACCEPT=1 to exercise the D.SEA.2 trade accept UI slice.',
+    args.browserTradeTerminal
+      ? 'Browser trade reject/withdraw scenario enabled through E2E_ENABLE_BROWSER_TRADE_TERMINAL=1.'
+      : 'Browser trade reject/withdraw scenario disabled; set E2E_ENABLE_BROWSER_TRADE_TERMINAL=1 to exercise the D.SEA.2 trade terminal-action UI slice.',
     args.leagueLifecycle
       ? 'League create/join lifecycle scenario enabled through E2E_ENABLE_LEAGUE_LIFECYCLE=1.'
       : 'League create/join lifecycle scenario disabled; set E2E_ENABLE_LEAGUE_LIFECYCLE=1 to exercise D.SET.2 through real auth RPCs.',
@@ -3953,6 +3960,10 @@ const main = async () => {
         let browserTradeAcceptCheck = null
         if (args.browserTradeAccept && season === 1) {
           browserTradeAcceptCheck = await runBrowserTradeAcceptScenario({ season })
+        }
+        let browserTradeTerminalCheck = null
+        if (args.browserTradeTerminal && season === 1) {
+          browserTradeTerminalCheck = await runBrowserTradeTerminalScenario({ season })
         }
         let leagueLifecycleCheck = null
         const leagueLifecycleFailures = []
@@ -4186,6 +4197,7 @@ const main = async () => {
               browserWaiverCheck ? 'browser waiver claim gameplay passed' : null,
               browserTradeCheck ? 'browser trade proposal gameplay passed' : null,
               browserTradeAcceptCheck ? 'browser trade accept gameplay passed' : null,
+              browserTradeTerminalCheck ? 'browser trade reject/withdraw gameplay passed' : null,
               leagueLifecycleCheck ? 'league lifecycle passed' : null,
               args.realtime ? 'realtime matchup update delivered' : null,
               args.push ? 'trade and waiver push notification intercepts passed' : null,

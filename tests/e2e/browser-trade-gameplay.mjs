@@ -11,6 +11,7 @@ const ROOT = process.cwd()
 const ARTIFACT_ROOT = path.join(ROOT, 'tests/artifacts')
 const REPORT_PATH = path.join(ROOT, 'tests/e2e-browser-trade-report.md')
 const ACCEPT_REPORT_PATH = path.join(ROOT, 'tests/e2e-browser-trade-accept-report.md')
+const TERMINAL_REPORT_PATH = path.join(ROOT, 'tests/e2e-browser-trade-terminal-report.md')
 
 const browser = async (session, args, options = {}) => {
   const { stdout, stderr } = await execFileAsync('agent-browser', ['--session', session, ...args], {
@@ -225,17 +226,25 @@ const setupTradeAcceptGameplayFixture = async (env, season) => {
   return { ...fixture, trade }
 }
 
-const signInBrowser = async (session, env, user, password) => {
-  await browser(session, ['open', env.frontendUrl])
+const installBrowserHooks = async (session, env) => {
   await browser(session, [
     'eval',
     `(() => {
       window.localStorage.setItem('PANCAKE_API_URL', ${JSON.stringify(env.apiBaseUrl)});
       window.__pancakeAlerts = [];
       window.alert = (message) => window.__pancakeAlerts.push(String(message));
+      window.confirm = (message) => {
+        window.__pancakeAlerts.push(String(message));
+        return true;
+      };
       return JSON.stringify({ ok: true });
     })()`,
   ])
+}
+
+const signInBrowser = async (session, env, user, password) => {
+  await browser(session, ['open', env.frontendUrl])
+  await installBrowserHooks(session, env)
   await browser(session, ['wait', '1500'])
   await browser(session, ['find', 'placeholder', 'Email', 'fill', user.email])
   await browser(session, ['find', 'placeholder', 'Password', 'fill', password])
@@ -410,6 +419,72 @@ const waitForTradeAccepted = async (fixture, timeoutMs = 10_000) => {
   return last
 }
 
+const verifyTradeTerminalStatus = async (fixture, expectedStatus) => {
+  const [tradeResult, rosterResult, transactionResult] = await Promise.all([
+    fixture.admin
+      .from('trades')
+      .select('id, status, accepted_at, completed_at, veto_window_expires_at')
+      .eq('id', fixture.trade.id)
+      .single(),
+    fixture.admin
+      .from('roster_players')
+      .select('id, member_id, player_id, acquired_via')
+      .eq('league_id', fixture.league.id)
+      .eq('league_season_id', fixture.currentSeason.id),
+    fixture.admin
+      .from('roster_transactions')
+      .select('id, member_id, player_id, transaction_type, related_trade_id')
+      .eq('league_id', fixture.league.id)
+      .eq('league_season_id', fixture.currentSeason.id)
+      .eq('related_trade_id', fixture.trade.id),
+  ])
+  if (tradeResult.error) throw new Error(`${expectedStatus} trade verify: ${tradeResult.error.message}`)
+  if (rosterResult.error) throw new Error(`${expectedStatus} roster verify: ${rosterResult.error.message}`)
+  if (transactionResult.error) throw new Error(`${expectedStatus} transactions verify: ${transactionResult.error.message}`)
+
+  const failures = []
+  const trade = tradeResult.data
+  const roster = rosterResult.data ?? []
+  const transactions = transactionResult.data ?? []
+  const rosterByPlayer = new Map(roster.map((row) => [row.player_id, row]))
+
+  if (trade.status !== expectedStatus) {
+    failures.push(`trade status=${trade.status}; expected ${expectedStatus}`)
+  }
+  if (trade.accepted_at || trade.completed_at || trade.veto_window_expires_at) {
+    failures.push(`terminal ${expectedStatus} trade unexpectedly has accepted/completed/veto timestamps`)
+  }
+  if (rosterByPlayer.get(fixture.proposerPlayer.id)?.member_id !== fixture.proposer.id) {
+    failures.push(`proposer player owner=${rosterByPlayer.get(fixture.proposerPlayer.id)?.member_id ?? '<missing>'}; expected proposer ${fixture.proposer.id}`)
+  }
+  if (rosterByPlayer.get(fixture.recipientPlayer.id)?.member_id !== fixture.recipient.id) {
+    failures.push(`recipient player owner=${rosterByPlayer.get(fixture.recipientPlayer.id)?.member_id ?? '<missing>'}; expected recipient ${fixture.recipient.id}`)
+  }
+  if (transactions.length !== 0) {
+    failures.push(`roster_transactions count=${transactions.length}; expected 0 for ${expectedStatus}`)
+  }
+
+  return { trade, roster, transactions, failures }
+}
+
+const waitForTradeTerminalStatus = async (fixture, expectedStatus, timeoutMs = 10_000) => {
+  const startedAt = Date.now()
+  let last = await verifyTradeTerminalStatus(fixture, expectedStatus)
+  while (last.failures.length > 0 && Date.now() - startedAt < timeoutMs) {
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    last = await verifyTradeTerminalStatus(fixture, expectedStatus)
+  }
+  return last
+}
+
+const openOffersTab = async (session, env) => {
+  await browser(session, ['open', joinUrl(env.frontendUrl, '/trades')])
+  await installBrowserHooks(session, env)
+  await browser(session, ['wait', '2500'])
+  await clickButton(session, 'Show Offers trades', 'offers tab')
+  await browser(session, ['wait', '2500'])
+}
+
 export async function runBrowserTradeScenario({
   season = 0,
   sessionName,
@@ -558,10 +633,7 @@ export async function runBrowserTradeAcceptScenario({
   try {
     await signInBrowser(session, env, fixture.users[1], fixture.password)
     await browser(session, ['set', 'viewport', '390', '844']).catch(() => {})
-    await browser(session, ['open', joinUrl(env.frontendUrl, '/trades')])
-    await browser(session, ['wait', '2500'])
-    await clickButton(session, 'Show Offers trades', 'offers tab')
-    await browser(session, ['wait', '2500'])
+    await openOffersTab(session, env)
     await assertPageText(
       session,
       [
@@ -655,12 +727,179 @@ export async function runBrowserTradeAcceptScenario({
   }
 }
 
+export async function runBrowserTradeTerminalScenario({
+  season = 0,
+  sessionName,
+} = {}) {
+  const env = resolvedEnv()
+  requireEnv(env, ['supabaseUrl', 'serviceRoleKey', 'anonKey'])
+  const rejectFixture = await setupTradeAcceptGameplayFixture(env, season)
+  const withdrawFixture = await setupTradeAcceptGameplayFixture(env, season)
+  const sessionList = await listSessions().catch((error) => `session list unavailable: ${error.message}`)
+  const rejectSession = sessionName
+    ? `${safeName(sessionName)}-reject`
+    : safeName(`pancake-trade-reject-${rejectFixture.runId}-${process.pid}`)
+  const withdrawSession = sessionName
+    ? `${safeName(sessionName)}-withdraw`
+    : safeName(`pancake-trade-withdraw-${withdrawFixture.runId}-${process.pid}`)
+  const artifactDir = path.join(ARTIFACT_ROOT, `season-${season}`, 'browser-trade-terminal')
+  await mkdir(artifactDir, { recursive: true })
+
+  const notes = [
+    `Frontend: ${describeEndpoint(env.frontendUrl)}`,
+    `Reject session: ${rejectSession}`,
+    `Withdraw session: ${withdrawSession}`,
+    sessionList,
+  ]
+  let debug = {}
+
+  try {
+    await signInBrowser(rejectSession, env, rejectFixture.users[1], rejectFixture.password)
+    await browser(rejectSession, ['set', 'viewport', '390', '844']).catch(() => {})
+    await openOffersTab(rejectSession, env)
+    await assertPageText(
+      rejectSession,
+      [
+        'Trades',
+        'INCOMING',
+        rejectFixture.proposer.team_name,
+        rejectFixture.proposerPlayer.display_name,
+        rejectFixture.recipientPlayer.display_name,
+        'Reject',
+      ],
+      'trade reject before submit',
+    )
+    await browser(rejectSession, ['screenshot', path.join(artifactDir, 'trade-reject-before.png')], { timeout: 60_000 })
+    const rejectClick = await clickButton(
+      rejectSession,
+      `Reject trade with ${rejectFixture.proposer.team_name}`,
+      'trade reject button',
+    )
+    const rejected = await waitForTradeTerminalStatus(rejectFixture, 'rejected')
+    if (rejected.failures.length > 0) {
+      throw new Error(`trade reject did not persist: ${rejected.failures.join('; ')}`)
+    }
+    await browser(rejectSession, ['wait', '1000'])
+    await browser(rejectSession, ['screenshot', path.join(artifactDir, 'trade-reject-after.png')], { timeout: 60_000 })
+
+    await signInBrowser(withdrawSession, env, withdrawFixture.users[0], withdrawFixture.password)
+    await browser(withdrawSession, ['set', 'viewport', '390', '844']).catch(() => {})
+    await openOffersTab(withdrawSession, env)
+    await assertPageText(
+      withdrawSession,
+      [
+        'Trades',
+        'OUTGOING',
+        withdrawFixture.recipient.team_name,
+        withdrawFixture.proposerPlayer.display_name,
+        withdrawFixture.recipientPlayer.display_name,
+        'Withdraw',
+      ],
+      'trade withdraw before submit',
+    )
+    await browser(withdrawSession, ['screenshot', path.join(artifactDir, 'trade-withdraw-before.png')], { timeout: 60_000 })
+    const withdrawClick = await clickButton(
+      withdrawSession,
+      `Withdraw trade with ${withdrawFixture.recipient.team_name}`,
+      'trade withdraw button',
+    )
+    const withdrawn = await waitForTradeTerminalStatus(withdrawFixture, 'withdrawn')
+    if (withdrawn.failures.length > 0) {
+      throw new Error(`trade withdraw did not persist: ${withdrawn.failures.join('; ')}`)
+    }
+    await browser(withdrawSession, ['wait', '1000'])
+    await browser(withdrawSession, ['screenshot', path.join(artifactDir, 'trade-withdraw-after.png')], { timeout: 60_000 })
+
+    const [rejectConsole, rejectErrors, withdrawConsole, withdrawErrors] = await Promise.all([
+      browser(rejectSession, ['console']).catch((error) => `console unavailable: ${error.message}`),
+      browser(rejectSession, ['errors']).catch((error) => `errors unavailable: ${error.message}`),
+      browser(withdrawSession, ['console']).catch((error) => `console unavailable: ${error.message}`),
+      browser(withdrawSession, ['errors']).catch((error) => `errors unavailable: ${error.message}`),
+    ])
+    await writeFile(path.join(artifactDir, 'reject-console.txt'), `${rejectConsole}\n`)
+    await writeFile(path.join(artifactDir, 'reject-errors.txt'), `${rejectErrors}\n`)
+    await writeFile(path.join(artifactDir, 'withdraw-console.txt'), `${withdrawConsole}\n`)
+    await writeFile(path.join(artifactDir, 'withdraw-errors.txt'), `${withdrawErrors}\n`)
+
+    const failures = [...rejected.failures, ...withdrawn.failures]
+    if (rejectErrors.trim()) failures.push(`reject browser errors present; see ${path.relative(ROOT, path.join(artifactDir, 'reject-errors.txt'))}`)
+    if (withdrawErrors.trim()) failures.push(`withdraw browser errors present; see ${path.relative(ROOT, path.join(artifactDir, 'withdraw-errors.txt'))}`)
+    const report = {
+      status: failures.length === 0 ? 'PASS' : 'FAIL',
+      season,
+      artifactDir,
+      fixtures: {
+        rejectedTradeId: rejectFixture.trade.id,
+        withdrawnTradeId: withdrawFixture.trade.id,
+        rejectLeagueId: rejectFixture.league.id,
+        withdrawLeagueId: withdrawFixture.league.id,
+      },
+      rejected,
+      withdrawn,
+      clicks: { rejectClick, withdrawClick },
+      notes,
+      failures,
+    }
+    await writeFile(TERMINAL_REPORT_PATH, `${JSON.stringify(report, null, 2)}\n`)
+    await writeFile(path.join(artifactDir, 'summary.json'), `${JSON.stringify(report, null, 2)}\n`)
+    if (failures.length > 0) throw new Error(`Browser trade terminal scenario failed: ${failures.join('; ')}`)
+    return report
+  } catch (error) {
+    await browser(rejectSession, ['screenshot', path.join(artifactDir, 'reject-failure.png')], { timeout: 60_000 }).catch(() => {})
+    await browser(withdrawSession, ['screenshot', path.join(artifactDir, 'withdraw-failure.png')], { timeout: 60_000 }).catch(() => {})
+    const [rejectConsole, rejectErrors, rejectNetwork, withdrawConsole, withdrawErrors, withdrawNetwork] = await Promise.all([
+      browser(rejectSession, ['console']).catch((consoleError) => `console unavailable: ${consoleError.message}`),
+      browser(rejectSession, ['errors']).catch((errorError) => `errors unavailable: ${errorError.message}`),
+      browser(rejectSession, ['network', 'requests']).catch((networkError) => `network unavailable: ${networkError.message}`),
+      browser(withdrawSession, ['console']).catch((consoleError) => `console unavailable: ${consoleError.message}`),
+      browser(withdrawSession, ['errors']).catch((errorError) => `errors unavailable: ${errorError.message}`),
+      browser(withdrawSession, ['network', 'requests']).catch((networkError) => `network unavailable: ${networkError.message}`),
+    ])
+    await writeFile(path.join(artifactDir, 'reject-console.txt'), `${rejectConsole}\n`).catch(() => {})
+    await writeFile(path.join(artifactDir, 'reject-errors.txt'), `${rejectErrors}\n`).catch(() => {})
+    await writeFile(path.join(artifactDir, 'reject-network.txt'), `${rejectNetwork}\n`).catch(() => {})
+    await writeFile(path.join(artifactDir, 'withdraw-console.txt'), `${withdrawConsole}\n`).catch(() => {})
+    await writeFile(path.join(artifactDir, 'withdraw-errors.txt'), `${withdrawErrors}\n`).catch(() => {})
+    await writeFile(path.join(artifactDir, 'withdraw-network.txt'), `${withdrawNetwork}\n`).catch(() => {})
+    const [rejected, withdrawn] = await Promise.all([
+      verifyTradeTerminalStatus(rejectFixture, 'rejected').catch((verifyError) => ({
+        failures: [`reject verify unavailable: ${verifyError.message}`],
+      })),
+      verifyTradeTerminalStatus(withdrawFixture, 'withdrawn').catch((verifyError) => ({
+        failures: [`withdraw verify unavailable: ${verifyError.message}`],
+      })),
+    ])
+    debug = { ...debug, rejected, withdrawn, rejectConsole, rejectErrors, rejectNetwork, withdrawConsole, withdrawErrors, withdrawNetwork }
+    const report = {
+      status: 'FAIL',
+      season,
+      artifactDir,
+      fixtures: {
+        rejectedTradeId: rejectFixture.trade.id,
+        withdrawnTradeId: withdrawFixture.trade.id,
+        rejectLeagueId: rejectFixture.league.id,
+        withdrawLeagueId: withdrawFixture.league.id,
+      },
+      error: error instanceof Error ? error.message : String(error),
+      debug,
+      notes,
+    }
+    await writeFile(TERMINAL_REPORT_PATH, `${JSON.stringify(report, null, 2)}\n`).catch(() => {})
+    throw error
+  } finally {
+    await browser(rejectSession, ['close']).catch(() => {})
+    await browser(withdrawSession, ['close']).catch(() => {})
+  }
+}
+
 if (import.meta.url === `file://${process.argv[1]}`) {
   const seasonArg = process.argv.find((arg) => arg.startsWith('--season='))
   const season = seasonArg ? Number(seasonArg.split('=')[1]) : 0
-  const runner = process.argv.includes('--accept')
-    ? runBrowserTradeAcceptScenario
-    : runBrowserTradeScenario
+  const runner = process.argv.includes('--terminal')
+    ? runBrowserTradeTerminalScenario
+    : process.argv.includes('--accept')
+      ? runBrowserTradeAcceptScenario
+      : runBrowserTradeScenario
   runner({ season }).catch((error) => {
     console.error(error)
     process.exitCode = 1

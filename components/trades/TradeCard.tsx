@@ -4,6 +4,7 @@ import { TRADE_STATUS_COLORS, colors, palette, fontSize, fontWeight, radii, spac
 import { Trade, TradeItem, acceptTrade, rejectTrade, withdrawTrade } from '@/lib/trades'
 import { getRoster, dropPlayer, RosterPlayer } from '@/lib/roster'
 import { DropPlayerPickerModal } from '@/components/DropPlayerPickerModal'
+import { confirmAction } from '@/lib/alert'
 
 export type TabKey = 'picks' | 'offers' | 'history'
 
@@ -136,46 +137,36 @@ export function TradeCard({
         }
     }
 
-    async function handleReject() {
-        Alert.alert('Reject Trade', 'Are you sure you want to reject this trade?', [
-            { text: 'Cancel', style: 'cancel' },
-            {
-                text: 'Reject',
-                style: 'destructive',
-                onPress: async () => {
-                    setActing(true)
-                    try {
-                        await rejectTrade(trade.id, myMemberId)
-                        onAction()
-                    } catch (e: any) {
-                        Alert.alert('Error', e.message ?? 'Could not reject trade.')
-                    } finally {
-                        setActing(false)
-                    }
-                },
-            },
-        ])
+    function handleReject() {
+        confirmAction('Reject Trade', 'Are you sure you want to reject this trade?', () => {
+            void (async () => {
+                setActing(true)
+                try {
+                    await rejectTrade(trade.id, myMemberId)
+                    onAction()
+                } catch (e: any) {
+                    Alert.alert('Error', e.message ?? 'Could not reject trade.')
+                } finally {
+                    setActing(false)
+                }
+            })()
+        }, 'Reject')
     }
 
-    async function handleWithdraw() {
-        Alert.alert('Withdraw Trade', 'Are you sure you want to withdraw this offer?', [
-            { text: 'Cancel', style: 'cancel' },
-            {
-                text: 'Withdraw',
-                style: 'destructive',
-                onPress: async () => {
-                    setActing(true)
-                    try {
-                        await withdrawTrade(trade.id, myMemberId)
-                        onAction()
-                    } catch (e: any) {
-                        Alert.alert('Error', e.message ?? 'Could not withdraw trade.')
-                    } finally {
-                        setActing(false)
-                    }
-                },
-            },
-        ])
+    function handleWithdraw() {
+        confirmAction('Withdraw Trade', 'Are you sure you want to withdraw this offer?', () => {
+            void (async () => {
+                setActing(true)
+                try {
+                    await withdrawTrade(trade.id, myMemberId)
+                    onAction()
+                } catch (e: any) {
+                    Alert.alert('Error', e.message ?? 'Could not withdraw trade.')
+                } finally {
+                    setActing(false)
+                }
+            })()
+        }, 'Withdraw')
     }
 
     const remainingDrops = neededDrops - droppedIds.size

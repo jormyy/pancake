@@ -24,6 +24,7 @@
     "e2e:browser-waiver": "node tests/e2e/browser-waiver-gameplay.mjs",
     "e2e:browser-trade": "node tests/e2e/browser-trade-gameplay.mjs",
     "e2e:browser-trade-accept": "node tests/e2e/browser-trade-gameplay.mjs --accept",
+    "e2e:browser-trade-terminal": "node tests/e2e/browser-trade-gameplay.mjs --terminal",
     "e2e:fake-upstream": "node tests/e2e/fake-upstream.mjs"
   },
   "dependencies": {
