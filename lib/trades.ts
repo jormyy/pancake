@@ -71,60 +71,19 @@ export async function proposeTrade(
     requestPickIds: string[],
     notes?: string,
 ): Promise<string> {
-    const hasOfferAssets = offerPlayerIds.length > 0 || offerPickIds.length > 0
-    const hasRequestAssets = requestPlayerIds.length > 0 || requestPickIds.length > 0
+    const result = await apiPost<{ tradeId: string }>('/trades/propose', {
+        memberId,
+        leagueId,
+        leagueSeasonId: seasonId,
+        recipientMemberId,
+        offerPlayerIds,
+        requestPlayerIds,
+        offerPickIds,
+        requestPickIds,
+        notes: notes ?? '',
+    })
 
-    if (!hasOfferAssets || !hasRequestAssets) {
-        throw new Error('A trade must include at least one asset on each side.')
-    }
-
-    const { data: trade, error: tradeError } = await supabase
-        .from('trades')
-        .insert({
-            league_id: leagueId,
-            league_season_id: seasonId,
-            proposer_member_id: memberId,
-            recipient_member_id: recipientMemberId,
-            notes: notes ?? null,
-            status: 'pending',
-        })
-        .select('id')
-        .single()
-
-    if (tradeError) throw tradeError
-
-    const items: {
-        trade_id: string
-        side: 'proposer' | 'recipient'
-        player_id: string | null
-        pick_id: string | null
-    }[] = []
-
-    for (const playerId of offerPlayerIds) {
-        items.push({ trade_id: trade.id, side: 'proposer', player_id: playerId, pick_id: null })
-    }
-
-    for (const playerId of requestPlayerIds) {
-        items.push({ trade_id: trade.id, side: 'recipient', player_id: playerId, pick_id: null })
-    }
-
-    for (const pickId of offerPickIds) {
-        items.push({ trade_id: trade.id, side: 'proposer', player_id: null, pick_id: pickId })
-    }
-
-    for (const pickId of requestPickIds) {
-        items.push({ trade_id: trade.id, side: 'recipient', player_id: null, pick_id: pickId })
-    }
-
-    if (items.length > 0) {
-        const { error: itemsError } = await supabase.from('trade_items').insert(items)
-        if (itemsError) throw itemsError
-    }
-
-    // Notify recipient
-    apiPost('/notify/trade', { memberId: recipientMemberId, title: 'New Trade Offer', body: 'You have a new trade offer waiting for your review.' }).catch(console.error)
-
-    return trade.id
+    return result.tradeId
 }
 
 export async function acceptTrade(tradeId: string, memberId: string): Promise<void> {

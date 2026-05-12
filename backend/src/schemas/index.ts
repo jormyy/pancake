@@ -60,6 +60,31 @@ export const TradeActionBody = {
     },
 }
 
+export const TradeProposeBody = {
+    type: 'object' as const,
+    required: [
+        'memberId',
+        'leagueId',
+        'leagueSeasonId',
+        'recipientMemberId',
+        'offerPlayerIds',
+        'requestPlayerIds',
+        'offerPickIds',
+        'requestPickIds',
+    ],
+    properties: {
+        memberId: { type: 'string' as const },
+        leagueId: { type: 'string' as const },
+        leagueSeasonId: { type: 'string' as const },
+        recipientMemberId: { type: 'string' as const },
+        offerPlayerIds: { type: 'array' as const, items: { type: 'string' as const }, default: [] },
+        requestPlayerIds: { type: 'array' as const, items: { type: 'string' as const }, default: [] },
+        offerPickIds: { type: 'array' as const, items: { type: 'string' as const }, default: [] },
+        requestPickIds: { type: 'array' as const, items: { type: 'string' as const }, default: [] },
+        notes: { type: 'string' as const },
+    },
+}
+
 export const TradeParams = {
     type: 'object' as const,
     required: ['tradeId'],

@@ -19,6 +19,16 @@ function apiUrl(): string {
     return runtimeApiUrlOverride() ?? DEFAULT_API_URL
 }
 
+function apiErrorMessage(json: { error?: unknown; message?: unknown } | null, status: number): string {
+    const error = typeof json?.error === 'string' && json.error.trim() ? json.error.trim() : null
+    const message = typeof json?.message === 'string' && json.message.trim() ? json.message.trim() : null
+
+    if (message && (!error || error === 'Bad Request')) {
+        return message
+    }
+    return error ?? message ?? `API error: ${status}`
+}
+
 async function authHeaders(): Promise<Record<string, string>> {
     const { data: { session } } = await supabase.auth.getSession()
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
@@ -37,7 +47,7 @@ export async function apiPost<T = unknown>(path: string, body: Record<string, un
 
     const json = await res.json()
     if (!res.ok || json?.ok === false) {
-        throw new Error(json?.error ?? `API error: ${res.status}`)
+        throw new Error(apiErrorMessage(json, res.status))
     }
     return json as T
 }
@@ -48,7 +58,7 @@ export async function apiGet<T = unknown>(path: string): Promise<T> {
     })
     const json = await res.json()
     if (!res.ok || json?.ok === false) {
-        throw new Error(json?.error ?? `API error: ${res.status}`)
+        throw new Error(apiErrorMessage(json, res.status))
     }
     return json as T
 }

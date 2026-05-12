@@ -1,9 +1,243 @@
 import { FastifyInstance } from 'fastify'
 import { supabase } from '../lib/supabase'
 import { verifyOwnMember } from '../lib/authz'
-import { TradeActionBody, TradeParams } from '../schemas'
+import { notifyMember } from '../lib/notifications'
+import { AppError, NotFoundError, ValidationError } from '../plugins/errorHandler'
+import { TradeActionBody, TradeParams, TradeProposeBody } from '../schemas'
+
+type TradeProposeRequest = {
+    memberId: string
+    leagueId: string
+    leagueSeasonId: string
+    recipientMemberId: string
+    offerPlayerIds: string[]
+    requestPlayerIds: string[]
+    offerPickIds: string[]
+    requestPickIds: string[]
+    notes?: string
+}
+
+function assertNoDuplicates(ids: string[], label: string) {
+    if (new Set(ids).size !== ids.length) {
+        throw new ValidationError(`Duplicate ${label} are not allowed.`)
+    }
+}
+
+function todayET(): string {
+    return new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
+}
+
+async function assertRosterPlayersOwned(
+    playerIds: string[],
+    {
+        leagueId,
+        leagueSeasonId,
+        memberId,
+        label,
+    }: { leagueId: string; leagueSeasonId: string; memberId: string; label: string },
+) {
+    if (playerIds.length === 0) return
+
+    const { data, error } = await supabase
+        .from('roster_players')
+        .select('player_id')
+        .eq('league_id', leagueId)
+        .eq('league_season_id', leagueSeasonId)
+        .eq('member_id', memberId)
+        .in('player_id', playerIds)
+
+    if (error) throw error
+    if ((data ?? []).length !== playerIds.length) {
+        throw new ValidationError(`${label} includes a player that is no longer owned by the expected team.`)
+    }
+}
+
+async function assertDraftPicksOwned(
+    pickIds: string[],
+    {
+        leagueId,
+        memberId,
+        label,
+    }: { leagueId: string; memberId: string; label: string },
+) {
+    if (pickIds.length === 0) return
+
+    const { data, error } = await supabase
+        .from('draft_picks')
+        .select('id')
+        .eq('league_id', leagueId)
+        .eq('current_owner_id', memberId)
+        .eq('is_used', false)
+        .in('id', pickIds)
+
+    if (error) throw error
+    if ((data ?? []).length !== pickIds.length) {
+        throw new ValidationError(`${label} includes a draft pick that is no longer owned by the expected team.`)
+    }
+}
 
 export default async function tradeRoutes(app: FastifyInstance) {
+    app.post(
+        '/propose',
+        { schema: { body: TradeProposeBody } },
+        async (req) => {
+            const {
+                memberId,
+                leagueId,
+                leagueSeasonId,
+                recipientMemberId,
+                offerPlayerIds,
+                requestPlayerIds,
+                offerPickIds,
+                requestPickIds,
+                notes,
+            } = req.body as TradeProposeRequest
+
+            await verifyOwnMember(req.userId, memberId)
+
+            if (memberId === recipientMemberId) {
+                throw new ValidationError('You cannot trade with yourself.')
+            }
+            const hasOfferAssets = offerPlayerIds.length > 0 || offerPickIds.length > 0
+            const hasRequestAssets = requestPlayerIds.length > 0 || requestPickIds.length > 0
+            if (!hasOfferAssets || !hasRequestAssets) {
+                throw new ValidationError('A trade must include at least one asset on each side.')
+            }
+            assertNoDuplicates(offerPlayerIds, 'offered players')
+            assertNoDuplicates(requestPlayerIds, 'requested players')
+            assertNoDuplicates(offerPickIds, 'offered picks')
+            assertNoDuplicates(requestPickIds, 'requested picks')
+
+            const { data: league, error: leagueErr } = await supabase
+                .from('leagues')
+                .select('id, trade_deadline')
+                .eq('id', leagueId)
+                .single()
+            if (leagueErr || !league) throw new NotFoundError('League not found.')
+            if (league.trade_deadline && league.trade_deadline < todayET()) {
+                throw new ValidationError('The trade deadline has passed.')
+            }
+
+            const [{ data: proposer }, { data: recipient }, { data: season }] = await Promise.all([
+                supabase
+                    .from('league_members')
+                    .select('id, league_id')
+                    .eq('id', memberId)
+                    .single(),
+                supabase
+                    .from('league_members')
+                    .select('id, league_id')
+                    .eq('id', recipientMemberId)
+                    .single(),
+                supabase
+                    .from('league_seasons')
+                    .select('id, league_id, is_current')
+                    .eq('id', leagueSeasonId)
+                    .single(),
+            ])
+
+            if (!proposer) throw new NotFoundError('Proposer not found.')
+            if (!recipient) throw new NotFoundError('Recipient not found.')
+            if (!season) throw new ValidationError('No active season found.')
+            if (
+                proposer.league_id !== leagueId ||
+                recipient.league_id !== leagueId ||
+                season.league_id !== leagueId
+            ) {
+                throw new AppError('Access denied', 403)
+            }
+            if (!season.is_current) {
+                throw new ValidationError('No active season found.')
+            }
+
+            await Promise.all([
+                assertRosterPlayersOwned(offerPlayerIds, {
+                    leagueId,
+                    leagueSeasonId,
+                    memberId,
+                    label: 'Your offer',
+                }),
+                assertRosterPlayersOwned(requestPlayerIds, {
+                    leagueId,
+                    leagueSeasonId,
+                    memberId: recipientMemberId,
+                    label: 'Your request',
+                }),
+                assertDraftPicksOwned(offerPickIds, {
+                    leagueId,
+                    memberId,
+                    label: 'Your offer',
+                }),
+                assertDraftPicksOwned(requestPickIds, {
+                    leagueId,
+                    memberId: recipientMemberId,
+                    label: 'Your request',
+                }),
+            ])
+
+            const { data: trade, error: tradeError } = await supabase
+                .from('trades')
+                .insert({
+                    league_id: leagueId,
+                    league_season_id: leagueSeasonId,
+                    proposer_member_id: memberId,
+                    recipient_member_id: recipientMemberId,
+                    notes: notes?.trim() ? notes.trim() : null,
+                    status: 'pending',
+                })
+                .select('id')
+                .single()
+            if (tradeError || !trade) throw tradeError ?? new Error('Could not create trade.')
+
+            const items: {
+                trade_id: string
+                side: 'proposer' | 'recipient'
+                player_id: string | null
+                pick_id: string | null
+            }[] = [
+                ...offerPlayerIds.map((playerId) => ({
+                    trade_id: trade.id,
+                    side: 'proposer' as const,
+                    player_id: playerId,
+                    pick_id: null,
+                })),
+                ...requestPlayerIds.map((playerId) => ({
+                    trade_id: trade.id,
+                    side: 'recipient' as const,
+                    player_id: playerId,
+                    pick_id: null,
+                })),
+                ...offerPickIds.map((pickId) => ({
+                    trade_id: trade.id,
+                    side: 'proposer' as const,
+                    player_id: null,
+                    pick_id: pickId,
+                })),
+                ...requestPickIds.map((pickId) => ({
+                    trade_id: trade.id,
+                    side: 'recipient' as const,
+                    player_id: null,
+                    pick_id: pickId,
+                })),
+            ]
+
+            const { error: itemError } = await supabase.from('trade_items').insert(items)
+            if (itemError) {
+                await supabase.from('trades').delete().eq('id', trade.id)
+                throw itemError
+            }
+
+            notifyMember(
+                recipientMemberId,
+                'New Trade Offer',
+                'You have a new trade offer waiting for your review.',
+                { tradeId: trade.id },
+            ).catch((error) => req.log.error({ err: error }, 'Trade proposal notification failed'))
+
+            return { ok: true, tradeId: trade.id }
+        },
+    )
+
     app.post(
         '/:tradeId/accept',
         { schema: { params: TradeParams, body: TradeActionBody } },

@@ -15,6 +15,7 @@ import { useLeagueContext } from '@/contexts/league-context'
 import { getLeagueMembers } from '@/lib/league'
 import { getRoster, RosterPlayer } from '@/lib/roster'
 import { proposeTrade, getCurrentSeasonId, getPicksForMember, TradePickItem } from '@/lib/trades'
+import { showAlert } from '@/lib/alert'
 
 import { yearShort } from '@/lib/format'
 import { Avatar } from '@/components/Avatar'
@@ -224,7 +225,7 @@ export default function ProposeTradeScreen() {
                 { text: 'OK', onPress: () => back() },
             ])
         } catch (e: any) {
-            Alert.alert('Error', e.message ?? 'Could not propose trade.')
+            showAlert('Error', e.message ?? 'Could not propose trade.')
         } finally {
             setSubmitting(false)
         }

@@ -15,6 +15,7 @@ const TERMINAL_REPORT_PATH = path.join(ROOT, 'tests/e2e-browser-trade-terminal-r
 const FUTURE_PICK_REPORT_PATH = path.join(ROOT, 'tests/e2e-browser-trade-future-pick-report.md')
 const FUTURE_PICK_ACCEPT_REPORT_PATH = path.join(ROOT, 'tests/e2e-browser-trade-future-pick-accept-report.md')
 const OVERFLOW_ACCEPT_REPORT_PATH = path.join(ROOT, 'tests/e2e-browser-trade-overflow-accept-report.md')
+const POST_DEADLINE_REPORT_PATH = path.join(ROOT, 'tests/e2e-browser-trade-post-deadline-report.md')
 
 const browser = async (session, args, options = {}) => {
   const { stdout, stderr } = await execFileAsync('agent-browser', ['--session', session, ...args], {
@@ -356,6 +357,17 @@ const setupTradeOverflowAcceptGameplayFixture = async (env, season) => {
   }
 }
 
+const setupTradePostDeadlineGameplayFixture = async (env, season) => {
+  const fixture = await setupTradeGameplayFixture(env, season)
+  const tradeDeadline = '2000-01-01'
+  const { error } = await fixture.admin
+    .from('leagues')
+    .update({ trade_deadline: tradeDeadline })
+    .eq('id', fixture.league.id)
+  if (error) throw new Error(`post-deadline trade fixture update: ${error.message}`)
+  return { ...fixture, tradeDeadline }
+}
+
 const installBrowserHooks = async (session, env) => {
   await browser(session, [
     'eval',
@@ -489,6 +501,37 @@ const waitForTradeProposal = async (fixture, timeoutMs = 10_000) => {
     last = await verifyTradeProposal(fixture)
   }
   return last
+}
+
+const verifyPostDeadlineTradeRejected = async (fixture) => {
+  const [tradesResult, itemsResult] = await Promise.all([
+    fixture.admin
+      .from('trades')
+      .select('id, status, notes')
+      .eq('league_id', fixture.league.id)
+      .eq('league_season_id', fixture.currentSeason.id),
+    fixture.admin
+      .from('trade_items')
+      .select('id, trade_id'),
+  ])
+  if (tradesResult.error) throw new Error(`post-deadline trade verify: ${tradesResult.error.message}`)
+  if (itemsResult.error) throw new Error(`post-deadline trade item verify: ${itemsResult.error.message}`)
+
+  const trades = tradesResult.data ?? []
+  const tradeIds = new Set(trades.map((trade) => trade.id))
+  const items = (itemsResult.data ?? []).filter((item) => tradeIds.has(item.trade_id))
+  const failures = []
+  if (trades.length !== 0) failures.push(`post-deadline proposal inserted trades rows=${trades.length}; expected 0`)
+  if (items.length !== 0) failures.push(`post-deadline proposal inserted trade_items rows=${items.length}; expected 0`)
+  return { trades, items, failures }
+}
+
+const readBrowserAlerts = async (session) => {
+  const output = await browser(session, [
+    'eval',
+    `(() => JSON.stringify(window.__pancakeAlerts || []))()`,
+  ])
+  return parseEvalJson(output)
 }
 
 const verifyFuturePickTradeProposal = async (fixture) => {
@@ -976,6 +1019,141 @@ export async function runBrowserTradeScenario({
       notes,
     }
     await writeFile(REPORT_PATH, `${JSON.stringify(report, null, 2)}\n`).catch(() => {})
+    throw error
+  } finally {
+    await browser(session, ['close']).catch(() => {})
+  }
+}
+
+export async function runBrowserTradePostDeadlineScenario({
+  season = 0,
+  sessionName,
+} = {}) {
+  const env = resolvedEnv()
+  requireEnv(env, ['supabaseUrl', 'serviceRoleKey', 'anonKey'])
+  const fixture = await setupTradePostDeadlineGameplayFixture(env, season)
+  const sessionList = await listSessions().catch((error) => `session list unavailable: ${error.message}`)
+  const session = sessionName ?? safeName(`pancake-trade-post-deadline-${fixture.runId}-${process.pid}`)
+  const artifactDir = path.join(ARTIFACT_ROOT, `season-${season}`, 'browser-trade-post-deadline')
+  await mkdir(artifactDir, { recursive: true })
+
+  const notes = [
+    `Frontend: ${describeEndpoint(env.frontendUrl)}`,
+    `Session: ${session}`,
+    `Proposer: ${fixture.users[0].email}`,
+    `Recipient member: ${fixture.recipient.id}`,
+    `Trade deadline: ${fixture.tradeDeadline}`,
+    sessionList,
+  ]
+  let debug = {}
+
+  try {
+    await signInBrowser(session, env, fixture.users[0], fixture.password)
+    await browser(session, ['set', 'viewport', '390', '844']).catch(() => {})
+    await browser(session, ['open', joinUrl(env.frontendUrl, `/propose-trade?recipientMemberId=${fixture.recipient.id}`)])
+    await installBrowserHooks(session, env)
+    await browser(session, ['wait', '3500'])
+    await assertPageText(
+      session,
+      [
+        'Propose Trade',
+        'YOU RECEIVE',
+        'YOU GIVE',
+        fixture.recipientPlayer.display_name,
+        fixture.proposerPlayer.display_name,
+      ],
+      'post-deadline trade proposal before submit',
+    )
+    await browser(session, ['screenshot', path.join(artifactDir, 'post-deadline-before-submit.png')], { timeout: 60_000 })
+
+    const requestClick = await clickButton(
+      session,
+      `Select ${fixture.recipientPlayer.display_name} for trade`,
+      'post-deadline recipient player selection',
+    )
+    const offerClick = await clickButton(
+      session,
+      `Select ${fixture.proposerPlayer.display_name} for trade`,
+      'post-deadline proposer player selection',
+    )
+    await browser(session, ['wait', '500'])
+    await browser(session, ['screenshot', path.join(artifactDir, 'post-deadline-selected.png')], { timeout: 60_000 })
+    const submitClick = await clickButton(session, 'Send trade proposal', 'post-deadline trade proposal submit')
+    await browser(session, ['wait', '1500'])
+
+    const alerts = await readBrowserAlerts(session)
+    const rejected = await verifyPostDeadlineTradeRejected(fixture)
+    debug = { ...debug, requestClick, offerClick, submitClick, alerts, rejected }
+    const alertText = alerts.join('\n')
+    const failures = [...rejected.failures]
+    if (!/trade deadline has passed/i.test(alertText)) {
+      failures.push(`deadline alert missing; alerts=${JSON.stringify(alerts)}`)
+    }
+    await browser(session, ['screenshot', path.join(artifactDir, 'post-deadline-after-submit.png')], { timeout: 60_000 })
+
+    const consoleOutput = await browser(session, ['console']).catch((error) => `console unavailable: ${error.message}`)
+    const errorOutput = await browser(session, ['errors']).catch((error) => `errors unavailable: ${error.message}`)
+    await writeFile(path.join(artifactDir, 'console.txt'), `${consoleOutput}\n`)
+    await writeFile(path.join(artifactDir, 'errors.txt'), `${errorOutput}\n`)
+
+    if (errorOutput.trim()) failures.push(`browser errors present; see ${path.relative(ROOT, path.join(artifactDir, 'errors.txt'))}`)
+    const report = {
+      status: failures.length === 0 ? 'PASS' : 'FAIL',
+      season,
+      artifactDir,
+      fixture: {
+        runId: fixture.runId,
+        leagueId: fixture.league.id,
+        leagueSeasonId: fixture.currentSeason.id,
+        proposerMemberId: fixture.proposer.id,
+        recipientMemberId: fixture.recipient.id,
+        proposerPlayerId: fixture.proposerPlayer.id,
+        recipientPlayerId: fixture.recipientPlayer.id,
+        tradeDeadline: fixture.tradeDeadline,
+      },
+      alerts,
+      rejected,
+      notes,
+      failures,
+    }
+    await writeFile(POST_DEADLINE_REPORT_PATH, `${JSON.stringify(report, null, 2)}\n`)
+    await writeFile(path.join(artifactDir, 'summary.json'), `${JSON.stringify(report, null, 2)}\n`)
+    if (failures.length > 0) throw new Error(`Browser post-deadline trade scenario failed: ${failures.join('; ')}`)
+    return report
+  } catch (error) {
+    await browser(session, ['screenshot', path.join(artifactDir, 'failure.png')], { timeout: 60_000 }).catch(() => {})
+    const consoleOutput = await browser(session, ['console']).catch((consoleError) => `console unavailable: ${consoleError.message}`)
+    const errorOutput = await browser(session, ['errors']).catch((errorError) => `errors unavailable: ${errorError.message}`)
+    const networkOutput = await browser(session, ['network', 'requests']).catch((networkError) => `network unavailable: ${networkError.message}`)
+    await writeFile(path.join(artifactDir, 'console.txt'), `${consoleOutput}\n`).catch(() => {})
+    await writeFile(path.join(artifactDir, 'errors.txt'), `${errorOutput}\n`).catch(() => {})
+    await writeFile(path.join(artifactDir, 'network.txt'), `${networkOutput}\n`).catch(() => {})
+    const [alerts, rejected] = await Promise.all([
+      readBrowserAlerts(session).catch((alertError) => [`alerts unavailable: ${alertError.message}`]),
+      verifyPostDeadlineTradeRejected(fixture).catch((verifyError) => ({
+        failures: [`verify unavailable: ${verifyError.message}`],
+      })),
+    ])
+    debug = { ...debug, alerts, rejected, consoleOutput, errorOutput, networkOutput }
+    const report = {
+      status: 'FAIL',
+      season,
+      artifactDir,
+      fixture: {
+        runId: fixture.runId,
+        leagueId: fixture.league.id,
+        leagueSeasonId: fixture.currentSeason.id,
+        proposerMemberId: fixture.proposer.id,
+        recipientMemberId: fixture.recipient.id,
+        proposerPlayerId: fixture.proposerPlayer.id,
+        recipientPlayerId: fixture.recipientPlayer.id,
+        tradeDeadline: fixture.tradeDeadline,
+      },
+      error: error instanceof Error ? error.message : String(error),
+      debug,
+      notes,
+    }
+    await writeFile(POST_DEADLINE_REPORT_PATH, `${JSON.stringify(report, null, 2)}\n`).catch(() => {})
     throw error
   } finally {
     await browser(session, ['close']).catch(() => {})
@@ -1660,6 +1838,8 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     ? runBrowserTradeTerminalScenario
     : process.argv.includes('--overflow-accept')
       ? runBrowserTradeOverflowAcceptScenario
+    : process.argv.includes('--post-deadline')
+      ? runBrowserTradePostDeadlineScenario
     : process.argv.includes('--future-pick-accept')
       ? runBrowserTradeFuturePickAcceptScenario
     : process.argv.includes('--future-pick')
