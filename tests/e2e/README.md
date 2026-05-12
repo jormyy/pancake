@@ -35,6 +35,8 @@ npm run e2e:soak
 
 Backend tick routes are available only when the Fastify server is started with both `ENABLE_E2E_ROUTES=1` and `E2E_ADMIN_SECRET`. The soak runner calls them only when `E2E_ENABLE_BACKEND_TICKS=1`. In that mode it runs sync/admin ticks and calls the real season-reset path for the target league at each season boundary, then re-checks invariants including the rolling five-year pick-bank horizon.
 
+Backend tick mode also checks D.X.3 CORS behavior before the season loop. It sends an `OPTIONS` preflight to `/e2e/status` with the configured `E2E_FRONTEND_URL` origin and verifies the response allows the origin, `GET`, and the headers used by the app/E2E routes.
+
 When backend ticks are enabled, the runner also checks D.SEA.1 matchup generation idempotency for the target league. It counts current-season `matchups`, calls `/e2e/generate-matchups` a second time with `force: false`, and fails if the count changes or if a league with enough members has no generated schedule.
 
 Snapshots are written under `tests/snapshots/season-<N>/` after the season boundary checks. When backend ticks are enabled, snapshots are written after the real season reset. Each snapshot includes a `summary.json`, and the runner fails D.SEA.7 if any dynasty-critical table count shrinks across seasons or if `draft_picks`, `league_seasons`, or `waiver_priorities` fail to grow after real resets.

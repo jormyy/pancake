@@ -569,6 +569,38 @@ const backendGetJson = async (env, pathname) => {
   return response.json()
 }
 
+const assertCorsPreflight = async (env) => {
+  const origin = new URL(env.frontendUrl).origin
+  const response = await fetch(backendUrl(env, '/e2e/status'), {
+    method: 'OPTIONS',
+    headers: {
+      origin,
+      'access-control-request-method': 'GET',
+      'access-control-request-headers': 'content-type,x-e2e-secret,authorization',
+    },
+  })
+  if (!response.ok && response.status !== 204) {
+    throw new Error(`D.X.3: CORS preflight returned ${response.status}`)
+  }
+
+  const allowOrigin = response.headers.get('access-control-allow-origin')
+  if (allowOrigin !== origin && allowOrigin !== '*') {
+    throw new Error(`D.X.3: CORS allow-origin was ${allowOrigin ?? '<missing>'}; expected ${origin}`)
+  }
+
+  const allowMethods = response.headers.get('access-control-allow-methods') ?? ''
+  if (!allowMethods.split(',').map((method) => method.trim().toUpperCase()).includes('GET')) {
+    throw new Error(`D.X.3: CORS allow-methods missing GET: ${allowMethods || '<missing>'}`)
+  }
+
+  const allowHeaders = (response.headers.get('access-control-allow-headers') ?? '').toLowerCase()
+  for (const header of ['content-type', 'x-e2e-secret', 'authorization']) {
+    if (!allowHeaders.includes(header)) {
+      throw new Error(`D.X.3: CORS allow-headers missing ${header}: ${allowHeaders || '<missing>'}`)
+    }
+  }
+}
+
 const main = async () => {
   const args = parseArgs()
   if (!Number.isInteger(args.seasons) || args.seasons < 1) {
@@ -655,6 +687,8 @@ const main = async () => {
     try {
       if (env.backendTicksEnabled) {
         await backendGetJson(env, '/e2e/status')
+        await assertCorsPreflight(env)
+        notes.push('CORS preflight check passed for the configured frontend origin.')
       }
 
       let previousSnapshot = null

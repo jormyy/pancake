@@ -1,9 +1,9 @@
 # Multi-Season E2E Soak Report
 
 - Status: PARTIAL
-- Started: 2026-05-12T03:40:41.283Z
-- Finished: 2026-05-12T03:40:59.168Z
-- Target seasons: 2
+- Started: 2026-05-12T03:46:04.049Z
+- Finished: 2026-05-12T03:46:12.795Z
+- Target seasons: 1
 - Fake upstream: http://127.0.0.1:4555
 
 ## Season Summary
@@ -11,7 +11,6 @@
 | Season | Status | Notes |
 | --- | --- | --- |
 | 1 | PASS | D.0 invariant boundary checks passed before and after real season reset; full scenario loop pending; matchup generation idempotency passed |
-| 2 | PASS | D.0 invariant boundary checks passed before and after real season reset; full scenario loop pending; matchup generation idempotency passed; snapshot row-count diff passed |
 
 ## Notes
 
@@ -24,3 +23,4 @@
 - Browser auth/sign-out/session-persistence scenario disabled; set E2E_ENABLE_BROWSER_AUTH=1 to exercise D.SET.1.
 - Future-pick multi-hop scenario disabled; set E2E_ENABLE_PICK_CHAIN=1 to exercise D.LONG.2.
 - Schema preflight passed: post-refactor RPCs and required columns are present.
+- CORS preflight check passed for the configured frontend origin.
