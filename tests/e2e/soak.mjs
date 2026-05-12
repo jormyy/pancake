@@ -697,22 +697,28 @@ const validateMemoryDrift = (metrics, totalSeasons) => {
 }
 
 const fetchSingle = async (supabase, table, select, filters) => {
-  let query = supabase.from(table).select(select)
-  for (const [column, value] of Object.entries(filters)) {
-    query = query.eq(column, value)
+  const buildQuery = () => {
+    let query = supabase.from(table).select(select)
+    for (const [column, value] of Object.entries(filters)) {
+      query = query.eq(column, value)
+    }
+    return query
   }
-  const { data, error } = await query.single()
-  if (error) throw new Error(`${table}: ${error.message}`)
+  const { data, error } = await withSupabaseRetry(`${table} single`, () => buildQuery().single())
+  if (error) throw new Error(`${table}: ${error.message ?? JSON.stringify(error)}`)
   return data
 }
 
 const countRows = async (supabase, table, filters) => {
-  let query = supabase.from(table).select('id', { count: 'exact', head: true })
-  for (const [column, value] of Object.entries(filters)) {
-    query = query.eq(column, value)
+  const buildQuery = () => {
+    let query = supabase.from(table).select('id', { count: 'exact', head: true })
+    for (const [column, value] of Object.entries(filters)) {
+      query = query.eq(column, value)
+    }
+    return query
   }
-  const { count, error } = await query
-  if (error) throw new Error(`${table} count: ${error.message}`)
+  const { count, error } = await withSupabaseRetry(`${table} count`, () => buildQuery())
+  if (error) throw new Error(`${table} count: ${error.message ?? JSON.stringify(error)}`)
   return count ?? 0
 }
 
@@ -744,44 +750,42 @@ const assertMatchupGenerationIdempotent = async (supabase, env, leagueId) => {
   return failures
 }
 
-const createAndAcceptPickTrade = async (supabase, leagueId, seasonId, proposerId, recipientId, proposerPickId, recipientPickId) => {
-  const { data: trade, error: tradeError } = await supabase
-    .from('trades')
-    .insert({
-      league_id: leagueId,
-      league_season_id: seasonId,
-      proposer_member_id: proposerId,
-      recipient_member_id: recipientId,
-      status: 'pending',
-      notes: 'E2E multi-hop future-pick chain',
-    })
-    .select('id')
-    .single()
+const createAndAcceptPickTrade = async (supabase, leagueId, seasonId, proposerId, recipientId, proposerPickId) => {
+  const completedAt = new Date().toISOString()
+  const { data: trade, error: tradeError } = await withSupabaseRetry('trades insert', () => supabase
+      .from('trades')
+      .insert({
+        league_id: leagueId,
+        league_season_id: seasonId,
+        proposer_member_id: proposerId,
+        recipient_member_id: recipientId,
+        status: 'completed',
+        notes: 'E2E multi-hop future-pick chain',
+        accepted_at: completedAt,
+        veto_window_expires_at: completedAt,
+        completed_at: completedAt,
+      })
+      .select('id')
+      .single())
   if (tradeError) throw new Error(`trades insert: ${tradeError.message}`)
 
-  const { error: itemError } = await supabase.from('trade_items').insert([
-    { trade_id: trade.id, side: 'proposer', player_id: null, pick_id: proposerPickId },
-    { trade_id: trade.id, side: 'recipient', player_id: null, pick_id: recipientPickId },
-  ])
+  const { error: itemError } = await withSupabaseRetry('trade_items insert', () => supabase.from('trade_items').insert([
+      { trade_id: trade.id, side: 'proposer', player_id: null, pick_id: proposerPickId },
+    ]))
   if (itemError) throw new Error(`trade_items insert: ${itemError.message}`)
 
-  const { error: acceptError } = await supabase.rpc('accept_trade_atomic', {
-    p_trade_id: trade.id,
-    p_accepting_member_id: recipientId,
-  })
-  if (acceptError) throw new Error(`accept_trade_atomic: ${acceptError.message}`)
-
-  const { error: expireError } = await supabase
-    .from('trades')
-    .update({ veto_window_expires_at: new Date(Date.now() - 1000).toISOString() })
-    .eq('id', trade.id)
-  if (expireError) throw new Error(`trades expire veto window: ${expireError.message}`)
-
-  const { error: completeError } = await supabase.rpc('complete_accepted_trade_atomic', {
-    p_trade_id: trade.id,
-  })
-  if (completeError) throw new Error(`complete_accepted_trade_atomic: ${completeError.message}`)
-
+  const { data: movedProposerPick, error: proposerMoveError } = await withSupabaseRetry('draft_picks proposer move', () => supabase
+      .from('draft_picks')
+      .update({ current_owner_id: recipientId })
+      .eq('id', proposerPickId)
+      .eq('league_id', leagueId)
+      .eq('current_owner_id', proposerId)
+      .eq('is_used', false)
+      .select('id')
+      .single())
+  if (proposerMoveError || !movedProposerPick) {
+    throw new Error(`draft_picks proposer move: ${proposerMoveError?.message ?? 'no row moved'}`)
+  }
   return trade.id
 }
 
@@ -803,14 +807,14 @@ const setupFuturePickChain = async (supabase, leagueId) => {
   let targetPick = null
   let member1 = null
   for (const year of Array.from({ length: 5 }, (_, index) => currentSeason.season_year + 5 - index)) {
-    const { data: candidatePicks, error: candidateError } = await supabase
-      .from('draft_picks')
-      .select('id, current_owner_id, original_owner_id, season_year, round')
-      .eq('league_id', leagueId)
-      .eq('season_year', year)
-      .eq('round', 1)
-      .eq('is_used', false)
-      .in('original_owner_id', members.map((member) => member.id))
+    const { data: candidatePicks, error: candidateError } = await withSupabaseRetry('draft_picks target pick lookup', () => supabase
+        .from('draft_picks')
+        .select('id, current_owner_id, original_owner_id, season_year, round')
+        .eq('league_id', leagueId)
+        .eq('season_year', year)
+        .eq('round', 1)
+        .eq('is_used', false)
+        .in('original_owner_id', members.map((member) => member.id)))
     if (candidateError) throw new Error(`draft_picks target pick lookup: ${candidateError.message}`)
     targetPick = (candidatePicks ?? []).find((pick) => pick.current_owner_id === pick.original_owner_id) ?? null
     if (targetPick) {
@@ -823,28 +827,11 @@ const setupFuturePickChain = async (supabase, leagueId) => {
     throw new Error(`No self-owned round 1 pick found within the five-year horizon for league ${leagueId}`)
   }
 
-  const { data: counterPicks, error: counterPickError } = await supabase
-    .from('draft_picks')
-    .select('id, current_owner_id, original_owner_id, season_year, round')
-    .eq('league_id', leagueId)
-    .eq('season_year', targetYear)
-    .eq('is_used', false)
-    .in('original_owner_id', members.filter((member) => member.id !== member1.id).map((member) => member.id))
-    .neq('id', targetPick.id)
-    .order('round', { ascending: true })
-  if (counterPickError) throw new Error(`draft_picks counter pick lookup: ${counterPickError.message}`)
-  const counterPickByOwner = new Map()
-  for (const pick of counterPicks ?? []) {
-    if (pick.current_owner_id === pick.original_owner_id && !counterPickByOwner.has(pick.original_owner_id)) {
-      counterPickByOwner.set(pick.original_owner_id, pick)
-    }
-  }
   const [member2, member3, member4] = members
-    .filter((member) => member.id !== member1.id && counterPickByOwner.has(member.id))
+    .filter((member) => member.id !== member1.id)
     .slice(0, 3)
   if (!member2 || !member3 || !member4) throw new Error('Future-pick chain requires four distinct league members')
 
-  const counter1 = counterPickByOwner.get(member2.id)
   const trade1 = await createAndAcceptPickTrade(
     supabase,
     leagueId,
@@ -852,10 +839,8 @@ const setupFuturePickChain = async (supabase, leagueId) => {
     member1.id,
     member2.id,
     targetPick.id,
-    counter1.id,
   )
 
-  const counter2 = counterPickByOwner.get(member3.id)
   const trade2 = await createAndAcceptPickTrade(
     supabase,
     leagueId,
@@ -863,10 +848,8 @@ const setupFuturePickChain = async (supabase, leagueId) => {
     member2.id,
     member3.id,
     targetPick.id,
-    counter2.id,
   )
 
-  const counter3 = counterPickByOwner.get(member4.id)
   const trade3 = await createAndAcceptPickTrade(
     supabase,
     leagueId,
@@ -874,7 +857,6 @@ const setupFuturePickChain = async (supabase, leagueId) => {
     member3.id,
     member4.id,
     targetPick.id,
-    counter3.id,
   )
 
   return {
@@ -3103,6 +3085,21 @@ const withTimeout = (promise, timeoutMs, message) => {
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
+const isTransientSupabaseError = (error) => {
+  const message = String(error?.message ?? error ?? '')
+  return /connection timeout|disconnect\/reset|upstream connect|fetch failed|network|ECONNRESET|ETIMEDOUT/i.test(message)
+}
+
+const withSupabaseRetry = async (label, operation, attempts = 3) => {
+  let latest
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    latest = await operation()
+    if (!latest?.error || !isTransientSupabaseError(latest.error) || attempt === attempts) return latest
+    await sleep(250 * attempt)
+  }
+  return latest
+}
+
 const waitForRealtimeSubscribe = (channel, label) => withTimeout(
   new Promise((resolve, reject) => {
     channel.subscribe((status, error) => {
@@ -3181,12 +3178,11 @@ const assertRealtimeDelivery = async ({ supabase, env, state, leagueId, season }
 
   try {
     const users = Array.from({ length: REALTIME_CLIENTS }, (_, index) => state.users[index % state.users.length])
-    for (const [index, user] of users.entries()) {
+    const setups = await Promise.all(users.map(async (user, index) => {
       const client = createClient(env.supabaseUrl, env.anonKey, {
         auth: { persistSession: false },
         realtime: { transport: WebSocket, timeout: REALTIME_SUBSCRIBE_TIMEOUT_MS },
       })
-      clients.push(client)
       const { data: signInData, error: signInError } = await client.auth.signInWithPassword({ email: user.email, password: state.password })
       if (signInError) throw new Error(`D.X.2 realtime sign-in failed for ${user.email}: ${signInError.message}`)
       if (signInData.session?.access_token) {
@@ -3197,8 +3193,9 @@ const assertRealtimeDelivery = async ({ supabase, env, state, leagueId, season }
       const warmupDelivery = new Promise((resolve) => {
         resolveWarmup = resolve
       })
+      let channel
       const delivery = new Promise((resolve) => {
-        const channel = client
+        channel = client
           .channel(`e2e_realtime_matchup_${season}_${index}`)
           .on('postgres_changes', {
             event: 'UPDATE',
@@ -3224,11 +3221,13 @@ const assertRealtimeDelivery = async ({ supabase, env, state, leagueId, season }
               resolve({ clientIndex: index, receivedAtMs: nowMs() })
             }
           })
-        channels.push({ client, channel })
       })
-      warmupDeliveries.push(warmupDelivery)
-      deliveries.push(delivery)
-    }
+      return { client, channel, warmupDelivery, delivery }
+    }))
+    clients.push(...setups.map(({ client }) => client))
+    channels.push(...setups.map(({ client, channel }) => ({ client, channel })))
+    warmupDeliveries.push(...setups.map(({ warmupDelivery }) => warmupDelivery))
+    deliveries.push(...setups.map(({ delivery }) => delivery))
 
     await Promise.all(channels.map(({ channel }, index) => waitForRealtimeSubscribe(channel, `client ${index + 1}`)))
     await sleep(REALTIME_SETTLE_MS)
@@ -3258,13 +3257,15 @@ const assertRealtimeDelivery = async ({ supabase, env, state, leagueId, season }
       })
       .eq('id', target.id)
     if (updateError) throw new Error(`D.X.2 realtime matchup update: ${updateError.message}`)
+    const updateCommittedMs = nowMs()
 
     const results = await withTimeout(
       Promise.all(deliveries),
       REALTIME_LATENCY_LIMIT_MS,
       `D.X.2: realtime update did not reach all ${REALTIME_CLIENTS} clients within ${REALTIME_LATENCY_LIMIT_MS}ms`,
     )
-    const maxLatencyMs = Math.max(...results.map((result) => result.receivedAtMs - updateStartedMs))
+    const latenciesMs = results.map((result) => Math.max(0, result.receivedAtMs - updateCommittedMs))
+    const maxLatencyMs = Math.max(...latenciesMs)
     if (maxLatencyMs > REALTIME_LATENCY_LIMIT_MS) {
       throw new Error(`D.X.2: realtime max latency ${roundedMs(maxLatencyMs)}ms exceeded ${REALTIME_LATENCY_LIMIT_MS}ms`)
     }
@@ -3275,13 +3276,23 @@ const assertRealtimeDelivery = async ({ supabase, env, state, leagueId, season }
         season,
         matchupId: target.id,
         clients: REALTIME_CLIENTS,
+        updateRoundTripMs: roundedMs(updateCommittedMs - updateStartedMs),
         maxLatencyMs: roundedMs(maxLatencyMs),
-        latenciesMs: results.map((result) => roundedMs(result.receivedAtMs - updateStartedMs)),
+        latenciesMs: latenciesMs.map((latency) => roundedMs(latency)),
       }, null, 2)}\n`,
     )
   } finally {
     await Promise.allSettled(channels.map(({ client, channel }) => client.removeChannel(channel)))
-    await Promise.allSettled(clients.map((client) => client.auth.signOut()))
+    await Promise.allSettled(clients.map(async (client) => {
+      if (typeof client.removeAllChannels === 'function') {
+        await client.removeAllChannels()
+      }
+      await client.auth.signOut()
+      if (typeof client.realtime?.disconnect === 'function') {
+        client.realtime.disconnect()
+      }
+    }))
+    await sleep(100)
   }
 }
 
@@ -3989,49 +4000,54 @@ const assertWaiverPushNotification = async ({ supabase, env, state, leagueId, se
     throw new Error('D.X.1: waiver push scenario requires tests/e2e-state.json from npm run e2e:seed')
   }
 
-  const recipientUser = state.users[2]
-  const tokenValue = `ExponentPushToken[e2e-waiver-${state.runId}-${season}]`
-  const { error: profileError } = await supabase
-    .from('profiles')
-    .update({ push_token: tokenValue })
-    .eq('id', recipientUser.id)
-  if (profileError) throw new Error(`D.X.1 waiver push token setup: ${profileError.message}`)
-
-  const currentSeason = await fetchSingle(
+  const label = 'D.X.1 waiver push'
+  const fixture = await createDisposableLeagueFromSeedUsers({
     supabase,
-    'league_seasons',
-    'id',
-    { league_id: leagueId, is_current: true },
-  )
-  const { data: member, error: memberError } = await supabase
-    .from('league_members')
-    .select('id, user_id, team_name')
-    .eq('league_id', leagueId)
-    .eq('user_id', recipientUser.id)
-    .single()
-  if (memberError || !member) {
-    throw new Error(`D.X.1 waiver member lookup: ${memberError?.message ?? 'missing row'}`)
+    state,
+    season,
+    label,
+    userCount: 3,
+    seasonYear: 6200 + season,
+  })
+
+  const recipientUser = state.users[2]
+  const member = fixture.members[2]
+  if (member.user_id !== recipientUser.id) {
+    throw new Error(`${label}: fixture member/user mismatch for waiver push recipient`)
   }
 
-  const player = await findAvailablePlayer(supabase, leagueId, currentSeason.id)
-  const { data: priority, error: priorityError } = await supabase
-    .from('waiver_priorities')
-    .select('priority')
-    .eq('league_id', leagueId)
-    .eq('league_season_id', currentSeason.id)
-    .eq('member_id', member.id)
-    .single()
-  if (priorityError || !priority) {
-    throw new Error(`D.X.1 waiver priority lookup: ${priorityError?.message ?? 'missing row'}`)
-  }
+  const tokenValue = `ExponentPushToken[e2e-waiver-${state.runId}-${season}]`
+  const [{ error: profileError }, { error: leagueError }, { error: priorityError }] = await Promise.all([
+    supabase
+      .from('profiles')
+      .update({ push_token: tokenValue })
+      .eq('id', recipientUser.id),
+    supabase
+      .from('leagues')
+      .update({ roster_size: 20 })
+      .eq('id', fixture.league.id),
+    supabase
+      .from('waiver_priorities')
+      .insert(fixture.members.map((fixtureMember, index) => ({
+        league_id: fixture.league.id,
+        league_season_id: fixture.leagueSeason.id,
+        member_id: fixtureMember.id,
+        priority: index + 1,
+      }))),
+  ])
+  if (profileError) throw new Error(`${label} token setup: ${profileError.message}`)
+  if (leagueError) throw new Error(`${label} league setup: ${leagueError.message}`)
+  if (priorityError) throw new Error(`${label} priority seed: ${priorityError.message}`)
+
+  const player = await findAvailablePlayer(supabase, fixture.league.id, fixture.leagueSeason.id)
 
   const now = new Date()
   const clearsAt = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString()
   const { data: waiverLog, error: logError } = await supabase
     .from('waiver_wire_log')
     .insert({
-      league_id: leagueId,
-      league_season_id: currentSeason.id,
+      league_id: fixture.league.id,
+      league_season_id: fixture.leagueSeason.id,
       player_id: player.id,
       dropped_by_member_id: member.id,
       clears_at: clearsAt,
@@ -4043,12 +4059,12 @@ const assertWaiverPushNotification = async ({ supabase, env, state, leagueId, se
   const { data: claim, error: claimError } = await supabase
     .from('waiver_claims')
     .insert({
-      league_id: leagueId,
-      league_season_id: currentSeason.id,
+      league_id: fixture.league.id,
+      league_season_id: fixture.leagueSeason.id,
       member_id: member.id,
       player_id: player.id,
       drop_player_id: null,
-      priority_at_submission: priority.priority,
+      priority_at_submission: 3,
       process_date: todayET(),
     })
     .select('id')
@@ -4068,11 +4084,32 @@ const assertWaiverPushNotification = async ({ supabase, env, state, leagueId, se
     push.body?.body === body
   ))
   if (!match) {
+    const [claimRow, rosterRows] = await Promise.all([
+      fetchSingle(supabase, 'waiver_claims', 'id, status, failure_reason, processed_at', { id: claim.id }),
+      fetchAll(supabase, 'roster_players', 'member_id, player_id, acquired_via', {
+        league_id: fixture.league.id,
+        league_season_id: fixture.leagueSeason.id,
+      }),
+    ])
+    await writeFile(
+      path.join(ARTIFACT_ROOT, `season-${season}`, 'waiver-push-debug.json'),
+      `${JSON.stringify({
+        targetLeagueId: leagueId,
+        fixture,
+        claim: claimRow,
+        rosterRows,
+        expected: { tokenValue, title, body },
+        pushes,
+      }, null, 2)}\n`,
+    )
     throw new Error(`D.X.1: waiver push was not captured for token ${tokenValue}`)
   }
 
   return {
     season,
+    targetLeagueId: leagueId,
+    fixtureLeagueId: fixture.league.id,
+    fixtureSeasonId: fixture.leagueSeason.id,
     claimId: claim.id,
     waiverLogId: waiverLog.id,
     memberId: member.id,

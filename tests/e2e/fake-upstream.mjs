@@ -152,17 +152,20 @@ export function createFakeUpstreamServer() {
       }
 
       if (req.method === 'GET' && url.pathname.endsWith('/staticData/scheduleLeagueV2_1.json')) {
-        const gameDates = [...state.games.values()].map((game) => ({
-          gameDate: game.gameDate,
-          games: [{
-            gameId: game.gameId,
-            gameDateEst: `${game.gameDate}T00:00:00`,
-            gameEt: game.gameEt,
-            gameStatus: game.gameStatus,
-            homeTeam: { teamTricode: game.homeTeam.teamTricode },
-            awayTeam: { teamTricode: game.awayTeam.teamTricode },
-          }],
-        }))
+        const currentSeasonStartYear = state.seasonYear - 1
+        const gameDates = [...state.games.values()]
+          .filter((game) => game.gameDate.startsWith(`${currentSeasonStartYear}-`))
+          .map((game) => ({
+            gameDate: game.gameDate,
+            games: [{
+              gameId: game.gameId,
+              gameDateEst: `${game.gameDate}T00:00:00`,
+              gameEt: game.gameEt,
+              gameStatus: game.gameStatus,
+              homeTeam: { teamTricode: game.homeTeam.teamTricode },
+              awayTeam: { teamTricode: game.awayTeam.teamTricode },
+            }],
+          }))
         return json(res, 200, { leagueSchedule: { seasonYear: state.seasonYear, gameDates } })
       }
 
