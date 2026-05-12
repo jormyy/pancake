@@ -19,6 +19,7 @@
     "e2e:soak": "node tests/e2e/soak.mjs --seasons=10",
     "e2e:browser-smoke": "node tests/e2e/browser-smoke.mjs",
     "e2e:browser-auth": "node tests/e2e/browser-auth.mjs",
+    "e2e:browser-perf": "node tests/e2e/browser-perf-smoke.mjs",
     "e2e:fake-upstream": "node tests/e2e/fake-upstream.mjs"
   },
   "dependencies": {

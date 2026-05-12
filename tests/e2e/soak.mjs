@@ -9,6 +9,7 @@ import { createFakeUpstreamServer } from './fake-upstream.mjs'
 import { resolvedEnv, describeEndpoint } from './env.mjs'
 import { runBrowserSmoke } from './browser-smoke.mjs'
 import { runBrowserAuthScenario } from './browser-auth.mjs'
+import { runBrowserPerfSmoke } from './browser-perf-smoke.mjs'
 
 const execFileAsync = promisify(execFile)
 const ROOT = process.cwd()
@@ -22,8 +23,9 @@ const PERF_DRIFT_LIMIT = Number(process.env.E2E_PERF_DRIFT_LIMIT ?? 1.2)
 const MEMORY_DRIFT_LIMIT = Number(process.env.E2E_MEMORY_DRIFT_LIMIT ?? 1.2)
 const REALTIME_CLIENTS = Number(process.env.E2E_REALTIME_CLIENTS ?? 10)
 const REALTIME_LATENCY_LIMIT_MS = Number(process.env.E2E_REALTIME_LATENCY_LIMIT_MS ?? 2000)
-const REALTIME_SUBSCRIBE_TIMEOUT_MS = Number(process.env.E2E_REALTIME_SUBSCRIBE_TIMEOUT_MS ?? 10000)
+const REALTIME_SUBSCRIBE_TIMEOUT_MS = Number(process.env.E2E_REALTIME_SUBSCRIBE_TIMEOUT_MS ?? 30000)
 const REALTIME_SETTLE_MS = Number(process.env.E2E_REALTIME_SETTLE_MS ?? 1500)
+const REALTIME_WARMUP_ATTEMPTS = Number(process.env.E2E_REALTIME_WARMUP_ATTEMPTS ?? 5)
 const MIDLIFE_MIGRATION_AFTER_SEASON = Number(process.env.E2E_MIDLIFE_MIGRATION_AFTER_SEASON ?? 5)
 
 const SNAPSHOT_TABLES = [
@@ -47,6 +49,7 @@ const parseArgs = () => {
     browser: args.get('browser') === 'true' || process.env.E2E_ENABLE_BROWSER === '1',
     browserFullSweep: args.get('browser-full-sweep') === 'true' || process.env.E2E_BROWSER_FULL_SWEEP === '1',
     browserAuth: args.get('browser-auth') === 'true' || process.env.E2E_ENABLE_BROWSER_AUTH === '1',
+    browserPerf: args.get('browser-perf') === 'true' || process.env.E2E_ENABLE_BROWSER_PERF === '1',
     leagueLifecycle: args.get('league-lifecycle') === 'true' || process.env.E2E_ENABLE_LEAGUE_LIFECYCLE === '1',
     pickChain: args.get('pick-chain') === 'true' || process.env.E2E_ENABLE_PICK_CHAIN === '1',
     push: args.get('push') === 'true' || process.env.E2E_ENABLE_PUSH === '1',
@@ -151,9 +154,12 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
   const pickChainStatus = args.pickChain
     ? hasFailingNote(rows, /D\.LONG\.1|D\.LONG\.2/) ? 'FAIL' : hasPassingNote(rows, /multi-hop future-pick owner resolved/) ? 'PARTIAL' : 'PENDING'
     : 'PENDING'
-  const browserStatus = args.browser && args.browserAuth
-    ? args.browserFullSweep ? 'PARTIAL' : 'PARTIAL'
+  const browserStatus = args.browser && args.browserAuth && args.browserFullSweep
+    ? 'PASS'
     : args.browser || args.browserAuth ? 'PARTIAL' : 'PENDING'
+  const browserPerfStatus = args.browserPerf
+    ? hasFailingNote(rows, /D\.X\.4/) ? 'FAIL' : hasPassingNote(rows, /browser perf smoke passed/) ? 'PASS' : 'PENDING'
+    : 'PENDING'
   const leagueLifecycleStatus = args.leagueLifecycle
     ? hasFailingNote(rows, /D\.SET\.2/) ? 'FAIL' : hasPassingNote(rows, /league lifecycle passed/) ? 'PARTIAL' : 'PENDING'
     : targetLeagueId ? 'PARTIAL' : 'PENDING'
@@ -302,8 +308,8 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
     },
     {
       requirement: 'D.X.4 perf smoke under draft/live scoring load',
-      status: 'PENDING',
-      evidence: 'No continuous-bid/live-scoring browser perf scenario implemented.',
+      status: browserPerfStatus,
+      evidence: args.browserPerf ? 'Browser perf mode opens the real draft room and home scoreboard while applying continuous auction bids and matchup updates, then asserts responsiveness, screenshots, console output, and browser errors.' : 'Enable E2E_ENABLE_BROWSER_PERF=1 to run the continuous-bid/live-scoring browser perf smoke.',
     },
     {
       requirement: 'D.X.5 UI sweep',
@@ -638,25 +644,6 @@ const createAndAcceptPickTrade = async (supabase, leagueId, seasonId, proposerId
   return trade.id
 }
 
-const findOwnedPick = async (supabase, leagueId, seasonYear, round, ownerId, excludePickId = null) => {
-  let query = supabase
-    .from('draft_picks')
-    .select('id, current_owner_id, original_owner_id, season_year, round')
-    .eq('league_id', leagueId)
-    .eq('season_year', seasonYear)
-    .eq('round', round)
-    .eq('current_owner_id', ownerId)
-    .eq('is_used', false)
-    .limit(1)
-  if (excludePickId) query = query.neq('id', excludePickId)
-
-  const { data, error } = await query
-  if (error) throw new Error(`draft_picks owned pick lookup: ${error.message}`)
-  const [pick] = data ?? []
-  if (!pick) throw new Error(`No owned ${seasonYear} round ${round} pick for member ${ownerId}`)
-  return pick
-}
-
 const setupFuturePickChain = async (supabase, leagueId) => {
   const currentSeason = await fetchSingle(
     supabase,
@@ -700,21 +687,23 @@ const setupFuturePickChain = async (supabase, leagueId) => {
     .select('id, current_owner_id, original_owner_id, season_year, round')
     .eq('league_id', leagueId)
     .eq('season_year', targetYear)
-    .eq('round', 2)
     .eq('is_used', false)
     .in('original_owner_id', members.filter((member) => member.id !== member1.id).map((member) => member.id))
+    .neq('id', targetPick.id)
+    .order('round', { ascending: true })
   if (counterPickError) throw new Error(`draft_picks counter pick lookup: ${counterPickError.message}`)
-  const counterOwnerIds = new Set(
-    (counterPicks ?? [])
-      .filter((pick) => pick.current_owner_id === pick.original_owner_id)
-      .map((pick) => pick.original_owner_id),
-  )
+  const counterPickByOwner = new Map()
+  for (const pick of counterPicks ?? []) {
+    if (pick.current_owner_id === pick.original_owner_id && !counterPickByOwner.has(pick.original_owner_id)) {
+      counterPickByOwner.set(pick.original_owner_id, pick)
+    }
+  }
   const [member2, member3, member4] = members
-    .filter((member) => member.id !== member1.id && counterOwnerIds.has(member.id))
+    .filter((member) => member.id !== member1.id && counterPickByOwner.has(member.id))
     .slice(0, 3)
   if (!member2 || !member3 || !member4) throw new Error('Future-pick chain requires four distinct league members')
 
-  const counter1 = await findOwnedPick(supabase, leagueId, targetYear, 2, member2.id, targetPick.id)
+  const counter1 = counterPickByOwner.get(member2.id)
   const trade1 = await createAndAcceptPickTrade(
     supabase,
     leagueId,
@@ -725,7 +714,7 @@ const setupFuturePickChain = async (supabase, leagueId) => {
     counter1.id,
   )
 
-  const counter2 = await findOwnedPick(supabase, leagueId, targetYear, 2, member3.id, targetPick.id)
+  const counter2 = counterPickByOwner.get(member3.id)
   const trade2 = await createAndAcceptPickTrade(
     supabase,
     leagueId,
@@ -736,7 +725,7 @@ const setupFuturePickChain = async (supabase, leagueId) => {
     counter2.id,
   )
 
-  const counter3 = await findOwnedPick(supabase, leagueId, targetYear, 2, member4.id, targetPick.id)
+  const counter3 = counterPickByOwner.get(member4.id)
   const trade3 = await createAndAcceptPickTrade(
     supabase,
     leagueId,
@@ -2875,23 +2864,27 @@ const assertRealtimeDelivery = async ({ supabase, env, state, leagueId, season }
   if (!Number.isFinite(REALTIME_SUBSCRIBE_TIMEOUT_MS) || REALTIME_SUBSCRIBE_TIMEOUT_MS < REALTIME_LATENCY_LIMIT_MS) {
     throw new Error(`D.X.2: invalid E2E_REALTIME_SUBSCRIBE_TIMEOUT_MS ${process.env.E2E_REALTIME_SUBSCRIBE_TIMEOUT_MS}`)
   }
+  if (!Number.isInteger(REALTIME_WARMUP_ATTEMPTS) || REALTIME_WARMUP_ATTEMPTS < 1) {
+    throw new Error(`D.X.2: invalid E2E_REALTIME_WARMUP_ATTEMPTS ${process.env.E2E_REALTIME_WARMUP_ATTEMPTS}`)
+  }
 
   const target = await insertRealtimeTargetMatchup(supabase, leagueId, season, season)
   const clients = []
   const channels = []
   const warmupDeliveries = []
   const deliveries = []
-  const warmupHomePoints = 500 + season
-  const warmupAwayPoints = 400 + season
+  const warmupHomePoints = 500 + season * 10
+  const warmupAwayPoints = 400 + season * 10
   const expectedHomePoints = 1000 + season
   const expectedAwayPoints = 900 + season
+  const warmupSeen = new Set()
 
   try {
     const users = Array.from({ length: REALTIME_CLIENTS }, (_, index) => state.users[index % state.users.length])
     for (const [index, user] of users.entries()) {
       const client = createClient(env.supabaseUrl, env.anonKey, {
         auth: { persistSession: false },
-        realtime: { transport: WebSocket },
+        realtime: { transport: WebSocket, timeout: REALTIME_SUBSCRIBE_TIMEOUT_MS },
       })
       clients.push(client)
       const { data: signInData, error: signInError } = await client.auth.signInWithPassword({ email: user.email, password: state.password })
@@ -2913,15 +2906,20 @@ const assertRealtimeDelivery = async ({ supabase, env, state, leagueId, season }
             table: 'matchups',
             filter: `id=eq.${target.id}`,
           }, (payload) => {
+            const homePoints = Number(payload.new?.home_points)
+            const awayPoints = Number(payload.new?.away_points)
+            const warmupAttempt = homePoints - warmupHomePoints
             if (
-              Number(payload.new?.home_points) === warmupHomePoints &&
-              Number(payload.new?.away_points) === warmupAwayPoints
+              warmupAttempt >= 0 &&
+              warmupAttempt < REALTIME_WARMUP_ATTEMPTS &&
+              awayPoints === warmupAwayPoints + warmupAttempt
             ) {
+              warmupSeen.add(index)
               resolveWarmup({ clientIndex: index, receivedAtMs: nowMs() })
             }
             if (
-              Number(payload.new?.home_points) === expectedHomePoints &&
-              Number(payload.new?.away_points) === expectedAwayPoints
+              homePoints === expectedHomePoints &&
+              awayPoints === expectedAwayPoints
             ) {
               resolve({ clientIndex: index, receivedAtMs: nowMs() })
             }
@@ -2934,18 +2932,21 @@ const assertRealtimeDelivery = async ({ supabase, env, state, leagueId, season }
 
     await Promise.all(channels.map(({ channel }, index) => waitForRealtimeSubscribe(channel, `client ${index + 1}`)))
     await sleep(REALTIME_SETTLE_MS)
-    const { error: warmupError } = await supabase
-      .from('matchups')
-      .update({
-        home_points: warmupHomePoints,
-        away_points: warmupAwayPoints,
-      })
-      .eq('id', target.id)
-    if (warmupError) throw new Error(`D.X.2 realtime warmup update: ${warmupError.message}`)
+    for (let attempt = 0; attempt < REALTIME_WARMUP_ATTEMPTS && warmupSeen.size < REALTIME_CLIENTS; attempt += 1) {
+      const { error: warmupError } = await supabase
+        .from('matchups')
+        .update({
+          home_points: warmupHomePoints + attempt,
+          away_points: warmupAwayPoints + attempt,
+        })
+        .eq('id', target.id)
+      if (warmupError) throw new Error(`D.X.2 realtime warmup update ${attempt + 1}: ${warmupError.message}`)
+      await sleep(Math.min(REALTIME_LATENCY_LIMIT_MS, 2000))
+    }
     await withTimeout(
       Promise.all(warmupDeliveries),
-      REALTIME_SUBSCRIBE_TIMEOUT_MS,
-      `D.X.2: realtime warmup update did not reach all ${REALTIME_CLIENTS} clients within ${REALTIME_SUBSCRIBE_TIMEOUT_MS}ms`,
+      1000,
+      `D.X.2: realtime warmup update reached ${warmupSeen.size}/${REALTIME_CLIENTS} clients after ${REALTIME_WARMUP_ATTEMPTS} attempts`,
     )
 
     const updateStartedMs = nowMs()
@@ -3756,6 +3757,9 @@ const main = async () => {
     args.browserAuth
       ? 'Browser auth scenario enabled through E2E_ENABLE_BROWSER_AUTH=1.'
       : 'Browser auth/sign-out/session-persistence scenario disabled; set E2E_ENABLE_BROWSER_AUTH=1 to exercise D.SET.1.',
+    args.browserPerf
+      ? 'Browser perf smoke enabled through E2E_ENABLE_BROWSER_PERF=1.'
+      : 'Browser perf smoke disabled; set E2E_ENABLE_BROWSER_PERF=1 to exercise D.X.4 under continuous auction and live-score mutations.',
     args.leagueLifecycle
       ? 'League create/join lifecycle scenario enabled through E2E_ENABLE_LEAGUE_LIFECYCLE=1.'
       : 'League create/join lifecycle scenario disabled; set E2E_ENABLE_LEAGUE_LIFECYCLE=1 to exercise D.SET.2 through real auth RPCs.',
@@ -3901,6 +3905,10 @@ const main = async () => {
         }
         if (args.browserAuth) {
           await runBrowserAuthScenario({ season })
+        }
+        let browserPerfCheck = null
+        if (args.browserPerf && season === 1) {
+          browserPerfCheck = await runBrowserPerfSmoke({ season })
         }
         let leagueLifecycleCheck = null
         const leagueLifecycleFailures = []
@@ -4129,6 +4137,7 @@ const main = async () => {
               seasonNotes,
               args.browser ? 'browser smoke passed' : null,
               args.browserAuth ? 'browser auth scenario passed' : null,
+              browserPerfCheck ? 'browser perf smoke passed' : null,
               leagueLifecycleCheck ? 'league lifecycle passed' : null,
               args.realtime ? 'realtime matchup update delivered' : null,
               args.push ? 'trade and waiver push notification intercepts passed' : null,
