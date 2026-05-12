@@ -193,7 +193,7 @@ const runInvariants = async (supabase, leagueId) => {
     fetchAll(supabase, 'waiver_claims', 'id, league_id, league_season_id, member_id, player_id, drop_player_id, status, process_date', leagueFilter),
     fetchAll(supabase, 'trades', 'id, league_id, league_season_id, proposer_member_id, recipient_member_id, status, veto_window_expires_at', leagueFilter),
     fetchAll(supabase, 'trade_items', 'id, trade_id, player_id, pick_id'),
-    fetchAll(supabase, 'draft_picks', 'id, league_id, current_owner_id, original_owner_id', leagueFilter),
+    fetchAll(supabase, 'draft_picks', 'id, league_id, season_year, round, current_owner_id, original_owner_id', leagueFilter),
     fetchAll(supabase, 'drafts', 'id, league_id', leagueFilter),
     fetchAll(supabase, 'nominations', 'id, draft_id, status, countdown_expires_at'),
   ])
@@ -215,6 +215,26 @@ const runInvariants = async (supabase, leagueId) => {
     const current = leagueSeasons.filter((season) => season.league_id === league.id && season.is_current)
     if (current.length !== 1) {
       failures.push(`I0: league ${league.id} has ${current.length} current seasons`)
+      continue
+    }
+
+    const [currentSeason] = current
+    const members = leagueMembers.filter((member) => member.league_id === league.id)
+    const memberIds = new Set(members.map((member) => member.id))
+    const pickKeys = new Set(
+      draftPicks
+        .filter((pick) => pick.league_id === league.id)
+        .map((pick) => `${pick.season_year}:${pick.round}:${pick.original_owner_id}`),
+    )
+    const currentYear = currentSeason.season_year
+    for (let seasonYear = currentYear + 1; seasonYear <= currentYear + 5; seasonYear += 1) {
+      for (let round = 1; round <= 3; round += 1) {
+        for (const memberId of memberIds) {
+          if (!pickKeys.has(`${seasonYear}:${round}:${memberId}`)) {
+            failures.push(`D.SEA.6: league ${league.id} missing future pick ${seasonYear} round ${round} for member ${memberId}`)
+          }
+        }
+      }
     }
   }
 
@@ -338,6 +358,9 @@ const main = async () => {
   if (env.backendTicksEnabled && !env.e2eAdminSecret) {
     throw new Error('E2E_ENABLE_BACKEND_TICKS=1 requires E2E_ADMIN_SECRET')
   }
+  if (env.backendTicksEnabled && !targetLeagueId) {
+    throw new Error('E2E_ENABLE_BACKEND_TICKS=1 requires a seeded target league or E2E_LEAGUE_ID')
+  }
 
   const startedAt = timestamp()
   const rows = []
@@ -403,13 +426,21 @@ const main = async () => {
         const failuresAtStart = await runInvariants(supabase, targetLeagueId)
         await writeSnapshots(supabase, season, targetLeagueId)
         const failuresAtEnd = await runInvariants(supabase, targetLeagueId)
-        const failures = [...failuresAtStart, ...failuresAtEnd]
+        const failuresAfterReset = []
+        if (env.backendTicksEnabled) {
+          await backendJson(env, '/e2e/advance-season', { leagueId: targetLeagueId })
+          failuresAfterReset.push(...await runInvariants(supabase, targetLeagueId))
+        }
+        const failures = [...failuresAtStart, ...failuresAtEnd, ...failuresAfterReset]
 
         if (failures.length > 0) {
           rows.push({ season, status: 'FAIL', notes: failures.join('; ') })
           if (!args.keepGoing) break
         } else {
-          rows.push({ season, status: 'PASS', notes: 'D.0 invariant boundary checks passed; scenario/browser steps pending' })
+          const seasonNotes = env.backendTicksEnabled
+            ? 'D.0 invariant boundary checks passed before and after real season reset; scenario/browser steps pending'
+            : 'D.0 invariant boundary checks passed; scenario/browser steps pending'
+          rows.push({ season, status: 'PASS', notes: seasonNotes })
         }
 
         await postJson(`http://127.0.0.1:${args.fakePort}/admin/advance-season`, {})
