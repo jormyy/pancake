@@ -57,6 +57,7 @@ const parseArgs = () => {
     tiebreakers: args.get('tiebreakers') === 'true' || process.env.E2E_ENABLE_TIEBREAKERS === '1',
     settings: args.get('settings') === 'true' || process.env.E2E_ENABLE_SETTINGS === '1',
     scoring: args.get('scoring') === 'true' || process.env.E2E_ENABLE_SCORING === '1',
+    injuryFilter: args.get('injury-filter') === 'true' || process.env.E2E_ENABLE_INJURY_FILTER === '1',
     rookieDraft: args.get('rookie-draft') === 'true' || process.env.E2E_ENABLE_ROOKIE_DRAFT === '1',
     seasonReset: args.get('season-reset') === 'true' || process.env.E2E_ENABLE_SEASON_RESET === '1',
   }
@@ -180,6 +181,9 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
   const scoringStatus = args.scoring
     ? hasFailingNote(rows, /D\.SEA\.2/) ? 'FAIL' : hasPassingNote(rows, /weekly scoring finalization passed/) ? 'PARTIAL' : 'PENDING'
     : 'PENDING'
+  const injuryFilterStatus = args.injuryFilter
+    ? hasFailingNote(rows, /D\.SEA\.2 injury/) ? 'FAIL' : hasPassingNote(rows, /injury status filter passed/) ? 'PARTIAL' : 'PENDING'
+    : 'PENDING'
   const rookieDraftStatus = args.rookieDraft
     ? hasFailingNote(rows, /D\.SEA\.5/) ? 'FAIL' : hasPassingNote(rows, /rookie draft auto-pick passed/) ? 'PARTIAL' : 'PENDING'
     : pickChainStatus
@@ -239,6 +243,11 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
       requirement: 'D.SEA.2 weekly lineup/scoring/waiver/trade loop',
       status: scoringStatus,
       evidence: args.scoring ? 'Scoring mode seeds a disposable matchup with starter/bench lineups and real player_game_stats, calls the real backend /e2e/sync-scores path, and checks starter-only points, finalization blocking, winner, max-possible points, and standings append.' : 'Full weekly browser gameplay loop is not implemented; enable E2E_ENABLE_SCORING=1 for the starter-only scoring/finalization slice.',
+    },
+    {
+      requirement: 'D.SEA.2 injury status filtering',
+      status: injuryFilterStatus,
+      evidence: args.injuryFilter ? 'Injury-filter mode mutates the fake Sleeper upstream, runs the real backend /e2e/sync-players path, and verifies junk injury_status values such as Scrambled are filtered while valid statuses persist.' : 'Enable E2E_ENABLE_INJURY_FILTER=1 to inject fake Sleeper injuries and verify Scrambled is filtered.',
     },
     {
       requirement: 'D.SEA.3 standings tiebreakers/RPS',
@@ -1021,6 +1030,127 @@ const readLineupSlotsForClient = async (client, leagueId, label) => {
     .eq('league_id', leagueId)
   if (error) throw new Error(`${label}: lineup slot read failed: ${error.message}`)
   return data ?? []
+}
+
+const readPlayerBySleeperId = async (supabase, sleeperId, label) => {
+  const { data, error } = await supabase
+    .from('players')
+    .select('id, sportsdata_id, first_name, last_name, display_name, sleeper_id, status, injury_status, nba_team, years_exp')
+    .eq('sleeper_id', sleeperId)
+    .limit(1)
+  if (error) throw new Error(`${label}: player lookup for sleeper_id=${sleeperId} failed: ${error.message}`)
+  return data?.[0] ?? null
+}
+
+const ensureSleeperFixturePlayer = async (supabase, { sleeperId, firstName, lastName, position }, label) => {
+  const existing = await readPlayerBySleeperId(supabase, sleeperId, label)
+  const fields = {
+    first_name: firstName,
+    last_name: lastName,
+    sleeper_id: sleeperId,
+    position,
+    eligible_positions: [position],
+    status: 'Inactive',
+    injury_status: 'Stale',
+    nba_team: 'OLD',
+    years_exp: 99,
+  }
+
+  if (existing) {
+    const { data, error } = await supabase
+      .from('players')
+      .update(fields)
+      .eq('id', existing.id)
+      .select('id, sportsdata_id, first_name, last_name, display_name, sleeper_id, status, injury_status, nba_team, years_exp')
+      .single()
+    if (error) throw new Error(`${label}: player fixture update failed for sleeper_id=${sleeperId}: ${error.message}`)
+    return data
+  }
+
+  const { data, error } = await supabase
+    .from('players')
+    .insert({
+      ...fields,
+      sportsdata_id: `e2e-injury-${sleeperId}`,
+    })
+    .select('id, sportsdata_id, first_name, last_name, display_name, sleeper_id, status, injury_status, nba_team, years_exp')
+    .single()
+  if (error) throw new Error(`${label}: player fixture insert failed for sleeper_id=${sleeperId}: ${error.message}`)
+  return data
+}
+
+const assertInjuryStatusFilterScenario = async ({ supabase, env, season, fakePort }) => {
+  const failures = []
+  const label = 'D.SEA.2 injury'
+  const expectedSleeperBaseUrl = `http://127.0.0.1:${fakePort}/v1`
+  const backendStatus = await backendGetJson(env, '/e2e/status')
+  if (backendStatus.sleeperBaseUrl !== expectedSleeperBaseUrl) {
+    throw new Error(`${label}: backend SLEEPER_BASE_URL=${backendStatus.sleeperBaseUrl ?? '<missing>'}; expected ${expectedSleeperBaseUrl}`)
+  }
+
+  const scrambledFixture = await ensureSleeperFixturePlayer(supabase, {
+    sleeperId: '1001',
+    firstName: 'Ari',
+    lastName: 'Glass',
+    position: 'PG',
+  }, label)
+  const validFixture = await ensureSleeperFixturePlayer(supabase, {
+    sleeperId: '1002',
+    firstName: 'Ben',
+    lastName: 'Pine',
+    position: 'SG',
+  }, label)
+
+  await postJson(`http://127.0.0.1:${fakePort}/admin/injury`, {
+    playerId: '1001',
+    injuryStatus: 'Scrambled',
+  })
+  await postJson(`http://127.0.0.1:${fakePort}/admin/injury`, {
+    playerId: '1002',
+    injuryStatus: 'Out',
+  })
+
+  const syncResult = await backendJson(env, '/e2e/sync-players')
+  const scrambledPlayer = await readPlayerBySleeperId(supabase, '1001', label)
+  const validPlayer = await readPlayerBySleeperId(supabase, '1002', label)
+
+  if (scrambledPlayer?.injury_status != null) {
+    failures.push(`${label}: fake Sleeper injury_status Scrambled persisted as ${scrambledPlayer.injury_status}; expected null`)
+  }
+  if (validPlayer?.injury_status !== 'Out') {
+    failures.push(`${label}: fake Sleeper injury_status Out persisted as ${validPlayer?.injury_status ?? '<null>'}; expected Out`)
+  }
+  if (scrambledPlayer?.nba_team !== 'BOS' || Number(scrambledPlayer?.years_exp) !== 4) {
+    failures.push(`${label}: Scrambled fixture team/years_exp ${scrambledPlayer?.nba_team ?? '<null>'}/${scrambledPlayer?.years_exp ?? '<null>'}; expected BOS/4`)
+  }
+  if (validPlayer?.nba_team !== 'NYK' || Number(validPlayer?.years_exp) !== 2) {
+    failures.push(`${label}: valid injury fixture team/years_exp ${validPlayer?.nba_team ?? '<null>'}/${validPlayer?.years_exp ?? '<null>'}; expected NYK/2`)
+  }
+
+  const artifact = {
+    season,
+    fakeSleeperBaseUrl: expectedSleeperBaseUrl,
+    syncResult,
+    before: {
+      scrambledFixture,
+      validFixture,
+    },
+    after: {
+      scrambledPlayer,
+      validPlayer,
+    },
+    expected: {
+      sleeperId1001: { upstreamInjuryStatus: 'Scrambled', persistedInjuryStatus: null },
+      sleeperId1002: { upstreamInjuryStatus: 'Out', persistedInjuryStatus: 'Out' },
+    },
+    failures,
+  }
+  await writeFile(
+    path.join(ARTIFACT_ROOT, `season-${season}`, 'injury-status-filter.json'),
+    `${JSON.stringify(artifact, null, 2)}\n`,
+  )
+
+  return { failures, artifact }
 }
 
 const assertLeagueLifecycleScenario = async ({ supabase, env, state, season }) => {
@@ -3305,6 +3435,9 @@ const main = async () => {
   if (args.scoring && !env.e2eAdminSecret) {
     throw new Error('E2E_ENABLE_SCORING=1 requires E2E_ADMIN_SECRET and a backend started with ENABLE_E2E_ROUTES=1')
   }
+  if (args.injuryFilter && !env.e2eAdminSecret) {
+    throw new Error('E2E_ENABLE_INJURY_FILTER=1 requires E2E_ADMIN_SECRET and a backend started with ENABLE_E2E_ROUTES=1')
+  }
   if (args.rookieDraft && (!state?.password || !Array.isArray(state.users) || state.users.length < 4)) {
     throw new Error('E2E_ENABLE_ROOKIE_DRAFT=1 requires tests/e2e-state.json from npm run e2e:seed with at least 4 users')
   }
@@ -3378,6 +3511,9 @@ const main = async () => {
     args.scoring
       ? 'Weekly starter-only scoring/finalization scenario enabled through E2E_ENABLE_SCORING=1.'
       : 'Weekly starter-only scoring/finalization scenario disabled; set E2E_ENABLE_SCORING=1 to exercise the D.SEA.2 scoring slice.',
+    args.injuryFilter
+      ? 'Sleeper injury-status filter scenario enabled through E2E_ENABLE_INJURY_FILTER=1.'
+      : 'Sleeper injury-status filter scenario disabled; set E2E_ENABLE_INJURY_FILTER=1 to exercise the D.SEA.2 injury injection slice.',
     args.rookieDraft
       ? 'Rookie draft auto-pick/order scenario enabled through E2E_ENABLE_ROOKIE_DRAFT=1.'
       : 'Rookie draft auto-pick/order scenario disabled; set E2E_ENABLE_ROOKIE_DRAFT=1 to exercise the D.SEA.5 auto-pick slice.',
@@ -3545,6 +3681,17 @@ const main = async () => {
           })
           scoringFailures.push(...scoringCheck.failures)
         }
+        let injuryFilterCheck = null
+        const injuryFilterFailures = []
+        if (args.injuryFilter && season === 1) {
+          injuryFilterCheck = await assertInjuryStatusFilterScenario({
+            supabase,
+            env,
+            season,
+            fakePort: args.fakePort,
+          })
+          injuryFilterFailures.push(...injuryFilterCheck.failures)
+        }
         let rookieDraftCheck = null
         const rookieDraftFailures = []
         if (args.rookieDraft && season === 1) {
@@ -3664,6 +3811,7 @@ const main = async () => {
           ...tiebreakerFailures,
           ...settingsFailures,
           ...scoringFailures,
+          ...injuryFilterFailures,
           ...rookieDraftFailures,
           ...draftPushFailures,
           ...seasonResetFailures,
@@ -3695,6 +3843,7 @@ const main = async () => {
               tiebreakerCheck ? 'standings tiebreaker scenario passed' : null,
               settingsCheck ? 'commissioner settings propagation passed' : null,
               scoringCheck ? 'weekly scoring finalization passed' : null,
+              injuryFilterCheck ? 'injury status filter passed' : null,
               rookieDraftCheck ? 'rookie draft auto-pick passed' : null,
               seasonResetCheck ? 'season reset carryover passed' : null,
               env.backendTicksEnabled ? 'matchup generation idempotency passed' : null,

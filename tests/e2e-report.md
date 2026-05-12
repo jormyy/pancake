@@ -1,8 +1,8 @@
 # Multi-Season E2E Soak Report
 
 - Status: PARTIAL
-- Started: 2026-05-12T06:09:22.216Z
-- Finished: 2026-05-12T06:09:27.009Z
+- Started: 2026-05-12T06:20:19.680Z
+- Finished: 2026-05-12T06:20:22.755Z
 - Target seasons: 1
 - Fake upstream: http://127.0.0.1:4555
 
@@ -10,18 +10,18 @@
 
 | Season | Status | Notes |
 | --- | --- | --- |
-| 1 | PASS | D.0 invariant boundary checks passed; full scenario/browser loop pending; league lifecycle passed |
+| 1 | PASS | D.0 invariant boundary checks passed; full scenario/browser loop pending; injury status filter passed |
 
 ## Notes
 
 - This harness is integration/E2E only. It does not run unit tests.
-- Configured API base: <remote configured>
+- Configured API base: http://127.0.0.1:3101
 - Configured frontend: http://127.0.0.1:8081
 - Target league: 70c70f7e-737d-402d-ad1c-3fd204faac5e (seed run 20260512045536)
 - Backend tick endpoints were not enabled; set E2E_ENABLE_BACKEND_TICKS=1 with a local backend to run them.
 - Browser-driving scenarios must be run with agent-browser against the configured frontend before declaring the app dynasty-stable.
 - Browser auth/sign-out/session-persistence scenario disabled; set E2E_ENABLE_BROWSER_AUTH=1 to exercise D.SET.1.
-- League create/join lifecycle scenario enabled through E2E_ENABLE_LEAGUE_LIFECYCLE=1.
+- League create/join lifecycle scenario disabled; set E2E_ENABLE_LEAGUE_LIFECYCLE=1 to exercise D.SET.2 through real auth RPCs.
 - Future-pick multi-hop scenario disabled; set E2E_ENABLE_PICK_CHAIN=1 to exercise D.LONG.2.
 - Push notification intercept disabled; set E2E_ENABLE_PUSH=1 with backend EXPO_PUSH_URL pointed at the fake upstream to exercise the trade-notification slice of D.X.1.
 - Draft push notification intercept disabled; set E2E_ENABLE_DRAFT_PUSH=1 to exercise the rookie auto-pick notification slice of D.X.1.
@@ -33,6 +33,7 @@
 - Standings tiebreaker/RPS scenario disabled; set E2E_ENABLE_TIEBREAKERS=1 to exercise D.SEA.3.
 - Commissioner settings propagation scenario disabled; set E2E_ENABLE_SETTINGS=1 to exercise D.SET.3.
 - Weekly starter-only scoring/finalization scenario disabled; set E2E_ENABLE_SCORING=1 to exercise the D.SEA.2 scoring slice.
+- Sleeper injury-status filter scenario enabled through E2E_ENABLE_INJURY_FILTER=1.
 - Rookie draft auto-pick/order scenario disabled; set E2E_ENABLE_ROOKIE_DRAFT=1 to exercise the D.SEA.5 auto-pick slice.
 - Season reset carryover/reseed scenario disabled; set E2E_ENABLE_SEASON_RESET=1 to exercise the D.SEA.6 reset slice.
 - Schema preflight passed: post-refactor RPCs and required columns are present.
