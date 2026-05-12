@@ -1,7 +1,7 @@
 import { View, Text, Pressable, StyleSheet, ActivityIndicator, Alert } from 'react-native'
 import { useState } from 'react'
 import { TRADE_STATUS_COLORS, colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
-import { Trade, TradeItem, acceptTrade, rejectTrade, withdrawTrade } from '@/lib/trades'
+import { Trade, TradeItem, acceptTrade, rejectTrade, vetoTrade, withdrawTrade } from '@/lib/trades'
 import { getRoster, dropPlayer, RosterPlayer } from '@/lib/roster'
 import { DropPlayerPickerModal } from '@/components/DropPlayerPickerModal'
 import { confirmAction } from '@/lib/alert'
@@ -66,12 +66,34 @@ export function TradeCard({
     onAction: () => void
 }) {
     const isProposer = trade.proposerMemberId === myMemberId
-    const opponentName = isProposer ? trade.recipientTeamName : trade.proposerTeamName
+    const isRecipient = trade.recipientMemberId === myMemberId
+    const isTradeParty = isProposer || isRecipient
+    const opponentName = isProposer
+        ? trade.recipientTeamName
+        : isRecipient
+            ? trade.proposerTeamName
+            : `${trade.proposerTeamName} vs ${trade.recipientTeamName}`
 
     const iReceive = isProposer ? trade.recipientGives : trade.proposerGives
     const iGive = isProposer ? trade.proposerGives : trade.recipientGives
+    const receiveLabel = isTradeParty
+        ? 'You receive:'
+        : `${trade.recipientTeamName} receives:`
+    const giveLabel = isTradeParty
+        ? 'You give:'
+        : `${trade.proposerTeamName} receives:`
 
     const statusStyle = STATUS_COLORS[trade.status] ?? STATUS_COLORS.pending
+    const canVeto = tab === 'offers' && !isTradeParty && trade.status === 'accepted' && !trade.myVetoed
+    const alreadyVetoed = tab === 'offers' && !isTradeParty && trade.status === 'accepted' && trade.myVetoed
+    const vetoWindowText = trade.status === 'accepted' && trade.vetoWindowExpiresAt
+        ? `Veto window closes ${new Date(trade.vetoWindowExpiresAt).toLocaleString([], {
+            month: 'short',
+            day: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit',
+        })}`
+        : null
 
     const [acting, setActing] = useState(false)
     const [dropPickerVisible, setDropPickerVisible] = useState(false)
@@ -169,6 +191,22 @@ export function TradeCard({
         }, 'Withdraw')
     }
 
+    function handleVeto() {
+        confirmAction('Veto Trade', 'Are you sure you want to veto this accepted trade?', () => {
+            void (async () => {
+                setActing(true)
+                try {
+                    await vetoTrade(trade.id, myMemberId)
+                    onAction()
+                } catch (e: any) {
+                    Alert.alert('Error', e.message ?? 'Could not veto trade.')
+                } finally {
+                    setActing(false)
+                }
+            })()
+        }, 'Veto')
+    }
+
     const remainingDrops = neededDrops - droppedIds.size
 
     return (
@@ -182,8 +220,11 @@ export function TradeCard({
                 </View>
             </View>
 
-            <AssetList items={iReceive} label="You receive:" />
-            <AssetList items={iGive} label="You give:" />
+            {vetoWindowText ? <Text style={styles.vetoWindowText}>{vetoWindowText}</Text> : null}
+            {alreadyVetoed ? <Text style={styles.vetoWindowText}>Your veto has been recorded.</Text> : null}
+
+            <AssetList items={iReceive} label={receiveLabel} />
+            <AssetList items={iGive} label={giveLabel} />
 
             {trade.notes ? <Text style={styles.cardNotes}>{trade.notes}</Text> : null}
 
@@ -220,6 +261,18 @@ export function TradeCard({
                                 accessibilityLabel={`Withdraw trade with ${opponentName}`}
                             >
                                 <Text style={styles.actionBtnRejectText}>Withdraw</Text>
+                            </Pressable>
+                        </View>
+                    )}
+                    {canVeto && (
+                        <View style={styles.cardActions}>
+                            <Pressable
+                                style={[styles.actionBtn, styles.actionBtnReject]}
+                                onPress={handleVeto}
+                                accessibilityRole="button"
+                                accessibilityLabel={`Veto trade between ${trade.proposerTeamName} and ${trade.recipientTeamName}`}
+                            >
+                                <Text style={styles.actionBtnRejectText}>Veto</Text>
                             </Pressable>
                         </View>
                     )}
@@ -274,6 +327,7 @@ const styles = StyleSheet.create({
     assetPick: { fontSize: fontSize.sm, color: colors.textSecondary, fontStyle: 'italic' },
     assetPickVia: { fontSize: 12, color: palette.gray650 },
 
+    vetoWindowText: { fontSize: 12, color: colors.textMuted, marginBottom: spacing.xs },
     cardNotes: { fontSize: 12, color: colors.textMuted, fontStyle: 'italic', marginTop: spacing.xxs },
 
     cardActions: {

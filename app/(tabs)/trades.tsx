@@ -13,6 +13,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
 import {
     getMyTrades,
+    getVetoableTrades,
     Trade,
     TradePickItem,
     getPicksForMember,
@@ -51,8 +52,11 @@ export default function TradesScreen() {
     const load = useCallback(async () => {
         if (!myMemberId || !leagueId) return
         try {
-            const data = await getMyTrades(myMemberId, leagueId)
-            setTrades(data)
+            const [myTradeData, vetoableTradeData] = await Promise.all([
+                getMyTrades(myMemberId, leagueId),
+                getVetoableTrades(myMemberId, leagueId),
+            ])
+            setTrades([...vetoableTradeData, ...myTradeData])
         } catch (e) {
             console.error(e)
         } finally {
@@ -77,7 +81,12 @@ export default function TradesScreen() {
     const outgoingTrades = useMemo(() => trades.filter(
         (t) => t.proposerMemberId === myMemberId && t.status === 'pending',
     ), [trades, myMemberId])
-    const historyTrades = useMemo(() => trades.filter((t) => t.status !== 'pending'), [trades])
+    const vetoableTrades = useMemo(() => trades.filter(
+        (t) => t.status === 'accepted' && t.proposerMemberId !== myMemberId && t.recipientMemberId !== myMemberId,
+    ), [trades, myMemberId])
+    const historyTrades = useMemo(() => trades.filter(
+        (t) => t.status !== 'pending' && (t.proposerMemberId === myMemberId || t.recipientMemberId === myMemberId),
+    ), [trades, myMemberId])
 
     const picksList = useMemo(() => picks ?? [], [picks])
 
@@ -87,6 +96,11 @@ export default function TradesScreen() {
         if (tab === 'picks') {
             picksList.forEach((p) => result.push({ _type: 'pick', pick: p }))
         } else if (tab === 'offers') {
+            result.push({ _type: 'header', label: 'Veto Window' })
+            vetoableTrades.forEach((t) => result.push({ _type: 'trade', trade: t }))
+            if (vetoableTrades.length === 0 && !loading) {
+                result.push({ _type: 'header', label: '' })
+            }
             result.push({ _type: 'header', label: 'Incoming' })
             incomingTrades.forEach((t) => result.push({ _type: 'trade', trade: t }))
             if (incomingTrades.length === 0 && !loading) {
@@ -106,7 +120,7 @@ export default function TradesScreen() {
         }
 
         return result
-    }, [tab, incomingTrades, outgoingTrades, historyTrades, picksList, loading])
+    }, [tab, vetoableTrades, incomingTrades, outgoingTrades, historyTrades, picksList, loading])
 
     const TABS: { key: TabKey; label: string }[] = [
         { key: 'picks', label: 'Picks' },

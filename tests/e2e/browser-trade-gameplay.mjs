@@ -16,6 +16,7 @@ const FUTURE_PICK_REPORT_PATH = path.join(ROOT, 'tests/e2e-browser-trade-future-
 const FUTURE_PICK_ACCEPT_REPORT_PATH = path.join(ROOT, 'tests/e2e-browser-trade-future-pick-accept-report.md')
 const OVERFLOW_ACCEPT_REPORT_PATH = path.join(ROOT, 'tests/e2e-browser-trade-overflow-accept-report.md')
 const POST_DEADLINE_REPORT_PATH = path.join(ROOT, 'tests/e2e-browser-trade-post-deadline-report.md')
+const VETO_REPORT_PATH = path.join(ROOT, 'tests/e2e-browser-trade-veto-report.md')
 
 const browser = async (session, args, options = {}) => {
   const { stdout, stderr } = await execFileAsync('agent-browser', ['--session', session, ...args], {
@@ -139,10 +140,10 @@ const findFuturePickForMember = async (admin, leagueId, memberId, seasonYear, ro
   }
 }
 
-const setupTradeGameplayFixture = async (env, season) => {
+const setupTradeGameplayFixture = async (env, season, { memberCount = 2 } = {}) => {
   const runId = `${new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)}-${process.pid}-${season}`
   const password = `Pancake-trade-${runId}!`
-  const users = [1, 2].map((n) => ({
+  const users = Array.from({ length: memberCount }, (_, index) => index + 1).map((n) => ({
     email: `pancake-trade-${runId}-${n}@example.com`,
     password,
     username: `pancake_trade_${runId}_${n}`.replace(/[^a-zA-Z0-9_]/g, '_'),
@@ -174,19 +175,24 @@ const setupTradeGameplayFixture = async (env, season) => {
   })
   if (createError) throw new Error(`create_league: ${createError.message}`)
 
-  const recipientClient = await signInClient(env, createdUsers[1].email, password)
-  const { error: joinError } = await recipientClient.rpc('join_league_by_invite_code', {
-    p_invite_code: league.invite_code,
-    p_team_name: createdUsers[1].teamName,
-  })
-  if (joinError) throw new Error(`join_league_by_invite_code: ${joinError.message}`)
+  for (const user of createdUsers.slice(1)) {
+    const memberClient = await signInClient(env, user.email, password)
+    const { error: joinError } = await memberClient.rpc('join_league_by_invite_code', {
+      p_invite_code: league.invite_code,
+      p_team_name: user.teamName,
+    })
+    if (joinError) throw new Error(`join_league_by_invite_code ${user.email}: ${joinError.message}`)
+  }
 
   const currentSeason = await fetchCurrentSeason(admin, league.id)
   const members = await sortedLeagueMembers(admin, league.id)
-  if (members.length !== 2) throw new Error(`D.SEA.2 browser trade: expected 2 members, got ${members.length}`)
+  if (members.length !== memberCount) throw new Error(`D.SEA.2 browser trade: expected ${memberCount} members, got ${members.length}`)
   const proposer = members.find((member) => member.user_id === createdUsers[0].id)
   const recipient = members.find((member) => member.user_id === createdUsers[1].id)
   if (!proposer || !recipient) throw new Error('D.SEA.2 browser trade: member lookup failed')
+  const observer = memberCount > 2
+    ? members.find((member) => member.user_id === createdUsers[2].id)
+    : null
 
   const [proposerPlayer, recipientPlayer] = await findAvailablePlayers(admin, league.id, currentSeason.id, 2)
   const targetFuturePickYear = currentSeason.season_year + 5
@@ -223,6 +229,7 @@ const setupTradeGameplayFixture = async (env, season) => {
     currentSeason,
     proposer,
     recipient,
+    observer,
     proposerPlayer,
     recipientPlayer,
     targetFuturePickYear,
@@ -355,6 +362,45 @@ const setupTradeOverflowAcceptGameplayFixture = async (env, season) => {
     rosterSize: 1,
     dropCandidateRosterId: recipientRoster.id,
   }
+}
+
+const setupTradeVetoGameplayFixture = async (env, season) => {
+  const fixture = await setupTradeGameplayFixture(env, season, { memberCount: 3 })
+  if (!fixture.observer) throw new Error('browser trade veto fixture did not create observer member')
+
+  const { data: trade, error: tradeError } = await fixture.admin
+    .from('trades')
+    .insert({
+      league_id: fixture.league.id,
+      league_season_id: fixture.currentSeason.id,
+      proposer_member_id: fixture.proposer.id,
+      recipient_member_id: fixture.recipient.id,
+      status: 'accepted',
+      accepted_at: new Date().toISOString(),
+      veto_window_expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+      notes: 'Browser trade veto gameplay',
+    })
+    .select('id')
+    .single()
+  if (tradeError) throw new Error(`veto trade fixture insert: ${tradeError.message}`)
+
+  const { error: itemError } = await fixture.admin.from('trade_items').insert([
+    {
+      trade_id: trade.id,
+      side: 'proposer',
+      player_id: fixture.proposerPlayer.id,
+      pick_id: null,
+    },
+    {
+      trade_id: trade.id,
+      side: 'recipient',
+      player_id: fixture.recipientPlayer.id,
+      pick_id: null,
+    },
+  ])
+  if (itemError) throw new Error(`veto trade item fixture insert: ${itemError.message}`)
+
+  return { ...fixture, trade, observer: fixture.observer }
 }
 
 const setupTradePostDeadlineGameplayFixture = async (env, season) => {
@@ -920,6 +966,66 @@ const waitForTradeTerminalStatus = async (fixture, expectedStatus, timeoutMs = 1
   while (last.failures.length > 0 && Date.now() - startedAt < timeoutMs) {
     await new Promise((resolve) => setTimeout(resolve, 500))
     last = await verifyTradeTerminalStatus(fixture, expectedStatus)
+  }
+  return last
+}
+
+const verifyTradeVetoed = async (fixture) => {
+  const [tradeResult, vetoResult, rosterResult, transactionResult] = await Promise.all([
+    fixture.admin
+      .from('trades')
+      .select('id, status, accepted_at, veto_window_expires_at, vetoed_at, completed_at')
+      .eq('id', fixture.trade.id)
+      .single(),
+    fixture.admin
+      .from('trade_vetos')
+      .select('id, trade_id, member_id, veto_type')
+      .eq('trade_id', fixture.trade.id),
+    fixture.admin
+      .from('roster_players')
+      .select('id, member_id, player_id')
+      .eq('league_id', fixture.league.id)
+      .eq('league_season_id', fixture.currentSeason.id),
+    fixture.admin
+      .from('roster_transactions')
+      .select('id, related_trade_id')
+      .eq('related_trade_id', fixture.trade.id),
+  ])
+  if (tradeResult.error) throw new Error(`vetoed trade verify: ${tradeResult.error.message}`)
+  if (vetoResult.error) throw new Error(`veto rows verify: ${vetoResult.error.message}`)
+  if (rosterResult.error) throw new Error(`veto roster verify: ${rosterResult.error.message}`)
+  if (transactionResult.error) throw new Error(`veto transaction verify: ${transactionResult.error.message}`)
+
+  const failures = []
+  const trade = tradeResult.data
+  const vetoRows = vetoResult.data ?? []
+  const roster = rosterResult.data ?? []
+  const transactions = transactionResult.data ?? []
+  const rosterByPlayer = new Map(roster.map((row) => [row.player_id, row]))
+  if (trade.status !== 'vetoed' || !trade.accepted_at || !trade.vetoed_at || trade.completed_at) {
+    failures.push(`trade status=${trade.status}, accepted_at=${trade.accepted_at ?? '<null>'}, vetoed_at=${trade.vetoed_at ?? '<null>'}, completed_at=${trade.completed_at ?? '<null>'}; expected vetoed without completion`)
+  }
+  if (vetoRows.length !== 1 || vetoRows[0]?.member_id !== fixture.observer.id || vetoRows[0]?.veto_type !== 'member') {
+    failures.push(`veto rows=${JSON.stringify(vetoRows)}; expected one member veto from observer ${fixture.observer.id}`)
+  }
+  if (rosterByPlayer.get(fixture.proposerPlayer.id)?.member_id !== fixture.proposer.id) {
+    failures.push('proposer player moved despite veto')
+  }
+  if (rosterByPlayer.get(fixture.recipientPlayer.id)?.member_id !== fixture.recipient.id) {
+    failures.push('recipient player moved despite veto')
+  }
+  if (transactions.length !== 0) {
+    failures.push(`trade transaction rows=${transactions.length}; expected 0 for vetoed trade`)
+  }
+  return { trade, vetoRows, roster, transactions, failures }
+}
+
+const waitForTradeVetoed = async (fixture, timeoutMs = 10_000) => {
+  const startedAt = Date.now()
+  let last = await verifyTradeVetoed(fixture)
+  while (last.failures.length > 0 && Date.now() - startedAt < timeoutMs) {
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    last = await verifyTradeVetoed(fixture)
   }
   return last
 }
@@ -1700,6 +1806,122 @@ export async function runBrowserTradeOverflowAcceptScenario({
   }
 }
 
+export async function runBrowserTradeVetoScenario({
+  season = 0,
+  sessionName,
+} = {}) {
+  const env = resolvedEnv()
+  requireEnv(env, ['supabaseUrl', 'serviceRoleKey', 'anonKey'])
+  const fixture = await setupTradeVetoGameplayFixture(env, season)
+  const sessionList = await listSessions().catch((error) => `session list unavailable: ${error.message}`)
+  const session = sessionName ?? safeName(`pancake-trade-veto-${fixture.runId}-${process.pid}`)
+  const artifactDir = path.join(ARTIFACT_ROOT, `season-${season}`, 'browser-trade-veto')
+  await mkdir(artifactDir, { recursive: true })
+
+  const notes = [
+    `Frontend: ${describeEndpoint(env.frontendUrl)}`,
+    `Session: ${session}`,
+    `Observer: ${fixture.users[2].email}`,
+    `Trade: ${fixture.trade.id}`,
+    sessionList,
+  ]
+  let debug = {}
+
+  try {
+    await signInBrowser(session, env, fixture.users[2], fixture.password)
+    await browser(session, ['set', 'viewport', '390', '844']).catch(() => {})
+    await openOffersTab(session, env)
+    await assertPageText(
+      session,
+      [
+        'Trades',
+        'VETO WINDOW',
+        fixture.proposer.team_name,
+        fixture.recipient.team_name,
+        fixture.proposerPlayer.display_name,
+        fixture.recipientPlayer.display_name,
+        'Veto',
+      ],
+      'trade veto before submit',
+    )
+    await browser(session, ['screenshot', path.join(artifactDir, 'trade-veto-before.png')], { timeout: 60_000 })
+    const vetoClick = await clickButton(
+      session,
+      `Veto trade between ${fixture.proposer.team_name} and ${fixture.recipient.team_name}`,
+      'trade veto button',
+    )
+    const vetoed = await waitForTradeVetoed(fixture)
+    debug = { ...debug, vetoClick, vetoed }
+    if (vetoed.failures.length > 0) {
+      throw new Error(`trade veto did not persist: ${vetoed.failures.join('; ')}`)
+    }
+    await browser(session, ['wait', '1000'])
+    await browser(session, ['screenshot', path.join(artifactDir, 'trade-veto-after.png')], { timeout: 60_000 })
+
+    const consoleOutput = await browser(session, ['console']).catch((error) => `console unavailable: ${error.message}`)
+    const errorOutput = await browser(session, ['errors']).catch((error) => `errors unavailable: ${error.message}`)
+    await writeFile(path.join(artifactDir, 'console.txt'), `${consoleOutput}\n`)
+    await writeFile(path.join(artifactDir, 'errors.txt'), `${errorOutput}\n`)
+
+    const failures = [...vetoed.failures]
+    if (errorOutput.trim()) failures.push(`browser errors present; see ${path.relative(ROOT, path.join(artifactDir, 'errors.txt'))}`)
+    const report = {
+      status: failures.length === 0 ? 'PASS' : 'FAIL',
+      season,
+      artifactDir,
+      fixture: {
+        runId: fixture.runId,
+        leagueId: fixture.league.id,
+        leagueSeasonId: fixture.currentSeason.id,
+        tradeId: fixture.trade.id,
+        proposerMemberId: fixture.proposer.id,
+        recipientMemberId: fixture.recipient.id,
+        observerMemberId: fixture.observer.id,
+      },
+      vetoed,
+      notes,
+      failures,
+    }
+    await writeFile(VETO_REPORT_PATH, `${JSON.stringify(report, null, 2)}\n`)
+    await writeFile(path.join(artifactDir, 'summary.json'), `${JSON.stringify(report, null, 2)}\n`)
+    if (failures.length > 0) throw new Error(`Browser trade veto scenario failed: ${failures.join('; ')}`)
+    return report
+  } catch (error) {
+    await browser(session, ['screenshot', path.join(artifactDir, 'failure.png')], { timeout: 60_000 }).catch(() => {})
+    const consoleOutput = await browser(session, ['console']).catch((consoleError) => `console unavailable: ${consoleError.message}`)
+    const errorOutput = await browser(session, ['errors']).catch((errorError) => `errors unavailable: ${errorError.message}`)
+    const networkOutput = await browser(session, ['network', 'requests']).catch((networkError) => `network unavailable: ${networkError.message}`)
+    await writeFile(path.join(artifactDir, 'console.txt'), `${consoleOutput}\n`).catch(() => {})
+    await writeFile(path.join(artifactDir, 'errors.txt'), `${errorOutput}\n`).catch(() => {})
+    await writeFile(path.join(artifactDir, 'network.txt'), `${networkOutput}\n`).catch(() => {})
+    const vetoed = await verifyTradeVetoed(fixture).catch((verifyError) => ({
+      failures: [`verify unavailable: ${verifyError.message}`],
+    }))
+    debug = { ...debug, vetoed, consoleOutput, errorOutput, networkOutput }
+    const report = {
+      status: 'FAIL',
+      season,
+      artifactDir,
+      fixture: {
+        runId: fixture.runId,
+        leagueId: fixture.league.id,
+        leagueSeasonId: fixture.currentSeason.id,
+        tradeId: fixture.trade.id,
+        proposerMemberId: fixture.proposer.id,
+        recipientMemberId: fixture.recipient.id,
+        observerMemberId: fixture.observer.id,
+      },
+      error: error instanceof Error ? error.message : String(error),
+      debug,
+      notes,
+    }
+    await writeFile(VETO_REPORT_PATH, `${JSON.stringify(report, null, 2)}\n`).catch(() => {})
+    throw error
+  } finally {
+    await browser(session, ['close']).catch(() => {})
+  }
+}
+
 export async function runBrowserTradeTerminalScenario({
   season = 0,
   sessionName,
@@ -1870,6 +2092,8 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const season = seasonArg ? Number(seasonArg.split('=')[1]) : 0
   const runner = process.argv.includes('--terminal')
     ? runBrowserTradeTerminalScenario
+    : process.argv.includes('--veto')
+      ? runBrowserTradeVetoScenario
     : process.argv.includes('--overflow-accept')
       ? runBrowserTradeOverflowAcceptScenario
     : process.argv.includes('--post-deadline')
