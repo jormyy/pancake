@@ -51,6 +51,7 @@ const parseArgs = () => {
     realtime: args.get('realtime') === 'true' || process.env.E2E_ENABLE_REALTIME === '1',
     midlifeMigration: args.get('midlife-migration') === 'true' || process.env.E2E_ENABLE_MIDLIFE_MIGRATION === '1',
     auction: args.get('auction') === 'true' || process.env.E2E_ENABLE_AUCTION === '1',
+    playoffs: args.get('playoffs') === 'true' || process.env.E2E_ENABLE_PLAYOFFS === '1',
   }
 }
 
@@ -155,6 +156,9 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
   const auctionStatus = args.auction
     ? hasFailingNote(rows, /D\.SET\.4/) ? 'FAIL' : hasPassingNote(rows, /auction bid validation passed/) ? 'PARTIAL' : 'PENDING'
     : 'PENDING'
+  const playoffsStatus = args.playoffs
+    ? hasFailingNote(rows, /D\.SEA\.4/) ? 'FAIL' : hasPassingNote(rows, /playoff bracket scenario passed/) ? 'PARTIAL' : 'PENDING'
+    : 'PENDING'
 
   const coverage = [
     {
@@ -214,8 +218,8 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
     },
     {
       requirement: 'D.SEA.4 playoffs/champion',
-      status: 'PENDING',
-      evidence: 'No playoff bracket/champion scenario implemented.',
+      status: playoffsStatus,
+      evidence: args.playoffs ? 'Playoff mode seeds a disposable 10-team regular season and calls the real authenticated /playoffs/generate route, then checks for a top-6 bracket.' : 'No playoff bracket/champion scenario implemented; enable E2E_ENABLE_PLAYOFFS=1 for bracket-generation coverage.',
     },
     {
       requirement: 'D.SEA.5 rookie draft/traded picks',
@@ -889,6 +893,185 @@ const assertHistoryRetained = async (supabase, fixtures, runSeason) => {
   return failures
 }
 
+const e2eCode = () => Math.random().toString(36).replace(/[^a-z0-9]/g, '').slice(2, 8).toUpperCase().padEnd(6, '0')
+
+const createDisposablePlayoffLeague = async ({ supabase, state, season }) => {
+  if (!state?.password || !Array.isArray(state.users) || state.users.length < 10) {
+    throw new Error('D.SEA.4: playoff scenario requires 10 seeded users from npm run e2e:seed')
+  }
+
+  const unique = `${state.runId ?? 'manual'}-${season}-${Date.now().toString(36)}`
+  const { data: league, error: leagueError } = await supabase
+    .from('leagues')
+    .insert({
+      name: `Pancake E2E Playoffs ${unique}`,
+      slug: `pancake-e2e-playoffs-${unique}`,
+      invite_code: e2eCode(),
+      commissioner_id: state.users[0].id,
+      status: 'active',
+      playoff_start_week: 20,
+    })
+    .select('id, playoff_start_week')
+    .single()
+  if (leagueError) throw new Error(`D.SEA.4 playoff league insert: ${leagueError.message}`)
+
+  const { data: leagueSeason, error: seasonError } = await supabase
+    .from('league_seasons')
+    .insert({
+      league_id: league.id,
+      season_year: 3000 + season,
+      is_current: true,
+    })
+    .select('id, season_year')
+    .single()
+  if (seasonError) throw new Error(`D.SEA.4 playoff season insert: ${seasonError.message}`)
+
+  const orderByUserId = new Map(state.users.map((user, index) => [user.id, index]))
+  const { data: insertedMembers, error: membersError } = await supabase
+    .from('league_members')
+    .insert(state.users.map((user, index) => ({
+      league_id: league.id,
+      user_id: user.id,
+      role: index === 0 ? 'commissioner' : 'manager',
+      team_name: `Playoff Seed ${index + 1}`,
+    })))
+    .select('id, user_id, team_name')
+  if (membersError) throw new Error(`D.SEA.4 playoff members insert: ${membersError.message}`)
+
+  const members = [...(insertedMembers ?? [])].sort((a, b) => {
+    return (orderByUserId.get(a.user_id) ?? 999) - (orderByUserId.get(b.user_id) ?? 999)
+  })
+  if (members.length < 10) throw new Error(`D.SEA.4: playoff league has ${members.length} members; expected 10`)
+
+  const regularSeasonRows = []
+  for (const [index, member] of members.entries()) {
+    const wins = members.length - index
+    for (let win = 0; win < wins; win += 1) {
+      const opponentOffset = (win % (members.length - 1)) + 1
+      const opponent = members[(index + opponentOffset) % members.length]
+      regularSeasonRows.push({
+        league_id: league.id,
+        league_season_id: leagueSeason.id,
+        week_number: 100 + index * 20 + win,
+        matchup_type: 'regular_season',
+        home_member_id: member.id,
+        away_member_id: opponent.id,
+        home_points: 200 - index,
+        away_points: 50 + index,
+        home_max_possible_points: 220 - index,
+        away_max_possible_points: 70 + index,
+        winner_member_id: member.id,
+        is_finalized: true,
+        finalized_at: new Date().toISOString(),
+      })
+    }
+  }
+
+  const { error: matchupError } = await supabase.from('matchups').insert(regularSeasonRows)
+  if (matchupError) throw new Error(`D.SEA.4 regular-season fixture insert: ${matchupError.message}`)
+
+  return {
+    league,
+    leagueSeason,
+    members,
+    regularSeasonRows: regularSeasonRows.length,
+  }
+}
+
+const playoffPairExists = (rows, homeId, awayId) => rows.some((row) => (
+  row.home_member_id === homeId &&
+  row.away_member_id === awayId
+))
+
+const assertPlayoffBracketScenario = async ({ supabase, env, state, season }) => {
+  const failures = []
+  const fixture = await createDisposablePlayoffLeague({ supabase, state, season })
+  const accessToken = await signInForAccessToken(env, state.users[0].email, state.password)
+  let generateResult = null
+  let advanceBeforeFinalized = null
+
+  try {
+    generateResult = await backendAuthedJson(env, '/playoffs/generate', accessToken, {
+      leagueId: fixture.league.id,
+    })
+  } catch (error) {
+    failures.push(`D.SEA.4: /playoffs/generate failed for disposable 10-team league: ${errorMessage(error)}`)
+  }
+
+  try {
+    await backendAuthedJson(env, '/playoffs/advance', accessToken, {
+      leagueId: fixture.league.id,
+    })
+    failures.push('D.SEA.4: /playoffs/advance did not block before prerequisite playoff games were finalized')
+  } catch (error) {
+    advanceBeforeFinalized = errorMessage(error)
+  }
+
+  const { data: bracketRows, error: bracketError } = await supabase
+    .from('matchups')
+    .select('id, week_number, matchup_type, home_member_id, away_member_id, winner_member_id, is_finalized')
+    .eq('league_id', fixture.league.id)
+    .eq('league_season_id', fixture.leagueSeason.id)
+    .neq('matchup_type', 'regular_season')
+    .order('week_number', { ascending: true })
+    .order('matchup_type', { ascending: true })
+  if (bracketError) {
+    failures.push(`D.SEA.4: playoff bracket read failed: ${bracketError.message}`)
+  }
+
+  const bracket = bracketRows ?? []
+  const quarterfinals = bracket.filter((row) => row.matchup_type === 'playoff_quarterfinal')
+  const semifinals = bracket.filter((row) => row.matchup_type === 'playoff_semifinal')
+  const [seed1, seed2, seed3, seed4, seed5, seed6] = fixture.members
+  const expectedQuarterfinals = [
+    [seed3, seed6],
+    [seed4, seed5],
+  ]
+
+  if (quarterfinals.length !== 2) {
+    failures.push(`D.SEA.4: 10-team playoff bracket created ${quarterfinals.length} quarterfinals; expected 2 for seeds 3v6 and 4v5 with seeds 1 and 2 on bye`)
+  }
+  for (const [home, away] of expectedQuarterfinals) {
+    if (!playoffPairExists(quarterfinals, home.id, away.id)) {
+      failures.push(`D.SEA.4: missing expected quarterfinal ${home.team_name} vs ${away.team_name}`)
+    }
+  }
+
+  const qfParticipants = new Set(quarterfinals.flatMap((row) => [row.home_member_id, row.away_member_id]))
+  if (qfParticipants.has(seed1.id) || qfParticipants.has(seed2.id)) {
+    failures.push('D.SEA.4: seed 1 or seed 2 appeared in the quarterfinal round instead of receiving a bye')
+  }
+  if (semifinals.length > 0 && quarterfinals.length === 0) {
+    failures.push(`D.SEA.4: generated ${semifinals.length} semifinal rows directly; 10-team leagues must generate a top-6 bracket with a quarterfinal round first`)
+  }
+
+  const artifact = {
+    season,
+    disposableLeagueId: fixture.league.id,
+    leagueSeasonId: fixture.leagueSeason.id,
+    regularSeasonRows: fixture.regularSeasonRows,
+    expected: {
+      teamCount: 10,
+      firstRound: 'top-6 bracket: seed 3 vs seed 6 and seed 4 vs seed 5; seeds 1 and 2 bye',
+    },
+    seeds: fixture.members.map((member, index) => ({
+      seed: index + 1,
+      memberId: member.id,
+      teamName: member.team_name,
+    })),
+    generateResult,
+    advanceBeforeFinalized,
+    bracket,
+    failures,
+  }
+  await writeFile(
+    path.join(ARTIFACT_ROOT, `season-${season}`, 'playoff-bracket.json'),
+    `${JSON.stringify(artifact, null, 2)}\n`,
+  )
+
+  return { failures, artifact }
+}
+
 const withTimeout = (promise, timeoutMs, message) => {
   let timeout
   const timer = new Promise((_, reject) => {
@@ -1281,12 +1464,12 @@ const assertBackendUsesFakePush = async (env, fakePort) => {
 }
 
 const signInForAccessToken = async (env, email, password) => {
-  if (!env.anonKey) throw new Error('D.X.1: E2E_ENABLE_PUSH=1 requires E2E_SUPABASE_ANON_KEY or EXPO_PUBLIC_SUPABASE_ANON_KEY')
+  if (!env.anonKey) throw new Error('E2E authenticated backend scenarios require E2E_SUPABASE_ANON_KEY or EXPO_PUBLIC_SUPABASE_ANON_KEY')
   const client = createClient(env.supabaseUrl, env.anonKey, { auth: { persistSession: false } })
   const { data, error } = await client.auth.signInWithPassword({ email, password })
-  if (error) throw new Error(`D.X.1 sign-in failed for ${email}: ${error.message}`)
+  if (error) throw new Error(`E2E sign-in failed for ${email}: ${error.message}`)
   const token = data.session?.access_token
-  if (!token) throw new Error(`D.X.1 sign-in for ${email} returned no access token`)
+  if (!token) throw new Error(`E2E sign-in for ${email} returned no access token`)
   return token
 }
 
@@ -1680,6 +1863,9 @@ const main = async () => {
   if (args.auction && !targetLeagueId) {
     throw new Error('E2E_ENABLE_AUCTION=1 requires a seeded target league or E2E_LEAGUE_ID')
   }
+  if (args.playoffs && (!state?.password || !Array.isArray(state.users) || state.users.length < 10)) {
+    throw new Error('E2E_ENABLE_PLAYOFFS=1 requires tests/e2e-state.json from npm run e2e:seed with 10 users')
+  }
   if (args.midlifeMigration && (!Number.isInteger(MIDLIFE_MIGRATION_AFTER_SEASON) || MIDLIFE_MIGRATION_AFTER_SEASON < 1)) {
     throw new Error('E2E_ENABLE_MIDLIFE_MIGRATION=1 requires a positive integer E2E_MIDLIFE_MIGRATION_AFTER_SEASON')
   }
@@ -1723,6 +1909,9 @@ const main = async () => {
     args.auction
       ? 'Auction bid validation enabled through E2E_ENABLE_AUCTION=1.'
       : 'Auction validation disabled; set E2E_ENABLE_AUCTION=1 to exercise the D.SET.4 server-side bid validation slice.',
+    args.playoffs
+      ? 'Playoff bracket scenario enabled through E2E_ENABLE_PLAYOFFS=1.'
+      : 'Playoff bracket scenario disabled; set E2E_ENABLE_PLAYOFFS=1 to exercise the D.SEA.4 top-6 bracket slice.',
   ]
 
   try {
@@ -1829,6 +2018,17 @@ const main = async () => {
             season,
           })
         }
+        let playoffCheck = null
+        const playoffFailures = []
+        if (args.playoffs && season === 1) {
+          playoffCheck = await assertPlayoffBracketScenario({
+            supabase,
+            env,
+            state,
+            season,
+          })
+          playoffFailures.push(...playoffCheck.failures)
+        }
         if (args.realtime) {
           await assertRealtimeDelivery({
             supabase,
@@ -1909,6 +2109,7 @@ const main = async () => {
           ...matchupFailures,
           ...failuresAfterReset,
           ...snapshotFailures,
+          ...playoffFailures,
           ...perfFailures,
           ...memoryFailures,
         ]
@@ -1931,6 +2132,7 @@ const main = async () => {
               args.push ? 'trade and waiver push notification intercepts passed' : null,
               midlifeMigrationReport ? `mid-life migration applied (${midlifeMigrationReport.status})` : null,
               auctionValidation ? 'auction bid validation passed' : null,
+              playoffCheck ? 'playoff bracket scenario passed' : null,
               env.backendTicksEnabled ? 'matchup generation idempotency passed' : null,
               args.pickChain ? 'multi-hop future-pick owner resolved' : null,
               rookieDraftPickChainCheck ? 'rookie draft traded-pick slot resolved' : null,
