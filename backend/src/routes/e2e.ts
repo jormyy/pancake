@@ -17,6 +17,14 @@ const DateBody = {
     type: 'object' as const,
     properties: {
         date: { type: 'string' as const },
+        leagueId: { type: 'string' as const },
+    },
+}
+
+const OptionalLeagueIdBody = {
+    type: 'object' as const,
+    properties: {
+        leagueId: { type: 'string' as const },
     },
 }
 
@@ -60,20 +68,21 @@ export default async function e2eRoutes(app: FastifyInstance) {
         return { ok: true }
     })
 
-    app.post('/sync-scores', async () => {
+    app.post('/sync-scores', { schema: { body: OptionalLeagueIdBody } }, async (req) => {
+        const { leagueId } = (req.body ?? {}) as { leagueId?: string }
         const games = await fetchTodaysGames()
         if (games.length > 0) await updateGameStatuses(games)
-        await syncScores()
+        await syncScores(leagueId)
         return { ok: true, games: games.length }
     })
 
     app.post('/live-poll', { schema: { body: DateBody } }, async (req) => {
-        const { date } = (req.body ?? {}) as { date?: string }
+        const { date, leagueId } = (req.body ?? {}) as { date?: string; leagueId?: string }
         const targetDate = parseDate(date)
         const games = await fetchTodaysGames()
         if (games.length > 0) await updateGameStatuses(games)
         await syncStatsByDate(targetDate)
-        await syncScores()
+        await syncScores(leagueId)
         return { ok: true, games: games.length }
     })
 

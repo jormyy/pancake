@@ -444,11 +444,15 @@ async function updateWeekPoints(
 }
 
 // Main sync: updates live scores for all current-week matchups across all leagues.
-export async function syncScores() {
-    const { data: seasons, error: sErr } = await supabase
+export async function syncScores(leagueId?: string) {
+    let seasonQuery = supabase
         .from('league_seasons')
         .select('id, league_id, season_year, leagues ( scoring_settings, playoff_start_week )')
         .eq('is_current', true)
+
+    if (leagueId) seasonQuery = seasonQuery.eq('league_id', leagueId)
+
+    const { data: seasons, error: sErr } = await seasonQuery
     if (sErr) throw sErr
     if (!seasons?.length) return
 

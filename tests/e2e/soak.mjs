@@ -3,6 +3,8 @@ import path from 'node:path'
 import process from 'node:process'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
+import v8 from 'node:v8'
+import vm from 'node:vm'
 import { createClient } from '@supabase/supabase-js'
 import WebSocket from 'ws'
 import { createFakeUpstreamServer } from './fake-upstream.mjs'
@@ -108,8 +110,32 @@ const nowMs = () => Number(process.hrtime.bigint()) / 1_000_000
 
 const roundedMs = (value) => Math.round(value)
 const bytesToMiB = (value) => Math.round((value / 1024 / 1024) * 10) / 10
+const median = (values) => {
+  const sorted = values.filter((value) => Number.isFinite(value)).toSorted((left, right) => left - right)
+  if (sorted.length === 0) return null
+  const midpoint = Math.floor(sorted.length / 2)
+  return sorted.length % 2 === 0
+    ? (sorted[midpoint - 1] + sorted[midpoint]) / 2
+    : sorted[midpoint]
+}
+
+const runGarbageCollector = () => {
+  if (typeof globalThis.gc !== 'function') {
+    try {
+      v8.setFlagsFromString('--expose_gc')
+      globalThis.gc = vm.runInNewContext('gc')
+    } catch {
+      // GC is unavailable in some Node builds; memory drift will still be measured.
+    }
+  }
+  if (typeof globalThis.gc === 'function') {
+    globalThis.gc()
+    globalThis.gc()
+  }
+}
 
 const currentMemory = () => {
+  runGarbageCollector()
   const { rss, heapUsed, external, arrayBuffers } = process.memoryUsage()
   return {
     rssBytes: rss,
@@ -297,7 +323,7 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
     {
       requirement: 'P0/P1 findings resolved',
       status: 'PARTIAL',
-      evidence: 'Post-refactor deltas and approval-gated soak fixes are documented; external service-role rotation/history purge is still outside the repo.',
+      evidence: 'Post-refactor deltas and soak fixes are documented; operational secret rotation/history purge remains outside repo source control.',
     },
     {
       requirement: 'Real test Supabase project',
@@ -431,13 +457,13 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
     },
     {
       requirement: '10 seasons and continue past 10 / 20 clean',
-      status: status === 'PASS' && seasons >= 20 ? 'PASS' : 'PENDING',
-      evidence: `Current run status is ${status} for target ${seasons} season(s).`,
+      status: status === 'PASS' && seasons >= 20 ? 'PASS' : status === 'FAIL' ? 'FAIL' : seasons >= 20 ? 'PARTIAL' : 'PENDING',
+      evidence: `Current run status is ${status} for target ${seasons} season(s); PARTIAL means enabled season rows passed but full gameplay coverage is still pending.`,
     },
     {
       requirement: 'Production-ready exit criteria',
       status: 'FAIL',
-      evidence: 'Coverage remains pending or failing for multiple required gameplay, long-horizon, and external-secret criteria.',
+      evidence: 'Coverage remains pending or failing for multiple required gameplay and long-horizon criteria.',
     },
   ]
 
@@ -539,6 +565,7 @@ const fetchAll = async (supabase, table, select = '*', filters = {}) => {
     let query = supabase
       .from(table)
       .select(select)
+      .order('id', { ascending: true })
       .range(from, from + pageSize - 1)
     for (const [column, value] of Object.entries(filters)) {
       query = query.eq(column, value)
@@ -554,25 +581,40 @@ const fetchAll = async (supabase, table, select = '*', filters = {}) => {
   return rows
 }
 
-const summarizeSnapshot = (tableRows) => {
-  const summary = { counts: {} }
-  for (const [table, rows] of Object.entries(tableRows)) {
-    summary.counts[table] = rows.length
+const fetchAllIn = async (supabase, table, select, column, values) => {
+  if (values.length === 0) return []
+
+  const pageSize = 1000
+  const rows = []
+  let from = 0
+
+  while (true) {
+    const { data, error } = await supabase
+      .from(table)
+      .select(select)
+      .in(column, values)
+      .order('id', { ascending: true })
+      .range(from, from + pageSize - 1)
+    if (error) throw new Error(`${table}: ${error.message}`)
+    if (!data || data.length === 0) break
+    rows.push(...data)
+    if (data.length < pageSize) break
+    from += pageSize
   }
-  return summary
+
+  return rows
 }
 
 const writeSnapshots = async (supabase, season, leagueId) => {
   const dir = path.join(SNAPSHOT_ROOT, `season-${season}`)
   await mkdir(dir, { recursive: true })
 
-  const tableRows = {}
+  const summary = { counts: {} }
   for (const table of SNAPSHOT_TABLES) {
     const rows = await fetchAll(supabase, table, '*', leagueId ? { league_id: leagueId } : {})
-    tableRows[table] = rows
+    summary.counts[table] = rows.length
     await writeFile(path.join(dir, `${table}.json`), `${JSON.stringify(rows, null, 2)}\n`)
   }
-  const summary = summarizeSnapshot(tableRows)
   await writeFile(path.join(dir, 'summary.json'), `${JSON.stringify(summary, null, 2)}\n`)
   return summary
 }
@@ -613,15 +655,15 @@ const validatePerfDrift = (metrics, totalSeasons) => {
     return [`D.LONG.6: invalid E2E_PERF_DRIFT_LIMIT ${process.env.E2E_PERF_DRIFT_LIMIT}`]
   }
 
-  const baseline = metrics[0]?.durationMs
-  const latest = metrics.at(-1)?.durationMs
+  const baseline = median(metrics.slice(0, 3).map((metric) => metric.durationMs))
+  const latest = median(metrics.slice(-3).map((metric) => metric.durationMs))
   if (!baseline || !latest) return []
 
   const maxAllowed = baseline * PERF_DRIFT_LIMIT
   if (latest > maxAllowed) {
     const percent = Math.round(((latest - baseline) / baseline) * 100)
     return [
-      `D.LONG.6: per-season runtime drifted ${percent}% from season 1 (${roundedMs(baseline)}ms) to season ${metrics.at(-1).season} (${roundedMs(latest)}ms); limit is ${Math.round((PERF_DRIFT_LIMIT - 1) * 100)}%`,
+      `D.LONG.6: per-season runtime median drifted ${percent}% from seasons 1-3 (${roundedMs(baseline)}ms) to seasons ${metrics.at(-3)?.season}-${metrics.at(-1)?.season} (${roundedMs(latest)}ms); limit is ${Math.round((PERF_DRIFT_LIMIT - 1) * 100)}%`,
     ]
   }
   return []
@@ -2135,7 +2177,7 @@ const assertWeeklyScoringFinalizationScenario = async ({ supabase, env, state, s
     league_season_id: fixture.leagueSeason.id,
     week_number: weekNumber,
   })
-  await backendJson(env, '/e2e/sync-scores')
+  await backendJson(env, '/e2e/sync-scores', { leagueId: fixture.league.id })
   const scheduledSyncMatchup = await readScoringMatchup(supabase, matchup.id, label)
   const expectedHomePoints = calculateFixturePoints(homeStarterStats, scoringSettings)
   const expectedAwayPoints = calculateFixturePoints(awayStarterStats, scoringSettings)
@@ -2152,7 +2194,7 @@ const assertWeeklyScoringFinalizationScenario = async ({ supabase, env, state, s
     .eq('id', game.id)
   if (finalGameError) throw new Error(`${label}: final game update failed: ${finalGameError.message}`)
 
-  await backendJson(env, '/e2e/sync-scores')
+  await backendJson(env, '/e2e/sync-scores', { leagueId: fixture.league.id })
   const finalizedMatchup = await readScoringMatchup(supabase, matchup.id, label)
   const standingsAfter = await countRows(supabase, 'standings', {
     league_id: fixture.league.id,
@@ -3292,10 +3334,8 @@ const runInvariants = async (supabase, leagueId, scenarios = {}) => {
     weeklyLineups,
     waiverClaims,
     trades,
-    tradeItems,
     draftPicks,
     drafts,
-    nominations,
   ] = await Promise.all([
     leagueId ? fetchAll(supabase, 'leagues', 'id', { id: leagueId }) : fetchAll(supabase, 'leagues', 'id'),
     fetchAll(supabase, 'league_seasons', 'id, league_id, is_current', leagueFilter),
@@ -3304,10 +3344,8 @@ const runInvariants = async (supabase, leagueId, scenarios = {}) => {
     fetchAll(supabase, 'weekly_lineups', 'id, league_id, league_season_id, member_id, player_id', leagueFilter),
     fetchAll(supabase, 'waiver_claims', 'id, league_id, league_season_id, member_id, player_id, drop_player_id, status, process_date', leagueFilter),
     fetchAll(supabase, 'trades', 'id, league_id, league_season_id, proposer_member_id, recipient_member_id, status, veto_window_expires_at', leagueFilter),
-    fetchAll(supabase, 'trade_items', 'id, trade_id, player_id, pick_id'),
     fetchAll(supabase, 'draft_picks', 'id, league_id, season_year, round, current_owner_id, original_owner_id', leagueFilter),
     fetchAll(supabase, 'drafts', 'id, league_id', leagueFilter),
-    fetchAll(supabase, 'nominations', 'id, draft_id, status, countdown_expires_at'),
   ])
 
   const failures = []
@@ -3316,8 +3354,12 @@ const runInvariants = async (supabase, leagueId, scenarios = {}) => {
   const membersById = indexById(leagueMembers)
   const draftIds = new Set(drafts.map((draft) => draft.id))
   const tradeIds = new Set(trades.map((trade) => trade.id))
-  const scopedTradeItems = leagueId ? tradeItems.filter((item) => tradeIds.has(item.trade_id)) : tradeItems
-  const scopedNominations = leagueId ? nominations.filter((nomination) => draftIds.has(nomination.draft_id)) : nominations
+  const scopedTradeItems = leagueId
+    ? await fetchAllIn(supabase, 'trade_items', 'id, trade_id, player_id, pick_id', 'trade_id', [...tradeIds])
+    : await fetchAll(supabase, 'trade_items', 'id, trade_id, player_id, pick_id')
+  const scopedNominations = leagueId
+    ? await fetchAllIn(supabase, 'nominations', 'id, draft_id, status, countdown_expires_at', 'draft_id', [...draftIds])
+    : await fetchAll(supabase, 'nominations', 'id, draft_id, status, countdown_expires_at')
 
   if (leagues.length === 0) {
     failures.push(leagueId ? `D.SET.2: target league ${leagueId} does not exist` : 'D.SET.2: no leagues exist in the test project')
@@ -4439,7 +4481,10 @@ const main = async () => {
         if (env.backendTicksEnabled) {
           await backendJson(env, '/e2e/sync-schedule')
           await backendJson(env, '/e2e/sync-players')
-          await backendJson(env, '/e2e/live-poll', { date: `${2026 + season}-10-20T12:00:00.000Z` })
+          await backendJson(env, '/e2e/live-poll', {
+            date: `${2026 + season}-10-20T12:00:00.000Z`,
+            leagueId: targetLeagueId,
+          })
           await backendJson(env, '/e2e/process-waivers')
           await backendJson(env, '/e2e/generate-matchups', { force: false, leagueId: targetLeagueId })
         }
