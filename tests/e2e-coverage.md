@@ -1,8 +1,8 @@
 # E2E Coverage Checklist
 
-- Run status: PARTIAL
-- Started: 2026-05-12T05:45:45.292Z
-- Finished: 2026-05-12T05:45:51.778Z
+- Run status: FAIL
+- Started: 2026-05-12T05:55:56.627Z
+- Finished: 2026-05-12T05:56:00.552Z
 - Target seasons: 1
 
 ## Prompt-To-Artifact Matrix
@@ -17,15 +17,15 @@
 | D.SET.2 league create/join/pick bank | PARTIAL | Seeded target league 70c70f7e-737d-402d-ad1c-3fd204faac5e; invite, lineup slots, members, and 5y pick-bank proof lives in tests/e2e-seed-report.md. |
 | D.SET.3 commissioner settings propagation | PENDING | No commissioner settings propagation scenario implemented; enable E2E_ENABLE_SETTINGS=1. |
 | D.SET.4 initial auction draft | PENDING | No browser-driven auction draft scenario implemented; enable E2E_ENABLE_AUCTION=1 for server-side bid validation slice. |
-| D.0 invariant boundary checks | PASS | Season rows in tests/e2e-report.md include D.0 boundary checks or failure. |
+| D.0 invariant boundary checks | PARTIAL | Season rows in tests/e2e-report.md include D.0 boundary checks or failure. |
 | D.SEA.1 matchup generation idempotency | PENDING | Requires E2E_ENABLE_BACKEND_TICKS=1. |
 | D.SEA.2 weekly lineup/scoring/waiver/trade loop | PENDING | Full weekly browser gameplay loop is not implemented; enable E2E_ENABLE_SCORING=1 for the starter-only scoring/finalization slice. |
 | D.SEA.3 standings tiebreakers/RPS | PENDING | No forced four-way tie or RPS browser/backend scenario implemented; enable E2E_ENABLE_TIEBREAKERS=1 for standings tiebreaker coverage. |
 | D.SEA.4 playoffs/champion | PENDING | No playoff bracket/champion scenario implemented; enable E2E_ENABLE_PLAYOFFS=1 for bracket-generation coverage. |
-| D.SEA.5 rookie draft/traded picks | PARTIAL | Rookie-draft mode starts a disposable offseason draft through the real backend route, verifies inverse-standings snake order, auto-pick lowest nba_draft_number, exact pick asset usage, roster insert, and already-rostered rejection. |
+| D.SEA.5 rookie draft/traded picks | PENDING | Enable E2E_ENABLE_ROOKIE_DRAFT=1 for rookie-draft auto-pick/order coverage or E2E_ENABLE_PICK_CHAIN=1 for long-horizon traded-pick materialization. |
 | D.SEA.6 season reset | PENDING | Requires E2E_ENABLE_BACKEND_TICKS=1. |
 | D.SEA.7 snapshots/no shrink | PENDING | Snapshot summaries are written under tests/snapshots/season-<N>/summary.json. |
-| D.X.1 push notifications | PENDING | Trade push prior slice exists; draft push pending; enable E2E_ENABLE_PUSH=1. |
+| D.X.1 push notifications | FAIL | Draft-push mode runs a disposable rookie auto-pick and asserts the fake Expo upstream captured a draft notification. |
 | D.X.2 realtime bid/score events | PENDING | Enable E2E_ENABLE_REALTIME=1. |
 | D.X.3 CORS regression | PENDING | Requires backend tick mode. |
 | D.X.4 perf smoke under draft/live scoring load | PENDING | No continuous-bid/live-scoring browser perf scenario implemented. |
@@ -35,7 +35,7 @@
 | D.LONG.5 mid-life migration | PENDING | Enable E2E_ENABLE_MIDLIFE_MIGRATION=1 to apply the no-op migration between seasons 5 and 6. |
 | D.LONG.6 runtime drift | PENDING | Runtime metrics live in tests/artifacts/perf-metrics.json. |
 | D.LONG.7 memory/connection leaks | PENDING | Harness memory metrics live in tests/artifacts/perf-metrics.json; current invariant run exceeds default memory drift gate. |
-| 10 seasons and continue past 10 / 20 clean | PENDING | Current run status is PARTIAL for target 1 season(s). |
+| 10 seasons and continue past 10 / 20 clean | PENDING | Current run status is FAIL for target 1 season(s). |
 | Production-ready exit criteria | FAIL | Coverage remains pending or failing for multiple required gameplay, long-horizon, and external-secret criteria. |
 
 ## Run Notes
@@ -49,6 +49,7 @@
 - Browser auth/sign-out/session-persistence scenario disabled; set E2E_ENABLE_BROWSER_AUTH=1 to exercise D.SET.1.
 - Future-pick multi-hop scenario disabled; set E2E_ENABLE_PICK_CHAIN=1 to exercise D.LONG.2.
 - Push notification intercept disabled; set E2E_ENABLE_PUSH=1 with backend EXPO_PUSH_URL pointed at the fake upstream to exercise the trade-notification slice of D.X.1.
+- Draft push notification intercept enabled through E2E_ENABLE_DRAFT_PUSH=1.
 - Standings/champion history retention disabled; set E2E_ENABLE_HISTORY=1 with backend ticks to exercise the D.LONG.3/D.LONG.4 fixture-retention slice.
 - Realtime latency check disabled; set E2E_ENABLE_REALTIME=1 to exercise the D.X.2 matchups update slice.
 - Mid-life migration check disabled; set E2E_ENABLE_MIDLIFE_MIGRATION=1 to exercise D.LONG.5.
@@ -57,6 +58,7 @@
 - Standings tiebreaker/RPS scenario disabled; set E2E_ENABLE_TIEBREAKERS=1 to exercise D.SEA.3.
 - Commissioner settings propagation scenario disabled; set E2E_ENABLE_SETTINGS=1 to exercise D.SET.3.
 - Weekly starter-only scoring/finalization scenario disabled; set E2E_ENABLE_SCORING=1 to exercise the D.SEA.2 scoring slice.
-- Rookie draft auto-pick/order scenario enabled through E2E_ENABLE_ROOKIE_DRAFT=1.
+- Rookie draft auto-pick/order scenario disabled; set E2E_ENABLE_ROOKIE_DRAFT=1 to exercise the D.SEA.5 auto-pick slice.
 - Schema preflight passed: post-refactor RPCs and required columns are present.
+- Backend EXPO_PUSH_URL points at the fake upstream push intercept.
 - Perf metrics written to tests/artifacts/perf-metrics.json.

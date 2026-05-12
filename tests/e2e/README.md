@@ -21,6 +21,7 @@ export E2E_ENABLE_BROWSER_AUTH=1
 export E2E_BROWSER_AUTH_USERS=10
 export E2E_ENABLE_PICK_CHAIN=1
 export E2E_ENABLE_PUSH=1
+export E2E_ENABLE_DRAFT_PUSH=1
 export E2E_ENABLE_REALTIME=1
 export E2E_ENABLE_MIDLIFE_MIGRATION=1
 export E2E_ENABLE_AUCTION=1
@@ -69,7 +70,9 @@ Weekly scoring/finalization checks are available with `E2E_ENABLE_SCORING=1` or 
 
 Rookie draft checks are available with `E2E_ENABLE_ROOKIE_DRAFT=1` or `--rookie-draft=true`. The backend must be running with `ENABLE_E2E_ROUTES=1` and `E2E_ADMIN_SECRET`; the runner creates a disposable offseason league, seeds previous-season standings and exact `draft_picks`, starts the real rookie draft through `/e2e/start-rookie-draft`, verifies inverse-standings snake slot order and linked pick assets, runs `/e2e/:draftId/auto-pick`, and checks lowest-`nba_draft_number` selection, immediate `picked_at`, linked pick-asset usage, roster insert, and already-rostered rejection through the authenticated `/draft/:draftId/snake-pick` route. Artifacts are written to `tests/artifacts/season-<N>/rookie-draft-auto-pick.json`. This covers the D.SEA.5 order/auto-pick/rejection slice; browser timer behavior and long-horizon traded-pick materialization remain separate.
 
-Push notification interception is available with `E2E_ENABLE_PUSH=1` or `--push=true`. The Fastify backend must be started with `EXPO_PUSH_URL=http://127.0.0.1:4555/--/api/v2/push/send`; the runner fails closed if `/e2e/status` reports any other push URL. Each season sets seeded recipients' `profiles.push_token`, signs in through Supabase Auth as a seeded sender, calls the real authenticated `/notify/trade` route, seeds a real pending waiver claim, runs `/e2e/process-waivers`, and asserts the fake upstream captured both Expo push payloads. Artifacts are written to `tests/artifacts/season-<N>/push-notifications.json`. This covers the trade and waiver notification slices of D.X.1; draft notification assertions remain pending.
+Push notification interception is available with `E2E_ENABLE_PUSH=1` or `--push=true`. The Fastify backend must be started with `EXPO_PUSH_URL=http://127.0.0.1:4555/--/api/v2/push/send`; the runner fails closed if `/e2e/status` reports any other push URL. Each season sets seeded recipients' `profiles.push_token`, signs in through Supabase Auth as a seeded sender, calls the real authenticated `/notify/trade` route, seeds a real pending waiver claim, runs `/e2e/process-waivers`, and asserts the fake upstream captured both Expo push payloads. Artifacts are written to `tests/artifacts/season-<N>/push-notifications.json`. This covers the trade and waiver notification slices of D.X.1; waiver currently exposes the approval-gated RPC failure documented in the audit report.
+
+Draft push interception is available with `E2E_ENABLE_DRAFT_PUSH=1` or `--draft-push=true`. The backend must be running with `ENABLE_E2E_ROUTES=1`, `E2E_ADMIN_SECRET`, and the fake `EXPO_PUSH_URL`; the runner creates a disposable offseason rookie draft, sets the first pick owner's `profiles.push_token`, runs the real `/e2e/:draftId/auto-pick` path, and asserts the fake upstream captured a draft notification for that token. Artifacts are written to `tests/artifacts/season-<N>/draft-push-notification.json`. This covers the draft-event notification slice of D.X.1 independently from the waiver processor.
 
 Standings/champion history retention is available with `E2E_ENABLE_HISTORY=1` or `--history=true` in backend tick mode. Each season seeds deterministic completed-season standings plus a finalized playoff-final row for the season about to reset, advances the season through the real backend, then verifies all previously seeded standings and champions remain queryable. Artifacts are written to `tests/artifacts/season-<N>/history-retention.json`. This covers the D.LONG.3/D.LONG.4 history-retention slice only; it does not replace full playoff gameplay.
 
@@ -100,6 +103,7 @@ Outputs:
 - `tests/artifacts/season-<N>/commissioner-settings.json`
 - `tests/artifacts/season-<N>/weekly-scoring-finalization.json`
 - `tests/artifacts/season-<N>/rookie-draft-auto-pick.json`
+- `tests/artifacts/season-<N>/draft-push-notification.json`
 - `tests/artifacts/season-<N>/push-notifications.json`
 - `tests/artifacts/season-<N>/midlife-migration.json`
 - `tests/artifacts/season-<N>/rookie-draft-pick-chain.json`

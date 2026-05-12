@@ -47,6 +47,7 @@ const parseArgs = () => {
     browserAuth: args.get('browser-auth') === 'true' || process.env.E2E_ENABLE_BROWSER_AUTH === '1',
     pickChain: args.get('pick-chain') === 'true' || process.env.E2E_ENABLE_PICK_CHAIN === '1',
     push: args.get('push') === 'true' || process.env.E2E_ENABLE_PUSH === '1',
+    draftPush: args.get('draft-push') === 'true' || process.env.E2E_ENABLE_DRAFT_PUSH === '1',
     history: args.get('history') === 'true' || process.env.E2E_ENABLE_HISTORY === '1',
     realtime: args.get('realtime') === 'true' || process.env.E2E_ENABLE_REALTIME === '1',
     midlifeMigration: args.get('midlife-migration') === 'true' || process.env.E2E_ENABLE_MIDLIFE_MIGRATION === '1',
@@ -145,8 +146,8 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
   const browserStatus = args.browser && args.browserAuth
     ? args.browserFullSweep ? 'PARTIAL' : 'PARTIAL'
     : args.browser || args.browserAuth ? 'PARTIAL' : 'PENDING'
-  const pushStatus = args.push
-    ? status === 'ERROR' || hasFailingNote(rows, /D\.X\.1|push|waiver/i) ? 'FAIL' : hasPassingNote(rows, /push notification intercepts passed/) ? 'PARTIAL' : 'PENDING'
+  const pushStatus = args.push || args.draftPush
+    ? status === 'ERROR' || hasFailingNote(rows, /D\.X\.1|push|waiver/i) ? 'FAIL' : hasPassingNote(rows, /push notification intercepts passed|draft push notification intercept passed/) ? 'PARTIAL' : 'PENDING'
     : 'PENDING'
   const historyStatus = args.history
     ? hasFailingNote(rows, /D\.LONG\.3|D\.LONG\.4/) ? 'FAIL' : hasPassingNote(rows, /standings\/champion history retained/) ? 'PARTIAL' : 'PENDING'
@@ -260,7 +261,7 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
     {
       requirement: 'D.X.1 push notifications',
       status: pushStatus,
-      evidence: args.push ? 'Push mode ran; waiver path currently exposes process_next_waiver_claim_atomic failure.' : 'Trade push prior slice exists; draft push pending; enable E2E_ENABLE_PUSH=1.',
+      evidence: args.push ? 'Push mode ran; waiver path currently exposes process_next_waiver_claim_atomic failure.' : args.draftPush ? 'Draft-push mode runs a disposable rookie auto-pick and asserts the fake Expo upstream captured a draft notification.' : 'Trade push prior slice exists; waiver and draft push slices are separate; enable E2E_ENABLE_PUSH=1 or E2E_ENABLE_DRAFT_PUSH=1.',
     },
     {
       requirement: 'D.X.2 realtime bid/score events',
@@ -1467,9 +1468,7 @@ const expectAuthedBackendError = async ({ env, path, token, body, label, pattern
   }
 }
 
-const assertRookieDraftAutoPickScenario = async ({ supabase, env, state, season }) => {
-  const failures = []
-  const label = 'D.SEA.5'
+const createRookieDraftFixture = async ({ supabase, env, state, season, label }) => {
   const fixtureSeasonYear = rookieFixtureSeasonYear()
   const fixture = await createDisposableLeagueFromSeedUsers({
     supabase,
@@ -1553,6 +1552,31 @@ const assertRookieDraftAutoPickScenario = async ({ supabase, env, state, season 
   if (slotsError) throw new Error(`${label}: draft slot read failed: ${slotsError.message}`)
   const slots = pickSlots ?? []
   const expectedOrder = [member4.id, member3.id, member2.id, member1.id, member1.id, member2.id, member3.id, member4.id]
+
+  return {
+    fixture,
+    previousSeason,
+    fixtureSeasonYear,
+    draft,
+    slots,
+    rookies,
+    expectedOrder,
+  }
+}
+
+const assertRookieDraftAutoPickScenario = async ({ supabase, env, state, season }) => {
+  const failures = []
+  const label = 'D.SEA.5'
+  const {
+    fixture,
+    previousSeason,
+    fixtureSeasonYear,
+    draft,
+    slots,
+    rookies,
+    expectedOrder,
+  } = await createRookieDraftFixture({ supabase, env, state, season, label })
+
   for (const [index, expectedMemberId] of expectedOrder.entries()) {
     if (slots[index]?.member_id !== expectedMemberId) {
       failures.push(`${label}: slot ${index + 1} member_id=${slots[index]?.member_id ?? '<missing>'}; expected inverse-standings snake member ${expectedMemberId}`)
@@ -2742,6 +2766,63 @@ const assertWaiverPushNotification = async ({ supabase, env, state, leagueId, se
   }
 }
 
+const assertDraftPushNotification = async ({ supabase, env, state, season, fakePort }) => {
+  const failures = []
+  const label = 'D.X.1'
+  const {
+    fixture,
+    draft,
+    slots,
+    rookies,
+    expectedOrder,
+  } = await createRookieDraftFixture({ supabase, env, state, season, label })
+
+  const firstSlot = slots[0]
+  if (!firstSlot) throw new Error(`${label}: draft push fixture created no rookie draft slots`)
+  const recipientMember = fixture.members.find((member) => member.id === firstSlot.member_id)
+  if (!recipientMember) throw new Error(`${label}: draft push member lookup failed for ${firstSlot.member_id}`)
+
+  const tokenValue = `ExponentPushToken[e2e-draft-${state.runId ?? 'run'}-${season}]`
+  const { error: profileError } = await supabase
+    .from('profiles')
+    .update({ push_token: tokenValue })
+    .eq('id', recipientMember.user_id)
+  if (profileError) throw new Error(`${label} draft push token setup: ${profileError.message}`)
+
+  await postJson(`http://127.0.0.1:${fakePort}/admin/clear-pushes`, {})
+  const autoPickResult = await backendJson(env, `/e2e/${draft.id}/auto-pick`, { memberId: firstSlot.member_id })
+
+  const response = await fetch(`http://127.0.0.1:${fakePort}/admin/pushes`)
+  if (!response.ok) throw new Error(`${label} draft push capture returned ${response.status}`)
+  const { pushes } = await response.json()
+  const match = pushes?.find((push) => push.body?.to === tokenValue)
+  if (!match) {
+    failures.push(`${label}: no draft push notification captured for rookie auto-pick to token ${tokenValue}`)
+  }
+
+  const artifact = {
+    season,
+    leagueId: fixture.league.id,
+    leagueSeasonId: fixture.leagueSeason.id,
+    draftId: draft.id,
+    firstSlot,
+    expectedFirstEightMemberIds: expectedOrder,
+    recipientMemberId: recipientMember.id,
+    recipientUserId: recipientMember.user_id,
+    tokenValue,
+    rookies,
+    autoPickResult,
+    captured: match ?? null,
+    capturedPushes: pushes ?? [],
+    failures,
+  }
+  await writeFile(
+    path.join(ARTIFACT_ROOT, `season-${season}`, 'draft-push-notification.json'),
+    `${JSON.stringify(artifact, null, 2)}\n`,
+  )
+  return { failures, artifact }
+}
+
 const assertPushNotifications = async (params) => {
   await postJson(`http://127.0.0.1:${params.fakePort}/admin/clear-pushes`, {})
   await assertTradePushNotification(params)
@@ -2810,6 +2891,12 @@ const main = async () => {
   if (args.push && (!env.backendTicksEnabled || !targetLeagueId)) {
     throw new Error('E2E_ENABLE_PUSH=1 requires E2E_ENABLE_BACKEND_TICKS=1 and a seeded target league')
   }
+  if (args.draftPush && (!state?.password || !Array.isArray(state.users) || state.users.length < 4)) {
+    throw new Error('E2E_ENABLE_DRAFT_PUSH=1 requires tests/e2e-state.json from npm run e2e:seed with at least 4 users')
+  }
+  if (args.draftPush && !env.e2eAdminSecret) {
+    throw new Error('E2E_ENABLE_DRAFT_PUSH=1 requires E2E_ADMIN_SECRET and a backend started with ENABLE_E2E_ROUTES=1')
+  }
   if (args.history && (!env.backendTicksEnabled || !targetLeagueId)) {
     throw new Error('E2E_ENABLE_HISTORY=1 requires E2E_ENABLE_BACKEND_TICKS=1 and a seeded target league')
   }
@@ -2871,6 +2958,9 @@ const main = async () => {
     args.push
       ? 'Push notification intercept enabled through E2E_ENABLE_PUSH=1.'
       : 'Push notification intercept disabled; set E2E_ENABLE_PUSH=1 with backend EXPO_PUSH_URL pointed at the fake upstream to exercise the trade-notification slice of D.X.1.',
+    args.draftPush
+      ? 'Draft push notification intercept enabled through E2E_ENABLE_DRAFT_PUSH=1.'
+      : 'Draft push notification intercept disabled; set E2E_ENABLE_DRAFT_PUSH=1 to exercise the rookie auto-pick notification slice of D.X.1.',
     args.history
       ? 'Standings/champion history retention enabled through E2E_ENABLE_HISTORY=1.'
       : 'Standings/champion history retention disabled; set E2E_ENABLE_HISTORY=1 with backend ticks to exercise the D.LONG.3/D.LONG.4 fixture-retention slice.',
@@ -2962,7 +3052,7 @@ const main = async () => {
         await assertCorsPreflight(env)
         notes.push('CORS preflight check passed for the configured frontend origin.')
       }
-      if (args.push) {
+      if (args.push || args.draftPush) {
         await assertBackendUsesFakePush(env, args.fakePort)
         notes.push('Backend EXPO_PUSH_URL points at the fake upstream push intercept.')
       }
@@ -3078,6 +3168,18 @@ const main = async () => {
             fakePort: args.fakePort,
           })
         }
+        let draftPushCheck = null
+        const draftPushFailures = []
+        if (args.draftPush && season === 1) {
+          draftPushCheck = await assertDraftPushNotification({
+            supabase,
+            env,
+            state,
+            season,
+            fakePort: args.fakePort,
+          })
+          draftPushFailures.push(...draftPushCheck.failures)
+        }
 
         const failuresAtStart = await runInvariants(supabase, targetLeagueId, scenarios)
         const failuresAtEnd = await runInvariants(supabase, targetLeagueId, scenarios)
@@ -3144,6 +3246,7 @@ const main = async () => {
           ...settingsFailures,
           ...scoringFailures,
           ...rookieDraftFailures,
+          ...draftPushFailures,
           ...perfFailures,
           ...memoryFailures,
         ]
@@ -3164,6 +3267,7 @@ const main = async () => {
               args.browserAuth ? 'browser auth scenario passed' : null,
               args.realtime ? 'realtime matchup update delivered' : null,
               args.push ? 'trade and waiver push notification intercepts passed' : null,
+              draftPushCheck ? 'draft push notification intercept passed' : null,
               midlifeMigrationReport ? `mid-life migration applied (${midlifeMigrationReport.status})` : null,
               auctionValidation ? 'auction bid validation passed' : null,
               playoffCheck ? 'playoff bracket scenario passed' : null,
