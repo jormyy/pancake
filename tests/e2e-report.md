@@ -1,8 +1,8 @@
 # Multi-Season E2E Soak Report
 
-- Status: FAIL
-- Started: 2026-05-12T05:39:02.473Z
-- Finished: 2026-05-12T05:39:24.715Z
+- Status: PARTIAL
+- Started: 2026-05-12T05:45:45.292Z
+- Finished: 2026-05-12T05:45:51.777Z
 - Target seasons: 1
 - Fake upstream: http://127.0.0.1:4555
 
@@ -10,7 +10,7 @@
 
 | Season | Status | Notes |
 | --- | --- | --- |
-| 1 | FAIL | D.SEA.2: finalized matchup did not persist max_possible_points for both teams; D.SEA.2: finalizing week did not append standings rows (0 -> 0) |
+| 1 | PASS | D.0 invariant boundary checks passed; full scenario/browser loop pending; rookie draft auto-pick passed |
 
 ## Notes
 
@@ -30,6 +30,7 @@
 - Playoff bracket scenario disabled; set E2E_ENABLE_PLAYOFFS=1 to exercise the D.SEA.4 top-6 bracket slice.
 - Standings tiebreaker/RPS scenario disabled; set E2E_ENABLE_TIEBREAKERS=1 to exercise D.SEA.3.
 - Commissioner settings propagation scenario disabled; set E2E_ENABLE_SETTINGS=1 to exercise D.SET.3.
-- Weekly starter-only scoring/finalization scenario enabled through E2E_ENABLE_SCORING=1.
+- Weekly starter-only scoring/finalization scenario disabled; set E2E_ENABLE_SCORING=1 to exercise the D.SEA.2 scoring slice.
+- Rookie draft auto-pick/order scenario enabled through E2E_ENABLE_ROOKIE_DRAFT=1.
 - Schema preflight passed: post-refactor RPCs and required columns are present.
 - Perf metrics written to tests/artifacts/perf-metrics.json.

@@ -55,6 +55,7 @@ const parseArgs = () => {
     tiebreakers: args.get('tiebreakers') === 'true' || process.env.E2E_ENABLE_TIEBREAKERS === '1',
     settings: args.get('settings') === 'true' || process.env.E2E_ENABLE_SETTINGS === '1',
     scoring: args.get('scoring') === 'true' || process.env.E2E_ENABLE_SCORING === '1',
+    rookieDraft: args.get('rookie-draft') === 'true' || process.env.E2E_ENABLE_ROOKIE_DRAFT === '1',
   }
 }
 
@@ -171,6 +172,9 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
   const scoringStatus = args.scoring
     ? hasFailingNote(rows, /D\.SEA\.2/) ? 'FAIL' : hasPassingNote(rows, /weekly scoring finalization passed/) ? 'PARTIAL' : 'PENDING'
     : 'PENDING'
+  const rookieDraftStatus = args.rookieDraft
+    ? hasFailingNote(rows, /D\.SEA\.5/) ? 'FAIL' : hasPassingNote(rows, /rookie draft auto-pick passed/) ? 'PARTIAL' : 'PENDING'
+    : pickChainStatus
 
   const coverage = [
     {
@@ -240,8 +244,8 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
     },
     {
       requirement: 'D.SEA.5 rookie draft/traded picks',
-      status: pickChainStatus,
-      evidence: args.pickChain ? 'Pick-chain mode ran; D.LONG.1 currently exposes stale unused pick assets.' : 'Enable E2E_ENABLE_PICK_CHAIN=1.',
+      status: rookieDraftStatus,
+      evidence: args.rookieDraft ? 'Rookie-draft mode starts a disposable offseason draft through the real backend route, verifies inverse-standings snake order, auto-pick lowest nba_draft_number, exact pick asset usage, roster insert, and already-rostered rejection.' : args.pickChain ? 'Pick-chain mode ran; D.LONG.1 currently exposes stale unused pick assets.' : 'Enable E2E_ENABLE_ROOKIE_DRAFT=1 for rookie-draft auto-pick/order coverage or E2E_ENABLE_PICK_CHAIN=1 for long-horizon traded-pick materialization.',
     },
     {
       requirement: 'D.SEA.6 season reset',
@@ -1451,6 +1455,203 @@ const assertWeeklyScoringFinalizationScenario = async ({ supabase, env, state, s
   return { failures, artifact }
 }
 
+const rookieFixtureSeasonYear = () => 7000 + Number(Date.now().toString().slice(-6))
+
+const expectAuthedBackendError = async ({ env, path, token, body, label, pattern }) => {
+  try {
+    await backendAuthedJson(env, path, token, body)
+    return `${label}: expected request to fail`
+  } catch (error) {
+    const message = errorMessage(error)
+    return pattern.test(message) ? null : `${label}: failed with "${message}", expected ${pattern}`
+  }
+}
+
+const assertRookieDraftAutoPickScenario = async ({ supabase, env, state, season }) => {
+  const failures = []
+  const label = 'D.SEA.5'
+  const fixtureSeasonYear = rookieFixtureSeasonYear()
+  const fixture = await createDisposableLeagueFromSeedUsers({
+    supabase,
+    state,
+    season,
+    label,
+    userCount: 4,
+    seasonYear: fixtureSeasonYear,
+  })
+  const [member1, member2, member3, member4] = fixture.members
+  const previousSeasonYear = fixtureSeasonYear - 1
+
+  const { error: leagueStatusError } = await supabase
+    .from('leagues')
+    .update({ status: 'offseason' })
+    .eq('id', fixture.league.id)
+  if (leagueStatusError) throw new Error(`${label}: league offseason update failed: ${leagueStatusError.message}`)
+
+  const { data: previousSeason, error: previousSeasonError } = await supabase
+    .from('league_seasons')
+    .insert({
+      league_id: fixture.league.id,
+      season_year: previousSeasonYear,
+      is_current: false,
+    })
+    .select('id')
+    .single()
+  if (previousSeasonError) throw new Error(`${label}: previous season insert failed: ${previousSeasonError.message}`)
+
+  const standingsRows = [
+    { member: member4, wins: 1, pointsFor: 800, priority: 1 },
+    { member: member3, wins: 3, pointsFor: 900, priority: 2 },
+    { member: member2, wins: 5, pointsFor: 1000, priority: 3 },
+    { member: member1, wins: 7, pointsFor: 1100, priority: 4 },
+  ].map((row) => ({
+    league_id: fixture.league.id,
+    league_season_id: previousSeason.id,
+    member_id: row.member.id,
+    week_number: 19,
+    wins: row.wins,
+    losses: 10 - row.wins,
+    ties: 0,
+    points_for: row.pointsFor,
+    points_against: 1000,
+    max_possible_points: row.pointsFor + 100,
+    waiver_priority: row.priority,
+  }))
+  const { error: standingsError } = await supabase.from('standings').insert(standingsRows)
+  if (standingsError) throw new Error(`${label}: previous standings insert failed: ${standingsError.message}`)
+
+  const pickRows = []
+  for (const member of fixture.members) {
+    for (let round = 1; round <= 3; round += 1) {
+      pickRows.push({
+        league_id: fixture.league.id,
+        season_year: fixtureSeasonYear,
+        round,
+        original_owner_id: member.id,
+        current_owner_id: member.id,
+      })
+    }
+  }
+  const { error: pickError } = await supabase.from('draft_picks').insert(pickRows)
+  if (pickError) throw new Error(`${label}: draft pick asset insert failed: ${pickError.message}`)
+
+  const { data: rookies, error: rookiesError } = await supabase
+    .from('players')
+    .select('id, display_name, nba_draft_number')
+    .not('nba_draft_number', 'is', null)
+    .order('nba_draft_number', { ascending: true })
+    .limit(4)
+  if (rookiesError) throw new Error(`${label}: rookie player lookup failed: ${rookiesError.message}`)
+  if ((rookies ?? []).length < 2) throw new Error(`${label}: requires at least two players with nba_draft_number`)
+
+  const { draft } = await backendJson(env, '/e2e/start-rookie-draft', { leagueId: fixture.league.id })
+  const { data: pickSlots, error: slotsError } = await supabase
+    .from('snake_draft_picks')
+    .select('id, overall_pick, round, pick_in_round, member_id, player_id, picked_at, draft_pick_id')
+    .eq('draft_id', draft.id)
+    .order('overall_pick', { ascending: true })
+  if (slotsError) throw new Error(`${label}: draft slot read failed: ${slotsError.message}`)
+  const slots = pickSlots ?? []
+  const expectedOrder = [member4.id, member3.id, member2.id, member1.id, member1.id, member2.id, member3.id, member4.id]
+  for (const [index, expectedMemberId] of expectedOrder.entries()) {
+    if (slots[index]?.member_id !== expectedMemberId) {
+      failures.push(`${label}: slot ${index + 1} member_id=${slots[index]?.member_id ?? '<missing>'}; expected inverse-standings snake member ${expectedMemberId}`)
+    }
+  }
+  if (slots.length !== fixture.members.length * 3) {
+    failures.push(`${label}: rookie draft created ${slots.length} slots; expected ${fixture.members.length * 3}`)
+  }
+  if (slots.some((slot) => !slot.draft_pick_id)) {
+    failures.push(`${label}: one or more rookie draft slots are missing linked draft_pick_id assets`)
+  }
+
+  const firstSlot = slots[0]
+  const expectedAutoPickPlayer = rookies[0]
+  const autoPickResult = await backendJson(env, `/e2e/${draft.id}/auto-pick`, { memberId: firstSlot.member_id })
+  const { data: pickedSlot, error: pickedSlotError } = await supabase
+    .from('snake_draft_picks')
+    .select('id, player_id, picked_at, draft_pick_id')
+    .eq('id', firstSlot.id)
+    .single()
+  if (pickedSlotError || !pickedSlot) throw new Error(`${label}: picked slot read failed: ${pickedSlotError?.message ?? 'missing row'}`)
+  if (pickedSlot.player_id !== expectedAutoPickPlayer.id) {
+    failures.push(`${label}: auto-pick selected ${pickedSlot.player_id}; expected lowest nba_draft_number player ${expectedAutoPickPlayer.id}`)
+  }
+  if (!pickedSlot.picked_at) {
+    failures.push(`${label}: auto-pick did not stamp picked_at immediately`)
+  }
+  if (autoPickResult.newPlayerId !== expectedAutoPickPlayer.id) {
+    failures.push(`${label}: auto-pick response newPlayerId=${autoPickResult.newPlayerId}; expected ${expectedAutoPickPlayer.id}`)
+  }
+
+  const { data: usedPick, error: usedPickError } = await supabase
+    .from('draft_picks')
+    .select('id, is_used, rookie_draft_id, used_at')
+    .eq('id', firstSlot.draft_pick_id)
+    .single()
+  if (usedPickError || !usedPick) throw new Error(`${label}: used draft pick asset read failed: ${usedPickError?.message ?? 'missing row'}`)
+  if (!usedPick.is_used || usedPick.rookie_draft_id !== draft.id || !usedPick.used_at) {
+    failures.push(`${label}: auto-pick did not mark linked draft_pick asset used for draft ${draft.id}`)
+  }
+
+  const rosteredPlayer = rookies[1]
+  const nextSlot = slots[1]
+  const { error: rosterError } = await supabase.from('roster_players').insert({
+    league_id: fixture.league.id,
+    league_season_id: fixture.leagueSeason.id,
+    member_id: nextSlot.member_id,
+    player_id: rosteredPlayer.id,
+    acquired_via: 'e2e_rostered_rejection',
+  })
+  if (rosterError) throw new Error(`${label}: rostered rejection fixture insert failed: ${rosterError.message}`)
+
+  const accessToken = await signInForAccessToken(env, state.users[0].email, state.password)
+  const rosteredRejection = await expectAuthedBackendError({
+    env,
+    path: `/draft/${draft.id}/snake-pick`,
+    token: accessToken,
+    body: { memberId: nextSlot.member_id, playerId: rosteredPlayer.id },
+    label: `${label}: already-rostered rookie pick`,
+    pattern: /already on a roster/i,
+  })
+  if (rosteredRejection) failures.push(rosteredRejection)
+
+  const { data: rosterRows, error: rosterReadError } = await supabase
+    .from('roster_players')
+    .select('id, member_id, player_id')
+    .eq('league_id', fixture.league.id)
+    .eq('league_season_id', fixture.leagueSeason.id)
+    .eq('player_id', expectedAutoPickPlayer.id)
+  if (rosterReadError) throw new Error(`${label}: auto-picked roster read failed: ${rosterReadError.message}`)
+  if ((rosterRows ?? []).length !== 1 || rosterRows[0]?.member_id !== firstSlot.member_id) {
+    failures.push(`${label}: auto-picked player roster rows ${JSON.stringify(rosterRows)}; expected one row for ${firstSlot.member_id}`)
+  }
+
+  const artifact = {
+    season,
+    leagueId: fixture.league.id,
+    leagueSeasonId: fixture.leagueSeason.id,
+    previousSeasonId: previousSeason.id,
+    fixtureSeasonYear,
+    draftId: draft.id,
+    expectedFirstEightMemberIds: expectedOrder,
+    slots,
+    rookies,
+    autoPickResult,
+    pickedSlot,
+    usedPick,
+    rosteredRejection: rosteredRejection ?? 'rejected as expected',
+    rosterRows: rosterRows ?? [],
+    failures,
+  }
+  await writeFile(
+    path.join(ARTIFACT_ROOT, `season-${season}`, 'rookie-draft-auto-pick.json'),
+    `${JSON.stringify(artifact, null, 2)}\n`,
+  )
+
+  return { failures, artifact }
+}
+
 const createDisposablePlayoffLeague = async ({ supabase, state, season }) => {
   const fixture = await createDisposableLeagueFromSeedUsers({
     supabase,
@@ -2633,6 +2834,12 @@ const main = async () => {
   if (args.scoring && !env.e2eAdminSecret) {
     throw new Error('E2E_ENABLE_SCORING=1 requires E2E_ADMIN_SECRET and a backend started with ENABLE_E2E_ROUTES=1')
   }
+  if (args.rookieDraft && (!state?.password || !Array.isArray(state.users) || state.users.length < 4)) {
+    throw new Error('E2E_ENABLE_ROOKIE_DRAFT=1 requires tests/e2e-state.json from npm run e2e:seed with at least 4 users')
+  }
+  if (args.rookieDraft && !env.e2eAdminSecret) {
+    throw new Error('E2E_ENABLE_ROOKIE_DRAFT=1 requires E2E_ADMIN_SECRET and a backend started with ENABLE_E2E_ROUTES=1')
+  }
   if (args.midlifeMigration && (!Number.isInteger(MIDLIFE_MIGRATION_AFTER_SEASON) || MIDLIFE_MIGRATION_AFTER_SEASON < 1)) {
     throw new Error('E2E_ENABLE_MIDLIFE_MIGRATION=1 requires a positive integer E2E_MIDLIFE_MIGRATION_AFTER_SEASON')
   }
@@ -2688,6 +2895,9 @@ const main = async () => {
     args.scoring
       ? 'Weekly starter-only scoring/finalization scenario enabled through E2E_ENABLE_SCORING=1.'
       : 'Weekly starter-only scoring/finalization scenario disabled; set E2E_ENABLE_SCORING=1 to exercise the D.SEA.2 scoring slice.',
+    args.rookieDraft
+      ? 'Rookie draft auto-pick/order scenario enabled through E2E_ENABLE_ROOKIE_DRAFT=1.'
+      : 'Rookie draft auto-pick/order scenario disabled; set E2E_ENABLE_ROOKIE_DRAFT=1 to exercise the D.SEA.5 auto-pick slice.',
   ]
 
   try {
@@ -2838,6 +3048,17 @@ const main = async () => {
           })
           scoringFailures.push(...scoringCheck.failures)
         }
+        let rookieDraftCheck = null
+        const rookieDraftFailures = []
+        if (args.rookieDraft && season === 1) {
+          rookieDraftCheck = await assertRookieDraftAutoPickScenario({
+            supabase,
+            env,
+            state,
+            season,
+          })
+          rookieDraftFailures.push(...rookieDraftCheck.failures)
+        }
         if (args.realtime) {
           await assertRealtimeDelivery({
             supabase,
@@ -2922,6 +3143,7 @@ const main = async () => {
           ...tiebreakerFailures,
           ...settingsFailures,
           ...scoringFailures,
+          ...rookieDraftFailures,
           ...perfFailures,
           ...memoryFailures,
         ]
@@ -2948,6 +3170,7 @@ const main = async () => {
               tiebreakerCheck ? 'standings tiebreaker scenario passed' : null,
               settingsCheck ? 'commissioner settings propagation passed' : null,
               scoringCheck ? 'weekly scoring finalization passed' : null,
+              rookieDraftCheck ? 'rookie draft auto-pick passed' : null,
               env.backendTicksEnabled ? 'matchup generation idempotency passed' : null,
               args.pickChain ? 'multi-hop future-pick owner resolved' : null,
               rookieDraftPickChainCheck ? 'rookie draft traded-pick slot resolved' : null,
