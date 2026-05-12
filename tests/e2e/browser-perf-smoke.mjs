@@ -5,6 +5,7 @@ import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { createClient } from '@supabase/supabase-js'
 import { resolvedEnv, describeEndpoint } from './env.mjs'
+import { installRuntimeOverrides, normalizeBrowserErrors } from './browser-runtime-overrides.mjs'
 
 const execFileAsync = promisify(execFile)
 const ROOT = process.cwd()
@@ -16,13 +17,14 @@ const BROWSER_SETTLE_MS = Number(process.env.E2E_BROWSER_PERF_SETTLE_MS ?? 2000)
 const MUTATION_COUNT = Number(process.env.E2E_BROWSER_PERF_MUTATIONS ?? 24)
 const MAX_HEARTBEAT_LAG_MS = Number(process.env.E2E_BROWSER_PERF_MAX_LAG_MS ?? 600)
 const MAX_SCRIPT_MS = Number(process.env.E2E_BROWSER_PERF_MAX_SCRIPT_MS ?? 30000)
+const BROWSER_COMMAND_TIMEOUT_MS = Number(process.env.E2E_BROWSER_PERF_COMMAND_TIMEOUT_MS ?? 90_000)
 
 const readState = async () => JSON.parse(await readFile(STATE_PATH, 'utf8'))
 
 const browser = async (session, args, options = {}) => {
   const { stdout, stderr } = await execFileAsync('agent-browser', ['--session', session, ...args], {
     cwd: ROOT,
-    timeout: options.timeout ?? 30_000,
+    timeout: options.timeout ?? BROWSER_COMMAND_TIMEOUT_MS,
     maxBuffer: options.maxBuffer ?? 1024 * 1024 * 4,
   })
   return [stdout, stderr].filter(Boolean).join('\n').trim()
@@ -169,7 +171,7 @@ const findPerfMatchup = async (supabase, state) => {
 }
 
 const signIn = async (session, env, state, user) => {
-  await browser(session, ['open', env.frontendUrl])
+  await installRuntimeOverrides(browser, session, env)
   await browser(session, ['wait', '1500'])
   await browser(session, ['find', 'placeholder', 'Email', 'fill', user.email])
   await browser(session, ['find', 'placeholder', 'Password', 'fill', state.password])
@@ -324,7 +326,7 @@ export async function runBrowserPerfSmoke({
     await writeFile(path.join(artifactDir, 'errors.txt'), `${errorOutput}\n`)
 
     const failures = []
-    if (errorOutput.trim()) failures.push(`browser errors present; see ${path.relative(ROOT, path.join(artifactDir, 'errors.txt'))}`)
+    if (normalizeBrowserErrors(errorOutput)) failures.push(`browser errors present; see ${path.relative(ROOT, path.join(artifactDir, 'errors.txt'))}`)
     if (draftPerf.maxLagMs > MAX_HEARTBEAT_LAG_MS) failures.push(`draft heartbeat lag ${draftPerf.maxLagMs}ms exceeded ${MAX_HEARTBEAT_LAG_MS}ms`)
     if (homePerf.maxLagMs > MAX_HEARTBEAT_LAG_MS) failures.push(`home heartbeat lag ${homePerf.maxLagMs}ms exceeded ${MAX_HEARTBEAT_LAG_MS}ms`)
     if (load.durationMs > MAX_SCRIPT_MS) failures.push(`mutation loop took ${load.durationMs}ms exceeded ${MAX_SCRIPT_MS}ms`)

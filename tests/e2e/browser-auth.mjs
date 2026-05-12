@@ -4,6 +4,7 @@ import process from 'node:process'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { resolvedEnv, describeEndpoint } from './env.mjs'
+import { installRuntimeOverrides, normalizeBrowserErrors } from './browser-runtime-overrides.mjs'
 
 const execFileAsync = promisify(execFile)
 const ROOT = process.cwd()
@@ -112,7 +113,7 @@ const clickExactText = async (session, text, label) => {
 const assertSignedInSurface = async (session, user) => {
   await browser(session, ['open', joinUrl(resolvedEnv().frontendUrl, '/profile')])
   await browser(session, ['wait', '2000'])
-  await waitForPageText(session, [user.email, user.teamName], 'signed-in profile')
+  await waitForPageText(session, [user.email, user.displayName], 'signed-in profile')
 }
 
 const runOneAuthUser = async ({ state, env, season, userIndex, sessionList }) => {
@@ -131,6 +132,7 @@ const runOneAuthUser = async ({ state, env, season, userIndex, sessionList }) =>
   ]
 
   try {
+    await installRuntimeOverrides(browser, session, env)
     await browser(session, ['open', joinUrl(env.frontendUrl, '/players')])
     await browser(session, ['wait', '2000'])
     await waitForEmailPlaceholder(session, 'auth guard')
@@ -169,7 +171,7 @@ const runOneAuthUser = async ({ state, env, season, userIndex, sessionList }) =>
     const errorOutput = await browser(session, ['errors']).catch((error) => `errors unavailable: ${error.message}`)
     await writeFile(path.join(artifactDir, 'console.txt'), `${consoleOutput}\n`)
     await writeFile(path.join(artifactDir, 'errors.txt'), `${errorOutput}\n`)
-    if (errorOutput.trim()) {
+    if (normalizeBrowserErrors(errorOutput)) {
       throw new Error(`Browser reported uncaught errors. See ${path.join(artifactDir, 'errors.txt')}`)
     }
 

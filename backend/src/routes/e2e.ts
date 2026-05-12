@@ -8,6 +8,7 @@ import { processWaiverClaims } from '../sync/waivers'
 import { processAcceptedTrades } from '../sync/trades'
 import { advanceSeason } from '../sync/seasonReset'
 import { startRookieDraft, autoPickBest } from '../sync/rookieDraft'
+import { closeExpiredNominations } from '../sync/draft'
 import { updateGameStatuses } from '../sync/livePoller'
 import { fetchTodaysGames } from '../lib/nba'
 import { ValidationError } from '../plugins/errorHandler'
@@ -93,6 +94,11 @@ export default async function e2eRoutes(app: FastifyInstance) {
 
     app.post('/process-trades', async () => {
         const result = await processAcceptedTrades()
+        return { ok: true, ...result }
+    })
+
+    app.post('/close-expired-nominations', async () => {
+        const result = await closeExpiredNominations()
         return { ok: true, ...result }
     })
 

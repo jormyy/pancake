@@ -5,6 +5,7 @@ import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { createClient } from '@supabase/supabase-js'
 import { resolvedEnv, requireEnv, describeEndpoint } from './env.mjs'
+import { installRuntimeOverrides, normalizeBrowserErrors } from './browser-runtime-overrides.mjs'
 
 const execFileAsync = promisify(execFile)
 const ROOT = process.cwd()
@@ -37,7 +38,9 @@ const listSessions = async () => {
 }
 
 const safeName = (value) => value.replace(/[^a-zA-Z0-9._-]/g, '-')
+const tradeSessionName = (code, runId) => safeName(`pc-${code}-${runId}-${process.pid}`)
 const joinUrl = (base, pathname) => new URL(pathname, base.endsWith('/') ? base : `${base}/`).toString()
+let tradeFixtureSequence = 0
 
 const parseEvalJson = (output) => {
   const line = output.split('\n').filter(Boolean).at(-1)
@@ -141,7 +144,8 @@ const findFuturePickForMember = async (admin, leagueId, memberId, seasonYear, ro
 }
 
 const setupTradeGameplayFixture = async (env, season, { memberCount = 2 } = {}) => {
-  const runId = `${new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)}-${process.pid}-${season}`
+  tradeFixtureSequence += 1
+  const runId = `${new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)}-${process.pid}-${season}-${tradeFixtureSequence}`
   const password = `Pancake-trade-${runId}!`
   const users = Array.from({ length: memberCount }, (_, index) => index + 1).map((n) => ({
     email: `pancake-trade-${runId}-${n}@example.com`,
@@ -414,25 +418,17 @@ const setupTradePostDeadlineGameplayFixture = async (env, season) => {
   return { ...fixture, tradeDeadline }
 }
 
-const installBrowserHooks = async (session, env) => {
-  await browser(session, [
-    'eval',
-    `(() => {
-      window.localStorage.setItem('PANCAKE_API_URL', ${JSON.stringify(env.apiBaseUrl)});
-      window.__pancakeAlerts = [];
-      window.alert = (message) => window.__pancakeAlerts.push(String(message));
-      window.confirm = (message) => {
-        window.__pancakeAlerts.push(String(message));
-        return true;
-      };
-      return JSON.stringify({ ok: true });
-    })()`,
-  ])
+const installBrowserHooks = async (session, env, options = {}) => {
+  await installRuntimeOverrides(browser, session, env, {
+    alerts: true,
+    confirm: true,
+    openBeforeSet: options.openBeforeSet ?? false,
+    reloadAfterSet: options.reloadAfterSet ?? false,
+  })
 }
 
 const signInBrowser = async (session, env, user, password) => {
-  await browser(session, ['open', env.frontendUrl])
-  await installBrowserHooks(session, env)
+  await installBrowserHooks(session, env, { openBeforeSet: true, reloadAfterSet: true })
   await browser(session, ['wait', '1500'])
   await browser(session, ['find', 'placeholder', 'Email', 'fill', user.email])
   await browser(session, ['find', 'placeholder', 'Password', 'fill', password])
@@ -1046,7 +1042,7 @@ export async function runBrowserTradeScenario({
   requireEnv(env, ['supabaseUrl', 'serviceRoleKey', 'anonKey'])
   const fixture = await setupTradeGameplayFixture(env, season)
   const sessionList = await listSessions().catch((error) => `session list unavailable: ${error.message}`)
-  const session = sessionName ?? safeName(`pancake-trade-${fixture.runId}-${process.pid}`)
+  const session = sessionName ?? tradeSessionName('tr', fixture.runId)
   const artifactDir = path.join(ARTIFACT_ROOT, `season-${season}`, 'browser-trade')
   await mkdir(artifactDir, { recursive: true })
 
@@ -1104,7 +1100,7 @@ export async function runBrowserTradeScenario({
     await writeFile(path.join(artifactDir, 'errors.txt'), `${errorOutput}\n`)
 
     const failures = [...tradeProposal.failures]
-    if (errorOutput.trim()) failures.push(`browser errors present; see ${path.relative(ROOT, path.join(artifactDir, 'errors.txt'))}`)
+    if (normalizeBrowserErrors(errorOutput)) failures.push(`browser errors present; see ${path.relative(ROOT, path.join(artifactDir, 'errors.txt'))}`)
     const report = {
       status: failures.length === 0 ? 'PASS' : 'FAIL',
       season,
@@ -1170,7 +1166,7 @@ export async function runBrowserTradePostDeadlineScenario({
   requireEnv(env, ['supabaseUrl', 'serviceRoleKey', 'anonKey'])
   const fixture = await setupTradePostDeadlineGameplayFixture(env, season)
   const sessionList = await listSessions().catch((error) => `session list unavailable: ${error.message}`)
-  const session = sessionName ?? safeName(`pancake-trade-post-deadline-${fixture.runId}-${process.pid}`)
+  const session = sessionName ?? tradeSessionName('pd', fixture.runId)
   const artifactDir = path.join(ARTIFACT_ROOT, `season-${season}`, 'browser-trade-post-deadline')
   await mkdir(artifactDir, { recursive: true })
 
@@ -1233,7 +1229,7 @@ export async function runBrowserTradePostDeadlineScenario({
     await writeFile(path.join(artifactDir, 'console.txt'), `${consoleOutput}\n`)
     await writeFile(path.join(artifactDir, 'errors.txt'), `${errorOutput}\n`)
 
-    if (errorOutput.trim()) failures.push(`browser errors present; see ${path.relative(ROOT, path.join(artifactDir, 'errors.txt'))}`)
+    if (normalizeBrowserErrors(errorOutput)) failures.push(`browser errors present; see ${path.relative(ROOT, path.join(artifactDir, 'errors.txt'))}`)
     const report = {
       status: failures.length === 0 ? 'PASS' : 'FAIL',
       season,
@@ -1305,7 +1301,7 @@ export async function runBrowserTradeAcceptScenario({
   requireEnv(env, ['supabaseUrl', 'serviceRoleKey', 'anonKey'])
   const fixture = await setupTradeAcceptGameplayFixture(env, season)
   const sessionList = await listSessions().catch((error) => `session list unavailable: ${error.message}`)
-  const session = sessionName ?? safeName(`pancake-trade-accept-${fixture.runId}-${process.pid}`)
+  const session = sessionName ?? tradeSessionName('ac', fixture.runId)
   const artifactDir = path.join(ARTIFACT_ROOT, `season-${season}`, 'browser-trade-accept')
   await mkdir(artifactDir, { recursive: true })
 
@@ -1356,7 +1352,7 @@ export async function runBrowserTradeAcceptScenario({
     await writeFile(path.join(artifactDir, 'errors.txt'), `${errorOutput}\n`)
 
     const failures = [...accepted.failures]
-    if (errorOutput.trim()) failures.push(`browser errors present; see ${path.relative(ROOT, path.join(artifactDir, 'errors.txt'))}`)
+    if (normalizeBrowserErrors(errorOutput)) failures.push(`browser errors present; see ${path.relative(ROOT, path.join(artifactDir, 'errors.txt'))}`)
     const report = {
       status: failures.length === 0 ? 'PASS' : 'FAIL',
       season,
@@ -1424,7 +1420,7 @@ export async function runBrowserTradeFuturePickScenario({
   requireEnv(env, ['supabaseUrl', 'serviceRoleKey', 'anonKey'])
   const fixture = await setupTradeGameplayFixture(env, season)
   const sessionList = await listSessions().catch((error) => `session list unavailable: ${error.message}`)
-  const session = sessionName ?? safeName(`pancake-trade-future-pick-${fixture.runId}-${process.pid}`)
+  const session = sessionName ?? tradeSessionName('fp', fixture.runId)
   const artifactDir = path.join(ARTIFACT_ROOT, `season-${season}`, 'browser-trade-future-pick')
   await mkdir(artifactDir, { recursive: true })
 
@@ -1480,7 +1476,7 @@ export async function runBrowserTradeFuturePickScenario({
     await writeFile(path.join(artifactDir, 'errors.txt'), `${errorOutput}\n`)
 
     const failures = [...tradeProposal.failures]
-    if (errorOutput.trim()) failures.push(`browser errors present; see ${path.relative(ROOT, path.join(artifactDir, 'errors.txt'))}`)
+    if (normalizeBrowserErrors(errorOutput)) failures.push(`browser errors present; see ${path.relative(ROOT, path.join(artifactDir, 'errors.txt'))}`)
     const report = {
       status: failures.length === 0 ? 'PASS' : 'FAIL',
       season,
@@ -1548,7 +1544,7 @@ export async function runBrowserTradeFuturePickAcceptScenario({
   requireEnv(env, ['supabaseUrl', 'serviceRoleKey', 'anonKey'])
   const fixture = await setupTradeFuturePickAcceptGameplayFixture(env, season)
   const sessionList = await listSessions().catch((error) => `session list unavailable: ${error.message}`)
-  const session = sessionName ?? safeName(`pancake-trade-future-pick-accept-${fixture.runId}-${process.pid}`)
+  const session = sessionName ?? tradeSessionName('fpa', fixture.runId)
   const artifactDir = path.join(ARTIFACT_ROOT, `season-${season}`, 'browser-trade-future-pick-accept')
   await mkdir(artifactDir, { recursive: true })
 
@@ -1601,7 +1597,7 @@ export async function runBrowserTradeFuturePickAcceptScenario({
     await writeFile(path.join(artifactDir, 'errors.txt'), `${errorOutput}\n`)
 
     const failures = [...accepted.failures]
-    if (errorOutput.trim()) failures.push(`browser errors present; see ${path.relative(ROOT, path.join(artifactDir, 'errors.txt'))}`)
+    if (normalizeBrowserErrors(errorOutput)) failures.push(`browser errors present; see ${path.relative(ROOT, path.join(artifactDir, 'errors.txt'))}`)
     const report = {
       status: failures.length === 0 ? 'PASS' : 'FAIL',
       season,
@@ -1671,7 +1667,7 @@ export async function runBrowserTradeOverflowAcceptScenario({
   requireEnv(env, ['supabaseUrl', 'serviceRoleKey', 'anonKey'])
   const fixture = await setupTradeOverflowAcceptGameplayFixture(env, season)
   const sessionList = await listSessions().catch((error) => `session list unavailable: ${error.message}`)
-  const session = sessionName ?? safeName(`pancake-trade-overflow-accept-${fixture.runId}-${process.pid}`)
+  const session = sessionName ?? tradeSessionName('oa', fixture.runId)
   const artifactDir = path.join(ARTIFACT_ROOT, `season-${season}`, 'browser-trade-overflow-accept')
   await mkdir(artifactDir, { recursive: true })
 
@@ -1740,7 +1736,7 @@ export async function runBrowserTradeOverflowAcceptScenario({
     await writeFile(path.join(artifactDir, 'errors.txt'), `${errorOutput}\n`)
 
     const failures = [...accepted.failures]
-    if (errorOutput.trim()) failures.push(`browser errors present; see ${path.relative(ROOT, path.join(artifactDir, 'errors.txt'))}`)
+    if (normalizeBrowserErrors(errorOutput)) failures.push(`browser errors present; see ${path.relative(ROOT, path.join(artifactDir, 'errors.txt'))}`)
     const report = {
       status: failures.length === 0 ? 'PASS' : 'FAIL',
       season,
@@ -1814,7 +1810,7 @@ export async function runBrowserTradeVetoScenario({
   requireEnv(env, ['supabaseUrl', 'serviceRoleKey', 'anonKey'])
   const fixture = await setupTradeVetoGameplayFixture(env, season)
   const sessionList = await listSessions().catch((error) => `session list unavailable: ${error.message}`)
-  const session = sessionName ?? safeName(`pancake-trade-veto-${fixture.runId}-${process.pid}`)
+  const session = sessionName ?? tradeSessionName('vt', fixture.runId)
   const artifactDir = path.join(ARTIFACT_ROOT, `season-${season}`, 'browser-trade-veto')
   await mkdir(artifactDir, { recursive: true })
 
@@ -1864,7 +1860,7 @@ export async function runBrowserTradeVetoScenario({
     await writeFile(path.join(artifactDir, 'errors.txt'), `${errorOutput}\n`)
 
     const failures = [...vetoed.failures]
-    if (errorOutput.trim()) failures.push(`browser errors present; see ${path.relative(ROOT, path.join(artifactDir, 'errors.txt'))}`)
+    if (normalizeBrowserErrors(errorOutput)) failures.push(`browser errors present; see ${path.relative(ROOT, path.join(artifactDir, 'errors.txt'))}`)
     const report = {
       status: failures.length === 0 ? 'PASS' : 'FAIL',
       season,
@@ -1933,10 +1929,10 @@ export async function runBrowserTradeTerminalScenario({
   const sessionList = await listSessions().catch((error) => `session list unavailable: ${error.message}`)
   const rejectSession = sessionName
     ? `${safeName(sessionName)}-reject`
-    : safeName(`pancake-trade-reject-${rejectFixture.runId}-${process.pid}`)
+    : tradeSessionName('rj', rejectFixture.runId)
   const withdrawSession = sessionName
     ? `${safeName(sessionName)}-withdraw`
-    : safeName(`pancake-trade-withdraw-${withdrawFixture.runId}-${process.pid}`)
+    : tradeSessionName('wd', withdrawFixture.runId)
   const artifactDir = path.join(ARTIFACT_ROOT, `season-${season}`, 'browser-trade-terminal')
   await mkdir(artifactDir, { recursive: true })
 
@@ -2017,8 +2013,8 @@ export async function runBrowserTradeTerminalScenario({
     await writeFile(path.join(artifactDir, 'withdraw-errors.txt'), `${withdrawErrors}\n`)
 
     const failures = [...rejected.failures, ...withdrawn.failures]
-    if (rejectErrors.trim()) failures.push(`reject browser errors present; see ${path.relative(ROOT, path.join(artifactDir, 'reject-errors.txt'))}`)
-    if (withdrawErrors.trim()) failures.push(`withdraw browser errors present; see ${path.relative(ROOT, path.join(artifactDir, 'withdraw-errors.txt'))}`)
+    if (normalizeBrowserErrors(rejectErrors)) failures.push(`reject browser errors present; see ${path.relative(ROOT, path.join(artifactDir, 'reject-errors.txt'))}`)
+    if (normalizeBrowserErrors(withdrawErrors)) failures.push(`withdraw browser errors present; see ${path.relative(ROOT, path.join(artifactDir, 'withdraw-errors.txt'))}`)
     const report = {
       status: failures.length === 0 ? 'PASS' : 'FAIL',
       season,

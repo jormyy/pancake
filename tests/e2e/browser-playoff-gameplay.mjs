@@ -5,6 +5,7 @@ import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { createClient } from '@supabase/supabase-js'
 import { resolvedEnv, requireEnv, describeEndpoint } from './env.mjs'
+import { installRuntimeOverrides, normalizeBrowserErrors } from './browser-runtime-overrides.mjs'
 
 const execFileAsync = promisify(execFile)
 const ROOT = process.cwd()
@@ -99,16 +100,7 @@ const signInClient = async (env, email, password) => {
 }
 
 const signInBrowser = async (session, env, user, password) => {
-  await browser(session, ['open', env.frontendUrl])
-  await browser(session, [
-    'eval',
-    `(() => {
-      window.localStorage.setItem('PANCAKE_API_URL', ${JSON.stringify(env.apiBaseUrl)});
-      window.__pancakeAlerts = [];
-      window.alert = (message) => window.__pancakeAlerts.push(String(message));
-      return JSON.stringify({ ok: true });
-    })()`,
-  ])
+  await installRuntimeOverrides(browser, session, env, { alerts: true })
   await browser(session, ['wait', '1500'])
   await browser(session, ['find', 'placeholder', 'Email', 'fill', user.email])
   await browser(session, ['find', 'placeholder', 'Password', 'fill', password])
@@ -353,7 +345,7 @@ export async function runBrowserPlayoffChampionScenario({
     await writeFile(path.join(artifactDir, 'errors.txt'), `${errorOutput}\n`)
 
     const failures = []
-    if (errorOutput.trim()) failures.push(`browser errors present; see ${path.relative(ROOT, path.join(artifactDir, 'errors.txt'))}`)
+    if (normalizeBrowserErrors(errorOutput)) failures.push(`browser errors present; see ${path.relative(ROOT, path.join(artifactDir, 'errors.txt'))}`)
     const report = {
       status: failures.length === 0 ? 'PASS' : 'FAIL',
       season,

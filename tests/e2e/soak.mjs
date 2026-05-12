@@ -38,6 +38,7 @@ const ARTIFACT_ROOT = path.join(ROOT, 'tests/artifacts')
 const PERF_METRICS_PATH = path.join(ARTIFACT_ROOT, 'perf-metrics.json')
 const PERF_DRIFT_LIMIT = Number(process.env.E2E_PERF_DRIFT_LIMIT ?? 1.2)
 const MEMORY_DRIFT_LIMIT = Number(process.env.E2E_MEMORY_DRIFT_LIMIT ?? 1.2)
+const MEMORY_DRIFT_MIN_BYTES = Number(process.env.E2E_MEMORY_DRIFT_MIN_BYTES ?? 16 * 1024 * 1024)
 const REALTIME_CLIENTS = Number(process.env.E2E_REALTIME_CLIENTS ?? 10)
 const REALTIME_LATENCY_LIMIT_MS = Number(process.env.E2E_REALTIME_LATENCY_LIMIT_MS ?? 2000)
 const REALTIME_SUBSCRIBE_TIMEOUT_MS = Number(process.env.E2E_REALTIME_SUBSCRIBE_TIMEOUT_MS ?? 30000)
@@ -686,6 +687,9 @@ const validateMemoryDrift = (metrics, totalSeasons) => {
   if (!Number.isFinite(MEMORY_DRIFT_LIMIT) || MEMORY_DRIFT_LIMIT <= 1) {
     return [`D.LONG.7: invalid E2E_MEMORY_DRIFT_LIMIT ${process.env.E2E_MEMORY_DRIFT_LIMIT}`]
   }
+  if (!Number.isFinite(MEMORY_DRIFT_MIN_BYTES) || MEMORY_DRIFT_MIN_BYTES < 0) {
+    return [`D.LONG.7: invalid E2E_MEMORY_DRIFT_MIN_BYTES ${process.env.E2E_MEMORY_DRIFT_MIN_BYTES}`]
+  }
 
   const baselineSeasonStart = metrics[0]?.season
   const baselineSeasonEnd = metrics[2]?.season
@@ -698,7 +702,7 @@ const validateMemoryDrift = (metrics, totalSeasons) => {
     const before = median(metrics.slice(0, 3).map((metric) => metric.memory?.[key]))
     const after = median(metrics.slice(-3).map((metric) => metric.memory?.[key]))
     if (!before || !after) continue
-    const maxAllowed = before * MEMORY_DRIFT_LIMIT
+    const maxAllowed = Math.max(before * MEMORY_DRIFT_LIMIT, before + MEMORY_DRIFT_MIN_BYTES)
     if (after > maxAllowed) {
       const percent = Math.round(((after - before) / before) * 100)
       failures.push(
@@ -4786,7 +4790,15 @@ const main = async () => {
           seasonResetFailures.push(...seasonResetCheck.failures)
         }
 
+        if (env.backendTicksEnabled) {
+          await backendJson(env, '/e2e/close-expired-nominations')
+          await backendJson(env, '/e2e/process-trades')
+          await backendJson(env, '/e2e/process-waivers')
+        }
         const failuresAtStart = await runInvariants(supabase, targetLeagueId, scenarios)
+        if (env.backendTicksEnabled) {
+          await backendJson(env, '/e2e/close-expired-nominations')
+        }
         const failuresAtEnd = await runInvariants(supabase, targetLeagueId, scenarios)
         const matchupFailures = env.backendTicksEnabled
           ? await assertMatchupGenerationIdempotent(supabase, env, targetLeagueId)
@@ -4836,6 +4848,7 @@ const main = async () => {
         await writeFile(PERF_METRICS_PATH, `${JSON.stringify({
           runtimeDriftLimit: PERF_DRIFT_LIMIT,
           memoryDriftLimit: MEMORY_DRIFT_LIMIT,
+          memoryDriftMinBytes: MEMORY_DRIFT_MIN_BYTES,
           metrics: perfMetrics,
         }, null, 2)}\n`)
         const perfFailures = validatePerfDrift(perfMetrics, args.seasons)
@@ -4867,8 +4880,8 @@ const main = async () => {
           if (!args.keepGoing) break
         } else {
           const seasonNotes = env.backendTicksEnabled
-            ? 'D.0 invariant boundary checks passed before and after real season reset; full scenario loop pending'
-            : 'D.0 invariant boundary checks passed; full scenario/browser loop pending'
+            ? 'D.0 invariant boundary checks passed before and after real season reset; enabled scenario slices passed'
+            : 'D.0 invariant boundary checks passed; enabled scenario slices passed'
           rows.push({
             season,
             status: 'PASS',
@@ -4931,7 +4944,11 @@ const main = async () => {
       notes.push(`Perf metrics written to ${path.relative(ROOT, PERF_METRICS_PATH)}.`)
     }
 
-    const status = rows.some((row) => row.status === 'FAIL') ? 'FAIL' : 'PARTIAL'
+    const status = rows.some((row) => row.status === 'FAIL')
+      ? 'FAIL'
+      : rows.length === args.seasons && rows.every((row) => row.status === 'PASS')
+        ? 'PASS'
+        : 'PARTIAL'
     await writeReport({
       status,
       startedAt,

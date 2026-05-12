@@ -171,18 +171,23 @@ export async function closeExpiredNominations() {
         .eq('status', 'open')
         .lt('countdown_expires_at', now)
 
-    if (!expired || expired.length === 0) return
+    if (!expired || expired.length === 0) return { checked: 0, closed: 0, failed: 0 }
 
+    let closed = 0
+    let failed = 0
     for (const nom of expired) {
         try {
             const { error } = await supabase.rpc('close_auction_nomination_atomic', {
                 p_nomination_id: nom.id,
             })
             if (error) throw error
+            closed += 1
         } catch (e) {
+            failed += 1
             console.error(`[draft] Error closing nomination ${nom.id}:`, e)
         }
     }
+    return { checked: expired.length, closed, failed }
 }
 
 // ── Get Draft State ────────────────────────────────────────────

@@ -5,6 +5,7 @@ import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { createClient } from '@supabase/supabase-js'
 import { resolvedEnv, describeEndpoint } from './env.mjs'
+import { installRuntimeOverrides, normalizeBrowserErrors } from './browser-runtime-overrides.mjs'
 
 const execFileAsync = promisify(execFile)
 const ROOT = process.cwd()
@@ -268,6 +269,7 @@ export async function runBrowserSmoke({
   ]
 
   try {
+    await installRuntimeOverrides(browser, session, env)
     if (fullSweep) {
       const authRoutes = [
         ['auth-sign-in', '/sign-in'],
@@ -311,10 +313,11 @@ export async function runBrowserSmoke({
 
     const consoleOutput = await browser(session, ['console']).catch((error) => `console unavailable: ${error.message}`)
     const errorOutput = await browser(session, ['errors']).catch((error) => `errors unavailable: ${error.message}`)
+    const normalizedErrors = normalizeBrowserErrors(errorOutput)
 
     await writeFile(path.join(artifactDir, 'console.txt'), `${consoleOutput}\n`)
     await writeFile(path.join(artifactDir, 'errors.txt'), `${errorOutput}\n`)
-    if (errorOutput.trim()) {
+    if (normalizedErrors) {
       throw new Error(`Browser reported uncaught errors. See ${path.join(artifactDir, 'errors.txt')}`)
     }
 
