@@ -9,17 +9,14 @@ import { StatsOverview } from '@/components/player/StatsOverview'
 import { TransactionHistory } from '@/components/player/TransactionHistory'
 import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 import { useLeagueContext } from '@/contexts/league-context'
-import { useAuth } from '@/hooks/use-auth'
 import { usePlayerScreenData } from '@/hooks/use-player-screen-data'
-import { addFreeAgent, dropPlayer, getPlayerRosterStatus, getRoster, isIREligible, toggleIR, type PlayerRosterStatus, type RosterPlayer } from '@/lib/roster'
+import { addFreeAgent, dropPlayer, getPlayerRosterStatus, getRoster, toggleIR, type PlayerRosterStatus, type RosterPlayer } from '@/lib/roster'
 import { isIneligibleIR } from '@/lib/format'
 import { showAlert, confirmAction } from '@/lib/alert'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
     ActivityIndicator,
-    Modal,
-    Pressable,
     ScrollView,
     StyleSheet,
     Text,
@@ -30,7 +27,6 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 export default function PlayerDetailScreen() {
     const { id } = useLocalSearchParams<{ id: string }>()
     const { current, currentLeague } = useLeagueContext()
-    const { user } = useAuth()
     const { push } = useRouter()
 
     const leagueId = currentLeague?.id ?? null
@@ -58,27 +54,27 @@ export default function PlayerDetailScreen() {
     } | null>(null)
 
     // ── Load roster status ───────────────────────────────────────────────────
-    async function loadRosterStatus() {
-        if (!current || !user) return
+    const loadRosterStatus = useCallback(async () => {
+        if (!current || !leagueId) return
         try {
-            const status = await getPlayerRosterStatus(id, current.id, leagueId!)
+            const status = await getPlayerRosterStatus(id, current.id, leagueId)
             setRosterStatus(status)
         } catch (e) {
             console.error(e)
         }
-    }
+    }, [current, id, leagueId])
 
     useEffect(() => {
         loadRosterStatus()
-    }, [id, current, user])
+    }, [loadRosterStatus])
 
     // ── Roster actions ───────────────────────────────────────────────────────
     async function handleAdd() {
-        if (!current || !user) return
+        if (!current || !leagueId) return
         setActionLoading(true)
         try {
             // Check for ineligible IR players before adding
-            const roster = await getRoster(current.id, leagueId!)
+            const roster = await getRoster(current.id, leagueId)
             const ineligible = roster.filter((r) => isIneligibleIR(r))
 
             if (ineligible.length > 0) {

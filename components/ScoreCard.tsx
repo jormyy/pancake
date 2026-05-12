@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet } from 'react-native'
 import { Matchup } from '@/lib/scoring'
-import { colors, palette } from '@/constants/tokens'
+import { colors } from '@/constants/tokens'
 
 export function ScoreCard({ matchup }: { matchup: Matchup }) {
     const fmt = (n: number | null) => (n != null ? n.toFixed(1) : '—')

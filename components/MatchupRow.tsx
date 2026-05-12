@@ -146,6 +146,10 @@ export function MatchupRow({
                 ]}
                 onPress={isExtraOppRow ? undefined : () => onTap({ kind: selKind, index: selIndex })}
                 disabled={saving || isExtraOppRow}
+                accessibilityRole="button"
+                accessibilityLabel={`Select ${slotType}`}
+                accessibilityState={{ disabled: saving || isExtraOppRow, selected: isSel }}
+                hitSlop={7}
             >
                 <Text style={[styles.slotChipText, { color: isSel ? colors.primary : slotColor }]}>
                     {isExtraOppRow ? '—' : slotType}

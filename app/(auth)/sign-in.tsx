@@ -95,7 +95,7 @@ export default function SignInScreen() {
                 </View>
 
                 <Link href="/(auth)/sign-up" style={styles.link}>
-                    Don't have an account? Sign up
+                    Don&apos;t have an account? Sign up
                 </Link>
             </View>
         </KeyboardAvoidingView>

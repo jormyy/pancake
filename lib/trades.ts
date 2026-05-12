@@ -1,5 +1,4 @@
 import { supabase } from '@/lib/supabase'
-import { logTransaction } from '@/lib/transactions'
 import { apiPost } from '@/lib/shared/api'
 
 export type TradePlayerItem = {
@@ -36,7 +35,7 @@ export type Trade = {
 }
 
 export async function getPicksForMember(memberId: string, leagueId: string): Promise<TradePickItem[]> {
-    const { data, error } = await (supabase as any)
+    const { data, error } = await supabase
         .from('draft_picks')
         .select(`
             id,
@@ -79,7 +78,7 @@ export async function proposeTrade(
         throw new Error('A trade must include at least one asset on each side.')
     }
 
-    const { data: trade, error: tradeError } = await (supabase as any)
+    const { data: trade, error: tradeError } = await supabase
         .from('trades')
         .insert({
             league_id: leagueId,
@@ -94,7 +93,12 @@ export async function proposeTrade(
 
     if (tradeError) throw tradeError
 
-    const items: { trade_id: string; side: string; player_id: string | null; pick_id: string | null }[] = []
+    const items: {
+        trade_id: string
+        side: 'proposer' | 'recipient'
+        player_id: string | null
+        pick_id: string | null
+    }[] = []
 
     for (const playerId of offerPlayerIds) {
         items.push({ trade_id: trade.id, side: 'proposer', player_id: playerId, pick_id: null })
@@ -113,7 +117,7 @@ export async function proposeTrade(
     }
 
     if (items.length > 0) {
-        const { error: itemsError } = await (supabase as any).from('trade_items').insert(items)
+        const { error: itemsError } = await supabase.from('trade_items').insert(items)
         if (itemsError) throw itemsError
     }
 
@@ -124,117 +128,23 @@ export async function proposeTrade(
 }
 
 export async function acceptTrade(tradeId: string, memberId: string): Promise<void> {
-    // Fetch the trade to verify recipient and get league info
-    const { data: trade, error: fetchError } = await (supabase as any)
-        .from('trades')
-        .select('id, league_id, league_season_id, proposer_member_id, recipient_member_id, status')
-        .eq('id', tradeId)
-        .single()
-
-    if (fetchError) throw fetchError
-    if (!trade) throw new Error('Trade not found.')
-    if ((trade as any).recipient_member_id !== memberId) throw new Error('You are not the recipient of this trade.')
-    if ((trade as any).status !== 'pending') throw new Error('This trade is no longer pending.')
-
-    // Fetch all trade items
-    const { data: items, error: itemsError } = await (supabase as any)
-        .from('trade_items')
-        .select('id, side, player_id, pick_id')
-        .eq('trade_id', tradeId)
-
-    if (itemsError) throw itemsError
-
-    const proposerItems = ((items ?? []) as any[]).filter((i) => i.side === 'proposer')
-    const recipientItems = ((items ?? []) as any[]).filter((i) => i.side === 'recipient')
-
-    const t = trade as any
-
-    // Move proposer's players to recipient
-    for (const item of proposerItems) {
-        const i = item as any
-        if (!i.player_id) continue
-        const { error } = await (supabase as any)
-            .from('roster_players')
-            .update({ member_id: t.recipient_member_id, acquired_via: 'trade' })
-            .eq('player_id', i.player_id)
-            .eq('league_id', t.league_id)
-            .eq('league_season_id', t.league_season_id)
-        if (error) throw error
-    }
-
-    // Move recipient's players to proposer
-    for (const item of recipientItems) {
-        const i = item as any
-        if (!i.player_id) continue
-        const { error } = await (supabase as any)
-            .from('roster_players')
-            .update({ member_id: t.proposer_member_id, acquired_via: 'trade' })
-            .eq('player_id', i.player_id)
-            .eq('league_id', t.league_id)
-            .eq('league_season_id', t.league_season_id)
-        if (error) throw error
-    }
-
-    // Transfer proposer's picks to recipient
-    for (const item of proposerItems) {
-        const i = item as any
-        if (!i.pick_id) continue
-        const { error } = await (supabase as any)
-            .from('draft_picks')
-            .update({ current_owner_id: t.recipient_member_id })
-            .eq('id', i.pick_id)
-        if (error) throw error
-    }
-
-    // Transfer recipient's picks to proposer
-    for (const item of recipientItems) {
-        const i = item as any
-        if (!i.pick_id) continue
-        const { error } = await (supabase as any)
-            .from('draft_picks')
-            .update({ current_owner_id: t.proposer_member_id })
-            .eq('id', i.pick_id)
-        if (error) throw error
-    }
-
-    // Mark trade completed
-    const { error: updateError } = await (supabase as any)
-        .from('trades')
-        .update({ status: 'completed', completed_at: new Date().toISOString(), accepted_at: new Date().toISOString() })
-        .eq('id', tradeId)
-
-    if (updateError) throw updateError
-
-    // Notify proposer that their trade was accepted
-    apiPost('/notify/trade', { memberId: t.proposer_member_id, title: 'Trade Accepted', body: 'Your trade offer has been accepted!' }).catch(console.error)
-
-    // Log transactions for each player moved
-    for (const item of proposerItems) {
-        if (!item.player_id) continue
-        await logTransaction({ leagueId: t.league_id, leagueSeasonId: t.league_season_id, memberId: t.proposer_member_id, playerId: item.player_id, transactionType: 'trade_out', relatedTradeId: tradeId })
-        await logTransaction({ leagueId: t.league_id, leagueSeasonId: t.league_season_id, memberId: t.recipient_member_id, playerId: item.player_id, transactionType: 'trade_in', relatedTradeId: tradeId })
-    }
-    for (const item of recipientItems) {
-        if (!item.player_id) continue
-        await logTransaction({ leagueId: t.league_id, leagueSeasonId: t.league_season_id, memberId: t.recipient_member_id, playerId: item.player_id, transactionType: 'trade_out', relatedTradeId: tradeId })
-        await logTransaction({ leagueId: t.league_id, leagueSeasonId: t.league_season_id, memberId: t.proposer_member_id, playerId: item.player_id, transactionType: 'trade_in', relatedTradeId: tradeId })
-    }
+    await apiPost(`/trades/${tradeId}/accept`, { memberId })
 }
 
 export async function rejectTrade(tradeId: string, memberId: string): Promise<void> {
-    const { data: trade, error: fetchError } = await (supabase as any)
+    const { data: trade, error: fetchError } = await supabase
         .from('trades')
-        .select('id, recipient_member_id, status')
+        .select('id, proposer_member_id, recipient_member_id, status')
         .eq('id', tradeId)
         .single()
 
     if (fetchError) throw fetchError
-    const t = trade as any
+    const t = trade
     if (!t) throw new Error('Trade not found.')
     if (t.recipient_member_id !== memberId) throw new Error('You are not the recipient of this trade.')
     if (t.status !== 'pending') throw new Error('This trade is no longer pending.')
 
-    const { error } = await (supabase as any)
+    const { error } = await supabase
         .from('trades')
         .update({ status: 'rejected' })
         .eq('id', tradeId)
@@ -244,19 +154,19 @@ export async function rejectTrade(tradeId: string, memberId: string): Promise<vo
 }
 
 export async function withdrawTrade(tradeId: string, memberId: string): Promise<void> {
-    const { data: trade, error: fetchError } = await (supabase as any)
+    const { data: trade, error: fetchError } = await supabase
         .from('trades')
-        .select('id, proposer_member_id, status')
+        .select('id, proposer_member_id, recipient_member_id, status')
         .eq('id', tradeId)
         .single()
 
     if (fetchError) throw fetchError
-    const t = trade as any
+    const t = trade
     if (!t) throw new Error('Trade not found.')
     if (t.proposer_member_id !== memberId) throw new Error('You are not the proposer of this trade.')
     if (t.status !== 'pending') throw new Error('This trade is no longer pending.')
 
-    const { error } = await (supabase as any)
+    const { error } = await supabase
         .from('trades')
         .update({ status: 'withdrawn' })
         .eq('id', tradeId)
@@ -266,7 +176,7 @@ export async function withdrawTrade(tradeId: string, memberId: string): Promise<
 }
 
 export async function getMyTrades(memberId: string, leagueId: string): Promise<Trade[]> {
-    const { data, error } = await (supabase as any)
+    const { data, error } = await supabase
         .from('trades')
         .select(
             `
@@ -339,9 +249,9 @@ export async function getMyTrades(memberId: string, leagueId: string): Promise<T
             proposedAt: row.proposed_at,
             notes: row.notes ?? null,
             proposerMemberId: row.proposer_member_id,
-            proposerTeamName: (row.proposer as any)?.team_name ?? 'Unknown',
+            proposerTeamName: row.proposer?.team_name ?? 'Unknown',
             recipientMemberId: row.recipient_member_id,
-            recipientTeamName: (row.recipient as any)?.team_name ?? 'Unknown',
+            recipientTeamName: row.recipient?.team_name ?? 'Unknown',
             proposerGives,
             recipientGives,
         } satisfies Trade

@@ -7,12 +7,13 @@ import {
     ActivityIndicator,
     Alert,
     ScrollView,
+    KeyboardAvoidingView,
+    Platform,
 } from 'react-native'
 import { FlashList } from '@shopify/flash-list'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { useAuth } from '@/hooks/use-auth'
 import { useLeagueContext } from '@/contexts/league-context'
 import {
     getDraftState,
@@ -22,17 +23,15 @@ import {
     placeBid,
     searchPlayers,
     DraftState,
-    Nomination,
 } from '@/lib/draft'
 import { RealtimeChannel } from '@supabase/supabase-js'
 import { LoadingScreen } from '@/components/LoadingScreen'
-import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 
 type DraftTab = 'budgets' | 'history'
 
 export default function DraftRoomScreen() {
     const { draftId } = useLocalSearchParams<{ draftId: string }>()
-    const { user } = useAuth()
     const { current } = useLeagueContext()
     const { back } = useRouter()
 
@@ -57,6 +56,7 @@ export default function DraftRoomScreen() {
 
     const channelRef = useRef<RealtimeChannel | null>(null)
     const myMemberId = current?.id
+    const countdownNomination = state?.openNomination
 
     const load = useCallback(async () => {
         if (!draftId) return
@@ -96,10 +96,10 @@ export default function DraftRoomScreen() {
     // Countdown tick
     useEffect(() => {
         if (timerRef.current) clearInterval(timerRef.current)
-        if (!state?.openNomination) return
+        if (!countdownNomination) return
 
         timerRef.current = setInterval(() => {
-            const exp = state.openNomination?.countdownExpiresAt
+            const exp = countdownNomination.countdownExpiresAt
             if (!exp) return
             const diff = Math.max(0, Math.floor((new Date(exp).getTime() - Date.now()) / 1000))
             setTimeLeft(diff)
@@ -108,7 +108,7 @@ export default function DraftRoomScreen() {
         return () => {
             if (timerRef.current) clearInterval(timerRef.current)
         }
-    }, [state?.openNomination?.id, state?.openNomination?.countdownExpiresAt])
+    }, [countdownNomination])
 
     // Player search
     useEffect(() => {
@@ -208,7 +208,15 @@ export default function DraftRoomScreen() {
                 )}
             </View>
 
-            <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+            <KeyboardAvoidingView
+                style={styles.keyboard}
+                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            >
+            <ScrollView
+                style={styles.scroll}
+                contentContainerStyle={styles.scrollContent}
+                keyboardShouldPersistTaps="handled"
+            >
                 {/* Nomination on the clock */}
                 {openNomination ? (
                     <View style={styles.card}>
@@ -255,6 +263,9 @@ export default function DraftRoomScreen() {
                                 <Pressable
                                     style={styles.bidStep}
                                     onPress={() => setBidAmount((v) => Math.max(minBid, v - 1))}
+                                    accessibilityRole="button"
+                                    accessibilityLabel="Decrease bid"
+                                    hitSlop={8}
                                 >
                                     <Text style={styles.bidStepText}>−</Text>
                                 </Pressable>
@@ -284,6 +295,9 @@ export default function DraftRoomScreen() {
                                             Math.min(myBudget?.remaining ?? 999, v + 1),
                                         )
                                     }
+                                    accessibilityRole="button"
+                                    accessibilityLabel="Increase bid"
+                                    hitSlop={8}
                                 >
                                     <Text style={styles.bidStepText}>+</Text>
                                 </Pressable>
@@ -489,6 +503,7 @@ export default function DraftRoomScreen() {
                     </View>
                 )}
             </ScrollView>
+            </KeyboardAvoidingView>
         </SafeAreaView>
     )
 }
@@ -496,8 +511,9 @@ export default function DraftRoomScreen() {
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgSubtle },
     flex1: { flex: 1 },
+    keyboard: { flex: 1 },
     scroll: { flex: 1 },
-    scrollContent: { padding: spacing.xl, gap: spacing.lg },
+    scrollContent: { padding: spacing.xl, paddingBottom: spacing['3xl'], gap: spacing.lg },
 
     header: {
         flexDirection: 'row',

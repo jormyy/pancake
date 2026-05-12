@@ -8,8 +8,13 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "lint": "expo lint",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck:backend": "npm run typecheck --workspace backend",
+    "typecheck:core": "npm run typecheck --workspace core",
+    "build:backend": "npm run build --workspace backend",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:workspaces": "npm test && npm test --workspace backend && npm test --workspace core"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
@@ -53,5 +58,10 @@
     "typescript": "~5.9.2",
     "vitest": "^2.1.9"
   },
-  "private": true
+  "overrides": {
+    "@xmldom/xmldom": "0.8.13",
+    "fast-uri": "3.1.2"
+  },
+  "private": true,
+  "workspaces": ["core", "backend"]
 }

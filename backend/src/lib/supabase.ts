@@ -1,10 +1,11 @@
 import { createClient } from '@supabase/supabase-js'
+import type { Database } from '../types/database'
 
 const supabaseUrl = process.env.SUPABASE_URL!
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 
 // Service role client — bypasses RLS, backend use only
-export const supabase = createClient(supabaseUrl, serviceRoleKey, {
+export const supabase = createClient<Database>(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false },
 })
 
@@ -20,7 +21,7 @@ export async function fetchAllPlayers(): Promise<{ id: string; display_name: str
             .range(from, from + PAGE - 1)
         if (error) throw error
         if (!data || data.length === 0) break
-        all.push(...data)
+        all.push(...data.map((p) => ({ ...p, display_name: p.display_name ?? '' })))
         if (data.length < PAGE) break
         from += PAGE
     }

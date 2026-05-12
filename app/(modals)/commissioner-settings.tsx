@@ -41,7 +41,7 @@ type SlotMap = Record<string, number>
 type ScoringMap = Record<string, string> // string for TextInput, parsed on save
 
 export default function CommissionerSettingsScreen() {
-    const { current, currentLeague, refresh } = useLeagueContext()
+    const { currentLeague, refresh } = useLeagueContext()
     const { back } = useRouter()
     const league = currentLeague
 
@@ -74,7 +74,12 @@ export default function CommissionerSettingsScreen() {
                 for (const s of slotData) slotMap[s.slot_type] = s.slot_count
                 setSlots(slotMap)
 
-                const s = league.scoring_settings ?? {}
+                const s =
+                    league.scoring_settings &&
+                    typeof league.scoring_settings === 'object' &&
+                    !Array.isArray(league.scoring_settings)
+                        ? league.scoring_settings as Record<string, unknown>
+                        : {}
                 const scoreMap: ScoringMap = {}
                 for (const { key } of SCORING_FIELDS) {
                     scoreMap[key] = s[key] != null ? String(s[key]) : '0'
@@ -387,6 +392,9 @@ export default function CommissionerSettingsScreen() {
                                     <Pressable
                                         style={styles.stepBtn}
                                         onPress={() => adjustSlot(type, -1)}
+                                        accessibilityRole="button"
+                                        accessibilityLabel={`Decrease ${type} slots`}
+                                        hitSlop={8}
                                     >
                                         <Text style={styles.stepBtnText}>−</Text>
                                     </Pressable>
@@ -394,6 +402,9 @@ export default function CommissionerSettingsScreen() {
                                     <Pressable
                                         style={styles.stepBtn}
                                         onPress={() => adjustSlot(type, 1)}
+                                        accessibilityRole="button"
+                                        accessibilityLabel={`Increase ${type} slots`}
+                                        hitSlop={8}
                                     >
                                         <Text style={styles.stepBtnText}>+</Text>
                                     </Pressable>

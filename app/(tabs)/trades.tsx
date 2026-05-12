@@ -10,7 +10,6 @@ import { FlashList } from '@shopify/flash-list'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useAuth } from '@/hooks/use-auth'
 import { useLeagueContext } from '@/contexts/league-context'
 import {
     getMyTrades,
@@ -32,7 +31,6 @@ type ListItem =
 
 export default function TradesScreen() {
     const { push } = useRouter()
-    const { user } = useAuth()
     const { current, currentLeague } = useLeagueContext()
 
     const myMemberId = current?.id ?? ''
@@ -73,15 +71,15 @@ export default function TradesScreen() {
         loadDraft()
     }
 
-    const incomingTrades = trades.filter(
+    const incomingTrades = useMemo(() => trades.filter(
         (t) => t.recipientMemberId === myMemberId && t.status === 'pending',
-    )
-    const outgoingTrades = trades.filter(
+    ), [trades, myMemberId])
+    const outgoingTrades = useMemo(() => trades.filter(
         (t) => t.proposerMemberId === myMemberId && t.status === 'pending',
-    )
-    const historyTrades = trades.filter((t) => t.status !== 'pending')
+    ), [trades, myMemberId])
+    const historyTrades = useMemo(() => trades.filter((t) => t.status !== 'pending'), [trades])
 
-    const picksList = picks ?? []
+    const picksList = useMemo(() => picks ?? [], [picks])
 
     const listData = useMemo<ListItem[]>(() => {
         const result: ListItem[] = []

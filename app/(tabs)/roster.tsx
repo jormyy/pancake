@@ -10,7 +10,7 @@ import { showAlert, confirmAction } from '@/lib/alert'
 import { FlashList } from '@shopify/flash-list'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { useAuth } from '@/hooks/use-auth'
 import { useLeagueContext } from '@/contexts/league-context'
 import { getRoster, toggleIR, toggleTaxi, dropPlayer, isIREligible, isTaxiEligible, RosterPlayer } from '@/lib/roster'
@@ -32,6 +32,11 @@ type RosterListItem =
     | (RosterPlayer & { _isHeader: false; _isEmpty: false; _section: 'active' | 'ir' | 'taxi' })
     | (TradePickItem & { _isHeader: false; _isEmpty: false; _section: 'picks' })
     | (WaiverClaim & { _isHeader: false; _isEmpty: false; _section: 'claims' })
+
+const EMPTY_ROSTER: RosterPlayer[] = []
+const EMPTY_PICKS: TradePickItem[] = []
+const EMPTY_CLAIMS: WaiverClaim[] = []
+const EMPTY_AVG_MAP = new Map<string, number>()
 
 // ── Main screen ──────────────────────────────────────────────────
 
@@ -61,20 +66,22 @@ export default function RosterScreen() {
             .eq('season_year', currentSeasonYear())
             .in('player_id', playerIds)
         const avgMap = new Map<string, number>()
-        for (const row of avgData ?? []) avgMap.set(row.player_id, Number(row.avg_fantasy_points))
+        for (const row of (avgData ?? []) as { player_id: string; avg_fantasy_points: number | null }[]) {
+            avgMap.set(row.player_id, Number(row.avg_fantasy_points))
+        }
         return { roster, picks, claims, avgMap }
     }, [current, user])
 
-    const roster = data?.roster ?? []
-    const picks = data?.picks ?? []
-    const claims = data?.claims ?? []
-    const avgMap = data?.avgMap ?? new Map<string, number>()
+    const roster = useMemo(() => data?.roster ?? EMPTY_ROSTER, [data?.roster])
+    const picks = useMemo(() => data?.picks ?? EMPTY_PICKS, [data?.picks])
+    const claims = useMemo(() => data?.claims ?? EMPTY_CLAIMS, [data?.claims])
+    const avgMap = useMemo(() => data?.avgMap ?? EMPTY_AVG_MAP, [data?.avgMap])
 
     type RosterSortKey = 'fpts' | 'name' | 'position' | 'team'
     const [rosterSort, setRosterSort] = useState<RosterSortKey>('fpts')
     const [rosterSortDir, setRosterSortDir] = useState<'asc' | 'desc'>('desc')
 
-    const sortRoster = (a: RosterPlayer, b: RosterPlayer) => {
+    const sortRoster = useCallback((a: RosterPlayer, b: RosterPlayer) => {
         let cmp = 0
         switch (rosterSort) {
             case 'fpts':
@@ -91,7 +98,7 @@ export default function RosterScreen() {
                 break
         }
         return rosterSortDir === 'asc' ? cmp : -cmp
-    }
+    }, [avgMap, rosterSort, rosterSortDir])
 
     const active = useMemo(() => {
         return roster

@@ -1,6 +1,7 @@
 import { supabase } from '../_shared/supabase.ts'
 import { fetchSeasonSchedule } from '../_shared/nba.ts'
 import { currentSeasonYear } from '../_shared/season.ts'
+import { internalServerError } from '../_shared/responses.ts'
 
 const CHUNK = 500
 
@@ -8,9 +9,8 @@ Deno.serve(async () => {
   try {
     await syncSchedule()
     return Response.json({ ok: true })
-  } catch (e: any) {
-    console.error('[sync-schedule]', e)
-    return Response.json({ ok: false, error: e.message }, { status: 500 })
+  } catch (e: unknown) {
+    return internalServerError('sync-schedule', e)
   }
 })
 

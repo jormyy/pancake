@@ -20,6 +20,20 @@ export async function requireCommissioner(userId: string, leagueId: string): Pro
     }
 }
 
+export async function requireCommissionerForDraft(userId: string, draftId: string): Promise<void> {
+    const { data, error } = await supabase
+        .from('drafts')
+        .select('league_id')
+        .eq('id', draftId)
+        .single()
+
+    if (error || !data) {
+        throw new NotFoundError('Draft not found')
+    }
+
+    await requireCommissioner(userId, data.league_id)
+}
+
 /**
  * Verify the requesting user owns the member record, or is a commissioner of that member's league.
  */
@@ -45,6 +59,25 @@ export async function verifyMemberAccess(userId: string, memberId: string): Prom
         .maybeSingle()
 
     if (!commissioner) {
+        throw new AppError('Access denied', 403)
+    }
+}
+
+/**
+ * Verify the requesting user owns the member record. Commissioner override is
+ * intentionally not allowed for actions that represent a manager's consent.
+ */
+export async function verifyOwnMember(userId: string, memberId: string): Promise<void> {
+    const { data, error } = await supabase
+        .from('league_members')
+        .select('user_id')
+        .eq('id', memberId)
+        .single()
+
+    if (error || !data) {
+        throw new NotFoundError('Member not found')
+    }
+    if (data.user_id !== userId) {
         throw new AppError('Access denied', 403)
     }
 }

@@ -82,6 +82,13 @@ export default function HomeScreen() {
         : myLineup.taxi[selected.index]
         : null
 
+    const scoringSettings =
+        league?.scoring_settings &&
+        typeof league.scoring_settings === 'object' &&
+        !Array.isArray(league.scoring_settings)
+            ? league.scoring_settings as Record<string, number>
+            : {}
+
     if (loading) return <LoadingScreen />
     if (memberships.length === 0) return <NoLeagueState />
 
@@ -90,7 +97,10 @@ export default function HomeScreen() {
             <LeagueSwitcher
                 memberships={memberships}
                 currentId={current?.id}
-                onSelect={setCurrent}
+                onSelect={(membership) => {
+                    const fullMembership = memberships.find((m) => m.id === membership.id)
+                    if (fullMembership) setCurrent(fullMembership)
+                }}
             />
 
             {matchupLoading ? (
@@ -143,7 +153,7 @@ export default function HomeScreen() {
                             playingTeams={todayPlayingTeams}
                             liveStats={liveStats}
                             liveTeams={liveTeams}
-                            scoringSettings={league?.scoring_settings ?? {}}
+                            scoringSettings={scoringSettings}
                             teamMatchups={teamMatchups}
                         />
                     ) : (

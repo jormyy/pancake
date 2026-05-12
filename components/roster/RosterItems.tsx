@@ -1,5 +1,4 @@
 import { View, Text, Pressable, StyleSheet, ActivityIndicator } from 'react-native'
-import { useState } from 'react'
 import { INJURY_COLORS, colors, fontSize, fontWeight, radii, spacing, palette } from '@/constants/tokens'
 import { isIREligible, isTaxiEligible, RosterPlayer } from '@/lib/roster'
 import { getEligiblePositions } from '@/lib/players'
@@ -111,14 +110,13 @@ export function RosterPlayerItem({
     const player = item.players
     const positions = getEligiblePositions(player)
     const isBusy = togglingId === item.id || taxiingId === item.id || droppingId === item.id
-    const [headshotError, setHeadshotError] = useState(false)
     const headshotUri = playerHeadshotUrl(player.nba_id)
     return (
         <Pressable style={styles.playerRow} onPress={onPress} onLongPress={onLongPress} delayLongPress={400}>
             <Avatar
                 name={player.display_name}
                 color={colors.bgMuted}
-                uri={headshotUri && !headshotError ? headshotUri : undefined}
+                uri={headshotUri ?? undefined}
             />
 
             <View style={styles.info}>
@@ -190,14 +188,13 @@ export function TaxiPlayerItem({
 }) {
     const player = item.players
     const positions = getEligiblePositions(player)
-    const [headshotError, setHeadshotError] = useState(false)
     const headshotUri = playerHeadshotUrl(player.nba_id)
     return (
         <Pressable style={styles.playerRow} onPress={onPress}>
             <Avatar
                 name={player.display_name}
                 color={colors.bgMuted}
-                uri={headshotUri && !headshotError ? headshotUri : undefined}
+                uri={headshotUri ?? undefined}
             />
 
             <View style={styles.info}>

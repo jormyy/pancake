@@ -1,6 +1,24 @@
 import { supabase } from './supabase.ts'
-import { calculateFantasyPoints, getWeekNumberForDate } from './scoring.ts'
+import { calculateFantasyPoints, snakeToStatLine, getWeekBounds, getWeekNumberForDate } from './scoring.ts'
 import { notifyMember } from './notifications.ts'
+
+type MatchupForScore = {
+  id: string
+  league_id: string
+  league_season_id: string
+  week_number: number
+  home_member_id: string
+  away_member_id: string
+}
+
+type LineupPlayer = {
+  member_id: string
+  player_id: string
+}
+
+type StatRow = Record<string, unknown> & {
+  player_id: string
+}
 
 export async function syncScores() {
   const { data: seasons, error: sErr } = await supabase
@@ -26,67 +44,133 @@ export async function syncScores() {
       continue
     }
 
-    const { data: matchups, error: mErr } = await supabase
-      .from('matchups')
-      .select('id, home_member_id, away_member_id')
-      .eq('league_id', season.league_id)
-      .eq('league_season_id', season.id)
-      .eq('week_number', weekNumber)
-      .eq('is_finalized', false)
-    if (mErr) throw mErr
-    if (!matchups?.length) continue
-
-    for (const matchup of matchups) {
-      const [homePoints, awayPoints] = await Promise.all([
-        calcMemberWeekPoints(matchup.home_member_id, season.id, season.season_year, weekNumber, settings),
-        calcMemberWeekPoints(matchup.away_member_id, season.id, season.season_year, weekNumber, settings),
-      ])
-      await supabase
-        .from('matchups')
-        .update({ home_points: homePoints, away_points: awayPoints })
-        .eq('id', matchup.id)
-    }
-
+    await updateWeekPoints(season.league_id, season.id, season.season_year, weekNumber, settings)
     if (weekNumber > 1) {
-      await finalizeWeekIfComplete(season.league_id, season.id, weekNumber - 1, season.season_year)
+      await updateWeekPoints(season.league_id, season.id, season.season_year, weekNumber - 1, settings)
     }
+
+    await finalizeWeekIfComplete(season.league_id, season.id, weekNumber, season.season_year)
+    if (weekNumber > 1) await finalizeWeekIfComplete(season.league_id, season.id, weekNumber - 1, season.season_year)
   }
 
   console.log('[sync-scores] Sync complete.')
 }
 
-async function calcMemberWeekPoints(
-  memberId: string,
+async function calcWeekPointsByMember(
+  memberIds: string[],
   leagueSeasonId: string,
   seasonYear: number,
   weekNumber: number,
   settings: Record<string, number>,
-): Promise<number> {
-  const { data: lineup } = await supabase
+  weekStart: string,
+  weekEnd: string,
+): Promise<Map<string, number>> {
+  if (memberIds.length === 0) return new Map()
+
+  const { data: lineup, error: lineupErr } = await supabase
     .from('weekly_lineups')
-    .select('player_id')
-    .eq('member_id', memberId)
+    .select('member_id, player_id')
+    .in('member_id', memberIds)
     .eq('league_season_id', leagueSeasonId)
     .eq('week_number', weekNumber)
     .neq('slot_type', 'BE')
     .neq('slot_type', 'IR')
 
-  if (!lineup?.length) return 0
-  const playerIds = lineup.map((r: any) => r.player_id)
+  if (lineupErr) throw lineupErr
+  const lineupRows = (lineup ?? []) as LineupPlayer[]
+  if (lineupRows.length === 0) return new Map(memberIds.map((id) => [id, 0]))
 
-  const { data: stats } = await supabase
+  const playerIds = [...new Set(lineupRows.map((r) => r.player_id))]
+
+  const { data: stats, error: statsErr } = await supabase
     .from('player_game_stats')
     .select(
-      'points,rebounds,assists,steals,blocks,turnovers,' +
-        'three_pointers_made,double_double,triple_double,did_not_play',
+      'player_id,points,rebounds,assists,steals,blocks,turnovers,' +
+        'three_pointers_made,field_goals_made,field_goals_attempted,' +
+        'free_throws_made,free_throws_attempted,double_double,triple_double,did_not_play',
     )
     .in('player_id', playerIds)
     .eq('season_year', seasonYear)
-    .eq('week_number', weekNumber)
+    .gte('game_date', weekStart)
+    .lte('game_date', weekEnd)
 
-  return parseFloat(
-    ((stats ?? []).reduce((sum: number, s: any) => sum + calculateFantasyPoints(s, settings), 0)).toFixed(2),
+  if (statsErr) throw statsErr
+
+  const pointsByPlayer = new Map<string, number>()
+  for (const stat of (stats ?? []) as unknown as StatRow[]) {
+    pointsByPlayer.set(
+      stat.player_id,
+      (pointsByPlayer.get(stat.player_id) ?? 0) + calculateFantasyPoints(snakeToStatLine(stat), settings),
+    )
+  }
+
+  const pointsByMember = new Map(memberIds.map((id) => [id, 0]))
+  for (const row of lineupRows) {
+    pointsByMember.set(
+      row.member_id,
+      (pointsByMember.get(row.member_id) ?? 0) + (pointsByPlayer.get(row.player_id) ?? 0),
+    )
+  }
+
+  for (const [memberId, points] of pointsByMember) {
+    pointsByMember.set(memberId, parseFloat(points.toFixed(2)))
+  }
+
+  return pointsByMember
+}
+
+async function updateWeekPoints(
+  leagueId: string,
+  leagueSeasonId: string,
+  seasonYear: number,
+  weekNumber: number,
+  settings: Record<string, number>,
+) {
+  const weekBounds = await getWeekBounds(seasonYear, weekNumber)
+  if (!weekBounds) {
+    console.log(`[sync-scores] No season_weeks row for week ${weekNumber}`)
+    return
+  }
+
+  const { data: matchups, error: mErr } = await supabase
+    .from('matchups')
+    .select('id, league_id, league_season_id, week_number, home_member_id, away_member_id')
+    .eq('league_id', leagueId)
+    .eq('league_season_id', leagueSeasonId)
+    .eq('week_number', weekNumber)
+    .eq('is_finalized', false)
+  if (mErr) throw mErr
+  if (!matchups?.length) return
+
+  const matchupRows = matchups as MatchupForScore[]
+  const memberIds = [
+    ...new Set(matchupRows.flatMap((m) => [m.home_member_id, m.away_member_id])),
+  ]
+  const pointsByMember = await calcWeekPointsByMember(
+    memberIds,
+    leagueSeasonId,
+    seasonYear,
+    weekNumber,
+    settings,
+    weekBounds.weekStart,
+    weekBounds.weekEnd,
   )
+
+  const updates = matchupRows.map((matchup) => ({
+    id: matchup.id,
+    league_id: matchup.league_id,
+    league_season_id: matchup.league_season_id,
+    week_number: matchup.week_number,
+    home_member_id: matchup.home_member_id,
+    away_member_id: matchup.away_member_id,
+    home_points: pointsByMember.get(matchup.home_member_id) ?? 0,
+    away_points: pointsByMember.get(matchup.away_member_id) ?? 0,
+  }))
+
+  const { error: updateErr } = await supabase
+    .from('matchups')
+    .upsert(updates, { onConflict: 'id' })
+  if (updateErr) throw updateErr
 }
 
 async function finalizeWeekIfComplete(
@@ -95,11 +179,15 @@ async function finalizeWeekIfComplete(
   weekNumber: number,
   seasonYear: number,
 ) {
+  const weekBounds = await getWeekBounds(seasonYear, weekNumber)
+  if (!weekBounds) return
+
   const { count: pendingGames } = await supabase
     .from('nba_games')
     .select('id', { count: 'exact', head: true })
     .eq('season_year', seasonYear)
-    .eq('week_number', weekNumber)
+    .gte('game_date', weekBounds.weekStart)
+    .lte('game_date', weekBounds.weekEnd)
     .in('status', ['Scheduled', 'InProgress'])
 
   if ((pendingGames ?? 0) > 0) return

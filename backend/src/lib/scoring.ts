@@ -1,28 +1,27 @@
 import { supabase } from './supabase'
+import { calculateFantasyPoints } from '@pancake/core'
+import type { StatLine, ScoringSettings } from '@pancake/core'
 
-/**
- * SYNC: Keep formula identical to lib/scoring.ts computeLiveFantasyPoints.
- * This backend version operates on raw snake_case DB rows.
- */
-export function calculateFantasyPoints(stats: Record<string, unknown>, settings: Record<string, number>): number {
-    if (stats.did_not_play) return 0
-    return parseFloat(
-        (
-            (stats.points as number ?? 0)                * (settings.points                  ?? 0) +
-            (stats.rebounds as number ?? 0)              * (settings.rebounds                ?? 0) +
-            (stats.assists as number ?? 0)               * (settings.assists                 ?? 0) +
-            (stats.steals as number ?? 0)                * (settings.steals                  ?? 0) +
-            (stats.blocks as number ?? 0)                * (settings.blocks                  ?? 0) +
-            (stats.turnovers as number ?? 0)             * (settings.turnovers               ?? 0) +
-            (stats.three_pointers_made as number ?? 0)   * (settings.three_pointers_made     ?? 0) +
-            (stats.field_goals_made as number ?? 0)      * (settings.field_goals_made        ?? 0) +
-            (stats.field_goals_attempted as number ?? 0) * (settings.field_goals_attempted   ?? 0) +
-            (stats.free_throws_made as number ?? 0)      * (settings.free_throws_made        ?? 0) +
-            (stats.free_throws_attempted as number ?? 0) * (settings.free_throws_attempted   ?? 0) +
-            (stats.double_double === true ? (settings.double_double ?? 0) : 0) +
-            (stats.triple_double === true ? (settings.triple_double ?? 0) : 0)
-        ).toFixed(2),
-    )
+export { calculateFantasyPoints }
+export type { StatLine, ScoringSettings }
+
+export function snakeToStatLine(row: Record<string, unknown>): StatLine {
+    return {
+        points: (row.points as number) ?? 0,
+        rebounds: (row.rebounds as number) ?? 0,
+        assists: (row.assists as number) ?? 0,
+        steals: (row.steals as number) ?? 0,
+        blocks: (row.blocks as number) ?? 0,
+        turnovers: (row.turnovers as number) ?? 0,
+        threePointersMade: (row.three_pointers_made as number) ?? 0,
+        fieldGoalsMade: (row.field_goals_made as number) ?? 0,
+        fieldGoalsAttempted: (row.field_goals_attempted as number) ?? 0,
+        freeThrowsMade: (row.free_throws_made as number) ?? 0,
+        freeThrowsAttempted: (row.free_throws_attempted as number) ?? 0,
+        doubleDouble: (row.double_double as boolean) ?? false,
+        tripleDouble: (row.triple_double as boolean) ?? false,
+        didNotPlay: (row.did_not_play as boolean) ?? false,
+    }
 }
 
 // Returns the week number that contains the given date, using season_weeks as the

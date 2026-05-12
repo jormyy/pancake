@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 
 vi.mock('../src/lib/supabase', () => ({ supabase: { from: vi.fn() } }))
 
-import { calculateFantasyPoints } from '../src/lib/scoring'
+import { calculateFantasyPoints, snakeToStatLine } from '../src/lib/scoring'
 
 const defaultSettings: Record<string, number> = {
     points: 1,
@@ -21,7 +21,7 @@ const defaultSettings: Record<string, number> = {
 }
 
 function stat(overrides: Record<string, any> = {}) {
-    return {
+    return snakeToStatLine({
         points: 0,
         rebounds: 0,
         assists: 0,
@@ -37,7 +37,7 @@ function stat(overrides: Record<string, any> = {}) {
         triple_double: false,
         did_not_play: false,
         ...overrides,
-    }
+    })
 }
 
 describe('calculateFantasyPoints (backend)', () => {

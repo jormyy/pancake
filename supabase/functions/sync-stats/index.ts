@@ -1,4 +1,5 @@
 import { syncStatsByDate } from '../_shared/syncStats.ts'
+import { internalServerError } from '../_shared/responses.ts'
 
 Deno.serve(async (req) => {
   try {
@@ -7,8 +8,7 @@ Deno.serve(async (req) => {
     const date = new Date(dateStr + 'T12:00:00Z')
     await syncStatsByDate(date)
     return Response.json({ ok: true, date: dateStr })
-  } catch (e: any) {
-    console.error('[sync-stats]', e)
-    return Response.json({ ok: false, error: e.message }, { status: 500 })
+  } catch (e: unknown) {
+    return internalServerError('sync-stats', e)
   }
 })

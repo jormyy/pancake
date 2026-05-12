@@ -12,7 +12,6 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { useState } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
-import { useAuth } from '@/hooks/use-auth'
 import { getLeagueStandings } from '@/lib/scoring'
 import { getActiveDraft, startDraft } from '@/lib/draft'
 import { getWaiverPriorityOrder } from '@/lib/waivers'
@@ -31,7 +30,6 @@ type Tab = 'standings' | 'activity' | 'waivers' | 'picks'
 export default function LeagueScreen() {
     const { push } = useRouter()
     const { current, currentLeague, isCommissioner, loading: currentLeagueLoading } = useLeagueContext()
-    const { user } = useAuth()
     const [tab, setTab] = useState<Tab>('standings')
     const [draftLoading, setDraftLoading] = useState(false)
 

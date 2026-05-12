@@ -1,6 +1,7 @@
 import { supabase } from '../_shared/supabase.ts'
-import { calculateFantasyPoints, getWeekNumberForDate } from '../_shared/scoring.ts'
+import { calculateFantasyPoints, snakeToStatLine, getWeekNumberForDate } from '../_shared/scoring.ts'
 import { currentSeasonYear } from '../_shared/season.ts'
+import { internalServerError } from '../_shared/responses.ts'
 
 const LOOKBACK_WEEKS = 4
 const CHUNK = 500
@@ -17,9 +18,8 @@ Deno.serve(async () => {
   try {
     await syncProjections()
     return Response.json({ ok: true })
-  } catch (e: any) {
-    console.error('[sync-projections]', e)
-    return Response.json({ ok: false, error: e.message }, { status: 500 })
+  } catch (e: unknown) {
+    return internalServerError('sync-projections', e)
   }
 })
 
@@ -60,7 +60,7 @@ async function syncProjections() {
   const projections: any[] = []
   for (const [playerId, games] of playerGames) {
     if (!games.length) continue
-    const avg = games.reduce((sum, g) => sum + calculateFantasyPoints(g, STD_SCORING), 0) / games.length
+    const avg = games.reduce((sum, g) => sum + calculateFantasyPoints(snakeToStatLine(g), STD_SCORING), 0) / games.length
     projections.push({
       player_id: playerId,
       season_year: seasonYear,

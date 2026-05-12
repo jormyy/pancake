@@ -8,14 +8,12 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { Stack } from 'expo-router'
 import { useEffect, useState } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
-import { useAuth } from '@/hooks/use-auth'
 import { getPlayoffBracket, PlayoffBracket, BracketMatchup } from '@/lib/bracket'
 import { LoadingScreen } from '@/components/LoadingScreen'
 import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 
 export default function BracketScreen() {
     const { current, currentLeague } = useLeagueContext()
-    const { user } = useAuth()
     const [bracket, setBracket] = useState<PlayoffBracket | null>(null)
     const [loading, setLoading] = useState(true)
 
@@ -34,7 +32,7 @@ export default function BracketScreen() {
             }
         }
         load()
-    }, [current])
+    }, [current, currentLeague])
 
     return (
         <>

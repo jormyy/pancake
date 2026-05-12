@@ -12,7 +12,7 @@ import {
     Dimensions,
     Platform,
 } from 'react-native'
-import { FlashList } from '@shopify/flash-list'
+import { FlashList, FlashListRef } from '@shopify/flash-list'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
@@ -24,12 +24,10 @@ import {
     dropPlayer,
     toggleIR,
     getRoster,
-    isIREligible,
     RosterPlayer,
     OwnedEntry,
 } from '@/lib/roster'
 import { getWaiverPlayerIds, submitWaiverClaim } from '@/lib/waivers'
-import { useAuth } from '@/hooks/use-auth'
 import { useLeagueContext } from '@/contexts/league-context'
 import { getPositionColor } from "@/constants/positions"
 import {
@@ -67,6 +65,8 @@ const SORT_OPTIONS: { key: SortMode; label: string }[] = [
     { key: 'yearsExp', label: 'Exp' },
 ]
 
+const EMPTY_OWNED_MAP = new Map<string, OwnedEntry>()
+const EMPTY_WAIVER_IDS = new Set<string>()
 
 // ── Extracted list item component ────────────────────────────────
 
@@ -108,6 +108,10 @@ function PlayerSearchItem({
                         style={styles.addBtn}
                         onPress={() => onAdd(item)}
                         disabled={isAdding}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Add ${item.display_name}`}
+                        accessibilityState={{ disabled: isAdding, busy: isAdding }}
+                        hitSlop={8}
                     >
                         {isAdding
                             ? <ActivityIndicator size="small" color={colors.primary} />
@@ -117,7 +121,12 @@ function PlayerSearchItem({
             </View>
 
             {/* Player card (tappable → detail) */}
-            <Pressable style={styles.playerCard} onPress={onPress}>
+            <Pressable
+                style={styles.playerCard}
+                onPress={onPress}
+                accessibilityRole="button"
+                accessibilityLabel={`Open ${item.display_name}`}
+            >
                 {headshotUri && !headshotError ? (
                     <Image
                         source={{ uri: headshotUri }}
@@ -191,8 +200,6 @@ function PlayerSearchItem({
 export default function PlayersScreen() {
     const { push } = useRouter()
     const { current, currentLeague } = useLeagueContext()
-    const { user } = useAuth()
-    const router = useRouter()
     const [query, setQuery] = useState('')
     const [position, setPosition] = useState('ALL')
     const [selectedTeams, setSelectedTeams] = useState<string[]>([])
@@ -221,7 +228,7 @@ export default function PlayersScreen() {
         pendingPlayer: PlayerRow
     } | null>(null)
 
-    const listRef = useRef<FlashList<PlayerRow>>(null)
+    const listRef = useRef<FlashListRef<PlayerRow>>(null)
     const leagueId = currentLeague?.id ?? null
 
     const {
@@ -236,8 +243,8 @@ export default function PlayersScreen() {
         return { ownedMap: om, waiverIds: wIds }
     }, [leagueId])
 
-    const ownedMap = ownedData?.ownedMap ?? new Map<string, OwnedEntry>()
-    const waiverIds = ownedData?.waiverIds ?? new Set<string>()
+    const ownedMap = ownedData?.ownedMap ?? EMPTY_OWNED_MAP
+    const waiverIds = ownedData?.waiverIds ?? EMPTY_WAIVER_IDS
 
     const gamesLeft = useMemo(() => {
         const today = todayDateString()

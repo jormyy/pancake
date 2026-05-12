@@ -11,13 +11,12 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useEffect, useState, useCallback } from 'react'
-import { useAuth } from '@/hooks/use-auth'
 import { useLeagueContext } from '@/contexts/league-context'
 import { getLeagueMembers } from '@/lib/league'
 import { getRoster, RosterPlayer } from '@/lib/roster'
 import { proposeTrade, getCurrentSeasonId, getPicksForMember, TradePickItem } from '@/lib/trades'
 
-import { getInitials, yearShort } from '@/lib/format'
+import { yearShort } from '@/lib/format'
 import { Avatar } from '@/components/Avatar'
 import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 
@@ -94,7 +93,6 @@ function PickRow({
 }
 
 export default function ProposeTradeScreen() {
-    const { user } = useAuth()
     const { current, currentLeague } = useLeagueContext()
     const params = useLocalSearchParams<{ recipientMemberId?: string }>()
     const { back } = useRouter()

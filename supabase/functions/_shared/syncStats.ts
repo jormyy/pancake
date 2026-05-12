@@ -28,7 +28,7 @@ export async function syncStatsByDate(date: Date) {
     const { data, error } = await supabase.from('players').select('id, display_name, nba_id').range(from, from + PAGE - 1)
     if (error) throw error
     if (!data || data.length === 0) break
-    players.push(...data)
+    players.push(...data.map((p) => ({ ...p, display_name: p.display_name ?? '' })))
     if (data.length < PAGE) break
     from += PAGE
   }

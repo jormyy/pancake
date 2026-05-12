@@ -2,8 +2,8 @@ import { FastifyInstance } from 'fastify'
 import { advanceSeason } from '../sync/seasonReset'
 import { ValidationError } from '../plugins/errorHandler'
 import { requireCommissioner } from '../lib/authz'
-import { toggleTaxiStatus } from '../services/roster'
-import { LeagueIdBody, TaxiBody } from '../schemas'
+import { toggleIRStatus, toggleTaxiStatus } from '../services/roster'
+import { IRBody, LeagueIdBody, TaxiBody } from '../schemas'
 
 export default async function leagueRoutes(app: FastifyInstance) {
     app.post('/advance-season', { schema: { body: LeagueIdBody } }, async (req) => {
@@ -13,7 +13,26 @@ export default async function leagueRoutes(app: FastifyInstance) {
         return { ok: true, ...result }
     })
 
-    app.patch(
+    app.post(
+        '/roster/ir',
+        {
+            schema: { body: IRBody },
+            config: { rateLimit: { max: 30, timeWindow: '1 minute' } },
+        },
+        async (req) => {
+            const { rosterPlayerId, isOnIR } = req.body as {
+                rosterPlayerId: string
+                isOnIR: boolean
+            }
+            if (!rosterPlayerId || typeof isOnIR !== 'boolean') {
+                throw new ValidationError('rosterPlayerId and isOnIR required')
+            }
+            await toggleIRStatus(rosterPlayerId, isOnIR, req.userId)
+            return { ok: true }
+        },
+    )
+
+    app.post(
         '/roster/taxi',
         {
             schema: { body: TaxiBody },

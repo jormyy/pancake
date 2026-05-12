@@ -1,37 +1,58 @@
 import { supabase } from '../lib/supabase'
-import { calculateFantasyPoints, getWeekNumberForDate } from '../lib/scoring'
+import { calculateFantasyPoints, snakeToStatLine, getWeekNumberForDate } from '../lib/scoring'
 import { notifyMember } from '../lib/notifications'
 import { CONFIG } from '../config'
 
-// Sums fantasy points for all started (non-bench, non-IR) lineup players
-// for a given member across all games in a week.
-async function calcMemberWeekPoints(
-    memberId: string,
+type MatchupForScore = {
+    id: string
+    league_id: string
+    league_season_id: string
+    week_number: number
+    home_member_id: string
+    away_member_id: string
+}
+
+type LineupPlayer = {
+    member_id: string
+    player_id: string
+}
+
+type StatRow = Record<string, unknown> & {
+    player_id: string
+}
+
+async function calcWeekPointsByMember(
+    memberIds: string[],
     leagueSeasonId: string,
     seasonYear: number,
     weekNumber: number,
     settings: Record<string, number>,
     weekStart: string,
     weekEnd: string,
-): Promise<number> {
-    const { data: lineup } = await supabase
+): Promise<Map<string, number>> {
+    if (memberIds.length === 0) return new Map()
+
+    const { data: lineup, error: lineupErr } = await supabase
         .from('weekly_lineups')
-        .select('player_id')
-        .eq('member_id', memberId)
+        .select('member_id, player_id')
+        .in('member_id', memberIds)
         .eq('league_season_id', leagueSeasonId)
         .eq('week_number', weekNumber)
         .neq('slot_type', 'BE')
         .neq('slot_type', 'IR')
 
-    if (!lineup?.length) return 0
-    const playerIds = lineup.map((r) => r.player_id)
+    if (lineupErr) throw lineupErr
+    const lineupRows = (lineup ?? []) as LineupPlayer[]
+    if (lineupRows.length === 0) return new Map(memberIds.map((id) => [id, 0]))
+
+    const playerIds = [...new Set(lineupRows.map((r) => r.player_id))]
 
     // Use game_date range instead of week_number — more reliable when game rows
-    // have stale/incorrect week_number values from partial syncs
-    const { data: stats } = await supabase
+    // have stale/incorrect week_number values from partial syncs.
+    const { data: stats, error: statsErr } = await supabase
         .from('player_game_stats')
         .select(
-            'points,rebounds,assists,steals,blocks,turnovers,' +
+            'player_id,points,rebounds,assists,steals,blocks,turnovers,' +
                 'three_pointers_made,field_goals_made,field_goals_attempted,' +
                 'free_throws_made,free_throws_attempted,double_double,triple_double,did_not_play',
         )
@@ -40,9 +61,30 @@ async function calcMemberWeekPoints(
         .gte('game_date', weekStart)
         .lte('game_date', weekEnd)
 
-    return parseFloat(
-        (stats ?? []).reduce((sum, s) => sum + calculateFantasyPoints(s as unknown as Record<string, unknown>, settings), 0).toFixed(2),
-    )
+    if (statsErr) throw statsErr
+
+    const pointsByPlayer = new Map<string, number>()
+    for (const stat of (stats ?? []) as unknown as StatRow[]) {
+        const current = pointsByPlayer.get(stat.player_id) ?? 0
+        pointsByPlayer.set(
+            stat.player_id,
+            current + calculateFantasyPoints(snakeToStatLine(stat), settings),
+        )
+    }
+
+    const pointsByMember = new Map(memberIds.map((id) => [id, 0]))
+    for (const row of lineupRows) {
+        pointsByMember.set(
+            row.member_id,
+            (pointsByMember.get(row.member_id) ?? 0) + (pointsByPlayer.get(row.player_id) ?? 0),
+        )
+    }
+
+    for (const [memberId, points] of pointsByMember) {
+        pointsByMember.set(memberId, parseFloat(points.toFixed(2)))
+    }
+
+    return pointsByMember
 }
 
 // If all games in a week are finished, mark matchups as finalized.
@@ -129,45 +171,48 @@ async function updateWeekPoints(
         return
     }
 
-    const { data: matchups } = await supabase
+    const { data: matchups, error: matchupErr } = await supabase
         .from('matchups')
-        .select('id, home_member_id, away_member_id')
+        .select('id, league_id, league_season_id, week_number, home_member_id, away_member_id')
         .eq('league_id', leagueId)
         .eq('league_season_id', seasonId)
         .eq('week_number', weekNumber)
         .eq('is_finalized', false)
 
+    if (matchupErr) throw matchupErr
     if (!matchups?.length) return
 
     console.log(`[scores] Updating points for week ${weekNumber} (${weekData.week_start}–${weekData.week_end}), ${matchups.length} matchup(s)`)
 
-    for (const matchup of matchups) {
-        const [homePoints, awayPoints] = await Promise.all([
-            calcMemberWeekPoints(
-                matchup.home_member_id,
-                seasonId,
-                seasonYear,
-                weekNumber,
-                settings,
-                weekData.week_start,
-                weekData.week_end,
-            ),
-            calcMemberWeekPoints(
-                matchup.away_member_id,
-                seasonId,
-                seasonYear,
-                weekNumber,
-                settings,
-                weekData.week_start,
-                weekData.week_end,
-            ),
-        ])
+    const matchupRows = matchups as MatchupForScore[]
+    const memberIds = [
+        ...new Set(matchupRows.flatMap((m) => [m.home_member_id, m.away_member_id])),
+    ]
+    const pointsByMember = await calcWeekPointsByMember(
+        memberIds,
+        seasonId,
+        seasonYear,
+        weekNumber,
+        settings,
+        weekData.week_start,
+        weekData.week_end,
+    )
 
-        await supabase
-            .from('matchups')
-            .update({ home_points: homePoints, away_points: awayPoints })
-            .eq('id', matchup.id)
-    }
+    const updates = matchupRows.map((matchup) => ({
+        id: matchup.id,
+        league_id: matchup.league_id,
+        league_season_id: matchup.league_season_id,
+        week_number: matchup.week_number,
+        home_member_id: matchup.home_member_id,
+        away_member_id: matchup.away_member_id,
+        home_points: pointsByMember.get(matchup.home_member_id) ?? 0,
+        away_points: pointsByMember.get(matchup.away_member_id) ?? 0,
+    }))
+
+    const { error: updateErr } = await supabase
+        .from('matchups')
+        .upsert(updates, { onConflict: 'id' })
+    if (updateErr) throw updateErr
 }
 
 // Main sync: updates live scores for all current-week matchups across all leagues.

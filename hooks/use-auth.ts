@@ -1,9 +1,17 @@
-import { useEffect, useState } from 'react'
+import { createContext, createElement, ReactNode, useContext, useEffect, useMemo, useState } from 'react'
 import { AppState, AppStateStatus } from 'react-native'
 import { Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 
-export function useAuth() {
+type AuthContextValue = {
+    session: Session | null
+    user: Session['user'] | null
+    loading: boolean
+}
+
+const AuthContext = createContext<AuthContextValue | null>(null)
+
+export function AuthProvider({ children }: { children: ReactNode }) {
     const [session, setSession] = useState<Session | null>(null)
     const [loading, setLoading] = useState(true)
 
@@ -35,9 +43,19 @@ export function useAuth() {
         }
     }, [])
 
-    return {
+    const value = useMemo(() => ({
         session,
         user: session?.user ?? null,
         loading,
+    }), [session, loading])
+
+    return createElement(AuthContext.Provider, { value }, children)
+}
+
+export function useAuth() {
+    const ctx = useContext(AuthContext)
+    if (!ctx) {
+        throw new Error('useAuth must be used within AuthProvider')
     }
+    return ctx
 }

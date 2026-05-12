@@ -78,7 +78,7 @@ export async function createLeague(
 }
 
 export async function joinLeague(inviteCode: string, _userId: string, teamName: string) {
-    const { data, error } = await supabase.rpc('join_league_by_invite_code', {
+    const { data, error } = await (supabase as any).rpc('join_league_by_invite_code', {
         p_invite_code: inviteCode,
         p_team_name: teamName,
     })

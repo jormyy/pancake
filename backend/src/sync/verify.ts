@@ -65,7 +65,7 @@ export async function verifySampleStats(sampleSize = 10): Promise<VerifyResult> 
     const { data: players } = await supabase.from('players').select('id, display_name, nba_id').limit(10000)
     const byNbaId = new Map<string, { id: string; name: string }>()
     for (const p of players ?? []) {
-        if (p.nba_id) byNbaId.set(p.nba_id, { id: p.id, name: p.display_name })
+        if (p.nba_id) byNbaId.set(p.nba_id, { id: p.id, name: p.display_name ?? 'Unknown' })
     }
 
     const mismatches: StatMismatch[] = []

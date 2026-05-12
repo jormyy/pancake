@@ -3,8 +3,14 @@ import { buildApp } from './app'
 import { registerCronJobs } from './cron'
 import { CONFIG } from './config'
 
-process.on('uncaughtException', (err) => console.error('[crash] uncaughtException:', err))
-process.on('unhandledRejection', (err) => console.error('[crash] unhandledRejection:', err))
+process.on('uncaughtException', (err) => {
+    console.error('[crash] uncaughtException:', err)
+    process.exit(1)
+})
+process.on('unhandledRejection', (err) => {
+    console.error('[crash] unhandledRejection:', err)
+    process.exit(1)
+})
 
 // Validate required env vars
 if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {

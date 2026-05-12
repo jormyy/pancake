@@ -194,7 +194,7 @@ export function TradeCard({
             <AssetList items={iReceive} label="You receive:" />
             <AssetList items={iGive} label="You give:" />
 
-            {trade.notes ? <Text style={styles.cardNotes}>"{trade.notes}"</Text> : null}
+            {trade.notes ? <Text style={styles.cardNotes}>{trade.notes}</Text> : null}
 
             {acting ? (
                 <ActivityIndicator color={colors.primary} style={{ marginTop: spacing.lg }} />

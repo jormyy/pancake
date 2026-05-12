@@ -81,7 +81,7 @@ export async function getRookieDraftState(draftId: string): Promise<RookieDraftS
             .order('position'),
     ])
 
-    const draft = draftResult.data as any
+    const draft = draftResult.data
     if (!draft) return null
 
     const mappedPicks: SnakePick[] = (picks ?? []).map((p: any) => ({
@@ -120,7 +120,7 @@ export async function getRookieDraftState(draftId: string): Promise<RookieDraftS
 }
 
 export async function getAllLeaguePicks(leagueId: string): Promise<LeaguePickItem[]> {
-    const { data, error } = await (supabase as any)
+    const { data, error } = await supabase
         .from('draft_picks')
         .select(
             `id, season_year, round, is_used,
@@ -176,7 +176,7 @@ export async function getRookiePlayers(draftId: string, query?: string) {
 
     const pickedIds = new Set((picked ?? []).map((p: any) => p.player_id))
 
-    let q = (supabase as any)
+    let q = supabase
         .from('players')
         .select('id, display_name, nba_team, position, nba_draft_number')
         .not('nba_draft_number', 'is', null)
@@ -191,7 +191,7 @@ export async function getRookiePlayers(draftId: string, query?: string) {
     if (error) {
         console.error('[getRookiePlayers] query error:', error.message)
         // nba_draft_number column may not exist yet — fall back without it
-        let fallback = (supabase as any)
+        let fallback = supabase
             .from('players')
             .select('id, display_name, nba_team, position')
             .not('nba_draft_number', 'is', null)

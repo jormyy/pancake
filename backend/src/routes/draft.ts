@@ -13,7 +13,7 @@ import {
     autoPickBest,
 } from '../sync/rookieDraft'
 import { NotFoundError } from '../plugins/errorHandler'
-import { verifyMemberAccess } from '../lib/authz'
+import { requireCommissioner, requireCommissionerForDraft, verifyMemberAccess } from '../lib/authz'
 import {
     LeagueIdBody,
     DraftParams,
@@ -25,6 +25,7 @@ import {
 export default async function draftRoutes(app: FastifyInstance) {
     app.post('/start', { schema: { body: LeagueIdBody } }, async (req) => {
         const { leagueId } = req.body as { leagueId: string }
+        await requireCommissioner(req.userId, leagueId)
         const draft = await startDraft(leagueId)
         return { ok: true, draft }
     })
@@ -72,6 +73,7 @@ export default async function draftRoutes(app: FastifyInstance) {
 
     app.post('/start-rookie', { schema: { body: LeagueIdBody } }, async (req) => {
         const { leagueId } = req.body as { leagueId: string }
+        await requireCommissioner(req.userId, leagueId)
         const draft = await startRookieDraft(leagueId)
         return { ok: true, draft }
     })
@@ -106,6 +108,7 @@ export default async function draftRoutes(app: FastifyInstance) {
         { schema: { params: DraftParams } },
         async (req) => {
             const { draftId } = req.params as { draftId: string }
+            await requireCommissionerForDraft(req.userId, draftId)
             const result = await reseedRookieDraftPicks(draftId)
             return { ok: true, ...result }
         },

@@ -7,6 +7,8 @@
  */
 import { supabase } from '../_shared/supabase.ts'
 import { fetchTodaysGames, fetchBoxScore, fetchSeasonSchedule } from '../_shared/nba.ts'
+import { currentSeasonYear } from '../_shared/season.ts'
+import { internalServerError } from '../_shared/responses.ts'
 
 Deno.serve(async (req) => {
   try {
@@ -32,16 +34,10 @@ Deno.serve(async (req) => {
     }
 
     return Response.json({ ok: false, error: 'Unknown action. Use: test-endpoints, season-totals, validate-db' }, { status: 400 })
-  } catch (e: any) {
-    console.error('[verify]', e)
-    return Response.json({ ok: false, error: e.message }, { status: 500 })
+  } catch (e: unknown) {
+    return internalServerError('verify', e)
   }
 })
-
-function currentSeasonYear(): number {
-  const now = new Date()
-  return now.getMonth() >= 9 ? now.getFullYear() + 1 : now.getFullYear()
-}
 
 async function testNBAEndpoints() {
   const tests = [

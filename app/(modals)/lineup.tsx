@@ -43,7 +43,6 @@ const StarterRow = memo(function StarterRow({
     slot,
     index,
     isSelected,
-    startedTeamsRef,
     liveTeamsRef,
     teamMatchups,
     onPress,
@@ -52,14 +51,12 @@ const StarterRow = memo(function StarterRow({
     slot: LineupSlot
     index: number
     isSelected: boolean
-    startedTeamsRef: React.RefObject<Set<string>>
     liveTeamsRef: React.RefObject<Set<string>>
     teamMatchups: Map<string, { opponent: string; isHome: boolean }>
     onPress: () => void
     disabled: boolean
 }) {
     const p = slot.player
-    const startedTeams = startedTeamsRef.current
     const liveTeams = liveTeamsRef.current
     const isLocked = !!(p?.nbaTeam && liveTeams.has(p.nbaTeam))
     const starterMatchup = p?.nbaTeam ? teamMatchups.get(p.nbaTeam) : undefined
@@ -110,7 +107,6 @@ const BenchRow = memo(function BenchRow({
     player,
     index,
     isSelected,
-    startedTeamsRef,
     liveTeamsRef,
     teamMatchups,
     onPress,
@@ -119,13 +115,11 @@ const BenchRow = memo(function BenchRow({
     player: LineupPlayer
     index: number
     isSelected: boolean
-    startedTeamsRef: React.RefObject<Set<string>>
     liveTeamsRef: React.RefObject<Set<string>>
     teamMatchups: Map<string, { opponent: string; isHome: boolean }>
     onPress: () => void
     disabled: boolean
 }) {
-    const startedTeams = startedTeamsRef.current
     const liveTeams = liveTeamsRef.current
     const isLocked = !!(player.nbaTeam && liveTeams.has(player.nbaTeam))
     const benchMatchup = player.nbaTeam ? teamMatchups.get(player.nbaTeam) : undefined
@@ -378,7 +372,6 @@ export default function LineupScreen() {
                             slot={slot}
                             index={i}
                             isSelected={selected?.kind === 'starter' && selected.index === i}
-                            startedTeamsRef={startedTeamsRef}
                             liveTeamsRef={liveTeamsRef}
                             teamMatchups={teamMatchups}
                             onPress={() => handleTap({ kind: 'starter', index: i })}
@@ -399,7 +392,6 @@ export default function LineupScreen() {
                                 player={player}
                                 index={i}
                                 isSelected={selected?.kind === 'bench' && selected.index === i}
-                                startedTeamsRef={startedTeamsRef}
                                 liveTeamsRef={liveTeamsRef}
                                 teamMatchups={teamMatchups}
                                 onPress={() => handleTap({ kind: 'bench', index: i })}

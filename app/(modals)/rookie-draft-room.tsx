@@ -70,6 +70,7 @@ export default function RookieDraftRoomScreen() {
 
     const channelRef = useRef<any>(null)
     const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const queryRef = useRef('')
 
     const load = useCallback(async () => {
         if (!draftId) {
@@ -94,7 +95,7 @@ export default function RookieDraftRoomScreen() {
         if (!draftId) return
         channelRef.current = subscribeToRookieDraft(draftId, () => {
             load()
-            loadProspects(query.trim() || undefined)
+            loadProspects(queryRef.current.trim() || undefined)
         })
         return () => {
             if (channelRef.current) unsubscribeFromRookieDraft(channelRef.current)
@@ -108,6 +109,7 @@ export default function RookieDraftRoomScreen() {
 
     // Debounced prospects search
     useEffect(() => {
+        queryRef.current = query
         if (searchTimer.current) clearTimeout(searchTimer.current)
         searchTimer.current = setTimeout(() => {
             loadProspects(query.trim() || undefined)
@@ -115,17 +117,21 @@ export default function RookieDraftRoomScreen() {
         return () => {
             if (searchTimer.current) clearTimeout(searchTimer.current)
         }
-    }, [query])
+    }, [query, loadProspects])
 
     // Derive when the current pick's clock started
+    const madePicksForClock = useMemo(
+        () => (state?.picks ?? []).filter((p) => p.player).sort((a, b) => b.overallPick - a.overallPick),
+        [state?.picks],
+    )
+    const draftStatus = state?.draft.status
+    const draftStartedAt = state?.draft.startedAt
     const clockEnd = useMemo(() => {
-        if (!state || state.draft.status !== 'in_progress') return null
-        const { picks, draft } = state
-        const made = picks.filter((p) => p.player).sort((a, b) => b.overallPick - a.overallPick)
-        const start = made[0]?.pickedAt ?? draft.startedAt
+        if (draftStatus !== 'in_progress') return null
+        const start = madePicksForClock[0]?.pickedAt ?? draftStartedAt
         if (!start) return null
         return new Date(start).getTime() + PICK_TIMEOUT_SEC * 1000
-    }, [state?.picks.filter((p) => p.player).length, state?.draft.status])
+    }, [draftStatus, draftStartedAt, madePicksForClock])
 
     // Tick the countdown
     useEffect(() => {
@@ -157,12 +163,13 @@ export default function RookieDraftRoomScreen() {
                 setPicking(false)
             }
         })()
-    }, [secondsLeft])
+    }, [secondsLeft, draftId, picking, state?.nextPick?.memberId, load, loadProspects])
 
     // Check for roster overflow when draft completes
+    const draftCompleted = state?.draft.status === 'completed'
     useEffect(() => {
         const memberId = myMemberIdRef.current ?? myMemberId
-        if (!state || state.draft.status !== 'completed' || !memberId || draftEndCheckedRef.current) return
+        if (!draftCompleted || !memberId || draftEndCheckedRef.current) return
         draftEndCheckedRef.current = true
         const lid = currentLeague?.id
         if (!lid) return
@@ -177,7 +184,7 @@ export default function RookieDraftRoomScreen() {
                 }
             } catch {}
         })()
-    }, [state?.draft.status])
+    }, [draftCompleted, currentLeague?.id, currentLeague?.roster_size, myMemberId])
 
     async function handleTrimDrop(rosterPlayerId: string) {
         if (trimmingId) return
@@ -487,7 +494,6 @@ export default function RookieDraftRoomScreen() {
                                 data={prospects}
                                 keyExtractor={(p) => p.id}
                                 ItemSeparatorComponent={ItemSeparator}
-                                estimatedItemSize={56}
                                 ListEmptyComponent={
                                     !prospectsLoading ? (
                                         <View style={styles.emptyProspects}>
@@ -513,7 +519,6 @@ export default function RookieDraftRoomScreen() {
                             data={picks}
                             keyExtractor={(p) => String(p.overallPick)}
                             ItemSeparatorComponent={ItemSeparator}
-                            estimatedItemSize={48}
                             ListHeaderComponent={PickBoardHeader}
                             renderItem={({ item }) => (
                                 <PickRow item={item} myMemberId={myMemberId} nextPick={nextPick} />

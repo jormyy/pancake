@@ -1,4 +1,5 @@
 import { supabase } from '../_shared/supabase.ts'
+import { internalServerError } from '../_shared/responses.ts'
 
 const SLEEPER_URL = 'https://api.sleeper.app/v1/players/nba'
 const NBA_PLAYER_INDEX_URL = 'https://cdn.nba.com/static/json/staticData/playerIndex.json'
@@ -9,9 +10,8 @@ Deno.serve(async () => {
     await syncPlayers()
     await syncNBAIds()
     return Response.json({ ok: true })
-  } catch (e: any) {
-    console.error('[sync-players]', e)
-    return Response.json({ ok: false, error: e.message }, { status: 500 })
+  } catch (e: unknown) {
+    return internalServerError('sync-players', e)
   }
 })
 
@@ -38,8 +38,10 @@ async function syncPlayers() {
   const byName = new Map<string, string>()
   const bySleeperId = new Map<string, string>()
   for (const p of existing ?? []) {
-    byName.set(p.display_name.toLowerCase(), p.id)
-    byName.set(normalizeName(p.display_name), p.id)
+    if (p.display_name) {
+      byName.set(p.display_name.toLowerCase(), p.id)
+      byName.set(normalizeName(p.display_name), p.id)
+    }
     if (p.sleeper_id) bySleeperId.set(p.sleeper_id, p.id)
   }
 
@@ -143,6 +145,7 @@ async function syncNBAIds() {
 
   const updates: { id: string; nba_id: string }[] = []
   for (const p of players ?? []) {
+    if (!p.display_name) continue
     const norm = normalizeName(p.display_name)
     const personId = byNormName.get(norm)
     if (personId && p.nba_id !== personId) {

@@ -1,13 +1,5 @@
 import { supabase } from '@/lib/supabase'
-
-/**
- * Returns the current NBA season year.
- * The NBA season starting in Oct 2025 is the "2026" season.
- */
-export function currentSeasonYear(): number {
-    const now = new Date()
-    return now.getMonth() >= 9 ? now.getFullYear() + 1 : now.getFullYear()
-}
+export { currentSeasonYear } from '@pancake/core'
 
 /**
  * Fetches the current league season (id + season_year).

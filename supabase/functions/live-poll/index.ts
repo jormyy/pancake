@@ -9,69 +9,78 @@ import { supabase } from '../_shared/supabase.ts'
 import { fetchTodaysGames, mapGameStatus } from '../_shared/nba.ts'
 import { syncStatsByDate } from '../_shared/syncStats.ts'
 import { syncScores } from '../_shared/syncScores.ts'
+import { internalServerError } from '../_shared/responses.ts'
 
 Deno.serve(async () => {
   try {
-    const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
+    const { data: lockAcquired, error: lockErr } = await supabase.rpc('try_live_poll_lock')
+    if (lockErr) throw lockErr
+    if (!lockAcquired) return Response.json({ ok: true, action: 'lease-skip' })
 
-    // 1. Active games already in DB?
-    const { data: activeGames } = await supabase
-      .from('nba_games')
-      .select('id')
-      .eq('game_date', todayStr)
-      .eq('status', 'InProgress')
+    try {
+      const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
 
-    if (activeGames && activeGames.length > 0) {
-      console.log(`[live-poll] ${activeGames.length} active games — syncing stats + scores`)
-      await syncStatsByDate(new Date())
-      await syncScores()
-      return Response.json({ ok: true, action: 'synced', activeGames: activeGames.length })
-    }
-
-    // 2. No active games — check CDN scoreboard for status updates
-    const cdnGames = await fetchTodaysGames().catch((e) => {
-      console.warn('[live-poll] CDN scoreboard unavailable:', e.message)
-      return []
-    })
-
-    if (!cdnGames.length) {
-      return Response.json({ ok: true, action: 'idle' })
-    }
-
-    let statusUpdates = 0
-    let nowActive = 0
-
-    for (const g of cdnGames) {
-      const newStatus = mapGameStatus(g.gameStatus)
-      if (g.gameStatus === 2) nowActive++
-
-      const { data: existing } = await supabase
+      // 1. Active games already in DB?
+      const { data: activeGames } = await supabase
         .from('nba_games')
-        .select('id, status')
-        .eq('nba_game_id', g.gameId)
-        .maybeSingle()
+        .select('id')
+        .eq('game_date', todayStr)
+        .eq('status', 'InProgress')
 
-      if (existing && existing.status !== newStatus) {
-        await supabase
-          .from('nba_games')
-          .update({ status: newStatus, updated_at: new Date().toISOString() })
-          .eq('id', existing.id)
-        statusUpdates++
+      if (activeGames && activeGames.length > 0) {
+        console.log(`[live-poll] ${activeGames.length} active games — syncing stats + scores`)
+        await syncStatsByDate(new Date())
+        await syncScores()
+        return Response.json({ ok: true, action: 'synced', activeGames: activeGames.length })
       }
-    }
 
-    // If CDN shows games are now active, sync immediately
-    if (nowActive > 0) {
-      console.log(`[live-poll] ${nowActive} games just went live — syncing`)
-      await syncStatsByDate(new Date())
-      await syncScores()
-      return Response.json({ ok: true, action: 'synced', statusUpdates, activeGames: nowActive })
-    }
+      // 2. No active games — check CDN scoreboard for status updates
+      const cdnGames = await fetchTodaysGames().catch((e) => {
+        console.warn('[live-poll] CDN scoreboard unavailable:', e.message)
+        return []
+      })
 
-    console.log(`[live-poll] No active games. Updated ${statusUpdates} statuses.`)
-    return Response.json({ ok: true, action: 'status-check', statusUpdates })
-  } catch (e: any) {
-    console.error('[live-poll]', e)
-    return Response.json({ ok: false, error: e.message }, { status: 500 })
+      if (!cdnGames.length) {
+        return Response.json({ ok: true, action: 'idle' })
+      }
+
+      let statusUpdates = 0
+      let nowActive = 0
+
+      for (const g of cdnGames) {
+        const newStatus = mapGameStatus(g.gameStatus)
+        if (g.gameStatus === 2) nowActive++
+
+        const { data: existing } = await supabase
+          .from('nba_games')
+          .select('id, status')
+          .eq('nba_game_id', g.gameId)
+          .maybeSingle()
+
+        if (existing && existing.status !== newStatus) {
+          await supabase
+            .from('nba_games')
+            .update({ status: newStatus, updated_at: new Date().toISOString() })
+            .eq('id', existing.id)
+          statusUpdates++
+        }
+      }
+
+      // If CDN shows games are now active, sync immediately
+      if (nowActive > 0) {
+        console.log(`[live-poll] ${nowActive} games just went live — syncing`)
+        await syncStatsByDate(new Date())
+        await syncScores()
+        return Response.json({ ok: true, action: 'synced', statusUpdates, activeGames: nowActive })
+      }
+
+      console.log(`[live-poll] No active games. Updated ${statusUpdates} statuses.`)
+      return Response.json({ ok: true, action: 'status-check', statusUpdates })
+    } finally {
+      const { error: releaseErr } = await supabase.rpc('release_live_poll_lock')
+      if (releaseErr) console.error('[live-poll] release lock failed:', releaseErr)
+    }
+  } catch (e: unknown) {
+    return internalServerError('live-poll', e)
   }
 })

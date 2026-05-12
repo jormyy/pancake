@@ -1,56 +1,119 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { getTodaysGames, getLivePlayerStats, NBAGameRow, LiveStatLine } from '@/lib/games'
 import { todayDateString } from '@/lib/shared/dates'
 import { getStartedTeams, getTeamMatchups } from '@/lib/lineup'
 
+type Snapshot = {
+    todaysGames: NBAGameRow[]
+    liveStats: Map<string, LiveStatLine>
+    startedTeams: Set<string>
+    teamMatchups: Map<string, { opponent: string; isHome: boolean }>
+}
+
+type Listener = (snapshot: Snapshot) => void
+
+const EMPTY_SNAPSHOT: Snapshot = {
+    todaysGames: [],
+    liveStats: new Map(),
+    startedTeams: new Set(),
+    teamMatchups: new Map(),
+}
+
+const snapshots = new Map<string, Snapshot>()
+const listenersByDate = new Map<string, Set<Listener>>()
+const inFlightByDate = new Map<string, Promise<void>>()
+const silentRefreshListeners = new Set<() => void>()
+let todayPoll: ReturnType<typeof setInterval> | null = null
+
+function notify(date: string, snapshot: Snapshot) {
+    for (const listener of listenersByDate.get(date) ?? []) listener(snapshot)
+}
+
+async function loadSnapshot(date: string): Promise<void> {
+    const existing = inFlightByDate.get(date)
+    if (existing) return existing
+
+    const task = (async () => {
+        const isToday = date === todayDateString()
+        const previous = snapshots.get(date) ?? EMPTY_SNAPSHOT
+        const [liveStats, startedTeams, teamMatchups, todaysGames] = await Promise.all([
+            getLivePlayerStats(date).catch(() => previous.liveStats),
+            getStartedTeams(date).catch(() => previous.startedTeams),
+            getTeamMatchups(date).catch(() => previous.teamMatchups),
+            isToday ? getTodaysGames().catch(() => previous.todaysGames) : Promise.resolve(previous.todaysGames),
+        ])
+
+        const snapshot = { todaysGames, liveStats, startedTeams, teamMatchups }
+        snapshots.set(date, snapshot)
+        notify(date, snapshot)
+    })().finally(() => {
+        inFlightByDate.delete(date)
+    })
+
+    inFlightByDate.set(date, task)
+    return task
+}
+
+function ensureTodayPoll() {
+    if (todayPoll) return
+    todayPoll = setInterval(async () => {
+        const today = todayDateString()
+        if ((listenersByDate.get(today)?.size ?? 0) === 0) {
+            clearInterval(todayPoll!)
+            todayPoll = null
+            return
+        }
+
+        await loadSnapshot(today)
+        for (const listener of silentRefreshListeners) listener()
+    }, 15_000)
+}
+
 export function useLiveStats(selectedDate: string, onSilentRefresh?: () => void) {
-    const [todaysGames, setTodaysGames] = useState<NBAGameRow[]>([])
-    const [liveStats, setLiveStats] = useState<Map<string, LiveStatLine>>(new Map())
-    const startedTeamsRef = useRef<Set<string>>(new Set())
-    const teamMatchupsRef = useRef<Map<string, { opponent: string; isHome: boolean }>>(new Map())
-    const startedTeams = startedTeamsRef.current
-    const teamMatchups = teamMatchupsRef.current
+    const [snapshot, setSnapshot] = useState<Snapshot>(() => snapshots.get(selectedDate) ?? EMPTY_SNAPSHOT)
 
     useEffect(() => {
-        getTodaysGames().then(setTodaysGames).catch(() => {})
-    }, [])
+        if (onSilentRefresh) {
+            silentRefreshListeners.add(onSilentRefresh)
+            return () => {
+                silentRefreshListeners.delete(onSilentRefresh)
+            }
+        }
+    }, [onSilentRefresh])
 
     useEffect(() => {
-        getLivePlayerStats(selectedDate).then(setLiveStats).catch(() => {})
-        Promise.all([
-            getStartedTeams(selectedDate).catch(() => new Set<string>()),
-            getTeamMatchups(selectedDate).catch(() => new Map()),
-        ]).then(([started, matchups]) => {
-            startedTeamsRef.current = started
-            teamMatchupsRef.current = matchups
-        }).catch(() => {})
+        setSnapshot(snapshots.get(selectedDate) ?? EMPTY_SNAPSHOT)
 
-        if (selectedDate !== todayDateString()) return
+        let listeners = listenersByDate.get(selectedDate)
+        if (!listeners) {
+            listeners = new Set()
+            listenersByDate.set(selectedDate, listeners)
+        }
+        listeners.add(setSnapshot)
 
-        const interval = setInterval(async () => {
-            const [newLiveStats, newGames, newStartedTeams] = await Promise.all([
-                getLivePlayerStats(selectedDate).catch(() => null),
-                getTodaysGames().catch(() => null),
-                getStartedTeams(selectedDate).catch(() => null),
-            ])
-            if (newLiveStats) setLiveStats(newLiveStats)
-            if (newGames) setTodaysGames(newGames)
-            if (newStartedTeams) startedTeamsRef.current = newStartedTeams
-            onSilentRefresh?.()
-        }, 15_000)
+        loadSnapshot(selectedDate)
+        if (selectedDate === todayDateString()) ensureTodayPoll()
 
-        return () => clearInterval(interval)
-    }, [selectedDate, onSilentRefresh])
+        return () => {
+            listeners?.delete(setSnapshot)
+            if (listeners?.size === 0) listenersByDate.delete(selectedDate)
+        }
+    }, [selectedDate])
 
-    // Only apply live teams when viewing today — future dates can't have live games
-    const isViewingToday = selectedDate === todayDateString()
-    const liveTeams = new Set<string>(
-        isViewingToday
-            ? todaysGames
+    const liveTeams = useMemo(() => {
+        if (selectedDate !== todayDateString()) return new Set<string>()
+        return new Set(
+            snapshot.todaysGames
                 .filter((g) => g.status === 'InProgress')
-                .flatMap((g) => [g.home_team, g.away_team])
-            : [],
-    )
+                .flatMap((g) => [g.home_team, g.away_team]),
+        )
+    }, [selectedDate, snapshot.todaysGames])
 
-    return { todaysGames, liveStats, startedTeams, liveTeams, teamMatchups }
+    return {
+        todaysGames: snapshot.todaysGames,
+        liveStats: snapshot.liveStats,
+        startedTeams: snapshot.startedTeams,
+        liveTeams,
+        teamMatchups: snapshot.teamMatchups,
+    }
 }

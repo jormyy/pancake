@@ -21,8 +21,20 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck app
+        run: npm run typecheck
+
       - name: Run tests
         run: npm test
+
+      - name: Typecheck core
+        run: npm run typecheck --workspace core
+
+      - name: Run core tests
+        run: npm test --workspace core
 
   test-backend:
     name: Backend tests
@@ -41,6 +53,12 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
 
       - name: Run tests
         run: npm test

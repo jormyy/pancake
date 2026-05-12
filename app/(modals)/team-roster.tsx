@@ -17,7 +17,7 @@ import { Avatar } from '@/components/Avatar'
 import { Badge } from '@/components/Badge'
 import { ItemSeparator } from '@/components/ItemSeparator'
 import { PosTag } from '@/components/PosTag'
-import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { colors, palette, fontSize, fontWeight, spacing } from '@/constants/tokens'
 import { playerHeadshotUrl } from '@/lib/format'
 
 export default function TeamRosterScreen() {
@@ -57,7 +57,6 @@ export default function TeamRosterScreen() {
                     data={[...active, ...ir, ...taxi]}
                     keyExtractor={(r) => r.id}
                     ItemSeparatorComponent={ItemSeparator}
-                    estimatedItemSize={64}
                     ListHeaderComponent={
                         <View style={styles.countRow}>
                             <Text style={styles.countText}>
