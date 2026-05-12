@@ -2,6 +2,9 @@
 -- moment they join. The soak push/waiver path exposed seeded leagues that had
 -- future pick banks but no initial waiver_priorities rows until season reset.
 
+DO $migration$
+BEGIN
+  EXECUTE $create_league_sql$
 CREATE OR REPLACE FUNCTION public.create_league(
   p_name           text,
   p_team_name      text,
@@ -65,9 +68,11 @@ BEGIN
   );
 END;
 $$;
+$create_league_sql$;
 
-GRANT EXECUTE ON FUNCTION public.create_league(text, text, int) TO authenticated;
+  EXECUTE 'GRANT EXECUTE ON FUNCTION public.create_league(text, text, int) TO authenticated';
 
+  EXECUTE $join_league_sql$
 CREATE OR REPLACE FUNCTION public.join_league_by_invite_code(
   p_invite_code text,
   p_team_name   text
@@ -145,8 +150,11 @@ BEGIN
   );
 END;
 $$;
+$join_league_sql$;
 
-GRANT EXECUTE ON FUNCTION public.join_league_by_invite_code(text, text) TO authenticated;
+  EXECUTE 'GRANT EXECUTE ON FUNCTION public.join_league_by_invite_code(text, text) TO authenticated';
+END
+$migration$;
 
 WITH missing AS (
   SELECT

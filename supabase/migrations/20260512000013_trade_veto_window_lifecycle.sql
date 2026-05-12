@@ -4,6 +4,9 @@
 -- - P1-24: accepted trades completed immediately, so member/commissioner vetoes
 --   had no real lifecycle window before asset movement.
 
+DO $migration$
+BEGIN
+  EXECUTE $accept_trade_sql$
 CREATE OR REPLACE FUNCTION public.accept_trade_atomic(
   p_trade_id uuid,
   p_accepting_member_id uuid
@@ -89,7 +92,9 @@ BEGIN
   END IF;
 END;
 $$;
+$accept_trade_sql$;
 
+  EXECUTE $complete_trade_sql$
 CREATE OR REPLACE FUNCTION public.complete_accepted_trade_atomic(
   p_trade_id uuid
 )
@@ -224,8 +229,11 @@ BEGIN
   END IF;
 END;
 $$;
+$complete_trade_sql$;
 
-REVOKE ALL ON FUNCTION public.complete_accepted_trade_atomic(uuid) FROM PUBLIC;
-REVOKE ALL ON FUNCTION public.complete_accepted_trade_atomic(uuid) FROM anon;
-REVOKE ALL ON FUNCTION public.complete_accepted_trade_atomic(uuid) FROM authenticated;
-GRANT EXECUTE ON FUNCTION public.complete_accepted_trade_atomic(uuid) TO service_role;
+  EXECUTE 'REVOKE ALL ON FUNCTION public.complete_accepted_trade_atomic(uuid) FROM PUBLIC';
+  EXECUTE 'REVOKE ALL ON FUNCTION public.complete_accepted_trade_atomic(uuid) FROM anon';
+  EXECUTE 'REVOKE ALL ON FUNCTION public.complete_accepted_trade_atomic(uuid) FROM authenticated';
+  EXECUTE 'GRANT EXECUTE ON FUNCTION public.complete_accepted_trade_atomic(uuid) TO service_role';
+END
+$migration$;

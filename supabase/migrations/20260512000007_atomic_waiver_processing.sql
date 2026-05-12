@@ -6,6 +6,9 @@
 --   and processed claims in stale priority_at_submission order, so multiple
 --   claims in one run could ignore priority changes made by earlier wins.
 
+DO $migration$
+BEGIN
+  EXECUTE $process_waiver_sql$
 CREATE OR REPLACE FUNCTION public.process_next_waiver_claim_atomic(
   p_process_date date
 )
@@ -292,8 +295,11 @@ BEGIN
     SELECT true, v_claim.id, v_claim.member_id, v_claim.player_id, 'succeeded'::waiver_claim_status, NULL::text;
 END;
 $$;
+$process_waiver_sql$;
 
-REVOKE ALL ON FUNCTION public.process_next_waiver_claim_atomic(date) FROM PUBLIC;
-REVOKE ALL ON FUNCTION public.process_next_waiver_claim_atomic(date) FROM anon;
-REVOKE ALL ON FUNCTION public.process_next_waiver_claim_atomic(date) FROM authenticated;
-GRANT EXECUTE ON FUNCTION public.process_next_waiver_claim_atomic(date) TO service_role;
+  EXECUTE 'REVOKE ALL ON FUNCTION public.process_next_waiver_claim_atomic(date) FROM PUBLIC';
+  EXECUTE 'REVOKE ALL ON FUNCTION public.process_next_waiver_claim_atomic(date) FROM anon';
+  EXECUTE 'REVOKE ALL ON FUNCTION public.process_next_waiver_claim_atomic(date) FROM authenticated';
+  EXECUTE 'GRANT EXECUTE ON FUNCTION public.process_next_waiver_claim_atomic(date) TO service_role';
+END
+$migration$;

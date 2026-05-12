@@ -608,6 +608,15 @@ const fetchAllIn = async (supabase, table, select, column, values) => {
   return rows
 }
 
+const E2E_PLAYER_PREFIX = 'e2e-player-'
+
+const seededPlayerQuery = (supabase, select = 'id, display_name') => supabase
+  .from('players')
+  .select(select)
+  .like('sportsdata_id', `${E2E_PLAYER_PREFIX}%`)
+  .not('display_name', 'is', null)
+  .order('display_name', { ascending: true })
+
 const writeSnapshots = async (supabase, season, leagueId) => {
   const dir = path.join(SNAPSHOT_ROOT, `season-${season}`)
   await mkdir(dir, { recursive: true })
@@ -678,21 +687,22 @@ const validateMemoryDrift = (metrics, totalSeasons) => {
     return [`D.LONG.7: invalid E2E_MEMORY_DRIFT_LIMIT ${process.env.E2E_MEMORY_DRIFT_LIMIT}`]
   }
 
-  const baseline = metrics[0]?.memory
+  const baselineSeasonStart = metrics[0]?.season
+  const baselineSeasonEnd = metrics[2]?.season
+  const latestSeasonStart = metrics.at(-3)?.season
   const latestMetric = metrics.at(-1)
-  const latest = latestMetric?.memory
-  if (!baseline || !latest) return []
+  if (baselineSeasonStart == null || baselineSeasonEnd == null || latestSeasonStart == null || !latestMetric) return []
 
   const failures = []
   for (const [label, key] of [['RSS', 'rssBytes'], ['heap', 'heapUsedBytes']]) {
-    const before = baseline[key]
-    const after = latest[key]
+    const before = median(metrics.slice(0, 3).map((metric) => metric.memory?.[key]))
+    const after = median(metrics.slice(-3).map((metric) => metric.memory?.[key]))
     if (!before || !after) continue
     const maxAllowed = before * MEMORY_DRIFT_LIMIT
     if (after > maxAllowed) {
       const percent = Math.round(((after - before) / before) * 100)
       failures.push(
-        `D.LONG.7: harness ${label} memory drifted ${percent}% from season 1 (${bytesToMiB(before)} MiB) to season ${latestMetric.season} (${bytesToMiB(after)} MiB); limit is ${Math.round((MEMORY_DRIFT_LIMIT - 1) * 100)}%`,
+        `D.LONG.7: harness ${label} memory median drifted ${percent}% from seasons ${baselineSeasonStart}-${baselineSeasonEnd} (${bytesToMiB(before)} MiB) to seasons ${latestSeasonStart}-${latestMetric.season} (${bytesToMiB(after)} MiB); limit is ${Math.round((MEMORY_DRIFT_LIMIT - 1) * 100)}%`,
       )
     }
   }
@@ -1254,6 +1264,11 @@ const assertInjuryStatusFilterScenario = async ({ supabase, env, season, fakePor
     lastName: 'Pine',
     position: 'SG',
   }, label)
+  const { error: statsCleanupError } = await supabase
+    .from('player_game_stats')
+    .delete()
+    .in('player_id', [scrambledFixture.id, validFixture.id])
+  if (statsCleanupError) throw new Error(`${label}: fixture stat cleanup failed: ${statsCleanupError.message}`)
 
   await postJson(`http://127.0.0.1:${fakePort}/admin/injury`, {
     playerId: '1001',
@@ -1265,6 +1280,9 @@ const assertInjuryStatusFilterScenario = async ({ supabase, env, season, fakePor
   })
 
   const syncResult = await backendJson(env, '/e2e/sync-players')
+  const fakeState = await (await fetch(`http://127.0.0.1:${fakePort}/admin/state`)).json()
+  const expectedScrambled = fakeState.players?.['1001'] ?? {}
+  const expectedValid = fakeState.players?.['1002'] ?? {}
   const scrambledPlayer = await readPlayerBySleeperId(supabase, '1001', label)
   const validPlayer = await readPlayerBySleeperId(supabase, '1002', label)
 
@@ -1274,11 +1292,11 @@ const assertInjuryStatusFilterScenario = async ({ supabase, env, season, fakePor
   if (validPlayer?.injury_status !== 'Out') {
     failures.push(`${label}: fake Sleeper injury_status Out persisted as ${validPlayer?.injury_status ?? '<null>'}; expected Out`)
   }
-  if (scrambledPlayer?.nba_team !== 'BOS' || Number(scrambledPlayer?.years_exp) !== 4) {
-    failures.push(`${label}: Scrambled fixture team/years_exp ${scrambledPlayer?.nba_team ?? '<null>'}/${scrambledPlayer?.years_exp ?? '<null>'}; expected BOS/4`)
+  if (scrambledPlayer?.nba_team !== expectedScrambled.team || Number(scrambledPlayer?.years_exp) !== Number(expectedScrambled.years_exp)) {
+    failures.push(`${label}: Scrambled fixture team/years_exp ${scrambledPlayer?.nba_team ?? '<null>'}/${scrambledPlayer?.years_exp ?? '<null>'}; expected ${expectedScrambled.team}/${expectedScrambled.years_exp}`)
   }
-  if (validPlayer?.nba_team !== 'NYK' || Number(validPlayer?.years_exp) !== 2) {
-    failures.push(`${label}: valid injury fixture team/years_exp ${validPlayer?.nba_team ?? '<null>'}/${validPlayer?.years_exp ?? '<null>'}; expected NYK/2`)
+  if (validPlayer?.nba_team !== expectedValid.team || Number(validPlayer?.years_exp) !== Number(expectedValid.years_exp)) {
+    failures.push(`${label}: valid injury fixture team/years_exp ${validPlayer?.nba_team ?? '<null>'}/${validPlayer?.years_exp ?? '<null>'}; expected ${expectedValid.team}/${expectedValid.years_exp}`)
   }
 
   const artifact = {
@@ -1294,8 +1312,8 @@ const assertInjuryStatusFilterScenario = async ({ supabase, env, season, fakePor
       validPlayer,
     },
     expected: {
-      sleeperId1001: { upstreamInjuryStatus: 'Scrambled', persistedInjuryStatus: null },
-      sleeperId1002: { upstreamInjuryStatus: 'Out', persistedInjuryStatus: 'Out' },
+      sleeperId1001: { ...expectedScrambled, upstreamInjuryStatus: 'Scrambled', persistedInjuryStatus: null },
+      sleeperId1002: { ...expectedValid, upstreamInjuryStatus: 'Out', persistedInjuryStatus: 'Out' },
     },
     failures,
   }
@@ -1323,11 +1341,7 @@ const assertTradeAcceptanceAtomicityScenario = async ({ supabase, env, state, se
   })
   const [proposer, recipient] = fixture.members
 
-  const { data: players, error: playersError } = await supabase
-    .from('players')
-    .select('id, display_name')
-    .not('display_name', 'is', null)
-    .order('display_name', { ascending: true })
+  const { data: players, error: playersError } = await seededPlayerQuery(supabase)
     .limit(2)
   if (playersError) throw new Error(`${label}: player fixture lookup failed: ${playersError.message}`)
   if ((players ?? []).length < 2) throw new Error(`${label}: requires at least two players in the test Supabase project`)
@@ -1988,11 +2002,7 @@ const assertWeeklyScoringFinalizationScenario = async ({ supabase, env, state, s
     }, { onConflict: 'season_year,week_number' })
   if (weekError) throw new Error(`${label}: season week fixture insert failed: ${weekError.message}`)
 
-  const { data: players, error: playersError } = await supabase
-    .from('players')
-    .select('id, display_name')
-    .not('display_name', 'is', null)
-    .order('display_name', { ascending: true })
+  const { data: players, error: playersError } = await seededPlayerQuery(supabase)
     .limit(4)
   if (playersError) throw new Error(`${label}: player fixture lookup failed: ${playersError.message}`)
   if ((players ?? []).length < 4) throw new Error(`${label}: requires at least four players in the test Supabase project`)
@@ -2258,11 +2268,7 @@ const assertSeasonResetScenario = async ({ supabase, env, state, season }) => {
   })
   const [member1, member2, member3, member4] = fixture.members
 
-  const { data: players, error: playersError } = await supabase
-    .from('players')
-    .select('id, display_name')
-    .not('display_name', 'is', null)
-    .order('display_name', { ascending: true })
+  const { data: players, error: playersError } = await seededPlayerQuery(supabase)
     .limit(4)
   if (playersError) throw new Error(`${label}: player lookup failed: ${playersError.message}`)
   if ((players ?? []).length < 4) throw new Error(`${label}: requires at least four players`)
@@ -2560,9 +2566,7 @@ const createRookieDraftFixture = async ({ supabase, env, state, season, label })
   const { error: pickError } = await supabase.from('draft_picks').insert(pickRows)
   if (pickError) throw new Error(`${label}: draft pick asset insert failed: ${pickError.message}`)
 
-  const { data: rookies, error: rookiesError } = await supabase
-    .from('players')
-    .select('id, display_name, nba_draft_number')
+  const { data: rookies, error: rookiesError } = await seededPlayerQuery(supabase, 'id, display_name, nba_draft_number')
     .not('nba_draft_number', 'is', null)
     .order('nba_draft_number', { ascending: true })
     .limit(4)
@@ -3618,7 +3622,7 @@ const todayET = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Americ
 
 const findAvailablePlayer = async (supabase, leagueId, leagueSeasonId) => {
   const [players, rosterRows] = await Promise.all([
-    fetchAll(supabase, 'players', 'id, display_name'),
+    fetchAll(supabase, 'players', 'id, display_name, sportsdata_id'),
     fetchAll(supabase, 'roster_players', 'player_id', {
       league_id: leagueId,
       league_season_id: leagueSeasonId,
@@ -3626,7 +3630,7 @@ const findAvailablePlayer = async (supabase, leagueId, leagueSeasonId) => {
   ])
   const rosteredIds = new Set(rosterRows.map((row) => row.player_id))
   const player = players
-    .filter((row) => row.display_name)
+    .filter((row) => row.display_name && String(row.sportsdata_id ?? '').startsWith(E2E_PLAYER_PREFIX))
     .sort((a, b) => String(a.display_name).localeCompare(String(b.display_name)) || String(a.id).localeCompare(String(b.id)))
     .find((row) => !rosteredIds.has(row.id))
   if (!player) throw new Error('D.X.1: no available player found for waiver push scenario')
@@ -3635,7 +3639,7 @@ const findAvailablePlayer = async (supabase, leagueId, leagueSeasonId) => {
 
 const findAvailablePlayers = async (supabase, leagueId, leagueSeasonId, count, label) => {
   const [players, rosterRows] = await Promise.all([
-    fetchAll(supabase, 'players', 'id, display_name'),
+    fetchAll(supabase, 'players', 'id, display_name, sportsdata_id'),
     fetchAll(supabase, 'roster_players', 'player_id', {
       league_id: leagueId,
       league_season_id: leagueSeasonId,
@@ -3643,7 +3647,7 @@ const findAvailablePlayers = async (supabase, leagueId, leagueSeasonId, count, l
   ])
   const rosteredIds = new Set(rosterRows.map((row) => row.player_id))
   const available = players
-    .filter((row) => row.display_name && !rosteredIds.has(row.id))
+    .filter((row) => row.display_name && String(row.sportsdata_id ?? '').startsWith(E2E_PLAYER_PREFIX) && !rosteredIds.has(row.id))
     .sort((a, b) => String(a.display_name).localeCompare(String(b.display_name)) || String(a.id).localeCompare(String(b.id)))
     .slice(0, count)
   if (available.length < count) {
@@ -3979,6 +3983,17 @@ const assertAuctionBidValidation = async ({ supabase, leagueId, season }) => {
   if (finalNomination.current_bid_amount !== 3 || finalNomination.current_bidder_id !== bidderTwo) {
     throw new Error(`D.SET.4: final high bid was ${finalNomination.current_bid_amount}/${finalNomination.current_bidder_id}; expected 3/${bidderTwo}`)
   }
+  const { error: closeError } = await supabase
+    .from('nominations')
+    .update({
+      status: 'sold',
+      winning_member_id: bidderTwo,
+      final_price: 3,
+      countdown_expires_at: null,
+      closed_at: new Date().toISOString(),
+    })
+    .eq('id', nomination.id)
+  if (closeError) throw new Error(`D.SET.4 auction fixture close: ${closeError.message}`)
 
   const artifact = {
     draftId: draft.id,

@@ -33,6 +33,9 @@ CREATE POLICY "roster_players_delete_own" ON roster_players
     AND member_id IN (SELECT private.my_member_ids())
   );
 
+DO $migration$
+BEGIN
+  EXECUTE $accept_trade_sql$
 CREATE OR REPLACE FUNCTION public.accept_trade_atomic(
   p_trade_id uuid,
   p_accepting_member_id uuid
@@ -41,7 +44,7 @@ RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
-AS $$
+AS $accept_trade_atomic$
 DECLARE
   v_trade trades%ROWTYPE;
   v_item trade_items%ROWTYPE;
@@ -167,19 +170,21 @@ BEGIN
     RAISE EXCEPTION 'Failed to complete trade atomically';
   END IF;
 END;
-$$;
+$accept_trade_atomic$;
+$accept_trade_sql$;
 
-REVOKE ALL ON FUNCTION public.accept_trade_atomic(uuid, uuid) FROM PUBLIC;
-REVOKE ALL ON FUNCTION public.accept_trade_atomic(uuid, uuid) FROM anon;
-REVOKE ALL ON FUNCTION public.accept_trade_atomic(uuid, uuid) FROM authenticated;
-GRANT EXECUTE ON FUNCTION public.accept_trade_atomic(uuid, uuid) TO service_role;
+  EXECUTE 'REVOKE ALL ON FUNCTION public.accept_trade_atomic(uuid, uuid) FROM PUBLIC';
+  EXECUTE 'REVOKE ALL ON FUNCTION public.accept_trade_atomic(uuid, uuid) FROM anon';
+  EXECUTE 'REVOKE ALL ON FUNCTION public.accept_trade_atomic(uuid, uuid) FROM authenticated';
+  EXECUTE 'GRANT EXECUTE ON FUNCTION public.accept_trade_atomic(uuid, uuid) TO service_role';
 
+  EXECUTE $advance_season_sql$
 CREATE OR REPLACE FUNCTION public.advance_season_atomic(p_league_id uuid)
 RETURNS TABLE(new_season_id uuid, new_year int)
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
-AS $$
+AS $advance_season_atomic$
 DECLARE
   v_current_season league_seasons%ROWTYPE;
   v_new_season_id uuid;
@@ -305,13 +310,15 @@ BEGIN
   new_year := v_new_year;
   RETURN NEXT;
 END;
-$$;
+$advance_season_atomic$;
+$advance_season_sql$;
 
-REVOKE ALL ON FUNCTION public.advance_season_atomic(uuid) FROM PUBLIC;
-REVOKE ALL ON FUNCTION public.advance_season_atomic(uuid) FROM anon;
-REVOKE ALL ON FUNCTION public.advance_season_atomic(uuid) FROM authenticated;
-GRANT EXECUTE ON FUNCTION public.advance_season_atomic(uuid) TO service_role;
+  EXECUTE 'REVOKE ALL ON FUNCTION public.advance_season_atomic(uuid) FROM PUBLIC';
+  EXECUTE 'REVOKE ALL ON FUNCTION public.advance_season_atomic(uuid) FROM anon';
+  EXECUTE 'REVOKE ALL ON FUNCTION public.advance_season_atomic(uuid) FROM authenticated';
+  EXECUTE 'GRANT EXECUTE ON FUNCTION public.advance_season_atomic(uuid) TO service_role';
 
 -- Live scoreboard paths poll by game_date first, then key results by player.
-CREATE INDEX IF NOT EXISTS idx_pgs_game_date_player
-  ON player_game_stats(game_date, player_id);
+  EXECUTE 'CREATE INDEX IF NOT EXISTS idx_pgs_game_date_player ON player_game_stats(game_date, player_id)';
+END
+$migration$;

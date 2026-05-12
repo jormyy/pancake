@@ -9,6 +9,9 @@
 -- - Direct client INSERT into league lifecycle tables can fail under RLS and
 --   can leave partial setup if a later insert fails.
 
+DO $migration$
+BEGIN
+  EXECUTE $create_league_sql$
 CREATE OR REPLACE FUNCTION public.create_league(
   p_name           text,
   p_team_name      text,
@@ -67,9 +70,11 @@ BEGIN
   );
 END;
 $$;
+$create_league_sql$;
 
-GRANT EXECUTE ON FUNCTION public.create_league(text, text, int) TO authenticated;
+  EXECUTE 'GRANT EXECUTE ON FUNCTION public.create_league(text, text, int) TO authenticated';
 
+  EXECUTE $join_league_sql$
 CREATE OR REPLACE FUNCTION public.join_league_by_invite_code(
   p_invite_code text,
   p_team_name   text
@@ -136,5 +141,8 @@ BEGIN
   );
 END;
 $$;
+$join_league_sql$;
 
-GRANT EXECUTE ON FUNCTION public.join_league_by_invite_code(text, text) TO authenticated;
+  EXECUTE 'GRANT EXECUTE ON FUNCTION public.join_league_by_invite_code(text, text) TO authenticated';
+END
+$migration$;

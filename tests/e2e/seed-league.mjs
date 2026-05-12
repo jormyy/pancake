@@ -29,6 +29,41 @@ const expectedSlotDetail = () => Object.entries(EXPECTED_LINEUP_SLOTS)
   .map(([slot, count]) => `${slot}:${count}`)
   .join(', ')
 
+const seedPlayerFixtures = async (admin) => {
+  const positions = ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F']
+  const teams = ['ATL', 'BOS', 'CHI', 'DAL', 'DEN', 'GSW', 'LAL', 'MIA']
+  const players = Array.from({ length: 80 }, (_, index) => {
+    const n = index + 1
+    const position = positions[index % positions.length]
+    return {
+      sportsdata_id: `e2e-player-${String(n).padStart(3, '0')}`,
+      nba_id: `E2ENBA${String(n).padStart(3, '0')}`,
+      sleeper_id: `e2e-sleeper-${String(n).padStart(3, '0')}`,
+      first_name: 'E2E',
+      last_name: `Player${String(n).padStart(3, '0')}`,
+      nba_team: teams[index % teams.length],
+      position,
+      eligible_positions: [position],
+      status: 'Active',
+      injury_status: null,
+      years_exp: index < 20 ? 0 : 3,
+      nba_draft_number: index < 20 ? n : null,
+    }
+  })
+
+  const { error } = await admin
+    .from('players')
+    .upsert(players, { onConflict: 'sportsdata_id' })
+  if (error) throw new Error(`players fixture upsert: ${error.message}`)
+
+  const { count, error: countError } = await admin
+    .from('players')
+    .select('id', { count: 'exact', head: true })
+    .like('sportsdata_id', 'e2e-player-%')
+  if (countError) throw new Error(`players fixture count: ${countError.message}`)
+  return count ?? 0
+}
+
 const writeReport = async ({ runId, league, users, checks }) => {
   const lines = [
     '# E2E Seed Report',
@@ -122,6 +157,13 @@ const main = async () => {
     }))
     const { error: profileError } = await admin.from('profiles').upsert(profiles, { onConflict: 'id' })
     if (profileError) throw new Error(`profiles upsert: ${profileError.message}`)
+
+    const playerFixtureCount = await seedPlayerFixtures(admin)
+    checks.push({
+      name: 'player_fixtures',
+      status: playerFixtureCount >= 80 ? 'PASS' : 'FAIL',
+      detail: `${playerFixtureCount} E2E players with 20 rookie draft numbers`,
+    })
 
     const commissioner = await signInClient(env, users[0].email, password)
     const { data: createdLeague, error: createError } = await commissioner.rpc('create_league', {

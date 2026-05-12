@@ -6,6 +6,9 @@
 --   so concurrent bids or cron workers could overwrite the high bid, double-close
 --   a nomination, or partially deduct budget/roster a sold player.
 
+DO $migration$
+BEGIN
+  EXECUTE $place_bid_sql$
 CREATE OR REPLACE FUNCTION public.place_auction_bid_atomic(
   p_draft_id uuid,
   p_member_id uuid,
@@ -77,12 +80,14 @@ BEGIN
   VALUES (p_nomination_id, p_member_id, p_amount);
 END;
 $$;
+$place_bid_sql$;
 
-REVOKE ALL ON FUNCTION public.place_auction_bid_atomic(uuid, uuid, uuid, int) FROM PUBLIC;
-REVOKE ALL ON FUNCTION public.place_auction_bid_atomic(uuid, uuid, uuid, int) FROM anon;
-REVOKE ALL ON FUNCTION public.place_auction_bid_atomic(uuid, uuid, uuid, int) FROM authenticated;
-GRANT EXECUTE ON FUNCTION public.place_auction_bid_atomic(uuid, uuid, uuid, int) TO service_role;
+  EXECUTE 'REVOKE ALL ON FUNCTION public.place_auction_bid_atomic(uuid, uuid, uuid, int) FROM PUBLIC';
+  EXECUTE 'REVOKE ALL ON FUNCTION public.place_auction_bid_atomic(uuid, uuid, uuid, int) FROM anon';
+  EXECUTE 'REVOKE ALL ON FUNCTION public.place_auction_bid_atomic(uuid, uuid, uuid, int) FROM authenticated';
+  EXECUTE 'GRANT EXECUTE ON FUNCTION public.place_auction_bid_atomic(uuid, uuid, uuid, int) TO service_role';
 
+  EXECUTE $close_nomination_sql$
 CREATE OR REPLACE FUNCTION public.close_auction_nomination_atomic(
   p_nomination_id uuid
 )
@@ -208,8 +213,11 @@ BEGIN
   RETURN true;
 END;
 $$;
+$close_nomination_sql$;
 
-REVOKE ALL ON FUNCTION public.close_auction_nomination_atomic(uuid) FROM PUBLIC;
-REVOKE ALL ON FUNCTION public.close_auction_nomination_atomic(uuid) FROM anon;
-REVOKE ALL ON FUNCTION public.close_auction_nomination_atomic(uuid) FROM authenticated;
-GRANT EXECUTE ON FUNCTION public.close_auction_nomination_atomic(uuid) TO service_role;
+  EXECUTE 'REVOKE ALL ON FUNCTION public.close_auction_nomination_atomic(uuid) FROM PUBLIC';
+  EXECUTE 'REVOKE ALL ON FUNCTION public.close_auction_nomination_atomic(uuid) FROM anon';
+  EXECUTE 'REVOKE ALL ON FUNCTION public.close_auction_nomination_atomic(uuid) FROM authenticated';
+  EXECUTE 'GRANT EXECUTE ON FUNCTION public.close_auction_nomination_atomic(uuid) TO service_role';
+END
+$migration$;
