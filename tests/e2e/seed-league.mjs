@@ -8,9 +8,26 @@ const ROOT = process.cwd()
 const REPORT_PATH = path.join(ROOT, 'tests/e2e-seed-report.md')
 const STATE_PATH = path.join(ROOT, 'tests/e2e-state.json')
 
+const EXPECTED_LINEUP_SLOTS = {
+  PG: 1,
+  SG: 1,
+  SF: 1,
+  PF: 1,
+  C: 1,
+  G: 1,
+  F: 1,
+  UTIL: 3,
+  BE: 10,
+  IR: 2,
+}
+
 const currentSeasonYear = (now = new Date()) => {
   return now.getUTCMonth() >= 9 ? now.getUTCFullYear() + 1 : now.getUTCFullYear()
 }
+
+const expectedSlotDetail = () => Object.entries(EXPECTED_LINEUP_SLOTS)
+  .map(([slot, count]) => `${slot}:${count}`)
+  .join(', ')
 
 const writeReport = async ({ runId, league, users, checks }) => {
   const lines = [
@@ -114,6 +131,11 @@ const main = async () => {
     })
     if (createError) throw new Error(`create_league: ${createError.message}`)
     league = createdLeague
+    checks.push({
+      name: 'invite_code',
+      status: /^[A-Z0-9]{6}$/.test(league?.invite_code ?? '') ? 'PASS' : 'FAIL',
+      detail: league?.invite_code ? '6-character code generated' : 'missing invite_code',
+    })
 
     for (const user of users.slice(1)) {
       const client = await signInClient(env, user.email, password)
@@ -149,6 +171,23 @@ const main = async () => {
       name: 'future_pick_bank',
       status: picks?.length === 150 ? 'PASS' : 'FAIL',
       detail: `${picks?.length ?? 0} rows for ${minPickYear}-${maxPickYear}`,
+    })
+
+    const { data: slotRows, error: slotError } = await admin
+      .from('lineup_slot_templates')
+      .select('slot_type, slot_count')
+      .eq('league_id', league.id)
+    if (slotError) throw new Error(`lineup_slot_templates check: ${slotError.message}`)
+    const actualSlots = new Map((slotRows ?? []).map((slot) => [slot.slot_type, slot.slot_count]))
+    const slotFailures = Object.entries(EXPECTED_LINEUP_SLOTS).filter(([slot, count]) => actualSlots.get(slot) !== count)
+    checks.push({
+      name: 'lineup_slot_templates',
+      status: slotFailures.length === 0 && slotRows?.length === Object.keys(EXPECTED_LINEUP_SLOTS).length
+        ? 'PASS'
+        : 'FAIL',
+      detail: slotFailures.length === 0
+        ? expectedSlotDetail()
+        : `expected ${expectedSlotDetail()}; got ${JSON.stringify(Object.fromEntries(actualSlots))}`,
     })
 
     const failures = checks.filter((check) => check.status !== 'PASS')
