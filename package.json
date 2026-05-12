@@ -24,6 +24,7 @@
     "e2e:browser-lineup": "node tests/e2e/browser-lineup-gameplay.mjs",
     "e2e:browser-lineup-auto-set": "node tests/e2e/browser-lineup-gameplay.mjs --auto-set",
     "e2e:browser-lineup-locked": "node tests/e2e/browser-lineup-gameplay.mjs --locked",
+    "e2e:browser-playoff": "node tests/e2e/browser-playoff-gameplay.mjs",
     "e2e:browser-rookie-draft": "node tests/e2e/browser-rookie-draft-gameplay.mjs",
     "e2e:browser-waiver": "node tests/e2e/browser-waiver-gameplay.mjs",
     "e2e:browser-waiver-drop": "node tests/e2e/browser-waiver-gameplay.mjs --drop",

@@ -12,6 +12,7 @@ import { runBrowserAuthScenario } from './browser-auth.mjs'
 import { runBrowserPerfSmoke } from './browser-perf-smoke.mjs'
 import { runBrowserGameplayScenario } from './browser-gameplay.mjs'
 import { runBrowserLineupAutoSetScenario, runBrowserLineupLockedScenario, runBrowserLineupScenario } from './browser-lineup-gameplay.mjs'
+import { runBrowserPlayoffChampionScenario } from './browser-playoff-gameplay.mjs'
 import { runBrowserRookieDraftAutoPickScenario } from './browser-rookie-draft-gameplay.mjs'
 import { runBrowserWaiverDropScenario, runBrowserWaiverIrBlockScenario, runBrowserWaiverScenario } from './browser-waiver-gameplay.mjs'
 import {
@@ -68,6 +69,7 @@ const parseArgs = () => {
     browserLineup: args.get('browser-lineup') === 'true' || process.env.E2E_ENABLE_BROWSER_LINEUP === '1',
     browserLineupAutoSet: args.get('browser-lineup-auto-set') === 'true' || process.env.E2E_ENABLE_BROWSER_LINEUP_AUTO_SET === '1',
     browserLineupLocked: args.get('browser-lineup-locked') === 'true' || process.env.E2E_ENABLE_BROWSER_LINEUP_LOCKED === '1',
+    browserPlayoff: args.get('browser-playoff') === 'true' || process.env.E2E_ENABLE_BROWSER_PLAYOFF === '1',
     browserRookieDraft: args.get('browser-rookie-draft') === 'true' || process.env.E2E_ENABLE_BROWSER_ROOKIE_DRAFT === '1',
     browserWaiver: args.get('browser-waiver') === 'true' || process.env.E2E_ENABLE_BROWSER_WAIVER === '1',
     browserWaiverDrop: args.get('browser-waiver-drop') === 'true' || process.env.E2E_ENABLE_BROWSER_WAIVER_DROP === '1',
@@ -255,6 +257,9 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
   const playoffsStatus = args.playoffs
     ? hasFailingNote(rows, /D\.SEA\.4/) ? 'FAIL' : hasPassingNote(rows, /playoff bracket scenario passed/) ? 'PARTIAL' : 'PENDING'
     : 'PENDING'
+  const browserPlayoffStatus = args.browserPlayoff
+    ? hasFailingNote(rows, /browser playoff/) ? 'FAIL' : hasPassingNote(rows, /browser playoff champion passed/) ? 'PARTIAL' : 'PENDING'
+    : 'PENDING'
   const tiebreakerStatus = args.tiebreakers
     ? hasFailingNote(rows, /D\.SEA\.3/) ? 'FAIL' : hasPassingNote(rows, /standings tiebreaker scenario passed/) ? 'PARTIAL' : 'PENDING'
     : 'PENDING'
@@ -356,8 +361,8 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
     },
     {
       requirement: 'D.SEA.4 playoffs/champion',
-      status: playoffsStatus,
-      evidence: args.playoffs ? 'Playoff mode seeds a disposable 10-team regular season and calls the real authenticated /playoffs/generate route, then checks for a top-6 bracket.' : 'No playoff bracket/champion scenario implemented; enable E2E_ENABLE_PLAYOFFS=1 for bracket-generation coverage.',
+      status: args.browserPlayoff ? browserPlayoffStatus : playoffsStatus,
+      evidence: args.browserPlayoff ? 'Browser playoff mode creates a disposable 10-team league, generates the real top-six bracket, verifies advance blocking, finalizes playoff rounds, crowns a champion, then opens the real bracket modal and checks the champion banner.' : args.playoffs ? 'Playoff mode seeds a disposable 10-team regular season and calls the real authenticated /playoffs/generate route, then checks for a top-6 bracket.' : 'Enable E2E_ENABLE_BROWSER_PLAYOFF=1 for browser champion coverage or E2E_ENABLE_PLAYOFFS=1 for backend bracket-generation coverage.',
     },
     {
       requirement: 'D.SEA.5 rookie draft/traded picks',
@@ -4254,6 +4259,9 @@ const main = async () => {
     args.browserLineupLocked
       ? 'Browser lineup locked-player scenario enabled through E2E_ENABLE_BROWSER_LINEUP_LOCKED=1.'
       : 'Browser lineup locked-player scenario disabled; set E2E_ENABLE_BROWSER_LINEUP_LOCKED=1 to exercise locked-player move blocking.',
+    args.browserPlayoff
+      ? 'Browser playoff champion scenario enabled through E2E_ENABLE_BROWSER_PLAYOFF=1.'
+      : 'Browser playoff champion scenario disabled; set E2E_ENABLE_BROWSER_PLAYOFF=1 to exercise the D.SEA.4 champion bracket UI slice.',
     args.browserRookieDraft
       ? 'Browser rookie draft auto-pick scenario enabled through E2E_ENABLE_BROWSER_ROOKIE_DRAFT=1.'
       : 'Browser rookie draft auto-pick scenario disabled; set E2E_ENABLE_BROWSER_ROOKIE_DRAFT=1 to exercise the D.SEA.5 30-second timer slice.',
@@ -4461,6 +4469,10 @@ const main = async () => {
         let browserLineupLockedCheck = null
         if (args.browserLineupLocked && season === 1) {
           browserLineupLockedCheck = await runBrowserLineupLockedScenario({ season })
+        }
+        let browserPlayoffCheck = null
+        if (args.browserPlayoff && season === 1) {
+          browserPlayoffCheck = await runBrowserPlayoffChampionScenario({ season })
         }
         let browserRookieDraftCheck = null
         if (args.browserRookieDraft && season === 1) {
@@ -4766,6 +4778,7 @@ const main = async () => {
               browserLineupCheck ? 'browser lineup gameplay passed' : null,
               browserLineupAutoSetCheck ? 'browser lineup auto-set gameplay passed' : null,
               browserLineupLockedCheck ? 'browser lineup locked gameplay passed' : null,
+              browserPlayoffCheck ? 'browser playoff champion passed' : null,
               browserRookieDraftCheck ? 'browser rookie draft auto-pick passed' : null,
               browserWaiverCheck ? 'browser waiver claim gameplay passed' : null,
               browserWaiverDropCheck ? 'browser waiver drop claim gameplay passed' : null,
