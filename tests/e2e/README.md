@@ -58,6 +58,7 @@ Browser auth runs are available through `npm run e2e:browser-auth` or `E2E_ENABL
 Outputs:
 
 - `tests/e2e-report.md`
+- `tests/e2e-coverage.md`
 - `tests/e2e-seed-report.md`
 - `tests/e2e-state.json`
 - `tests/e2e-browser-report.md`

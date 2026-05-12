@@ -1,8 +1,8 @@
 # Multi-Season E2E Soak Report
 
 - Status: FAIL
-- Started: 2026-05-12T04:16:31.268Z
-- Finished: 2026-05-12T04:16:41.265Z
+- Started: 2026-05-12T04:24:13.552Z
+- Finished: 2026-05-12T04:24:25.885Z
 - Target seasons: 10
 - Fake upstream: http://127.0.0.1:4555
 
@@ -19,7 +19,7 @@
 | 7 | PASS | D.0 invariant boundary checks passed; full scenario/browser loop pending; snapshot row-count diff passed |
 | 8 | PASS | D.0 invariant boundary checks passed; full scenario/browser loop pending; snapshot row-count diff passed |
 | 9 | PASS | D.0 invariant boundary checks passed; full scenario/browser loop pending; snapshot row-count diff passed |
-| 10 | FAIL | D.LONG.7: harness RSS memory drifted 23% from season 1 (105.6 MiB) to season 10 (129.8 MiB); limit is 20%; D.LONG.7: harness heap memory drifted 75% from season 1 (10.2 MiB) to season 10 (17.9 MiB); limit is 20% |
+| 10 | FAIL | D.LONG.7: harness RSS memory drifted 22% from season 1 (105.7 MiB) to season 10 (129.1 MiB); limit is 20% |
 
 ## Notes
 
