@@ -3,6 +3,7 @@ import path from 'node:path'
 import process from 'node:process'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
+import { createClient } from '@supabase/supabase-js'
 import { resolvedEnv, describeEndpoint } from './env.mjs'
 
 const execFileAsync = promisify(execFile)
@@ -35,11 +36,110 @@ const safeName = (value) => value.replace(/[^a-zA-Z0-9._-]/g, '-')
 
 const joinUrl = (base, pathname) => new URL(pathname, base.endsWith('/') ? base : `${base}/`).toString()
 
+const encodeQuery = (pathname, params) => {
+  const search = new URLSearchParams()
+  for (const [key, value] of Object.entries(params)) {
+    if (value != null && value !== '') search.set(key, value)
+  }
+  const query = search.toString()
+  return query ? `${pathname}?${query}` : pathname
+}
+
+const fetchSweepContext = async (env, state, user) => {
+  if (!env.serviceRoleKey || !state.leagueId) {
+    return { routes: [], notes: ['Full sweep skipped DB-param routes: missing service role key or seeded league id.'] }
+  }
+
+  const supabase = createClient(env.supabaseUrl, env.serviceRoleKey, { auth: { persistSession: false } })
+  const notes = []
+  const { data: members, error: membersError } = await supabase
+    .from('league_members')
+    .select('id, user_id, team_name')
+    .eq('league_id', state.leagueId)
+    .order('joined_at', { ascending: true })
+  if (membersError) throw new Error(`UI sweep league_members lookup: ${membersError.message}`)
+
+  const myMember = members?.find((member) => member.user_id === user.id) ?? members?.[0]
+  const otherMember = members?.find((member) => member.id !== myMember?.id) ?? members?.[0]
+
+  const { data: rosterRow } = myMember
+    ? await supabase
+      .from('roster_players')
+      .select('player_id')
+      .eq('league_id', state.leagueId)
+      .eq('member_id', myMember.id)
+      .limit(1)
+      .maybeSingle()
+    : { data: null }
+
+  const { data: firstPlayer } = await supabase
+    .from('players')
+    .select('id')
+    .order('display_name', { ascending: true })
+    .limit(1)
+    .maybeSingle()
+  const playerId = rosterRow?.player_id ?? firstPlayer?.id ?? null
+
+  const { data: auctionDraft } = await supabase
+    .from('drafts')
+    .select('id')
+    .eq('league_id', state.leagueId)
+    .eq('draft_type', 'auction')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  const { data: rookieDraft } = await supabase
+    .from('drafts')
+    .select('id')
+    .eq('league_id', state.leagueId)
+    .eq('draft_type', 'rookie')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  const routes = [
+    ['create-league', '/create-league'],
+    ['join-league', '/join-league'],
+    ['commissioner-settings', '/commissioner-settings'],
+    ['lineup', '/lineup'],
+    ['bracket', '/bracket'],
+  ]
+  if (playerId) {
+    routes.push(['claim-player', encodeQuery('/claim-player', { playerId })])
+    routes.push(['player-detail', `/player/${playerId}`])
+  } else {
+    notes.push('Full sweep skipped player detail and claim-player: no player id found.')
+  }
+  if (otherMember) {
+    routes.push(['propose-trade', encodeQuery('/propose-trade', { recipientMemberId: otherMember.id })])
+    routes.push(['team-roster', encodeQuery('/team-roster', {
+      memberId: otherMember.id,
+      teamName: otherMember.team_name ?? 'Team',
+    })])
+  } else {
+    notes.push('Full sweep skipped propose-trade/team-roster: no league member found.')
+  }
+  if (auctionDraft?.id) {
+    routes.push(['draft-room', encodeQuery('/draft-room', { draftId: auctionDraft.id })])
+  } else {
+    notes.push('Full sweep skipped draft-room: no auction draft found.')
+  }
+  if (rookieDraft?.id) {
+    routes.push(['rookie-draft-room', encodeQuery('/rookie-draft-room', { draftId: rookieDraft.id })])
+  } else {
+    notes.push('Full sweep skipped rookie-draft-room: no rookie draft found.')
+  }
+
+  return { routes, notes }
+}
+
 export async function runBrowserSmoke({
   season = 0,
   scenario = 'smoke',
   userIndex = 0,
   sessionName,
+  fullSweep = process.env.E2E_BROWSER_FULL_SWEEP === '1',
 } = {}) {
   const env = resolvedEnv()
   const state = await readState()
@@ -57,10 +157,24 @@ export async function runBrowserSmoke({
     `Frontend: ${describeEndpoint(env.frontendUrl)}`,
     `Session: ${session}`,
     `User: ${user.email}`,
+    fullSweep ? 'Full route sweep enabled.' : 'Tab smoke only.',
     sessionList,
   ]
 
   try {
+    if (fullSweep) {
+      const authRoutes = [
+        ['auth-sign-in', '/sign-in'],
+        ['auth-sign-up', '/sign-up'],
+      ]
+      for (const [label, route] of authRoutes) {
+        await browser(session, ['open', joinUrl(env.frontendUrl, route)])
+        await browser(session, ['wait', '1500'])
+        await browser(session, ['screenshot', path.join(artifactDir, `${label}.png`)], { timeout: 60_000 })
+        visited.push(label)
+      }
+    }
+
     await browser(session, ['open', env.frontendUrl])
     await browser(session, ['wait', '1500'])
     await browser(session, ['find', 'placeholder', 'Email', 'fill', user.email])
@@ -75,6 +189,12 @@ export async function runBrowserSmoke({
       ['trades', '/trades'],
       ['league', '/league'],
     ]
+
+    if (fullSweep) {
+      const sweep = await fetchSweepContext(env, state, user)
+      routes.push(...sweep.routes)
+      notes.push(...sweep.notes)
+    }
 
     for (const [label, route] of routes) {
       await browser(session, ['open', joinUrl(env.frontendUrl, route)])

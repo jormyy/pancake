@@ -39,6 +39,7 @@ const parseArgs = () => {
     keepGoing: args.get('keep-going') === 'true' || process.env.E2E_KEEP_GOING === '1',
     fakePort: Number(args.get('fake-port') ?? process.env.FAKE_UPSTREAM_PORT ?? 4555),
     browser: args.get('browser') === 'true' || process.env.E2E_ENABLE_BROWSER === '1',
+    browserFullSweep: args.get('browser-full-sweep') === 'true' || process.env.E2E_BROWSER_FULL_SWEEP === '1',
     browserAuth: args.get('browser-auth') === 'true' || process.env.E2E_ENABLE_BROWSER_AUTH === '1',
     pickChain: args.get('pick-chain') === 'true' || process.env.E2E_ENABLE_PICK_CHAIN === '1',
     push: args.get('push') === 'true' || process.env.E2E_ENABLE_PUSH === '1',
@@ -131,7 +132,7 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
     ? hasFailingNote(rows, /D\.LONG\.1|D\.LONG\.2/) ? 'FAIL' : hasPassingNote(rows, /multi-hop future-pick owner resolved/) ? 'PARTIAL' : 'PENDING'
     : 'PENDING'
   const browserStatus = args.browser && args.browserAuth
-    ? 'PARTIAL'
+    ? args.browserFullSweep ? 'PARTIAL' : 'PARTIAL'
     : args.browser || args.browserAuth ? 'PARTIAL' : 'PENDING'
   const pushStatus = args.push
     ? status === 'ERROR' || hasFailingNote(rows, /D\.X\.1|push|waiver/i) ? 'FAIL' : hasPassingNote(rows, /push notification intercepts passed/) ? 'PARTIAL' : 'PENDING'
@@ -242,7 +243,7 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
     {
       requirement: 'D.X.5 UI sweep',
       status: browserStatus,
-      evidence: browserStatus === 'PARTIAL' ? 'Browser smoke/auth covers only top-level auth and tabs.' : 'Enable browser smoke/auth; full app route sweep pending.',
+      evidence: args.browserFullSweep ? 'Browser full sweep visits auth, tabs, modals, and player routes, with screenshots and console/error artifacts.' : browserStatus === 'PARTIAL' ? 'Browser smoke/auth covers auth and tab routes; enable E2E_BROWSER_FULL_SWEEP=1 for modal/player route sweep.' : 'Enable browser smoke/auth; full app route sweep pending.',
     },
     {
       requirement: 'D.LONG.1/D.LONG.2 long-horizon pick trades',
@@ -1500,7 +1501,7 @@ const main = async () => {
       ? 'Backend tick endpoints enabled through E2E_ENABLE_BACKEND_TICKS=1.'
       : 'Backend tick endpoints were not enabled; set E2E_ENABLE_BACKEND_TICKS=1 with a local backend to run them.',
     args.browser
-      ? 'Browser smoke enabled through E2E_ENABLE_BROWSER=1.'
+      ? `Browser smoke enabled through E2E_ENABLE_BROWSER=1${args.browserFullSweep ? ' with full route sweep.' : '.'}`
       : 'Browser-driving scenarios must be run with agent-browser against the configured frontend before declaring the app dynasty-stable.',
     args.browserAuth
       ? 'Browser auth scenario enabled through E2E_ENABLE_BROWSER_AUTH=1.'
@@ -1604,7 +1605,7 @@ const main = async () => {
         }
 
         if (args.browser) {
-          await runBrowserSmoke({ season })
+          await runBrowserSmoke({ season, fullSweep: args.browserFullSweep })
         }
         if (args.browserAuth) {
           await runBrowserAuthScenario({ season })
