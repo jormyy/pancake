@@ -48,6 +48,7 @@ tests/e2e-browser-waiver-report.md
 tests/e2e-browser-trade-report.md
 tests/e2e-browser-trade-accept-report.md
 tests/e2e-browser-trade-terminal-report.md
+tests/e2e-browser-trade-future-pick-report.md
 tests/e2e-state.json
 
 app-example

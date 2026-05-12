@@ -76,7 +76,7 @@ function PickRow({
             style={[styles.playerRow, selected && styles.playerRowSelected]}
             onPress={onToggle}
             accessibilityRole="button"
-            accessibilityLabel={`${action} ${pick.seasonYear} round ${pick.round} pick for trade`}
+            accessibilityLabel={`${action} ${pick.seasonYear} round ${pick.round} pick via ${pick.originalTeamName} for trade`}
         >
             <View style={[styles.pickCircle, selected && styles.pickCircleSelected]}>
                 <Text style={styles.pickCircleText}>{yearShort(pick.seasonYear)}</Text>

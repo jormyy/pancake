@@ -12,6 +12,7 @@ const ARTIFACT_ROOT = path.join(ROOT, 'tests/artifacts')
 const REPORT_PATH = path.join(ROOT, 'tests/e2e-browser-trade-report.md')
 const ACCEPT_REPORT_PATH = path.join(ROOT, 'tests/e2e-browser-trade-accept-report.md')
 const TERMINAL_REPORT_PATH = path.join(ROOT, 'tests/e2e-browser-trade-terminal-report.md')
+const FUTURE_PICK_REPORT_PATH = path.join(ROOT, 'tests/e2e-browser-trade-future-pick-report.md')
 
 const browser = async (session, args, options = {}) => {
   const { stdout, stderr } = await execFileAsync('agent-browser', ['--session', session, ...args], {
@@ -107,6 +108,34 @@ const findAvailablePlayers = async (admin, leagueId, leagueSeasonId, count) => {
   return available.slice(0, count)
 }
 
+const findFuturePickForMember = async (admin, leagueId, memberId, seasonYear, round = 1) => {
+  const { data, error } = await admin
+    .from('draft_picks')
+    .select(`
+      id,
+      season_year,
+      round,
+      original_owner_id,
+      current_owner_id,
+      original_owner:league_members!draft_picks_original_owner_id_fkey ( team_name )
+    `)
+    .eq('league_id', leagueId)
+    .eq('current_owner_id', memberId)
+    .eq('season_year', seasonYear)
+    .eq('round', round)
+    .eq('is_used', false)
+    .single()
+  if (error) throw new Error(`future pick lookup ${memberId} ${seasonYear} round ${round}: ${error.message}`)
+  return {
+    id: data.id,
+    seasonYear: data.season_year,
+    round: data.round,
+    originalOwnerId: data.original_owner_id,
+    currentOwnerId: data.current_owner_id,
+    originalTeamName: data.original_owner?.team_name ?? 'Unknown',
+  }
+}
+
 const setupTradeGameplayFixture = async (env, season) => {
   const runId = `${new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)}-${process.pid}-${season}`
   const password = `Pancake-trade-${runId}!`
@@ -157,6 +186,11 @@ const setupTradeGameplayFixture = async (env, season) => {
   if (!proposer || !recipient) throw new Error('D.SEA.2 browser trade: member lookup failed')
 
   const [proposerPlayer, recipientPlayer] = await findAvailablePlayers(admin, league.id, currentSeason.id, 2)
+  const targetFuturePickYear = currentSeason.season_year + 5
+  const [proposerFuturePick, recipientFuturePick] = await Promise.all([
+    findFuturePickForMember(admin, league.id, proposer.id, targetFuturePickYear, 1),
+    findFuturePickForMember(admin, league.id, recipient.id, targetFuturePickYear, 1),
+  ])
   const { error: rosterError } = await admin.from('roster_players').insert([
     {
       league_id: league.id,
@@ -188,6 +222,9 @@ const setupTradeGameplayFixture = async (env, season) => {
     recipient,
     proposerPlayer,
     recipientPlayer,
+    targetFuturePickYear,
+    proposerFuturePick,
+    recipientFuturePick,
   }
 }
 
@@ -357,6 +394,74 @@ const waitForTradeProposal = async (fixture, timeoutMs = 10_000) => {
   while (last.failures.length > 0 && Date.now() - startedAt < timeoutMs) {
     await new Promise((resolve) => setTimeout(resolve, 500))
     last = await verifyTradeProposal(fixture)
+  }
+  return last
+}
+
+const verifyFuturePickTradeProposal = async (fixture) => {
+  const { data: trades, error: tradesError } = await fixture.admin
+    .from('trades')
+    .select('id, league_id, league_season_id, proposer_member_id, recipient_member_id, status, notes')
+    .eq('league_id', fixture.league.id)
+    .eq('league_season_id', fixture.currentSeason.id)
+    .eq('proposer_member_id', fixture.proposer.id)
+    .eq('recipient_member_id', fixture.recipient.id)
+    .eq('status', 'pending')
+  if (tradesError) throw new Error(`future-pick trade verify: ${tradesError.message}`)
+
+  const failures = []
+  if ((trades ?? []).length !== 1) {
+    failures.push(`pending trade rows=${(trades ?? []).length}; expected 1`)
+  }
+  const trade = trades?.[0] ?? null
+  if (!trade) return { trade, items: [], picks: [], failures }
+
+  const { data: items, error: itemsError } = await fixture.admin
+    .from('trade_items')
+    .select('id, trade_id, side, player_id, pick_id')
+    .eq('trade_id', trade.id)
+    .order('side', { ascending: true })
+  if (itemsError) throw new Error(`future-pick trade item verify: ${itemsError.message}`)
+
+  const { data: picks, error: picksError } = await fixture.admin
+    .from('draft_picks')
+    .select('id, season_year, round, original_owner_id, current_owner_id')
+    .in('id', [fixture.proposerFuturePick.id, fixture.recipientFuturePick.id])
+  if (picksError) throw new Error(`future-pick asset verify: ${picksError.message}`)
+
+  const proposerItem = (items ?? []).find((item) => item.side === 'proposer')
+  const recipientItem = (items ?? []).find((item) => item.side === 'recipient')
+  if ((items ?? []).length !== 2) failures.push(`trade_items rows=${(items ?? []).length}; expected 2`)
+  if (proposerItem?.pick_id !== fixture.proposerFuturePick.id) {
+    failures.push(`proposer item pick=${proposerItem?.pick_id}; expected ${fixture.proposerFuturePick.id}`)
+  }
+  if (recipientItem?.pick_id !== fixture.recipientFuturePick.id) {
+    failures.push(`recipient item pick=${recipientItem?.pick_id}; expected ${fixture.recipientFuturePick.id}`)
+  }
+  if ((items ?? []).some((item) => item.player_id != null)) failures.push('future-pick proposal unexpectedly inserted player items')
+
+  const picksById = new Map((picks ?? []).map((pick) => [pick.id, pick]))
+  const proposerPick = picksById.get(fixture.proposerFuturePick.id)
+  const recipientPick = picksById.get(fixture.recipientFuturePick.id)
+  if (proposerPick?.current_owner_id !== fixture.proposer.id) {
+    failures.push(`proposer future pick owner=${proposerPick?.current_owner_id ?? '<missing>'}; expected proposer ${fixture.proposer.id}`)
+  }
+  if (recipientPick?.current_owner_id !== fixture.recipient.id) {
+    failures.push(`recipient future pick owner=${recipientPick?.current_owner_id ?? '<missing>'}; expected recipient ${fixture.recipient.id}`)
+  }
+  if (proposerPick?.season_year !== fixture.targetFuturePickYear || recipientPick?.season_year !== fixture.targetFuturePickYear) {
+    failures.push(`future pick years=${proposerPick?.season_year ?? '<missing>'}/${recipientPick?.season_year ?? '<missing>'}; expected ${fixture.targetFuturePickYear}`)
+  }
+
+  return { trade, items: items ?? [], picks: picks ?? [], failures }
+}
+
+const waitForFuturePickTradeProposal = async (fixture, timeoutMs = 10_000) => {
+  const startedAt = Date.now()
+  let last = await verifyFuturePickTradeProposal(fixture)
+  while (last.failures.length > 0 && Date.now() - startedAt < timeoutMs) {
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    last = await verifyFuturePickTradeProposal(fixture)
   }
   return last
 }
@@ -727,6 +832,130 @@ export async function runBrowserTradeAcceptScenario({
   }
 }
 
+export async function runBrowserTradeFuturePickScenario({
+  season = 0,
+  sessionName,
+} = {}) {
+  const env = resolvedEnv()
+  requireEnv(env, ['supabaseUrl', 'serviceRoleKey', 'anonKey'])
+  const fixture = await setupTradeGameplayFixture(env, season)
+  const sessionList = await listSessions().catch((error) => `session list unavailable: ${error.message}`)
+  const session = sessionName ?? safeName(`pancake-trade-future-pick-${fixture.runId}-${process.pid}`)
+  const artifactDir = path.join(ARTIFACT_ROOT, `season-${season}`, 'browser-trade-future-pick')
+  await mkdir(artifactDir, { recursive: true })
+
+  const recipientPickLabel = `Select ${fixture.recipientFuturePick.seasonYear} round ${fixture.recipientFuturePick.round} pick via ${fixture.recipientFuturePick.originalTeamName} for trade`
+  const proposerPickLabel = `Select ${fixture.proposerFuturePick.seasonYear} round ${fixture.proposerFuturePick.round} pick via ${fixture.proposerFuturePick.originalTeamName} for trade`
+  const notes = [
+    `Frontend: ${describeEndpoint(env.frontendUrl)}`,
+    `Session: ${session}`,
+    `Proposer: ${fixture.users[0].email}`,
+    `Recipient member: ${fixture.recipient.id}`,
+    `Future pick year: ${fixture.targetFuturePickYear}`,
+    sessionList,
+  ]
+  let debug = {}
+
+  try {
+    await signInBrowser(session, env, fixture.users[0], fixture.password)
+    await browser(session, ['set', 'viewport', '390', '844']).catch(() => {})
+    await browser(session, ['open', joinUrl(env.frontendUrl, `/propose-trade?recipientMemberId=${fixture.recipient.id}`)])
+    await installBrowserHooks(session, env)
+    await browser(session, ['wait', '3500'])
+    await assertPageText(
+      session,
+      [
+        'Propose Trade',
+        'YOU RECEIVE',
+        'YOU GIVE',
+        'DRAFT PICKS',
+        String(fixture.targetFuturePickYear),
+        fixture.recipientFuturePick.originalTeamName,
+        fixture.proposerFuturePick.originalTeamName,
+      ],
+      'future-pick trade before submit',
+    )
+    await browser(session, ['screenshot', path.join(artifactDir, 'future-pick-before-submit.png')], { timeout: 60_000 })
+
+    const requestPickClick = await clickButton(session, recipientPickLabel, 'recipient future pick selection')
+    const offerPickClick = await clickButton(session, proposerPickLabel, 'proposer future pick selection')
+    await browser(session, ['wait', '500'])
+    await browser(session, ['screenshot', path.join(artifactDir, 'future-pick-selected.png')], { timeout: 60_000 })
+    const submitClick = await clickButton(session, 'Send trade proposal', 'future-pick trade proposal submit')
+    const tradeProposal = await waitForFuturePickTradeProposal(fixture)
+    debug = { ...debug, requestPickClick, offerPickClick, submitClick, tradeProposal }
+    if (tradeProposal.failures.length > 0) {
+      throw new Error(`future-pick trade proposal did not persist: ${tradeProposal.failures.join('; ')}`)
+    }
+    await browser(session, ['wait', '1000'])
+    await browser(session, ['screenshot', path.join(artifactDir, 'future-pick-after-submit.png')], { timeout: 60_000 })
+
+    const consoleOutput = await browser(session, ['console']).catch((error) => `console unavailable: ${error.message}`)
+    const errorOutput = await browser(session, ['errors']).catch((error) => `errors unavailable: ${error.message}`)
+    await writeFile(path.join(artifactDir, 'console.txt'), `${consoleOutput}\n`)
+    await writeFile(path.join(artifactDir, 'errors.txt'), `${errorOutput}\n`)
+
+    const failures = [...tradeProposal.failures]
+    if (errorOutput.trim()) failures.push(`browser errors present; see ${path.relative(ROOT, path.join(artifactDir, 'errors.txt'))}`)
+    const report = {
+      status: failures.length === 0 ? 'PASS' : 'FAIL',
+      season,
+      artifactDir,
+      fixture: {
+        runId: fixture.runId,
+        leagueId: fixture.league.id,
+        leagueSeasonId: fixture.currentSeason.id,
+        proposerMemberId: fixture.proposer.id,
+        recipientMemberId: fixture.recipient.id,
+        targetFuturePickYear: fixture.targetFuturePickYear,
+        proposerPickId: fixture.proposerFuturePick.id,
+        recipientPickId: fixture.recipientFuturePick.id,
+      },
+      tradeProposal,
+      notes,
+      failures,
+    }
+    await writeFile(FUTURE_PICK_REPORT_PATH, `${JSON.stringify(report, null, 2)}\n`)
+    await writeFile(path.join(artifactDir, 'summary.json'), `${JSON.stringify(report, null, 2)}\n`)
+    if (failures.length > 0) throw new Error(`Browser future-pick trade scenario failed: ${failures.join('; ')}`)
+    return report
+  } catch (error) {
+    await browser(session, ['screenshot', path.join(artifactDir, 'failure.png')], { timeout: 60_000 }).catch(() => {})
+    const consoleOutput = await browser(session, ['console']).catch((consoleError) => `console unavailable: ${consoleError.message}`)
+    const errorOutput = await browser(session, ['errors']).catch((errorError) => `errors unavailable: ${errorError.message}`)
+    const networkOutput = await browser(session, ['network', 'requests']).catch((networkError) => `network unavailable: ${networkError.message}`)
+    await writeFile(path.join(artifactDir, 'console.txt'), `${consoleOutput}\n`).catch(() => {})
+    await writeFile(path.join(artifactDir, 'errors.txt'), `${errorOutput}\n`).catch(() => {})
+    await writeFile(path.join(artifactDir, 'network.txt'), `${networkOutput}\n`).catch(() => {})
+    const tradeProposal = await verifyFuturePickTradeProposal(fixture).catch((verifyError) => ({
+      failures: [`verify unavailable: ${verifyError.message}`],
+    }))
+    debug = { ...debug, tradeProposal, consoleOutput, errorOutput, networkOutput }
+    const report = {
+      status: 'FAIL',
+      season,
+      artifactDir,
+      fixture: {
+        runId: fixture.runId,
+        leagueId: fixture.league.id,
+        leagueSeasonId: fixture.currentSeason.id,
+        proposerMemberId: fixture.proposer.id,
+        recipientMemberId: fixture.recipient.id,
+        targetFuturePickYear: fixture.targetFuturePickYear,
+        proposerPickId: fixture.proposerFuturePick.id,
+        recipientPickId: fixture.recipientFuturePick.id,
+      },
+      error: error instanceof Error ? error.message : String(error),
+      debug,
+      notes,
+    }
+    await writeFile(FUTURE_PICK_REPORT_PATH, `${JSON.stringify(report, null, 2)}\n`).catch(() => {})
+    throw error
+  } finally {
+    await browser(session, ['close']).catch(() => {})
+  }
+}
+
 export async function runBrowserTradeTerminalScenario({
   season = 0,
   sessionName,
@@ -897,9 +1126,11 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const season = seasonArg ? Number(seasonArg.split('=')[1]) : 0
   const runner = process.argv.includes('--terminal')
     ? runBrowserTradeTerminalScenario
-    : process.argv.includes('--accept')
-      ? runBrowserTradeAcceptScenario
-      : runBrowserTradeScenario
+    : process.argv.includes('--future-pick')
+      ? runBrowserTradeFuturePickScenario
+      : process.argv.includes('--accept')
+        ? runBrowserTradeAcceptScenario
+        : runBrowserTradeScenario
   runner({ season }).catch((error) => {
     console.error(error)
     process.exitCode = 1
