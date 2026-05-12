@@ -123,6 +123,8 @@ export default function TradesScreen() {
                 <Pressable
                     style={styles.proposeBtn}
                     onPress={() => push('/(modals)/propose-trade')}
+                    accessibilityRole="button"
+                    accessibilityLabel="Propose trade"
                 >
                     <Text style={styles.proposeBtnText}>+ Propose</Text>
                 </Pressable>
@@ -140,6 +142,9 @@ export default function TradesScreen() {
                             key={t.key}
                             style={[styles.tabChip, active && styles.tabChipActive]}
                             onPress={() => setTab(t.key)}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Show ${t.label} trades`}
+                            accessibilityState={{ selected: active }}
                         >
                             <Text style={[styles.tabChipText, active && styles.tabChipTextActive]}>
                                 {t.label}

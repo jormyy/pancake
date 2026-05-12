@@ -104,6 +104,8 @@ Browser waiver gameplay is available through `npm run e2e:browser-waiver` or `E2
 
 Browser trade proposal gameplay is available through `npm run e2e:browser-trade` or `E2E_ENABLE_BROWSER_TRADE=1 npm run e2e:soak`. It creates an isolated two-user league, seeds one rostered player per team, signs into Expo web through `agent-browser`, opens the real propose-trade modal, selects both player rows, submits the proposal, and verifies authenticated Supabase RLS persisted one pending `trades` row with the expected proposer/recipient `trade_items`. This covers the first D.SEA.2 trade proposal UI slice; accept/veto, future-pick proposal UI, atomic completion, and post-deadline rejection remain separate work.
 
+Browser trade acceptance gameplay is available through `npm run e2e:browser-trade-accept` or `E2E_ENABLE_BROWSER_TRADE_ACCEPT=1 npm run e2e:soak`. It creates an isolated pending player-for-player trade, signs into Expo web through `agent-browser` as the recipient, opens the real Trades Offers tab, taps the accessible accept action, and verifies the local Fastify backend plus `accept_trade_atomic` completed the trade, moved both rostered players, and wrote trade transaction rows. This covers the first D.SEA.2 trade accept UI slice; reject/withdraw/veto, future-pick UI acceptance, overflow drop-before-accept, and post-deadline rejection remain separate work.
+
 Outputs:
 
 - `tests/e2e-report.md`

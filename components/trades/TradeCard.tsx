@@ -205,12 +205,16 @@ export function TradeCard({
                             <Pressable
                                 style={[styles.actionBtn, styles.actionBtnAccept]}
                                 onPress={handleAccept}
+                                accessibilityRole="button"
+                                accessibilityLabel={`Accept trade with ${opponentName}`}
                             >
                                 <Text style={styles.actionBtnAcceptText}>Accept</Text>
                             </Pressable>
                             <Pressable
                                 style={[styles.actionBtn, styles.actionBtnReject]}
                                 onPress={handleReject}
+                                accessibilityRole="button"
+                                accessibilityLabel={`Reject trade with ${opponentName}`}
                             >
                                 <Text style={styles.actionBtnRejectText}>Reject</Text>
                             </Pressable>
@@ -221,6 +225,8 @@ export function TradeCard({
                             <Pressable
                                 style={[styles.actionBtn, styles.actionBtnReject]}
                                 onPress={handleWithdraw}
+                                accessibilityRole="button"
+                                accessibilityLabel={`Withdraw trade with ${opponentName}`}
                             >
                                 <Text style={styles.actionBtnRejectText}>Withdraw</Text>
                             </Pressable>
