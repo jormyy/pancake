@@ -19,6 +19,8 @@ export E2E_ADMIN_SECRET=...
 export E2E_ENABLE_BACKEND_TICKS=1
 export E2E_ENABLE_BROWSER_AUTH=1
 export E2E_BROWSER_AUTH_USERS=10
+export E2E_ENABLE_BROWSER_GAMEPLAY=1
+export E2E_ENABLE_BROWSER_WAIVER=1
 export E2E_ENABLE_LEAGUE_LIFECYCLE=1
 export E2E_ENABLE_PICK_CHAIN=1
 export E2E_ENABLE_PUSH=1
@@ -96,6 +98,10 @@ Browser smoke runs are available through `npm run e2e:browser-smoke` or `E2E_ENA
 
 Browser auth runs are available through `npm run e2e:browser-auth` or `E2E_ENABLE_BROWSER_AUTH=1 npm run e2e:soak`. They use isolated `agent-browser` sessions for seeded users, verify a protected route redirects to sign-in, sign in, verify profile/session persistence, sign out through the real profile UI, and verify the auth guard returns. Set `E2E_BROWSER_AUTH_USERS=10` to exercise all seeded users in parallel. This covers D.SET.1 only; it does not replace auction, trade, waiver, lineup, playoff, or rookie-draft browser scenarios.
 
+Browser auction gameplay is available through `npm run e2e:browser-gameplay` or `E2E_ENABLE_BROWSER_GAMEPLAY=1 npm run e2e:soak`. It creates an isolated two-user league, signs into Expo web through `agent-browser`, opens the real auction draft room as the bidder, clicks the visible bid button, and verifies the backend/RPC persisted the high bid and bid history row. This covers the first D.SET.4 UI gameplay slice; full auction completion, timer expiry, and reconnect behavior remain separate work.
+
+Browser waiver gameplay is available through `npm run e2e:browser-waiver` or `E2E_ENABLE_BROWSER_WAIVER=1 npm run e2e:soak`. It creates an isolated one-user league, places a player on the real waiver wire, signs into Expo web through `agent-browser`, opens the real claim-player modal, submits a no-drop waiver claim, and verifies the backend persisted a pending `waiver_claims` row. This covers the first D.SEA.2 waiver UI gameplay slice; drop-then-add, priority processing, DTD-on-IR blocking, and daily processing remain separate work.
+
 Outputs:
 
 - `tests/e2e-report.md`
@@ -104,6 +110,8 @@ Outputs:
 - `tests/e2e-state.json`
 - `tests/e2e-browser-report.md`
 - `tests/e2e-browser-auth-report.md`
+- `tests/e2e-browser-gameplay-report.md`
+- `tests/e2e-browser-waiver-report.md`
 - `tests/artifacts/perf-metrics.json`
 - `tests/artifacts/future-pick-chain.json`
 - `tests/snapshots/season-<N>/`

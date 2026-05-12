@@ -193,6 +193,8 @@ export default function ClaimPlayerScreen() {
                             <Pressable
                                 style={[styles.submitButton, (needsDrop && !selectedDrop) && styles.submitButtonDisabled]}
                                 onPress={handleSubmit}
+                                accessibilityRole="button"
+                                accessibilityLabel="Submit waiver claim"
                                 disabled={submitting || (needsDrop && !selectedDrop)}
                             >
                                 {submitting ? (
