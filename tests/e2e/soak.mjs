@@ -45,6 +45,7 @@ const parseArgs = () => {
     browser: args.get('browser') === 'true' || process.env.E2E_ENABLE_BROWSER === '1',
     browserFullSweep: args.get('browser-full-sweep') === 'true' || process.env.E2E_BROWSER_FULL_SWEEP === '1',
     browserAuth: args.get('browser-auth') === 'true' || process.env.E2E_ENABLE_BROWSER_AUTH === '1',
+    leagueLifecycle: args.get('league-lifecycle') === 'true' || process.env.E2E_ENABLE_LEAGUE_LIFECYCLE === '1',
     pickChain: args.get('pick-chain') === 'true' || process.env.E2E_ENABLE_PICK_CHAIN === '1',
     push: args.get('push') === 'true' || process.env.E2E_ENABLE_PUSH === '1',
     draftPush: args.get('draft-push') === 'true' || process.env.E2E_ENABLE_DRAFT_PUSH === '1',
@@ -149,6 +150,9 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
   const browserStatus = args.browser && args.browserAuth
     ? args.browserFullSweep ? 'PARTIAL' : 'PARTIAL'
     : args.browser || args.browserAuth ? 'PARTIAL' : 'PENDING'
+  const leagueLifecycleStatus = args.leagueLifecycle
+    ? hasFailingNote(rows, /D\.SET\.2/) ? 'FAIL' : hasPassingNote(rows, /league lifecycle passed/) ? 'PARTIAL' : 'PENDING'
+    : targetLeagueId ? 'PARTIAL' : 'PENDING'
   const pushStatus = args.push || args.draftPush
     ? status === 'ERROR' || hasFailingNote(rows, /D\.X\.1|push|waiver/i) ? 'FAIL' : hasPassingNote(rows, /push notification intercepts passed|draft push notification intercept passed/) ? 'PARTIAL' : 'PENDING'
     : 'PENDING'
@@ -208,8 +212,8 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
     },
     {
       requirement: 'D.SET.2 league create/join/pick bank',
-      status: targetLeagueId ? 'PARTIAL' : 'PENDING',
-      evidence: targetLeagueId ? `Seeded target league ${targetLeagueId}; invite, lineup slots, members, and 5y pick-bank proof lives in tests/e2e-seed-report.md.` : 'No target league configured.',
+      status: leagueLifecycleStatus,
+      evidence: args.leagueLifecycle ? 'League-lifecycle mode signs in seeded users, calls create_league and join_league_by_invite_code through anon Supabase clients, then verifies invite code, members, lineup slots, current season, and five-year pick bank.' : targetLeagueId ? `Seeded target league ${targetLeagueId}; invite, lineup slots, members, and 5y pick-bank proof lives in tests/e2e-seed-report.md.` : 'No target league configured.',
     },
     {
       requirement: 'D.SET.3 commissioner settings propagation',
@@ -920,6 +924,23 @@ const assertHistoryRetained = async (supabase, fixtures, runSeason) => {
 
 const e2eCode = () => Math.random().toString(36).replace(/[^a-z0-9]/g, '').slice(2, 8).toUpperCase().padEnd(6, '0')
 
+const EXPECTED_DEFAULT_LINEUP_SLOTS = {
+  PG: 1,
+  SG: 1,
+  SF: 1,
+  PF: 1,
+  C: 1,
+  G: 1,
+  F: 1,
+  UTIL: 3,
+  BE: 10,
+  IR: 2,
+}
+
+const currentSeasonYear = (now = new Date()) => {
+  return now.getUTCMonth() >= 9 ? now.getUTCFullYear() + 1 : now.getUTCFullYear()
+}
+
 const createDisposableLeagueFromSeedUsers = async ({ supabase, state, season, label, userCount, seasonYear }) => {
   if (!state?.password || !Array.isArray(state.users) || state.users.length < userCount) {
     throw new Error(`${label}: scenario requires ${userCount} seeded users from npm run e2e:seed`)
@@ -1000,6 +1021,123 @@ const readLineupSlotsForClient = async (client, leagueId, label) => {
     .eq('league_id', leagueId)
   if (error) throw new Error(`${label}: lineup slot read failed: ${error.message}`)
   return data ?? []
+}
+
+const assertLeagueLifecycleScenario = async ({ supabase, env, state, season }) => {
+  const failures = []
+  const label = 'D.SET.2'
+  const users = state.users.slice(0, 10)
+  const unique = `${state.runId ?? 'manual'}-${season}-${Date.now().toString(36)}`
+  const commissioner = await signInSupabaseClient(env, users[0].email, state.password, label)
+  const { data: createdLeague, error: createError } = await commissioner.rpc('create_league', {
+    p_name: `Pancake E2E Lifecycle ${unique}`,
+    p_team_name: `${label} Team 1`,
+    p_auction_budget: 211,
+  })
+  if (createError) throw new Error(`${label}: create_league failed: ${createError.message}`)
+  if (!createdLeague?.id) throw new Error(`${label}: create_league returned no league id`)
+  if (!/^[A-Z0-9]{6}$/.test(createdLeague.invite_code ?? '')) {
+    failures.push(`${label}: invite_code=${createdLeague.invite_code ?? '<missing>'}; expected six uppercase alnum chars`)
+  }
+
+  for (const [index, user] of users.slice(1).entries()) {
+    const client = await signInSupabaseClient(env, user.email, state.password, label)
+    const { error } = await client.rpc('join_league_by_invite_code', {
+      p_invite_code: createdLeague.invite_code,
+      p_team_name: `${label} Team ${index + 2}`,
+    })
+    if (error) failures.push(`${label}: join_league_by_invite_code failed for ${user.email}: ${error.message}`)
+  }
+
+  const [
+    league,
+    members,
+    seasons,
+    picks,
+    slotRows,
+  ] = await Promise.all([
+    fetchSingle(supabase, 'leagues', 'id, invite_code, commissioner_id, auction_budget, status', { id: createdLeague.id }),
+    fetchAll(supabase, 'league_members', 'id, user_id, role, team_name', { league_id: createdLeague.id }),
+    fetchAll(supabase, 'league_seasons', 'id, season_year, is_current', { league_id: createdLeague.id }),
+    fetchAll(supabase, 'draft_picks', 'id, season_year, round, original_owner_id, current_owner_id', { league_id: createdLeague.id }),
+    fetchAll(supabase, 'lineup_slot_templates', 'slot_type, slot_count', { league_id: createdLeague.id }),
+  ])
+
+  if (league.commissioner_id !== users[0].id) {
+    failures.push(`${label}: commissioner_id=${league.commissioner_id}; expected ${users[0].id}`)
+  }
+  if (league.auction_budget !== 211) {
+    failures.push(`${label}: auction_budget=${league.auction_budget}; expected 211`)
+  }
+  if (members.length !== users.length) {
+    failures.push(`${label}: league_members count=${members.length}; expected ${users.length}`)
+  }
+  const memberByUserId = new Map(members.map((member) => [member.user_id, member]))
+  for (const [index, user] of users.entries()) {
+    const member = memberByUserId.get(user.id)
+    if (!member) {
+      failures.push(`${label}: missing league_member for user ${user.email}`)
+      continue
+    }
+    const expectedRole = index === 0 ? 'commissioner' : 'manager'
+    if (member.role !== expectedRole) {
+      failures.push(`${label}: member ${member.id} role=${member.role}; expected ${expectedRole}`)
+    }
+  }
+
+  const currentSeasons = seasons.filter((row) => row.is_current)
+  if (currentSeasons.length !== 1) {
+    failures.push(`${label}: current season rows=${currentSeasons.length}; expected 1`)
+  }
+  const seasonYear = currentSeasons[0]?.season_year ?? currentSeasonYear()
+  const minPickYear = seasonYear + 1
+  const maxPickYear = seasonYear + 5
+  const pickKeys = new Set(picks.map((pick) => `${pick.season_year}:${pick.round}:${pick.original_owner_id}:${pick.current_owner_id}`))
+  for (const member of members) {
+    for (let year = minPickYear; year <= maxPickYear; year += 1) {
+      for (let round = 1; round <= 3; round += 1) {
+        const key = `${year}:${round}:${member.id}:${member.id}`
+        if (!pickKeys.has(key)) failures.push(`${label}: missing future pick ${key}`)
+      }
+    }
+  }
+  const expectedPickCount = members.length * 5 * 3
+  if (picks.length !== expectedPickCount) {
+    failures.push(`${label}: draft_picks count=${picks.length}; expected ${expectedPickCount}`)
+  }
+
+  const slotCounts = new Map(slotRows.map((slot) => [slot.slot_type, slot.slot_count]))
+  for (const [slotType, slotCount] of Object.entries(EXPECTED_DEFAULT_LINEUP_SLOTS)) {
+    if (slotCounts.get(slotType) !== slotCount) {
+      failures.push(`${label}: lineup_slot_templates ${slotType}=${slotCounts.get(slotType) ?? '<missing>'}; expected ${slotCount}`)
+    }
+  }
+  if (slotRows.length !== Object.keys(EXPECTED_DEFAULT_LINEUP_SLOTS).length) {
+    failures.push(`${label}: lineup_slot_templates count=${slotRows.length}; expected ${Object.keys(EXPECTED_DEFAULT_LINEUP_SLOTS).length}`)
+  }
+
+  const artifact = {
+    season,
+    league: {
+      id: league.id,
+      invite_code: league.invite_code,
+      status: league.status,
+      commissioner_id: league.commissioner_id,
+      auction_budget: league.auction_budget,
+    },
+    users: users.map((user) => ({ id: user.id, email: user.email })),
+    memberCount: members.length,
+    currentSeasons,
+    pickWindow: { minPickYear, maxPickYear, count: picks.length, expectedPickCount },
+    slots: Object.fromEntries(slotCounts),
+    failures,
+  }
+  await writeFile(
+    path.join(ARTIFACT_ROOT, `season-${season}`, 'league-lifecycle.json'),
+    `${JSON.stringify(artifact, null, 2)}\n`,
+  )
+
+  return { failures, artifact }
 }
 
 const assertCommissionerSettingsScenario = async ({ supabase, env, state, season }) => {
@@ -3134,6 +3272,9 @@ const main = async () => {
   if (args.push && (!env.backendTicksEnabled || !targetLeagueId)) {
     throw new Error('E2E_ENABLE_PUSH=1 requires E2E_ENABLE_BACKEND_TICKS=1 and a seeded target league')
   }
+  if (args.leagueLifecycle && (!state?.password || !Array.isArray(state.users) || state.users.length < 10)) {
+    throw new Error('E2E_ENABLE_LEAGUE_LIFECYCLE=1 requires tests/e2e-state.json from npm run e2e:seed with 10 users')
+  }
   if (args.draftPush && (!state?.password || !Array.isArray(state.users) || state.users.length < 4)) {
     throw new Error('E2E_ENABLE_DRAFT_PUSH=1 requires tests/e2e-state.json from npm run e2e:seed with at least 4 users')
   }
@@ -3201,6 +3342,9 @@ const main = async () => {
     args.browserAuth
       ? 'Browser auth scenario enabled through E2E_ENABLE_BROWSER_AUTH=1.'
       : 'Browser auth/sign-out/session-persistence scenario disabled; set E2E_ENABLE_BROWSER_AUTH=1 to exercise D.SET.1.',
+    args.leagueLifecycle
+      ? 'League create/join lifecycle scenario enabled through E2E_ENABLE_LEAGUE_LIFECYCLE=1.'
+      : 'League create/join lifecycle scenario disabled; set E2E_ENABLE_LEAGUE_LIFECYCLE=1 to exercise D.SET.2 through real auth RPCs.',
     args.pickChain
       ? 'Future-pick multi-hop scenario enabled through E2E_ENABLE_PICK_CHAIN=1.'
       : 'Future-pick multi-hop scenario disabled; set E2E_ENABLE_PICK_CHAIN=1 to exercise D.LONG.2.',
@@ -3337,6 +3481,17 @@ const main = async () => {
         }
         if (args.browserAuth) {
           await runBrowserAuthScenario({ season })
+        }
+        let leagueLifecycleCheck = null
+        const leagueLifecycleFailures = []
+        if (args.leagueLifecycle && season === 1) {
+          leagueLifecycleCheck = await assertLeagueLifecycleScenario({
+            supabase,
+            env,
+            state,
+            season,
+          })
+          leagueLifecycleFailures.push(...leagueLifecycleCheck.failures)
         }
         let auctionValidation = null
         if (args.auction && season === 1) {
@@ -3504,6 +3659,7 @@ const main = async () => {
           ...matchupFailures,
           ...failuresAfterReset,
           ...snapshotFailures,
+          ...leagueLifecycleFailures,
           ...playoffFailures,
           ...tiebreakerFailures,
           ...settingsFailures,
@@ -3529,6 +3685,7 @@ const main = async () => {
               seasonNotes,
               args.browser ? 'browser smoke passed' : null,
               args.browserAuth ? 'browser auth scenario passed' : null,
+              leagueLifecycleCheck ? 'league lifecycle passed' : null,
               args.realtime ? 'realtime matchup update delivered' : null,
               args.push ? 'trade and waiver push notification intercepts passed' : null,
               draftPushCheck ? 'draft push notification intercept passed' : null,

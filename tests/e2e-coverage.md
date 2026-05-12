@@ -1,8 +1,8 @@
 # E2E Coverage Checklist
 
 - Run status: PARTIAL
-- Started: 2026-05-12T06:03:07.118Z
-- Finished: 2026-05-12T06:03:08.803Z
+- Started: 2026-05-12T06:09:22.216Z
+- Finished: 2026-05-12T06:09:27.009Z
 - Target seasons: 1
 
 ## Prompt-To-Artifact Matrix
@@ -14,7 +14,7 @@
 | Real test Supabase project | PASS | Supabase URL/service-role credentials loaded from E2E/app env. |
 | Fake NBA CDN/Sleeper upstream | PASS | Fake upstream configured for http://127.0.0.1:4555. |
 | D.SET.1 auth/session/sign-out | PENDING | Enable E2E_ENABLE_BROWSER_AUTH=1 or use prior browser-auth artifact. |
-| D.SET.2 league create/join/pick bank | PARTIAL | Seeded target league 70c70f7e-737d-402d-ad1c-3fd204faac5e; invite, lineup slots, members, and 5y pick-bank proof lives in tests/e2e-seed-report.md. |
+| D.SET.2 league create/join/pick bank | PARTIAL | League-lifecycle mode signs in seeded users, calls create_league and join_league_by_invite_code through anon Supabase clients, then verifies invite code, members, lineup slots, current season, and five-year pick bank. |
 | D.SET.3 commissioner settings propagation | PENDING | No commissioner settings propagation scenario implemented; enable E2E_ENABLE_SETTINGS=1. |
 | D.SET.4 initial auction draft | PENDING | No browser-driven auction draft scenario implemented; enable E2E_ENABLE_AUCTION=1 for server-side bid validation slice. |
 | D.0 invariant boundary checks | PASS | Season rows in tests/e2e-report.md include D.0 boundary checks or failure. |
@@ -23,7 +23,7 @@
 | D.SEA.3 standings tiebreakers/RPS | PENDING | No forced four-way tie or RPS browser/backend scenario implemented; enable E2E_ENABLE_TIEBREAKERS=1 for standings tiebreaker coverage. |
 | D.SEA.4 playoffs/champion | PENDING | No playoff bracket/champion scenario implemented; enable E2E_ENABLE_PLAYOFFS=1 for bracket-generation coverage. |
 | D.SEA.5 rookie draft/traded picks | PENDING | Enable E2E_ENABLE_ROOKIE_DRAFT=1 for rookie-draft auto-pick/order coverage or E2E_ENABLE_PICK_CHAIN=1 for long-horizon traded-pick materialization. |
-| D.SEA.6 season reset | PARTIAL | Season-reset mode creates a disposable league, calls the real /e2e/advance-season endpoint, and verifies current-season flip, roster carryover, waiver reseed, prior-season queryability, and rolling five-year pick horizon. |
+| D.SEA.6 season reset | PENDING | Requires E2E_ENABLE_BACKEND_TICKS=1 or E2E_ENABLE_SEASON_RESET=1. |
 | D.SEA.7 snapshots/no shrink | PENDING | Snapshot summaries are written under tests/snapshots/season-<N>/summary.json. |
 | D.X.1 push notifications | PENDING | Trade push prior slice exists; waiver and draft push slices are separate; enable E2E_ENABLE_PUSH=1 or E2E_ENABLE_DRAFT_PUSH=1. |
 | D.X.2 realtime bid/score events | PENDING | Enable E2E_ENABLE_REALTIME=1. |
@@ -41,12 +41,13 @@
 ## Run Notes
 
 - This harness is integration/E2E only. It does not run unit tests.
-- Configured API base: http://127.0.0.1:3101
+- Configured API base: <remote configured>
 - Configured frontend: http://127.0.0.1:8081
 - Target league: 70c70f7e-737d-402d-ad1c-3fd204faac5e (seed run 20260512045536)
 - Backend tick endpoints were not enabled; set E2E_ENABLE_BACKEND_TICKS=1 with a local backend to run them.
 - Browser-driving scenarios must be run with agent-browser against the configured frontend before declaring the app dynasty-stable.
 - Browser auth/sign-out/session-persistence scenario disabled; set E2E_ENABLE_BROWSER_AUTH=1 to exercise D.SET.1.
+- League create/join lifecycle scenario enabled through E2E_ENABLE_LEAGUE_LIFECYCLE=1.
 - Future-pick multi-hop scenario disabled; set E2E_ENABLE_PICK_CHAIN=1 to exercise D.LONG.2.
 - Push notification intercept disabled; set E2E_ENABLE_PUSH=1 with backend EXPO_PUSH_URL pointed at the fake upstream to exercise the trade-notification slice of D.X.1.
 - Draft push notification intercept disabled; set E2E_ENABLE_DRAFT_PUSH=1 to exercise the rookie auto-pick notification slice of D.X.1.
@@ -59,6 +60,6 @@
 - Commissioner settings propagation scenario disabled; set E2E_ENABLE_SETTINGS=1 to exercise D.SET.3.
 - Weekly starter-only scoring/finalization scenario disabled; set E2E_ENABLE_SCORING=1 to exercise the D.SEA.2 scoring slice.
 - Rookie draft auto-pick/order scenario disabled; set E2E_ENABLE_ROOKIE_DRAFT=1 to exercise the D.SEA.5 auto-pick slice.
-- Season reset carryover/reseed scenario enabled through E2E_ENABLE_SEASON_RESET=1.
+- Season reset carryover/reseed scenario disabled; set E2E_ENABLE_SEASON_RESET=1 to exercise the D.SEA.6 reset slice.
 - Schema preflight passed: post-refactor RPCs and required columns are present.
 - Perf metrics written to tests/artifacts/perf-metrics.json.
