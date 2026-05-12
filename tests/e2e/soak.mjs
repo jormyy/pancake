@@ -4,6 +4,7 @@ import process from 'node:process'
 import { createClient } from '@supabase/supabase-js'
 import { createFakeUpstreamServer } from './fake-upstream.mjs'
 import { resolvedEnv, describeEndpoint } from './env.mjs'
+import { runBrowserSmoke } from './browser-smoke.mjs'
 
 const ROOT = process.cwd()
 const REPORT_PATH = path.join(ROOT, 'tests/e2e-report.md')
@@ -29,6 +30,7 @@ const parseArgs = () => {
     seasons: Number(args.get('seasons') ?? process.env.E2E_SEASONS ?? 10),
     keepGoing: args.get('keep-going') === 'true' || process.env.E2E_KEEP_GOING === '1',
     fakePort: Number(args.get('fake-port') ?? process.env.FAKE_UPSTREAM_PORT ?? 4555),
+    browser: args.get('browser') === 'true' || process.env.E2E_ENABLE_BROWSER === '1',
   }
 }
 
@@ -374,7 +376,9 @@ const main = async () => {
     env.backendTicksEnabled
       ? 'Backend tick endpoints enabled through E2E_ENABLE_BACKEND_TICKS=1.'
       : 'Backend tick endpoints were not enabled; set E2E_ENABLE_BACKEND_TICKS=1 with a local backend to run them.',
-    'Browser-driving scenarios must be run with agent-browser against the configured frontend before declaring the app dynasty-stable.',
+    args.browser
+      ? 'Browser smoke enabled through E2E_ENABLE_BROWSER=1.'
+      : 'Browser-driving scenarios must be run with agent-browser against the configured frontend before declaring the app dynasty-stable.',
   ]
 
   try {
@@ -423,6 +427,10 @@ const main = async () => {
           await backendJson(env, '/e2e/generate-matchups', { force: false })
         }
 
+        if (args.browser) {
+          await runBrowserSmoke({ season })
+        }
+
         const failuresAtStart = await runInvariants(supabase, targetLeagueId)
         await writeSnapshots(supabase, season, targetLeagueId)
         const failuresAtEnd = await runInvariants(supabase, targetLeagueId)
@@ -438,9 +446,13 @@ const main = async () => {
           if (!args.keepGoing) break
         } else {
           const seasonNotes = env.backendTicksEnabled
-            ? 'D.0 invariant boundary checks passed before and after real season reset; scenario/browser steps pending'
-            : 'D.0 invariant boundary checks passed; scenario/browser steps pending'
-          rows.push({ season, status: 'PASS', notes: seasonNotes })
+            ? 'D.0 invariant boundary checks passed before and after real season reset; full scenario loop pending'
+            : 'D.0 invariant boundary checks passed; full scenario/browser loop pending'
+          rows.push({
+            season,
+            status: 'PASS',
+            notes: args.browser ? `${seasonNotes}; browser smoke passed` : seasonNotes,
+          })
         }
 
         await postJson(`http://127.0.0.1:${args.fakePort}/admin/advance-season`, {})

@@ -32,11 +32,14 @@ npm run e2e:soak
 
 Backend tick routes are available only when the Fastify server is started with both `ENABLE_E2E_ROUTES=1` and `E2E_ADMIN_SECRET`. The soak runner calls them only when `E2E_ENABLE_BACKEND_TICKS=1`. In that mode it runs sync/admin ticks and calls the real season-reset path for the target league at each season boundary, then re-checks invariants including the rolling five-year pick-bank horizon.
 
+Browser smoke runs are available through `npm run e2e:browser-smoke` or `E2E_ENABLE_BROWSER=1 npm run e2e:soak`. They use `agent-browser` with an isolated session, sign in as the seeded commissioner, visit the main tab screens, and write screenshots plus console/error logs under `tests/artifacts/season-<N>/smoke/`. This is a smoke sweep only; the full D.SET/D.SEA/D.X/D.LONG browser scenario loop remains separate work.
+
 Outputs:
 
 - `tests/e2e-report.md`
 - `tests/e2e-seed-report.md`
 - `tests/e2e-state.json`
+- `tests/e2e-browser-report.md`
 - `tests/snapshots/season-<N>/`
 - `tests/artifacts/season-<N>/`
 
