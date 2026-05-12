@@ -203,7 +203,7 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
     {
       requirement: 'P0/P1 findings resolved',
       status: 'PARTIAL',
-      evidence: 'Post-refactor deltas are documented, but approval-blocked soak findings remain open and external service-role rotation/history purge is still outside the repo.',
+      evidence: 'Post-refactor deltas and approval-gated soak fixes are documented; external service-role rotation/history purge is still outside the repo.',
     },
     {
       requirement: 'Real test Supabase project',
@@ -273,7 +273,7 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
     {
       requirement: 'D.SEA.5 rookie draft/traded picks',
       status: rookieDraftStatus,
-      evidence: args.rookieDraft ? 'Rookie-draft mode starts a disposable offseason draft through the real backend route, verifies inverse-standings snake order, auto-pick lowest nba_draft_number, exact pick asset usage, roster insert, and already-rostered rejection.' : args.pickChain ? 'Pick-chain mode ran; D.LONG.1 currently exposes stale unused pick assets.' : 'Enable E2E_ENABLE_ROOKIE_DRAFT=1 for rookie-draft auto-pick/order coverage or E2E_ENABLE_PICK_CHAIN=1 for long-horizon traded-pick materialization.',
+      evidence: args.rookieDraft ? 'Rookie-draft mode starts a disposable offseason draft through the real backend route, verifies inverse-standings snake order, auto-pick lowest nba_draft_number, exact pick asset usage, roster insert, and already-rostered rejection.' : args.pickChain ? 'Pick-chain mode verifies multi-hop future-pick ownership every season and materializes the traded pick in the target rookie draft year.' : 'Enable E2E_ENABLE_ROOKIE_DRAFT=1 for rookie-draft auto-pick/order coverage or E2E_ENABLE_PICK_CHAIN=1 for long-horizon traded-pick materialization.',
     },
     {
       requirement: 'D.SEA.6 season reset',
@@ -288,7 +288,7 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
     {
       requirement: 'D.X.1 push notifications',
       status: pushStatus,
-      evidence: args.push ? 'Push mode ran; waiver path currently exposes process_next_waiver_claim_atomic failure.' : args.draftPush ? 'Draft-push mode runs a disposable rookie auto-pick and asserts the fake Expo upstream captured a draft notification.' : 'Trade push prior slice exists; waiver and draft push slices are separate; enable E2E_ENABLE_PUSH=1 or E2E_ENABLE_DRAFT_PUSH=1.',
+      evidence: args.push ? 'Push mode verifies trade and waiver notifications through the fake Expo upstream; draft-push mode separately verifies rookie auto-pick notifications when enabled.' : args.draftPush ? 'Draft-push mode runs a disposable rookie auto-pick and asserts the fake Expo upstream captured a draft notification.' : 'Trade push prior slice exists; waiver and draft push slices are separate; enable E2E_ENABLE_PUSH=1 or E2E_ENABLE_DRAFT_PUSH=1.',
     },
     {
       requirement: 'D.X.2 realtime bid/score events',
@@ -313,7 +313,7 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
     {
       requirement: 'D.LONG.1/D.LONG.2 long-horizon pick trades',
       status: pickChainStatus,
-      evidence: 'Multi-hop owner persistence exists; rookie-draft materialization currently fails pending approval to fix.',
+      evidence: args.pickChain ? 'Pick-chain mode creates a three-hop future-pick trade, verifies owner persistence every season, and checks the target rookie-draft slot belongs to the final owner when the pick year arrives.' : 'Enable E2E_ENABLE_PICK_CHAIN=1 to exercise multi-hop pick ownership and rookie-draft materialization.',
     },
     {
       requirement: 'D.LONG.3/D.LONG.4 standings/champion history',
@@ -333,7 +333,7 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
     {
       requirement: 'D.LONG.7 memory/connection leaks',
       status: memoryStatus,
-      evidence: 'Harness memory metrics live in tests/artifacts/perf-metrics.json; current invariant run exceeds default memory drift gate.',
+      evidence: 'Harness memory metrics live in tests/artifacts/perf-metrics.json and 10+ season runs fail if RSS or heap exceeds the configured drift limit.',
     },
     {
       requirement: '10 seasons and continue past 10 / 20 clean',
@@ -2879,7 +2879,10 @@ const assertRealtimeDelivery = async ({ supabase, env, state, leagueId, season }
   const target = await insertRealtimeTargetMatchup(supabase, leagueId, season, season)
   const clients = []
   const channels = []
+  const warmupDeliveries = []
   const deliveries = []
+  const warmupHomePoints = 500 + season
+  const warmupAwayPoints = 400 + season
   const expectedHomePoints = 1000 + season
   const expectedAwayPoints = 900 + season
 
@@ -2897,6 +2900,10 @@ const assertRealtimeDelivery = async ({ supabase, env, state, leagueId, season }
         client.realtime.setAuth(signInData.session.access_token)
       }
 
+      let resolveWarmup
+      const warmupDelivery = new Promise((resolve) => {
+        resolveWarmup = resolve
+      })
       const delivery = new Promise((resolve) => {
         const channel = client
           .channel(`e2e_realtime_matchup_${season}_${index}`)
@@ -2907,6 +2914,12 @@ const assertRealtimeDelivery = async ({ supabase, env, state, leagueId, season }
             filter: `id=eq.${target.id}`,
           }, (payload) => {
             if (
+              Number(payload.new?.home_points) === warmupHomePoints &&
+              Number(payload.new?.away_points) === warmupAwayPoints
+            ) {
+              resolveWarmup({ clientIndex: index, receivedAtMs: nowMs() })
+            }
+            if (
               Number(payload.new?.home_points) === expectedHomePoints &&
               Number(payload.new?.away_points) === expectedAwayPoints
             ) {
@@ -2915,11 +2928,26 @@ const assertRealtimeDelivery = async ({ supabase, env, state, leagueId, season }
           })
         channels.push({ client, channel })
       })
+      warmupDeliveries.push(warmupDelivery)
       deliveries.push(delivery)
     }
 
     await Promise.all(channels.map(({ channel }, index) => waitForRealtimeSubscribe(channel, `client ${index + 1}`)))
     await sleep(REALTIME_SETTLE_MS)
+    const { error: warmupError } = await supabase
+      .from('matchups')
+      .update({
+        home_points: warmupHomePoints,
+        away_points: warmupAwayPoints,
+      })
+      .eq('id', target.id)
+    if (warmupError) throw new Error(`D.X.2 realtime warmup update: ${warmupError.message}`)
+    await withTimeout(
+      Promise.all(warmupDeliveries),
+      REALTIME_SUBSCRIBE_TIMEOUT_MS,
+      `D.X.2: realtime warmup update did not reach all ${REALTIME_CLIENTS} clients within ${REALTIME_SUBSCRIBE_TIMEOUT_MS}ms`,
+    )
+
     const updateStartedMs = nowMs()
     const { error: updateError } = await supabase
       .from('matchups')
