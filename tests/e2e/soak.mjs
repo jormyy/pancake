@@ -16,6 +16,9 @@ const ARTIFACT_ROOT = path.join(ROOT, 'tests/artifacts')
 const PERF_METRICS_PATH = path.join(ARTIFACT_ROOT, 'perf-metrics.json')
 const PERF_DRIFT_LIMIT = Number(process.env.E2E_PERF_DRIFT_LIMIT ?? 1.2)
 const MEMORY_DRIFT_LIMIT = Number(process.env.E2E_MEMORY_DRIFT_LIMIT ?? 1.2)
+const REALTIME_CLIENTS = Number(process.env.E2E_REALTIME_CLIENTS ?? 10)
+const REALTIME_LATENCY_LIMIT_MS = Number(process.env.E2E_REALTIME_LATENCY_LIMIT_MS ?? 2000)
+const REALTIME_SUBSCRIBE_TIMEOUT_MS = Number(process.env.E2E_REALTIME_SUBSCRIBE_TIMEOUT_MS ?? 10000)
 
 const SNAPSHOT_TABLES = [
   'roster_players',
@@ -40,6 +43,7 @@ const parseArgs = () => {
     pickChain: args.get('pick-chain') === 'true' || process.env.E2E_ENABLE_PICK_CHAIN === '1',
     push: args.get('push') === 'true' || process.env.E2E_ENABLE_PUSH === '1',
     history: args.get('history') === 'true' || process.env.E2E_ENABLE_HISTORY === '1',
+    realtime: args.get('realtime') === 'true' || process.env.E2E_ENABLE_REALTIME === '1',
   }
 }
 
@@ -93,6 +97,10 @@ const writeReport = async ({ status, startedAt, finishedAt, seasons, rows, notes
 
 const hasPassingNote = (rows, pattern) => rows.some((row) => row.status === 'PASS' && pattern.test(row.notes))
 const hasFailingNote = (rows, pattern) => rows.some((row) => row.status === 'FAIL' && pattern.test(row.notes))
+const hasProblemNote = (rows, pattern) => rows.some((row) => (
+  (row.status === 'FAIL' || row.status === 'ERROR' || row.status === 'BLOCKED') &&
+  pattern.test(row.notes)
+))
 const errorMessage = (error) => error instanceof Error ? error.message : String(error)
 
 const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, args, env, targetLeagueId, rows, notes }) => {
@@ -130,6 +138,9 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
     : 'PENDING'
   const historyStatus = args.history
     ? hasFailingNote(rows, /D\.LONG\.3|D\.LONG\.4/) ? 'FAIL' : hasPassingNote(rows, /standings\/champion history retained/) ? 'PARTIAL' : 'PENDING'
+    : 'PENDING'
+  const realtimeStatus = args.realtime
+    ? hasProblemNote(rows, /D\.X\.2/) ? 'FAIL' : hasPassingNote(rows, /realtime matchup update delivered/) ? 'PARTIAL' : 'PENDING'
     : 'PENDING'
 
   const coverage = [
@@ -215,8 +226,8 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
     },
     {
       requirement: 'D.X.2 realtime bid/score events',
-      status: 'PENDING',
-      evidence: 'No 10-client realtime latency assertion implemented.',
+      status: realtimeStatus,
+      evidence: args.realtime ? 'Realtime mode opens multiple Supabase Realtime clients and asserts a matchups update reaches every client within 2s.' : 'Enable E2E_ENABLE_REALTIME=1.',
     },
     {
       requirement: 'D.X.3 CORS regression',
@@ -865,6 +876,149 @@ const assertHistoryRetained = async (supabase, fixtures, runSeason) => {
   return failures
 }
 
+const withTimeout = (promise, timeoutMs, message) => {
+  let timeout
+  const timer = new Promise((_, reject) => {
+    timeout = setTimeout(() => reject(new Error(message)), timeoutMs)
+  })
+  return Promise.race([promise, timer]).finally(() => clearTimeout(timeout))
+}
+
+const waitForRealtimeSubscribe = (channel, label) => withTimeout(
+  new Promise((resolve, reject) => {
+    channel.subscribe((status, error) => {
+      if (status === 'SUBSCRIBED') resolve()
+      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+        reject(new Error(`D.X.2: realtime ${label} subscribe status ${status}${error?.message ? `: ${error.message}` : ''}`))
+      }
+    })
+  }),
+  REALTIME_SUBSCRIBE_TIMEOUT_MS,
+  `D.X.2: realtime ${label} did not subscribe within ${REALTIME_SUBSCRIBE_TIMEOUT_MS}ms`,
+)
+
+const insertRealtimeTargetMatchup = async (supabase, leagueId, season, runSeason) => {
+  const currentSeason = await fetchSingle(
+    supabase,
+    'league_seasons',
+    'id',
+    { league_id: leagueId, is_current: true },
+  )
+  const members = await sortedLeagueMembers(supabase, leagueId)
+  const [home, away] = members
+  const baseWeekNumber = 9000 + runSeason * 100 + Math.floor(Date.now() % 100)
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const { data, error } = await supabase
+      .from('matchups')
+      .insert({
+        league_id: leagueId,
+        league_season_id: currentSeason.id,
+        week_number: baseWeekNumber + attempt,
+        matchup_type: 'regular_season',
+        home_member_id: home.id,
+        away_member_id: away.id,
+        home_points: 0,
+        away_points: 0,
+        is_finalized: false,
+      })
+      .select('id, home_member_id, away_member_id')
+      .single()
+    if (!error) return data
+    if (error.code !== '23505') {
+      throw new Error(`D.X.2 realtime target matchup insert: ${error.message}`)
+    }
+  }
+  throw new Error('D.X.2 realtime target matchup insert: exhausted unique week_number attempts')
+}
+
+const assertRealtimeDelivery = async ({ supabase, env, state, leagueId, season }) => {
+  if (!state?.password || !Array.isArray(state.users) || state.users.length === 0) {
+    throw new Error('D.X.2: realtime scenario requires tests/e2e-state.json from npm run e2e:seed')
+  }
+  if (!env.anonKey) throw new Error('D.X.2: realtime scenario requires E2E_SUPABASE_ANON_KEY or EXPO_PUBLIC_SUPABASE_ANON_KEY')
+  if (!Number.isFinite(REALTIME_CLIENTS) || REALTIME_CLIENTS < 1) {
+    throw new Error(`D.X.2: invalid E2E_REALTIME_CLIENTS ${process.env.E2E_REALTIME_CLIENTS}`)
+  }
+  if (!Number.isFinite(REALTIME_LATENCY_LIMIT_MS) || REALTIME_LATENCY_LIMIT_MS < 100) {
+    throw new Error(`D.X.2: invalid E2E_REALTIME_LATENCY_LIMIT_MS ${process.env.E2E_REALTIME_LATENCY_LIMIT_MS}`)
+  }
+  if (!Number.isFinite(REALTIME_SUBSCRIBE_TIMEOUT_MS) || REALTIME_SUBSCRIBE_TIMEOUT_MS < REALTIME_LATENCY_LIMIT_MS) {
+    throw new Error(`D.X.2: invalid E2E_REALTIME_SUBSCRIBE_TIMEOUT_MS ${process.env.E2E_REALTIME_SUBSCRIBE_TIMEOUT_MS}`)
+  }
+
+  const target = await insertRealtimeTargetMatchup(supabase, leagueId, season, season)
+  const clients = []
+  const channels = []
+  const deliveries = []
+  const expectedHomePoints = 1000 + season
+  const expectedAwayPoints = 900 + season
+
+  try {
+    const users = Array.from({ length: REALTIME_CLIENTS }, (_, index) => state.users[index % state.users.length])
+    for (const [index, user] of users.entries()) {
+      const client = createClient(env.supabaseUrl, env.anonKey, { auth: { persistSession: false } })
+      clients.push(client)
+      const { error: signInError } = await client.auth.signInWithPassword({ email: user.email, password: state.password })
+      if (signInError) throw new Error(`D.X.2 realtime sign-in failed for ${user.email}: ${signInError.message}`)
+
+      const delivery = new Promise((resolve) => {
+        const channel = client
+          .channel(`e2e_realtime_matchup_${season}_${index}`)
+          .on('postgres_changes', {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'matchups',
+            filter: `id=eq.${target.id}`,
+          }, (payload) => {
+            if (
+              Number(payload.new?.home_points) === expectedHomePoints &&
+              Number(payload.new?.away_points) === expectedAwayPoints
+            ) {
+              resolve({ clientIndex: index, receivedAtMs: nowMs() })
+            }
+          })
+        channels.push({ client, channel })
+      })
+      deliveries.push(delivery)
+    }
+
+    await Promise.all(channels.map(({ channel }, index) => waitForRealtimeSubscribe(channel, `client ${index + 1}`)))
+    const updateStartedMs = nowMs()
+    const { error: updateError } = await supabase
+      .from('matchups')
+      .update({
+        home_points: expectedHomePoints,
+        away_points: expectedAwayPoints,
+      })
+      .eq('id', target.id)
+    if (updateError) throw new Error(`D.X.2 realtime matchup update: ${updateError.message}`)
+
+    const results = await withTimeout(
+      Promise.all(deliveries),
+      REALTIME_LATENCY_LIMIT_MS,
+      `D.X.2: realtime update did not reach all ${REALTIME_CLIENTS} clients within ${REALTIME_LATENCY_LIMIT_MS}ms`,
+    )
+    const maxLatencyMs = Math.max(...results.map((result) => result.receivedAtMs - updateStartedMs))
+    if (maxLatencyMs > REALTIME_LATENCY_LIMIT_MS) {
+      throw new Error(`D.X.2: realtime max latency ${roundedMs(maxLatencyMs)}ms exceeded ${REALTIME_LATENCY_LIMIT_MS}ms`)
+    }
+
+    await writeFile(
+      path.join(ARTIFACT_ROOT, `season-${season}`, 'realtime-latency.json'),
+      `${JSON.stringify({
+        season,
+        matchupId: target.id,
+        clients: REALTIME_CLIENTS,
+        maxLatencyMs: roundedMs(maxLatencyMs),
+        latenciesMs: results.map((result) => roundedMs(result.receivedAtMs - updateStartedMs)),
+      }, null, 2)}\n`,
+    )
+  } finally {
+    await Promise.allSettled(channels.map(({ client, channel }) => client.removeChannel(channel)))
+    await Promise.allSettled(clients.map((client) => client.auth.signOut()))
+  }
+}
+
 const runInvariants = async (supabase, leagueId, scenarios = {}) => {
   const leagueFilter = leagueId ? { league_id: leagueId } : {}
   const [
@@ -1329,6 +1483,9 @@ const main = async () => {
   if (args.history && (!env.backendTicksEnabled || !targetLeagueId)) {
     throw new Error('E2E_ENABLE_HISTORY=1 requires E2E_ENABLE_BACKEND_TICKS=1 and a seeded target league')
   }
+  if (args.realtime && !targetLeagueId) {
+    throw new Error('E2E_ENABLE_REALTIME=1 requires a seeded target league or E2E_LEAGUE_ID')
+  }
 
   const startedAt = timestamp()
   const rows = []
@@ -1357,6 +1514,9 @@ const main = async () => {
     args.history
       ? 'Standings/champion history retention enabled through E2E_ENABLE_HISTORY=1.'
       : 'Standings/champion history retention disabled; set E2E_ENABLE_HISTORY=1 with backend ticks to exercise the D.LONG.3/D.LONG.4 fixture-retention slice.',
+    args.realtime
+      ? `Realtime latency check enabled through E2E_ENABLE_REALTIME=1 for ${REALTIME_CLIENTS} clients.`
+      : 'Realtime latency check disabled; set E2E_ENABLE_REALTIME=1 to exercise the D.X.2 matchups update slice.',
   ]
 
   try {
@@ -1449,6 +1609,15 @@ const main = async () => {
         if (args.browserAuth) {
           await runBrowserAuthScenario({ season })
         }
+        if (args.realtime) {
+          await assertRealtimeDelivery({
+            supabase,
+            env,
+            state,
+            leagueId: targetLeagueId,
+            season,
+          })
+        }
         if (args.push) {
           await assertPushNotifications({
             supabase,
@@ -1538,6 +1707,7 @@ const main = async () => {
               seasonNotes,
               args.browser ? 'browser smoke passed' : null,
               args.browserAuth ? 'browser auth scenario passed' : null,
+              args.realtime ? 'realtime matchup update delivered' : null,
               args.push ? 'trade and waiver push notification intercepts passed' : null,
               env.backendTicksEnabled ? 'matchup generation idempotency passed' : null,
               args.pickChain ? 'multi-hop future-pick owner resolved' : null,
