@@ -258,7 +258,7 @@ const clickButton = async (session, name, label) => {
   }
 }
 
-const verifyLineup = async (fixture) => {
+const verifyLineup = async (fixture, { expectedAutoSet = false } = {}) => {
   const { data: rows, error } = await fixture.admin
     .from('weekly_lineups')
     .select('id, member_id, player_id, slot_type, week_number, game_date, is_auto_set')
@@ -273,16 +273,16 @@ const verifyLineup = async (fixture) => {
   if ((rows ?? []).length !== 1) failures.push(`weekly_lineups rows=${(rows ?? []).length}; expected 1`)
   const lineup = rows?.[0] ?? null
   if (lineup?.slot_type !== 'PG') failures.push(`slot_type=${lineup?.slot_type ?? '<missing>'}; expected PG`)
-  if (lineup?.is_auto_set !== false) failures.push(`is_auto_set=${lineup?.is_auto_set}; expected false`)
+  if (lineup?.is_auto_set !== expectedAutoSet) failures.push(`is_auto_set=${lineup?.is_auto_set}; expected ${expectedAutoSet}`)
   return { lineup, failures }
 }
 
-const waitForLineup = async (fixture, timeoutMs = 10_000) => {
+const waitForLineup = async (fixture, options = {}, timeoutMs = 10_000) => {
   const startedAt = Date.now()
-  let last = await verifyLineup(fixture)
+  let last = await verifyLineup(fixture, options)
   while (last.failures.length > 0 && Date.now() - startedAt < timeoutMs) {
     await new Promise((resolve) => setTimeout(resolve, 500))
-    last = await verifyLineup(fixture)
+    last = await verifyLineup(fixture, options)
   }
   return last
 }
@@ -316,7 +316,7 @@ export async function runBrowserLineupScenario({
     await browser(session, ['screenshot', path.join(artifactDir, 'lineup-before-move.png')], { timeout: 60_000 })
     const benchClick = await clickButton(session, `Bench ${fixture.player.display_name}`, 'bench player row')
     const slotClick = await clickButton(session, 'Empty PG slot', 'empty PG slot row')
-    const lineupCheck = await waitForLineup(fixture)
+    const lineupCheck = await waitForLineup(fixture, { expectedAutoSet: false })
     debug = { ...debug, benchClick, slotClick, lineupCheck }
     if (lineupCheck.failures.length > 0) {
       throw new Error(`lineup did not persist: ${lineupCheck.failures.join('; ')}`)
@@ -360,7 +360,7 @@ export async function runBrowserLineupScenario({
     await writeFile(path.join(artifactDir, 'console.txt'), `${consoleOutput}\n`).catch(() => {})
     await writeFile(path.join(artifactDir, 'errors.txt'), `${errorOutput}\n`).catch(() => {})
     await writeFile(path.join(artifactDir, 'network.txt'), `${networkOutput}\n`).catch(() => {})
-    const lineupCheck = await verifyLineup(fixture).catch((verifyError) => ({
+    const lineupCheck = await verifyLineup(fixture, { expectedAutoSet: false }).catch((verifyError) => ({
       failures: [`verify unavailable: ${verifyError.message}`],
     }))
     debug = { ...debug, lineupCheck, consoleOutput, errorOutput, networkOutput }
@@ -388,10 +388,117 @@ export async function runBrowserLineupScenario({
   }
 }
 
+export async function runBrowserLineupAutoSetScenario({
+  season = 0,
+  sessionName,
+} = {}) {
+  const env = resolvedEnv()
+  requireEnv(env, ['supabaseUrl', 'serviceRoleKey', 'anonKey'])
+  const fixture = await setupLineupFixture(env, season)
+  const sessionList = await listSessions().catch((error) => `session list unavailable: ${error.message}`)
+  const session = sessionName ?? safeName(`pancake-lineup-auto-${fixture.runId}-${process.pid}`)
+  const artifactDir = path.join(ARTIFACT_ROOT, `season-${season}`, 'browser-lineup-auto-set')
+  await mkdir(artifactDir, { recursive: true })
+
+  const notes = [
+    `Frontend: ${describeEndpoint(env.frontendUrl)}`,
+    `Session: ${session}`,
+    `Manager: ${fixture.user.email}`,
+    sessionList,
+  ]
+  let debug = {}
+
+  try {
+    await signInBrowser(session, env, fixture.user, fixture.password)
+    await browser(session, ['set', 'viewport', '390', '844']).catch(() => {})
+    await browser(session, ['open', joinUrl(env.frontendUrl, '/lineup')])
+    await browser(session, ['wait', '3000'])
+    await assertPageText(session, ['Lineup', 'STARTERS', 'BENCH', fixture.player.display_name, 'Auto-Set'], 'lineup before auto-set')
+    await browser(session, ['screenshot', path.join(artifactDir, 'lineup-auto-before.png')], { timeout: 60_000 })
+    const openClick = await clickButton(session, 'Open auto-set lineup options', 'auto-set button')
+    await assertPageText(session, ['Auto-Set Lineup', 'Today', 'Whole Week', 'Rest of Season'], 'auto-set modal')
+    const todayClick = await clickButton(session, 'Auto-set today', 'auto-set today button')
+    const lineupCheck = await waitForLineup(fixture, { expectedAutoSet: true })
+    debug = { ...debug, openClick, todayClick, lineupCheck }
+    if (lineupCheck.failures.length > 0) {
+      throw new Error(`auto-set lineup did not persist: ${lineupCheck.failures.join('; ')}`)
+    }
+    await browser(session, ['wait', '1000'])
+    await browser(session, ['screenshot', path.join(artifactDir, 'lineup-auto-after.png')], { timeout: 60_000 })
+
+    const consoleOutput = await browser(session, ['console']).catch((error) => `console unavailable: ${error.message}`)
+    const errorOutput = await browser(session, ['errors']).catch((error) => `errors unavailable: ${error.message}`)
+    await writeFile(path.join(artifactDir, 'console.txt'), `${consoleOutput}\n`)
+    await writeFile(path.join(artifactDir, 'errors.txt'), `${errorOutput}\n`)
+
+    const failures = [...lineupCheck.failures]
+    if (errorOutput.trim()) failures.push(`browser errors present; see ${path.relative(ROOT, path.join(artifactDir, 'errors.txt'))}`)
+    const report = {
+      status: failures.length === 0 ? 'PASS' : 'FAIL',
+      mode: 'auto-set',
+      season,
+      artifactDir,
+      fixture: {
+        runId: fixture.runId,
+        leagueId: fixture.league.id,
+        leagueSeasonId: fixture.currentSeason.id,
+        memberId: fixture.member.id,
+        playerId: fixture.player.id,
+        rosterPlayerId: fixture.rosterRow.id,
+        weekNumber: fixture.week.week_number,
+      },
+      lineupCheck,
+      notes,
+      failures,
+    }
+    await writeFile(REPORT_PATH, `${JSON.stringify(report, null, 2)}\n`)
+    await writeFile(path.join(artifactDir, 'summary.json'), `${JSON.stringify(report, null, 2)}\n`)
+    if (failures.length > 0) throw new Error(`Browser lineup auto-set scenario failed: ${failures.join('; ')}`)
+    return report
+  } catch (error) {
+    await browser(session, ['screenshot', path.join(artifactDir, 'failure.png')], { timeout: 60_000 }).catch(() => {})
+    const consoleOutput = await browser(session, ['console']).catch((consoleError) => `console unavailable: ${consoleError.message}`)
+    const errorOutput = await browser(session, ['errors']).catch((errorError) => `errors unavailable: ${errorError.message}`)
+    const networkOutput = await browser(session, ['network', 'requests']).catch((networkError) => `network unavailable: ${networkError.message}`)
+    await writeFile(path.join(artifactDir, 'console.txt'), `${consoleOutput}\n`).catch(() => {})
+    await writeFile(path.join(artifactDir, 'errors.txt'), `${errorOutput}\n`).catch(() => {})
+    await writeFile(path.join(artifactDir, 'network.txt'), `${networkOutput}\n`).catch(() => {})
+    const lineupCheck = await verifyLineup(fixture, { expectedAutoSet: true }).catch((verifyError) => ({
+      failures: [`verify unavailable: ${verifyError.message}`],
+    }))
+    debug = { ...debug, lineupCheck, consoleOutput, errorOutput, networkOutput }
+    const report = {
+      status: 'FAIL',
+      mode: 'auto-set',
+      season,
+      artifactDir,
+      fixture: {
+        runId: fixture.runId,
+        leagueId: fixture.league.id,
+        leagueSeasonId: fixture.currentSeason.id,
+        memberId: fixture.member.id,
+        playerId: fixture.player.id,
+        rosterPlayerId: fixture.rosterRow.id,
+        weekNumber: fixture.week.week_number,
+      },
+      error: error instanceof Error ? error.message : String(error),
+      debug,
+      notes,
+    }
+    await writeFile(REPORT_PATH, `${JSON.stringify(report, null, 2)}\n`).catch(() => {})
+    throw error
+  } finally {
+    await browser(session, ['close']).catch(() => {})
+  }
+}
+
 if (import.meta.url === `file://${process.argv[1]}`) {
   const seasonArg = process.argv.find((arg) => arg.startsWith('--season='))
   const season = seasonArg ? Number(seasonArg.split('=')[1]) : 0
-  runBrowserLineupScenario({ season }).catch((error) => {
+  const runner = process.argv.includes('--auto-set')
+    ? runBrowserLineupAutoSetScenario
+    : runBrowserLineupScenario
+  runner({ season }).catch((error) => {
     console.error(error)
     process.exitCode = 1
   })

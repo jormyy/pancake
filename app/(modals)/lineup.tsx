@@ -343,6 +343,9 @@ export default function LineupScreen() {
                     style={styles.autoSetButton}
                     onPress={handleAutoSet}
                     disabled={autoSetting || saving}
+                    accessibilityRole="button"
+                    accessibilityLabel="Open auto-set lineup options"
+                    accessibilityState={{ disabled: autoSetting || saving }}
                 >
                     {autoSetting ? (
                         <ActivityIndicator size="small" color={colors.primary} />
