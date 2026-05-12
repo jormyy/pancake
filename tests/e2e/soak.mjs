@@ -86,6 +86,7 @@ const parseArgs = () => {
     tiebreakers: args.get('tiebreakers') === 'true' || process.env.E2E_ENABLE_TIEBREAKERS === '1',
     settings: args.get('settings') === 'true' || process.env.E2E_ENABLE_SETTINGS === '1',
     scoring: args.get('scoring') === 'true' || process.env.E2E_ENABLE_SCORING === '1',
+    waiverProcessing: args.get('waiver-processing') === 'true' || process.env.E2E_ENABLE_WAIVER_PROCESSING === '1',
     injuryFilter: args.get('injury-filter') === 'true' || process.env.E2E_ENABLE_INJURY_FILTER === '1',
     tradeAccept: args.get('trade-accept') === 'true' || process.env.E2E_ENABLE_TRADE_ACCEPT === '1',
     tradeVeto: args.get('trade-veto') === 'true' || process.env.E2E_ENABLE_TRADE_VETO === '1',
@@ -248,6 +249,9 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
   const scoringStatus = args.scoring
     ? hasFailingNote(rows, /D\.SEA\.2/) ? 'FAIL' : hasPassingNote(rows, /weekly scoring finalization passed/) ? 'PARTIAL' : 'PENDING'
     : 'PENDING'
+  const waiverProcessingStatus = args.waiverProcessing
+    ? hasFailingNote(rows, /D\.SEA\.2 waiver processing/) ? 'FAIL' : hasPassingNote(rows, /waiver priority processing passed/) ? 'PARTIAL' : 'PENDING'
+    : 'PENDING'
   const injuryFilterStatus = args.injuryFilter
     ? hasFailingNote(rows, /D\.SEA\.2 injury/) ? 'FAIL' : hasPassingNote(rows, /injury status filter passed/) ? 'PARTIAL' : 'PENDING'
     : 'PENDING'
@@ -314,8 +318,8 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
     },
     {
       requirement: 'D.SEA.2 weekly lineup/scoring/waiver/trade loop',
-      status: args.browserWaiver ? browserWaiverStatus : args.browserWaiverDrop ? browserWaiverDropStatus : args.browserWaiverIrBlock ? browserWaiverIrBlockStatus : args.browserTrade ? browserTradeStatus : args.browserTradeFuturePick ? browserTradeFuturePickStatus : args.browserTradeFuturePickAccept ? browserTradeFuturePickAcceptStatus : args.browserTradeOverflowAccept ? browserTradeOverflowAcceptStatus : args.browserTradePostDeadline ? browserTradePostDeadlineStatus : args.browserTradeVeto ? browserTradeVetoStatus : args.browserTradeAccept ? browserTradeAcceptStatus : args.browserTradeTerminal ? browserTradeTerminalStatus : args.tradeVeto ? tradeVetoStatus : scoringStatus,
-      evidence: args.browserWaiver ? 'Browser waiver mode creates an isolated one-user league, opens the real claim-player modal, submits a no-drop waiver claim, and verifies the backend persisted a pending waiver_claims row.' : args.browserWaiverDrop ? 'Browser waiver-drop mode creates an isolated full-roster league, opens the real claim-player modal, selects a real roster player to drop, submits the waiver claim, and verifies the backend persisted the pending drop-then-add claim.' : args.browserWaiverIrBlock ? 'Browser waiver IR-block mode creates an isolated league with a DTD player illegally occupying IR, opens the real claim-player modal, verifies the UI blocks the claim, and checks no waiver_claims row is inserted.' : args.browserTrade ? 'Browser trade mode creates an isolated two-user league, opens the real propose-trade modal, submits a player-for-player proposal through the authenticated backend route, and verifies pending trades/trade_items rows persisted.' : args.browserTradeFuturePick ? 'Browser future-pick trade mode creates an isolated two-user league, opens the real propose-trade modal, submits a five-years-out pick-for-pick proposal, and verifies pending pick trade_items persisted through the authenticated backend route without moving pick ownership.' : args.browserTradeFuturePickAccept ? 'Browser future-pick trade accept mode creates an isolated pending five-years-out pick-for-pick trade, accepts it through the real Offers tab, and verifies the local backend/RPC swaps draft_picks.current_owner_id without moving roster players.' : args.browserTradeOverflowAccept ? 'Browser trade overflow accept mode creates an isolated mixed player/pick offer, accepts it through the real Offers tab, drops one active player in the overflow modal, and verifies the trade completes with the drop logged on waivers.' : args.browserTradePostDeadline ? 'Browser post-deadline trade mode creates an isolated league with a past trade_deadline, attempts the real propose-trade flow, and verifies the authenticated backend rejects the proposal without inserting trades or trade_items.' : args.browserTradeVeto ? 'Browser trade veto mode creates an isolated accepted trade with an open veto window, signs in as a non-party member, uses the real Offers veto action, and verifies the backend records a member veto without moving assets.' : args.browserTradeAccept ? 'Browser trade accept mode creates an isolated pending trade, opens the real recipient Offers tab, accepts through the visible TradeCard button, and verifies the local backend/RPC moved both players and completed the trade.' : args.browserTradeTerminal ? 'Browser trade terminal mode creates isolated pending trades, rejects one as the recipient, withdraws one as the proposer through authenticated Fastify routes, and verifies terminal statuses without moving roster assets.' : args.tradeVeto ? 'Trade-veto mode seeds accepted trades, verifies trade parties cannot member-veto, verifies fewer than 50% member vetoes do not kill the trade, verifies the 50% threshold does, and verifies commissioner veto kills immediately.' : args.scoring ? 'Scoring mode seeds a disposable matchup with starter/bench lineups and real player_game_stats, calls the real backend /e2e/sync-scores path, and checks starter-only points, finalization blocking, winner, max-possible points, and standings append.' : 'Full weekly browser gameplay loop is not implemented; enable E2E_ENABLE_BROWSER_WAIVER=1 for no-drop waiver claim UI coverage, E2E_ENABLE_BROWSER_WAIVER_DROP=1 for drop-then-add waiver claim UI coverage, E2E_ENABLE_BROWSER_WAIVER_IR_BLOCK=1 for DTD-on-IR claim blocking, E2E_ENABLE_BROWSER_TRADE=1 for player proposal UI coverage, E2E_ENABLE_BROWSER_TRADE_FUTURE_PICK=1 for future-pick proposal UI coverage, E2E_ENABLE_BROWSER_TRADE_FUTURE_PICK_ACCEPT=1 for future-pick accept UI coverage, E2E_ENABLE_BROWSER_TRADE_OVERFLOW_ACCEPT=1 for drop-before-accept UI coverage, E2E_ENABLE_BROWSER_TRADE_POST_DEADLINE=1 for post-deadline proposal rejection, E2E_ENABLE_BROWSER_TRADE_VETO=1 for accepted-state veto UI coverage, E2E_ENABLE_BROWSER_TRADE_ACCEPT=1 for accept UI coverage, E2E_ENABLE_BROWSER_TRADE_TERMINAL=1 for reject/withdraw UI coverage, E2E_ENABLE_TRADE_VETO=1 for trade veto threshold coverage, or E2E_ENABLE_SCORING=1 for the starter-only scoring/finalization slice.',
+      status: args.browserWaiver ? browserWaiverStatus : args.browserWaiverDrop ? browserWaiverDropStatus : args.browserWaiverIrBlock ? browserWaiverIrBlockStatus : args.waiverProcessing ? waiverProcessingStatus : args.browserTrade ? browserTradeStatus : args.browserTradeFuturePick ? browserTradeFuturePickStatus : args.browserTradeFuturePickAccept ? browserTradeFuturePickAcceptStatus : args.browserTradeOverflowAccept ? browserTradeOverflowAcceptStatus : args.browserTradePostDeadline ? browserTradePostDeadlineStatus : args.browserTradeVeto ? browserTradeVetoStatus : args.browserTradeAccept ? browserTradeAcceptStatus : args.browserTradeTerminal ? browserTradeTerminalStatus : args.tradeVeto ? tradeVetoStatus : scoringStatus,
+      evidence: args.browserWaiver ? 'Browser waiver mode creates an isolated one-user league, opens the real claim-player modal, submits a no-drop waiver claim, and verifies the backend persisted a pending waiver_claims row.' : args.browserWaiverDrop ? 'Browser waiver-drop mode creates an isolated full-roster league, opens the real claim-player modal, selects a real roster player to drop, submits the waiver claim, and verifies the backend persisted the pending drop-then-add claim.' : args.browserWaiverIrBlock ? 'Browser waiver IR-block mode creates an isolated league with a DTD player illegally occupying IR, opens the real claim-player modal, verifies the UI blocks the claim, and checks no waiver_claims row is inserted.' : args.waiverProcessing ? 'Waiver-processing mode seeds priority-ordered competing claims, a drop-then-add claim, and a full-roster/no-drop claim, then runs the real backend processor and verifies statuses, roster movement, waiver priority reseeding, and transaction rows.' : args.browserTrade ? 'Browser trade mode creates an isolated two-user league, opens the real propose-trade modal, submits a player-for-player proposal through the authenticated backend route, and verifies pending trades/trade_items rows persisted.' : args.browserTradeFuturePick ? 'Browser future-pick trade mode creates an isolated two-user league, opens the real propose-trade modal, submits a five-years-out pick-for-pick proposal, and verifies pending pick trade_items persisted through the authenticated backend route without moving pick ownership.' : args.browserTradeFuturePickAccept ? 'Browser future-pick trade accept mode creates an isolated pending five-years-out pick-for-pick trade, accepts it through the real Offers tab, and verifies the local backend/RPC swaps draft_picks.current_owner_id without moving roster players.' : args.browserTradeOverflowAccept ? 'Browser trade overflow accept mode creates an isolated mixed player/pick offer, accepts it through the real Offers tab, drops one active player in the overflow modal, and verifies the trade completes with the drop logged on waivers.' : args.browserTradePostDeadline ? 'Browser post-deadline trade mode creates an isolated league with a past trade_deadline, attempts the real propose-trade flow, and verifies the authenticated backend rejects the proposal without inserting trades or trade_items.' : args.browserTradeVeto ? 'Browser trade veto mode creates an isolated accepted trade with an open veto window, signs in as a non-party member, uses the real Offers veto action, and verifies the backend records a member veto without moving assets.' : args.browserTradeAccept ? 'Browser trade accept mode creates an isolated pending trade, opens the real recipient Offers tab, accepts through the visible TradeCard button, and verifies the local backend/RPC moved both players and completed the trade.' : args.browserTradeTerminal ? 'Browser trade terminal mode creates isolated pending trades, rejects one as the recipient, withdraws one as the proposer through authenticated Fastify routes, and verifies terminal statuses without moving roster assets.' : args.tradeVeto ? 'Trade-veto mode seeds accepted trades, verifies trade parties cannot member-veto, verifies fewer than 50% member vetoes do not kill the trade, verifies the 50% threshold does, and verifies commissioner veto kills immediately.' : args.scoring ? 'Scoring mode seeds a disposable matchup with starter/bench lineups and real player_game_stats, calls the real backend /e2e/sync-scores path, and checks starter-only points, finalization blocking, winner, max-possible points, and standings append.' : 'Full weekly browser gameplay loop is not implemented; enable E2E_ENABLE_BROWSER_WAIVER=1 for no-drop waiver claim UI coverage, E2E_ENABLE_BROWSER_WAIVER_DROP=1 for drop-then-add waiver claim UI coverage, E2E_ENABLE_BROWSER_WAIVER_IR_BLOCK=1 for DTD-on-IR claim blocking, E2E_ENABLE_WAIVER_PROCESSING=1 for priority/drop/failure daily processing, E2E_ENABLE_BROWSER_TRADE=1 for player proposal UI coverage, E2E_ENABLE_BROWSER_TRADE_FUTURE_PICK=1 for future-pick proposal UI coverage, E2E_ENABLE_BROWSER_TRADE_FUTURE_PICK_ACCEPT=1 for future-pick accept UI coverage, E2E_ENABLE_BROWSER_TRADE_OVERFLOW_ACCEPT=1 for drop-before-accept UI coverage, E2E_ENABLE_BROWSER_TRADE_POST_DEADLINE=1 for post-deadline proposal rejection, E2E_ENABLE_BROWSER_TRADE_VETO=1 for accepted-state veto UI coverage, E2E_ENABLE_BROWSER_TRADE_ACCEPT=1 for accept UI coverage, E2E_ENABLE_BROWSER_TRADE_TERMINAL=1 for reject/withdraw UI coverage, E2E_ENABLE_TRADE_VETO=1 for trade veto threshold coverage, or E2E_ENABLE_SCORING=1 for the starter-only scoring/finalization slice.',
     },
     {
       requirement: 'D.SEA.2 injury status filtering',
@@ -3539,6 +3543,232 @@ const findAvailablePlayer = async (supabase, leagueId, leagueSeasonId) => {
   return player
 }
 
+const findAvailablePlayers = async (supabase, leagueId, leagueSeasonId, count, label) => {
+  const [players, rosterRows] = await Promise.all([
+    fetchAll(supabase, 'players', 'id, display_name'),
+    fetchAll(supabase, 'roster_players', 'player_id', {
+      league_id: leagueId,
+      league_season_id: leagueSeasonId,
+    }),
+  ])
+  const rosteredIds = new Set(rosterRows.map((row) => row.player_id))
+  const available = players
+    .filter((row) => row.display_name && !rosteredIds.has(row.id))
+    .sort((a, b) => String(a.display_name).localeCompare(String(b.display_name)) || String(a.id).localeCompare(String(b.id)))
+    .slice(0, count)
+  if (available.length < count) {
+    throw new Error(`${label}: only ${available.length} available player(s); expected ${count}`)
+  }
+  return available
+}
+
+const assertWaiverProcessingScenario = async ({ supabase, env, state, season }) => {
+  const label = 'D.SEA.2 waiver processing'
+  const fixture = await createDisposableLeagueFromSeedUsers({
+    supabase,
+    state,
+    season,
+    label,
+    userCount: 4,
+    seasonYear: 4300 + season,
+  })
+  const [priorityOne, priorityTwo, priorityThree, priorityFour] = fixture.members
+  const [sharedPlayer, dropClaimPlayer, fullRosterPlayer, dropPlayer, fillerPlayer] = await findAvailablePlayers(
+    supabase,
+    fixture.league.id,
+    fixture.leagueSeason.id,
+    5,
+    label,
+  )
+  const now = new Date()
+  const clearsAt = new Date(now.getTime() + 48 * 60 * 60 * 1000).toISOString()
+  const processDate = todayET()
+
+  const failures = []
+  const priorityRows = fixture.members.map((member, index) => ({
+    league_id: fixture.league.id,
+    league_season_id: fixture.leagueSeason.id,
+    member_id: member.id,
+    priority: index + 1,
+  }))
+  const [{ error: leagueError }, { error: deletePriorityError }, { error: rosterError }, { error: waiverLogError }] = await Promise.all([
+    supabase
+      .from('leagues')
+      .update({ roster_size: 1 })
+      .eq('id', fixture.league.id),
+    supabase
+      .from('waiver_priorities')
+      .delete()
+      .eq('league_id', fixture.league.id)
+      .eq('league_season_id', fixture.leagueSeason.id),
+    supabase
+      .from('roster_players')
+      .insert([
+        {
+          league_id: fixture.league.id,
+          league_season_id: fixture.leagueSeason.id,
+          member_id: priorityThree.id,
+          player_id: dropPlayer.id,
+          acquired_via: 'e2e_waiver_processing_fixture',
+        },
+        {
+          league_id: fixture.league.id,
+          league_season_id: fixture.leagueSeason.id,
+          member_id: priorityFour.id,
+          player_id: fillerPlayer.id,
+          acquired_via: 'e2e_waiver_processing_fixture',
+        },
+      ]),
+    supabase
+      .from('waiver_wire_log')
+      .insert([sharedPlayer, dropClaimPlayer, fullRosterPlayer].map((player) => ({
+        league_id: fixture.league.id,
+        league_season_id: fixture.leagueSeason.id,
+        player_id: player.id,
+        dropped_by_member_id: null,
+        clears_at: clearsAt,
+      }))),
+  ])
+  if (leagueError) throw new Error(`${label}: roster-size update failed: ${leagueError.message}`)
+  if (deletePriorityError) throw new Error(`${label}: priority cleanup failed: ${deletePriorityError.message}`)
+  if (rosterError) throw new Error(`${label}: roster seed failed: ${rosterError.message}`)
+  if (waiverLogError) throw new Error(`${label}: waiver log seed failed: ${waiverLogError.message}`)
+
+  const { error: priorityError } = await supabase.from('waiver_priorities').insert(priorityRows)
+  if (priorityError) throw new Error(`${label}: priority seed failed: ${priorityError.message}`)
+
+  const { data: claims, error: claimError } = await supabase
+    .from('waiver_claims')
+    .insert([
+      {
+        league_id: fixture.league.id,
+        league_season_id: fixture.leagueSeason.id,
+        member_id: priorityOne.id,
+        player_id: sharedPlayer.id,
+        drop_player_id: null,
+        priority_at_submission: 1,
+        process_date: processDate,
+      },
+      {
+        league_id: fixture.league.id,
+        league_season_id: fixture.leagueSeason.id,
+        member_id: priorityTwo.id,
+        player_id: sharedPlayer.id,
+        drop_player_id: null,
+        priority_at_submission: 2,
+        process_date: processDate,
+      },
+      {
+        league_id: fixture.league.id,
+        league_season_id: fixture.leagueSeason.id,
+        member_id: priorityThree.id,
+        player_id: dropClaimPlayer.id,
+        drop_player_id: dropPlayer.id,
+        priority_at_submission: 3,
+        process_date: processDate,
+      },
+      {
+        league_id: fixture.league.id,
+        league_season_id: fixture.leagueSeason.id,
+        member_id: priorityFour.id,
+        player_id: fullRosterPlayer.id,
+        drop_player_id: null,
+        priority_at_submission: 4,
+        process_date: processDate,
+      },
+    ])
+    .select('id, member_id, player_id')
+  if (claimError) throw new Error(`${label}: claim seed failed: ${claimError.message}`)
+
+  await backendJson(env, '/e2e/process-waivers')
+
+  const [claimRows, priorityResult, rosterRows, transactionRows, waiverRows] = await Promise.all([
+    fetchAll(supabase, 'waiver_claims', 'id, member_id, player_id, drop_player_id, status, failure_reason', {
+      league_id: fixture.league.id,
+      league_season_id: fixture.leagueSeason.id,
+    }),
+    fetchAll(supabase, 'waiver_priorities', 'member_id, priority', {
+      league_id: fixture.league.id,
+      league_season_id: fixture.leagueSeason.id,
+    }),
+    fetchAll(supabase, 'roster_players', 'member_id, player_id, acquired_via', {
+      league_id: fixture.league.id,
+      league_season_id: fixture.leagueSeason.id,
+    }),
+    fetchAll(supabase, 'roster_transactions', 'member_id, player_id, transaction_type, related_claim_id', {
+      league_id: fixture.league.id,
+      league_season_id: fixture.leagueSeason.id,
+    }),
+    fetchAll(supabase, 'waiver_wire_log', 'player_id, dropped_by_member_id, claimed_by_claim_id, cleared_at', {
+      league_id: fixture.league.id,
+      league_season_id: fixture.leagueSeason.id,
+    }),
+  ])
+
+  const claimByMemberPlayer = new Map(claimRows.map((row) => [`${row.member_id}:${row.player_id}`, row]))
+  const winningSharedClaim = claimByMemberPlayer.get(`${priorityOne.id}:${sharedPlayer.id}`)
+  const losingSharedClaim = claimByMemberPlayer.get(`${priorityTwo.id}:${sharedPlayer.id}`)
+  const dropClaim = claimByMemberPlayer.get(`${priorityThree.id}:${dropClaimPlayer.id}`)
+  const failedRosterClaim = claimByMemberPlayer.get(`${priorityFour.id}:${fullRosterPlayer.id}`)
+  if (winningSharedClaim?.status !== 'succeeded') failures.push(`${label}: priority-one shared claim status ${winningSharedClaim?.status ?? '<missing>'}; expected succeeded`)
+  if (losingSharedClaim?.status !== 'failed_priority') failures.push(`${label}: priority-two shared claim status ${losingSharedClaim?.status ?? '<missing>'}; expected failed_priority`)
+  if (dropClaim?.status !== 'succeeded') failures.push(`${label}: drop claim status ${dropClaim?.status ?? '<missing>'}; expected succeeded`)
+  if (failedRosterClaim?.status !== 'failed_roster') failures.push(`${label}: full-roster claim status ${failedRosterClaim?.status ?? '<missing>'}; expected failed_roster`)
+
+  const rosterSet = new Set(rosterRows.map((row) => `${row.member_id}:${row.player_id}`))
+  if (!rosterSet.has(`${priorityOne.id}:${sharedPlayer.id}`)) failures.push(`${label}: shared player not rostered by priority-one winner`)
+  if (!rosterSet.has(`${priorityThree.id}:${dropClaimPlayer.id}`)) failures.push(`${label}: drop-claim player not rostered by priority-three winner`)
+  if (rosterSet.has(`${priorityThree.id}:${dropPlayer.id}`)) failures.push(`${label}: dropped player still rostered by priority-three winner`)
+  if (rosterSet.has(`${priorityFour.id}:${fullRosterPlayer.id}`)) failures.push(`${label}: failed-roster player was rostered`)
+
+  const priorityByMember = new Map(priorityResult.map((row) => [row.member_id, row.priority]))
+  const expectedPriority = new Map([
+    [priorityTwo.id, 2],
+    [priorityFour.id, 4],
+    [priorityOne.id, 5],
+    [priorityThree.id, 6],
+  ])
+  for (const [memberId, expected] of expectedPriority) {
+    const actual = priorityByMember.get(memberId)
+    if (actual !== expected) failures.push(`${label}: waiver priority for ${memberId} is ${actual ?? '<missing>'}; expected ${expected}`)
+  }
+
+  const transactionSet = new Set(transactionRows.map((row) => `${row.member_id}:${row.player_id}:${row.transaction_type}`))
+  if (!transactionSet.has(`${priorityOne.id}:${sharedPlayer.id}:waiver_add`)) failures.push(`${label}: missing priority-one waiver_add transaction`)
+  if (!transactionSet.has(`${priorityThree.id}:${dropClaimPlayer.id}:waiver_add`)) failures.push(`${label}: missing drop-claim waiver_add transaction`)
+  if (!transactionSet.has(`${priorityThree.id}:${dropPlayer.id}:waiver_drop`)) failures.push(`${label}: missing drop-claim waiver_drop transaction`)
+
+  const waiverForShared = waiverRows.find((row) => row.player_id === sharedPlayer.id)
+  const waiverForDropClaim = waiverRows.find((row) => row.player_id === dropClaimPlayer.id)
+  const waiverForDropped = waiverRows.find((row) => row.player_id === dropPlayer.id && row.dropped_by_member_id === priorityThree.id)
+  if (!waiverForShared?.cleared_at || waiverForShared.claimed_by_claim_id !== winningSharedClaim?.id) failures.push(`${label}: shared-player waiver log was not claimed by winning claim`)
+  if (!waiverForDropClaim?.cleared_at || waiverForDropClaim.claimed_by_claim_id !== dropClaim?.id) failures.push(`${label}: drop-claim waiver log was not claimed by winning claim`)
+  if (!waiverForDropped || waiverForDropped.cleared_at) failures.push(`${label}: dropped player was not placed back on waivers`)
+
+  const artifact = {
+    season,
+    fixture,
+    players: {
+      sharedPlayer,
+      dropClaimPlayer,
+      fullRosterPlayer,
+      dropPlayer,
+      fillerPlayer,
+    },
+    claims,
+    claimRows,
+    priorityRows: priorityResult,
+    rosterRows,
+    transactionRows,
+    waiverRows,
+    failures,
+  }
+  const artifactDir = path.join(ARTIFACT_ROOT, `season-${season}`)
+  await mkdir(artifactDir, { recursive: true })
+  await writeFile(path.join(artifactDir, 'waiver-processing.json'), `${JSON.stringify(artifact, null, 2)}\n`)
+  return artifact
+}
+
 const expectAuctionRpcError = async ({ supabase, label, args, pattern }) => {
   const { error } = await supabase.rpc('place_auction_bid_atomic', args)
   if (!error) {
@@ -3989,6 +4219,12 @@ const main = async () => {
     args.browserWaiver
       ? 'Browser waiver scenario enabled through E2E_ENABLE_BROWSER_WAIVER=1.'
       : 'Browser waiver scenario disabled; set E2E_ENABLE_BROWSER_WAIVER=1 to exercise the D.SEA.2 waiver claim UI slice.',
+    args.browserWaiverDrop
+      ? 'Browser waiver drop scenario enabled through E2E_ENABLE_BROWSER_WAIVER_DROP=1.'
+      : 'Browser waiver drop scenario disabled; set E2E_ENABLE_BROWSER_WAIVER_DROP=1 to exercise the D.SEA.2 drop-then-add waiver claim UI slice.',
+    args.browserWaiverIrBlock
+      ? 'Browser waiver IR-block scenario enabled through E2E_ENABLE_BROWSER_WAIVER_IR_BLOCK=1.'
+      : 'Browser waiver IR-block scenario disabled; set E2E_ENABLE_BROWSER_WAIVER_IR_BLOCK=1 to exercise DTD-on-IR claim blocking.',
     args.browserTrade
       ? 'Browser trade proposal scenario enabled through E2E_ENABLE_BROWSER_TRADE=1.'
       : 'Browser trade proposal scenario disabled; set E2E_ENABLE_BROWSER_TRADE=1 to exercise the D.SEA.2 trade proposal UI slice.',
@@ -4049,6 +4285,9 @@ const main = async () => {
     args.scoring
       ? 'Weekly starter-only scoring/finalization scenario enabled through E2E_ENABLE_SCORING=1.'
       : 'Weekly starter-only scoring/finalization scenario disabled; set E2E_ENABLE_SCORING=1 to exercise the D.SEA.2 scoring slice.',
+    args.waiverProcessing
+      ? 'Waiver priority/daily processing scenario enabled through E2E_ENABLE_WAIVER_PROCESSING=1.'
+      : 'Waiver priority/daily processing scenario disabled; set E2E_ENABLE_WAIVER_PROCESSING=1 to exercise priority, drop, failed_roster, and daily processing.',
     args.tradeVeto
       ? 'Trade veto threshold scenario enabled through E2E_ENABLE_TRADE_VETO=1.'
       : 'Trade veto threshold scenario disabled; set E2E_ENABLE_TRADE_VETO=1 to exercise the D.SEA.2 veto-window slice.',
@@ -4277,6 +4516,17 @@ const main = async () => {
           })
           scoringFailures.push(...scoringCheck.failures)
         }
+        let waiverProcessingCheck = null
+        const waiverProcessingFailures = []
+        if (args.waiverProcessing && season === 1) {
+          waiverProcessingCheck = await assertWaiverProcessingScenario({
+            supabase,
+            env,
+            state,
+            season,
+          })
+          waiverProcessingFailures.push(...waiverProcessingCheck.failures)
+        }
         let injuryFilterCheck = null
         const injuryFilterFailures = []
         if (args.injuryFilter && season === 1) {
@@ -4429,6 +4679,7 @@ const main = async () => {
           ...tiebreakerFailures,
           ...settingsFailures,
           ...scoringFailures,
+          ...waiverProcessingFailures,
           ...injuryFilterFailures,
           ...tradeAcceptFailures,
           ...tradeVetoFailures,
@@ -4458,6 +4709,7 @@ const main = async () => {
               browserWaiverCheck ? 'browser waiver claim gameplay passed' : null,
               browserWaiverDropCheck ? 'browser waiver drop claim gameplay passed' : null,
               browserWaiverIrBlockCheck ? 'browser waiver IR block gameplay passed' : null,
+              waiverProcessingCheck ? 'waiver priority processing passed' : null,
               browserTradeCheck ? 'browser trade proposal gameplay passed' : null,
               browserTradeAcceptCheck ? 'browser trade accept gameplay passed' : null,
               browserTradeTerminalCheck ? 'browser trade reject/withdraw gameplay passed' : null,
