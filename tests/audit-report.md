@@ -202,10 +202,15 @@ Verification after Phase C scaffold:
 
 - `node tests/e2e/fake-upstream.mjs` plus curl smoke checks for `/admin/state`, scoreboard, boxscore, play-by-play, player index, and Sleeper player endpoints: pass.
 - `node --check tests/e2e/soak.mjs && node --check tests/e2e/fake-upstream.mjs`: pass.
-- `npm run e2e:soak`: blocked as designed because `E2E_SUPABASE_URL`, `E2E_SUPABASE_SERVICE_ROLE_KEY`, `E2E_API_BASE_URL`, and `E2E_FRONTEND_URL` are not configured; wrote `tests/e2e-report.md`.
+- `npm run e2e:soak`: after loading `.env` and `backend/.env`, completed 10 seasons of D.0 boundary invariant reads/snapshots against the configured Supabase project and wrote a `PARTIAL` `tests/e2e-report.md`; it still exits nonzero because browser-driven scenarios have not run.
+- Local Fastify smoke: backend starts with `DISABLE_CRON=1`, fake NBA/Sleeper upstream bases, and Supabase Auth token-validation fallback when `SUPABASE_JWT_SECRET` is absent.
+- Local backend blocker found: the configured Supabase project is missing `try_live_poll_lock()`, so the post-refactor migrations are not fully applied there. Starting without `DISABLE_CRON=1` runs sync jobs and already wrote player-status updates from the fake Sleeper feed.
+- Agent-browser smoke: Expo web loaded at `http://localhost:8081`, signed in with the configured test user, and opened Home/Players/Roster/Trades/League with no uncaught browser errors. Console warnings remain for the `lib/transactions.ts -> lib/players.ts -> lib/transactions.ts` require cycle and Expo notifications web support.
 - `npm run lint`: pass.
 - `npm run typecheck`: pass.
 - `npm run typecheck --workspace backend`: pass.
+- `npm run typecheck --workspace core`: pass.
+- `npm run build --workspace backend`: pass.
 - `deno check supabase/functions/*/index.ts`: pass.
 
 ## Phase B Initial Work Queue

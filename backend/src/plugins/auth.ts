@@ -1,6 +1,7 @@
 import { jwtVerify, JWTPayload } from 'jose'
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
 import { AppError } from './errorHandler'
+import { supabase } from '../lib/supabase'
 
 declare module 'fastify' {
     interface FastifyRequest {
@@ -31,9 +32,7 @@ const SKIP_ROUTES = new Set(['/health', '/games/today'])
 
 export default async function authPlugin(app: FastifyInstance) {
     const secret = process.env.SUPABASE_JWT_SECRET
-    if (!secret) {
-        throw new Error('SUPABASE_JWT_SECRET env var is required')
-    }
+    if (!secret) app.log.warn('SUPABASE_JWT_SECRET missing; validating sessions through Supabase Auth')
 
     app.addHook('onRequest', async (request: FastifyRequest, _reply: FastifyReply) => {
         const pathname = request.url.split('?')[0]
@@ -45,11 +44,21 @@ export default async function authPlugin(app: FastifyInstance) {
         }
 
         const token = authHeader.slice(7)
-        const claims = await verifySupabaseJwt(token, secret)
-        if (!claims || !claims.sub) {
+        if (secret) {
+            const claims = await verifySupabaseJwt(token, secret)
+            if (!claims || !claims.sub) {
+                throw new AppError('Invalid or expired token', 401)
+            }
+
+            request.userId = claims.sub
+            return
+        }
+
+        const { data, error } = await supabase.auth.getUser(token)
+        if (error || !data.user) {
             throw new AppError('Invalid or expired token', 401)
         }
 
-        request.userId = claims.sub
+        request.userId = data.user.id
     })
 }

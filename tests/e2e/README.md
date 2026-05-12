@@ -2,7 +2,13 @@
 
 This harness is the Phase C entrypoint for dynasty soak testing. It starts the fake NBA CDN/Sleeper server on port `4555`, points the app stack at that server through `NBA_CDN_BASE_URL` and `SLEEPER_BASE_URL`, snapshots dynasty-critical tables, and runs D.0 invariant checks at season boundaries.
 
-Required environment:
+The runner loads `.env` and `backend/.env` automatically. Existing app variables are accepted as fallbacks:
+
+- `SUPABASE_URL` or `EXPO_PUBLIC_SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `EXPO_PUBLIC_API_URL`
+
+Explicit E2E overrides are still supported:
 
 ```sh
 export E2E_SUPABASE_URL=...

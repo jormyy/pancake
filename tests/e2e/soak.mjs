@@ -1,3 +1,4 @@
+import { existsSync, readFileSync } from 'node:fs'
 import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
@@ -9,12 +10,52 @@ const REPORT_PATH = path.join(ROOT, 'tests/e2e-report.md')
 const SNAPSHOT_ROOT = path.join(ROOT, 'tests/snapshots')
 const ARTIFACT_ROOT = path.join(ROOT, 'tests/artifacts')
 
-const REQUIRED_ENV = [
-  'E2E_SUPABASE_URL',
-  'E2E_SUPABASE_SERVICE_ROLE_KEY',
-  'E2E_API_BASE_URL',
-  'E2E_FRONTEND_URL',
-]
+const loadEnvFile = (filePath) => {
+  if (!existsSync(filePath)) return
+  const contents = readFileSync(filePath, 'utf8')
+  for (const line of contents.split(/\r?\n/)) {
+    const trimmed = line.trim()
+    if (!trimmed || trimmed.startsWith('#')) continue
+    const match = trimmed.match(/^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/)
+    if (!match || process.env[match[1]] != null) continue
+    let value = match[2].trim()
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1)
+    }
+    process.env[match[1]] = value
+  }
+}
+
+loadEnvFile(path.join(ROOT, '.env'))
+loadEnvFile(path.join(ROOT, 'backend/.env'))
+
+const envValue = (...names) => {
+  for (const name of names) {
+    if (process.env[name]) return process.env[name]
+  }
+  return undefined
+}
+
+const resolvedEnv = () => ({
+  supabaseUrl: envValue('E2E_SUPABASE_URL', 'SUPABASE_URL', 'EXPO_PUBLIC_SUPABASE_URL'),
+  serviceRoleKey: envValue('E2E_SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_SERVICE_ROLE_KEY'),
+  apiBaseUrl: envValue('E2E_API_BASE_URL', 'EXPO_PUBLIC_API_URL') ?? 'http://127.0.0.1:3000',
+  frontendUrl: envValue('E2E_FRONTEND_URL') ?? 'http://127.0.0.1:8081',
+})
+
+const describeEndpoint = (value) => {
+  try {
+    const url = new URL(value)
+    return ['127.0.0.1', 'localhost'].includes(url.hostname)
+      ? url.origin
+      : '<remote configured>'
+  } catch {
+    return '<configured>'
+  }
+}
 
 const SNAPSHOT_TABLES = [
   'roster_players',
@@ -64,7 +105,10 @@ const writeReport = async ({ status, startedAt, finishedAt, seasons, rows, notes
 }
 
 const assertEnv = async (seasons) => {
-  const missing = REQUIRED_ENV.filter((name) => !process.env[name])
+  const env = resolvedEnv()
+  const missing = []
+  if (!env.supabaseUrl) missing.push('E2E_SUPABASE_URL or SUPABASE_URL')
+  if (!env.serviceRoleKey) missing.push('E2E_SUPABASE_SERVICE_ROLE_KEY or SUPABASE_SERVICE_ROLE_KEY')
   if (missing.length === 0) return
 
   const now = timestamp()
@@ -75,7 +119,7 @@ const assertEnv = async (seasons) => {
     seasons,
     rows: [{ season: 0, status: 'BLOCKED', notes: `Missing env: ${missing.join(', ')}` }],
     notes: [
-      'The soak runner intentionally fails closed until a real test Supabase project, Fastify backend, and Expo frontend are provided.',
+      'The soak runner loads .env and backend/.env, then fails closed until Supabase service credentials are available.',
       'Set NBA_CDN_BASE_URL and SLEEPER_BASE_URL to the fake upstream URL when launching backend and Edge functions.',
     ],
   })
@@ -247,6 +291,7 @@ const main = async () => {
 
   process.env.FAKE_UPSTREAM_PORT = String(args.fakePort)
   await assertEnv(args.seasons)
+  const env = resolvedEnv()
 
   const startedAt = timestamp()
   const fake = createFakeUpstreamServer()
@@ -255,13 +300,15 @@ const main = async () => {
   const rows = []
   const notes = [
     'This harness is integration/E2E only. It does not run unit tests.',
-    'Browser-driving scenarios must be run with agent-browser against E2E_FRONTEND_URL before declaring the app dynasty-stable.',
+    `Configured API base: ${describeEndpoint(env.apiBaseUrl)}`,
+    `Configured frontend: ${describeEndpoint(env.frontendUrl)}`,
+    'Browser-driving scenarios must be run with agent-browser against the configured frontend before declaring the app dynasty-stable.',
   ]
 
   try {
     const supabase = createClient(
-      process.env.E2E_SUPABASE_URL,
-      process.env.E2E_SUPABASE_SERVICE_ROLE_KEY,
+      env.supabaseUrl,
+      env.serviceRoleKey,
       { auth: { persistSession: false } },
     )
 

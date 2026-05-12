@@ -21,7 +21,11 @@ console.log('[startup] Env vars OK — starting server')
 
 async function main() {
     const app = await buildApp()
-    registerCronJobs()
+    if (process.env.DISABLE_CRON === '1') {
+        app.log.warn('Cron jobs disabled by DISABLE_CRON=1')
+    } else {
+        registerCronJobs()
+    }
 
     app.listen({ port: CONFIG.PORT, host: '0.0.0.0' }, (err) => {
         if (err) {

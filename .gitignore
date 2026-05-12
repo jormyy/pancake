@@ -36,6 +36,10 @@ yarn-error.*
 # typescript
 *.tsbuildinfo
 
+# E2E generated outputs
+tests/artifacts/
+tests/snapshots/
+
 app-example
 
 # generated native folders
