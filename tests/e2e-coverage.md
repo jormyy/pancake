@@ -1,8 +1,8 @@
 # E2E Coverage Checklist
 
 - Run status: PARTIAL
-- Started: 2026-05-12T06:20:19.680Z
-- Finished: 2026-05-12T06:20:22.757Z
+- Started: 2026-05-12T06:33:38.216Z
+- Finished: 2026-05-12T06:33:42.305Z
 - Target seasons: 1
 
 ## Prompt-To-Artifact Matrix
@@ -20,7 +20,8 @@
 | D.0 invariant boundary checks | PASS | Season rows in tests/e2e-report.md include D.0 boundary checks or failure. |
 | D.SEA.1 matchup generation idempotency | PENDING | Requires E2E_ENABLE_BACKEND_TICKS=1. |
 | D.SEA.2 weekly lineup/scoring/waiver/trade loop | PENDING | Full weekly browser gameplay loop is not implemented; enable E2E_ENABLE_SCORING=1 for the starter-only scoring/finalization slice. |
-| D.SEA.2 injury status filtering | PARTIAL | Injury-filter mode mutates the fake Sleeper upstream, runs the real backend /e2e/sync-players path, and verifies junk injury_status values such as Scrambled are filtered while valid statuses persist. |
+| D.SEA.2 injury status filtering | PENDING | Enable E2E_ENABLE_INJURY_FILTER=1 to inject fake Sleeper injuries and verify Scrambled is filtered. |
+| D.SEA.2 multi-asset trade acceptance | PARTIAL | Trade-accept mode creates a disposable player+future-pick trade, verifies mismatched auth/member acceptance is rejected, accepts through the real /trades/:tradeId/accept route, and checks players, picks, trade status, and transaction rows. |
 | D.SEA.3 standings tiebreakers/RPS | PENDING | No forced four-way tie or RPS browser/backend scenario implemented; enable E2E_ENABLE_TIEBREAKERS=1 for standings tiebreaker coverage. |
 | D.SEA.4 playoffs/champion | PENDING | No playoff bracket/champion scenario implemented; enable E2E_ENABLE_PLAYOFFS=1 for bracket-generation coverage. |
 | D.SEA.5 rookie draft/traded picks | PENDING | Enable E2E_ENABLE_ROOKIE_DRAFT=1 for rookie-draft auto-pick/order coverage or E2E_ENABLE_PICK_CHAIN=1 for long-horizon traded-pick materialization. |
@@ -60,7 +61,8 @@
 - Standings tiebreaker/RPS scenario disabled; set E2E_ENABLE_TIEBREAKERS=1 to exercise D.SEA.3.
 - Commissioner settings propagation scenario disabled; set E2E_ENABLE_SETTINGS=1 to exercise D.SET.3.
 - Weekly starter-only scoring/finalization scenario disabled; set E2E_ENABLE_SCORING=1 to exercise the D.SEA.2 scoring slice.
-- Sleeper injury-status filter scenario enabled through E2E_ENABLE_INJURY_FILTER=1.
+- Sleeper injury-status filter scenario disabled; set E2E_ENABLE_INJURY_FILTER=1 to exercise the D.SEA.2 injury injection slice.
+- Trade acceptance atomicity scenario enabled through E2E_ENABLE_TRADE_ACCEPT=1.
 - Rookie draft auto-pick/order scenario disabled; set E2E_ENABLE_ROOKIE_DRAFT=1 to exercise the D.SEA.5 auto-pick slice.
 - Season reset carryover/reseed scenario disabled; set E2E_ENABLE_SEASON_RESET=1 to exercise the D.SEA.6 reset slice.
 - Schema preflight passed: post-refactor RPCs and required columns are present.

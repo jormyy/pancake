@@ -31,6 +31,7 @@ export E2E_ENABLE_TIEBREAKERS=1
 export E2E_ENABLE_SETTINGS=1
 export E2E_ENABLE_SCORING=1
 export E2E_ENABLE_INJURY_FILTER=1
+export E2E_ENABLE_TRADE_ACCEPT=1
 export E2E_ENABLE_ROOKIE_DRAFT=1
 export E2E_ENABLE_SEASON_RESET=1
 export E2E_PERF_DRIFT_LIMIT=1.2
@@ -75,6 +76,8 @@ Weekly scoring/finalization checks are available with `E2E_ENABLE_SCORING=1` or 
 
 Sleeper injury-status filtering checks are available with `E2E_ENABLE_INJURY_FILTER=1` or `--injury-filter=true`. The backend must be running with `ENABLE_E2E_ROUTES=1`, `E2E_ADMIN_SECRET`, and `SLEEPER_BASE_URL=http://127.0.0.1:4555/v1`; the runner creates controlled player rows for the fake Sleeper fixtures, mutates one upstream player to `Scrambled` and another to `Out`, calls `/e2e/sync-players`, and verifies `Scrambled` is filtered to null while `Out` persists. Artifacts are written to `tests/artifacts/season-<N>/injury-status-filter.json`. This covers the injury injection/filter slice of D.SEA.2; broader injury-driven roster/IR gameplay remains pending.
 
+Trade acceptance atomicity checks are available with `E2E_ENABLE_TRADE_ACCEPT=1` or `--trade-accept=true`. The backend must be reachable through `E2E_API_BASE_URL`; the runner creates a disposable two-team league, rosters one player per team, creates one future pick per team, inserts a pending player+pick trade, verifies a mismatched auth/member accept is rejected by the real `/trades/:tradeId/accept` route, accepts as the real recipient, and checks player ownership, pick ownership, trade completion timestamps, and trade transaction rows. Artifacts are written to `tests/artifacts/season-<N>/trade-acceptance-atomicity.json`. This covers the backend acceptance/atomicity slice of D.SEA.2; proposal/reject/withdraw/veto browser flows remain pending.
+
 Rookie draft checks are available with `E2E_ENABLE_ROOKIE_DRAFT=1` or `--rookie-draft=true`. The backend must be running with `ENABLE_E2E_ROUTES=1` and `E2E_ADMIN_SECRET`; the runner creates a disposable offseason league, seeds previous-season standings and exact `draft_picks`, starts the real rookie draft through `/e2e/start-rookie-draft`, verifies inverse-standings snake slot order and linked pick assets, runs `/e2e/:draftId/auto-pick`, and checks lowest-`nba_draft_number` selection, immediate `picked_at`, linked pick-asset usage, roster insert, and already-rostered rejection through the authenticated `/draft/:draftId/snake-pick` route. Artifacts are written to `tests/artifacts/season-<N>/rookie-draft-auto-pick.json`. This covers the D.SEA.5 order/auto-pick/rejection slice; browser timer behavior and long-horizon traded-pick materialization remain separate.
 
 Season reset checks are available with `E2E_ENABLE_SEASON_RESET=1` or `--season-reset=true`. The backend must be running with `ENABLE_E2E_ROUTES=1` and `E2E_ADMIN_SECRET`; the runner creates a disposable active league, seeds standings, waiver priorities, roster rows with IR/taxi flags, old-season lineups/matchups, and a rolling five-year pick bank, then calls the real `/e2e/advance-season` endpoint. It verifies exactly one current season, old-season demotion, roster carryover, `carry_over` acquisition stamps, waiver priority reseed by reverse standings, old-season history queryability, league offseason status, and the new rolling five-year pick horizon. Artifacts are written to `tests/artifacts/season-<N>/season-reset.json`. This covers the deterministic D.SEA.6 reset/carryover/reseed slice; crash-in-the-middle rollback still needs a fault-injection scenario.
@@ -113,6 +116,7 @@ Outputs:
 - `tests/artifacts/season-<N>/commissioner-settings.json`
 - `tests/artifacts/season-<N>/weekly-scoring-finalization.json`
 - `tests/artifacts/season-<N>/injury-status-filter.json`
+- `tests/artifacts/season-<N>/trade-acceptance-atomicity.json`
 - `tests/artifacts/season-<N>/rookie-draft-auto-pick.json`
 - `tests/artifacts/season-<N>/season-reset.json`
 - `tests/artifacts/season-<N>/draft-push-notification.json`

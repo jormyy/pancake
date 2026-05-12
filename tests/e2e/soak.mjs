@@ -58,6 +58,7 @@ const parseArgs = () => {
     settings: args.get('settings') === 'true' || process.env.E2E_ENABLE_SETTINGS === '1',
     scoring: args.get('scoring') === 'true' || process.env.E2E_ENABLE_SCORING === '1',
     injuryFilter: args.get('injury-filter') === 'true' || process.env.E2E_ENABLE_INJURY_FILTER === '1',
+    tradeAccept: args.get('trade-accept') === 'true' || process.env.E2E_ENABLE_TRADE_ACCEPT === '1',
     rookieDraft: args.get('rookie-draft') === 'true' || process.env.E2E_ENABLE_ROOKIE_DRAFT === '1',
     seasonReset: args.get('season-reset') === 'true' || process.env.E2E_ENABLE_SEASON_RESET === '1',
   }
@@ -184,6 +185,9 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
   const injuryFilterStatus = args.injuryFilter
     ? hasFailingNote(rows, /D\.SEA\.2 injury/) ? 'FAIL' : hasPassingNote(rows, /injury status filter passed/) ? 'PARTIAL' : 'PENDING'
     : 'PENDING'
+  const tradeAcceptStatus = args.tradeAccept
+    ? hasFailingNote(rows, /D\.SEA\.2 trade/) ? 'FAIL' : hasPassingNote(rows, /trade acceptance atomicity passed/) ? 'PARTIAL' : 'PENDING'
+    : 'PENDING'
   const rookieDraftStatus = args.rookieDraft
     ? hasFailingNote(rows, /D\.SEA\.5/) ? 'FAIL' : hasPassingNote(rows, /rookie draft auto-pick passed/) ? 'PARTIAL' : 'PENDING'
     : pickChainStatus
@@ -248,6 +252,11 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
       requirement: 'D.SEA.2 injury status filtering',
       status: injuryFilterStatus,
       evidence: args.injuryFilter ? 'Injury-filter mode mutates the fake Sleeper upstream, runs the real backend /e2e/sync-players path, and verifies junk injury_status values such as Scrambled are filtered while valid statuses persist.' : 'Enable E2E_ENABLE_INJURY_FILTER=1 to inject fake Sleeper injuries and verify Scrambled is filtered.',
+    },
+    {
+      requirement: 'D.SEA.2 multi-asset trade acceptance',
+      status: tradeAcceptStatus,
+      evidence: args.tradeAccept ? 'Trade-accept mode creates a disposable player+future-pick trade, verifies mismatched auth/member acceptance is rejected, accepts through the real /trades/:tradeId/accept route, and checks players, picks, trade status, and transaction rows.' : 'Enable E2E_ENABLE_TRADE_ACCEPT=1 to exercise authenticated multi-asset trade acceptance.',
     },
     {
       requirement: 'D.SEA.3 standings tiebreakers/RPS',
@@ -1147,6 +1156,208 @@ const assertInjuryStatusFilterScenario = async ({ supabase, env, season, fakePor
   }
   await writeFile(
     path.join(ARTIFACT_ROOT, `season-${season}`, 'injury-status-filter.json'),
+    `${JSON.stringify(artifact, null, 2)}\n`,
+  )
+
+  return { failures, artifact }
+}
+
+const tradeAcceptFixtureSeasonYear = () => 8100 + Number(Date.now().toString().slice(-6))
+
+const assertTradeAcceptanceAtomicityScenario = async ({ supabase, env, state, season }) => {
+  const failures = []
+  const label = 'D.SEA.2 trade'
+  const fixtureSeasonYear = tradeAcceptFixtureSeasonYear()
+  const fixture = await createDisposableLeagueFromSeedUsers({
+    supabase,
+    state,
+    season,
+    label,
+    userCount: 2,
+    seasonYear: fixtureSeasonYear,
+  })
+  const [proposer, recipient] = fixture.members
+
+  const { data: players, error: playersError } = await supabase
+    .from('players')
+    .select('id, display_name')
+    .not('display_name', 'is', null)
+    .order('display_name', { ascending: true })
+    .limit(2)
+  if (playersError) throw new Error(`${label}: player fixture lookup failed: ${playersError.message}`)
+  if ((players ?? []).length < 2) throw new Error(`${label}: requires at least two players in the test Supabase project`)
+  const [proposerPlayer, recipientPlayer] = players
+
+  const { error: rosterError } = await supabase.from('roster_players').insert([
+    {
+      league_id: fixture.league.id,
+      league_season_id: fixture.leagueSeason.id,
+      member_id: proposer.id,
+      player_id: proposerPlayer.id,
+      acquired_via: 'draft',
+    },
+    {
+      league_id: fixture.league.id,
+      league_season_id: fixture.leagueSeason.id,
+      member_id: recipient.id,
+      player_id: recipientPlayer.id,
+      acquired_via: 'draft',
+    },
+  ])
+  if (rosterError) throw new Error(`${label}: roster fixture insert failed: ${rosterError.message}`)
+
+  const pickYear = fixtureSeasonYear + 2
+  const { data: picks, error: picksError } = await supabase
+    .from('draft_picks')
+    .insert([
+      {
+        league_id: fixture.league.id,
+        season_year: pickYear,
+        round: 1,
+        original_owner_id: proposer.id,
+        current_owner_id: proposer.id,
+      },
+      {
+        league_id: fixture.league.id,
+        season_year: pickYear,
+        round: 2,
+        original_owner_id: recipient.id,
+        current_owner_id: recipient.id,
+      },
+    ])
+    .select('id, original_owner_id, current_owner_id, season_year, round')
+  if (picksError) throw new Error(`${label}: draft-pick fixture insert failed: ${picksError.message}`)
+  const proposerPick = picks.find((pick) => pick.original_owner_id === proposer.id)
+  const recipientPick = picks.find((pick) => pick.original_owner_id === recipient.id)
+  if (!proposerPick || !recipientPick) throw new Error(`${label}: draft-pick fixture did not return both picks`)
+
+  const { data: trade, error: tradeError } = await supabase
+    .from('trades')
+    .insert({
+      league_id: fixture.league.id,
+      league_season_id: fixture.leagueSeason.id,
+      proposer_member_id: proposer.id,
+      recipient_member_id: recipient.id,
+      status: 'pending',
+      notes: 'E2E multi-asset trade acceptance',
+    })
+    .select('id')
+    .single()
+  if (tradeError) throw new Error(`${label}: trade insert failed: ${tradeError.message}`)
+
+  const tradeItems = [
+    { trade_id: trade.id, side: 'proposer', player_id: proposerPlayer.id, pick_id: null },
+    { trade_id: trade.id, side: 'proposer', player_id: null, pick_id: proposerPick.id },
+    { trade_id: trade.id, side: 'recipient', player_id: recipientPlayer.id, pick_id: null },
+    { trade_id: trade.id, side: 'recipient', player_id: null, pick_id: recipientPick.id },
+  ]
+  const { error: itemError } = await supabase.from('trade_items').insert(tradeItems)
+  if (itemError) throw new Error(`${label}: trade item insert failed: ${itemError.message}`)
+
+  const proposerToken = await signInForAccessToken(env, state.users[0].email, state.password)
+  const recipientToken = await signInForAccessToken(env, state.users[1].email, state.password)
+  const mismatchedMemberError = await expectAuthedBackendError({
+    env,
+    path: `/trades/${trade.id}/accept`,
+    token: proposerToken,
+    body: { memberId: recipient.id },
+    label: `${label}: mismatched auth/member accept`,
+    pattern: /403|Access denied/i,
+  })
+  if (mismatchedMemberError) failures.push(mismatchedMemberError)
+
+  const beforeAcceptTrade = await fetchSingle(
+    supabase,
+    'trades',
+    'id, status, accepted_at, completed_at',
+    { id: trade.id },
+  )
+  if (beforeAcceptTrade.status !== 'pending') {
+    failures.push(`${label}: mismatched accept changed trade status to ${beforeAcceptTrade.status}; expected pending`)
+  }
+
+  const acceptResult = await backendAuthedJson(env, `/trades/${trade.id}/accept`, recipientToken, {
+    memberId: recipient.id,
+  })
+  const replayError = await expectAuthedBackendError({
+    env,
+    path: `/trades/${trade.id}/accept`,
+    token: recipientToken,
+    body: { memberId: recipient.id },
+    label: `${label}: replay accept`,
+    pattern: /no longer pending|400|500/i,
+  })
+  if (replayError) failures.push(replayError)
+
+  const [acceptedTrade, movedRoster, movedPicks, transactions] = await Promise.all([
+    fetchSingle(supabase, 'trades', 'id, status, accepted_at, completed_at', { id: trade.id }),
+    fetchAll(supabase, 'roster_players', 'id, member_id, player_id, acquired_via', {
+      league_id: fixture.league.id,
+      league_season_id: fixture.leagueSeason.id,
+    }),
+    fetchAll(supabase, 'draft_picks', 'id, current_owner_id, original_owner_id, season_year, round', {
+      league_id: fixture.league.id,
+      season_year: pickYear,
+    }),
+    fetchAll(supabase, 'roster_transactions', 'id, member_id, player_id, transaction_type, related_trade_id', {
+      league_id: fixture.league.id,
+      league_season_id: fixture.leagueSeason.id,
+      related_trade_id: trade.id,
+    }),
+  ])
+
+  const rosterByPlayer = new Map(movedRoster.map((row) => [row.player_id, row]))
+  const picksById = new Map(movedPicks.map((pick) => [pick.id, pick]))
+  if (acceptedTrade.status !== 'completed' || !acceptedTrade.accepted_at || !acceptedTrade.completed_at) {
+    failures.push(`${label}: accepted trade status=${acceptedTrade.status}, accepted_at=${acceptedTrade.accepted_at ?? '<null>'}, completed_at=${acceptedTrade.completed_at ?? '<null>'}; expected completed timestamps`)
+  }
+  if (rosterByPlayer.get(proposerPlayer.id)?.member_id !== recipient.id) {
+    failures.push(`${label}: proposer player moved to ${rosterByPlayer.get(proposerPlayer.id)?.member_id ?? '<missing>'}; expected recipient ${recipient.id}`)
+  }
+  if (rosterByPlayer.get(recipientPlayer.id)?.member_id !== proposer.id) {
+    failures.push(`${label}: recipient player moved to ${rosterByPlayer.get(recipientPlayer.id)?.member_id ?? '<missing>'}; expected proposer ${proposer.id}`)
+  }
+  if (rosterByPlayer.get(proposerPlayer.id)?.acquired_via !== 'trade' || rosterByPlayer.get(recipientPlayer.id)?.acquired_via !== 'trade') {
+    failures.push(`${label}: moved players did not receive acquired_via=trade`)
+  }
+  if (picksById.get(proposerPick.id)?.current_owner_id !== recipient.id) {
+    failures.push(`${label}: proposer pick owner=${picksById.get(proposerPick.id)?.current_owner_id ?? '<missing>'}; expected recipient ${recipient.id}`)
+  }
+  if (picksById.get(recipientPick.id)?.current_owner_id !== proposer.id) {
+    failures.push(`${label}: recipient pick owner=${picksById.get(recipientPick.id)?.current_owner_id ?? '<missing>'}; expected proposer ${proposer.id}`)
+  }
+  if (transactions.length !== 4) {
+    failures.push(`${label}: roster_transactions count=${transactions.length}; expected 4 trade in/out rows for two players`)
+  }
+
+  const artifact = {
+    season,
+    leagueId: fixture.league.id,
+    leagueSeasonId: fixture.leagueSeason.id,
+    tradeId: trade.id,
+    acceptResult,
+    mismatchedMemberRejected: mismatchedMemberError == null,
+    replayRejected: replayError == null,
+    members: {
+      proposer,
+      recipient,
+    },
+    assets: {
+      proposerPlayer,
+      recipientPlayer,
+      proposerPick,
+      recipientPick,
+    },
+    after: {
+      trade: acceptedTrade,
+      roster: movedRoster,
+      picks: movedPicks,
+      transactions,
+    },
+    failures,
+  }
+  await writeFile(
+    path.join(ARTIFACT_ROOT, `season-${season}`, 'trade-acceptance-atomicity.json'),
     `${JSON.stringify(artifact, null, 2)}\n`,
   )
 
@@ -3438,6 +3649,9 @@ const main = async () => {
   if (args.injuryFilter && !env.e2eAdminSecret) {
     throw new Error('E2E_ENABLE_INJURY_FILTER=1 requires E2E_ADMIN_SECRET and a backend started with ENABLE_E2E_ROUTES=1')
   }
+  if (args.tradeAccept && (!state?.password || !Array.isArray(state.users) || state.users.length < 2)) {
+    throw new Error('E2E_ENABLE_TRADE_ACCEPT=1 requires tests/e2e-state.json from npm run e2e:seed with at least 2 users')
+  }
   if (args.rookieDraft && (!state?.password || !Array.isArray(state.users) || state.users.length < 4)) {
     throw new Error('E2E_ENABLE_ROOKIE_DRAFT=1 requires tests/e2e-state.json from npm run e2e:seed with at least 4 users')
   }
@@ -3514,6 +3728,9 @@ const main = async () => {
     args.injuryFilter
       ? 'Sleeper injury-status filter scenario enabled through E2E_ENABLE_INJURY_FILTER=1.'
       : 'Sleeper injury-status filter scenario disabled; set E2E_ENABLE_INJURY_FILTER=1 to exercise the D.SEA.2 injury injection slice.',
+    args.tradeAccept
+      ? 'Trade acceptance atomicity scenario enabled through E2E_ENABLE_TRADE_ACCEPT=1.'
+      : 'Trade acceptance atomicity scenario disabled; set E2E_ENABLE_TRADE_ACCEPT=1 to exercise the D.SEA.2 multi-asset trade slice.',
     args.rookieDraft
       ? 'Rookie draft auto-pick/order scenario enabled through E2E_ENABLE_ROOKIE_DRAFT=1.'
       : 'Rookie draft auto-pick/order scenario disabled; set E2E_ENABLE_ROOKIE_DRAFT=1 to exercise the D.SEA.5 auto-pick slice.',
@@ -3692,6 +3909,17 @@ const main = async () => {
           })
           injuryFilterFailures.push(...injuryFilterCheck.failures)
         }
+        let tradeAcceptCheck = null
+        const tradeAcceptFailures = []
+        if (args.tradeAccept && season === 1) {
+          tradeAcceptCheck = await assertTradeAcceptanceAtomicityScenario({
+            supabase,
+            env,
+            state,
+            season,
+          })
+          tradeAcceptFailures.push(...tradeAcceptCheck.failures)
+        }
         let rookieDraftCheck = null
         const rookieDraftFailures = []
         if (args.rookieDraft && season === 1) {
@@ -3812,6 +4040,7 @@ const main = async () => {
           ...settingsFailures,
           ...scoringFailures,
           ...injuryFilterFailures,
+          ...tradeAcceptFailures,
           ...rookieDraftFailures,
           ...draftPushFailures,
           ...seasonResetFailures,
@@ -3844,6 +4073,7 @@ const main = async () => {
               settingsCheck ? 'commissioner settings propagation passed' : null,
               scoringCheck ? 'weekly scoring finalization passed' : null,
               injuryFilterCheck ? 'injury status filter passed' : null,
+              tradeAcceptCheck ? 'trade acceptance atomicity passed' : null,
               rookieDraftCheck ? 'rookie draft auto-pick passed' : null,
               seasonResetCheck ? 'season reset carryover passed' : null,
               env.backendTicksEnabled ? 'matchup generation idempotency passed' : null,

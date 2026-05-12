@@ -1,8 +1,8 @@
 # Multi-Season E2E Soak Report
 
 - Status: PARTIAL
-- Started: 2026-05-12T06:20:19.680Z
-- Finished: 2026-05-12T06:20:22.755Z
+- Started: 2026-05-12T06:33:38.216Z
+- Finished: 2026-05-12T06:33:42.303Z
 - Target seasons: 1
 - Fake upstream: http://127.0.0.1:4555
 
@@ -10,7 +10,7 @@
 
 | Season | Status | Notes |
 | --- | --- | --- |
-| 1 | PASS | D.0 invariant boundary checks passed; full scenario/browser loop pending; injury status filter passed |
+| 1 | PASS | D.0 invariant boundary checks passed; full scenario/browser loop pending; trade acceptance atomicity passed |
 
 ## Notes
 
@@ -33,7 +33,8 @@
 - Standings tiebreaker/RPS scenario disabled; set E2E_ENABLE_TIEBREAKERS=1 to exercise D.SEA.3.
 - Commissioner settings propagation scenario disabled; set E2E_ENABLE_SETTINGS=1 to exercise D.SET.3.
 - Weekly starter-only scoring/finalization scenario disabled; set E2E_ENABLE_SCORING=1 to exercise the D.SEA.2 scoring slice.
-- Sleeper injury-status filter scenario enabled through E2E_ENABLE_INJURY_FILTER=1.
+- Sleeper injury-status filter scenario disabled; set E2E_ENABLE_INJURY_FILTER=1 to exercise the D.SEA.2 injury injection slice.
+- Trade acceptance atomicity scenario enabled through E2E_ENABLE_TRADE_ACCEPT=1.
 - Rookie draft auto-pick/order scenario disabled; set E2E_ENABLE_ROOKIE_DRAFT=1 to exercise the D.SEA.5 auto-pick slice.
 - Season reset carryover/reseed scenario disabled; set E2E_ENABLE_SEASON_RESET=1 to exercise the D.SEA.6 reset slice.
 - Schema preflight passed: post-refactor RPCs and required columns are present.
