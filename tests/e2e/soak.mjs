@@ -31,6 +31,7 @@ const parseArgs = () => {
     keepGoing: args.get('keep-going') === 'true' || process.env.E2E_KEEP_GOING === '1',
     fakePort: Number(args.get('fake-port') ?? process.env.FAKE_UPSTREAM_PORT ?? 4555),
     browser: args.get('browser') === 'true' || process.env.E2E_ENABLE_BROWSER === '1',
+    pickChain: args.get('pick-chain') === 'true' || process.env.E2E_ENABLE_PICK_CHAIN === '1',
   }
 }
 
@@ -172,7 +173,137 @@ const writeSnapshots = async (supabase, season, leagueId) => {
 
 const indexById = (rows) => new Map(rows.map((row) => [row.id, row]))
 
-const runInvariants = async (supabase, leagueId) => {
+const fetchSingle = async (supabase, table, select, filters) => {
+  let query = supabase.from(table).select(select)
+  for (const [column, value] of Object.entries(filters)) {
+    query = query.eq(column, value)
+  }
+  const { data, error } = await query.single()
+  if (error) throw new Error(`${table}: ${error.message}`)
+  return data
+}
+
+const createAndAcceptPickTrade = async (supabase, leagueId, seasonId, proposerId, recipientId, proposerPickId, recipientPickId) => {
+  const { data: trade, error: tradeError } = await supabase
+    .from('trades')
+    .insert({
+      league_id: leagueId,
+      league_season_id: seasonId,
+      proposer_member_id: proposerId,
+      recipient_member_id: recipientId,
+      status: 'pending',
+      notes: 'E2E multi-hop future-pick chain',
+    })
+    .select('id')
+    .single()
+  if (tradeError) throw new Error(`trades insert: ${tradeError.message}`)
+
+  const { error: itemError } = await supabase.from('trade_items').insert([
+    { trade_id: trade.id, side: 'proposer', player_id: null, pick_id: proposerPickId },
+    { trade_id: trade.id, side: 'recipient', player_id: null, pick_id: recipientPickId },
+  ])
+  if (itemError) throw new Error(`trade_items insert: ${itemError.message}`)
+
+  const { error: acceptError } = await supabase.rpc('accept_trade_atomic', {
+    p_trade_id: trade.id,
+    p_accepting_member_id: recipientId,
+  })
+  if (acceptError) throw new Error(`accept_trade_atomic: ${acceptError.message}`)
+
+  return trade.id
+}
+
+const findOwnedPick = async (supabase, leagueId, seasonYear, round, ownerId, excludePickId = null) => {
+  let query = supabase
+    .from('draft_picks')
+    .select('id, current_owner_id, original_owner_id, season_year, round')
+    .eq('league_id', leagueId)
+    .eq('season_year', seasonYear)
+    .eq('round', round)
+    .eq('current_owner_id', ownerId)
+    .eq('is_used', false)
+    .limit(1)
+  if (excludePickId) query = query.neq('id', excludePickId)
+
+  const { data, error } = await query
+  if (error) throw new Error(`draft_picks owned pick lookup: ${error.message}`)
+  const [pick] = data ?? []
+  if (!pick) throw new Error(`No owned ${seasonYear} round ${round} pick for member ${ownerId}`)
+  return pick
+}
+
+const setupFuturePickChain = async (supabase, leagueId) => {
+  const currentSeason = await fetchSingle(
+    supabase,
+    'league_seasons',
+    'id, season_year',
+    { league_id: leagueId, is_current: true },
+  )
+  const members = await fetchAll(supabase, 'league_members', 'id, team_name, joined_at', { league_id: leagueId })
+  members.sort((a, b) => {
+    const joined = String(a.joined_at).localeCompare(String(b.joined_at))
+    return joined === 0 ? String(a.id).localeCompare(String(b.id)) : joined
+  })
+  if (members.length < 4) throw new Error('Future-pick chain requires at least four league members')
+
+  const targetYear = currentSeason.season_year + 5
+  const [member1, member2, member3, member4] = members
+  const targetPick = await fetchSingle(
+    supabase,
+    'draft_picks',
+    'id, current_owner_id, original_owner_id, season_year, round',
+    {
+      league_id: leagueId,
+      season_year: targetYear,
+      round: 1,
+      original_owner_id: member1.id,
+      current_owner_id: member1.id,
+    },
+  )
+
+  const counter1 = await findOwnedPick(supabase, leagueId, targetYear, 2, member2.id, targetPick.id)
+  const trade1 = await createAndAcceptPickTrade(
+    supabase,
+    leagueId,
+    currentSeason.id,
+    member1.id,
+    member2.id,
+    targetPick.id,
+    counter1.id,
+  )
+
+  const counter2 = await findOwnedPick(supabase, leagueId, targetYear, 2, member3.id, targetPick.id)
+  const trade2 = await createAndAcceptPickTrade(
+    supabase,
+    leagueId,
+    currentSeason.id,
+    member2.id,
+    member3.id,
+    targetPick.id,
+    counter2.id,
+  )
+
+  const counter3 = await findOwnedPick(supabase, leagueId, targetYear, 2, member4.id, targetPick.id)
+  const trade3 = await createAndAcceptPickTrade(
+    supabase,
+    leagueId,
+    currentSeason.id,
+    member3.id,
+    member4.id,
+    targetPick.id,
+    counter3.id,
+  )
+
+  return {
+    targetPickId: targetPick.id,
+    targetYear,
+    finalOwnerId: member4.id,
+    finalOwnerTeam: member4.team_name,
+    tradeIds: [trade1, trade2, trade3],
+  }
+}
+
+const runInvariants = async (supabase, leagueId, scenarios = {}) => {
   const leagueFilter = leagueId ? { league_id: leagueId } : {}
   const [
     leagues,
@@ -248,6 +379,17 @@ const runInvariants = async (supabase, leagueId) => {
     }
     if (!originalOwner || originalOwner.league_id !== pick.league_id) {
       failures.push(`I2: draft_pick ${pick.id} original_owner_id does not resolve within league`)
+    }
+  }
+
+  if (scenarios.futurePickChain) {
+    const targetPick = draftPicks.find((pick) => pick.id === scenarios.futurePickChain.targetPickId)
+    if (!targetPick) {
+      failures.push(`D.LONG.2: target multi-hop pick ${scenarios.futurePickChain.targetPickId} is missing`)
+    } else if (targetPick.current_owner_id !== scenarios.futurePickChain.finalOwnerId) {
+      failures.push(
+        `D.LONG.2: target multi-hop pick ${targetPick.id} owner drifted to ${targetPick.current_owner_id}; expected ${scenarios.futurePickChain.finalOwnerId}`,
+      )
     }
   }
 
@@ -363,6 +505,9 @@ const main = async () => {
   if (env.backendTicksEnabled && !targetLeagueId) {
     throw new Error('E2E_ENABLE_BACKEND_TICKS=1 requires a seeded target league or E2E_LEAGUE_ID')
   }
+  if (args.pickChain && !targetLeagueId) {
+    throw new Error('E2E_ENABLE_PICK_CHAIN=1 requires a seeded target league or E2E_LEAGUE_ID')
+  }
 
   const startedAt = timestamp()
   const rows = []
@@ -379,6 +524,9 @@ const main = async () => {
     args.browser
       ? 'Browser smoke enabled through E2E_ENABLE_BROWSER=1.'
       : 'Browser-driving scenarios must be run with agent-browser against the configured frontend before declaring the app dynasty-stable.',
+    args.pickChain
+      ? 'Future-pick multi-hop scenario enabled through E2E_ENABLE_PICK_CHAIN=1.'
+      : 'Future-pick multi-hop scenario disabled; set E2E_ENABLE_PICK_CHAIN=1 to exercise D.LONG.2.',
   ]
 
   try {
@@ -404,6 +552,18 @@ const main = async () => {
       return
     }
     notes.push('Schema preflight passed: post-refactor RPCs and required columns are present.')
+    const scenarios = {}
+    if (args.pickChain) {
+      scenarios.futurePickChain = await setupFuturePickChain(supabase, targetLeagueId)
+      await mkdir(ARTIFACT_ROOT, { recursive: true })
+      await writeFile(
+        path.join(ARTIFACT_ROOT, 'future-pick-chain.json'),
+        `${JSON.stringify(scenarios.futurePickChain, null, 2)}\n`,
+      )
+      notes.push(
+        `Future-pick chain: ${scenarios.futurePickChain.targetYear} round 1 pick ${scenarios.futurePickChain.targetPickId} now belongs to ${scenarios.futurePickChain.finalOwnerTeam}.`,
+      )
+    }
 
     const fake = createFakeUpstreamServer()
     await fake.listen(args.fakePort)
@@ -431,13 +591,13 @@ const main = async () => {
           await runBrowserSmoke({ season })
         }
 
-        const failuresAtStart = await runInvariants(supabase, targetLeagueId)
+        const failuresAtStart = await runInvariants(supabase, targetLeagueId, scenarios)
         await writeSnapshots(supabase, season, targetLeagueId)
-        const failuresAtEnd = await runInvariants(supabase, targetLeagueId)
+        const failuresAtEnd = await runInvariants(supabase, targetLeagueId, scenarios)
         const failuresAfterReset = []
         if (env.backendTicksEnabled) {
           await backendJson(env, '/e2e/advance-season', { leagueId: targetLeagueId })
-          failuresAfterReset.push(...await runInvariants(supabase, targetLeagueId))
+          failuresAfterReset.push(...await runInvariants(supabase, targetLeagueId, scenarios))
         }
         const failures = [...failuresAtStart, ...failuresAtEnd, ...failuresAfterReset]
 
@@ -451,7 +611,11 @@ const main = async () => {
           rows.push({
             season,
             status: 'PASS',
-            notes: args.browser ? `${seasonNotes}; browser smoke passed` : seasonNotes,
+            notes: [
+              seasonNotes,
+              args.browser ? 'browser smoke passed' : null,
+              args.pickChain ? 'multi-hop future-pick owner resolved' : null,
+            ].filter(Boolean).join('; '),
           })
         }
 

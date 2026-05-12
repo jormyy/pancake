@@ -17,6 +17,7 @@ export E2E_API_BASE_URL=http://127.0.0.1:3000
 export E2E_FRONTEND_URL=http://127.0.0.1:8081
 export E2E_ADMIN_SECRET=...
 export E2E_ENABLE_BACKEND_TICKS=1
+export E2E_ENABLE_PICK_CHAIN=1
 export NBA_CDN_BASE_URL=http://127.0.0.1:4555/static/json
 export SLEEPER_BASE_URL=http://127.0.0.1:4555/v1
 ```
@@ -32,6 +33,8 @@ npm run e2e:soak
 
 Backend tick routes are available only when the Fastify server is started with both `ENABLE_E2E_ROUTES=1` and `E2E_ADMIN_SECRET`. The soak runner calls them only when `E2E_ENABLE_BACKEND_TICKS=1`. In that mode it runs sync/admin ticks and calls the real season-reset path for the target league at each season boundary, then re-checks invariants including the rolling five-year pick-bank horizon.
 
+Future-pick chain checks are available with `E2E_ENABLE_PICK_CHAIN=1` or `--pick-chain=true`. The runner creates three accepted pick-only trades for one five-years-out round-one pick, persists the scenario metadata to `tests/artifacts/future-pick-chain.json`, and checks at every season boundary that the exact `draft_picks.current_owner_id` remains the final multi-hop owner. This covers the D.LONG.2 ownership-drift invariant through the real `accept_trade_atomic` path; it is not a replacement for the full browser trade workflow.
+
 Browser smoke runs are available through `npm run e2e:browser-smoke` or `E2E_ENABLE_BROWSER=1 npm run e2e:soak`. They use `agent-browser` with an isolated session, sign in as the seeded commissioner, visit the main tab screens, and write screenshots plus console/error logs under `tests/artifacts/season-<N>/smoke/`. This is a smoke sweep only; the full D.SET/D.SEA/D.X/D.LONG browser scenario loop remains separate work.
 
 Outputs:
@@ -40,6 +43,7 @@ Outputs:
 - `tests/e2e-seed-report.md`
 - `tests/e2e-state.json`
 - `tests/e2e-browser-report.md`
+- `tests/artifacts/future-pick-chain.json`
 - `tests/snapshots/season-<N>/`
 - `tests/artifacts/season-<N>/`
 
