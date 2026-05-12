@@ -73,6 +73,9 @@ const StarterRow = memo(function StarterRow({
             ]}
             onPress={onPress}
             disabled={disabled}
+            accessibilityRole="button"
+            accessibilityLabel={p ? `${slot.slotType} ${p.displayName}` : `Empty ${slot.slotType} slot`}
+            accessibilityState={{ selected: isSelected, disabled }}
         >
             <Text style={styles.slotLabel}>{slot.slotType}</Text>
             {p ? (
@@ -136,6 +139,9 @@ const BenchRow = memo(function BenchRow({
             ]}
             onPress={onPress}
             disabled={disabled}
+            accessibilityRole="button"
+            accessibilityLabel={`Bench ${player.displayName}`}
+            accessibilityState={{ selected: isSelected, disabled }}
         >
             <Avatar
                 name={player.displayName}

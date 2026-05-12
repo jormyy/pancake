@@ -104,6 +104,8 @@ Browser auth runs are available through `npm run e2e:browser-auth` or `E2E_ENABL
 
 Browser auction gameplay is available through `npm run e2e:browser-gameplay` or `E2E_ENABLE_BROWSER_GAMEPLAY=1 npm run e2e:soak`. It creates an isolated two-user league, signs into Expo web through `agent-browser`, opens the real auction draft room as the bidder, clicks the visible bid button, and verifies the backend/RPC persisted the high bid and bid history row. This covers the first D.SET.4 UI gameplay slice; full auction completion, timer expiry, and reconnect behavior remain separate work.
 
+Browser lineup gameplay is available through `npm run e2e:browser-lineup` or `E2E_ENABLE_BROWSER_LINEUP=1 npm run e2e:soak`. It creates an isolated one-user league, rosters a PG-eligible player, signs into Expo web through `agent-browser`, opens the real lineup modal, moves the bench player into an empty PG starter slot, and verifies a non-auto `weekly_lineups` row persisted. This covers the first manual lineup-setting slice; auto-set variants and locked-player moves remain separate work.
+
 Browser waiver gameplay is available through `npm run e2e:browser-waiver` or `E2E_ENABLE_BROWSER_WAIVER=1 npm run e2e:soak`. It creates an isolated one-user league, places a player on the real waiver wire, signs into Expo web through `agent-browser`, opens the real claim-player modal, submits a no-drop waiver claim, and verifies the backend persisted a pending `waiver_claims` row. Browser drop-then-add waiver gameplay is available through `npm run e2e:browser-waiver-drop` or `E2E_ENABLE_BROWSER_WAIVER_DROP=1 npm run e2e:soak`; it creates an isolated full-roster league, selects a real roster player to drop, submits the claim, and verifies the persisted `drop_player_id`. Browser DTD-on-IR blocking is available through `npm run e2e:browser-waiver-ir-block` or `E2E_ENABLE_BROWSER_WAIVER_IR_BLOCK=1 npm run e2e:soak`; it seeds a DTD player onto IR, opens the real claim-player modal, verifies the blocking UI, and checks no claim row is inserted. This covers the first D.SEA.2 waiver UI gameplay slices; priority processing and daily processing remain separate work.
 
 Browser trade proposal gameplay is available through `npm run e2e:browser-trade` or `E2E_ENABLE_BROWSER_TRADE=1 npm run e2e:soak`. It creates an isolated two-user league, seeds one rostered player per team, signs into Expo web through `agent-browser`, opens the real propose-trade modal, selects both player rows, submits the proposal through the authenticated Fastify route, and verifies one pending `trades` row with the expected proposer/recipient `trade_items`. This covers the first D.SEA.2 trade proposal UI slice; accept/veto, future-pick proposal UI, atomic completion, and post-deadline rejection remain separate work.
@@ -131,6 +133,7 @@ Outputs:
 - `tests/e2e-browser-report.md`
 - `tests/e2e-browser-auth-report.md`
 - `tests/e2e-browser-gameplay-report.md`
+- `tests/e2e-browser-lineup-report.md`
 - `tests/e2e-browser-waiver-report.md`
 - `tests/e2e-browser-waiver-drop-report.md`
 - `tests/e2e-browser-waiver-ir-block-report.md`

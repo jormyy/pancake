@@ -21,6 +21,7 @@
     "e2e:browser-auth": "node tests/e2e/browser-auth.mjs",
     "e2e:browser-perf": "node tests/e2e/browser-perf-smoke.mjs",
     "e2e:browser-gameplay": "node tests/e2e/browser-gameplay.mjs",
+    "e2e:browser-lineup": "node tests/e2e/browser-lineup-gameplay.mjs",
     "e2e:browser-waiver": "node tests/e2e/browser-waiver-gameplay.mjs",
     "e2e:browser-waiver-drop": "node tests/e2e/browser-waiver-gameplay.mjs --drop",
     "e2e:browser-waiver-ir-block": "node tests/e2e/browser-waiver-gameplay.mjs --ir-block",
