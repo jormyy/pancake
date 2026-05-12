@@ -40,6 +40,10 @@
 | 10 seasons and continue past 10 / 20 clean | PARTIAL | The last completed 10-season backend matrix passed every enabled season row; browser/full-gameplay coverage remains separate and hosted Supabase outage blocked the latest history rerun. |
 | Production-ready exit criteria | FAIL | Coverage remains pending or failing for multiple required gameplay and long-horizon criteria. |
 
+## Harness Capability Notes
+
+- `E2E_REPEAT_SCENARIOS_EVERY_SEASON=1` / `--repeat-scenarios-every-season=true` repeats opt-in browser and backend scenario slices every simulated season. The default remains season-1-only for these expensive slices so narrow smoke runs stay affordable.
+
 ## Run Notes
 
 - This harness is integration/E2E only. It does not run unit tests.

@@ -32,3 +32,4 @@
 - Configured frontend: http://127.0.0.1:8081
 - Target league: 70c70f7e-737d-402d-ad1c-3fd204faac5e (seed run 20260512045536)
 - Browser-driving scenarios have passing targeted artifacts but are not part of the 10-season backend report, so the overall status remains PARTIAL rather than dynasty-stable.
+- The soak runner now supports `E2E_REPEAT_SCENARIOS_EVERY_SEASON=1` / `--repeat-scenarios-every-season=true` to repeat opt-in browser/API scenario slices every simulated season instead of only season 1.

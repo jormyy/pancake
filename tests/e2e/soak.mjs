@@ -62,6 +62,7 @@ const parseArgs = () => {
   return {
     seasons: Number(args.get('seasons') ?? process.env.E2E_SEASONS ?? 10),
     keepGoing: args.get('keep-going') === 'true' || process.env.E2E_KEEP_GOING === '1',
+    repeatScenariosEverySeason: args.get('repeat-scenarios-every-season') === 'true' || process.env.E2E_REPEAT_SCENARIOS_EVERY_SEASON === '1',
     fakePort: Number(args.get('fake-port') ?? process.env.FAKE_UPSTREAM_PORT ?? 4555),
     browser: args.get('browser') === 'true' || process.env.E2E_ENABLE_BROWSER === '1',
     browserFullSweep: args.get('browser-full-sweep') === 'true' || process.env.E2E_BROWSER_FULL_SWEEP === '1',
@@ -104,6 +105,8 @@ const parseArgs = () => {
     seasonReset: args.get('season-reset') === 'true' || process.env.E2E_ENABLE_SEASON_RESET === '1',
   }
 }
+
+const shouldRunScenario = (args, season) => season === 1 || args.repeatScenariosEverySeason
 
 const timestamp = () => new Date().toISOString()
 const nowMs = () => Number(process.hrtime.bigint()) / 1_000_000
@@ -4317,6 +4320,9 @@ const main = async () => {
     env.backendTicksEnabled
       ? 'Backend tick endpoints enabled through E2E_ENABLE_BACKEND_TICKS=1.'
       : 'Backend tick endpoints were not enabled; set E2E_ENABLE_BACKEND_TICKS=1 with a local backend to run them.',
+    args.repeatScenariosEverySeason
+      ? 'One-time scenario slices repeat every simulated season through E2E_REPEAT_SCENARIOS_EVERY_SEASON=1.'
+      : 'One-time scenario slices run in season 1 only; set E2E_REPEAT_SCENARIOS_EVERY_SEASON=1 to repeat them every simulated season.',
     args.browser
       ? `Browser smoke enabled through E2E_ENABLE_BROWSER=1${args.browserFullSweep ? ' with full route sweep.' : '.'}`
       : 'Browser-driving scenarios must be run with agent-browser against the configured frontend before declaring the app dynasty-stable.',
@@ -4533,80 +4539,80 @@ const main = async () => {
           await runBrowserAuthScenario({ season })
         }
         let browserPerfCheck = null
-        if (args.browserPerf && season === 1) {
+        if (args.browserPerf && shouldRunScenario(args, season)) {
           browserPerfCheck = await runBrowserPerfSmoke({ season })
         }
         let browserGameplayCheck = null
-        if (args.browserGameplay && season === 1) {
+        if (args.browserGameplay && shouldRunScenario(args, season)) {
           browserGameplayCheck = await runBrowserGameplayScenario({ season })
         }
         let browserLineupCheck = null
-        if (args.browserLineup && season === 1) {
+        if (args.browserLineup && shouldRunScenario(args, season)) {
           browserLineupCheck = await runBrowserLineupScenario({ season })
         }
         let browserLineupAutoSetCheck = null
-        if (args.browserLineupAutoSet && season === 1) {
+        if (args.browserLineupAutoSet && shouldRunScenario(args, season)) {
           browserLineupAutoSetCheck = await runBrowserLineupAutoSetScenario({ season })
         }
         let browserLineupLockedCheck = null
-        if (args.browserLineupLocked && season === 1) {
+        if (args.browserLineupLocked && shouldRunScenario(args, season)) {
           browserLineupLockedCheck = await runBrowserLineupLockedScenario({ season })
         }
         let browserPlayoffCheck = null
-        if (args.browserPlayoff && season === 1) {
+        if (args.browserPlayoff && shouldRunScenario(args, season)) {
           browserPlayoffCheck = await runBrowserPlayoffChampionScenario({ season })
         }
         let browserRookieDraftCheck = null
-        if (args.browserRookieDraft && season === 1) {
+        if (args.browserRookieDraft && shouldRunScenario(args, season)) {
           browserRookieDraftCheck = await runBrowserRookieDraftAutoPickScenario({ season })
         }
         let browserWaiverCheck = null
-        if (args.browserWaiver && season === 1) {
+        if (args.browserWaiver && shouldRunScenario(args, season)) {
           browserWaiverCheck = await runBrowserWaiverScenario({ season })
         }
         let browserWaiverDropCheck = null
-        if (args.browserWaiverDrop && season === 1) {
+        if (args.browserWaiverDrop && shouldRunScenario(args, season)) {
           browserWaiverDropCheck = await runBrowserWaiverDropScenario({ season })
         }
         let browserWaiverIrBlockCheck = null
-        if (args.browserWaiverIrBlock && season === 1) {
+        if (args.browserWaiverIrBlock && shouldRunScenario(args, season)) {
           browserWaiverIrBlockCheck = await runBrowserWaiverIrBlockScenario({ season })
         }
         let browserTradeCheck = null
-        if (args.browserTrade && season === 1) {
+        if (args.browserTrade && shouldRunScenario(args, season)) {
           browserTradeCheck = await runBrowserTradeScenario({ season })
         }
         let browserTradeAcceptCheck = null
-        if (args.browserTradeAccept && season === 1) {
+        if (args.browserTradeAccept && shouldRunScenario(args, season)) {
           browserTradeAcceptCheck = await runBrowserTradeAcceptScenario({ season })
         }
         let browserTradeTerminalCheck = null
-        if (args.browserTradeTerminal && season === 1) {
+        if (args.browserTradeTerminal && shouldRunScenario(args, season)) {
           browserTradeTerminalCheck = await runBrowserTradeTerminalScenario({ season })
         }
         let browserTradeFuturePickCheck = null
-        if (args.browserTradeFuturePick && season === 1) {
+        if (args.browserTradeFuturePick && shouldRunScenario(args, season)) {
           browserTradeFuturePickCheck = await runBrowserTradeFuturePickScenario({ season })
         }
         let browserTradeFuturePickAcceptCheck = null
-        if (args.browserTradeFuturePickAccept && season === 1) {
+        if (args.browserTradeFuturePickAccept && shouldRunScenario(args, season)) {
           browserTradeFuturePickAcceptCheck = await runBrowserTradeFuturePickAcceptScenario({ season })
         }
         let browserTradeOverflowAcceptCheck = null
-        if (args.browserTradeOverflowAccept && season === 1) {
+        if (args.browserTradeOverflowAccept && shouldRunScenario(args, season)) {
           browserTradeOverflowAcceptCheck = await runBrowserTradeOverflowAcceptScenario({ season })
         }
         let browserTradePostDeadlineCheck = null
-        if (args.browserTradePostDeadline && season === 1) {
+        if (args.browserTradePostDeadline && shouldRunScenario(args, season)) {
           browserTradePostDeadlineCheck = await runBrowserTradePostDeadlineScenario({ season })
         }
         let browserTradeVetoCheck = null
-        if (args.browserTradeVeto && season === 1) {
+        if (args.browserTradeVeto && shouldRunScenario(args, season)) {
           browserTradeVetoCheck = await runBrowserTradeVetoScenario({ season })
         }
         let leagueLifecycleCheck = null
         const leagueLifecycleFailures = []
-        if (args.leagueLifecycle && season === 1) {
+        if (args.leagueLifecycle && shouldRunScenario(args, season)) {
           leagueLifecycleCheck = await assertLeagueLifecycleScenario({
             supabase,
             env,
@@ -4616,7 +4622,7 @@ const main = async () => {
           leagueLifecycleFailures.push(...leagueLifecycleCheck.failures)
         }
         let auctionValidation = null
-        if (args.auction && season === 1) {
+        if (args.auction && shouldRunScenario(args, season)) {
           auctionValidation = await assertAuctionBidValidation({
             supabase,
             leagueId: targetLeagueId,
@@ -4625,7 +4631,7 @@ const main = async () => {
         }
         let playoffCheck = null
         const playoffFailures = []
-        if (args.playoffs && season === 1) {
+        if (args.playoffs && shouldRunScenario(args, season)) {
           playoffCheck = await assertPlayoffBracketScenario({
             supabase,
             env,
@@ -4636,7 +4642,7 @@ const main = async () => {
         }
         let tiebreakerCheck = null
         const tiebreakerFailures = []
-        if (args.tiebreakers && season === 1) {
+        if (args.tiebreakers && shouldRunScenario(args, season)) {
           tiebreakerCheck = await assertStandingsTiebreakerScenario({
             supabase,
             env,
@@ -4647,7 +4653,7 @@ const main = async () => {
         }
         let settingsCheck = null
         const settingsFailures = []
-        if (args.settings && season === 1) {
+        if (args.settings && shouldRunScenario(args, season)) {
           settingsCheck = await assertCommissionerSettingsScenario({
             supabase,
             env,
@@ -4658,7 +4664,7 @@ const main = async () => {
         }
         let scoringCheck = null
         const scoringFailures = []
-        if (args.scoring && season === 1) {
+        if (args.scoring && shouldRunScenario(args, season)) {
           scoringCheck = await assertWeeklyScoringFinalizationScenario({
             supabase,
             env,
@@ -4669,7 +4675,7 @@ const main = async () => {
         }
         let waiverProcessingCheck = null
         const waiverProcessingFailures = []
-        if (args.waiverProcessing && season === 1) {
+        if (args.waiverProcessing && shouldRunScenario(args, season)) {
           waiverProcessingCheck = await assertWaiverProcessingScenario({
             supabase,
             env,
@@ -4680,7 +4686,7 @@ const main = async () => {
         }
         let injuryFilterCheck = null
         const injuryFilterFailures = []
-        if (args.injuryFilter && season === 1) {
+        if (args.injuryFilter && shouldRunScenario(args, season)) {
           injuryFilterCheck = await assertInjuryStatusFilterScenario({
             supabase,
             env,
@@ -4691,7 +4697,7 @@ const main = async () => {
         }
         let tradeAcceptCheck = null
         const tradeAcceptFailures = []
-        if (args.tradeAccept && season === 1) {
+        if (args.tradeAccept && shouldRunScenario(args, season)) {
           tradeAcceptCheck = await assertTradeAcceptanceAtomicityScenario({
             supabase,
             env,
@@ -4702,7 +4708,7 @@ const main = async () => {
         }
         let tradeVetoCheck = null
         const tradeVetoFailures = []
-        if (args.tradeVeto && season === 1) {
+        if (args.tradeVeto && shouldRunScenario(args, season)) {
           tradeVetoCheck = await assertTradeVetoScenario({
             supabase,
             env,
@@ -4713,7 +4719,7 @@ const main = async () => {
         }
         let rookieDraftCheck = null
         const rookieDraftFailures = []
-        if (args.rookieDraft && season === 1) {
+        if (args.rookieDraft && shouldRunScenario(args, season)) {
           rookieDraftCheck = await assertRookieDraftAutoPickScenario({
             supabase,
             env,
@@ -4743,7 +4749,7 @@ const main = async () => {
         }
         let draftPushCheck = null
         const draftPushFailures = []
-        if (args.draftPush && season === 1) {
+        if (args.draftPush && shouldRunScenario(args, season)) {
           draftPushCheck = await assertDraftPushNotification({
             supabase,
             env,
@@ -4755,7 +4761,7 @@ const main = async () => {
         }
         let seasonResetCheck = null
         const seasonResetFailures = []
-        if (args.seasonReset && season === 1) {
+        if (args.seasonReset && shouldRunScenario(args, season)) {
           seasonResetCheck = await assertSeasonResetScenario({
             supabase,
             env,
