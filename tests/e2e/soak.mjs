@@ -53,6 +53,7 @@ const parseArgs = () => {
     auction: args.get('auction') === 'true' || process.env.E2E_ENABLE_AUCTION === '1',
     playoffs: args.get('playoffs') === 'true' || process.env.E2E_ENABLE_PLAYOFFS === '1',
     tiebreakers: args.get('tiebreakers') === 'true' || process.env.E2E_ENABLE_TIEBREAKERS === '1',
+    settings: args.get('settings') === 'true' || process.env.E2E_ENABLE_SETTINGS === '1',
   }
 }
 
@@ -163,6 +164,9 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
   const tiebreakerStatus = args.tiebreakers
     ? hasFailingNote(rows, /D\.SEA\.3/) ? 'FAIL' : hasPassingNote(rows, /standings tiebreaker scenario passed/) ? 'PARTIAL' : 'PENDING'
     : 'PENDING'
+  const settingsStatus = args.settings
+    ? hasFailingNote(rows, /D\.SET\.3/) ? 'FAIL' : hasPassingNote(rows, /commissioner settings propagation passed/) ? 'PARTIAL' : 'PENDING'
+    : 'PENDING'
 
   const coverage = [
     {
@@ -194,6 +198,11 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
       requirement: 'D.SET.2 league create/join/pick bank',
       status: targetLeagueId ? 'PARTIAL' : 'PENDING',
       evidence: targetLeagueId ? `Seeded target league ${targetLeagueId}; invite, lineup slots, members, and 5y pick-bank proof lives in tests/e2e-seed-report.md.` : 'No target league configured.',
+    },
+    {
+      requirement: 'D.SET.3 commissioner settings propagation',
+      status: settingsStatus,
+      evidence: args.settings ? 'Settings mode creates a disposable league, updates league/scoring/slot settings as the commissioner through Supabase RLS, verifies a manager can read them, and checks manager writes do not mutate commissioner-only settings.' : 'No commissioner settings propagation scenario implemented; enable E2E_ENABLE_SETTINGS=1.',
     },
     {
       requirement: 'D.SET.4 initial auction draft',
@@ -952,6 +961,148 @@ const createDisposableLeagueFromSeedUsers = async ({ supabase, state, season, la
     leagueSeason,
     members,
   }
+}
+
+const signInSupabaseClient = async (env, email, password, label) => {
+  if (!env.anonKey) throw new Error(`${label}: requires E2E_SUPABASE_ANON_KEY or EXPO_PUBLIC_SUPABASE_ANON_KEY`)
+  const client = createClient(env.supabaseUrl, env.anonKey, { auth: { persistSession: false } })
+  const { error } = await client.auth.signInWithPassword({ email, password })
+  if (error) throw new Error(`${label}: sign-in failed for ${email}: ${error.message}`)
+  return client
+}
+
+const readLeagueSettingsForClient = async (client, leagueId, label) => {
+  const { data, error } = await client
+    .from('leagues')
+    .select('id, scoring_settings, roster_size, ir_slots, taxi_slots, auction_budget, playoff_start_week')
+    .eq('id', leagueId)
+    .single()
+  if (error || !data) throw new Error(`${label}: league settings read failed: ${error?.message ?? 'missing row'}`)
+  return data
+}
+
+const readLineupSlotsForClient = async (client, leagueId, label) => {
+  const { data, error } = await client
+    .from('lineup_slot_templates')
+    .select('slot_type, slot_count')
+    .eq('league_id', leagueId)
+  if (error) throw new Error(`${label}: lineup slot read failed: ${error.message}`)
+  return data ?? []
+}
+
+const assertCommissionerSettingsScenario = async ({ supabase, env, state, season }) => {
+  const failures = []
+  const label = 'D.SET.3'
+  const fixture = await createDisposableLeagueFromSeedUsers({
+    supabase,
+    state,
+    season,
+    label,
+    userCount: 2,
+  })
+  const commissioner = await signInSupabaseClient(env, state.users[0].email, state.password, label)
+  const manager = await signInSupabaseClient(env, state.users[1].email, state.password, label)
+  const expectedScoring = {
+    points: 1,
+    rebounds: 1.25,
+    assists: 1.5,
+    steals: 3,
+    blocks: 3,
+    turnovers: -1,
+    three_pointers_made: 0.5,
+    field_goals_attempted: -0.25,
+    field_goals_made: 0.5,
+    free_throws_attempted: -0.25,
+    free_throws_made: 0.5,
+    triple_double: 5,
+  }
+  const expectedLeagueSettings = {
+    scoring_settings: expectedScoring,
+    roster_size: 17,
+    ir_slots: 3,
+    taxi_slots: 2,
+    auction_budget: 240,
+    playoff_start_week: 21,
+  }
+  const expectedSlots = [
+    { league_id: fixture.league.id, slot_type: 'PG', slot_count: 2 },
+    { league_id: fixture.league.id, slot_type: 'SG', slot_count: 2 },
+    { league_id: fixture.league.id, slot_type: 'SF', slot_count: 2 },
+    { league_id: fixture.league.id, slot_type: 'PF', slot_count: 2 },
+    { league_id: fixture.league.id, slot_type: 'C', slot_count: 1 },
+    { league_id: fixture.league.id, slot_type: 'G', slot_count: 1 },
+    { league_id: fixture.league.id, slot_type: 'F', slot_count: 1 },
+    { league_id: fixture.league.id, slot_type: 'UTIL', slot_count: 3 },
+    { league_id: fixture.league.id, slot_type: 'BE', slot_count: 4 },
+  ]
+
+  const { error: leagueUpdateError } = await commissioner
+    .from('leagues')
+    .update(expectedLeagueSettings)
+    .eq('id', fixture.league.id)
+  if (leagueUpdateError) {
+    failures.push(`${label}: commissioner league settings update failed through RLS anon client: ${leagueUpdateError.message}`)
+  }
+
+  const { error: slotsUpdateError } = await commissioner
+    .from('lineup_slot_templates')
+    .upsert(expectedSlots, { onConflict: 'league_id,slot_type' })
+  if (slotsUpdateError) {
+    failures.push(`${label}: commissioner lineup slot update failed through RLS anon client: ${slotsUpdateError.message}`)
+  }
+
+  const managerAttempt = await manager
+    .from('leagues')
+    .update({ roster_size: 99 })
+    .eq('id', fixture.league.id)
+
+  const managerLeague = await readLeagueSettingsForClient(manager, fixture.league.id, label)
+  const managerSlots = await readLineupSlotsForClient(manager, fixture.league.id, label)
+  const persistedLeague = await readLeagueSettingsForClient(supabase, fixture.league.id, label)
+  const persistedSlots = await readLineupSlotsForClient(supabase, fixture.league.id, label)
+  const slotCounts = new Map(managerSlots.map((slot) => [slot.slot_type, slot.slot_count]))
+  const persistedSlotCounts = new Map(persistedSlots.map((slot) => [slot.slot_type, slot.slot_count]))
+
+  if (managerLeague.roster_size !== expectedLeagueSettings.roster_size) {
+    failures.push(`${label}: manager read roster_size=${managerLeague.roster_size}; expected propagated value ${expectedLeagueSettings.roster_size}`)
+  }
+  if (persistedLeague.roster_size !== expectedLeagueSettings.roster_size) {
+    failures.push(`${label}: manager write changed roster_size to ${persistedLeague.roster_size}; expected commissioner-only value ${expectedLeagueSettings.roster_size}`)
+  }
+  if (managerLeague.ir_slots !== expectedLeagueSettings.ir_slots || managerLeague.taxi_slots !== expectedLeagueSettings.taxi_slots) {
+    failures.push(`${label}: manager read IR/taxi slots ${managerLeague.ir_slots}/${managerLeague.taxi_slots}; expected ${expectedLeagueSettings.ir_slots}/${expectedLeagueSettings.taxi_slots}`)
+  }
+  if (managerLeague.auction_budget !== expectedLeagueSettings.auction_budget || managerLeague.playoff_start_week !== expectedLeagueSettings.playoff_start_week) {
+    failures.push(`${label}: manager read budget/playoff week ${managerLeague.auction_budget}/${managerLeague.playoff_start_week}; expected ${expectedLeagueSettings.auction_budget}/${expectedLeagueSettings.playoff_start_week}`)
+  }
+  if (Number(managerLeague.scoring_settings?.triple_double) !== expectedScoring.triple_double) {
+    failures.push(`${label}: manager read triple_double=${managerLeague.scoring_settings?.triple_double}; expected ${expectedScoring.triple_double}`)
+  }
+  for (const slot of expectedSlots) {
+    if (slotCounts.get(slot.slot_type) !== slot.slot_count) {
+      failures.push(`${label}: manager read ${slot.slot_type} slot_count=${slotCounts.get(slot.slot_type) ?? '<missing>'}; expected ${slot.slot_count}`)
+    }
+    if (persistedSlotCounts.get(slot.slot_type) !== slot.slot_count) {
+      failures.push(`${label}: persisted ${slot.slot_type} slot_count=${persistedSlotCounts.get(slot.slot_type) ?? '<missing>'}; expected ${slot.slot_count}`)
+    }
+  }
+
+  const artifact = {
+    leagueId: fixture.league.id,
+    commissionerUserId: state.users[0].id,
+    managerUserId: state.users[1].id,
+    expectedLeagueSettings,
+    managerAttemptError: managerAttempt.error?.message ?? null,
+    managerObservedLeague: managerLeague,
+    managerObservedSlots: managerSlots,
+    failures,
+  }
+  await writeFile(
+    path.join(ARTIFACT_ROOT, `season-${season}`, 'commissioner-settings.json'),
+    `${JSON.stringify(artifact, null, 2)}\n`,
+  )
+
+  return { failures, artifact }
 }
 
 const createDisposablePlayoffLeague = async ({ supabase, state, season }) => {
@@ -2127,6 +2278,9 @@ const main = async () => {
   if (args.tiebreakers && (!state?.password || !Array.isArray(state.users) || state.users.length < 4)) {
     throw new Error('E2E_ENABLE_TIEBREAKERS=1 requires tests/e2e-state.json from npm run e2e:seed with at least 4 users')
   }
+  if (args.settings && (!state?.password || !Array.isArray(state.users) || state.users.length < 2)) {
+    throw new Error('E2E_ENABLE_SETTINGS=1 requires tests/e2e-state.json from npm run e2e:seed with at least 2 users')
+  }
   if (args.midlifeMigration && (!Number.isInteger(MIDLIFE_MIGRATION_AFTER_SEASON) || MIDLIFE_MIGRATION_AFTER_SEASON < 1)) {
     throw new Error('E2E_ENABLE_MIDLIFE_MIGRATION=1 requires a positive integer E2E_MIDLIFE_MIGRATION_AFTER_SEASON')
   }
@@ -2176,6 +2330,9 @@ const main = async () => {
     args.tiebreakers
       ? 'Standings tiebreaker/RPS scenario enabled through E2E_ENABLE_TIEBREAKERS=1.'
       : 'Standings tiebreaker/RPS scenario disabled; set E2E_ENABLE_TIEBREAKERS=1 to exercise D.SEA.3.',
+    args.settings
+      ? 'Commissioner settings propagation scenario enabled through E2E_ENABLE_SETTINGS=1.'
+      : 'Commissioner settings propagation scenario disabled; set E2E_ENABLE_SETTINGS=1 to exercise D.SET.3.',
   ]
 
   try {
@@ -2304,6 +2461,17 @@ const main = async () => {
           })
           tiebreakerFailures.push(...tiebreakerCheck.failures)
         }
+        let settingsCheck = null
+        const settingsFailures = []
+        if (args.settings && season === 1) {
+          settingsCheck = await assertCommissionerSettingsScenario({
+            supabase,
+            env,
+            state,
+            season,
+          })
+          settingsFailures.push(...settingsCheck.failures)
+        }
         if (args.realtime) {
           await assertRealtimeDelivery({
             supabase,
@@ -2386,6 +2554,7 @@ const main = async () => {
           ...snapshotFailures,
           ...playoffFailures,
           ...tiebreakerFailures,
+          ...settingsFailures,
           ...perfFailures,
           ...memoryFailures,
         ]
@@ -2410,6 +2579,7 @@ const main = async () => {
               auctionValidation ? 'auction bid validation passed' : null,
               playoffCheck ? 'playoff bracket scenario passed' : null,
               tiebreakerCheck ? 'standings tiebreaker scenario passed' : null,
+              settingsCheck ? 'commissioner settings propagation passed' : null,
               env.backendTicksEnabled ? 'matchup generation idempotency passed' : null,
               args.pickChain ? 'multi-hop future-pick owner resolved' : null,
               rookieDraftPickChainCheck ? 'rookie draft traded-pick slot resolved' : null,
