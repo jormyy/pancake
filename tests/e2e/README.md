@@ -27,6 +27,7 @@ export E2E_ENABLE_AUCTION=1
 export E2E_ENABLE_PLAYOFFS=1
 export E2E_ENABLE_TIEBREAKERS=1
 export E2E_ENABLE_SETTINGS=1
+export E2E_ENABLE_SCORING=1
 export E2E_PERF_DRIFT_LIMIT=1.2
 export E2E_MEMORY_DRIFT_LIMIT=1.2
 export NBA_CDN_BASE_URL=http://127.0.0.1:4555/static/json
@@ -63,6 +64,8 @@ Standings tiebreaker checks are available with `E2E_ENABLE_TIEBREAKERS=1` or `--
 
 Commissioner settings checks are available with `E2E_ENABLE_SETTINGS=1` or `--settings=true`. The runner creates a disposable league from seeded users, signs in through Supabase Auth as the commissioner and a manager, updates league/scoring/lineup-slot settings through the anon client under real RLS, verifies the manager can read the propagated settings, and verifies a manager write attempt does not mutate commissioner-only league settings. The scoring assertion uses the schema-valid `triple_double` key for the prompt's triple-double bonus because the live schema rejects `triple_double_bonus`. Artifacts are written to `tests/artifacts/season-<N>/commissioner-settings.json`. This covers the D.SET.3 propagation/RLS slice; browser editing of the settings form remains pending.
 
+Weekly scoring/finalization checks are available with `E2E_ENABLE_SCORING=1` or `--scoring=true`. The backend must be running with `ENABLE_E2E_ROUTES=1` and `E2E_ADMIN_SECRET`; the runner creates a disposable two-team league, seeds a current `season_weeks` row, one NBA game, starter and bench `weekly_lineups`, and real `player_game_stats`, then calls `/e2e/sync-scores`. It verifies only starters count, a Scheduled game blocks finalization, a Final game finalizes the matchup with the correct winner, `max_possible_points` is persisted, and standings rows are appended. Artifacts are written to `tests/artifacts/season-<N>/weekly-scoring-finalization.json`. This covers the starter-only scoring/finalization slice of D.SEA.2; browser lineup setting, waivers, and trades remain pending.
+
 Push notification interception is available with `E2E_ENABLE_PUSH=1` or `--push=true`. The Fastify backend must be started with `EXPO_PUSH_URL=http://127.0.0.1:4555/--/api/v2/push/send`; the runner fails closed if `/e2e/status` reports any other push URL. Each season sets seeded recipients' `profiles.push_token`, signs in through Supabase Auth as a seeded sender, calls the real authenticated `/notify/trade` route, seeds a real pending waiver claim, runs `/e2e/process-waivers`, and asserts the fake upstream captured both Expo push payloads. Artifacts are written to `tests/artifacts/season-<N>/push-notifications.json`. This covers the trade and waiver notification slices of D.X.1; draft notification assertions remain pending.
 
 Standings/champion history retention is available with `E2E_ENABLE_HISTORY=1` or `--history=true` in backend tick mode. Each season seeds deterministic completed-season standings plus a finalized playoff-final row for the season about to reset, advances the season through the real backend, then verifies all previously seeded standings and champions remain queryable. Artifacts are written to `tests/artifacts/season-<N>/history-retention.json`. This covers the D.LONG.3/D.LONG.4 history-retention slice only; it does not replace full playoff gameplay.
@@ -92,6 +95,7 @@ Outputs:
 - `tests/artifacts/season-<N>/playoff-bracket.json`
 - `tests/artifacts/season-<N>/standings-tiebreakers.json`
 - `tests/artifacts/season-<N>/commissioner-settings.json`
+- `tests/artifacts/season-<N>/weekly-scoring-finalization.json`
 - `tests/artifacts/season-<N>/push-notifications.json`
 - `tests/artifacts/season-<N>/midlife-migration.json`
 - `tests/artifacts/season-<N>/rookie-draft-pick-chain.json`

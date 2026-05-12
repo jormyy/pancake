@@ -54,6 +54,7 @@ const parseArgs = () => {
     playoffs: args.get('playoffs') === 'true' || process.env.E2E_ENABLE_PLAYOFFS === '1',
     tiebreakers: args.get('tiebreakers') === 'true' || process.env.E2E_ENABLE_TIEBREAKERS === '1',
     settings: args.get('settings') === 'true' || process.env.E2E_ENABLE_SETTINGS === '1',
+    scoring: args.get('scoring') === 'true' || process.env.E2E_ENABLE_SCORING === '1',
   }
 }
 
@@ -167,6 +168,9 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
   const settingsStatus = args.settings
     ? hasFailingNote(rows, /D\.SET\.3/) ? 'FAIL' : hasPassingNote(rows, /commissioner settings propagation passed/) ? 'PARTIAL' : 'PENDING'
     : 'PENDING'
+  const scoringStatus = args.scoring
+    ? hasFailingNote(rows, /D\.SEA\.2/) ? 'FAIL' : hasPassingNote(rows, /weekly scoring finalization passed/) ? 'PARTIAL' : 'PENDING'
+    : 'PENDING'
 
   const coverage = [
     {
@@ -221,8 +225,8 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
     },
     {
       requirement: 'D.SEA.2 weekly lineup/scoring/waiver/trade loop',
-      status: 'PENDING',
-      evidence: 'Full weekly browser gameplay loop is not implemented.',
+      status: scoringStatus,
+      evidence: args.scoring ? 'Scoring mode seeds a disposable matchup with starter/bench lineups and real player_game_stats, calls the real backend /e2e/sync-scores path, and checks starter-only points, finalization blocking, winner, max-possible points, and standings append.' : 'Full weekly browser gameplay loop is not implemented; enable E2E_ENABLE_SCORING=1 for the starter-only scoring/finalization slice.',
     },
     {
       requirement: 'D.SEA.3 standings tiebreakers/RPS',
@@ -908,7 +912,7 @@ const assertHistoryRetained = async (supabase, fixtures, runSeason) => {
 
 const e2eCode = () => Math.random().toString(36).replace(/[^a-z0-9]/g, '').slice(2, 8).toUpperCase().padEnd(6, '0')
 
-const createDisposableLeagueFromSeedUsers = async ({ supabase, state, season, label, userCount }) => {
+const createDisposableLeagueFromSeedUsers = async ({ supabase, state, season, label, userCount, seasonYear }) => {
   if (!state?.password || !Array.isArray(state.users) || state.users.length < userCount) {
     throw new Error(`${label}: scenario requires ${userCount} seeded users from npm run e2e:seed`)
   }
@@ -932,7 +936,7 @@ const createDisposableLeagueFromSeedUsers = async ({ supabase, state, season, la
     .from('league_seasons')
     .insert({
       league_id: league.id,
-      season_year: 3000 + season,
+      season_year: seasonYear ?? 3000 + season,
       is_current: true,
     })
     .select('id, season_year')
@@ -1099,6 +1103,348 @@ const assertCommissionerSettingsScenario = async ({ supabase, env, state, season
   }
   await writeFile(
     path.join(ARTIFACT_ROOT, `season-${season}`, 'commissioner-settings.json'),
+    `${JSON.stringify(artifact, null, 2)}\n`,
+  )
+
+  return { failures, artifact }
+}
+
+const scoringFixtureSeasonYear = () => 6000 + Number(Date.now().toString().slice(-6))
+
+const calculateFixturePoints = (stats, settings) => {
+  if (stats.did_not_play) return 0
+  return Number((
+    stats.points * (settings.points ?? 0) +
+    stats.rebounds * (settings.rebounds ?? 0) +
+    stats.assists * (settings.assists ?? 0) +
+    stats.steals * (settings.steals ?? 0) +
+    stats.blocks * (settings.blocks ?? 0) +
+    stats.turnovers * (settings.turnovers ?? 0) +
+    stats.three_pointers_made * (settings.three_pointers_made ?? 0) +
+    stats.field_goals_made * (settings.field_goals_made ?? 0) +
+    stats.field_goals_attempted * (settings.field_goals_attempted ?? 0) +
+    stats.free_throws_made * (settings.free_throws_made ?? 0) +
+    stats.free_throws_attempted * (settings.free_throws_attempted ?? 0) +
+    (stats.double_double ? (settings.double_double ?? 0) : 0) +
+    (stats.triple_double ? (settings.triple_double ?? 0) : 0)
+  ).toFixed(2))
+}
+
+const assertNumberEquals = (failures, label, actual, expected) => {
+  const actualNumber = Number(actual ?? 0)
+  if (Math.abs(actualNumber - expected) > 0.001) {
+    failures.push(`${label}: ${actualNumber}; expected ${expected}`)
+  }
+}
+
+const readScoringMatchup = async (supabase, matchupId, label) => {
+  const { data, error } = await supabase
+    .from('matchups')
+    .select('id, home_points, away_points, home_max_possible_points, away_max_possible_points, winner_member_id, is_finalized, finalized_at')
+    .eq('id', matchupId)
+    .single()
+  if (error || !data) throw new Error(`${label}: matchup read failed: ${error?.message ?? 'missing row'}`)
+  return data
+}
+
+const assertWeeklyScoringFinalizationScenario = async ({ supabase, env, state, season }) => {
+  const failures = []
+  const label = 'D.SEA.2'
+  const gameDate = todayET()
+  const fixtureSeasonYear = scoringFixtureSeasonYear()
+  const weekNumber = 1
+  const fixture = await createDisposableLeagueFromSeedUsers({
+    supabase,
+    state,
+    season,
+    label,
+    userCount: 2,
+    seasonYear: fixtureSeasonYear,
+  })
+  const [homeMember, awayMember] = fixture.members
+  const scoringSettings = {
+    points: 1,
+    rebounds: 1.2,
+    assists: 1.5,
+    steals: 3,
+    blocks: 3,
+    turnovers: -1,
+    three_pointers_made: 0.5,
+    field_goals_made: 0.2,
+    field_goals_attempted: -0.1,
+    free_throws_made: 0.2,
+    free_throws_attempted: -0.1,
+    double_double: 2,
+    triple_double: 5,
+  }
+
+  const { error: leagueUpdateError } = await supabase
+    .from('leagues')
+    .update({
+      scoring_settings: scoringSettings,
+      playoff_start_week: 20,
+    })
+    .eq('id', fixture.league.id)
+  if (leagueUpdateError) throw new Error(`${label}: scoring settings update failed: ${leagueUpdateError.message}`)
+
+  const { error: weekError } = await supabase
+    .from('season_weeks')
+    .upsert({
+      season_year: fixtureSeasonYear,
+      week_number: weekNumber,
+      week_start: gameDate,
+      week_end: gameDate,
+    }, { onConflict: 'season_year,week_number' })
+  if (weekError) throw new Error(`${label}: season week fixture insert failed: ${weekError.message}`)
+
+  const { data: players, error: playersError } = await supabase
+    .from('players')
+    .select('id, display_name')
+    .not('display_name', 'is', null)
+    .order('display_name', { ascending: true })
+    .limit(4)
+  if (playersError) throw new Error(`${label}: player fixture lookup failed: ${playersError.message}`)
+  if ((players ?? []).length < 4) throw new Error(`${label}: requires at least four players in the test Supabase project`)
+
+  const [homeStarter, homeBench, awayStarter, awayBench] = players
+  const { data: game, error: gameError } = await supabase
+    .from('nba_games')
+    .insert({
+      sportsdata_game_id: `e2e-scoring-${fixtureSeasonYear}-${Date.now()}`,
+      nba_game_id: `E2ESCORING${fixtureSeasonYear}`,
+      season_year: fixtureSeasonYear,
+      game_date: gameDate,
+      week_number: weekNumber,
+      home_team: 'E2H',
+      away_team: 'E2A',
+      status: 'Scheduled',
+    })
+    .select('id')
+    .single()
+  if (gameError) throw new Error(`${label}: game fixture insert failed: ${gameError.message}`)
+
+  const homeStarterStats = {
+    player_id: homeStarter.id,
+    game_id: game.id,
+    season_year: fixtureSeasonYear,
+    week_number: weekNumber,
+    game_date: gameDate,
+    points: 10,
+    rebounds: 5,
+    assists: 4,
+    steals: 1,
+    blocks: 2,
+    turnovers: 3,
+    three_pointers_made: 2,
+    field_goals_made: 4,
+    field_goals_attempted: 9,
+    free_throws_made: 2,
+    free_throws_attempted: 3,
+    double_double: true,
+    triple_double: false,
+  }
+  const awayStarterStats = {
+    player_id: awayStarter.id,
+    game_id: game.id,
+    season_year: fixtureSeasonYear,
+    week_number: weekNumber,
+    game_date: gameDate,
+    points: 12,
+    rebounds: 3,
+    assists: 2,
+    steals: 0,
+    blocks: 1,
+    turnovers: 1,
+    three_pointers_made: 1,
+    field_goals_made: 5,
+    field_goals_attempted: 11,
+    free_throws_made: 1,
+    free_throws_attempted: 2,
+    double_double: false,
+    triple_double: true,
+  }
+  const benchStats = [
+    {
+      player_id: homeBench.id,
+      game_id: game.id,
+      season_year: fixtureSeasonYear,
+      week_number: weekNumber,
+      game_date: gameDate,
+      points: 100,
+      rebounds: 20,
+      assists: 20,
+      steals: 10,
+      blocks: 10,
+      turnovers: 0,
+      three_pointers_made: 10,
+      field_goals_made: 30,
+      field_goals_attempted: 40,
+      free_throws_made: 20,
+      free_throws_attempted: 20,
+      double_double: true,
+      triple_double: true,
+    },
+    {
+      player_id: awayBench.id,
+      game_id: game.id,
+      season_year: fixtureSeasonYear,
+      week_number: weekNumber,
+      game_date: gameDate,
+      points: 90,
+      rebounds: 18,
+      assists: 18,
+      steals: 8,
+      blocks: 8,
+      turnovers: 0,
+      three_pointers_made: 9,
+      field_goals_made: 28,
+      field_goals_attempted: 35,
+      free_throws_made: 18,
+      free_throws_attempted: 18,
+      double_double: true,
+      triple_double: true,
+    },
+  ]
+
+  const { error: statsError } = await supabase
+    .from('player_game_stats')
+    .insert([homeStarterStats, awayStarterStats, ...benchStats])
+  if (statsError) throw new Error(`${label}: player stats fixture insert failed: ${statsError.message}`)
+
+  const { error: lineupError } = await supabase.from('weekly_lineups').insert([
+    {
+      league_id: fixture.league.id,
+      league_season_id: fixture.leagueSeason.id,
+      member_id: homeMember.id,
+      player_id: homeStarter.id,
+      week_number: weekNumber,
+      game_date: gameDate,
+      slot_type: 'PG',
+    },
+    {
+      league_id: fixture.league.id,
+      league_season_id: fixture.leagueSeason.id,
+      member_id: homeMember.id,
+      player_id: homeBench.id,
+      week_number: weekNumber,
+      game_date: gameDate,
+      slot_type: 'BE',
+    },
+    {
+      league_id: fixture.league.id,
+      league_season_id: fixture.leagueSeason.id,
+      member_id: awayMember.id,
+      player_id: awayStarter.id,
+      week_number: weekNumber,
+      game_date: gameDate,
+      slot_type: 'SG',
+    },
+    {
+      league_id: fixture.league.id,
+      league_season_id: fixture.leagueSeason.id,
+      member_id: awayMember.id,
+      player_id: awayBench.id,
+      week_number: weekNumber,
+      game_date: gameDate,
+      slot_type: 'BE',
+    },
+  ])
+  if (lineupError) throw new Error(`${label}: weekly lineup fixture insert failed: ${lineupError.message}`)
+
+  const { data: matchup, error: matchupError } = await supabase
+    .from('matchups')
+    .insert({
+      league_id: fixture.league.id,
+      league_season_id: fixture.leagueSeason.id,
+      week_number: weekNumber,
+      matchup_type: 'regular_season',
+      home_member_id: homeMember.id,
+      away_member_id: awayMember.id,
+      is_finalized: false,
+    })
+    .select('id')
+    .single()
+  if (matchupError) throw new Error(`${label}: matchup fixture insert failed: ${matchupError.message}`)
+
+  const standingsBefore = await countRows(supabase, 'standings', {
+    league_id: fixture.league.id,
+    league_season_id: fixture.leagueSeason.id,
+    week_number: weekNumber,
+  })
+  await backendJson(env, '/e2e/sync-scores')
+  const scheduledSyncMatchup = await readScoringMatchup(supabase, matchup.id, label)
+  const expectedHomePoints = calculateFixturePoints(homeStarterStats, scoringSettings)
+  const expectedAwayPoints = calculateFixturePoints(awayStarterStats, scoringSettings)
+
+  assertNumberEquals(failures, `${label}: scheduled-sync home_points`, scheduledSyncMatchup.home_points, expectedHomePoints)
+  assertNumberEquals(failures, `${label}: scheduled-sync away_points`, scheduledSyncMatchup.away_points, expectedAwayPoints)
+  if (scheduledSyncMatchup.is_finalized) {
+    failures.push(`${label}: matchup finalized while an NBA game was still Scheduled`)
+  }
+
+  const { error: finalGameError } = await supabase
+    .from('nba_games')
+    .update({ status: 'Final', home_score: 120, away_score: 111, ended_at: new Date().toISOString() })
+    .eq('id', game.id)
+  if (finalGameError) throw new Error(`${label}: final game update failed: ${finalGameError.message}`)
+
+  await backendJson(env, '/e2e/sync-scores')
+  const finalizedMatchup = await readScoringMatchup(supabase, matchup.id, label)
+  const standingsAfter = await countRows(supabase, 'standings', {
+    league_id: fixture.league.id,
+    league_season_id: fixture.leagueSeason.id,
+    week_number: weekNumber,
+  })
+
+  assertNumberEquals(failures, `${label}: finalized home_points`, finalizedMatchup.home_points, expectedHomePoints)
+  assertNumberEquals(failures, `${label}: finalized away_points`, finalizedMatchup.away_points, expectedAwayPoints)
+  if (!finalizedMatchup.is_finalized) {
+    failures.push(`${label}: matchup did not finalize after all NBA games were Final`)
+  }
+  if (finalizedMatchup.winner_member_id !== homeMember.id) {
+    failures.push(`${label}: winner_member_id=${finalizedMatchup.winner_member_id ?? '<null>'}; expected home starter winner ${homeMember.id}`)
+  }
+  if (finalizedMatchup.home_max_possible_points == null || finalizedMatchup.away_max_possible_points == null) {
+    failures.push(`${label}: finalized matchup did not persist max_possible_points for both teams`)
+  }
+  if (standingsAfter <= standingsBefore) {
+    failures.push(`${label}: finalizing week did not append standings rows (${standingsBefore} -> ${standingsAfter})`)
+  }
+
+  const artifact = {
+    season,
+    leagueId: fixture.league.id,
+    leagueSeasonId: fixture.leagueSeason.id,
+    fixtureSeasonYear,
+    weekNumber,
+    gameDate,
+    gameId: game.id,
+    matchupId: matchup.id,
+    members: {
+      home: homeMember,
+      away: awayMember,
+    },
+    players: {
+      homeStarter,
+      homeBench,
+      awayStarter,
+      awayBench,
+    },
+    expected: {
+      homePoints: expectedHomePoints,
+      awayPoints: expectedAwayPoints,
+      winnerMemberId: homeMember.id,
+      standingsRowsShouldIncrease: true,
+      maxPossiblePointsShouldBePersisted: true,
+    },
+    scheduledSyncMatchup,
+    finalizedMatchup,
+    standingsBefore,
+    standingsAfter,
+    failures,
+  }
+  await writeFile(
+    path.join(ARTIFACT_ROOT, `season-${season}`, 'weekly-scoring-finalization.json'),
     `${JSON.stringify(artifact, null, 2)}\n`,
   )
 
@@ -2281,6 +2627,12 @@ const main = async () => {
   if (args.settings && (!state?.password || !Array.isArray(state.users) || state.users.length < 2)) {
     throw new Error('E2E_ENABLE_SETTINGS=1 requires tests/e2e-state.json from npm run e2e:seed with at least 2 users')
   }
+  if (args.scoring && (!state?.password || !Array.isArray(state.users) || state.users.length < 2)) {
+    throw new Error('E2E_ENABLE_SCORING=1 requires tests/e2e-state.json from npm run e2e:seed with at least 2 users')
+  }
+  if (args.scoring && !env.e2eAdminSecret) {
+    throw new Error('E2E_ENABLE_SCORING=1 requires E2E_ADMIN_SECRET and a backend started with ENABLE_E2E_ROUTES=1')
+  }
   if (args.midlifeMigration && (!Number.isInteger(MIDLIFE_MIGRATION_AFTER_SEASON) || MIDLIFE_MIGRATION_AFTER_SEASON < 1)) {
     throw new Error('E2E_ENABLE_MIDLIFE_MIGRATION=1 requires a positive integer E2E_MIDLIFE_MIGRATION_AFTER_SEASON')
   }
@@ -2333,6 +2685,9 @@ const main = async () => {
     args.settings
       ? 'Commissioner settings propagation scenario enabled through E2E_ENABLE_SETTINGS=1.'
       : 'Commissioner settings propagation scenario disabled; set E2E_ENABLE_SETTINGS=1 to exercise D.SET.3.',
+    args.scoring
+      ? 'Weekly starter-only scoring/finalization scenario enabled through E2E_ENABLE_SCORING=1.'
+      : 'Weekly starter-only scoring/finalization scenario disabled; set E2E_ENABLE_SCORING=1 to exercise the D.SEA.2 scoring slice.',
   ]
 
   try {
@@ -2472,6 +2827,17 @@ const main = async () => {
           })
           settingsFailures.push(...settingsCheck.failures)
         }
+        let scoringCheck = null
+        const scoringFailures = []
+        if (args.scoring && season === 1) {
+          scoringCheck = await assertWeeklyScoringFinalizationScenario({
+            supabase,
+            env,
+            state,
+            season,
+          })
+          scoringFailures.push(...scoringCheck.failures)
+        }
         if (args.realtime) {
           await assertRealtimeDelivery({
             supabase,
@@ -2555,6 +2921,7 @@ const main = async () => {
           ...playoffFailures,
           ...tiebreakerFailures,
           ...settingsFailures,
+          ...scoringFailures,
           ...perfFailures,
           ...memoryFailures,
         ]
@@ -2580,6 +2947,7 @@ const main = async () => {
               playoffCheck ? 'playoff bracket scenario passed' : null,
               tiebreakerCheck ? 'standings tiebreaker scenario passed' : null,
               settingsCheck ? 'commissioner settings propagation passed' : null,
+              scoringCheck ? 'weekly scoring finalization passed' : null,
               env.backendTicksEnabled ? 'matchup generation idempotency passed' : null,
               args.pickChain ? 'multi-hop future-pick owner resolved' : null,
               rookieDraftPickChainCheck ? 'rookie draft traded-pick slot resolved' : null,

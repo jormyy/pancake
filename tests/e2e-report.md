@@ -1,8 +1,8 @@
 # Multi-Season E2E Soak Report
 
-- Status: PARTIAL
-- Started: 2026-05-12T05:30:49.875Z
-- Finished: 2026-05-12T05:30:55.401Z
+- Status: FAIL
+- Started: 2026-05-12T05:39:02.473Z
+- Finished: 2026-05-12T05:39:24.715Z
 - Target seasons: 1
 - Fake upstream: http://127.0.0.1:4555
 
@@ -10,12 +10,12 @@
 
 | Season | Status | Notes |
 | --- | --- | --- |
-| 1 | PASS | D.0 invariant boundary checks passed; full scenario/browser loop pending; commissioner settings propagation passed |
+| 1 | FAIL | D.SEA.2: finalized matchup did not persist max_possible_points for both teams; D.SEA.2: finalizing week did not append standings rows (0 -> 0) |
 
 ## Notes
 
 - This harness is integration/E2E only. It does not run unit tests.
-- Configured API base: <remote configured>
+- Configured API base: http://127.0.0.1:3101
 - Configured frontend: http://127.0.0.1:8081
 - Target league: 70c70f7e-737d-402d-ad1c-3fd204faac5e (seed run 20260512045536)
 - Backend tick endpoints were not enabled; set E2E_ENABLE_BACKEND_TICKS=1 with a local backend to run them.
@@ -29,6 +29,7 @@
 - Auction validation disabled; set E2E_ENABLE_AUCTION=1 to exercise the D.SET.4 server-side bid validation slice.
 - Playoff bracket scenario disabled; set E2E_ENABLE_PLAYOFFS=1 to exercise the D.SEA.4 top-6 bracket slice.
 - Standings tiebreaker/RPS scenario disabled; set E2E_ENABLE_TIEBREAKERS=1 to exercise D.SEA.3.
-- Commissioner settings propagation scenario enabled through E2E_ENABLE_SETTINGS=1.
+- Commissioner settings propagation scenario disabled; set E2E_ENABLE_SETTINGS=1 to exercise D.SET.3.
+- Weekly starter-only scoring/finalization scenario enabled through E2E_ENABLE_SCORING=1.
 - Schema preflight passed: post-refactor RPCs and required columns are present.
 - Perf metrics written to tests/artifacts/perf-metrics.json.
