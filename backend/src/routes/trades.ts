@@ -257,4 +257,88 @@ export default async function tradeRoutes(app: FastifyInstance) {
             return { ok: true }
         },
     )
+
+    app.post(
+        '/:tradeId/reject',
+        { schema: { params: TradeParams, body: TradeActionBody } },
+        async (req) => {
+            const { tradeId } = req.params as { tradeId: string }
+            const { memberId } = req.body as { memberId: string }
+
+            await verifyOwnMember(req.userId, memberId)
+
+            const { data: trade, error: fetchError } = await supabase
+                .from('trades')
+                .select('id, proposer_member_id, recipient_member_id, status')
+                .eq('id', tradeId)
+                .single()
+
+            if (fetchError || !trade) throw new NotFoundError('Trade not found.')
+            if (trade.recipient_member_id !== memberId) {
+                throw new AppError('Only the recipient can reject this trade.', 403)
+            }
+            if (trade.status !== 'pending') {
+                throw new ValidationError('This trade is no longer pending.')
+            }
+
+            const { error: updateError } = await supabase
+                .from('trades')
+                .update({ status: 'rejected' })
+                .eq('id', tradeId)
+                .eq('status', 'pending')
+
+            if (updateError) throw updateError
+
+            notifyMember(
+                trade.proposer_member_id,
+                'Trade Rejected',
+                'Your trade offer was declined.',
+                { tradeId },
+            ).catch((error) => req.log.error({ err: error }, 'Trade rejection notification failed'))
+
+            return { ok: true }
+        },
+    )
+
+    app.post(
+        '/:tradeId/withdraw',
+        { schema: { params: TradeParams, body: TradeActionBody } },
+        async (req) => {
+            const { tradeId } = req.params as { tradeId: string }
+            const { memberId } = req.body as { memberId: string }
+
+            await verifyOwnMember(req.userId, memberId)
+
+            const { data: trade, error: fetchError } = await supabase
+                .from('trades')
+                .select('id, proposer_member_id, recipient_member_id, status')
+                .eq('id', tradeId)
+                .single()
+
+            if (fetchError || !trade) throw new NotFoundError('Trade not found.')
+            if (trade.proposer_member_id !== memberId) {
+                throw new AppError('Only the proposer can withdraw this trade.', 403)
+            }
+            if (trade.status !== 'pending') {
+                throw new ValidationError('This trade is no longer pending.')
+            }
+
+            const { error: updateError } = await supabase
+                .from('trades')
+                .update({ status: 'withdrawn' })
+                .eq('id', tradeId)
+                .eq('status', 'pending')
+
+            if (updateError) throw updateError
+
+            notifyMember(
+                trade.recipient_member_id,
+                'Trade Withdrawn',
+                'A trade offer sent to you has been withdrawn.',
+                { tradeId },
+            ).catch((error) => req.log.error({ err: error }, 'Trade withdrawal notification failed'))
+
+            return { ok: true }
+        },
+    )
 }

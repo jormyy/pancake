@@ -91,47 +91,11 @@ export async function acceptTrade(tradeId: string, memberId: string): Promise<vo
 }
 
 export async function rejectTrade(tradeId: string, memberId: string): Promise<void> {
-    const { data: trade, error: fetchError } = await supabase
-        .from('trades')
-        .select('id, proposer_member_id, recipient_member_id, status')
-        .eq('id', tradeId)
-        .single()
-
-    if (fetchError) throw fetchError
-    const t = trade
-    if (!t) throw new Error('Trade not found.')
-    if (t.recipient_member_id !== memberId) throw new Error('You are not the recipient of this trade.')
-    if (t.status !== 'pending') throw new Error('This trade is no longer pending.')
-
-    const { error } = await supabase
-        .from('trades')
-        .update({ status: 'rejected' })
-        .eq('id', tradeId)
-
-    if (error) throw error
-    apiPost('/notify/trade', { memberId: t.proposer_member_id, title: 'Trade Rejected', body: 'Your trade offer was declined.' }).catch(console.error)
+    await apiPost(`/trades/${tradeId}/reject`, { memberId })
 }
 
 export async function withdrawTrade(tradeId: string, memberId: string): Promise<void> {
-    const { data: trade, error: fetchError } = await supabase
-        .from('trades')
-        .select('id, proposer_member_id, recipient_member_id, status')
-        .eq('id', tradeId)
-        .single()
-
-    if (fetchError) throw fetchError
-    const t = trade
-    if (!t) throw new Error('Trade not found.')
-    if (t.proposer_member_id !== memberId) throw new Error('You are not the proposer of this trade.')
-    if (t.status !== 'pending') throw new Error('This trade is no longer pending.')
-
-    const { error } = await supabase
-        .from('trades')
-        .update({ status: 'withdrawn' })
-        .eq('id', tradeId)
-
-    if (error) throw error
-    apiPost('/notify/trade', { memberId: t.recipient_member_id, title: 'Trade Withdrawn', body: 'A trade offer sent to you has been withdrawn.' }).catch(console.error)
+    await apiPost(`/trades/${tradeId}/withdraw`, { memberId })
 }
 
 export async function getMyTrades(memberId: string, leagueId: string): Promise<Trade[]> {
