@@ -52,6 +52,7 @@ const parseArgs = () => {
     midlifeMigration: args.get('midlife-migration') === 'true' || process.env.E2E_ENABLE_MIDLIFE_MIGRATION === '1',
     auction: args.get('auction') === 'true' || process.env.E2E_ENABLE_AUCTION === '1',
     playoffs: args.get('playoffs') === 'true' || process.env.E2E_ENABLE_PLAYOFFS === '1',
+    tiebreakers: args.get('tiebreakers') === 'true' || process.env.E2E_ENABLE_TIEBREAKERS === '1',
   }
 }
 
@@ -159,6 +160,9 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
   const playoffsStatus = args.playoffs
     ? hasFailingNote(rows, /D\.SEA\.4/) ? 'FAIL' : hasPassingNote(rows, /playoff bracket scenario passed/) ? 'PARTIAL' : 'PENDING'
     : 'PENDING'
+  const tiebreakerStatus = args.tiebreakers
+    ? hasFailingNote(rows, /D\.SEA\.3/) ? 'FAIL' : hasPassingNote(rows, /standings tiebreaker scenario passed/) ? 'PARTIAL' : 'PENDING'
+    : 'PENDING'
 
   const coverage = [
     {
@@ -213,8 +217,8 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
     },
     {
       requirement: 'D.SEA.3 standings tiebreakers/RPS',
-      status: 'PENDING',
-      evidence: 'No forced four-way tie or RPS browser/backend scenario implemented.',
+      status: tiebreakerStatus,
+      evidence: args.tiebreakers ? 'Tiebreaker mode seeds a disposable four-way tie and calls the real authenticated /playoffs/generate route to verify max-points/points-against/RPS handling.' : 'No forced four-way tie or RPS browser/backend scenario implemented; enable E2E_ENABLE_TIEBREAKERS=1 for standings tiebreaker coverage.',
     },
     {
       requirement: 'D.SEA.4 playoffs/champion',
@@ -895,17 +899,17 @@ const assertHistoryRetained = async (supabase, fixtures, runSeason) => {
 
 const e2eCode = () => Math.random().toString(36).replace(/[^a-z0-9]/g, '').slice(2, 8).toUpperCase().padEnd(6, '0')
 
-const createDisposablePlayoffLeague = async ({ supabase, state, season }) => {
-  if (!state?.password || !Array.isArray(state.users) || state.users.length < 10) {
-    throw new Error('D.SEA.4: playoff scenario requires 10 seeded users from npm run e2e:seed')
+const createDisposableLeagueFromSeedUsers = async ({ supabase, state, season, label, userCount }) => {
+  if (!state?.password || !Array.isArray(state.users) || state.users.length < userCount) {
+    throw new Error(`${label}: scenario requires ${userCount} seeded users from npm run e2e:seed`)
   }
 
   const unique = `${state.runId ?? 'manual'}-${season}-${Date.now().toString(36)}`
   const { data: league, error: leagueError } = await supabase
     .from('leagues')
     .insert({
-      name: `Pancake E2E Playoffs ${unique}`,
-      slug: `pancake-e2e-playoffs-${unique}`,
+      name: `Pancake E2E ${label.replace(/[^A-Z0-9]+/gi, ' ')} ${unique}`,
+      slug: `pancake-e2e-${label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${unique}`,
       invite_code: e2eCode(),
       commissioner_id: state.users[0].id,
       status: 'active',
@@ -913,7 +917,7 @@ const createDisposablePlayoffLeague = async ({ supabase, state, season }) => {
     })
     .select('id, playoff_start_week')
     .single()
-  if (leagueError) throw new Error(`D.SEA.4 playoff league insert: ${leagueError.message}`)
+  if (leagueError) throw new Error(`${label} league insert: ${leagueError.message}`)
 
   const { data: leagueSeason, error: seasonError } = await supabase
     .from('league_seasons')
@@ -924,34 +928,50 @@ const createDisposablePlayoffLeague = async ({ supabase, state, season }) => {
     })
     .select('id, season_year')
     .single()
-  if (seasonError) throw new Error(`D.SEA.4 playoff season insert: ${seasonError.message}`)
+  if (seasonError) throw new Error(`${label} season insert: ${seasonError.message}`)
 
   const orderByUserId = new Map(state.users.map((user, index) => [user.id, index]))
   const { data: insertedMembers, error: membersError } = await supabase
     .from('league_members')
-    .insert(state.users.map((user, index) => ({
+    .insert(state.users.slice(0, userCount).map((user, index) => ({
       league_id: league.id,
       user_id: user.id,
       role: index === 0 ? 'commissioner' : 'manager',
-      team_name: `Playoff Seed ${index + 1}`,
+      team_name: `${label} Seed ${index + 1}`,
     })))
     .select('id, user_id, team_name')
-  if (membersError) throw new Error(`D.SEA.4 playoff members insert: ${membersError.message}`)
+  if (membersError) throw new Error(`${label} members insert: ${membersError.message}`)
 
   const members = [...(insertedMembers ?? [])].sort((a, b) => {
     return (orderByUserId.get(a.user_id) ?? 999) - (orderByUserId.get(b.user_id) ?? 999)
   })
-  if (members.length < 10) throw new Error(`D.SEA.4: playoff league has ${members.length} members; expected 10`)
+  if (members.length < userCount) throw new Error(`${label}: disposable league has ${members.length} members; expected ${userCount}`)
+
+  return {
+    league,
+    leagueSeason,
+    members,
+  }
+}
+
+const createDisposablePlayoffLeague = async ({ supabase, state, season }) => {
+  const fixture = await createDisposableLeagueFromSeedUsers({
+    supabase,
+    state,
+    season,
+    label: 'D.SEA.4',
+    userCount: 10,
+  })
 
   const regularSeasonRows = []
-  for (const [index, member] of members.entries()) {
-    const wins = members.length - index
+  for (const [index, member] of fixture.members.entries()) {
+    const wins = fixture.members.length - index
     for (let win = 0; win < wins; win += 1) {
-      const opponentOffset = (win % (members.length - 1)) + 1
-      const opponent = members[(index + opponentOffset) % members.length]
+      const opponentOffset = (win % (fixture.members.length - 1)) + 1
+      const opponent = fixture.members[(index + opponentOffset) % fixture.members.length]
       regularSeasonRows.push({
-        league_id: league.id,
-        league_season_id: leagueSeason.id,
+        league_id: fixture.league.id,
+        league_season_id: fixture.leagueSeason.id,
         week_number: 100 + index * 20 + win,
         matchup_type: 'regular_season',
         home_member_id: member.id,
@@ -971,9 +991,7 @@ const createDisposablePlayoffLeague = async ({ supabase, state, season }) => {
   if (matchupError) throw new Error(`D.SEA.4 regular-season fixture insert: ${matchupError.message}`)
 
   return {
-    league,
-    leagueSeason,
-    members,
+    ...fixture,
     regularSeasonRows: regularSeasonRows.length,
   }
 }
@@ -1066,6 +1084,246 @@ const assertPlayoffBracketScenario = async ({ supabase, env, state, season }) =>
   }
   await writeFile(
     path.join(ARTIFACT_ROOT, `season-${season}`, 'playoff-bracket.json'),
+    `${JSON.stringify(artifact, null, 2)}\n`,
+  )
+
+  return { failures, artifact }
+}
+
+const insertTiebreakerRows = async (supabase, fixture) => {
+  const [seed1, seed2, seed3, seed4] = fixture.members
+  const rows = [
+    {
+      league_id: fixture.league.id,
+      league_season_id: fixture.leagueSeason.id,
+      week_number: 1,
+      matchup_type: 'regular_season',
+      home_member_id: seed1.id,
+      away_member_id: seed2.id,
+      home_points: 100,
+      away_points: 100,
+      home_max_possible_points: 140,
+      away_max_possible_points: 180,
+      winner_member_id: seed1.id,
+      is_finalized: true,
+      finalized_at: new Date().toISOString(),
+    },
+    {
+      league_id: fixture.league.id,
+      league_season_id: fixture.leagueSeason.id,
+      week_number: 2,
+      matchup_type: 'regular_season',
+      home_member_id: seed3.id,
+      away_member_id: seed4.id,
+      home_points: 100,
+      away_points: 100,
+      home_max_possible_points: 130,
+      away_max_possible_points: 160,
+      winner_member_id: seed3.id,
+      is_finalized: true,
+      finalized_at: new Date().toISOString(),
+    },
+    {
+      league_id: fixture.league.id,
+      league_season_id: fixture.leagueSeason.id,
+      week_number: 3,
+      matchup_type: 'regular_season',
+      home_member_id: seed2.id,
+      away_member_id: seed3.id,
+      home_points: 100,
+      away_points: 100,
+      home_max_possible_points: 180,
+      away_max_possible_points: 130,
+      winner_member_id: seed2.id,
+      is_finalized: true,
+      finalized_at: new Date().toISOString(),
+    },
+    {
+      league_id: fixture.league.id,
+      league_season_id: fixture.leagueSeason.id,
+      week_number: 4,
+      matchup_type: 'regular_season',
+      home_member_id: seed4.id,
+      away_member_id: seed1.id,
+      home_points: 100,
+      away_points: 100,
+      home_max_possible_points: 160,
+      away_max_possible_points: 140,
+      winner_member_id: seed4.id,
+      is_finalized: true,
+      finalized_at: new Date().toISOString(),
+    },
+  ]
+  const { error } = await supabase.from('matchups').insert(rows)
+  if (error) throw new Error(`D.SEA.3 tiebreaker fixture insert: ${error.message}`)
+  return rows
+}
+
+const insertFullRpsTieRows = async (supabase, fixture) => {
+  const [seed1, seed2, seed3, seed4] = fixture.members
+  const baseRows = [
+    [seed1, seed2, seed1, 1],
+    [seed3, seed4, seed3, 2],
+    [seed2, seed3, seed2, 3],
+    [seed4, seed1, seed4, 4],
+  ]
+  const rows = baseRows.map(([home, away, winner, week]) => ({
+    league_id: fixture.league.id,
+    league_season_id: fixture.leagueSeason.id,
+    week_number: week,
+    matchup_type: 'regular_season',
+    home_member_id: home.id,
+    away_member_id: away.id,
+    home_points: 100,
+    away_points: 100,
+    home_max_possible_points: 150,
+    away_max_possible_points: 150,
+    winner_member_id: winner.id,
+    is_finalized: true,
+    finalized_at: new Date().toISOString(),
+  }))
+  const { error } = await supabase.from('matchups').insert(rows)
+  if (error) throw new Error(`D.SEA.3 RPS fixture insert: ${error.message}`)
+  return rows
+}
+
+const assertStandingsTiebreakerScenario = async ({ supabase, env, state, season }) => {
+  const failures = []
+  const maxFixture = await createDisposableLeagueFromSeedUsers({
+    supabase,
+    state,
+    season,
+    label: 'D.SEA.3',
+    userCount: 4,
+  })
+  const fixtureRows = await insertTiebreakerRows(supabase, maxFixture)
+  const [, expectedSeed1, expectedSeed4, expectedSeed2] = maxFixture.members
+  const expectedSeed3 = maxFixture.members[0]
+  const accessToken = await signInForAccessToken(env, state.users[0].email, state.password)
+  let generateResult = null
+
+  try {
+    generateResult = await backendAuthedJson(env, '/playoffs/generate', accessToken, {
+      leagueId: maxFixture.league.id,
+    })
+  } catch (error) {
+    failures.push(`D.SEA.3: /playoffs/generate failed for disposable tiebreaker league: ${errorMessage(error)}`)
+  }
+
+  const { data: semis, error: semisError } = await supabase
+    .from('matchups')
+    .select('id, week_number, matchup_type, home_member_id, away_member_id, winner_member_id, is_finalized')
+    .eq('league_id', maxFixture.league.id)
+    .eq('league_season_id', maxFixture.leagueSeason.id)
+    .eq('matchup_type', 'playoff_semifinal')
+    .order('created_at', { ascending: true })
+  if (semisError) {
+    failures.push(`D.SEA.3: semifinal read failed: ${semisError.message}`)
+  }
+
+  const bracket = semis ?? []
+  if (bracket.length !== 2) {
+    failures.push(`D.SEA.3: tiebreaker bracket created ${bracket.length} semifinals; expected 2`)
+  }
+  const expectedPairs = [
+    [expectedSeed1, expectedSeed4],
+    [expectedSeed2, expectedSeed3],
+  ]
+  for (const [home, away] of expectedPairs) {
+    if (!playoffPairExists(bracket, home.id, away.id)) {
+      failures.push(`D.SEA.3: missing expected tiebreaker semifinal ${home.team_name} vs ${away.team_name}`)
+    }
+  }
+
+  const { data: rpsRows, error: rpsError } = await supabase
+    .from('rps_challenges')
+    .select('id, member_a_id, member_b_id, winner_member_id, status, context')
+    .eq('league_id', maxFixture.league.id)
+    .eq('league_season_id', maxFixture.leagueSeason.id)
+  if (rpsError) {
+    failures.push(`D.SEA.3: max-points scenario rps_challenges read failed: ${rpsError.message}`)
+  }
+
+  const rpsFixture = await createDisposableLeagueFromSeedUsers({
+    supabase,
+    state,
+    season,
+    label: 'D.SEA.3 RPS',
+    userCount: 4,
+  })
+  const rpsFixtureRows = await insertFullRpsTieRows(supabase, rpsFixture)
+  let rpsGenerateResult = null
+  try {
+    rpsGenerateResult = await backendAuthedJson(env, '/playoffs/generate', accessToken, {
+      leagueId: rpsFixture.league.id,
+    })
+  } catch (error) {
+    failures.push(`D.SEA.3: /playoffs/generate failed for disposable RPS league: ${errorMessage(error)}`)
+  }
+
+  const { data: rpsTieRows, error: rpsTieError } = await supabase
+    .from('rps_challenges')
+    .select('id, member_a_id, member_b_id, winner_member_id, status, context')
+    .eq('league_id', rpsFixture.league.id)
+    .eq('league_season_id', rpsFixture.leagueSeason.id)
+  if (rpsTieError) {
+    failures.push(`D.SEA.3: RPS scenario rps_challenges read failed: ${rpsTieError.message}`)
+  }
+  if ((rpsTieRows ?? []).length === 0) {
+    failures.push('D.SEA.3: no rps_challenges were created for standings ties that remain unresolved after wins, points_for, max_possible_points, and points_against')
+  }
+
+  const { data: rpsBracket, error: rpsBracketError } = await supabase
+    .from('matchups')
+    .select('id, week_number, matchup_type, home_member_id, away_member_id, winner_member_id, is_finalized')
+    .eq('league_id', rpsFixture.league.id)
+    .eq('league_season_id', rpsFixture.leagueSeason.id)
+    .eq('matchup_type', 'playoff_semifinal')
+  if (rpsBracketError) {
+    failures.push(`D.SEA.3: RPS semifinal read failed: ${rpsBracketError.message}`)
+  }
+  if ((rpsBracket ?? []).length > 0 && (rpsTieRows ?? []).length === 0) {
+    failures.push(`D.SEA.3: generated ${rpsBracket.length} playoff semifinals even though the four-way tie had no RPS resolution`)
+  }
+
+  const artifact = {
+    season,
+    maxPointsScenario: {
+      disposableLeagueId: maxFixture.league.id,
+      leagueSeasonId: maxFixture.leagueSeason.id,
+      fixtureRows,
+      generateResult,
+      bracket,
+      rpsChallenges: rpsRows ?? [],
+    },
+    rpsScenario: {
+      disposableLeagueId: rpsFixture.league.id,
+      leagueSeasonId: rpsFixture.leagueSeason.id,
+      fixtureRows: rpsFixtureRows,
+      generateResult: rpsGenerateResult,
+      bracket: rpsBracket ?? [],
+      rpsChallenges: rpsTieRows ?? [],
+    },
+    expected: {
+      tiebreakerOrder: [
+        'wins',
+        'points_for',
+        'max_possible_points',
+        'points_against',
+        'rps_challenges',
+      ],
+      maxPointsScenario: 'all four teams are 1-1 with equal points_for; max_possible_points should seed D.SEA.3 Seed 2 first, Seed 4 second, Seed 1 third, Seed 3 fourth',
+      rpsScenario: 'all four teams are 1-1 with equal points_for, max_possible_points, and points_against; RPS challenges should be created before deterministic playoff seeding',
+    },
+    seeds: maxFixture.members.map((member, index) => ({
+      expectedSeed: index + 1,
+      memberId: member.id,
+      teamName: member.team_name,
+    })),
+    failures,
+  }
+  await writeFile(
+    path.join(ARTIFACT_ROOT, `season-${season}`, 'standings-tiebreakers.json'),
     `${JSON.stringify(artifact, null, 2)}\n`,
   )
 
@@ -1866,6 +2124,9 @@ const main = async () => {
   if (args.playoffs && (!state?.password || !Array.isArray(state.users) || state.users.length < 10)) {
     throw new Error('E2E_ENABLE_PLAYOFFS=1 requires tests/e2e-state.json from npm run e2e:seed with 10 users')
   }
+  if (args.tiebreakers && (!state?.password || !Array.isArray(state.users) || state.users.length < 4)) {
+    throw new Error('E2E_ENABLE_TIEBREAKERS=1 requires tests/e2e-state.json from npm run e2e:seed with at least 4 users')
+  }
   if (args.midlifeMigration && (!Number.isInteger(MIDLIFE_MIGRATION_AFTER_SEASON) || MIDLIFE_MIGRATION_AFTER_SEASON < 1)) {
     throw new Error('E2E_ENABLE_MIDLIFE_MIGRATION=1 requires a positive integer E2E_MIDLIFE_MIGRATION_AFTER_SEASON')
   }
@@ -1912,6 +2173,9 @@ const main = async () => {
     args.playoffs
       ? 'Playoff bracket scenario enabled through E2E_ENABLE_PLAYOFFS=1.'
       : 'Playoff bracket scenario disabled; set E2E_ENABLE_PLAYOFFS=1 to exercise the D.SEA.4 top-6 bracket slice.',
+    args.tiebreakers
+      ? 'Standings tiebreaker/RPS scenario enabled through E2E_ENABLE_TIEBREAKERS=1.'
+      : 'Standings tiebreaker/RPS scenario disabled; set E2E_ENABLE_TIEBREAKERS=1 to exercise D.SEA.3.',
   ]
 
   try {
@@ -2029,6 +2293,17 @@ const main = async () => {
           })
           playoffFailures.push(...playoffCheck.failures)
         }
+        let tiebreakerCheck = null
+        const tiebreakerFailures = []
+        if (args.tiebreakers && season === 1) {
+          tiebreakerCheck = await assertStandingsTiebreakerScenario({
+            supabase,
+            env,
+            state,
+            season,
+          })
+          tiebreakerFailures.push(...tiebreakerCheck.failures)
+        }
         if (args.realtime) {
           await assertRealtimeDelivery({
             supabase,
@@ -2110,6 +2385,7 @@ const main = async () => {
           ...failuresAfterReset,
           ...snapshotFailures,
           ...playoffFailures,
+          ...tiebreakerFailures,
           ...perfFailures,
           ...memoryFailures,
         ]
@@ -2133,6 +2409,7 @@ const main = async () => {
               midlifeMigrationReport ? `mid-life migration applied (${midlifeMigrationReport.status})` : null,
               auctionValidation ? 'auction bid validation passed' : null,
               playoffCheck ? 'playoff bracket scenario passed' : null,
+              tiebreakerCheck ? 'standings tiebreaker scenario passed' : null,
               env.backendTicksEnabled ? 'matchup generation idempotency passed' : null,
               args.pickChain ? 'multi-hop future-pick owner resolved' : null,
               rookieDraftPickChainCheck ? 'rookie draft traded-pick slot resolved' : null,

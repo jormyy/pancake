@@ -1,8 +1,8 @@
 # E2E Coverage Checklist
 
 - Run status: FAIL
-- Started: 2026-05-12T05:14:56.496Z
-- Finished: 2026-05-12T05:14:59.719Z
+- Started: 2026-05-12T05:23:53.016Z
+- Finished: 2026-05-12T05:23:58.246Z
 - Target seasons: 1
 
 ## Prompt-To-Artifact Matrix
@@ -19,8 +19,8 @@
 | D.0 invariant boundary checks | PARTIAL | Season rows in tests/e2e-report.md include D.0 boundary checks or failure. |
 | D.SEA.1 matchup generation idempotency | PENDING | Requires E2E_ENABLE_BACKEND_TICKS=1. |
 | D.SEA.2 weekly lineup/scoring/waiver/trade loop | PENDING | Full weekly browser gameplay loop is not implemented. |
-| D.SEA.3 standings tiebreakers/RPS | PENDING | No forced four-way tie or RPS browser/backend scenario implemented. |
-| D.SEA.4 playoffs/champion | FAIL | Playoff mode seeds a disposable 10-team regular season and calls the real authenticated /playoffs/generate route, then checks for a top-6 bracket. |
+| D.SEA.3 standings tiebreakers/RPS | FAIL | Tiebreaker mode seeds a disposable four-way tie and calls the real authenticated /playoffs/generate route to verify max-points/points-against/RPS handling. |
+| D.SEA.4 playoffs/champion | PENDING | No playoff bracket/champion scenario implemented; enable E2E_ENABLE_PLAYOFFS=1 for bracket-generation coverage. |
 | D.SEA.5 rookie draft/traded picks | PENDING | Enable E2E_ENABLE_PICK_CHAIN=1. |
 | D.SEA.6 season reset | PENDING | Requires E2E_ENABLE_BACKEND_TICKS=1. |
 | D.SEA.7 snapshots/no shrink | PENDING | Snapshot summaries are written under tests/snapshots/season-<N>/summary.json. |
@@ -52,6 +52,7 @@
 - Realtime latency check disabled; set E2E_ENABLE_REALTIME=1 to exercise the D.X.2 matchups update slice.
 - Mid-life migration check disabled; set E2E_ENABLE_MIDLIFE_MIGRATION=1 to exercise D.LONG.5.
 - Auction validation disabled; set E2E_ENABLE_AUCTION=1 to exercise the D.SET.4 server-side bid validation slice.
-- Playoff bracket scenario enabled through E2E_ENABLE_PLAYOFFS=1.
+- Playoff bracket scenario disabled; set E2E_ENABLE_PLAYOFFS=1 to exercise the D.SEA.4 top-6 bracket slice.
+- Standings tiebreaker/RPS scenario enabled through E2E_ENABLE_TIEBREAKERS=1.
 - Schema preflight passed: post-refactor RPCs and required columns are present.
 - Perf metrics written to tests/artifacts/perf-metrics.json.
