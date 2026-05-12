@@ -68,7 +68,12 @@ const signInClient = async (env, email, password) => {
 }
 
 const findPgPlayer = async (admin, leagueId, leagueSeasonId) => {
-  const [{ data: rosterRows, error: rosterError }, { data: players, error: playersError }] = await Promise.all([
+  const today = todayDateString()
+  const [
+    { data: rosterRows, error: rosterError },
+    { data: players, error: playersError },
+    { data: startedGames, error: gamesError },
+  ] = await Promise.all([
     admin
       .from('roster_players')
       .select('player_id')
@@ -79,16 +84,51 @@ const findPgPlayer = async (admin, leagueId, leagueSeasonId) => {
       .select('id, display_name, position, eligible_positions, nba_team')
       .order('display_name', { ascending: true })
       .limit(400),
+    admin
+      .from('nba_games')
+      .select('home_team, away_team')
+      .eq('game_date', today)
+      .in('status', ['InProgress', 'Final']),
+  ])
+  if (rosterError) throw new Error(`roster lookup: ${rosterError.message}`)
+  if (playersError) throw new Error(`players lookup: ${playersError.message}`)
+  if (gamesError) throw new Error(`started game lookup: ${gamesError.message}`)
+  const rosteredIds = new Set((rosterRows ?? []).map((row) => row.player_id))
+  const startedTeams = new Set((startedGames ?? []).flatMap((game) => [game.home_team, game.away_team]).filter(Boolean))
+  const eligiblePlayers = (players ?? []).filter((row) => {
+    const eligible = Array.isArray(row.eligible_positions) ? row.eligible_positions : []
+    return row.display_name && !rosteredIds.has(row.id) && (row.position === 'PG' || eligible.includes('PG'))
+  })
+  const player = eligiblePlayers.find((row) => !row.nba_team || !startedTeams.has(row.nba_team)) ?? eligiblePlayers[0]
+  if (!player) throw new Error('D.SEA.2 browser lineup: no available PG-eligible player found')
+  return player
+}
+
+const findPgPlayersWithNbaTeams = async (admin, leagueId, leagueSeasonId, count) => {
+  const [{ data: rosterRows, error: rosterError }, { data: players, error: playersError }] = await Promise.all([
+    admin
+      .from('roster_players')
+      .select('player_id')
+      .eq('league_id', leagueId)
+      .eq('league_season_id', leagueSeasonId),
+    admin
+      .from('players')
+      .select('id, display_name, position, eligible_positions, nba_team')
+      .not('nba_team', 'is', null)
+      .order('display_name', { ascending: true })
+      .limit(600),
   ])
   if (rosterError) throw new Error(`roster lookup: ${rosterError.message}`)
   if (playersError) throw new Error(`players lookup: ${playersError.message}`)
   const rosteredIds = new Set((rosterRows ?? []).map((row) => row.player_id))
-  const player = (players ?? []).find((row) => {
+  const selected = (players ?? []).filter((row) => {
     const eligible = Array.isArray(row.eligible_positions) ? row.eligible_positions : []
-    return row.display_name && !rosteredIds.has(row.id) && (row.position === 'PG' || eligible.includes('PG'))
-  })
-  if (!player) throw new Error('D.SEA.2 browser lineup: no available PG-eligible player found')
-  return player
+    return row.display_name && row.nba_team && !rosteredIds.has(row.id) && (row.position === 'PG' || eligible.includes('PG'))
+  }).slice(0, count)
+  if (selected.length < count) {
+    throw new Error(`D.SEA.2 browser lineup locked: found ${selected.length} PG-eligible NBA-team players; expected ${count}`)
+  }
+  return selected
 }
 
 const ensureCurrentWeek = async (admin, seasonYear) => {
@@ -190,6 +230,82 @@ const setupLineupFixture = async (env, season) => {
   }
 }
 
+const setupLockedLineupFixture = async (env, season) => {
+  const fixture = await setupLineupFixture(env, season)
+  const [lockedPlayer, benchPlayer] = await findPgPlayersWithNbaTeams(
+    fixture.admin,
+    fixture.league.id,
+    fixture.currentSeason.id,
+    2,
+  )
+
+  const { data: rosterRows, error: rosterError } = await fixture.admin
+    .from('roster_players')
+    .insert([
+      {
+        league_id: fixture.league.id,
+        league_season_id: fixture.currentSeason.id,
+        member_id: fixture.member.id,
+        player_id: lockedPlayer.id,
+        acquired_via: 'e2e_lineup_locked_fixture',
+      },
+      {
+        league_id: fixture.league.id,
+        league_season_id: fixture.currentSeason.id,
+        member_id: fixture.member.id,
+        player_id: benchPlayer.id,
+        acquired_via: 'e2e_lineup_locked_fixture',
+      },
+    ])
+    .select('id, player_id')
+  if (rosterError) throw new Error(`locked roster seed: ${rosterError.message}`)
+
+  const today = todayDateString()
+  const opponent = benchPlayer.nba_team && benchPlayer.nba_team !== lockedPlayer.nba_team
+    ? benchPlayer.nba_team
+    : lockedPlayer.nba_team === 'BOS' ? 'LAL' : 'BOS'
+  const gameId = `e2e-lineup-lock-${fixture.runId}`
+  const { error: gameError } = await fixture.admin.from('nba_games').insert({
+    sportsdata_game_id: gameId,
+    nba_game_id: gameId,
+    season_year: fixture.currentSeason.season_year,
+    game_date: today,
+    week_number: fixture.week.week_number,
+    home_team: lockedPlayer.nba_team,
+    away_team: opponent,
+    status: 'InProgress',
+    game_status_text: 'E2E Live',
+    started_at: new Date().toISOString(),
+  })
+  if (gameError) throw new Error(`locked game seed: ${gameError.message}`)
+
+  const { data: lineup, error: lineupError } = await fixture.admin
+    .from('weekly_lineups')
+    .insert({
+      member_id: fixture.member.id,
+      league_id: fixture.league.id,
+      league_season_id: fixture.currentSeason.id,
+      player_id: lockedPlayer.id,
+      week_number: fixture.week.week_number,
+      game_date: today,
+      slot_type: 'PG',
+      is_auto_set: false,
+      set_at: new Date().toISOString(),
+    })
+    .select('id, player_id, slot_type')
+    .single()
+  if (lineupError) throw new Error(`locked lineup seed: ${lineupError.message}`)
+
+  return {
+    ...fixture,
+    lockedPlayer,
+    benchPlayer,
+    lockedRosterRow: (rosterRows ?? []).find((row) => row.player_id === lockedPlayer.id),
+    benchRosterRow: (rosterRows ?? []).find((row) => row.player_id === benchPlayer.id),
+    lockedLineup: lineup,
+  }
+}
+
 const signInBrowser = async (session, env, user, password) => {
   await browser(session, ['open', env.frontendUrl])
   await browser(session, [
@@ -287,6 +403,35 @@ const waitForLineup = async (fixture, options = {}, timeoutMs = 10_000) => {
   return last
 }
 
+const verifyLockedLineup = async (fixture) => {
+  const [{ data: lockedRows, error: lockedError }, { data: benchRows, error: benchError }] = await Promise.all([
+    fixture.admin
+      .from('weekly_lineups')
+      .select('id, player_id, slot_type, game_date')
+      .eq('league_id', fixture.league.id)
+      .eq('league_season_id', fixture.currentSeason.id)
+      .eq('member_id', fixture.member.id)
+      .eq('player_id', fixture.lockedPlayer.id)
+      .eq('game_date', todayDateString()),
+    fixture.admin
+      .from('weekly_lineups')
+      .select('id, player_id, slot_type, game_date')
+      .eq('league_id', fixture.league.id)
+      .eq('league_season_id', fixture.currentSeason.id)
+      .eq('member_id', fixture.member.id)
+      .eq('player_id', fixture.benchPlayer.id)
+      .eq('game_date', todayDateString()),
+  ])
+  if (lockedError) throw new Error(`locked lineup verify: ${lockedError.message}`)
+  if (benchError) throw new Error(`bench lineup verify: ${benchError.message}`)
+
+  const failures = []
+  if ((lockedRows ?? []).length !== 1) failures.push(`locked player weekly_lineups rows=${(lockedRows ?? []).length}; expected 1`)
+  if (lockedRows?.[0]?.slot_type !== 'PG') failures.push(`locked slot_type=${lockedRows?.[0]?.slot_type ?? '<missing>'}; expected PG`)
+  if ((benchRows ?? []).length !== 0) failures.push(`bench player weekly_lineups rows=${(benchRows ?? []).length}; expected 0`)
+  return { lockedLineup: lockedRows?.[0] ?? null, benchRows: benchRows ?? [], failures }
+}
+
 export async function runBrowserLineupScenario({
   season = 0,
   sessionName,
@@ -375,6 +520,117 @@ export async function runBrowserLineupScenario({
         memberId: fixture.member.id,
         playerId: fixture.player.id,
         rosterPlayerId: fixture.rosterRow.id,
+        weekNumber: fixture.week.week_number,
+      },
+      error: error instanceof Error ? error.message : String(error),
+      debug,
+      notes,
+    }
+    await writeFile(REPORT_PATH, `${JSON.stringify(report, null, 2)}\n`).catch(() => {})
+    throw error
+  } finally {
+    await browser(session, ['close']).catch(() => {})
+  }
+}
+
+export async function runBrowserLineupLockedScenario({
+  season = 0,
+  sessionName,
+} = {}) {
+  const env = resolvedEnv()
+  requireEnv(env, ['supabaseUrl', 'serviceRoleKey', 'anonKey'])
+  const fixture = await setupLockedLineupFixture(env, season)
+  const sessionList = await listSessions().catch((error) => `session list unavailable: ${error.message}`)
+  const session = sessionName ?? safeName(`pancake-lineup-locked-${fixture.runId}-${process.pid}`)
+  const artifactDir = path.join(ARTIFACT_ROOT, `season-${season}`, 'browser-lineup-locked')
+  await mkdir(artifactDir, { recursive: true })
+
+  const notes = [
+    `Frontend: ${describeEndpoint(env.frontendUrl)}`,
+    `Session: ${session}`,
+    `Manager: ${fixture.user.email}`,
+    sessionList,
+  ]
+  let debug = {}
+
+  try {
+    await signInBrowser(session, env, fixture.user, fixture.password)
+    await browser(session, ['set', 'viewport', '390', '844']).catch(() => {})
+    await browser(session, ['open', joinUrl(env.frontendUrl, '/lineup')])
+    await browser(session, ['wait', '3000'])
+    await assertPageText(
+      session,
+      ['Lineup', 'STARTERS', 'BENCH', fixture.lockedPlayer.display_name, fixture.benchPlayer.display_name, 'LIVE'],
+      'locked lineup before move',
+    )
+    await browser(session, ['screenshot', path.join(artifactDir, 'lineup-locked-before.png')], { timeout: 60_000 })
+    const starterClick = await clickButton(session, `PG ${fixture.lockedPlayer.display_name}`, 'locked starter row')
+    const benchClick = await clickButton(session, `Bench ${fixture.benchPlayer.display_name}`, 'bench player row')
+    await browser(session, ['wait', '1000'])
+    const lockedCheck = await verifyLockedLineup(fixture)
+    debug = { ...debug, starterClick, benchClick, lockedCheck }
+    if (lockedCheck.failures.length > 0) {
+      throw new Error(`locked lineup changed unexpectedly: ${lockedCheck.failures.join('; ')}`)
+    }
+    await browser(session, ['screenshot', path.join(artifactDir, 'lineup-locked-after.png')], { timeout: 60_000 })
+
+    const consoleOutput = await browser(session, ['console']).catch((error) => `console unavailable: ${error.message}`)
+    const errorOutput = await browser(session, ['errors']).catch((error) => `errors unavailable: ${error.message}`)
+    await writeFile(path.join(artifactDir, 'console.txt'), `${consoleOutput}\n`)
+    await writeFile(path.join(artifactDir, 'errors.txt'), `${errorOutput}\n`)
+
+    const failures = [...lockedCheck.failures]
+    if (errorOutput.trim()) failures.push(`browser errors present; see ${path.relative(ROOT, path.join(artifactDir, 'errors.txt'))}`)
+    const report = {
+      status: failures.length === 0 ? 'PASS' : 'FAIL',
+      mode: 'locked',
+      season,
+      artifactDir,
+      fixture: {
+        runId: fixture.runId,
+        leagueId: fixture.league.id,
+        leagueSeasonId: fixture.currentSeason.id,
+        memberId: fixture.member.id,
+        lockedPlayerId: fixture.lockedPlayer.id,
+        benchPlayerId: fixture.benchPlayer.id,
+        lockedRosterPlayerId: fixture.lockedRosterRow?.id ?? null,
+        benchRosterPlayerId: fixture.benchRosterRow?.id ?? null,
+        weekNumber: fixture.week.week_number,
+      },
+      lockedCheck,
+      notes,
+      failures,
+    }
+    await writeFile(REPORT_PATH, `${JSON.stringify(report, null, 2)}\n`)
+    await writeFile(path.join(artifactDir, 'summary.json'), `${JSON.stringify(report, null, 2)}\n`)
+    if (failures.length > 0) throw new Error(`Browser lineup locked scenario failed: ${failures.join('; ')}`)
+    return report
+  } catch (error) {
+    await browser(session, ['screenshot', path.join(artifactDir, 'failure.png')], { timeout: 60_000 }).catch(() => {})
+    const consoleOutput = await browser(session, ['console']).catch((consoleError) => `console unavailable: ${consoleError.message}`)
+    const errorOutput = await browser(session, ['errors']).catch((errorError) => `errors unavailable: ${errorError.message}`)
+    const networkOutput = await browser(session, ['network', 'requests']).catch((networkError) => `network unavailable: ${networkError.message}`)
+    await writeFile(path.join(artifactDir, 'console.txt'), `${consoleOutput}\n`).catch(() => {})
+    await writeFile(path.join(artifactDir, 'errors.txt'), `${errorOutput}\n`).catch(() => {})
+    await writeFile(path.join(artifactDir, 'network.txt'), `${networkOutput}\n`).catch(() => {})
+    const lockedCheck = await verifyLockedLineup(fixture).catch((verifyError) => ({
+      failures: [`verify unavailable: ${verifyError.message}`],
+    }))
+    debug = { ...debug, lockedCheck, consoleOutput, errorOutput, networkOutput }
+    const report = {
+      status: 'FAIL',
+      mode: 'locked',
+      season,
+      artifactDir,
+      fixture: {
+        runId: fixture.runId,
+        leagueId: fixture.league.id,
+        leagueSeasonId: fixture.currentSeason.id,
+        memberId: fixture.member.id,
+        lockedPlayerId: fixture.lockedPlayer.id,
+        benchPlayerId: fixture.benchPlayer.id,
+        lockedRosterPlayerId: fixture.lockedRosterRow?.id ?? null,
+        benchRosterPlayerId: fixture.benchRosterRow?.id ?? null,
         weekNumber: fixture.week.week_number,
       },
       error: error instanceof Error ? error.message : String(error),
@@ -495,7 +751,9 @@ export async function runBrowserLineupAutoSetScenario({
 if (import.meta.url === `file://${process.argv[1]}`) {
   const seasonArg = process.argv.find((arg) => arg.startsWith('--season='))
   const season = seasonArg ? Number(seasonArg.split('=')[1]) : 0
-  const runner = process.argv.includes('--auto-set')
+  const runner = process.argv.includes('--locked')
+    ? runBrowserLineupLockedScenario
+    : process.argv.includes('--auto-set')
     ? runBrowserLineupAutoSetScenario
     : runBrowserLineupScenario
   runner({ season }).catch((error) => {
