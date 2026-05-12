@@ -229,10 +229,17 @@ export default function LeagueScreen() {
         }
     }
 
+    const [sharing, setSharing] = useState(false)
     async function shareInviteCode() {
-        await Share.share({
-            message: `Join my Pancake currentLeague! Use invite code: ${currentLeague?.invite_code}`,
-        })
+        if (sharing) return
+        setSharing(true)
+        try {
+            await Share.share({
+                message: `Join my Pancake league! Use invite code: ${currentLeague?.invite_code}`,
+            })
+        } finally {
+            setSharing(false)
+        }
     }
 
     if (currentLeagueLoading || (!current && loading)) {
