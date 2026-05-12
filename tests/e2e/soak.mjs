@@ -1,12 +1,15 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
+import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
 import { createClient } from '@supabase/supabase-js'
 import { createFakeUpstreamServer } from './fake-upstream.mjs'
 import { resolvedEnv, describeEndpoint } from './env.mjs'
 import { runBrowserSmoke } from './browser-smoke.mjs'
 import { runBrowserAuthScenario } from './browser-auth.mjs'
 
+const execFileAsync = promisify(execFile)
 const ROOT = process.cwd()
 const REPORT_PATH = path.join(ROOT, 'tests/e2e-report.md')
 const COVERAGE_PATH = path.join(ROOT, 'tests/e2e-coverage.md')
@@ -19,6 +22,7 @@ const MEMORY_DRIFT_LIMIT = Number(process.env.E2E_MEMORY_DRIFT_LIMIT ?? 1.2)
 const REALTIME_CLIENTS = Number(process.env.E2E_REALTIME_CLIENTS ?? 10)
 const REALTIME_LATENCY_LIMIT_MS = Number(process.env.E2E_REALTIME_LATENCY_LIMIT_MS ?? 2000)
 const REALTIME_SUBSCRIBE_TIMEOUT_MS = Number(process.env.E2E_REALTIME_SUBSCRIBE_TIMEOUT_MS ?? 10000)
+const MIDLIFE_MIGRATION_AFTER_SEASON = Number(process.env.E2E_MIDLIFE_MIGRATION_AFTER_SEASON ?? 5)
 
 const SNAPSHOT_TABLES = [
   'roster_players',
@@ -45,6 +49,7 @@ const parseArgs = () => {
     push: args.get('push') === 'true' || process.env.E2E_ENABLE_PUSH === '1',
     history: args.get('history') === 'true' || process.env.E2E_ENABLE_HISTORY === '1',
     realtime: args.get('realtime') === 'true' || process.env.E2E_ENABLE_REALTIME === '1',
+    midlifeMigration: args.get('midlife-migration') === 'true' || process.env.E2E_ENABLE_MIDLIFE_MIGRATION === '1',
   }
 }
 
@@ -143,6 +148,9 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
   const realtimeStatus = args.realtime
     ? hasProblemNote(rows, /D\.X\.2/) ? 'FAIL' : hasPassingNote(rows, /realtime matchup update delivered/) ? 'PARTIAL' : 'PENDING'
     : 'PENDING'
+  const midlifeMigrationStatus = args.midlifeMigration
+    ? hasFailingNote(rows, /D\.LONG\.5/) ? 'FAIL' : hasPassingNote(rows, /mid-life migration applied/) ? 'PASS' : 'PENDING'
+    : 'PENDING'
 
   const coverage = [
     {
@@ -173,7 +181,7 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
     {
       requirement: 'D.SET.2 league create/join/pick bank',
       status: targetLeagueId ? 'PARTIAL' : 'PENDING',
-      evidence: targetLeagueId ? `Seeded target league ${targetLeagueId}; invite/5y pick-bank proof lives in tests/e2e-seed-report.md.` : 'No target league configured.',
+      evidence: targetLeagueId ? `Seeded target league ${targetLeagueId}; invite, lineup slots, members, and 5y pick-bank proof lives in tests/e2e-seed-report.md.` : 'No target league configured.',
     },
     {
       requirement: 'D.SET.4 initial auction draft',
@@ -257,8 +265,8 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
     },
     {
       requirement: 'D.LONG.5 mid-life migration',
-      status: 'PENDING',
-      evidence: 'No mid-soak migration application gate implemented.',
+      status: midlifeMigrationStatus,
+      evidence: args.midlifeMigration ? 'Mid-life migration mode runs `npx supabase db push --linked --yes` between seasons and records tests/artifacts/season-<N>/midlife-migration.json.' : 'Enable E2E_ENABLE_MIDLIFE_MIGRATION=1 to apply the no-op migration between seasons 5 and 6.',
     },
     {
       requirement: 'D.LONG.6 runtime drift',
@@ -1020,6 +1028,45 @@ const assertRealtimeDelivery = async ({ supabase, env, state, leagueId, season }
   }
 }
 
+const applyMidlifeMigration = async (season) => {
+  const artifactDir = path.join(ARTIFACT_ROOT, `season-${season}`)
+  await mkdir(artifactDir, { recursive: true })
+  const startedAt = timestamp()
+  const command = ['supabase', 'db', 'push', '--linked', '--yes']
+  const report = {
+    command: `npx ${command.join(' ')}`,
+    startedAt,
+    finishedAt: null,
+    status: 'ERROR',
+    stdout: '',
+    stderr: '',
+  }
+
+  try {
+    const { stdout, stderr } = await execFileAsync('npx', command, {
+      cwd: ROOT,
+      timeout: 120_000,
+      maxBuffer: 1024 * 1024 * 4,
+    })
+    report.status = /Remote database is up to date/i.test(`${stdout}\n${stderr}`)
+      ? 'UP_TO_DATE'
+      : 'APPLIED'
+    report.stdout = stdout
+    report.stderr = stderr
+    return report
+  } catch (error) {
+    report.stdout = error?.stdout ?? ''
+    report.stderr = error?.stderr ?? ''
+    throw new Error(`D.LONG.5 mid-life migration failed: ${errorMessage(error)}`)
+  } finally {
+    report.finishedAt = timestamp()
+    await writeFile(
+      path.join(artifactDir, 'midlife-migration.json'),
+      `${JSON.stringify(report, null, 2)}\n`,
+    )
+  }
+}
+
 const runInvariants = async (supabase, leagueId, scenarios = {}) => {
   const leagueFilter = leagueId ? { league_id: leagueId } : {}
   const [
@@ -1487,6 +1534,12 @@ const main = async () => {
   if (args.realtime && !targetLeagueId) {
     throw new Error('E2E_ENABLE_REALTIME=1 requires a seeded target league or E2E_LEAGUE_ID')
   }
+  if (args.midlifeMigration && (!Number.isInteger(MIDLIFE_MIGRATION_AFTER_SEASON) || MIDLIFE_MIGRATION_AFTER_SEASON < 1)) {
+    throw new Error('E2E_ENABLE_MIDLIFE_MIGRATION=1 requires a positive integer E2E_MIDLIFE_MIGRATION_AFTER_SEASON')
+  }
+  if (args.midlifeMigration && args.seasons <= MIDLIFE_MIGRATION_AFTER_SEASON) {
+    throw new Error(`E2E_ENABLE_MIDLIFE_MIGRATION=1 requires --seasons>${MIDLIFE_MIGRATION_AFTER_SEASON}`)
+  }
 
   const startedAt = timestamp()
   const rows = []
@@ -1518,6 +1571,9 @@ const main = async () => {
     args.realtime
       ? `Realtime latency check enabled through E2E_ENABLE_REALTIME=1 for ${REALTIME_CLIENTS} clients.`
       : 'Realtime latency check disabled; set E2E_ENABLE_REALTIME=1 to exercise the D.X.2 matchups update slice.',
+    args.midlifeMigration
+      ? `Mid-life migration check enabled after season ${MIDLIFE_MIGRATION_AFTER_SEASON}.`
+      : 'Mid-life migration check disabled; set E2E_ENABLE_MIDLIFE_MIGRATION=1 to exercise D.LONG.5.',
   ]
 
   try {
@@ -1590,6 +1646,12 @@ const main = async () => {
       let previousSnapshot = null
       const perfMetrics = []
       for (let season = 1; season <= args.seasons; season += 1) {
+        let midlifeMigrationReport = null
+        if (args.midlifeMigration && season === MIDLIFE_MIGRATION_AFTER_SEASON + 1) {
+          midlifeMigrationReport = await applyMidlifeMigration(season)
+          notes.push(`D.LONG.5 mid-life migration ${midlifeMigrationReport.status.toLowerCase()} before season ${season}.`)
+        }
+
         const seasonStartedMs = nowMs()
         await mkdir(path.join(ARTIFACT_ROOT, `season-${season}`), { recursive: true })
         await postJson(`http://127.0.0.1:${args.fakePort}/admin/now`, {
@@ -1710,6 +1772,7 @@ const main = async () => {
               args.browserAuth ? 'browser auth scenario passed' : null,
               args.realtime ? 'realtime matchup update delivered' : null,
               args.push ? 'trade and waiver push notification intercepts passed' : null,
+              midlifeMigrationReport ? `mid-life migration applied (${midlifeMigrationReport.status})` : null,
               env.backendTicksEnabled ? 'matchup generation idempotency passed' : null,
               args.pickChain ? 'multi-hop future-pick owner resolved' : null,
               rookieDraftPickChainCheck ? 'rookie draft traded-pick slot resolved' : null,

@@ -21,6 +21,8 @@ export E2E_ENABLE_BROWSER_AUTH=1
 export E2E_BROWSER_AUTH_USERS=10
 export E2E_ENABLE_PICK_CHAIN=1
 export E2E_ENABLE_PUSH=1
+export E2E_ENABLE_REALTIME=1
+export E2E_ENABLE_MIDLIFE_MIGRATION=1
 export E2E_PERF_DRIFT_LIMIT=1.2
 export E2E_MEMORY_DRIFT_LIMIT=1.2
 export NBA_CDN_BASE_URL=http://127.0.0.1:4555/static/json
@@ -55,6 +57,8 @@ Standings/champion history retention is available with `E2E_ENABLE_HISTORY=1` or
 
 Realtime latency checks are available with `E2E_ENABLE_REALTIME=1` or `--realtime=true`. The runner opens `E2E_REALTIME_CLIENTS` Supabase Realtime clients (default 10) as seeded users, subscribes each one to a disposable `matchups` row update, updates that row through the service-role client, and fails if every subscribed client does not receive the update within `E2E_REALTIME_LATENCY_LIMIT_MS` (default 2000). Subscription setup has its own `E2E_REALTIME_SUBSCRIBE_TIMEOUT_MS` (default 10000). Artifacts are written to `tests/artifacts/season-<N>/realtime-latency.json`. This covers the matchups-update slice of D.X.2; bid-room realtime still requires a draft-room scenario.
 
+Mid-life migration checks are available with `E2E_ENABLE_MIDLIFE_MIGRATION=1` or `--midlife-migration=true`. The runner applies linked Supabase migrations with `npx supabase db push --linked --yes` between seasons 5 and 6 by default; override the boundary with `E2E_MIDLIFE_MIGRATION_AFTER_SEASON`. The checked-in migration `20260512000009_e2e_midlife_noop.sql` intentionally changes no application tables, so this gate verifies deployment/migration continuity without masking gameplay failures. Artifacts are written to `tests/artifacts/season-<N>/midlife-migration.json`.
+
 Browser smoke runs are available through `npm run e2e:browser-smoke` or `E2E_ENABLE_BROWSER=1 npm run e2e:soak`. They use `agent-browser` with an isolated session, sign in as the seeded commissioner, visit the main tab screens, and write screenshots plus console/error logs under `tests/artifacts/season-<N>/smoke/`. Set `E2E_BROWSER_FULL_SWEEP=1` or `--browser-full-sweep=true` with browser mode to also visit auth, modal, player, auction-draft, and rookie-draft routes (`sign-in`, `sign-up`, `create-league`, `join-league`, `commissioner-settings`, `lineup`, `bracket`, `claim-player`, `player/[id]`, `propose-trade`, `team-roster`, `draft-room`, `rookie-draft-room`). When the seeded league has no draft rows, the sweep creates minimal disposable draft fixtures so the route-load check cannot silently skip those screens. This covers the D.X.5 route-load slice; the full D.SET/D.SEA/D.X/D.LONG gameplay loop remains separate work.
 
 Browser auth runs are available through `npm run e2e:browser-auth` or `E2E_ENABLE_BROWSER_AUTH=1 npm run e2e:soak`. They use isolated `agent-browser` sessions for seeded users, verify a protected route redirects to sign-in, sign in, verify profile/session persistence, sign out through the real profile UI, and verify the auth guard returns. Set `E2E_BROWSER_AUTH_USERS=10` to exercise all seeded users in parallel. This covers D.SET.1 only; it does not replace auction, trade, waiver, lineup, playoff, or rookie-draft browser scenarios.
@@ -73,6 +77,7 @@ Outputs:
 - `tests/snapshots/season-<N>/summary.json`
 - `tests/artifacts/season-<N>/`
 - `tests/artifacts/season-<N>/push-notifications.json`
+- `tests/artifacts/season-<N>/midlife-migration.json`
 - `tests/artifacts/season-<N>/rookie-draft-pick-chain.json`
 
 The runner fails closed when the real test Supabase/backend/frontend environment is missing or when the linked Supabase project is missing required post-refactor RPCs/columns. A `PARTIAL` report means only the fake-upstream and database invariant boundary checks ran; browser-driven season scenarios still need the `agent-browser` harness before this can count as a passing dynasty soak.
