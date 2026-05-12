@@ -15,6 +15,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:workspaces": "npm test && npm test --workspace backend && npm test --workspace core",
+    "e2e:seed": "node tests/e2e/seed-league.mjs",
     "e2e:soak": "node tests/e2e/soak.mjs --seasons=10",
     "e2e:fake-upstream": "node tests/e2e/fake-upstream.mjs"
   },

@@ -22,12 +22,14 @@ export SLEEPER_BASE_URL=http://127.0.0.1:4555/v1
 Run:
 
 ```sh
+npm run e2e:seed
 npm run e2e:soak
 ```
 
 Outputs:
 
 - `tests/e2e-report.md`
+- `tests/e2e-seed-report.md`
 - `tests/snapshots/season-<N>/`
 - `tests/artifacts/season-<N>/`
 

@@ -39,6 +39,7 @@ yarn-error.*
 # E2E generated outputs
 tests/artifacts/
 tests/snapshots/
+tests/e2e-seed-report.md
 
 app-example
 

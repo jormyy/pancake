@@ -2201,6 +2201,14 @@ export type Database = {
         Args: { season_year_param: number }
         Returns: number
       }
+      create_league: {
+        Args: {
+          p_auction_budget?: number
+          p_name: string
+          p_team_name: string
+        }
+        Returns: Json
+      }
       invoke_edge_function: {
         Args: { body?: Json; function_name: string }
         Returns: undefined
