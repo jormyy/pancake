@@ -88,6 +88,9 @@ export async function runBrowserSmoke({
 
     await writeFile(path.join(artifactDir, 'console.txt'), `${consoleOutput}\n`)
     await writeFile(path.join(artifactDir, 'errors.txt'), `${errorOutput}\n`)
+    if (errorOutput.trim()) {
+      throw new Error(`Browser reported uncaught errors. See ${path.join(artifactDir, 'errors.txt')}`)
+    }
 
     const report = {
       status: 'PASS',
