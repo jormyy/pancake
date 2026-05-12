@@ -280,6 +280,7 @@ Verification after Phase C scaffold:
 - `npm run typecheck --workspace core`: pass.
 - `npm run build --workspace backend`: pass.
 - `deno check supabase/functions/*/index.ts`: pass.
+- D.SET.4 browser auction gameplay slice added behind `E2E_ENABLE_BROWSER_GAMEPLAY=1`: the harness creates an isolated two-user league, opens the real Expo auction draft room through agent-browser, clicks the visible accessible bid button, and verifies the real backend/RPC persisted the nomination high bid plus `bids` row. The first run exposed that the Expo dev bundle was still posting to the production Railway URL from `.env`; `lib/shared/api.ts` now supports a development-only runtime API override and the harness sets it to the configured local backend. Standalone `npm run e2e:browser-gameplay` passed, and `E2E_ENABLE_BROWSER_GAMEPLAY=1 ... npm run e2e:soak -- --seasons=1` now reports `browser auction bid gameplay passed` in `PARTIAL` mode.
 
 ## Phase B Initial Work Queue
 

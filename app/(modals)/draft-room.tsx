@@ -304,6 +304,8 @@ export default function DraftRoomScreen() {
                                 <Pressable
                                     style={[styles.bidButton, bidding && styles.bidButtonDisabled]}
                                     onPress={handleBid}
+                                    accessibilityRole="button"
+                                    accessibilityLabel={`Bid $${bidAmount.toLocaleString()}`}
                                     disabled={
                                         bidding ||
                                         bidAmount <= openNomination.currentBidAmount ||

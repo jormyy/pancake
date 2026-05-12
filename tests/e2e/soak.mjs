@@ -10,6 +10,7 @@ import { resolvedEnv, describeEndpoint } from './env.mjs'
 import { runBrowserSmoke } from './browser-smoke.mjs'
 import { runBrowserAuthScenario } from './browser-auth.mjs'
 import { runBrowserPerfSmoke } from './browser-perf-smoke.mjs'
+import { runBrowserGameplayScenario } from './browser-gameplay.mjs'
 
 const execFileAsync = promisify(execFile)
 const ROOT = process.cwd()
@@ -50,6 +51,7 @@ const parseArgs = () => {
     browserFullSweep: args.get('browser-full-sweep') === 'true' || process.env.E2E_BROWSER_FULL_SWEEP === '1',
     browserAuth: args.get('browser-auth') === 'true' || process.env.E2E_ENABLE_BROWSER_AUTH === '1',
     browserPerf: args.get('browser-perf') === 'true' || process.env.E2E_ENABLE_BROWSER_PERF === '1',
+    browserGameplay: args.get('browser-gameplay') === 'true' || process.env.E2E_ENABLE_BROWSER_GAMEPLAY === '1',
     leagueLifecycle: args.get('league-lifecycle') === 'true' || process.env.E2E_ENABLE_LEAGUE_LIFECYCLE === '1',
     pickChain: args.get('pick-chain') === 'true' || process.env.E2E_ENABLE_PICK_CHAIN === '1',
     push: args.get('push') === 'true' || process.env.E2E_ENABLE_PUSH === '1',
@@ -175,8 +177,8 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
   const midlifeMigrationStatus = args.midlifeMigration
     ? hasFailingNote(rows, /D\.LONG\.5/) ? 'FAIL' : hasPassingNote(rows, /mid-life migration applied/) ? 'PASS' : 'PENDING'
     : 'PENDING'
-  const auctionStatus = args.auction
-    ? hasFailingNote(rows, /D\.SET\.4/) ? 'FAIL' : hasPassingNote(rows, /auction bid validation passed/) ? 'PARTIAL' : 'PENDING'
+  const auctionStatus = args.auction || args.browserGameplay
+    ? hasFailingNote(rows, /D\.SET\.4|browser auction/) ? 'FAIL' : hasPassingNote(rows, /auction bid validation passed|browser auction bid gameplay passed/) ? 'PARTIAL' : 'PENDING'
     : 'PENDING'
   const playoffsStatus = args.playoffs
     ? hasFailingNote(rows, /D\.SEA\.4/) ? 'FAIL' : hasPassingNote(rows, /playoff bracket scenario passed/) ? 'PARTIAL' : 'PENDING'
@@ -239,7 +241,7 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
     {
       requirement: 'D.SET.4 initial auction draft',
       status: auctionStatus,
-      evidence: args.auction ? 'Auction mode creates a disposable auction nomination and verifies the atomic bid RPC rejects <=current, >budget, and self-overbid paths before accepting valid bids.' : 'No browser-driven auction draft scenario implemented; enable E2E_ENABLE_AUCTION=1 for server-side bid validation slice.',
+      evidence: args.browserGameplay ? 'Browser gameplay mode creates an isolated two-user league, opens the real auction draft room as the bidder, clicks the visible Bid button, and verifies nomination/bid rows changed.' : args.auction ? 'Auction mode creates a disposable auction nomination and verifies the atomic bid RPC rejects <=current, >budget, and self-overbid paths before accepting valid bids.' : 'Enable E2E_ENABLE_BROWSER_GAMEPLAY=1 for browser auction gameplay or E2E_ENABLE_AUCTION=1 for server-side bid validation.',
     },
     {
       requirement: 'D.0 invariant boundary checks',
@@ -3760,6 +3762,9 @@ const main = async () => {
     args.browserPerf
       ? 'Browser perf smoke enabled through E2E_ENABLE_BROWSER_PERF=1.'
       : 'Browser perf smoke disabled; set E2E_ENABLE_BROWSER_PERF=1 to exercise D.X.4 under continuous auction and live-score mutations.',
+    args.browserGameplay
+      ? 'Browser gameplay scenario enabled through E2E_ENABLE_BROWSER_GAMEPLAY=1.'
+      : 'Browser gameplay scenario disabled; set E2E_ENABLE_BROWSER_GAMEPLAY=1 to exercise the D.SET.4 auction bid UI slice.',
     args.leagueLifecycle
       ? 'League create/join lifecycle scenario enabled through E2E_ENABLE_LEAGUE_LIFECYCLE=1.'
       : 'League create/join lifecycle scenario disabled; set E2E_ENABLE_LEAGUE_LIFECYCLE=1 to exercise D.SET.2 through real auth RPCs.',
@@ -3909,6 +3914,10 @@ const main = async () => {
         let browserPerfCheck = null
         if (args.browserPerf && season === 1) {
           browserPerfCheck = await runBrowserPerfSmoke({ season })
+        }
+        let browserGameplayCheck = null
+        if (args.browserGameplay && season === 1) {
+          browserGameplayCheck = await runBrowserGameplayScenario({ season })
         }
         let leagueLifecycleCheck = null
         const leagueLifecycleFailures = []
@@ -4138,6 +4147,7 @@ const main = async () => {
               args.browser ? 'browser smoke passed' : null,
               args.browserAuth ? 'browser auth scenario passed' : null,
               browserPerfCheck ? 'browser perf smoke passed' : null,
+              browserGameplayCheck ? 'browser auction bid gameplay passed' : null,
               leagueLifecycleCheck ? 'league lifecycle passed' : null,
               args.realtime ? 'realtime matchup update delivered' : null,
               args.push ? 'trade and waiver push notification intercepts passed' : null,
