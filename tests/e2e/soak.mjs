@@ -12,6 +12,8 @@ const REPORT_PATH = path.join(ROOT, 'tests/e2e-report.md')
 const STATE_PATH = path.join(ROOT, 'tests/e2e-state.json')
 const SNAPSHOT_ROOT = path.join(ROOT, 'tests/snapshots')
 const ARTIFACT_ROOT = path.join(ROOT, 'tests/artifacts')
+const PERF_METRICS_PATH = path.join(ARTIFACT_ROOT, 'perf-metrics.json')
+const PERF_DRIFT_LIMIT = Number(process.env.E2E_PERF_DRIFT_LIMIT ?? 1.2)
 
 const SNAPSHOT_TABLES = [
   'roster_players',
@@ -38,6 +40,9 @@ const parseArgs = () => {
 }
 
 const timestamp = () => new Date().toISOString()
+const nowMs = () => Number(process.hrtime.bigint()) / 1_000_000
+
+const roundedMs = (value) => Math.round(value)
 
 const readState = async () => {
   try {
@@ -214,6 +219,26 @@ const validateSnapshotProgress = (previous, current, { expectResetGrowth = false
     }
   }
   return failures
+}
+
+const validatePerfDrift = (metrics, totalSeasons) => {
+  if (totalSeasons < 10 || metrics.length < 10) return []
+  if (!Number.isFinite(PERF_DRIFT_LIMIT) || PERF_DRIFT_LIMIT <= 1) {
+    return [`D.LONG.6: invalid E2E_PERF_DRIFT_LIMIT ${process.env.E2E_PERF_DRIFT_LIMIT}`]
+  }
+
+  const baseline = metrics[0]?.durationMs
+  const latest = metrics.at(-1)?.durationMs
+  if (!baseline || !latest) return []
+
+  const maxAllowed = baseline * PERF_DRIFT_LIMIT
+  if (latest > maxAllowed) {
+    const percent = Math.round(((latest - baseline) / baseline) * 100)
+    return [
+      `D.LONG.6: per-season runtime drifted ${percent}% from season 1 (${roundedMs(baseline)}ms) to season ${metrics.at(-1).season} (${roundedMs(latest)}ms); limit is ${Math.round((PERF_DRIFT_LIMIT - 1) * 100)}%`,
+    ]
+  }
+  return []
 }
 
 const fetchSingle = async (supabase, table, select, filters) => {
@@ -692,7 +717,9 @@ const main = async () => {
       }
 
       let previousSnapshot = null
+      const perfMetrics = []
       for (let season = 1; season <= args.seasons; season += 1) {
+        const seasonStartedMs = nowMs()
         await mkdir(path.join(ARTIFACT_ROOT, `season-${season}`), { recursive: true })
         await postJson(`http://127.0.0.1:${args.fakePort}/admin/now`, {
           now: `${2026 + season}-10-20T12:00:00.000Z`,
@@ -729,12 +756,21 @@ const main = async () => {
           expectResetGrowth: env.backendTicksEnabled,
         })
         previousSnapshot = snapshot
+        const durationMs = nowMs() - seasonStartedMs
+        perfMetrics.push({ season, durationMs: roundedMs(durationMs) })
+        await mkdir(ARTIFACT_ROOT, { recursive: true })
+        await writeFile(PERF_METRICS_PATH, `${JSON.stringify({
+          driftLimit: PERF_DRIFT_LIMIT,
+          metrics: perfMetrics,
+        }, null, 2)}\n`)
+        const perfFailures = validatePerfDrift(perfMetrics, args.seasons)
         const failures = [
           ...failuresAtStart,
           ...failuresAtEnd,
           ...matchupFailures,
           ...failuresAfterReset,
           ...snapshotFailures,
+          ...perfFailures,
         ]
 
         if (failures.length > 0) {
@@ -754,6 +790,7 @@ const main = async () => {
               env.backendTicksEnabled ? 'matchup generation idempotency passed' : null,
               args.pickChain ? 'multi-hop future-pick owner resolved' : null,
               hadPreviousSnapshot ? 'snapshot row-count diff passed' : null,
+              args.seasons >= 10 && season >= 10 ? 'runtime drift check passed' : null,
             ].filter(Boolean).join('; '),
           })
         }
@@ -762,6 +799,10 @@ const main = async () => {
       }
     } finally {
       await fake.close()
+    }
+
+    if (rows.length > 0) {
+      notes.push(`Perf metrics written to ${path.relative(ROOT, PERF_METRICS_PATH)}.`)
     }
 
     const status = rows.some((row) => row.status === 'FAIL') ? 'FAIL' : 'PARTIAL'
