@@ -17,7 +17,7 @@ import { buildStatRow } from './stats'
 import { CONFIG } from '../config'
 import { sleep } from '../lib/utils/sleep'
 
-const CDN_BASE = 'https://cdn.nba.com/static/json'
+const CDN_BASE = process.env.NBA_CDN_BASE_URL ?? 'https://cdn.nba.com/static/json'
 const CDN_HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
     'Accept': 'application/json, text/plain, */*',
@@ -237,5 +237,4 @@ async function recalcWeekNumbers(
         await supabase.from('season_weeks').upsert(weeks, { onConflict: 'season_year,week_number' })
     }
 }
-
 

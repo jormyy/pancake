@@ -1,8 +1,10 @@
 import { supabase } from '../_shared/supabase.ts'
 import { internalServerError } from '../_shared/responses.ts'
 
-const SLEEPER_URL = 'https://api.sleeper.app/v1/players/nba'
-const NBA_PLAYER_INDEX_URL = 'https://cdn.nba.com/static/json/staticData/playerIndex.json'
+const SLEEPER_BASE_URL = Deno.env.get('SLEEPER_BASE_URL') ?? 'https://api.sleeper.app/v1'
+const NBA_CDN_BASE_URL = Deno.env.get('NBA_CDN_BASE_URL') ?? 'https://cdn.nba.com/static/json'
+const SLEEPER_URL = `${SLEEPER_BASE_URL}/players/nba`
+const NBA_PLAYER_INDEX_URL = `${NBA_CDN_BASE_URL}/staticData/playerIndex.json`
 const CHUNK = 500
 
 Deno.serve(async () => {

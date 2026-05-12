@@ -175,9 +175,16 @@ Resolved or materially reduced:
 Still blocking production readiness:
 
 - P0-1 external: rotate Supabase credentials, invalidate any deployed secret-bearing cron/function state, and rewrite/purge Git history.
-- P1-1 remaining: `core/` source is cleaned of nested install residue and covered by root workspace checks, but it is still untracked until committed.
+- Real test Supabase project, Fastify backend, Expo frontend, and browser-driven multi-season soak have not run yet.
 - Edge deploy caveat: Edge functions now pass local `deno check`, but they have not been deployed to or smoke-tested against the real test Supabase project.
 - P2-34 remaining: Moderate Expo/PostCSS/Vitest/Vite audit findings remain and require broader SDK/test-runner upgrades.
+
+Phase C scaffold added after the initial Phase B hardening commit:
+
+- Added upstream seams for backend and Edge NBA/Sleeper callers: `NBA_CDN_BASE_URL` and `SLEEPER_BASE_URL` now route scoreboards, boxscores, schedules, historical backfill, health checks, and player syncs through configurable bases.
+- Added `tests/e2e/fake-upstream.mjs`, a controllable fake NBA CDN/Sleeper server on port `4555` with admin controls for clock, game status, player stat mutation, injuries, and season advancement.
+- Added `tests/e2e/soak.mjs` plus `npm run e2e:soak`. The runner starts the fake upstream, requires explicit real test Supabase/backend/frontend env, snapshots dynasty-critical tables, and runs D.0 boundary invariant checks. It fails closed and writes `tests/e2e-report.md` when the environment is not wired.
+- Added `tests/e2e/README.md` documenting required E2E environment variables and outputs.
 
 Verification after initial Phase B pass:
 
@@ -189,6 +196,16 @@ Verification after initial Phase B pass:
 - `npm audit --audit-level=high --json`: pass, zero high/critical vulnerabilities; 9 moderate vulnerabilities remain.
 - `npx supabase start`: pass; all migrations through `20260512000007_atomic_waiver_processing.sql` applied locally.
 - `npx supabase gen types typescript --local > types/database.ts`: pass.
+- `deno check supabase/functions/*/index.ts`: pass.
+
+Verification after Phase C scaffold:
+
+- `node tests/e2e/fake-upstream.mjs` plus curl smoke checks for `/admin/state`, scoreboard, boxscore, play-by-play, player index, and Sleeper player endpoints: pass.
+- `node --check tests/e2e/soak.mjs && node --check tests/e2e/fake-upstream.mjs`: pass.
+- `npm run e2e:soak`: blocked as designed because `E2E_SUPABASE_URL`, `E2E_SUPABASE_SERVICE_ROLE_KEY`, `E2E_API_BASE_URL`, and `E2E_FRONTEND_URL` are not configured; wrote `tests/e2e-report.md`.
+- `npm run lint`: pass.
+- `npm run typecheck`: pass.
+- `npm run typecheck --workspace backend`: pass.
 - `deno check supabase/functions/*/index.ts`: pass.
 
 ## Phase B Initial Work Queue

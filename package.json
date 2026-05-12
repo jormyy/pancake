@@ -14,7 +14,9 @@
     "build:backend": "npm run build --workspace backend",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:workspaces": "npm test && npm test --workspace backend && npm test --workspace core"
+    "test:workspaces": "npm test && npm test --workspace backend && npm test --workspace core",
+    "e2e:soak": "node tests/e2e/soak.mjs --seasons=10",
+    "e2e:fake-upstream": "node tests/e2e/fake-upstream.mjs"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",

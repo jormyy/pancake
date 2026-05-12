@@ -26,6 +26,7 @@ import type { Json } from '../_shared/database.ts'
 // CDN start years (2-digit): 19 = 2019-20 (season_year=2020) … 24 = 2024-25 (season_year=2025)
 const CDN_START_YEARS = [24, 23, 22, 21, 20, 19] as const
 const BBREF_SEASON_YEARS = Array.from({ length: 17 }, (_, i) => 2003 + i) // 2003-2019
+const NBA_CDN_BASE_URL = Deno.env.get('NBA_CDN_BASE_URL') ?? 'https://cdn.nba.com/static/json'
 
 // For DB-driven mode (existing games), process fewer games per chunk to stay within 150s
 // ~30 games × 4s avg per box score = 120s
@@ -192,7 +193,7 @@ async function runCDNChunk(seasonYear: number, jobId: string, offset: number) {
       const controller = new AbortController()
       const timeout = setTimeout(() => controller.abort(), 12_000)
       const res = await fetch(
-        `https://cdn.nba.com/static/json/liveData/boxscore/boxscore_${gameId}.json`,
+        `${NBA_CDN_BASE_URL}/liveData/boxscore/boxscore_${gameId}.json`,
         { headers: CDN_HEADERS, signal: controller.signal },
       ).finally(() => clearTimeout(timeout))
 
@@ -325,7 +326,7 @@ async function runCDNEnumChunk(seasonYear: number, jobId: string, offset: number
       const controller = new AbortController()
       const timeout = setTimeout(() => controller.abort(), 12_000)
       const res = await fetch(
-        `https://cdn.nba.com/static/json/liveData/boxscore/boxscore_${gameId}.json`,
+        `${NBA_CDN_BASE_URL}/liveData/boxscore/boxscore_${gameId}.json`,
         { headers: CDN_HEADERS, signal: controller.signal },
       ).finally(() => clearTimeout(timeout))
 

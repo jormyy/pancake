@@ -1,4 +1,4 @@
-const NBA_CDN = 'https://cdn.nba.com/static/json'
+const NBA_CDN = Deno.env.get('NBA_CDN_BASE_URL') ?? 'https://cdn.nba.com/static/json'
 
 const NBA_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',

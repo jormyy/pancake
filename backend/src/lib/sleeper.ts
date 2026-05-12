@@ -1,7 +1,7 @@
 import axios from 'axios'
 
 const client = axios.create({
-    baseURL: 'https://api.sleeper.app/v1',
+    baseURL: process.env.SLEEPER_BASE_URL ?? 'https://api.sleeper.app/v1',
     timeout: 30000, // players endpoint is ~5MB
 })
 
