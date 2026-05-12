@@ -1,8 +1,8 @@
 # Multi-Season E2E Soak Report
 
 - Status: PARTIAL
-- Started: 2026-05-12T06:33:38.216Z
-- Finished: 2026-05-12T06:33:42.303Z
+- Started: 2026-05-12T07:32:29.432Z
+- Finished: 2026-05-12T07:32:36.673Z
 - Target seasons: 1
 - Fake upstream: http://127.0.0.1:4555
 
@@ -10,7 +10,7 @@
 
 | Season | Status | Notes |
 | --- | --- | --- |
-| 1 | PASS | D.0 invariant boundary checks passed; full scenario/browser loop pending; trade acceptance atomicity passed |
+| 1 | PASS | D.0 invariant boundary checks passed; full scenario/browser loop pending; realtime matchup update delivered |
 
 ## Notes
 
@@ -26,7 +26,7 @@
 - Push notification intercept disabled; set E2E_ENABLE_PUSH=1 with backend EXPO_PUSH_URL pointed at the fake upstream to exercise the trade-notification slice of D.X.1.
 - Draft push notification intercept disabled; set E2E_ENABLE_DRAFT_PUSH=1 to exercise the rookie auto-pick notification slice of D.X.1.
 - Standings/champion history retention disabled; set E2E_ENABLE_HISTORY=1 with backend ticks to exercise the D.LONG.3/D.LONG.4 fixture-retention slice.
-- Realtime latency check disabled; set E2E_ENABLE_REALTIME=1 to exercise the D.X.2 matchups update slice.
+- Realtime latency check enabled through E2E_ENABLE_REALTIME=1 for 10 clients.
 - Mid-life migration check disabled; set E2E_ENABLE_MIDLIFE_MIGRATION=1 to exercise D.LONG.5.
 - Auction validation disabled; set E2E_ENABLE_AUCTION=1 to exercise the D.SET.4 server-side bid validation slice.
 - Playoff bracket scenario disabled; set E2E_ENABLE_PLAYOFFS=1 to exercise the D.SEA.4 top-6 bracket slice.
@@ -34,7 +34,7 @@
 - Commissioner settings propagation scenario disabled; set E2E_ENABLE_SETTINGS=1 to exercise D.SET.3.
 - Weekly starter-only scoring/finalization scenario disabled; set E2E_ENABLE_SCORING=1 to exercise the D.SEA.2 scoring slice.
 - Sleeper injury-status filter scenario disabled; set E2E_ENABLE_INJURY_FILTER=1 to exercise the D.SEA.2 injury injection slice.
-- Trade acceptance atomicity scenario enabled through E2E_ENABLE_TRADE_ACCEPT=1.
+- Trade acceptance atomicity scenario disabled; set E2E_ENABLE_TRADE_ACCEPT=1 to exercise the D.SEA.2 multi-asset trade slice.
 - Rookie draft auto-pick/order scenario disabled; set E2E_ENABLE_ROOKIE_DRAFT=1 to exercise the D.SEA.5 auto-pick slice.
 - Season reset carryover/reseed scenario disabled; set E2E_ENABLE_SEASON_RESET=1 to exercise the D.SEA.6 reset slice.
 - Schema preflight passed: post-refactor RPCs and required columns are present.

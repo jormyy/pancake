@@ -41,8 +41,8 @@ export default async function syncRoutes(app: FastifyInstance) {
 
     app.post('/matchups', { schema: { body: SyncMatchupsBody } }, async (req) => {
         requireAdmin(req.userId)
-        const { force = false } = req.body as { force?: boolean }
-        await generateAllMatchups(force)
+        const { force = false, leagueId } = req.body as { force?: boolean; leagueId?: string }
+        await generateAllMatchups(force, leagueId)
         return { ok: true }
     })
 

@@ -4,6 +4,7 @@ import process from 'node:process'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { createClient } from '@supabase/supabase-js'
+import WebSocket from 'ws'
 import { createFakeUpstreamServer } from './fake-upstream.mjs'
 import { resolvedEnv, describeEndpoint } from './env.mjs'
 import { runBrowserSmoke } from './browser-smoke.mjs'
@@ -22,6 +23,7 @@ const MEMORY_DRIFT_LIMIT = Number(process.env.E2E_MEMORY_DRIFT_LIMIT ?? 1.2)
 const REALTIME_CLIENTS = Number(process.env.E2E_REALTIME_CLIENTS ?? 10)
 const REALTIME_LATENCY_LIMIT_MS = Number(process.env.E2E_REALTIME_LATENCY_LIMIT_MS ?? 2000)
 const REALTIME_SUBSCRIBE_TIMEOUT_MS = Number(process.env.E2E_REALTIME_SUBSCRIBE_TIMEOUT_MS ?? 10000)
+const REALTIME_SETTLE_MS = Number(process.env.E2E_REALTIME_SETTLE_MS ?? 1500)
 const MIDLIFE_MIGRATION_AFTER_SEASON = Number(process.env.E2E_MIDLIFE_MIGRATION_AFTER_SEASON ?? 5)
 
 const SNAPSHOT_TABLES = [
@@ -591,7 +593,7 @@ const assertMatchupGenerationIdempotent = async (supabase, env, leagueId) => {
     league_id: leagueId,
     league_season_id: currentSeason.id,
   })
-  await backendJson(env, '/e2e/generate-matchups', { force: false })
+  await backendJson(env, '/e2e/generate-matchups', { force: false, leagueId })
   const after = await countRows(supabase, 'matchups', {
     league_id: leagueId,
     league_season_id: currentSeason.id,
@@ -669,20 +671,48 @@ const setupFuturePickChain = async (supabase, leagueId) => {
   })
   if (members.length < 4) throw new Error('Future-pick chain requires at least four league members')
 
-  const targetYear = currentSeason.season_year + 5
-  const [member1, member2, member3, member4] = members
-  const targetPick = await fetchSingle(
-    supabase,
-    'draft_picks',
-    'id, current_owner_id, original_owner_id, season_year, round',
-    {
-      league_id: leagueId,
-      season_year: targetYear,
-      round: 1,
-      original_owner_id: member1.id,
-      current_owner_id: member1.id,
-    },
+  let targetYear = currentSeason.season_year + 5
+  let targetPick = null
+  let member1 = null
+  for (const year of Array.from({ length: 5 }, (_, index) => currentSeason.season_year + 5 - index)) {
+    const { data: candidatePicks, error: candidateError } = await supabase
+      .from('draft_picks')
+      .select('id, current_owner_id, original_owner_id, season_year, round')
+      .eq('league_id', leagueId)
+      .eq('season_year', year)
+      .eq('round', 1)
+      .eq('is_used', false)
+      .in('original_owner_id', members.map((member) => member.id))
+    if (candidateError) throw new Error(`draft_picks target pick lookup: ${candidateError.message}`)
+    targetPick = (candidatePicks ?? []).find((pick) => pick.current_owner_id === pick.original_owner_id) ?? null
+    if (targetPick) {
+      targetYear = year
+      member1 = members.find((member) => member.id === targetPick.original_owner_id) ?? null
+      break
+    }
+  }
+  if (!targetPick || !member1) {
+    throw new Error(`No self-owned round 1 pick found within the five-year horizon for league ${leagueId}`)
+  }
+
+  const { data: counterPicks, error: counterPickError } = await supabase
+    .from('draft_picks')
+    .select('id, current_owner_id, original_owner_id, season_year, round')
+    .eq('league_id', leagueId)
+    .eq('season_year', targetYear)
+    .eq('round', 2)
+    .eq('is_used', false)
+    .in('original_owner_id', members.filter((member) => member.id !== member1.id).map((member) => member.id))
+  if (counterPickError) throw new Error(`draft_picks counter pick lookup: ${counterPickError.message}`)
+  const counterOwnerIds = new Set(
+    (counterPicks ?? [])
+      .filter((pick) => pick.current_owner_id === pick.original_owner_id)
+      .map((pick) => pick.original_owner_id),
   )
+  const [member2, member3, member4] = members
+    .filter((member) => member.id !== member1.id && counterOwnerIds.has(member.id))
+    .slice(0, 3)
+  if (!member2 || !member3 || !member4) throw new Error('Future-pick chain requires four distinct league members')
 
   const counter1 = await findOwnedPick(supabase, leagueId, targetYear, 2, member2.id, targetPick.id)
   const trade1 = await createAndAcceptPickTrade(
@@ -2782,6 +2812,8 @@ const withTimeout = (promise, timeoutMs, message) => {
   return Promise.race([promise, timer]).finally(() => clearTimeout(timeout))
 }
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
 const waitForRealtimeSubscribe = (channel, label) => withTimeout(
   new Promise((resolve, reject) => {
     channel.subscribe((status, error) => {
@@ -2854,10 +2886,16 @@ const assertRealtimeDelivery = async ({ supabase, env, state, leagueId, season }
   try {
     const users = Array.from({ length: REALTIME_CLIENTS }, (_, index) => state.users[index % state.users.length])
     for (const [index, user] of users.entries()) {
-      const client = createClient(env.supabaseUrl, env.anonKey, { auth: { persistSession: false } })
+      const client = createClient(env.supabaseUrl, env.anonKey, {
+        auth: { persistSession: false },
+        realtime: { transport: WebSocket },
+      })
       clients.push(client)
-      const { error: signInError } = await client.auth.signInWithPassword({ email: user.email, password: state.password })
+      const { data: signInData, error: signInError } = await client.auth.signInWithPassword({ email: user.email, password: state.password })
       if (signInError) throw new Error(`D.X.2 realtime sign-in failed for ${user.email}: ${signInError.message}`)
+      if (signInData.session?.access_token) {
+        client.realtime.setAuth(signInData.session.access_token)
+      }
 
       const delivery = new Promise((resolve) => {
         const channel = client
@@ -2881,6 +2919,7 @@ const assertRealtimeDelivery = async ({ supabase, env, state, leagueId, season }
     }
 
     await Promise.all(channels.map(({ channel }, index) => waitForRealtimeSubscribe(channel, `client ${index + 1}`)))
+    await sleep(REALTIME_SETTLE_MS)
     const updateStartedMs = nowMs()
     const { error: updateError } = await supabase
       .from('matchups')
@@ -3826,7 +3865,7 @@ const main = async () => {
           await backendJson(env, '/e2e/sync-players')
           await backendJson(env, '/e2e/live-poll', { date: `${2026 + season}-10-20T12:00:00.000Z` })
           await backendJson(env, '/e2e/process-waivers')
-          await backendJson(env, '/e2e/generate-matchups', { force: false })
+          await backendJson(env, '/e2e/generate-matchups', { force: false, leagueId: targetLeagueId })
         }
 
         if (args.browser) {

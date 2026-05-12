@@ -61,12 +61,16 @@
     "eslint-config-expo": "~10.0.0",
     "prettier": "^3.8.1",
     "typescript": "~5.9.2",
-    "vitest": "^2.1.9"
+    "vitest": "^2.1.9",
+    "ws": "^8.20.0"
   },
   "overrides": {
     "@xmldom/xmldom": "0.8.13",
     "fast-uri": "3.1.2"
   },
   "private": true,
-  "workspaces": ["core", "backend"]
+  "workspaces": [
+    "core",
+    "backend"
+  ]
 }

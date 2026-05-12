@@ -82,8 +82,8 @@ export default async function e2eRoutes(app: FastifyInstance) {
     })
 
     app.post('/generate-matchups', { schema: { body: SyncMatchupsBody } }, async (req) => {
-        const { force = false } = (req.body ?? {}) as { force?: boolean }
-        await generateAllMatchups(force)
+        const { force = false, leagueId } = (req.body ?? {}) as { force?: boolean; leagueId?: string }
+        await generateAllMatchups(force, leagueId)
         return { ok: true }
     })
 

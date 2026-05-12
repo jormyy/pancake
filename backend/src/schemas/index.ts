@@ -106,6 +106,7 @@ export const SyncMatchupsBody = {
     type: 'object' as const,
     properties: {
         force: { type: 'boolean' as const, default: false },
+        leagueId: { type: 'string' as const },
     },
 }
 
