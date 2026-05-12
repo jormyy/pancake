@@ -719,6 +719,17 @@ const createAndAcceptPickTrade = async (supabase, leagueId, seasonId, proposerId
   })
   if (acceptError) throw new Error(`accept_trade_atomic: ${acceptError.message}`)
 
+  const { error: expireError } = await supabase
+    .from('trades')
+    .update({ veto_window_expires_at: new Date(Date.now() - 1000).toISOString() })
+    .eq('id', trade.id)
+  if (expireError) throw new Error(`trades expire veto window: ${expireError.message}`)
+
+  const { error: completeError } = await supabase.rpc('complete_accepted_trade_atomic', {
+    p_trade_id: trade.id,
+  })
+  if (completeError) throw new Error(`complete_accepted_trade_atomic: ${completeError.message}`)
+
   return trade.id
 }
 
