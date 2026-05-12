@@ -10,6 +10,7 @@ const execFileAsync = promisify(execFile)
 const ROOT = process.cwd()
 const ARTIFACT_ROOT = path.join(ROOT, 'tests/artifacts')
 const REPORT_PATH = path.join(ROOT, 'tests/e2e-browser-waiver-report.md')
+const DROP_REPORT_PATH = path.join(ROOT, 'tests/e2e-browser-waiver-drop-report.md')
 
 const browser = async (session, args, options = {}) => {
   const { stdout, stderr } = await execFileAsync('agent-browser', ['--session', session, ...args], {
@@ -71,7 +72,7 @@ const fetchCurrentSeason = async (admin, leagueId) => {
   return data
 }
 
-const findAvailablePlayer = async (admin, leagueId, leagueSeasonId) => {
+const findAvailablePlayers = async (admin, leagueId, leagueSeasonId, count = 1) => {
   const [{ data: rosterRows, error: rosterError }, { data: players, error: playersError }] = await Promise.all([
     admin
       .from('roster_players')
@@ -87,12 +88,12 @@ const findAvailablePlayer = async (admin, leagueId, leagueSeasonId) => {
   if (rosterError) throw new Error(`roster lookup: ${rosterError.message}`)
   if (playersError) throw new Error(`players lookup: ${playersError.message}`)
   const rosteredIds = new Set((rosterRows ?? []).map((row) => row.player_id))
-  const player = (players ?? []).find((row) => row.display_name && !rosteredIds.has(row.id))
-  if (!player) throw new Error('D.SEA.2 browser waiver: no available player found')
-  return player
+  const available = (players ?? []).filter((row) => row.display_name && !rosteredIds.has(row.id))
+  if (available.length < count) throw new Error(`D.SEA.2 browser waiver: only ${available.length} available players found; need ${count}`)
+  return available.slice(0, count)
 }
 
-const setupWaiverGameplayFixture = async (env, season) => {
+const setupWaiverGameplayFixture = async (env, season, { requiresDrop = false } = {}) => {
   const runId = `${new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)}-${process.pid}-${season}`
   const password = `Pancake-waiver-${runId}!`
   const user = {
@@ -148,7 +149,30 @@ const setupWaiverGameplayFixture = async (env, season) => {
     if (error) throw new Error(`waiver priority insert: ${error.message}`)
   }
 
-  const player = await findAvailablePlayer(admin, league.id, currentSeason.id)
+  const [player, dropPlayer] = await findAvailablePlayers(admin, league.id, currentSeason.id, requiresDrop ? 2 : 1)
+  let dropRosterPlayer = null
+  if (requiresDrop) {
+    const { error: leagueError } = await admin
+      .from('leagues')
+      .update({ roster_size: 1 })
+      .eq('id', league.id)
+    if (leagueError) throw new Error(`waiver drop league update: ${leagueError.message}`)
+
+    const { data: rosterRow, error: rosterInsertError } = await admin
+      .from('roster_players')
+      .insert({
+        league_id: league.id,
+        league_season_id: currentSeason.id,
+        member_id: member.id,
+        player_id: dropPlayer.id,
+        acquired_via: 'e2e_waiver_drop_fixture',
+      })
+      .select('id, player_id')
+      .single()
+    if (rosterInsertError) throw new Error(`waiver drop roster seed: ${rosterInsertError.message}`)
+    dropRosterPlayer = rosterRow
+  }
+
   const { data: waiverLog, error: waiverLogError } = await admin
     .from('waiver_wire_log')
     .insert({
@@ -171,6 +195,8 @@ const setupWaiverGameplayFixture = async (env, season) => {
     currentSeason,
     member,
     player,
+    dropPlayer: dropPlayer ?? null,
+    dropRosterPlayer,
     waiverLog,
   }
 }
@@ -258,7 +284,10 @@ const verifyWaiverClaim = async (fixture) => {
     failures.push(`pending claim rows=${(claims ?? []).length}; expected 1`)
   }
   const claim = claims?.[0] ?? null
-  if (claim?.drop_player_id != null) failures.push(`drop_player_id=${claim.drop_player_id}; expected null`)
+  const expectedDropPlayerId = fixture.dropPlayer?.id ?? null
+  if ((claim?.drop_player_id ?? null) !== expectedDropPlayerId) {
+    failures.push(`drop_player_id=${claim?.drop_player_id ?? '<null>'}; expected ${expectedDropPlayerId ?? '<null>'}`)
+  }
   if (claim?.priority_at_submission !== 1) failures.push(`priority_at_submission=${claim?.priority_at_submission}; expected 1`)
   return { claim, failures }
 }
@@ -371,10 +400,120 @@ export async function runBrowserWaiverScenario({
   }
 }
 
+export async function runBrowserWaiverDropScenario({
+  season = 0,
+  sessionName,
+} = {}) {
+  const env = resolvedEnv()
+  requireEnv(env, ['supabaseUrl', 'serviceRoleKey', 'anonKey'])
+  const fixture = await setupWaiverGameplayFixture(env, season, { requiresDrop: true })
+  const sessionList = await listSessions().catch((error) => `session list unavailable: ${error.message}`)
+  const session = sessionName ?? safeName(`pancake-waiver-drop-${fixture.runId}-${process.pid}`)
+  const artifactDir = path.join(ARTIFACT_ROOT, `season-${season}`, 'browser-waiver-drop')
+  await mkdir(artifactDir, { recursive: true })
+
+  const notes = [
+    `Frontend: ${describeEndpoint(env.frontendUrl)}`,
+    `Session: ${session}`,
+    `Claimant: ${fixture.user.email}`,
+    sessionList,
+  ]
+  let debug = {}
+
+  try {
+    await signInBrowser(session, env, fixture.user, fixture.password)
+    await browser(session, ['set', 'viewport', '390', '844']).catch(() => {})
+    await browser(session, ['open', joinUrl(env.frontendUrl, `/claim-player?playerId=${fixture.player.id}`)])
+    await browser(session, ['wait', '2500'])
+    await assertPageText(
+      session,
+      ['Waiver Claim', 'DROP A PLAYER (required)', fixture.player.display_name, fixture.dropPlayer.display_name, 'Submit Claim'],
+      'waiver drop claim before submit',
+    )
+    await browser(session, ['screenshot', path.join(artifactDir, 'waiver-drop-before-submit.png')], { timeout: 60_000 })
+    const dropClick = await clickButton(session, `Select ${fixture.dropPlayer.display_name} to drop`, 'waiver drop row')
+    const submitClick = await clickButton(session, 'Submit waiver claim', 'waiver drop submit button')
+    const waiverClaim = await waitForWaiverClaim(fixture)
+    debug = { ...debug, dropClick, submitClick, waiverClaim }
+    if (waiverClaim.failures.length > 0) {
+      throw new Error(`waiver drop claim did not persist: ${waiverClaim.failures.join('; ')}`)
+    }
+    await browser(session, ['wait', '1000'])
+    await browser(session, ['screenshot', path.join(artifactDir, 'waiver-drop-after-submit.png')], { timeout: 60_000 })
+
+    const consoleOutput = await browser(session, ['console']).catch((error) => `console unavailable: ${error.message}`)
+    const errorOutput = await browser(session, ['errors']).catch((error) => `errors unavailable: ${error.message}`)
+    await writeFile(path.join(artifactDir, 'console.txt'), `${consoleOutput}\n`)
+    await writeFile(path.join(artifactDir, 'errors.txt'), `${errorOutput}\n`)
+
+    const failures = [...waiverClaim.failures]
+    if (errorOutput.trim()) failures.push(`browser errors present; see ${path.relative(ROOT, path.join(artifactDir, 'errors.txt'))}`)
+    const report = {
+      status: failures.length === 0 ? 'PASS' : 'FAIL',
+      season,
+      artifactDir,
+      fixture: {
+        runId: fixture.runId,
+        leagueId: fixture.league.id,
+        leagueSeasonId: fixture.currentSeason.id,
+        memberId: fixture.member.id,
+        playerId: fixture.player.id,
+        dropPlayerId: fixture.dropPlayer.id,
+        dropRosterPlayerId: fixture.dropRosterPlayer.id,
+        waiverLogId: fixture.waiverLog.id,
+      },
+      waiverClaim,
+      notes,
+      failures,
+    }
+    await writeFile(DROP_REPORT_PATH, `${JSON.stringify(report, null, 2)}\n`)
+    await writeFile(path.join(artifactDir, 'summary.json'), `${JSON.stringify(report, null, 2)}\n`)
+    if (failures.length > 0) throw new Error(`Browser waiver drop scenario failed: ${failures.join('; ')}`)
+    return report
+  } catch (error) {
+    await browser(session, ['screenshot', path.join(artifactDir, 'failure.png')], { timeout: 60_000 }).catch(() => {})
+    const consoleOutput = await browser(session, ['console']).catch((consoleError) => `console unavailable: ${consoleError.message}`)
+    const errorOutput = await browser(session, ['errors']).catch((errorError) => `errors unavailable: ${errorError.message}`)
+    const networkOutput = await browser(session, ['network', 'requests']).catch((networkError) => `network unavailable: ${networkError.message}`)
+    await writeFile(path.join(artifactDir, 'console.txt'), `${consoleOutput}\n`).catch(() => {})
+    await writeFile(path.join(artifactDir, 'errors.txt'), `${errorOutput}\n`).catch(() => {})
+    await writeFile(path.join(artifactDir, 'network.txt'), `${networkOutput}\n`).catch(() => {})
+    const waiverClaim = await verifyWaiverClaim(fixture).catch((verifyError) => ({
+      failures: [`verify unavailable: ${verifyError.message}`],
+    }))
+    debug = { ...debug, waiverClaim, consoleOutput, errorOutput, networkOutput }
+    const report = {
+      status: 'FAIL',
+      season,
+      artifactDir,
+      fixture: {
+        runId: fixture.runId,
+        leagueId: fixture.league.id,
+        leagueSeasonId: fixture.currentSeason.id,
+        memberId: fixture.member.id,
+        playerId: fixture.player.id,
+        dropPlayerId: fixture.dropPlayer.id,
+        dropRosterPlayerId: fixture.dropRosterPlayer.id,
+        waiverLogId: fixture.waiverLog.id,
+      },
+      error: error instanceof Error ? error.message : String(error),
+      debug,
+      notes,
+    }
+    await writeFile(DROP_REPORT_PATH, `${JSON.stringify(report, null, 2)}\n`).catch(() => {})
+    throw error
+  } finally {
+    await browser(session, ['close']).catch(() => {})
+  }
+}
+
 if (import.meta.url === `file://${process.argv[1]}`) {
   const seasonArg = process.argv.find((arg) => arg.startsWith('--season='))
   const season = seasonArg ? Number(seasonArg.split('=')[1]) : 0
-  runBrowserWaiverScenario({ season }).catch((error) => {
+  const runner = process.argv.includes('--drop')
+    ? runBrowserWaiverDropScenario
+    : runBrowserWaiverScenario
+  runner({ season }).catch((error) => {
     console.error(error)
     process.exitCode = 1
   })

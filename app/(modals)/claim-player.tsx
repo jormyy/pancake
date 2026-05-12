@@ -163,7 +163,9 @@ export default function ClaimPlayerScreen() {
                                             <Pressable
                                                 style={[styles.rosterRow, isSelected && styles.rosterRowSelected]}
                                                 onPress={() => setSelectedDrop(isSelected ? null : item)}
-
+                                                accessibilityRole="button"
+                                                accessibilityLabel={`Select ${item.players.display_name} to drop`}
+                                                accessibilityState={{ selected: isSelected }}
                                             >
                                                 <View style={styles.rosterInfo}>
                                                     <Text style={styles.rosterName}>{item.players.display_name}</Text>
