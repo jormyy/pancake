@@ -407,7 +407,55 @@ const setupFuturePickChain = async (supabase, leagueId) => {
     finalOwnerId: member4.id,
     finalOwnerTeam: member4.team_name,
     tradeIds: [trade1, trade2, trade3],
+    rookieDraftId: null,
+    rookieDraftCheckedSeason: null,
   }
+}
+
+const assertFuturePickMaterializedInRookieDraft = async (supabase, env, leagueId, scenario, season) => {
+  if (!scenario || scenario.rookieDraftId) return null
+
+  const currentSeason = await fetchSingle(
+    supabase,
+    'league_seasons',
+    'id, season_year',
+    { league_id: leagueId, is_current: true },
+  )
+  if (currentSeason.season_year < scenario.targetYear) return null
+
+  const { draft } = await backendJson(env, '/e2e/start-rookie-draft', { leagueId })
+  const { data: slot, error } = await supabase
+    .from('snake_draft_picks')
+    .select('id, draft_id, overall_pick, round, pick_in_round, member_id, draft_pick_id')
+    .eq('draft_id', draft.id)
+    .eq('draft_pick_id', scenario.targetPickId)
+    .single()
+  if (error || !slot) {
+    throw new Error(`D.LONG.1: rookie draft ${draft.id} did not materialize target pick ${scenario.targetPickId}: ${error?.message ?? 'missing row'}`)
+  }
+  if (slot.member_id !== scenario.finalOwnerId) {
+    throw new Error(`D.LONG.1: rookie draft slot ${slot.id} belongs to ${slot.member_id}; expected traded owner ${scenario.finalOwnerId}`)
+  }
+
+  scenario.rookieDraftId = draft.id
+  scenario.rookieDraftCheckedSeason = season
+  const artifact = {
+    season,
+    seasonYear: currentSeason.season_year,
+    draftId: draft.id,
+    targetPickId: scenario.targetPickId,
+    expectedOwnerId: scenario.finalOwnerId,
+    slot,
+  }
+  await writeFile(
+    path.join(ARTIFACT_ROOT, `season-${season}`, 'rookie-draft-pick-chain.json'),
+    `${JSON.stringify(artifact, null, 2)}\n`,
+  )
+  await writeFile(
+    path.join(ARTIFACT_ROOT, 'future-pick-chain.json'),
+    `${JSON.stringify(scenario, null, 2)}\n`,
+  )
+  return artifact
 }
 
 const runInvariants = async (supabase, leagueId, scenarios = {}) => {
@@ -858,9 +906,19 @@ const main = async () => {
           ? await assertMatchupGenerationIdempotent(supabase, env, targetLeagueId)
           : []
         const failuresAfterReset = []
+        let rookieDraftPickChainCheck = null
         if (env.backendTicksEnabled) {
           await backendJson(env, '/e2e/advance-season', { leagueId: targetLeagueId })
           failuresAfterReset.push(...await runInvariants(supabase, targetLeagueId, scenarios))
+          if (scenarios.futurePickChain) {
+            rookieDraftPickChainCheck = await assertFuturePickMaterializedInRookieDraft(
+              supabase,
+              env,
+              targetLeagueId,
+              scenarios.futurePickChain,
+              season,
+            )
+          }
         }
         const snapshot = await writeSnapshots(supabase, season, targetLeagueId)
         const hadPreviousSnapshot = previousSnapshot != null
@@ -902,6 +960,7 @@ const main = async () => {
               args.push ? 'trade push notification intercept passed' : null,
               env.backendTicksEnabled ? 'matchup generation idempotency passed' : null,
               args.pickChain ? 'multi-hop future-pick owner resolved' : null,
+              rookieDraftPickChainCheck ? 'rookie draft traded-pick slot resolved' : null,
               hadPreviousSnapshot ? 'snapshot row-count diff passed' : null,
               args.seasons >= 10 && season >= 10 ? 'runtime drift check passed' : null,
             ].filter(Boolean).join('; '),

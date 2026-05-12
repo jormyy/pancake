@@ -46,7 +46,7 @@ Snapshots are written under `tests/snapshots/season-<N>/` after the season bound
 
 Performance metrics are written to `tests/artifacts/perf-metrics.json`. Runs shorter than 10 seasons record timings only. Runs of 10+ seasons fail D.LONG.6 if the latest season runtime is more than `E2E_PERF_DRIFT_LIMIT` above season 1; the default is `1.2` for the requested 20% drift ceiling.
 
-Future-pick chain checks are available with `E2E_ENABLE_PICK_CHAIN=1` or `--pick-chain=true`. The runner creates three accepted pick-only trades for one five-years-out round-one pick, persists the scenario metadata to `tests/artifacts/future-pick-chain.json`, and checks at every season boundary that the exact `draft_picks.current_owner_id` remains the final multi-hop owner. This covers the D.LONG.2 ownership-drift invariant through the real `accept_trade_atomic` path; it is not a replacement for the full browser trade workflow.
+Future-pick chain checks are available with `E2E_ENABLE_PICK_CHAIN=1` or `--pick-chain=true`. The runner creates three accepted pick-only trades for one five-years-out round-one pick, persists the scenario metadata to `tests/artifacts/future-pick-chain.json`, and checks at every season boundary that the exact `draft_picks.current_owner_id` remains the final multi-hop owner. Once the target pick reaches its draft year during a backend-tick run, the runner starts the real rookie draft and verifies the linked `snake_draft_picks.draft_pick_id` slot belongs to the final traded owner; the slot artifact is written to `tests/artifacts/season-<N>/rookie-draft-pick-chain.json`. This covers D.LONG.1/D.LONG.2 ownership-drift invariants through the real `accept_trade_atomic` and rookie-draft seeding paths; it is not a replacement for the full browser trade or rookie-draft workflow.
 
 Push notification interception is available with `E2E_ENABLE_PUSH=1` or `--push=true`. The Fastify backend must be started with `EXPO_PUSH_URL=http://127.0.0.1:4555/--/api/v2/push/send`; the runner fails closed if `/e2e/status` reports any other push URL. Each season sets a seeded recipient's `profiles.push_token`, signs in through Supabase Auth as a seeded sender, calls the real authenticated `/notify/trade` route, and asserts the fake upstream captured the Expo push payload. Artifacts are written to `tests/artifacts/season-<N>/push-notifications.json`. This covers the trade-notification intercept slice of D.X.1; waiver and draft notification assertions remain pending.
 
@@ -67,5 +67,6 @@ Outputs:
 - `tests/snapshots/season-<N>/summary.json`
 - `tests/artifacts/season-<N>/`
 - `tests/artifacts/season-<N>/push-notifications.json`
+- `tests/artifacts/season-<N>/rookie-draft-pick-chain.json`
 
 The runner fails closed when the real test Supabase/backend/frontend environment is missing or when the linked Supabase project is missing required post-refactor RPCs/columns. A `PARTIAL` report means only the fake-upstream and database invariant boundary checks ran; browser-driven season scenarios still need the `agent-browser` harness before this can count as a passing dynasty soak.
