@@ -1,8 +1,8 @@
 # Multi-Season E2E Soak Report
 
 - Status: ERROR
-- Started: 2026-05-12T04:06:18.340Z
-- Finished: 2026-05-12T04:06:18.340Z
+- Started: 2026-05-12T04:12:28.207Z
+- Finished: 2026-05-12T04:12:28.207Z
 - Target seasons: 10
 - Fake upstream: http://127.0.0.1:4555
 
@@ -10,7 +10,7 @@
 
 | Season | Status | Notes |
 | --- | --- | --- |
-| 0 | ERROR | D.LONG.1: rookie draft df04435e-e375-4a60-8482-b354a7cf64fd did not materialize target pick ac1cf993-45ec-4b42-b573-04438b72a583: Cannot coerce the result to a single JSON object |
+| 0 | ERROR | /e2e/process-waivers returned 500 |
 
 ## Notes
 

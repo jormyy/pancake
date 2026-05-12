@@ -734,6 +734,136 @@ const assertTradePushNotification = async ({ supabase, env, state, leagueId, sea
   )
 }
 
+const todayET = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
+
+const findAvailablePlayer = async (supabase, leagueId, leagueSeasonId) => {
+  const [players, rosterRows] = await Promise.all([
+    fetchAll(supabase, 'players', 'id, display_name'),
+    fetchAll(supabase, 'roster_players', 'player_id', {
+      league_id: leagueId,
+      league_season_id: leagueSeasonId,
+    }),
+  ])
+  const rosteredIds = new Set(rosterRows.map((row) => row.player_id))
+  const player = players
+    .filter((row) => row.display_name)
+    .sort((a, b) => String(a.display_name).localeCompare(String(b.display_name)) || String(a.id).localeCompare(String(b.id)))
+    .find((row) => !rosteredIds.has(row.id))
+  if (!player) throw new Error('D.X.1: no available player found for waiver push scenario')
+  return player
+}
+
+const assertWaiverPushNotification = async ({ supabase, env, state, leagueId, season, fakePort }) => {
+  if (!state?.runId || !Array.isArray(state.users) || state.users.length < 3) {
+    throw new Error('D.X.1: waiver push scenario requires tests/e2e-state.json from npm run e2e:seed')
+  }
+
+  const recipientUser = state.users[2]
+  const tokenValue = `ExponentPushToken[e2e-waiver-${state.runId}-${season}]`
+  const { error: profileError } = await supabase
+    .from('profiles')
+    .update({ push_token: tokenValue })
+    .eq('id', recipientUser.id)
+  if (profileError) throw new Error(`D.X.1 waiver push token setup: ${profileError.message}`)
+
+  const currentSeason = await fetchSingle(
+    supabase,
+    'league_seasons',
+    'id',
+    { league_id: leagueId, is_current: true },
+  )
+  const { data: member, error: memberError } = await supabase
+    .from('league_members')
+    .select('id, user_id, team_name')
+    .eq('league_id', leagueId)
+    .eq('user_id', recipientUser.id)
+    .single()
+  if (memberError || !member) {
+    throw new Error(`D.X.1 waiver member lookup: ${memberError?.message ?? 'missing row'}`)
+  }
+
+  const player = await findAvailablePlayer(supabase, leagueId, currentSeason.id)
+  const { data: priority, error: priorityError } = await supabase
+    .from('waiver_priorities')
+    .select('priority')
+    .eq('league_id', leagueId)
+    .eq('league_season_id', currentSeason.id)
+    .eq('member_id', member.id)
+    .single()
+  if (priorityError || !priority) {
+    throw new Error(`D.X.1 waiver priority lookup: ${priorityError?.message ?? 'missing row'}`)
+  }
+
+  const now = new Date()
+  const clearsAt = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString()
+  const { data: waiverLog, error: logError } = await supabase
+    .from('waiver_wire_log')
+    .insert({
+      league_id: leagueId,
+      league_season_id: currentSeason.id,
+      player_id: player.id,
+      dropped_by_member_id: member.id,
+      clears_at: clearsAt,
+    })
+    .select('id')
+    .single()
+  if (logError) throw new Error(`D.X.1 waiver log insert: ${logError.message}`)
+
+  const { data: claim, error: claimError } = await supabase
+    .from('waiver_claims')
+    .insert({
+      league_id: leagueId,
+      league_season_id: currentSeason.id,
+      member_id: member.id,
+      player_id: player.id,
+      drop_player_id: null,
+      priority_at_submission: priority.priority,
+      process_date: todayET(),
+    })
+    .select('id')
+    .single()
+  if (claimError) throw new Error(`D.X.1 waiver claim insert: ${claimError.message}`)
+
+  await backendJson(env, '/e2e/process-waivers')
+
+  const response = await fetch(`http://127.0.0.1:${fakePort}/admin/pushes`)
+  if (!response.ok) throw new Error(`D.X.1 waiver push capture returned ${response.status}`)
+  const { pushes } = await response.json()
+  const title = 'Waiver Claim Succeeded'
+  const body = `${player.display_name} has been added to your roster.`
+  const match = pushes?.find((push) => (
+    push.body?.to === tokenValue &&
+    push.body?.title === title &&
+    push.body?.body === body
+  ))
+  if (!match) {
+    throw new Error(`D.X.1: waiver push was not captured for token ${tokenValue}`)
+  }
+
+  return {
+    season,
+    claimId: claim.id,
+    waiverLogId: waiverLog.id,
+    memberId: member.id,
+    playerId: player.id,
+    playerName: player.display_name,
+    captured: match,
+  }
+}
+
+const assertPushNotifications = async (params) => {
+  await postJson(`http://127.0.0.1:${params.fakePort}/admin/clear-pushes`, {})
+  await assertTradePushNotification(params)
+  const waiver = await assertWaiverPushNotification(params)
+
+  const artifactPath = path.join(ARTIFACT_ROOT, `season-${params.season}`, 'push-notifications.json')
+  const existing = JSON.parse(await readFile(artifactPath, 'utf8'))
+  await writeFile(
+    artifactPath,
+    `${JSON.stringify({ trade: existing, waiver }, null, 2)}\n`,
+  )
+}
+
 const assertCorsPreflight = async (env) => {
   const origin = new URL(env.frontendUrl).origin
   const response = await fetch(backendUrl(env, '/e2e/status'), {
@@ -890,7 +1020,7 @@ const main = async () => {
           await runBrowserAuthScenario({ season })
         }
         if (args.push) {
-          await assertTradePushNotification({
+          await assertPushNotifications({
             supabase,
             env,
             state,
@@ -957,7 +1087,7 @@ const main = async () => {
               seasonNotes,
               args.browser ? 'browser smoke passed' : null,
               args.browserAuth ? 'browser auth scenario passed' : null,
-              args.push ? 'trade push notification intercept passed' : null,
+              args.push ? 'trade and waiver push notification intercepts passed' : null,
               env.backendTicksEnabled ? 'matchup generation idempotency passed' : null,
               args.pickChain ? 'multi-hop future-pick owner resolved' : null,
               rookieDraftPickChainCheck ? 'rookie draft traded-pick slot resolved' : null,
