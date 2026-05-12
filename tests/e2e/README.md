@@ -31,4 +31,4 @@ Outputs:
 - `tests/snapshots/season-<N>/`
 - `tests/artifacts/season-<N>/`
 
-The runner fails closed when the real test Supabase/backend/frontend environment is missing. A `PARTIAL` report means only the fake-upstream and database invariant boundary checks ran; browser-driven season scenarios still need the `agent-browser` harness before this can count as a passing dynasty soak.
+The runner fails closed when the real test Supabase/backend/frontend environment is missing or when the linked Supabase project is missing required post-refactor RPCs/columns. A `PARTIAL` report means only the fake-upstream and database invariant boundary checks ran; browser-driven season scenarios still need the `agent-browser` harness before this can count as a passing dynasty soak.

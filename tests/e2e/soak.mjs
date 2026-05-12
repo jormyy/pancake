@@ -99,7 +99,6 @@ const writeReport = async ({ status, startedAt, finishedAt, seasons, rows, notes
     '## Notes',
     '',
     ...notes.map((note) => `- ${note}`),
-    '',
   ]
   await writeFile(REPORT_PATH, `${lines.join('\n')}\n`)
 }
@@ -124,6 +123,52 @@ const assertEnv = async (seasons) => {
     ],
   })
   throw new Error(`Missing required soak environment: ${missing.join(', ')}`)
+}
+
+const isMissingSchemaError = (error) => {
+  const message = error?.message ?? ''
+  return (
+    error?.code === 'PGRST202' ||
+    error?.code === 'PGRST204' ||
+    message.includes('Could not find the function') ||
+    message.includes('Could not find the') ||
+    message.includes('column') && message.includes('does not exist')
+  )
+}
+
+const requireRpc = async (supabase, name, args, okErrorPattern) => {
+  const { error } = await supabase.rpc(name, args)
+  if (!error || okErrorPattern?.test(error.message ?? '')) return null
+  if (isMissingSchemaError(error)) return `${name}: ${error.message}`
+  return null
+}
+
+const requireColumn = async (supabase, table, column) => {
+  const { error } = await supabase
+    .from(table)
+    .select(column)
+    .limit(1)
+  if (!error) return null
+  if (isMissingSchemaError(error)) return `${table}.${column}: ${error.message}`
+  return null
+}
+
+const runSchemaPreflight = async (supabase) => {
+  const zeroUuid = '00000000-0000-0000-0000-000000000000'
+  const checks = await Promise.all([
+    requireRpc(supabase, 'release_live_poll_lock', {}, null),
+    requireRpc(supabase, 'accept_trade_atomic', { p_trade_id: zeroUuid, p_accepting_member_id: zeroUuid }, /Trade not found/i),
+    requireRpc(supabase, 'advance_season_atomic', { p_league_id: zeroUuid }, /League not found/i),
+    requireRpc(
+      supabase,
+      'place_auction_bid_atomic',
+      { p_draft_id: zeroUuid, p_member_id: zeroUuid, p_nomination_id: zeroUuid, p_amount: 0 },
+      /positive integer/i,
+    ),
+    requireRpc(supabase, 'process_next_waiver_claim_atomic', { p_process_date: '1900-01-01' }, null),
+    requireColumn(supabase, 'snake_draft_picks', 'draft_pick_id'),
+  ])
+  return checks.filter(Boolean)
 }
 
 const fetchAll = async (supabase, table, select = '*') => {
@@ -294,9 +339,6 @@ const main = async () => {
   const env = resolvedEnv()
 
   const startedAt = timestamp()
-  const fake = createFakeUpstreamServer()
-  await fake.listen(args.fakePort)
-
   const rows = []
   const notes = [
     'This harness is integration/E2E only. It does not run unit tests.',
@@ -311,26 +353,50 @@ const main = async () => {
       env.serviceRoleKey,
       { auth: { persistSession: false } },
     )
-
-    for (let season = 1; season <= args.seasons; season += 1) {
-      await mkdir(path.join(ARTIFACT_ROOT, `season-${season}`), { recursive: true })
-      await postJson(`http://127.0.0.1:${args.fakePort}/admin/now`, {
-        now: `${2026 + season}-10-20T12:00:00.000Z`,
+    const schemaFailures = await runSchemaPreflight(supabase)
+    if (schemaFailures.length > 0) {
+      await writeReport({
+        status: 'BLOCKED',
+        startedAt,
+        finishedAt: timestamp(),
+        seasons: args.seasons,
+        rows: [{ season: 0, status: 'BLOCKED', notes: `Schema preflight failed: ${schemaFailures.join('; ')}` }],
+        notes: [
+          ...notes,
+          'Apply the post-refactor Supabase migrations before running the multi-season soak.',
+        ],
       })
+      process.exitCode = 1
+      return
+    }
+    notes.push('Schema preflight passed: post-refactor RPCs and required columns are present.')
 
-      const failuresAtStart = await runInvariants(supabase)
-      await writeSnapshots(supabase, season)
-      const failuresAtEnd = await runInvariants(supabase)
-      const failures = [...failuresAtStart, ...failuresAtEnd]
+    const fake = createFakeUpstreamServer()
+    await fake.listen(args.fakePort)
 
-      if (failures.length > 0) {
-        rows.push({ season, status: 'FAIL', notes: failures.join('; ') })
-        if (!args.keepGoing) break
-      } else {
-        rows.push({ season, status: 'PASS', notes: 'D.0 invariant boundary checks passed; scenario/browser steps pending' })
+    try {
+      for (let season = 1; season <= args.seasons; season += 1) {
+        await mkdir(path.join(ARTIFACT_ROOT, `season-${season}`), { recursive: true })
+        await postJson(`http://127.0.0.1:${args.fakePort}/admin/now`, {
+          now: `${2026 + season}-10-20T12:00:00.000Z`,
+        })
+
+        const failuresAtStart = await runInvariants(supabase)
+        await writeSnapshots(supabase, season)
+        const failuresAtEnd = await runInvariants(supabase)
+        const failures = [...failuresAtStart, ...failuresAtEnd]
+
+        if (failures.length > 0) {
+          rows.push({ season, status: 'FAIL', notes: failures.join('; ') })
+          if (!args.keepGoing) break
+        } else {
+          rows.push({ season, status: 'PASS', notes: 'D.0 invariant boundary checks passed; scenario/browser steps pending' })
+        }
+
+        await postJson(`http://127.0.0.1:${args.fakePort}/admin/advance-season`, {})
       }
-
-      await postJson(`http://127.0.0.1:${args.fakePort}/admin/advance-season`, {})
+    } finally {
+      await fake.close()
     }
 
     const status = rows.some((row) => row.status === 'FAIL') ? 'FAIL' : 'PARTIAL'
@@ -344,8 +410,8 @@ const main = async () => {
     })
 
     if (status !== 'PASS') process.exitCode = 1
-  } finally {
-    await fake.close()
+  } catch (error) {
+    throw error
   }
 }
 

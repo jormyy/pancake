@@ -1,8 +1,8 @@
 # Multi-Season E2E Soak Report
 
 - Status: PARTIAL
-- Started: 2026-05-12T02:08:21.313Z
-- Finished: 2026-05-12T02:08:28.387Z
+- Started: 2026-05-12T02:22:36.603Z
+- Finished: 2026-05-12T02:22:44.009Z
 - Target seasons: 10
 - Fake upstream: http://127.0.0.1:4555
 
@@ -27,7 +27,4 @@
 - Configured API base: <remote configured>
 - Configured frontend: http://127.0.0.1:8081
 - Browser-driving scenarios must be run with agent-browser against the configured frontend before declaring the app dynasty-stable.
-- Browser smoke: Expo web loaded at `http://localhost:8081`, test user signed in, and Home/Players/Roster/Trades/League opened with no uncaught browser errors.
-- Browser smoke warnings: `lib/transactions.ts -> lib/players.ts -> lib/transactions.ts` require cycle; Expo notifications push-token listener unsupported on web.
-- Backend smoke: local Fastify starts with `DISABLE_CRON=1` and fake NBA/Sleeper upstreams. Without `DISABLE_CRON=1`, startup jobs write to the configured Supabase project.
-- Backend blocker: the configured Supabase project is missing the latest `try_live_poll_lock()` RPC, so migrations are not fully applied there.
+- Schema preflight passed: post-refactor RPCs and required columns are present.
