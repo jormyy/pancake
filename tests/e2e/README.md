@@ -20,9 +20,11 @@ export E2E_ENABLE_BACKEND_TICKS=1
 export E2E_ENABLE_BROWSER_AUTH=1
 export E2E_BROWSER_AUTH_USERS=10
 export E2E_ENABLE_PICK_CHAIN=1
+export E2E_ENABLE_PUSH=1
 export E2E_PERF_DRIFT_LIMIT=1.2
 export NBA_CDN_BASE_URL=http://127.0.0.1:4555/static/json
 export SLEEPER_BASE_URL=http://127.0.0.1:4555/v1
+export EXPO_PUSH_URL=http://127.0.0.1:4555/--/api/v2/push/send
 ```
 
 Run:
@@ -46,6 +48,8 @@ Performance metrics are written to `tests/artifacts/perf-metrics.json`. Runs sho
 
 Future-pick chain checks are available with `E2E_ENABLE_PICK_CHAIN=1` or `--pick-chain=true`. The runner creates three accepted pick-only trades for one five-years-out round-one pick, persists the scenario metadata to `tests/artifacts/future-pick-chain.json`, and checks at every season boundary that the exact `draft_picks.current_owner_id` remains the final multi-hop owner. This covers the D.LONG.2 ownership-drift invariant through the real `accept_trade_atomic` path; it is not a replacement for the full browser trade workflow.
 
+Push notification interception is available with `E2E_ENABLE_PUSH=1` or `--push=true`. The Fastify backend must be started with `EXPO_PUSH_URL=http://127.0.0.1:4555/--/api/v2/push/send`; the runner fails closed if `/e2e/status` reports any other push URL. Each season sets a seeded recipient's `profiles.push_token`, signs in through Supabase Auth as a seeded sender, calls the real authenticated `/notify/trade` route, and asserts the fake upstream captured the Expo push payload. Artifacts are written to `tests/artifacts/season-<N>/push-notifications.json`. This covers the trade-notification intercept slice of D.X.1; waiver and draft notification assertions remain pending.
+
 Browser smoke runs are available through `npm run e2e:browser-smoke` or `E2E_ENABLE_BROWSER=1 npm run e2e:soak`. They use `agent-browser` with an isolated session, sign in as the seeded commissioner, visit the main tab screens, and write screenshots plus console/error logs under `tests/artifacts/season-<N>/smoke/`. This is a smoke sweep only; the full D.SET/D.SEA/D.X/D.LONG browser scenario loop remains separate work.
 
 Browser auth runs are available through `npm run e2e:browser-auth` or `E2E_ENABLE_BROWSER_AUTH=1 npm run e2e:soak`. They use isolated `agent-browser` sessions for seeded users, verify a protected route redirects to sign-in, sign in, verify profile/session persistence, sign out through the real profile UI, and verify the auth guard returns. Set `E2E_BROWSER_AUTH_USERS=10` to exercise all seeded users in parallel. This covers D.SET.1 only; it does not replace auction, trade, waiver, lineup, playoff, or rookie-draft browser scenarios.
@@ -62,5 +66,6 @@ Outputs:
 - `tests/snapshots/season-<N>/`
 - `tests/snapshots/season-<N>/summary.json`
 - `tests/artifacts/season-<N>/`
+- `tests/artifacts/season-<N>/push-notifications.json`
 
 The runner fails closed when the real test Supabase/backend/frontend environment is missing or when the linked Supabase project is missing required post-refactor RPCs/columns. A `PARTIAL` report means only the fake-upstream and database invariant boundary checks ran; browser-driven season scenarios still need the `agent-browser` harness before this can count as a passing dynasty soak.

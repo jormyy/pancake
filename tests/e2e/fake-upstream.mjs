@@ -33,6 +33,7 @@ export function createFakeUpstreamServer() {
       ['1003', { player_id: '1003', first_name: 'Cy', last_name: 'Oak', full_name: 'Cy Oak', team: 'LAL', position: 'F', age: 21, status: 'Active', injury_status: null, injury_notes: null, active: true, sport: 'nba', years_exp: 0 }],
     ]),
     games: new Map(),
+    pushes: [],
   }
 
   const seedGame = (id, gameDate, awayTeam, homeTeam) => {
@@ -184,6 +185,16 @@ export function createFakeUpstreamServer() {
         return json(res, 200, Object.fromEntries(state.players))
       }
 
+      if (req.method === 'POST' && url.pathname === '/--/api/v2/push/send') {
+        const body = await readJson(req)
+        const message = {
+          receivedAt: new Date().toISOString(),
+          body,
+        }
+        state.pushes.push(message)
+        return json(res, 200, { data: { status: 'ok', id: `fake-push-${state.pushes.length}` } })
+      }
+
       if (req.method === 'POST' && url.pathname === '/admin/now') {
         const body = await readJson(req)
         state.now = new Date(body.now).toISOString()
@@ -222,12 +233,22 @@ export function createFakeUpstreamServer() {
         return json(res, 200, { ok: true, seasonYear: state.seasonYear })
       }
 
+      if (req.method === 'POST' && url.pathname === '/admin/clear-pushes') {
+        state.pushes = []
+        return json(res, 200, { ok: true })
+      }
+
+      if (req.method === 'GET' && url.pathname === '/admin/pushes') {
+        return json(res, 200, { pushes: state.pushes })
+      }
+
       if (req.method === 'GET' && url.pathname === '/admin/state') {
         return json(res, 200, {
           now: state.now,
           seasonYear: state.seasonYear,
           games: [...state.games.values()],
           players: Object.fromEntries(state.players),
+          pushes: state.pushes,
         })
       }
 

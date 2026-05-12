@@ -40,6 +40,7 @@ export default async function e2eRoutes(app: FastifyInstance) {
         ok: true,
         nbaCdnBaseUrl: process.env.NBA_CDN_BASE_URL ?? null,
         sleeperBaseUrl: process.env.SLEEPER_BASE_URL ?? null,
+        expoPushUrl: process.env.EXPO_PUSH_URL ?? null,
     }))
 
     app.post('/sync-schedule', async () => {

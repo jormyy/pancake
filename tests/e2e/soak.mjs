@@ -36,6 +36,7 @@ const parseArgs = () => {
     browser: args.get('browser') === 'true' || process.env.E2E_ENABLE_BROWSER === '1',
     browserAuth: args.get('browser-auth') === 'true' || process.env.E2E_ENABLE_BROWSER_AUTH === '1',
     pickChain: args.get('pick-chain') === 'true' || process.env.E2E_ENABLE_PICK_CHAIN === '1',
+    push: args.get('push') === 'true' || process.env.E2E_ENABLE_PUSH === '1',
   }
 }
 
@@ -594,6 +595,97 @@ const backendGetJson = async (env, pathname) => {
   return response.json()
 }
 
+const backendAuthedJson = async (env, pathname, token, body = {}) => {
+  const response = await fetch(backendUrl(env, pathname), {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${token}`,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  })
+  if (!response.ok) {
+    const text = await response.text().catch(() => '')
+    throw new Error(`${pathname} returned ${response.status}${text ? `: ${text}` : ''}`)
+  }
+  return response.json()
+}
+
+const assertBackendUsesFakePush = async (env, fakePort) => {
+  const status = await backendGetJson(env, '/e2e/status')
+  const expected = `http://127.0.0.1:${fakePort}/--/api/v2/push/send`
+  if (status.expoPushUrl !== expected) {
+    throw new Error(`D.X.1: backend EXPO_PUSH_URL is ${status.expoPushUrl ?? '<unset>'}; expected ${expected}`)
+  }
+}
+
+const signInForAccessToken = async (env, email, password) => {
+  if (!env.anonKey) throw new Error('D.X.1: E2E_ENABLE_PUSH=1 requires E2E_SUPABASE_ANON_KEY or EXPO_PUBLIC_SUPABASE_ANON_KEY')
+  const client = createClient(env.supabaseUrl, env.anonKey, { auth: { persistSession: false } })
+  const { data, error } = await client.auth.signInWithPassword({ email, password })
+  if (error) throw new Error(`D.X.1 sign-in failed for ${email}: ${error.message}`)
+  const token = data.session?.access_token
+  if (!token) throw new Error(`D.X.1 sign-in for ${email} returned no access token`)
+  return token
+}
+
+const assertTradePushNotification = async ({ supabase, env, state, leagueId, season, fakePort }) => {
+  if (!state?.password || !Array.isArray(state.users) || state.users.length < 2) {
+    throw new Error('D.X.1: E2E_ENABLE_PUSH=1 requires tests/e2e-state.json from npm run e2e:seed')
+  }
+
+  const [senderUser, recipientUser] = state.users
+  const tokenValue = `ExponentPushToken[e2e-${state.runId ?? 'run'}-${season}]`
+  const { error: profileError } = await supabase
+    .from('profiles')
+    .update({ push_token: tokenValue })
+    .eq('id', recipientUser.id)
+  if (profileError) throw new Error(`D.X.1 push token setup: ${profileError.message}`)
+
+  const { data: recipientMember, error: memberError } = await supabase
+    .from('league_members')
+    .select('id, user_id, team_name')
+    .eq('league_id', leagueId)
+    .eq('user_id', recipientUser.id)
+    .single()
+  if (memberError || !recipientMember) {
+    throw new Error(`D.X.1 recipient member lookup: ${memberError?.message ?? 'missing row'}`)
+  }
+
+  await postJson(`http://127.0.0.1:${fakePort}/admin/clear-pushes`, {})
+  const accessToken = await signInForAccessToken(env, senderUser.email, state.password)
+  const title = `E2E Trade Proposed S${season}`
+  const body = `Trade notification intercept for ${recipientMember.team_name}`
+  await backendAuthedJson(env, '/notify/trade', accessToken, {
+    memberId: recipientMember.id,
+    title,
+    body,
+  })
+
+  const response = await fetch(`http://127.0.0.1:${fakePort}/admin/pushes`)
+  if (!response.ok) throw new Error(`D.X.1 push capture returned ${response.status}`)
+  const { pushes } = await response.json()
+  const match = pushes?.find((push) => (
+    push.body?.to === tokenValue &&
+    push.body?.title === title &&
+    push.body?.body === body
+  ))
+  if (!match) {
+    throw new Error(`D.X.1: trade push was not captured for token ${tokenValue}`)
+  }
+
+  const artifact = {
+    season,
+    recipientMemberId: recipientMember.id,
+    recipientUserId: recipientUser.id,
+    captured: match,
+  }
+  await writeFile(
+    path.join(ARTIFACT_ROOT, `season-${season}`, 'push-notifications.json'),
+    `${JSON.stringify(artifact, null, 2)}\n`,
+  )
+}
+
 const assertCorsPreflight = async (env) => {
   const origin = new URL(env.frontendUrl).origin
   const response = await fetch(backendUrl(env, '/e2e/status'), {
@@ -646,6 +738,9 @@ const main = async () => {
   if (args.pickChain && !targetLeagueId) {
     throw new Error('E2E_ENABLE_PICK_CHAIN=1 requires a seeded target league or E2E_LEAGUE_ID')
   }
+  if (args.push && (!env.backendTicksEnabled || !targetLeagueId)) {
+    throw new Error('E2E_ENABLE_PUSH=1 requires E2E_ENABLE_BACKEND_TICKS=1 and a seeded target league')
+  }
 
   const startedAt = timestamp()
   const rows = []
@@ -668,6 +763,9 @@ const main = async () => {
     args.pickChain
       ? 'Future-pick multi-hop scenario enabled through E2E_ENABLE_PICK_CHAIN=1.'
       : 'Future-pick multi-hop scenario disabled; set E2E_ENABLE_PICK_CHAIN=1 to exercise D.LONG.2.',
+    args.push
+      ? 'Push notification intercept enabled through E2E_ENABLE_PUSH=1.'
+      : 'Push notification intercept disabled; set E2E_ENABLE_PUSH=1 with backend EXPO_PUSH_URL pointed at the fake upstream to exercise the trade-notification slice of D.X.1.',
   ]
 
   try {
@@ -715,6 +813,10 @@ const main = async () => {
         await assertCorsPreflight(env)
         notes.push('CORS preflight check passed for the configured frontend origin.')
       }
+      if (args.push) {
+        await assertBackendUsesFakePush(env, args.fakePort)
+        notes.push('Backend EXPO_PUSH_URL points at the fake upstream push intercept.')
+      }
 
       let previousSnapshot = null
       const perfMetrics = []
@@ -738,6 +840,16 @@ const main = async () => {
         }
         if (args.browserAuth) {
           await runBrowserAuthScenario({ season })
+        }
+        if (args.push) {
+          await assertTradePushNotification({
+            supabase,
+            env,
+            state,
+            leagueId: targetLeagueId,
+            season,
+            fakePort: args.fakePort,
+          })
         }
 
         const failuresAtStart = await runInvariants(supabase, targetLeagueId, scenarios)
@@ -787,6 +899,7 @@ const main = async () => {
               seasonNotes,
               args.browser ? 'browser smoke passed' : null,
               args.browserAuth ? 'browser auth scenario passed' : null,
+              args.push ? 'trade push notification intercept passed' : null,
               env.backendTicksEnabled ? 'matchup generation idempotency passed' : null,
               args.pickChain ? 'multi-hop future-pick owner resolved' : null,
               hadPreviousSnapshot ? 'snapshot row-count diff passed' : null,
