@@ -534,6 +534,37 @@ const readBrowserAlerts = async (session) => {
   return parseEvalJson(output)
 }
 
+const waitForTradeStatus = async (fixture, status, timeoutMs = 10_000) => {
+  const startedAt = Date.now()
+  let last = null
+  while (Date.now() - startedAt < timeoutMs) {
+    const { data, error } = await fixture.admin
+      .from('trades')
+      .select('id, status, accepted_at, veto_window_expires_at, completed_at')
+      .eq('id', fixture.trade.id)
+      .single()
+    if (error) throw new Error(`trade status verify: ${error.message}`)
+    last = data
+    if (data?.status === status) return data
+    await new Promise((resolve) => setTimeout(resolve, 500))
+  }
+  throw new Error(`trade ${fixture.trade.id} status=${last?.status ?? '<missing>'}; expected ${status}`)
+}
+
+const expireAndCompleteAcceptedTrade = async (fixture) => {
+  await waitForTradeStatus(fixture, 'accepted')
+  const { error: expireError } = await fixture.admin
+    .from('trades')
+    .update({ veto_window_expires_at: new Date(Date.now() - 1000).toISOString() })
+    .eq('id', fixture.trade.id)
+  if (expireError) throw new Error(`trade veto-window expiry failed: ${expireError.message}`)
+
+  const { error: completeError } = await fixture.admin.rpc('complete_accepted_trade_atomic', {
+    p_trade_id: fixture.trade.id,
+  })
+  if (completeError) throw new Error(`trade completion failed: ${completeError.message}`)
+}
+
 const verifyFuturePickTradeProposal = async (fixture) => {
   const { data: trades, error: tradesError } = await fixture.admin
     .from('trades')
@@ -1204,6 +1235,7 @@ export async function runBrowserTradeAcceptScenario({
       `Accept trade with ${fixture.proposer.team_name}`,
       'trade accept button',
     )
+    await expireAndCompleteAcceptedTrade(fixture)
     const accepted = await waitForTradeAccepted(fixture)
     debug = { ...debug, acceptClick, accepted }
     if (accepted.failures.length > 0) {
@@ -1448,6 +1480,7 @@ export async function runBrowserTradeFuturePickAcceptScenario({
       `Accept trade with ${fixture.proposer.team_name}`,
       'future-pick trade accept button',
     )
+    await expireAndCompleteAcceptedTrade(fixture)
     const accepted = await waitForFuturePickTradeAccepted(fixture)
     debug = { ...debug, acceptClick, accepted }
     if (accepted.failures.length > 0) {
@@ -1586,6 +1619,7 @@ export async function runBrowserTradeOverflowAcceptScenario({
       `Drop ${fixture.recipientPlayer.display_name}`,
       'overflow drop candidate button',
     )
+    await expireAndCompleteAcceptedTrade(fixture)
     const accepted = await waitForOverflowTradeAccepted(fixture)
     debug = { ...debug, acceptClick, dropClick, accepted }
     if (accepted.failures.length > 0) {

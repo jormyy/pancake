@@ -2182,6 +2182,10 @@ export type Database = {
         Args: { p_accepting_member_id: string; p_trade_id: string }
         Returns: undefined
       }
+      complete_accepted_trade_atomic: {
+        Args: { p_trade_id: string }
+        Returns: undefined
+      }
       advance_season_atomic: {
         Args: { p_league_id: string }
         Returns: {

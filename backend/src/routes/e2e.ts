@@ -5,6 +5,7 @@ import { syncGameTimes } from '../sync/schedule'
 import { syncPlayerStatuses } from '../sync/players'
 import { generateAllMatchups } from '../sync/matchups'
 import { processWaiverClaims } from '../sync/waivers'
+import { processAcceptedTrades } from '../sync/trades'
 import { advanceSeason } from '../sync/seasonReset'
 import { startRookieDraft, autoPickBest } from '../sync/rookieDraft'
 import { updateGameStatuses } from '../sync/livePoller'
@@ -79,6 +80,11 @@ export default async function e2eRoutes(app: FastifyInstance) {
     app.post('/process-waivers', async () => {
         await processWaiverClaims()
         return { ok: true }
+    })
+
+    app.post('/process-trades', async () => {
+        const result = await processAcceptedTrades()
+        return { ok: true, ...result }
     })
 
     app.post('/generate-matchups', { schema: { body: SyncMatchupsBody } }, async (req) => {

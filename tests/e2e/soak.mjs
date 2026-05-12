@@ -312,7 +312,7 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
     {
       requirement: 'D.SEA.2 multi-asset trade acceptance',
       status: tradeAcceptStatus,
-      evidence: args.tradeAccept ? 'Trade-accept mode creates a disposable player+future-pick trade, verifies mismatched auth/member acceptance is rejected, accepts through the real /trades/:tradeId/accept route, and checks players, picks, trade status, and transaction rows.' : 'Enable E2E_ENABLE_TRADE_ACCEPT=1 to exercise authenticated multi-asset trade acceptance.',
+      evidence: args.tradeAccept ? 'Trade-accept mode creates a disposable player+future-pick trade, verifies mismatched auth/member acceptance is rejected, accepts through the real /trades/:tradeId/accept route, checks assets stay put during the veto window, expires the window, runs /e2e/process-trades, and checks players, picks, trade status, and transaction rows.' : 'Enable E2E_ENABLE_TRADE_ACCEPT=1 to exercise authenticated multi-asset trade acceptance.',
     },
     {
       requirement: 'D.SEA.3 standings tiebreakers/RPS',
@@ -1357,7 +1357,7 @@ const assertTradeAcceptanceAtomicityScenario = async ({ supabase, env, state, se
   if (replayError) failures.push(replayError)
 
   const [acceptedTrade, movedRoster, movedPicks, transactions] = await Promise.all([
-    fetchSingle(supabase, 'trades', 'id, status, accepted_at, completed_at', { id: trade.id }),
+    fetchSingle(supabase, 'trades', 'id, status, accepted_at, veto_window_expires_at, completed_at', { id: trade.id }),
     fetchAll(supabase, 'roster_players', 'id, member_id, player_id, acquired_via', {
       league_id: fixture.league.id,
       league_season_id: fixture.leagueSeason.id,
@@ -1375,26 +1375,65 @@ const assertTradeAcceptanceAtomicityScenario = async ({ supabase, env, state, se
 
   const rosterByPlayer = new Map(movedRoster.map((row) => [row.player_id, row]))
   const picksById = new Map(movedPicks.map((pick) => [pick.id, pick]))
-  if (acceptedTrade.status !== 'completed' || !acceptedTrade.accepted_at || !acceptedTrade.completed_at) {
-    failures.push(`${label}: accepted trade status=${acceptedTrade.status}, accepted_at=${acceptedTrade.accepted_at ?? '<null>'}, completed_at=${acceptedTrade.completed_at ?? '<null>'}; expected completed timestamps`)
+  if (acceptedTrade.status !== 'accepted' || !acceptedTrade.accepted_at || !acceptedTrade.veto_window_expires_at || acceptedTrade.completed_at) {
+    failures.push(`${label}: accepted trade status=${acceptedTrade.status}, accepted_at=${acceptedTrade.accepted_at ?? '<null>'}, veto_window_expires_at=${acceptedTrade.veto_window_expires_at ?? '<null>'}, completed_at=${acceptedTrade.completed_at ?? '<null>'}; expected open veto window`)
   }
-  if (rosterByPlayer.get(proposerPlayer.id)?.member_id !== recipient.id) {
-    failures.push(`${label}: proposer player moved to ${rosterByPlayer.get(proposerPlayer.id)?.member_id ?? '<missing>'}; expected recipient ${recipient.id}`)
+  if (rosterByPlayer.get(proposerPlayer.id)?.member_id !== proposer.id || rosterByPlayer.get(recipientPlayer.id)?.member_id !== recipient.id) {
+    failures.push(`${label}: assets moved before veto window elapsed`)
   }
-  if (rosterByPlayer.get(recipientPlayer.id)?.member_id !== proposer.id) {
-    failures.push(`${label}: recipient player moved to ${rosterByPlayer.get(recipientPlayer.id)?.member_id ?? '<missing>'}; expected proposer ${proposer.id}`)
+  if (picksById.get(proposerPick.id)?.current_owner_id !== proposer.id || picksById.get(recipientPick.id)?.current_owner_id !== recipient.id) {
+    failures.push(`${label}: picks moved before veto window elapsed`)
   }
-  if (rosterByPlayer.get(proposerPlayer.id)?.acquired_via !== 'trade' || rosterByPlayer.get(recipientPlayer.id)?.acquired_via !== 'trade') {
+  if (transactions.length !== 0) {
+    failures.push(`${label}: roster_transactions count=${transactions.length}; expected 0 before veto window completion`)
+  }
+
+  const { error: expireError } = await supabase
+    .from('trades')
+    .update({ veto_window_expires_at: new Date(Date.now() - 1000).toISOString() })
+    .eq('id', trade.id)
+  if (expireError) throw new Error(`${label}: expire veto window failed: ${expireError.message}`)
+  const processResult = await backendJson(env, '/e2e/process-trades')
+
+  const [completedTrade, completedRoster, completedPicks, completedTransactions] = await Promise.all([
+    fetchSingle(supabase, 'trades', 'id, status, accepted_at, veto_window_expires_at, completed_at', { id: trade.id }),
+    fetchAll(supabase, 'roster_players', 'id, member_id, player_id, acquired_via', {
+      league_id: fixture.league.id,
+      league_season_id: fixture.leagueSeason.id,
+    }),
+    fetchAll(supabase, 'draft_picks', 'id, current_owner_id, original_owner_id, season_year, round', {
+      league_id: fixture.league.id,
+      season_year: pickYear,
+    }),
+    fetchAll(supabase, 'roster_transactions', 'id, member_id, player_id, transaction_type, related_trade_id', {
+      league_id: fixture.league.id,
+      league_season_id: fixture.leagueSeason.id,
+      related_trade_id: trade.id,
+    }),
+  ])
+
+  const completedRosterByPlayer = new Map(completedRoster.map((row) => [row.player_id, row]))
+  const completedPicksById = new Map(completedPicks.map((pick) => [pick.id, pick]))
+  if (completedTrade.status !== 'completed' || !completedTrade.accepted_at || !completedTrade.completed_at) {
+    failures.push(`${label}: completed trade status=${completedTrade.status}, accepted_at=${completedTrade.accepted_at ?? '<null>'}, completed_at=${completedTrade.completed_at ?? '<null>'}; expected completed timestamps`)
+  }
+  if (completedRosterByPlayer.get(proposerPlayer.id)?.member_id !== recipient.id) {
+    failures.push(`${label}: proposer player moved to ${completedRosterByPlayer.get(proposerPlayer.id)?.member_id ?? '<missing>'}; expected recipient ${recipient.id}`)
+  }
+  if (completedRosterByPlayer.get(recipientPlayer.id)?.member_id !== proposer.id) {
+    failures.push(`${label}: recipient player moved to ${completedRosterByPlayer.get(recipientPlayer.id)?.member_id ?? '<missing>'}; expected proposer ${proposer.id}`)
+  }
+  if (completedRosterByPlayer.get(proposerPlayer.id)?.acquired_via !== 'trade' || completedRosterByPlayer.get(recipientPlayer.id)?.acquired_via !== 'trade') {
     failures.push(`${label}: moved players did not receive acquired_via=trade`)
   }
-  if (picksById.get(proposerPick.id)?.current_owner_id !== recipient.id) {
-    failures.push(`${label}: proposer pick owner=${picksById.get(proposerPick.id)?.current_owner_id ?? '<missing>'}; expected recipient ${recipient.id}`)
+  if (completedPicksById.get(proposerPick.id)?.current_owner_id !== recipient.id) {
+    failures.push(`${label}: proposer pick owner=${completedPicksById.get(proposerPick.id)?.current_owner_id ?? '<missing>'}; expected recipient ${recipient.id}`)
   }
-  if (picksById.get(recipientPick.id)?.current_owner_id !== proposer.id) {
-    failures.push(`${label}: recipient pick owner=${picksById.get(recipientPick.id)?.current_owner_id ?? '<missing>'}; expected proposer ${proposer.id}`)
+  if (completedPicksById.get(recipientPick.id)?.current_owner_id !== proposer.id) {
+    failures.push(`${label}: recipient pick owner=${completedPicksById.get(recipientPick.id)?.current_owner_id ?? '<missing>'}; expected proposer ${proposer.id}`)
   }
-  if (transactions.length !== 4) {
-    failures.push(`${label}: roster_transactions count=${transactions.length}; expected 4 trade in/out rows for two players`)
+  if (completedTransactions.length !== 4) {
+    failures.push(`${label}: roster_transactions count=${completedTransactions.length}; expected 4 trade in/out rows for two players`)
   }
 
   const artifact = {
@@ -1416,10 +1455,12 @@ const assertTradeAcceptanceAtomicityScenario = async ({ supabase, env, state, se
       recipientPick,
     },
     after: {
-      trade: acceptedTrade,
-      roster: movedRoster,
-      picks: movedPicks,
-      transactions,
+      acceptedTrade,
+      processResult,
+      completedTrade,
+      roster: completedRoster,
+      picks: completedPicks,
+      transactions: completedTransactions,
     },
     failures,
   }
@@ -3885,6 +3926,9 @@ const main = async () => {
   }
   if (args.tradeAccept && (!state?.password || !Array.isArray(state.users) || state.users.length < 2)) {
     throw new Error('E2E_ENABLE_TRADE_ACCEPT=1 requires tests/e2e-state.json from npm run e2e:seed with at least 2 users')
+  }
+  if (args.tradeAccept && !env.e2eAdminSecret) {
+    throw new Error('E2E_ENABLE_TRADE_ACCEPT=1 requires E2E_ADMIN_SECRET and a backend started with ENABLE_E2E_ROUTES=1')
   }
   if (args.rookieDraft && (!state?.password || !Array.isArray(state.users) || state.users.length < 4)) {
     throw new Error('E2E_ENABLE_ROOKIE_DRAFT=1 requires tests/e2e-state.json from npm run e2e:seed with at least 4 users')
