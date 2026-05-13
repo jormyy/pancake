@@ -35,7 +35,14 @@ export const envValue = (...names) => {
 
 export const resolvedEnv = () => ({
   supabaseUrl: envValue('E2E_SUPABASE_URL', 'SUPABASE_URL', 'EXPO_PUBLIC_SUPABASE_URL'),
-  serviceRoleKey: envValue('E2E_SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_SERVICE_ROLE_KEY'),
+  serviceRoleKey: envValue(
+    'E2E_PANCAKE_SUPABASE_SECRET_KEY',
+    'PANCAKE_SUPABASE_SECRET_KEY',
+    'E2E_SUPABASE_SECRET_KEY',
+    'SUPABASE_SECRET_KEY',
+    'E2E_SUPABASE_SERVICE_ROLE_KEY',
+    'SUPABASE_SERVICE_ROLE_KEY',
+  ),
   anonKey: envValue('E2E_SUPABASE_ANON_KEY', 'EXPO_PUBLIC_SUPABASE_ANON_KEY'),
   apiBaseUrl: envValue('E2E_API_BASE_URL', 'EXPO_PUBLIC_API_URL') ?? 'http://127.0.0.1:3000',
   frontendUrl: envValue('E2E_FRONTEND_URL') ?? 'http://127.0.0.1:8081',

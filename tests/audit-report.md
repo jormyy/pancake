@@ -144,7 +144,7 @@ Initial Phase B pass completed on 2026-05-12. The multi-season harness has not s
 
 Resolved or materially reduced:
 
-- P0-1: Removed the literal service-role JWT from the current migration tree and replaced the cron function credential source with `current_setting('app.service_role_key', true)`. External secret rotation and Git history rewrite are still required before production.
+- P0-1: Removed the literal service-role JWT from the current migration tree, replaced the cron function credential source with `current_setting('app.service_role_key', true)`, purged reachable local Git history of JWT literals, and updated backend/Edge admin clients to prefer non-legacy Supabase secret keys before legacy service-role fallback. GitHub branch rewrite is still blocked by repository push permissions.
 - P0-2: Added `supabase/migrations/20260512000001_harden_roster_trades.sql` to replace broad roster RLS with owned-row policies and column-limited IR/taxi updates.
 - P0-3/P1-24 partial: Added backend `/trades/:tradeId/accept` and `accept_trade_atomic(...)` RPC to lock, validate, and atomically accept player/pick trades. Remaining trade lifecycle operations still need server-authoritative transactions.
 - P0-4: Changed Fastify auth installation from plugin registration to root hook installation, then smoke-tested `/sync/players` and `/e2e/status` returning 401 without credentials.
@@ -176,9 +176,9 @@ Resolved or materially reduced:
 
 Still blocking production readiness:
 
-- P0-1 external: rotate Supabase credentials, invalidate any deployed secret-bearing cron/function state, and rewrite/purge Git history.
-- Real test Supabase project, Fastify backend, Expo frontend, and browser-driven multi-season soak have not run yet.
-- Edge deploy caveat: Edge functions now pass local `deno check`, but they have not been deployed to or smoke-tested against the real test Supabase project.
+- Full prompt coverage remains incomplete where `tests/e2e-coverage.md` still marks scenario slices as `PARTIAL`; the 20-season soak is green, but some workflows are still proven by focused slices rather than one literal full-league browser workflow.
+- Remote GitHub refs still need force-updating with rewritten history; `git push` is blocked because the authenticated GitHub user lacks push permission on `jormyy/pancake`, and the GitHub app connector also has pull-only access.
+- Hosted Fastify/Railway env should be updated to a full `PANCAKE_SUPABASE_SECRET_KEY`/`SUPABASE_SECRET_KEY` copied from the Supabase dashboard; Edge Functions can use Supabase's platform-provided `SUPABASE_SECRET_KEYS` dictionary and have been redeployed with their previous JWT-verification settings preserved.
 - P2-34 remaining: Moderate Expo/PostCSS/Vitest/Vite audit findings remain and require broader SDK/test-runner upgrades.
 
 Phase C scaffold added after the initial Phase B hardening commit:

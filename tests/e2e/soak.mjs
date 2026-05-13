@@ -328,12 +328,12 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
     {
       requirement: 'P0/P1 findings resolved',
       status: 'PARTIAL',
-      evidence: 'Post-refactor deltas and soak fixes are documented; operational secret rotation/history purge remains outside repo source control.',
+      evidence: 'P0/P1 source fixes are documented; service-role JWT literals were purged from reachable local Git history, and Edge Functions now prefer Supabase secret keys from the platform-provided SUPABASE_SECRET_KEYS dictionary before legacy service-role fallback. GitHub branch rewrite is still blocked by repository push permissions.',
     },
     {
       requirement: 'Real test Supabase project',
       status: env.supabaseUrl && env.serviceRoleKey ? 'PASS' : 'BLOCKED',
-      evidence: env.supabaseUrl && env.serviceRoleKey ? 'Supabase URL/service-role credentials loaded from E2E/app env.' : 'Missing Supabase service credentials.',
+      evidence: env.supabaseUrl && env.serviceRoleKey ? 'Supabase URL/admin credentials loaded from E2E/app env.' : 'Missing Supabase admin credentials.',
     },
     {
       requirement: 'Fake NBA CDN/Sleeper upstream',
@@ -497,7 +497,9 @@ const assertEnv = async (seasons) => {
   const env = resolvedEnv()
   const missing = []
   if (!env.supabaseUrl) missing.push('E2E_SUPABASE_URL or SUPABASE_URL')
-  if (!env.serviceRoleKey) missing.push('E2E_SUPABASE_SERVICE_ROLE_KEY or SUPABASE_SERVICE_ROLE_KEY')
+  if (!env.serviceRoleKey) {
+    missing.push('E2E_PANCAKE_SUPABASE_SECRET_KEY, PANCAKE_SUPABASE_SECRET_KEY, E2E_SUPABASE_SECRET_KEY, SUPABASE_SECRET_KEY, E2E_SUPABASE_SERVICE_ROLE_KEY, or SUPABASE_SERVICE_ROLE_KEY')
+  }
   if (missing.length === 0) return
 
   const now = timestamp()
@@ -508,7 +510,7 @@ const assertEnv = async (seasons) => {
     seasons,
     rows: [{ season: 0, status: 'BLOCKED', notes: `Missing env: ${missing.join(', ')}` }],
     notes: [
-      'The soak runner loads .env and backend/.env, then fails closed until Supabase service credentials are available.',
+      'The soak runner loads .env and backend/.env, then fails closed until Supabase admin credentials are available.',
       'Set NBA_CDN_BASE_URL and SLEEPER_BASE_URL to the fake upstream URL when launching backend and Edge functions.',
     ],
   })

@@ -5,13 +5,15 @@ This harness is the Phase C entrypoint for dynasty soak testing. It starts the f
 The runner loads `.env` and `backend/.env` automatically. Existing app variables are accepted as fallbacks:
 
 - `SUPABASE_URL` or `EXPO_PUBLIC_SUPABASE_URL`
-- `SUPABASE_SERVICE_ROLE_KEY`
+- `PANCAKE_SUPABASE_SECRET_KEY`, `SUPABASE_SECRET_KEY`, or `SUPABASE_SERVICE_ROLE_KEY`
 - `EXPO_PUBLIC_API_URL`
 
 Explicit E2E overrides are still supported:
 
 ```sh
 export E2E_SUPABASE_URL=...
+export E2E_PANCAKE_SUPABASE_SECRET_KEY=...
+export E2E_SUPABASE_SECRET_KEY=...
 export E2E_SUPABASE_SERVICE_ROLE_KEY=...
 export E2E_API_BASE_URL=http://127.0.0.1:3000
 export E2E_FRONTEND_URL=http://127.0.0.1:8081

@@ -2,10 +2,11 @@ import { createClient } from '@supabase/supabase-js'
 import type { Database } from '../types/database'
 
 const supabaseUrl = process.env.SUPABASE_URL!
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+const adminKey =
+    process.env.PANCAKE_SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY!
 
-// Service role client — bypasses RLS, backend use only
-export const supabase = createClient<Database>(supabaseUrl, serviceRoleKey, {
+// Admin client: prefer Supabase secret keys; legacy service-role JWT is local fallback only.
+export const supabase = createClient<Database>(supabaseUrl, adminKey, {
     auth: { persistSession: false },
 })
 

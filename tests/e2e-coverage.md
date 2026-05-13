@@ -10,8 +10,8 @@
 | Requirement | Status | Evidence |
 | --- | --- | --- |
 | Phase A audit report | PASS | tests/audit-report.md exists. |
-| P0/P1 findings resolved | PARTIAL | Post-refactor deltas and soak fixes are documented; operational secret rotation/history purge remains outside repo source control. |
-| Real test Supabase project | PASS | Supabase URL/service-role credentials loaded from E2E/app env. |
+| P0/P1 findings resolved | PARTIAL | P0/P1 source fixes are documented; service-role JWT literals were purged from reachable local Git history, and Edge Functions now prefer Supabase secret keys from the platform-provided SUPABASE_SECRET_KEYS dictionary before legacy service-role fallback. GitHub branch rewrite is still blocked by repository push permissions. |
+| Real test Supabase project | PASS | Supabase URL/admin credentials loaded from E2E/app env. |
 | Fake NBA CDN/Sleeper upstream | PASS | Fake upstream configured for http://127.0.0.1:4555. |
 | D.SET.1 auth/session/sign-out | PASS | Browser auth scenario was enabled for this run. |
 | D.SET.2 league create/join/pick bank | PARTIAL | League-lifecycle mode signs in seeded users, calls create_league and join_league_by_invite_code through anon Supabase clients, then verifies invite code, members, lineup slots, current season, and five-year pick bank. |
