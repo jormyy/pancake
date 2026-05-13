@@ -2,7 +2,7 @@
 
 - Updated: 2026-05-13
 - Branch: `refactor/post-cleanup-sweep`
-- Latest local/remote branch commit: `5534747 docs: refresh completion audit tip` before the current browser-lifecycle harness changes.
+- Latest local/remote branch commit: `b519164 test: harden multi-season soak fixtures` before the current report refresh.
 - Verdict: **not complete**
 
 ## Objective
@@ -23,13 +23,13 @@ Take Pancake from feature-complete to production-ready by:
 | Supabase Edge deployment after secret fix | PASS | All hosted Edge Functions were redeployed with previous JWT verification modes preserved. Hosted `verify?action=validate-db` returned HTTP 200 after deployment. |
 | Hosted Fastify secret-key migration | BLOCKED | No Railway CLI/auth path is available locally. Supabase CLI exposes only masked `sb_secret` values, so the full hosted `PANCAKE_SUPABASE_SECRET_KEY`/`SUPABASE_SECRET_KEY` must be copied from the Supabase dashboard into the Fastify host. |
 | Legacy Supabase JWT/service-role rotation | BLOCKED | Supabase's current rotation flow requires Dashboard JWT/signing-key rotation. The repo now prefers new secret-key paths where available, but legacy rotation/revocation is not complete from this environment. |
-| Build gates | PASS | Latest reruns after browser-lifecycle work: `npm run lint`, root/backend/core typechecks, `deno check supabase/functions/_shared/supabase.ts`, targeted `node --check` commands for the changed E2E harness files, and `git diff --check` all passed. |
-| 20-season soak proof | PASS | Commit history records a 20-season all-enabled local Supabase/Fastify/static Expo/fake-upstream run with `Status: PASS`, from `2026-05-13T09:59:24.123Z` to `2026-05-13T12:08:37.866Z`. The current `tests/e2e-report.md` was refreshed by a focused D.SET.2 browser lifecycle run. |
-| D.SET.2 create/join lifecycle | PASS | `E2E_ENABLE_LEAGUE_LIFECYCLE=1 E2E_ENABLE_BROWSER_LEAGUE_LIFECYCLE=1 npm run e2e:soak -- --seasons=1` passed on local Supabase/static Expo. The report now records both the 10-user auth/RPC lifecycle and the real Expo create/join form lifecycle, with D.SET.2 marked PASS in `tests/e2e-coverage.md`. |
+| Build gates | PASS | Latest reruns after the history-enabled report refresh: `npm run lint`, root/backend/core typechecks, `deno check supabase/functions/_shared/supabase.ts`, `node --check tests/e2e/soak.mjs`, and `git diff --check` all passed. |
+| 20-season soak proof | PASS | `tests/e2e-report.md` now records a history-enabled all-flag 20-season local Supabase/Fastify/static Expo/fake-upstream run with `Status: PASS`, from `2026-05-13T17:09:03.319Z` to `2026-05-13T19:24:28.135Z`. Every season row passed D.0 boundaries, repeated browser/API gameplay slices, D.LONG.1/D.LONG.2 pick-chain checks, D.LONG.3/D.LONG.4 history retention, D.LONG.5 local migration replay, D.LONG.6 runtime drift, and D.LONG.7 harness memory drift. |
+| D.SET.2 create/join lifecycle | PASS | The 20-season all-flag run included `E2E_ENABLE_LEAGUE_LIFECYCLE=1` and `E2E_ENABLE_BROWSER_LEAGUE_LIFECYCLE=1`, so the report records both the 10-user auth/RPC lifecycle and the real Expo create/join form lifecycle every simulated season. |
 | D.X.2 score realtime | PASS | The 20-season proof includes 10-client matchup realtime checks. |
 | D.X.1 push notifications | PASS | The 20-season proof enabled both fake Expo push intercept modes and captured trade, waiver, and rookie auto-pick draft notifications. |
-| D.X.2 auction bid realtime | PARTIAL | `20260513000001_enable_draft_realtime.sql` and the updated soak runner prove auction bid nomination realtime in a focused local Supabase run with 10 clients: matchup max latency 88 ms, bid max latency 510 ms. A full 20-season rerun with this new slice is pending. |
-| Remote Supabase draft realtime migration | BLOCKED | Latest retry of `supabase db push --linked --dry-run` still failed while creating a temporary login role: Postgres connection timeout, with the CLI asking for `SUPABASE_DB_PASSWORD`. The migration is applied locally but not verified on the linked remote project. |
+| D.X.2 auction bid realtime | PASS | The 20-season all-flag run included `E2E_ENABLE_REALTIME=1`; every season row reports realtime matchup and auction bid updates delivered to 10 clients within the gate. |
+| Remote Supabase draft realtime migration | BLOCKED | Latest retry of `supabase migration list` against the linked project still failed while creating a temporary login role: Postgres connection timeout, with the CLI asking for `SUPABASE_DB_PASSWORD`. The migration is applied locally but not verified on the linked remote project. Supabase Edge secrets do include `SUPABASE_SECRET_KEYS`, but that does not grant direct Postgres migration access. |
 | Prompt-to-artifact coverage | PARTIAL | `tests/e2e-coverage.md` still marks multiple original prompt rows as `PARTIAL` because the proof uses focused browser/backend slices rather than one literal monolithic 10-user browser workflow for every listed weekly action. |
 | Final production-ready exit criteria | FAIL | The blocker list above prevents marking the high-level goal complete. |
 
@@ -37,6 +37,6 @@ Take Pancake from feature-complete to production-ready by:
 
 1. Set hosted Fastify/Railway admin env to a full `PANCAKE_SUPABASE_SECRET_KEY` or `SUPABASE_SECRET_KEY`.
 2. Rotate/revoke the legacy Supabase JWT/service-role credential through the Supabase Dashboard flow.
-3. Push `20260513000001_enable_draft_realtime.sql` to the linked Supabase project once remote Postgres connectivity is healthy.
-4. Rerun the 20-season all-enabled soak after the remote migration and hosted env are in place, including `E2E_ENABLE_BROWSER_LEAGUE_LIFECYCLE=1`.
+3. Push `20260513000001_enable_draft_realtime.sql` to the linked Supabase project once remote Postgres connectivity is healthy or `SUPABASE_DB_PASSWORD` is available.
+4. Rerun the 20-season all-enabled soak against the hosted test Supabase project after the remote migration and hosted env are in place.
 5. Decide whether the remaining focused-slice coverage rows are acceptable evidence or require a literal monolithic 10-user browser workflow.

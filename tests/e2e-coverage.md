@@ -1,8 +1,8 @@
 # E2E Coverage Checklist
 
 - Run status: PASS
-- Started: 2026-05-13T14:45:44.429Z
-- Finished: 2026-05-13T17:00:22.235Z
+- Started: 2026-05-13T17:09:03.319Z
+- Finished: 2026-05-13T19:24:28.139Z
 - Target seasons: 20
 
 ## Prompt-To-Artifact Matrix
@@ -33,7 +33,7 @@
 | D.X.4 perf smoke under draft/live scoring load | PASS | Browser perf mode opens the real draft room and home scoreboard while applying continuous auction bids and matchup updates, then asserts responsiveness, screenshots, console output, and browser errors. |
 | D.X.5 UI sweep | PASS | Browser full sweep visits auth, tabs, modals, player, auction-draft, and rookie-draft routes, with screenshots and console/error artifacts. |
 | D.LONG.1/D.LONG.2 long-horizon pick trades | PARTIAL | Pick-chain mode creates a three-hop future-pick trade, verifies owner persistence every season, and checks the target rookie-draft slot belongs to the final owner when the pick year arrives. |
-| D.LONG.3/D.LONG.4 standings/champion history | PENDING | Enable E2E_ENABLE_HISTORY=1 with backend tick mode. |
+| D.LONG.3/D.LONG.4 standings/champion history | PARTIAL | History mode seeds deterministic completed-season standings/champion fixtures and verifies them after season resets. |
 | D.LONG.5 mid-life migration | PASS | Mid-life migration mode runs `npx supabase db push` against the configured local/linked/db-url target between seasons and records tests/artifacts/season-<N>/midlife-migration.json. |
 | D.LONG.6 runtime drift | PASS | Runtime metrics live in tests/artifacts/perf-metrics.json. |
 | D.LONG.7 memory/connection leaks | PASS | Harness memory metrics live in tests/artifacts/perf-metrics.json and 10+ season runs fail if RSS or heap exceeds the configured drift limit. |
@@ -45,7 +45,7 @@
 - This harness is integration/E2E only. It does not run unit tests.
 - Configured API base: http://127.0.0.1:3101
 - Configured frontend: http://127.0.0.1:8081
-- Target league: 962eca56-86f4-48e5-a332-23fc22e8efc5 (seed run 20260513144450)
+- Target league: 0af1720f-543d-452a-af51-4eb60197590a (seed run 20260513172000)
 - Backend tick endpoints enabled through E2E_ENABLE_BACKEND_TICKS=1.
 - One-time scenario slices repeat every simulated season through E2E_REPEAT_SCENARIOS_EVERY_SEASON=1.
 - Browser smoke enabled through E2E_ENABLE_BROWSER=1 with full route sweep.
@@ -73,7 +73,7 @@
 - Future-pick multi-hop scenario enabled through E2E_ENABLE_PICK_CHAIN=1.
 - Push notification intercept enabled through E2E_ENABLE_PUSH=1.
 - Draft push notification intercept enabled through E2E_ENABLE_DRAFT_PUSH=1.
-- Standings/champion history retention disabled; set E2E_ENABLE_HISTORY=1 with backend ticks to exercise the D.LONG.3/D.LONG.4 fixture-retention slice.
+- Standings/champion history retention enabled through E2E_ENABLE_HISTORY=1.
 - Realtime latency check enabled through E2E_ENABLE_REALTIME=1 for 10 clients.
 - Mid-life migration check enabled after season 5.
 - Auction bid validation enabled through E2E_ENABLE_AUCTION=1.
@@ -88,7 +88,7 @@
 - Rookie draft auto-pick/order scenario enabled through E2E_ENABLE_ROOKIE_DRAFT=1.
 - Season reset carryover/reseed scenario enabled through E2E_ENABLE_SEASON_RESET=1.
 - Schema preflight passed: post-refactor RPCs and required columns are present.
-- Future-pick chain: 2031 round 1 pick 4848b303-de1a-4659-b5b0-8cb0df251409 now belongs to E2E Team 4.
+- Future-pick chain: 2031 round 1 pick fe99bb9c-4531-4247-9922-dc53965ee700 now belongs to E2E Team 3.
 - CORS preflight check passed for the configured frontend origin.
 - Backend EXPO_PUSH_URL points at the fake upstream push intercept.
 - D.LONG.5 mid-life migration up_to_date before season 6.
