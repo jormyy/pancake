@@ -37,6 +37,6 @@ Take Pancake from feature-complete to production-ready by:
 ## Current Blockers
 
 1. Set hosted Fastify/Railway admin env to a full `PANCAKE_SUPABASE_SECRET_KEY` or `SUPABASE_SECRET_KEY`.
-2. Disable/revoke the hosted project's legacy Supabase JWT keys through the Supabase Management API legacy-key toggle or Dashboard flow.
+2. Disable/revoke the hosted project's legacy Supabase JWT keys through the Supabase Management API legacy-key toggle (`PUT /v1/projects/{ref}/api-keys/legacy?enabled=false`) or Dashboard flow.
 3. Push `20260513000001_enable_draft_realtime.sql` to the linked Supabase project once remote Postgres connectivity is healthy or `SUPABASE_DB_PASSWORD` is available.
 4. Rerun the 20-season all-enabled soak against the hosted test Supabase project after the linked DB migration and hosted env are in place.

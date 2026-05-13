@@ -94,7 +94,8 @@ Latest PR/CI status:
    - If clean, run `supabase db push` to apply the remaining draft realtime migration.
 
 3. Disable/revoke legacy JWT API keys only after hosted Fastify is confirmed on `sb_secret_`.
-   - Use Supabase Management API legacy-key toggle or Dashboard.
+   - Use the Supabase Management API legacy-key toggle or Dashboard.
+   - Official endpoint: `PUT https://api.supabase.com/v1/projects/{ref}/api-keys/legacy?enabled=false`.
    - Rerun `npm run prod:check`.
 
 4. Rerun a final all-enabled soak after remote blockers are cleared.
