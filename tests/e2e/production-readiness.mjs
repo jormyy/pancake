@@ -65,6 +65,14 @@ const hasSecretName = (secretsOutput, name) => {
 
 const hasKeyType = (rows, type) => Array.isArray(rows) && rows.some((row) => row?.type === type)
 
+const legacyKeyNames = (rows) => {
+  if (!Array.isArray(rows)) return null
+  return rows
+    .filter((row) => row?.type === 'legacy')
+    .map((row) => row.name ?? row.id ?? 'legacy')
+    .sort()
+}
+
 const startsWith = (value, prefix) => typeof value === 'string' && value.startsWith(prefix)
 
 const main = async () => {
@@ -98,6 +106,7 @@ const main = async () => {
   const apiKeyRows = parseJson(apiKeys.stdout)
   const hasPublishableKey = hasKeyType(apiKeyRows, 'publishable')
   const hasSecretKey = hasKeyType(apiKeyRows, 'secret')
+  const legacyKeys = legacyKeyNames(apiKeyRows)
   rows.push({
     requirement: 'Supabase API-key metadata readable',
     status: statusFrom(apiKeys.status === 0),
@@ -202,12 +211,18 @@ const main = async () => {
       : cleanMessage(railwayAuth.stderr || railwayAuth.stdout || String(railwayAuth.error)),
   })
 
+  const legacyKeysDisabled = Array.isArray(legacyKeys) && legacyKeys.length === 0
+  const legacyKeysManualVerified = envValue('PANCAKE_LEGACY_SUPABASE_JWT_ROTATED') === '1'
   rows.push({
     requirement: 'Remote legacy Supabase JWT keys disabled/revoked',
-    status: statusFrom(envValue('PANCAKE_LEGACY_SUPABASE_JWT_ROTATED') === '1'),
-    evidence: envValue('PANCAKE_LEGACY_SUPABASE_JWT_ROTATED') === '1'
-      ? 'Manual hosted-project legacy-key disable/revocation verification flag is set.'
-      : 'Set PANCAKE_LEGACY_SUPABASE_JWT_ROTATED=1 only after the hosted project legacy JWT keys are disabled/revoked through the Supabase Management API or Dashboard flow.',
+    status: statusFrom(legacyKeysDisabled || legacyKeysManualVerified),
+    evidence: legacyKeysDisabled
+      ? 'Supabase API-key metadata no longer includes legacy JWT key records.'
+      : legacyKeysManualVerified
+        ? 'Manual hosted-project legacy-key disable/revocation verification flag is set.'
+        : Array.isArray(legacyKeys)
+          ? `Supabase API-key metadata still includes legacy key record(s): ${legacyKeys.join(', ')}.`
+          : 'Could not parse Supabase API-key metadata; set PANCAKE_LEGACY_SUPABASE_JWT_ROTATED=1 only after independent hosted-project legacy-key disable/revocation verification.',
   })
 
   const blockers = rows.filter((row) => row.status !== 'PASS')

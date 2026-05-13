@@ -70,7 +70,8 @@ Latest PR/CI status:
    - `SUPABASE_DB_PASSWORD` is not available in local env.
 
 3. Remote legacy Supabase JWT keys are still enabled.
-   - Supabase Management API read confirmed `api-keys/legacy` is `enabled: true`.
+   - `npm run prod:check` now verifies this from Supabase API-key metadata.
+   - Current metadata still includes legacy key records: `anon`, `service_role`.
    - The repo and local env are ready for modern keys, but remote legacy-key disable/revocation still needs a successful Management API/Dashboard operation after hosted Fastify is confirmed migrated.
 
 4. Remote draft realtime migration is not verified on the linked project.

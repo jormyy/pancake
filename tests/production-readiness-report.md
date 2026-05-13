@@ -1,7 +1,7 @@
 # Production Readiness Blocker Check
 
 - Status: BLOCKED
-- Generated: 2026-05-13T20:34:19.561Z
+- Generated: 2026-05-13T20:36:24.322Z
 
 | Requirement | Status | Evidence |
 | --- | --- | --- |
@@ -17,7 +17,7 @@
 | Hosted Fastify health endpoint reachable | PASS | <remote configured> returned healthy JSON. |
 | Hosted Fastify secret-key env verified | BLOCKED | Deploy a backend that exposes /health.supabaseAdminKeyMode, or set PANCAKE_HOSTED_FASTIFY_SECRET_KEY_VERIFIED=1 only after the host has PANCAKE_SUPABASE_SECRET_KEY or SUPABASE_SECRET_KEY configured. |
 | Railway CLI authenticated | BLOCKED | Unauthorized. Please login with `railway login` |
-| Remote legacy Supabase JWT keys disabled/revoked | BLOCKED | Set PANCAKE_LEGACY_SUPABASE_JWT_ROTATED=1 only after the hosted project legacy JWT keys are disabled/revoked through the Supabase Management API or Dashboard flow. |
+| Remote legacy Supabase JWT keys disabled/revoked | BLOCKED | Supabase API-key metadata still includes legacy key record(s): anon, service_role. |
 
 ## Notes
 
