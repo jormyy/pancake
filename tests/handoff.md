@@ -40,6 +40,7 @@ Latest CLI retry after reading `.env`/`backend/.env`:
 - Neither env file contains `SUPABASE_DB_PASSWORD`, `DATABASE_URL`, `RAILWAY_TOKEN`, or Railway project credentials.
 - `supabase projects list -o json` sees linked project `pancake` as `ACTIVE_HEALTHY`.
 - Hosted Fastify `/health` returns `{"status":"ok"}`.
+- `supabase db query --linked 'select now();'` fails at the same temporary login-role step as migrations, with HTTP 544 and the same `SUPABASE_DB_PASSWORD` requirement.
 - `supabase db push --dry-run` still fails while creating the temporary login role with HTTP 544 and asks for `SUPABASE_DB_PASSWORD`.
 - `npx --yes @railway/cli whoami` installs/runs the Railway CLI but returns `Unauthorized. Please login with railway login`.
 - This branch adds a safe hosted backend proof field: `/health` now returns `supabaseAdminKeyMode` as `modern-secret`, `legacy-service-role`, or `missing`. It never returns secret values.
@@ -65,6 +66,7 @@ Latest PR/CI status:
 
 2. Linked Supabase Postgres migration access is blocked.
    - `supabase db push --dry-run` fails while creating the temporary CLI login role.
+   - `supabase db query --linked 'select now();'` fails at the same temporary login-role step, so the Management API-backed query path does not bypass the DB-password/login-role blocker.
    - Supabase Management API `PATCH /v1/projects/{ref}/database/password` returned HTTP 544.
    - Supabase Management API `POST /v1/projects/{ref}/cli/login-role` also hit the same database-layer timeout.
    - `SUPABASE_DB_PASSWORD` is not available in local env.
