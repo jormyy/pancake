@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('../src/lib/supabase', () => ({
-    supabase: { from: vi.fn() },
+    supabase: { from: vi.fn(), rpc: vi.fn() },
 }))
 
 import { supabase } from '../src/lib/supabase'
@@ -27,6 +27,7 @@ function q(data: any = null, error: any = null) {
 }
 
 const mockFrom = vi.mocked(supabase.from)
+const mockRpc = vi.mocked(supabase.rpc)
 
 beforeEach(() => vi.clearAllMocks())
 
@@ -42,87 +43,46 @@ describe('placeBid', () => {
     })
 
     it('throws if nomination is not found', async () => {
-        mockFrom.mockReturnValue(q(null, { message: 'not found' }) as any)
+        mockRpc.mockResolvedValue({ data: null, error: new Error('Nomination not found') } as any)
         await expect(placeBid('d1', 'm1', 'n1', 5)).rejects.toThrow('Nomination not found')
     })
 
     it('throws if nomination is not open', async () => {
-        const nom = {
-            id: 'n1', draft_id: 'd1', status: 'sold',
-            current_bid_amount: 10, current_bidder_id: 'm2',
-            countdown_expires_at: new Date(Date.now() + 60_000).toISOString(),
-        }
-        mockFrom.mockReturnValue(q(nom) as any)
+        mockRpc.mockResolvedValue({ data: null, error: new Error('Bidding is closed') } as any)
         await expect(placeBid('d1', 'm1', 'n1', 15)).rejects.toThrow('Bidding is closed')
     })
 
     it('throws if countdown has expired', async () => {
-        const nom = {
-            id: 'n1', draft_id: 'd1', status: 'open',
-            current_bid_amount: 5, current_bidder_id: null,
-            countdown_expires_at: new Date(Date.now() - 1000).toISOString(), // expired
-        }
-        mockFrom.mockReturnValue(q(nom) as any)
+        mockRpc.mockResolvedValue({ data: null, error: new Error('Bidding window has expired') } as any)
         await expect(placeBid('d1', 'm1', 'n1', 10)).rejects.toThrow('expired')
     })
 
     it('throws if bid does not exceed current bid', async () => {
-        const nom = {
-            id: 'n1', draft_id: 'd1', status: 'open',
-            current_bid_amount: 20, current_bidder_id: 'm2',
-            countdown_expires_at: new Date(Date.now() + 60_000).toISOString(),
-        }
-        mockFrom.mockReturnValue(q(nom) as any)
+        mockRpc.mockResolvedValue({ data: null, error: new Error('Bid must exceed current bid') } as any)
         await expect(placeBid('d1', 'm1', 'n1', 20)).rejects.toThrow('exceed current bid')
     })
 
     it('throws if member is already the highest bidder', async () => {
-        const nom = {
-            id: 'n1', draft_id: 'd1', status: 'open',
-            current_bid_amount: 15, current_bidder_id: 'm1',
-            countdown_expires_at: new Date(Date.now() + 60_000).toISOString(),
-        }
-        mockFrom.mockReturnValue(q(nom) as any)
+        mockRpc.mockResolvedValue({ data: null, error: new Error('Member is already the highest bidder') } as any)
         await expect(placeBid('d1', 'm1', 'n1', 20)).rejects.toThrow("already the highest bidder")
     })
 
     it('throws if member has insufficient budget', async () => {
-        const nom = {
-            id: 'n1', draft_id: 'd1', status: 'open',
-            current_bid_amount: 10, current_bidder_id: 'm2',
-            countdown_expires_at: new Date(Date.now() + 60_000).toISOString(),
-        }
-        const budget = { remaining: 5 }
-
-        let callCount = 0
-        mockFrom.mockImplementation(() => {
-            callCount++
-            if (callCount === 1) return q(nom) as any   // nominations fetch
-            if (callCount === 2) return q(budget) as any // draft_budgets fetch
-            return q(null) as any
-        })
-
+        mockRpc.mockResolvedValue({ data: null, error: new Error('Insufficient budget') } as any)
         await expect(placeBid('d1', 'm1', 'n1', 50)).rejects.toThrow('Insufficient budget')
     })
 
     it('succeeds and returns { ok: true } for a valid bid', async () => {
-        const nom = {
-            id: 'n1', draft_id: 'd1', status: 'open',
-            current_bid_amount: 10, current_bidder_id: 'm2',
-            countdown_expires_at: new Date(Date.now() + 60_000).toISOString(),
-        }
-        const budget = { remaining: 100 }
-
-        let callCount = 0
-        mockFrom.mockImplementation(() => {
-            callCount++
-            if (callCount === 1) return q(nom) as any   // nominations fetch
-            if (callCount === 2) return q(budget) as any // draft_budgets fetch
-            return q({ id: 'bid-1' }) as any             // update + insert calls
-        })
+        mockRpc.mockResolvedValue({ data: null, error: null } as any)
 
         const result = await placeBid('d1', 'm1', 'n1', 15)
         expect(result).toEqual({ ok: true })
+        expect(mockRpc).toHaveBeenCalledWith('place_auction_bid_atomic', {
+            p_draft_id: 'd1',
+            p_member_id: 'm1',
+            p_nomination_id: 'n1',
+            p_amount: 15,
+        })
     })
 })
 
