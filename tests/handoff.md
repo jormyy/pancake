@@ -43,6 +43,8 @@ Latest CLI retry after reading `.env`/`backend/.env`:
 - `supabase db query --linked 'select now();'` fails at the same temporary login-role step as migrations, with HTTP 544 and the same `SUPABASE_DB_PASSWORD` requirement.
 - `supabase db push --dry-run` still fails while creating the temporary login role with HTTP 544 and asks for `SUPABASE_DB_PASSWORD`.
 - `npx --yes @railway/cli whoami` installs/runs the Railway CLI but returns `Unauthorized. Please login with railway login`.
+- GitHub Actions has only the `Tests` workflow; no deploy workflow exists.
+- GitHub repository secrets/variables are empty, and the `lovely-acceptance / production` environment also has no secrets/variables, so there is no repo-hosted Railway deploy token path.
 - This branch adds a safe hosted backend proof field: `/health` now returns `supabaseAdminKeyMode` as `modern-secret`, `legacy-service-role`, or `missing`. It never returns secret values.
 - `npm run prod:check` now checks linked DB query access, linked migration dry-run, Railway CLI authentication, legacy Supabase key metadata, and hosted Fastify secret-key verification when deployed `/health` reports `supabaseAdminKeyMode=modern-secret`.
 
@@ -60,6 +62,7 @@ Latest PR/CI status:
 1. Hosted Fastify/Railway env is not verified.
    - No local Railway CLI/auth path was found.
    - `npx --yes @railway/cli whoami` returns unauthorized without a Railway login.
+   - No GitHub deploy workflow or stored GitHub secret/variable path exists for Railway.
    - Local `backend/.env` has `PANCAKE_SUPABASE_SECRET_KEY`, but hosted env cannot be inspected from this machine.
    - Current hosted `/health` is reachable but does not yet expose `supabaseAdminKeyMode`, so the deployed backend is older than this verification change.
    - Do not disable legacy Supabase JWT keys until hosted Fastify is confirmed to use `PANCAKE_SUPABASE_SECRET_KEY` or `SUPABASE_SECRET_KEY`.
