@@ -13,6 +13,7 @@ const ARTIFACT_ROOT = path.join(ROOT, 'tests/artifacts')
 const REPORT_PATH = path.join(ROOT, 'tests/e2e-browser-waiver-report.md')
 const DROP_REPORT_PATH = path.join(ROOT, 'tests/e2e-browser-waiver-drop-report.md')
 const IR_BLOCK_REPORT_PATH = path.join(ROOT, 'tests/e2e-browser-waiver-ir-block-report.md')
+const E2E_PLAYER_PREFIX = 'e2e-player-'
 
 const browser = async (session, args, options = {}) => {
   const { stdout, stderr } = await execFileAsync('agent-browser', ['--session', session, ...args], {
@@ -83,7 +84,8 @@ const findAvailablePlayers = async (admin, leagueId, leagueSeasonId, count = 1) 
       .eq('league_season_id', leagueSeasonId),
     admin
       .from('players')
-      .select('id, display_name')
+      .select('id, display_name, sportsdata_id')
+      .like('sportsdata_id', `${E2E_PLAYER_PREFIX}%`)
       .order('display_name', { ascending: true })
       .limit(200),
   ])

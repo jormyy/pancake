@@ -3315,7 +3315,7 @@ const assertRealtimeDelivery = async ({ supabase, env, state, leagueId, season }
   const warmupAwayPoints = 400 + season * 10
   const expectedHomePoints = 1000 + season
   const expectedAwayPoints = 900 + season
-  const expectedBidAmount = 2 + season
+  const expectedBidAmount = 2
   const warmupSeen = new Set()
 
   try {

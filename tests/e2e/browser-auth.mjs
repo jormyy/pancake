@@ -89,6 +89,20 @@ const waitForEmailPlaceholder = async (session, label) => {
   throw new Error(`${label}: Email placeholder did not appear: ${lastError?.message ?? 'unknown error'}`)
 }
 
+const openPage = async (session, url, label, attempts = 3) => {
+  let lastError = null
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      await browser(session, ['open', url], { timeout: 60_000 })
+      return
+    } catch (error) {
+      lastError = error
+      await browser(session, ['wait', '1000']).catch(() => {})
+    }
+  }
+  throw new Error(`${label}: navigation failed after ${attempts} attempts: ${lastError?.message ?? 'unknown error'}`)
+}
+
 const clickExactText = async (session, text, label) => {
   const result = await browser(session, [
     'eval',
@@ -111,7 +125,7 @@ const clickExactText = async (session, text, label) => {
 }
 
 const assertSignedInSurface = async (session, user) => {
-  await browser(session, ['open', joinUrl(resolvedEnv().frontendUrl, '/profile')])
+  await openPage(session, joinUrl(resolvedEnv().frontendUrl, '/profile'), 'signed-in profile open')
   await browser(session, ['wait', '2000'])
   await waitForPageText(session, [user.email, user.displayName], 'signed-in profile')
 }
@@ -133,7 +147,7 @@ const runOneAuthUser = async ({ state, env, season, userIndex, sessionList }) =>
 
   try {
     await installRuntimeOverrides(browser, session, env)
-    await browser(session, ['open', joinUrl(env.frontendUrl, '/players')])
+    await openPage(session, joinUrl(env.frontendUrl, '/players'), 'auth guard open')
     await browser(session, ['wait', '2000'])
     await waitForEmailPlaceholder(session, 'auth guard')
     await browser(session, ['screenshot', path.join(artifactDir, 'auth-guard.png')], { timeout: 60_000 })
@@ -147,13 +161,13 @@ const runOneAuthUser = async ({ state, env, season, userIndex, sessionList }) =>
     await browser(session, ['screenshot', path.join(artifactDir, 'signed-in-profile.png')], { timeout: 60_000 })
     visited.push('sign-in')
 
-    await browser(session, ['open', joinUrl(env.frontendUrl, '/players')])
+    await openPage(session, joinUrl(env.frontendUrl, '/players'), 'session persistence open')
     await browser(session, ['wait', '2000'])
     await assertPageText(session, ['Players'], 'session persistence')
     await browser(session, ['screenshot', path.join(artifactDir, 'session-persisted.png')], { timeout: 60_000 })
     visited.push('session-persistence')
 
-    await browser(session, ['open', joinUrl(env.frontendUrl, '/profile')])
+    await openPage(session, joinUrl(env.frontendUrl, '/profile'), 'pre-sign-out profile open')
     await browser(session, ['wait', '1500'])
     await waitForPageText(session, [user.email], 'pre-sign-out profile')
     await browser(session, ['eval', 'window.confirm = () => true'])
@@ -161,7 +175,7 @@ const runOneAuthUser = async ({ state, env, season, userIndex, sessionList }) =>
     await browser(session, ['wait', '500'])
     await clickExactText(session, 'Sign Out', 'sign out')
     await browser(session, ['wait', '4000'])
-    await browser(session, ['open', joinUrl(env.frontendUrl, '/players')])
+    await openPage(session, joinUrl(env.frontendUrl, '/players'), 'signed-out guard open')
     await browser(session, ['wait', '2000'])
     await waitForEmailPlaceholder(session, 'signed-out guard')
     await browser(session, ['screenshot', path.join(artifactDir, 'signed-out-guard.png')], { timeout: 60_000 })
