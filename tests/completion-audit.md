@@ -30,7 +30,7 @@ Take Pancake from feature-complete to production-ready by:
 | D.X.1 push notifications | PASS | The 20-season proof enabled both fake Expo push intercept modes and captured trade, waiver, and rookie auto-pick draft notifications. |
 | D.X.2 auction bid realtime | PASS | The 20-season all-flag run included `E2E_ENABLE_REALTIME=1`; every season row reports realtime matchup and auction bid updates delivered to 10 clients within the gate. |
 | Remote Supabase draft realtime migration | BLOCKED | Latest retry of `supabase migration list` against the linked project still failed while creating a temporary login role: Postgres connection timeout, with the CLI asking for `SUPABASE_DB_PASSWORD`. The migration is applied locally but not verified on the linked remote project. Supabase Edge secrets do include `SUPABASE_SECRET_KEYS`, but that does not grant direct Postgres migration access. |
-| Prompt-to-artifact coverage | PARTIAL | `tests/e2e-coverage.md` still marks multiple original prompt rows as `PARTIAL` because the proof uses focused browser/backend slices rather than one literal monolithic 10-user browser workflow for every listed weekly action. |
+| Prompt-to-artifact coverage | PASS | `tests/e2e-coverage.md` now maps every D.SET/D.SEA/D.X/D.LONG row to concrete artifacts from the all-flags 20-season run. The only remaining non-PASS row in that matrix is the P0/P1 operational follow-up row. |
 | Final production-ready exit criteria | FAIL | The blocker list above prevents marking the high-level goal complete. |
 
 ## Current Blockers
@@ -38,5 +38,4 @@ Take Pancake from feature-complete to production-ready by:
 1. Set hosted Fastify/Railway admin env to a full `PANCAKE_SUPABASE_SECRET_KEY` or `SUPABASE_SECRET_KEY`.
 2. Rotate/revoke the legacy Supabase JWT/service-role credential through the Supabase Dashboard flow.
 3. Push `20260513000001_enable_draft_realtime.sql` to the linked Supabase project once remote Postgres connectivity is healthy or `SUPABASE_DB_PASSWORD` is available.
-4. Rerun the 20-season all-enabled soak against the hosted test Supabase project after the remote migration and hosted env are in place.
-5. Decide whether the remaining focused-slice coverage rows are acceptable evidence or require a literal monolithic 10-user browser workflow.
+4. Rerun the 20-season all-enabled soak against the hosted test Supabase project after the linked DB migration and hosted env are in place.

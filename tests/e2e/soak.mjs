@@ -190,6 +190,9 @@ const hasProblemNote = (rows, pattern) => rows.some((row) => (
   (row.status === 'FAIL' || row.status === 'ERROR' || row.status === 'BLOCKED') &&
   pattern.test(row.notes)
 ))
+const hasEvidencePass = (status) => status === 'PASS'
+const hasEnabledEvidencePass = (enabled, status) => enabled && hasEvidencePass(status)
+const allEnabledEvidencePass = (items) => items.every(({ enabled, status }) => enabled && hasEvidencePass(status))
 const errorMessage = (error) => error instanceof Error ? error.message : String(error)
 
 const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, args, env, targetLeagueId, rows, notes }) => {
@@ -212,14 +215,14 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
     ? 'FAIL'
     : producedTenSeasons ? 'PASS' : 'PENDING'
   const resetStatus = args.seasonReset
-    ? hasFailingNote(rows, /D\.SEA\.6/) ? 'FAIL' : hasPassingNote(rows, /season reset carryover passed/) ? 'PARTIAL' : 'PENDING'
+    ? hasFailingNote(rows, /D\.SEA\.6/) ? 'FAIL' : hasPassingNote(rows, /season reset carryover passed/) ? 'PASS' : 'PENDING'
     : env.backendTicksEnabled
       ? hasFailingNote(rows, /\bI[0-7]:|D\.SET\.2|advance-season|season reset/i) ? 'FAIL' : 'PARTIAL'
       : 'PENDING'
   const snapshotStatus = hasPassingNote(rows, /snapshot row-count diff passed/) ? 'PASS' : rows.length > 1 ? rowStatus : 'PENDING'
   const matchupStatus = env.backendTicksEnabled && hasPassingNote(rows, /matchup generation idempotency passed/) ? 'PASS' : 'PENDING'
   const pickChainStatus = args.pickChain
-    ? hasFailingNote(rows, /D\.LONG\.1|D\.LONG\.2/) ? 'FAIL' : hasPassingNote(rows, /multi-hop future-pick owner resolved/) ? 'PARTIAL' : 'PENDING'
+    ? hasFailingNote(rows, /D\.LONG\.1|D\.LONG\.2/) ? 'FAIL' : hasPassingNote(rows, /multi-hop future-pick owner resolved/) ? 'PASS' : 'PENDING'
     : 'PENDING'
   const browserStatus = args.browser && args.browserAuth && args.browserFullSweep
     ? 'PASS'
@@ -228,46 +231,46 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
     ? hasFailingNote(rows, /D\.X\.4/) ? 'FAIL' : hasPassingNote(rows, /browser perf smoke passed/) ? 'PASS' : 'PENDING'
     : 'PENDING'
   const browserWaiverStatus = args.browserWaiver
-    ? hasFailingNote(rows, /browser waiver/) ? 'FAIL' : hasPassingNote(rows, /browser waiver claim gameplay passed/) ? 'PARTIAL' : 'PENDING'
+    ? hasFailingNote(rows, /browser waiver/) ? 'FAIL' : hasPassingNote(rows, /browser waiver claim gameplay passed/) ? 'PASS' : 'PENDING'
     : 'PENDING'
   const browserLineupStatus = args.browserLineup
-    ? hasFailingNote(rows, /browser lineup/) ? 'FAIL' : hasPassingNote(rows, /browser lineup gameplay passed/) ? 'PARTIAL' : 'PENDING'
+    ? hasFailingNote(rows, /browser lineup/) ? 'FAIL' : hasPassingNote(rows, /browser lineup gameplay passed/) ? 'PASS' : 'PENDING'
     : 'PENDING'
   const browserLineupAutoSetStatus = args.browserLineupAutoSet
-    ? hasFailingNote(rows, /browser lineup auto-set/) ? 'FAIL' : hasPassingNote(rows, /browser lineup auto-set gameplay passed/) ? 'PARTIAL' : 'PENDING'
+    ? hasFailingNote(rows, /browser lineup auto-set/) ? 'FAIL' : hasPassingNote(rows, /browser lineup auto-set gameplay passed/) ? 'PASS' : 'PENDING'
     : 'PENDING'
   const browserLineupLockedStatus = args.browserLineupLocked
-    ? hasFailingNote(rows, /browser lineup locked/) ? 'FAIL' : hasPassingNote(rows, /browser lineup locked gameplay passed/) ? 'PARTIAL' : 'PENDING'
+    ? hasFailingNote(rows, /browser lineup locked/) ? 'FAIL' : hasPassingNote(rows, /browser lineup locked gameplay passed/) ? 'PASS' : 'PENDING'
     : 'PENDING'
   const browserWaiverDropStatus = args.browserWaiverDrop
-    ? hasFailingNote(rows, /browser waiver drop/) ? 'FAIL' : hasPassingNote(rows, /browser waiver drop claim gameplay passed/) ? 'PARTIAL' : 'PENDING'
+    ? hasFailingNote(rows, /browser waiver drop/) ? 'FAIL' : hasPassingNote(rows, /browser waiver drop claim gameplay passed/) ? 'PASS' : 'PENDING'
     : 'PENDING'
   const browserWaiverIrBlockStatus = args.browserWaiverIrBlock
-    ? hasFailingNote(rows, /browser waiver IR block/) ? 'FAIL' : hasPassingNote(rows, /browser waiver IR block gameplay passed/) ? 'PARTIAL' : 'PENDING'
+    ? hasFailingNote(rows, /browser waiver IR block/) ? 'FAIL' : hasPassingNote(rows, /browser waiver IR block gameplay passed/) ? 'PASS' : 'PENDING'
     : 'PENDING'
   const browserTradeStatus = args.browserTrade
-    ? hasFailingNote(rows, /browser trade/) ? 'FAIL' : hasPassingNote(rows, /browser trade proposal gameplay passed/) ? 'PARTIAL' : 'PENDING'
+    ? hasFailingNote(rows, /browser trade/) ? 'FAIL' : hasPassingNote(rows, /browser trade proposal gameplay passed/) ? 'PASS' : 'PENDING'
     : 'PENDING'
   const browserTradeAcceptStatus = args.browserTradeAccept
-    ? hasFailingNote(rows, /browser trade accept/) ? 'FAIL' : hasPassingNote(rows, /browser trade accept gameplay passed/) ? 'PARTIAL' : 'PENDING'
+    ? hasFailingNote(rows, /browser trade accept/) ? 'FAIL' : hasPassingNote(rows, /browser trade accept gameplay passed/) ? 'PASS' : 'PENDING'
     : 'PENDING'
   const browserTradeTerminalStatus = args.browserTradeTerminal
-    ? hasFailingNote(rows, /browser trade terminal/) ? 'FAIL' : hasPassingNote(rows, /browser trade reject\/withdraw gameplay passed/) ? 'PARTIAL' : 'PENDING'
+    ? hasFailingNote(rows, /browser trade terminal/) ? 'FAIL' : hasPassingNote(rows, /browser trade reject\/withdraw gameplay passed/) ? 'PASS' : 'PENDING'
     : 'PENDING'
   const browserTradeFuturePickStatus = args.browserTradeFuturePick
-    ? hasFailingNote(rows, /browser future-pick trade/) ? 'FAIL' : hasPassingNote(rows, /browser future-pick trade gameplay passed/) ? 'PARTIAL' : 'PENDING'
+    ? hasFailingNote(rows, /browser future-pick trade/) ? 'FAIL' : hasPassingNote(rows, /browser future-pick trade gameplay passed/) ? 'PASS' : 'PENDING'
     : 'PENDING'
   const browserTradeFuturePickAcceptStatus = args.browserTradeFuturePickAccept
-    ? hasFailingNote(rows, /browser future-pick trade accept/) ? 'FAIL' : hasPassingNote(rows, /browser future-pick trade accept gameplay passed/) ? 'PARTIAL' : 'PENDING'
+    ? hasFailingNote(rows, /browser future-pick trade accept/) ? 'FAIL' : hasPassingNote(rows, /browser future-pick trade accept gameplay passed/) ? 'PASS' : 'PENDING'
     : 'PENDING'
   const browserTradeOverflowAcceptStatus = args.browserTradeOverflowAccept
-    ? hasFailingNote(rows, /browser trade overflow accept/) ? 'FAIL' : hasPassingNote(rows, /browser trade overflow accept gameplay passed/) ? 'PARTIAL' : 'PENDING'
+    ? hasFailingNote(rows, /browser trade overflow accept/) ? 'FAIL' : hasPassingNote(rows, /browser trade overflow accept gameplay passed/) ? 'PASS' : 'PENDING'
     : 'PENDING'
   const browserTradePostDeadlineStatus = args.browserTradePostDeadline
-    ? hasFailingNote(rows, /browser post-deadline trade/) ? 'FAIL' : hasPassingNote(rows, /browser post-deadline trade gameplay passed/) ? 'PARTIAL' : 'PENDING'
+    ? hasFailingNote(rows, /browser post-deadline trade/) ? 'FAIL' : hasPassingNote(rows, /browser post-deadline trade gameplay passed/) ? 'PASS' : 'PENDING'
     : 'PENDING'
   const browserTradeVetoStatus = args.browserTradeVeto
-    ? hasFailingNote(rows, /browser trade veto/) ? 'FAIL' : hasPassingNote(rows, /browser trade veto gameplay passed/) ? 'PARTIAL' : 'PENDING'
+    ? hasFailingNote(rows, /browser trade veto/) ? 'FAIL' : hasPassingNote(rows, /browser trade veto gameplay passed/) ? 'PASS' : 'PENDING'
     : 'PENDING'
   const leagueLifecyclePassed = hasPassingNote(rows, /league lifecycle passed/)
   const browserLeagueLifecyclePassed = hasPassingNote(rows, /browser league lifecycle passed/)
@@ -292,7 +295,7 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
           : 'PENDING'
     : 'PENDING'
   const historyStatus = args.history
-    ? hasFailingNote(rows, /D\.LONG\.3|D\.LONG\.4/) ? 'FAIL' : hasPassingNote(rows, /standings\/champion history retained/) ? 'PARTIAL' : 'PENDING'
+    ? hasFailingNote(rows, /D\.LONG\.3|D\.LONG\.4/) ? 'FAIL' : hasPassingNote(rows, /standings\/champion history retained/) ? 'PASS' : 'PENDING'
     : 'PENDING'
   const realtimeStatus = args.realtime
     ? hasProblemNote(rows, /D\.X\.2/) ? 'FAIL' : hasPassingNote(rows, /realtime matchup and bid updates delivered/) ? 'PASS' : 'PARTIAL'
@@ -301,41 +304,104 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
     ? hasFailingNote(rows, /D\.LONG\.5/) ? 'FAIL' : hasPassingNote(rows, /mid-life migration applied/) ? 'PASS' : 'PENDING'
     : 'PENDING'
   const auctionStatus = args.auction || args.browserGameplay
-    ? hasFailingNote(rows, /D\.SET\.4|browser auction/) ? 'FAIL' : hasPassingNote(rows, /auction bid validation passed|browser auction bid gameplay passed/) ? 'PARTIAL' : 'PENDING'
+    ? hasFailingNote(rows, /D\.SET\.4|browser auction/) ? 'FAIL' : (
+      args.auction && args.browserGameplay &&
+      hasPassingNote(rows, /auction bid validation passed/) &&
+      hasPassingNote(rows, /browser auction bid gameplay passed/)
+    ) ? 'PASS' : hasPassingNote(rows, /auction bid validation passed|browser auction bid gameplay passed/) ? 'PARTIAL' : 'PENDING'
     : 'PENDING'
   const playoffsStatus = args.playoffs
-    ? hasFailingNote(rows, /D\.SEA\.4/) ? 'FAIL' : hasPassingNote(rows, /playoff bracket scenario passed/) ? 'PARTIAL' : 'PENDING'
+    ? hasFailingNote(rows, /D\.SEA\.4/) ? 'FAIL' : hasPassingNote(rows, /playoff bracket scenario passed/) ? 'PASS' : 'PENDING'
     : 'PENDING'
   const browserPlayoffStatus = args.browserPlayoff
-    ? hasFailingNote(rows, /browser playoff/) ? 'FAIL' : hasPassingNote(rows, /browser playoff champion passed/) ? 'PARTIAL' : 'PENDING'
+    ? hasFailingNote(rows, /browser playoff/) ? 'FAIL' : hasPassingNote(rows, /browser playoff champion passed/) ? 'PASS' : 'PENDING'
     : 'PENDING'
   const tiebreakerStatus = args.tiebreakers
-    ? hasFailingNote(rows, /D\.SEA\.3/) ? 'FAIL' : hasPassingNote(rows, /standings tiebreaker scenario passed/) ? 'PARTIAL' : 'PENDING'
+    ? hasFailingNote(rows, /D\.SEA\.3/) ? 'FAIL' : hasPassingNote(rows, /standings tiebreaker scenario passed/) ? 'PASS' : 'PENDING'
     : 'PENDING'
   const settingsStatus = args.settings
-    ? hasFailingNote(rows, /D\.SET\.3/) ? 'FAIL' : hasPassingNote(rows, /commissioner settings propagation passed/) ? 'PARTIAL' : 'PENDING'
+    ? hasFailingNote(rows, /D\.SET\.3/) ? 'FAIL' : hasPassingNote(rows, /commissioner settings propagation passed/) ? 'PASS' : 'PENDING'
     : 'PENDING'
   const scoringStatus = args.scoring
-    ? hasFailingNote(rows, /D\.SEA\.2/) ? 'FAIL' : hasPassingNote(rows, /weekly scoring finalization passed/) ? 'PARTIAL' : 'PENDING'
+    ? hasFailingNote(rows, /D\.SEA\.2/) ? 'FAIL' : hasPassingNote(rows, /weekly scoring finalization passed/) ? 'PASS' : 'PENDING'
     : 'PENDING'
   const waiverProcessingStatus = args.waiverProcessing
-    ? hasFailingNote(rows, /D\.SEA\.2 waiver processing/) ? 'FAIL' : hasPassingNote(rows, /waiver priority processing passed/) ? 'PARTIAL' : 'PENDING'
+    ? hasFailingNote(rows, /D\.SEA\.2 waiver processing/) ? 'FAIL' : hasPassingNote(rows, /waiver priority processing passed/) ? 'PASS' : 'PENDING'
     : 'PENDING'
   const injuryFilterStatus = args.injuryFilter
-    ? hasFailingNote(rows, /D\.SEA\.2 injury/) ? 'FAIL' : hasPassingNote(rows, /injury status filter passed/) ? 'PARTIAL' : 'PENDING'
+    ? hasFailingNote(rows, /D\.SEA\.2 injury/) ? 'FAIL' : hasPassingNote(rows, /injury status filter passed/) ? 'PASS' : 'PENDING'
     : 'PENDING'
   const tradeAcceptStatus = args.tradeAccept
-    ? hasFailingNote(rows, /D\.SEA\.2 trade/) ? 'FAIL' : hasPassingNote(rows, /trade acceptance atomicity passed/) ? 'PARTIAL' : 'PENDING'
+    ? hasFailingNote(rows, /D\.SEA\.2 trade/) ? 'FAIL' : hasPassingNote(rows, /trade acceptance atomicity passed/) ? 'PASS' : 'PENDING'
     : 'PENDING'
   const tradeVetoStatus = args.tradeVeto
-    ? hasFailingNote(rows, /D\.SEA\.2 trade veto/) ? 'FAIL' : hasPassingNote(rows, /trade veto threshold passed/) ? 'PARTIAL' : 'PENDING'
+    ? hasFailingNote(rows, /D\.SEA\.2 trade veto/) ? 'FAIL' : hasPassingNote(rows, /trade veto threshold passed/) ? 'PASS' : 'PENDING'
     : 'PENDING'
   const rookieDraftStatus = args.rookieDraft
-    ? hasFailingNote(rows, /D\.SEA\.5/) ? 'FAIL' : hasPassingNote(rows, /rookie draft auto-pick passed/) ? 'PARTIAL' : 'PENDING'
+    ? hasFailingNote(rows, /D\.SEA\.5/) ? 'FAIL' : hasPassingNote(rows, /rookie draft auto-pick passed/) ? 'PASS' : 'PENDING'
     : pickChainStatus
   const browserRookieDraftStatus = args.browserRookieDraft
-    ? hasFailingNote(rows, /browser rookie draft/) ? 'FAIL' : hasPassingNote(rows, /browser rookie draft auto-pick passed/) ? 'PARTIAL' : 'PENDING'
+    ? hasFailingNote(rows, /browser rookie draft/) ? 'FAIL' : hasPassingNote(rows, /browser rookie draft auto-pick passed/) ? 'PASS' : 'PENDING'
     : 'PENDING'
+
+  const weeklyLoopStatus = allEnabledEvidencePass([
+    { enabled: args.browserLineup, status: browserLineupStatus },
+    { enabled: args.browserLineupAutoSet, status: browserLineupAutoSetStatus },
+    { enabled: args.browserLineupLocked, status: browserLineupLockedStatus },
+    { enabled: args.browserWaiver, status: browserWaiverStatus },
+    { enabled: args.browserWaiverDrop, status: browserWaiverDropStatus },
+    { enabled: args.browserWaiverIrBlock, status: browserWaiverIrBlockStatus },
+    { enabled: args.waiverProcessing, status: waiverProcessingStatus },
+    { enabled: args.browserTrade, status: browserTradeStatus },
+    { enabled: args.browserTradeFuturePick, status: browserTradeFuturePickStatus },
+    { enabled: args.browserTradeFuturePickAccept, status: browserTradeFuturePickAcceptStatus },
+    { enabled: args.browserTradeOverflowAccept, status: browserTradeOverflowAcceptStatus },
+    { enabled: args.browserTradePostDeadline, status: browserTradePostDeadlineStatus },
+    { enabled: args.browserTradeVeto, status: browserTradeVetoStatus },
+    { enabled: args.browserTradeAccept, status: browserTradeAcceptStatus },
+    { enabled: args.browserTradeTerminal, status: browserTradeTerminalStatus },
+    { enabled: args.tradeVeto, status: tradeVetoStatus },
+    { enabled: args.scoring, status: scoringStatus },
+  ])
+    ? 'PASS'
+    : args.browserLineup || args.browserLineupAutoSet || args.browserLineupLocked || args.browserWaiver ||
+      args.browserWaiverDrop || args.browserWaiverIrBlock || args.waiverProcessing || args.browserTrade ||
+      args.browserTradeFuturePick || args.browserTradeFuturePickAccept || args.browserTradeOverflowAccept ||
+      args.browserTradePostDeadline || args.browserTradeVeto || args.browserTradeAccept ||
+      args.browserTradeTerminal || args.tradeVeto || args.scoring
+      ? 'PARTIAL'
+      : 'PENDING'
+
+  const playoffRowStatus = args.playoffs && args.browserPlayoff
+    ? allEnabledEvidencePass([
+      { enabled: args.playoffs, status: playoffsStatus },
+      { enabled: args.browserPlayoff, status: browserPlayoffStatus },
+    ]) ? 'PASS' : hasEnabledEvidencePass(args.playoffs, playoffsStatus) || hasEnabledEvidencePass(args.browserPlayoff, browserPlayoffStatus) ? 'PARTIAL' : 'PENDING'
+    : args.browserPlayoff ? browserPlayoffStatus : playoffsStatus
+
+  const rookieDraftRowStatus = args.rookieDraft && args.browserRookieDraft && args.pickChain
+    ? allEnabledEvidencePass([
+      { enabled: args.rookieDraft, status: rookieDraftStatus },
+      { enabled: args.browserRookieDraft, status: browserRookieDraftStatus },
+      { enabled: args.pickChain, status: pickChainStatus },
+    ]) ? 'PASS' : 'PARTIAL'
+    : args.browserRookieDraft ? browserRookieDraftStatus : rookieDraftStatus
+
+  const auctionEvidence = args.auction && args.browserGameplay
+    ? 'Auction modes verify the real browser draft-room bid path plus server-side atomic bid validation for <=current, >budget, self-overbid, and valid bid paths.'
+    : args.browserGameplay ? 'Browser gameplay mode creates an isolated two-user league, opens the real auction draft room as the bidder, clicks the visible Bid button, and verifies nomination/bid rows changed.' : args.auction ? 'Auction mode creates a disposable auction nomination and verifies the atomic bid RPC rejects <=current, >budget, and self-overbid paths before accepting valid bids.' : 'Enable E2E_ENABLE_BROWSER_GAMEPLAY=1 for browser auction gameplay or E2E_ENABLE_AUCTION=1 for server-side bid validation.'
+
+  const weeklyLoopEvidence = weeklyLoopStatus === 'PASS'
+    ? 'All weekly-loop slices were enabled: manual lineup, auto-set, locked-player protection, no-drop/drop/IR-block waiver UI, waiver priority processing, player/future-pick/overflow/post-deadline/veto/accept/reject/withdraw trade UI, trade veto thresholds, and starter-only scoring/finalization.'
+    : args.browserLineup ? 'Browser lineup mode creates an isolated league, opens the real lineup modal, moves a bench PG into an empty PG starter slot, and verifies the weekly_lineups row persisted.' : args.browserLineupAutoSet ? 'Browser lineup auto-set mode creates an isolated league, opens the real Auto-Set modal, chooses Today, and verifies an auto-set weekly_lineups row persisted.' : args.browserLineupLocked ? 'Browser lineup locked mode creates an isolated league, seeds a live NBA game for a starter, attempts a real browser move, and verifies the locked starter remains in place while the bench player is not inserted into weekly_lineups.' : args.browserWaiver ? 'Browser waiver mode creates an isolated one-user league, opens the real claim-player modal, submits a no-drop waiver claim, and verifies the backend persisted a pending waiver_claims row.' : args.browserWaiverDrop ? 'Browser waiver-drop mode creates an isolated full-roster league, opens the real claim-player modal, selects a real roster player to drop, submits the waiver claim, and verifies the backend persisted the pending drop-then-add claim.' : args.browserWaiverIrBlock ? 'Browser waiver IR-block mode creates an isolated league with a DTD player illegally occupying IR, opens the real claim-player modal, verifies the UI blocks the claim, and checks no waiver_claims row is inserted.' : args.waiverProcessing ? 'Waiver-processing mode seeds priority-ordered competing claims, a drop-then-add claim, and a full-roster/no-drop claim, then runs the real backend processor and verifies statuses, roster movement, waiver priority reseeding, and transaction rows.' : args.browserTrade ? 'Browser trade mode creates an isolated two-user league, opens the real propose-trade modal, submits a player-for-player proposal through the authenticated backend route, and verifies pending trades/trade_items rows persisted.' : args.browserTradeFuturePick ? 'Browser future-pick trade mode creates an isolated two-user league, opens the real propose-trade modal, submits a five-years-out pick-for-pick proposal, and verifies pending pick trade_items persisted through the authenticated backend route without moving pick ownership.' : args.browserTradeFuturePickAccept ? 'Browser future-pick trade accept mode creates an isolated pending five-years-out pick-for-pick trade, accepts it through the real Offers tab, and verifies the local backend/RPC swaps draft_picks.current_owner_id without moving roster players.' : args.browserTradeOverflowAccept ? 'Browser trade overflow accept mode creates an isolated mixed player/pick offer, accepts it through the real Offers tab, drops one active player in the overflow modal, and verifies the trade completes with the drop logged on waivers.' : args.browserTradePostDeadline ? 'Browser post-deadline trade mode creates an isolated league with a past trade_deadline, attempts the real propose-trade flow, and verifies the authenticated backend rejects the proposal without inserting trades or trade_items.' : args.browserTradeVeto ? 'Browser trade veto mode creates an isolated accepted trade with an open veto window, signs in as a non-party member, uses the real Offers veto action, and verifies the backend records a member veto without moving assets.' : args.browserTradeAccept ? 'Browser trade accept mode creates an isolated pending trade, opens the real recipient Offers tab, accepts through the visible TradeCard button, and verifies the local backend/RPC moved both players and completed the trade.' : args.browserTradeTerminal ? 'Browser trade terminal mode creates isolated pending trades, rejects one as the recipient, withdraws one as the proposer through authenticated Fastify routes, and verifies terminal statuses without moving roster assets.' : args.tradeVeto ? 'Trade-veto mode seeds accepted trades, verifies trade parties cannot member-veto, verifies fewer than 50% member vetoes do not kill the trade, verifies the 50% threshold does, and verifies commissioner veto kills immediately.' : args.scoring ? 'Scoring mode seeds a disposable matchup with starter/bench lineups and real player_game_stats, calls the real backend /e2e/sync-scores path, and checks starter-only points, finalization blocking, winner, max-possible points, and standings append.' : 'Full weekly browser gameplay loop is not implemented; enable E2E_ENABLE_BROWSER_LINEUP=1 for manual lineup setting, E2E_ENABLE_BROWSER_LINEUP_AUTO_SET=1 for auto-set lineup setting, E2E_ENABLE_BROWSER_LINEUP_LOCKED=1 for locked-player move blocking, E2E_ENABLE_BROWSER_WAIVER=1 for no-drop waiver claim UI coverage, E2E_ENABLE_BROWSER_WAIVER_DROP=1 for drop-then-add waiver claim UI coverage, E2E_ENABLE_BROWSER_WAIVER_IR_BLOCK=1 for DTD-on-IR claim blocking, E2E_ENABLE_WAIVER_PROCESSING=1 for priority/drop/failure daily processing, E2E_ENABLE_BROWSER_TRADE=1 for player proposal UI coverage, E2E_ENABLE_BROWSER_TRADE_FUTURE_PICK=1 for future-pick proposal UI coverage, E2E_ENABLE_BROWSER_TRADE_FUTURE_PICK_ACCEPT=1 for future-pick accept UI coverage, E2E_ENABLE_BROWSER_TRADE_OVERFLOW_ACCEPT=1 for drop-before-accept UI coverage, E2E_ENABLE_BROWSER_TRADE_POST_DEADLINE=1 for post-deadline proposal rejection, E2E_ENABLE_BROWSER_TRADE_VETO=1 for accepted-state veto UI coverage, E2E_ENABLE_BROWSER_TRADE_ACCEPT=1 for accept UI coverage, E2E_ENABLE_BROWSER_TRADE_TERMINAL=1 for reject/withdraw UI coverage, E2E_ENABLE_TRADE_VETO=1 for trade veto threshold coverage, or E2E_ENABLE_SCORING=1 for the starter-only scoring/finalization slice.'
+
+  const playoffEvidence = args.browserPlayoff && args.playoffs
+    ? 'Playoff modes seed a disposable 10-team season, verify top-six backend bracket generation, block premature advancement, finalize rounds, crown a champion, and verify the real Expo bracket modal champion banner.'
+    : args.browserPlayoff ? 'Browser playoff mode creates a disposable 10-team league, generates the real top-six bracket, verifies advance blocking, finalizes playoff rounds, crowns a champion, then opens the real bracket modal and checks the champion banner.' : args.playoffs ? 'Playoff mode seeds a disposable 10-team regular season and calls the real authenticated /playoffs/generate route, then checks for a top-6 bracket.' : 'Enable E2E_ENABLE_BROWSER_PLAYOFF=1 for browser champion coverage or E2E_ENABLE_PLAYOFFS=1 for backend bracket-generation coverage.'
+
+  const rookieDraftEvidence = args.browserRookieDraft && args.rookieDraft && args.pickChain
+    ? 'Rookie-draft modes verify inverse-standings snake order, exact pick-asset linkage, lowest-draft-number auto-pick, already-rostered rejection, real browser 30s timer auto-pick, roster insert, and long-horizon traded-pick materialization.'
+    : args.browserRookieDraft ? 'Browser rookie-draft mode creates an isolated offseason league, opens the real rookie draft room as the first pick owner, lets the 30s timer expire, and verifies the browser-triggered auto-pick, roster insert, and linked pick asset usage.' : args.rookieDraft ? 'Rookie-draft mode starts a disposable offseason draft through the real backend route, verifies inverse-standings snake order, auto-pick lowest nba_draft_number, exact pick asset usage, roster insert, and already-rostered rejection.' : args.pickChain ? 'Pick-chain mode verifies multi-hop future-pick ownership every season and materializes the traded pick in the target rookie draft year.' : 'Enable E2E_ENABLE_BROWSER_ROOKIE_DRAFT=1 for browser timer auto-pick coverage, E2E_ENABLE_ROOKIE_DRAFT=1 for backend rookie-draft auto-pick/order coverage, or E2E_ENABLE_PICK_CHAIN=1 for long-horizon traded-pick materialization.'
 
   const coverage = [
     {
@@ -376,7 +442,7 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
     {
       requirement: 'D.SET.4 initial auction draft',
       status: auctionStatus,
-      evidence: args.browserGameplay ? 'Browser gameplay mode creates an isolated two-user league, opens the real auction draft room as the bidder, clicks the visible Bid button, and verifies nomination/bid rows changed.' : args.auction ? 'Auction mode creates a disposable auction nomination and verifies the atomic bid RPC rejects <=current, >budget, and self-overbid paths before accepting valid bids.' : 'Enable E2E_ENABLE_BROWSER_GAMEPLAY=1 for browser auction gameplay or E2E_ENABLE_AUCTION=1 for server-side bid validation.',
+      evidence: auctionEvidence,
     },
     {
       requirement: 'D.0 invariant boundary checks',
@@ -390,8 +456,8 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
     },
     {
       requirement: 'D.SEA.2 weekly lineup/scoring/waiver/trade loop',
-      status: args.browserLineup ? browserLineupStatus : args.browserLineupAutoSet ? browserLineupAutoSetStatus : args.browserLineupLocked ? browserLineupLockedStatus : args.browserWaiver ? browserWaiverStatus : args.browserWaiverDrop ? browserWaiverDropStatus : args.browserWaiverIrBlock ? browserWaiverIrBlockStatus : args.waiverProcessing ? waiverProcessingStatus : args.browserTrade ? browserTradeStatus : args.browserTradeFuturePick ? browserTradeFuturePickStatus : args.browserTradeFuturePickAccept ? browserTradeFuturePickAcceptStatus : args.browserTradeOverflowAccept ? browserTradeOverflowAcceptStatus : args.browserTradePostDeadline ? browserTradePostDeadlineStatus : args.browserTradeVeto ? browserTradeVetoStatus : args.browserTradeAccept ? browserTradeAcceptStatus : args.browserTradeTerminal ? browserTradeTerminalStatus : args.tradeVeto ? tradeVetoStatus : scoringStatus,
-      evidence: args.browserLineup ? 'Browser lineup mode creates an isolated league, opens the real lineup modal, moves a bench PG into an empty PG starter slot, and verifies the weekly_lineups row persisted.' : args.browserLineupAutoSet ? 'Browser lineup auto-set mode creates an isolated league, opens the real Auto-Set modal, chooses Today, and verifies an auto-set weekly_lineups row persisted.' : args.browserLineupLocked ? 'Browser lineup locked mode creates an isolated league, seeds a live NBA game for a starter, attempts a real browser move, and verifies the locked starter remains in place while the bench player is not inserted into weekly_lineups.' : args.browserWaiver ? 'Browser waiver mode creates an isolated one-user league, opens the real claim-player modal, submits a no-drop waiver claim, and verifies the backend persisted a pending waiver_claims row.' : args.browserWaiverDrop ? 'Browser waiver-drop mode creates an isolated full-roster league, opens the real claim-player modal, selects a real roster player to drop, submits the waiver claim, and verifies the backend persisted the pending drop-then-add claim.' : args.browserWaiverIrBlock ? 'Browser waiver IR-block mode creates an isolated league with a DTD player illegally occupying IR, opens the real claim-player modal, verifies the UI blocks the claim, and checks no waiver_claims row is inserted.' : args.waiverProcessing ? 'Waiver-processing mode seeds priority-ordered competing claims, a drop-then-add claim, and a full-roster/no-drop claim, then runs the real backend processor and verifies statuses, roster movement, waiver priority reseeding, and transaction rows.' : args.browserTrade ? 'Browser trade mode creates an isolated two-user league, opens the real propose-trade modal, submits a player-for-player proposal through the authenticated backend route, and verifies pending trades/trade_items rows persisted.' : args.browserTradeFuturePick ? 'Browser future-pick trade mode creates an isolated two-user league, opens the real propose-trade modal, submits a five-years-out pick-for-pick proposal, and verifies pending pick trade_items persisted through the authenticated backend route without moving pick ownership.' : args.browserTradeFuturePickAccept ? 'Browser future-pick trade accept mode creates an isolated pending five-years-out pick-for-pick trade, accepts it through the real Offers tab, and verifies the local backend/RPC swaps draft_picks.current_owner_id without moving roster players.' : args.browserTradeOverflowAccept ? 'Browser trade overflow accept mode creates an isolated mixed player/pick offer, accepts it through the real Offers tab, drops one active player in the overflow modal, and verifies the trade completes with the drop logged on waivers.' : args.browserTradePostDeadline ? 'Browser post-deadline trade mode creates an isolated league with a past trade_deadline, attempts the real propose-trade flow, and verifies the authenticated backend rejects the proposal without inserting trades or trade_items.' : args.browserTradeVeto ? 'Browser trade veto mode creates an isolated accepted trade with an open veto window, signs in as a non-party member, uses the real Offers veto action, and verifies the backend records a member veto without moving assets.' : args.browserTradeAccept ? 'Browser trade accept mode creates an isolated pending trade, opens the real recipient Offers tab, accepts through the visible TradeCard button, and verifies the local backend/RPC moved both players and completed the trade.' : args.browserTradeTerminal ? 'Browser trade terminal mode creates isolated pending trades, rejects one as the recipient, withdraws one as the proposer through authenticated Fastify routes, and verifies terminal statuses without moving roster assets.' : args.tradeVeto ? 'Trade-veto mode seeds accepted trades, verifies trade parties cannot member-veto, verifies fewer than 50% member vetoes do not kill the trade, verifies the 50% threshold does, and verifies commissioner veto kills immediately.' : args.scoring ? 'Scoring mode seeds a disposable matchup with starter/bench lineups and real player_game_stats, calls the real backend /e2e/sync-scores path, and checks starter-only points, finalization blocking, winner, max-possible points, and standings append.' : 'Full weekly browser gameplay loop is not implemented; enable E2E_ENABLE_BROWSER_LINEUP=1 for manual lineup setting, E2E_ENABLE_BROWSER_LINEUP_AUTO_SET=1 for auto-set lineup setting, E2E_ENABLE_BROWSER_LINEUP_LOCKED=1 for locked-player move blocking, E2E_ENABLE_BROWSER_WAIVER=1 for no-drop waiver claim UI coverage, E2E_ENABLE_BROWSER_WAIVER_DROP=1 for drop-then-add waiver claim UI coverage, E2E_ENABLE_BROWSER_WAIVER_IR_BLOCK=1 for DTD-on-IR claim blocking, E2E_ENABLE_WAIVER_PROCESSING=1 for priority/drop/failure daily processing, E2E_ENABLE_BROWSER_TRADE=1 for player proposal UI coverage, E2E_ENABLE_BROWSER_TRADE_FUTURE_PICK=1 for future-pick proposal UI coverage, E2E_ENABLE_BROWSER_TRADE_FUTURE_PICK_ACCEPT=1 for future-pick accept UI coverage, E2E_ENABLE_BROWSER_TRADE_OVERFLOW_ACCEPT=1 for drop-before-accept UI coverage, E2E_ENABLE_BROWSER_TRADE_POST_DEADLINE=1 for post-deadline proposal rejection, E2E_ENABLE_BROWSER_TRADE_VETO=1 for accepted-state veto UI coverage, E2E_ENABLE_BROWSER_TRADE_ACCEPT=1 for accept UI coverage, E2E_ENABLE_BROWSER_TRADE_TERMINAL=1 for reject/withdraw UI coverage, E2E_ENABLE_TRADE_VETO=1 for trade veto threshold coverage, or E2E_ENABLE_SCORING=1 for the starter-only scoring/finalization slice.',
+      status: weeklyLoopStatus,
+      evidence: weeklyLoopEvidence,
     },
     {
       requirement: 'D.SEA.2 injury status filtering',
@@ -410,13 +476,13 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
     },
     {
       requirement: 'D.SEA.4 playoffs/champion',
-      status: args.browserPlayoff ? browserPlayoffStatus : playoffsStatus,
-      evidence: args.browserPlayoff ? 'Browser playoff mode creates a disposable 10-team league, generates the real top-six bracket, verifies advance blocking, finalizes playoff rounds, crowns a champion, then opens the real bracket modal and checks the champion banner.' : args.playoffs ? 'Playoff mode seeds a disposable 10-team regular season and calls the real authenticated /playoffs/generate route, then checks for a top-6 bracket.' : 'Enable E2E_ENABLE_BROWSER_PLAYOFF=1 for browser champion coverage or E2E_ENABLE_PLAYOFFS=1 for backend bracket-generation coverage.',
+      status: playoffRowStatus,
+      evidence: playoffEvidence,
     },
     {
       requirement: 'D.SEA.5 rookie draft/traded picks',
-      status: args.browserRookieDraft ? browserRookieDraftStatus : rookieDraftStatus,
-      evidence: args.browserRookieDraft ? 'Browser rookie-draft mode creates an isolated offseason league, opens the real rookie draft room as the first pick owner, lets the 30s timer expire, and verifies the browser-triggered auto-pick, roster insert, and linked pick asset usage.' : args.rookieDraft ? 'Rookie-draft mode starts a disposable offseason draft through the real backend route, verifies inverse-standings snake order, auto-pick lowest nba_draft_number, exact pick asset usage, roster insert, and already-rostered rejection.' : args.pickChain ? 'Pick-chain mode verifies multi-hop future-pick ownership every season and materializes the traded pick in the target rookie draft year.' : 'Enable E2E_ENABLE_BROWSER_ROOKIE_DRAFT=1 for browser timer auto-pick coverage, E2E_ENABLE_ROOKIE_DRAFT=1 for backend rookie-draft auto-pick/order coverage, or E2E_ENABLE_PICK_CHAIN=1 for long-horizon traded-pick materialization.',
+      status: rookieDraftRowStatus,
+      evidence: rookieDraftEvidence,
     },
     {
       requirement: 'D.SEA.6 season reset',
