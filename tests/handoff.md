@@ -42,6 +42,8 @@ Latest CLI retry after reading `.env`/`backend/.env`:
 - Hosted Fastify `/health` returns `{"status":"ok"}`.
 - `supabase db push --dry-run` still fails while creating the temporary login role with HTTP 544 and asks for `SUPABASE_DB_PASSWORD`.
 - `npx --yes @railway/cli whoami` installs/runs the Railway CLI but returns `Unauthorized. Please login with railway login`.
+- This branch adds a safe hosted backend proof field: `/health` now returns `supabaseAdminKeyMode` as `modern-secret`, `legacy-service-role`, or `missing`. It never returns secret values.
+- `npm run prod:check` now accepts hosted Fastify secret-key verification when deployed `/health` reports `supabaseAdminKeyMode=modern-secret`.
 
 ## Current Blockers
 
@@ -49,6 +51,7 @@ Latest CLI retry after reading `.env`/`backend/.env`:
    - No local Railway CLI/auth path was found.
    - `npx --yes @railway/cli whoami` returns unauthorized without a Railway login.
    - Local `backend/.env` has `PANCAKE_SUPABASE_SECRET_KEY`, but hosted env cannot be inspected from this machine.
+   - Current hosted `/health` is reachable but does not yet expose `supabaseAdminKeyMode`, so the deployed backend is older than this verification change.
    - Do not disable legacy Supabase JWT keys until hosted Fastify is confirmed to use `PANCAKE_SUPABASE_SECRET_KEY` or `SUPABASE_SECRET_KEY`.
 
 2. Linked Supabase Postgres migration access is blocked.

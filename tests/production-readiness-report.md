@@ -1,7 +1,7 @@
 # Production Readiness Blocker Check
 
 - Status: BLOCKED
-- Generated: 2026-05-13T20:20:22.956Z
+- Generated: 2026-05-13T20:23:15.332Z
 
 | Requirement | Status | Evidence |
 | --- | --- | --- |
@@ -14,8 +14,8 @@
 | Local backend Supabase admin key is non-legacy | PASS | Backend/E2E env resolves to an sb_secret_ key. |
 | Linked Supabase DB password available | BLOCKED | SUPABASE_DB_PASSWORD is not set. |
 | Linked Supabase migration dry-run | BLOCKED | Initialising login role... / unexpected login role status 544: {"message":"Failed to create login role: Connection terminated due to connection timeout"} / Connect to your database by setting the env var correctly: SUPABASE_DB_PASSWORD |
-| Hosted Fastify health endpoint reachable | PASS | <remote configured>/health returned healthy JSON. |
-| Hosted Fastify secret-key env verified | BLOCKED | Set PANCAKE_HOSTED_FASTIFY_SECRET_KEY_VERIFIED=1 only after the host has PANCAKE_SUPABASE_SECRET_KEY or SUPABASE_SECRET_KEY configured. |
+| Hosted Fastify health endpoint reachable | PASS | <remote configured> returned healthy JSON. |
+| Hosted Fastify secret-key env verified | BLOCKED | Deploy a backend that exposes /health.supabaseAdminKeyMode, or set PANCAKE_HOSTED_FASTIFY_SECRET_KEY_VERIFIED=1 only after the host has PANCAKE_SUPABASE_SECRET_KEY or SUPABASE_SECRET_KEY configured. |
 | Remote legacy Supabase JWT keys disabled/revoked | BLOCKED | Set PANCAKE_LEGACY_SUPABASE_JWT_ROTATED=1 only after the hosted project legacy JWT keys are disabled/revoked through the Supabase Management API or Dashboard flow. |
 
 ## Notes

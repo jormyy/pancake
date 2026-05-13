@@ -161,13 +161,15 @@ const main = async () => {
   })
 
   const apiUrl = envValue('E2E_REMOTE_API_URL', 'EXPO_PUBLIC_API_URL')
+  let remoteHealth = null
   if (apiUrl) {
     const healthUrl = `${apiUrl.replace(/\/$/, '')}/health`
     const health = run('curl', ['-fsS', '--max-time', '15', healthUrl])
+    remoteHealth = health.status === 0 ? parseJson(health.stdout) : null
     rows.push({
       requirement: 'Hosted Fastify health endpoint reachable',
       status: statusFrom(health.status === 0),
-      evidence: health.status === 0 ? `${describeEndpoint(healthUrl)}/health returned healthy JSON.` : cleanMessage(health.stderr || health.stdout || String(health.error)),
+      evidence: health.status === 0 ? `${describeEndpoint(healthUrl)} returned healthy JSON.` : cleanMessage(health.stderr || health.stdout || String(health.error)),
     })
   } else {
     rows.push({
@@ -177,12 +179,18 @@ const main = async () => {
     })
   }
 
+  const hostedFastifyModernKey = remoteHealth?.supabaseAdminKeyMode === 'modern-secret'
+  const hostedFastifyManualVerified = envValue('PANCAKE_HOSTED_FASTIFY_SECRET_KEY_VERIFIED') === '1'
   rows.push({
     requirement: 'Hosted Fastify secret-key env verified',
-    status: statusFrom(envValue('PANCAKE_HOSTED_FASTIFY_SECRET_KEY_VERIFIED') === '1'),
-    evidence: envValue('PANCAKE_HOSTED_FASTIFY_SECRET_KEY_VERIFIED') === '1'
-      ? 'Manual deployment/env verification flag is set.'
-      : 'Set PANCAKE_HOSTED_FASTIFY_SECRET_KEY_VERIFIED=1 only after the host has PANCAKE_SUPABASE_SECRET_KEY or SUPABASE_SECRET_KEY configured.',
+    status: statusFrom(hostedFastifyModernKey || hostedFastifyManualVerified),
+    evidence: hostedFastifyModernKey
+      ? 'Hosted /health reports supabaseAdminKeyMode=modern-secret.'
+      : hostedFastifyManualVerified
+        ? 'Manual deployment/env verification flag is set.'
+        : remoteHealth?.supabaseAdminKeyMode === 'legacy-service-role'
+          ? 'Hosted /health reports legacy-service-role; set PANCAKE_SUPABASE_SECRET_KEY or SUPABASE_SECRET_KEY on the host before disabling legacy keys.'
+          : 'Deploy a backend that exposes /health.supabaseAdminKeyMode, or set PANCAKE_HOSTED_FASTIFY_SECRET_KEY_VERIFIED=1 only after the host has PANCAKE_SUPABASE_SECRET_KEY or SUPABASE_SECRET_KEY configured.',
   })
 
   rows.push({
