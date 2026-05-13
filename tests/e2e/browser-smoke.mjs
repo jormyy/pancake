@@ -37,6 +37,25 @@ const safeName = (value) => value.replace(/[^a-zA-Z0-9._-]/g, '-')
 
 const joinUrl = (base, pathname) => new URL(pathname, base.endsWith('/') ? base : `${base}/`).toString()
 
+const captureScreenshot = async (session, artifactDir, filename) => {
+  const outputPath = path.join(artifactDir, filename)
+  let lastError = null
+  for (const timeout of [60_000, 120_000]) {
+    try {
+      await browser(session, ['screenshot', outputPath], { timeout })
+      return outputPath
+    } catch (error) {
+      lastError = error
+      await browser(session, ['wait', '1000']).catch(() => {})
+    }
+  }
+  await writeFile(
+    `${outputPath}.error.txt`,
+    `${lastError instanceof Error ? lastError.message : String(lastError)}\n`,
+  ).catch(() => {})
+  throw lastError
+}
+
 const encodeQuery = (pathname, params) => {
   const search = new URLSearchParams()
   for (const [key, value] of Object.entries(params)) {
@@ -278,7 +297,7 @@ export async function runBrowserSmoke({
       for (const [label, route] of authRoutes) {
         await browser(session, ['open', joinUrl(env.frontendUrl, route)])
         await browser(session, ['wait', '1500'])
-        await browser(session, ['screenshot', path.join(artifactDir, `${label}.png`)], { timeout: 60_000 })
+        await captureScreenshot(session, artifactDir, `${label}.png`)
         visited.push(label)
       }
     }
@@ -307,7 +326,7 @@ export async function runBrowserSmoke({
     for (const [label, route] of routes) {
       await browser(session, ['open', joinUrl(env.frontendUrl, route)])
       await browser(session, ['wait', '1500'])
-      await browser(session, ['screenshot', path.join(artifactDir, `${label}.png`)], { timeout: 60_000 })
+      await captureScreenshot(session, artifactDir, `${label}.png`)
       visited.push(label)
     }
 

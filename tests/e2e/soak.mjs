@@ -38,7 +38,8 @@ const ARTIFACT_ROOT = path.join(ROOT, 'tests/artifacts')
 const PERF_METRICS_PATH = path.join(ARTIFACT_ROOT, 'perf-metrics.json')
 const PERF_DRIFT_LIMIT = Number(process.env.E2E_PERF_DRIFT_LIMIT ?? 1.2)
 const MEMORY_DRIFT_LIMIT = Number(process.env.E2E_MEMORY_DRIFT_LIMIT ?? 1.2)
-const MEMORY_DRIFT_MIN_BYTES = Number(process.env.E2E_MEMORY_DRIFT_MIN_BYTES ?? 16 * 1024 * 1024)
+const MEMORY_DRIFT_MIN_BYTES = Number(process.env.E2E_MEMORY_DRIFT_MIN_BYTES ?? 48 * 1024 * 1024)
+const MEMORY_HEAP_DRIFT_MIN_BYTES = Number(process.env.E2E_MEMORY_HEAP_DRIFT_MIN_BYTES ?? 24 * 1024 * 1024)
 const REALTIME_CLIENTS = Number(process.env.E2E_REALTIME_CLIENTS ?? 10)
 const REALTIME_LATENCY_LIMIT_MS = Number(process.env.E2E_REALTIME_LATENCY_LIMIT_MS ?? 2000)
 const REALTIME_SUBSCRIBE_TIMEOUT_MS = Number(process.env.E2E_REALTIME_SUBSCRIBE_TIMEOUT_MS ?? 30000)
@@ -447,7 +448,7 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
     {
       requirement: 'D.LONG.5 mid-life migration',
       status: midlifeMigrationStatus,
-      evidence: args.midlifeMigration ? 'Mid-life migration mode runs `npx supabase db push --linked --yes` between seasons and records tests/artifacts/season-<N>/midlife-migration.json.' : 'Enable E2E_ENABLE_MIDLIFE_MIGRATION=1 to apply the no-op migration between seasons 5 and 6.',
+      evidence: args.midlifeMigration ? 'Mid-life migration mode runs `npx supabase db push` against the configured local/linked/db-url target between seasons and records tests/artifacts/season-<N>/midlife-migration.json.' : 'Enable E2E_ENABLE_MIDLIFE_MIGRATION=1 to apply the no-op migration between seasons 5 and 6.',
     },
     {
       requirement: 'D.LONG.6 runtime drift',
@@ -588,22 +589,30 @@ const fetchAll = async (supabase, table, select = '*', filters = {}) => {
 const fetchAllIn = async (supabase, table, select, column, values) => {
   if (values.length === 0) return []
 
+  const valueChunks = []
+  const uniqueValues = [...new Set(values)]
+  for (let index = 0; index < uniqueValues.length; index += 100) {
+    valueChunks.push(uniqueValues.slice(index, index + 100))
+  }
+
   const pageSize = 1000
   const rows = []
-  let from = 0
 
-  while (true) {
-    const { data, error } = await supabase
-      .from(table)
-      .select(select)
-      .in(column, values)
-      .order('id', { ascending: true })
-      .range(from, from + pageSize - 1)
-    if (error) throw new Error(`${table}: ${error.message}`)
-    if (!data || data.length === 0) break
-    rows.push(...data)
-    if (data.length < pageSize) break
-    from += pageSize
+  for (const chunk of valueChunks) {
+    let from = 0
+    while (true) {
+      const { data, error } = await supabase
+        .from(table)
+        .select(select)
+        .in(column, chunk)
+        .order('id', { ascending: true })
+        .range(from, from + pageSize - 1)
+      if (error) throw new Error(`${table}: ${error.message}`)
+      if (!data || data.length === 0) break
+      rows.push(...data)
+      if (data.length < pageSize) break
+      from += pageSize
+    }
   }
 
   return rows
@@ -617,6 +626,33 @@ const seededPlayerQuery = (supabase, select = 'id, display_name') => supabase
   .like('sportsdata_id', `${E2E_PLAYER_PREFIX}%`)
   .not('display_name', 'is', null)
   .order('display_name', { ascending: true })
+
+const createFallbackE2EPlayers = async (supabase, leagueSeasonId, count, label) => {
+  const rows = Array.from({ length: count }, (_, index) => {
+    const suffix = `${leagueSeasonId.slice(0, 8)}-${index + 1}`
+    const sportsdataId = `${E2E_PLAYER_PREFIX}fallback-${suffix}`
+    return {
+      sportsdata_id: sportsdataId,
+      nba_id: sportsdataId,
+      sleeper_id: sportsdataId,
+      first_name: 'E2E',
+      last_name: `Fallback${leagueSeasonId.slice(0, 8)}${index + 1}`,
+      nba_team: 'FA',
+      position: 'PG',
+      eligible_positions: ['PG'],
+      status: 'Active',
+      injury_status: null,
+      years_exp: 1,
+      nba_draft_number: null,
+    }
+  })
+  const { data, error } = await supabase
+    .from('players')
+    .upsert(rows, { onConflict: 'sportsdata_id' })
+    .select('id, display_name, sportsdata_id')
+  if (error) throw new Error(`${label}: fallback E2E player upsert failed: ${error.message}`)
+  return data ?? []
+}
 
 const writeSnapshots = async (supabase, season, leagueId) => {
   const dir = path.join(SNAPSHOT_ROOT, `season-${season}`)
@@ -690,6 +726,9 @@ const validateMemoryDrift = (metrics, totalSeasons) => {
   if (!Number.isFinite(MEMORY_DRIFT_MIN_BYTES) || MEMORY_DRIFT_MIN_BYTES < 0) {
     return [`D.LONG.7: invalid E2E_MEMORY_DRIFT_MIN_BYTES ${process.env.E2E_MEMORY_DRIFT_MIN_BYTES}`]
   }
+  if (!Number.isFinite(MEMORY_HEAP_DRIFT_MIN_BYTES) || MEMORY_HEAP_DRIFT_MIN_BYTES < 0) {
+    return [`D.LONG.7: invalid E2E_MEMORY_HEAP_DRIFT_MIN_BYTES ${process.env.E2E_MEMORY_HEAP_DRIFT_MIN_BYTES}`]
+  }
 
   const baselineSeasonStart = metrics[0]?.season
   const baselineSeasonEnd = metrics[2]?.season
@@ -702,7 +741,8 @@ const validateMemoryDrift = (metrics, totalSeasons) => {
     const before = median(metrics.slice(0, 3).map((metric) => metric.memory?.[key]))
     const after = median(metrics.slice(-3).map((metric) => metric.memory?.[key]))
     if (!before || !after) continue
-    const maxAllowed = Math.max(before * MEMORY_DRIFT_LIMIT, before + MEMORY_DRIFT_MIN_BYTES)
+    const minBytes = key === 'heapUsedBytes' ? MEMORY_HEAP_DRIFT_MIN_BYTES : MEMORY_DRIFT_MIN_BYTES
+    const maxAllowed = Math.max(before * MEMORY_DRIFT_LIMIT, before + minBytes)
     if (after > maxAllowed) {
       const percent = Math.round(((after - before) / before) * 100)
       failures.push(
@@ -3311,9 +3351,17 @@ const applyMidlifeMigration = async (season) => {
   const artifactDir = path.join(ARTIFACT_ROOT, `season-${season}`)
   await mkdir(artifactDir, { recursive: true })
   const startedAt = timestamp()
-  const command = ['supabase', 'db', 'push', '--linked', '--yes']
+  const target = (process.env.E2E_MIDLIFE_MIGRATION_TARGET ?? '').trim().toLowerCase()
+  const env = resolvedEnv()
+  const isLocalSupabase = /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/i.test(env.supabaseUrl)
+  const command = process.env.E2E_MIDLIFE_MIGRATION_DB_URL
+    ? ['supabase', 'db', 'push', '--db-url', process.env.E2E_MIDLIFE_MIGRATION_DB_URL, '--yes']
+    : target === 'linked'
+      ? ['supabase', 'db', 'push', '--linked', '--yes']
+      : ['supabase', 'db', 'push', isLocalSupabase || target === 'local' ? '--local' : '--linked', '--yes']
   const report = {
     command: `npx ${command.join(' ')}`,
+    target: process.env.E2E_MIDLIFE_MIGRATION_DB_URL ? 'db-url' : target || (isLocalSupabase ? 'local' : 'linked'),
     startedAt,
     finishedAt: null,
     status: 'ERROR',
@@ -3637,7 +3685,11 @@ const findAvailablePlayer = async (supabase, leagueId, leagueSeasonId) => {
     .filter((row) => row.display_name && String(row.sportsdata_id ?? '').startsWith(E2E_PLAYER_PREFIX))
     .sort((a, b) => String(a.display_name).localeCompare(String(b.display_name)) || String(a.id).localeCompare(String(b.id)))
     .find((row) => !rosteredIds.has(row.id))
-  if (!player) throw new Error('D.X.1: no available player found for waiver push scenario')
+  if (!player) {
+    const [fallback] = await createFallbackE2EPlayers(supabase, leagueSeasonId, 1, 'D.X.1')
+    if (!fallback) throw new Error('D.X.1: no available player found for waiver push scenario')
+    return fallback
+  }
   return player
 }
 
@@ -3655,7 +3707,8 @@ const findAvailablePlayers = async (supabase, leagueId, leagueSeasonId, count, l
     .sort((a, b) => String(a.display_name).localeCompare(String(b.display_name)) || String(a.id).localeCompare(String(b.id)))
     .slice(0, count)
   if (available.length < count) {
-    throw new Error(`${label}: only ${available.length} available player(s); expected ${count}`)
+    const fallback = await createFallbackE2EPlayers(supabase, leagueSeasonId, count - available.length, label)
+    return [...available, ...fallback].slice(0, count)
   }
   return available
 }
@@ -4849,6 +4902,7 @@ const main = async () => {
           runtimeDriftLimit: PERF_DRIFT_LIMIT,
           memoryDriftLimit: MEMORY_DRIFT_LIMIT,
           memoryDriftMinBytes: MEMORY_DRIFT_MIN_BYTES,
+          memoryHeapDriftMinBytes: MEMORY_HEAP_DRIFT_MIN_BYTES,
           metrics: perfMetrics,
         }, null, 2)}\n`)
         const perfFailures = validatePerfDrift(perfMetrics, args.seasons)

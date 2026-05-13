@@ -427,13 +427,70 @@ const installBrowserHooks = async (session, env, options = {}) => {
   })
 }
 
+const readAuthScreenState = async (session) => {
+  const output = await browser(session, [
+    'eval',
+    `(() => {
+      const text = document.body?.innerText || '';
+      return JSON.stringify({
+        url: location.href,
+        isSignIn: text.includes('Sign In') && text.includes("Don't have an account?"),
+        sample: text.slice(0, 400)
+      });
+    })()`,
+  ])
+  return parseEvalJson(output)
+}
+
+const clickSignInButton = async (session) => {
+  const output = await browser(session, [
+    'eval',
+    `(() => {
+      const candidates = [...document.querySelectorAll('[aria-label], [role="button"], button')];
+      const named = candidates.find((element) => (
+        element.getAttribute('aria-label') === 'Sign In' ||
+        (element.textContent || '').trim() === 'Sign In'
+      ));
+      const textNode = named || [...document.querySelectorAll('*')]
+        .reverse()
+        .find((element) => (element.textContent || '').trim() === 'Sign In');
+      const target = textNode?.closest?.('[role="button"], button, [tabindex]') || textNode;
+      if (!target) return JSON.stringify({ ok: false, sample: (document.body?.innerText || '').slice(0, 400) });
+      target.scrollIntoView({ block: 'center', inline: 'center' });
+      target.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, pointerId: 1, pointerType: 'mouse' }));
+      target.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true, pointerId: 1, pointerType: 'mouse' }));
+      target.click();
+      return JSON.stringify({ ok: true });
+    })()`,
+  ])
+  const result = parseEvalJson(output)
+  if (!result.ok) throw new Error(`browser trade sign-in button not found: ${result.sample}`)
+}
+
 const signInBrowser = async (session, env, user, password) => {
   await installBrowserHooks(session, env, { openBeforeSet: true, reloadAfterSet: true })
   await browser(session, ['wait', '1500'])
-  await browser(session, ['find', 'placeholder', 'Email', 'fill', user.email])
-  await browser(session, ['find', 'placeholder', 'Password', 'fill', password])
-  await browser(session, ['find', 'text', 'Sign In', 'click'])
-  await browser(session, ['wait', '4000'])
+  let lastState = null
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      await browser(session, ['find', 'placeholder', 'Email', 'fill', user.email])
+      await browser(session, ['find', 'placeholder', 'Password', 'fill', password])
+      await clickSignInButton(session)
+    } catch (error) {
+      lastState = await readAuthScreenState(session).catch(() => null)
+      if (lastState && !lastState.isSignIn) return
+      throw error
+    }
+    await browser(session, ['wait', '4000'])
+    lastState = await readAuthScreenState(session)
+    if (!lastState.isSignIn) return
+    if (attempt < 3) {
+      await browser(session, ['open', env.frontendUrl])
+      await installBrowserHooks(session, env)
+      await browser(session, ['wait', '1500'])
+    }
+  }
+  throw new Error(`browser trade sign-in stayed on auth screen at ${lastState?.url ?? '<unknown>'}: ${lastState?.sample ?? '<no sample>'}`)
 }
 
 const assertPageText = async (session, required, label) => {

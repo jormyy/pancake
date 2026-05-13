@@ -86,8 +86,29 @@ const findAvailablePlayer = async (supabase, leagueId, leagueSeasonId) => {
 
   const rosteredIds = new Set((rosterRows ?? []).map((row) => row.player_id))
   const player = (players ?? []).find((row) => row.display_name && !rosteredIds.has(row.id))
-  if (!player) throw new Error('D.X.4: no available player found for browser perf auction nomination')
-  return player
+  if (player) return player
+
+  const sportsdataId = `e2e-perf-free-agent-${leagueSeasonId}`
+  const { data: fallbackPlayer, error: fallbackError } = await supabase
+    .from('players')
+    .upsert({
+      sportsdata_id: sportsdataId,
+      nba_id: sportsdataId,
+      sleeper_id: sportsdataId,
+      first_name: 'E2E',
+      last_name: `PerfFreeAgent${leagueSeasonId.slice(0, 8)}`,
+      nba_team: 'FA',
+      position: 'PG',
+      eligible_positions: ['PG'],
+      status: 'Active',
+      injury_status: null,
+      years_exp: 1,
+      nba_draft_number: null,
+    }, { onConflict: 'sportsdata_id' })
+    .select('id, display_name')
+    .single()
+  if (fallbackError) throw new Error(`D.X.4 perf free-agent fixture upsert failed: ${fallbackError.message}`)
+  return fallbackPlayer
 }
 
 const ensurePerfAuction = async (supabase, state) => {

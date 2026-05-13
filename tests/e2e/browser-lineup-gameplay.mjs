@@ -144,6 +144,15 @@ const ensureCurrentWeek = async (admin, seasonYear) => {
   if (existingError) throw new Error(`season week lookup: ${existingError.message}`)
   if (existing) return existing
 
+  const { data: fixtureWeek, error: fixtureWeekError } = await admin
+    .from('season_weeks')
+    .select('week_number, week_start, week_end')
+    .eq('season_year', seasonYear)
+    .eq('week_number', 99)
+    .maybeSingle()
+  if (fixtureWeekError) throw new Error(`season week fixture lookup: ${fixtureWeekError.message}`)
+  if (fixtureWeek) return fixtureWeek
+
   const { data, error } = await admin
     .from('season_weeks')
     .insert({
@@ -317,21 +326,26 @@ const signInBrowser = async (session, env, user, password) => {
 }
 
 const assertPageText = async (session, required, label) => {
-  const output = await browser(session, [
-    'eval',
-    `(() => {
-      const text = document.body?.innerText || '';
-      const required = ${JSON.stringify(required)};
-      return JSON.stringify({
-        ok: required.every((value) => text.includes(value)),
-        missing: required.filter((value) => !text.includes(value)),
-        sample: text.slice(0, 1000)
-      });
-    })()`,
-  ])
-  const parsed = parseEvalJson(output)
-  if (!parsed.ok) throw new Error(`${label} missing page text: ${parsed.missing.join(', ')}. Sample: ${parsed.sample}`)
-  return parsed
+  let parsed = null
+  const deadline = Date.now() + 15_000
+  while (Date.now() < deadline) {
+    const output = await browser(session, [
+      'eval',
+      `(() => {
+        const text = document.body?.innerText || '';
+        const required = ${JSON.stringify(required)};
+        return JSON.stringify({
+          ok: required.every((value) => text.includes(value)),
+          missing: required.filter((value) => !text.includes(value)),
+          sample: text.slice(0, 1000)
+        });
+      })()`,
+    ])
+    parsed = parseEvalJson(output)
+    if (parsed.ok) return parsed
+    await browser(session, ['wait', '500'])
+  }
+  throw new Error(`${label} missing page text: ${parsed?.missing?.join(', ') ?? required.join(', ')}. Sample: ${parsed?.sample ?? ''}`)
 }
 
 const clickButton = async (session, name, label) => {
@@ -364,6 +378,26 @@ const clickButton = async (session, name, label) => {
     if (!parsed.ok) throw new Error(`${label}: button not found: ${name}. Body: ${parsed.body}`)
     return parsed
   }
+}
+
+const captureScreenshot = async (session, artifactDir, filename) => {
+  const outputPath = path.join(artifactDir, filename)
+  for (const timeout of [60_000, 120_000]) {
+    try {
+      await browser(session, ['screenshot', outputPath], { timeout })
+      return { ok: true, path: outputPath, timeout }
+    } catch (error) {
+      if (timeout === 120_000) {
+        await writeFile(
+          `${outputPath}.error.txt`,
+          `${error instanceof Error ? error.message : String(error)}\n`,
+        ).catch(() => {})
+        return { ok: false, path: outputPath, error: error instanceof Error ? error.message : String(error) }
+      }
+      await browser(session, ['wait', '1000']).catch(() => {})
+    }
+  }
+  return { ok: false, path: outputPath, error: 'screenshot unavailable' }
 }
 
 const verifyLineup = async (fixture, { expectedAutoSet = false } = {}) => {
@@ -450,7 +484,7 @@ export async function runBrowserLineupScenario({
     await browser(session, ['open', joinUrl(env.frontendUrl, '/lineup')])
     await browser(session, ['wait', '3000'])
     await assertPageText(session, ['Lineup', 'STARTERS', 'BENCH', fixture.player.display_name], 'lineup before move')
-    await browser(session, ['screenshot', path.join(artifactDir, 'lineup-before-move.png')], { timeout: 60_000 })
+    debug = { ...debug, beforeScreenshot: await captureScreenshot(session, artifactDir, 'lineup-before-move.png') }
     const benchClick = await clickButton(session, `Bench ${fixture.player.display_name}`, 'bench player row')
     const slotClick = await clickButton(session, 'Empty PG slot', 'empty PG slot row')
     const lineupCheck = await waitForLineup(fixture, { expectedAutoSet: false })
@@ -459,7 +493,7 @@ export async function runBrowserLineupScenario({
       throw new Error(`lineup did not persist: ${lineupCheck.failures.join('; ')}`)
     }
     await browser(session, ['wait', '1000'])
-    await browser(session, ['screenshot', path.join(artifactDir, 'lineup-after-move.png')], { timeout: 60_000 })
+    debug = { ...debug, afterScreenshot: await captureScreenshot(session, artifactDir, 'lineup-after-move.png') }
 
     const consoleOutput = await browser(session, ['console']).catch((error) => `console unavailable: ${error.message}`)
     const errorOutput = await browser(session, ['errors']).catch((error) => `errors unavailable: ${error.message}`)
@@ -555,7 +589,7 @@ export async function runBrowserLineupLockedScenario({
       ['Lineup', 'STARTERS', 'BENCH', fixture.lockedPlayer.display_name, fixture.benchPlayer.display_name, 'LIVE'],
       'locked lineup before move',
     )
-    await browser(session, ['screenshot', path.join(artifactDir, 'lineup-locked-before.png')], { timeout: 60_000 })
+    debug = { ...debug, beforeScreenshot: await captureScreenshot(session, artifactDir, 'lineup-locked-before.png') }
     const starterClick = await clickButton(session, `PG ${fixture.lockedPlayer.display_name}`, 'locked starter row')
     const benchClick = await clickButton(session, `Bench ${fixture.benchPlayer.display_name}`, 'bench player row')
     await browser(session, ['wait', '1000'])
@@ -564,7 +598,7 @@ export async function runBrowserLineupLockedScenario({
     if (lockedCheck.failures.length > 0) {
       throw new Error(`locked lineup changed unexpectedly: ${lockedCheck.failures.join('; ')}`)
     }
-    await browser(session, ['screenshot', path.join(artifactDir, 'lineup-locked-after.png')], { timeout: 60_000 })
+    debug = { ...debug, afterScreenshot: await captureScreenshot(session, artifactDir, 'lineup-locked-after.png') }
 
     const consoleOutput = await browser(session, ['console']).catch((error) => `console unavailable: ${error.message}`)
     const errorOutput = await browser(session, ['errors']).catch((error) => `errors unavailable: ${error.message}`)
@@ -662,7 +696,7 @@ export async function runBrowserLineupAutoSetScenario({
     await browser(session, ['open', joinUrl(env.frontendUrl, '/lineup')])
     await browser(session, ['wait', '3000'])
     await assertPageText(session, ['Lineup', 'STARTERS', 'BENCH', fixture.player.display_name, 'Auto-Set'], 'lineup before auto-set')
-    await browser(session, ['screenshot', path.join(artifactDir, 'lineup-auto-before.png')], { timeout: 60_000 })
+    debug = { ...debug, beforeScreenshot: await captureScreenshot(session, artifactDir, 'lineup-auto-before.png') }
     const openClick = await clickButton(session, 'Open auto-set lineup options', 'auto-set button')
     await assertPageText(session, ['Auto-Set Lineup', 'Today', 'Whole Week', 'Rest of Season'], 'auto-set modal')
     const todayClick = await clickButton(session, 'Auto-set today', 'auto-set today button')
@@ -672,7 +706,7 @@ export async function runBrowserLineupAutoSetScenario({
       throw new Error(`auto-set lineup did not persist: ${lineupCheck.failures.join('; ')}`)
     }
     await browser(session, ['wait', '1000'])
-    await browser(session, ['screenshot', path.join(artifactDir, 'lineup-auto-after.png')], { timeout: 60_000 })
+    debug = { ...debug, afterScreenshot: await captureScreenshot(session, artifactDir, 'lineup-auto-after.png') }
 
     const consoleOutput = await browser(session, ['console']).catch((error) => `console unavailable: ${error.message}`)
     const errorOutput = await browser(session, ['errors']).catch((error) => `errors unavailable: ${error.message}`)

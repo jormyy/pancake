@@ -1,9 +1,9 @@
 # E2E Coverage Checklist
 
 - Run status: PASS
-- Started: 2026-05-12T21:28:34.589Z
-- Finished: 2026-05-12T22:32:33.143Z
-- Target seasons: 10
+- Started: 2026-05-13T09:59:24.123Z
+- Finished: 2026-05-13T12:08:37.867Z
+- Target seasons: 20
 
 ## Prompt-To-Artifact Matrix
 
@@ -34,10 +34,10 @@
 | D.X.5 UI sweep | PASS | Browser full sweep visits auth, tabs, modals, player, auction-draft, and rookie-draft routes, with screenshots and console/error artifacts. |
 | D.LONG.1/D.LONG.2 long-horizon pick trades | PARTIAL | Pick-chain mode creates a three-hop future-pick trade, verifies owner persistence every season, and checks the target rookie-draft slot belongs to the final owner when the pick year arrives. |
 | D.LONG.3/D.LONG.4 standings/champion history | PARTIAL | History mode seeds deterministic completed-season standings/champion fixtures and verifies them after season resets. |
-| D.LONG.5 mid-life migration | PENDING | Enable E2E_ENABLE_MIDLIFE_MIGRATION=1 to apply the no-op migration between seasons 5 and 6. |
+| D.LONG.5 mid-life migration | PASS | Mid-life migration mode runs `npx supabase db push` against the configured local/linked/db-url target between seasons and records tests/artifacts/season-<N>/midlife-migration.json. |
 | D.LONG.6 runtime drift | PASS | Runtime metrics live in tests/artifacts/perf-metrics.json. |
 | D.LONG.7 memory/connection leaks | PASS | Harness memory metrics live in tests/artifacts/perf-metrics.json and 10+ season runs fail if RSS or heap exceeds the configured drift limit. |
-| 10 seasons and continue past 10 / 20 clean | PENDING | Current run status is PASS for target 10 season(s); PARTIAL means enabled season rows passed but full gameplay coverage is still pending. |
+| 10 seasons and continue past 10 / 20 clean | PASS | Current run status is PASS for target 20 season(s); PARTIAL means enabled season rows passed but full gameplay coverage is still pending. |
 | Production-ready exit criteria | FAIL | Coverage remains pending or failing for multiple required gameplay and long-horizon criteria. |
 
 ## Run Notes
@@ -74,7 +74,7 @@
 - Draft push notification intercept enabled through E2E_ENABLE_DRAFT_PUSH=1.
 - Standings/champion history retention enabled through E2E_ENABLE_HISTORY=1.
 - Realtime latency check enabled through E2E_ENABLE_REALTIME=1 for 10 clients.
-- Mid-life migration check disabled; set E2E_ENABLE_MIDLIFE_MIGRATION=1 to exercise D.LONG.5.
+- Mid-life migration check enabled after season 5.
 - Auction bid validation enabled through E2E_ENABLE_AUCTION=1.
 - Playoff bracket scenario enabled through E2E_ENABLE_PLAYOFFS=1.
 - Standings tiebreaker/RPS scenario enabled through E2E_ENABLE_TIEBREAKERS=1.
@@ -87,7 +87,8 @@
 - Rookie draft auto-pick/order scenario enabled through E2E_ENABLE_ROOKIE_DRAFT=1.
 - Season reset carryover/reseed scenario enabled through E2E_ENABLE_SEASON_RESET=1.
 - Schema preflight passed: post-refactor RPCs and required columns are present.
-- Future-pick chain: 2057 round 1 pick 7b083fe7-98f5-4fa4-9def-d6bb5c00a252 now belongs to E2E Team 4.
+- Future-pick chain: 2157 round 1 pick 12ae3a8d-379f-4471-94fb-0c08358f3218 now belongs to E2E Team 4.
 - CORS preflight check passed for the configured frontend origin.
 - Backend EXPO_PUSH_URL points at the fake upstream push intercept.
+- D.LONG.5 mid-life migration up_to_date before season 6.
 - Perf metrics written to tests/artifacts/perf-metrics.json.
