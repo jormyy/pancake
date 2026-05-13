@@ -270,8 +270,16 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
   const leagueLifecycleStatus = args.leagueLifecycle
     ? hasFailingNote(rows, /D\.SET\.2/) ? 'FAIL' : hasPassingNote(rows, /league lifecycle passed/) ? 'PARTIAL' : 'PENDING'
     : targetLeagueId ? 'PARTIAL' : 'PENDING'
+  const tradeWaiverPushPassed = hasPassingNote(rows, /trade and waiver push notification intercepts passed|push notification intercepts passed/)
+  const draftPushPassed = hasPassingNote(rows, /draft push notification intercept passed/)
   const pushStatus = args.push || args.draftPush
-    ? status === 'ERROR' || hasFailingNote(rows, /D\.X\.1|push|waiver/i) ? 'FAIL' : hasPassingNote(rows, /push notification intercepts passed|draft push notification intercept passed/) ? 'PARTIAL' : 'PENDING'
+    ? status === 'ERROR' || hasFailingNote(rows, /D\.X\.1|push|waiver/i)
+      ? 'FAIL'
+      : args.push && args.draftPush && tradeWaiverPushPassed && draftPushPassed
+        ? 'PASS'
+        : tradeWaiverPushPassed || draftPushPassed
+          ? 'PARTIAL'
+          : 'PENDING'
     : 'PENDING'
   const historyStatus = args.history
     ? hasFailingNote(rows, /D\.LONG\.3|D\.LONG\.4/) ? 'FAIL' : hasPassingNote(rows, /standings\/champion history retained/) ? 'PARTIAL' : 'PENDING'
@@ -413,7 +421,7 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
     {
       requirement: 'D.X.1 push notifications',
       status: pushStatus,
-      evidence: args.push ? 'Push mode verifies trade and waiver notifications through the fake Expo upstream; draft-push mode separately verifies rookie auto-pick notifications when enabled.' : args.draftPush ? 'Draft-push mode runs a disposable rookie auto-pick and asserts the fake Expo upstream captured a draft notification.' : 'Trade push prior slice exists; waiver and draft push slices are separate; enable E2E_ENABLE_PUSH=1 or E2E_ENABLE_DRAFT_PUSH=1.',
+      evidence: args.push && args.draftPush ? 'Push mode verifies trade and waiver notifications through the fake Expo upstream; draft-push mode verifies rookie auto-pick notifications through the same fake Expo intercept.' : args.push ? 'Push mode verifies trade and waiver notifications through the fake Expo upstream; enable E2E_ENABLE_DRAFT_PUSH=1 for draft notifications.' : args.draftPush ? 'Draft-push mode runs a disposable rookie auto-pick and asserts the fake Expo upstream captured a draft notification; enable E2E_ENABLE_PUSH=1 for trade and waiver notifications.' : 'Enable E2E_ENABLE_PUSH=1 and E2E_ENABLE_DRAFT_PUSH=1 to cover trade, waiver, and draft push notifications.',
     },
     {
       requirement: 'D.X.2 realtime bid/score events',

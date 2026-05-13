@@ -27,7 +27,7 @@
 | D.SEA.5 rookie draft/traded picks | PARTIAL | Browser rookie-draft mode creates an isolated offseason league, opens the real rookie draft room as the first pick owner, lets the 30s timer expire, and verifies the browser-triggered auto-pick, roster insert, and linked pick asset usage. |
 | D.SEA.6 season reset | PARTIAL | Season-reset mode creates a disposable league, calls the real /e2e/advance-season endpoint, and verifies current-season flip, roster carryover, waiver reseed, prior-season queryability, and rolling five-year pick horizon. |
 | D.SEA.7 snapshots/no shrink | PASS | Snapshot summaries are written under tests/snapshots/season-<N>/summary.json. |
-| D.X.1 push notifications | PARTIAL | Push mode verifies trade and waiver notifications through the fake Expo upstream; draft-push mode separately verifies rookie auto-pick notifications when enabled. |
+| D.X.1 push notifications | PASS | The 20-season proof enabled both push modes: trade and waiver notifications plus rookie auto-pick draft notifications were captured by the fake Expo upstream. |
 | D.X.2 realtime bid/score events | PARTIAL | The 20-season proof asserted matchup score realtime to 10 clients; the follow-up local focused run also asserted auction bid nomination realtime to 10 clients. A full 20-season rerun with `20260513000001_enable_draft_realtime.sql` pushed remotely is still pending. |
 | D.X.3 CORS regression | PASS | Backend tick mode runs OPTIONS preflight before the season loop. |
 | D.X.4 perf smoke under draft/live scoring load | PASS | Browser perf mode opens the real draft room and home scoreboard while applying continuous auction bids and matchup updates, then asserts responsiveness, screenshots, console output, and browser errors. |
