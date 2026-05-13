@@ -5,9 +5,11 @@ This harness is the Phase C entrypoint for dynasty soak testing. It starts the f
 The runner loads `.env` and `backend/.env` automatically. Existing app variables are accepted as fallbacks:
 
 - `SUPABASE_URL` or `EXPO_PUBLIC_SUPABASE_URL`
-- `PANCAKE_SUPABASE_SECRET_KEY`, `SUPABASE_SECRET_KEY`, or `SUPABASE_SERVICE_ROLE_KEY`
-- `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` or `EXPO_PUBLIC_SUPABASE_ANON_KEY`
+- `PANCAKE_SUPABASE_SECRET_KEY` or `SUPABASE_SECRET_KEY`
+- `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
 - `EXPO_PUBLIC_API_URL`
+
+Legacy Supabase JWT keys are fallback-only while the hosted project migration is in progress: `SUPABASE_SERVICE_ROLE_KEY`, `E2E_SUPABASE_SERVICE_ROLE_KEY`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, and `E2E_SUPABASE_ANON_KEY`.
 
 Explicit E2E overrides are still supported:
 
@@ -15,9 +17,9 @@ Explicit E2E overrides are still supported:
 export E2E_SUPABASE_URL=...
 export E2E_PANCAKE_SUPABASE_SECRET_KEY=...
 export E2E_SUPABASE_SECRET_KEY=...
-export E2E_SUPABASE_SERVICE_ROLE_KEY=...
 export E2E_SUPABASE_PUBLISHABLE_KEY=...
-export E2E_SUPABASE_ANON_KEY=...
+export E2E_SUPABASE_SERVICE_ROLE_KEY=... # legacy fallback only
+export E2E_SUPABASE_ANON_KEY=... # legacy fallback only
 export E2E_API_BASE_URL=http://127.0.0.1:3000
 export E2E_FRONTEND_URL=http://127.0.0.1:8081
 export E2E_ADMIN_SECRET=...
