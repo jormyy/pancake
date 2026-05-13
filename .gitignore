@@ -42,6 +42,7 @@ tests/snapshots/
 tests/e2e-seed-report.md
 tests/e2e-browser-report.md
 tests/e2e-browser-auth-report.md
+tests/e2e-browser-league-lifecycle-report.md
 tests/e2e-browser-perf-report.md
 tests/e2e-browser-gameplay-report.md
 tests/e2e-browser-lineup-report.md

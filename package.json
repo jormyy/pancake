@@ -21,6 +21,7 @@
     "e2e:browser-auth": "node tests/e2e/browser-auth.mjs",
     "e2e:browser-perf": "node tests/e2e/browser-perf-smoke.mjs",
     "e2e:browser-gameplay": "node tests/e2e/browser-gameplay.mjs",
+    "e2e:browser-league-lifecycle": "node tests/e2e/browser-league-lifecycle.mjs",
     "e2e:browser-lineup": "node tests/e2e/browser-lineup-gameplay.mjs",
     "e2e:browser-lineup-auto-set": "node tests/e2e/browser-lineup-gameplay.mjs --auto-set",
     "e2e:browser-lineup-locked": "node tests/e2e/browser-lineup-gameplay.mjs --locked",

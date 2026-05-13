@@ -315,6 +315,21 @@ const verifyAuctionBid = async (fixture) => {
   return { nomination, bids: bids ?? [], failures }
 }
 
+const closeTestNomination = async (fixture) => {
+  const past = new Date(Date.now() - 1000).toISOString()
+  const { error: expireError } = await fixture.admin
+    .from('nominations')
+    .update({ countdown_expires_at: past })
+    .eq('id', fixture.nomination.id)
+    .eq('status', 'open')
+  if (expireError) throw new Error(`auction nomination cleanup expire: ${expireError.message}`)
+
+  const { error: closeError } = await fixture.admin.rpc('close_auction_nomination_atomic', {
+    p_nomination_id: fixture.nomination.id,
+  })
+  if (closeError) throw new Error(`auction nomination cleanup close: ${closeError.message}`)
+}
+
 export async function runBrowserGameplayScenario({
   season = 0,
   sessionName,
@@ -359,6 +374,7 @@ export async function runBrowserGameplayScenario({
 
     const failures = [...auctionBid.failures]
     if (normalizeBrowserErrors(errorOutput)) failures.push(`browser errors present; see ${path.relative(ROOT, path.join(artifactDir, 'errors.txt'))}`)
+    await closeTestNomination(fixture)
     const report = {
       status: failures.length === 0 ? 'PASS' : 'FAIL',
       season,
@@ -390,7 +406,8 @@ export async function runBrowserGameplayScenario({
     const auctionBid = await verifyAuctionBid(fixture).catch((verifyError) => ({
       failures: [`verify unavailable: ${verifyError.message}`],
     }))
-    debug = { ...debug, auctionBid, consoleOutput, errorOutput, networkOutput }
+    const cleanupError = await closeTestNomination(fixture).then(() => null).catch((cleanup) => cleanup.message)
+    debug = { ...debug, auctionBid, cleanupError, consoleOutput, errorOutput, networkOutput }
     const report = {
       status: 'FAIL',
       season,

@@ -13,6 +13,7 @@ import { runBrowserSmoke } from './browser-smoke.mjs'
 import { runBrowserAuthScenario } from './browser-auth.mjs'
 import { runBrowserPerfSmoke } from './browser-perf-smoke.mjs'
 import { runBrowserGameplayScenario } from './browser-gameplay.mjs'
+import { runBrowserLeagueLifecycleScenario } from './browser-league-lifecycle.mjs'
 import { runBrowserLineupAutoSetScenario, runBrowserLineupLockedScenario, runBrowserLineupScenario } from './browser-lineup-gameplay.mjs'
 import { runBrowserPlayoffChampionScenario } from './browser-playoff-gameplay.mjs'
 import { runBrowserRookieDraftAutoPickScenario } from './browser-rookie-draft-gameplay.mjs'
@@ -87,6 +88,7 @@ const parseArgs = () => {
     browserTradeOverflowAccept: args.get('browser-trade-overflow-accept') === 'true' || process.env.E2E_ENABLE_BROWSER_TRADE_OVERFLOW_ACCEPT === '1',
     browserTradePostDeadline: args.get('browser-trade-post-deadline') === 'true' || process.env.E2E_ENABLE_BROWSER_TRADE_POST_DEADLINE === '1',
     browserTradeVeto: args.get('browser-trade-veto') === 'true' || process.env.E2E_ENABLE_BROWSER_TRADE_VETO === '1',
+    browserLeagueLifecycle: args.get('browser-league-lifecycle') === 'true' || process.env.E2E_ENABLE_BROWSER_LEAGUE_LIFECYCLE === '1',
     leagueLifecycle: args.get('league-lifecycle') === 'true' || process.env.E2E_ENABLE_LEAGUE_LIFECYCLE === '1',
     pickChain: args.get('pick-chain') === 'true' || process.env.E2E_ENABLE_PICK_CHAIN === '1',
     push: args.get('push') === 'true' || process.env.E2E_ENABLE_PUSH === '1',
@@ -267,8 +269,16 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
   const browserTradeVetoStatus = args.browserTradeVeto
     ? hasFailingNote(rows, /browser trade veto/) ? 'FAIL' : hasPassingNote(rows, /browser trade veto gameplay passed/) ? 'PARTIAL' : 'PENDING'
     : 'PENDING'
-  const leagueLifecycleStatus = args.leagueLifecycle
-    ? hasFailingNote(rows, /D\.SET\.2/) ? 'FAIL' : hasPassingNote(rows, /league lifecycle passed/) ? 'PARTIAL' : 'PENDING'
+  const leagueLifecyclePassed = hasPassingNote(rows, /league lifecycle passed/)
+  const browserLeagueLifecyclePassed = hasPassingNote(rows, /browser league lifecycle passed/)
+  const leagueLifecycleStatus = args.leagueLifecycle || args.browserLeagueLifecycle
+    ? hasFailingNote(rows, /D\.SET\.2|browser league lifecycle/)
+      ? 'FAIL'
+      : leagueLifecyclePassed && browserLeagueLifecyclePassed
+        ? 'PASS'
+        : leagueLifecyclePassed || browserLeagueLifecyclePassed
+          ? 'PARTIAL'
+          : 'PENDING'
     : targetLeagueId ? 'PARTIAL' : 'PENDING'
   const tradeWaiverPushPassed = hasPassingNote(rows, /trade and waiver push notification intercepts passed|push notification intercepts passed/)
   const draftPushPassed = hasPassingNote(rows, /draft push notification intercept passed/)
@@ -356,7 +366,7 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
     {
       requirement: 'D.SET.2 league create/join/pick bank',
       status: leagueLifecycleStatus,
-      evidence: args.leagueLifecycle ? 'League-lifecycle mode signs in seeded users, calls create_league and join_league_by_invite_code through anon Supabase clients, then verifies invite code, members, lineup slots, current season, and five-year pick bank.' : targetLeagueId ? `Seeded target league ${targetLeagueId}; invite, lineup slots, members, and 5y pick-bank proof lives in tests/e2e-seed-report.md.` : 'No target league configured.',
+      evidence: args.leagueLifecycle && args.browserLeagueLifecycle ? 'League-lifecycle mode verifies the 10-user auth/RPC lifecycle, and browser league lifecycle drives the real Expo create/join forms before verifying invite, members, lineup slots, current season, and five-year pick bank.' : args.browserLeagueLifecycle ? 'Browser league lifecycle drives the real Expo create/join forms before verifying invite, members, lineup slots, current season, and five-year pick bank.' : args.leagueLifecycle ? 'League-lifecycle mode signs in seeded users, calls create_league and join_league_by_invite_code through anon Supabase clients, then verifies invite code, members, lineup slots, current season, and five-year pick bank.' : targetLeagueId ? `Seeded target league ${targetLeagueId}; invite, lineup slots, members, and 5y pick-bank proof lives in tests/e2e-seed-report.md.` : 'No target league configured.',
     },
     {
       requirement: 'D.SET.3 commissioner settings propagation',
@@ -4578,6 +4588,9 @@ const main = async () => {
     args.browserTradeVeto
       ? 'Browser trade veto scenario enabled through E2E_ENABLE_BROWSER_TRADE_VETO=1.'
       : 'Browser trade veto scenario disabled; set E2E_ENABLE_BROWSER_TRADE_VETO=1 to exercise the D.SEA.2 accepted-state veto UI slice.',
+    args.browserLeagueLifecycle
+      ? 'Browser league create/join lifecycle scenario enabled through E2E_ENABLE_BROWSER_LEAGUE_LIFECYCLE=1.'
+      : 'Browser league create/join lifecycle scenario disabled; set E2E_ENABLE_BROWSER_LEAGUE_LIFECYCLE=1 to exercise D.SET.2 through the real Expo forms.',
     args.leagueLifecycle
       ? 'League create/join lifecycle scenario enabled through E2E_ENABLE_LEAGUE_LIFECYCLE=1.'
       : 'League create/join lifecycle scenario disabled; set E2E_ENABLE_LEAGUE_LIFECYCLE=1 to exercise D.SET.2 through real auth RPCs.',
@@ -4804,6 +4817,10 @@ const main = async () => {
         let browserTradeVetoCheck = null
         if (args.browserTradeVeto && shouldRunScenario(args, season)) {
           browserTradeVetoCheck = await runBrowserTradeVetoScenario({ season })
+        }
+        let browserLeagueLifecycleCheck = null
+        if (args.browserLeagueLifecycle && shouldRunScenario(args, season)) {
+          browserLeagueLifecycleCheck = await runBrowserLeagueLifecycleScenario({ season })
         }
         let leagueLifecycleCheck = null
         const leagueLifecycleFailures = []
@@ -5085,6 +5102,7 @@ const main = async () => {
               browserTradeOverflowAcceptCheck ? 'browser trade overflow accept gameplay passed' : null,
               browserTradePostDeadlineCheck ? 'browser post-deadline trade gameplay passed' : null,
               browserTradeVetoCheck ? 'browser trade veto gameplay passed' : null,
+              browserLeagueLifecycleCheck ? 'browser league lifecycle passed' : null,
               leagueLifecycleCheck ? 'league lifecycle passed' : null,
               args.realtime ? 'realtime matchup and bid updates delivered' : null,
               args.push ? 'trade and waiver push notification intercepts passed' : null,

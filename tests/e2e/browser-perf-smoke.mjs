@@ -292,6 +292,21 @@ const runLoadMutations = async ({ supabase, auction, matchup }) => {
   }
 }
 
+const closePerfNomination = async (supabase, auction) => {
+  const past = new Date(Date.now() - 1000).toISOString()
+  const { error: expireError } = await supabase
+    .from('nominations')
+    .update({ countdown_expires_at: past })
+    .eq('id', auction.nominationId)
+    .eq('status', 'open')
+  if (expireError) throw new Error(`D.X.4 auction nomination cleanup expire failed: ${expireError.message}`)
+
+  const { error: closeError } = await supabase.rpc('close_auction_nomination_atomic', {
+    p_nomination_id: auction.nominationId,
+  })
+  if (closeError) throw new Error(`D.X.4 auction nomination cleanup close failed: ${closeError.message}`)
+}
+
 export async function runBrowserPerfSmoke({
   season = 0,
   sessionName,
@@ -352,6 +367,7 @@ export async function runBrowserPerfSmoke({
     if (homePerf.maxLagMs > MAX_HEARTBEAT_LAG_MS) failures.push(`home heartbeat lag ${homePerf.maxLagMs}ms exceeded ${MAX_HEARTBEAT_LAG_MS}ms`)
     if (load.durationMs > MAX_SCRIPT_MS) failures.push(`mutation loop took ${load.durationMs}ms exceeded ${MAX_SCRIPT_MS}ms`)
     if (draftPerf.ticks < 10 || homePerf.ticks < 10) failures.push('browser heartbeat did not collect enough samples')
+    await closePerfNomination(supabase, auction)
 
     const report = {
       status: failures.length === 0 ? 'PASS' : 'FAIL',
@@ -379,6 +395,7 @@ export async function runBrowserPerfSmoke({
     return report
   } catch (error) {
     await browser(session, ['screenshot', path.join(artifactDir, 'failure.png')], { timeout: 60_000 }).catch(() => {})
+    await closePerfNomination(supabase, auction).catch(() => {})
     const report = {
       status: 'FAIL',
       season,
