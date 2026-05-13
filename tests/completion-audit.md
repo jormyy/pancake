@@ -2,7 +2,7 @@
 
 - Updated: 2026-05-13
 - Branch: `refactor/post-cleanup-sweep`
-- Latest local/remote branch commit: `b519164 test: harden multi-season soak fixtures` before the current report refresh.
+- Latest local branch commit at this audit point is the Expo patch-alignment commit containing this file.
 - Verdict: **not complete**
 
 ## Objective
@@ -23,7 +23,7 @@ Take Pancake from feature-complete to production-ready by:
 | Supabase Edge deployment after secret fix | PASS | All hosted Edge Functions were redeployed with previous JWT verification modes preserved. Hosted `verify?action=validate-db` returned HTTP 200 after deployment. |
 | Hosted Fastify secret-key migration | BLOCKED | No Railway CLI/auth path is available locally. Supabase CLI exposes only masked `sb_secret` values, so the full hosted `PANCAKE_SUPABASE_SECRET_KEY`/`SUPABASE_SECRET_KEY` must be copied from the Supabase dashboard into the Fastify host. |
 | Legacy Supabase JWT/service-role rotation | BLOCKED | Supabase's current rotation flow requires Dashboard JWT/signing-key rotation. The repo now prefers new secret-key paths where available, but legacy rotation/revocation is not complete from this environment. |
-| Build gates | PASS | Latest reruns after the history-enabled report refresh: `npm run lint`, root/backend/core typechecks, `deno check supabase/functions/_shared/supabase.ts`, `node --check tests/e2e/soak.mjs`, and `git diff --check` all passed. |
+| Build gates | PASS | Latest reruns after the history-enabled report refresh and Expo patch alignment: `npm run lint`, `npm run typecheck`, backend/core typechecks, backend build, `deno check supabase/functions/_shared/supabase.ts`, `node --check tests/e2e/soak.mjs`, `npx expo-doctor`, `npm audit --audit-level=high`, backend high audit, and `git diff --check` all passed. |
 | 20-season soak proof | PASS | `tests/e2e-report.md` now records a history-enabled all-flag 20-season local Supabase/Fastify/static Expo/fake-upstream run with `Status: PASS`, from `2026-05-13T17:09:03.319Z` to `2026-05-13T19:24:28.135Z`. Every season row passed D.0 boundaries, repeated browser/API gameplay slices, D.LONG.1/D.LONG.2 pick-chain checks, D.LONG.3/D.LONG.4 history retention, D.LONG.5 local migration replay, D.LONG.6 runtime drift, and D.LONG.7 harness memory drift. |
 | D.SET.2 create/join lifecycle | PASS | The 20-season all-flag run included `E2E_ENABLE_LEAGUE_LIFECYCLE=1` and `E2E_ENABLE_BROWSER_LEAGUE_LIFECYCLE=1`, so the report records both the 10-user auth/RPC lifecycle and the real Expo create/join form lifecycle every simulated season. |
 | D.X.2 score realtime | PASS | The 20-season proof includes 10-client matchup realtime checks. |
