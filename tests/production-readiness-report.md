@@ -1,7 +1,7 @@
 # Production Readiness Blocker Check
 
 - Status: BLOCKED
-- Generated: 2026-05-13T20:52:58.098Z
+- Generated: 2026-05-13T21:02:47.434Z
 
 | Requirement | Status | Evidence |
 | --- | --- | --- |
@@ -28,3 +28,4 @@
 - To disable legacy Supabase JWT keys after hosted Fastify is verified, use the Supabase Management API endpoint: `PUT https://api.supabase.com/v1/projects/{ref}/api-keys/legacy?enabled=false`.
 - To unblock linked Supabase migrations, provide `SUPABASE_DB_PASSWORD` or restore Supabase temporary login-role creation, then rerun `supabase db query --linked "select now();"` and `supabase db push --dry-run`.
 - To unblock hosted Fastify verification from this machine, authenticate Railway with `railway login` or provide a valid Railway token/session for `npx --yes @railway/cli whoami`.
+- No GitHub-hosted Railway deploy fallback is configured: the repository has only the `Tests` workflow, and repository/environment secrets and variables are empty.
