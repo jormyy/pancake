@@ -48,7 +48,6 @@ Latest CLI retry after reading `.env`/`backend/.env`:
 Latest PR/CI status:
 
 - PR #4 is open as a draft: https://github.com/jormyy/pancake/pull/4
-- PR head: `7918c06 ci: run backend tests with workspace deps`
 - Merge state: clean
 - GitHub `Frontend lib tests`: pass
 - GitHub `Backend tests`: pass
