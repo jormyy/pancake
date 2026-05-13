@@ -412,7 +412,7 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
     {
       requirement: 'P0/P1 findings resolved',
       status: 'PARTIAL',
-      evidence: 'P0/P1 source fixes are documented; service-role JWT literals were purged from reachable local and remote branch history, and Edge Functions now prefer Supabase secret keys from the platform-provided SUPABASE_SECRET_KEYS dictionary before legacy service-role fallback. Hosted Fastify env and legacy JWT/service-role rotation remain operational follow-up items.',
+      evidence: 'P0/P1 source fixes are documented; service-role JWT literals were purged from reachable local and remote branch history, Edge Functions prefer Supabase secret keys from the platform-provided SUPABASE_SECRET_KEYS dictionary, and local app/E2E env resolves to modern sb_publishable_/sb_secret_ keys. Hosted Fastify env, remote legacy JWT disable/revocation, and linked DB migration access remain operational follow-up items.',
     },
     {
       requirement: 'Real test Supabase project',
@@ -1300,7 +1300,11 @@ const createDisposableLeagueFromSeedUsers = async ({ supabase, state, season, la
 }
 
 const signInSupabaseClient = async (env, email, password, label) => {
-  if (!env.anonKey) throw new Error(`${label}: requires E2E_SUPABASE_ANON_KEY or EXPO_PUBLIC_SUPABASE_ANON_KEY`)
+  if (!env.anonKey) {
+    throw new Error(
+      `${label}: requires E2E_SUPABASE_PUBLISHABLE_KEY, EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY, E2E_SUPABASE_ANON_KEY, or EXPO_PUBLIC_SUPABASE_ANON_KEY`,
+    )
+  }
   const client = createClient(env.supabaseUrl, env.anonKey, { auth: { persistSession: false } })
   const { error } = await client.auth.signInWithPassword({ email, password })
   if (error) throw new Error(`${label}: sign-in failed for ${email}: ${error.message}`)
@@ -3356,7 +3360,11 @@ const assertRealtimeDelivery = async ({ supabase, env, state, leagueId, season }
   if (!state?.password || !Array.isArray(state.users) || state.users.length === 0) {
     throw new Error('D.X.2: realtime scenario requires tests/e2e-state.json from npm run e2e:seed')
   }
-  if (!env.anonKey) throw new Error('D.X.2: realtime scenario requires E2E_SUPABASE_ANON_KEY or EXPO_PUBLIC_SUPABASE_ANON_KEY')
+  if (!env.anonKey) {
+    throw new Error(
+      'D.X.2: realtime scenario requires E2E_SUPABASE_PUBLISHABLE_KEY, EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY, E2E_SUPABASE_ANON_KEY, or EXPO_PUBLIC_SUPABASE_ANON_KEY',
+    )
+  }
   if (!Number.isFinite(REALTIME_CLIENTS) || REALTIME_CLIENTS < 1) {
     throw new Error(`D.X.2: invalid E2E_REALTIME_CLIENTS ${process.env.E2E_REALTIME_CLIENTS}`)
   }
@@ -3803,7 +3811,11 @@ const assertBackendUsesFakePush = async (env, fakePort) => {
 }
 
 const signInForAccessToken = async (env, email, password) => {
-  if (!env.anonKey) throw new Error('E2E authenticated backend scenarios require E2E_SUPABASE_ANON_KEY or EXPO_PUBLIC_SUPABASE_ANON_KEY')
+  if (!env.anonKey) {
+    throw new Error(
+      'E2E authenticated backend scenarios require E2E_SUPABASE_PUBLISHABLE_KEY, EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY, E2E_SUPABASE_ANON_KEY, or EXPO_PUBLIC_SUPABASE_ANON_KEY',
+    )
+  }
   const client = createClient(env.supabaseUrl, env.anonKey, { auth: { persistSession: false } })
   const { data, error } = await client.auth.signInWithPassword({ email, password })
   if (error) throw new Error(`E2E sign-in failed for ${email}: ${error.message}`)

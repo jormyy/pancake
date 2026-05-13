@@ -15,7 +15,8 @@ const ExpoSecureStoreAdapter =
           }
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL!
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!
+const supabasePublicKey =
+    process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!
 const SUPABASE_URL_OVERRIDE_KEY = 'PANCAKE_SUPABASE_URL'
 const SUPABASE_ANON_KEY_OVERRIDE_KEY = 'PANCAKE_SUPABASE_ANON_KEY'
 
@@ -32,7 +33,7 @@ function runtimeSupabaseOverride(key: string): string | null {
 
 export const supabase = createClient<Database>(
     runtimeSupabaseOverride(SUPABASE_URL_OVERRIDE_KEY) ?? supabaseUrl,
-    runtimeSupabaseOverride(SUPABASE_ANON_KEY_OVERRIDE_KEY) ?? supabaseAnonKey,
+    runtimeSupabaseOverride(SUPABASE_ANON_KEY_OVERRIDE_KEY) ?? supabasePublicKey,
     {
         auth: {
             storage: ExpoSecureStoreAdapter,

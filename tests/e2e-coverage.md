@@ -10,7 +10,7 @@
 | Requirement | Status | Evidence |
 | --- | --- | --- |
 | Phase A audit report | PASS | tests/audit-report.md exists. |
-| P0/P1 findings resolved | PARTIAL | P0/P1 source fixes are documented; service-role JWT literals were purged from reachable local and remote branch history, and Edge Functions now prefer Supabase secret keys from the platform-provided SUPABASE_SECRET_KEYS dictionary before legacy service-role fallback. Hosted Fastify env and legacy JWT/service-role rotation remain operational follow-up items. |
+| P0/P1 findings resolved | PARTIAL | P0/P1 source fixes are documented; service-role JWT literals were purged from reachable local and remote branch history, Edge Functions prefer Supabase secret keys from the platform-provided SUPABASE_SECRET_KEYS dictionary, and local app/E2E env resolves to modern `sb_publishable_`/`sb_secret_` keys. Hosted Fastify env, remote legacy JWT disable/revocation, and linked DB migration access remain operational follow-up items. |
 | Real test Supabase project | PASS | Supabase URL/admin credentials loaded from E2E/app env. |
 | Fake NBA CDN/Sleeper upstream | PASS | Fake upstream configured for http://127.0.0.1:4555. |
 | D.SET.1 auth/session/sign-out | PASS | Browser auth scenario was enabled for this run. |
@@ -38,7 +38,7 @@
 | D.LONG.6 runtime drift | PASS | Runtime metrics live in tests/artifacts/perf-metrics.json. |
 | D.LONG.7 memory/connection leaks | PASS | Harness memory metrics live in tests/artifacts/perf-metrics.json and 10+ season runs fail if RSS or heap exceeds the configured drift limit. |
 | 10 seasons and continue past 10 / 20 clean | PASS | Current run status is PASS for target 20 season(s); PARTIAL means enabled season rows passed but full gameplay coverage is still pending. |
-| Production-ready exit criteria | FAIL | Production exit remains blocked by P0/P1 operational follow-ups and hosted secret-key/JWT rotation and linked Supabase Postgres migration access. |
+| Production-ready exit criteria | FAIL | Production exit remains blocked by hosted Fastify secret-key verification, remote legacy JWT disable/revocation, and linked Supabase Postgres migration access requiring `SUPABASE_DB_PASSWORD` or a healthy temporary login-role path. |
 
 ## Run Notes
 

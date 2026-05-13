@@ -63,6 +63,10 @@ const hasSecretName = (secretsOutput, name) => {
   return new RegExp(`(^|\\s)${name}(\\s|$)`, 'm').test(secretsOutput)
 }
 
+const hasKeyType = (rows, type) => Array.isArray(rows) && rows.some((row) => row?.type === type)
+
+const startsWith = (value, prefix) => typeof value === 'string' && value.startsWith(prefix)
+
 const main = async () => {
   const rows = []
 
@@ -92,12 +96,52 @@ const main = async () => {
 
   const apiKeys = run('supabase', ['projects', 'api-keys', '-o', 'json'])
   const apiKeyRows = parseJson(apiKeys.stdout)
+  const hasPublishableKey = hasKeyType(apiKeyRows, 'publishable')
+  const hasSecretKey = hasKeyType(apiKeyRows, 'secret')
   rows.push({
     requirement: 'Supabase API-key metadata readable',
     status: statusFrom(apiKeys.status === 0),
     evidence: apiKeys.status === 0
       ? `Management API returned ${Array.isArray(apiKeyRows) ? apiKeyRows.length : 'unknown'} API-key metadata row(s); values intentionally not printed.`
       : cleanMessage(apiKeys.stderr || apiKeys.stdout || String(apiKeys.error)),
+  })
+
+  rows.push({
+    requirement: 'Supabase modern API keys available',
+    status: statusFrom(hasPublishableKey && hasSecretKey),
+    evidence: hasPublishableKey && hasSecretKey
+      ? 'Management API metadata includes publishable and secret API-key records.'
+      : 'Missing publishable or secret API-key metadata; do not disable legacy JWT keys yet.',
+  })
+
+  const publicKey = envValue(
+    'E2E_SUPABASE_PUBLISHABLE_KEY',
+    'EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY',
+    'E2E_SUPABASE_ANON_KEY',
+    'EXPO_PUBLIC_SUPABASE_ANON_KEY',
+  )
+  rows.push({
+    requirement: 'Local frontend Supabase key is non-legacy',
+    status: statusFrom(startsWith(publicKey, 'sb_publishable_')),
+    evidence: startsWith(publicKey, 'sb_publishable_')
+      ? 'Frontend/E2E env resolves to an sb_publishable_ key.'
+      : 'Set EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY or E2E_SUPABASE_PUBLISHABLE_KEY to a Supabase publishable key before disabling legacy anon JWTs.',
+  })
+
+  const adminKey = envValue(
+    'E2E_PANCAKE_SUPABASE_SECRET_KEY',
+    'PANCAKE_SUPABASE_SECRET_KEY',
+    'E2E_SUPABASE_SECRET_KEY',
+    'SUPABASE_SECRET_KEY',
+    'E2E_SUPABASE_SERVICE_ROLE_KEY',
+    'SUPABASE_SERVICE_ROLE_KEY',
+  )
+  rows.push({
+    requirement: 'Local backend Supabase admin key is non-legacy',
+    status: statusFrom(startsWith(adminKey, 'sb_secret_')),
+    evidence: startsWith(adminKey, 'sb_secret_')
+      ? 'Backend/E2E env resolves to an sb_secret_ key.'
+      : 'Set PANCAKE_SUPABASE_SECRET_KEY, SUPABASE_SECRET_KEY, or E2E_* equivalent to a Supabase secret key before disabling legacy service-role JWTs.',
   })
 
   const dbPasswordPresent = Boolean(envValue('SUPABASE_DB_PASSWORD'))
@@ -142,11 +186,11 @@ const main = async () => {
   })
 
   rows.push({
-    requirement: 'Legacy Supabase JWT/service-role rotated',
+    requirement: 'Remote legacy Supabase JWT keys disabled/revoked',
     status: statusFrom(envValue('PANCAKE_LEGACY_SUPABASE_JWT_ROTATED') === '1'),
     evidence: envValue('PANCAKE_LEGACY_SUPABASE_JWT_ROTATED') === '1'
-      ? 'Manual rotation verification flag is set.'
-      : 'Set PANCAKE_LEGACY_SUPABASE_JWT_ROTATED=1 only after Supabase Dashboard key/JWT rotation and old credential revocation are complete.',
+      ? 'Manual hosted-project legacy-key disable/revocation verification flag is set.'
+      : 'Set PANCAKE_LEGACY_SUPABASE_JWT_ROTATED=1 only after the hosted project legacy JWT keys are disabled/revoked through the Supabase Management API or Dashboard flow.',
   })
 
   const blockers = rows.filter((row) => row.status !== 'PASS')
