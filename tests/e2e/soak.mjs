@@ -277,7 +277,7 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
     ? hasFailingNote(rows, /D\.LONG\.3|D\.LONG\.4/) ? 'FAIL' : hasPassingNote(rows, /standings\/champion history retained/) ? 'PARTIAL' : 'PENDING'
     : 'PENDING'
   const realtimeStatus = args.realtime
-    ? hasProblemNote(rows, /D\.X\.2/) ? 'FAIL' : hasPassingNote(rows, /realtime matchup update delivered/) ? 'PARTIAL' : 'PENDING'
+    ? hasProblemNote(rows, /D\.X\.2/) ? 'FAIL' : hasPassingNote(rows, /realtime matchup and bid updates delivered/) ? 'PASS' : 'PARTIAL'
     : 'PENDING'
   const midlifeMigrationStatus = args.midlifeMigration
     ? hasFailingNote(rows, /D\.LONG\.5/) ? 'FAIL' : hasPassingNote(rows, /mid-life migration applied/) ? 'PASS' : 'PENDING'
@@ -418,7 +418,7 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
     {
       requirement: 'D.X.2 realtime bid/score events',
       status: realtimeStatus,
-      evidence: args.realtime ? 'Realtime mode opens multiple Supabase Realtime clients and asserts a matchups update reaches every client within 2s.' : 'Enable E2E_ENABLE_REALTIME=1.',
+      evidence: args.realtime ? 'Realtime mode opens multiple Supabase Realtime clients and asserts both matchup score updates and auction bid nomination updates reach every client within 2s.' : 'Enable E2E_ENABLE_REALTIME=1.',
     },
     {
       requirement: 'D.X.3 CORS regression',
@@ -3200,6 +3200,74 @@ const insertRealtimeTargetMatchup = async (supabase, leagueId, season, runSeason
   throw new Error('D.X.2 realtime target matchup insert: exhausted unique week_number attempts')
 }
 
+const insertRealtimeAuctionTarget = async (supabase, leagueId, season) => {
+  const currentSeason = await fetchSingle(
+    supabase,
+    'league_seasons',
+    'id',
+    { league_id: leagueId, is_current: true },
+  )
+  const members = await sortedLeagueMembers(supabase, leagueId)
+  if (members.length < 2) throw new Error('D.X.2: realtime bid scenario requires at least two league members')
+  const player = await findAvailablePlayer(supabase, leagueId, currentSeason.id)
+  const now = new Date().toISOString()
+
+  const { data: draft, error: draftError } = await supabase
+    .from('drafts')
+    .insert({
+      league_id: leagueId,
+      league_season_id: currentSeason.id,
+      draft_type: 'auction',
+      status: 'in_progress',
+      budget_per_team: 10,
+      started_at: now,
+      current_nomination_order: 1,
+    })
+    .select('id')
+    .single()
+  if (draftError) throw new Error(`D.X.2 realtime auction draft insert: ${draftError.message}`)
+
+  const [{ error: orderError }, { error: budgetError }] = await Promise.all([
+    supabase.from('draft_orders').insert(members.map((member, index) => ({
+      draft_id: draft.id,
+      member_id: member.id,
+      position: index + 1,
+    }))),
+    supabase.from('draft_budgets').insert(members.map((member) => ({
+      draft_id: draft.id,
+      member_id: member.id,
+      initial_budget: 10,
+      remaining: 10,
+    }))),
+  ])
+  if (orderError) throw new Error(`D.X.2 realtime auction order insert: ${orderError.message}`)
+  if (budgetError) throw new Error(`D.X.2 realtime auction budget insert: ${budgetError.message}`)
+
+  const { data: nomination, error: nominationError } = await supabase
+    .from('nominations')
+    .insert({
+      draft_id: draft.id,
+      nominating_member_id: members[0].id,
+      player_id: player.id,
+      nomination_order: 1,
+      status: 'open',
+      current_bid_amount: 1,
+      current_bidder_id: null,
+      countdown_expires_at: new Date(Date.now() + 10 * 365 * 24 * 60 * 60 * 1000).toISOString(),
+    })
+    .select('id')
+    .single()
+  if (nominationError) throw new Error(`D.X.2 realtime auction nomination insert: ${nominationError.message}`)
+
+  return {
+    draftId: draft.id,
+    nominationId: nomination.id,
+    bidderOne: members[0].id,
+    bidderTwo: members[1].id,
+    playerId: player.id,
+  }
+}
+
 const assertRealtimeDelivery = async ({ supabase, env, state, leagueId, season }) => {
   if (!state?.password || !Array.isArray(state.users) || state.users.length === 0) {
     throw new Error('D.X.2: realtime scenario requires tests/e2e-state.json from npm run e2e:seed')
@@ -3219,14 +3287,17 @@ const assertRealtimeDelivery = async ({ supabase, env, state, leagueId, season }
   }
 
   const target = await insertRealtimeTargetMatchup(supabase, leagueId, season, season)
+  const bidTarget = await insertRealtimeAuctionTarget(supabase, leagueId, season)
   const clients = []
   const channels = []
   const warmupDeliveries = []
   const deliveries = []
+  const bidDeliveries = []
   const warmupHomePoints = 500 + season * 10
   const warmupAwayPoints = 400 + season * 10
   const expectedHomePoints = 1000 + season
   const expectedAwayPoints = 900 + season
+  const expectedBidAmount = 2 + season
   const warmupSeen = new Set()
 
   try {
@@ -3249,7 +3320,7 @@ const assertRealtimeDelivery = async ({ supabase, env, state, leagueId, season }
       let channel
       const delivery = new Promise((resolve) => {
         channel = client
-          .channel(`e2e_realtime_matchup_${season}_${index}`)
+          .channel(`e2e_realtime_${season}_${index}`)
           .on('postgres_changes', {
             event: 'UPDATE',
             schema: 'public',
@@ -3275,12 +3346,28 @@ const assertRealtimeDelivery = async ({ supabase, env, state, leagueId, season }
             }
           })
       })
-      return { client, channel, warmupDelivery, delivery }
+      const bidDelivery = new Promise((resolve) => {
+        channel.on('postgres_changes', {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'nominations',
+          filter: `id=eq.${bidTarget.nominationId}`,
+        }, (payload) => {
+          if (
+            Number(payload.new?.current_bid_amount) === expectedBidAmount &&
+            payload.new?.current_bidder_id === bidTarget.bidderTwo
+          ) {
+            resolve({ clientIndex: index, receivedAtMs: nowMs() })
+          }
+        })
+      })
+      return { client, channel, warmupDelivery, delivery, bidDelivery }
     }))
     clients.push(...setups.map(({ client }) => client))
     channels.push(...setups.map(({ client, channel }) => ({ client, channel })))
     warmupDeliveries.push(...setups.map(({ warmupDelivery }) => warmupDelivery))
     deliveries.push(...setups.map(({ delivery }) => delivery))
+    bidDeliveries.push(...setups.map(({ bidDelivery }) => bidDelivery))
 
     await Promise.all(channels.map(({ channel }, index) => waitForRealtimeSubscribe(channel, `client ${index + 1}`)))
     await sleep(REALTIME_SETTLE_MS)
@@ -3323,15 +3410,41 @@ const assertRealtimeDelivery = async ({ supabase, env, state, leagueId, season }
       throw new Error(`D.X.2: realtime max latency ${roundedMs(maxLatencyMs)}ms exceeded ${REALTIME_LATENCY_LIMIT_MS}ms`)
     }
 
+    const bidStartedMs = nowMs()
+    const { error: bidError } = await supabase.rpc('place_auction_bid_atomic', {
+      p_draft_id: bidTarget.draftId,
+      p_member_id: bidTarget.bidderTwo,
+      p_nomination_id: bidTarget.nominationId,
+      p_amount: expectedBidAmount,
+    })
+    if (bidError) throw new Error(`D.X.2 realtime auction bid RPC: ${bidError.message}`)
+    const bidCommittedMs = nowMs()
+
+    const bidResults = await withTimeout(
+      Promise.all(bidDeliveries),
+      REALTIME_LATENCY_LIMIT_MS,
+      `D.X.2: realtime bid update did not reach all ${REALTIME_CLIENTS} clients within ${REALTIME_LATENCY_LIMIT_MS}ms`,
+    )
+    const bidLatenciesMs = bidResults.map((result) => Math.max(0, result.receivedAtMs - bidCommittedMs))
+    const maxBidLatencyMs = Math.max(...bidLatenciesMs)
+    if (maxBidLatencyMs > REALTIME_LATENCY_LIMIT_MS) {
+      throw new Error(`D.X.2: realtime bid max latency ${roundedMs(maxBidLatencyMs)}ms exceeded ${REALTIME_LATENCY_LIMIT_MS}ms`)
+    }
+
     await writeFile(
       path.join(ARTIFACT_ROOT, `season-${season}`, 'realtime-latency.json'),
       `${JSON.stringify({
         season,
         matchupId: target.id,
+        draftId: bidTarget.draftId,
+        nominationId: bidTarget.nominationId,
         clients: REALTIME_CLIENTS,
         updateRoundTripMs: roundedMs(updateCommittedMs - updateStartedMs),
         maxLatencyMs: roundedMs(maxLatencyMs),
         latenciesMs: latenciesMs.map((latency) => roundedMs(latency)),
+        bidRoundTripMs: roundedMs(bidCommittedMs - bidStartedMs),
+        maxBidLatencyMs: roundedMs(maxBidLatencyMs),
+        bidLatenciesMs: bidLatenciesMs.map((latency) => roundedMs(latency)),
       }, null, 2)}\n`,
     )
   } finally {
@@ -4474,7 +4587,7 @@ const main = async () => {
       : 'Standings/champion history retention disabled; set E2E_ENABLE_HISTORY=1 with backend ticks to exercise the D.LONG.3/D.LONG.4 fixture-retention slice.',
     args.realtime
       ? `Realtime latency check enabled through E2E_ENABLE_REALTIME=1 for ${REALTIME_CLIENTS} clients.`
-      : 'Realtime latency check disabled; set E2E_ENABLE_REALTIME=1 to exercise the D.X.2 matchups update slice.',
+      : 'Realtime latency check disabled; set E2E_ENABLE_REALTIME=1 to exercise the D.X.2 matchup and auction bid update slice.',
     args.midlifeMigration
       ? `Mid-life migration check enabled after season ${MIDLIFE_MIGRATION_AFTER_SEASON}.`
       : 'Mid-life migration check disabled; set E2E_ENABLE_MIDLIFE_MIGRATION=1 to exercise D.LONG.5.',
@@ -4965,7 +5078,7 @@ const main = async () => {
               browserTradePostDeadlineCheck ? 'browser post-deadline trade gameplay passed' : null,
               browserTradeVetoCheck ? 'browser trade veto gameplay passed' : null,
               leagueLifecycleCheck ? 'league lifecycle passed' : null,
-              args.realtime ? 'realtime matchup update delivered' : null,
+              args.realtime ? 'realtime matchup and bid updates delivered' : null,
               args.push ? 'trade and waiver push notification intercepts passed' : null,
               draftPushCheck ? 'draft push notification intercept passed' : null,
               midlifeMigrationReport ? `mid-life migration applied (${midlifeMigrationReport.status})` : null,
