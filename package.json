@@ -39,7 +39,8 @@
     "e2e:browser-trade-post-deadline": "node tests/e2e/browser-trade-gameplay.mjs --post-deadline",
     "e2e:browser-trade-veto": "node tests/e2e/browser-trade-gameplay.mjs --veto",
     "e2e:web-static": "node tests/e2e/static-web-server.mjs",
-    "e2e:fake-upstream": "node tests/e2e/fake-upstream.mjs"
+    "e2e:fake-upstream": "node tests/e2e/fake-upstream.mjs",
+    "prod:check": "node tests/e2e/production-readiness.mjs"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",

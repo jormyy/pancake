@@ -31,6 +31,7 @@ Take Pancake from feature-complete to production-ready by:
 | D.X.2 auction bid realtime | PASS | The 20-season all-flag run included `E2E_ENABLE_REALTIME=1`; every season row reports realtime matchup and auction bid updates delivered to 10 clients within the gate. |
 | Remote Supabase draft realtime migration | BLOCKED | Latest retry of `supabase migration list` against the linked project still failed while creating a temporary login role: Postgres connection timeout, with the CLI asking for `SUPABASE_DB_PASSWORD`. The migration is applied locally but not verified on the linked remote project. Supabase Edge secrets do include `SUPABASE_SECRET_KEYS`, but that does not grant direct Postgres migration access. |
 | Prompt-to-artifact coverage | PASS | `tests/e2e-coverage.md` now maps every D.SET/D.SEA/D.X/D.LONG row to concrete artifacts from the all-flags 20-season run. The only remaining non-PASS row in that matrix is the P0/P1 operational follow-up row. |
+| Production blocker check | BLOCKED | `npm run prod:check` writes `tests/production-readiness-report.md`. Current report verifies Supabase CLI/link/API-key metadata, hosted Edge `SUPABASE_SECRET_KEYS`, and hosted Fastify `/health`, but blocks on missing `SUPABASE_DB_PASSWORD`, linked migration dry-run timeout, unverified hosted Fastify secret-key env, and unverified legacy Supabase JWT/service-role rotation. |
 | Final production-ready exit criteria | FAIL | The blocker list above prevents marking the high-level goal complete. |
 
 ## Current Blockers
