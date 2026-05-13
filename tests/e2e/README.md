@@ -171,4 +171,4 @@ Outputs:
 - `tests/artifacts/season-<N>/midlife-migration.json`
 - `tests/artifacts/season-<N>/rookie-draft-pick-chain.json`
 
-The runner fails closed when the real test Supabase/backend/frontend environment is missing or when the linked Supabase project is missing required post-refactor RPCs/columns. A `PARTIAL` report means only the fake-upstream and database invariant boundary checks ran; browser-driven season scenarios still need the `agent-browser` harness before this can count as a passing dynasty soak.
+The runner fails closed when the real test Supabase/backend/frontend environment is missing or when the linked Supabase project is missing required post-refactor RPCs/columns. A `PARTIAL` report means only the enabled subset passed, usually fake-upstream/database boundary checks without the full browser scenario set. The current source-of-truth dynasty proof is a `PASS` report in `tests/e2e-report.md` from the all-flags 20-season run with browser, backend, Supabase, realtime, push, and long-horizon slices enabled.
