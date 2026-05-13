@@ -75,6 +75,16 @@ const legacyKeyNames = (rows) => {
 
 const startsWith = (value, prefix) => typeof value === 'string' && value.startsWith(prefix)
 
+const normalizeGeneratedAt = (text) => text.replace(/^- Generated: .+$/m, '- Generated: [generated]')
+
+const writeReportIfChanged = async (reportPath, report) => {
+  if (existsSync(reportPath)) {
+    const current = await readFile(reportPath, 'utf8')
+    if (normalizeGeneratedAt(current) === normalizeGeneratedAt(report)) return
+  }
+  await writeFile(reportPath, report)
+}
+
 const main = async () => {
   const rows = []
 
@@ -256,7 +266,7 @@ const main = async () => {
     '- No GitHub-hosted Railway deploy fallback is configured: the repository has only the `Tests` workflow, and repository/environment secrets and variables are empty.',
   ]
 
-  await writeFile(REPORT_PATH, `${lines.join('\n')}\n`)
+  await writeReportIfChanged(REPORT_PATH, `${lines.join('\n')}\n`)
   console.log(`${blockers.length === 0 ? 'PASS' : 'BLOCKED'} ${REPORT_PATH}`)
 
   if (blockers.length > 0) {
