@@ -95,6 +95,7 @@ Latest PR/CI status:
 
 3. Disable/revoke legacy JWT API keys only after hosted Fastify is confirmed on `sb_secret_`.
    - Use the Supabase Management API legacy-key toggle or Dashboard.
+   - Supabase CLI 2.98.2 can list API-key metadata but does not expose this legacy-key toggle as a command.
    - Official endpoint: `PUT https://api.supabase.com/v1/projects/{ref}/api-keys/legacy?enabled=false`.
    - Rerun `npm run prod:check`.
 
