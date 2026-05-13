@@ -7,6 +7,7 @@ export const installRuntimeOverrides = async (browser, session, env, options = {
     `(() => {
       window.localStorage.setItem('PANCAKE_API_URL', ${JSON.stringify(env.apiBaseUrl)});
       window.localStorage.setItem('PANCAKE_SUPABASE_URL', ${JSON.stringify(env.supabaseUrl)});
+      // Keep the legacy localStorage key for compatibility; the value may be a modern sb_publishable_ key.
       window.localStorage.setItem('PANCAKE_SUPABASE_ANON_KEY', ${JSON.stringify(env.anonKey)});
       return JSON.stringify({ ok: true });
     })()`,
