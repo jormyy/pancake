@@ -1,7 +1,7 @@
 # Production Readiness Blocker Check
 
 - Status: BLOCKED
-- Generated: 2026-05-13T20:36:24.322Z
+- Generated: 2026-05-13T20:45:15.574Z
 
 | Requirement | Status | Evidence |
 | --- | --- | --- |
@@ -13,6 +13,7 @@
 | Local frontend Supabase key is non-legacy | PASS | Frontend/E2E env resolves to an sb_publishable_ key. |
 | Local backend Supabase admin key is non-legacy | PASS | Backend/E2E env resolves to an sb_secret_ key. |
 | Linked Supabase DB password available | BLOCKED | SUPABASE_DB_PASSWORD is not set. |
+| Linked Supabase DB query access | BLOCKED | Initialising login role... / unexpected login role status 544: {"message":"Failed to create login role: Connection terminated due to connection timeout"} / Connect to your database by setting the env var correctly: SUPABASE_DB_PASSWORD |
 | Linked Supabase migration dry-run | BLOCKED | Initialising login role... / unexpected login role status 544: {"message":"Failed to create login role: Connection terminated due to connection timeout"} / Connect to your database by setting the env var correctly: SUPABASE_DB_PASSWORD |
 | Hosted Fastify health endpoint reachable | PASS | <remote configured> returned healthy JSON. |
 | Hosted Fastify secret-key env verified | BLOCKED | Deploy a backend that exposes /health.supabaseAdminKeyMode, or set PANCAKE_HOSTED_FASTIFY_SECRET_KEY_VERIFIED=1 only after the host has PANCAKE_SUPABASE_SECRET_KEY or SUPABASE_SECRET_KEY configured. |

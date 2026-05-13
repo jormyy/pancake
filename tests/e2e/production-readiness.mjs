@@ -160,6 +160,15 @@ const main = async () => {
     evidence: dbPasswordPresent ? 'SUPABASE_DB_PASSWORD is present in the process environment.' : 'SUPABASE_DB_PASSWORD is not set.',
   })
 
+  const dbQuery = run('supabase', ['db', 'query', '--linked', 'select now();'], { timeout: 45000 })
+  rows.push({
+    requirement: 'Linked Supabase DB query access',
+    status: statusFrom(dbQuery.status === 0),
+    evidence: dbQuery.status === 0
+      ? 'supabase db query --linked completed.'
+      : cleanMessage(dbQuery.stderr || dbQuery.stdout || String(dbQuery.error)),
+  })
+
   const dbPush = run('supabase', ['db', 'push', '--dry-run'], { timeout: 45000 })
   rows.push({
     requirement: 'Linked Supabase migration dry-run',
