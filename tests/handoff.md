@@ -2,7 +2,7 @@
 
 - Date: 2026-05-13
 - Branch: `refactor/post-cleanup-sweep`
-- Latest pushed commit: `b19fa0a chore: prefer modern supabase api keys`
+- Pull request: https://github.com/jormyy/pancake/pull/4
 - Status: **not production-complete**
 
 ## What Is Done
@@ -33,10 +33,21 @@ Latest verification after the modern-key commit:
 - `npm run typecheck --workspace core`
 - `npm run prod:check` runs and correctly exits nonzero while blockers remain.
 
+Latest CLI retry after reading `.env`/`backend/.env`:
+
+- `.env` contains Supabase URL, legacy anon JWT fallback, modern `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, and hosted Railway app URL.
+- `backend/.env` contains Supabase URL, legacy service-role JWT fallback, and modern `PANCAKE_SUPABASE_SECRET_KEY`.
+- Neither env file contains `SUPABASE_DB_PASSWORD`, `DATABASE_URL`, `RAILWAY_TOKEN`, or Railway project credentials.
+- `supabase projects list -o json` sees linked project `pancake` as `ACTIVE_HEALTHY`.
+- Hosted Fastify `/health` returns `{"status":"ok"}`.
+- `supabase db push --dry-run` still fails while creating the temporary login role with HTTP 544 and asks for `SUPABASE_DB_PASSWORD`.
+- `npx --yes @railway/cli whoami` installs/runs the Railway CLI but returns `Unauthorized. Please login with railway login`.
+
 ## Current Blockers
 
 1. Hosted Fastify/Railway env is not verified.
    - No local Railway CLI/auth path was found.
+   - `npx --yes @railway/cli whoami` returns unauthorized without a Railway login.
    - Local `backend/.env` has `PANCAKE_SUPABASE_SECRET_KEY`, but hosted env cannot be inspected from this machine.
    - Do not disable legacy Supabase JWT keys until hosted Fastify is confirmed to use `PANCAKE_SUPABASE_SECRET_KEY` or `SUPABASE_SECRET_KEY`.
 
