@@ -2,7 +2,7 @@
 
 - Updated: 2026-05-13
 - Branch: `refactor/post-cleanup-sweep`
-- Latest local branch includes the history-enabled soak proof, Expo patch alignment, production-gate clarification, local modern Supabase key migration, hosted key-mode health verifier, and CI workspace fix commits.
+- Latest local branch includes the history-enabled soak proof, Expo patch alignment, production-gate clarification, local modern Supabase key migration, hosted key-mode health verifier, CI workspace fix, linked DB query prod-check gate, and self-contained production unblock notes.
 - Verdict: **not complete**
 
 ## Objective

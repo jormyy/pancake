@@ -22,7 +22,7 @@
 
 ## Verified Gates
 
-Latest verification after the modern-key commit:
+Latest verification on the current PR head:
 
 - `node --check tests/e2e/production-readiness.mjs`
 - `node --check tests/e2e/soak.mjs`
