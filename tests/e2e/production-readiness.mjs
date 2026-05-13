@@ -190,7 +190,16 @@ const main = async () => {
         ? 'Manual deployment/env verification flag is set.'
         : remoteHealth?.supabaseAdminKeyMode === 'legacy-service-role'
           ? 'Hosted /health reports legacy-service-role; set PANCAKE_SUPABASE_SECRET_KEY or SUPABASE_SECRET_KEY on the host before disabling legacy keys.'
-          : 'Deploy a backend that exposes /health.supabaseAdminKeyMode, or set PANCAKE_HOSTED_FASTIFY_SECRET_KEY_VERIFIED=1 only after the host has PANCAKE_SUPABASE_SECRET_KEY or SUPABASE_SECRET_KEY configured.',
+        : 'Deploy a backend that exposes /health.supabaseAdminKeyMode, or set PANCAKE_HOSTED_FASTIFY_SECRET_KEY_VERIFIED=1 only after the host has PANCAKE_SUPABASE_SECRET_KEY or SUPABASE_SECRET_KEY configured.',
+  })
+
+  const railwayAuth = run('npx', ['--yes', '@railway/cli', 'whoami'], { timeout: 30000 })
+  rows.push({
+    requirement: 'Railway CLI authenticated',
+    status: statusFrom(railwayAuth.status === 0),
+    evidence: railwayAuth.status === 0
+      ? 'Railway CLI is authenticated; hosted Fastify env can be inspected with Railway project access.'
+      : cleanMessage(railwayAuth.stderr || railwayAuth.stdout || String(railwayAuth.error)),
   })
 
   rows.push({

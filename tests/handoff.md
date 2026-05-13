@@ -43,7 +43,7 @@ Latest CLI retry after reading `.env`/`backend/.env`:
 - `supabase db push --dry-run` still fails while creating the temporary login role with HTTP 544 and asks for `SUPABASE_DB_PASSWORD`.
 - `npx --yes @railway/cli whoami` installs/runs the Railway CLI but returns `Unauthorized. Please login with railway login`.
 - This branch adds a safe hosted backend proof field: `/health` now returns `supabaseAdminKeyMode` as `modern-secret`, `legacy-service-role`, or `missing`. It never returns secret values.
-- `npm run prod:check` now accepts hosted Fastify secret-key verification when deployed `/health` reports `supabaseAdminKeyMode=modern-secret`.
+- `npm run prod:check` now checks Railway CLI authentication and accepts hosted Fastify secret-key verification when deployed `/health` reports `supabaseAdminKeyMode=modern-secret`.
 
 Latest PR/CI status:
 
