@@ -38,7 +38,7 @@
 | D.LONG.6 runtime drift | PASS | Runtime metrics live in tests/artifacts/perf-metrics.json. |
 | D.LONG.7 memory/connection leaks | PASS | Harness memory metrics live in tests/artifacts/perf-metrics.json and 10+ season runs fail if RSS or heap exceeds the configured drift limit. |
 | 10 seasons and continue past 10 / 20 clean | PASS | Current run status is PASS for target 20 season(s); PARTIAL means enabled season rows passed but full gameplay coverage is still pending. |
-| Production-ready exit criteria | FAIL | Coverage remains pending or failing for multiple required gameplay and long-horizon criteria. |
+| Production-ready exit criteria | FAIL | Production exit remains blocked by P0/P1 operational follow-ups and focused-slice coverage rows that do not yet prove one literal monolithic 10-user season loop for every gameplay requirement. |
 
 ## Run Notes
 

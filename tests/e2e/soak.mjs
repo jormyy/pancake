@@ -486,7 +486,7 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
     {
       requirement: 'Production-ready exit criteria',
       status: 'FAIL',
-      evidence: 'Coverage remains pending or failing for multiple required gameplay and long-horizon criteria.',
+      evidence: 'Production exit remains blocked by P0/P1 operational follow-ups and focused-slice coverage rows that do not yet prove one literal monolithic 10-user season loop for every gameplay requirement.',
     },
   ]
 

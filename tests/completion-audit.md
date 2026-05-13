@@ -2,7 +2,7 @@
 
 - Updated: 2026-05-13
 - Branch: `refactor/post-cleanup-sweep`
-- Latest local branch commit at this audit point is the Expo patch-alignment commit containing this file.
+- Latest local branch includes the history-enabled soak proof, Expo patch alignment, and production-gate clarification commits.
 - Verdict: **not complete**
 
 ## Objective
