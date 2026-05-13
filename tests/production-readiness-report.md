@@ -1,7 +1,7 @@
 # Production Readiness Blocker Check
 
 - Status: BLOCKED
-- Generated: 2026-05-13T20:45:15.574Z
+- Generated: 2026-05-13T20:52:58.098Z
 
 | Requirement | Status | Evidence |
 | --- | --- | --- |
@@ -24,3 +24,7 @@
 
 - This check intentionally avoids printing secret values.
 - Manual flags are only accepted for host/dashboard operations that are not readable through local repo or Supabase CLI state.
+- Before disabling legacy Supabase JWT keys, deploy hosted Fastify with `PANCAKE_SUPABASE_SECRET_KEY` or `SUPABASE_SECRET_KEY` and verify `/health` reports `supabaseAdminKeyMode=modern-secret`.
+- To disable legacy Supabase JWT keys after hosted Fastify is verified, use the Supabase Management API endpoint: `PUT https://api.supabase.com/v1/projects/{ref}/api-keys/legacy?enabled=false`.
+- To unblock linked Supabase migrations, provide `SUPABASE_DB_PASSWORD` or restore Supabase temporary login-role creation, then rerun `supabase db query --linked "select now();"` and `supabase db push --dry-run`.
+- To unblock hosted Fastify verification from this machine, authenticate Railway with `railway login` or provide a valid Railway token/session for `npx --yes @railway/cli whoami`.
