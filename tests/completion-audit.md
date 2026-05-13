@@ -2,7 +2,7 @@
 
 - Updated: 2026-05-13
 - Branch: `refactor/post-cleanup-sweep`
-- Latest local branch includes the history-enabled soak proof, Expo patch alignment, production-gate clarification, and local modern Supabase key migration commits.
+- Latest local branch includes the history-enabled soak proof, Expo patch alignment, production-gate clarification, local modern Supabase key migration, hosted key-mode health verifier, and CI workspace fix commits.
 - Verdict: **not complete**
 
 ## Objective
@@ -23,7 +23,7 @@ Take Pancake from feature-complete to production-ready by:
 | Supabase Edge deployment after secret fix | PASS | All hosted Edge Functions were redeployed with previous JWT verification modes preserved. Hosted `verify?action=validate-db` returned HTTP 200 after deployment. |
 | Hosted Fastify secret-key migration | BLOCKED | No Railway CLI/auth path is available locally. Local backend `.env` now has `PANCAKE_SUPABASE_SECRET_KEY` populated from the Supabase CLI API-key output, but the hosted Fastify deployment env cannot be inspected or updated from this environment. |
 | Legacy Supabase JWT/service-role rotation | BLOCKED | Local app/E2E env now resolves to Supabase's modern publishable/secret keys. Disabling/revoking the hosted project's legacy JWT keys requires the Supabase Management API legacy-key toggle or Dashboard flow; the installed CLI can list key metadata but does not expose that mutation. |
-| Build gates | PASS | Latest reruns after the history-enabled report refresh and Expo patch alignment: `npm run lint`, `npm run typecheck`, backend/core typechecks, backend build, `deno check supabase/functions/_shared/supabase.ts`, `node --check tests/e2e/soak.mjs`, `npx expo-doctor`, `npm audit --audit-level=high`, backend high audit, and `git diff --check` all passed. |
+| Build gates | PASS | Latest reruns after the history-enabled report refresh and Expo patch alignment: `npm run lint`, `npm run typecheck`, backend/core typechecks, backend build, `deno check supabase/functions/_shared/supabase.ts`, `node --check tests/e2e/soak.mjs`, `npx expo-doctor`, `npm audit --audit-level=high`, backend high audit, and `git diff --check` all passed. PR #4 also has passing GitHub `Frontend lib tests` and `Backend tests` at head `7918c06`; backend CI now installs root workspace dependencies so `@pancake/core` resolves. |
 | 20-season soak proof | PASS | `tests/e2e-report.md` now records a history-enabled all-flag 20-season local Supabase/Fastify/static Expo/fake-upstream run with `Status: PASS`, from `2026-05-13T17:09:03.319Z` to `2026-05-13T19:24:28.135Z`. Every season row passed D.0 boundaries, repeated browser/API gameplay slices, D.LONG.1/D.LONG.2 pick-chain checks, D.LONG.3/D.LONG.4 history retention, D.LONG.5 local migration replay, D.LONG.6 runtime drift, and D.LONG.7 harness memory drift. |
 | D.SET.2 create/join lifecycle | PASS | The 20-season all-flag run included `E2E_ENABLE_LEAGUE_LIFECYCLE=1` and `E2E_ENABLE_BROWSER_LEAGUE_LIFECYCLE=1`, so the report records both the 10-user auth/RPC lifecycle and the real Expo create/join form lifecycle every simulated season. |
 | D.X.2 score realtime | PASS | The 20-season proof includes 10-client matchup realtime checks. |

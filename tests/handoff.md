@@ -45,6 +45,16 @@ Latest CLI retry after reading `.env`/`backend/.env`:
 - This branch adds a safe hosted backend proof field: `/health` now returns `supabaseAdminKeyMode` as `modern-secret`, `legacy-service-role`, or `missing`. It never returns secret values.
 - `npm run prod:check` now accepts hosted Fastify secret-key verification when deployed `/health` reports `supabaseAdminKeyMode=modern-secret`.
 
+Latest PR/CI status:
+
+- PR #4 is open as a draft: https://github.com/jormyy/pancake/pull/4
+- PR head: `7918c06 ci: run backend tests with workspace deps`
+- Merge state: clean
+- GitHub `Frontend lib tests`: pass
+- GitHub `Backend tests`: pass
+- The backend CI job now installs from the root workspace and runs backend scripts through npm workspaces so `@pancake/core` resolves in CI.
+- Backend tests were updated to match the current RPC-backed draft and waiver implementations; local backend suite passes 58/58.
+
 ## Current Blockers
 
 1. Hosted Fastify/Railway env is not verified.
