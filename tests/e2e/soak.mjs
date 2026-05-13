@@ -328,7 +328,7 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
     {
       requirement: 'P0/P1 findings resolved',
       status: 'PARTIAL',
-      evidence: 'P0/P1 source fixes are documented; service-role JWT literals were purged from reachable local Git history, and Edge Functions now prefer Supabase secret keys from the platform-provided SUPABASE_SECRET_KEYS dictionary before legacy service-role fallback. GitHub branch rewrite is still blocked by repository push permissions.',
+      evidence: 'P0/P1 source fixes are documented; service-role JWT literals were purged from reachable local and remote branch history, and Edge Functions now prefer Supabase secret keys from the platform-provided SUPABASE_SECRET_KEYS dictionary before legacy service-role fallback. Hosted Fastify env and legacy JWT/service-role rotation remain operational follow-up items.',
     },
     {
       requirement: 'Real test Supabase project',

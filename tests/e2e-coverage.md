@@ -10,7 +10,7 @@
 | Requirement | Status | Evidence |
 | --- | --- | --- |
 | Phase A audit report | PASS | tests/audit-report.md exists. |
-| P0/P1 findings resolved | PARTIAL | P0/P1 source fixes are documented; service-role JWT literals were purged from reachable local Git history, and Edge Functions now prefer Supabase secret keys from the platform-provided SUPABASE_SECRET_KEYS dictionary before legacy service-role fallback. GitHub branch rewrite is still blocked by repository push permissions. |
+| P0/P1 findings resolved | PARTIAL | P0/P1 source fixes are documented; service-role JWT literals were purged from reachable local and remote branch history, and Edge Functions now prefer Supabase secret keys from the platform-provided SUPABASE_SECRET_KEYS dictionary before legacy service-role fallback. Hosted Fastify env and legacy JWT/service-role rotation remain operational follow-up items. |
 | Real test Supabase project | PASS | Supabase URL/admin credentials loaded from E2E/app env. |
 | Fake NBA CDN/Sleeper upstream | PASS | Fake upstream configured for http://127.0.0.1:4555. |
 | D.SET.1 auth/session/sign-out | PASS | Browser auth scenario was enabled for this run. |
