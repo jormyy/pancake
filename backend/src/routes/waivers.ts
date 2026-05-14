@@ -3,7 +3,11 @@ import { processWaiverClaims } from '../sync/waivers'
 import { requireAdmin, verifyOwnMember } from '../lib/authz'
 import { supabase } from '../lib/supabase'
 import { AppError, NotFoundError, ValidationError } from '../plugins/errorHandler'
-import { isIREligible } from '@pancake/core'
+function isIREligible(injuryStatus: string | null): boolean {
+    if (!injuryStatus) return false
+    const s = injuryStatus.toLowerCase()
+    return s === 'out' || s.startsWith('ir')
+}
 import { WaiverCancelBody, WaiverClaimBody, WaiverClaimParams } from '../schemas'
 
 function tomorrowET(): string {

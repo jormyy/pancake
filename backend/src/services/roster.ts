@@ -1,6 +1,14 @@
 import { supabase } from '../lib/supabase'
 import { AppError, NotFoundError, ValidationError } from '../plugins/errorHandler'
-import { isIREligible, isTaxiEligible } from '@pancake/core'
+function isIREligible(injuryStatus: string | null): boolean {
+    if (!injuryStatus) return false
+    const s = injuryStatus.toLowerCase()
+    return s === 'out' || s.startsWith('ir')
+}
+
+function isTaxiEligible(nbaDraftNumber: number | null): boolean {
+    return nbaDraftNumber != null
+}
 
 async function fetchRosterPlacementContext(rosterPlayerId: string, userId: string) {
     const { data: rp, error: rpError } = await supabase

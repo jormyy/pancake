@@ -1,9 +1,43 @@
 import { supabase } from './supabase'
-import { calculateFantasyPoints } from '@pancake/core'
-import type { StatLine, ScoringSettings } from '@pancake/core'
+export type ScoringSettings = Record<string, number>
 
-export { calculateFantasyPoints }
-export type { StatLine, ScoringSettings }
+export interface StatLine {
+    points: number
+    rebounds: number
+    assists: number
+    steals: number
+    blocks: number
+    turnovers: number
+    threePointersMade: number
+    fieldGoalsMade: number
+    fieldGoalsAttempted: number
+    freeThrowsMade: number
+    freeThrowsAttempted: number
+    doubleDouble: boolean
+    tripleDouble: boolean
+    didNotPlay: boolean
+}
+
+export function calculateFantasyPoints(stats: StatLine, settings: ScoringSettings): number {
+    if (stats.didNotPlay) return 0
+    return parseFloat(
+        (
+            stats.points * (settings.points ?? 0) +
+            stats.rebounds * (settings.rebounds ?? 0) +
+            stats.assists * (settings.assists ?? 0) +
+            stats.steals * (settings.steals ?? 0) +
+            stats.blocks * (settings.blocks ?? 0) +
+            stats.turnovers * (settings.turnovers ?? 0) +
+            stats.threePointersMade * (settings.three_pointers_made ?? 0) +
+            stats.fieldGoalsMade * (settings.field_goals_made ?? 0) +
+            stats.fieldGoalsAttempted * (settings.field_goals_attempted ?? 0) +
+            stats.freeThrowsMade * (settings.free_throws_made ?? 0) +
+            stats.freeThrowsAttempted * (settings.free_throws_attempted ?? 0) +
+            (stats.doubleDouble ? (settings.double_double ?? 0) : 0) +
+            (stats.tripleDouble ? (settings.triple_double ?? 0) : 0)
+        ).toFixed(2),
+    )
+}
 
 export function snakeToStatLine(row: Record<string, unknown>): StatLine {
     return {
