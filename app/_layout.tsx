@@ -5,7 +5,7 @@ import { useEffect } from 'react'
 import 'react-native-reanimated'
 
 import { useColorScheme } from '@/hooks/use-color-scheme'
-import { useAuth } from '@/hooks/use-auth'
+import { AuthProvider, useAuth } from '@/hooks/use-auth'
 import { LeagueProvider } from '@/contexts/league-context'
 import { usePushNotifications } from '@/hooks/use-push-notifications'
 
@@ -15,6 +15,18 @@ export const unstable_settings = {
 
 export default function RootLayout() {
     const colorScheme = useColorScheme()
+
+    return (
+        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+            <AuthProvider>
+                <RootContent />
+            </AuthProvider>
+            <StatusBar style="auto" />
+        </ThemeProvider>
+    )
+}
+
+function RootContent() {
     const { session, loading } = useAuth()
     const router = useRouter()
     const segments = useSegments()
@@ -28,22 +40,15 @@ export default function RootLayout() {
         } else if (!session && !inAuthGroup) {
             router.replace('/(auth)/sign-in')
         }
-    }, [session, loading, segments])
+    }, [session, loading, segments, router])
 
     return (
-        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-            <LeagueProvider>
-                <Stack>
-                    <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                    <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-                    <Stack.Screen name="(modals)" options={{ headerShown: false }} />
-                    <Stack.Screen
-                        name="modal"
-                        options={{ presentation: 'modal', title: 'Modal' }}
-                    />
-                </Stack>
-            </LeagueProvider>
-            <StatusBar style="auto" />
-        </ThemeProvider>
+        <LeagueProvider>
+            <Stack>
+                <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+                <Stack.Screen name="(modals)" options={{ headerShown: false }} />
+            </Stack>
+        </LeagueProvider>
     )
 }

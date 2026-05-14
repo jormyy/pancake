@@ -1,6 +1,7 @@
 import { jwtVerify, JWTPayload } from 'jose'
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
 import { AppError } from './errorHandler'
+import { supabase } from '../lib/supabase'
 
 declare module 'fastify' {
     interface FastifyRequest {
@@ -31,13 +32,33 @@ const SKIP_ROUTES = new Set(['/health', '/games/today'])
 
 export default async function authPlugin(app: FastifyInstance) {
     const secret = process.env.SUPABASE_JWT_SECRET
-    if (!secret) {
-        throw new Error('SUPABASE_JWT_SECRET env var is required')
+    if (!secret) app.log.warn('SUPABASE_JWT_SECRET missing; validating sessions through Supabase Auth')
+
+    const validateThroughSupabaseAuth = async (token: string) => {
+        const { data, error } = await supabase.auth.getUser(token)
+        if (error || !data.user) {
+            throw new AppError('Invalid or expired token', 401)
+        }
+        return data.user.id
     }
 
-    app.addHook('onRequest', async (request: FastifyRequest, reply: FastifyReply) => {
+    app.addHook('onRequest', async (request: FastifyRequest, _reply: FastifyReply) => {
         const pathname = request.url.split('?')[0]
         if (SKIP_ROUTES.has(pathname)) return
+
+        if (process.env.ENABLE_E2E_ROUTES === '1' && pathname.startsWith('/e2e/')) {
+            const expectedSecret = process.env.E2E_ADMIN_SECRET
+            const providedSecret = request.headers['x-e2e-secret']
+            if (
+                expectedSecret &&
+                typeof providedSecret === 'string' &&
+                providedSecret === expectedSecret
+            ) {
+                request.userId = process.env.E2E_USER_ID ?? 'e2e-admin'
+                return
+            }
+            throw new AppError('Missing or invalid E2E admin secret', 401)
+        }
 
         const authHeader = request.headers.authorization
         if (!authHeader?.startsWith('Bearer ')) {
@@ -45,11 +66,14 @@ export default async function authPlugin(app: FastifyInstance) {
         }
 
         const token = authHeader.slice(7)
-        const claims = await verifySupabaseJwt(token, secret)
-        if (!claims || !claims.sub) {
-            throw new AppError('Invalid or expired token', 401)
+        if (secret) {
+            const claims = await verifySupabaseJwt(token, secret)
+            if (claims?.sub) {
+                request.userId = claims.sub
+                return
+            }
         }
 
-        request.userId = claims.sub
+        request.userId = await validateThroughSupabaseAuth(token)
     })
 }

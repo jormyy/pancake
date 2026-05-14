@@ -11,12 +11,14 @@ import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useEffect, useState } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
 import { getRoster, RosterPlayer } from '@/lib/roster'
-import { POSITION_COLORS } from '@/constants/positions'
+import { getEligiblePositions } from '@/lib/players'
+import { getPositionColor } from "@/constants/positions"
 import { Avatar } from '@/components/Avatar'
 import { Badge } from '@/components/Badge'
 import { ItemSeparator } from '@/components/ItemSeparator'
 import { PosTag } from '@/components/PosTag'
-import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { colors, palette, fontSize, fontWeight, spacing } from '@/constants/tokens'
+import { playerHeadshotUrl } from '@/lib/format'
 
 export default function TeamRosterScreen() {
     const { back, push } = useRouter()
@@ -55,7 +57,6 @@ export default function TeamRosterScreen() {
                     data={[...active, ...ir, ...taxi]}
                     keyExtractor={(r) => r.id}
                     ItemSeparatorComponent={ItemSeparator}
-                    estimatedItemSize={64}
                     ListHeaderComponent={
                         <View style={styles.countRow}>
                             <Text style={styles.countText}>
@@ -67,7 +68,7 @@ export default function TeamRosterScreen() {
                     }
                     renderItem={({ item }) => {
                         const p = item.players
-                        const eligiblePositions: string[] = p.eligible_positions?.length ? p.eligible_positions : (p.position ? [p.position] : [])
+                        const eligiblePositions = getEligiblePositions(p)
                         return (
                             <Pressable
                                 style={styles.playerRow}
@@ -75,9 +76,9 @@ export default function TeamRosterScreen() {
                             >
                                 <Avatar
                                     name={p.display_name}
-                                    color={POSITION_COLORS[eligiblePositions[0] ?? ''] ?? palette.gray500}
+                                    color={getPositionColor(eligiblePositions[0])}
                                     size={44}
-                                    uri={p.nba_id ? `https://cdn.nba.com/headshots/nba/latest/260x190/${p.nba_id}.png` : null}
+                                    uri={playerHeadshotUrl(p.nba_id)}
                                 />
                                 <View style={styles.playerInfo}>
                                     <Text style={styles.playerName}>{p.display_name}</Text>

@@ -1,17 +1,13 @@
 import { supabase } from '@/lib/supabase'
 import { logTransaction } from '@/lib/transactions'
 import { getCurrentSeasonId, getActiveSeasonId } from '@/lib/shared/season'
+import { isDTD, isIREligible, isTaxiEligible as isEligibleForTaxi } from '@pancake/core'
+import { apiPost } from '@/lib/shared/api'
 
-export function isIREligible(injuryStatus: string | null): boolean {
-    if (!injuryStatus) return false
-    const s = injuryStatus.toLowerCase()
-    // DTD players are not IR eligible — only Out and official IR designations
-    return s === 'out' || s.startsWith('ir')
-}
+export { isIREligible, isDTD }
 
-export function isDTD(injuryStatus: string | null): boolean {
-    if (!injuryStatus) return false
-    return injuryStatus.toLowerCase() === 'dtd'
+export function isTaxiEligible(player: RosterPlayer['players']): boolean {
+    return isEligibleForTaxi(player.nba_draft_number)
 }
 
 export type RosterPlayer = {
@@ -29,10 +25,6 @@ export type RosterPlayer = {
         nba_id: string | null
         nba_draft_number: number | null
     }
-}
-
-export function isTaxiEligible(player: RosterPlayer['players']): boolean {
-    return player.nba_draft_number != null
 }
 
 export type PlayerRosterStatus =
@@ -63,75 +55,11 @@ export async function getRoster(memberId: string, leagueId: string): Promise<Ros
 }
 
 export async function toggleIR(rosterPlayerId: string, isOnIR: boolean): Promise<void> {
-    // Fetch row first so we can log with context
-    const { data: rp } = await supabase
-        .from('roster_players')
-        .select('member_id, league_id, league_season_id, player_id')
-        .eq('id', rosterPlayerId)
-        .single()
-
-    const { error } = await supabase
-        .from('roster_players')
-        .update({ is_on_ir: isOnIR })
-        .eq('id', rosterPlayerId)
-    if (error) throw error
-
-    // When moving to IR, remove any active lineup slot assignments for this player
-    // so they don't ghost in the starter/bench rows
-    if (isOnIR && rp) {
-        await supabase
-            .from('weekly_lineups')
-            .delete()
-            .eq('member_id', (rp as any).member_id)
-            .eq('league_id', (rp as any).league_id)
-            .eq('league_season_id', (rp as any).league_season_id)
-            .eq('player_id', (rp as any).player_id)
-    }
-
-    if (rp) {
-        await logTransaction({
-            leagueId: (rp as any).league_id,
-            leagueSeasonId: (rp as any).league_season_id,
-            memberId: (rp as any).member_id,
-            playerId: (rp as any).player_id,
-            transactionType: isOnIR ? 'ir_designate' : 'ir_return',
-        })
-    }
+    await apiPost('/league/roster/ir', { rosterPlayerId, isOnIR })
 }
 
 export async function toggleTaxi(rosterPlayerId: string, isOnTaxi: boolean): Promise<void> {
-    const { data: rp } = await supabase
-        .from('roster_players')
-        .select('member_id, league_id, league_season_id, player_id')
-        .eq('id', rosterPlayerId)
-        .single()
-
-    const { error } = await supabase
-        .from('roster_players')
-        .update({ is_on_taxi: isOnTaxi } as any)
-        .eq('id', rosterPlayerId)
-    if (error) throw error
-
-    // When moving to taxi, remove any active lineup slot assignments
-    if (isOnTaxi && rp) {
-        await supabase
-            .from('weekly_lineups')
-            .delete()
-            .eq('member_id', (rp as any).member_id)
-            .eq('league_id', (rp as any).league_id)
-            .eq('league_season_id', (rp as any).league_season_id)
-            .eq('player_id', (rp as any).player_id)
-    }
-
-    if (rp) {
-        await logTransaction({
-            leagueId: (rp as any).league_id,
-            leagueSeasonId: (rp as any).league_season_id,
-            memberId: (rp as any).member_id,
-            playerId: (rp as any).player_id,
-            transactionType: isOnTaxi ? 'taxi_designate' : 'taxi_return',
-        })
-    }
+    await apiPost('/league/roster/taxi', { rosterPlayerId, isOnTaxi })
 }
 
 export type OwnedEntry = { teamName: string; memberId: string }
@@ -150,9 +78,9 @@ export async function getOwnedPlayerMap(leagueId: string): Promise<Map<string, O
     if (error) throw error
     const map = new Map<string, OwnedEntry>()
     for (const r of data ?? []) {
-        map.set((r as any).player_id, {
-            teamName: (r as any).league_members?.team_name ?? 'Team',
-            memberId: (r as any).member_id,
+        map.set(r.player_id, {
+            teamName: r.league_members?.team_name ?? 'Team',
+            memberId: r.member_id,
         })
     }
     return map
@@ -192,13 +120,12 @@ export async function getPlayerRosterStatus(
     if (error) throw error
     if (data) {
         if (data.member_id === memberId) return { status: 'mine', rosterPlayerId: data.id }
-        const owner = data.league_members as any
-        return { status: 'taken', ownerTeamName: owner?.team_name ?? 'Another team' }
+        return { status: 'taken', ownerTeamName: data.league_members?.team_name ?? 'Another team' }
     }
 
     // Check if on waivers
     const now = new Date().toISOString()
-    const { data: waiverLog } = await (supabase as any)
+    const { data: waiverLog } = await supabase
         .from('waiver_wire_log')
         .select('id, clears_at')
         .eq('league_id', leagueId)
@@ -235,10 +162,10 @@ export async function addFreeAgent(
 
     if (rosterPlayers && rosterPlayers.length > 0) {
         const ineligible = rosterPlayers.filter(
-            (rp) => !isIREligible((rp as any).players?.injury_status)
+            (rp) => !isIREligible(rp.players?.injury_status)
         )
         if (ineligible.length > 0) {
-            const names = ineligible.map((rp) => (rp as any).players?.display_name).join(', ')
+            const names = ineligible.map((rp) => rp.players?.display_name ?? 'Unknown').join(', ')
             throw new Error(
                 `You have ineligible players on IR (${names}). Activate or drop them before adding players.`
             )
@@ -303,7 +230,7 @@ export async function dropPlayer(rosterPlayerId: string): Promise<void> {
 
     // Place on waivers for 48 hours
     const clearsAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString()
-    const { error: waiverErr } = await (supabase as any).from('waiver_wire_log').insert({
+    const { error: waiverErr } = await supabase.from('waiver_wire_log').insert({
         league_id: rp.league_id,
         league_season_id: rp.league_season_id,
         player_id: rp.player_id,

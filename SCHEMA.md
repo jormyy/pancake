@@ -532,6 +532,8 @@ CREATE TABLE bids (
 );
 ```
 
+Auction bids are placed through the service-role-only `place_auction_bid_atomic(draft_id, member_id, nomination_id, amount)` RPC. Expired nominations are closed through `close_auction_nomination_atomic(nomination_id)`. Both functions lock the nomination row before mutating bid, budget, roster, draft, and league state so concurrent bidders or cron workers cannot double-apply auction side effects.
+
 ---
 
 ### snake_draft_picks
@@ -546,6 +548,7 @@ CREATE TABLE snake_draft_picks (
   round           int NOT NULL,
   pick_in_round   int NOT NULL,
   member_id       uuid NOT NULL REFERENCES league_members(id),
+  draft_pick_id   uuid REFERENCES draft_picks(id),
   player_id       uuid REFERENCES players(id),   -- NULL until the pick is made
   picked_at       timestamptz,
 
@@ -618,6 +621,8 @@ CREATE TABLE waiver_claims (
   failure_reason          text
 );
 ```
+
+Waiver processing runs through the service-role-only `process_next_waiver_claim_atomic(process_date)` RPC. The function locks a league-season's `waiver_priorities`, processes one due claim using current priority order, excludes IR/taxi from active roster counts, moves successful claimants to the back of the queue, and marks competing claims for the same player as failed in the same transaction.
 
 ---
 
@@ -760,6 +765,7 @@ CREATE INDEX idx_roster_players_player ON roster_players(player_id);
 CREATE INDEX idx_pgs_player_week ON player_game_stats(player_id, week_number, season_year);
 CREATE INDEX idx_pgs_game ON player_game_stats(game_id);
 CREATE INDEX idx_pgs_season_week ON player_game_stats(season_year, week_number);
+CREATE INDEX idx_pgs_game_date_player ON player_game_stats(game_date, player_id);
 
 -- nba_games
 CREATE INDEX idx_nba_games_date ON nba_games(game_date);

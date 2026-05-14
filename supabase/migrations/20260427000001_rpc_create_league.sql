@@ -80,5 +80,4 @@ BEGIN
   );
 END;
 $$;
-
 GRANT EXECUTE ON FUNCTION public.create_league(text, text, int) TO authenticated;

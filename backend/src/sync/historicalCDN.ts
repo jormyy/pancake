@@ -17,7 +17,7 @@ import { buildStatRow } from './stats'
 import { CONFIG } from '../config'
 import { sleep } from '../lib/utils/sleep'
 
-const CDN_BASE = 'https://cdn.nba.com/static/json'
+const CDN_BASE = process.env.NBA_CDN_BASE_URL ?? 'https://cdn.nba.com/static/json'
 const CDN_HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
     'Accept': 'application/json, text/plain, */*',
@@ -58,9 +58,6 @@ export async function syncCDNHistoricalSeason(
         { prefix: `002${yy}0`, max: 1300 },  // regular season
         { prefix: `004${yy}0`, max: 300 },   // playoffs
     ]
-
-    // First pass: count how many games exist (for total_items estimate)
-    // We skip this and just update progress as we go
 
     const nbaIdUpdates: { id: string; nba_id: string }[] = []
     let completed = 0
@@ -240,5 +237,4 @@ async function recalcWeekNumbers(
         await supabase.from('season_weeks').upsert(weeks, { onConflict: 'season_year,week_number' })
     }
 }
-
 

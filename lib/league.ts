@@ -7,22 +7,18 @@ export async function createLeague(
     teamName: string,
     auctionBudget: number = 200,
 ) {
-    // Uses a SECURITY DEFINER RPC to avoid the PostgREST RLS false-positive:
-    // direct INSERT + RETURNING fails because the SELECT policy (my_league_ids)
-    // blocks the row before the league_members row is created.
-    const { data, error } = await supabase.rpc('create_league', {
+    const { data: league, error } = await supabase.rpc('create_league', {
         p_name: name,
         p_team_name: teamName,
         p_auction_budget: auctionBudget,
     })
 
     if (error) throw error
-
-    return data as Pick<League, 'id' | 'name' | 'slug' | 'invite_code' | 'commissioner_id' | 'auction_budget' | 'status'>
+    return league as unknown as League
 }
 
 export async function joinLeague(inviteCode: string, _userId: string, teamName: string) {
-    const { data, error } = await supabase.rpc('join_league_by_invite_code', {
+    const { data, error } = await (supabase as any).rpc('join_league_by_invite_code', {
         p_invite_code: inviteCode,
         p_team_name: teamName,
     })

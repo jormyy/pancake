@@ -4,12 +4,13 @@ import {
     Pressable,
     StyleSheet,
     ActivityIndicator,
+    ScrollView,
 } from 'react-native'
 import { showAlert, confirmAction } from '@/lib/alert'
 import { FlashList } from '@shopify/flash-list'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { useAuth } from '@/hooks/use-auth'
 import { useLeagueContext } from '@/contexts/league-context'
 import { getRoster, toggleIR, toggleTaxi, dropPlayer, isIREligible, isTaxiEligible, RosterPlayer } from '@/lib/roster'
@@ -17,16 +18,13 @@ import { getPicksForMember, TradePickItem } from '@/lib/trades'
 import { getMyWaiverClaims, cancelWaiverClaim, WaiverClaim } from '@/lib/waivers'
 import { supabase } from '@/lib/supabase'
 import { currentSeasonYear } from '@/lib/shared/season'
-import { INJURY_COLORS, colors, fontSize, fontWeight, radii, spacing, palette } from '@/constants/tokens'
-import { shortDateFmt } from '@/lib/format'
+import { colors, fontSize, fontWeight, radii, spacing, palette } from '@/constants/tokens'
 import { ItemSeparator } from '@/components/ItemSeparator'
 import { LoadingScreen } from '@/components/LoadingScreen'
 import { EmptyState } from '@/components/EmptyState'
-import { Avatar } from '@/components/Avatar'
-import { Badge } from '@/components/Badge'
-import { PosTag } from '@/components/PosTag'
 import { SectionHeader } from '@/components/SectionHeader'
 import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
+import { RosterClaimItem, RosterPickItem, RosterPlayerItem, TaxiPlayerItem } from '@/components/roster/RosterItems'
 
 type RosterListItem =
     | { _isHeader: true; _section: string }
@@ -35,217 +33,10 @@ type RosterListItem =
     | (TradePickItem & { _isHeader: false; _isEmpty: false; _section: 'picks' })
     | (WaiverClaim & { _isHeader: false; _isEmpty: false; _section: 'claims' })
 
-// ── Extracted list item components ───────────────────────────────
-
-function RosterClaimItem({
-    claim,
-    cancellingId,
-    onCancel,
-}: {
-    claim: WaiverClaim
-    cancellingId: string | null
-    onCancel: (id: string) => void
-}) {
-    const isPending = claim.status === 'pending'
-    const statusColor =
-        claim.status === 'succeeded' ? colors.success
-        : claim.status === 'pending' ? colors.info
-        : colors.danger
-    return (
-        <View style={styles.claimRow}>
-            <View style={styles.info}>
-                <Text style={styles.playerName}>{claim.playerName}</Text>
-                {claim.dropPlayerName ? (
-                    <Text style={styles.playerMeta}>Drop: {claim.dropPlayerName}</Text>
-                ) : null}
-                <Text style={[styles.playerMeta, { color: statusColor }]}>
-                    {claim.status === 'pending'
-                        ? `Processes ${shortDateFmt.format(new Date(claim.processDate))}`
-                        : claim.status === 'succeeded'
-                          ? 'Succeeded'
-                          : claim.status === 'failed_roster'
-                            ? 'Failed: roster full'
-                            : 'Failed: outbid'}
-                </Text>
-            </View>
-            {isPending ? (
-                <Pressable
-                    style={styles.actionButton}
-                    onPress={() => onCancel(claim.id)}
-                    disabled={cancellingId === claim.id}
-                >
-                    {cancellingId === claim.id ? (
-                        <ActivityIndicator size="small" color={colors.textMuted} />
-                    ) : (
-                        <Text style={styles.actionButtonText}>Cancel</Text>
-                    )}
-                </Pressable>
-            ) : null}
-        </View>
-    )
-}
-
-function RosterPickItem({
-    pick,
-    myTeamName,
-}: {
-    pick: TradePickItem
-    myTeamName: string
-}) {
-    const isOwn = pick.originalTeamName === myTeamName
-    return (
-        <View style={styles.pickRow}>
-            <View style={styles.pickCircle}>
-                <Text style={styles.pickCircleText}>
-                    {String(pick.seasonYear).slice(2)}
-                </Text>
-            </View>
-            <View style={styles.info}>
-                <Text style={styles.playerName}>
-                    {pick.seasonYear} Round {pick.round}
-                </Text>
-                {!isOwn ? (
-                    <Text style={styles.playerMeta}>via {pick.originalTeamName}</Text>
-                ) : null}
-            </View>
-        </View>
-    )
-}
-
-function RosterPlayerItem({
-    item,
-    togglingId,
-    taxiingId,
-    droppingId,
-    taxiSlotsAvailable,
-    onPress,
-    onLongPress,
-    onToggleIR,
-    onToggleTaxi,
-}: {
-    item: RosterPlayer
-    togglingId: string | null
-    taxiingId: string | null
-    droppingId: string | null
-    taxiSlotsAvailable: boolean
-    onPress: () => void
-    onLongPress: () => void
-    onToggleIR: (item: RosterPlayer) => void
-    onToggleTaxi: (item: RosterPlayer) => void
-}) {
-    const player = item.players
-    const positions: string[] = player.eligible_positions?.length ? player.eligible_positions : (player.position ? [player.position] : [])
-    const isBusy = togglingId === item.id || taxiingId === item.id || droppingId === item.id
-    const [headshotError, setHeadshotError] = useState(false)
-    const headshotUri = player.nba_id
-        ? `https://cdn.nba.com/headshots/nba/latest/260x190/${player.nba_id}.png`
-        : null
-    return (
-        <Pressable style={styles.playerRow} onPress={onPress} onLongPress={onLongPress} delayLongPress={400}>
-            <Avatar
-                name={player.display_name}
-                color={colors.bgMuted}
-                uri={headshotUri && !headshotError ? headshotUri : undefined}
-            />
-
-            <View style={styles.info}>
-                <Text style={styles.playerName}>{player.display_name}</Text>
-                <View style={styles.playerMetaRow}>
-                    {player.nba_team ? <Text style={styles.playerMeta}>{player.nba_team}</Text> : null}
-                    {positions.map((pos) => <PosTag key={pos} position={pos} />)}
-                </View>
-                {player.injury_status ? (
-                    <View style={{ alignSelf: 'flex-start', marginTop: 2 }}>
-                        <Badge
-                            label={player.injury_status}
-                            color={INJURY_COLORS[player.injury_status] ?? colors.textMuted}
-                            variant="solid"
-                        />
-                    </View>
-                ) : null}
-            </View>
-
-            <View style={styles.rowActions}>
-                {(item.is_on_ir || isIREligible(player.injury_status)) ? (
-                    <Pressable
-                        style={[styles.actionButton, item.is_on_ir && styles.irButtonActive]}
-                        onPress={() => onToggleIR(item)}
-                        disabled={isBusy}
-                    >
-                        {togglingId === item.id ? (
-                            <ActivityIndicator size="small" color={item.is_on_ir ? colors.textWhite : colors.textMuted} />
-                        ) : (
-                            <Text style={[styles.actionButtonText, item.is_on_ir && styles.actionButtonTextActive]}>
-                                {item.is_on_ir ? 'Active' : 'IR'}
-                            </Text>
-                        )}
-                    </Pressable>
-                ) : null}
-                {!item.is_on_ir && taxiSlotsAvailable && isTaxiEligible(player) ? (
-                    <Pressable
-                        style={[styles.actionButton, styles.taxiButtonOutline]}
-                        onPress={() => onToggleTaxi(item)}
-                        disabled={isBusy}
-                    >
-                        {taxiingId === item.id ? (
-                            <ActivityIndicator size="small" color={palette.indigo500} />
-                        ) : (
-                            <Text style={styles.taxiButtonOutlineText}>Taxi</Text>
-                        )}
-                    </Pressable>
-                ) : null}
-            </View>
-        </Pressable>
-    )
-}
-
-function TaxiPlayerItem({
-    item,
-    taxiingId,
-    onPress,
-    onToggleTaxi,
-}: {
-    item: RosterPlayer
-    taxiingId: string | null
-    onPress: () => void
-    onToggleTaxi: (item: RosterPlayer) => void
-}) {
-    const player = item.players
-    const positions: string[] = player.eligible_positions?.length ? player.eligible_positions : (player.position ? [player.position] : [])
-    const [headshotError, setHeadshotError] = useState(false)
-    const headshotUri = player.nba_id
-        ? `https://cdn.nba.com/headshots/nba/latest/260x190/${player.nba_id}.png`
-        : null
-    return (
-        <Pressable style={styles.playerRow} onPress={onPress}>
-            <Avatar
-                name={player.display_name}
-                color={colors.bgMuted}
-                uri={headshotUri && !headshotError ? headshotUri : undefined}
-            />
-
-            <View style={styles.info}>
-                <Text style={styles.playerName}>{player.display_name}</Text>
-                <View style={styles.playerMetaRow}>
-                    {player.nba_team ? <Text style={styles.playerMeta}>{player.nba_team}</Text> : null}
-                    {positions.map((pos) => <PosTag key={pos} position={pos} />)}
-                </View>
-            </View>
-
-            <Pressable
-                style={[styles.actionButton, styles.taxiButtonActive]}
-                onPress={() => onToggleTaxi(item)}
-                disabled={taxiingId === item.id}
-            >
-                {taxiingId === item.id ? (
-                    <ActivityIndicator size="small" color={colors.textWhite} />
-                ) : (
-                    <Text style={[styles.actionButtonText, styles.actionButtonTextActive]}>Activate</Text>
-                )}
-            </Pressable>
-        </Pressable>
-    )
-}
+const EMPTY_ROSTER: RosterPlayer[] = []
+const EMPTY_PICKS: TradePickItem[] = []
+const EMPTY_CLAIMS: WaiverClaim[] = []
+const EMPTY_AVG_MAP = new Map<string, number>()
 
 // ── Main screen ──────────────────────────────────────────────────
 
@@ -275,22 +66,47 @@ export default function RosterScreen() {
             .eq('season_year', currentSeasonYear())
             .in('player_id', playerIds)
         const avgMap = new Map<string, number>()
-        for (const row of avgData ?? []) avgMap.set(row.player_id, Number(row.avg_fantasy_points))
+        for (const row of (avgData ?? []) as { player_id: string; avg_fantasy_points: number | null }[]) {
+            avgMap.set(row.player_id, Number(row.avg_fantasy_points))
+        }
         return { roster, picks, claims, avgMap }
     }, [current, user])
 
-    const roster = data?.roster ?? []
-    const picks = data?.picks ?? []
-    const claims = data?.claims ?? []
-    const avgMap = data?.avgMap ?? new Map<string, number>()
+    const roster = useMemo(() => data?.roster ?? EMPTY_ROSTER, [data?.roster])
+    const picks = useMemo(() => data?.picks ?? EMPTY_PICKS, [data?.picks])
+    const claims = useMemo(() => data?.claims ?? EMPTY_CLAIMS, [data?.claims])
+    const avgMap = useMemo(() => data?.avgMap ?? EMPTY_AVG_MAP, [data?.avgMap])
+
+    type RosterSortKey = 'fpts' | 'name' | 'position' | 'team'
+    const [rosterSort, setRosterSort] = useState<RosterSortKey>('fpts')
+    const [rosterSortDir, setRosterSortDir] = useState<'asc' | 'desc'>('desc')
+
+    const sortRoster = useCallback((a: RosterPlayer, b: RosterPlayer) => {
+        let cmp = 0
+        switch (rosterSort) {
+            case 'fpts':
+                cmp = (avgMap.get(a.players.id) ?? -1) - (avgMap.get(b.players.id) ?? -1)
+                break
+            case 'name':
+                cmp = (a.players.display_name ?? '').localeCompare(b.players.display_name ?? '')
+                break
+            case 'position':
+                cmp = (a.players.eligible_positions?.[0] ?? a.players.position ?? '').localeCompare(b.players.eligible_positions?.[0] ?? b.players.position ?? '')
+                break
+            case 'team':
+                cmp = (a.players.nba_team ?? '').localeCompare(b.players.nba_team ?? '')
+                break
+        }
+        return rosterSortDir === 'asc' ? cmp : -cmp
+    }, [avgMap, rosterSort, rosterSortDir])
 
     const active = useMemo(() => {
         return roster
             .filter((p) => !p.is_on_ir && !p.is_on_taxi)
-            .sort((a, b) => (avgMap.get(b.players.id) ?? -1) - (avgMap.get(a.players.id) ?? -1))
-    }, [roster, avgMap])
-    const ir = useMemo(() => roster.filter((p) => p.is_on_ir), [roster])
-    const taxi = useMemo(() => roster.filter((p) => p.is_on_taxi), [roster])
+            .sort(sortRoster)
+    }, [roster, sortRoster])
+    const ir = useMemo(() => [...roster.filter((p) => p.is_on_ir)].sort(sortRoster), [roster, sortRoster])
+    const taxi = useMemo(() => [...roster.filter((p) => p.is_on_taxi)].sort(sortRoster), [roster, sortRoster])
 
     const listData = useMemo<RosterListItem[]>(() => {
         const result: RosterListItem[] = []
@@ -418,6 +234,13 @@ export default function RosterScreen() {
     const league = currentLeague
     const taxiSlots = league?.taxi_slots ?? 3
 
+    const ROSTER_SORTS: { key: RosterSortKey; label: string }[] = [
+        { key: 'fpts', label: 'FPts' },
+        { key: 'position', label: 'Pos' },
+        { key: 'name', label: 'Name' },
+        { key: 'team', label: 'Team' },
+    ]
+
     return (
         <SafeAreaView style={styles.container}>
             {/* Header */}
@@ -435,6 +258,38 @@ export default function RosterScreen() {
                 >
                     <Text style={styles.lineupButtonText}>Set Lineup</Text>
                 </Pressable>
+            </View>
+
+            {/* Sort chips */}
+            <View style={styles.sortRow}>
+                <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.sortChips}
+                >
+                    {ROSTER_SORTS.map((opt) => {
+                        const active = rosterSort === opt.key
+                        return (
+                            <Pressable
+                                key={opt.key}
+                                style={[styles.sortChip, active && styles.sortChipActive]}
+                                onPress={() => {
+                                    if (active) {
+                                        setRosterSortDir((d) => d === 'asc' ? 'desc' : 'asc')
+                                    } else {
+                                        setRosterSort(opt.key)
+                                        setRosterSortDir(opt.key === 'name' || opt.key === 'position' || opt.key === 'team' ? 'asc' : 'desc')
+                                    }
+                                }}
+                            >
+                                <Text style={[styles.sortChipText, active && styles.sortChipTextActive]}>
+                                    {opt.label}
+                                    {active ? (rosterSortDir === 'asc' ? ' ↑' : ' ↓') : ''}
+                                </Text>
+                            </Pressable>
+                        )
+                    })}
+                </ScrollView>
             </View>
 
             {loading ? (
@@ -499,6 +354,7 @@ export default function RosterScreen() {
                                 <TaxiPlayerItem
                                     item={item as RosterPlayer}
                                     taxiingId={taxiingId}
+                                    avgFpts={avgMap.get((item as RosterPlayer).players.id)}
                                     onPress={() => push(`/player/${(item as RosterPlayer).players.id}`)}
                                     onToggleTaxi={handleToggleTaxi}
                                 />
@@ -512,6 +368,7 @@ export default function RosterScreen() {
                                 taxiingId={taxiingId}
                                 droppingId={droppingId}
                                 taxiSlotsAvailable={taxi.length < taxiSlots}
+                                avgFpts={avgMap.get(rosterItem.players.id)}
                                 onPress={() => push(`/player/${rosterItem.players.id}`)}
                                 onLongPress={() => handleDropPrompt(rosterItem)}
                                 onToggleIR={handleToggleIR}
@@ -550,63 +407,18 @@ const styles = StyleSheet.create({
     teamName: { fontSize: fontSize.md, color: colors.textSecondary },
     rosterCount: { fontSize: 12, color: colors.textPlaceholder, marginTop: spacing.xs },
 
-    playerRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: spacing.xl,
-        paddingVertical: spacing.lg,
-        gap: spacing.lg,
-    },
-
-    info: { flex: 1, gap: 2 },
-    playerName: { fontSize: fontSize.lg, fontWeight: fontWeight.semibold },
-    playerMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-    playerMeta: { fontSize: fontSize.sm, color: colors.textMuted },
-
-    rowActions: { flexDirection: 'row', gap: spacing.sm },
-
-    actionButton: {
+    sortRow: { paddingBottom: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
+    sortChips: { paddingHorizontal: spacing.xl, gap: spacing.sm },
+    sortChip: {
         paddingHorizontal: spacing.lg,
         paddingVertical: spacing.sm,
-        borderRadius: radii.md,
+        borderRadius: radii['3xl'],
         borderCurve: 'continuous' as const,
-        borderWidth: 1,
-        borderColor: colors.border,
-        minWidth: 52,
-        alignItems: 'center',
+        backgroundColor: colors.bgMuted,
     },
-    irButtonActive: { backgroundColor: colors.danger, borderColor: colors.danger },
-    taxiButtonActive: { backgroundColor: palette.indigo500, borderColor: palette.indigo500 },
-    taxiButtonOutline: { borderColor: palette.indigo500 },
-    taxiButtonOutlineText: { fontSize: 12, fontWeight: fontWeight.bold, color: palette.indigo500 },
-    actionButtonText: { fontSize: 12, fontWeight: fontWeight.bold, color: colors.textMuted },
-    actionButtonTextActive: { color: colors.textWhite },
-
-    pickRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: spacing.xl,
-        paddingVertical: spacing.lg,
-        gap: spacing.lg,
-    },
-    pickCircle: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
-        borderCurve: 'continuous' as const,
-        backgroundColor: palette.indigo500,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    pickCircleText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.sm },
-
-    claimRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: spacing.xl,
-        paddingVertical: spacing.lg,
-        gap: spacing.lg,
-    },
+    sortChipActive: { backgroundColor: colors.primary },
+    sortChipText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textSecondary },
+    sortChipTextActive: { color: colors.textWhite },
 
     taxiHeader: {
         paddingHorizontal: spacing.xl,

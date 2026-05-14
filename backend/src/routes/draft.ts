@@ -12,8 +12,8 @@ import {
     reseedRookieDraftPicks,
     autoPickBest,
 } from '../sync/rookieDraft'
-import { supabase } from '../lib/supabase'
-import { AppError, NotFoundError, ValidationError } from '../plugins/errorHandler'
+import { NotFoundError } from '../plugins/errorHandler'
+import { requireCommissioner, requireCommissionerForDraft, verifyMemberAccess } from '../lib/authz'
 import {
     LeagueIdBody,
     DraftParams,
@@ -22,39 +22,10 @@ import {
     SnakePickBody,
 } from '../schemas'
 
-/**
- * Verify the requesting user owns the memberId or is a commissioner.
- */
-async function verifyMemberAccess(userId: string, memberId: string): Promise<void> {
-    const { data, error } = await supabase
-        .from('league_members')
-        .select('user_id, role, league_id')
-        .eq('id', memberId)
-        .single()
-
-    if (error || !data) {
-        throw new NotFoundError('Member not found')
-    }
-
-    if (data.user_id === userId) return
-
-    // Allow commissioners
-    const { data: commissioner } = await supabase
-        .from('league_members')
-        .select('role')
-        .eq('league_id', data.league_id)
-        .eq('user_id', userId)
-        .in('role', ['commissioner', 'co_commissioner'])
-        .maybeSingle()
-
-    if (!commissioner) {
-        throw new AppError('Not authorized', 403)
-    }
-}
-
 export default async function draftRoutes(app: FastifyInstance) {
     app.post('/start', { schema: { body: LeagueIdBody } }, async (req) => {
         const { leagueId } = req.body as { leagueId: string }
+        await requireCommissioner(req.userId, leagueId)
         const draft = await startDraft(leagueId)
         return { ok: true, draft }
     })
@@ -102,6 +73,7 @@ export default async function draftRoutes(app: FastifyInstance) {
 
     app.post('/start-rookie', { schema: { body: LeagueIdBody } }, async (req) => {
         const { leagueId } = req.body as { leagueId: string }
+        await requireCommissioner(req.userId, leagueId)
         const draft = await startRookieDraft(leagueId)
         return { ok: true, draft }
     })
@@ -109,7 +81,7 @@ export default async function draftRoutes(app: FastifyInstance) {
     app.get(
         '/:draftId/rookie-state',
         { schema: { params: DraftParams } },
-        async (req, reply) => {
+        async (req) => {
             const { draftId } = req.params as { draftId: string }
             const state = await getRookieDraftState(draftId)
             if (!state) {
@@ -124,7 +96,7 @@ export default async function draftRoutes(app: FastifyInstance) {
         { schema: { params: DraftParams, body: SnakePickBody } },
         async (req) => {
             const { draftId } = req.params as { draftId: string }
-            const { memberId } = req.body as { memberId: string; playerId: string }
+            const { memberId } = req.body as { memberId: string }
             await verifyMemberAccess(req.userId, memberId)
             const result = await autoPickBest(draftId, memberId)
             return { ok: true, ...result }
@@ -136,6 +108,7 @@ export default async function draftRoutes(app: FastifyInstance) {
         { schema: { params: DraftParams } },
         async (req) => {
             const { draftId } = req.params as { draftId: string }
+            await requireCommissionerForDraft(req.userId, draftId)
             const result = await reseedRookieDraftPicks(draftId)
             return { ok: true, ...result }
         },

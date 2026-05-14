@@ -11,19 +11,15 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useEffect, useState, useCallback } from 'react'
-import { useAuth } from '@/hooks/use-auth'
 import { useLeagueContext } from '@/contexts/league-context'
 import { getLeagueMembers } from '@/lib/league'
 import { getRoster, RosterPlayer } from '@/lib/roster'
 import { proposeTrade, getCurrentSeasonId, getPicksForMember, TradePickItem } from '@/lib/trades'
+import { showAlert } from '@/lib/alert'
 
-import { getInitials } from '@/lib/format'
+import { yearShort } from '@/lib/format'
 import { Avatar } from '@/components/Avatar'
 import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
-
-function yearShort(year: number): string {
-    return String(year).slice(2)
-}
 
 function PlayerRow({
     player,
@@ -35,11 +31,13 @@ function PlayerRow({
     onToggle: () => void
 }) {
     const p = player.players
+    const action = selected ? 'Remove' : 'Select'
     return (
         <Pressable
             style={[styles.playerRow, selected && styles.playerRowSelected]}
             onPress={onToggle}
-
+            accessibilityRole="button"
+            accessibilityLabel={`${action} ${p.display_name} for trade`}
         >
             <Avatar
                 name={p.display_name}
@@ -73,11 +71,13 @@ function PickRow({
     selected: boolean
     onToggle: () => void
 }) {
+    const action = selected ? 'Remove' : 'Select'
     return (
         <Pressable
             style={[styles.playerRow, selected && styles.playerRowSelected]}
             onPress={onToggle}
-
+            accessibilityRole="button"
+            accessibilityLabel={`${action} ${pick.seasonYear} round ${pick.round} pick via ${pick.originalTeamName} for trade`}
         >
             <View style={[styles.pickCircle, selected && styles.pickCircleSelected]}>
                 <Text style={styles.pickCircleText}>{yearShort(pick.seasonYear)}</Text>
@@ -98,7 +98,6 @@ function PickRow({
 }
 
 export default function ProposeTradeScreen() {
-    const { user } = useAuth()
     const { current, currentLeague } = useLeagueContext()
     const params = useLocalSearchParams<{ recipientMemberId?: string }>()
     const { back } = useRouter()
@@ -226,7 +225,7 @@ export default function ProposeTradeScreen() {
                 { text: 'OK', onPress: () => back() },
             ])
         } catch (e: any) {
-            Alert.alert('Error', e.message ?? 'Could not propose trade.')
+            showAlert('Error', e.message ?? 'Could not propose trade.')
         } finally {
             setSubmitting(false)
         }
@@ -253,7 +252,12 @@ export default function ProposeTradeScreen() {
         <SafeAreaView style={styles.container} edges={['top']}>
             {/* Header */}
             <View style={styles.header}>
-                <Pressable onPress={() => back()} style={styles.cancelBtn}>
+                <Pressable
+                    onPress={() => back()}
+                    style={styles.cancelBtn}
+                    accessibilityRole="button"
+                    accessibilityLabel="Cancel trade proposal"
+                >
                     <Text style={styles.cancelBtnText}>Cancel</Text>
                 </Pressable>
                 <Text style={styles.headerTitle}>Propose Trade</Text>
@@ -261,6 +265,8 @@ export default function ProposeTradeScreen() {
                     onPress={handleSubmit}
                     style={[styles.submitBtn, !canSubmit && styles.submitBtnDisabled]}
                     disabled={!canSubmit}
+                    accessibilityRole="button"
+                    accessibilityLabel="Send trade proposal"
                 >
                     {submitting ? (
                         <ActivityIndicator size="small" color={colors.textWhite} />
@@ -288,6 +294,8 @@ export default function ProposeTradeScreen() {
                                     key={m.id}
                                     style={[styles.teamChip, active && styles.teamChipActive]}
                                     onPress={() => setSelectedRecipientId(m.id)}
+                                    accessibilityRole="button"
+                                    accessibilityLabel={`Trade with ${m.team_name ?? 'Unnamed team'}`}
                                 >
                                     <Text
                                         style={[

@@ -15,13 +15,31 @@ const ExpoSecureStoreAdapter =
           }
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL!
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!
+const supabasePublicKey =
+    process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!
+const SUPABASE_URL_OVERRIDE_KEY = 'PANCAKE_SUPABASE_URL'
+const SUPABASE_PUBLIC_KEY_OVERRIDE_KEY = 'PANCAKE_SUPABASE_ANON_KEY'
 
-export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
-    auth: {
-        storage: ExpoSecureStoreAdapter,
-        autoRefreshToken: true,
-        persistSession: true,
-        detectSessionInUrl: false,
+function runtimeSupabaseOverride(key: string): string | null {
+    if (process.env.NODE_ENV === 'production') return null
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return null
+
+    try {
+        return window.localStorage.getItem(key)
+    } catch {
+        return null
+    }
+}
+
+export const supabase = createClient<Database>(
+    runtimeSupabaseOverride(SUPABASE_URL_OVERRIDE_KEY) ?? supabaseUrl,
+    runtimeSupabaseOverride(SUPABASE_PUBLIC_KEY_OVERRIDE_KEY) ?? supabasePublicKey,
+    {
+        auth: {
+            storage: ExpoSecureStoreAdapter,
+            autoRefreshToken: true,
+            persistSession: true,
+            detectSessionInUrl: false,
+        },
     },
-})
+)

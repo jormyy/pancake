@@ -1,5 +1,5 @@
-import { Avatar } from '@/components/Avatar'
 import { IRResolutionModal } from '@/components/IRResolutionModal'
+import { DropPlayerPickerModal } from '@/components/DropPlayerPickerModal'
 import { LoadingScreen } from '@/components/LoadingScreen'
 import { FantasyCard } from '@/components/player/FantasyCard'
 import { GameLogTable } from '@/components/player/GameLogTable'
@@ -7,33 +7,16 @@ import { PlayerHeader } from '@/components/player/PlayerHeader'
 import { SeasonSelector } from '@/components/player/SeasonSelector'
 import { StatsOverview } from '@/components/player/StatsOverview'
 import { TransactionHistory } from '@/components/player/TransactionHistory'
-import { PosTag } from '@/components/PosTag'
-import { POSITION_COLORS } from '@/constants/positions'
-import { colors, fontSize, fontWeight, palette, radii, spacing } from '@/constants/tokens'
+import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 import { useLeagueContext } from '@/contexts/league-context'
-import { useAuth } from '@/hooks/use-auth'
-import {
-    getAvailableSeasons,
-    getPlayer,
-    getPlayerFantasyPoints,
-    getPlayerGameLog,
-    getPlayerSeasonAveragesFromView,
-    getPlayerTransactionHistory,
-    type GameLogEntry,
-    type PlayerSeasonAverages,
-    type TransactionHistoryEntry,
-} from '@/lib/players'
-import { addFreeAgent, dropPlayer, getPlayerRosterStatus, getRoster, isIREligible, toggleIR, type PlayerRosterStatus, type RosterPlayer } from '@/lib/roster'
-import { todayDateString } from '@/lib/shared/dates'
-import { currentSeasonYear } from '@/lib/shared/season'
-import { supabase } from '@/lib/supabase'
+import { usePlayerScreenData } from '@/hooks/use-player-screen-data'
+import { addFreeAgent, dropPlayer, getPlayerRosterStatus, getRoster, toggleIR, type PlayerRosterStatus, type RosterPlayer } from '@/lib/roster'
+import { isIneligibleIR } from '@/lib/format'
 import { showAlert, confirmAction } from '@/lib/alert'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
     ActivityIndicator,
-    Modal,
-    Pressable,
     ScrollView,
     StyleSheet,
     Text,
@@ -41,22 +24,25 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
-const GAME_LOG_PAGE = 15
-
 export default function PlayerDetailScreen() {
     const { id } = useLocalSearchParams<{ id: string }>()
     const { current, currentLeague } = useLeagueContext()
-    const { user } = useAuth()
     const { push } = useRouter()
 
-    // Player core data
-    const [player, setPlayer] = useState<any>(null)
-    const [loading, setLoading] = useState(true)
+    const leagueId = currentLeague?.id ?? null
+
+    const {
+        player, loading, playedToday,
+        availableSeasons, selectedSeason, handleSeasonSelect,
+        seasonAverages, seasonLoading,
+        gameLog, hasMoreGames, gameLogLoading, loadMoreGames,
+        fantasyPointsMap, avgFantasyPoints,
+        transactions,
+    } = usePlayerScreenData(id, leagueId)
 
     // Roster status
     const [rosterStatus, setRosterStatus] = useState<PlayerRosterStatus | null>(null)
     const [actionLoading, setActionLoading] = useState(false)
-    const [playedToday, setPlayedToday] = useState(false)
 
     // Drop picker + IR resolution state
     const [dropPickerVisible, setDropPickerVisible] = useState(false)
@@ -67,171 +53,29 @@ export default function PlayerDetailScreen() {
         roster: RosterPlayer[]
     } | null>(null)
 
-    // Season navigation
-    const [availableSeasons, setAvailableSeasons] = useState<number[]>([])
-    const [selectedSeason, setSelectedSeason] = useState<number>(currentSeasonYear())
-
-    // Season-dependent data
-    const [seasonAverages, setSeasonAverages] = useState<PlayerSeasonAverages | null>(null)
-    const [seasonLoading, setSeasonLoading] = useState(false)
-
-    // Game log
-    const [gameLog, setGameLog] = useState<GameLogEntry[]>([])
-    const [gameLogOffset, setGameLogOffset] = useState(0)
-    const [hasMoreGames, setHasMoreGames] = useState(false)
-    const [gameLogLoading, setGameLogLoading] = useState(false)
-
-    // Fantasy points (league-aware)
-    const [fantasyPointsMap, setFantasyPointsMap] = useState<Map<string, number> | null>(null)
-    const [avgFantasyPoints, setAvgFantasyPoints] = useState(0)
-
-    // Transaction history (league-aware, once per player/league)
-    const [transactions, setTransactions] = useState<TransactionHistoryEntry[]>([])
-
-    const leagueId = currentLeague?.id ?? null
-
-    // ── Load player core + available seasons ────────────────────────────────
-    useEffect(() => {
-        async function load() {
-            try {
-                const [p, seasons, todayStats] = await Promise.all([
-                    getPlayer(id),
-                    getAvailableSeasons(id),
-                    supabase
-                        .from('player_game_stats')
-                        .select('did_not_play')
-                        .eq('player_id', id)
-                        .eq('game_date', todayDateString())
-                        .maybeSingle(),
-                ])
-                setPlayedToday(todayStats.data != null && todayStats.data.did_not_play === false)
-                setPlayer(p)
-                setAvailableSeasons(seasons)
-                if (seasons.length > 0 && !seasons.includes(selectedSeason)) {
-                    setSelectedSeason(seasons[0])
-                }
-            } catch (e) {
-                console.error(e)
-            } finally {
-                setLoading(false)
-            }
-        }
-        load()
-    }, [id])
-
     // ── Load roster status ───────────────────────────────────────────────────
-    async function loadRosterStatus() {
-        if (!current || !user) return
+    const loadRosterStatus = useCallback(async () => {
+        if (!current || !leagueId) return
         try {
-            const status = await getPlayerRosterStatus(id, current.id, leagueId!)
+            const status = await getPlayerRosterStatus(id, current.id, leagueId)
             setRosterStatus(status)
         } catch (e) {
             console.error(e)
         }
-    }
+    }, [current, id, leagueId])
 
     useEffect(() => {
         loadRosterStatus()
-    }, [id, current, user])
-
-    // ── Load season-dependent data ───────────────────────────────────────────
-    useEffect(() => {
-        if (!player) return
-        async function loadSeasonData() {
-            setSeasonLoading(true)
-            setGameLog([])
-            setGameLogOffset(0)
-            setHasMoreGames(false)
-            setFantasyPointsMap(null)
-            setAvgFantasyPoints(0)
-
-            try {
-                const [avgs, gameLogResult] = await Promise.all([
-                    getPlayerSeasonAveragesFromView(id, selectedSeason),
-                    getPlayerGameLog(id, player.nba_team, selectedSeason, GAME_LOG_PAGE, 0),
-                ])
-                setSeasonAverages(avgs)
-                setGameLog(gameLogResult.games)
-                setGameLogOffset(gameLogResult.games.length)
-                setHasMoreGames(gameLogResult.hasMore)
-            } catch (e) {
-                console.error(e)
-            } finally {
-                setSeasonLoading(false)
-            }
-        }
-        loadSeasonData()
-    }, [id, selectedSeason, player])
-
-    // ── Load fantasy points when league changes ──────────────────────────────
-    useEffect(() => {
-        if (!leagueId || !player) return
-        async function loadFantasy() {
-            try {
-                const pts = await getPlayerFantasyPoints(id, leagueId!, selectedSeason)
-                const map = new Map(pts.map((p) => [p.gameId, p.fantasyPoints]))
-                setFantasyPointsMap(map)
-                if (pts.length > 0) {
-                    const avg = pts.reduce((sum, p) => sum + p.fantasyPoints, 0) / pts.length
-                    setAvgFantasyPoints(avg)
-                }
-            } catch (e) {
-                console.error(e)
-            }
-        }
-        loadFantasy()
-    }, [id, leagueId, selectedSeason, player])
-
-    // ── Load transaction history once per player/league ─────────────────────
-    useEffect(() => {
-        if (!leagueId) return
-        async function loadTransactions() {
-            try {
-                const tx = await getPlayerTransactionHistory(id, leagueId!)
-                setTransactions(tx)
-            } catch (e) {
-                console.error(e)
-            }
-        }
-        loadTransactions()
-    }, [id, leagueId])
-
-    // ── Load more games ──────────────────────────────────────────────────────
-    async function loadMoreGames() {
-        if (gameLogLoading || !hasMoreGames || !player) return
-        setGameLogLoading(true)
-        try {
-            const result = await getPlayerGameLog(
-                id,
-                player.nba_team,
-                selectedSeason,
-                GAME_LOG_PAGE,
-                gameLogOffset,
-            )
-            setGameLog((prev) => [...prev, ...result.games])
-            setGameLogOffset((prev) => prev + result.games.length)
-            setHasMoreGames(result.hasMore)
-        } catch (e) {
-            console.error(e)
-        } finally {
-            setGameLogLoading(false)
-        }
-    }
-
-    // ── Season selector handler ──────────────────────────────────────────────
-    function handleSeasonSelect(year: number) {
-        if (year === selectedSeason) return
-        setSelectedSeason(year)
-    }
+    }, [loadRosterStatus])
 
     // ── Roster actions ───────────────────────────────────────────────────────
     async function handleAdd() {
-        if (!current || !user) return
+        if (!current || !leagueId) return
         setActionLoading(true)
         try {
             // Check for ineligible IR players before adding
-            const roster = await getRoster(current.id, leagueId!)
-            const ineligible = roster.filter((r) => r.is_on_ir && !isIREligible(r.players.injury_status))
+            const roster = await getRoster(current.id, leagueId)
+            const ineligible = roster.filter((r) => isIneligibleIR(r))
 
             if (ineligible.length > 0) {
                 setActionLoading(false)
@@ -285,7 +129,7 @@ export default function PlayerDetailScreen() {
         if (!current || !leagueId) return
         await toggleIR(rp.id, false)
         const roster = await getRoster(current.id, leagueId)
-        const remaining = roster.filter((r) => r.is_on_ir && !isIREligible(r.players.injury_status))
+        const remaining = roster.filter((r) => isIneligibleIR(r))
         if (remaining.length > 0) {
             setIrModal((prev) => prev ? { ...prev, ineligible: remaining, roster } : null)
         } else {
@@ -299,7 +143,7 @@ export default function PlayerDetailScreen() {
         await dropPlayer(toDrop.id)
         await toggleIR(activatePlayer.id, false)
         const roster = await getRoster(current.id, leagueId)
-        const remaining = roster.filter((r) => r.is_on_ir && !isIREligible(r.players.injury_status))
+        const remaining = roster.filter((r) => isIneligibleIR(r))
         if (remaining.length > 0) {
             setIrModal((prev) => prev ? { ...prev, ineligible: remaining, roster } : null)
         } else {
@@ -332,7 +176,7 @@ export default function PlayerDetailScreen() {
         if (!current || !leagueId) return
         // Check for ineligible IR players before allowing waiver claim
         const roster = await getRoster(current.id, leagueId)
-        const ineligible = roster.filter((r) => r.is_on_ir && !isIREligible(r.players.injury_status))
+        const ineligible = roster.filter((r) => isIneligibleIR(r))
 
         if (ineligible.length > 0) {
             setIrModal({ ineligible, roster })
@@ -429,70 +273,15 @@ export default function PlayerDetailScreen() {
                 </ScrollView>
             </SafeAreaView>
 
-            {/* Drop picker modal */}
-            <Modal
+            <DropPlayerPickerModal
                 visible={dropPickerVisible}
-                transparent
-                animationType="slide"
-                onRequestClose={() => setDropPickerVisible(false)}
-            >
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalCard}>
-                        <Text style={styles.modalTitle}>
-                            Drop a player to add{'\n'}
-                            <Text style={styles.modalPlayerName}>{player?.display_name}</Text>
-                        </Text>
-                        <Text style={styles.modalSub}>Your roster is full. Pick someone to release.</Text>
-
-                        <ScrollView style={styles.dropList} showsVerticalScrollIndicator={false}>
-                            {myRoster.map((rp) => {
-                                const p = rp.players
-                                const isDroppingThis = dropping === rp.id
-                                return (
-                                    <View key={rp.id} style={styles.dropRow}>
-                                        {(() => {
-                                            const ep: string[] = p.eligible_positions?.length ? p.eligible_positions : (p.position ? [p.position] : [])
-                                            return (
-                                                <>
-                                                    <Avatar
-                                                        name={p.display_name}
-                                                        color={POSITION_COLORS[ep[0] ?? ''] ?? palette.gray500}
-                                                        size={38}
-                                                    />
-                                                    <View style={styles.dropInfo}>
-                                                        <Text style={styles.dropName} numberOfLines={1}>{p.display_name}</Text>
-                                                        <View style={styles.dropMetaRow}>
-                                                            {p.nba_team && <Text style={styles.dropMeta}>{p.nba_team}</Text>}
-                                                            {ep.map((pos) => <PosTag key={pos} position={pos} />)}
-                                                        </View>
-                                                    </View>
-                                                </>
-                                            )
-                                        })()}
-                                        <Pressable
-                                            style={styles.dropBtn}
-                                            onPress={() => handleDropAndAdd(rp)}
-                                            disabled={dropping !== null}
-                                        >
-                                            {isDroppingThis
-                                                ? <ActivityIndicator size="small" color={colors.textWhite} />
-                                                : <Text style={styles.dropBtnText}>Drop</Text>}
-                                        </Pressable>
-                                    </View>
-                                )
-                            })}
-                        </ScrollView>
-
-                        <Pressable
-                            style={styles.modalCancel}
-                            onPress={() => setDropPickerVisible(false)}
-                            disabled={dropping !== null}
-                        >
-                            <Text style={styles.modalCancelText}>Cancel</Text>
-                        </Pressable>
-                    </View>
-                </View>
-            </Modal>
+                title={`Drop a player to add\n${player?.display_name ?? ''}`}
+                subtitle="Your roster is full. Pick someone to release."
+                roster={myRoster}
+                dropping={dropping}
+                onDrop={handleDropAndAdd}
+                onCancel={() => setDropPickerVisible(false)}
+            />
 
             {/* IR resolution modal */}
             <IRResolutionModal

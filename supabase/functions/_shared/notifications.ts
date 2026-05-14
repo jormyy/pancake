@@ -1,6 +1,6 @@
 import { supabase } from './supabase.ts'
 
-const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send'
+const EXPO_PUSH_URL = Deno.env.get('EXPO_PUSH_URL') ?? 'https://exp.host/--/api/v2/push/send'
 
 export async function notifyMember(
   memberId: string,
@@ -14,7 +14,7 @@ export async function notifyMember(
     .eq('id', memberId)
     .single()
   if (!member) return
-  await notifyUser((member as any).user_id, title, body, data)
+  await notifyUser(member.user_id, title, body, data)
 }
 
 export async function notifyUser(
@@ -28,7 +28,7 @@ export async function notifyUser(
     .select('push_token')
     .eq('id', userId)
     .single()
-  const token = (profile as any)?.push_token
+  const token = profile?.push_token
   if (!token) return
 
   try {

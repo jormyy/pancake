@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import { getCurrentSeasonId } from '@/lib/shared/season'
-import { isIREligible } from '@/lib/roster'
+import { apiPost } from '@/lib/shared/api'
 
 export type WaiverEntry = {
     logId: string
@@ -30,7 +30,7 @@ export async function getWaiverEntries(leagueId: string): Promise<WaiverEntry[]>
     if (!seasonId) return []
 
     const now = new Date().toISOString()
-    const { data, error } = await (supabase as any)
+    const { data, error } = await supabase
         .from('waiver_wire_log')
         .select(`
             id,
@@ -64,7 +64,7 @@ export async function getWaiverPlayerIds(leagueId: string): Promise<Set<string>>
     if (!seasonId) return new Set()
 
     const now = new Date().toISOString()
-    const { data, error } = await (supabase as any)
+    const { data, error } = await supabase
         .from('waiver_wire_log')
         .select('player_id')
         .eq('league_id', leagueId)
@@ -82,95 +82,16 @@ export async function submitWaiverClaim(
     playerId: string,
     dropPlayerId?: string,
 ): Promise<void> {
-    const seasonId = await getCurrentSeasonId(leagueId)
-    if (!seasonId) throw new Error('No active season found.')
-
-    // Check for ineligible IR players before allowing waiver claim
-    const { data: rosterPlayers, error: rosterErr } = await supabase
-        .from('roster_players')
-        .select('is_on_ir, players ( display_name, injury_status )')
-        .eq('member_id', memberId)
-        .eq('league_id', leagueId)
-        .eq('league_season_id', seasonId)
-        .eq('is_on_ir', true)
-    if (rosterErr) throw rosterErr
-
-    if (rosterPlayers && rosterPlayers.length > 0) {
-        const ineligible = rosterPlayers.filter(
-            (rp) => !isIREligible((rp as any).players?.injury_status)
-        )
-        if (ineligible.length > 0) {
-            const names = ineligible.map((rp) => (rp as any).players?.display_name).join(', ')
-            throw new Error(
-                `You have ineligible players on IR (${names}). Activate or drop them before placing waiver claims.`
-            )
-        }
-    }
-
-    const { data: priorityRow, error: prioErr } = await (supabase as any)
-        .from('waiver_priorities')
-        .select('priority')
-        .eq('member_id', memberId)
-        .eq('league_season_id', seasonId)
-        .single()
-    if (prioErr) throw new Error('Could not load your waiver priority.')
-    if (!priorityRow) throw new Error('No waiver priority found for your team.')
-
-    const now = new Date().toISOString()
-    const { data: waiverLog, error: waiverErr } = await (supabase as any)
-        .from('waiver_wire_log')
-        .select('id')
-        .eq('league_id', leagueId)
-        .eq('league_season_id', seasonId)
-        .eq('player_id', playerId)
-        .is('cleared_at', null)
-        .gt('clears_at', now)
-        .maybeSingle()
-    if (waiverErr) throw waiverErr
-    if (!waiverLog) throw new Error('This player is no longer on waivers.')
-
-    const { data: existing } = await (supabase as any)
-        .from('waiver_claims')
-        .select('id')
-        .eq('member_id', memberId)
-        .eq('league_season_id', seasonId)
-        .eq('player_id', playerId)
-        .eq('status', 'pending')
-        .maybeSingle()
-    if (existing) throw new Error('You already have a pending claim for this player.')
-
-    const tomorrow = new Date()
-    tomorrow.setDate(tomorrow.getDate() + 1)
-    const processDate = tomorrow.toISOString().split('T')[0]
-
-    const { error } = await (supabase as any).from('waiver_claims').insert({
-        league_id: leagueId,
-        league_season_id: seasonId,
-        member_id: memberId,
-        player_id: playerId,
-        drop_player_id: dropPlayerId ?? null,
-        priority_at_submission: priorityRow.priority,
-        process_date: processDate,
+    await apiPost('/waivers/claims', {
+        memberId,
+        leagueId,
+        playerId,
+        dropPlayerId: dropPlayerId ?? null,
     })
-    if (error) throw error
 }
 
 export async function cancelWaiverClaim(claimId: string, memberId: string): Promise<void> {
-    const { data: claim, error: fetchErr } = await (supabase as any)
-        .from('waiver_claims')
-        .select('id, member_id, status')
-        .eq('id', claimId)
-        .single()
-    if (fetchErr) throw fetchErr
-    if (!claim) throw new Error('Claim not found.')
-    if (claim.member_id !== memberId) throw new Error('Not your claim.')
-    if (claim.status !== 'pending') throw new Error('Claim is no longer pending.')
-
-    const { error } = await (supabase as any)
-        .from('waiver_claims')
-        .update({ status: 'cancelled' })
-        .eq('id', claimId)
-    if (error) throw error
+    await apiPost(`/waivers/claims/${claimId}/cancel`, { memberId })
 }
 
 export async function getMyWaiverClaims(
@@ -180,7 +101,7 @@ export async function getMyWaiverClaims(
     const seasonId = await getCurrentSeasonId(leagueId)
     if (!seasonId) return []
 
-    const { data, error } = await (supabase as any)
+    const { data, error } = await supabase
         .from('waiver_claims')
         .select(`
             id,
@@ -225,7 +146,7 @@ export async function getWaiverPriorityOrder(leagueId: string): Promise<WaiverPr
     const seasonId = await getCurrentSeasonId(leagueId)
     if (!seasonId) return []
 
-    const { data, error } = await (supabase as any)
+    const { data, error } = await supabase
         .from('waiver_priorities')
         .select(`
             priority,
@@ -260,7 +181,7 @@ export async function getMyWaiverPriority(
     const seasonId = await getCurrentSeasonId(leagueId)
     if (!seasonId) return null
 
-    const { data, error } = await (supabase as any)
+    const { data, error } = await supabase
         .from('waiver_priorities')
         .select('priority')
         .eq('member_id', memberId)

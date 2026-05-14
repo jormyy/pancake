@@ -1,4 +1,5 @@
 import * as cheerio from 'npm:cheerio'
+import type { AnyNode } from 'npm:domhandler'
 
 const BBREF_BASE = 'https://www.basketball-reference.com'
 const BBREF_HEADERS = {
@@ -85,7 +86,7 @@ export async function fetchBBRefSchedule(seasonEndYear: number): Promise<BBRefGa
       const html = await bbrefGet(path)
       const $ = cheerio.load(html)
 
-      $('table#schedule tbody tr').each((_: number, row: unknown) => {
+      $('table#schedule tbody tr').each((_: number, row: AnyNode) => {
         const $row = $(row)
         if ($row.hasClass('thead')) return
 
@@ -139,7 +140,7 @@ function parseTeamTable($: ReturnType<typeof cheerio.load>, teamCode: string): B
   const $tbody = $(`#box-${teamCode}-game-basic tbody`)
   if (!$tbody.length) return stats
 
-  $tbody.find('tr').each((_: number, row: unknown) => {
+  $tbody.find('tr').each((_: number, row: AnyNode) => {
     const $row = $(row)
     if ($row.hasClass('thead')) return
 

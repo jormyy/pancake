@@ -2,31 +2,33 @@ import { supabase } from '@/lib/supabase'
 import { getCurrentSeason } from '@/lib/shared/season'
 import { getCurrentWeekNumber } from '@/lib/shared/week'
 import { LiveStatLine } from '@/lib/games'
+import { calculateFantasyPoints } from '@pancake/core'
+import type { StatLine, ScoringSettings } from '@pancake/core'
 
-/**
- * SYNC: Keep formula identical to backend/src/lib/scoring.ts calculateFantasyPoints.
- * This frontend version operates on camelCase LiveStatLine from lib/games.ts.
- */
+function liveStatToLine(stats: LiveStatLine): StatLine {
+    return {
+        points: stats.points,
+        rebounds: stats.rebounds,
+        assists: stats.assists,
+        steals: stats.steals,
+        blocks: stats.blocks,
+        turnovers: stats.turnovers ?? 0,
+        threePointersMade: stats.threeMade,
+        fieldGoalsMade: stats.fgMade,
+        fieldGoalsAttempted: stats.fgAttempted,
+        freeThrowsMade: stats.ftMade,
+        freeThrowsAttempted: stats.ftAttempted,
+        doubleDouble: stats.doubleDouble,
+        tripleDouble: stats.tripleDouble,
+        didNotPlay: stats.didNotPlay,
+    }
+}
+
 export function computeLiveFantasyPoints(
     stats: LiveStatLine,
     settings: Record<string, number>,
 ): number {
-    if (stats.didNotPlay) return 0
-    return parseFloat((
-        stats.points             * (settings.points                  ?? 0) +
-        stats.rebounds           * (settings.rebounds                ?? 0) +
-        stats.assists            * (settings.assists                 ?? 0) +
-        stats.steals             * (settings.steals                  ?? 0) +
-        stats.blocks             * (settings.blocks                  ?? 0) +
-        (stats.turnovers ?? 0)   * (settings.turnovers               ?? 0) +
-        stats.threeMade          * (settings.three_pointers_made     ?? 0) +
-        stats.fgMade             * (settings.field_goals_made        ?? 0) +
-        stats.fgAttempted        * (settings.field_goals_attempted   ?? 0) +
-        stats.ftMade             * (settings.free_throws_made        ?? 0) +
-        stats.ftAttempted        * (settings.free_throws_attempted   ?? 0) +
-        (stats.doubleDouble ? (settings.double_double ?? 0) : 0) +
-        (stats.tripleDouble ? (settings.triple_double ?? 0) : 0)
-    ).toFixed(2))
+    return calculateFantasyPoints(liveStatToLine(stats), settings as ScoringSettings)
 }
 
 export type Matchup = {

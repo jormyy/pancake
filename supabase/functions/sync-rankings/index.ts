@@ -1,6 +1,8 @@
 import { supabase } from '../_shared/supabase.ts'
 import { normalizeName } from '../_shared/nameMatch.ts'
+import { internalServerError } from '../_shared/responses.ts'
 import * as cheerio from 'npm:cheerio'
+import type { AnyNode } from 'npm:domhandler'
 
 const RANKINGS_URL = 'https://hashtagbasketball.com/fantasy-basketball-dynasty-rankings'
 const CHUNK = 500
@@ -9,9 +11,8 @@ Deno.serve(async () => {
   try {
     await syncDynastyRankings()
     return Response.json({ ok: true })
-  } catch (e: any) {
-    console.error('[sync-rankings]', e)
-    return Response.json({ ok: false, error: e.message }, { status: 500 })
+  } catch (e: unknown) {
+    return internalServerError('sync-rankings', e)
   }
 })
 
@@ -31,6 +32,7 @@ async function syncDynastyRankings() {
 
   for (const p of players ?? []) {
     if (p.sportsdata_id) bySpDataId.set(p.sportsdata_id, p.id)
+    if (!p.display_name) continue
     byExactName.set(p.display_name.toLowerCase(), p.id)
     const norm = normalizeName(p.display_name)
     if (byNormName.has(norm)) {
@@ -65,10 +67,13 @@ async function syncDynastyRankings() {
   }
 
   for (let i = 0; i < updates.length; i += CHUNK) {
-    const { error: upErr } = await supabase
-      .from('players')
-      .upsert(updates.slice(i, i + CHUNK), { onConflict: 'id' })
-    if (upErr) throw upErr
+    await Promise.all(updates.slice(i, i + CHUNK).map(async (update) => {
+      const { error } = await supabase
+        .from('players')
+        .update({ dynasty_rank: update.dynasty_rank })
+        .eq('id', update.id)
+      if (error) throw error
+    }))
   }
 
   // Clear dynasty_rank for players no longer on the list
@@ -96,7 +101,7 @@ async function scrapeDynastyRankings() {
 
   const rankings: Array<{ rank: number; name: string; team: string; siteId: string | null }> = []
 
-  $('table.table--statistics tr').each((_: number, row: unknown) => {
+  $('table.table--statistics tr').each((_: number, row: AnyNode) => {
     const cells = $(row).find('td.dynasty.d-none')
     if (cells.length < 5) return
 

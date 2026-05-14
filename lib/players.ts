@@ -3,6 +3,12 @@ import type { NBAPosition } from '@/types/database'
 import { currentSeasonYear } from '@/lib/shared/season'
 import { TRANSACTION_LABELS } from '@/lib/transactions'
 
+/** Resolves a player's eligible positions, falling back to the primary position. */
+export function getEligiblePositions(player: { eligible_positions?: string[] | null; position?: string | null }): string[] {
+    if (player.eligible_positions?.length) return player.eligible_positions as string[]
+    return player.position ? [player.position] : []
+}
+
 export type PlayerRow = {
     id: string
     display_name: string
@@ -124,7 +130,7 @@ export async function searchPlayers(query: string, position: string, teams: stri
         if (effectiveTeams != null) allQ = allQ.in('nba_team', effectiveTeams)
 
         const { data: allData } = await allQ
-        const withoutStats = (allData ?? [] as any[]).filter((p: any) => !withStatsIds.has(p.id)) as PlayerRow[]
+        const withoutStats = (allData ?? []).filter((p) => !withStatsIds.has(p.id)) as PlayerRow[]
 
         return [...withStats, ...withoutStats]
     }
@@ -181,7 +187,7 @@ export async function getAvailableSeasons(playerId: string): Promise<number[]> {
     if (error) throw error
     if (!data || data.length === 0) return [currentSeasonYear()]
 
-    return (data as any[]).map((r) => r.season_year as number)
+    return data.map((r) => r.season_year).filter((year): year is number => year != null)
 }
 
 export async function getPlayerSeasonAveragesFromView(
@@ -196,7 +202,7 @@ export async function getPlayerSeasonAveragesFromView(
         .single()
 
     if (error || !data) return null
-    const row = data as any
+    const row = data
 
     return {
         gamesPlayed: Number(row.games_played) || 0,
@@ -301,7 +307,7 @@ export async function getPlayerFantasyPoints(
     if (e1) throw e1
     if (!playedRows || playedRows.length === 0) return []
 
-    const playedIds = (playedRows as any[]).map((r) => r.id)
+    const playedIds = playedRows.map((r) => r.id)
 
     const { data, error } = await supabase
         .from('v_fantasy_points')
@@ -322,7 +328,7 @@ export async function getPlayerTransactionHistory(
     playerId: string,
     leagueId: string,
 ): Promise<TransactionHistoryEntry[]> {
-    const { data, error } = await (supabase as any)
+    const { data, error } = await supabase
         .from('roster_transactions')
         .select(`
             id,
@@ -345,4 +351,3 @@ export async function getPlayerTransactionHistory(
         occurredAt: row.occurred_at,
     }))
 }
-

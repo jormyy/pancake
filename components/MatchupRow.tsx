@@ -7,16 +7,11 @@ import { POSITION_COLORS } from '@/constants/positions'
 import { colors, palette, fontWeight } from '@/constants/tokens'
 import { PosTag } from '@/components/PosTag'
 import { InjuryBadge } from '@/components/InjuryBadge'
+import { shortName } from '@/lib/format'
 
 type Sel = { kind: 'starter' | 'bench' | 'ir' | 'taxi'; index: number }
 
 const SLOT_W = 52
-
-function shortName(name: string): string {
-    const parts = name.trim().split(' ')
-    if (parts.length <= 1) return name
-    return `${parts[0][0]}. ${parts.slice(1).join(' ')}`
-}
 
 function StatLines({ stats, isLive, align }: {
     stats: LiveStatLine
@@ -151,6 +146,10 @@ export function MatchupRow({
                 ]}
                 onPress={isExtraOppRow ? undefined : () => onTap({ kind: selKind, index: selIndex })}
                 disabled={saving || isExtraOppRow}
+                accessibilityRole="button"
+                accessibilityLabel={`Select ${slotType}`}
+                accessibilityState={{ disabled: saving || isExtraOppRow, selected: isSel }}
+                hitSlop={7}
             >
                 <Text style={[styles.slotChipText, { color: isSel ? colors.primary : slotColor }]}>
                     {isExtraOppRow ? '—' : slotType}

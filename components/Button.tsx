@@ -6,6 +6,7 @@ type Variant = 'primary' | 'secondary' | 'danger' | 'ghost'
 type Props = {
     title: string
     onPress: () => void
+    accessibilityLabel?: string
     variant?: Variant
     loading?: boolean
     disabled?: boolean
@@ -44,6 +45,7 @@ const LOADER_COLOR: Record<Variant, string> = {
 export function Button({
     title,
     onPress,
+    accessibilityLabel,
     variant = 'primary',
     loading = false,
     disabled = false,
@@ -62,6 +64,10 @@ export function Button({
             ]}
             onPress={onPress}
             disabled={disabled || loading}
+            accessibilityRole="button"
+            accessibilityLabel={accessibilityLabel ?? title}
+            accessibilityState={{ disabled: disabled || loading, busy: loading }}
+            hitSlop={small ? 8 : undefined}
         >
             {loading ? (
                 <ActivityIndicator size="small" color={LOADER_COLOR[variant]} />

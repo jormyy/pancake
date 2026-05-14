@@ -3,17 +3,15 @@ import { Avatar } from '@/components/Avatar'
 import { DaySelector } from '@/components/DaySelector'
 import { LoadingScreen } from '@/components/LoadingScreen'
 import { PosTag } from '@/components/PosTag'
-import { POSITION_COLORS } from '@/constants/positions'
+import { getPositionColor } from "@/constants/positions"
 import { colors, fontSize, fontWeight, palette, radii, spacing } from '@/constants/tokens'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useAuth } from '@/hooks/use-auth'
+import { useLiveStats } from '@/hooks/use-live-stats'
 import {
     autoSetLineup,
     canPlaySlot,
     getLineupContext,
-    getLiveTeams,
-    getStartedTeams,
-    getTeamMatchups,
     getWeekDays,
     getWeeklyLineup,
     LineupContext,
@@ -45,7 +43,6 @@ const StarterRow = memo(function StarterRow({
     slot,
     index,
     isSelected,
-    startedTeamsRef,
     liveTeamsRef,
     teamMatchups,
     onPress,
@@ -54,14 +51,12 @@ const StarterRow = memo(function StarterRow({
     slot: LineupSlot
     index: number
     isSelected: boolean
-    startedTeamsRef: React.RefObject<Set<string>>
     liveTeamsRef: React.RefObject<Set<string>>
     teamMatchups: Map<string, { opponent: string; isHome: boolean }>
     onPress: () => void
     disabled: boolean
 }) {
     const p = slot.player
-    const startedTeams = startedTeamsRef.current
     const liveTeams = liveTeamsRef.current
     const isLocked = !!(p?.nbaTeam && liveTeams.has(p.nbaTeam))
     const starterMatchup = p?.nbaTeam ? teamMatchups.get(p.nbaTeam) : undefined
@@ -78,13 +73,16 @@ const StarterRow = memo(function StarterRow({
             ]}
             onPress={onPress}
             disabled={disabled}
+            accessibilityRole="button"
+            accessibilityLabel={p ? `${slot.slotType} ${p.displayName}` : `Empty ${slot.slotType} slot`}
+            accessibilityState={{ selected: isSelected, disabled }}
         >
             <Text style={styles.slotLabel}>{slot.slotType}</Text>
             {p ? (
                 <>
                     <Avatar
                         name={p.displayName}
-                        color={POSITION_COLORS[p.position ?? ''] ?? palette.gray500}
+                        color={getPositionColor(p.position)}
                         size={36}
                     />
                     <View style={styles.playerInfo}>
@@ -112,7 +110,6 @@ const BenchRow = memo(function BenchRow({
     player,
     index,
     isSelected,
-    startedTeamsRef,
     liveTeamsRef,
     teamMatchups,
     onPress,
@@ -121,13 +118,11 @@ const BenchRow = memo(function BenchRow({
     player: LineupPlayer
     index: number
     isSelected: boolean
-    startedTeamsRef: React.RefObject<Set<string>>
     liveTeamsRef: React.RefObject<Set<string>>
     teamMatchups: Map<string, { opponent: string; isHome: boolean }>
     onPress: () => void
     disabled: boolean
 }) {
-    const startedTeams = startedTeamsRef.current
     const liveTeams = liveTeamsRef.current
     const isLocked = !!(player.nbaTeam && liveTeams.has(player.nbaTeam))
     const benchMatchup = player.nbaTeam ? teamMatchups.get(player.nbaTeam) : undefined
@@ -144,10 +139,13 @@ const BenchRow = memo(function BenchRow({
             ]}
             onPress={onPress}
             disabled={disabled}
+            accessibilityRole="button"
+            accessibilityLabel={`Bench ${player.displayName}`}
+            accessibilityState={{ selected: isSelected, disabled }}
         >
             <Avatar
                 name={player.displayName}
-                color={POSITION_COLORS[player.position ?? ''] ?? palette.gray500}
+                color={getPositionColor(player.position)}
                 size={36}
             />
             <View style={styles.playerInfo}>
@@ -171,15 +169,6 @@ export default function LineupScreen() {
     const { user } = useAuth()
     const { current, currentLeague } = useLeagueContext()
 
-    console.log('[LineupScreen] Render, current league:', current?.leagues?.id)
-
-    useEffect(() => {
-        console.log('[LineupScreen] Mounted')
-        return () => {
-            console.log('[LineupScreen] Unmounted')
-        }
-    }, [])
-
     const [ctx, setCtx] = useState<LineupContext | null>(null)
     const [weekDays, setWeekDays] = useState<WeekDay[]>([])
     const [selectedDate, setSelectedDate] = useState<string>(
@@ -187,43 +176,33 @@ export default function LineupScreen() {
     )
     const [starters, setStarters] = useState<LineupSlot[]>([])
     const [bench, setBench] = useState<LineupPlayer[]>([])
-    // Use refs for started/live teams so updates don't trigger full re-render
-    const startedTeamsRef = useRef<Set<string>>(new Set())
-    const liveTeamsRef = useRef<Set<string>>(new Set())
-    const [teamMatchups, setTeamMatchups] = useState<Map<string, { opponent: string; isHome: boolean }>>(new Map())
     const [loading, setLoading] = useState(true)
 
-    // Log when loading state changes
-    useEffect(() => {
-        console.log('[LineupScreen] loading changed to:', loading)
-    }, [loading])
     const [saving, setSaving] = useState(false)
     const [autoSetting, setAutoSetting] = useState(false)
     const [autoSetModalVisible, setAutoSetModalVisible] = useState(false)
     const [selected, setSelected] = useState<Selection | null>(null)
 
+    const { startedTeams, liveTeams, teamMatchups } = useLiveStats(selectedDate)
+    // Wrap in refs so memoized row components read the latest value without re-rendering on poll updates
+    const startedTeamsRef = useRef(startedTeams)
+    const liveTeamsRef = useRef(liveTeams)
+    startedTeamsRef.current = startedTeams
+    liveTeamsRef.current = liveTeams
+
     const loadLineup = useCallback(async (lineupCtx: LineupContext, league: any, date: string) => {
-        const [lineup, started, live, matchups] = await Promise.all([
-            getWeeklyLineup(
-                current!.id,
-                league.id,
-                lineupCtx.seasonId,
-                lineupCtx.weekNumber,
-                date,
-            ),
-            getStartedTeams(date),
-            getLiveTeams(date),
-            getTeamMatchups(date),
-        ])
+        const lineup = await getWeeklyLineup(
+            current!.id,
+            league.id,
+            lineupCtx.seasonId,
+            lineupCtx.weekNumber,
+            date,
+        )
         setStarters(lineup.starters)
         setBench(lineup.bench)
-        startedTeamsRef.current = started
-        liveTeamsRef.current = live
-        setTeamMatchups(matchups)
     }, [current])
 
     const load = useCallback(async () => {
-        console.log('[LineupScreen] load() called, current league:', currentLeague?.id)
         if (!current || !user || !currentLeague) return
         setLoading(true)
         try {
@@ -242,22 +221,6 @@ export default function LineupScreen() {
     }, [current, currentLeague, user, loadLineup])
 
     useEffect(() => { load() }, [load])
-
-    // TEMPORARILY DISABLED: Refresh started/live teams every 15s when viewing today (games can go InProgress mid-session)
-    // The interval was causing scroll position reset
-    // useEffect(() => {
-    //     const today = todayDateString()
-    //     if (selectedDate !== today) return
-    //     const interval = setInterval(async () => {
-    //         const [started, live] = await Promise.all([
-    //             getStartedTeams(selectedDate).catch(() => new Set<string>()),
-    //             getLiveTeams(selectedDate).catch(() => new Set<string>()),
-    //         ])
-    //         startedTeamsRef.current = started
-    //         liveTeamsRef.current = live
-    //     }, 15_000)
-    //     return () => clearInterval(interval)
-    // }, [selectedDate])
 
     async function handleTap(newSel: Selection) {
         // Block all moves on past days
@@ -380,6 +343,9 @@ export default function LineupScreen() {
                     style={styles.autoSetButton}
                     onPress={handleAutoSet}
                     disabled={autoSetting || saving}
+                    accessibilityRole="button"
+                    accessibilityLabel="Open auto-set lineup options"
+                    accessibilityState={{ disabled: autoSetting || saving }}
                 >
                     {autoSetting ? (
                         <ActivityIndicator size="small" color={colors.primary} />
@@ -415,7 +381,6 @@ export default function LineupScreen() {
                             slot={slot}
                             index={i}
                             isSelected={selected?.kind === 'starter' && selected.index === i}
-                            startedTeamsRef={startedTeamsRef}
                             liveTeamsRef={liveTeamsRef}
                             teamMatchups={teamMatchups}
                             onPress={() => handleTap({ kind: 'starter', index: i })}
@@ -436,7 +401,6 @@ export default function LineupScreen() {
                                 player={player}
                                 index={i}
                                 isSelected={selected?.kind === 'bench' && selected.index === i}
-                                startedTeamsRef={startedTeamsRef}
                                 liveTeamsRef={liveTeamsRef}
                                 teamMatchups={teamMatchups}
                                 onPress={() => handleTap({ kind: 'bench', index: i })}

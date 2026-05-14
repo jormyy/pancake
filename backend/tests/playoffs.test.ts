@@ -16,6 +16,7 @@ function q(data: any = null, error: any = null, count: number | null = null) {
     const chain: any = {
         select: () => chain,
         eq: () => chain,
+        in: () => chain,
         order: () => chain,
         limit: () => chain,
         single: () => Promise.resolve(result),
@@ -176,7 +177,8 @@ describe('advanceToFinal', () => {
             if (callCount === 1) return q(season) as any
             if (callCount === 2) return q(league) as any
             if (callCount === 3) return q(null, null, 0) as any // no final yet
-            if (callCount === 4) return q(semis) as any         // semi results
+            if (callCount === 4) return q([]) as any             // no quarterfinals
+            if (callCount === 5) return q(semis) as any          // semi results
             // insert call
             return {
                 insert: (row: any) => { insertedRow = row; return q(row) as any },

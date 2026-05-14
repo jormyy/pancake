@@ -36,6 +36,31 @@ yarn-error.*
 # typescript
 *.tsbuildinfo
 
+# E2E generated outputs
+tests/artifacts/
+tests/snapshots/
+tests/e2e-seed-report.md
+tests/e2e-browser-report.md
+tests/e2e-browser-auth-report.md
+tests/e2e-browser-league-lifecycle-report.md
+tests/e2e-browser-perf-report.md
+tests/e2e-browser-gameplay-report.md
+tests/e2e-browser-lineup-report.md
+tests/e2e-browser-playoff-report.md
+tests/e2e-browser-rookie-draft-report.md
+tests/e2e-browser-waiver-report.md
+tests/e2e-browser-waiver-drop-report.md
+tests/e2e-browser-waiver-ir-block-report.md
+tests/e2e-browser-trade-report.md
+tests/e2e-browser-trade-accept-report.md
+tests/e2e-browser-trade-terminal-report.md
+tests/e2e-browser-trade-veto-report.md
+tests/e2e-browser-trade-future-pick-report.md
+tests/e2e-browser-trade-future-pick-accept-report.md
+tests/e2e-browser-trade-overflow-accept-report.md
+tests/e2e-browser-trade-post-deadline-report.md
+tests/e2e-state.json
+
 app-example
 
 # generated native folders

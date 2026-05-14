@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-const NBA_CDN = 'https://cdn.nba.com/static/json'
+const NBA_CDN = process.env.NBA_CDN_BASE_URL ?? 'https://cdn.nba.com/static/json'
 
 // Headers required to avoid NBA CDN blocks
 const client = axios.create({

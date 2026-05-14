@@ -1,5 +1,4 @@
 import {
-    View,
     Text,
     TextInput,
     Pressable,

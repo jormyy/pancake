@@ -26,17 +26,37 @@ export function AutoSetModal({
                     <Text style={styles.title}>Auto-Set Lineup</Text>
                     <Text style={styles.text}>Choose how to set your lineup</Text>
                     <View style={styles.buttons}>
-                        <Pressable style={styles.button} onPress={onToday}>
+                        <Pressable
+                            style={styles.button}
+                            onPress={onToday}
+                            accessibilityRole="button"
+                            accessibilityLabel="Auto-set today"
+                        >
                             <Text style={styles.buttonText}>Today</Text>
                         </Pressable>
-                        <Pressable style={styles.button} onPress={onWholeWeek}>
+                        <Pressable
+                            style={styles.button}
+                            onPress={onWholeWeek}
+                            accessibilityRole="button"
+                            accessibilityLabel="Auto-set whole week"
+                        >
                             <Text style={styles.buttonText}>Whole Week</Text>
                         </Pressable>
                     </View>
-                    <Pressable style={styles.seasonButton} onPress={onRestOfSeason}>
+                    <Pressable
+                        style={styles.seasonButton}
+                        onPress={onRestOfSeason}
+                        accessibilityRole="button"
+                        accessibilityLabel="Auto-set rest of season"
+                    >
                         <Text style={styles.buttonText}>Rest of Season</Text>
                     </Pressable>
-                    <Pressable style={styles.cancel} onPress={onClose}>
+                    <Pressable
+                        style={styles.cancel}
+                        onPress={onClose}
+                        accessibilityRole="button"
+                        accessibilityLabel="Cancel auto-set"
+                    >
                         <Text style={styles.cancelText}>Cancel</Text>
                     </Pressable>
                 </View>

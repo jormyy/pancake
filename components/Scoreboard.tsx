@@ -1,5 +1,5 @@
 import { View, Text, ScrollView, StyleSheet } from 'react-native'
-import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { colors, palette, fontWeight, radii, spacing } from '@/constants/tokens'
 import { NBAGameRow } from '@/lib/games'
 
 // Sort order: InProgress first, then Scheduled, then Final

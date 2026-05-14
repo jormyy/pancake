@@ -52,6 +52,82 @@ export const NotifyTradeBody = {
     },
 }
 
+export const TradeActionBody = {
+    type: 'object' as const,
+    required: ['memberId'],
+    properties: {
+        memberId: { type: 'string' as const },
+    },
+}
+
+export const TradeVetoBody = {
+    type: 'object' as const,
+    required: ['memberId'],
+    properties: {
+        memberId: { type: 'string' as const },
+    },
+}
+
+export const TradeProposeBody = {
+    type: 'object' as const,
+    required: [
+        'memberId',
+        'leagueId',
+        'leagueSeasonId',
+        'recipientMemberId',
+        'offerPlayerIds',
+        'requestPlayerIds',
+        'offerPickIds',
+        'requestPickIds',
+    ],
+    properties: {
+        memberId: { type: 'string' as const },
+        leagueId: { type: 'string' as const },
+        leagueSeasonId: { type: 'string' as const },
+        recipientMemberId: { type: 'string' as const },
+        offerPlayerIds: { type: 'array' as const, items: { type: 'string' as const }, default: [] },
+        requestPlayerIds: { type: 'array' as const, items: { type: 'string' as const }, default: [] },
+        offerPickIds: { type: 'array' as const, items: { type: 'string' as const }, default: [] },
+        requestPickIds: { type: 'array' as const, items: { type: 'string' as const }, default: [] },
+        notes: { type: 'string' as const },
+    },
+}
+
+export const TradeParams = {
+    type: 'object' as const,
+    required: ['tradeId'],
+    properties: {
+        tradeId: { type: 'string' as const },
+    },
+}
+
+export const WaiverClaimBody = {
+    type: 'object' as const,
+    required: ['memberId', 'leagueId', 'playerId'],
+    properties: {
+        memberId: { type: 'string' as const },
+        leagueId: { type: 'string' as const },
+        playerId: { type: 'string' as const },
+        dropPlayerId: { type: ['string', 'null'] as const },
+    },
+}
+
+export const WaiverCancelBody = {
+    type: 'object' as const,
+    required: ['memberId'],
+    properties: {
+        memberId: { type: 'string' as const },
+    },
+}
+
+export const WaiverClaimParams = {
+    type: 'object' as const,
+    required: ['claimId'],
+    properties: {
+        claimId: { type: 'string' as const },
+    },
+}
+
 export const SyncStatsBody = {
     type: 'object' as const,
     properties: {
@@ -63,6 +139,7 @@ export const SyncMatchupsBody = {
     type: 'object' as const,
     properties: {
         force: { type: 'boolean' as const, default: false },
+        leagueId: { type: 'string' as const },
     },
 }
 
@@ -93,6 +170,31 @@ export const VerifyStatsBody = {
 }
 
 export const ValidateDbBody = {
+    type: 'object' as const,
+    properties: {
+        seasonYear: { type: 'integer' as const },
+    },
+}
+
+export const TaxiBody = {
+    type: 'object' as const,
+    required: ['rosterPlayerId', 'isOnTaxi'],
+    properties: {
+        rosterPlayerId: { type: 'string' as const },
+        isOnTaxi: { type: 'boolean' as const },
+    },
+}
+
+export const IRBody = {
+    type: 'object' as const,
+    required: ['rosterPlayerId', 'isOnIR'],
+    properties: {
+        rosterPlayerId: { type: 'string' as const },
+        isOnIR: { type: 'boolean' as const },
+    },
+}
+
+export const DraftOrderBody = {
     type: 'object' as const,
     properties: {
         seasonYear: { type: 'integer' as const },

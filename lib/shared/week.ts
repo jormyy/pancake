@@ -1,32 +1,8 @@
 import { supabase } from '@/lib/supabase'
 import { todayDateString } from '@/lib/shared/dates'
+import { calculateWeekNumberFromDate } from '@pancake/core'
 
-/**
- * Calculates week number from a date given explicit season week boundaries.
- * Week 1 is typically 6 days (Tue-Sun). Week 2+ are 7-day weeks (Mon-Sun).
- */
-export function calculateWeekNumberFromDate(
-    dateStr: string,
-    week1StartStr: string,
-    week1EndStr: string,
-): number {
-    const date = new Date(dateStr + 'T00:00:00')
-    const week1Start = new Date(week1StartStr + 'T00:00:00')
-    const week1End = new Date(week1EndStr + 'T23:59:59')
-
-    if (date >= week1Start && date <= week1End) {
-        return 1
-    }
-
-    // Week 2 starts the day after week 1 ends (midnight)
-    const week2Start = new Date(week1EndStr + 'T00:00:00')
-    week2Start.setDate(week2Start.getDate() + 1)
-    const msPerWeek = 7 * 24 * 60 * 60 * 1000
-    const weeksSinceWeek2 = Math.floor((date.getTime() - week2Start.getTime()) / msPerWeek)
-    const weekNumber = weeksSinceWeek2 + 2
-
-    return Math.max(1, weekNumber)
-}
+export { calculateWeekNumberFromDate }
 
 /**
  * Fetches the start/end dates for week 1 of a given season year.

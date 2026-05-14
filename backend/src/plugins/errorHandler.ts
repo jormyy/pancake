@@ -21,14 +21,18 @@ export class NotFoundError extends AppError {
 }
 
 export default async function errorHandlerPlugin(app: FastifyInstance) {
-    app.setErrorHandler((error: Error, _request, reply) => {
+    app.setErrorHandler((error: Error, request, reply) => {
         const statusCode = (error as AppError).statusCode ?? 500
-        const message = error.message || 'Unknown error'
+        const isServerError = statusCode >= 500
 
-        if (statusCode >= 500) {
-            app.log.error(error)
+        if (isServerError) {
+            request.log.error({ err: error, requestId: request.id }, 'Unhandled request error')
         }
 
-        reply.status(statusCode).send({ ok: false, error: message })
+        reply.status(statusCode).send({
+            ok: false,
+            error: isServerError ? 'Internal server error' : error.message || 'Request failed',
+            requestId: request.id,
+        })
     })
 }

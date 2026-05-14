@@ -12,7 +12,8 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useEffect, useState } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useAuth } from '@/hooks/use-auth'
-import { getRoster, RosterPlayer, isIREligible } from '@/lib/roster'
+import { getRoster, RosterPlayer } from '@/lib/roster'
+import { isIneligibleIR } from '@/lib/format'
 import { getPlayer } from '@/lib/players'
 import { submitWaiverClaim, getMyWaiverPriority } from '@/lib/waivers'
 import { LoadingScreen } from '@/components/LoadingScreen'
@@ -32,17 +33,16 @@ export default function ClaimPlayerScreen() {
     const [submitting, setSubmitting] = useState(false)
 
     const rosterSize = currentLeague?.roster_size ?? 20
+    const leagueId = currentLeague?.id
 
     useEffect(() => {
         async function load() {
-            if (!current || !user || !playerId) return
+            if (!current || !user || !playerId || !leagueId) return
             try {
-                const lid = currentLeague?.id
-                if (!lid) return
                 const [p, roster, prio] = await Promise.all([
                     getPlayer(playerId),
-                    getRoster(current.id, lid),
-                    getMyWaiverPriority(current.id, lid),
+                    getRoster(current.id, leagueId),
+                    getMyWaiverPriority(current.id, leagueId),
                 ])
                 setPlayer(p)
                 setMyRoster(roster)
@@ -54,10 +54,10 @@ export default function ClaimPlayerScreen() {
             }
         }
         load()
-    }, [playerId, current, user])
+    }, [playerId, current, user, leagueId])
 
     const activeRoster = myRoster.filter((p) => !p.is_on_ir)
-    const ineligibleIR = myRoster.filter((r) => r.is_on_ir && !isIREligible(r.players.injury_status))
+    const ineligibleIR = myRoster.filter((r) => isIneligibleIR(r))
     const rosterFull = activeRoster.length >= rosterSize
     const needsDrop = rosterFull
 
@@ -123,7 +123,12 @@ export default function ClaimPlayerScreen() {
                                 </View>
                             ))}
                         </View>
-                        <Pressable style={styles.blockButton} onPress={() => back()}>
+                        <Pressable
+                            style={styles.blockButton}
+                            onPress={() => back()}
+                            accessibilityRole="button"
+                            accessibilityLabel="Go to roster"
+                        >
                             <Text style={styles.blockButtonText}>Go to Roster</Text>
                         </Pressable>
                     </>
@@ -163,7 +168,9 @@ export default function ClaimPlayerScreen() {
                                             <Pressable
                                                 style={[styles.rosterRow, isSelected && styles.rosterRowSelected]}
                                                 onPress={() => setSelectedDrop(isSelected ? null : item)}
-
+                                                accessibilityRole="button"
+                                                accessibilityLabel={`Select ${item.players.display_name} to drop`}
+                                                accessibilityState={{ selected: isSelected }}
                                             >
                                                 <View style={styles.rosterInfo}>
                                                     <Text style={styles.rosterName}>{item.players.display_name}</Text>
@@ -193,6 +200,8 @@ export default function ClaimPlayerScreen() {
                             <Pressable
                                 style={[styles.submitButton, (needsDrop && !selectedDrop) && styles.submitButtonDisabled]}
                                 onPress={handleSubmit}
+                                accessibilityRole="button"
+                                accessibilityLabel="Submit waiver claim"
                                 disabled={submitting || (needsDrop && !selectedDrop)}
                             >
                                 {submitting ? (

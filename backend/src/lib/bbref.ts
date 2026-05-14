@@ -1,7 +1,6 @@
 import axios from 'axios'
 import * as cheerio from 'cheerio'
 import { sleep } from './utils/sleep'
-export { sleep }
 
 const client = axios.create({
     baseURL: 'https://www.basketball-reference.com',

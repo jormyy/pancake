@@ -1,4 +1,5 @@
 import { View, Text, Pressable, StyleSheet } from 'react-native'
+import type { ViewStyle } from 'react-native'
 import { Tabs, usePathname, useRouter } from 'expo-router'
 import { colors, palette } from '@/constants/tokens'
 
@@ -11,6 +12,13 @@ const NAV_ITEMS = [
     { label: 'Trades',  href: '/trades' },
     { label: 'League',  href: '/league' },
 ] as const
+
+type WebNavbarStyle = ViewStyle & {
+    backdropFilter: string
+    WebkitBackdropFilter: string
+    position: 'sticky'
+    top: number
+}
 
 function isRouteActive(pathname: string, href: string) {
     if (href === '/') return pathname === '/' || pathname === '' || pathname === '/(tabs)'
@@ -99,16 +107,15 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: 24,
-        backgroundColor: 'rgba(253, 248, 238, 0.85)' as any,
-        // @ts-ignore — web-only CSS properties
+        backgroundColor: 'rgba(253, 248, 238, 0.85)',
         backdropFilter: 'blur(20px) saturate(180%)',
         WebkitBackdropFilter: 'blur(20px) saturate(180%)',
         borderBottomWidth: 1,
         borderBottomColor: palette.cream300,
-        position: 'sticky' as any,
+        position: 'sticky',
         top: 0,
         zIndex: 1000,
-    },
+    } as WebNavbarStyle,
     logo: {
         fontSize: 17,
         fontWeight: '600',

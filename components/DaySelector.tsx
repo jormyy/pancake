@@ -28,6 +28,10 @@ export function DaySelector({
                             !day.hasGames && styles.cellNoGames,
                         ]}
                         onPress={() => onSelect(day.date)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Select ${day.dayLabel} ${day.dateNum}`}
+                        accessibilityState={{ selected: isSelected }}
+                        hitSlop={4}
                     >
                         <Text style={[styles.label, isSelected && styles.labelSelected, !day.hasGames && styles.labelFaint]}>
                             {day.dayLabel}

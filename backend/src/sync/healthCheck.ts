@@ -1,7 +1,7 @@
 import axios from 'axios'
 import { supabase } from '../lib/supabase'
 
-const NBA_CDN = 'https://cdn.nba.com/static/json'
+const NBA_CDN = process.env.NBA_CDN_BASE_URL ?? 'https://cdn.nba.com/static/json'
 
 const client = axios.create({
     timeout: 15000,

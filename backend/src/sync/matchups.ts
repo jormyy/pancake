@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase'
+import { CONFIG } from '../config'
 
 // Standard round-robin: fix teams[0], rotate the rest each round.
 // Returns an array of rounds, each round being a list of home/away pairs.
@@ -82,17 +83,20 @@ export async function generateMatchups(
     console.log(`[matchups] Generated ${rows.length} matchups for ${regularSeasonWeeks} weeks.`)
 }
 
-// Generates matchups for ALL active league seasons that don't have one yet.
-export async function generateAllMatchups(force = false) {
-    const { data: seasons, error } = await supabase
+// Generates matchups for all active league seasons, or for one league when scoped.
+export async function generateAllMatchups(force = false, leagueId?: string) {
+    let query = supabase
         .from('league_seasons')
         .select('id, league_id, leagues ( playoff_start_week )')
         .eq('is_current', true)
+    if (leagueId) query = query.eq('league_id', leagueId)
+
+    const { data: seasons, error } = await query
     if (error) throw error
 
     for (const season of seasons ?? []) {
         const league = season.leagues as any
-        const playoffStart: number = league?.playoff_start_week ?? 20
+        const playoffStart: number = league?.playoff_start_week ?? CONFIG.DEFAULT_PLAYOFF_START_WEEK
         const regularSeasonWeeks = playoffStart - 1
         await generateMatchups(season.league_id, season.id, regularSeasonWeeks, force)
     }

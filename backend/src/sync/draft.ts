@@ -151,40 +151,13 @@ export async function placeBid(
         throw new Error('Bid amount must be a positive integer')
     }
 
-    const { data: nom, error: nomErr } = await supabase
-        .from('nominations')
-        .select('id, draft_id, status, current_bid_amount, current_bidder_id, countdown_expires_at')
-        .eq('id', nominationId)
-        .eq('draft_id', draftId)
-        .single()
-    if (nomErr || !nom) throw new Error('Nomination not found')
-    if (nom.status !== 'open') throw new Error('Bidding is closed for this nomination')
-    if (new Date(nom.countdown_expires_at) < new Date()) throw new Error('Bidding has expired')
-    if (amount <= nom.current_bid_amount)
-        throw new Error(`Bid must exceed current bid of $${nom.current_bid_amount}`)
-    if (nom.current_bidder_id === memberId) throw new Error("You're already the highest bidder")
-
-    const { data: budget } = await supabase
-        .from('draft_budgets')
-        .select('remaining')
-        .eq('draft_id', draftId)
-        .eq('member_id', memberId)
-        .single()
-    if (!budget || budget.remaining < amount)
-        throw new Error(`Insufficient budget (you have $${budget?.remaining ?? 0} remaining)`)
-
-    const newExpiry = new Date(Date.now() + CONFIG.NOMINATION_COUNTDOWN_SECONDS * 1000).toISOString()
-    const { error: updateErr } = await supabase
-        .from('nominations')
-        .update({
-            current_bid_amount: amount,
-            current_bidder_id: memberId,
-            countdown_expires_at: newExpiry,
-        })
-        .eq('id', nominationId)
-    if (updateErr) throw updateErr
-
-    await supabase.from('bids').insert({ nomination_id: nominationId, member_id: memberId, amount })
+    const { error } = await supabase.rpc('place_auction_bid_atomic', {
+        p_draft_id: draftId,
+        p_member_id: memberId,
+        p_nomination_id: nominationId,
+        p_amount: amount,
+    })
+    if (error) throw error
 
     return { ok: true }
 }
@@ -198,112 +171,23 @@ export async function closeExpiredNominations() {
         .eq('status', 'open')
         .lt('countdown_expires_at', now)
 
-    if (!expired || expired.length === 0) return
+    if (!expired || expired.length === 0) return { checked: 0, closed: 0, failed: 0 }
 
+    let closed = 0
+    let failed = 0
     for (const nom of expired) {
         try {
-            await closeNomination(nom)
+            const { error } = await supabase.rpc('close_auction_nomination_atomic', {
+                p_nomination_id: nom.id,
+            })
+            if (error) throw error
+            closed += 1
         } catch (e) {
+            failed += 1
             console.error(`[draft] Error closing nomination ${nom.id}:`, e)
         }
     }
-}
-
-async function closeNomination(nom: {
-    id: string
-    draft_id: string
-    player_id: string
-    current_bid_amount: number
-    current_bidder_id: string | null
-}) {
-    const { data: draft } = await supabase
-        .from('drafts')
-        .select('id, league_id, league_season_id, current_nomination_order')
-        .eq('id', nom.draft_id)
-        .single()
-    if (!draft) return
-
-    const now = new Date().toISOString()
-
-    if (nom.current_bidder_id) {
-        // Sold — deduct from winner's budget and add to their roster
-        const { data: budget } = await supabase
-            .from('draft_budgets')
-            .select('remaining')
-            .eq('draft_id', nom.draft_id)
-            .eq('member_id', nom.current_bidder_id)
-            .single()
-
-        if (budget) {
-            await supabase
-                .from('draft_budgets')
-                .update({ remaining: budget.remaining - nom.current_bid_amount })
-                .eq('draft_id', nom.draft_id)
-                .eq('member_id', nom.current_bidder_id)
-        }
-
-        await supabase.from('roster_players').insert({
-            league_id: draft.league_id,
-            league_season_id: draft.league_season_id,
-            member_id: nom.current_bidder_id,
-            player_id: nom.player_id,
-            acquired_via: 'draft',
-            acquisition_cost: nom.current_bid_amount,
-        })
-
-        await supabase
-            .from('nominations')
-            .update({
-                status: 'sold',
-                winning_member_id: nom.current_bidder_id,
-                final_price: nom.current_bid_amount,
-                closed_at: now,
-            })
-            .eq('id', nom.id)
-
-        console.log(`[draft] Sold: nomination ${nom.id}, price $${nom.current_bid_amount}`)
-    } else {
-        // No bids — player goes to free agency
-        await supabase
-            .from('nominations')
-            .update({ status: 'no_bid', closed_at: now })
-            .eq('id', nom.id)
-
-        console.log(`[draft] No bid on nomination ${nom.id}`)
-    }
-
-    // Advance to next nomination slot
-    await supabase
-        .from('drafts')
-        .update({ current_nomination_order: draft.current_nomination_order + 1 })
-        .eq('id', nom.draft_id)
-
-    // End draft if all teams are bankrupt
-    await checkAllBankrupt(nom.draft_id, draft.league_id)
-}
-
-async function checkAllBankrupt(draftId: string, leagueId: string) {
-    const { data: budgets } = await supabase
-        .from('draft_budgets')
-        .select('remaining')
-        .eq('draft_id', draftId)
-
-    if (!budgets || budgets.length === 0) return
-    const allBroke = budgets.every((b: any) => b.remaining < 1)
-    if (!allBroke) return
-
-    const now = new Date().toISOString()
-    await supabase
-        .from('drafts')
-        .update({ status: 'completed', completed_at: now })
-        .eq('id', draftId)
-
-    await supabase
-        .from('leagues')
-        .update({ status: 'active' })
-        .eq('id', leagueId)
-
-    console.log(`[draft] All teams bankrupt — draft ${draftId} ended automatically`)
+    return { checked: expired.length, closed, failed }
 }
 
 // ── Get Draft State ────────────────────────────────────────────

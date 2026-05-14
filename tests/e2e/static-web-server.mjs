@@ -1,0 +1,102 @@
+import { createReadStream, existsSync, statSync } from 'node:fs';
+import { createServer } from 'node:http';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+function readArg(name, fallback) {
+  const prefix = `--${name}=`;
+  const match = process.argv.find((arg) => arg.startsWith(prefix));
+  if (match) {
+    return match.slice(prefix.length);
+  }
+  const index = process.argv.indexOf(`--${name}`);
+  if (index >= 0 && process.argv[index + 1]) {
+    return process.argv[index + 1];
+  }
+  return fallback;
+}
+
+const root = path.resolve(process.cwd(), readArg('root', path.join(__dirname, '../../dist')));
+const port = Number(readArg('port', process.env.PORT ?? '8081'));
+const host = readArg('host', process.env.HOST ?? '127.0.0.1');
+
+const contentTypes = new Map([
+  ['.css', 'text/css; charset=utf-8'],
+  ['.html', 'text/html; charset=utf-8'],
+  ['.ico', 'image/x-icon'],
+  ['.js', 'text/javascript; charset=utf-8'],
+  ['.json', 'application/json; charset=utf-8'],
+  ['.map', 'application/json; charset=utf-8'],
+  ['.png', 'image/png'],
+  ['.svg', 'image/svg+xml'],
+  ['.ttf', 'font/ttf'],
+  ['.wasm', 'application/wasm'],
+  ['.webp', 'image/webp'],
+  ['.woff', 'font/woff'],
+  ['.woff2', 'font/woff2'],
+]);
+
+function insideRoot(filePath) {
+  const relative = path.relative(root, filePath);
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+}
+
+function existingFile(filePath) {
+  if (!insideRoot(filePath) || !existsSync(filePath)) {
+    return null;
+  }
+  const stats = statSync(filePath);
+  if (stats.isFile()) {
+    return filePath;
+  }
+  if (stats.isDirectory()) {
+    return existingFile(path.join(filePath, 'index.html'));
+  }
+  return null;
+}
+
+function resolveRoute(urlPath) {
+  const decodedPath = decodeURIComponent(urlPath);
+  const normalized = path.normalize(decodedPath).replace(/^(\.\.[/\\])+/, '');
+  const stripped = normalized.replace(/^[/\\]+/, '');
+  const withoutSlash = stripped === '' ? 'index' : stripped.replace(/[/\\]$/, '');
+
+  return (
+    existingFile(path.join(root, stripped)) ??
+    existingFile(path.join(root, `${withoutSlash}.html`)) ??
+    existingFile(path.join(root, withoutSlash, 'index.html')) ??
+    existingFile(path.join(root, 'index.html'))
+  );
+}
+
+if (!existsSync(root)) {
+  console.error(`Static root does not exist: ${root}`);
+  process.exit(1);
+}
+
+const server = createServer((request, response) => {
+  const requestUrl = new URL(request.url ?? '/', `http://${request.headers.host ?? 'localhost'}`);
+  const filePath = resolveRoute(requestUrl.pathname);
+  if (!filePath) {
+    response.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
+    response.end('Not found');
+    return;
+  }
+
+  const extension = path.extname(filePath);
+  response.writeHead(200, {
+    'cache-control': 'no-store',
+    'content-type': contentTypes.get(extension) ?? 'application/octet-stream',
+  });
+  createReadStream(filePath).pipe(response);
+});
+
+server.listen(port, host, () => {
+  console.log(`Static E2E web server listening at http://${host}:${port}`);
+  console.log(`Serving ${root}`);
+});
+
+process.on('SIGTERM', () => server.close(() => process.exit(0)));
+process.on('SIGINT', () => server.close(() => process.exit(0)));

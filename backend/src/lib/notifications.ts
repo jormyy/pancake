@@ -1,6 +1,6 @@
 import { supabase } from './supabase'
 
-const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send'
+const EXPO_PUSH_URL = process.env.EXPO_PUSH_URL ?? 'https://exp.host/--/api/v2/push/send'
 
 /**
  * Sends a push notification to a league member by their league_members.id.
@@ -20,7 +20,7 @@ export async function notifyMember(
         .single()
 
     if (!member) return
-    await notifyUser((member as any).user_id, title, body, data)
+    await notifyUser(member.user_id, title, body, data)
 }
 
 export async function notifyUser(
@@ -35,7 +35,7 @@ export async function notifyUser(
         .eq('id', userId)
         .single()
 
-    const token = (profile as any)?.push_token
+    const token = profile?.push_token
     if (!token) return
 
     await sendPush(token, title, body, data)
