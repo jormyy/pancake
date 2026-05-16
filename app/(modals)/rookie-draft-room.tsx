@@ -170,9 +170,9 @@ export default function RookieDraftRoomScreen() {
     useEffect(() => {
         const memberId = myMemberIdRef.current ?? myMemberId
         if (!draftCompleted || !memberId || draftEndCheckedRef.current) return
-        draftEndCheckedRef.current = true
         const lid = currentLeague?.id
         if (!lid) return
+        draftEndCheckedRef.current = true
         ;(async () => {
             try {
                 const roster = await getRoster(memberId, lid)
