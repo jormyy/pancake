@@ -127,28 +127,67 @@ export default function PlayerDetailScreen() {
 
     async function handleIRActivate(rp: RosterPlayer) {
         if (!current || !leagueId) return
-        await toggleIR(rp.id, false)
-        const roster = await getRoster(current.id, leagueId)
-        const remaining = roster.filter((r) => isIneligibleIR(r))
-        if (remaining.length > 0) {
-            setIrModal((prev) => prev ? { ...prev, ineligible: remaining, roster } : null)
-        } else {
-            setIrModal(null)
-            await tryAddFreeAgent()
+        try {
+            await toggleIR(rp.id, false)
+            const roster = await getRoster(current.id, leagueId)
+            const remaining = roster.filter((r) => isIneligibleIR(r))
+            if (remaining.length > 0) {
+                setIrModal((prev) => prev ? { ...prev, ineligible: remaining, roster } : null)
+            } else {
+                setIrModal(null)
+                await tryAddFreeAgent()
+            }
+        } catch (e: any) {
+            // Keep modal open so user can retry — but refresh its state in case
+            // the failure left the roster in an unexpected shape.
+            showAlert('Could not activate from IR', e?.message ?? 'Unknown error')
+            try {
+                const roster = await getRoster(current.id, leagueId)
+                const remaining = roster.filter((r) => isIneligibleIR(r))
+                setIrModal((prev) => prev ? { ...prev, ineligible: remaining, roster } : null)
+            } catch {
+                // best-effort refresh; swallow secondary failures
+            }
         }
     }
 
     async function handleDropAndIRActivate(toDrop: RosterPlayer, activatePlayer: RosterPlayer) {
         if (!current || !leagueId) return
-        await dropPlayer(toDrop.id)
-        await toggleIR(activatePlayer.id, false)
-        const roster = await getRoster(current.id, leagueId)
-        const remaining = roster.filter((r) => isIneligibleIR(r))
-        if (remaining.length > 0) {
-            setIrModal((prev) => prev ? { ...prev, ineligible: remaining, roster } : null)
-        } else {
-            setIrModal(null)
-            await tryAddFreeAgent()
+        let dropped = false
+        try {
+            await dropPlayer(toDrop.id)
+            dropped = true
+            await toggleIR(activatePlayer.id, false)
+            const roster = await getRoster(current.id, leagueId)
+            const remaining = roster.filter((r) => isIneligibleIR(r))
+            if (remaining.length > 0) {
+                setIrModal((prev) => prev ? { ...prev, ineligible: remaining, roster } : null)
+            } else {
+                setIrModal(null)
+                await tryAddFreeAgent()
+            }
+        } catch (e: any) {
+            const underlying = e?.message ?? 'Unknown error'
+            if (dropped) {
+                // Half-committed: drop succeeded but IR activation failed. Make
+                // it crystal clear so the user knows their roster changed.
+                const droppedName = toDrop.players?.display_name ?? 'Player'
+                const activateName = activatePlayer.players?.display_name ?? 'the IR player'
+                showAlert(
+                    'Partial failure',
+                    `${droppedName} was dropped to free agency, but activating ${activateName} failed: ${underlying}`,
+                )
+            } else {
+                showAlert('Could not drop player', underlying)
+            }
+            // Refresh modal state to reflect actual roster after the partial change.
+            try {
+                const roster = await getRoster(current.id, leagueId)
+                const remaining = roster.filter((r) => isIneligibleIR(r))
+                setIrModal((prev) => prev ? { ...prev, ineligible: remaining, roster } : null)
+            } catch {
+                // best-effort refresh; swallow secondary failures
+            }
         }
     }
 
