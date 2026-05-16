@@ -25,29 +25,77 @@ export default async function waiverRoutes(app: FastifyInstance) {
 
             await verifyOwnMember(req.userId, memberId)
 
-            const { data: member, error: memberErr } = await supabase
-                .from('league_members')
-                .select('league_id')
-                .eq('id', memberId)
-                .single()
+            // Phase 1: independent reads (member, season) — parallelize.
+            const [memberRes, seasonRes] = await Promise.all([
+                supabase
+                    .from('league_members')
+                    .select('league_id')
+                    .eq('id', memberId)
+                    .single(),
+                supabase
+                    .from('league_seasons')
+                    .select('id')
+                    .eq('league_id', leagueId)
+                    .eq('is_current', true)
+                    .single(),
+            ])
+
+            // Validate Phase 1 in original source order.
+            const { data: member, error: memberErr } = memberRes
             if (memberErr || !member) throw new NotFoundError('Member not found')
             if (member.league_id !== leagueId) throw new AppError('Access denied', 403)
 
-            const { data: season, error: seasonErr } = await supabase
-                .from('league_seasons')
-                .select('id')
-                .eq('league_id', leagueId)
-                .eq('is_current', true)
-                .single()
+            const { data: season, error: seasonErr } = seasonRes
             if (seasonErr || !season) throw new ValidationError('No active season found.')
 
-            const { data: rosterPlayers, error: rosterErr } = await supabase
-                .from('roster_players')
-                .select('is_on_ir, players ( display_name, injury_status )')
-                .eq('member_id', memberId)
-                .eq('league_id', leagueId)
-                .eq('league_season_id', season.id)
-                .eq('is_on_ir', true)
+            // Phase 2: reads that depend on season.id — parallelize.
+            // All are independent reads (none writes what another reads).
+            const now = new Date().toISOString()
+            const [rosterRes, priorityRes, waiverLogRes, existingRes, dropRes] = await Promise.all([
+                supabase
+                    .from('roster_players')
+                    .select('is_on_ir, players ( display_name, injury_status )')
+                    .eq('member_id', memberId)
+                    .eq('league_id', leagueId)
+                    .eq('league_season_id', season.id)
+                    .eq('is_on_ir', true),
+                supabase
+                    .from('waiver_priorities')
+                    .select('priority')
+                    .eq('member_id', memberId)
+                    .eq('league_season_id', season.id)
+                    .single(),
+                supabase
+                    .from('waiver_wire_log')
+                    .select('id')
+                    .eq('league_id', leagueId)
+                    .eq('league_season_id', season.id)
+                    .eq('player_id', playerId)
+                    .is('cleared_at', null)
+                    .gt('clears_at', now)
+                    .maybeSingle(),
+                supabase
+                    .from('waiver_claims')
+                    .select('id')
+                    .eq('member_id', memberId)
+                    .eq('league_season_id', season.id)
+                    .eq('player_id', playerId)
+                    .eq('status', 'pending')
+                    .maybeSingle(),
+                dropPlayerId
+                    ? supabase
+                          .from('roster_players')
+                          .select('id')
+                          .eq('member_id', memberId)
+                          .eq('league_id', leagueId)
+                          .eq('league_season_id', season.id)
+                          .eq('player_id', dropPlayerId)
+                          .maybeSingle()
+                    : Promise.resolve(null),
+            ])
+
+            // Validate Phase 2 in original source order.
+            const { data: rosterPlayers, error: rosterErr } = rosterRes
             if (rosterErr) throw rosterErr
 
             const ineligible = (rosterPlayers ?? []).filter(
@@ -63,47 +111,19 @@ export default async function waiverRoutes(app: FastifyInstance) {
                 )
             }
 
-            const { data: priorityRow, error: priorityErr } = await supabase
-                .from('waiver_priorities')
-                .select('priority')
-                .eq('member_id', memberId)
-                .eq('league_season_id', season.id)
-                .single()
+            const { data: priorityRow, error: priorityErr } = priorityRes
             if (priorityErr || !priorityRow) throw new ValidationError('No waiver priority found for your team.')
 
-            const now = new Date().toISOString()
-            const { data: waiverLog, error: waiverErr } = await supabase
-                .from('waiver_wire_log')
-                .select('id')
-                .eq('league_id', leagueId)
-                .eq('league_season_id', season.id)
-                .eq('player_id', playerId)
-                .is('cleared_at', null)
-                .gt('clears_at', now)
-                .maybeSingle()
+            const { data: waiverLog, error: waiverErr } = waiverLogRes
             if (waiverErr) throw waiverErr
             if (!waiverLog) throw new ValidationError('This player is no longer on waivers.')
 
-            const { data: existing, error: existingErr } = await supabase
-                .from('waiver_claims')
-                .select('id')
-                .eq('member_id', memberId)
-                .eq('league_season_id', season.id)
-                .eq('player_id', playerId)
-                .eq('status', 'pending')
-                .maybeSingle()
+            const { data: existing, error: existingErr } = existingRes
             if (existingErr) throw existingErr
             if (existing) throw new ValidationError('You already have a pending claim for this player.')
 
             if (dropPlayerId) {
-                const { data: dropRow, error: dropErr } = await supabase
-                    .from('roster_players')
-                    .select('id')
-                    .eq('member_id', memberId)
-                    .eq('league_id', leagueId)
-                    .eq('league_season_id', season.id)
-                    .eq('player_id', dropPlayerId)
-                    .maybeSingle()
+                const { data: dropRow, error: dropErr } = dropRes!
                 if (dropErr) throw dropErr
                 if (!dropRow) throw new ValidationError('Drop player is no longer on your roster.')
             }
