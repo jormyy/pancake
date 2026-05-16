@@ -21,16 +21,27 @@ async function syncDynastyRankings() {
   const rankings = await scrapeDynastyRankings()
   console.log(`[sync-rankings] Scraped ${rankings.length} players.`)
 
-  const { data: players, error } = await supabase
-    .from('players')
-    .select('id, display_name, sportsdata_id')
-  if (error) throw error
+  // Paginate to avoid PostgREST max_rows cap
+  const players: { id: string; display_name: string | null; sportsdata_id: string | null }[] = []
+  const PAGE = 1000
+  let from = 0
+  while (true) {
+    const { data, error } = await supabase
+      .from('players')
+      .select('id, display_name, sportsdata_id')
+      .range(from, from + PAGE - 1)
+    if (error) throw error
+    if (!data || data.length === 0) break
+    players.push(...data)
+    if (data.length < PAGE) break
+    from += PAGE
+  }
 
   const bySpDataId = new Map<string, string>()
   const byExactName = new Map<string, string>()
   const byNormName = new Map<string, string>()
 
-  for (const p of players ?? []) {
+  for (const p of players) {
     if (p.sportsdata_id) bySpDataId.set(p.sportsdata_id, p.id)
     if (!p.display_name) continue
     byExactName.set(p.display_name.toLowerCase(), p.id)
@@ -67,23 +78,31 @@ async function syncDynastyRankings() {
   }
 
   for (let i = 0; i < updates.length; i += CHUNK) {
-    await Promise.all(updates.slice(i, i + CHUNK).map(async (update) => {
-      const { error } = await supabase
-        .from('players')
-        .update({ dynasty_rank: update.dynasty_rank })
-        .eq('id', update.id)
-      if (error) throw error
-    }))
+    const chunk = updates.slice(i, i + CHUNK)
+    const { error } = await supabase
+      .from('players')
+      .upsert(chunk, { onConflict: 'id' })
+    if (error) throw error
   }
 
   // Clear dynasty_rank for players no longer on the list
   const rankedIds = new Set(updates.map((u) => u.id))
-  const { data: currentlyRanked } = await supabase
-    .from('players')
-    .select('id')
-    .not('dynasty_rank', 'is', null)
+  const currentlyRanked: { id: string }[] = []
+  let fromRanked = 0
+  while (true) {
+    const { data, error } = await supabase
+      .from('players')
+      .select('id')
+      .not('dynasty_rank', 'is', null)
+      .range(fromRanked, fromRanked + PAGE - 1)
+    if (error) throw error
+    if (!data || data.length === 0) break
+    currentlyRanked.push(...data)
+    if (data.length < PAGE) break
+    fromRanked += PAGE
+  }
 
-  const toClear = (currentlyRanked ?? []).filter((p: any) => !rankedIds.has(p.id)).map((p: any) => p.id)
+  const toClear = currentlyRanked.filter((p) => !rankedIds.has(p.id)).map((p) => p.id)
   if (toClear.length > 0) {
     await supabase.from('players').update({ dynasty_rank: null }).in('id', toClear)
   }
