@@ -22,7 +22,7 @@ const LIVE_POLL_LOCK_KEY = 779001
 const LIVE_POLL_LEASE_TTL_SECONDS = 90
 
 async function withLivePollLease(fn: () => Promise<void>) {
-    const { data: holderId, error } = await supabase.rpc('try_live_poll_lease' as any, {
+    const { data: holderId, error } = await supabase.rpc('try_live_poll_lease', {
         p_lock_key: LIVE_POLL_LOCK_KEY,
         p_ttl_seconds: LIVE_POLL_LEASE_TTL_SECONDS,
     })
@@ -35,7 +35,7 @@ async function withLivePollLease(fn: () => Promise<void>) {
     try {
         await fn()
     } finally {
-        const { error: releaseError } = await supabase.rpc('release_live_poll_lease' as any, {
+        const { error: releaseError } = await supabase.rpc('release_live_poll_lease', {
             p_lock_key: LIVE_POLL_LOCK_KEY,
             p_holder_id: holderId,
         })

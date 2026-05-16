@@ -541,6 +541,27 @@ export type Database = {
           },
         ]
       }
+      live_poll_leases: {
+        Row: {
+          acquired_at: string
+          expires_at: string
+          holder_id: string
+          lock_key: number
+        }
+        Insert: {
+          acquired_at?: string
+          expires_at: string
+          holder_id: string
+          lock_key: number
+        }
+        Update: {
+          acquired_at?: string
+          expires_at?: string
+          holder_id?: string
+          lock_key?: number
+        }
+        Relationships: []
+      }
       matchups: {
         Row: {
           away_max_possible_points: number | null
@@ -2182,10 +2203,6 @@ export type Database = {
         Args: { p_accepting_member_id: string; p_trade_id: string }
         Returns: undefined
       }
-      complete_accepted_trade_atomic: {
-        Args: { p_trade_id: string }
-        Returns: undefined
-      }
       advance_season_atomic: {
         Args: { p_league_id: string }
         Returns: {
@@ -2197,6 +2214,10 @@ export type Database = {
         Args: { p_nomination_id: string }
         Returns: boolean
       }
+      complete_accepted_trade_atomic: {
+        Args: { p_trade_id: string }
+        Returns: undefined
+      }
       compute_fantasy_points: {
         Args: { p_league_id: string; p_stat_id: string }
         Returns: number
@@ -2206,11 +2227,7 @@ export type Database = {
         Returns: number
       }
       create_league: {
-        Args: {
-          p_auction_budget?: number
-          p_name: string
-          p_team_name: string
-        }
+        Args: { p_auction_budget?: number; p_name: string; p_team_name: string }
         Returns: Json
       }
       drop_player_atomic: {
@@ -2251,7 +2268,15 @@ export type Database = {
           status: Database["public"]["Enums"]["waiver_claim_status"]
         }[]
       }
+      release_live_poll_lease: {
+        Args: { p_holder_id: string; p_lock_key: number }
+        Returns: boolean
+      }
       release_live_poll_lock: { Args: never; Returns: boolean }
+      try_live_poll_lease: {
+        Args: { p_lock_key: number; p_ttl_seconds?: number }
+        Returns: string
+      }
       try_live_poll_lock: { Args: never; Returns: boolean }
     }
     Enums: {
