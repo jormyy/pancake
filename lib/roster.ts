@@ -1,6 +1,5 @@
 import { supabase } from '@/lib/supabase'
-import { logTransaction } from '@/lib/transactions'
-import { getCurrentSeasonId, getActiveSeasonId } from '@/lib/shared/season'
+import { getActiveSeasonId } from '@/lib/shared/season'
 import { isDTD, isIREligible, isTaxiEligible as isEligibleForTaxi } from '@pancake/core'
 import { apiPost } from '@/lib/shared/api'
 
@@ -147,68 +146,22 @@ export async function addFreeAgent(
     leagueId: string,
     playerId: string,
 ): Promise<void> {
-    const seasonId = await getCurrentSeasonId(leagueId)
-    if (!seasonId) throw new Error('No active season found.')
-
-    // Check for ineligible IR players before allowing add
-    const { data: rosterPlayers, error: rosterErr } = await supabase
-        .from('roster_players')
-        .select('is_on_ir, is_on_taxi, players ( display_name, injury_status )')
-        .eq('member_id', memberId)
-        .eq('league_id', leagueId)
-        .eq('league_season_id', seasonId)
-        .eq('is_on_ir', true)
-    if (rosterErr) throw rosterErr
-
-    if (rosterPlayers && rosterPlayers.length > 0) {
-        const ineligible = rosterPlayers.filter(
-            (rp) => !isIREligible(rp.players?.injury_status)
-        )
-        if (ineligible.length > 0) {
-            const names = ineligible.map((rp) => rp.players?.display_name ?? 'Unknown').join(', ')
-            throw new Error(
-                `You have ineligible players on IR (${names}). Activate or drop them before adding players.`
-            )
-        }
-    }
-
-    // Fetch the league's roster size cap
-    const { data: league, error: leagueErr } = await supabase
-        .from('leagues')
-        .select('roster_size')
-        .eq('id', leagueId)
-        .single()
-    if (leagueErr) throw leagueErr
-
-    // Count member's current active (non-IR, non-taxi) roster slots
-    const { count, error: countErr } = await supabase
-        .from('roster_players')
-        .select('id', { count: 'exact', head: true })
-        .eq('member_id', memberId)
-        .eq('league_season_id', seasonId)
-        .eq('is_on_ir', false)
-        .eq('is_on_taxi', false)
-    if (countErr) throw countErr
-
-    const rosterSize = league.roster_size ?? 20
-    if ((count ?? 0) >= rosterSize) {
-        throw new Error(`Your active roster is full (${rosterSize} players).`)
-    }
-
-    const { error } = await supabase.from('roster_players').insert({
-        member_id: memberId,
-        league_id: leagueId,
-        league_season_id: seasonId,
-        player_id: playerId,
-        acquired_via: 'free_agent',
+    // Atomic: validate caller ownership, waiver hold, roster-cap, and insert
+    // both the roster_players row and the roster_transactions audit row in a
+    // single SECURITY DEFINER RPC. The prior client-side INSERT had a race
+    // window between drop_player_atomic's commit and another tab's
+    // getPlayerRosterStatus refresh, letting a second user scoop a player off
+    // waivers and breaking queued waiver_claims.
+    const { error } = await supabase.rpc('add_free_agent_atomic', {
+        p_member_id: memberId,
+        p_league_id: leagueId,
+        p_player_id: playerId,
     })
 
     if (error) {
         if (error.code === '23505') throw new Error('This player is already on a roster.')
-        throw error
+        throw new Error(error.message)
     }
-
-    await logTransaction({ leagueId, leagueSeasonId: seasonId, memberId, playerId, transactionType: 'fa_add' })
 }
 
 export async function dropPlayer(rosterPlayerId: string): Promise<void> {

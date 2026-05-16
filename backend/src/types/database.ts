@@ -2203,6 +2203,10 @@ export type Database = {
         Args: { p_accepting_member_id: string; p_trade_id: string }
         Returns: undefined
       }
+      add_free_agent_atomic: {
+        Args: { p_league_id: string; p_member_id: string; p_player_id: string }
+        Returns: undefined
+      }
       advance_season_atomic: {
         Args: { p_league_id: string }
         Returns: {
@@ -2521,6 +2525,7 @@ export const Constants = {
     },
   },
 } as const
+
 
 export type LeagueStatus = Database["public"]["Enums"]["league_status"]
 export type LeagueMemberRole = Database["public"]["Enums"]["league_member_role"]
