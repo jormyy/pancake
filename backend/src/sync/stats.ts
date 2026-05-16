@@ -1,6 +1,6 @@
 import { supabase, fetchAllPlayers } from '../lib/supabase'
 import { fetchBoxScore, parseNBAMinutes, NBABoxScorePlayer } from '../lib/nba'
-import { todayET } from '../lib/utils/date'
+import { todayET, toETDate } from '../lib/utils/date'
 import { normalizeName } from '../lib/utils/nameMatch'
 
 export interface StatRow {
@@ -82,7 +82,7 @@ export function buildStatRow(
 
 export async function syncStatsByDate(date: Date) {
     // Use ET date — NBA game_date values are ET-based, and UTC rolls over ~4-5h before midnight ET
-    const dateStr = date.toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
+    const dateStr = toETDate(date)
     console.log(`[sync] Fetching stats for ${dateStr}...`)
 
     const isPast = dateStr < todayET()

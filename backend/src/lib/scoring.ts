@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { toETDate } from './utils/date'
 import { calculateFantasyPoints, snakeToStatLine } from '@pancake/core'
 import type { StatLine, ScoringSettings } from '@pancake/core'
 
@@ -12,7 +13,7 @@ export type { StatLine, ScoringSettings }
 // If today falls between weeks (e.g. Monday before first game of new week),
 // returns the most recently started week so the caller can finalize it.
 export async function getWeekNumberForDate(date: Date, seasonYear: number): Promise<number | null> {
-    const dateISO = date.toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
+    const dateISO = toETDate(date)
 
     // Exact match: today falls within a known week's game-date range
     const { data: exact } = await supabase
