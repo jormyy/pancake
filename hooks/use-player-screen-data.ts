@@ -93,7 +93,7 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null) {
             }
         }
         loadSeasonData()
-    }, [playerId, selectedSeason, player])
+    }, [playerId, selectedSeason, player?.nba_team])
 
     // Load fantasy points (league-aware)
     useEffect(() => {
@@ -112,7 +112,7 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null) {
             }
         }
         loadFantasy()
-    }, [playerId, leagueId, selectedSeason, player])
+    }, [playerId, leagueId, selectedSeason, player?.nba_team])
 
     // Load transaction history
     useEffect(() => {
