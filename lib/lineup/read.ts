@@ -69,21 +69,6 @@ export async function getTeamMatchups(gameDate: string): Promise<Map<string, { o
     return map
 }
 
-// Returns the set of NBA team abbreviations with a game currently InProgress on the given date.
-export async function getLiveTeams(gameDate: string): Promise<Set<string>> {
-    const { data } = await supabase
-        .from('nba_games')
-        .select('home_team, away_team')
-        .eq('game_date', gameDate)
-        .eq('status', 'InProgress')
-    const teams = new Set<string>()
-    for (const g of data ?? []) {
-        if ((g as any).home_team) teams.add((g as any).home_team)
-        if ((g as any).away_team) teams.add((g as any).away_team)
-    }
-    return teams
-}
-
 export async function getLineupContext(leagueId: string): Promise<LineupContext | null> {
     const season = await getCurrentSeason(leagueId)
     if (!season) return null
