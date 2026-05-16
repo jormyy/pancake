@@ -268,11 +268,20 @@ export default async function tradeRoutes(app: FastifyInstance) {
 
             await verifyOwnMember(req.userId, memberId)
 
-            const { data: trade, error: tradeError } = await supabase
-                .from('trades')
-                .select('id, league_id, proposer_member_id, recipient_member_id, status, veto_window_expires_at')
-                .eq('id', tradeId)
-                .single()
+            const [tradeRes, memberRes] = await Promise.all([
+                supabase
+                    .from('trades')
+                    .select('id, league_id, proposer_member_id, recipient_member_id, status, veto_window_expires_at')
+                    .eq('id', tradeId)
+                    .single(),
+                supabase
+                    .from('league_members')
+                    .select('id, league_id, role')
+                    .eq('id', memberId)
+                    .single(),
+            ])
+
+            const { data: trade, error: tradeError } = tradeRes
             if (tradeError || !trade) throw new NotFoundError('Trade not found.')
 
             if (trade.status !== 'accepted') {
@@ -282,11 +291,7 @@ export default async function tradeRoutes(app: FastifyInstance) {
                 throw new ValidationError('The veto window has expired.')
             }
 
-            const { data: member, error: memberError } = await supabase
-                .from('league_members')
-                .select('id, league_id, role')
-                .eq('id', memberId)
-                .single()
+            const { data: member, error: memberError } = memberRes
             if (memberError || !member) throw new NotFoundError('League member not found.')
             if (member.league_id !== trade.league_id) {
                 throw new AppError('Access denied', 403)
@@ -369,14 +374,16 @@ export default async function tradeRoutes(app: FastifyInstance) {
             const { tradeId } = req.params as { tradeId: string }
             const { memberId } = req.body as { memberId: string }
 
-            await verifyOwnMember(req.userId, memberId)
+            const [, tradeRes] = await Promise.all([
+                verifyOwnMember(req.userId, memberId),
+                supabase
+                    .from('trades')
+                    .select('id, proposer_member_id, recipient_member_id, status')
+                    .eq('id', tradeId)
+                    .single(),
+            ])
 
-            const { data: trade, error: fetchError } = await supabase
-                .from('trades')
-                .select('id, proposer_member_id, recipient_member_id, status')
-                .eq('id', tradeId)
-                .single()
-
+            const { data: trade, error: fetchError } = tradeRes
             if (fetchError || !trade) throw new NotFoundError('Trade not found.')
             if (trade.recipient_member_id !== memberId) {
                 throw new AppError('Only the recipient can reject this trade.', 403)
@@ -411,14 +418,16 @@ export default async function tradeRoutes(app: FastifyInstance) {
             const { tradeId } = req.params as { tradeId: string }
             const { memberId } = req.body as { memberId: string }
 
-            await verifyOwnMember(req.userId, memberId)
+            const [, tradeRes] = await Promise.all([
+                verifyOwnMember(req.userId, memberId),
+                supabase
+                    .from('trades')
+                    .select('id, proposer_member_id, recipient_member_id, status')
+                    .eq('id', tradeId)
+                    .single(),
+            ])
 
-            const { data: trade, error: fetchError } = await supabase
-                .from('trades')
-                .select('id, proposer_member_id, recipient_member_id, status')
-                .eq('id', tradeId)
-                .single()
-
+            const { data: trade, error: fetchError } = tradeRes
             if (fetchError || !trade) throw new NotFoundError('Trade not found.')
             if (trade.proposer_member_id !== memberId) {
                 throw new AppError('Only the proposer can withdraw this trade.', 403)
