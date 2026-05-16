@@ -157,8 +157,6 @@ export async function getLeagueStandings(leagueId: string): Promise<StandingRow[
             .eq('league_season_id', season.id),
     ])
 
-    const teamNames = Object.fromEntries((members ?? []).map((m) => [m.id, m.team_name]))
-
     const map: Record<string, StandingRow> = {}
     for (const m of members ?? []) {
         map[m.id] = {
