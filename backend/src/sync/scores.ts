@@ -44,7 +44,11 @@ type StandingSnapshot = {
     waiver_priority: number
 }
 
-async function calcWeekPointsByMember(
+// Loads lineup rows for a week and computes fantasy points per player.
+// Shared by both starters-only scoring and max-possible scoring; the caller
+// supplies which slot types to include (max-possible includes BE; live
+// scoring excludes both BE and IR).
+async function loadWeekLineupAndPlayerPoints(
     memberIds: string[],
     leagueSeasonId: string,
     seasonYear: number,
@@ -52,21 +56,24 @@ async function calcWeekPointsByMember(
     settings: Record<string, number>,
     weekStart: string,
     weekEnd: string,
-): Promise<Map<string, number>> {
-    if (memberIds.length === 0) return new Map()
-
-    const { data: lineup, error: lineupErr } = await supabase
+    includeBench: boolean,
+): Promise<{ lineupRows: LineupSlot[]; pointsByPlayer: Map<string, number> } | null> {
+    let lineupQuery = supabase
         .from('weekly_lineups')
-        .select('member_id, player_id')
+        .select('member_id, player_id, slot_type')
         .in('member_id', memberIds)
         .eq('league_season_id', leagueSeasonId)
         .eq('week_number', weekNumber)
-        .neq('slot_type', 'BE')
         .neq('slot_type', 'IR')
 
+    if (!includeBench) {
+        lineupQuery = lineupQuery.neq('slot_type', 'BE')
+    }
+
+    const { data: lineup, error: lineupErr } = await lineupQuery
     if (lineupErr) throw lineupErr
-    const lineupRows = (lineup ?? []) as LineupPlayer[]
-    if (lineupRows.length === 0) return new Map(memberIds.map((id) => [id, 0]))
+    const lineupRows = (lineup ?? []) as LineupSlot[]
+    if (lineupRows.length === 0) return null
 
     const playerIds = [...new Set(lineupRows.map((r) => r.player_id))]
 
@@ -95,6 +102,33 @@ async function calcWeekPointsByMember(
         )
     }
 
+    return { lineupRows, pointsByPlayer }
+}
+
+async function calcWeekPointsByMember(
+    memberIds: string[],
+    leagueSeasonId: string,
+    seasonYear: number,
+    weekNumber: number,
+    settings: Record<string, number>,
+    weekStart: string,
+    weekEnd: string,
+): Promise<Map<string, number>> {
+    if (memberIds.length === 0) return new Map()
+
+    const loaded = await loadWeekLineupAndPlayerPoints(
+        memberIds,
+        leagueSeasonId,
+        seasonYear,
+        weekNumber,
+        settings,
+        weekStart,
+        weekEnd,
+        false,
+    )
+    if (!loaded) return new Map(memberIds.map((id) => [id, 0]))
+    const { lineupRows, pointsByPlayer } = loaded
+
     const pointsByMember = new Map(memberIds.map((id) => [id, 0]))
     for (const row of lineupRows) {
         pointsByMember.set(
@@ -121,47 +155,24 @@ async function calcWeekMaxPossiblePointsByMember(
 ): Promise<Map<string, number>> {
     if (memberIds.length === 0) return new Map()
 
-    const { data: lineup, error: lineupErr } = await supabase
-        .from('weekly_lineups')
-        .select('member_id, player_id, slot_type')
-        .in('member_id', memberIds)
-        .eq('league_season_id', leagueSeasonId)
-        .eq('week_number', weekNumber)
-        .neq('slot_type', 'IR')
-
-    if (lineupErr) throw lineupErr
-    const lineupRows = (lineup ?? []) as LineupSlot[]
-    if (lineupRows.length === 0) return new Map(memberIds.map((id) => [id, 0]))
+    const loaded = await loadWeekLineupAndPlayerPoints(
+        memberIds,
+        leagueSeasonId,
+        seasonYear,
+        weekNumber,
+        settings,
+        weekStart,
+        weekEnd,
+        true,
+    )
+    if (!loaded) return new Map(memberIds.map((id) => [id, 0]))
+    const { lineupRows, pointsByPlayer } = loaded
 
     const starterCounts = new Map(memberIds.map((id) => [id, 0]))
     for (const row of lineupRows) {
         if (row.slot_type !== 'BE') {
             starterCounts.set(row.member_id, (starterCounts.get(row.member_id) ?? 0) + 1)
         }
-    }
-
-    const playerIds = [...new Set(lineupRows.map((r) => r.player_id))]
-    const { data: stats, error: statsErr } = await supabase
-        .from('player_game_stats')
-        .select(
-            'player_id,points,rebounds,assists,steals,blocks,turnovers,' +
-                'three_pointers_made,field_goals_made,field_goals_attempted,' +
-                'free_throws_made,free_throws_attempted,double_double,triple_double,did_not_play',
-        )
-        .in('player_id', playerIds)
-        .eq('season_year', seasonYear)
-        .gte('game_date', weekStart)
-        .lte('game_date', weekEnd)
-
-    if (statsErr) throw statsErr
-
-    const pointsByPlayer = new Map<string, number>()
-    for (const stat of (stats ?? []) as unknown as StatRow[]) {
-        const current = pointsByPlayer.get(stat.player_id) ?? 0
-        pointsByPlayer.set(
-            stat.player_id,
-            current + calculateFantasyPoints(snakeToStatLine(stat), settings),
-        )
     }
 
     const playerScoresByMember = new Map(memberIds.map((id) => [id, [] as number[]]))
