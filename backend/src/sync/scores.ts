@@ -369,7 +369,12 @@ async function finalizeWeekIfComplete(
         matchupRows.map(async (m) => {
             const homePoints = Number(m.home_points ?? 0)
             const awayPoints = Number(m.away_points ?? 0)
-            const winnerId = homePoints >= awayPoints ? m.home_member_id : m.away_member_id
+            const winnerId =
+                homePoints === awayPoints
+                    ? null
+                    : homePoints > awayPoints
+                      ? m.home_member_id
+                      : m.away_member_id
 
             await supabase
                 .from('matchups')
@@ -382,13 +387,21 @@ async function finalizeWeekIfComplete(
                 })
                 .eq('id', m.id)
 
-            const loserId = winnerId === m.home_member_id ? m.away_member_id : m.home_member_id
-            const winnerPts = Math.max(homePoints, awayPoints).toFixed(1)
-            const loserPts = Math.min(homePoints, awayPoints).toFixed(1)
-            await Promise.all([
-                notifyMember(winnerId, `Week ${weekNumber} Final`, `You won ${winnerPts}–${loserPts}! 🏆`),
-                notifyMember(loserId, `Week ${weekNumber} Final`, `You lost ${loserPts}–${winnerPts}.`),
-            ]).catch(console.error)
+            if (winnerId === null) {
+                const tiePts = homePoints.toFixed(1)
+                await Promise.all([
+                    notifyMember(m.home_member_id, `Week ${weekNumber} Final`, `You tied ${tiePts}–${tiePts}.`),
+                    notifyMember(m.away_member_id, `Week ${weekNumber} Final`, `You tied ${tiePts}–${tiePts}.`),
+                ]).catch(console.error)
+            } else {
+                const loserId = winnerId === m.home_member_id ? m.away_member_id : m.home_member_id
+                const winnerPts = Math.max(homePoints, awayPoints).toFixed(1)
+                const loserPts = Math.min(homePoints, awayPoints).toFixed(1)
+                await Promise.all([
+                    notifyMember(winnerId, `Week ${weekNumber} Final`, `You won ${winnerPts}–${loserPts}! 🏆`),
+                    notifyMember(loserId, `Week ${weekNumber} Final`, `You lost ${loserPts}–${winnerPts}.`),
+                ]).catch(console.error)
+            }
         }),
     )
 
