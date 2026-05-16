@@ -246,11 +246,19 @@ export async function advanceToFinal(leagueId: string): Promise<void> {
         return
     }
 
+    // Order by insertion order (created_at, then id) so QF winners map deterministically
+    // to the seeds they faced. generateSemifinals inserts QFs in this order:
+    //   QF[0] = seed3 vs seed6
+    //   QF[1] = seed4 vs seed5
+    // Standard bracket convention: seed 1 plays winner(4v5), seed 2 plays winner(3v6).
+    // So below we pair seeds[0] ↔ qfWinners[1] and seeds[1] ↔ qfWinners[0].
     const { data: quarterfinals, error: qfErr } = await supabase
         .from('matchups')
-        .select('id, home_member_id, away_member_id, winner_member_id, is_finalized')
+        .select('id, home_member_id, away_member_id, winner_member_id, is_finalized, created_at')
         .eq('league_season_id', seasonId)
         .eq('matchup_type', 'playoff_quarterfinal')
+        .order('created_at', { ascending: true })
+        .order('id', { ascending: true })
     if (qfErr) throw qfErr
 
     if ((quarterfinals ?? []).length > 0) {
