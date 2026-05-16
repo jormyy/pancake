@@ -98,6 +98,7 @@ export default function ClaimPlayerScreen() {
         weekday: 'short',
         month: 'short',
         day: 'numeric',
+        timeZone: 'America/New_York',
     })
 
     return (
