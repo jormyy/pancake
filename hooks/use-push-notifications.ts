@@ -63,5 +63,5 @@ export function usePushNotifications() {
         }
 
         register().catch(console.error)
-    }, [user])
+    }, [user?.id])
 }
