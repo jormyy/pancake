@@ -13,7 +13,7 @@ import {
 import { FlashList } from '@shopify/flash-list'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLocalSearchParams, useRouter } from 'expo-router'
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
 import {
     getDraftState,
@@ -157,21 +157,34 @@ export default function DraftRoomScreen() {
         }
     }
 
+    // Memoize O(N) derivations from state so we don't recompute them every render
+    // (poll fires every 5s; without memos every parent re-render rebuilds these arrays/maps).
+    const closedNominations = useMemo(
+        () =>
+            state
+                ? state.nominations.filter((n) => n.status !== 'open').reverse()
+                : [],
+        [state],
+    )
+    const budgetByMember = useMemo(
+        () => new Map((state?.budgets ?? []).map((b) => [b.memberId, b])),
+        [state],
+    )
+
     if (loading || !state) {
         return <LoadingScreen />
     }
 
-    const { draft, order, budgets, openNomination, currentNominatorMemberId, nominations } = state
+    const { draft, order, budgets, openNomination, currentNominatorMemberId } = state
     const isMyTurn = currentNominatorMemberId === myMemberId
     const currentNominatorTeam =
         order.find((o) => o.memberId === currentNominatorMemberId)?.teamName ?? 'Unknown'
 
-    const myBudget = budgets.find((b) => b.memberId === myMemberId)
+    const myBudget = myMemberId ? budgetByMember.get(myMemberId) : undefined
     const iAmLeading = openNomination?.currentBidderId === myMemberId
-    const leadingTeam = budgets.find(
-        (b) => b.memberId === openNomination?.currentBidderId,
-    )?.teamName
-    const closedNominations = nominations.filter((n) => n.status !== 'open').reverse()
+    const leadingTeam = openNomination?.currentBidderId
+        ? budgetByMember.get(openNomination.currentBidderId)?.teamName
+        : undefined
 
     const iAmBankrupt = (myBudget?.remaining ?? 0) < 1
     // Min bid is current + 1, floored at 1
@@ -477,9 +490,9 @@ export default function DraftRoomScreen() {
                 ) : (
                     <View style={styles.card}>
                         {closedNominations.map((n, i) => {
-                            const winnerTeam = budgets.find(
-                                (b) => b.memberId === n.winningMemberId,
-                            )?.teamName
+                            const winnerTeam = n.winningMemberId
+                                ? budgetByMember.get(n.winningMemberId)?.teamName
+                                : undefined
                             return (
                                 <View
                                     key={n.id}
