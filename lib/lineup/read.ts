@@ -1,9 +1,11 @@
 import { supabase } from '@/lib/supabase'
-import type { RosterSlotType } from '@/types/database'
+import type { Database, RosterSlotType } from '@/types/database'
 import { getCurrentSeason } from '@/lib/shared/season'
 import { getCurrentWeekNumber } from '@/lib/shared/week'
 import { todayDateString } from '@/lib/shared/dates'
 import { getEligiblePositions } from '@/lib/players'
+
+type PlayerRow = Database['public']['Tables']['players']['Row']
 
 export type LineupPlayer = {
     rosterPlayerId: string
@@ -45,8 +47,8 @@ export async function getStartedTeams(gameDate: string): Promise<Set<string>> {
         .in('status', ['InProgress', 'Final'])
     const teams = new Set<string>()
     for (const g of data ?? []) {
-        if ((g as any).home_team) teams.add((g as any).home_team)
-        if ((g as any).away_team) teams.add((g as any).away_team)
+        if (g.home_team) teams.add(g.home_team)
+        if (g.away_team) teams.add(g.away_team)
     }
     return teams
 }
@@ -59,8 +61,8 @@ export async function getTeamMatchups(gameDate: string): Promise<Map<string, { o
         .eq('game_date', gameDate)
     const map = new Map<string, { opponent: string; isHome: boolean }>()
     for (const g of data ?? []) {
-        const home = (g as any).home_team
-        const away = (g as any).away_team
+        const home = g.home_team
+        const away = g.away_team
         if (home && away) {
             map.set(home, { opponent: away, isHome: true })
             map.set(away, { opponent: home, isHome: false })
@@ -95,8 +97,8 @@ export async function getWeekDays(weekNumber: number, seasonYear: number): Promi
 
     const dateTeams = new Map<string, string[]>()
 
-    if ((weekData as any)?.week_start) {
-        const start = new Date((weekData as any).week_start + 'T12:00:00Z')
+    if (weekData?.week_start) {
+        const start = new Date(weekData.week_start + 'T12:00:00Z')
         const dow = start.getUTCDay()
         start.setUTCDate(start.getUTCDate() + (dow === 0 ? -6 : 1 - dow))
         const end = new Date(start)
@@ -112,11 +114,11 @@ export async function getWeekDays(weekNumber: number, seasonYear: number): Promi
             .lte('game_date', endStr)
 
         for (const g of games ?? []) {
-            const date = (g as any).game_date as string
+            const date = g.game_date
             if (!dateTeams.has(date)) dateTeams.set(date, [])
             const arr = dateTeams.get(date)!
-            if ((g as any).home_team) arr.push((g as any).home_team)
-            if ((g as any).away_team) arr.push((g as any).away_team)
+            if (g.home_team) arr.push(g.home_team)
+            if (g.away_team) arr.push(g.away_team)
         }
 
         for (let i = 0; i < 7; i++) {
@@ -141,11 +143,11 @@ export async function getWeekDays(weekNumber: number, seasonYear: number): Promi
             .eq('week_number', weekNumber)
 
         for (const g of games ?? []) {
-            const date = (g as any).game_date as string
+            const date = g.game_date
             if (!dateTeams.has(date)) dateTeams.set(date, [])
             const arr = dateTeams.get(date)!
-            if ((g as any).home_team) arr.push((g as any).home_team)
-            if ((g as any).away_team) arr.push((g as any).away_team)
+            if (g.home_team) arr.push(g.home_team)
+            if (g.away_team) arr.push(g.away_team)
         }
         const uniqueDates = [...new Set([...dateTeams.keys()])].sort()
         for (const dateStr of uniqueDates) {
@@ -194,22 +196,25 @@ export async function getWeeklyLineup(
     ])
 
     const assignmentMap = new Map<string, string>(
-        (assignments ?? []).map((a: any) => [a.player_id, a.slot_type]),
+        (assignments ?? []).map((a) => [a.player_id, a.slot_type]),
     )
 
     const irPlayerIds = new Set<string>(
-        (roster ?? []).filter((r: any) => r.is_on_ir).map((r: any) => r.player_id as string),
+        (roster ?? []).filter((r) => r.is_on_ir).map((r) => r.player_id),
     )
     const taxiPlayerIds = new Set<string>(
-        (roster ?? []).filter((r: any) => r.is_on_taxi).map((r: any) => r.player_id as string),
+        (roster ?? []).filter((r) => r.is_on_taxi).map((r) => r.player_id),
     )
 
     const rosterByPlayerId = new Map<string, LineupPlayer>()
     for (const r of roster ?? []) {
-        const p = (r as any).players
-        rosterByPlayerId.set((r as any).player_id, {
-            rosterPlayerId: (r as any).id,
-            playerId: (r as any).player_id,
+        // Supabase types `players` as a possible array | object | null depending on relationship inference.
+        // The join is one-to-one, so we normalize to a single record.
+        const playersRel = r.players
+        const p = Array.isArray(playersRel) ? (playersRel[0] ?? null) : playersRel
+        rosterByPlayerId.set(r.player_id, {
+            rosterPlayerId: r.id,
+            playerId: r.player_id,
             displayName: p?.display_name ?? '',
             position: p?.position ?? null,
             eligiblePositions: getEligiblePositions(p ?? {}),
@@ -224,14 +229,15 @@ export async function getWeeklyLineup(
     let addedAfterDate = new Set<string>()
     if (isPastDate) {
         const missingPlayerIds = [...assignmentMap.keys()].filter((pid) => !rosterByPlayerId.has(pid))
+        type ExtraPlayer = Pick<PlayerRow, 'id' | 'display_name' | 'position' | 'eligible_positions' | 'nba_team' | 'injury_status'>
         const [extraPlayersResult, laterAddsResult] = await Promise.all([
             missingPlayerIds.length > 0
                 ? supabase
                     .from('players')
                     .select('id, display_name, position, eligible_positions, nba_team, injury_status')
                     .in('id', missingPlayerIds)
-                : Promise.resolve({ data: [] }),
-            (supabase as any)
+                : Promise.resolve({ data: [] as ExtraPlayer[] }),
+            supabase
                 .from('roster_transactions')
                 .select('player_id')
                 .eq('member_id', memberId)
@@ -241,7 +247,7 @@ export async function getWeeklyLineup(
                 .gt('occurred_at', gameDate + 'T23:59:59Z'),
         ])
 
-        for (const p of (extraPlayersResult.data ?? []) as any[]) {
+        for (const p of extraPlayersResult.data ?? []) {
             rosterByPlayerId.set(p.id, {
                 rosterPlayerId: '',
                 playerId: p.id,
@@ -253,11 +259,13 @@ export async function getWeeklyLineup(
             })
         }
 
-        addedAfterDate = new Set((laterAddsResult.data ?? []).map((r: any) => r.player_id as string))
+        addedAfterDate = new Set((laterAddsResult.data ?? []).map((r) => r.player_id))
     }
 
+    // Taxi slots are tracked via `roster_players.is_on_taxi`, not as a slot template type,
+    // so the enum doesn't include 'TX'. Only BE/IR are excluded here.
     const starterTemplates = (templates ?? []).filter(
-        (t: any) => t.slot_type !== 'BE' && t.slot_type !== 'IR' && t.slot_type !== 'TX',
+        (t) => t.slot_type !== 'BE' && t.slot_type !== 'IR',
     )
 
     const slotGroups: Record<string, string[]> = {}
@@ -270,11 +278,11 @@ export async function getWeeklyLineup(
 
     const starters: LineupSlot[] = []
     for (const t of starterTemplates) {
-        const assigned = slotGroups[(t as any).slot_type] ?? []
-        for (let i = 0; i < (t as any).slot_count; i++) {
+        const assigned = slotGroups[t.slot_type] ?? []
+        for (let i = 0; i < t.slot_count; i++) {
             const pid = assigned[i] ?? null
             starters.push({
-                slotType: (t as any).slot_type,
+                slotType: t.slot_type,
                 player: pid ? (rosterByPlayerId.get(pid) ?? null) : null,
             })
         }
@@ -284,18 +292,18 @@ export async function getWeeklyLineup(
         starters.map((s) => s.player?.playerId).filter(Boolean) as string[],
     )
     const bench: LineupPlayer[] = (roster ?? [])
-        .filter((r: any) => !r.is_on_ir && !r.is_on_taxi && !starterPlayerIds.has(r.player_id) && !addedAfterDate.has(r.player_id))
-        .map((r: any) => rosterByPlayerId.get(r.player_id)!)
+        .filter((r) => !r.is_on_ir && !r.is_on_taxi && !starterPlayerIds.has(r.player_id) && !addedAfterDate.has(r.player_id))
+        .map((r) => rosterByPlayerId.get(r.player_id)!)
         .filter(Boolean)
 
     const ir: LineupPlayer[] = (roster ?? [])
-        .filter((r: any) => r.is_on_ir)
-        .map((r: any) => rosterByPlayerId.get(r.player_id)!)
+        .filter((r) => r.is_on_ir)
+        .map((r) => rosterByPlayerId.get(r.player_id)!)
         .filter(Boolean)
 
     const taxi: LineupPlayer[] = (roster ?? [])
-        .filter((r: any) => r.is_on_taxi)
-        .map((r: any) => rosterByPlayerId.get(r.player_id)!)
+        .filter((r) => r.is_on_taxi)
+        .map((r) => rosterByPlayerId.get(r.player_id)!)
         .filter(Boolean)
 
     return { starters, bench, ir, taxi }
