@@ -35,7 +35,7 @@ async function getSeasonContext(leagueId: string): Promise<SeasonContext> {
 
     return {
         seasonId: season.id,
-        playoffStartWeek: (league as any).playoff_start_week ?? CONFIG.DEFAULT_PLAYOFF_START_WEEK,
+        playoffStartWeek: league.playoff_start_week ?? CONFIG.DEFAULT_PLAYOFF_START_WEEK,
     }
 }
 
@@ -65,23 +65,23 @@ async function getPlayoffSeeds(leagueId: string, leagueSeasonId: string): Promis
     }
 
     for (const matchup of matchups ?? []) {
-        const home = stats.get((matchup as any).home_member_id)
-        const away = stats.get((matchup as any).away_member_id)
-        const homePoints = Number((matchup as any).home_points ?? 0)
-        const awayPoints = Number((matchup as any).away_points ?? 0)
+        const home = stats.get(matchup.home_member_id)
+        const away = stats.get(matchup.away_member_id)
+        const homePoints = Number(matchup.home_points ?? 0)
+        const awayPoints = Number(matchup.away_points ?? 0)
 
         if (home) {
             home.pointsFor += homePoints
             home.pointsAgainst += awayPoints
-            home.maxPossiblePoints += Number((matchup as any).home_max_possible_points ?? 0)
+            home.maxPossiblePoints += Number(matchup.home_max_possible_points ?? 0)
         }
         if (away) {
             away.pointsFor += awayPoints
             away.pointsAgainst += homePoints
-            away.maxPossiblePoints += Number((matchup as any).away_max_possible_points ?? 0)
+            away.maxPossiblePoints += Number(matchup.away_max_possible_points ?? 0)
         }
-        if ((matchup as any).is_finalized && (matchup as any).winner_member_id) {
-            const winner = stats.get((matchup as any).winner_member_id)
+        if (matchup.is_finalized && matchup.winner_member_id) {
+            const winner = stats.get(matchup.winner_member_id)
             if (winner) winner.wins += 1
         }
     }
@@ -260,11 +260,11 @@ export async function advanceToFinal(leagueId: string): Promise<void> {
             .eq('league_season_id', seasonId)
             .eq('matchup_type', 'playoff_semifinal')
         if ((semiCount ?? 0) === 0) {
-            const unfinished = (quarterfinals ?? []).filter((m) => !(m as any).is_finalized)
+            const unfinished = (quarterfinals ?? []).filter((m) => !m.is_finalized)
             if (unfinished.length > 0) throw new Error('Quarterfinals are not yet finalized.')
 
             const seeds = await getPlayoffSeeds(leagueId, seasonId)
-            const qfWinners = (quarterfinals ?? []).map((m) => (m as any).winner_member_id).filter(Boolean)
+            const qfWinners = (quarterfinals ?? []).map((m) => m.winner_member_id).filter((id): id is string => Boolean(id))
             if (qfWinners.length < 2) throw new Error('Could not determine quarterfinal winners.')
 
             const { error: semiInsertErr } = await supabase.from('matchups').insert([
@@ -300,10 +300,10 @@ export async function advanceToFinal(leagueId: string): Promise<void> {
     if (semiErr) throw semiErr
     if (!semis || semis.length < 2) throw new Error('Semifinals not found.')
 
-    const unfinished = semis.filter((m) => !(m as any).is_finalized)
+    const unfinished = semis.filter((m) => !m.is_finalized)
     if (unfinished.length > 0) throw new Error('Semifinals are not yet finalized.')
 
-    const winners = semis.map((m) => (m as any).winner_member_id).filter(Boolean)
+    const winners = semis.map((m) => m.winner_member_id).filter((id): id is string => Boolean(id))
     if (winners.length < 2) throw new Error('Could not determine semifinal winners.')
 
     const { error } = await supabase.from('matchups').insert({
