@@ -2,6 +2,64 @@ import { supabase } from '../lib/supabase'
 import { CONFIG } from '../config'
 import { notifyMember } from '../lib/notifications'
 
+type PickAsset = { pickId: string; currentOwnerId: string }
+type PickAssetMap = Map<string, PickAsset>
+
+// Build a map keyed by `${original_owner_id}:${round}` -> current pick asset,
+// so traded picks can be resolved to the current owner during slot assignment.
+async function fetchPickAssetMap(leagueId: string, seasonYear: number | undefined): Promise<PickAssetMap> {
+    // season_year may be undefined when reseeding a draft whose league_seasons
+    // join returns null. The original implementation passed `undefined` to .eq();
+    // we cast here to preserve that exact runtime behavior without re-introducing
+    // an `as any` on the caller.
+    const { data: draftPickAssets } = await supabase
+        .from('draft_picks')
+        .select('id, season_year, round, original_owner_id, current_owner_id')
+        .eq('league_id', leagueId)
+        .eq('season_year', seasonYear as number)
+        .eq('is_used', false)
+        .order('round', { ascending: true })
+
+    const pickAssetMap: PickAssetMap = new Map()
+    for (const dp of draftPickAssets ?? []) {
+        const key = `${dp.original_owner_id}:${dp.round}`
+        if (!pickAssetMap.has(key)) {
+            pickAssetMap.set(key, { pickId: dp.id, currentOwnerId: dp.current_owner_id })
+        }
+    }
+    return pickAssetMap
+}
+
+// Generate serpentine (snake) pick rows: odd rounds use draftOrder as-is,
+// even rounds reverse it. Traded picks resolve to the current owner.
+function buildSnakePickRows(
+    draftId: string,
+    draftOrder: string[],
+    pickAssetMap: PickAssetMap,
+    rounds: number,
+) {
+    const pickRows = []
+    let overall = 1
+    for (let round = 1; round <= rounds; round++) {
+        const isEvenRound = round % 2 === 0
+        const order = isEvenRound ? [...draftOrder].reverse() : draftOrder
+        for (let i = 0; i < order.length; i++) {
+            const originalOwner = order[i]
+            const pickAsset = pickAssetMap.get(`${originalOwner}:${round}`)
+            const member_id = pickAsset?.currentOwnerId ?? originalOwner
+            pickRows.push({
+                draft_id: draftId,
+                overall_pick: overall++,
+                round,
+                pick_in_round: i + 1,
+                member_id,
+                draft_pick_id: pickAsset?.pickId ?? null,
+            })
+        }
+    }
+    return pickRows
+}
+
 // ── Start Rookie Draft (snake format) ─────────────────────────
 export async function startRookieDraft(leagueId: string) {
     const { data: league, error: leagueErr } = await supabase
@@ -100,43 +158,10 @@ export async function startRookieDraft(leagueId: string) {
 
     // Build a map of the exact current-season pick asset for each original owner/round
     // so that traded picks are reflected in this draft's slot assignments.
-    const { data: draftPickAssets } = await supabase
-        .from('draft_picks')
-        .select('id, season_year, round, original_owner_id, current_owner_id')
-        .eq('league_id', leagueId)
-        .eq('season_year', season.season_year)
-        .eq('is_used', false)
-        .order('round', { ascending: true })
-
-    const pickAssetMap = new Map<string, { pickId: string; currentOwnerId: string }>()
-    for (const dp of draftPickAssets ?? []) {
-        const key = `${dp.original_owner_id}:${dp.round}`
-        if (!pickAssetMap.has(key)) {
-            pickAssetMap.set(key, { pickId: dp.id, currentOwnerId: dp.current_owner_id })
-        }
-    }
+    const pickAssetMap = await fetchPickAssetMap(leagueId, season.season_year)
 
     // Create snake_draft_picks
-    const pickRows = []
-    let overall = 1
-    for (let round = 1; round <= CONFIG.ROOKIE_DRAFT_ROUNDS; round++) {
-        const isEvenRound = round % 2 === 0
-        const order = isEvenRound ? [...draftOrder].reverse() : draftOrder
-        for (let i = 0; i < order.length; i++) {
-            const originalOwner = order[i]
-            // If the pick was traded, use the current owner; otherwise keep original
-            const pickAsset = pickAssetMap.get(`${originalOwner}:${round}`)
-            const member_id = pickAsset?.currentOwnerId ?? originalOwner
-            pickRows.push({
-                draft_id: draft.id,
-                overall_pick: overall++,
-                round,
-                pick_in_round: i + 1,
-                member_id,
-                draft_pick_id: pickAsset?.pickId ?? null,
-            })
-        }
-    }
+    const pickRows = buildSnakePickRows(draft.id, draftOrder, pickAssetMap, CONFIG.ROOKIE_DRAFT_ROUNDS)
     await supabase.from('snake_draft_picks').insert(pickRows)
 
     await supabase.from('leagues').update({ status: 'drafting' }).eq('id', leagueId)
@@ -210,9 +235,9 @@ export async function makeSnakePick(draftId: string, memberId: string, playerId:
         .from('draft_picks')
         .update({ is_used: true, used_at: now, rookie_draft_id: draftId })
 
-    if ((nextPick as any).draft_pick_id) {
+    if (nextPick.draft_pick_id) {
         await markUsed
-            .eq('id', (nextPick as any).draft_pick_id)
+            .eq('id', nextPick.draft_pick_id)
             .eq('current_owner_id', memberId)
             .eq('is_used', false)
     } else {
@@ -221,7 +246,7 @@ export async function makeSnakePick(draftId: string, memberId: string, playerId:
             .eq('current_owner_id', memberId)
             .eq('round', nextPick.round)
             .eq('is_used', false)
-        const draftSeasonYear = (draft as any).league_seasons?.season_year
+        const draftSeasonYear = draft.league_seasons?.season_year
         if (draftSeasonYear) {
             fallbackMarkUsed = fallbackMarkUsed.eq('season_year', draftSeasonYear)
         }
@@ -251,8 +276,8 @@ export async function makeSnakePick(draftId: string, memberId: string, playerId:
         .eq('id', draft.league_id)
         .single()
 
-    const rosterSize = (leagueRow as any)?.roster_size ?? CONFIG.DEFAULT_ROSTER_SIZE
-    const taxiSlots = (leagueRow as any)?.taxi_slots ?? CONFIG.DEFAULT_TAXI_SLOTS
+    const rosterSize = leagueRow?.roster_size ?? CONFIG.DEFAULT_ROSTER_SIZE
+    const taxiSlots = leagueRow?.taxi_slots ?? CONFIG.DEFAULT_TAXI_SLOTS
 
     const [{ count: activeCount }, { count: taxiCount }] = await Promise.all([
         supabase
@@ -305,7 +330,7 @@ export async function autoPickBest(draftId: string, memberId: string) {
         .select('player_id')
         .eq('draft_id', draftId)
         .not('player_id', 'is', null)
-    const pickedIds = new Set((pickedRows ?? []).map((r: any) => r.player_id))
+    const pickedIds = new Set((pickedRows ?? []).map((r) => r.player_id))
 
     // Best available = lowest nba_draft_number not yet picked
     const { data: players } = await supabase
@@ -315,7 +340,7 @@ export async function autoPickBest(draftId: string, memberId: string) {
         .order('nba_draft_number', { ascending: true })
         .limit(100)
 
-    const best = (players ?? []).find((p: any) => !pickedIds.has(p.id))
+    const best = (players ?? []).find((p) => !pickedIds.has(p.id))
     if (!best) throw new Error('No available players for auto-pick')
 
     return makeSnakePick(draftId, memberId, best.id)
@@ -346,47 +371,15 @@ export async function reseedRookieDraftPicks(draftId: string) {
         .eq('draft_id', draftId)
         .order('position')
     if (ordersErr || !orders?.length) throw new Error('Draft orders not found')
-    const draftOrder = orders.map((o: any) => o.member_id)
+    const draftOrder = orders.map((o) => o.member_id)
 
     // Build exact pick-asset map from current draft_picks trade assets.
-    const { data: draftPickAssets } = await supabase
-        .from('draft_picks')
-        .select('id, season_year, round, original_owner_id, current_owner_id')
-        .eq('league_id', draft.league_id)
-        .eq('season_year', (draft as any).league_seasons?.season_year)
-        .eq('is_used', false)
-        .order('round', { ascending: true })
-
-    const pickAssetMap = new Map<string, { pickId: string; currentOwnerId: string }>()
-    for (const dp of draftPickAssets ?? []) {
-        const key = `${dp.original_owner_id}:${dp.round}`
-        if (!pickAssetMap.has(key)) {
-            pickAssetMap.set(key, { pickId: dp.id, currentOwnerId: dp.current_owner_id })
-        }
-    }
+    const pickAssetMap = await fetchPickAssetMap(draft.league_id, draft.league_seasons?.season_year)
 
     // Delete existing picks and re-insert with correct ownership
     await supabase.from('snake_draft_picks').delete().eq('draft_id', draftId)
 
-    const pickRows = []
-    let overall = 1
-    for (let round = 1; round <= CONFIG.ROOKIE_DRAFT_ROUNDS; round++) {
-        const isEvenRound = round % 2 === 0
-        const order = isEvenRound ? [...draftOrder].reverse() : draftOrder
-        for (let i = 0; i < order.length; i++) {
-            const originalOwner = order[i]
-            const pickAsset = pickAssetMap.get(`${originalOwner}:${round}`)
-            const member_id = pickAsset?.currentOwnerId ?? originalOwner
-            pickRows.push({
-                draft_id: draftId,
-                overall_pick: overall++,
-                round,
-                pick_in_round: i + 1,
-                member_id,
-                draft_pick_id: pickAsset?.pickId ?? null,
-            })
-        }
-    }
+    const pickRows = buildSnakePickRows(draftId, draftOrder, pickAssetMap, CONFIG.ROOKIE_DRAFT_ROUNDS)
     await supabase.from('snake_draft_picks').insert(pickRows)
     console.log(`[rookieDraft] Reseeded ${pickRows.length} picks for draft ${draftId}`)
     return { reseeded: pickRows.length }
@@ -403,7 +396,7 @@ export async function getRookieDraftState(draftId: string) {
         supabase
             .from('snake_draft_picks')
             .select(
-                `overall_pick, round, pick_in_round, member_id, picked_at,
+                `overall_pick, round, pick_in_round, member_id, picked_at, player_id,
          players ( id, display_name, nba_team, position ),
          league_members ( team_name )`,
             )
@@ -418,7 +411,7 @@ export async function getRookieDraftState(draftId: string) {
 
     if (!draft) return null
 
-    const nextPick = (picks ?? []).find((p: any) => !p.player_id) ?? null
+    const nextPick = (picks ?? []).find((p) => !p.player_id) ?? null
 
     return { draft, picks, orders, nextPick }
 }
