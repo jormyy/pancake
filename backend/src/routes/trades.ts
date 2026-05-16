@@ -255,6 +255,29 @@ export default async function tradeRoutes(app: FastifyInstance) {
 
             if (error) throw error
 
+            const { data: trade } = await supabase
+                .from('trades')
+                .select('proposer_member_id, recipient_member_id')
+                .eq('id', tradeId)
+                .single()
+
+            if (trade) {
+                Promise.all([
+                    notifyMember(
+                        trade.proposer_member_id,
+                        'Trade Accepted',
+                        'Your trade was accepted. The 24-hour veto window has opened — completion in <24h.',
+                        { tradeId },
+                    ),
+                    notifyMember(
+                        trade.recipient_member_id,
+                        'Trade Acceptance Recorded',
+                        'Your acceptance was recorded. The 24-hour veto window has opened — completion in <24h.',
+                        { tradeId },
+                    ),
+                ]).catch((error) => req.log.error({ err: error }, 'Trade acceptance notification failed'))
+            }
+
             return { ok: true }
         },
     )
