@@ -1,96 +1,27 @@
-import { isIREligible } from '@pancake/core'
 import { supabase } from '../lib/supabase'
 import { AppError, NotFoundError, ValidationError } from '../plugins/errorHandler'
 
-function isTaxiEligible(nbaDraftNumber: number | null): boolean {
-    return nbaDraftNumber != null
-}
-
-async function fetchRosterPlacementContext(rosterPlayerId: string, userId: string) {
-    const { data: rp, error: rpError } = await supabase
-        .from('roster_players')
-        .select(`
-            member_id,
-            league_id,
-            league_season_id,
-            player_id,
-            is_on_ir,
-            is_on_taxi,
-            players ( injury_status, nba_draft_number )
-        `)
-        .eq('id', rosterPlayerId)
-        .single()
-
-    if (rpError || !rp) {
-        throw new NotFoundError('Roster player not found')
+// Translate a PostgREST/RPC error from toggle_ir_atomic or toggle_taxi_atomic
+// into the same AppError subclass the prior inline implementation threw.
+// Error codes map:
+//   42501  → 403 AppError ("Not authorized…")
+//   P0002  → 404 NotFoundError ("Roster player not found" / "League not found")
+//   P0001  → 400 ValidationError (cap / eligibility messages)
+//   23514  → 400 ValidationError (chk_not_ir_and_taxi etc — defensive)
+//   *      → 500 AppError
+function mapToggleError(error: { code?: string; message?: string }): Error {
+    const message = error.message ?? 'Roster toggle failed'
+    switch (error.code) {
+        case '42501':
+            return new AppError(message, 403)
+        case 'P0002':
+            return new NotFoundError(message)
+        case 'P0001':
+        case '23514':
+            return new ValidationError(message)
+        default:
+            return new AppError(message, 500)
     }
-
-    // member lookup (for auth) and league lookup are both keyed off rp and independent of each other.
-    const [memberRes, leagueRes] = await Promise.all([
-        supabase
-            .from('league_members')
-            .select('user_id')
-            .eq('id', rp.member_id)
-            .single(),
-        supabase
-            .from('leagues')
-            .select('roster_size, ir_slots, taxi_slots')
-            .eq('id', rp.league_id)
-            .single(),
-    ])
-
-    const member = memberRes.data
-    if (!member || member.user_id !== userId) {
-        throw new AppError('Not authorized to modify this roster', 403)
-    }
-
-    const league = leagueRes.data
-
-    return {
-        rp: rp as any,
-        league: league as { roster_size: number | null; ir_slots: number | null; taxi_slots: number | null } | null,
-    }
-}
-
-async function activeRosterCount(memberId: string, seasonId: string): Promise<number> {
-    const { count, error } = await supabase
-        .from('roster_players')
-        .select('id', { count: 'exact', head: true })
-        .eq('member_id', memberId)
-        .eq('league_season_id', seasonId)
-        .eq('is_on_ir', false)
-        .eq('is_on_taxi', false)
-
-    if (error) {
-        throw new AppError(error.message, 500)
-    }
-    return count ?? 0
-}
-
-async function clearLineupsForRosterPlayer(rp: any) {
-    const { error: delError } = await supabase
-        .from('weekly_lineups')
-        .delete()
-        .eq('member_id', rp.member_id)
-        .eq('league_id', rp.league_id)
-        .eq('league_season_id', rp.league_season_id)
-        .eq('player_id', rp.player_id)
-
-    if (delError) {
-        console.error('Failed to clear lineups on roster placement change', delError)
-    }
-}
-
-async function logRosterPlacement(rp: any, transactionType: string) {
-    await (supabase as any).from('roster_transactions').insert({
-        league_id: rp.league_id,
-        league_season_id: rp.league_season_id,
-        member_id: rp.member_id,
-        player_id: rp.player_id,
-        transaction_type: transactionType,
-    }).then(({ error }: any) => {
-        if (error) console.error('[roster placement log]', error)
-    })
 }
 
 export async function toggleIRStatus(
@@ -98,43 +29,20 @@ export async function toggleIRStatus(
     isOnIR: boolean,
     userId: string,
 ): Promise<void> {
-    const { rp, league } = await fetchRosterPlacementContext(rosterPlayerId, userId)
-    const rosterSize = league?.roster_size ?? 20
-    const irSlots = league?.ir_slots ?? 2
+    // Atomic: lock the roster row + (league_id, player_id) advisory lock,
+    // re-check IR-eligibility and IR-slot cap (or active-roster cap on
+    // return) under the lock, UPDATE roster_players, DELETE weekly_lineups
+    // when entering IR, INSERT roster_transactions audit row — all in a
+    // single Postgres transaction. Replaces a pre-2026-05-16 select-then-
+    // update path that allowed concurrent designates from two devices to
+    // both pass the cap check and exceed the league's IR slot limit.
+    const { error } = await supabase.rpc('toggle_ir_atomic', {
+        p_roster_player_id: rosterPlayerId,
+        p_to_ir: isOnIR,
+        p_user_id: userId,
+    })
 
-    if (isOnIR) {
-        if (!isIREligible(rp.players?.injury_status ?? null)) {
-            throw new ValidationError('Only players with Out or IR designations can be placed on IR.')
-        }
-
-        const { count } = await supabase
-            .from('roster_players')
-            .select('id', { count: 'exact', head: true })
-            .eq('member_id', rp.member_id)
-            .eq('league_season_id', rp.league_season_id)
-            .eq('is_on_ir', true)
-            .neq('id', rosterPlayerId)
-        if ((count ?? 0) >= irSlots) {
-            throw new ValidationError(`You only have ${irSlots} IR slot${irSlots === 1 ? '' : 's'}.`)
-        }
-    } else {
-        const activeCount = await activeRosterCount(rp.member_id, rp.league_season_id)
-        if (activeCount >= rosterSize) {
-            throw new ValidationError(`Your active roster is full (${rosterSize} players).`)
-        }
-    }
-
-    const { error } = await supabase
-        .from('roster_players')
-        .update({ is_on_ir: isOnIR, is_on_taxi: isOnIR ? false : rp.is_on_taxi })
-        .eq('id', rosterPlayerId)
-    if (error) throw new AppError(error.message, 500)
-
-    // Side effects target different tables and both swallow their own errors, so run in parallel.
-    await Promise.all([
-        isOnIR ? clearLineupsForRosterPlayer(rp) : Promise.resolve(),
-        logRosterPlacement(rp, isOnIR ? 'ir_designate' : 'ir_return'),
-    ])
+    if (error) throw mapToggleError(error)
 }
 
 export async function toggleTaxiStatus(
@@ -142,47 +50,14 @@ export async function toggleTaxiStatus(
     isOnTaxi: boolean,
     userId: string,
 ): Promise<void> {
-    const { rp, league } = await fetchRosterPlacementContext(rosterPlayerId, userId)
-    const rosterSize = league?.roster_size ?? 20
-    const taxiSlots = league?.taxi_slots ?? 0
+    // Atomic counterpart to toggleIRStatus for the taxi squad. Same lock /
+    // re-check / mutate pattern; rejects IR→taxi directly and gates taxi
+    // designations to rookies (nba_draft_number IS NOT NULL).
+    const { error } = await supabase.rpc('toggle_taxi_atomic', {
+        p_roster_player_id: rosterPlayerId,
+        p_to_taxi: isOnTaxi,
+        p_user_id: userId,
+    })
 
-    if (isOnTaxi) {
-        if (rp.is_on_ir) {
-            throw new ValidationError('Activate the player from IR before moving them to taxi.')
-        }
-        if (!isTaxiEligible(rp.players?.nba_draft_number ?? null)) {
-            throw new ValidationError('Only rookies can be placed on the taxi squad.')
-        }
-
-        const { count } = await supabase
-            .from('roster_players')
-            .select('id', { count: 'exact', head: true })
-            .eq('member_id', rp.member_id)
-            .eq('league_season_id', rp.league_season_id)
-            .eq('is_on_taxi', true)
-            .neq('id', rosterPlayerId)
-        if ((count ?? 0) >= taxiSlots) {
-            throw new ValidationError(`You only have ${taxiSlots} taxi squad slot${taxiSlots === 1 ? '' : 's'}.`)
-        }
-    } else {
-        const activeCount = await activeRosterCount(rp.member_id, rp.league_season_id)
-        if (activeCount >= rosterSize) {
-            throw new ValidationError(`Your active roster is full (${rosterSize} players).`)
-        }
-    }
-
-    const { error } = await supabase
-        .from('roster_players')
-        .update({ is_on_taxi: isOnTaxi })
-        .eq('id', rosterPlayerId)
-
-    if (error) {
-        throw new AppError(error.message, 500)
-    }
-
-    // Side effects target different tables and both swallow their own errors, so run in parallel.
-    await Promise.all([
-        isOnTaxi ? clearLineupsForRosterPlayer(rp) : Promise.resolve(),
-        logRosterPlacement(rp, isOnTaxi ? 'taxi_designate' : 'taxi_return'),
-    ])
+    if (error) throw mapToggleError(error)
 }

@@ -2281,6 +2281,14 @@ export type Database = {
         Returns: boolean
       }
       release_live_poll_lock: { Args: never; Returns: boolean }
+      toggle_ir_atomic: {
+        Args: { p_roster_player_id: string; p_to_ir: boolean; p_user_id: string }
+        Returns: undefined
+      }
+      toggle_taxi_atomic: {
+        Args: { p_roster_player_id: string; p_to_taxi: boolean; p_user_id: string }
+        Returns: undefined
+      }
       try_live_poll_lease: {
         Args: { p_lock_key: number; p_ttl_seconds?: number }
         Returns: string
