@@ -130,7 +130,11 @@ export function PlayerHeader({
                             onPress={onClaim}
                             disabled={actionLoading}
                         >
-                            <Text style={styles.claimButtonText}>Claim</Text>
+                            {actionLoading ? (
+                                <ActivityIndicator size="small" color={colors.textWhite} />
+                            ) : (
+                                <Text style={styles.claimButtonText}>Claim</Text>
+                            )}
                         </Pressable>
                     ) : rosterStatus.status === 'mine' ? (
                         <Pressable
