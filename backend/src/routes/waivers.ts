@@ -1,14 +1,10 @@
 import { FastifyInstance } from 'fastify'
+import { isIREligible } from '@pancake/core'
 import { processWaiverClaims } from '../sync/waivers'
 import { requireAdmin, verifyOwnMember } from '../lib/authz'
 import { supabase } from '../lib/supabase'
 import { tomorrowET } from '../lib/utils/date'
 import { AppError, NotFoundError, ValidationError } from '../plugins/errorHandler'
-function isIREligible(injuryStatus: string | null): boolean {
-    if (!injuryStatus) return false
-    const s = injuryStatus.toLowerCase()
-    return s === 'out' || s.startsWith('ir')
-}
 import { WaiverCancelBody, WaiverClaimBody, WaiverClaimParams } from '../schemas'
 
 export default async function waiverRoutes(app: FastifyInstance) {
