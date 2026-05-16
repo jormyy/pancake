@@ -122,9 +122,38 @@ export async function syncStatsByDate(date: Date) {
     let statCount = 0
     const nbaIdUpdates: { id: string; nba_id: string }[] = []
 
-    for (const game of games) {
+    // Parallelize CDN box-score fetches in chunks. Each fetch is independent
+    // (read-only HTTP GET), but downstream accumulation (nbaIdUpdates, DB writes)
+    // is processed sequentially to preserve ordering and avoid race conditions.
+    const FETCH_CONCURRENCY = 5
+    type BoxScoreFetch =
+        | { ok: true; game: typeof games[number]; boxScore: Awaited<ReturnType<typeof fetchBoxScore>> }
+        | { ok: false; game: typeof games[number]; error: any }
+
+    const fetched: BoxScoreFetch[] = []
+    for (let i = 0; i < games.length; i += FETCH_CONCURRENCY) {
+        const chunk = games.slice(i, i + FETCH_CONCURRENCY)
+        const chunkResults = await Promise.all(
+            chunk.map(async (game): Promise<BoxScoreFetch> => {
+                try {
+                    const boxScore = await fetchBoxScore(game.nba_game_id!)
+                    return { ok: true, game, boxScore }
+                } catch (error) {
+                    return { ok: false, game, error }
+                }
+            }),
+        )
+        fetched.push(...chunkResults)
+    }
+
+    for (const result of fetched) {
+        const { game } = result
+        if (!result.ok) {
+            console.error(`[sync] Error fetching box score for ${game.nba_game_id}:`, result.error?.message)
+            continue
+        }
         try {
-            const boxScore = await fetchBoxScore(game.nba_game_id!)
+            const { boxScore } = result
             const allPlayers = [
                 ...(boxScore.homeTeam?.players ?? []),
                 ...(boxScore.awayTeam?.players ?? []),
@@ -170,7 +199,7 @@ export async function syncStatsByDate(date: Date) {
                 statCount += stats.length
             }
         } catch (e: any) {
-            console.error(`[sync] Error fetching box score for ${game.nba_game_id}:`, e.message)
+            console.error(`[sync] Error processing box score for ${game.nba_game_id}:`, e.message)
         }
     }
 
