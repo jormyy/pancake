@@ -174,11 +174,22 @@ async function runCDNChunk(seasonYear: number, jobId: string, offset: number) {
     return
   }
 
-  // Load player maps
-  const { data: players } = await supabase.from('players').select('id, display_name, nba_id')
+  // Load player maps (paginated to bypass PostgREST 1000-row cap)
+  const players: { id: string; display_name: string | null; nba_id: string | null }[] = []
+  let playerPage = 0
+  while (true) {
+    const { data: rows } = await supabase
+      .from('players')
+      .select('id, display_name, nba_id')
+      .range(playerPage * 1000, (playerPage + 1) * 1000 - 1)
+    if (!rows?.length) break
+    players.push(...rows)
+    if (rows.length < 1000) break
+    playerPage++
+  }
   const byNbaId = new Map<string, string>()
   const byName = new Map<string, string>()
-  for (const p of players ?? []) {
+  for (const p of players) {
     if (p.nba_id) byNbaId.set(p.nba_id, p.id)
     if (p.display_name) byName.set(p.display_name.toLowerCase(), p.id)
   }
@@ -306,11 +317,22 @@ async function runCDNEnumChunk(seasonYear: number, jobId: string, offset: number
     return
   }
 
-  // Load player maps
-  const { data: players } = await supabase.from('players').select('id, display_name, nba_id')
+  // Load player maps (paginated to bypass PostgREST 1000-row cap)
+  const players: { id: string; display_name: string | null; nba_id: string | null }[] = []
+  let playerPage = 0
+  while (true) {
+    const { data: rows } = await supabase
+      .from('players')
+      .select('id, display_name, nba_id')
+      .range(playerPage * 1000, (playerPage + 1) * 1000 - 1)
+    if (!rows?.length) break
+    players.push(...rows)
+    if (rows.length < 1000) break
+    playerPage++
+  }
   const byNbaId = new Map<string, string>()
   const byName = new Map<string, string>()
-  for (const p of players ?? []) {
+  for (const p of players) {
     if (p.nba_id) byNbaId.set(p.nba_id, p.id)
     if (p.display_name) byName.set(p.display_name.toLowerCase(), p.id)
   }
@@ -433,10 +455,21 @@ async function runCDNEnumChunk(seasonYear: number, jobId: string, offset: number
 // ── BBRef Historical Backfill ────────────────────────────────────────────
 
 async function runBBRefChunk(seasonYear: number, jobId: string, offset: number) {
-  // Load player maps
-  const { data: players } = await supabase.from('players').select('id, display_name')
+  // Load player maps (paginated to bypass PostgREST 1000-row cap)
+  const players: { id: string; display_name: string | null }[] = []
+  let playerPage = 0
+  while (true) {
+    const { data: rows } = await supabase
+      .from('players')
+      .select('id, display_name')
+      .range(playerPage * 1000, (playerPage + 1) * 1000 - 1)
+    if (!rows?.length) break
+    players.push(...rows)
+    if (rows.length < 1000) break
+    playerPage++
+  }
   const byName = new Map<string, string>()
-  for (const p of players ?? []) {
+  for (const p of players) {
     if (p.display_name) byName.set(normalizeName(p.display_name), p.id)
   }
 
@@ -506,12 +539,22 @@ async function runBBRefChunk(seasonYear: number, jobId: string, offset: number) 
   }
 
   // Load game list from DB for this season (for chunks after offset 0)
-  const { data: dbGames } = await supabase
-    .from('nba_games')
-    .select('id, nba_game_id, week_number')
-    .eq('season_year', seasonYear)
-    .order('game_date', { ascending: true })
-  const dbGameMap = new Map((dbGames ?? []).map((g: any) => [g.nba_game_id, g]))
+  // Paginate to bypass PostgREST 1000-row cap (historical seasons have 1230+ games)
+  const dbGames: any[] = []
+  let gamePage = 0
+  while (true) {
+    const { data: rows } = await supabase
+      .from('nba_games')
+      .select('id, nba_game_id, week_number')
+      .eq('season_year', seasonYear)
+      .order('game_date', { ascending: true })
+      .range(gamePage * 1000, (gamePage + 1) * 1000 - 1)
+    if (!rows?.length) break
+    dbGames.push(...rows)
+    if (rows.length < 1000) break
+    gamePage++
+  }
+  const dbGameMap = new Map(dbGames.map((g: any) => [g.nba_game_id, g]))
 
   // Load already-synced game IDs (paginated to handle large seasons)
   const syncedGameIds = new Set<string>()
@@ -530,7 +573,7 @@ async function runBBRefChunk(seasonYear: number, jobId: string, offset: number) 
   }
 
   // Get all game IDs in order and find the ones needing box scores
-  const allDbGameIds = (dbGames ?? []).map((g: any) => g.nba_game_id)
+  const allDbGameIds = dbGames.map((g: any) => g.nba_game_id)
   const pendingGameIds = allDbGameIds.filter((id: string) => {
     const dbGame = dbGameMap.get(id)
     return dbGame && !syncedGameIds.has(dbGame.id)
