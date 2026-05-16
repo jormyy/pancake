@@ -1,6 +1,6 @@
 import { View, Text, Pressable, StyleSheet } from 'react-native'
-import { useMemo, useState } from 'react'
-import { FlashList } from '@shopify/flash-list'
+import { useCallback, useMemo, useState } from 'react'
+import { FlashList, type ListRenderItem } from '@shopify/flash-list'
 import { StandingRow } from '@/lib/scoring'
 import { WaiverPriorityRow } from '@/lib/waivers'
 import { TransactionRow, TRANSACTION_LABELS } from '@/lib/transactions'
@@ -160,6 +160,15 @@ export function StandingsTable({ standings, myMemberId, onSelectTeam }: { standi
         }
     }
 
+    const renderItem = useCallback<ListRenderItem<StandingRow>>(({ item, index }) => (
+        <StandingsRow
+            item={item}
+            index={index}
+            isMe={item.memberId === myMemberId}
+            onPress={() => onSelectTeam(item.memberId, item.teamName)}
+        />
+    ), [myMemberId, onSelectTeam])
+
     if (standings.length === 0) {
         return <EmptyState message="No standings yet — matchups will appear once games are scored." fullScreen={false} />
     }
@@ -170,14 +179,7 @@ export function StandingsTable({ standings, myMemberId, onSelectTeam }: { standi
             keyExtractor={(s) => s.memberId}
             ListHeaderComponent={<StandingsListHeader sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />}
             ItemSeparatorComponent={ItemSeparator}
-            renderItem={({ item, index }) => (
-                <StandingsRow
-                    item={item}
-                    index={sorted.indexOf(item)}
-                    isMe={item.memberId === myMemberId}
-                    onPress={() => onSelectTeam(item.memberId, item.teamName)}
-                />
-            )}
+            renderItem={renderItem}
         />
     )
 }
@@ -214,6 +216,10 @@ function ActivityRow({ item, isMe }: { item: TransactionRow; isMe: boolean }) {
 }
 
 export function ActivityFeed({ transactions, myMemberId }: { transactions: TransactionRow[]; myMemberId?: string }) {
+    const renderItem = useCallback<ListRenderItem<TransactionRow>>(({ item }) => (
+        <ActivityRow item={item} isMe={item.memberId === myMemberId} />
+    ), [myMemberId])
+
     if (transactions.length === 0) {
         return <EmptyState message="No transactions yet. Adds, drops, and trades will appear here." fullScreen={false} />
     }
@@ -223,9 +229,7 @@ export function ActivityFeed({ transactions, myMemberId }: { transactions: Trans
             data={transactions}
             keyExtractor={(t) => t.id}
             ItemSeparatorComponent={ItemSeparator}
-            renderItem={({ item }) => (
-                <ActivityRow item={item} isMe={item.memberId === myMemberId} />
-            )}
+            renderItem={renderItem}
         />
     )
 }
@@ -255,6 +259,10 @@ const WaiverListHeader = (
 )
 
 export function WaiverPriorityList({ rows, myMemberId }: { rows: WaiverPriorityRow[]; myMemberId?: string }) {
+    const renderItem = useCallback<ListRenderItem<WaiverPriorityRow>>(({ item, index }) => (
+        <WaiverRow item={item} isMe={item.memberId === myMemberId} rank={index + 1} />
+    ), [myMemberId])
+
     if (rows.length === 0) {
         return <EmptyState message="Waiver priorities will appear here once the season starts." fullScreen={false} />
     }
@@ -265,9 +273,7 @@ export function WaiverPriorityList({ rows, myMemberId }: { rows: WaiverPriorityR
             keyExtractor={(r) => r.memberId}
             ListHeaderComponent={WaiverListHeader}
             ItemSeparatorComponent={ItemSeparator}
-            renderItem={({ item, index }) => (
-                <WaiverRow item={item} isMe={item.memberId === myMemberId} rank={index + 1} />
-            )}
+            renderItem={renderItem}
         />
     )
 }
@@ -322,6 +328,18 @@ export function PicksBankList({ picks, myMemberId }: { picks: LeaguePickItem[]; 
         return result
     }, [picks])
 
+    const renderItem = useCallback<ListRenderItem<PicksBankItem>>(({ item }) => {
+        if (item.type === 'yearHeader') {
+            return <PicksBankYearHeader year={item.year} />
+        }
+        return (
+            <PicksBankRow
+                pick={item.pick}
+                isMine={item.pick.currentOwnerMemberId === myMemberId}
+            />
+        )
+    }, [myMemberId])
+
     if (picks.length === 0) {
         return <EmptyState message="No future draft picks to display." fullScreen={false} />
     }
@@ -333,17 +351,7 @@ export function PicksBankList({ picks, myMemberId }: { picks: LeaguePickItem[]; 
             ListHeaderComponent={PicksBankListHeader}
             getItemType={(item) => item.type}
             ItemSeparatorComponent={ItemSeparator}
-            renderItem={({ item }) => {
-                if (item.type === 'yearHeader') {
-                    return <PicksBankYearHeader year={item.year} />
-                }
-                return (
-                    <PicksBankRow
-                        pick={item.pick}
-                        isMine={item.pick.currentOwnerMemberId === myMemberId}
-                    />
-                )
-            }}
+            renderItem={renderItem}
         />
     )
 }
