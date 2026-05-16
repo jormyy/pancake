@@ -47,7 +47,27 @@ export async function startDraft(leagueId: string) {
         })
         .select()
         .single()
-    if (draftErr) throw draftErr
+    if (draftErr) {
+        // The pre-INSERT existence check above is best-effort: two concurrent
+        // commissioner double-taps can both observe "no open draft" before
+        // either INSERT commits. The `drafts_one_open_per_season` partial
+        // unique index (migrations/20260516154651) guarantees at most one
+        // pending/in_progress draft per (league_id, league_season_id,
+        // draft_type) at the storage layer; the loser of the race surfaces
+        // here as a 23505 unique violation. Translate that back to the same
+        // user-facing error the pre-check uses so callers don't see a raw
+        // Postgres error.
+        if ((draftErr as { code?: string }).code === '23505') {
+            const details =
+                typeof (draftErr as { message?: string }).message === 'string'
+                    ? (draftErr as { message: string }).message
+                    : ''
+            if (details.includes('drafts_one_open_per_season')) {
+                throw new Error('A draft already exists for this league season')
+            }
+        }
+        throw draftErr
+    }
 
     // Randomly shuffle nomination order
     const shuffled = [...members].sort(() => Math.random() - 0.5)
