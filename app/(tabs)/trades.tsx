@@ -30,6 +30,15 @@ type ListItem =
     | { _type: 'header'; label: string }
     | { _type: 'pick'; pick: TradePickItem }
 
+// Module-level: these are pure functions of the row, no closures needed.
+const listKeyExtractor = (item: ListItem, index: number) => {
+    if (item._type === 'header') return `header-${index}`
+    if (item._type === 'trade') return `trade-${item.trade.id}`
+    return `pick-${item.pick.pickId}`
+}
+
+const listGetItemType = (item: ListItem) => item._type
+
 export default function TradesScreen() {
     const { push } = useRouter()
     const { current, currentLeague } = useLeagueContext()
@@ -89,6 +98,42 @@ export default function TradesScreen() {
     ), [trades, myMemberId])
 
     const picksList = useMemo(() => picks ?? [], [picks])
+
+    const renderItem = useCallback(({ item }: { item: ListItem }) => {
+        if (item._type === 'header') {
+            return item.label ? <SectionHeader label={item.label} /> : null
+        }
+        if (item._type === 'pick') {
+            const isOwn = item.pick.originalTeamName === myTeamName
+            return (
+                <View style={styles.pickRow}>
+                    <View style={styles.pickCircle}>
+                        <Text style={styles.pickCircleText}>
+                            {yearShort(item.pick.seasonYear)}
+                        </Text>
+                    </View>
+                    <View style={styles.pickInfo}>
+                        <Text style={styles.pickLabel}>
+                            {item.pick.seasonYear} · Round {item.pick.round}
+                        </Text>
+                        <Text style={styles.pickMeta}>
+                            {isOwn ? 'Own pick' : `from ${item.pick.originalTeamName}`}
+                        </Text>
+                    </View>
+                </View>
+            )
+        }
+        return (
+            <TradeCard
+                trade={item.trade}
+                myMemberId={myMemberId}
+                leagueId={leagueId}
+                rosterSize={rosterSize}
+                tab={tab}
+                onAction={load}
+            />
+        )
+    }, [myTeamName, myMemberId, leagueId, rosterSize, tab, load])
 
     const listData = useMemo<ListItem[]>(() => {
         const result: ListItem[] = []
@@ -184,12 +229,8 @@ export default function TradesScreen() {
             ) : (
                 <FlashList
                     data={listData}
-                    keyExtractor={(item, index) => {
-                        if (item._type === 'header') return `header-${index}`
-                        if (item._type === 'trade') return `trade-${item.trade.id}`
-                        return `pick-${item.pick.pickId}`
-                    }}
-                    getItemType={(item) => item._type}
+                    keyExtractor={listKeyExtractor}
+                    getItemType={listGetItemType}
                     ItemSeparatorComponent={ItemSeparator}
                     refreshControl={
                         <RefreshControl
@@ -198,41 +239,7 @@ export default function TradesScreen() {
                             tintColor={colors.primary}
                         />
                     }
-                    renderItem={({ item }) => {
-                        if (item._type === 'header') {
-                            return item.label ? <SectionHeader label={item.label} /> : null
-                        }
-                        if (item._type === 'pick') {
-                            const isOwn = item.pick.originalTeamName === myTeamName
-                            return (
-                                <View style={styles.pickRow}>
-                                    <View style={styles.pickCircle}>
-                                        <Text style={styles.pickCircleText}>
-                                            {yearShort(item.pick.seasonYear)}
-                                        </Text>
-                                    </View>
-                                    <View style={styles.pickInfo}>
-                                        <Text style={styles.pickLabel}>
-                                            {item.pick.seasonYear} · Round {item.pick.round}
-                                        </Text>
-                                        <Text style={styles.pickMeta}>
-                                            {isOwn ? 'Own pick' : `from ${item.pick.originalTeamName}`}
-                                        </Text>
-                                    </View>
-                                </View>
-                            )
-                        }
-                        return (
-                            <TradeCard
-                                trade={item.trade}
-                                myMemberId={myMemberId}
-                                leagueId={leagueId}
-                                rosterSize={rosterSize}
-                                tab={tab}
-                                onAction={load}
-                            />
-                        )
-                    }}
+                    renderItem={renderItem}
                 />
             )}
         </SafeAreaView>
