@@ -58,7 +58,7 @@ export function useMatchupData(current: any, user: any, league: any) {
     )
 
     const load = useCallback(async () => {
-        if (!current || !user) return
+        if (!current || !user || !league?.id) return
         setMatchupLoading(true)
         setMyLineup(null)
         setOppLineup(null)
@@ -79,7 +79,7 @@ export function useMatchupData(current: any, user: any, league: any) {
         } finally {
             setMatchupLoading(false)
         }
-    }, [current, user, loadLineups])
+    }, [current, user, league?.id, loadLineups])
 
     useFocusEffect(useCallback(() => { load() }, [load]))
 
