@@ -51,14 +51,25 @@ async function syncSchedule() {
       }
     })
 
-  const { data: existing, error: fetchErr } = await supabase
-    .from('nba_games')
-    .select('id, game_date, home_team, away_team, nba_game_id')
-  if (fetchErr) throw fetchErr
+  // Paginate to avoid PostgREST max_rows cap (>1000 games across seasons)
+  const existing: { id: string; game_date: string; home_team: string; away_team: string; nba_game_id: string | null }[] = []
+  const PAGE = 1000
+  let from = 0
+  while (true) {
+    const { data, error: fetchErr } = await supabase
+      .from('nba_games')
+      .select('id, game_date, home_team, away_team, nba_game_id')
+      .range(from, from + PAGE - 1)
+    if (fetchErr) throw fetchErr
+    if (!data || data.length === 0) break
+    existing.push(...data)
+    if (data.length < PAGE) break
+    from += PAGE
+  }
 
   const byNbaGameId = new Map<string, string>()
   const byDateTeams = new Map<string, string>()
-  for (const g of existing ?? []) {
+  for (const g of existing) {
     if (g.nba_game_id) byNbaGameId.set(g.nba_game_id, g.id)
     byDateTeams.set(`${g.game_date}_${g.home_team}_${g.away_team}`, g.id)
   }
