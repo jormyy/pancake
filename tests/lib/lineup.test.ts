@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-vi.mock('@/lib/supabase', () => ({ supabase: { from: vi.fn() } }))
+vi.mock('@/lib/supabase', () => ({ supabase: { from: vi.fn(), rpc: vi.fn() } }))
 vi.mock('@/lib/shared/season', () => ({
     getCurrentSeason: vi.fn(),
     getCurrentSeasonId: vi.fn(),
@@ -18,6 +18,7 @@ import { todayDateString } from '@/lib/shared/dates'
 import { autoSetLineup } from '@/lib/lineup'
 
 const mockFrom = vi.mocked(supabase.from)
+const mockRpc = vi.mocked(supabase.rpc)
 const mockToday = vi.mocked(todayDateString)
 
 beforeEach(() => {
@@ -165,6 +166,24 @@ function setupMocks(opts: MockOpts) {
                 return makeLUChain(existingEntries, insertSpy)
             default: return q(null)
         }
+    })
+
+    // auto_set_lineup_atomic replaces the prior client-side DELETE+INSERT on
+    // weekly_lineups. Unwrap p_assignments and funnel to insertSpy so the
+    // existing assertions (`rows = insertSpy.mock.calls[0][0]`) keep working.
+    // The RPC payload includes BOTH locked entries (is_auto_set=false) AND
+    // new auto-set entries (is_auto_set=true); the prior client INSERTed only
+    // the new entries, so we filter to is_auto_set=true to preserve test
+    // semantics.
+    mockRpc.mockImplementation((fnName: string, args: any) => {
+        if (fnName === 'auto_set_lineup_atomic') {
+            const assignments = (args?.p_assignments ?? []) as any[]
+            const newRows = assignments.filter((a) => a.is_auto_set === true)
+            if (newRows.length > 0) {
+                insertSpy(newRows)
+            }
+        }
+        return Promise.resolve({ data: null, error: null }) as any
     })
 
     return { insertSpy, tableIdx }

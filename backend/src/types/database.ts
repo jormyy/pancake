@@ -2214,6 +2214,16 @@ export type Database = {
           new_year: number
         }[]
       }
+      auto_set_lineup_atomic: {
+        Args: {
+          p_assignments: Json
+          p_game_date: string
+          p_league_id: string
+          p_league_season_id: string
+          p_member_id: string
+        }
+        Returns: undefined
+      }
       close_auction_nomination_atomic: {
         Args: { p_nomination_id: string }
         Returns: boolean
@@ -2281,6 +2291,18 @@ export type Database = {
         Returns: boolean
       }
       release_live_poll_lock: { Args: never; Returns: boolean }
+      set_player_slot_atomic: {
+        Args: {
+          p_game_date: string
+          p_league_id: string
+          p_league_season_id: string
+          p_member_id: string
+          p_player_id: string
+          p_slot_type: Database["public"]["Enums"]["roster_slot_type"]
+          p_week_number: number
+        }
+        Returns: undefined
+      }
       toggle_ir_atomic: {
         Args: { p_roster_player_id: string; p_to_ir: boolean; p_user_id: string }
         Returns: undefined

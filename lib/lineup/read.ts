@@ -318,30 +318,21 @@ export async function setPlayerSlot(
     playerId: string,
     slotType: string,
 ): Promise<void> {
-    if (slotType === 'BE') {
-        await supabase
-            .from('weekly_lineups')
-            .delete()
-            .eq('member_id', memberId)
-            .eq('league_id', leagueId)
-            .eq('league_season_id', seasonId)
-            .eq('player_id', playerId)
-            .eq('game_date', gameDate)
-    } else {
-        const { error } = await supabase.from('weekly_lineups').upsert(
-            {
-                member_id: memberId,
-                league_id: leagueId,
-                league_season_id: seasonId,
-                player_id: playerId,
-                week_number: weekNumber,
-                game_date: gameDate,
-                slot_type: slotType as RosterSlotType,
-                is_auto_set: false,
-                set_at: new Date().toISOString(),
-            },
-            { onConflict: 'league_id,league_season_id,member_id,player_id,game_date' },
-        )
-        if (error) throw error
-    }
+    // Atomic: SECURITY DEFINER RPC takes pg_advisory_xact_lock(member_id, game_date)
+    // and re-verifies roster ownership (SELECT … FOR SHARE on roster_players)
+    // before mutating weekly_lineups. The prior client-side UPSERT/DELETE had
+    // no lock and no ownership re-check, so a race with drop_player_atomic
+    // could leave a lineup row for a player the member no longer owned, and
+    // two concurrent autoSets / setPlayerSlot calls from different devices
+    // could interleave reads + writes on (member, game_date).
+    const { error } = await supabase.rpc('set_player_slot_atomic', {
+        p_member_id: memberId,
+        p_league_id: leagueId,
+        p_league_season_id: seasonId,
+        p_player_id: playerId,
+        p_game_date: gameDate,
+        p_slot_type: slotType as RosterSlotType,
+        p_week_number: weekNumber,
+    })
+    if (error) throw error
 }

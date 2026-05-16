@@ -6,6 +6,13 @@ import { isIREligible } from '@/lib/roster'
 import { getEligiblePositions } from '@/lib/players'
 import { getWeekDays } from './read'
 
+type LineupAssignment = {
+    player_id: string
+    slot_type: RosterSlotType
+    is_auto_set: boolean
+    week_number: number
+}
+
 async function getRemainingSeasonDates(
     fromWeek: number,
     seasonYear: number,
@@ -216,7 +223,7 @@ async function autoSetForDate(
     const hasGame = (p: typeof players[number]) => !!(p.nbaTeam && playingTeams.has(p.nbaTeam))
 
     const used = new Set<string>()
-    const assignments: { playerId: string; slotType: string }[] = []
+    const newAssignments: { playerId: string; slotType: string }[] = []
 
     // Pick the best available player for a slot:
     // 1. Best avg-fpts player WITH a game today who is eligible for the slot
@@ -253,51 +260,44 @@ async function autoSetForDate(
         for (let i = 0; i < remaining; i++) {
             const pid = pickBest(slotType)
             if (pid) {
-                assignments.push({ playerId: pid, slotType })
+                newAssignments.push({ playerId: pid, slotType })
                 used.add(pid)
             }
         }
     }
 
-    // Delete only unlocked entries, preserving locked starters
-    if (lockedPlayerIds.size > 0) {
-        const unlockedEntryPlayerIds = (existingEntries ?? [])
-            .map((e: any) => e.player_id)
-            .filter((pid: string) => !lockedPlayerIds.has(pid))
-        if (unlockedEntryPlayerIds.length > 0) {
-            await supabase
-                .from('weekly_lineups')
-                .delete()
-                .eq('member_id', memberId)
-                .eq('league_id', leagueId)
-                .eq('league_season_id', seasonId)
-                .eq('game_date', gameDate)
-                .in('player_id', unlockedEntryPlayerIds)
-        }
-    } else {
-        await supabase
-            .from('weekly_lineups')
-            .delete()
-            .eq('member_id', memberId)
-            .eq('league_id', leagueId)
-            .eq('league_season_id', seasonId)
-            .eq('game_date', gameDate)
+    // Build the full final state of the day's lineup. The RPC replaces the
+    // entire day in a single transaction, so the caller MUST include any
+    // locked entries that should remain (with their original slot_type and
+    // is_auto_set flag preserved). BE entries are filtered out RPC-side
+    // because bench is implicit.
+    const finalAssignments: LineupAssignment[] = []
+    for (const { playerId, slotType } of lockedEntries) {
+        finalAssignments.push({
+            player_id: playerId,
+            slot_type: slotType as RosterSlotType,
+            is_auto_set: false,
+            week_number: weekNumber,
+        })
+    }
+    for (const { playerId, slotType } of newAssignments) {
+        finalAssignments.push({
+            player_id: playerId,
+            slot_type: slotType as RosterSlotType,
+            is_auto_set: true,
+            week_number: weekNumber,
+        })
     }
 
-    if (assignments.length > 0) {
-        const { error } = await supabase.from('weekly_lineups').insert(
-            assignments.map(({ playerId, slotType }) => ({
-                member_id: memberId,
-                league_id: leagueId,
-                league_season_id: seasonId,
-                player_id: playerId,
-                week_number: weekNumber,
-                game_date: gameDate,
-                slot_type: slotType as RosterSlotType,
-                is_auto_set: true,
-                set_at: new Date().toISOString(),
-            })),
-        )
-        if (error) throw error
-    }
+    // Atomic replacement under pg_advisory_xact_lock(member_id, game_date)
+    // with FOR SHARE re-verification of roster ownership for every
+    // player_id. Closes the race documented at the top of the migration.
+    const { error } = await supabase.rpc('auto_set_lineup_atomic', {
+        p_member_id: memberId,
+        p_league_id: leagueId,
+        p_league_season_id: seasonId,
+        p_game_date: gameDate,
+        p_assignments: finalAssignments,
+    })
+    if (error) throw error
 }
