@@ -1,7 +1,7 @@
 import { supabase } from '@/lib/supabase'
 import type { NBAPosition } from '@/types/database'
 import { currentSeasonYear } from '@/lib/shared/season'
-import { TRANSACTION_LABELS } from '@/lib/transactions'
+import { TRANSACTION_LABELS } from '@/lib/shared/transaction-labels'
 
 /** Resolves a player's eligible positions, falling back to the primary position. */
 export function getEligiblePositions(player: { eligible_positions?: string[] | null; position?: string | null }): string[] {

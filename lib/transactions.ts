@@ -1,6 +1,8 @@
 import { supabase } from '@/lib/supabase'
 import { getEligiblePositions } from '@/lib/players'
 
+export { TRANSACTION_LABELS } from '@/lib/shared/transaction-labels'
+
 export type TransactionRow = {
     id: string
     memberId: string
@@ -12,20 +14,6 @@ export type TransactionRow = {
     nbaId: string | null
     transactionType: string
     occurredAt: string
-}
-
-export const TRANSACTION_LABELS: Record<string, string> = {
-    fa_add: 'Added',
-    fa_drop: 'Dropped',
-    waiver_add: 'Claimed',
-    waiver_drop: 'Dropped',
-    trade_in: 'Acquired via Trade',
-    trade_out: 'Traded Away',
-    ir_designate: 'Placed on IR',
-    ir_return: 'Activated from IR',
-    taxi_designate: 'Placed on Taxi Squad',
-    taxi_return: 'Activated from Taxi Squad',
-    draft_won: 'Drafted',
 }
 
 export async function logTransaction(params: {
