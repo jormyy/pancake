@@ -65,7 +65,13 @@ export async function signOut() {
 }
 
 export async function getProfile(userId: string) {
-    const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).single<Profile>()
+    // Explicit column list — push_token is column-revoked from authenticated
+    // (iter 27 Slice C); `select('*')` would 42501 in production.
+    const { data, error } = await supabase
+        .from('profiles')
+        .select('id, username, display_name, created_at, updated_at')
+        .eq('id', userId)
+        .single<Profile>()
     if (error) throw error
     return data
 }

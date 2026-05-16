@@ -1,0 +1,62 @@
+-- ============================================================
+-- Migration: Protect profiles.push_token from cross-user reads
+--
+-- SECURITY FIX (Slice C):
+--   The "profiles_select" RLS policy is `USING (true)` for the
+--   authenticated role, so every signed-in user can SELECT every
+--   other user's row — including the push_token column.
+--
+--   Expo push tokens are bearer-style addresses: anyone holding a
+--   user's push_token can dispatch arbitrary notifications to that
+--   user's device(s) via Expo's push API. Treating push_token as
+--   world-readable lets any logged-in attacker harvest every user's
+--   token and spam / phish their devices.
+--
+--   PostgreSQL RLS is row-level, not column-level, so we cannot
+--   express "everyone reads profiles, but only the owner reads
+--   push_token" in a single SELECT policy. Splitting the table is
+--   invasive. The cleanest fix is a column-level GRANT change:
+--
+--     REVOKE SELECT (push_token) ON public.profiles
+--       FROM authenticated, anon;
+--
+--   After this, PostgREST requests by the authenticated/anon roles
+--   that target push_token (explicitly or via SELECT *) return
+--   42501 "permission denied for column push_token". The server-
+--   side notification code (backend/src/lib/notifications.ts and
+--   supabase/functions/_shared/notifications.ts) runs under the
+--   service_role / secret key, which bypasses table & column grants,
+--   so notifyUser/notifyMember continue to read push_token and call
+--   the Expo push API normally.
+--
+--   The write path is unchanged: usePushNotifications (hooks/
+--   use-push-notifications.ts) only UPDATEs profiles.push_token on
+--   the caller's own row; REVOKE SELECT (col) does not affect
+--   UPDATE-without-RETURNING, and profiles_update RLS already
+--   restricts it to (auth.uid() = id).
+--
+-- SIDE EFFECT TO BE AWARE OF (not fixed in this migration):
+--   lib/auth.ts:getProfile() issues `select('*')` on profiles via
+--   the authenticated client. After this migration that call will
+--   fail with 42501 because `*` expands to include push_token. The
+--   caller (app/(tabs)/profile.tsx) only reads display_name, so the
+--   fix is to enumerate the required columns. That edit lives in
+--   the frontend file set and is out of scope for this migration-
+--   only slice; it is tracked as a follow-up.
+--
+-- Idempotency:
+--   REVOKE is idempotent — re-revoking a privilege the role does
+--   not hold is a no-op. The explicit GRANT to service_role is
+--   defensive: service_role bypasses RLS and column grants, but
+--   making the grant explicit documents intent and survives any
+--   future tightening of bypass semantics.
+-- ============================================================
+
+REVOKE SELECT (push_token) ON public.profiles FROM authenticated;
+REVOKE SELECT (push_token) ON public.profiles FROM anon;
+
+-- Service-role / secret-key callers (backend, edge functions) must
+-- continue to read push_token to dispatch notifications. They
+-- already bypass RLS and column grants, but we restate the grant
+-- so the intent is visible at the schema level.
+GRANT SELECT (push_token) ON public.profiles TO service_role;
