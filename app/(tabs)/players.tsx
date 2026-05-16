@@ -451,7 +451,7 @@ export default function PlayersScreen() {
         // Free-agent add — may require a drop if roster is full
         const roster = await checkAndShowIRModal(player, lid)
         if (!roster) return
-        const active = roster.filter((r) => !r.is_on_ir)
+        const active = roster.filter((r) => !r.is_on_ir && !r.is_on_taxi)
         if (active.length >= currentLeague.roster_size) {
             setDropPickerPlayer(player)
             setMyRoster(roster)
@@ -479,7 +479,7 @@ export default function PlayersScreen() {
         } catch (e: any) {
             if (e.message?.includes('full')) {
                 const roster = await getRoster(current.id, leagueId)
-                setMyRoster(roster.filter((r) => !r.is_on_ir))
+                setMyRoster(roster.filter((r) => !r.is_on_ir && !r.is_on_taxi))
                 setDropPickerPlayer(player)
             } else {
                 Alert.alert('Error', e.message)
@@ -769,7 +769,7 @@ export default function PlayersScreen() {
             <IRResolutionModal
                 visible={irModal !== null}
                 ineligibleIR={irModal?.ineligible ?? []}
-                activeRoster={(irModal?.roster ?? []).filter((r) => !r.is_on_ir)}
+                activeRoster={(irModal?.roster ?? []).filter((r) => !r.is_on_ir && !r.is_on_taxi)}
                 rosterSize={currentLeague?.roster_size ?? 20}
                 pendingPlayerName={irModal?.pendingPlayer.display_name ?? ''}
                 onActivate={handleIRActivate}

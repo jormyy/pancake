@@ -100,7 +100,7 @@ export default function PlayerDetailScreen() {
         } catch (e: any) {
             if (e.message?.includes('full')) {
                 const roster = await getRoster(current.id, leagueId)
-                setMyRoster(roster.filter((r) => !r.is_on_ir))
+                setMyRoster(roster.filter((r) => !r.is_on_ir && !r.is_on_taxi))
                 setDropPickerVisible(true)
             } else {
                 showAlert('Error', e.message)
@@ -326,7 +326,7 @@ export default function PlayerDetailScreen() {
             <IRResolutionModal
                 visible={irModal !== null}
                 ineligibleIR={irModal?.ineligible ?? []}
-                activeRoster={(irModal?.roster ?? []).filter((r) => !r.is_on_ir)}
+                activeRoster={(irModal?.roster ?? []).filter((r) => !r.is_on_ir && !r.is_on_taxi)}
                 rosterSize={currentLeague?.roster_size ?? 20}
                 pendingPlayerName={player?.display_name ?? ''}
                 onActivate={handleIRActivate}
