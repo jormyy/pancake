@@ -29,21 +29,26 @@ async function fetchRosterPlacementContext(rosterPlayerId: string, userId: strin
         throw new NotFoundError('Roster player not found')
     }
 
-    const { data: member } = await supabase
-        .from('league_members')
-        .select('user_id')
-        .eq('id', rp.member_id)
-        .single()
+    // member lookup (for auth) and league lookup are both keyed off rp and independent of each other.
+    const [memberRes, leagueRes] = await Promise.all([
+        supabase
+            .from('league_members')
+            .select('user_id')
+            .eq('id', rp.member_id)
+            .single(),
+        supabase
+            .from('leagues')
+            .select('roster_size, ir_slots, taxi_slots')
+            .eq('id', rp.league_id)
+            .single(),
+    ])
 
+    const member = memberRes.data
     if (!member || member.user_id !== userId) {
         throw new AppError('Not authorized to modify this roster', 403)
     }
 
-    const { data: league } = await supabase
-        .from('leagues')
-        .select('roster_size, ir_slots, taxi_slots')
-        .eq('id', rp.league_id)
-        .single()
+    const league = leagueRes.data
 
     return {
         rp: rp as any,
@@ -129,8 +134,11 @@ export async function toggleIRStatus(
         .eq('id', rosterPlayerId)
     if (error) throw new AppError(error.message, 500)
 
-    if (isOnIR) await clearLineupsForRosterPlayer(rp)
-    await logRosterPlacement(rp, isOnIR ? 'ir_designate' : 'ir_return')
+    // Side effects target different tables and both swallow their own errors, so run in parallel.
+    await Promise.all([
+        isOnIR ? clearLineupsForRosterPlayer(rp) : Promise.resolve(),
+        logRosterPlacement(rp, isOnIR ? 'ir_designate' : 'ir_return'),
+    ])
 }
 
 export async function toggleTaxiStatus(
@@ -176,9 +184,9 @@ export async function toggleTaxiStatus(
         throw new AppError(error.message, 500)
     }
 
-    if (isOnTaxi) {
-        await clearLineupsForRosterPlayer(rp)
-    }
-
-    await logRosterPlacement(rp, isOnTaxi ? 'taxi_designate' : 'taxi_return')
+    // Side effects target different tables and both swallow their own errors, so run in parallel.
+    await Promise.all([
+        isOnTaxi ? clearLineupsForRosterPlayer(rp) : Promise.resolve(),
+        logRosterPlacement(rp, isOnTaxi ? 'taxi_designate' : 'taxi_return'),
+    ])
 }
