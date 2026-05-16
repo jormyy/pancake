@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify'
 import { processWaiverClaims } from '../sync/waivers'
 import { requireAdmin, verifyOwnMember } from '../lib/authz'
 import { supabase } from '../lib/supabase'
+import { tomorrowET } from '../lib/utils/date'
 import { AppError, NotFoundError, ValidationError } from '../plugins/errorHandler'
 function isIREligible(injuryStatus: string | null): boolean {
     if (!injuryStatus) return false
@@ -9,12 +10,6 @@ function isIREligible(injuryStatus: string | null): boolean {
     return s === 'out' || s.startsWith('ir')
 }
 import { WaiverCancelBody, WaiverClaimBody, WaiverClaimParams } from '../schemas'
-
-function tomorrowET(): string {
-    return new Date(Date.now() + 24 * 60 * 60 * 1000).toLocaleDateString('en-CA', {
-        timeZone: 'America/New_York',
-    })
-}
 
 export default async function waiverRoutes(app: FastifyInstance) {
     app.post(
@@ -56,16 +51,19 @@ export default async function waiverRoutes(app: FastifyInstance) {
             if (rosterErr) throw rosterErr
 
             const ineligible = (rosterPlayers ?? []).filter(
-                (rp: any) => !isIREligible(rp.players?.injury_status ?? null),
+                (rp) => !isIREligible(rp.players?.injury_status ?? null),
             )
             if (ineligible.length > 0) {
-                const names = ineligible.map((rp: any) => rp.players?.display_name).filter(Boolean).join(', ')
+                const names = ineligible
+                    .map((rp) => rp.players?.display_name)
+                    .filter(Boolean)
+                    .join(', ')
                 throw new ValidationError(
                     `You have ineligible players on IR (${names}). Activate or drop them before placing waiver claims.`,
                 )
             }
 
-            const { data: priorityRow, error: priorityErr } = await (supabase as any)
+            const { data: priorityRow, error: priorityErr } = await supabase
                 .from('waiver_priorities')
                 .select('priority')
                 .eq('member_id', memberId)
@@ -74,7 +72,7 @@ export default async function waiverRoutes(app: FastifyInstance) {
             if (priorityErr || !priorityRow) throw new ValidationError('No waiver priority found for your team.')
 
             const now = new Date().toISOString()
-            const { data: waiverLog, error: waiverErr } = await (supabase as any)
+            const { data: waiverLog, error: waiverErr } = await supabase
                 .from('waiver_wire_log')
                 .select('id')
                 .eq('league_id', leagueId)
@@ -86,7 +84,7 @@ export default async function waiverRoutes(app: FastifyInstance) {
             if (waiverErr) throw waiverErr
             if (!waiverLog) throw new ValidationError('This player is no longer on waivers.')
 
-            const { data: existing, error: existingErr } = await (supabase as any)
+            const { data: existing, error: existingErr } = await supabase
                 .from('waiver_claims')
                 .select('id')
                 .eq('member_id', memberId)
@@ -98,7 +96,7 @@ export default async function waiverRoutes(app: FastifyInstance) {
             if (existing) throw new ValidationError('You already have a pending claim for this player.')
 
             if (dropPlayerId) {
-                const { data: dropRow, error: dropErr } = await (supabase as any)
+                const { data: dropRow, error: dropErr } = await supabase
                     .from('roster_players')
                     .select('id')
                     .eq('member_id', memberId)
@@ -110,7 +108,7 @@ export default async function waiverRoutes(app: FastifyInstance) {
                 if (!dropRow) throw new ValidationError('Drop player is no longer on your roster.')
             }
 
-            const { error: insertErr } = await (supabase as any).from('waiver_claims').insert({
+            const { error: insertErr } = await supabase.from('waiver_claims').insert({
                 league_id: leagueId,
                 league_season_id: season.id,
                 member_id: memberId,
@@ -134,7 +132,7 @@ export default async function waiverRoutes(app: FastifyInstance) {
 
             await verifyOwnMember(req.userId, memberId)
 
-            const { data: claim, error: fetchErr } = await (supabase as any)
+            const { data: claim, error: fetchErr } = await supabase
                 .from('waiver_claims')
                 .select('id, member_id, status')
                 .eq('id', claimId)
@@ -143,7 +141,7 @@ export default async function waiverRoutes(app: FastifyInstance) {
             if (claim.member_id !== memberId) throw new AppError('Access denied', 403)
             if (claim.status !== 'pending') throw new ValidationError('Claim is no longer pending.')
 
-            const { error } = await (supabase as any)
+            const { error } = await supabase
                 .from('waiver_claims')
                 .update({ status: 'cancelled', processed_at: new Date().toISOString() })
                 .eq('id', claimId)

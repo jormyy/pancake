@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify'
 import { supabase } from '../lib/supabase'
 import { verifyOwnMember } from '../lib/authz'
 import { notifyMember } from '../lib/notifications'
+import { todayET } from '../lib/utils/date'
 import { AppError, NotFoundError, ValidationError } from '../plugins/errorHandler'
 import { TradeActionBody, TradeParams, TradeProposeBody, TradeVetoBody } from '../schemas'
 
@@ -25,10 +26,6 @@ function assertNoDuplicates(ids: string[], label: string) {
     if (new Set(ids).size !== ids.length) {
         throw new ValidationError(`Duplicate ${label} are not allowed.`)
     }
-}
-
-function todayET(): string {
-    return new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
 }
 
 async function assertRosterPlayersOwned(
