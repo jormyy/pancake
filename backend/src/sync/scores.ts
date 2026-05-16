@@ -351,30 +351,35 @@ async function finalizeWeekIfComplete(
         maxPossiblePointsByMember,
     )
 
-    for (const m of matchupRows) {
-        const homePoints = Number(m.home_points ?? 0)
-        const awayPoints = Number(m.away_points ?? 0)
-        const winnerId = homePoints >= awayPoints ? m.home_member_id : m.away_member_id
+    // Per-matchup finalization is independent across matchups (different matchup ids,
+    // different member pairs), so run them in parallel. Matches prior semantics:
+    // the matchup update silently ignores errors, notifications log on failure.
+    await Promise.all(
+        matchupRows.map(async (m) => {
+            const homePoints = Number(m.home_points ?? 0)
+            const awayPoints = Number(m.away_points ?? 0)
+            const winnerId = homePoints >= awayPoints ? m.home_member_id : m.away_member_id
 
-        await supabase
-            .from('matchups')
-            .update({
-                home_max_possible_points: maxPossiblePointsByMember.get(m.home_member_id) ?? 0,
-                away_max_possible_points: maxPossiblePointsByMember.get(m.away_member_id) ?? 0,
-                winner_member_id: winnerId,
-                is_finalized: true,
-                finalized_at: new Date().toISOString(),
-            })
-            .eq('id', m.id)
+            await supabase
+                .from('matchups')
+                .update({
+                    home_max_possible_points: maxPossiblePointsByMember.get(m.home_member_id) ?? 0,
+                    away_max_possible_points: maxPossiblePointsByMember.get(m.away_member_id) ?? 0,
+                    winner_member_id: winnerId,
+                    is_finalized: true,
+                    finalized_at: new Date().toISOString(),
+                })
+                .eq('id', m.id)
 
-        const loserId = winnerId === m.home_member_id ? m.away_member_id : m.home_member_id
-        const winnerPts = Math.max(homePoints, awayPoints).toFixed(1)
-        const loserPts = Math.min(homePoints, awayPoints).toFixed(1)
-        await Promise.all([
-            notifyMember(winnerId, `Week ${weekNumber} Final`, `You won ${winnerPts}–${loserPts}! 🏆`),
-            notifyMember(loserId, `Week ${weekNumber} Final`, `You lost ${loserPts}–${winnerPts}.`),
-        ]).catch(console.error)
-    }
+            const loserId = winnerId === m.home_member_id ? m.away_member_id : m.home_member_id
+            const winnerPts = Math.max(homePoints, awayPoints).toFixed(1)
+            const loserPts = Math.min(homePoints, awayPoints).toFixed(1)
+            await Promise.all([
+                notifyMember(winnerId, `Week ${weekNumber} Final`, `You won ${winnerPts}–${loserPts}! 🏆`),
+                notifyMember(loserId, `Week ${weekNumber} Final`, `You lost ${loserPts}–${winnerPts}.`),
+            ]).catch(console.error)
+        }),
+    )
 
     console.log(`[scores] Finalized week ${weekNumber} for league ${leagueId}`)
 }
@@ -456,36 +461,55 @@ export async function syncScores(leagueId?: string) {
     if (sErr) throw sErr
     if (!seasons?.length) return
 
-    for (const season of seasons) {
-        const league = season.leagues as any
-        const settings: Record<string, number> = league?.scoring_settings ?? {}
-        const playoffStart: number = league?.playoff_start_week ?? CONFIG.DEFAULT_PLAYOFF_START_WEEK
-        const regularSeasonWeeks = playoffStart - 1
+    // Per-league work is independent across leagues. Run leagues in parallel so the
+    // 60s live-poll wall time scales with the slowest league, not the sum.
+    // Errors propagate to the caller (Promise.all rejects on first failure) to match
+    // the prior for-loop behavior where any throw aborted the sync.
+    await Promise.all(
+        seasons.map(async (season) => {
+            const league = season.leagues as any
+            const settings: Record<string, number> = league?.scoring_settings ?? {}
+            const playoffStart: number = league?.playoff_start_week ?? CONFIG.DEFAULT_PLAYOFF_START_WEEK
+            const regularSeasonWeeks = playoffStart - 1
 
-        const weekNumber = await getWeekNumberForDate(new Date(), season.season_year)
-        if (!weekNumber) {
-            console.log(`[scores] No current week for season ${season.season_year}`)
-            continue
-        }
-        if (weekNumber > regularSeasonWeeks) {
-            console.log(`[scores] Week ${weekNumber} is in playoffs — skipping regular-season sync`)
-            continue
-        }
+            const weekNumber = await getWeekNumberForDate(new Date(), season.season_year)
+            if (!weekNumber) {
+                console.log(`[scores] No current week for season ${season.season_year}`)
+                return
+            }
+            if (weekNumber > regularSeasonWeeks) {
+                console.log(`[scores] Week ${weekNumber} is in playoffs — skipping regular-season sync`)
+                return
+            }
 
-        console.log(`[scores] Syncing week ${weekNumber} for league ${season.league_id}`)
+            console.log(`[scores] Syncing week ${weekNumber} for league ${season.league_id}`)
 
-        // Refresh points for current week and previous week (in case last sync missed final games)
-        await updateWeekPoints(season.league_id, season.id, season.season_year, weekNumber, settings)
-        if (weekNumber > 1) {
-            await updateWeekPoints(season.league_id, season.id, season.season_year, weekNumber - 1, settings)
-        }
+            // Refresh points for current week and previous week (in case last sync missed
+            // final games). These two updates operate on different week rows, so they
+            // can run in parallel; but they must complete before finalize reads matchups.
+            const updates: Promise<void>[] = [
+                updateWeekPoints(season.league_id, season.id, season.season_year, weekNumber, settings),
+            ]
+            if (weekNumber > 1) {
+                updates.push(
+                    updateWeekPoints(season.league_id, season.id, season.season_year, weekNumber - 1, settings),
+                )
+            }
+            await Promise.all(updates)
 
-        // Try to finalize both weeks (idempotent — only finalizes when all games are done)
-        await finalizeWeekIfComplete(season.league_id, season.id, weekNumber, season.season_year, settings)
-        if (weekNumber > 1) {
-            await finalizeWeekIfComplete(season.league_id, season.id, weekNumber - 1, season.season_year, settings)
-        }
-    }
+            // Try to finalize both weeks (idempotent — only finalizes when all games are done).
+            // Same independence as updates above: different week rows, safe to parallelize.
+            const finalizations: Promise<void>[] = [
+                finalizeWeekIfComplete(season.league_id, season.id, weekNumber, season.season_year, settings),
+            ]
+            if (weekNumber > 1) {
+                finalizations.push(
+                    finalizeWeekIfComplete(season.league_id, season.id, weekNumber - 1, season.season_year, settings),
+                )
+            }
+            await Promise.all(finalizations)
+        }),
+    )
 
     console.log('[scores] Sync complete.')
 }
