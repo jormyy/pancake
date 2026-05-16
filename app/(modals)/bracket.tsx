@@ -18,12 +18,14 @@ export default function BracketScreen() {
     const [loading, setLoading] = useState(true)
 
     const myMemberId = current?.id
+    const currentId = current?.id
+    const currentLeagueId = currentLeague?.id
 
     useEffect(() => {
         async function load() {
-            if (!current || !currentLeague) return
+            if (!currentId || !currentLeagueId) return
             try {
-                const data = await getPlayoffBracket(currentLeague.id)
+                const data = await getPlayoffBracket(currentLeagueId)
                 setBracket(data)
             } catch (e) {
                 console.error(e)
@@ -32,7 +34,7 @@ export default function BracketScreen() {
             }
         }
         load()
-    }, [current, currentLeague])
+    }, [currentId, currentLeagueId])
 
     return (
         <>

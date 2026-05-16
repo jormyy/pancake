@@ -20,8 +20,14 @@ export function LeagueProvider({ children }: { children: ReactNode }) {
     const { memberships, loading, refresh } = useLeagues()
     const [currentId, setCurrentId] = useState<string | null>(null)
 
-    // Derive current from memberships so it always reflects fresh data
-    const current = memberships.find((m) => m.id === currentId) ?? memberships[0] ?? null
+    // Derive current from memberships so it always reflects fresh data.
+    // Memoize on [memberships, currentId] so the reference is stable across
+    // unrelated parent re-renders — otherwise every consumer effect that depends
+    // on `current` refires on each render.
+    const current = useMemo(
+        () => memberships.find((m) => m.id === currentId) ?? memberships[0] ?? null,
+        [memberships, currentId],
+    )
 
     const currentLeague = useMemo(() => current?.leagues ?? null, [current])
 
@@ -39,11 +45,13 @@ export function LeagueProvider({ children }: { children: ReactNode }) {
         setCurrentId(null)
     }, [user?.id])
 
-    return (
-        <LeagueContext.Provider value={{ memberships, current, currentLeague, isCommissioner, setCurrent, loading, refresh }}>
-            {children}
-        </LeagueContext.Provider>
+    // Memoize context value so consumers don't tear / re-render on every parent tick.
+    const value = useMemo<LeagueContextType>(
+        () => ({ memberships, current, currentLeague, isCommissioner, setCurrent, loading, refresh }),
+        [memberships, current, currentLeague, isCommissioner, setCurrent, loading, refresh],
     )
+
+    return <LeagueContext.Provider value={value}>{children}</LeagueContext.Provider>
 }
 
 export function useLeagueContext() {
