@@ -45,7 +45,8 @@ export async function fetchUserLeagues(userId: string) {
         scoring_settings,
         playoff_start_week,
         roster_size,
-        ir_slots
+        ir_slots,
+        taxi_slots
       )
     `,
         )

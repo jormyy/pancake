@@ -7,7 +7,7 @@ import {
     ScrollView,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { useEffect } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useAuth } from '@/hooks/use-auth'
 import { Scoreboard } from '@/components/Scoreboard'
@@ -55,39 +55,56 @@ export default function HomeScreen() {
         if (matchupLoading) setSelected(null)
     }, [matchupLoading, setSelected])
 
-    async function handleDaySelect(date: string) {
-        if (!matchupRef.current) return
-        setSelectedDate(date)
-        setSelected(null)
-        await loadLineups(matchupRef.current, date)
-    }
-
-    const todayPlayingTeams = new Set(weekDays.find((d) => d.date === selectedDate)?.playingTeams ?? [])
-
-    const myTeamSet = new Set<string>(
-        myLineup
-            ? [
-                ...myLineup.starters.map((s) => s.player?.nbaTeam),
-                ...myLineup.bench.map((p) => p.nbaTeam),
-                ...myLineup.ir.map((p) => p.nbaTeam),
-                ...myLineup.taxi.map((p) => p.nbaTeam),
-              ].filter(Boolean) as string[]
-            : [],
+    const handleDaySelect = useCallback(
+        async (date: string) => {
+            if (!matchupRef.current) return
+            setSelectedDate(date)
+            setSelected(null)
+            await loadLineups(matchupRef.current, date)
+        },
+        [matchupRef, setSelectedDate, setSelected, loadLineups],
     )
 
-    const selectedPlayer = myLineup && selected
-        ? selected.kind === 'starter' ? myLineup.starters[selected.index]?.player
-        : selected.kind === 'bench' ? myLineup.bench[selected.index]
-        : selected.kind === 'ir' ? myLineup.ir[selected.index]
-        : myLineup.taxi[selected.index]
-        : null
+    const todayPlayingTeams = useMemo(
+        () => new Set(weekDays.find((d) => d.date === selectedDate)?.playingTeams ?? []),
+        [weekDays, selectedDate],
+    )
 
-    const scoringSettings =
-        league?.scoring_settings &&
-        typeof league.scoring_settings === 'object' &&
-        !Array.isArray(league.scoring_settings)
-            ? league.scoring_settings as Record<string, number>
-            : {}
+    const myTeamSet = useMemo(
+        () =>
+            new Set<string>(
+                myLineup
+                    ? ([
+                          ...myLineup.starters.map((s) => s.player?.nbaTeam),
+                          ...myLineup.bench.map((p) => p.nbaTeam),
+                          ...myLineup.ir.map((p) => p.nbaTeam),
+                          ...myLineup.taxi.map((p) => p.nbaTeam),
+                      ].filter(Boolean) as string[])
+                    : [],
+            ),
+        [myLineup],
+    )
+
+    const selectedPlayer = useMemo(() => {
+        if (!myLineup || !selected) return null
+        return selected.kind === 'starter'
+            ? myLineup.starters[selected.index]?.player
+            : selected.kind === 'bench'
+              ? myLineup.bench[selected.index]
+              : selected.kind === 'ir'
+                ? myLineup.ir[selected.index]
+                : myLineup.taxi[selected.index]
+    }, [myLineup, selected])
+
+    const scoringSettings = useMemo(
+        () =>
+            league?.scoring_settings &&
+            typeof league.scoring_settings === 'object' &&
+            !Array.isArray(league.scoring_settings)
+                ? (league.scoring_settings as Record<string, number>)
+                : {},
+        [league?.scoring_settings],
+    )
 
     if (loading) return <LoadingScreen />
     if (memberships.length === 0) return <NoLeagueState />

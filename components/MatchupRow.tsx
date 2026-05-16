@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { View, Text, Pressable, StyleSheet } from 'react-native'
 import { useRouter } from 'expo-router'
 import { LineupPlayer } from '@/lib/lineup'
@@ -43,22 +44,7 @@ function StatLines({ stats, isLive, align }: {
     )
 }
 
-export function MatchupRow({
-    myPlayer,
-    oppPlayer,
-    slotType,
-    selKind,
-    selIndex,
-    selected,
-    onTap,
-    saving,
-    playingTeams,
-    liveStats,
-    liveTeams,
-    scoringSettings,
-    teamMatchups,
-    isExtraOppRow = false,
-}: {
+type MatchupRowProps = {
     myPlayer: LineupPlayer | null
     oppPlayer: LineupPlayer | null
     slotType: string
@@ -73,7 +59,24 @@ export function MatchupRow({
     scoringSettings: Record<string, number>
     teamMatchups: Map<string, { opponent: string; isHome: boolean }>
     isExtraOppRow?: boolean
-}) {
+}
+
+function MatchupRowImpl({
+    myPlayer,
+    oppPlayer,
+    slotType,
+    selKind,
+    selIndex,
+    selected,
+    onTap,
+    saving,
+    playingTeams,
+    liveStats,
+    liveTeams,
+    scoringSettings,
+    teamMatchups,
+    isExtraOppRow = false,
+}: MatchupRowProps) {
     const { push } = useRouter()
     const isSel = selected?.kind === selKind && selected.index === selIndex
     const slotColor = slotType === 'IR' ? colors.danger : slotType === 'TX' ? palette.gray500 : (POSITION_COLORS[slotType] ?? colors.textPlaceholder)
@@ -195,6 +198,8 @@ export function MatchupRow({
         </View>
     )
 }
+
+export const MatchupRow = memo(MatchupRowImpl)
 
 const styles = StyleSheet.create({
     matchupRow: {
