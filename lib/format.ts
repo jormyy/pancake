@@ -1,5 +1,7 @@
 /** Shared formatting utilities — consolidated from multiple screens */
 
+import { isIREligible } from '@pancake/core'
+
 export function getInitials(name: string): string {
     const parts = name.trim().split(/\s+/)
     if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
@@ -41,7 +43,5 @@ export function timeAgo(iso: string): string {
 
 /** Predicate: roster player is on IR but no longer IR-eligible (should be moved off). */
 export function isIneligibleIR(rp: { is_on_ir: boolean; players?: { injury_status: string | null } | null }): boolean {
-    if (!rp.is_on_ir) return false
-    const status = rp.players?.injury_status?.toUpperCase()
-    return !status || !['OFS', 'INJ', 'OUT', 'IR', 'IR-R'].includes(status)
+    return Boolean(rp.is_on_ir && !isIREligible(rp.players?.injury_status ?? null))
 }
