@@ -70,6 +70,18 @@ export const SnakePickBody = {
     },
 }
 
+// Auto-pick selects best available server-side, so only memberId is required.
+// Separate from SnakePickBody because that schema's UUID-format check on
+// playerId would 400 any auto-pick call (timer-driven path sends no playerId).
+export const AutoPickBody = {
+    type: 'object' as const,
+    required: ['memberId'],
+    additionalProperties: false,
+    properties: {
+        memberId: UUID,
+    },
+}
+
 export const NotifyTradeBody = {
     type: 'object' as const,
     required: ['memberId', 'title', 'body'],
