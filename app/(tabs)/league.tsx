@@ -152,7 +152,7 @@ export default function LeagueScreen() {
     }
 
     if (!current) {
-        return <EmptyState message="Join or create a currentLeague first." />
+        return <EmptyState message="Join or create a league first." />
     }
 
     return (
