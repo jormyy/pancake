@@ -212,38 +212,18 @@ export async function addFreeAgent(
 }
 
 export async function dropPlayer(rosterPlayerId: string): Promise<void> {
-    // Fetch roster row so we can create the waiver entry
-    const { data: rp, error: fetchErr } = await supabase
-        .from('roster_players')
-        .select('id, member_id, league_id, league_season_id, player_id')
-        .eq('id', rosterPlayerId)
-        .single()
-    if (fetchErr) throw fetchErr
-    if (!rp) throw new Error('Roster player not found.')
-
-    const { error: deleteErr, count: deleteCount } = await supabase
-        .from('roster_players')
-        .delete({ count: 'exact' })
-        .eq('id', rosterPlayerId)
-    if (deleteErr) throw deleteErr
-    if (deleteCount === 0) throw new Error('Could not drop player — you may not have permission or they are no longer on your roster.')
-
-    // Place on waivers for 48 hours
-    const clearsAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString()
-    const { error: waiverErr } = await supabase.from('waiver_wire_log').insert({
-        league_id: rp.league_id,
-        league_season_id: rp.league_season_id,
-        player_id: rp.player_id,
-        dropped_by_member_id: rp.member_id,
-        clears_at: clearsAt,
+    // Atomic: delete roster row, insert 48h waiver_wire_log, insert
+    // roster_transactions audit row — all in a single Postgres transaction.
+    // Prior implementation issued 3 serial writes with no rollback, so a
+    // failure between steps could remove the player from the roster without
+    // ever placing them on waivers.
+    const { error } = await supabase.rpc('drop_player_atomic', {
+        p_roster_player_id: rosterPlayerId,
     })
-    if (waiverErr) throw waiverErr
-
-    await logTransaction({
-        leagueId: rp.league_id,
-        leagueSeasonId: rp.league_season_id,
-        memberId: rp.member_id,
-        playerId: rp.player_id,
-        transactionType: 'fa_drop',
-    })
+    if (error) {
+        if (error.code === 'P0002') {
+            throw new Error('Could not drop player — you may not have permission or they are no longer on your roster.')
+        }
+        throw error
+    }
 }

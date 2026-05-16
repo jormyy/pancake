@@ -2213,6 +2213,10 @@ export type Database = {
         }
         Returns: Json
       }
+      drop_player_atomic: {
+        Args: { p_roster_player_id: string }
+        Returns: undefined
+      }
       invoke_edge_function: {
         Args: { body?: Json; function_name: string }
         Returns: undefined
