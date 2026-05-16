@@ -46,7 +46,7 @@ type StandingSnapshot = {
 export async function syncScores() {
   const { data: seasons, error: sErr } = await supabase
     .from('league_seasons')
-    .select('id, league_id, season_year, leagues ( scoring_settings, playoff_start_week )')
+    .select('id, league_id, season_year, leagues ( scoring_settings )')
     .eq('is_current', true)
   if (sErr) throw sErr
   if (!seasons?.length) return
@@ -54,18 +54,18 @@ export async function syncScores() {
   for (const season of seasons) {
     const league = season.leagues as any
     const settings: Record<string, number> = league?.scoring_settings ?? {}
-    const playoffStart: number = league?.playoff_start_week ?? 20
-    const regularSeasonWeeks = playoffStart - 1
 
     const weekNumber = await getWeekNumberForDate(new Date(), season.season_year)
     if (!weekNumber) {
       console.log(`[sync-scores] No current week for season ${season.season_year}`)
       continue
     }
-    if (weekNumber > regularSeasonWeeks) {
-      console.log(`[sync-scores] Week ${weekNumber} is in playoffs — skipping`)
-      continue
-    }
+    // Score every week the season covers — regular season AND playoff weeks
+    // (QF at playoff_start_week, SF at +1, Final at +2). updateWeekPoints and
+    // finalizeWeekIfComplete are matchup-type agnostic: they sum lineup×stats
+    // for whichever matchup rows exist at the given week. Skipping playoff
+    // weeks here would leave bracket matchups with null home_points/away_points
+    // forever, blocking advanceToFinal.
 
     await updateWeekPoints(season.league_id, season.id, season.season_year, weekNumber, settings)
     if (weekNumber > 1) {
