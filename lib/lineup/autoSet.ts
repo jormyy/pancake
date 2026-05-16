@@ -133,10 +133,20 @@ export async function autoSetLineup(
             .map((d) => ({ date: d, weekNumber }))
     }
 
-    for (const { date, weekNumber: wn } of datesToProcess) {
-        await autoSetForDate(
-            memberId, leagueId, seasonId, wn, seasonYear,
-            date, players, starterTemplates,
+    // Each date's writes target a distinct game_date and use only read-only inputs
+    // (players, starterTemplates) — safe to parallelize. Chunk to bound concurrent
+    // Supabase requests; Promise.all still rejects on first failure, preserving
+    // the original throw semantics of the serial for-loop.
+    const CHUNK = 5
+    for (let i = 0; i < datesToProcess.length; i += CHUNK) {
+        const chunk = datesToProcess.slice(i, i + CHUNK)
+        await Promise.all(
+            chunk.map(({ date, weekNumber: wn }) =>
+                autoSetForDate(
+                    memberId, leagueId, seasonId, wn, seasonYear,
+                    date, players, starterTemplates,
+                ),
+            ),
         )
     }
 }
