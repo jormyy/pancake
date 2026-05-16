@@ -16,11 +16,12 @@ export function useFocusAsyncData<T>(
     const [error, setError] = useState<Error | null>(null)
     const lastLoadedAtRef = useRef(0)
     const inFlightRef = useRef<Promise<void> | null>(null)
+    const hasDataRef = useRef(false)
     const staleMs = options.staleMs ?? 30_000
 
     const load = useCallback(async (loadOptions: { force?: boolean } = {}) => {
         if (inFlightRef.current) return inFlightRef.current
-        const hasData = data !== null
+        const hasData = hasDataRef.current
         const isFresh = Date.now() - lastLoadedAtRef.current < staleMs
         if (!loadOptions.force && hasData && isFresh) return
 
@@ -31,6 +32,7 @@ export function useFocusAsyncData<T>(
             try {
                 const result = await fetcher()
                 setData(result)
+                hasDataRef.current = true
                 lastLoadedAtRef.current = Date.now()
             } catch (e: any) {
                 setError(e)
@@ -44,7 +46,7 @@ export function useFocusAsyncData<T>(
         inFlightRef.current = task
         return task
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [...deps, data, staleMs])
+    }, [...deps, staleMs])
 
     useFocusEffect(
         useCallback(() => {
