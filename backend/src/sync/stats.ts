@@ -174,9 +174,15 @@ export async function syncStatsByDate(date: Date) {
         }
     }
 
-    // Persist newly discovered nba_id mappings in batches
-    for (const u of nbaIdUpdates) {
-        await supabase.from('players').update({ nba_id: u.nba_id }).eq('id', u.id)
+    // Persist newly discovered nba_id mappings in batches.
+    // Rows are guaranteed to exist (fetched via fetchAllPlayers); upsert(onConflict:'id')
+    // merges nba_id into the existing row without touching other columns.
+    // Cast to any: generated type requires full row, but PostgREST accepts
+    // partial payloads for the UPDATE path of an upsert.
+    for (let i = 0; i < nbaIdUpdates.length; i += 500) {
+        await supabase
+            .from('players')
+            .upsert(nbaIdUpdates.slice(i, i + 500) as any, { onConflict: 'id' })
     }
     if (nbaIdUpdates.length > 0) {
         console.log(`[sync] Mapped ${nbaIdUpdates.length} new NBA person IDs.`)
