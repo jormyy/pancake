@@ -4,9 +4,8 @@ export function normalizeName(name: string): string {
   return name
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // strip diacritics
     .toLowerCase()
-    .replace(/\./g, '')
-    .replace(/['\-]/g, '')
     .replace(SUFFIX_RE, '')
+    .replace(/[.'\u2019\-]/g, '')
     .replace(/\s+/g, ' ')
     .trim()
 }
