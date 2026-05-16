@@ -1,16 +1,51 @@
 import 'dotenv/config'
+import type { FastifyInstance } from 'fastify'
 import { buildApp } from './app'
 import { registerCronJobs } from './cron'
 import { CONFIG } from './config'
 import { getSupabaseAdminKeyMode } from './lib/supabaseKeyMode'
 
+// Holds the Fastify instance once main() has constructed it so the top-level
+// shutdown handler can close it gracefully. Stays null until buildApp() resolves.
+let appRef: FastifyInstance | null = null
+let shuttingDown = false
+
+async function shutdown(reason: string, code = 1): Promise<void> {
+    if (shuttingDown) return
+    shuttingDown = true
+    console.error(`[shutdown] ${reason}`)
+    const app = appRef
+    if (app) {
+        try {
+            await Promise.race([
+                app.close(),
+                new Promise<void>((_, reject) =>
+                    setTimeout(
+                        () => reject(new Error('app.close timeout after 10s')),
+                        10_000,
+                    ),
+                ),
+            ])
+        } catch (err) {
+            console.error('[shutdown] app.close failed:', err)
+        }
+    }
+    process.exit(code)
+}
+
 process.on('uncaughtException', (err) => {
     console.error('[crash] uncaughtException:', err)
-    process.exit(1)
+    void shutdown('uncaughtException', 1)
 })
 process.on('unhandledRejection', (err) => {
     console.error('[crash] unhandledRejection:', err)
-    process.exit(1)
+    void shutdown('unhandledRejection', 1)
+})
+process.on('SIGTERM', () => {
+    void shutdown('SIGTERM', 0)
+})
+process.on('SIGINT', () => {
+    void shutdown('SIGINT', 0)
 })
 
 // Validate required env vars. Prefer Supabase's non-legacy secret key; keep the
@@ -28,6 +63,7 @@ console.log('[startup] Env vars OK — starting server')
 
 async function main() {
     const app = await buildApp()
+    appRef = app
     if (process.env.DISABLE_CRON === '1') {
         app.log.warn('Cron jobs disabled by DISABLE_CRON=1')
     } else {
