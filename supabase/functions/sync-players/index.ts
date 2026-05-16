@@ -32,14 +32,25 @@ async function syncPlayers() {
       /^\d+$/.test(p.player_id ?? ''),
   )
 
-  const { data: existing, error: fetchErr } = await supabase
-    .from('players')
-    .select('id, display_name, sleeper_id')
-  if (fetchErr) throw fetchErr
+  // Paginate to avoid PostgREST max_rows cap
+  const existing: { id: string; display_name: string | null; sleeper_id: string | null }[] = []
+  const PAGE = 1000
+  let from = 0
+  while (true) {
+    const { data, error: fetchErr } = await supabase
+      .from('players')
+      .select('id, display_name, sleeper_id')
+      .range(from, from + PAGE - 1)
+    if (fetchErr) throw fetchErr
+    if (!data || data.length === 0) break
+    existing.push(...data)
+    if (data.length < PAGE) break
+    from += PAGE
+  }
 
   const byName = new Map<string, string>()
   const bySleeperId = new Map<string, string>()
-  for (const p of existing ?? []) {
+  for (const p of existing) {
     if (p.display_name) {
       byName.set(p.display_name.toLowerCase(), p.id)
       byName.set(normalizeName(p.display_name), p.id)
@@ -139,14 +150,24 @@ async function syncNBAIds() {
     }
   }
 
-  // Fetch all DB players
-  const { data: players, error } = await supabase
-    .from('players')
-    .select('id, display_name, nba_id')
-  if (error) throw error
+  // Paginate to avoid PostgREST max_rows cap
+  const players: { id: string; display_name: string | null; nba_id: string | null }[] = []
+  const PAGE = 1000
+  let from = 0
+  while (true) {
+    const { data, error } = await supabase
+      .from('players')
+      .select('id, display_name, nba_id')
+      .range(from, from + PAGE - 1)
+    if (error) throw error
+    if (!data || data.length === 0) break
+    players.push(...data)
+    if (data.length < PAGE) break
+    from += PAGE
+  }
 
   const updates: { id: string; nba_id: string }[] = []
-  for (const p of players ?? []) {
+  for (const p of players) {
     if (!p.display_name) continue
     const norm = normalizeName(p.display_name)
     const personId = byNormName.get(norm)
@@ -155,8 +176,12 @@ async function syncNBAIds() {
     }
   }
 
-  for (const u of updates) {
-    await supabase.from('players').update({ nba_id: u.nba_id }).eq('id', u.id)
+  for (let i = 0; i < updates.length; i += CHUNK) {
+    const chunk = updates.slice(i, i + CHUNK)
+    const { error: upsertErr } = await supabase
+      .from('players')
+      .upsert(chunk, { onConflict: 'id' })
+    if (upsertErr) throw upsertErr
   }
 
   console.log(`[sync-players] Updated nba_id for ${updates.length} players.`)
