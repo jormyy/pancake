@@ -14,10 +14,26 @@ import { useEffect, useState } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
 import { getLineupSlots, updateLeague, updateLineupSlots } from '@/lib/league'
 import { advanceSeason } from '@/lib/rookieDraft'
+import { apiPost } from '@/lib/shared/api'
 import { LoadingScreen } from '@/components/LoadingScreen'
 import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000'
+async function adminCall(
+    path: string,
+    successMessage: string,
+    setBusy: (v: boolean) => void,
+    body: Record<string, unknown> = {},
+) {
+    setBusy(true)
+    try {
+        await apiPost(path, body)
+        Alert.alert('Done', successMessage)
+    } catch (e: any) {
+        Alert.alert('Error', e.message)
+    } finally {
+        setBusy(false)
+    }
+}
 
 // ── Scoring ───────────────────────────────────────────────────
 const SCORING_FIELDS: { key: string; label: string }[] = [
@@ -169,129 +185,47 @@ export default function CommissionerSettingsScreen() {
     }
 
     async function syncStats() {
-        setSyncingStats(true)
-        try {
-            const res = await fetch(`${API_URL}/sync/stats`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ days: 7 }),
-            })
-            const json = await res.json()
-            if (!json.ok) throw new Error(json.error || 'Failed to sync stats')
-            Alert.alert('Done', 'Stats synced (last 7 days).')
-        } catch (e: any) {
-            Alert.alert('Error', e.message)
-        } finally {
-            setSyncingStats(false)
-        }
+        await adminCall('/sync/stats', 'Stats synced (last 7 days).', setSyncingStats, { days: 7 })
     }
 
     async function syncScores() {
-        setSyncingScores(true)
-        try {
-            const res = await fetch(`${API_URL}/sync/scores`, { method: 'POST' })
-            const json = await res.json()
-            if (!json.ok) throw new Error(json.error || 'Failed to sync scores')
-            Alert.alert('Done', 'Scores synced.')
-        } catch (e: any) {
-            Alert.alert('Error', e.message)
-        } finally {
-            setSyncingScores(false)
-        }
+        await adminCall('/sync/scores', 'Scores synced.', setSyncingScores)
     }
 
     async function syncGameSchedule() {
-        setSyncingGames(true)
-        try {
-            const res = await fetch(`${API_URL}/sync/schedule`, { method: 'POST' })
-            const json = await res.json()
-            if (!json.ok) throw new Error(json.error || 'Failed to sync games')
-            Alert.alert('Done', 'Game schedule synced.')
-        } catch (e: any) {
-            Alert.alert('Error', e.message)
-        } finally {
-            setSyncingGames(false)
-        }
+        await adminCall('/sync/schedule', 'Game schedule synced.', setSyncingGames)
     }
 
     async function processWaivers() {
-        setProcessingWaivers(true)
-        try {
-            const res = await fetch(`${API_URL}/waivers/process`, { method: 'POST' })
-            const json = await res.json()
-            if (!json.ok) throw new Error(json.error || 'Failed to process waivers')
-            Alert.alert('Done', 'Waiver claims processed.')
-        } catch (e: any) {
-            Alert.alert('Error', e.message)
-        } finally {
-            setProcessingWaivers(false)
-        }
+        await adminCall('/waivers/process', 'Waiver claims processed.', setProcessingWaivers)
     }
 
     async function syncRankings() {
-        setSyncingRankings(true)
-        try {
-            const res = await fetch(`${API_URL}/sync/rankings`, { method: 'POST' })
-            const json = await res.json()
-            if (!json.ok) throw new Error(json.error || 'Failed to sync rankings')
-            Alert.alert('Done', 'Dynasty rankings synced.')
-        } catch (e: any) {
-            Alert.alert('Error', e.message)
-        } finally {
-            setSyncingRankings(false)
-        }
+        await adminCall('/sync/rankings', 'Dynasty rankings synced.', setSyncingRankings)
     }
 
     async function syncProjections() {
-        setSyncingProjections(true)
-        try {
-            const res = await fetch(`${API_URL}/sync/projections`, { method: 'POST' })
-            const json = await res.json()
-            if (!json.ok) throw new Error(json.error || 'Failed to sync projections')
-            Alert.alert('Done', 'Projections synced.')
-        } catch (e: any) {
-            Alert.alert('Error', e.message)
-        } finally {
-            setSyncingProjections(false)
-        }
+        await adminCall('/sync/projections', 'Projections synced.', setSyncingProjections)
     }
 
     async function generatePlayoffBracket() {
         if (!league?.id) return
-        setGeneratingPlayoffs(true)
-        try {
-            const res = await fetch(`${API_URL}/playoffs/generate`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ leagueId: league.id }),
-            })
-            const json = await res.json()
-            if (!json.ok) throw new Error(json.error || 'Failed to generate playoff bracket')
-            Alert.alert('Done', 'Semifinal bracket generated.')
-        } catch (e: any) {
-            Alert.alert('Error', e.message)
-        } finally {
-            setGeneratingPlayoffs(false)
-        }
+        await adminCall(
+            '/playoffs/generate',
+            'Semifinal bracket generated.',
+            setGeneratingPlayoffs,
+            { leagueId: league.id },
+        )
     }
 
     async function advancePlayoffBracket() {
         if (!league?.id) return
-        setAdvancingPlayoffs(true)
-        try {
-            const res = await fetch(`${API_URL}/playoffs/advance`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ leagueId: league.id }),
-            })
-            const json = await res.json()
-            if (!json.ok) throw new Error(json.error || 'Failed to advance bracket')
-            Alert.alert('Done', 'Championship matchup created.')
-        } catch (e: any) {
-            Alert.alert('Error', e.message)
-        } finally {
-            setAdvancingPlayoffs(false)
-        }
+        await adminCall(
+            '/playoffs/advance',
+            'Championship matchup created.',
+            setAdvancingPlayoffs,
+            { leagueId: league.id },
+        )
     }
 
     async function handleAdvanceSeason() {
@@ -322,21 +256,12 @@ export default function CommissionerSettingsScreen() {
     }
 
     async function generateSchedule(force = false) {
-        setGeneratingSchedule(true)
-        try {
-            const res = await fetch(`${API_URL}/sync/matchups`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ force }),
-            })
-            const json = await res.json()
-            if (!json.ok) throw new Error(json.error || 'Failed to generate schedule')
-            Alert.alert('Done', force ? 'Schedule reset and regenerated.' : 'Schedule generated successfully.')
-        } catch (e: any) {
-            Alert.alert('Error', e.message)
-        } finally {
-            setGeneratingSchedule(false)
-        }
+        await adminCall(
+            '/sync/matchups',
+            force ? 'Schedule reset and regenerated.' : 'Schedule generated successfully.',
+            setGeneratingSchedule,
+            { force },
+        )
     }
 
     if (loading) {
