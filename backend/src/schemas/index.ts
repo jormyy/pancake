@@ -1,70 +1,101 @@
+// Reasonable bounds shared across schemas. UUIDs are 36 chars; we allow a tiny
+// bit of slack for the very rare non-UUID id (e.g. boolean-style string flags).
+const UUID = { type: 'string' as const, format: 'uuid' as const, maxLength: 64 }
+const NOTES_STR = { type: 'string' as const, maxLength: 500 }
+const DATE_STR = { type: 'string' as const, maxLength: 32 } // YYYY-MM-DD plus slack
+const NOTIF_TITLE = { type: 'string' as const, maxLength: 200 }
+const NOTIF_BODY = { type: 'string' as const, maxLength: 2000 }
+
+// Bid amounts are auction-draft dollars. MIN_BID is 1 in config; cap at 1M
+// to short-circuit any MAX_SAFE_INTEGER style abuse while leaving room for
+// odd league budgets.
+const BID_AMOUNT = { type: 'integer' as const, minimum: 1, maximum: 1_000_000 }
+const SEASON_YEAR = { type: 'integer' as const, minimum: 1946, maximum: 2100 }
+
+// ID arrays for trade proposals. Cap entries and string length so a
+// pathological request can't allocate 50MB of payload.
+const ID_ARRAY = {
+    type: 'array' as const,
+    maxItems: 50,
+    items: UUID,
+    default: [] as string[],
+}
+
 export const LeagueIdBody = {
     type: 'object' as const,
     required: ['leagueId'],
+    additionalProperties: false,
     properties: {
-        leagueId: { type: 'string' as const },
+        leagueId: UUID,
     },
 }
 
 export const DraftParams = {
     type: 'object' as const,
     required: ['draftId'],
+    additionalProperties: false,
     properties: {
-        draftId: { type: 'string' as const },
+        draftId: UUID,
     },
 }
 
 export const NominateBody = {
     type: 'object' as const,
     required: ['memberId', 'playerId'],
+    additionalProperties: false,
     properties: {
-        memberId: { type: 'string' as const },
-        playerId: { type: 'string' as const },
+        memberId: UUID,
+        playerId: UUID,
     },
 }
 
 export const BidBody = {
     type: 'object' as const,
     required: ['memberId', 'nominationId', 'amount'],
+    additionalProperties: false,
     properties: {
-        memberId: { type: 'string' as const },
-        nominationId: { type: 'string' as const },
-        amount: { type: 'integer' as const },
+        memberId: UUID,
+        nominationId: UUID,
+        amount: BID_AMOUNT,
     },
 }
 
 export const SnakePickBody = {
     type: 'object' as const,
     required: ['memberId', 'playerId'],
+    additionalProperties: false,
     properties: {
-        memberId: { type: 'string' as const },
-        playerId: { type: 'string' as const },
+        memberId: UUID,
+        playerId: UUID,
     },
 }
 
 export const NotifyTradeBody = {
     type: 'object' as const,
     required: ['memberId', 'title', 'body'],
+    additionalProperties: false,
     properties: {
-        memberId: { type: 'string' as const },
-        title: { type: 'string' as const },
-        body: { type: 'string' as const },
+        memberId: UUID,
+        title: NOTIF_TITLE,
+        body: NOTIF_BODY,
     },
 }
 
 export const TradeActionBody = {
     type: 'object' as const,
     required: ['memberId'],
+    additionalProperties: false,
     properties: {
-        memberId: { type: 'string' as const },
+        memberId: UUID,
     },
 }
 
 export const TradeVetoBody = {
     type: 'object' as const,
     required: ['memberId'],
+    additionalProperties: false,
     properties: {
-        memberId: { type: 'string' as const },
+        memberId: UUID,
     },
 }
 
@@ -80,76 +111,87 @@ export const TradeProposeBody = {
         'offerPickIds',
         'requestPickIds',
     ],
+    additionalProperties: false,
     properties: {
-        memberId: { type: 'string' as const },
-        leagueId: { type: 'string' as const },
-        leagueSeasonId: { type: 'string' as const },
-        recipientMemberId: { type: 'string' as const },
-        offerPlayerIds: { type: 'array' as const, items: { type: 'string' as const }, default: [] },
-        requestPlayerIds: { type: 'array' as const, items: { type: 'string' as const }, default: [] },
-        offerPickIds: { type: 'array' as const, items: { type: 'string' as const }, default: [] },
-        requestPickIds: { type: 'array' as const, items: { type: 'string' as const }, default: [] },
-        notes: { type: 'string' as const },
+        memberId: UUID,
+        leagueId: UUID,
+        leagueSeasonId: UUID,
+        recipientMemberId: UUID,
+        // offer/request player ids reference roster_players.player_id (UUID).
+        offerPlayerIds: ID_ARRAY,
+        requestPlayerIds: ID_ARRAY,
+        offerPickIds: ID_ARRAY,
+        requestPickIds: ID_ARRAY,
+        notes: NOTES_STR,
     },
 }
 
 export const TradeParams = {
     type: 'object' as const,
     required: ['tradeId'],
+    additionalProperties: false,
     properties: {
-        tradeId: { type: 'string' as const },
+        tradeId: UUID,
     },
 }
 
 export const WaiverClaimBody = {
     type: 'object' as const,
     required: ['memberId', 'leagueId', 'playerId'],
+    additionalProperties: false,
     properties: {
-        memberId: { type: 'string' as const },
-        leagueId: { type: 'string' as const },
-        playerId: { type: 'string' as const },
-        dropPlayerId: { type: ['string', 'null'] as const },
+        memberId: UUID,
+        leagueId: UUID,
+        playerId: UUID,
+        // dropPlayerId references players.id (UUID) or null when no drop is needed.
+        // We avoid `format: 'uuid'` here so null values still validate.
+        dropPlayerId: { type: ['string', 'null'] as const, maxLength: 64 },
     },
 }
 
 export const WaiverCancelBody = {
     type: 'object' as const,
     required: ['memberId'],
+    additionalProperties: false,
     properties: {
-        memberId: { type: 'string' as const },
+        memberId: UUID,
     },
 }
 
 export const WaiverClaimParams = {
     type: 'object' as const,
     required: ['claimId'],
+    additionalProperties: false,
     properties: {
-        claimId: { type: 'string' as const },
+        claimId: UUID,
     },
 }
 
 export const SyncStatsBody = {
     type: 'object' as const,
+    additionalProperties: false,
     properties: {
-        days: { type: 'integer' as const, default: 1 },
+        days: { type: 'integer' as const, minimum: 1, maximum: 365, default: 1 },
     },
 }
 
 export const SyncMatchupsBody = {
     type: 'object' as const,
+    additionalProperties: false,
     properties: {
         force: { type: 'boolean' as const, default: false },
-        leagueId: { type: 'string' as const },
+        leagueId: UUID,
     },
 }
 
 export const BackfillBody = {
     type: 'object' as const,
     required: ['seasonYear'],
+    additionalProperties: false,
     properties: {
-        seasonYear: { type: 'integer' as const },
-        fromDate: { type: 'string' as const },
-        toDate: { type: 'string' as const },
+        seasonYear: SEASON_YEAR,
+        fromDate: DATE_STR,
+        toDate: DATE_STR,
         forceResync: { type: 'boolean' as const, default: false },
     },
 }
@@ -157,30 +199,34 @@ export const BackfillBody = {
 export const BackfillParams = {
     type: 'object' as const,
     required: ['jobId'],
+    additionalProperties: false,
     properties: {
-        jobId: { type: 'string' as const },
+        jobId: UUID,
     },
 }
 
 export const VerifyStatsBody = {
     type: 'object' as const,
+    additionalProperties: false,
     properties: {
-        sampleSize: { type: 'integer' as const, default: 10 },
+        sampleSize: { type: 'integer' as const, minimum: 1, maximum: 1000, default: 10 },
     },
 }
 
 export const ValidateDbBody = {
     type: 'object' as const,
+    additionalProperties: false,
     properties: {
-        seasonYear: { type: 'integer' as const },
+        seasonYear: SEASON_YEAR,
     },
 }
 
 export const TaxiBody = {
     type: 'object' as const,
     required: ['rosterPlayerId', 'isOnTaxi'],
+    additionalProperties: false,
     properties: {
-        rosterPlayerId: { type: 'string' as const },
+        rosterPlayerId: UUID,
         isOnTaxi: { type: 'boolean' as const },
     },
 }
@@ -188,15 +234,20 @@ export const TaxiBody = {
 export const IRBody = {
     type: 'object' as const,
     required: ['rosterPlayerId', 'isOnIR'],
+    additionalProperties: false,
     properties: {
-        rosterPlayerId: { type: 'string' as const },
+        rosterPlayerId: UUID,
         isOnIR: { type: 'boolean' as const },
     },
 }
 
 export const DraftOrderBody = {
     type: 'object' as const,
+    additionalProperties: false,
     properties: {
-        seasonYear: { type: 'integer' as const },
+        seasonYear: SEASON_YEAR,
     },
 }
+
+// Re-export shared constants so consumers can reuse them if needed.
+export const _bounds = { UUID, NOTES_STR, BID_AMOUNT, SEASON_YEAR }
