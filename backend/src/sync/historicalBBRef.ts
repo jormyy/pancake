@@ -21,10 +21,8 @@ export async function syncBBRefSeason(seasonEndYear: number, jobId: string): Pro
 
     // Load player lookup maps
     const players = await fetchAllPlayers()
-    const byNbaId = new Map<string, string>()
     const byName = new Map<string, string>()
     for (const p of players) {
-        if (p.nba_id) byNbaId.set(p.nba_id, p.id)
         byName.set(normalizeName(p.display_name), p.id)
     }
 
@@ -96,19 +94,39 @@ export async function syncBBRefSeason(seasonEndYear: number, jobId: string): Pro
     }).eq('id', jobId)
 
     // Step 2: Scrape box scores — skip games that already have stats
-    const { data: syncedRows } = await supabase
-        .from('player_game_stats')
-        .select('game_id')
-        .eq('season_year', seasonEndYear)
-        .limit(1000)
-    const syncedGameIds = new Set((syncedRows ?? []).map((r: any) => r.game_id))
+    // Paginate through all rows — Supabase caps at 1000 per request
+    const syncedGameIds = new Set<string>()
+    {
+        let pg = 0
+        while (true) {
+            const { data: batch } = await supabase
+                .from('player_game_stats')
+                .select('game_id')
+                .eq('season_year', seasonEndYear)
+                .range(pg * 1000, pg * 1000 + 999)
+            if (!batch?.length) break
+            for (const r of batch as any[]) syncedGameIds.add(r.game_id)
+            if (batch.length < 1000) break
+            pg++
+        }
+    }
 
-    // Load DB game ID map
-    const { data: dbGames } = await supabase
-        .from('nba_games')
-        .select('id, nba_game_id, week_number')
-        .eq('season_year', seasonEndYear)
-    const dbGameMap = new Map((dbGames ?? []).map((g: any) => [g.nba_game_id, g]))
+    // Load DB game ID map (paginated — seasons can exceed 1000 games)
+    const dbGameMap = new Map<string, any>()
+    {
+        let pg = 0
+        while (true) {
+            const { data: batch } = await supabase
+                .from('nba_games')
+                .select('id, nba_game_id, week_number')
+                .eq('season_year', seasonEndYear)
+                .range(pg * 1000, pg * 1000 + 999)
+            if (!batch?.length) break
+            for (const g of batch as any[]) dbGameMap.set(g.nba_game_id, g)
+            if (batch.length < 1000) break
+            pg++
+        }
+    }
 
     let completed = 0
     let failed = 0
