@@ -60,30 +60,57 @@ async function testNBAEndpoints() {
 }
 
 async function verifySeasonTotals(seasonYear: number) {
-  const { data, error } = await supabase
-    .from('player_game_stats')
-    .select('player_id, points, rebounds, assists, steals, blocks, three_pointers_made')
-    .eq('season_year', seasonYear)
-    .eq('did_not_play', false)
-
-  if (error) throw error
-
+  // Paginate player_game_stats to avoid PostgREST's 1000-row cap.
+  // A full season has ~25K rows, so a single SELECT silently truncates.
+  const PAGE = 1000
   const totals = new Map<string, { pts: number; reb: number; ast: number; stl: number; blk: number; tpm: number; gp: number }>()
-  for (const s of data ?? []) {
-    const t = totals.get(s.player_id) ?? { pts: 0, reb: 0, ast: 0, stl: 0, blk: 0, tpm: 0, gp: 0 }
-    t.pts += s.points ?? 0
-    t.reb += s.rebounds ?? 0
-    t.ast += s.assists ?? 0
-    t.stl += s.steals ?? 0
-    t.blk += s.blocks ?? 0
-    t.tpm += s.three_pointers_made ?? 0
-    t.gp++
-    totals.set(s.player_id, t)
+  let from = 0
+  while (true) {
+    const { data, error } = await supabase
+      .from('player_game_stats')
+      .select('player_id, points, rebounds, assists, steals, blocks, three_pointers_made')
+      .eq('season_year', seasonYear)
+      .eq('did_not_play', false)
+      .range(from, from + PAGE - 1)
+
+    if (error) throw error
+    if (!data || data.length === 0) break
+
+    for (const s of data) {
+      const t = totals.get(s.player_id) ?? { pts: 0, reb: 0, ast: 0, stl: 0, blk: 0, tpm: 0, gp: 0 }
+      t.pts += s.points ?? 0
+      t.reb += s.rebounds ?? 0
+      t.ast += s.assists ?? 0
+      t.stl += s.steals ?? 0
+      t.blk += s.blocks ?? 0
+      t.tpm += s.three_pointers_made ?? 0
+      t.gp++
+      totals.set(s.player_id, t)
+    }
+
+    if (data.length < PAGE) break
+    from += PAGE
   }
 
-  // Get player names
-  const { data: players } = await supabase.from('players').select('id, display_name')
-  const nameMap = new Map((players ?? []).map((p: any) => [p.id, p.display_name]))
+  // Get player names — paginate in case players table exceeds 1000 rows.
+  const nameMap = new Map<string, string>()
+  let pFrom = 0
+  while (true) {
+    const { data: players, error: pErr } = await supabase
+      .from('players')
+      .select('id, display_name')
+      .range(pFrom, pFrom + PAGE - 1)
+
+    if (pErr) throw pErr
+    if (!players || players.length === 0) break
+
+    for (const p of players as Array<{ id: string; display_name: string | null }>) {
+      nameMap.set(p.id, p.display_name ?? p.id)
+    }
+
+    if (players.length < PAGE) break
+    pFrom += PAGE
+  }
 
   return [...totals.entries()]
     .map(([id, t]) => ({ player: nameMap.get(id) ?? id, gp: t.gp, pts: t.pts, reb: t.reb, ast: t.ast, stl: t.stl, blk: t.blk, tpm: t.tpm }))
