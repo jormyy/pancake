@@ -176,109 +176,61 @@ export async function startRookieDraft(leagueId: string) {
 }
 
 // ── Make a Pick ────────────────────────────────────────────────
+// All correctness-critical writes (validate next-pick / not-on-roster /
+// not-already-picked, write snake_draft_picks, insert roster_players, mark
+// draft_picks used, and on the last pick mark drafts.completed +
+// leagues.status='active') run inside the SECURITY DEFINER
+// `make_snake_pick_atomic` RPC (migration 20260516222106). The RPC takes a
+// pg_advisory_xact_lock on (draft_id, 0) plus the standard
+// (league_id, player_id) lock, locks the next null pick row FOR UPDATE,
+// re-validates, and writes everything in one transaction — closing the race
+// where two concurrent submits (manual + auto-pick, or a double-tap with
+// different payloads) could clobber the same snake_draft_picks row while
+// both INSERTed into roster_players.
+//
+// The TS side keeps the post-pick non-critical UI work (overflow / taxi /
+// notification) since those don't affect persisted state.
 export async function makeSnakePick(draftId: string, memberId: string, playerId: string) {
-    const { data: draft, error: draftErr } = await supabase
-        .from('drafts')
-        .select('id, league_id, league_season_id, status, league_seasons ( season_year )')
-        .eq('id', draftId)
-        .single()
-    if (draftErr || !draft) throw new Error('Draft not found')
-    if (draft.status !== 'in_progress') throw new Error('Draft is not in progress')
-
-    // Find the next unpicked slot
-    const { data: nextPick, error: pickErr } = await supabase
-        .from('snake_draft_picks')
-        .select('id, overall_pick, round, pick_in_round, member_id, draft_pick_id')
-        .eq('draft_id', draftId)
-        .is('player_id', null)
-        .order('overall_pick', { ascending: true })
-        .limit(1)
-        .single()
-    if (pickErr || !nextPick) throw new Error('No picks remaining — draft may be complete')
-
-    if (nextPick.member_id !== memberId) throw new Error("It's not your pick")
-
-    // Check player not already on a roster in this season
-    const { data: onRoster } = await supabase
-        .from('roster_players')
-        .select('id')
-        .eq('league_id', draft.league_id)
-        .eq('league_season_id', draft.league_season_id)
-        .eq('player_id', playerId)
-        .maybeSingle()
-    if (onRoster) throw new Error('Player is already on a roster')
-
-    // Check player not already picked in this draft
-    const { data: alreadyPicked } = await supabase
-        .from('snake_draft_picks')
-        .select('id')
-        .eq('draft_id', draftId)
-        .eq('player_id', playerId)
-        .maybeSingle()
-    if (alreadyPicked) throw new Error('Player already picked in this draft')
-
-    const now = new Date().toISOString()
-
-    // Record pick
-    await supabase
-        .from('snake_draft_picks')
-        .update({ player_id: playerId, picked_at: now })
-        .eq('id', nextPick.id)
-
-    // Add to roster
-    await supabase.from('roster_players').insert({
-        league_id: draft.league_id,
-        league_season_id: draft.league_season_id,
-        member_id: memberId,
-        player_id: playerId,
-        acquired_via: 'draft',
+    const { data: rpcData, error: rpcError } = await supabase.rpc('make_snake_pick_atomic', {
+        p_draft_id: draftId,
+        p_member_id: memberId,
+        p_player_id: playerId,
     })
-
-    // Mark the exact draft_pick asset as used. Older rows may not have
-    // draft_pick_id populated, so keep a fallback for pre-migration drafts.
-    const markUsed = supabase
-        .from('draft_picks')
-        .update({ is_used: true, used_at: now, rookie_draft_id: draftId })
-
-    if (nextPick.draft_pick_id) {
-        await markUsed
-            .eq('id', nextPick.draft_pick_id)
-            .eq('current_owner_id', memberId)
-            .eq('is_used', false)
-    } else {
-        let fallbackMarkUsed = markUsed
-            .eq('league_id', draft.league_id)
-            .eq('current_owner_id', memberId)
-            .eq('round', nextPick.round)
-            .eq('is_used', false)
-        const draftSeasonYear = draft.league_seasons?.season_year
-        if (draftSeasonYear) {
-            fallbackMarkUsed = fallbackMarkUsed.eq('season_year', draftSeasonYear)
-        }
-        await fallbackMarkUsed.limit(1)
+    if (rpcError) {
+        // Surface the RPC error message so the route handler returns the
+        // same human-readable text the prior throws produced (e.g.
+        // "It's not your pick", "Player is already on a roster", etc.).
+        throw new Error(rpcError.message)
     }
 
-    // Check if all picks are done
-    const { count } = await supabase
-        .from('snake_draft_picks')
-        .select('id', { count: 'exact', head: true })
-        .eq('draft_id', draftId)
-        .is('player_id', null)
+    // The RPC returns JSONB built from jsonb_build_object — supabase-js
+    // delivers it as a parsed object. Cast to the shape we expect.
+    const result = rpcData as {
+        pick: {
+            id: string
+            overall_pick: number
+            round: number
+            pick_in_round: number
+            member_id: string
+            draft_pick_id: string | null
+        }
+        remaining: number
+        completed: boolean
+        league_id: string
+        league_season_id: string
+    }
 
-    if (count === 0) {
-        await supabase
-            .from('drafts')
-            .update({ status: 'completed', completed_at: now })
-            .eq('id', draftId)
-        await supabase.from('leagues').update({ status: 'active' }).eq('id', draft.league_id)
+    if (result.completed) {
         console.log(`[rookieDraft] Draft ${draftId} completed`)
     }
 
-    // Check if the picking member's roster is now over capacity
+    // Post-pick non-critical work: roster overflow + taxi count + push
+    // notification. These read fresh state (the RPC already committed) so
+    // races here only affect UI hints, not persistence.
     const { data: leagueRow } = await supabase
         .from('leagues')
         .select('roster_size, taxi_slots')
-        .eq('id', draft.league_id)
+        .eq('id', result.league_id)
         .single()
 
     const rosterSize = leagueRow?.roster_size ?? CONFIG.DEFAULT_ROSTER_SIZE
@@ -289,14 +241,14 @@ export async function makeSnakePick(draftId: string, memberId: string, playerId:
             .from('roster_players')
             .select('id', { count: 'exact', head: true })
             .eq('member_id', memberId)
-            .eq('league_season_id', draft.league_season_id)
+            .eq('league_season_id', result.league_season_id)
             .eq('is_on_ir', false)
             .eq('is_on_taxi', false),
         supabase
             .from('roster_players')
             .select('id', { count: 'exact', head: true })
             .eq('member_id', memberId)
-            .eq('league_season_id', draft.league_season_id)
+            .eq('league_season_id', result.league_season_id)
             .eq('is_on_taxi', true),
     ])
 
@@ -312,15 +264,15 @@ export async function makeSnakePick(draftId: string, memberId: string, playerId:
         {
             draftId,
             playerId,
-            pickId: nextPick.id,
-            overallPick: nextPick.overall_pick,
-            round: nextPick.round,
+            pickId: result.pick.id,
+            overallPick: result.pick.overall_pick,
+            round: result.pick.round,
         },
     ).catch(console.error)
 
     return {
-        pick: nextPick,
-        remaining: count ?? 0,
+        pick: result.pick,
+        remaining: result.remaining,
         rosterOverflow: (activeCount ?? 0) > rosterSize,
         taxiSlotsAvailable: (taxiCount ?? 0) < taxiSlots,
         newPlayerId: playerId,

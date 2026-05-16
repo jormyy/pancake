@@ -2246,6 +2246,10 @@ export type Database = {
         Args: { p_invite_code: string; p_team_name: string }
         Returns: Json
       }
+      make_snake_pick_atomic: {
+        Args: { p_draft_id: string; p_member_id: string; p_player_id: string }
+        Returns: Json
+      }
       merge_duplicate_players: { Args: never; Returns: undefined }
       merge_players: {
         Args: { loser_id: string; winner_id: string }
