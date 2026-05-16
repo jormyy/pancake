@@ -310,6 +310,13 @@ async function insertStandingsSnapshots(
 }
 
 // If all games in a week are finished, mark matchups as finalized.
+//
+// Keeps the is_finalized=false filter so finalization runs exactly once per
+// matchup: no duplicate notifications, no resetting of winner_member_id once
+// determined, no re-inserting standings snapshots. Subsequent stat corrections
+// still propagate to home_points/away_points via updateWeekPoints, but the
+// finalize-once columns (is_finalized, finalized_at, winner_member_id,
+// home/away_max_possible_points) and notifications are immutable post-finalize.
 async function finalizeWeekIfComplete(
     leagueId: string,
     leagueSeasonId: string,
@@ -416,7 +423,16 @@ async function finalizeWeekIfComplete(
     console.log(`[scores] Finalized week ${weekNumber} for league ${leagueId}`)
 }
 
-// Calculates and persists home/away points for all unfinalized matchups in a given week.
+// Calculates and persists home/away points for all matchups in a given week.
+//
+// Design: points always recompute (no is_finalized filter) so that NBA stat
+// corrections — which often arrive 1–2 days after a game — propagate into
+// finalized matchup rows. This function only writes home_points/away_points;
+// the finalize-once columns (winner_member_id, is_finalized, finalized_at,
+// home/away_max_possible_points) are written exclusively by
+// finalizeWeekIfComplete, which DOES keep the is_finalized=false gate so we
+// never re-finalize or re-notify. Standings snapshots are append-only and not
+// recomputed here; they catch up via a separate path (out of scope).
 async function updateWeekPoints(
     leagueId: string,
     seasonId: string,
@@ -442,7 +458,6 @@ async function updateWeekPoints(
         .eq('league_id', leagueId)
         .eq('league_season_id', seasonId)
         .eq('week_number', weekNumber)
-        .eq('is_finalized', false)
 
     if (matchupErr) throw matchupErr
     if (!matchups?.length) return
