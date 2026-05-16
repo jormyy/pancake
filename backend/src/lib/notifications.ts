@@ -47,6 +47,9 @@ async function sendPush(
     body: string,
     data?: Record<string, unknown>,
 ): Promise<void> {
+    // Expo push API typically responds in <500ms; 8s is a generous upper bound.
+    // Fail-soft: never let a slow/hanging Expo response stall the calling route.
+    const PUSH_TIMEOUT_MS = 8000
     try {
         const res = await fetch(EXPO_PUSH_URL, {
             method: 'POST',
@@ -56,6 +59,7 @@ async function sendPush(
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({ to: token, title, body, data: data ?? {}, sound: 'default' }),
+            signal: AbortSignal.timeout(PUSH_TIMEOUT_MS),
         })
         const json = await res.json() as any
         if (json?.data?.status === 'error') {
