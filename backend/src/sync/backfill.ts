@@ -94,6 +94,7 @@ async function runBackfill(jobId: string, seasonYear: number, options: BackfillO
         const { data: syncedGameIds } = await supabase
             .from('player_game_stats')
             .select('game_id')
+            .eq('season_year', seasonYear)
         const synced = new Set((syncedGameIds ?? []).map((r: any) => r.game_id))
         gamesToFetch = allGames.filter((g) => !synced.has(g.id))
     }
@@ -213,11 +214,15 @@ async function runBackfill(jobId: string, seasonYear: number, options: BackfillO
         await sleep(CONFIG.BACKFILL_DELAY_MS)
     }
 
-    // Persist newly discovered nba_id mappings
-    for (const u of nbaIdUpdates) {
-        await supabase.from('players').update({ nba_id: u.nba_id }).eq('id', u.id)
-    }
+    // Persist newly discovered nba_id mappings (single batch upsert).
+    // Rows are guaranteed to exist (sourced from fetchAllPlayers); upsert(onConflict:'id')
+    // merges nba_id into the existing row without touching other columns.
+    // Cast to any: generated type requires full row, but PostgREST accepts
+    // partial payloads for the UPDATE path of an upsert.
     if (nbaIdUpdates.length > 0) {
+        await supabase
+            .from('players')
+            .upsert(nbaIdUpdates as any, { onConflict: 'id' })
         console.log(`[backfill] Mapped ${nbaIdUpdates.length} new NBA person IDs.`)
     }
 
