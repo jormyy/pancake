@@ -11,7 +11,7 @@ import {
     Share,
 } from 'react-native'
 import { useRouter } from 'expo-router'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useAuth } from '@/hooks/use-auth'
 import { useLeagueContext } from '@/contexts/league-context'
 import { createLeague } from '@/lib/league'
@@ -27,6 +27,7 @@ export default function CreateLeagueScreen() {
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [inviteCode, setInviteCode] = useState<string | null>(null)
+    const sharingRef = useRef(false)
 
     async function handleCreate() {
         if (!leagueName.trim() || !teamName.trim()) {
@@ -51,10 +52,16 @@ export default function CreateLeagueScreen() {
         }
     }
 
-    function handleShare() {
-        Share.share({
-            message: `Join my dynasty basketball league on Pancake! Invite code: ${inviteCode}`,
-        })
+    async function handleShare() {
+        if (sharingRef.current) return
+        sharingRef.current = true
+        try {
+            await Share.share({
+                message: `Join my dynasty basketball league on Pancake! Invite code: ${inviteCode}`,
+            })
+        } finally {
+            sharingRef.current = false
+        }
     }
 
     // Success state — show invite code
