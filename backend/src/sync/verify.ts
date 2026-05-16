@@ -44,6 +44,15 @@ interface CdnStats {
     freeThrowsMade: number
 }
 
+function shuffle<T>(arr: T[]): T[] {
+    const a = arr.slice()
+    for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1))
+        ;[a[i], a[j]] = [a[j], a[i]]
+    }
+    return a
+}
+
 export async function verifySampleStats(sampleSize = 10): Promise<VerifyResult> {
     // Pick random Final games that have a nba_game_id
     const { data: allGames } = await supabase
@@ -59,7 +68,7 @@ export async function verifySampleStats(sampleSize = 10): Promise<VerifyResult> 
     }
 
     // Shuffle and take sampleSize
-    const shuffled = allGames.sort(() => Math.random() - 0.5).slice(0, sampleSize)
+    const shuffled = shuffle(allGames).slice(0, sampleSize)
 
     // Load player lookup (nba_id → { id, display_name })
     const { data: players } = await supabase.from('players').select('id, display_name, nba_id').limit(10000)
