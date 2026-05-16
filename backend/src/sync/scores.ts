@@ -30,6 +30,7 @@ type MatchupForFinalization = {
     away_member_id: string
     home_points: number | null
     away_points: number | null
+    matchup_type: string
 }
 
 type StandingSnapshot = {
@@ -197,8 +198,16 @@ async function insertStandingsSnapshots(
     matchups: MatchupForFinalization[],
     maxPossiblePointsByMember: Map<string, number>,
 ): Promise<void> {
+    // Standings (wins/losses/PF/PA/max) only accumulate from regular_season
+    // matchups. Playoff matchups (QF/SF/Final) are finalized in the same week
+    // loop but must not inflate season records — they're tracked separately
+    // via matchups.matchup_type and surfaced through the bracket UI.
+    const regularSeasonMatchups = matchups.filter(
+        (m) => m.matchup_type === 'regular_season',
+    )
+
     const memberIds = [
-        ...new Set(matchups.flatMap((m) => [m.home_member_id, m.away_member_id])),
+        ...new Set(regularSeasonMatchups.flatMap((m) => [m.home_member_id, m.away_member_id])),
     ]
     if (memberIds.length === 0) return
 
@@ -253,7 +262,7 @@ async function insertStandingsSnapshots(
         })
     }
 
-    for (const matchup of matchups) {
+    for (const matchup of regularSeasonMatchups) {
         const home = standingsByMember.get(matchup.home_member_id)
         const away = standingsByMember.get(matchup.away_member_id)
         if (!home || !away) continue
@@ -331,7 +340,7 @@ async function finalizeWeekIfComplete(
 
     const { data: matchups } = await supabase
         .from('matchups')
-        .select('id, home_member_id, away_member_id, home_points, away_points')
+        .select('id, home_member_id, away_member_id, home_points, away_points, matchup_type')
         .eq('league_id', leagueId)
         .eq('league_season_id', leagueSeasonId)
         .eq('week_number', weekNumber)

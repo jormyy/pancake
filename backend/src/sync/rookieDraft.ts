@@ -102,7 +102,12 @@ export async function startRookieDraft(leagueId: string) {
     let draftOrder: string[] = []
 
     if (lastSeason) {
-        // Get last week's standings from previous season
+        // Get last week's standings from previous season.
+        // The standings table is an append-only weekly snapshot written by
+        // insertStandingsSnapshots, which only accumulates regular_season
+        // matchup results (see backend/src/sync/scores.ts). Playoff weeks
+        // carry forward the prior week's totals unchanged, so "latest"
+        // standings here correctly reflects final regular-season records.
         const { data: standings } = await supabase
             .from('standings')
             .select('member_id, wins, losses, points_for')
