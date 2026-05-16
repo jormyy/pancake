@@ -81,6 +81,11 @@ export default function CommissionerSettingsScreen() {
     const [syncingRankings, setSyncingRankings] = useState(false)
     const [syncingProjections, setSyncingProjections] = useState(false)
 
+    // Hydrate form state only when the league id changes (initial mount or
+    // league switch). We intentionally read other league fields inside without
+    // adding them as deps so that league-context refreshes returning a fresh
+    // object identity don't clobber in-progress edits.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => {
         async function load() {
             if (!league) return
@@ -114,7 +119,7 @@ export default function CommissionerSettingsScreen() {
             }
         }
         load()
-    }, [league])
+    }, [league?.id])
 
     function adjustSlot(type: string, delta: number) {
         setSlots((prev) => {
