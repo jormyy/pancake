@@ -113,6 +113,16 @@ export function TradeCard({
             const overflow = newCount - rosterSize
 
             if (overflow > 0) {
+                // Accept the trade FIRST, then prompt for drops. The backend
+                // `accept_trade_atomic` only locks the trade assets and starts
+                // the 24h veto window — it does not enforce roster size, and
+                // assets do not move until `complete_accepted_trade_atomic`
+                // runs after the veto window. Accepting before dropping means
+                // a network failure or modal cancel leaves the roster intact
+                // (no orphan drops). The user has the full veto window to
+                // drop overflow players manually if they dismiss the modal.
+                await acceptTrade(trade.id, myMemberId)
+
                 const activeRoster = roster.filter((p) => !p.is_on_ir && !p.is_on_taxi)
                 setMyRoster(activeRoster)
                 setNeededDrops(overflow)
@@ -132,6 +142,12 @@ export function TradeCard({
     }
 
     async function handleDropAndAccept(rosterPlayerId: string) {
+        // Trade has already been accepted in `handleAccept`. These drops just
+        // make room on the recipient's roster before the trade completes at
+        // the end of the veto window. Drop failures are non-fatal: the trade
+        // remains accepted and the user can finish dropping from the roster
+        // screen. There is no longer any path where drops orphan a pending
+        // trade, because accept always runs first.
         setDropping(rosterPlayerId)
         try {
             await dropPlayer(rosterPlayerId)
@@ -142,21 +158,29 @@ export function TradeCard({
 
             if (next.size >= neededDrops) {
                 setDropPickerVisible(false)
-                setActing(true)
-                try {
-                    await acceptTrade(trade.id, myMemberId)
-                    onAction()
-                } catch (e: any) {
-                    Alert.alert('Error', e.message ?? 'Could not accept trade.')
-                } finally {
-                    setActing(false)
-                }
+                onAction()
             }
         } catch (e: any) {
             Alert.alert('Error', e.message ?? 'Could not drop player.')
         } finally {
             setDropping(null)
         }
+    }
+
+    function handleCancelDropPicker() {
+        // Trade is already accepted at this point. Closing the modal leaves
+        // the user over-cap but still owning every player they had before;
+        // they can finish dropping from the roster screen before the veto
+        // window closes. Refresh parent so the new "accepted" status renders.
+        setDropPickerVisible(false)
+        if (droppedIds.size < neededDrops) {
+            const remaining = neededDrops - droppedIds.size
+            Alert.alert(
+                'Trade accepted',
+                `You still need to drop ${remaining} player${remaining !== 1 ? 's' : ''} from your roster before the veto window closes.`,
+            )
+        }
+        onAction()
     }
 
     function handleReject() {
@@ -281,12 +305,12 @@ export function TradeCard({
 
             <DropPlayerPickerModal
                 visible={dropPickerVisible}
-                title={`Drop ${remainingDrops} player${remainingDrops !== 1 ? 's' : ''} to accept`}
-                subtitle={`Accepting this trade would exceed your ${rosterSize}-player roster limit.`}
+                title={`Drop ${remainingDrops} player${remainingDrops !== 1 ? 's' : ''} to make room`}
+                subtitle={`Trade accepted. You must drop ${remainingDrops} player${remainingDrops !== 1 ? 's' : ''} before the veto window closes to stay under your ${rosterSize}-player roster limit.`}
                 roster={myRoster}
                 dropping={dropping}
                 onDrop={(rp) => handleDropAndAccept(rp.id)}
-                onCancel={() => setDropPickerVisible(false)}
+                onCancel={handleCancelDropPicker}
             />
         </View>
     )
