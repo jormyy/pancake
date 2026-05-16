@@ -204,17 +204,29 @@ export async function updateGameStatuses(games: NBAGame[]) {
 
     const cdnMap = new Map(games.map((g) => [g.gameId, g]))
 
+    const rows: Array<{
+        id: string
+        status: string
+        home_score: number
+        away_score: number
+        game_status_text: string
+    }> = []
     for (const dbGame of dbGames) {
         const g = cdnMap.get(dbGame.nba_game_id!)
         if (!g) continue
         const newStatus = g.gameStatus === 2 ? 'InProgress' : g.gameStatus === 3 ? 'Final' : 'Scheduled'
-        await supabase.from('nba_games').update({
+        rows.push({
+            id: dbGame.id,
             status: newStatus,
             home_score: g.homeTeam.score,
             away_score: g.awayTeam.score,
             game_status_text: g.gameStatusText,
-        }).eq('id', dbGame.id)
+        })
     }
+
+    if (rows.length === 0) return
+
+    await supabase.from('nba_games').upsert(rows as any, { onConflict: 'id' })
 }
 
 export const livePoller = new LiveGamePoller()

@@ -94,10 +94,13 @@ export async function generateAllMatchups(force = false, leagueId?: string) {
     const { data: seasons, error } = await query
     if (error) throw error
 
-    for (const season of seasons ?? []) {
-        const league = season.leagues as any
-        const playoffStart: number = league?.playoff_start_week ?? CONFIG.DEFAULT_PLAYOFF_START_WEEK
-        const regularSeasonWeeks = playoffStart - 1
-        await generateMatchups(season.league_id, season.id, regularSeasonWeeks, force)
-    }
+    await Promise.all(
+        (seasons ?? []).map((season) => {
+            const league = season.leagues as any
+            const playoffStart: number =
+                league?.playoff_start_week ?? CONFIG.DEFAULT_PLAYOFF_START_WEEK
+            const regularSeasonWeeks = playoffStart - 1
+            return generateMatchups(season.league_id, season.id, regularSeasonWeeks, force)
+        }),
+    )
 }

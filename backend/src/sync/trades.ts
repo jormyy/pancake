@@ -12,15 +12,26 @@ export async function processAcceptedTrades(): Promise<{ processed: number; fail
     let processed = 0
     let failed = 0
     const failures: string[] = []
-    for (const trade of trades ?? []) {
-        const { error: completeError } = await supabase.rpc('complete_accepted_trade_atomic', {
-            p_trade_id: trade.id,
-        })
-        if (completeError) {
-            failed += 1
-            failures.push(`Trade ${trade.id}: ${completeError.message}`)
+
+    const results = await Promise.allSettled(
+        (trades ?? []).map((trade) =>
+            supabase
+                .rpc('complete_accepted_trade_atomic', { p_trade_id: trade.id })
+                .then((res) => ({ tradeId: trade.id, error: res.error })),
+        ),
+    )
+
+    for (const r of results) {
+        if (r.status === 'fulfilled') {
+            if (r.value.error) {
+                failed += 1
+                failures.push(`Trade ${r.value.tradeId}: ${r.value.error.message}`)
+            } else {
+                processed += 1
+            }
         } else {
-            processed += 1
+            failed += 1
+            failures.push(`Trade <unknown>: ${r.reason?.message ?? String(r.reason)}`)
         }
     }
 

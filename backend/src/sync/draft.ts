@@ -175,18 +175,27 @@ export async function closeExpiredNominations() {
 
     let closed = 0
     let failed = 0
-    for (const nom of expired) {
-        try {
+
+    const results = await Promise.allSettled(
+        expired.map(async (nom) => {
             const { error } = await supabase.rpc('close_auction_nomination_atomic', {
                 p_nomination_id: nom.id,
             })
             if (error) throw error
+            return nom.id
+        }),
+    )
+
+    for (let i = 0; i < results.length; i++) {
+        const r = results[i]
+        if (r.status === 'fulfilled') {
             closed += 1
-        } catch (e) {
+        } else {
             failed += 1
-            console.error(`[draft] Error closing nomination ${nom.id}:`, e)
+            console.error(`[draft] Error closing nomination ${expired[i].id}:`, r.reason)
         }
     }
+
     return { checked: expired.length, closed, failed }
 }
 
