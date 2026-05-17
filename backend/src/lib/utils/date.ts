@@ -7,5 +7,8 @@ export function todayET(): string {
 }
 
 export function tomorrowET(): string {
-    return toETDate(new Date(Date.now() + 24 * 60 * 60 * 1000))
+    const today = todayET()
+    const [y, m, d] = today.split('-').map(Number)
+    const next = new Date(Date.UTC(y, m - 1, d + 1))
+    return `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, '0')}-${String(next.getUTCDate()).padStart(2, '0')}`
 }
