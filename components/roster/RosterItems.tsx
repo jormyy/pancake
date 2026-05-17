@@ -32,7 +32,7 @@ export function RosterClaimItem({
                 ) : null}
                 <Text style={[styles.playerMeta, { color: statusColor }]}>
                     {claim.status === 'pending'
-                        ? `Processes ${shortDateFmt.format(new Date(claim.processDate))}`
+                        ? `Processes ${shortDateFmt.format(new Date(claim.processDate + 'T12:00:00Z'))}`
                         : claim.status === 'succeeded'
                           ? 'Succeeded'
                           : claim.status === 'failed_roster'
