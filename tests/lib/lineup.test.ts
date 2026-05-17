@@ -11,19 +11,21 @@ vi.mock('@/lib/shared/week', () => ({
     getCurrentWeekNumber: vi.fn(),
     calculateWeekNumberFromDate: vi.fn(),
 }))
-vi.mock('@/lib/shared/dates', () => ({ todayDateString: vi.fn() }))
+vi.mock('@/lib/shared/dates', () => ({ todayDateString: vi.fn(), todayET: vi.fn() }))
 
 import { supabase } from '@/lib/supabase'
-import { todayDateString } from '@/lib/shared/dates'
+import { todayDateString, todayET } from '@/lib/shared/dates'
 import { autoSetLineup } from '@/lib/lineup'
 
 const mockFrom = vi.mocked(supabase.from)
 const mockRpc = vi.mocked(supabase.rpc)
 const mockToday = vi.mocked(todayDateString)
+const mockTodayET = vi.mocked(todayET)
 
 beforeEach(() => {
     vi.clearAllMocks()
     mockToday.mockReturnValue('2026-04-22')
+    mockTodayET.mockReturnValue('2026-04-22')
 })
 
 // ── Helpers ────────────────────────────────────────────────────────────────────

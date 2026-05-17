@@ -1,7 +1,7 @@
 import { supabase } from '@/lib/supabase'
 import type { RosterSlotType } from '@/types/database'
 import { canPlaySlot, SLOT_ELIGIBLE } from '@/constants/slots'
-import { todayDateString } from '@/lib/shared/dates'
+import { todayET } from '@/lib/shared/dates'
 import { isIREligible } from '@/lib/roster'
 import { getEligiblePositions } from '@/lib/players'
 import { getWeekDays } from './read'
@@ -17,7 +17,11 @@ async function getRemainingSeasonDates(
     fromWeek: number,
     seasonYear: number,
 ): Promise<{ date: string; weekNumber: number }[]> {
-    const today = todayDateString()
+    // `today` filters dates that flow into autoSetForDate, where they're
+    // compared against nba_games.game_date / weekly_lineups.game_date (both
+    // ET-keyed). Use todayET so non-ET clients don't include already-past
+    // ET dates and silently wipe scored weekly_lineups rows.
+    const today = todayET()
     const { data: weeks } = await supabase
         .from('season_weeks')
         .select('week_number, week_start')
@@ -126,7 +130,10 @@ export async function autoSetLineup(
         (t: any) => t.slot_type !== 'BE' && t.slot_type !== 'IR' && t.slot_type !== 'TX',
     )
 
-    const today = todayDateString()
+    // Dates here feed into autoSetForDate where they're matched against
+    // nba_games.game_date / weekly_lineups.game_date (ET-keyed). Use todayET
+    // so the past-date filter aligns with the backend's ET boundary.
+    const today = todayET()
     let datesToProcess: { date: string; weekNumber: number }[]
 
     if (restOfSeason) {
@@ -168,8 +175,12 @@ async function autoSetForDate(
     players: { playerId: string; eligiblePositions: string[]; nbaTeam: string | null; projected: number }[],
     starterTemplates: any[],
 ): Promise<void> {
-    // Skip past dates - lineups for already-played games should remain locked
-    if (gameDate < todayDateString()) return
+    // Skip past dates - lineups for already-played games should remain locked.
+    // gameDate aligns with nba_games.game_date / weekly_lineups.game_date (ET),
+    // so compare against todayET. Otherwise auto_set_lineup_atomic's
+    // DELETE-then-INSERT can wipe already-scored weekly_lineups rows for
+    // non-ET clients during the 0–3h skew window.
+    if (gameDate < todayET()) return
 
     const [{ data: games }, { data: existingEntries }] = await Promise.all([
         supabase
