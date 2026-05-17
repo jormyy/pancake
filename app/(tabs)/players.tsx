@@ -51,7 +51,7 @@ import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
 import { getWeekDays, WeekDay, getStartedTeams } from '@/lib/lineup'
 import { getCurrentWeekNumber } from '@/lib/shared/week'
 import { currentSeasonYear } from '@/lib/shared/season'
-import { todayDateString } from '@/lib/shared/dates'
+import { todayET } from '@/lib/shared/dates'
 
 const POSITIONS = ['ALL', 'PG', 'SG', 'SF', 'PF', 'C', 'G', 'F']
 const TEAMS = ['ATL', 'BOS', 'BKN', 'CHA', 'CHI', 'CLE', 'DAL', 'DEN', 'DET', 'GSW', 'HOU', 'IND', 'LAC', 'LAL', 'MEM', 'MIA', 'MIL', 'MIN', 'NOP', 'NYK', 'OKC', 'ORL', 'PHI', 'PHX', 'POR', 'SAC', 'SAS', 'TOR', 'UTA', 'WAS']
@@ -247,7 +247,10 @@ export default function PlayersScreen() {
     const waiverIds = ownedData?.waiverIds ?? EMPTY_WAIVER_IDS
 
     const gamesLeft = useMemo(() => {
-        const today = todayDateString()
+        // weekDays[i].date comes from getWeekDays — ET-keyed against
+        // nba_games.game_date. Compare with todayET so non-ET clients don't
+        // skew the "games remaining" count.
+        const today = todayET()
         const map = new Map<string, number>()
         for (const day of weekDays) {
             if (day.date < today) continue
@@ -297,7 +300,8 @@ export default function PlayersScreen() {
     useEffect(() => {
         let cancelled = false
         const seasonYear = currentSeasonYear()
-        const today = todayDateString()
+        // getStartedTeams queries nba_games by ET-keyed game_date; use todayET.
+        const today = todayET()
         getCurrentWeekNumber(seasonYear).then((weekNum) => {
             if (cancelled) return
             return getWeekDays(weekNum ?? 1, seasonYear)
@@ -652,7 +656,7 @@ export default function PlayersScreen() {
                     showsHorizontalScrollIndicator={false}
                     contentContainerStyle={styles.dayChips}
                 >
-                    {weekDays.filter((day) => day.date >= todayDateString()).map((day) => {
+                    {weekDays.filter((day) => day.date >= todayET()).map((day) => {
                         const active = selectedDays.includes(day.date)
                         const label = new Date(day.date + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'short' })
                         return (

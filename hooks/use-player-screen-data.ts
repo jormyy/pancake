@@ -11,7 +11,7 @@ import {
     type TransactionHistoryEntry,
 } from '@/lib/players'
 import { currentSeasonYear } from '@/lib/shared/season'
-import { todayDateString } from '@/lib/shared/dates'
+import { todayET } from '@/lib/shared/dates'
 import { supabase } from '@/lib/supabase'
 
 const GAME_LOG_PAGE = 15
@@ -49,7 +49,9 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null) {
                         .from('player_game_stats')
                         .select('did_not_play')
                         .eq('player_id', playerId)
-                        .eq('game_date', todayDateString())
+                        // player_game_stats.game_date is ET-keyed (backend writes via todayET());
+                        // use todayET so non-ET clients don't query against the wrong date.
+                        .eq('game_date', todayET())
                         .maybeSingle(),
                 ])
                 setPlayedToday(todayStats.data != null && todayStats.data.did_not_play === false)

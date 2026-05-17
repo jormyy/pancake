@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useFocusEffect } from '@react-navigation/native'
 import { getMyMatchup, Matchup } from '@/lib/scoring'
 import { getWeekDays, getWeeklyLineup, LineupSlot, LineupPlayer, WeekDay } from '@/lib/lineup'
-import { todayDateString } from '@/lib/shared/dates'
+import { todayET } from '@/lib/shared/dates'
 import { supabase } from '@/lib/supabase'
 
 type LineupData = { starters: LineupSlot[]; bench: LineupPlayer[]; ir: LineupPlayer[]; taxi: LineupPlayer[] }
@@ -10,7 +10,10 @@ type LineupData = { starters: LineupSlot[]; bench: LineupPlayer[]; ir: LineupPla
 export function useMatchupData(current: any, user: any, league: any) {
     const [matchup, setMatchup] = useState<Matchup | null | undefined>(undefined)
     const [weekDays, setWeekDays] = useState<WeekDay[]>([])
-    const [selectedDate, setSelectedDate] = useState<string>(() => todayDateString())
+    // selectedDate flows into getWeeklyLineup queries that compare against
+    // weekly_lineups.game_date (ET-keyed). Use todayET so non-ET clients
+    // don't query against the wrong date.
+    const [selectedDate, setSelectedDate] = useState<string>(() => todayET())
     const [myLineup, setMyLineup] = useState<LineupData | null>(null)
     const [oppLineup, setOppLineup] = useState<LineupData | null>(null)
     const [matchupLoading, setMatchupLoading] = useState(true)
@@ -67,7 +70,8 @@ export function useMatchupData(current: any, user: any, league: any) {
             setMatchup(m)
             matchupRef.current = m
             if (m) {
-                const today = todayDateString()
+                // ET-keyed: flows into getWeeklyLineup query against weekly_lineups.game_date
+                const today = todayET()
                 const days = await getWeekDays(m.weekNumber, m.seasonYear)
                 setWeekDays(days)
                 setSelectedDate(today)
