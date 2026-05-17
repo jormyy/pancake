@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase'
-import type { Json, League, RosterSlotType } from '@/types/database'
+import type { Json, League } from '@/types/database'
 
 export async function createLeague(
     _userId: string,
@@ -127,9 +127,31 @@ export async function updateLineupSlots(
     leagueId: string,
     slots: { slot_type: string; slot_count: number }[],
 ) {
-    const rows = slots.map((s) => ({ league_id: leagueId, slot_type: s.slot_type as RosterSlotType, slot_count: s.slot_count }))
-    const { error } = await supabase
-        .from('lineup_slot_templates')
-        .upsert(rows, { onConflict: 'league_id,slot_type' })
+    // Route through the SECURITY DEFINER RPC introduced in
+    // 20260516410000_atomic_lineup_slot_templates.sql. The RPC takes a
+    // leagues FOR UPDATE lock, verifies commissioner role, and gates the
+    // upsert on leagues.status = 'setup'. Without this gate a commissioner
+    // could rewrite the league's starting-lineup layout (e.g. PF: 2 → 1)
+    // mid-season, silently changing which players are starters going
+    // forward — a parallel structural-change path that bypassed the iter
+    // 36 update_league_settings_atomic gate.
+    //
+    // The direct PostgREST upsert that previously lived here was the only
+    // legitimate authenticated caller for the slot_templates_insert /
+    // slot_templates_update RLS policies; this slice also REVOKEs the
+    // underlying authenticated INSERT/UPDATE/DELETE table grants so the
+    // RPC is now the only authenticated write path. service_role bypasses
+    // RLS for backend lifecycle scripts.
+    //
+    // The supabase-js client serializes the rpc argument as JSON. The
+    // generated `Json` type for `p_slots` is a recursive union that does
+    // not structurally accept arbitrary `{ slot_type, slot_count }[]`
+    // shapes, so we cast through `unknown` to satisfy the typechecker.
+    // The RPC validates each entry's jsonb shape server-side and casts
+    // slot_type to the roster_slot_type enum.
+    const { error } = await supabase.rpc('update_lineup_slots_atomic', {
+        p_league_id: leagueId,
+        p_slots: slots as unknown as Json,
+    })
     if (error) throw error
 }
