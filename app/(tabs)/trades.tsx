@@ -74,6 +74,14 @@ export default function TradesScreen() {
         }
     }, [myMemberId, leagueId])
 
+    // Clear stale trades + show loading immediately when league/member changes,
+    // so the previous league's accepted trades don't flash in the Veto Window
+    // section while the new fetch is in-flight.
+    useEffect(() => {
+        setTrades([])
+        setLoading(true)
+    }, [myMemberId, leagueId])
+
     useEffect(() => {
         load()
     }, [load])
