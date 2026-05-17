@@ -111,10 +111,13 @@ export default async function tradeRoutes(app: FastifyInstance) {
 
             const { data: league, error: leagueErr } = await supabase
                 .from('leagues')
-                .select('id, trade_deadline')
+                .select('id, trade_deadline, status')
                 .eq('id', leagueId)
                 .single()
             if (leagueErr || !league) throw new NotFoundError('League not found.')
+            if (league.status !== 'active' && league.status !== 'playoffs') {
+                throw new ValidationError('Trades can only be proposed during the active season.')
+            }
             if (league.trade_deadline && league.trade_deadline < todayET()) {
                 throw new ValidationError('The trade deadline has passed.')
             }
