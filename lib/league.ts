@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase'
-import type { League, RosterSlotType } from '@/types/database'
+import type { Json, League, RosterSlotType } from '@/types/database'
 
 export async function createLeague(
     _userId: string,
@@ -96,7 +96,30 @@ export async function updateLeague(
         playoff_start_week?: number
     },
 ) {
-    const { error } = await supabase.from('leagues').update(updates).eq('id', leagueId)
+    // Route through the SECURITY DEFINER RPC introduced in
+    // 20260516360000_update_league_settings_atomic.sql. The RPC gates the
+    // four "structural" keys (scoring_settings, roster_size, ir_slots,
+    // taxi_slots) plus auction_budget on leagues.status = 'setup' so a
+    // commissioner cannot rewrite scoring weights or roster caps after the
+    // draft has shipped. playoff_start_week (and trade_deadline, supported
+    // by the RPC even though this signature does not surface it) remain
+    // tunable mid-season.
+    //
+    // The direct PostgREST UPDATE path that previously lived here was the
+    // only legitimate caller for the column-level UPDATE grants in
+    // 20260516300000_leagues_column_grants.sql; the grants are retained for
+    // playoff_start_week / trade_deadline mid-season writes that still need
+    // an authenticated path (the RPC is itself the only authenticated path
+    // now, so the column grant is defense-in-depth).
+    // The supabase-js client serializes the rpc argument as JSON. The
+    // generated `Json` type for `p_settings` is a recursive union that does
+    // not structurally accept arbitrary `Record<string, number | object>`
+    // shapes, so we cast through `unknown` to satisfy the typechecker. The
+    // RPC validates each key's jsonb type server-side.
+    const { error } = await supabase.rpc('update_league_settings_atomic', {
+        p_league_id: leagueId,
+        p_settings: updates as unknown as Json,
+    })
     if (error) throw error
 }
 

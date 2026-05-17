@@ -2316,6 +2316,10 @@ export type Database = {
         Returns: string
       }
       try_live_poll_lock: { Args: never; Returns: boolean }
+      update_league_settings_atomic: {
+        Args: { p_league_id: string; p_settings: Json }
+        Returns: undefined
+      }
     }
     Enums: {
       draft_status:
