@@ -343,6 +343,19 @@ export default function PlayersScreen() {
         }
     }, [])
 
+    // Synchronously clear stale list + show spinner on league switch, so the
+    // previous league's players don't render during the 300ms debounce window
+    // below. Skip the initial mount — the debounced load effect handles that.
+    const isFirstLeagueRunRef = useRef(true)
+    useEffect(() => {
+        if (isFirstLeagueRunRef.current) {
+            isFirstLeagueRunRef.current = false
+            return
+        }
+        setPlayers([])
+        setLoading(true)
+    }, [leagueId])
+
     useEffect(() => {
         const timer = setTimeout(() => load(query, position, selectedTeams, leagueId, playingTeams, rookiesOnly), 300)
         return () => clearTimeout(timer)

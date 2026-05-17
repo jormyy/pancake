@@ -19,6 +19,23 @@ export function useMatchupData(current: any, user: any, league: any) {
     const [matchupLoading, setMatchupLoading] = useState(true)
     const [lineupLoading, setLineupLoading] = useState(false)
     const matchupRef = useRef<Matchup | null>(null)
+    const isFirstRunRef = useRef(true)
+
+    // Clear stale matchup + lineups synchronously when the active member or
+    // league changes, so the previous league's matchup/lineup doesn't flash
+    // before useFocusEffect triggers load() post-commit. Skip the first run
+    // so we don't clobber the initial mount state before any fetch.
+    useEffect(() => {
+        if (isFirstRunRef.current) {
+            isFirstRunRef.current = false
+            return
+        }
+        setMatchup(undefined)
+        setMyLineup(null)
+        setOppLineup(null)
+        setMatchupLoading(true)
+        matchupRef.current = null
+    }, [current?.id, league?.id])
 
     const loadLineups = useCallback(
         async (m: Matchup, date: string) => {
