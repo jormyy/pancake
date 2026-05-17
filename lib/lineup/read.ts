@@ -38,6 +38,16 @@ export type WeekDay = {
     playingTeams: string[]
 }
 
+// Given a YYYY-MM-DD ET-keyed date, return the UTC ISO timestamp that is strictly
+// >= end-of-day in America/New_York. End-of-ET-day in UTC is the next calendar
+// day at 04:00Z (EDT) or 05:00Z (EST). 05:00Z of the next UTC day is always
+// >= the true ET-day boundary year-round (exact during EST, ~1h fuzz during EDT).
+function endOfETDayUTC(gameDate: string): string {
+    const [y, m, d] = gameDate.split('-').map(Number)
+    const nextDay = new Date(Date.UTC(y, m - 1, d + 1))
+    return nextDay.toISOString().slice(0, 10) + 'T05:00:00Z'
+}
+
 // Returns the set of NBA team abbreviations whose game has already started (InProgress or Final) on the given date.
 export async function getStartedTeams(gameDate: string): Promise<Set<string>> {
     const { data } = await supabase
@@ -250,7 +260,12 @@ export async function getWeeklyLineup(
                 .eq('league_id', leagueId)
                 .eq('league_season_id', seasonId)
                 .in('transaction_type', ['fa_add', 'waiver_add', 'trade_in', 'draft_won'])
-                .gt('occurred_at', gameDate + 'T23:59:59Z'),
+                // gameDate is ET-keyed (YYYY-MM-DD). End-of-ET-day in UTC is the NEXT
+                // calendar day at 04:00Z (EDT) or 05:00Z (EST). Using 'T23:59:59Z' of
+                // gameDate would be 18:59/19:59 ET *same* day — wrongly classifying
+                // late-evening same-day transactions as "after". Use 05:00Z of the
+                // next UTC day: always > end-of-ET-day (exact for EST, ~1h fuzz for EDT).
+                .gt('occurred_at', endOfETDayUTC(gameDate)),
         ])
 
         for (const p of extraPlayersResult.data ?? []) {
