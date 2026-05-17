@@ -2,7 +2,7 @@ import { supabase } from '@/lib/supabase'
 import type { Database, RosterSlotType } from '@/types/database'
 import { getCurrentSeason } from '@/lib/shared/season'
 import { getCurrentWeekNumber } from '@/lib/shared/week'
-import { todayDateString } from '@/lib/shared/dates'
+import { todayDateString, todayET } from '@/lib/shared/dates'
 import { getEligiblePositions } from '@/lib/players'
 
 type PlayerRow = Database['public']['Tables']['players']['Row']
@@ -75,7 +75,10 @@ export async function getLineupContext(leagueId: string): Promise<LineupContext 
     const season = await getCurrentSeason(leagueId)
     if (!season) return null
     const weekNumber = await getCurrentWeekNumber(season.seasonYear) ?? 1
-    const today = todayDateString()
+    // `today` flows through to queries comparing against nba_games.game_date /
+    // weekly_lineups.game_date — both stored in ET. Use ET here so non-ET
+    // clients select the correct slate during the 0–3h skew.
+    const today = todayET()
     return { seasonId: season.id, seasonYear: season.seasonYear, weekNumber, today }
 }
 
@@ -173,7 +176,10 @@ export async function getWeeklyLineup(
     weekNumber: number,
     gameDate: string,
 ): Promise<{ starters: LineupSlot[]; bench: LineupPlayer[]; ir: LineupPlayer[]; taxi: LineupPlayer[] }> {
-    const isPastDate = gameDate < todayDateString()
+    // gameDate is a YYYY-MM-DD string aligned to nba_games.game_date (ET).
+    // Compare against todayET so non-ET clients don't misclassify the current
+    // slate as "past" (or vice versa) during the 0–3h skew.
+    const isPastDate = gameDate < todayET()
 
     const [{ data: templates }, { data: roster }, { data: assignments }] = await Promise.all([
         supabase

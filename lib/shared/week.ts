@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase'
-import { todayDateString } from '@/lib/shared/dates'
+import { todayET } from '@/lib/shared/dates'
 import { calculateWeekNumberFromDate } from '@pancake/core'
 
 export { calculateWeekNumberFromDate }
@@ -25,7 +25,10 @@ async function getWeek1Bounds(seasonYear: number): Promise<{ weekStart: string; 
  * Returns null if no data is available and the season hasn't been seeded yet.
  */
 export async function getCurrentWeekNumber(seasonYear: number): Promise<number | null> {
-    const today = todayDateString()
+    // season_weeks.week_start / week_end are ET-aligned (backend uses toETDate);
+    // use todayET so non-ET clients don't fall into the wrong fantasy week
+    // during the 0–3h local-vs-ET skew.
+    const today = todayET()
 
     // Try to find a week that contains today
     const { data: todayWeek } = await supabase

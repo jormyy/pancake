@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { getTodaysGames, getLivePlayerStats, NBAGameRow, LiveStatLine } from '@/lib/games'
-import { todayDateString } from '@/lib/shared/dates'
+import { todayET } from '@/lib/shared/dates'
 import { getStartedTeams, getTeamMatchups } from '@/lib/lineup'
 
 type Snapshot = {
@@ -34,7 +34,7 @@ async function loadSnapshot(date: string): Promise<void> {
     if (existing) return existing
 
     const task = (async () => {
-        const isToday = date === todayDateString()
+        const isToday = date === todayET()
         const previous = snapshots.get(date) ?? EMPTY_SNAPSHOT
         const [liveStats, startedTeams, teamMatchups, todaysGames] = await Promise.all([
             getLivePlayerStats(date).catch(() => previous.liveStats),
@@ -57,7 +57,7 @@ async function loadSnapshot(date: string): Promise<void> {
 function ensureTodayPoll() {
     if (todayPoll) return
     todayPoll = setInterval(async () => {
-        const today = todayDateString()
+        const today = todayET()
         if ((listenersByDate.get(today)?.size ?? 0) === 0) {
             clearInterval(todayPoll!)
             todayPoll = null
@@ -92,7 +92,7 @@ export function useLiveStats(selectedDate: string, onSilentRefresh?: () => void)
         listeners.add(setSnapshot)
 
         loadSnapshot(selectedDate)
-        if (selectedDate === todayDateString()) ensureTodayPoll()
+        if (selectedDate === todayET()) ensureTodayPoll()
 
         return () => {
             listeners?.delete(setSnapshot)
@@ -101,7 +101,7 @@ export function useLiveStats(selectedDate: string, onSilentRefresh?: () => void)
     }, [selectedDate])
 
     const liveTeams = useMemo(() => {
-        if (selectedDate !== todayDateString()) return new Set<string>()
+        if (selectedDate !== todayET()) return new Set<string>()
         return new Set(
             snapshot.todaysGames
                 .filter((g) => g.status === 'InProgress')

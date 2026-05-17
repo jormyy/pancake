@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase'
-import { todayDateString } from '@/lib/shared/dates'
+import { todayET } from '@/lib/shared/dates'
 
 export type NBAGameRow = {
     id: string
@@ -67,7 +67,10 @@ export async function getLivePlayerStats(date: string): Promise<Map<string, Live
 }
 
 export async function getTodaysGames(): Promise<NBAGameRow[]> {
-    const today = todayDateString()
+    // nba_games.game_date is stored in ET (backend livePoller uses todayET());
+    // non-ET clients must align here or they get empty/stale "today" results
+    // during the 0–3h local-vs-ET skew.
+    const today = todayET()
     const { data, error } = await supabase
         .from('nba_games')
         .select('id, nba_game_id, home_team, away_team, home_score, away_score, status, game_status_text, game_date')
