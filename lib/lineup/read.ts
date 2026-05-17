@@ -2,7 +2,7 @@ import { supabase } from '@/lib/supabase'
 import type { Database, RosterSlotType } from '@/types/database'
 import { getCurrentSeason } from '@/lib/shared/season'
 import { getCurrentWeekNumber } from '@/lib/shared/week'
-import { todayDateString, todayET } from '@/lib/shared/dates'
+import { todayET } from '@/lib/shared/dates'
 import { getEligiblePositions } from '@/lib/players'
 
 type PlayerRow = Database['public']['Tables']['players']['Row']
@@ -94,7 +94,7 @@ export async function getWeekDays(weekNumber: number, seasonYear: number): Promi
         .eq('week_number', weekNumber)
         .maybeSingle()
 
-    const today = todayDateString()
+    const today = todayET()
     const DAY_CHARS = ['S', 'M', 'T', 'W', 'R', 'F', 'S']
     const result: WeekDay[] = []
 
