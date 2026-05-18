@@ -224,6 +224,12 @@ const setupTradeGameplayFixture = async (env, season, { memberCount = 2 } = {}) 
   ])
   if (rosterError) throw new Error(`roster seed insert: ${rosterError.message}`)
 
+  const { error: statusError } = await admin
+    .from('leagues')
+    .update({ status: 'active' })
+    .eq('id', league.id)
+  if (statusError) throw new Error(`trade fixture status flip: ${statusError.message}`)
+
   return {
     admin,
     runId,

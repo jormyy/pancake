@@ -226,6 +226,12 @@ const setupLineupFixture = async (env, season) => {
     .single()
   if (rosterError) throw new Error(`roster seed: ${rosterError.message}`)
 
+  const { error: statusError } = await admin
+    .from('leagues')
+    .update({ status: 'active' })
+    .eq('id', league.id)
+  if (statusError) throw new Error(`lineup fixture status flip: ${statusError.message}`)
+
   return {
     admin,
     runId,
