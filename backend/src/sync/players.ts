@@ -49,13 +49,16 @@ export async function syncPlayerStatuses(): Promise<void> {
     // Don't restore injury status for players who have already played today —
     // the stats sync correctly clears those, and Sleeper is just slow to update.
     const today = todayET()
+    const { data: todayGames } = await supabase
+        .from('nba_games')
+        .select('id')
+        .eq('game_date', today)
+    const todayGameIds = (todayGames ?? []).map((g: any) => g.id)
     const { data: playedToday } = await supabase
         .from('player_game_stats')
         .select('player_id')
         .eq('did_not_play', false)
-        .in('game_id',
-            (await supabase.from('nba_games').select('id').eq('game_date', today)).data?.map((g: any) => g.id) ?? [],
-        )
+        .in('game_id', todayGameIds)
     const playedTodayIds = new Set((playedToday ?? []).map((r: any) => r.player_id as string))
 
     const dbPlayers = players ?? []
@@ -85,15 +88,24 @@ export async function syncPlayerStatuses(): Promise<void> {
 
     console.log(`[syncPlayerStatuses] Matched ${matched} players, ${toUpdate.length} need updates`)
 
-    for (const { id, fields } of toUpdate) {
-        const { error: updateErr } = await supabase.from('players').update({
-            status: fields.status,
-            injury_status: fields.injury_status,
-            nba_team: fields.nba_team,
-            years_exp: fields.years_exp,
-            updated_at: new Date().toISOString(),
-        }).eq('id', id)
-        if (updateErr) console.error(`[syncPlayerStatuses] Update failed for ${id}:`, updateErr.message)
+    // Batch updates via upsert(onConflict:'id') in chunks of 500.
+    // Rows are guaranteed to exist (sourced from the SELECT above); the upsert
+    // merges only the specified columns into existing rows.
+    const nowIso = new Date().toISOString()
+    const upsertRows = toUpdate.map(({ id, fields }) => ({
+        id,
+        status: fields.status,
+        injury_status: fields.injury_status,
+        nba_team: fields.nba_team,
+        years_exp: fields.years_exp,
+        updated_at: nowIso,
+    }))
+    for (let i = 0; i < upsertRows.length; i += 500) {
+        const chunk = upsertRows.slice(i, i + 500)
+        const { error: updateErr } = await supabase
+            .from('players')
+            .upsert(chunk as any, { onConflict: 'id' })
+        if (updateErr) console.error(`[syncPlayerStatuses] Update failed for chunk starting at ${i}:`, updateErr.message)
     }
 
     console.log(`[syncPlayerStatuses] Done. Updated ${toUpdate.length} player statuses.`)

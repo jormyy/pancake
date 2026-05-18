@@ -11,8 +11,9 @@ import { currentSeasonYear } from '../lib/utils/season'
 import { syncPlayerStatuses } from '../sync/players'
 import { syncDraftOrder } from '../sync/draftOrder'
 import { syncGameTimes } from '../sync/schedule'
-import { NotFoundError } from '../plugins/errorHandler'
+import { AppError, NotFoundError } from '../plugins/errorHandler'
 import { requireAdmin } from '../lib/authz'
+import { supabase } from '../lib/supabase'
 import {
     SyncStatsBody,
     SyncMatchupsBody,
@@ -22,6 +23,37 @@ import {
     ValidateDbBody,
     DraftOrderBody,
 } from '../schemas'
+
+// Mirrors the lease constants in backend/src/sync/livePoller.ts and
+// supabase/functions/live-poll. Manual /sync/scores must share this key so a
+// commissioner press doesn't race the cron poller into the standings UNIQUE
+// (league_id, league_season_id, member_id, week_number).
+const LIVE_POLL_LOCK_KEY = 779001
+const LIVE_POLL_LEASE_TTL_SECONDS = 90
+
+async function withLivePollLeaseOrThrow<T>(fn: () => Promise<T>): Promise<T> {
+    const { data: holderId, error } = await supabase.rpc('try_live_poll_lease', {
+        p_lock_key: LIVE_POLL_LOCK_KEY,
+        p_ttl_seconds: LIVE_POLL_LEASE_TTL_SECONDS,
+    })
+    if (error) {
+        throw new AppError(`Failed to acquire live-poll lease: ${error.message}`, 503)
+    }
+    if (!holderId) {
+        throw new AppError('Sync already in progress', 409)
+    }
+    try {
+        return await fn()
+    } finally {
+        const { error: releaseError } = await supabase.rpc('release_live_poll_lease', {
+            p_lock_key: LIVE_POLL_LOCK_KEY,
+            p_holder_id: holderId,
+        })
+        if (releaseError) {
+            console.error('[sync/scores] Failed to release live-poll lease:', releaseError.message)
+        }
+    }
+}
 
 function parseQuerySeasonYear(query: Record<string, string | undefined>): number {
     return query?.seasonYear ? parseInt(query.seasonYear) : currentSeasonYear()
@@ -61,9 +93,11 @@ export default async function syncRoutes(app: FastifyInstance) {
 
     app.post('/scores', async (req) => {
         requireAdmin(req.userId)
-        const games = await fetchTodaysGames()
-        if (games.length) await updateGameStatuses(games)
-        await syncScores()
+        await withLivePollLeaseOrThrow(async () => {
+            const games = await fetchTodaysGames()
+            if (games.length) await updateGameStatuses(games)
+            await syncScores()
+        })
         return { ok: true }
     })
 

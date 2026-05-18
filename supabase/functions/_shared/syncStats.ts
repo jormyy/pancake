@@ -2,8 +2,15 @@ import { supabase } from './supabase.ts'
 import { fetchBoxScore, parseNBAMinutes, NBABoxScorePlayer } from './nba.ts'
 import { normalizeName } from './nameMatch.ts'
 
+// Returns YYYY-MM-DD for the given Date in America/New_York (ET).
+// nba_games.game_date is ET-keyed; using UTC here misses prime-time games
+// between 0:00 and 5:00 UTC (= 19:00–00:00 ET) where UTC is one day ahead.
+function toETDate(date: Date): string {
+  return date.toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
+}
+
 export async function syncStatsByDate(date: Date) {
-  const dateStr = date.toISOString().split('T')[0]
+  const dateStr = toETDate(date)
   console.log(`[sync-stats] Fetching stats for ${dateStr}...`)
 
   const { data: games, error: gErr } = await supabase

@@ -30,6 +30,7 @@ type MatchupForFinalization = {
   away_member_id: string
   home_points: number | null
   away_points: number | null
+  matchup_type: string
 }
 
 type StandingSnapshot = {
@@ -46,7 +47,7 @@ type StandingSnapshot = {
 export async function syncScores() {
   const { data: seasons, error: sErr } = await supabase
     .from('league_seasons')
-    .select('id, league_id, season_year, leagues ( scoring_settings, playoff_start_week )')
+    .select('id, league_id, season_year, leagues ( scoring_settings )')
     .eq('is_current', true)
   if (sErr) throw sErr
   if (!seasons?.length) return
@@ -54,18 +55,18 @@ export async function syncScores() {
   for (const season of seasons) {
     const league = season.leagues as any
     const settings: Record<string, number> = league?.scoring_settings ?? {}
-    const playoffStart: number = league?.playoff_start_week ?? 20
-    const regularSeasonWeeks = playoffStart - 1
 
     const weekNumber = await getWeekNumberForDate(new Date(), season.season_year)
     if (!weekNumber) {
       console.log(`[sync-scores] No current week for season ${season.season_year}`)
       continue
     }
-    if (weekNumber > regularSeasonWeeks) {
-      console.log(`[sync-scores] Week ${weekNumber} is in playoffs — skipping`)
-      continue
-    }
+    // Score every week the season covers — regular season AND playoff weeks
+    // (QF at playoff_start_week, SF at +1, Final at +2). updateWeekPoints and
+    // finalizeWeekIfComplete are matchup-type agnostic: they sum lineup×stats
+    // for whichever matchup rows exist at the given week. Skipping playoff
+    // weeks here would leave bracket matchups with null home_points/away_points
+    // forever, blocking advanceToFinal.
 
     await updateWeekPoints(season.league_id, season.id, season.season_year, weekNumber, settings)
     if (weekNumber > 1) {
@@ -218,8 +219,16 @@ async function insertStandingsSnapshots(
   matchups: MatchupForFinalization[],
   maxPossiblePointsByMember: Map<string, number>,
 ) {
+  // Standings (wins/losses/PF/PA/max) only accumulate from regular_season
+  // matchups. Playoff matchups (QF/SF/Final) are finalized in the same week
+  // loop but must not inflate season records — they're tracked separately
+  // via matchups.matchup_type and surfaced through the bracket UI.
+  const regularSeasonMatchups = matchups.filter(
+    (m) => m.matchup_type === 'regular_season',
+  )
+
   const memberIds = [
-    ...new Set(matchups.flatMap((m) => [m.home_member_id, m.away_member_id])),
+    ...new Set(regularSeasonMatchups.flatMap((m) => [m.home_member_id, m.away_member_id])),
   ]
   if (memberIds.length === 0) return
 
@@ -272,7 +281,7 @@ async function insertStandingsSnapshots(
     })
   }
 
-  for (const matchup of matchups) {
+  for (const matchup of regularSeasonMatchups) {
     const home = standingsByMember.get(matchup.home_member_id)
     const away = standingsByMember.get(matchup.away_member_id)
     if (!home || !away) continue
@@ -319,6 +328,16 @@ async function insertStandingsSnapshots(
   if (insertErr) throw insertErr
 }
 
+// Calculates and persists home/away points for all matchups in a given week.
+//
+// Design: points always recompute (no is_finalized filter) so that NBA stat
+// corrections — which often arrive 1–2 days after a game — propagate into
+// finalized matchup rows. This function only writes home_points/away_points;
+// the finalize-once columns (winner_member_id, is_finalized, finalized_at,
+// home/away_max_possible_points) are written exclusively by
+// finalizeWeekIfComplete, which DOES keep the is_finalized=false gate so we
+// never re-finalize or re-notify. Standings snapshots are append-only and not
+// recomputed here; they catch up via a separate path (out of scope).
 async function updateWeekPoints(
   leagueId: string,
   leagueSeasonId: string,
@@ -338,7 +357,6 @@ async function updateWeekPoints(
     .eq('league_id', leagueId)
     .eq('league_season_id', leagueSeasonId)
     .eq('week_number', weekNumber)
-    .eq('is_finalized', false)
   if (mErr) throw mErr
   if (!matchups?.length) return
 
@@ -373,6 +391,14 @@ async function updateWeekPoints(
   if (updateErr) throw updateErr
 }
 
+// If all games in a week are finished, mark matchups as finalized.
+//
+// Keeps the is_finalized=false filter so finalization runs exactly once per
+// matchup: no duplicate notifications, no resetting of winner_member_id once
+// determined, no re-inserting standings snapshots. Subsequent stat corrections
+// still propagate to home_points/away_points via updateWeekPoints, but the
+// finalize-once columns (is_finalized, finalized_at, winner_member_id,
+// home/away_max_possible_points) and notifications are immutable post-finalize.
 async function finalizeWeekIfComplete(
   leagueId: string,
   leagueSeasonId: string,
@@ -395,7 +421,7 @@ async function finalizeWeekIfComplete(
 
   const { data: matchups } = await supabase
     .from('matchups')
-    .select('id, home_member_id, away_member_id, home_points, away_points')
+    .select('id, home_member_id, away_member_id, home_points, away_points, matchup_type')
     .eq('league_id', leagueId)
     .eq('league_season_id', leagueSeasonId)
     .eq('week_number', weekNumber)
@@ -428,7 +454,12 @@ async function finalizeWeekIfComplete(
   for (const m of matchupRows) {
     const homePoints = Number(m.home_points ?? 0)
     const awayPoints = Number(m.away_points ?? 0)
-    const winnerId = homePoints >= awayPoints ? m.home_member_id : m.away_member_id
+    const winnerId =
+      homePoints === awayPoints
+        ? null
+        : homePoints > awayPoints
+          ? m.home_member_id
+          : m.away_member_id
 
     await supabase.from('matchups').update({
       home_max_possible_points: maxPossiblePointsByMember.get(m.home_member_id) ?? 0,
@@ -438,13 +469,21 @@ async function finalizeWeekIfComplete(
       finalized_at: new Date().toISOString(),
     }).eq('id', m.id)
 
-    const loserId = winnerId === m.home_member_id ? m.away_member_id : m.home_member_id
-    const winnerPts = Math.max(homePoints, awayPoints).toFixed(1)
-    const loserPts = Math.min(homePoints, awayPoints).toFixed(1)
-    await Promise.all([
-      notifyMember(winnerId, `Week ${weekNumber} Final`, `You won ${winnerPts}–${loserPts}! 🏆`),
-      notifyMember(loserId, `Week ${weekNumber} Final`, `You lost ${loserPts}–${winnerPts}.`),
-    ]).catch(console.error)
+    if (winnerId === null) {
+      const tiePts = homePoints.toFixed(1)
+      await Promise.all([
+        notifyMember(m.home_member_id, `Week ${weekNumber} Final`, `You tied ${tiePts}–${tiePts}.`),
+        notifyMember(m.away_member_id, `Week ${weekNumber} Final`, `You tied ${tiePts}–${tiePts}.`),
+      ]).catch(console.error)
+    } else {
+      const loserId = winnerId === m.home_member_id ? m.away_member_id : m.home_member_id
+      const winnerPts = Math.max(homePoints, awayPoints).toFixed(1)
+      const loserPts = Math.min(homePoints, awayPoints).toFixed(1)
+      await Promise.all([
+        notifyMember(winnerId, `Week ${weekNumber} Final`, `You won ${winnerPts}–${loserPts}! 🏆`),
+        notifyMember(loserId, `Week ${weekNumber} Final`, `You lost ${loserPts}–${winnerPts}.`),
+      ]).catch(console.error)
+    }
   }
 
   console.log(`[sync-scores] Finalized week ${weekNumber} for league ${leagueId}`)

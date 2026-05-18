@@ -1,6 +1,7 @@
 import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native'
 import { useMemo, useState } from 'react'
 import { WeekDay } from '@/lib/lineup'
+import { todayET } from '@/lib/shared/dates'
 import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 
 const ALL_TEAMS = ['ATL', 'BOS', 'BKN', 'CHA', 'CHI', 'CLE', 'DAL', 'DEN', 'DET', 'GSW', 'HOU', 'IND', 'LAC', 'LAL', 'MEM', 'MIA', 'MIL', 'MIN', 'NOP', 'NYK', 'OKC', 'ORL', 'PHI', 'PHX', 'POR', 'SAC', 'SAS', 'TOR', 'UTA', 'WAS']
@@ -15,10 +16,7 @@ export function ScheduleGrid({
     onToggleTeam: (team: string) => void
 }) {
     const [expanded, setExpanded] = useState(false)
-    const today = useMemo(() => {
-        const d = new Date()
-        return d.toISOString().split('T')[0]
-    }, [])
+    const today = useMemo(() => todayET(), [])
 
     const futureDays = useMemo(() => weekDays.filter((d) => d.date >= today), [weekDays, today])
 

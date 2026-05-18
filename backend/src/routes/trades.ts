@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify'
 import { supabase } from '../lib/supabase'
 import { verifyOwnMember } from '../lib/authz'
 import { notifyMember } from '../lib/notifications'
+import { todayET } from '../lib/utils/date'
 import { AppError, NotFoundError, ValidationError } from '../plugins/errorHandler'
 import { TradeActionBody, TradeParams, TradeProposeBody, TradeVetoBody } from '../schemas'
 
@@ -25,10 +26,6 @@ function assertNoDuplicates(ids: string[], label: string) {
     if (new Set(ids).size !== ids.length) {
         throw new ValidationError(`Duplicate ${label} are not allowed.`)
     }
-}
-
-function todayET(): string {
-    return new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
 }
 
 async function assertRosterPlayersOwned(
@@ -114,10 +111,13 @@ export default async function tradeRoutes(app: FastifyInstance) {
 
             const { data: league, error: leagueErr } = await supabase
                 .from('leagues')
-                .select('id, trade_deadline')
+                .select('id, trade_deadline, status')
                 .eq('id', leagueId)
                 .single()
             if (leagueErr || !league) throw new NotFoundError('League not found.')
+            if (league.status !== 'active' && league.status !== 'playoffs') {
+                throw new ValidationError('Trades can only be proposed during the active season.')
+            }
             if (league.trade_deadline && league.trade_deadline < todayET()) {
                 throw new ValidationError('The trade deadline has passed.')
             }
@@ -258,6 +258,29 @@ export default async function tradeRoutes(app: FastifyInstance) {
 
             if (error) throw error
 
+            const { data: trade } = await supabase
+                .from('trades')
+                .select('proposer_member_id, recipient_member_id')
+                .eq('id', tradeId)
+                .single()
+
+            if (trade) {
+                Promise.all([
+                    notifyMember(
+                        trade.proposer_member_id,
+                        'Trade Accepted',
+                        'Your trade was accepted. The 24-hour veto window has opened — completion in <24h.',
+                        { tradeId },
+                    ),
+                    notifyMember(
+                        trade.recipient_member_id,
+                        'Trade Acceptance Recorded',
+                        'Your acceptance was recorded. The 24-hour veto window has opened — completion in <24h.',
+                        { tradeId },
+                    ),
+                ]).catch((error) => req.log.error({ err: error }, 'Trade acceptance notification failed'))
+            }
+
             return { ok: true }
         },
     )
@@ -271,11 +294,20 @@ export default async function tradeRoutes(app: FastifyInstance) {
 
             await verifyOwnMember(req.userId, memberId)
 
-            const { data: trade, error: tradeError } = await supabase
-                .from('trades')
-                .select('id, league_id, proposer_member_id, recipient_member_id, status, veto_window_expires_at')
-                .eq('id', tradeId)
-                .single()
+            const [tradeRes, memberRes] = await Promise.all([
+                supabase
+                    .from('trades')
+                    .select('id, league_id, proposer_member_id, recipient_member_id, status, veto_window_expires_at')
+                    .eq('id', tradeId)
+                    .single(),
+                supabase
+                    .from('league_members')
+                    .select('id, league_id, role')
+                    .eq('id', memberId)
+                    .single(),
+            ])
+
+            const { data: trade, error: tradeError } = tradeRes
             if (tradeError || !trade) throw new NotFoundError('Trade not found.')
 
             if (trade.status !== 'accepted') {
@@ -285,11 +317,7 @@ export default async function tradeRoutes(app: FastifyInstance) {
                 throw new ValidationError('The veto window has expired.')
             }
 
-            const { data: member, error: memberError } = await supabase
-                .from('league_members')
-                .select('id, league_id, role')
-                .eq('id', memberId)
-                .single()
+            const { data: member, error: memberError } = memberRes
             if (memberError || !member) throw new NotFoundError('League member not found.')
             if (member.league_id !== trade.league_id) {
                 throw new AppError('Access denied', 403)
@@ -372,14 +400,16 @@ export default async function tradeRoutes(app: FastifyInstance) {
             const { tradeId } = req.params as { tradeId: string }
             const { memberId } = req.body as { memberId: string }
 
-            await verifyOwnMember(req.userId, memberId)
+            const [, tradeRes] = await Promise.all([
+                verifyOwnMember(req.userId, memberId),
+                supabase
+                    .from('trades')
+                    .select('id, proposer_member_id, recipient_member_id, status')
+                    .eq('id', tradeId)
+                    .single(),
+            ])
 
-            const { data: trade, error: fetchError } = await supabase
-                .from('trades')
-                .select('id, proposer_member_id, recipient_member_id, status')
-                .eq('id', tradeId)
-                .single()
-
+            const { data: trade, error: fetchError } = tradeRes
             if (fetchError || !trade) throw new NotFoundError('Trade not found.')
             if (trade.recipient_member_id !== memberId) {
                 throw new AppError('Only the recipient can reject this trade.', 403)
@@ -414,14 +444,16 @@ export default async function tradeRoutes(app: FastifyInstance) {
             const { tradeId } = req.params as { tradeId: string }
             const { memberId } = req.body as { memberId: string }
 
-            await verifyOwnMember(req.userId, memberId)
+            const [, tradeRes] = await Promise.all([
+                verifyOwnMember(req.userId, memberId),
+                supabase
+                    .from('trades')
+                    .select('id, proposer_member_id, recipient_member_id, status')
+                    .eq('id', tradeId)
+                    .single(),
+            ])
 
-            const { data: trade, error: fetchError } = await supabase
-                .from('trades')
-                .select('id, proposer_member_id, recipient_member_id, status')
-                .eq('id', tradeId)
-                .single()
-
+            const { data: trade, error: fetchError } = tradeRes
             if (fetchError || !trade) throw new NotFoundError('Trade not found.')
             if (trade.proposer_member_id !== memberId) {
                 throw new AppError('Only the proposer can withdraw this trade.', 403)

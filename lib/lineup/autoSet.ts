@@ -1,16 +1,27 @@
 import { supabase } from '@/lib/supabase'
 import type { RosterSlotType } from '@/types/database'
 import { canPlaySlot, SLOT_ELIGIBLE } from '@/constants/slots'
-import { todayDateString } from '@/lib/shared/dates'
+import { todayET } from '@/lib/shared/dates'
 import { isIREligible } from '@/lib/roster'
 import { getEligiblePositions } from '@/lib/players'
 import { getWeekDays } from './read'
+
+type LineupAssignment = {
+    player_id: string
+    slot_type: RosterSlotType
+    is_auto_set: boolean
+    week_number: number
+}
 
 async function getRemainingSeasonDates(
     fromWeek: number,
     seasonYear: number,
 ): Promise<{ date: string; weekNumber: number }[]> {
-    const today = todayDateString()
+    // `today` filters dates that flow into autoSetForDate, where they're
+    // compared against nba_games.game_date / weekly_lineups.game_date (both
+    // ET-keyed). Use todayET so non-ET clients don't include already-past
+    // ET dates and silently wipe scored weekly_lineups rows.
+    const today = todayET()
     const { data: weeks } = await supabase
         .from('season_weeks')
         .select('week_number, week_start')
@@ -119,7 +130,10 @@ export async function autoSetLineup(
         (t: any) => t.slot_type !== 'BE' && t.slot_type !== 'IR' && t.slot_type !== 'TX',
     )
 
-    const today = todayDateString()
+    // Dates here feed into autoSetForDate where they're matched against
+    // nba_games.game_date / weekly_lineups.game_date (ET-keyed). Use todayET
+    // so the past-date filter aligns with the backend's ET boundary.
+    const today = todayET()
     let datesToProcess: { date: string; weekNumber: number }[]
 
     if (restOfSeason) {
@@ -133,10 +147,20 @@ export async function autoSetLineup(
             .map((d) => ({ date: d, weekNumber }))
     }
 
-    for (const { date, weekNumber: wn } of datesToProcess) {
-        await autoSetForDate(
-            memberId, leagueId, seasonId, wn, seasonYear,
-            date, players, starterTemplates,
+    // Each date's writes target a distinct game_date and use only read-only inputs
+    // (players, starterTemplates) — safe to parallelize. Chunk to bound concurrent
+    // Supabase requests; Promise.all still rejects on first failure, preserving
+    // the original throw semantics of the serial for-loop.
+    const CHUNK = 5
+    for (let i = 0; i < datesToProcess.length; i += CHUNK) {
+        const chunk = datesToProcess.slice(i, i + CHUNK)
+        await Promise.all(
+            chunk.map(({ date, weekNumber: wn }) =>
+                autoSetForDate(
+                    memberId, leagueId, seasonId, wn, seasonYear,
+                    date, players, starterTemplates,
+                ),
+            ),
         )
     }
 }
@@ -151,8 +175,12 @@ async function autoSetForDate(
     players: { playerId: string; eligiblePositions: string[]; nbaTeam: string | null; projected: number }[],
     starterTemplates: any[],
 ): Promise<void> {
-    // Skip past dates - lineups for already-played games should remain locked
-    if (gameDate < todayDateString()) return
+    // Skip past dates - lineups for already-played games should remain locked.
+    // gameDate aligns with nba_games.game_date / weekly_lineups.game_date (ET),
+    // so compare against todayET. Otherwise auto_set_lineup_atomic's
+    // DELETE-then-INSERT can wipe already-scored weekly_lineups rows for
+    // non-ET clients during the 0–3h skew window.
+    if (gameDate < todayET()) return
 
     const [{ data: games }, { data: existingEntries }] = await Promise.all([
         supabase
@@ -206,7 +234,7 @@ async function autoSetForDate(
     const hasGame = (p: typeof players[number]) => !!(p.nbaTeam && playingTeams.has(p.nbaTeam))
 
     const used = new Set<string>()
-    const assignments: { playerId: string; slotType: string }[] = []
+    const newAssignments: { playerId: string; slotType: string }[] = []
 
     // Pick the best available player for a slot:
     // 1. Best avg-fpts player WITH a game today who is eligible for the slot
@@ -243,51 +271,44 @@ async function autoSetForDate(
         for (let i = 0; i < remaining; i++) {
             const pid = pickBest(slotType)
             if (pid) {
-                assignments.push({ playerId: pid, slotType })
+                newAssignments.push({ playerId: pid, slotType })
                 used.add(pid)
             }
         }
     }
 
-    // Delete only unlocked entries, preserving locked starters
-    if (lockedPlayerIds.size > 0) {
-        const unlockedEntryPlayerIds = (existingEntries ?? [])
-            .map((e: any) => e.player_id)
-            .filter((pid: string) => !lockedPlayerIds.has(pid))
-        if (unlockedEntryPlayerIds.length > 0) {
-            await supabase
-                .from('weekly_lineups')
-                .delete()
-                .eq('member_id', memberId)
-                .eq('league_id', leagueId)
-                .eq('league_season_id', seasonId)
-                .eq('game_date', gameDate)
-                .in('player_id', unlockedEntryPlayerIds)
-        }
-    } else {
-        await supabase
-            .from('weekly_lineups')
-            .delete()
-            .eq('member_id', memberId)
-            .eq('league_id', leagueId)
-            .eq('league_season_id', seasonId)
-            .eq('game_date', gameDate)
+    // Build the full final state of the day's lineup. The RPC replaces the
+    // entire day in a single transaction, so the caller MUST include any
+    // locked entries that should remain (with their original slot_type and
+    // is_auto_set flag preserved). BE entries are filtered out RPC-side
+    // because bench is implicit.
+    const finalAssignments: LineupAssignment[] = []
+    for (const { playerId, slotType } of lockedEntries) {
+        finalAssignments.push({
+            player_id: playerId,
+            slot_type: slotType as RosterSlotType,
+            is_auto_set: false,
+            week_number: weekNumber,
+        })
+    }
+    for (const { playerId, slotType } of newAssignments) {
+        finalAssignments.push({
+            player_id: playerId,
+            slot_type: slotType as RosterSlotType,
+            is_auto_set: true,
+            week_number: weekNumber,
+        })
     }
 
-    if (assignments.length > 0) {
-        const { error } = await supabase.from('weekly_lineups').insert(
-            assignments.map(({ playerId, slotType }) => ({
-                member_id: memberId,
-                league_id: leagueId,
-                league_season_id: seasonId,
-                player_id: playerId,
-                week_number: weekNumber,
-                game_date: gameDate,
-                slot_type: slotType as RosterSlotType,
-                is_auto_set: true,
-                set_at: new Date().toISOString(),
-            })),
-        )
-        if (error) throw error
-    }
+    // Atomic replacement under pg_advisory_xact_lock(member_id, game_date)
+    // with FOR SHARE re-verification of roster ownership for every
+    // player_id. Closes the race documented at the top of the migration.
+    const { error } = await supabase.rpc('auto_set_lineup_atomic', {
+        p_member_id: memberId,
+        p_league_id: leagueId,
+        p_league_season_id: seasonId,
+        p_game_date: gameDate,
+        p_assignments: finalAssignments,
+    })
+    if (error) throw error
 }

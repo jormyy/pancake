@@ -1,7 +1,7 @@
 import { supabase } from '@/lib/supabase'
 import type { NBAPosition } from '@/types/database'
 import { currentSeasonYear } from '@/lib/shared/season'
-import { TRANSACTION_LABELS } from '@/lib/transactions'
+import { TRANSACTION_LABELS } from '@/lib/shared/transaction-labels'
 
 /** Resolves a player's eligible positions, falling back to the primary position. */
 export function getEligiblePositions(player: { eligible_positions?: string[] | null; position?: string | null }): string[] {
@@ -295,33 +295,37 @@ export async function getPlayerFantasyPoints(
     leagueId: string,
     seasonYear: number,
 ): Promise<{ gameId: string; fantasyPoints: number }[]> {
-    // Only include games actually played — DNP rows in v_fantasy_points have 0 pts
-    // and would dilute the per-game average.
-    const { data: playedRows, error: e1 } = await supabase
-        .from('player_game_stats')
-        .select('id')
-        .eq('player_id', playerId)
-        .eq('season_year', seasonYear)
-        .eq('did_not_play', false)
+    // v_fantasy_points doesn't expose did_not_play and has no auto-detected FK
+    // back to player_game_stats, so we can't !inner-filter in one PostgREST
+    // call. Run the two scoped queries in parallel — both filter by the same
+    // (player_id, season_year), so they're independent. The DNP-id set is
+    // small (per player per season) and used to exclude rows the view zeroes
+    // out (DNPs would otherwise dilute the per-game average computed upstream).
+    const [fantasyRes, dnpRes] = await Promise.all([
+        supabase
+            .from('v_fantasy_points')
+            .select('stat_id, fantasy_points')
+            .eq('player_id', playerId)
+            .eq('league_id', leagueId)
+            .eq('season_year', seasonYear),
+        supabase
+            .from('player_game_stats')
+            .select('id')
+            .eq('player_id', playerId)
+            .eq('season_year', seasonYear)
+            .eq('did_not_play', true),
+    ])
 
-    if (e1) throw e1
-    if (!playedRows || playedRows.length === 0) return []
+    if (fantasyRes.error) throw fantasyRes.error
+    if (dnpRes.error) throw dnpRes.error
 
-    const playedIds = playedRows.map((r) => r.id)
-
-    const { data, error } = await supabase
-        .from('v_fantasy_points')
-        .select('stat_id, fantasy_points')
-        .eq('player_id', playerId)
-        .eq('league_id', leagueId)
-        .eq('season_year', seasonYear)
-        .in('stat_id', playedIds)
-
-    if (error) throw error
-    return (data ?? []).map((r: any) => ({
-        gameId: r.stat_id,
-        fantasyPoints: Number(r.fantasy_points) || 0,
-    }))
+    const dnpIds = new Set((dnpRes.data ?? []).map((r) => r.id))
+    return (fantasyRes.data ?? [])
+        .filter((r: any) => r.stat_id != null && !dnpIds.has(r.stat_id))
+        .map((r: any) => ({
+            gameId: r.stat_id,
+            fantasyPoints: Number(r.fantasy_points) || 0,
+        }))
 }
 
 export async function getPlayerTransactionHistory(

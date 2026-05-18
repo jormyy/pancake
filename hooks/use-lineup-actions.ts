@@ -1,9 +1,9 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { Alert } from 'react-native'
 import { Matchup } from '@/lib/scoring'
 import { setPlayerSlot, autoSetLineup, canPlaySlot, LineupSlot, LineupPlayer } from '@/lib/lineup'
 import { isIREligible, toggleIR, toggleTaxi, dropPlayer } from '@/lib/roster'
-import { todayDateString } from '@/lib/shared/dates'
+import { todayET } from '@/lib/shared/dates'
 
 type LineupData = { starters: LineupSlot[]; bench: LineupPlayer[]; ir: LineupPlayer[]; taxi: LineupPlayer[] }
 type Sel = { kind: 'starter'; index: number } | { kind: 'bench'; index: number } | { kind: 'ir'; index: number } | { kind: 'taxi'; index: number }
@@ -32,8 +32,8 @@ export function useLineupActions({
     const [activationOverflowPending, setActivationOverflowPending] = useState<PendingActivation | null>(null)
     const [activationOverflowSaving, setActivationOverflowSaving] = useState(false)
 
-    async function handleTap(newSel: Sel) {
-        if (selectedDate < todayDateString()) {
+    const handleTap = useCallback(async (newSel: Sel) => {
+        if (selectedDate < todayET()) {
             Alert.alert('Past lineup', 'Lineups for past days cannot be changed.')
             setSelected(null)
             return
@@ -192,7 +192,7 @@ export function useLineupActions({
         } finally {
             setSaving(false)
         }
-    }
+    }, [selectedDate, selected, matchup, myLineup, league, startedTeams, loadMyLineup])
 
     async function activatePending() {
         if (!activationOverflowPending) return

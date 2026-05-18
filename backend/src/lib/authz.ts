@@ -86,24 +86,22 @@ export async function verifyOwnMember(userId: string, memberId: string): Promise
  * Verify the requesting user's league membership is in the same league as the given member.
  */
 export async function verifySameLeague(userId: string, memberId: string): Promise<string> {
-    const { data: member } = await supabase
+    // Single round-trip: fetch the target member row plus any rows belonging to
+    // the requesting user, then validate that the requester is in the same league.
+    const { data: rows } = await supabase
         .from('league_members')
-        .select('league_id')
-        .eq('id', memberId)
-        .single()
+        .select('id, user_id, league_id')
+        .or(`id.eq.${memberId},user_id.eq.${userId}`)
 
-    if (!member) throw new NotFoundError('Member not found')
+    const target = rows?.find((r) => r.id === memberId)
+    if (!target) throw new NotFoundError('Member not found')
 
-    const { data: requestingMember } = await supabase
-        .from('league_members')
-        .select('id')
-        .eq('league_id', member.league_id)
-        .eq('user_id', userId)
-        .single()
+    const requesterInLeague = rows?.some(
+        (r) => r.user_id === userId && r.league_id === target.league_id,
+    )
+    if (!requesterInLeague) throw new AppError('Not a member of this league', 403)
 
-    if (!requestingMember) throw new AppError('Not a member of this league', 403)
-
-    return member.league_id
+    return target.league_id
 }
 
 /**

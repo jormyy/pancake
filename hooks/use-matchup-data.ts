@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useFocusEffect } from '@react-navigation/native'
 import { getMyMatchup, Matchup } from '@/lib/scoring'
 import { getWeekDays, getWeeklyLineup, LineupSlot, LineupPlayer, WeekDay } from '@/lib/lineup'
-import { todayDateString } from '@/lib/shared/dates'
+import { todayET } from '@/lib/shared/dates'
 import { supabase } from '@/lib/supabase'
 
 type LineupData = { starters: LineupSlot[]; bench: LineupPlayer[]; ir: LineupPlayer[]; taxi: LineupPlayer[] }
@@ -10,12 +10,32 @@ type LineupData = { starters: LineupSlot[]; bench: LineupPlayer[]; ir: LineupPla
 export function useMatchupData(current: any, user: any, league: any) {
     const [matchup, setMatchup] = useState<Matchup | null | undefined>(undefined)
     const [weekDays, setWeekDays] = useState<WeekDay[]>([])
-    const [selectedDate, setSelectedDate] = useState<string>(() => todayDateString())
+    // selectedDate flows into getWeeklyLineup queries that compare against
+    // weekly_lineups.game_date (ET-keyed). Use todayET so non-ET clients
+    // don't query against the wrong date.
+    const [selectedDate, setSelectedDate] = useState<string>(() => todayET())
     const [myLineup, setMyLineup] = useState<LineupData | null>(null)
     const [oppLineup, setOppLineup] = useState<LineupData | null>(null)
     const [matchupLoading, setMatchupLoading] = useState(true)
     const [lineupLoading, setLineupLoading] = useState(false)
     const matchupRef = useRef<Matchup | null>(null)
+    const isFirstRunRef = useRef(true)
+
+    // Clear stale matchup + lineups synchronously when the active member or
+    // league changes, so the previous league's matchup/lineup doesn't flash
+    // before useFocusEffect triggers load() post-commit. Skip the first run
+    // so we don't clobber the initial mount state before any fetch.
+    useEffect(() => {
+        if (isFirstRunRef.current) {
+            isFirstRunRef.current = false
+            return
+        }
+        setMatchup(undefined)
+        setMyLineup(null)
+        setOppLineup(null)
+        setMatchupLoading(true)
+        matchupRef.current = null
+    }, [current?.id, league?.id])
 
     const loadLineups = useCallback(
         async (m: Matchup, date: string) => {
@@ -58,7 +78,7 @@ export function useMatchupData(current: any, user: any, league: any) {
     )
 
     const load = useCallback(async () => {
-        if (!current || !user) return
+        if (!current || !user || !league?.id) return
         setMatchupLoading(true)
         setMyLineup(null)
         setOppLineup(null)
@@ -67,7 +87,8 @@ export function useMatchupData(current: any, user: any, league: any) {
             setMatchup(m)
             matchupRef.current = m
             if (m) {
-                const today = todayDateString()
+                // ET-keyed: flows into getWeeklyLineup query against weekly_lineups.game_date
+                const today = todayET()
                 const days = await getWeekDays(m.weekNumber, m.seasonYear)
                 setWeekDays(days)
                 setSelectedDate(today)
@@ -79,7 +100,7 @@ export function useMatchupData(current: any, user: any, league: any) {
         } finally {
             setMatchupLoading(false)
         }
-    }, [current, user, loadLineups])
+    }, [current, user, league?.id, loadLineups])
 
     useFocusEffect(useCallback(() => { load() }, [load]))
 

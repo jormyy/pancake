@@ -48,7 +48,7 @@ function parseDate(value?: string): Date {
 export default async function e2eRoutes(app: FastifyInstance) {
     app.addHook('preHandler', async (req, reply) => {
         if (req.headers['x-e2e-secret'] !== process.env.E2E_ADMIN_SECRET) {
-            reply.code(401).send({ error: 'Unauthorized' })
+            return reply.code(401).send({ error: 'Unauthorized' })
         }
     })
 

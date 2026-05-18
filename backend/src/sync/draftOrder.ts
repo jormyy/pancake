@@ -4,7 +4,32 @@ import { normalizeName } from '../lib/utils/nameMatch'
 
 // NBA Stats API draft history endpoint
 // Season format: just the year, e.g. "2025" for the 2025 draft
+//
+// IMPORTANT: stats.nba.com is cloud-blocked. The NBA actively blocks requests
+// from data-center IP ranges (Railway, Render, AWS, GCP, etc.), so this call
+// will fail/hang in production. The rest of pancake migrated to cdn.nba.com
+// for live data, but the CDN does not expose a static draft-history feed
+// (CDN only carries scoreboards, schedules, headshots, and box scores).
+//
+// Workaround: this sync is intended to be run **manually from a local dev
+// machine** (or any non-data-center IP) via the admin route. If we detect a
+// known cloud env we short-circuit with a clear error so the failure is loud
+// rather than silent.
 const NBA_STATS_URL = 'https://stats.nba.com/stats/drafthistory'
+
+// Railway, Render, Fly, and Vercel each set a platform-specific env var.
+// Presence of any signals we are running in a data-center where stats.nba.com
+// is blocked. This is best-effort: it does not have to be exhaustive, only
+// loud enough to make the cloud failure obvious instead of silent.
+function isCloudHostEnv(): boolean {
+    return Boolean(
+        process.env.RAILWAY_ENVIRONMENT ||
+        process.env.RAILWAY_PROJECT_ID ||
+        process.env.RENDER ||
+        process.env.FLY_APP_NAME ||
+        process.env.VERCEL,
+    )
+}
 
 interface NBADraftPick {
     overallPick: number
@@ -60,6 +85,16 @@ async function fetchDraftOrder(seasonYear: number): Promise<NBADraftPick[]> {
 }
 
 export async function syncDraftOrder(seasonYear: number): Promise<{ updated: number; unmatched: string[] }> {
+    if (isCloudHostEnv()) {
+        // Fail loud and early. The previous behaviour silently hung/errored
+        // mid-fetch because stats.nba.com drops cloud-IP connections.
+        throw new Error(
+            '[draftOrder] stats.nba.com is blocked on cloud hosts (Railway/Render/Fly/Vercel). ' +
+            'Run this sync from a local dev machine: `npm run sync:draft-order` ' +
+            'or POST /sync/draft-order against a local backend.',
+        )
+    }
+
     console.log(`[draftOrder] Fetching ${seasonYear} NBA draft order from stats.nba.com…`)
 
     const picks = await fetchDraftOrder(seasonYear)
@@ -78,7 +113,12 @@ export async function syncDraftOrder(seasonYear: number): Promise<{ updated: num
         playersByNorm.set(normalizeName((p as any).display_name), (p as any).id)
     }
 
-    let updated = 0
+    // Build a single upsert payload instead of one UPDATE per pick.
+    // Rows are guaranteed to exist (we just selected them), so upsert(onConflict:'id')
+    // merges nba_draft_number into the existing row without disturbing other columns.
+    // Cast to any: generated types want a full row, but PostgREST accepts a
+    // partial payload on the UPDATE path of an upsert.
+    const updates: Array<{ id: string; nba_draft_number: number }> = []
     const unmatched: string[] = []
 
     for (const pick of picks) {
@@ -90,16 +130,23 @@ export async function syncDraftOrder(seasonYear: number): Promise<{ updated: num
             continue
         }
 
-        const { error: updateErr } = await supabase
-            .from('players')
-            .update({ nba_draft_number: pick.overallPick })
-            .eq('id', playerId)
+        updates.push({ id: playerId, nba_draft_number: pick.overallPick })
+    }
 
-        if (updateErr) {
-            console.error(`[draftOrder] Failed to update ${pick.playerName}:`, updateErr.message)
-        } else {
-            updated++
+    // Chunk at 500 rows per upsert (matches the pattern used in historicalCDN/stats sync).
+    let updated = 0
+    for (let i = 0; i < updates.length; i += 500) {
+        const chunk = updates.slice(i, i + 500)
+        const { error: upsertErr } = await supabase
+            .from('players')
+            .upsert(chunk as any, { onConflict: 'id' })
+
+        if (upsertErr) {
+            console.error(`[draftOrder] Upsert failed for chunk starting at ${i}:`, upsertErr.message)
+            // Continue with remaining chunks rather than aborting the whole sync.
+            continue
         }
+        updated += chunk.length
     }
 
     if (unmatched.length > 0) {

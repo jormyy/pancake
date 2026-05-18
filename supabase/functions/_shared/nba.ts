@@ -24,10 +24,14 @@ async function cdnGet(path: string): Promise<unknown> {
   }
 }
 
+// Parse NBA ISO duration like "PT35M12.00S" → decimal minutes (e.g. 35.2)
 export function parseNBAMinutes(iso: string | null | undefined): number | null {
   if (!iso) return null
-  const m = iso.match(/PT(\d+)M/)
-  return m ? parseInt(m[1]) : null
+  const m = iso.match(/PT(\d+)M([\d.]+)S/)
+  if (!m) return null
+  const mins = parseInt(m[1])
+  const secs = parseFloat(m[2])
+  return Math.round((mins + secs / 60) * 100) / 100
 }
 
 export async function fetchTodaysGames(): Promise<NBAGame[]> {

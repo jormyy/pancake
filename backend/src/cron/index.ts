@@ -2,6 +2,7 @@ import { CONFIG } from '../config'
 import { closeExpiredNominations } from '../sync/draft'
 import { livePoller } from '../sync/livePoller'
 import { syncPlayerStatuses } from '../sync/players'
+import { processAcceptedTrades } from '../sync/trades'
 
 // ── Cron job ownership ────────────────────────────────────────
 //
@@ -19,6 +20,9 @@ import { syncPlayerStatuses } from '../sync/players'
 //   livePoller — adaptive poller that switches from idle (5 min) to active
 //     (30s stats / 60s scores) when live games are detected. Provides a
 //     faster feedback loop than the Edge Function cron during game windows.
+//   processAcceptedTrades — finalizes trades whose 24h veto window has
+//     expired. Runs every 5 min in-process so accepted trades don't pile up
+//     between Edge Function invocations.
 
 export function registerCronJobs() {
     // Every 10s — close expired auction nominations
@@ -32,4 +36,20 @@ export function registerCronJobs() {
     // Sync player injury statuses every 30 minutes
     syncPlayerStatuses().catch(console.error)
     setInterval(() => syncPlayerStatuses().catch(console.error), CONFIG.PLAYER_STATUS_SYNC_MS)
+
+    // Every 5 min — complete accepted trades whose veto window has expired
+    setInterval(() => {
+        processAcceptedTrades()
+            .then((result) => {
+                if (result.processed > 0 || result.failed > 0) {
+                    console.log(
+                        `[cron] processAcceptedTrades: processed=${result.processed} failed=${result.failed}`,
+                    )
+                }
+                if (result.failures.length > 0) {
+                    for (const f of result.failures) console.error(`[cron] trade failure: ${f}`)
+                }
+            })
+            .catch((err) => console.error('[cron] processAcceptedTrades error:', err))
+    }, CONFIG.TRADE_COMPLETION_INTERVAL_MS)
 }

@@ -180,9 +180,15 @@ export async function syncCDNHistoricalSeason(
     // Recalculate week numbers for this season
     await recalcWeekNumbers(gameDateSet, seasonYear)
 
-    // Persist nba_id mappings
-    for (const u of nbaIdUpdates) {
-        await supabase.from('players').update({ nba_id: u.nba_id }).eq('id', u.id)
+    // Persist nba_id mappings in chunks.
+    // Rows are guaranteed to exist (fetched via fetchAllPlayers); upsert(onConflict:'id')
+    // merges nba_id into the existing row without touching other columns.
+    // Cast to any: generated type requires full row, but PostgREST accepts
+    // partial payloads for the UPDATE path of an upsert.
+    for (let i = 0; i < nbaIdUpdates.length; i += 500) {
+        await supabase
+            .from('players')
+            .upsert(nbaIdUpdates.slice(i, i + 500) as any, { onConflict: 'id' })
     }
 
     console.log(`[cdnHistory] Season ${seasonYear}: ${gameDateSet.size} games, ${completed} stat sets, ${failed} errors`)
@@ -221,9 +227,21 @@ async function recalcWeekNumbers(
         }
     }
 
-    // Bulk update week numbers
+    // Bulk update week numbers — group by week_number so each distinct value
+    // collapses into one .update().in() call (typically ~25 weeks per season vs ~1300 games).
+    const byWeek = new Map<number, string[]>()
     for (const { nba_game_id, week_number } of updates) {
-        await supabase.from('nba_games').update({ week_number }).eq('nba_game_id', nba_game_id)
+        const arr = byWeek.get(week_number)
+        if (arr) arr.push(nba_game_id)
+        else byWeek.set(week_number, [nba_game_id])
+    }
+    for (const [week_number, gameIds] of byWeek) {
+        for (let i = 0; i < gameIds.length; i += 500) {
+            await supabase
+                .from('nba_games')
+                .update({ week_number })
+                .in('nba_game_id', gameIds.slice(i, i + 500))
+        }
     }
 
     // Upsert season_weeks

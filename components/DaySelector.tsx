@@ -1,6 +1,6 @@
 import { Pressable, View, Text, StyleSheet } from 'react-native'
 import { WeekDay } from '@/lib/lineup'
-import { todayDateString } from '@/lib/shared/dates'
+import { todayET } from '@/lib/shared/dates'
 import { colors, palette } from '@/constants/tokens'
 
 export function DaySelector({
@@ -16,7 +16,7 @@ export function DaySelector({
         <View style={[styles.row, styles.content]}>
             {days.map((day) => {
                 const isSelected = day.date === selectedDate
-                const isPast = day.date < todayDateString()
+                const isPast = day.date < todayET()
                 const isFuture = !day.isToday && !isPast
                 return (
                     <Pressable

@@ -47,7 +47,27 @@ export async function startDraft(leagueId: string) {
         })
         .select()
         .single()
-    if (draftErr) throw draftErr
+    if (draftErr) {
+        // The pre-INSERT existence check above is best-effort: two concurrent
+        // commissioner double-taps can both observe "no open draft" before
+        // either INSERT commits. The `drafts_one_open_per_season` partial
+        // unique index (migrations/20260516154651) guarantees at most one
+        // pending/in_progress draft per (league_id, league_season_id,
+        // draft_type) at the storage layer; the loser of the race surfaces
+        // here as a 23505 unique violation. Translate that back to the same
+        // user-facing error the pre-check uses so callers don't see a raw
+        // Postgres error.
+        if ((draftErr as { code?: string }).code === '23505') {
+            const details =
+                typeof (draftErr as { message?: string }).message === 'string'
+                    ? (draftErr as { message: string }).message
+                    : ''
+            if (details.includes('drafts_one_open_per_season')) {
+                throw new Error('A draft already exists for this league season')
+            }
+        }
+        throw draftErr
+    }
 
     // Randomly shuffle nomination order
     const shuffled = [...members].sort(() => Math.random() - 0.5)
@@ -135,7 +155,32 @@ export async function nominatePlayer(draftId: string, memberId: string, playerId
         })
         .select()
         .single()
-    if (nomErr) throw nomErr
+    if (nomErr) {
+        // The pre-INSERT checks above are best-effort: two concurrent submits
+        // from the same nominator with different player_ids can both observe
+        // "no open nomination" before either commits. The
+        // `nominations_one_open_per_draft` partial unique index
+        // (migrations/20260516210000) guarantees at most one open nomination
+        // per draft at the storage layer; the loser of the race surfaces
+        // here as a 23505 unique violation. Translate both possible 23505
+        // violations on this table back to the existing user-facing error
+        // messages so callers don't see a raw Postgres error.
+        if ((nomErr as { code?: string }).code === '23505') {
+            const details =
+                typeof (nomErr as { message?: string }).message === 'string'
+                    ? (nomErr as { message: string }).message
+                    : ''
+            if (details.includes('nominations_one_open_per_draft')) {
+                throw new Error('A nomination is already open — wait for it to close')
+            }
+            // The other unique constraint on this table is (draft_id, player_id),
+            // which fires when the same player is re-submitted (either by this
+            // caller racing themselves or by an earlier nomination of the same
+            // player in this draft).
+            throw new Error('Player already nominated in this draft')
+        }
+        throw nomErr
+    }
 
     return nomination
 }
@@ -175,18 +220,27 @@ export async function closeExpiredNominations() {
 
     let closed = 0
     let failed = 0
-    for (const nom of expired) {
-        try {
+
+    const results = await Promise.allSettled(
+        expired.map(async (nom) => {
             const { error } = await supabase.rpc('close_auction_nomination_atomic', {
                 p_nomination_id: nom.id,
             })
             if (error) throw error
+            return nom.id
+        }),
+    )
+
+    for (let i = 0; i < results.length; i++) {
+        const r = results[i]
+        if (r.status === 'fulfilled') {
             closed += 1
-        } catch (e) {
+        } else {
             failed += 1
-            console.error(`[draft] Error closing nomination ${nom.id}:`, e)
+            console.error(`[draft] Error closing nomination ${expired[i].id}:`, r.reason)
         }
     }
+
     return { checked: expired.length, closed, failed }
 }
 

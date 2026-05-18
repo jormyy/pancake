@@ -1,6 +1,6 @@
 import { supabase, fetchAllPlayers } from '../lib/supabase'
 import { fetchBoxScore, parseNBAMinutes, NBABoxScorePlayer } from '../lib/nba'
-import { todayET } from '../lib/utils/date'
+import { todayET, toETDate } from '../lib/utils/date'
 import { normalizeName } from '../lib/utils/nameMatch'
 
 export interface StatRow {
@@ -82,7 +82,7 @@ export function buildStatRow(
 
 export async function syncStatsByDate(date: Date) {
     // Use ET date — NBA game_date values are ET-based, and UTC rolls over ~4-5h before midnight ET
-    const dateStr = date.toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
+    const dateStr = toETDate(date)
     console.log(`[sync] Fetching stats for ${dateStr}...`)
 
     const isPast = dateStr < todayET()
@@ -122,9 +122,38 @@ export async function syncStatsByDate(date: Date) {
     let statCount = 0
     const nbaIdUpdates: { id: string; nba_id: string }[] = []
 
-    for (const game of games) {
+    // Parallelize CDN box-score fetches in chunks. Each fetch is independent
+    // (read-only HTTP GET), but downstream accumulation (nbaIdUpdates, DB writes)
+    // is processed sequentially to preserve ordering and avoid race conditions.
+    const FETCH_CONCURRENCY = 5
+    type BoxScoreFetch =
+        | { ok: true; game: typeof games[number]; boxScore: Awaited<ReturnType<typeof fetchBoxScore>> }
+        | { ok: false; game: typeof games[number]; error: any }
+
+    const fetched: BoxScoreFetch[] = []
+    for (let i = 0; i < games.length; i += FETCH_CONCURRENCY) {
+        const chunk = games.slice(i, i + FETCH_CONCURRENCY)
+        const chunkResults = await Promise.all(
+            chunk.map(async (game): Promise<BoxScoreFetch> => {
+                try {
+                    const boxScore = await fetchBoxScore(game.nba_game_id!)
+                    return { ok: true, game, boxScore }
+                } catch (error) {
+                    return { ok: false, game, error }
+                }
+            }),
+        )
+        fetched.push(...chunkResults)
+    }
+
+    for (const result of fetched) {
+        const { game } = result
+        if (!result.ok) {
+            console.error(`[sync] Error fetching box score for ${game.nba_game_id}:`, result.error?.message)
+            continue
+        }
         try {
-            const boxScore = await fetchBoxScore(game.nba_game_id!)
+            const { boxScore } = result
             const allPlayers = [
                 ...(boxScore.homeTeam?.players ?? []),
                 ...(boxScore.awayTeam?.players ?? []),
@@ -170,13 +199,19 @@ export async function syncStatsByDate(date: Date) {
                 statCount += stats.length
             }
         } catch (e: any) {
-            console.error(`[sync] Error fetching box score for ${game.nba_game_id}:`, e.message)
+            console.error(`[sync] Error processing box score for ${game.nba_game_id}:`, e.message)
         }
     }
 
-    // Persist newly discovered nba_id mappings in batches
-    for (const u of nbaIdUpdates) {
-        await supabase.from('players').update({ nba_id: u.nba_id }).eq('id', u.id)
+    // Persist newly discovered nba_id mappings in batches.
+    // Rows are guaranteed to exist (fetched via fetchAllPlayers); upsert(onConflict:'id')
+    // merges nba_id into the existing row without touching other columns.
+    // Cast to any: generated type requires full row, but PostgREST accepts
+    // partial payloads for the UPDATE path of an upsert.
+    for (let i = 0; i < nbaIdUpdates.length; i += 500) {
+        await supabase
+            .from('players')
+            .upsert(nbaIdUpdates.slice(i, i + 500) as any, { onConflict: 'id' })
     }
     if (nbaIdUpdates.length > 0) {
         console.log(`[sync] Mapped ${nbaIdUpdates.length} new NBA person IDs.`)

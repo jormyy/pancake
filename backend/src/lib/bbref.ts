@@ -94,7 +94,9 @@ export async function fetchBBRefSchedule(seasonEndYear: number): Promise<BBRefGa
                 const homeTeamBBRef = bbrefId.substring(9) // everything after the "0" separator
 
                 // Away team from the visitor column href: "/teams/SAS/2004.html"
-                const visitorHref = $row.find('td[data-stat="visitor_team_id"] a').attr('href') ?? ''
+                // BBRef schedule pages use data-stat="visitor_team_name" (verified against live HTML);
+                // there is no visitor_team_id column. Must match _shared/bbref.ts.
+                const visitorHref = $row.find('td[data-stat="visitor_team_name"] a').attr('href') ?? ''
                 const awayTeamBBRef = visitorHref.split('/')[2]?.toUpperCase() ?? ''
 
                 if (!homeTeamBBRef || !awayTeamBBRef) return

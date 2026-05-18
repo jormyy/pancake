@@ -7,6 +7,19 @@ export async function signUp(
     username: string,
     displayName: string,
 ) {
+    // Pre-check username availability BEFORE creating the auth user.
+    // Rolling back auth.users from the client is impossible (admin-only), so we
+    // try to catch the most common profile-insert failure (duplicate username)
+    // ahead of time. There's still a TOCTOU race, but it eliminates the common case.
+    const { data: existing, error: lookupError } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('username', username)
+        .maybeSingle()
+
+    if (lookupError) throw lookupError
+    if (existing) throw new Error('That username is taken. Please choose another.')
+
     const { data, error } = await supabase.auth.signUp({ email, password })
     if (error) throw error
 
@@ -16,7 +29,22 @@ export async function signUp(
         display_name: displayName,
     })
 
-    if (profileError) throw profileError
+    if (profileError) {
+        // Profile insert failed AFTER auth.users was created (RLS denial, race
+        // on username, network hiccup). We can't delete auth.users from the
+        // client, but we CAN sign the user back out so the client is in a clean
+        // state and the UI doesn't get stuck on a profile-less session. The
+        // orphaned auth.users row will be cleaned up server-side (or the user
+        // can retry with a different email after confirmation timeout).
+        try {
+            await supabase.auth.signOut()
+        } catch {
+            // best-effort; surface the original profile error regardless
+        }
+        throw new Error(
+            `Could not create your profile (${profileError.message}). Please try again with a different username or email.`,
+        )
+    }
 
     return data
 }
@@ -37,7 +65,13 @@ export async function signOut() {
 }
 
 export async function getProfile(userId: string) {
-    const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).single<Profile>()
+    // Explicit column list — push_token is column-revoked from authenticated
+    // (iter 27 Slice C); `select('*')` would 42501 in production.
+    const { data, error } = await supabase
+        .from('profiles')
+        .select('id, username, display_name, created_at, updated_at')
+        .eq('id', userId)
+        .single<Profile>()
     if (error) throw error
     return data
 }

@@ -31,6 +31,10 @@ export async function notifyUser(
   const token = profile?.push_token
   if (!token) return
 
+  // Expo push API typically responds in <500ms; 8s is a generous upper bound.
+  // Fail-soft: never let a slow/hanging Expo response stall the edge function
+  // (one slow call per matchup could chew through the 150s budget).
+  const PUSH_TIMEOUT_MS = 8000
   try {
     const res = await fetch(EXPO_PUSH_URL, {
       method: 'POST',
@@ -39,12 +43,14 @@ export async function notifyUser(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ to: token, title, body, data: data ?? {}, sound: 'default' }),
+      signal: AbortSignal.timeout(PUSH_TIMEOUT_MS),
     })
     const json = await res.json() as any
     if (json?.data?.status === 'error') {
       console.error('[push]', json?.data?.message)
     }
   } catch (e) {
+    // Catches AbortError (timeout) and any network/JSON errors. Fail-soft.
     console.error('[push] Failed to send:', e)
   }
 }

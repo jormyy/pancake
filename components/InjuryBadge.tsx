@@ -3,14 +3,16 @@ import { colors, palette } from '@/constants/tokens'
 
 export function InjuryBadge({ status }: { status: string | null }) {
     if (!status) return null
-    const s = status.toLowerCase()
-    let label = status.toUpperCase()
+    const trimmed = status.trim()
+    if (!trimmed) return null
+    const s = trimmed.toLowerCase()
+    let label = trimmed.toUpperCase()
     let color: string = colors.textPlaceholder
     if (s === 'out') { color = colors.danger; label = 'OUT' }
     else if (s.startsWith('ir')) { color = palette.red900; label = 'IR' }
     else if (s === 'gtd' || s === 'game time decision') { color = palette.amber600; label = 'GTD' }
-    else if (s === 'd-td' || s === 'day-to-day') { color = colors.primary; label = 'D-TD' }
-    else return null
+    else if (s === 'd-td' || s === 'day-to-day' || s === 'dtd') { color = colors.primary; label = 'D-TD' }
+    else { color = colors.textPlaceholder; label = 'INJ' }
 
     return (
         <View style={[styles.injuryBadge, { backgroundColor: color + '22' }]}>

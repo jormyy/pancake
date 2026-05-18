@@ -96,6 +96,10 @@ export async function getMyMatchup(memberId: string, leagueId: string): Promise<
             .eq('league_id', leagueId)
             .eq('league_season_id', season.id)
             .eq('is_finalized', true)
+            // Records (wins/losses) shown alongside the current matchup must
+            // count regular-season games only; playoff outcomes don't change
+            // a team's season W/L line.
+            .eq('matchup_type', 'regular_season')
             .or(`home_member_id.in.(${memberId},${opponentId}),away_member_id.in.(${memberId},${opponentId})`),
     ])
 
@@ -154,10 +158,12 @@ export async function getLeagueStandings(leagueId: string): Promise<StandingRow[
                 'home_member_id, away_member_id, home_points, away_points, winner_member_id, is_finalized',
             )
             .eq('league_id', leagueId)
-            .eq('league_season_id', season.id),
+            .eq('league_season_id', season.id)
+            // League standings reflect regular-season records only; playoff
+            // matchups have their own bracket display and must not inflate
+            // wins/losses/PF/PA totals.
+            .eq('matchup_type', 'regular_season'),
     ])
-
-    const teamNames = Object.fromEntries((members ?? []).map((m) => [m.id, m.team_name]))
 
     const map: Record<string, StandingRow> = {}
     for (const m of members ?? []) {

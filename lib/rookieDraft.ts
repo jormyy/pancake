@@ -215,7 +215,10 @@ export async function makeSnakePick(draftId: string, memberId: string, playerId:
 }
 
 export async function autoPickBest(draftId: string, memberId: string) {
-    return sharedApiPost<any>(`/draft/${draftId}/auto-pick`, { memberId, playerId: '' })
+    // Server picks best available — only memberId is required by AutoPickBody.
+    // Sending playerId: '' here would fail the UUID-format check in the schema
+    // and 400 before the handler runs (breaks the pick-clock auto-pick path).
+    return sharedApiPost<any>(`/draft/${draftId}/auto-pick`, { memberId })
 }
 
 export async function reseedRookieDraftPicks(draftId: string) {

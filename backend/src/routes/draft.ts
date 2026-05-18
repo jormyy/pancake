@@ -20,6 +20,7 @@ import {
     NominateBody,
     BidBody,
     SnakePickBody,
+    AutoPickBody,
 } from '../schemas'
 
 export default async function draftRoutes(app: FastifyInstance) {
@@ -93,7 +94,7 @@ export default async function draftRoutes(app: FastifyInstance) {
 
     app.post(
         '/:draftId/auto-pick',
-        { schema: { params: DraftParams, body: SnakePickBody } },
+        { schema: { params: DraftParams, body: AutoPickBody } },
         async (req) => {
             const { draftId } = req.params as { draftId: string }
             const { memberId } = req.body as { memberId: string }

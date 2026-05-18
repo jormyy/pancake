@@ -11,8 +11,16 @@ export function ScoreCard({ matchup }: { matchup: Matchup }) {
     let statusLabel = 'In Progress'
     let statusColor: string = colors.primary
     if (matchup.isFinalized) {
-        statusLabel = matchup.iWon ? 'Win' : 'Loss'
-        statusColor = matchup.iWon ? colors.success : colors.danger
+        if (matchup.iWon === true) {
+            statusLabel = 'Win'
+            statusColor = colors.success
+        } else if (matchup.iWon === false) {
+            statusLabel = 'Loss'
+            statusColor = colors.danger
+        } else {
+            statusLabel = 'Tie'
+            statusColor = colors.textMuted
+        }
     }
 
     return (

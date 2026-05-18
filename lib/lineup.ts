@@ -3,7 +3,6 @@ export type { LineupPlayer, LineupSlot, LineupContext, WeekDay } from './lineup/
 export {
     getStartedTeams,
     getTeamMatchups,
-    getLiveTeams,
     getLineupContext,
     getWeekDays,
     getWeeklyLineup,

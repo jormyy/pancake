@@ -20,7 +20,7 @@ import {
     setPlayerSlot,
     WeekDay,
 } from '@/lib/lineup'
-import { todayDateString } from '@/lib/shared/dates'
+import { todayET } from '@/lib/shared/dates'
 import { useRouter } from 'expo-router'
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import {
@@ -171,8 +171,12 @@ export default function LineupScreen() {
 
     const [ctx, setCtx] = useState<LineupContext | null>(null)
     const [weekDays, setWeekDays] = useState<WeekDay[]>([])
+    // selectedDate is overwritten by load() with lineupCtx.today (ET) once
+    // the lineup context loads. The initial value is read by useLiveStats
+    // (which queries nba_games by ET-keyed game_date) before then — use
+    // todayET so the very first poll/query lines up with the backend.
     const [selectedDate, setSelectedDate] = useState<string>(
-        () => todayDateString(),
+        () => todayET(),
     )
     const [starters, setStarters] = useState<LineupSlot[]>([])
     const [bench, setBench] = useState<LineupPlayer[]>([])
@@ -223,8 +227,10 @@ export default function LineupScreen() {
     useEffect(() => { load() }, [load])
 
     async function handleTap(newSel: Selection) {
-        // Block all moves on past days
-        if (selectedDate < todayDateString()) {
+        // Block all moves on past days. selectedDate is set from
+        // lineupCtx.today (ET-keyed) so compare against todayET to avoid
+        // a local-vs-ET skew misclassifying the current day.
+        if (selectedDate < todayET()) {
             Alert.alert('Past lineup', 'Lineups for past days cannot be changed.')
             return
         }

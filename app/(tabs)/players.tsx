@@ -51,7 +51,7 @@ import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
 import { getWeekDays, WeekDay, getStartedTeams } from '@/lib/lineup'
 import { getCurrentWeekNumber } from '@/lib/shared/week'
 import { currentSeasonYear } from '@/lib/shared/season'
-import { todayDateString } from '@/lib/shared/dates'
+import { todayET } from '@/lib/shared/dates'
 
 const POSITIONS = ['ALL', 'PG', 'SG', 'SF', 'PF', 'C', 'G', 'F']
 const TEAMS = ['ATL', 'BOS', 'BKN', 'CHA', 'CHI', 'CLE', 'DAL', 'DEN', 'DET', 'GSW', 'HOU', 'IND', 'LAC', 'LAL', 'MEM', 'MIA', 'MIL', 'MIN', 'NOP', 'NYK', 'OKC', 'ORL', 'PHI', 'PHX', 'POR', 'SAC', 'SAS', 'TOR', 'UTA', 'WAS']
@@ -247,7 +247,10 @@ export default function PlayersScreen() {
     const waiverIds = ownedData?.waiverIds ?? EMPTY_WAIVER_IDS
 
     const gamesLeft = useMemo(() => {
-        const today = todayDateString()
+        // weekDays[i].date comes from getWeekDays — ET-keyed against
+        // nba_games.game_date. Compare with todayET so non-ET clients don't
+        // skew the "games remaining" count.
+        const today = todayET()
         const map = new Map<string, number>()
         for (const day of weekDays) {
             if (day.date < today) continue
@@ -297,7 +300,8 @@ export default function PlayersScreen() {
     useEffect(() => {
         let cancelled = false
         const seasonYear = currentSeasonYear()
-        const today = todayDateString()
+        // getStartedTeams queries nba_games by ET-keyed game_date; use todayET.
+        const today = todayET()
         getCurrentWeekNumber(seasonYear).then((weekNum) => {
             if (cancelled) return
             return getWeekDays(weekNum ?? 1, seasonYear)
@@ -338,6 +342,19 @@ export default function PlayersScreen() {
             setLoading(false)
         }
     }, [])
+
+    // Synchronously clear stale list + show spinner on league switch, so the
+    // previous league's players don't render during the 300ms debounce window
+    // below. Skip the initial mount — the debounced load effect handles that.
+    const isFirstLeagueRunRef = useRef(true)
+    useEffect(() => {
+        if (isFirstLeagueRunRef.current) {
+            isFirstLeagueRunRef.current = false
+            return
+        }
+        setPlayers([])
+        setLoading(true)
+    }, [leagueId])
 
     useEffect(() => {
         const timer = setTimeout(() => load(query, position, selectedTeams, leagueId, playingTeams, rookiesOnly), 300)
@@ -387,20 +404,26 @@ export default function PlayersScreen() {
         })
     }
 
-    async function handleAdd(player: PlayerRow) {
-        if (!current || !currentLeague) return
-        const lid = currentLeague.id
-
-        if (waiverIds.has(player.id)) {
-            // Check for ineligible IR players before allowing waiver claim
+    // ── Shared helpers for add-player flows ─────────────────────────
+    // Returns true if IR modal was shown (caller should bail).
+    const checkAndShowIRModal = useCallback(
+        async (player: PlayerRow, lid: string, excludeRosterId?: string): Promise<RosterPlayer[] | null> => {
+            if (!current) return null
             const roster = await getRoster(current.id, lid)
-            const ineligible = roster.filter((r) => isIneligibleIR(r))
-
+            const ineligible = roster.filter(
+                (r) => isIneligibleIR(r) && r.id !== excludeRosterId
+            )
             if (ineligible.length > 0) {
                 setIrModal({ ineligible, roster, pendingPlayer: player })
-                return
+                return null
             }
+            return roster
+        },
+        [current]
+    )
 
+    const confirmWaiverClaim = useCallback(
+        (player: PlayerRow, lid: string, onAfterClaim?: () => void) => {
             Alert.alert(
                 'Place Waiver Claim',
                 `You sure you wanna put in a waiver claim for ${player.display_name}? Claims process nightly.`,
@@ -409,10 +432,11 @@ export default function PlayersScreen() {
                     {
                         text: 'Claim',
                         onPress: async () => {
+                            if (!current) return
                             setAdding(player.id)
                             try {
                                 await submitWaiverClaim(current.id, lid, player.id)
-                                Alert.alert('Claimed', 'Waiver claim submitted.')
+                                onAfterClaim?.()
                             } catch (e: any) {
                                 Alert.alert('Error', e.message)
                             } finally {
@@ -423,17 +447,28 @@ export default function PlayersScreen() {
                     },
                 ],
             )
+        },
+        [current, refreshOwned]
+    )
+
+    async function handleAdd(player: PlayerRow) {
+        if (!current || !currentLeague) return
+        const lid = currentLeague.id
+
+        if (waiverIds.has(player.id)) {
+            // Check for ineligible IR players before allowing waiver claim
+            const roster = await checkAndShowIRModal(player, lid)
+            if (!roster) return
+            confirmWaiverClaim(player, lid, () => {
+                Alert.alert('Claimed', 'Waiver claim submitted.')
+            })
             return
         }
 
         // Free-agent add — may require a drop if roster is full
-        const roster = await getRoster(current.id, lid)
-        const active = roster.filter((r) => !r.is_on_ir)
-        const ineligible = roster.filter((r) => isIneligibleIR(r))
-        if (ineligible.length > 0) {
-            setIrModal({ ineligible, roster, pendingPlayer: player })
-            return
-        }
+        const roster = await checkAndShowIRModal(player, lid)
+        if (!roster) return
+        const active = roster.filter((r) => !r.is_on_ir && !r.is_on_taxi)
         if (active.length >= currentLeague.roster_size) {
             setDropPickerPlayer(player)
             setMyRoster(roster)
@@ -461,7 +496,7 @@ export default function PlayersScreen() {
         } catch (e: any) {
             if (e.message?.includes('full')) {
                 const roster = await getRoster(current.id, leagueId)
-                setMyRoster(roster.filter((r) => !r.is_on_ir))
+                setMyRoster(roster.filter((r) => !r.is_on_ir && !r.is_on_taxi))
                 setDropPickerPlayer(player)
             } else {
                 Alert.alert('Error', e.message)
@@ -476,17 +511,8 @@ export default function PlayersScreen() {
         const lid = currentLeague.id
 
         // Check for ineligible IR players before dropping (excluding the one being dropped)
-        const roster = await getRoster(current.id, lid)
-        const ineligible = roster.filter(
-            (r) => isIneligibleIR(r) && r.id !== rosterPlayer.id
-        )
-
-        if (ineligible.length > 0) {
-            // Show IR resolution modal
-            const fullRoster = await getRoster(current.id, lid)
-            setIrModal({ ineligible, roster: fullRoster, pendingPlayer: dropPickerPlayer })
-            return
-        }
+        const roster = await checkAndShowIRModal(dropPickerPlayer, lid, rosterPlayer.id)
+        if (!roster) return
 
         setDropping(rosterPlayer.id)
         try {
@@ -501,10 +527,19 @@ export default function PlayersScreen() {
         }
     }
 
-    async function handleIRActivate(rp: RosterPlayer) {
-        if (!current || !currentLeague) return
-        await toggleIR(rp.id, false)
-        const lid = currentLeague.id
+    async function proceedAfterIRResolved(player: PlayerRow, leagueId: string) {
+        if (!current) return
+        if (waiverIds.has(player.id)) {
+            confirmWaiverClaim(player, leagueId)
+        } else {
+            await tryAddFreeAgent(player, leagueId)
+        }
+    }
+
+    // After an IR-related mutation, re-check the roster: re-show modal if still
+    // ineligible players remain, otherwise close it and resume the pending add.
+    async function afterIRMutation(lid: string) {
+        if (!current) return
         const roster = await getRoster(current.id, lid)
         const remaining = roster.filter((r) => isIneligibleIR(r))
         if (remaining.length > 0) {
@@ -514,51 +549,19 @@ export default function PlayersScreen() {
             setIrModal(null)
             await proceedAfterIRResolved(pending, lid)
         }
+    }
+
+    async function handleIRActivate(rp: RosterPlayer) {
+        if (!current || !currentLeague) return
+        await toggleIR(rp.id, false)
+        await afterIRMutation(currentLeague.id)
     }
 
     async function handleDropAndIRActivate(toDrop: RosterPlayer, activatePlayer: RosterPlayer) {
         if (!current || !currentLeague) return
-        const lid = currentLeague.id
         await dropPlayer(toDrop.id)
         await toggleIR(activatePlayer.id, false)
-        const roster = await getRoster(current.id, lid)
-        const remaining = roster.filter((r) => isIneligibleIR(r))
-        if (remaining.length > 0) {
-            setIrModal((prev) => prev ? { ...prev, ineligible: remaining, roster } : null)
-        } else {
-            const pending = irModal!.pendingPlayer
-            setIrModal(null)
-            await proceedAfterIRResolved(pending, lid)
-        }
-    }
-
-    async function proceedAfterIRResolved(player: PlayerRow, leagueId: string) {
-        if (!current) return
-        if (waiverIds.has(player.id)) {
-            Alert.alert(
-                'Place Waiver Claim',
-                `You sure you wanna put in a waiver claim for ${player.display_name}? Claims process nightly.`,
-                [
-                    { text: 'Nah', style: 'cancel' },
-                    {
-                        text: 'Claim',
-                        onPress: async () => {
-                            setAdding(player.id)
-                            try {
-                                await submitWaiverClaim(current!.id, leagueId, player.id)
-                                await refreshOwned()
-                            } catch (e: any) {
-                                Alert.alert('Error', e.message)
-                            } finally {
-                                setAdding(null)
-                            }
-                        },
-                    },
-                ],
-            )
-        } else {
-            await tryAddFreeAgent(player, leagueId)
-        }
+        await afterIRMutation(currentLeague.id)
     }
 
     return (
@@ -666,7 +669,7 @@ export default function PlayersScreen() {
                     showsHorizontalScrollIndicator={false}
                     contentContainerStyle={styles.dayChips}
                 >
-                    {weekDays.filter((day) => day.date >= todayDateString()).map((day) => {
+                    {weekDays.filter((day) => day.date >= todayET()).map((day) => {
                         const active = selectedDays.includes(day.date)
                         const label = new Date(day.date + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'short' })
                         return (
@@ -783,7 +786,7 @@ export default function PlayersScreen() {
             <IRResolutionModal
                 visible={irModal !== null}
                 ineligibleIR={irModal?.ineligible ?? []}
-                activeRoster={(irModal?.roster ?? []).filter((r) => !r.is_on_ir)}
+                activeRoster={(irModal?.roster ?? []).filter((r) => !r.is_on_ir && !r.is_on_taxi)}
                 rosterSize={currentLeague?.roster_size ?? 20}
                 pendingPlayerName={irModal?.pendingPlayer.display_name ?? ''}
                 onActivate={handleIRActivate}

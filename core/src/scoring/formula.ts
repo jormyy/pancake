@@ -23,3 +23,26 @@ export function calculateFantasyPoints(
         ).toFixed(2),
     )
 }
+
+/**
+ * Convert a snake_case stat row (as stored in the DB) into a camelCase StatLine.
+ * Missing or null fields default to 0 / false so callers don't need to guard.
+ */
+export function snakeToStatLine(row: Record<string, unknown>): StatLine {
+    return {
+        points: (row.points as number) ?? 0,
+        rebounds: (row.rebounds as number) ?? 0,
+        assists: (row.assists as number) ?? 0,
+        steals: (row.steals as number) ?? 0,
+        blocks: (row.blocks as number) ?? 0,
+        turnovers: (row.turnovers as number) ?? 0,
+        threePointersMade: (row.three_pointers_made as number) ?? 0,
+        fieldGoalsMade: (row.field_goals_made as number) ?? 0,
+        fieldGoalsAttempted: (row.field_goals_attempted as number) ?? 0,
+        freeThrowsMade: (row.free_throws_made as number) ?? 0,
+        freeThrowsAttempted: (row.free_throws_attempted as number) ?? 0,
+        doubleDouble: (row.double_double as boolean) ?? false,
+        tripleDouble: (row.triple_double as boolean) ?? false,
+        didNotPlay: (row.did_not_play as boolean) ?? false,
+    }
+}

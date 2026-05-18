@@ -18,12 +18,14 @@ export default function BracketScreen() {
     const [loading, setLoading] = useState(true)
 
     const myMemberId = current?.id
+    const currentId = current?.id
+    const currentLeagueId = currentLeague?.id
 
     useEffect(() => {
         async function load() {
-            if (!current || !currentLeague) return
+            if (!currentId || !currentLeagueId) return
             try {
-                const data = await getPlayoffBracket(currentLeague.id)
+                const data = await getPlayoffBracket(currentLeagueId)
                 setBracket(data)
             } catch (e) {
                 console.error(e)
@@ -32,7 +34,7 @@ export default function BracketScreen() {
             }
         }
         load()
-    }, [current, currentLeague])
+    }, [currentId, currentLeagueId])
 
     return (
         <>
@@ -40,7 +42,10 @@ export default function BracketScreen() {
             <SafeAreaView style={styles.container} edges={['bottom']}>
                 {loading ? (
                     <LoadingScreen />
-                ) : !bracket || (bracket.semifinals.length === 0 && !bracket.final) ? (
+                ) : !bracket ||
+                  (bracket.quarterfinals.length === 0 &&
+                      bracket.semifinals.length === 0 &&
+                      !bracket.final) ? (
                     <View style={styles.empty}>
                         <Text style={styles.emptyTitle}>No Bracket Yet</Text>
                         <Text style={styles.emptyText}>
@@ -55,6 +60,15 @@ export default function BracketScreen() {
                                 <Text style={styles.championLabel}>🏆 CHAMPION</Text>
                                 <Text style={styles.championName}>{bracket.champion}</Text>
                             </View>
+                        )}
+
+                        {bracket.quarterfinals.length > 0 && (
+                            <>
+                                <Text style={styles.roundLabel}>QUARTERFINALS</Text>
+                                {bracket.quarterfinals.map((m) => (
+                                    <MatchupCard key={m.id} matchup={m} myMemberId={myMemberId} />
+                                ))}
+                            </>
                         )}
 
                         {bracket.semifinals.length > 0 && (

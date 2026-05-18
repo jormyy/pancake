@@ -52,4 +52,7 @@ export const CONFIG = {
 
     /** How often (ms) to sync player injury statuses from Sleeper */
     PLAYER_STATUS_SYNC_MS: 60 * 1000,
+
+    /** How often (ms) to complete accepted trades whose 24h veto window has expired */
+    TRADE_COMPLETION_INTERVAL_MS: 5 * 60 * 1000,
 } as const

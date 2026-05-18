@@ -1,5 +1,5 @@
 // Scoring
-export { calculateFantasyPoints } from './scoring/formula'
+export { calculateFantasyPoints, snakeToStatLine } from './scoring/formula'
 export type { StatLine, ScoringSettings } from './scoring/types'
 
 // Season

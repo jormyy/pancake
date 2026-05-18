@@ -35,19 +35,30 @@ async function syncProjections() {
 
   const minWeek = Math.max(1, weekNumber - (LOOKBACK_WEEKS - 1))
 
-  const { data: stats, error } = await supabase
-    .from('player_game_stats')
-    .select(
-      'player_id, points, rebounds, assists, steals, blocks, turnovers, ' +
-        'three_pointers_made, field_goals_made, field_goals_attempted, ' +
-        'free_throws_made, free_throws_attempted, did_not_play',
-    )
-    .eq('season_year', seasonYear)
-    .gte('week_number', minWeek)
-    .lte('week_number', weekNumber)
+  // Paginate to avoid PostgREST max_rows cap (~1000 rows by default).
+  // With ~500 active players * ~3 games/week * 4 weeks this exceeds the cap.
+  const rows: any[] = []
+  const PAGE = 1000
+  let from = 0
+  while (true) {
+    const { data, error } = await supabase
+      .from('player_game_stats')
+      .select(
+        'player_id, points, rebounds, assists, steals, blocks, turnovers, ' +
+          'three_pointers_made, field_goals_made, field_goals_attempted, ' +
+          'free_throws_made, free_throws_attempted, did_not_play',
+      )
+      .eq('season_year', seasonYear)
+      .gte('week_number', minWeek)
+      .lte('week_number', weekNumber)
+      .range(from, from + PAGE - 1)
+    if (error) throw error
+    if (!data || data.length === 0) break
+    rows.push(...data)
+    if (data.length < PAGE) break
+    from += PAGE
+  }
 
-  if (error) throw error
-  const rows = (stats ?? []) as any[]
   if (!rows.length) { console.log('[sync-projections] No recent stats found.'); return }
 
   const playerGames = new Map<string, any[]>()

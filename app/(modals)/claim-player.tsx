@@ -56,7 +56,7 @@ export default function ClaimPlayerScreen() {
         load()
     }, [playerId, current, user, leagueId])
 
-    const activeRoster = myRoster.filter((p) => !p.is_on_ir)
+    const activeRoster = myRoster.filter((p) => !p.is_on_ir && !p.is_on_taxi)
     const ineligibleIR = myRoster.filter((r) => isIneligibleIR(r))
     const rosterFull = activeRoster.length >= rosterSize
     const needsDrop = rosterFull
@@ -98,6 +98,7 @@ export default function ClaimPlayerScreen() {
         weekday: 'short',
         month: 'short',
         day: 'numeric',
+        timeZone: 'America/New_York',
     })
 
     return (

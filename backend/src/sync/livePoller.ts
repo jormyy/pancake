@@ -13,18 +13,32 @@ function isGameWindow(): boolean {
     return etHour >= 11 || etHour < 1
 }
 
+// Shared with supabase/functions/live-poll — both pollers must use the same
+// lock_key so the lease provides mutual exclusion across the edge function and
+// the backend worker.
+const LIVE_POLL_LOCK_KEY = 779001
+// TTL must comfortably cover the longest in-loop sync. 90s leaves headroom
+// over the 1-minute cron cadence; if the worker crashes the lease auto-clears.
+const LIVE_POLL_LEASE_TTL_SECONDS = 90
+
 async function withLivePollLease(fn: () => Promise<void>) {
-    const { data, error } = await supabase.rpc('try_live_poll_lock' as any)
+    const { data: holderId, error } = await supabase.rpc('try_live_poll_lease', {
+        p_lock_key: LIVE_POLL_LOCK_KEY,
+        p_ttl_seconds: LIVE_POLL_LEASE_TTL_SECONDS,
+    })
     if (error) {
         console.error('[livePoller] Failed to acquire live-poll lease:', error.message)
         return
     }
-    if (!data) return
+    if (!holderId) return
 
     try {
         await fn()
     } finally {
-        const { error: releaseError } = await supabase.rpc('release_live_poll_lock' as any)
+        const { error: releaseError } = await supabase.rpc('release_live_poll_lease', {
+            p_lock_key: LIVE_POLL_LOCK_KEY,
+            p_holder_id: holderId,
+        })
         if (releaseError) {
             console.error('[livePoller] Failed to release live-poll lease:', releaseError.message)
         }
@@ -204,17 +218,29 @@ export async function updateGameStatuses(games: NBAGame[]) {
 
     const cdnMap = new Map(games.map((g) => [g.gameId, g]))
 
+    const rows: Array<{
+        id: string
+        status: string
+        home_score: number
+        away_score: number
+        game_status_text: string
+    }> = []
     for (const dbGame of dbGames) {
         const g = cdnMap.get(dbGame.nba_game_id!)
         if (!g) continue
         const newStatus = g.gameStatus === 2 ? 'InProgress' : g.gameStatus === 3 ? 'Final' : 'Scheduled'
-        await supabase.from('nba_games').update({
+        rows.push({
+            id: dbGame.id,
             status: newStatus,
             home_score: g.homeTeam.score,
             away_score: g.awayTeam.score,
             game_status_text: g.gameStatusText,
-        }).eq('id', dbGame.id)
+        })
     }
+
+    if (rows.length === 0) return
+
+    await supabase.from('nba_games').upsert(rows as any, { onConflict: 'id' })
 }
 
 export const livePoller = new LiveGamePoller()

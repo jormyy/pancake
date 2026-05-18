@@ -10,7 +10,7 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLocalSearchParams, useRouter } from 'expo-router'
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
 import { getLeagueMembers } from '@/lib/league'
 import { getRoster, RosterPlayer } from '@/lib/roster'
@@ -121,6 +121,7 @@ export default function ProposeTradeScreen() {
     const [loading, setLoading] = useState(true)
     const [rosterLoading, setRosterLoading] = useState(false)
     const [submitting, setSubmitting] = useState(false)
+    const submittingRef = useRef(false)
 
     // Load league members (excluding self)
     useEffect(() => {
@@ -200,10 +201,12 @@ export default function ProposeTradeScreen() {
     }
 
     async function handleSubmit() {
+        if (submittingRef.current) return
         if (!selectedRecipientId) return
         const hasOffer = offerIds.size > 0 || offerPickIds.size > 0
         const hasRequest = requestIds.size > 0 || requestPickIds.size > 0
         if (!hasOffer || !hasRequest) return
+        submittingRef.current = true
         setSubmitting(true)
         try {
             const seasonId = await getCurrentSeasonId(leagueId)
@@ -227,6 +230,7 @@ export default function ProposeTradeScreen() {
         } catch (e: any) {
             showAlert('Error', e.message ?? 'Could not propose trade.')
         } finally {
+            submittingRef.current = false
             setSubmitting(false)
         }
     }

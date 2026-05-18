@@ -1,12 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-vi.mock('../src/lib/supabase', () => ({ supabase: { from: vi.fn() } }))
+vi.mock('../src/lib/supabase', () => ({ supabase: { from: vi.fn(), rpc: vi.fn() } }))
 vi.mock('../src/config', () => ({ CONFIG: { ROOKIE_DRAFT_ROUNDS: 3 } }))
 
 import { supabase } from '../src/lib/supabase'
 import { makeSnakePick, autoPickBest, startRookieDraft } from '../src/sync/rookieDraft'
 
 const mockFrom = vi.mocked(supabase.from)
+const mockRpc = vi.mocked(supabase.rpc)
 
 beforeEach(() => vi.clearAllMocks())
 
@@ -35,203 +36,188 @@ function q(data: any = null, error: any = null, count: number | null = null) {
     return chain
 }
 
+// makeSnakePick now delegates to the make_snake_pick_atomic RPC; the TS side
+// only handles post-pick non-critical work (roster overflow + taxi + push
+// notification). These helpers build that picture.
+function rpcOk(payload: Partial<{
+    pick: { id: string; overall_pick: number; round: number; pick_in_round: number; member_id: string; draft_pick_id: string | null }
+    remaining: number
+    completed: boolean
+    league_id: string
+    league_season_id: string
+}> = {}) {
+    return Promise.resolve({
+        data: {
+            pick: payload.pick ?? {
+                id: 'sp1', overall_pick: 5, round: 2, pick_in_round: 3,
+                member_id: 'm1', draft_pick_id: null,
+            },
+            remaining: payload.remaining ?? 3,
+            completed: payload.completed ?? false,
+            league_id: payload.league_id ?? 'lg1',
+            league_season_id: payload.league_season_id ?? 's1',
+        },
+        error: null,
+    })
+}
+
+function rpcErr(message: string) {
+    return Promise.resolve({ data: null, error: { message } as any })
+}
+
+// makeSnakePick's post-RPC reads, in order:
+//   1. leagues -> roster_size, taxi_slots
+//   2. roster_players -> activeCount
+//   3. roster_players -> taxiCount  (these two run via Promise.all)
+//   4. players -> display_name
+//   5. league_members -> user_id (inside notifyMember)
+// Tests that need to inspect activeCount/taxiCount override step 2/3.
+function defaultPostRpcMocks(opts: {
+    rosterSize?: number
+    taxiSlots?: number
+    activeCount?: number
+    taxiCount?: number
+} = {}) {
+    let n = 0
+    mockFrom.mockImplementation(() => {
+        n++
+        if (n === 1) return q({ roster_size: opts.rosterSize ?? 20, taxi_slots: opts.taxiSlots ?? 2 }) as any
+        if (n === 2) return q(null, null, opts.activeCount ?? 15) as any
+        if (n === 3) return q(null, null, opts.taxiCount ?? 1) as any
+        if (n === 4) return q({ display_name: 'Player' }) as any
+        return q(null) as any
+    })
+}
+
 // ── makeSnakePick ─────────────────────────────────────────────────────────────
+//
+// makeSnakePick now delegates the entire correctness-critical path to the
+// `make_snake_pick_atomic` SECURITY DEFINER RPC (advisory-locked, FOR UPDATE
+// next-pick row, all writes in one transaction). These tests exercise the
+// TS-side glue: RPC error propagation, and the post-pick UI hints
+// (rosterOverflow / taxiSlotsAvailable / draft-completed log).
 
 describe('makeSnakePick', () => {
-    const inProgressDraft = { id: 'd1', league_id: 'lg1', league_season_id: 's1', status: 'in_progress' }
-    const nextPickForM1 = { id: 'sp1', overall_pick: 5, round: 2, pick_in_round: 3, member_id: 'm1' }
-
-    it('throws if draft is not in_progress', async () => {
-        mockFrom.mockReturnValue(q({ ...inProgressDraft, status: 'completed' }) as any)
+    it('propagates the RPC error message when the RPC fails', async () => {
+        mockRpc.mockReturnValueOnce(rpcErr('Draft is not in progress') as any)
         await expect(makeSnakePick('d1', 'm1', 'p1')).rejects.toThrow('not in progress')
     })
 
-    it('throws if it is not the member\'s pick', async () => {
-        let n = 0
-        mockFrom.mockImplementation(() => {
-            n++
-            if (n === 1) return q(inProgressDraft) as any
-            if (n === 2) return q({ ...nextPickForM1, member_id: 'm2' }) as any // m2's turn
-            return q(null) as any
-        })
+    it('propagates a "not your pick" RPC error', async () => {
+        mockRpc.mockReturnValueOnce(rpcErr("It's not your pick") as any)
         await expect(makeSnakePick('d1', 'm1', 'p1')).rejects.toThrow("not your pick")
     })
 
-    it('throws if player is already on a roster in this league', async () => {
-        let n = 0
-        mockFrom.mockImplementation(() => {
-            n++
-            if (n === 1) return q(inProgressDraft) as any
-            if (n === 2) return q(nextPickForM1) as any
-            if (n === 3) return q({ id: 'existing-rp' }) as any // already on roster
-            return q(null) as any
-        })
+    it('propagates "Player is already on a roster" from the RPC', async () => {
+        mockRpc.mockReturnValueOnce(rpcErr('Player is already on a roster') as any)
         await expect(makeSnakePick('d1', 'm1', 'p1')).rejects.toThrow('already on a roster')
     })
 
-    it('throws if player was already picked in this draft', async () => {
-        let n = 0
-        mockFrom.mockImplementation(() => {
-            n++
-            if (n === 1) return q(inProgressDraft) as any
-            if (n === 2) return q(nextPickForM1) as any
-            if (n === 3) return q(null) as any             // not on roster
-            if (n === 4) return q({ id: 'prior-pick' }) as any // already picked
-            return q(null) as any
-        })
+    it('propagates "Player already picked in this draft" from the RPC', async () => {
+        mockRpc.mockReturnValueOnce(rpcErr('Player already picked in this draft') as any)
         await expect(makeSnakePick('d1', 'm1', 'p1')).rejects.toThrow('already picked')
     })
 
-    it('returns rosterOverflow: true when active roster count exceeds roster_size', async () => {
-        let n = 0
-        mockFrom.mockImplementation(() => {
-            n++
-            if (n === 1) return q(inProgressDraft) as any
-            if (n === 2) return q(nextPickForM1) as any
-            if (n === 3) return q(null) as any  // not on roster
-            if (n === 4) return q(null) as any  // not already picked
-            if (n === 5) return q(null) as any  // update snake_draft_picks
-            if (n === 6) return q(null) as any  // insert roster_players
-            if (n === 7) return q(null) as any  // update draft_picks (mark used)
-            if (n === 8) return q(null, null, 3) as any // remaining picks (not last)
-            if (n === 9) return q({ roster_size: 20, taxi_slots: 2 }) as any
-            if (n === 10) return q(null, null, 21) as any // activeCount = 21 (over limit)
-            if (n === 11) return q(null, null, 1) as any  // taxiCount
-            return q(null) as any
+    it('invokes the RPC with the draft, member, and player ids', async () => {
+        mockRpc.mockReturnValueOnce(rpcOk() as any)
+        defaultPostRpcMocks()
+        await makeSnakePick('d1', 'm1', 'p1')
+        expect(mockRpc).toHaveBeenCalledWith('make_snake_pick_atomic', {
+            p_draft_id: 'd1',
+            p_member_id: 'm1',
+            p_player_id: 'p1',
         })
+    })
+
+    it('returns rosterOverflow: true when active roster count exceeds roster_size', async () => {
+        mockRpc.mockReturnValueOnce(rpcOk({ remaining: 3 }) as any)
+        defaultPostRpcMocks({ rosterSize: 20, activeCount: 21 })
         const result = await makeSnakePick('d1', 'm1', 'p1')
         expect(result.rosterOverflow).toBe(true)
     })
 
     it('returns rosterOverflow: false when within roster_size', async () => {
-        let n = 0
-        mockFrom.mockImplementation(() => {
-            n++
-            if (n === 1) return q(inProgressDraft) as any
-            if (n === 2) return q(nextPickForM1) as any
-            if (n === 3) return q(null) as any
-            if (n === 4) return q(null) as any
-            if (n === 5) return q(null) as any
-            if (n === 6) return q(null) as any
-            if (n === 7) return q(null) as any
-            if (n === 8) return q(null, null, 5) as any
-            if (n === 9) return q({ roster_size: 20, taxi_slots: 2 }) as any
-            if (n === 10) return q(null, null, 15) as any // activeCount = 15 (within limit)
-            if (n === 11) return q(null, null, 1) as any
-            return q(null) as any
-        })
+        mockRpc.mockReturnValueOnce(rpcOk({ remaining: 5 }) as any)
+        defaultPostRpcMocks({ rosterSize: 20, activeCount: 15 })
         const result = await makeSnakePick('d1', 'm1', 'p1')
         expect(result.rosterOverflow).toBe(false)
     })
 
     it('returns taxiSlotsAvailable: true when below taxi limit', async () => {
-        let n = 0
-        mockFrom.mockImplementation(() => {
-            n++
-            if (n === 1) return q(inProgressDraft) as any
-            if (n === 2) return q(nextPickForM1) as any
-            if (n === 3) return q(null) as any
-            if (n === 4) return q(null) as any
-            if (n === 5) return q(null) as any
-            if (n === 6) return q(null) as any
-            if (n === 7) return q(null) as any
-            if (n === 8) return q(null, null, 2) as any
-            if (n === 9) return q({ roster_size: 20, taxi_slots: 3 }) as any
-            if (n === 10) return q(null, null, 15) as any
-            if (n === 11) return q(null, null, 2) as any // taxiCount = 2 (limit is 3 → available)
-            return q(null) as any
-        })
+        mockRpc.mockReturnValueOnce(rpcOk({ remaining: 2 }) as any)
+        defaultPostRpcMocks({ taxiSlots: 3, taxiCount: 2 })
         const result = await makeSnakePick('d1', 'm1', 'p1')
         expect(result.taxiSlotsAvailable).toBe(true)
     })
 
-    it('completes the draft and sets league to active when last pick is made', async () => {
-        const updatedTables: string[] = []
-        let n = 0
-        mockFrom.mockImplementation((table: string) => {
-            n++
-            if (n === 1) return q(inProgressDraft) as any
-            if (n === 2) return q(nextPickForM1) as any
-            if (n === 3) return q(null) as any
-            if (n === 4) return q(null) as any
-            if (n === 5) return q(null) as any
-            if (n === 6) return q(null) as any
-            if (n === 7) return q(null) as any
-            if (n === 8) return q(null, null, 0) as any // count = 0 → last pick
-            // n=9: drafts update (completed), n=10: leagues update (active)
-            if (n === 9 || n === 10) {
-                updatedTables.push(table)
-                return q(null) as any
-            }
-            if (n === 11) return q({ roster_size: 20, taxi_slots: 2 }) as any
-            if (n === 12) return q(null, null, 15) as any
-            if (n === 13) return q(null, null, 1) as any
-            return q(null) as any
-        })
-        await makeSnakePick('d1', 'm1', 'p1')
-        expect(updatedTables).toContain('drafts')
-        expect(updatedTables).toContain('leagues')
+    it('reports draft completion when the RPC says so', async () => {
+        const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+        mockRpc.mockReturnValueOnce(rpcOk({ remaining: 0, completed: true }) as any)
+        defaultPostRpcMocks()
+        const result = await makeSnakePick('d1', 'm1', 'p1')
+        expect(result.remaining).toBe(0)
+        expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('Draft d1 completed'))
+        logSpy.mockRestore()
+    })
+
+    it('returns the pick shape and newPlayerId from the RPC payload', async () => {
+        const pick = {
+            id: 'sp1', overall_pick: 7, round: 3, pick_in_round: 1,
+            member_id: 'm1', draft_pick_id: 'dp-7',
+        }
+        mockRpc.mockReturnValueOnce(rpcOk({ pick, remaining: 11 }) as any)
+        defaultPostRpcMocks()
+        const result = await makeSnakePick('d1', 'm1', 'p9')
+        expect(result.pick).toEqual(pick)
+        expect(result.remaining).toBe(11)
+        expect(result.newPlayerId).toBe('p9')
     })
 })
 
 // ── autoPickBest ──────────────────────────────────────────────────────────────
 
 describe('autoPickBest', () => {
-    const inProgressDraft = { id: 'd1', league_id: 'lg1', league_season_id: 's1', status: 'in_progress' }
-    const nextPickForM1 = { id: 'sp1', overall_pick: 3, round: 1, pick_in_round: 3, member_id: 'm1' }
-
     it('selects the player with the lowest available nba_draft_number', async () => {
         let n = 0
-        const selectedPlayers: string[] = []
-        mockFrom.mockImplementation((table: string) => {
+        mockFrom.mockImplementation(() => {
             n++
-            // autoPickBest calls (2 queries before delegating to makeSnakePick)
+            // autoPickBest's own queries
             if (n === 1) return q([{ player_id: 'p1' }]) as any  // already-picked ids
             if (n === 2) return q([{ id: 'p2' }, { id: 'p3' }]) as any // available sorted by draft#
-            // makeSnakePick calls follow — p2 should be chosen (first available)
-            if (n === 3) return q(inProgressDraft) as any
-            if (n === 4) return q(nextPickForM1) as any
-            if (n === 5) return q(null) as any
-            if (n === 6) return q(null) as any
-            if (n === 7) return q(null) as any
-            if (n === 8) {
-                selectedPlayers.push(table) // record that roster_players insert happened
-                return q(null) as any
-            }
-            if (n === 9) return q(null) as any
-            if (n === 10) return q(null, null, 2) as any
-            if (n === 11) return q({ roster_size: 20, taxi_slots: 2 }) as any
-            if (n === 12) return q(null, null, 15) as any
-            if (n === 13) return q(null, null, 1) as any
+            // makeSnakePick's post-RPC reads:
+            if (n === 3) return q({ roster_size: 20, taxi_slots: 2 }) as any
+            if (n === 4) return q(null, null, 15) as any
+            if (n === 5) return q(null, null, 1) as any
+            if (n === 6) return q({ display_name: 'P2' }) as any
             return q(null) as any
         })
+        mockRpc.mockReturnValueOnce(rpcOk() as any)
         const result = await autoPickBest('d1', 'm1')
-        // p1 was already picked → p2 should be selected (lowest available)
+        // p1 was already picked → p2 should be chosen (lowest available)
         expect(result.newPlayerId).toBe('p2')
+        expect(mockRpc).toHaveBeenCalledWith('make_snake_pick_atomic', expect.objectContaining({
+            p_player_id: 'p2',
+        }))
     })
 
     it('skips players already picked in this draft', async () => {
         let n = 0
         mockFrom.mockImplementation(() => {
             n++
-            if (n === 1) return q([{ player_id: 'p1' }, { player_id: 'p2' }]) as any // p1 & p2 picked
-            if (n === 2) return q([{ id: 'p1' }, { id: 'p2' }, { id: 'p3' }]) as any  // all available
-            // makeSnakePick calls — p3 should be selected
-            if (n === 3) return q({ id: 'd1', league_id: 'lg1', league_season_id: 's1', status: 'in_progress' }) as any
-            if (n === 4) return q({ id: 'sp1', overall_pick: 5, round: 2, pick_in_round: 1, member_id: 'm1' }) as any
-            if (n === 5) return q(null) as any
-            if (n === 6) return q(null) as any
-            if (n === 7) return q(null) as any
-            if (n === 8) return q(null) as any
-            if (n === 9) return q(null) as any
-            if (n === 10) return q(null, null, 1) as any
-            if (n === 11) return q({ roster_size: 20, taxi_slots: 2 }) as any
-            if (n === 12) return q(null, null, 15) as any
-            if (n === 13) return q(null, null, 1) as any
+            if (n === 1) return q([{ player_id: 'p1' }, { player_id: 'p2' }]) as any
+            if (n === 2) return q([{ id: 'p1' }, { id: 'p2' }, { id: 'p3' }]) as any
+            if (n === 3) return q({ roster_size: 20, taxi_slots: 2 }) as any
+            if (n === 4) return q(null, null, 15) as any
+            if (n === 5) return q(null, null, 1) as any
+            if (n === 6) return q({ display_name: 'P3' }) as any
             return q(null) as any
         })
+        mockRpc.mockReturnValueOnce(rpcOk() as any)
         const result = await autoPickBest('d1', 'm1')
         expect(result.newPlayerId).toBe('p3')
+        expect(mockRpc).toHaveBeenCalledWith('make_snake_pick_atomic', expect.objectContaining({
+            p_player_id: 'p3',
+        }))
     })
 
     it('throws when no available rookies remain', async () => {
@@ -239,7 +225,7 @@ describe('autoPickBest', () => {
         mockFrom.mockImplementation(() => {
             n++
             if (n === 1) return q([{ player_id: 'p1' }, { player_id: 'p2' }]) as any
-            if (n === 2) return q([{ id: 'p1' }, { id: 'p2' }]) as any // all players already picked
+            if (n === 2) return q([{ id: 'p1' }, { id: 'p2' }]) as any // all picked
             return q(null) as any
         })
         await expect(autoPickBest('d1', 'm1')).rejects.toThrow('No available players')
