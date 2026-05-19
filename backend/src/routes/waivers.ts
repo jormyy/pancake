@@ -1,5 +1,9 @@
 import { FastifyInstance } from 'fastify'
-import { isIREligible } from '@pancake/core'
+function isIREligible(injuryStatus: string | null): boolean {
+    if (!injuryStatus) return false
+    const s = injuryStatus.toLowerCase()
+    return s === 'out' || s.startsWith('ir')
+}
 import { processWaiverClaims } from '../sync/waivers'
 import { requireAdmin, verifyOwnMember } from '../lib/authz'
 import { supabase } from '../lib/supabase'
