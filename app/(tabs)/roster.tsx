@@ -11,11 +11,12 @@ import { FlashList } from '@shopify/flash-list'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { useState, useMemo, useCallback } from 'react'
+import * as Haptics from 'expo-haptics'
 import { useAuth } from '@/hooks/use-auth'
 import { useLeagueContext } from '@/contexts/league-context'
 import { getRoster, toggleIR, toggleTaxi, dropPlayer, isIREligible, isTaxiEligible, RosterPlayer } from '@/lib/roster'
 import { getPicksForMember, TradePickItem } from '@/lib/trades'
-import { getMyWaiverClaims, cancelWaiverClaim, WaiverClaim } from '@/lib/waivers'
+import { getMyWaiverClaims, cancelWaiverClaim, getMyWaiverPriority, WaiverClaim } from '@/lib/waivers'
 import { supabase } from '@/lib/supabase'
 import { currentSeasonYear } from '@/lib/shared/season'
 import { colors, fontSize, fontWeight, radii, spacing, palette } from '@/constants/tokens'
@@ -49,14 +50,15 @@ export default function RosterScreen() {
     const [cancellingId, setCancellingId] = useState<string | null>(null)
     const [droppingId, setDroppingId] = useState<string | null>(null)
 
-    const { data, loading, refresh: load } = useFocusAsyncData(async () => {
+    const { data, loading, error, refresh } = useFocusAsyncData(async () => {
         if (!current || !user) return null
         const leagueId = currentLeague?.id
         if (!leagueId) return null
-        const [roster, picks, claims] = await Promise.all([
+        const [roster, picks, claims, waiverPriority] = await Promise.all([
             getRoster(current.id, leagueId),
             getPicksForMember(current.id, leagueId),
             getMyWaiverClaims(current.id, leagueId),
+            getMyWaiverPriority(current.id, leagueId),
         ])
         const playerIds = roster.map((r) => r.players.id)
         const { data: avgData } = await supabase
@@ -69,13 +71,15 @@ export default function RosterScreen() {
         for (const row of (avgData ?? []) as { player_id: string; avg_fantasy_points: number | null }[]) {
             avgMap.set(row.player_id, Number(row.avg_fantasy_points))
         }
-        return { roster, picks, claims, avgMap }
+        return { roster, picks, claims, avgMap, waiverPriority }
     }, [current, user])
 
     const roster = useMemo(() => data?.roster ?? EMPTY_ROSTER, [data?.roster])
     const picks = useMemo(() => data?.picks ?? EMPTY_PICKS, [data?.picks])
     const claims = useMemo(() => data?.claims ?? EMPTY_CLAIMS, [data?.claims])
     const avgMap = useMemo(() => data?.avgMap ?? EMPTY_AVG_MAP, [data?.avgMap])
+    const waiverPriority = data?.waiverPriority ?? null
+    const load = refresh
 
     type RosterSortKey = 'fpts' | 'name' | 'position' | 'team'
     const [rosterSort, setRosterSort] = useState<RosterSortKey>('fpts')
@@ -130,9 +134,10 @@ export default function RosterScreen() {
         return result
     }, [active, ir, taxi, picks, claims])
 
-    async function handleToggleIR(item: RosterPlayer) {
+    function handleToggleIR(item: RosterPlayer) {
         const irSlots = currentLeague?.ir_slots ?? 2
         const activeSlots = currentLeague?.roster_size ?? 20
+        const name = item.players.display_name
 
         if (!item.is_on_ir) {
             if (!isIREligible(item.players.injury_status)) {
@@ -152,20 +157,28 @@ export default function RosterScreen() {
             }
         }
 
-        setTogglingId(item.id)
-        try {
-            await toggleIR(item.id, !item.is_on_ir)
-            await load()
-        } catch (e: any) {
-            showAlert('Error', e.message)
-        } finally {
-            setTogglingId(null)
-        }
+        const title = item.is_on_ir ? 'Activate from IR?' : 'Move to IR?'
+        const message = item.is_on_ir
+            ? `Move ${name} back to your active roster?`
+            : `Move ${name} to the injured reserve slot?`
+
+        confirmAction(title, message, async () => {
+            setTogglingId(item.id)
+            try {
+                await toggleIR(item.id, !item.is_on_ir)
+                await load()
+            } catch (e: any) {
+                showAlert('Error', e.message)
+            } finally {
+                setTogglingId(null)
+            }
+        })
     }
 
-    async function handleToggleTaxi(item: RosterPlayer) {
+    function handleToggleTaxi(item: RosterPlayer) {
         const taxiSlots = currentLeague?.taxi_slots ?? 3
         const activeSlots = currentLeague?.roster_size ?? 20
+        const name = item.players.display_name
 
         if (!item.is_on_taxi) {
             if (!isTaxiEligible(item.players)) {
@@ -185,18 +198,26 @@ export default function RosterScreen() {
             }
         }
 
-        setTaxiingId(item.id)
-        try {
-            await toggleTaxi(item.id, !item.is_on_taxi)
-            await load()
-        } catch (e: any) {
-            showAlert('Error', e.message)
-        } finally {
-            setTaxiingId(null)
-        }
+        const title = item.is_on_taxi ? 'Activate from Taxi?' : 'Move to Taxi Squad?'
+        const message = item.is_on_taxi
+            ? `Move ${name} to your active roster?`
+            : `Move ${name} to the taxi squad?`
+
+        confirmAction(title, message, async () => {
+            setTaxiingId(item.id)
+            try {
+                await toggleTaxi(item.id, !item.is_on_taxi)
+                await load()
+            } catch (e: any) {
+                showAlert('Error', e.message)
+            } finally {
+                setTaxiingId(null)
+            }
+        })
     }
 
     function handleDropPrompt(item: RosterPlayer) {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
         confirmAction(
             `Drop ${item.players.display_name}?`,
             'They will be placed on waivers for 48 hours.',
@@ -259,6 +280,13 @@ export default function RosterScreen() {
                     <Text style={styles.lineupButtonText}>Set Lineup</Text>
                 </Pressable>
             </View>
+
+            {/* Error banner */}
+            {error ? (
+                <Pressable style={styles.errorBanner} onPress={refresh}>
+                    <Text style={styles.errorBannerText}>Failed to load roster. Tap to retry.</Text>
+                </Pressable>
+            ) : null}
 
             {/* Sort chips */}
             <View style={styles.sortRow}>
@@ -330,6 +358,7 @@ export default function RosterScreen() {
                                 <RosterClaimItem
                                     claim={item as WaiverClaim}
                                     cancellingId={cancellingId}
+                                    waiverPriority={waiverPriority}
                                     onCancel={handleCancelClaim}
                                 />
                             )
@@ -406,6 +435,13 @@ const styles = StyleSheet.create({
     leagueName: { fontSize: 18, fontWeight: fontWeight.extrabold },
     teamName: { fontSize: fontSize.md, color: colors.textSecondary },
     rosterCount: { fontSize: 12, color: colors.textPlaceholder, marginTop: spacing.xs },
+
+    errorBanner: {
+        backgroundColor: colors.dangerLight,
+        paddingHorizontal: spacing.xl,
+        paddingVertical: spacing.md,
+    },
+    errorBannerText: { color: colors.danger, fontSize: fontSize.sm, fontWeight: fontWeight.semibold },
 
     sortRow: { paddingBottom: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
     sortChips: { paddingHorizontal: spacing.xl, gap: spacing.sm },
