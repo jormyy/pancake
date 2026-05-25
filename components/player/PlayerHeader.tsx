@@ -83,7 +83,7 @@ export function PlayerHeader({
                     {eligiblePositions.map((pos) => <PosTag key={pos} position={pos} />)}
                 </View>
                 <View style={styles.badges}>
-                    {player.injury_status && !playedToday && (
+                    {player.injury_status && (
                         <Badge
                             label={player.injury_status}
                             color={INJURY_COLORS[player.injury_status] ?? colors.textMuted}

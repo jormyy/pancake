@@ -331,6 +331,8 @@ export async function getPlayerFantasyPoints(
 export async function getPlayerTransactionHistory(
     playerId: string,
     leagueId: string,
+    limit = 20,
+    offset = 0,
 ): Promise<TransactionHistoryEntry[]> {
     const { data, error } = await supabase
         .from('roster_transactions')
@@ -343,7 +345,7 @@ export async function getPlayerTransactionHistory(
         .eq('player_id', playerId)
         .eq('league_id', leagueId)
         .order('occurred_at', { ascending: false })
-        .limit(20)
+        .range(offset, offset + limit - 1)
 
     if (error) throw error
 
