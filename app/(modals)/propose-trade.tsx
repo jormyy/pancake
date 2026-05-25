@@ -120,6 +120,7 @@ export default function ProposeTradeScreen() {
     const [notes, setNotes] = useState('')
     const [loading, setLoading] = useState(true)
     const [rosterLoading, setRosterLoading] = useState(false)
+    const [rosterError, setRosterError] = useState<string | null>(null)
     const [submitting, setSubmitting] = useState(false)
     const submittingRef = useRef(false)
 
@@ -138,6 +139,7 @@ export default function ProposeTradeScreen() {
     const loadRosters = useCallback(async () => {
         if (!selectedRecipientId || !leagueId || !myMemberId) return
         setRosterLoading(true)
+        setRosterError(null)
         setRequestIds(new Set())
         setOfferIds(new Set())
         setOfferPickIds(new Set())
@@ -153,8 +155,9 @@ export default function ProposeTradeScreen() {
             setMyRoster(myData)
             setTheirPicks(theirPicksData)
             setMyPicks(myPicksData)
-        } catch (e) {
+        } catch (e: any) {
             console.error(e)
+            setRosterError(e?.message ?? 'Unknown error')
         } finally {
             setRosterLoading(false)
         }
@@ -319,6 +322,29 @@ export default function ProposeTradeScreen() {
                     <>
                         {rosterLoading ? (
                             <ActivityIndicator color={colors.primary} style={{ margin: spacing['3xl'] }} />
+                        ) : rosterError ? (
+                            <>
+                                <Text style={styles.sectionLabel}>
+                                    YOU RECEIVE — from {recipientTeamName}
+                                </Text>
+                                <Pressable
+                                    style={styles.rosterErrorRow}
+                                    onPress={loadRosters}
+                                    accessibilityRole="button"
+                                    accessibilityLabel="Failed to load rosters. Tap to retry."
+                                >
+                                    <Text style={styles.rosterErrorText}>Failed to load rosters. Tap to retry.</Text>
+                                </Pressable>
+                                <Text style={styles.sectionLabel}>YOU GIVE</Text>
+                                <Pressable
+                                    style={styles.rosterErrorRow}
+                                    onPress={loadRosters}
+                                    accessibilityRole="button"
+                                    accessibilityLabel="Failed to load rosters. Tap to retry."
+                                >
+                                    <Text style={styles.rosterErrorText}>Failed to load rosters. Tap to retry.</Text>
+                                </Pressable>
+                            </>
                         ) : (
                             <>
                                 {/* YOU RECEIVE section */}
@@ -489,13 +515,11 @@ const styles = StyleSheet.create({
         height: 40,
         borderRadius: 20,
         borderCurve: 'continuous' as const,
-        backgroundColor: palette.gray300,
+        backgroundColor: palette.indigo500,
         justifyContent: 'center',
         alignItems: 'center',
-        borderWidth: 2,
-        borderColor: palette.gray400,
     },
-    pickCircleSelected: { backgroundColor: colors.primary, borderColor: colors.primary },
+    pickCircleSelected: { backgroundColor: colors.primary },
     pickCircleText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: 12 },
 
     playerInfo: { flex: 1 },
@@ -532,6 +556,18 @@ const styles = StyleSheet.create({
         paddingVertical: spacing.lg,
         color: colors.textPlaceholder,
         fontSize: fontSize.md,
+    },
+
+    rosterErrorRow: {
+        paddingHorizontal: spacing.xl,
+        paddingVertical: spacing.lg,
+        alignItems: 'center',
+    },
+    rosterErrorText: {
+        color: colors.dangerDark,
+        fontSize: fontSize.md,
+        fontWeight: fontWeight.semibold,
+        textAlign: 'center',
     },
     emptyCenter: {
         alignItems: 'center',

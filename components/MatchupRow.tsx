@@ -146,6 +146,7 @@ function MatchupRowImpl({
                     styles.slotChipCenter,
                     { backgroundColor: slotColor + '22' },
                     isSel && styles.slotChipSelected,
+                    saving && { opacity: 0.4 },
                 ]}
                 onPress={isExtraOppRow ? undefined : () => onTap({ kind: selKind, index: selIndex })}
                 disabled={saving || isExtraOppRow}

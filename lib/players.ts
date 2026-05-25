@@ -73,7 +73,7 @@ export type TransactionHistoryEntry = {
     occurredAt: string
 }
 
-export async function searchPlayers(query: string, position: string, teams: string[], leagueId?: string | null, playingTeams?: string[] | null, rookiesOnly = false): Promise<PlayerRow[]> {
+export async function searchPlayers(query: string, position: string, teams: string[], leagueId?: string | null, playingTeams?: string[] | null, rookiesOnly = false, offset = 0): Promise<PlayerRow[]> {
     const season = currentSeasonYear()
 
     // Compute effective team filter: intersect explicit teams + playing-on-day teams
@@ -135,6 +135,7 @@ export async function searchPlayers(query: string, position: string, teams: stri
         return [...withStats, ...withoutStats]
     }
 
+    const PAGE = 60
     let q = leagueId
         ? supabase
             .from('v_player_avg_fantasy_points')
@@ -142,13 +143,13 @@ export async function searchPlayers(query: string, position: string, teams: stri
             .eq('league_id', leagueId)
             .eq('season_year', season)
             .order('avg_fantasy_points', { ascending: false })
-            .limit(60)
+            .range(offset, offset + PAGE - 1)
         : supabase
             .from('mv_player_season_averages')
             .select('avg_points, players!inner(id, display_name, nba_team, position, eligible_positions, status, injury_status, nba_id, years_exp)')
             .eq('season_year', season)
             .order('avg_points', { ascending: false })
-            .limit(60)
+            .range(offset, offset + PAGE - 1)
 
     if (query.trim()) {
         q = q.ilike('players.display_name', `%${query.trim()}%`)

@@ -18,6 +18,7 @@ export function useMatchupData(current: any, user: any, league: any) {
     const [oppLineup, setOppLineup] = useState<LineupData | null>(null)
     const [matchupLoading, setMatchupLoading] = useState(true)
     const [lineupLoading, setLineupLoading] = useState(false)
+    const [error, setError] = useState<string | null>(null)
     const matchupRef = useRef<Matchup | null>(null)
     const isFirstRunRef = useRef(true)
 
@@ -83,6 +84,7 @@ export function useMatchupData(current: any, user: any, league: any) {
         setMyLineup(null)
         setOppLineup(null)
         try {
+            setError(null)
             const m = await getMyMatchup((current as any).id, league.id)
             setMatchup(m)
             matchupRef.current = m
@@ -97,6 +99,7 @@ export function useMatchupData(current: any, user: any, league: any) {
         } catch (e) {
             console.error(e)
             setMatchup(null)
+            setError('Failed to load matchup')
         } finally {
             setMatchupLoading(false)
         }
@@ -142,6 +145,7 @@ export function useMatchupData(current: any, user: any, league: any) {
         oppLineup,
         matchupLoading,
         lineupLoading,
+        error,
         refresh: load,
         loadMyLineup,
         loadLineups,

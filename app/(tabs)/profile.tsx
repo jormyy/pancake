@@ -6,8 +6,6 @@ import {
     ScrollView,
     StyleSheet,
     ActivityIndicator,
-    Alert,
-    Platform,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useEffect, useState } from 'react'
@@ -18,11 +16,13 @@ import { useLeagueContext } from '@/contexts/league-context'
 import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 import { LoadingScreen } from '@/components/LoadingScreen'
 import { Avatar } from '@/components/Avatar'
+import { showAlert, confirmAction } from '@/lib/alert'
+import type { Profile } from '@/types/database'
 
 export default function ProfileScreen() {
     const { user } = useAuth()
     const { current, currentLeague, refresh } = useLeagueContext()
-    const [profile, setProfile] = useState<any>(null)
+    const [profile, setProfile] = useState<Profile | null>(null)
     const [loading, setLoading] = useState(true)
     const [editing, setEditing] = useState(false)
     const [displayName, setDisplayName] = useState('')
@@ -55,23 +55,26 @@ export default function ProfileScreen() {
         const trimmedDisplay = displayName.trim()
         const trimmedTeam = teamName.trim()
         if (!trimmedDisplay) {
-            Alert.alert('Invalid', 'Display name cannot be empty.')
+            showAlert('Invalid', 'Display name cannot be empty.')
             return
         }
         setSaving(true)
         try {
-            const saves: Promise<any>[] = [
+            const saves: Promise<void>[] = [
                 updateProfile(user.id, { display_name: trimmedDisplay }),
             ]
             if (current && trimmedTeam) {
                 saves.push(updateTeamName(current.id, trimmedTeam))
             }
             await Promise.all(saves)
-            setProfile((prev: any) => ({ ...prev, display_name: trimmedDisplay }))
+            setProfile((prev) => prev ? { ...prev, display_name: trimmedDisplay } : prev)
             setEditing(false)
-            refresh()
+            if (current && trimmedTeam !== current.team_name) {
+                refresh()
+            }
+            showAlert('Saved', 'Your profile has been updated.')
         } catch (e: any) {
-            Alert.alert('Error', e.message)
+            showAlert('Error', e.message)
         } finally {
             setSaving(false)
         }
@@ -83,30 +86,15 @@ export default function ProfileScreen() {
         setEditing(false)
     }
 
-    async function handleSignOut() {
-        if (Platform.OS === 'web') {
-            if (!window.confirm('Are you sure you want to sign out?')) return
+    function handleSignOut() {
+        confirmAction('Sign Out', 'Are you sure you want to sign out?', async () => {
             try {
                 await signOut()
             } catch (e) {
                 console.error(e)
+                showAlert('Error', 'Sign out failed. Please try again.')
             }
-            return
-        }
-        Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
-            { text: 'Cancel', style: 'cancel' },
-            {
-                text: 'Sign Out',
-                style: 'destructive',
-                onPress: async () => {
-                    try {
-                        await signOut()
-                    } catch (e) {
-                        console.error(e)
-                    }
-                },
-            },
-        ])
+        }, 'Sign Out')
     }
 
     if (loading) return <LoadingScreen />

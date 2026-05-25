@@ -26,6 +26,11 @@ import { useMatchupData } from '@/hooks/use-matchup-data'
 import { useLiveStats } from '@/hooks/use-live-stats'
 import { useLineupActions } from '@/hooks/use-lineup-actions'
 import { shortName } from '@/lib/format'
+import { todayET } from '@/lib/shared/dates'
+
+function shouldShowScoreboard(selectedDate: string, today: string): boolean {
+    return selectedDate === today
+}
 
 type LineupData = { starters: LineupSlot[]; bench: LineupPlayer[]; ir: LineupPlayer[]; taxi: LineupPlayer[] }
 type Sel = { kind: 'starter'; index: number } | { kind: 'bench'; index: number } | { kind: 'ir'; index: number } | { kind: 'taxi'; index: number }
@@ -38,6 +43,7 @@ export default function HomeScreen() {
         matchup, weekDays, selectedDate, setSelectedDate,
         myLineup, oppLineup, matchupLoading, lineupLoading,
         loadMyLineup, loadLineups, refreshSilently, matchupRef,
+        error, refresh,
     } = useMatchupData(current, user, league)
 
     const { todaysGames, liveStats, startedTeams, liveTeams, teamMatchups } = useLiveStats(selectedDate, refreshSilently)
@@ -106,6 +112,8 @@ export default function HomeScreen() {
         [league?.scoring_settings],
     )
 
+    const today = todayET()
+
     if (loading) return <LoadingScreen />
     if (memberships.length === 0) return <NoLeagueState />
 
@@ -120,11 +128,20 @@ export default function HomeScreen() {
                 }}
             />
 
+            {error && (
+                <Pressable style={styles.errorBanner} onPress={refresh}>
+                    <Text style={styles.errorBannerText}>Failed to load. Tap to retry.</Text>
+                </Pressable>
+            )}
+
             {matchupLoading ? (
                 <ActivityIndicator color={colors.primary} style={{ marginTop: 48 }} />
             ) : matchup ? (
                 <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-                    <Scoreboard games={todaysGames} myTeamSet={myTeamSet} />
+                    {shouldShowScoreboard(selectedDate, today)
+                        ? <Scoreboard games={todaysGames} myTeamSet={myTeamSet} />
+                        : <Text style={styles.dateLabel}>Showing lineup for {selectedDate}</Text>
+                    }
                     <ScoreCard matchup={matchup} />
 
                     {weekDays.length > 0 && (
@@ -184,7 +201,10 @@ export default function HomeScreen() {
                 </ScrollView>
             ) : (
                 <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
-                    <Scoreboard games={todaysGames} myTeamSet={myTeamSet} />
+                    {shouldShowScoreboard(selectedDate, today)
+                        ? <Scoreboard games={todaysGames} myTeamSet={myTeamSet} />
+                        : <Text style={styles.dateLabel}>Showing lineup for {selectedDate}</Text>
+                    }
                     <View style={styles.noMatchup}>
                         <Text style={styles.noMatchupText}>No matchup this week yet.</Text>
                         <Text style={styles.noMatchupSub}>Matchups are generated before each week starts.</Text>
@@ -399,5 +419,14 @@ const styles = StyleSheet.create({
     noMatchup: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 8, padding: 32 },
     noMatchupText: { fontSize: 16, fontWeight: '600', color: colors.textSecondary },
     noMatchupSub: { fontSize: 13, color: colors.textPlaceholder, textAlign: 'center' },
+
+    errorBanner: {
+        backgroundColor: colors.danger,
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+    },
+    errorBannerText: { fontSize: 13, fontWeight: '600', color: colors.textWhite, textAlign: 'center' },
+
+    dateLabel: { fontSize: 13, color: colors.textMuted, textAlign: 'center', paddingVertical: 10 },
 
 })
