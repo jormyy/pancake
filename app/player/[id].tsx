@@ -306,7 +306,11 @@ export default function PlayerDetailScreen() {
 
                     {/* Transaction history — always shown regardless of season */}
                     {showTransactions && (
-                        <TransactionHistory transactions={transactions} />
+                        <TransactionHistory
+                            playerId={id}
+                            leagueId={leagueId!}
+                            transactions={transactions}
+                        />
                     )}
 
                 </ScrollView>

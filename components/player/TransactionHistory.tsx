@@ -1,6 +1,10 @@
-import { View, Text, StyleSheet } from 'react-native'
-import { colors, fontSize, fontWeight, spacing } from '@/constants/tokens'
+import { View, Text, Pressable, ActivityIndicator, StyleSheet } from 'react-native'
+import { useState } from 'react'
+import { getPlayerTransactionHistory } from '@/lib/players'
 import type { TransactionHistoryEntry } from '@/lib/players'
+import { colors, fontSize, fontWeight, spacing, radii } from '@/constants/tokens'
+
+const PAGE_SIZE = 20
 
 function fmtDate(dateStr: string): string {
     const d = new Date(dateStr)
@@ -8,10 +12,30 @@ function fmtDate(dateStr: string): string {
 }
 
 type Props = {
+    playerId: string
+    leagueId: string
     transactions: TransactionHistoryEntry[]
 }
 
-export function TransactionHistory({ transactions }: Props) {
+export function TransactionHistory({ playerId, leagueId, transactions: initial }: Props) {
+    const [transactions, setTransactions] = useState(initial)
+    const [hasMore, setHasMore] = useState(initial.length === PAGE_SIZE)
+    const [loading, setLoading] = useState(false)
+
+    async function loadMore() {
+        if (loading) return
+        setLoading(true)
+        try {
+            const next = await getPlayerTransactionHistory(playerId, leagueId, PAGE_SIZE, transactions.length)
+            setTransactions((prev) => [...prev, ...next])
+            setHasMore(next.length === PAGE_SIZE)
+        } catch (e) {
+            console.error(e)
+        } finally {
+            setLoading(false)
+        }
+    }
+
     if (transactions.length === 0) {
         return (
             <View style={styles.section}>
@@ -33,6 +57,13 @@ export function TransactionHistory({ transactions }: Props) {
                     <Text style={styles.date}>{fmtDate(tx.occurredAt)}</Text>
                 </View>
             ))}
+            {hasMore && (
+                <Pressable style={styles.loadMore} onPress={loadMore} disabled={loading}>
+                    {loading
+                        ? <ActivityIndicator size="small" color={colors.primary} />
+                        : <Text style={styles.loadMoreText}>Load More</Text>}
+                </Pressable>
+            )}
         </View>
     )
 }
@@ -54,4 +85,12 @@ const styles = StyleSheet.create({
     label: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textPrimary },
     team: { fontSize: 12, color: colors.textMuted },
     date: { fontSize: 12, color: colors.textPlaceholder },
+
+    loadMore: {
+        alignItems: 'center',
+        paddingVertical: spacing.lg,
+        borderRadius: radii.md,
+        borderCurve: 'continuous' as const,
+    },
+    loadMoreText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.primary },
 })

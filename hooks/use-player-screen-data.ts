@@ -152,7 +152,11 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null) {
     }, [playerId, player, selectedSeason, gameLogOffset, gameLogLoading, hasMoreGames])
 
     function handleSeasonSelect(year: number) {
-        if (year !== selectedSeason) setSelectedSeason(year)
+        if (year !== selectedSeason) {
+            setFantasyPointsMap(new Map())
+            setAvgFantasyPoints(0)
+            setSelectedSeason(year)
+        }
     }
 
     return {
