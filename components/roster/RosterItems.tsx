@@ -12,10 +12,12 @@ import { PosTag } from '@/components/PosTag'
 export function RosterClaimItem({
     claim,
     cancellingId,
+    waiverPriority,
     onCancel,
 }: {
     claim: WaiverClaim
     cancellingId: string | null
+    waiverPriority: number | null
     onCancel: (id: string) => void
 }) {
     const isPending = claim.status === 'pending'
@@ -25,6 +27,11 @@ export function RosterClaimItem({
         : colors.danger
     return (
         <View style={styles.claimRow}>
+            {isPending && waiverPriority != null ? (
+                <View style={styles.priorityBadge}>
+                    <Text style={styles.priorityBadgeText}>#{waiverPriority}</Text>
+                </View>
+            ) : null}
             <View style={styles.info}>
                 <Text style={styles.playerName}>{claim.playerName}</Text>
                 {claim.dropPlayerName ? (
@@ -282,4 +289,15 @@ const styles = StyleSheet.create({
         paddingVertical: spacing.lg,
         gap: spacing.lg,
     },
+
+    priorityBadge: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        borderCurve: 'continuous' as const,
+        backgroundColor: palette.purple500,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    priorityBadgeText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.xs },
 })
