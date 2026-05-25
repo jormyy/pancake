@@ -52,6 +52,7 @@ export default function TradesScreen() {
     const [trades, setTrades] = useState<Trade[]>([])
     const [loading, setLoading] = useState(true)
     const [refreshing, setRefreshing] = useState(false)
+    const [tradesError, setTradesError] = useState<string | null>(null)
 
     const { data: picks, loading: picksLoading, error: picksError, refresh: loadDraft } = useFocusAsyncData(async () => {
         if (!current || !leagueId) return [] as TradePickItem[]
@@ -60,14 +61,16 @@ export default function TradesScreen() {
 
     const load = useCallback(async () => {
         if (!myMemberId || !leagueId) return
+        setTradesError(null)
         try {
             const [myTradeData, vetoableTradeData] = await Promise.all([
                 getMyTrades(myMemberId, leagueId),
                 getVetoableTrades(myMemberId, leagueId),
             ])
             setTrades([...vetoableTradeData, ...myTradeData])
-        } catch (e) {
+        } catch (e: any) {
             console.error(e)
+            setTradesError(e?.message ?? 'Unknown error')
         } finally {
             setLoading(false)
             setRefreshing(false)
@@ -86,10 +89,13 @@ export default function TradesScreen() {
         load()
     }, [load])
 
-    function onRefresh() {
+    async function onRefresh() {
         setRefreshing(true)
-        load()
-        loadDraft()
+        try {
+            await Promise.all([load(), loadDraft()])
+        } finally {
+            setRefreshing(false)
+        }
     }
 
     const incomingTrades = useMemo(() => trades.filter(
@@ -222,6 +228,17 @@ export default function TradesScreen() {
                 })}
             </View>
 
+            {(tradesError || picksError) ? (
+                <Pressable
+                    style={styles.errorBanner}
+                    onPress={() => void load()}
+                    accessibilityRole="button"
+                    accessibilityLabel="Failed to load trades. Tap to retry."
+                >
+                    <Text style={styles.errorBannerText}>Failed to load trades. Tap to retry.</Text>
+                </Pressable>
+            ) : null}
+
             {tab === 'picks' && picksLoading ? (
                 <ActivityIndicator color={colors.primary} style={{ marginTop: spacing['4xl'] }} />
             ) : tab === 'picks' && picksError ? (
@@ -321,4 +338,12 @@ const styles = StyleSheet.create({
 
     emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', marginTop: spacing['4xl'] },
     emptyStateText: { fontSize: fontSize.md, color: colors.textPlaceholder },
+
+    errorBanner: {
+        backgroundColor: colors.dangerLight,
+        paddingHorizontal: spacing.xl,
+        paddingVertical: spacing.md,
+        alignItems: 'center',
+    },
+    errorBannerText: { fontSize: fontSize.sm, color: colors.dangerDark, fontWeight: fontWeight.semibold },
 })

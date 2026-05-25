@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { getTodaysGames, getLivePlayerStats, NBAGameRow, LiveStatLine } from '@/lib/games'
 import { todayET } from '@/lib/shared/dates'
 import { getStartedTeams, getTeamMatchups } from '@/lib/lineup'
@@ -72,6 +72,16 @@ function ensureTodayPoll() {
 export function useLiveStats(selectedDate: string, onSilentRefresh?: () => void) {
     const [snapshot, setSnapshot] = useState<Snapshot>(() => snapshots.get(selectedDate) ?? EMPTY_SNAPSHOT)
 
+    const liveStatsRef = useRef<Map<string, LiveStatLine>>(snapshot.liveStats)
+    const teamMatchupsRef = useRef<Map<string, { opponent: string; isHome: boolean }>>(snapshot.teamMatchups)
+
+    if (snapshot.liveStats !== liveStatsRef.current) {
+        liveStatsRef.current = snapshot.liveStats
+    }
+    if (snapshot.teamMatchups !== teamMatchupsRef.current) {
+        teamMatchupsRef.current = snapshot.teamMatchups
+    }
+
     useEffect(() => {
         if (onSilentRefresh) {
             silentRefreshListeners.add(onSilentRefresh)
@@ -111,9 +121,9 @@ export function useLiveStats(selectedDate: string, onSilentRefresh?: () => void)
 
     return {
         todaysGames: snapshot.todaysGames,
-        liveStats: snapshot.liveStats,
+        liveStats: liveStatsRef.current,
         startedTeams: snapshot.startedTeams,
         liveTeams,
-        teamMatchups: snapshot.teamMatchups,
+        teamMatchups: teamMatchupsRef.current,
     }
 }

@@ -6,24 +6,27 @@ import {
     StyleSheet,
     ActivityIndicator,
     Share,
-    Alert,
+    RefreshControl,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
-import { useState } from 'react'
+import { useState, useRef, useCallback } from 'react'
+import { useFocusEffect } from '@react-navigation/native'
 import { useLeagueContext } from '@/contexts/league-context'
-import { getLeagueStandings } from '@/lib/scoring'
+import { getLeagueStandings, StandingRow } from '@/lib/scoring'
 import { getActiveDraft, startDraft } from '@/lib/draft'
-import { getWaiverPriorityOrder } from '@/lib/waivers'
-import { getLeagueTransactions } from '@/lib/transactions'
-import { getActiveRookieDraft, startRookieDraft, getAllLeaguePicks, reseedRookieDraftPicks } from '@/lib/rookieDraft'
+import { getWaiverPriorityOrder, WaiverPriorityRow } from '@/lib/waivers'
+import { getLeagueTransactions, TransactionRow } from '@/lib/transactions'
+import { getActiveRookieDraft, startRookieDraft, getAllLeaguePicks, reseedRookieDraftPicks, LeaguePickItem } from '@/lib/rookieDraft'
 import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 import { LoadingScreen } from '@/components/LoadingScreen'
 import { EmptyState } from '@/components/EmptyState'
-import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
 import { StandingsTable, ActivityFeed, WaiverPriorityList, PicksBankList } from '@/components/league/LeagueSections'
+import { confirmAction, showAlert } from '@/lib/alert'
 
 type Tab = 'standings' | 'activity' | 'waivers' | 'picks'
+
+const ACTIVITY_LIMIT = 50
 
 // ── Main screen ──────────────────────────────────────────────────
 
@@ -33,39 +36,130 @@ export default function LeagueScreen() {
     const [tab, setTab] = useState<Tab>('standings')
     const [draftLoading, setDraftLoading] = useState(false)
 
-    const { data, loading } = useFocusAsyncData(async () => {
-        if (!current || !currentLeague) return null
-        const lid = currentLeague.id
-        const [standingsData, waiverData, txData, picksData] = await Promise.all([
-            getLeagueStandings(lid),
-            getWaiverPriorityOrder(lid),
-            getLeagueTransactions(lid),
-            getAllLeaguePicks(lid),
-        ])
-        return {
-            standings: standingsData,
-            waiverOrder: waiverData,
-            transactions: txData,
-            currentLeaguePicks: picksData,
-        }
-    }, [current])
+    // Per-tab data
+    const [standings, setStandings] = useState<StandingRow[]>([])
+    const [transactions, setTransactions] = useState<TransactionRow[]>([])
+    const [waiverOrder, setWaiverOrder] = useState<WaiverPriorityRow[]>([])
+    const [currentLeaguePicks, setCurrentLeaguePicks] = useState<LeaguePickItem[]>([])
+    const [activityOffset, setActivityOffset] = useState(0)
+    const [activityHasMore, setActivityHasMore] = useState(false)
+    const [activityLoadingMore, setActivityLoadingMore] = useState(false)
 
-    const standings = data?.standings ?? []
-    const waiverOrder = data?.waiverOrder ?? []
-    const transactions = data?.transactions ?? []
-    const currentLeaguePicks = data?.currentLeaguePicks ?? []
+    // Per-tab loading / error
+    const [tabLoading, setTabLoading] = useState<Partial<Record<Tab, boolean>>>({ standings: true })
+    const [tabError, setTabError] = useState<Partial<Record<Tab, string>>>({})
+
+    // Lazy loading: track which tabs have been fetched
+    const loadedTabs = useRef<Set<Tab>>(new Set())
+    const [refreshing, setRefreshing] = useState(false)
+
+    const fetchTab = useCallback(async (t: Tab, lid: string) => {
+        setTabLoading((prev) => ({ ...prev, [t]: true }))
+        setTabError((prev) => { const next = { ...prev }; delete next[t]; return next })
+        try {
+            switch (t) {
+                case 'standings': {
+                    const data = await getLeagueStandings(lid)
+                    setStandings(data)
+                    break
+                }
+                case 'activity': {
+                    const data = await getLeagueTransactions(lid, ACTIVITY_LIMIT, 0)
+                    setTransactions(data)
+                    setActivityOffset(0)
+                    setActivityHasMore(data.length === ACTIVITY_LIMIT)
+                    break
+                }
+                case 'waivers': {
+                    const data = await getWaiverPriorityOrder(lid)
+                    setWaiverOrder(data)
+                    break
+                }
+                case 'picks': {
+                    const data = await getAllLeaguePicks(lid)
+                    setCurrentLeaguePicks(data)
+                    break
+                }
+            }
+            loadedTabs.current.add(t)
+        } catch (e: unknown) {
+            const msg = e instanceof Error ? e.message : 'Unknown error'
+            setTabError((prev) => ({ ...prev, [t]: msg }))
+        } finally {
+            setTabLoading((prev) => ({ ...prev, [t]: false }))
+        }
+    }, [])
+
+    // On screen focus: fetch standings once, then fetch current tab if not loaded
+    useFocusEffect(
+        useCallback(() => {
+            const lid = currentLeague?.id
+            if (!lid) return
+            if (!loadedTabs.current.has('standings')) {
+                fetchTab('standings', lid)
+            }
+            if (tab !== 'standings' && !loadedTabs.current.has(tab)) {
+                fetchTab(tab, lid)
+            }
+        }, [currentLeague?.id, tab, fetchTab]),
+    )
+
+    // When switching tabs, fetch if not yet loaded
+    function handleTabChange(t: Tab) {
+        setTab(t)
+        const lid = currentLeague?.id
+        if (!lid) return
+        if (!loadedTabs.current.has(t)) {
+            fetchTab(t, lid)
+        }
+    }
+
+    // Pull-to-refresh: clear loaded set, re-fetch current tab
+    async function handleRefresh() {
+        const lid = currentLeague?.id
+        if (!lid) return
+        setRefreshing(true)
+        loadedTabs.current.clear()
+        await fetchTab(tab, lid)
+        setRefreshing(false)
+    }
+
+    // Activity pagination
+    async function handleLoadMoreActivity() {
+        const lid = currentLeague?.id
+        if (!lid || activityLoadingMore) return
+        setActivityLoadingMore(true)
+        try {
+            const nextOffset = activityOffset + ACTIVITY_LIMIT
+            const data = await getLeagueTransactions(lid, ACTIVITY_LIMIT, nextOffset)
+            setTransactions((prev) => [...prev, ...data])
+            setActivityOffset(nextOffset)
+            setActivityHasMore(data.length === ACTIVITY_LIMIT)
+        } catch {
+            // silently fail on pagination errors
+        } finally {
+            setActivityLoadingMore(false)
+        }
+    }
 
     async function handleStartDraft() {
         if (!currentLeague?.id) return
-        setDraftLoading(true)
-        try {
-            const draft = await startDraft(currentLeague.id)
-            push({ pathname: '/(modals)/draft-room', params: { draftId: draft.id } })
-        } catch (e: any) {
-            Alert.alert('Could not start draft', e.message)
-        } finally {
-            setDraftLoading(false)
-        }
+        confirmAction(
+            'Start Auction Draft?',
+            'This will begin the auction draft for all teams. This cannot be undone.',
+            async () => {
+                setDraftLoading(true)
+                try {
+                    const draft = await startDraft(currentLeague.id)
+                    push({ pathname: '/(modals)/draft-room', params: { draftId: draft.id } })
+                } catch (e: unknown) {
+                    showAlert('Could not start draft', e instanceof Error ? e.message : undefined)
+                } finally {
+                    setDraftLoading(false)
+                }
+            },
+            'Start Draft',
+        )
     }
 
     async function handleJoinDraftRoom() {
@@ -74,7 +168,7 @@ export default function LeagueScreen() {
         try {
             const draft = await getActiveDraft(currentLeague.id)
             if (!draft) {
-                Alert.alert('No active draft found')
+                showAlert('No active draft found')
                 return
             }
             if (draft.draftType === 'snake') {
@@ -82,8 +176,8 @@ export default function LeagueScreen() {
             } else {
                 push({ pathname: '/(modals)/draft-room', params: { draftId: draft.id } })
             }
-        } catch (e: any) {
-            Alert.alert('Error', e.message)
+        } catch (e: unknown) {
+            showAlert('Error', e instanceof Error ? e.message : undefined)
         } finally {
             setDraftLoading(false)
         }
@@ -91,15 +185,22 @@ export default function LeagueScreen() {
 
     async function handleStartRookieDraft() {
         if (!currentLeague?.id) return
-        setDraftLoading(true)
-        try {
-            const result = await startRookieDraft(currentLeague.id)
-            push({ pathname: '/(modals)/rookie-draft-room', params: { draftId: result.draft.id } })
-        } catch (e: any) {
-            Alert.alert('Could not start rookie draft', e.message)
-        } finally {
-            setDraftLoading(false)
-        }
+        confirmAction(
+            'Start Rookie Draft?',
+            'This will begin the rookie snake draft. This cannot be undone.',
+            async () => {
+                setDraftLoading(true)
+                try {
+                    const result = await startRookieDraft(currentLeague.id)
+                    push({ pathname: '/(modals)/rookie-draft-room', params: { draftId: result.draft.id } })
+                } catch (e: unknown) {
+                    showAlert('Could not start rookie draft', e instanceof Error ? e.message : undefined)
+                } finally {
+                    setDraftLoading(false)
+                }
+            },
+            'Start Draft',
+        )
     }
 
     async function handleReseedRookiePicks() {
@@ -107,11 +208,11 @@ export default function LeagueScreen() {
         setDraftLoading(true)
         try {
             const draft = await getActiveRookieDraft(currentLeague.id)
-            if (!draft) { Alert.alert('No active rookie draft found'); return }
+            if (!draft) { showAlert('No active rookie draft found'); return }
             await reseedRookieDraftPicks(draft.id)
-            Alert.alert('Done', 'Pick slots updated to reflect traded picks.')
-        } catch (e: any) {
-            Alert.alert('Error', e.message)
+            showAlert('Done', 'Pick slots updated to reflect traded picks.')
+        } catch (e: unknown) {
+            showAlert('Error', e instanceof Error ? e.message : undefined)
         } finally {
             setDraftLoading(false)
         }
@@ -123,12 +224,12 @@ export default function LeagueScreen() {
         try {
             const draft = await getActiveRookieDraft(currentLeague.id)
             if (!draft) {
-                Alert.alert('No active rookie draft found')
+                showAlert('No active rookie draft found')
                 return
             }
             push({ pathname: '/(modals)/rookie-draft-room', params: { draftId: draft.id } })
-        } catch (e: any) {
-            Alert.alert('Error', e.message)
+        } catch (e: unknown) {
+            showAlert('Error', e instanceof Error ? e.message : undefined)
         } finally {
             setDraftLoading(false)
         }
@@ -147,12 +248,56 @@ export default function LeagueScreen() {
         }
     }
 
-    if (currentLeagueLoading || (!current && loading)) {
+    if (currentLeagueLoading || (!current && tabLoading.standings)) {
         return <LoadingScreen />
     }
 
     if (!current) {
         return <EmptyState message="Join or create a league first." />
+    }
+
+    const isTabLoading = tabLoading[tab] === true
+    const tabErr = tabError[tab]
+
+    function renderTabContent() {
+        if (isTabLoading) {
+            return <ActivityIndicator style={styles.loadingMargin} color={colors.primary} />
+        }
+        if (tabErr) {
+            return (
+                <Pressable
+                    style={styles.errorBanner}
+                    onPress={() => currentLeague?.id && fetchTab(tab, currentLeague.id)}
+                >
+                    <Text style={styles.errorBannerText}>Failed to load. Tap to retry.</Text>
+                </Pressable>
+            )
+        }
+        if (tab === 'standings') {
+            return (
+                <StandingsTable
+                    standings={standings}
+                    myMemberId={current?.id}
+                    onSelectTeam={(memberId, teamName) =>
+                        push({ pathname: '/(modals)/team-roster', params: { memberId, teamName } })
+                    }
+                />
+            )
+        }
+        if (tab === 'activity') {
+            return (
+                <ActivityFeed
+                    transactions={transactions}
+                    myMemberId={current?.id}
+                    onLoadMore={handleLoadMoreActivity}
+                    hasMore={activityHasMore && !activityLoadingMore}
+                />
+            )
+        }
+        if (tab === 'waivers') {
+            return <WaiverPriorityList rows={waiverOrder} myMemberId={current?.id} />
+        }
+        return <PicksBankList picks={currentLeaguePicks} myMemberId={current?.id} />
     }
 
     return (
@@ -171,7 +316,7 @@ export default function LeagueScreen() {
                         >
                             <Text style={styles.settingsButtonText}>Bracket</Text>
                         </Pressable>
-{isCommissioner ? (
+                        {isCommissioner ? (
                             <Pressable
                                 style={styles.settingsButton}
                                 onPress={() => push('/(modals)/commissioner-settings')}
@@ -231,7 +376,7 @@ export default function LeagueScreen() {
                     <Pressable
                         key={t}
                         style={[styles.tabChip, tab === t && styles.tabChipActive]}
-                        onPress={() => setTab(t)}
+                        onPress={() => handleTabChange(t)}
                     >
                         <Text style={[styles.tabChipText, tab === t && styles.tabChipTextActive]}>
                             {t === 'standings' ? 'Standings'
@@ -243,23 +388,20 @@ export default function LeagueScreen() {
                 ))}
             </ScrollView>
 
-            {loading ? (
-                <ActivityIndicator style={styles.loadingMargin} color={colors.primary} />
-            ) : tab === 'standings' ? (
-                <StandingsTable
-                    standings={standings}
-                    myMemberId={current?.id}
-                    onSelectTeam={(memberId, teamName) =>
-                        push({ pathname: '/(modals)/team-roster', params: { memberId, teamName } })
-                    }
-                />
-            ) : tab === 'activity' ? (
-                <ActivityFeed transactions={transactions} myMemberId={current?.id} />
-            ) : tab === 'waivers' ? (
-                <WaiverPriorityList rows={waiverOrder} myMemberId={current?.id} />
-            ) : (
-                <PicksBankList picks={currentLeaguePicks} myMemberId={current?.id} />
-            )}
+            {/* Tab content with pull-to-refresh */}
+            <ScrollView
+                style={styles.contentScroll}
+                contentContainerStyle={styles.contentScrollInner}
+                refreshControl={
+                    <RefreshControl
+                        refreshing={refreshing}
+                        onRefresh={handleRefresh}
+                        tintColor={colors.primary}
+                    />
+                }
+            >
+                {renderTabContent()}
+            </ScrollView>
         </SafeAreaView>
     )
 }
@@ -334,4 +476,17 @@ const styles = StyleSheet.create({
     tabChipActive: { backgroundColor: colors.primary },
     tabChipText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textSecondary },
     tabChipTextActive: { color: colors.textWhite },
+
+    contentScroll: { flex: 1 },
+    contentScrollInner: { flexGrow: 1 },
+
+    errorBanner: {
+        margin: spacing['2xl'],
+        padding: spacing['2xl'],
+        backgroundColor: colors.dangerLight,
+        borderRadius: radii.lg,
+        borderCurve: 'continuous' as const,
+        alignItems: 'center',
+    },
+    errorBannerText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.dangerDark },
 })

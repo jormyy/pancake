@@ -40,6 +40,7 @@ export async function logTransaction(params: {
 export async function getLeagueTransactions(
     leagueId: string,
     limit = 50,
+    offset = 0,
 ): Promise<TransactionRow[]> {
     const { data: season } = await supabase
         .from('league_seasons')
@@ -65,7 +66,7 @@ export async function getLeagueTransactions(
         .eq('league_season_id', (season as any).id)
         .in('transaction_type', ['fa_add', 'fa_drop', 'waiver_add', 'waiver_drop', 'trade_in', 'trade_out', 'draft_won'])
         .order('occurred_at', { ascending: false })
-        .limit(limit)
+        .range(offset, offset + limit - 1)
 
     if (error) throw error
 

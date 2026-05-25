@@ -46,7 +46,6 @@ import { PosTag } from '@/components/PosTag'
 import { EmptyState } from '@/components/EmptyState'
 import { IRResolutionModal } from '@/components/IRResolutionModal'
 import { DropPlayerPickerModal } from '@/components/DropPlayerPickerModal'
-import { ScheduleGrid } from '@/components/ScheduleGrid'
 import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
 import { getWeekDays, WeekDay, getStartedTeams } from '@/lib/lineup'
 import { getCurrentWeekNumber } from '@/lib/shared/week'
@@ -214,6 +213,10 @@ export default function PlayersScreen() {
     const [rookiesOnly, setRookiesOnly] = useState(false)
     const [players, setPlayers] = useState<PlayerRow[]>([])
     const [loading, setLoading] = useState(true)
+    const [loadingMore, setLoadingMore] = useState(false)
+    const [hasMore, setHasMore] = useState(false)
+    const searchParamsRef = useRef({ query: '', position: 'ALL', selectedTeams: [] as string[], leagueId: null as string | null, playingTeams: null as string[] | null, rookiesOnly: false })
+    const offsetRef = useRef(0)
 
     // Quick-add state
     const [adding, setAdding] = useState<string | null>(null)
@@ -333,15 +336,39 @@ export default function PlayersScreen() {
     }, [selectedDays, weekDays])
 
     const load = useCallback(async (q: string, pos: string, teams: string[], lgId: string | null, playing: string[] | null, rookies: boolean) => {
+        searchParamsRef.current = { query: q, position: pos, selectedTeams: teams, leagueId: lgId, playingTeams: playing, rookiesOnly: rookies }
+        offsetRef.current = 0
         setLoading(true)
+        setHasMore(false)
         try {
-            setPlayers(await searchPlayers(q, pos, teams, lgId, playing, rookies))
+            const results = await searchPlayers(q, pos, teams, lgId, playing, rookies, 0)
+            setPlayers(results)
+            setHasMore(!rookies && results.length === 60)
         } catch (e) {
             console.error(e)
         } finally {
             setLoading(false)
         }
     }, [])
+
+    const loadMore = useCallback(async () => {
+        if (loadingMore || !hasMore) return
+        const p = searchParamsRef.current
+        const nextOffset = offsetRef.current + 60
+        setLoadingMore(true)
+        try {
+            const results = await searchPlayers(p.query, p.position, p.selectedTeams, p.leagueId, p.playingTeams, p.rookiesOnly, nextOffset)
+            if (results.length > 0) {
+                offsetRef.current = nextOffset
+                setPlayers((prev) => [...prev, ...results])
+            }
+            setHasMore(results.length === 60)
+        } catch (e) {
+            console.error(e)
+        } finally {
+            setLoadingMore(false)
+        }
+    }, [loadingMore, hasMore])
 
     // Synchronously clear stale list + show spinner on league switch, so the
     // previous league's players don't render during the 300ms debounce window
@@ -738,13 +765,6 @@ export default function PlayersScreen() {
                 </Pressable>
             </Modal>
 
-            {weekDays.length > 0 && (
-                <ScheduleGrid
-                    weekDays={weekDays}
-                    selectedTeams={selectedTeams}
-                    onToggleTeam={toggleTeam}
-                />
-            )}
 
             {/* Results */}
             {loading ? (
@@ -769,6 +789,9 @@ export default function PlayersScreen() {
                         />
                     )}
                     ListEmptyComponent={<EmptyState message="No players found." fullScreen={false} />}
+                    onEndReached={loadMore}
+                    onEndReachedThreshold={0.3}
+                    ListFooterComponent={loadingMore ? <ActivityIndicator style={styles.loadMoreSpinner} color={colors.primary} /> : null}
                 />
             )}
 
@@ -800,6 +823,7 @@ export default function PlayersScreen() {
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgScreen },
     flex1: { flex: 1 },
+    loadMoreSpinner: { paddingVertical: 16 },
 
     searchRow: { paddingHorizontal: spacing.xl, paddingVertical: spacing.lg, flexDirection: 'row', alignItems: 'center', gap: spacing.md },
     searchInput: {

@@ -215,10 +215,31 @@ function ActivityRow({ item, isMe }: { item: TransactionRow; isMe: boolean }) {
     )
 }
 
-export function ActivityFeed({ transactions, myMemberId }: { transactions: TransactionRow[]; myMemberId?: string }) {
+export function ActivityFeed({
+    transactions,
+    myMemberId,
+    onLoadMore,
+    hasMore,
+}: {
+    transactions: TransactionRow[]
+    myMemberId?: string
+    onLoadMore?: () => void
+    hasMore?: boolean
+}) {
     const renderItem = useCallback<ListRenderItem<TransactionRow>>(({ item }) => (
         <ActivityRow item={item} isMe={item.memberId === myMemberId} />
     ), [myMemberId])
+
+    const ListFooter = hasMore ? (
+        <Pressable
+            onPress={onLoadMore}
+            style={{ padding: spacing['2xl'], alignItems: 'center' }}
+        >
+            <Text style={{ fontSize: fontSize.sm, color: colors.primary, fontWeight: fontWeight.semibold }}>
+                Load More
+            </Text>
+        </Pressable>
+    ) : null
 
     if (transactions.length === 0) {
         return <EmptyState message="No transactions yet. Adds, drops, and trades will appear here." fullScreen={false} />
@@ -230,6 +251,7 @@ export function ActivityFeed({ transactions, myMemberId }: { transactions: Trans
             keyExtractor={(t) => t.id}
             ItemSeparatorComponent={ItemSeparator}
             renderItem={renderItem}
+            ListFooterComponent={ListFooter}
         />
     )
 }
