@@ -234,7 +234,6 @@ export default function HomeScreen() {
     )
 }
 
-// ── Matchup lineup (both teams side by side) ───────────────────
 
 function MatchupLineupView({
     myLineup,

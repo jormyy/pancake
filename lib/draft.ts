@@ -52,7 +52,6 @@ export type DraftState = {
     currentNominatorMemberId: string | null
 }
 
-// ── Data fetching ──────────────────────────────────────────────
 
 export async function getActiveDraft(leagueId: string): Promise<Draft | null> {
     const { data } = await supabase
@@ -173,7 +172,6 @@ export async function getDraftState(draftId: string): Promise<DraftState | null>
     }
 }
 
-// ── Player search for nomination ───────────────────────────────
 
 export async function searchPlayers(query: string, draftId: string) {
     // Get already-nominated player IDs to filter out
@@ -196,7 +194,6 @@ export async function searchPlayers(query: string, draftId: string) {
     return (data ?? []).filter((p: any) => !nominatedIds.has(p.id))
 }
 
-// ── API calls to backend ───────────────────────────────────────
 
 export async function startDraft(leagueId: string): Promise<Draft> {
     const json = await sharedApiPost<any>('/draft/start', { leagueId })
@@ -228,7 +225,6 @@ export async function placeBid(
     await sharedApiPost(`/draft/${draftId}/bid`, { memberId, nominationId, amount })
 }
 
-// ── Realtime subscription ──────────────────────────────────────
 
 export function subscribeToDraft(draftId: string, onChange: () => void): RealtimeChannel {
     const channel = supabase

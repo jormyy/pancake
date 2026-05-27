@@ -70,7 +70,6 @@ export default async function draftRoutes(app: FastifyInstance) {
         },
     )
 
-    // ── Rookie draft routes ──────────────────────────────────────
 
     app.post('/start-rookie', { schema: { body: LeagueIdBody } }, async (req) => {
         const { leagueId } = req.body as { leagueId: string }

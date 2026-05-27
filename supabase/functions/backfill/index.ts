@@ -118,7 +118,6 @@ async function invokeSelf(body: Record<string, unknown>) {
   if (error) console.error('[backfill] invokeSelf error:', error.message)
 }
 
-// ── CDN Historical Backfill ──────────────────────────────────────────────
 // DB-driven: queries existing nba_games records and fills in missing stats.
 // Chunk size = CDN_CHUNK games; each chunk fires the next before returning.
 
@@ -299,7 +298,6 @@ async function runCDNChunk(seasonYear: number, jobId: string, offset: number) {
   console.log(`[backfill/cdn] Season ${seasonYear} offset=${offset}: ${completed} ok, ${failed} failed, ${pending.length - nextOffset} remaining`)
 }
 
-// ── CDN Enumeration Backfill (historical seasons not yet in DB) ─────────
 // Generates sequential game IDs, fetches box scores, upserts games + stats.
 // CDN_CHUNK=30 × ~700ms/game = ~21s per chunk, well within 150s timeout.
 
@@ -452,7 +450,6 @@ async function runCDNEnumChunk(seasonYear: number, jobId: string, offset: number
   console.log(`[backfill/cdn-enum] Season ${seasonYear} offset=${offset}: ${completed} ok, ${failed} failed`)
 }
 
-// ── BBRef Historical Backfill ────────────────────────────────────────────
 
 async function runBBRefChunk(seasonYear: number, jobId: string, offset: number) {
   // Load player maps (paginated to bypass PostgREST 1000-row cap)

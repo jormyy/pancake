@@ -60,7 +60,6 @@ function buildSnakePickRows(
     return pickRows
 }
 
-// ── Start Rookie Draft (snake format) ─────────────────────────
 export async function startRookieDraft(leagueId: string) {
     const { data: league, error: leagueErr } = await supabase
         .from('leagues')
@@ -195,7 +194,6 @@ export async function startRookieDraft(leagueId: string) {
     return draft
 }
 
-// ── Make a Pick ────────────────────────────────────────────────
 // All correctness-critical writes (validate next-pick / not-on-roster /
 // not-already-picked, write snake_draft_picks, insert roster_players, mark
 // draft_picks used, and on the last pick mark drafts.completed +
@@ -299,7 +297,6 @@ export async function makeSnakePick(draftId: string, memberId: string, playerId:
     }
 }
 
-// ── Auto-pick best available player (used when pick clock expires) ────────
 export async function autoPickBest(draftId: string, memberId: string) {
     // Get already-picked player IDs for this draft
     const { data: pickedRows } = await supabase
@@ -323,7 +320,6 @@ export async function autoPickBest(draftId: string, memberId: string) {
     return makeSnakePick(draftId, memberId, best.id)
 }
 
-// ── Reseed picks for an in-progress draft (fixes traded-pick ownership) ───
 export async function reseedRookieDraftPicks(draftId: string) {
     const { data: draft, error: draftErr } = await supabase
         .from('drafts')
@@ -362,7 +358,6 @@ export async function reseedRookieDraftPicks(draftId: string) {
     return { reseeded: pickRows.length }
 }
 
-// ── Get Rookie Draft State ─────────────────────────────────────
 export async function getRookieDraftState(draftId: string) {
     const [{ data: draft }, { data: picks }, { data: orders }] = await Promise.all([
         supabase

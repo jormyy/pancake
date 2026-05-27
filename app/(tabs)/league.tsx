@@ -28,7 +28,6 @@ type Tab = 'standings' | 'activity' | 'waivers' | 'picks'
 
 const ACTIVITY_LIMIT = 50
 
-// ── Main screen ──────────────────────────────────────────────────
 
 export default function LeagueScreen() {
     const { push } = useRouter()
@@ -406,7 +405,6 @@ export default function LeagueScreen() {
     )
 }
 
-// ── Styles ───────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgScreen },

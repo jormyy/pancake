@@ -39,7 +39,6 @@ const EMPTY_PICKS: TradePickItem[] = []
 const EMPTY_CLAIMS: WaiverClaim[] = []
 const EMPTY_AVG_MAP = new Map<string, number>()
 
-// ── Main screen ──────────────────────────────────────────────────
 
 export default function RosterScreen() {
     const { push } = useRouter()

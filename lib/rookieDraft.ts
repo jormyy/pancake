@@ -2,7 +2,6 @@ import { supabase } from '@/lib/supabase'
 import { RealtimeChannel } from '@supabase/supabase-js'
 import { apiPost as sharedApiPost } from '@/lib/shared/api'
 
-// ── Types ──────────────────────────────────────────────────────
 
 export type SnakePick = {
     overallPick: number
@@ -43,7 +42,6 @@ export type LeaguePickItem = {
     currentTeamName: string
 }
 
-// ── Queries ────────────────────────────────────────────────────
 
 export async function getActiveRookieDraft(leagueId: string) {
     const { data } = await supabase
@@ -204,7 +202,6 @@ export async function getRookiePlayers(draftId: string, query?: string) {
     return (data ?? []).filter((p: any) => !pickedIds.has(p.id))
 }
 
-// ── API calls ──────────────────────────────────────────────────
 
 export async function startRookieDraft(leagueId: string) {
     return sharedApiPost<any>('/draft/start-rookie', { leagueId })
@@ -229,7 +226,6 @@ export async function advanceSeason(leagueId: string) {
     return sharedApiPost<any>('/league/advance-season', { leagueId })
 }
 
-// ── Realtime ───────────────────────────────────────────────────
 
 export function subscribeToRookieDraft(draftId: string, onChange: () => void): RealtimeChannel {
     return supabase

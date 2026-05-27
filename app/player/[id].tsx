@@ -53,7 +53,6 @@ export default function PlayerDetailScreen() {
         roster: RosterPlayer[]
     } | null>(null)
 
-    // ── Load roster status ───────────────────────────────────────────────────
     const loadRosterStatus = useCallback(async () => {
         if (!current || !leagueId) return
         try {
@@ -68,7 +67,6 @@ export default function PlayerDetailScreen() {
         loadRosterStatus()
     }, [loadRosterStatus])
 
-    // ── Roster actions ───────────────────────────────────────────────────────
     async function handleAdd() {
         if (!current || !leagueId) return
         setActionLoading(true)
@@ -225,7 +223,6 @@ export default function PlayerDetailScreen() {
         push(`/(modals)/claim-player?playerId=${id}`)
     }
 
-    // ── Render ───────────────────────────────────────────────────────────────
     if (loading) {
         return <LoadingScreen />
     }

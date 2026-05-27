@@ -1,7 +1,6 @@
 import { supabase } from '../lib/supabase'
 import { CONFIG } from '../config'
 
-// ── Start Draft ────────────────────────────────────────────────
 export async function startDraft(leagueId: string) {
     const { data: league, error: leagueErr } = await supabase
         .from('leagues')
@@ -97,7 +96,6 @@ export async function startDraft(leagueId: string) {
     return draft
 }
 
-// ── Nominate Player ────────────────────────────────────────────
 export async function nominatePlayer(draftId: string, memberId: string, playerId: string) {
     const { data: draft, error: draftErr } = await supabase
         .from('drafts')
@@ -185,7 +183,6 @@ export async function nominatePlayer(draftId: string, memberId: string, playerId
     return nomination
 }
 
-// ── Place Bid ──────────────────────────────────────────────────
 export async function placeBid(
     draftId: string,
     memberId: string,
@@ -207,7 +204,6 @@ export async function placeBid(
     return { ok: true }
 }
 
-// ── Close Expired Nominations (cron) ──────────────────────────
 export async function closeExpiredNominations() {
     const now = new Date().toISOString()
     const { data: expired } = await supabase
@@ -244,7 +240,6 @@ export async function closeExpiredNominations() {
     return { checked: expired.length, closed, failed }
 }
 
-// ── Get Draft State ────────────────────────────────────────────
 export async function getDraftState(draftId: string) {
     const [{ data: draft }, { data: orders }, { data: budgets }, { data: nominations }] =
         await Promise.all([

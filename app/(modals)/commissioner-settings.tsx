@@ -35,7 +35,6 @@ async function adminCall(
     }
 }
 
-// ── Scoring ───────────────────────────────────────────────────
 const SCORING_FIELDS: { key: string; label: string }[] = [
     { key: 'points', label: 'Points' },
     { key: 'rebounds', label: 'Rebounds' },
@@ -50,7 +49,6 @@ const SCORING_FIELDS: { key: string; label: string }[] = [
     { key: 'free_throws_made', label: 'Free Throws Made' },
 ]
 
-// ── Lineup slots (excludes IR — managed via league.ir_slots) ──
 const SLOT_TYPES = ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F', 'UTIL', 'BE']
 
 type SlotMap = Record<string, number>
