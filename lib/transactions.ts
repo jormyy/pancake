@@ -63,14 +63,24 @@ export async function getLeagueTransactions(
             players!roster_transactions_player_id_fkey ( display_name, position, eligible_positions, nba_id )
         `)
         .eq('league_id', leagueId)
-        .eq('league_season_id', (season as any).id)
+        .eq('league_season_id', season.id)
         .in('transaction_type', ['fa_add', 'fa_drop', 'waiver_add', 'waiver_drop', 'trade_in', 'trade_out', 'draft_won'])
         .order('occurred_at', { ascending: false })
         .range(offset, offset + limit - 1)
 
     if (error) throw error
 
-    return (data ?? []).map((row: any) => ({
+    type TxRow = {
+        id: string
+        member_id: string
+        player_id: string
+        transaction_type: string
+        occurred_at: string
+        league_members: { team_name: string } | null
+        players: { display_name: string; position: string | null; eligible_positions: string[]; nba_id: string | null } | null
+    }
+
+    return ((data ?? []) as TxRow[]).map((row) => ({
         id: row.id,
         memberId: row.member_id,
         teamName: row.league_members?.team_name ?? 'Unknown',
