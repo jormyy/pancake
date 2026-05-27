@@ -5,233 +5,38 @@ import {
     Pressable,
     StyleSheet,
     ActivityIndicator,
-    Alert,
     Modal,
     ScrollView,
-    Image,
-    Dimensions,
     Platform,
 } from 'react-native'
-import { FlashList, FlashListRef } from '@shopify/flash-list'
+import { FlashList } from '@shopify/flash-list'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { searchPlayers, PlayerRow, getEligiblePositions } from '@/lib/players'
-import { playerHeadshotUrl, isIneligibleIR } from '@/lib/format'
-import {
-    getOwnedPlayerMap,
-    addFreeAgent,
-    dropPlayer,
-    toggleIR,
-    getRoster,
-    RosterPlayer,
-    OwnedEntry,
-} from '@/lib/roster'
-import { getWaiverPlayerIds, submitWaiverClaim } from '@/lib/waivers'
+import { OwnedEntry } from '@/lib/roster'
 import { useLeagueContext } from '@/contexts/league-context'
-import { getPositionColor } from "@/constants/positions"
-import {
-    INJURY_COLORS,
-    colors,
-    palette,
-    fontSize,
-    fontWeight,
-    radii,
-    spacing,
-} from '@/constants/tokens'
+import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 import { ItemSeparator } from '@/components/ItemSeparator'
-import { Avatar } from '@/components/Avatar'
-import { Badge } from '@/components/Badge'
-import { PosTag } from '@/components/PosTag'
 import { EmptyState } from '@/components/EmptyState'
 import { IRResolutionModal } from '@/components/IRResolutionModal'
 import { DropPlayerPickerModal } from '@/components/DropPlayerPickerModal'
+import { PlayerSearchItem } from '@/components/PlayerSearchItem'
 import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
-import { getWeekDays, WeekDay, getStartedTeams } from '@/lib/lineup'
-import { getCurrentWeekNumber } from '@/lib/shared/week'
-import { currentSeasonYear } from '@/lib/shared/season'
+import { usePlayerSearch, SORT_OPTIONS } from '@/hooks/use-player-search'
+import { useQuickAdd } from '@/hooks/use-quick-add'
+import { getOwnedPlayerMap } from '@/lib/roster'
+import { getWaiverPlayerIds } from '@/lib/waivers'
 import { todayET } from '@/lib/shared/dates'
+import { PlayerRow } from '@/lib/players'
 
 const POSITIONS = ['ALL', 'PG', 'SG', 'SF', 'PF', 'C', 'G', 'F']
 const TEAMS = ['ATL', 'BOS', 'BKN', 'CHA', 'CHI', 'CLE', 'DAL', 'DEN', 'DET', 'GSW', 'HOU', 'IND', 'LAC', 'LAL', 'MEM', 'MIA', 'MIL', 'MIN', 'NOP', 'NYK', 'OKC', 'ORL', 'PHI', 'PHX', 'POR', 'SAC', 'SAS', 'TOR', 'UTA', 'WAS']
 
-type SortMode = 'fpts' | 'gamesLeft' | 'name' | 'team' | 'yearsExp'
-const SORT_OPTIONS: { key: SortMode; label: string }[] = [
-    { key: 'fpts', label: 'FPts' },
-    { key: 'gamesLeft', label: 'G Left' },
-    { key: 'name', label: 'Name' },
-    { key: 'team', label: 'Team' },
-    { key: 'yearsExp', label: 'Exp' },
-]
-
 const EMPTY_OWNED_MAP = new Map<string, OwnedEntry>()
 const EMPTY_WAIVER_IDS = new Set<string>()
-
-// ── Extracted list item component ────────────────────────────────
-
-function PlayerSearchItem({
-    item,
-    currentMemberId,
-    ownedMap,
-    waiverIds,
-    adding,
-    gamesLeft,
-    onAdd,
-    onPress,
-}: {
-    item: PlayerRow
-    currentMemberId: string | undefined
-    ownedMap: Map<string, OwnedEntry>
-    waiverIds: Set<string>
-    adding: string | null
-    gamesLeft: Map<string, number>
-    onAdd: (player: PlayerRow) => void
-    onPress: () => void
-}) {
-    const owned = ownedMap.get(item.id)
-    const isMe = owned?.memberId === currentMemberId
-    const isOther = owned && !isMe
-    const isWaiver = !owned && waiverIds.has(item.id)
-    const isFA = !owned && !isWaiver
-    const canAdd = currentMemberId && (isFA || isWaiver)
-    const isAdding = adding === item.id
-    const [headshotError, setHeadshotError] = useState(false)
-    const headshotUri = playerHeadshotUrl(item.nba_id)
-
-    return (
-        <View style={styles.playerRow}>
-            {/* Plus button */}
-            <View style={styles.addCol}>
-                {canAdd ? (
-                    <Pressable
-                        style={styles.addBtn}
-                        onPress={() => onAdd(item)}
-                        disabled={isAdding}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Add ${item.display_name}`}
-                        accessibilityState={{ disabled: isAdding, busy: isAdding }}
-                        hitSlop={8}
-                    >
-                        {isAdding
-                            ? <ActivityIndicator size="small" color={colors.primary} />
-                            : <Text style={styles.addBtnText}>+</Text>}
-                    </Pressable>
-                ) : null}
-            </View>
-
-            {/* Player card (tappable → detail) */}
-            <Pressable
-                style={styles.playerCard}
-                onPress={onPress}
-                accessibilityRole="button"
-                accessibilityLabel={`Open ${item.display_name}`}
-            >
-                {headshotUri && !headshotError ? (
-                    <Image
-                        source={{ uri: headshotUri }}
-                        style={styles.headshot}
-                        onError={() => setHeadshotError(true)}
-                    />
-                ) : (
-                    <Avatar
-                        name={item.display_name}
-                        color={getPositionColor(item.eligible_positions?.[0] ?? item.position)}
-                    />
-                )}
-
-                <View style={styles.playerInfo}>
-                    <Text style={styles.playerName}>{item.display_name}</Text>
-                    <View style={styles.playerMetaRow}>
-                        {item.nba_team && <Text style={styles.playerMeta}>{item.nba_team}</Text>}
-                        {getEligiblePositions(item).map((pos: string) => <PosTag key={pos} position={pos} />)}
-                        {item.years_exp != null && (
-                            <Text style={[styles.gamesLeftText, item.years_exp === 0 && { color: colors.success }]}>
-                                {item.years_exp === 0 ? 'Rookie' : `Yr ${item.years_exp + 1}`}
-                            </Text>
-                        )}
-                        {item.nba_team != null && (
-                            <Text style={styles.gamesLeftText}>
-                                {gamesLeft.get(item.nba_team) ?? 0}G left
-                            </Text>
-                        )}
-                    </View>
-                </View>
-
-                {/* Injury badge */}
-                {item.injury_status ? (
-                    <Badge
-                        label={item.injury_status}
-                        color={INJURY_COLORS[item.injury_status] ?? colors.textMuted}
-                        variant="solid"
-                    />
-                ) : null}
-
-                {/* Status badge */}
-                {currentMemberId ? (
-                    <View style={[
-                        styles.statusBadge,
-                        isMe && styles.statusBadgeMe,
-                        isWaiver && styles.statusBadgeWaiver,
-                        isFA && styles.statusBadgeFA,
-                    ]}>
-                        <Text
-                            style={[
-                                styles.statusBadgeText,
-                                isMe && styles.statusBadgeTextMe,
-                                isWaiver && styles.statusBadgeTextWaiver,
-                            ]}
-                            numberOfLines={1}
-                        >
-                            {isMe ? 'Mine'
-                                : isOther ? owned!.teamName
-                                : isWaiver ? 'W'
-                                : 'FA'}
-                        </Text>
-                    </View>
-                ) : null}
-            </Pressable>
-        </View>
-    )
-}
-
-// ── Main screen ──────────────────────────────────────────────────
 
 export default function PlayersScreen() {
     const { push } = useRouter()
     const { current, currentLeague } = useLeagueContext()
-    const [query, setQuery] = useState('')
-    const [position, setPosition] = useState('ALL')
-    const [selectedTeams, setSelectedTeams] = useState<string[]>([])
-    const [teamPopover, setTeamPopover] = useState<{ top: number; right: number } | null>(null)
-    const teamBtnRef = useRef<View>(null)
-    const [selectedDays, setSelectedDays] = useState<string[]>([])
-    const [weekDays, setWeekDays] = useState<WeekDay[]>([])
-    const [startedTeams, setStartedTeams] = useState<Set<string>>(new Set())
-    const [sortMode, setSortMode] = useState<SortMode>('fpts')
-    const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
-    const [availableOnly, setAvailableOnly] = useState(true)
-    const [rookiesOnly, setRookiesOnly] = useState(false)
-    const [players, setPlayers] = useState<PlayerRow[]>([])
-    const [loading, setLoading] = useState(true)
-    const [loadingMore, setLoadingMore] = useState(false)
-    const [hasMore, setHasMore] = useState(false)
-    const searchParamsRef = useRef({ query: '', position: 'ALL', selectedTeams: [] as string[], leagueId: null as string | null, playingTeams: null as string[] | null, rookiesOnly: false })
-    const offsetRef = useRef(0)
-
-    // Quick-add state
-    const [adding, setAdding] = useState<string | null>(null)
-    const [dropPickerPlayer, setDropPickerPlayer] = useState<PlayerRow | null>(null)
-    const [myRoster, setMyRoster] = useState<RosterPlayer[]>([])
-    const [dropping, setDropping] = useState<string | null>(null)
-
-    // IR resolution state
-    const [irModal, setIrModal] = useState<{
-        ineligible: RosterPlayer[]
-        roster: RosterPlayer[]
-        pendingPlayer: PlayerRow
-    } | null>(null)
-
-    const listRef = useRef<FlashListRef<PlayerRow>>(null)
     const leagueId = currentLeague?.id ?? null
 
     const {
@@ -249,380 +54,45 @@ export default function PlayersScreen() {
     const ownedMap = ownedData?.ownedMap ?? EMPTY_OWNED_MAP
     const waiverIds = ownedData?.waiverIds ?? EMPTY_WAIVER_IDS
 
-    const gamesLeft = useMemo(() => {
-        // weekDays[i].date comes from getWeekDays — ET-keyed against
-        // nba_games.game_date. Compare with todayET so non-ET clients don't
-        // skew the "games remaining" count.
-        const today = todayET()
-        const map = new Map<string, number>()
-        for (const day of weekDays) {
-            if (day.date < today) continue
-            for (const team of day.playingTeams) {
-                if (day.date === today && startedTeams.has(team)) continue
-                map.set(team, (map.get(team) ?? 0) + 1)
-            }
-        }
-        return map
-    }, [weekDays, startedTeams])
-
-    const displayedPlayers = useMemo(() => {
-        const list = availableOnly ? players.filter((p) => !ownedMap.has(p.id)) : players
-        const sorted = [...list].sort((a, b) => {
-            let cmp = 0
-            switch (sortMode) {
-                case 'fpts':
-                    cmp = 0 // already sorted by server
-                    break
-                case 'gamesLeft': {
-                    const ga = gamesLeft.get(a.nba_team ?? '') ?? 0
-                    const gb = gamesLeft.get(b.nba_team ?? '') ?? 0
-                    cmp = gb - ga
-                    break
-                }
-                case 'name':
-                    cmp = (a.display_name ?? '').localeCompare(b.display_name ?? '')
-                    break
-                case 'team':
-                    cmp = (a.nba_team ?? '').localeCompare(b.nba_team ?? '')
-                    break
-                case 'yearsExp':
-                    cmp = (a.years_exp ?? 99) - (b.years_exp ?? 99)
-                    break
-            }
-            return sortDir === 'asc' ? cmp : -cmp
-        })
-        return sorted
-    }, [players, availableOnly, ownedMap, sortMode, sortDir, gamesLeft])
-
-    // Scroll to top after sort changes (after re-render)
-    useEffect(() => {
-        listRef.current?.scrollToOffset({ offset: 0, animated: false })
-    }, [sortMode, sortDir])
-
-    // Load current matchup week days once on mount
-    useEffect(() => {
-        let cancelled = false
-        const seasonYear = currentSeasonYear()
-        // getStartedTeams queries nba_games by ET-keyed game_date; use todayET.
-        const today = todayET()
-        getCurrentWeekNumber(seasonYear).then((weekNum) => {
-            if (cancelled) return
-            return getWeekDays(weekNum ?? 1, seasonYear)
-        }).then((days) => {
-            if (!cancelled && days) setWeekDays(days)
-        }).catch(console.error)
-        getStartedTeams(today).then((teams) => {
-            if (!cancelled) setStartedTeams(teams)
-        }).catch(console.error)
-        return () => { cancelled = true }
-    }, [])
-
-    // Compute playing teams as the intersection of teams playing on all selected days
-    const playingTeams = useMemo<string[] | null>(() => {
-        if (selectedDays.length === 0) return null
-        const sets = selectedDays.map((date) => {
-            const day = weekDays.find((d) => d.date === date)
-            return new Set(day?.playingTeams ?? [])
-        })
-        const [first, ...rest] = sets
-        if (!first) return []
-        const intersection = new Set(first)
-        for (const s of rest) {
-            for (const team of intersection) {
-                if (!s.has(team)) intersection.delete(team)
-            }
-        }
-        return Array.from(intersection)
-    }, [selectedDays, weekDays])
-
-    const load = useCallback(async (q: string, pos: string, teams: string[], lgId: string | null, playing: string[] | null, rookies: boolean) => {
-        searchParamsRef.current = { query: q, position: pos, selectedTeams: teams, leagueId: lgId, playingTeams: playing, rookiesOnly: rookies }
-        offsetRef.current = 0
-        setLoading(true)
-        setHasMore(false)
-        try {
-            const results = await searchPlayers(q, pos, teams, lgId, playing, rookies, 0)
-            setPlayers(results)
-            setHasMore(!rookies && results.length === 60)
-        } catch (e) {
-            console.error(e)
-        } finally {
-            setLoading(false)
-        }
-    }, [])
-
-    const loadMore = useCallback(async () => {
-        if (loadingMore || !hasMore) return
-        const p = searchParamsRef.current
-        const nextOffset = offsetRef.current + 60
-        setLoadingMore(true)
-        try {
-            const results = await searchPlayers(p.query, p.position, p.selectedTeams, p.leagueId, p.playingTeams, p.rookiesOnly, nextOffset)
-            if (results.length > 0) {
-                offsetRef.current = nextOffset
-                setPlayers((prev) => [...prev, ...results])
-            }
-            setHasMore(results.length === 60)
-        } catch (e) {
-            console.error(e)
-        } finally {
-            setLoadingMore(false)
-        }
-    }, [loadingMore, hasMore])
-
-    // Synchronously clear stale list + show spinner on league switch, so the
-    // previous league's players don't render during the 300ms debounce window
-    // below. Skip the initial mount — the debounced load effect handles that.
-    const isFirstLeagueRunRef = useRef(true)
-    useEffect(() => {
-        if (isFirstLeagueRunRef.current) {
-            isFirstLeagueRunRef.current = false
-            return
-        }
-        setPlayers([])
-        setLoading(true)
-    }, [leagueId])
-
-    useEffect(() => {
-        const timer = setTimeout(() => load(query, position, selectedTeams, leagueId, playingTeams, rookiesOnly), 300)
-        return () => clearTimeout(timer)
-    }, [query, position, selectedTeams, leagueId, playingTeams, rookiesOnly, load])
-
-    function toggleTeam(t: string) {
-        setSelectedTeams((prev) =>
-            prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]
-        )
-    }
-
-    function toggleDay(date: string) {
-        setSelectedDays((prev) =>
-            prev.includes(date) ? prev.filter((x) => x !== date) : [...prev, date]
-        )
-    }
-
-    function clearAllFilters() {
-        setQuery('')
-        setPosition('ALL')
-        setSelectedTeams([])
-        setSelectedDays([])
-        setAvailableOnly(true)
-        setRookiesOnly(false)
-        setSortMode('fpts')
-        setSortDir('desc')
-    }
-
-    // Count active filters for badge display
-    const activeFilterCount = useMemo(() => {
-        let count = 0
-        if (query.trim()) count++
-        if (position !== 'ALL') count++
-        if (selectedTeams.length > 0) count++
-        if (selectedDays.length > 0) count++
-        if (!availableOnly) count++
-        if (rookiesOnly) count++
-        if (sortMode !== 'fpts') count++
-        return count
-    }, [query, position, selectedTeams, selectedDays, availableOnly, rookiesOnly, sortMode])
-
-    function openTeamPicker() {
-        teamBtnRef.current?.measure((_x, _y, width, _height, pageX, pageY) => {
-            const screenWidth = Dimensions.get('window').width
-            setTeamPopover({ top: pageY, right: screenWidth - pageX })
-        })
-    }
-
-    // ── Shared helpers for add-player flows ─────────────────────────
-    // Returns true if IR modal was shown (caller should bail).
-    const checkAndShowIRModal = useCallback(
-        async (player: PlayerRow, lid: string, excludeRosterId?: string): Promise<RosterPlayer[] | null> => {
-            if (!current) return null
-            const roster = await getRoster(current.id, lid)
-            const ineligible = roster.filter(
-                (r) => isIneligibleIR(r) && r.id !== excludeRosterId
-            )
-            if (ineligible.length > 0) {
-                setIrModal({ ineligible, roster, pendingPlayer: player })
-                return null
-            }
-            return roster
-        },
-        [current]
+    const search = usePlayerSearch(leagueId, ownedMap)
+    const quickAdd = useQuickAdd(
+        current?.id,
+        leagueId,
+        currentLeague?.roster_size ?? 20,
+        waiverIds,
+        refreshOwned,
     )
-
-    const confirmWaiverClaim = useCallback(
-        (player: PlayerRow, lid: string, onAfterClaim?: () => void) => {
-            Alert.alert(
-                'Place Waiver Claim',
-                `You sure you wanna put in a waiver claim for ${player.display_name}? Claims process nightly.`,
-                [
-                    { text: 'Nah', style: 'cancel' },
-                    {
-                        text: 'Claim',
-                        onPress: async () => {
-                            if (!current) return
-                            setAdding(player.id)
-                            try {
-                                await submitWaiverClaim(current.id, lid, player.id)
-                                onAfterClaim?.()
-                            } catch (e: any) {
-                                Alert.alert('Error', e.message)
-                            } finally {
-                                setAdding(null)
-                                refreshOwned()
-                            }
-                        },
-                    },
-                ],
-            )
-        },
-        [current, refreshOwned]
-    )
-
-    async function handleAdd(player: PlayerRow) {
-        if (!current || !currentLeague) return
-        const lid = currentLeague.id
-
-        if (waiverIds.has(player.id)) {
-            // Check for ineligible IR players before allowing waiver claim
-            const roster = await checkAndShowIRModal(player, lid)
-            if (!roster) return
-            confirmWaiverClaim(player, lid, () => {
-                Alert.alert('Claimed', 'Waiver claim submitted.')
-            })
-            return
-        }
-
-        // Free-agent add — may require a drop if roster is full
-        const roster = await checkAndShowIRModal(player, lid)
-        if (!roster) return
-        const active = roster.filter((r) => !r.is_on_ir && !r.is_on_taxi)
-        if (active.length >= currentLeague.roster_size) {
-            setDropPickerPlayer(player)
-            setMyRoster(roster)
-            return
-        }
-
-        setAdding(player.id)
-        try {
-            await addFreeAgent(current.id, lid, player.id)
-            Alert.alert('Added', `${player.display_name} added to your roster.`)
-        } catch (e: any) {
-            Alert.alert('Error', e.message)
-        } finally {
-            setAdding(null)
-            refreshOwned()
-        }
-    }
-
-    async function tryAddFreeAgent(player: PlayerRow, leagueId: string) {
-        if (!current) return
-        setAdding(player.id)
-        try {
-            await addFreeAgent(current.id, leagueId, player.id)
-            await refreshOwned()
-        } catch (e: any) {
-            if (e.message?.includes('full')) {
-                const roster = await getRoster(current.id, leagueId)
-                setMyRoster(roster.filter((r) => !r.is_on_ir && !r.is_on_taxi))
-                setDropPickerPlayer(player)
-            } else {
-                Alert.alert('Error', e.message)
-            }
-        } finally {
-            setAdding(null)
-        }
-    }
-
-    async function handleDropAndAdd(rosterPlayer: RosterPlayer) {
-        if (!current || !dropPickerPlayer || !currentLeague) return
-        const lid = currentLeague.id
-
-        // Check for ineligible IR players before dropping (excluding the one being dropped)
-        const roster = await checkAndShowIRModal(dropPickerPlayer, lid, rosterPlayer.id)
-        if (!roster) return
-
-        setDropping(rosterPlayer.id)
-        try {
-            await dropPlayer(rosterPlayer.id)
-            await addFreeAgent(current.id, lid, dropPickerPlayer.id)
-            setDropPickerPlayer(null)
-            await refreshOwned()
-        } catch (e: any) {
-            Alert.alert('Error', e.message)
-        } finally {
-            setDropping(null)
-        }
-    }
-
-    async function proceedAfterIRResolved(player: PlayerRow, leagueId: string) {
-        if (!current) return
-        if (waiverIds.has(player.id)) {
-            confirmWaiverClaim(player, leagueId)
-        } else {
-            await tryAddFreeAgent(player, leagueId)
-        }
-    }
-
-    // After an IR-related mutation, re-check the roster: re-show modal if still
-    // ineligible players remain, otherwise close it and resume the pending add.
-    async function afterIRMutation(lid: string) {
-        if (!current) return
-        const roster = await getRoster(current.id, lid)
-        const remaining = roster.filter((r) => isIneligibleIR(r))
-        if (remaining.length > 0) {
-            setIrModal((prev) => prev ? { ...prev, ineligible: remaining, roster } : null)
-        } else {
-            const pending = irModal!.pendingPlayer
-            setIrModal(null)
-            await proceedAfterIRResolved(pending, lid)
-        }
-    }
-
-    async function handleIRActivate(rp: RosterPlayer) {
-        if (!current || !currentLeague) return
-        await toggleIR(rp.id, false)
-        await afterIRMutation(currentLeague.id)
-    }
-
-    async function handleDropAndIRActivate(toDrop: RosterPlayer, activatePlayer: RosterPlayer) {
-        if (!current || !currentLeague) return
-        await dropPlayer(toDrop.id)
-        await toggleIR(activatePlayer.id, false)
-        await afterIRMutation(currentLeague.id)
-    }
 
     return (
         <SafeAreaView style={styles.container}>
-            {/* Search bar */}
             <View style={styles.searchRow}>
                 <TextInput
                     style={styles.searchInput}
                     placeholder="Search players..."
                     placeholderTextColor={colors.textPlaceholder}
-                    value={query}
-                    onChangeText={setQuery}
+                    value={search.query}
+                    onChangeText={search.setQuery}
                     autoCorrect={false}
                     clearButtonMode="while-editing"
                 />
                 <Pressable
-                    style={[styles.availableChip, availableOnly && styles.availableChipActive]}
-                    onPress={() => setAvailableOnly((v) => !v)}
+                    style={[styles.chip, search.availableOnly && styles.chipPrimary]}
+                    onPress={() => search.setAvailableOnly((v) => !v)}
                 >
-                    <Text style={[styles.availableChipText, availableOnly && styles.availableChipTextActive]}>
+                    <Text style={[styles.chipText, search.availableOnly && styles.chipTextActive]}>
                         Available
                     </Text>
                 </Pressable>
                 <Pressable
-                    style={[styles.availableChip, rookiesOnly && styles.rookieChipActive]}
-                    onPress={() => setRookiesOnly((v) => !v)}
+                    style={[styles.chip, search.rookiesOnly && styles.chipSuccess]}
+                    onPress={() => search.setRookiesOnly((v) => !v)}
                 >
-                    <Text style={[styles.availableChipText, rookiesOnly && styles.rookieChipTextActive]}>
+                    <Text style={[styles.chipText, search.rookiesOnly && styles.chipTextActive]}>
                         Rookie
                     </Text>
                 </Pressable>
             </View>
 
-            {/* Position + Team filters */}
             <View style={styles.filterRow}>
                 <ScrollView
                     horizontal
@@ -633,10 +103,10 @@ export default function PlayersScreen() {
                     {POSITIONS.map((item) => (
                         <Pressable
                             key={item}
-                            style={[styles.posChip, position === item && styles.posChipActive]}
-                            onPress={() => setPosition(item)}
+                            style={[styles.posChip, search.position === item && styles.posChipActive]}
+                            onPress={() => search.setPosition(item)}
                         >
-                            <Text style={[styles.posChipText, position === item && styles.posChipTextActive]}>
+                            <Text style={[styles.posChipText, search.position === item && styles.posChipTextActive]}>
                                 {item}
                             </Text>
                         </Pressable>
@@ -644,20 +114,19 @@ export default function PlayersScreen() {
                 </ScrollView>
 
                 <Pressable
-                    ref={teamBtnRef}
-                    style={[styles.teamDropdown, selectedTeams.length > 0 && styles.teamDropdownActive]}
-                    onPress={openTeamPicker}
+                    ref={search.teamBtnRef}
+                    style={[styles.teamDropdown, search.selectedTeams.length > 0 && styles.teamDropdownActive]}
+                    onPress={search.openTeamPicker}
                 >
-                    <Text style={[styles.teamDropdownText, selectedTeams.length > 0 && styles.teamDropdownTextActive]}>
-                        {selectedTeams.length === 0 ? 'Team'
-                            : selectedTeams.length === 1 ? selectedTeams[0]
-                            : `${selectedTeams.length} teams`}
+                    <Text style={[styles.teamDropdownText, search.selectedTeams.length > 0 && styles.teamDropdownTextActive]}>
+                        {search.selectedTeams.length === 0 ? 'Team'
+                            : search.selectedTeams.length === 1 ? search.selectedTeams[0]
+                            : `${search.selectedTeams.length} teams`}
                     </Text>
-                    <Text style={[styles.teamDropdownCaret, selectedTeams.length > 0 && styles.teamDropdownTextActive]}>▾</Text>
+                    <Text style={[styles.teamDropdownCaret, search.selectedTeams.length > 0 && styles.teamDropdownTextActive]}>▾</Text>
                 </Pressable>
             </View>
 
-            {/* Sort chips */}
             <View style={styles.sortRow}>
                 <ScrollView
                     horizontal
@@ -665,23 +134,23 @@ export default function PlayersScreen() {
                     contentContainerStyle={styles.sortChips}
                 >
                     {SORT_OPTIONS.map((opt) => {
-                        const active = sortMode === opt.key
+                        const active = search.sortMode === opt.key
                         return (
                             <Pressable
                                 key={opt.key}
                                 style={[styles.sortChip, active && styles.sortChipActive]}
                                 onPress={() => {
                                     if (active) {
-                                        setSortDir((d) => d === 'asc' ? 'desc' : 'asc')
+                                        search.setSortDir((d) => d === 'asc' ? 'desc' : 'asc')
                                     } else {
-                                        setSortMode(opt.key)
-                                        setSortDir(opt.key === 'name' || opt.key === 'team' ? 'asc' : 'desc')
+                                        search.setSortMode(opt.key)
+                                        search.setSortDir(opt.key === 'name' || opt.key === 'team' ? 'asc' : 'desc')
                                     }
                                 }}
                             >
                                 <Text style={[styles.sortChipText, active && styles.sortChipTextActive]}>
                                     {opt.label}
-                                    {active ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ''}
+                                    {active ? (search.sortDir === 'asc' ? ' ↑' : ' ↓') : ''}
                                 </Text>
                             </Pressable>
                         )
@@ -689,72 +158,69 @@ export default function PlayersScreen() {
                 </ScrollView>
             </View>
 
-            {/* Day filter */}
             <View style={styles.dayFilterRow}>
                 <ScrollView
                     horizontal
                     showsHorizontalScrollIndicator={false}
                     contentContainerStyle={styles.dayChips}
                 >
-                    {weekDays.filter((day) => day.date >= todayET()).map((day) => {
-                        const active = selectedDays.includes(day.date)
+                    {search.weekDays.filter((day) => day.date >= todayET()).map((day) => {
+                        const active = search.selectedDays.includes(day.date)
                         const label = new Date(day.date + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'short' })
                         return (
                             <Pressable
                                 key={day.date}
                                 style={[styles.dayChip, active && styles.dayChipActive]}
-                                onPress={() => toggleDay(day.date)}
+                                onPress={() => search.toggleDay(day.date)}
                             >
                                 <Text style={[styles.dayChipLabel, active && styles.dayChipTextActive]}>{label}</Text>
                                 <Text style={[styles.dayChipNum, active && styles.dayChipTextActive]}>{day.dateNum}</Text>
                             </Pressable>
                         )
                     })}
-                    {selectedDays.length > 0 && (
-                        <Pressable style={styles.dayClearBtn} onPress={() => setSelectedDays([])}>
+                    {search.selectedDays.length > 0 && (
+                        <Pressable style={styles.dayClearBtn} onPress={() => search.setSelectedDays([])}>
                             <Text style={styles.dayClearText}>Clear</Text>
                         </Pressable>
                     )}
                 </ScrollView>
             </View>
 
-            {/* Filter status: result count, active badges, clear all */}
             <View style={styles.filterStatusRow}>
                 <Text style={styles.filterCountText}>
-                    {loading ? 'Searching...' : `${displayedPlayers.length} player${displayedPlayers.length !== 1 ? 's' : ''}`}
+                    {search.loading ? 'Searching...' : `${search.displayedPlayers.length} player${search.displayedPlayers.length !== 1 ? 's' : ''}`}
                 </Text>
-                {activeFilterCount > 0 && (
-                    <Pressable style={styles.clearAllChip} onPress={clearAllFilters}>
-                        <Text style={styles.clearAllChipText}>Clear all ({activeFilterCount})</Text>
+                {search.activeFilterCount > 0 && (
+                    <Pressable style={styles.clearAllChip} onPress={search.clearAllFilters}>
+                        <Text style={styles.clearAllChipText}>Clear all ({search.activeFilterCount})</Text>
                     </Pressable>
                 )}
             </View>
 
-            {/* Team picker popover */}
             <Modal
-                visible={teamPopover !== null}
+                visible={search.teamPopover !== null}
                 transparent
                 animationType="none"
-                onRequestClose={() => setTeamPopover(null)}
+                onRequestClose={() => search.setTeamPopover(null)}
             >
-                <Pressable style={styles.popoverBackdrop} onPress={() => setTeamPopover(null)}>
+                <Pressable style={styles.popoverBackdrop} onPress={() => search.setTeamPopover(null)}>
                     <View
-                        style={[styles.teamPopover, teamPopover ? { top: teamPopover.top, right: teamPopover.right } : {}]}
+                        style={[styles.teamPopover, search.teamPopover ? { top: search.teamPopover.top, right: search.teamPopover.right } : {}]}
                         onStartShouldSetResponder={() => true}
                     >
-                        {selectedTeams.length > 0 && (
-                            <Pressable onPress={() => setSelectedTeams([])} style={styles.popoverClear}>
+                        {search.selectedTeams.length > 0 && (
+                            <Pressable onPress={() => search.setSelectedTeams([])} style={styles.popoverClear}>
                                 <Text style={styles.popoverClearText}>Clear</Text>
                             </Pressable>
                         )}
                         <View style={styles.teamGrid}>
                             {TEAMS.map((t) => {
-                                const active = selectedTeams.includes(t)
+                                const active = search.selectedTeams.includes(t)
                                 return (
                                     <Pressable
                                         key={t}
                                         style={[styles.teamCell, active && styles.teamCellActive]}
-                                        onPress={() => toggleTeam(t)}
+                                        onPress={() => search.toggleTeam(t)}
                                     >
                                         <Text style={[styles.teamCellText, active && styles.teamCellTextActive]}>{t}</Text>
                                     </Pressable>
@@ -765,56 +231,53 @@ export default function PlayersScreen() {
                 </Pressable>
             </Modal>
 
-
-            {/* Results */}
-            {loading ? (
+            {search.loading ? (
                 <ActivityIndicator style={styles.flex1} color={colors.primary} />
             ) : (
                 <FlashList
-                    ref={listRef}
-                    data={displayedPlayers}
-                    keyExtractor={(p) => p.id}
-                    contentContainerStyle={displayedPlayers.length === 0 ? styles.emptyContainer : undefined}
+                    ref={search.listRef}
+                    data={search.displayedPlayers}
+                    keyExtractor={(p: PlayerRow) => p.id}
+                    contentContainerStyle={search.displayedPlayers.length === 0 ? styles.emptyContainer : undefined}
                     ItemSeparatorComponent={ItemSeparator}
-                    renderItem={({ item }) => (
+                    renderItem={({ item }: { item: PlayerRow }) => (
                         <PlayerSearchItem
                             item={item}
                             currentMemberId={current?.id}
                             ownedMap={ownedMap}
                             waiverIds={waiverIds}
-                            adding={adding}
-                            gamesLeft={gamesLeft}
-                            onAdd={handleAdd}
+                            adding={quickAdd.adding}
+                            gamesLeft={search.gamesLeft}
+                            onAdd={quickAdd.handleAdd}
                             onPress={() => push(`/player/${item.id}`)}
                         />
                     )}
                     ListEmptyComponent={<EmptyState message="No players found." fullScreen={false} />}
-                    onEndReached={loadMore}
+                    onEndReached={search.loadMore}
                     onEndReachedThreshold={0.3}
-                    ListFooterComponent={loadingMore ? <ActivityIndicator style={styles.loadMoreSpinner} color={colors.primary} /> : null}
+                    ListFooterComponent={search.loadingMore ? <ActivityIndicator style={styles.loadMoreSpinner} color={colors.primary} /> : null}
                 />
             )}
 
             <DropPlayerPickerModal
-                visible={dropPickerPlayer !== null}
-                title={`Drop a player to add\n${dropPickerPlayer?.display_name ?? ''}`}
+                visible={quickAdd.dropPickerPlayer !== null}
+                title={`Drop a player to add\n${quickAdd.dropPickerPlayer?.display_name ?? ''}`}
                 subtitle="Your roster is full. Pick someone to release."
-                roster={myRoster}
-                dropping={dropping}
-                onDrop={handleDropAndAdd}
-                onCancel={() => setDropPickerPlayer(null)}
+                roster={quickAdd.myRoster}
+                dropping={quickAdd.dropping}
+                onDrop={quickAdd.handleDropAndAdd}
+                onCancel={() => quickAdd.setDropPickerPlayer(null)}
             />
 
-            {/* IR resolution modal */}
             <IRResolutionModal
-                visible={irModal !== null}
-                ineligibleIR={irModal?.ineligible ?? []}
-                activeRoster={(irModal?.roster ?? []).filter((r) => !r.is_on_ir && !r.is_on_taxi)}
+                visible={quickAdd.irModal !== null}
+                ineligibleIR={quickAdd.irModal?.ineligible ?? []}
+                activeRoster={(quickAdd.irModal?.roster ?? []).filter((r) => !r.is_on_ir && !r.is_on_taxi)}
                 rosterSize={currentLeague?.roster_size ?? 20}
-                pendingPlayerName={irModal?.pendingPlayer.display_name ?? ''}
-                onActivate={handleIRActivate}
-                onDropAndActivate={handleDropAndIRActivate}
-                onCancel={() => setIrModal(null)}
+                pendingPlayerName={quickAdd.irModal?.pendingPlayer.display_name ?? ''}
+                onActivate={quickAdd.handleIRActivate}
+                onDropAndActivate={quickAdd.handleDropAndIRActivate}
+                onCancel={() => quickAdd.setIrModal(null)}
             />
         </SafeAreaView>
     )
@@ -836,7 +299,7 @@ const styles = StyleSheet.create({
         fontSize: fontSize.lg,
     },
 
-    availableChip: {
+    chip: {
         paddingHorizontal: spacing.lg,
         paddingVertical: spacing.sm,
         borderRadius: radii['3xl'],
@@ -844,11 +307,10 @@ const styles = StyleSheet.create({
         backgroundColor: colors.bgMuted,
         flexShrink: 0,
     },
-    availableChipActive: { backgroundColor: colors.primary },
-    availableChipText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textSecondary },
-    availableChipTextActive: { color: colors.textWhite },
-    rookieChipActive: { backgroundColor: colors.success },
-    rookieChipTextActive: { color: colors.textWhite },
+    chipPrimary: { backgroundColor: colors.primary },
+    chipSuccess: { backgroundColor: colors.success },
+    chipText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textSecondary },
+    chipTextActive: { color: colors.textWhite },
 
     filterRow: { flexDirection: 'row', alignItems: 'center', paddingRight: spacing.xl, marginBottom: spacing.lg },
     positionScrollView: { flexGrow: 1, flexShrink: 1 },
@@ -962,120 +424,5 @@ const styles = StyleSheet.create({
     },
     clearAllChipText: { fontSize: fontSize.xs, fontWeight: fontWeight.semibold, color: colors.danger },
 
-    playerRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingLeft: spacing.lg,
-        gap: 0,
-    },
-    addCol: { width: 36, alignItems: 'center' },
-    addBtn: {
-        width: 28,
-        height: 28,
-        borderRadius: 14,
-        borderCurve: 'continuous' as const,
-        backgroundColor: colors.primary,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    addBtnText: { color: colors.textWhite, fontSize: fontSize.xl, fontWeight: fontWeight.light, lineHeight: 24, marginTop: -1 },
-
-    playerCard: {
-        flex: 1,
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingRight: spacing.xl,
-        paddingVertical: spacing.lg,
-        paddingLeft: spacing.md,
-        gap: spacing.lg,
-    },
-    headshot: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
-        borderCurve: 'continuous' as const,
-        backgroundColor: colors.bgMuted,
-    },
-
-    playerInfo: { flex: 1 },
-    playerName: { fontSize: fontSize.lg, fontWeight: fontWeight.semibold },
-    playerMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: spacing.xxs },
-    playerMeta: { fontSize: fontSize.sm, color: colors.textMuted },
-    gamesLeftText: { fontSize: fontSize.xs, fontWeight: fontWeight.semibold, color: colors.textMuted },
-
-    statusBadge: {
-        paddingHorizontal: 7,
-        paddingVertical: 3,
-        borderRadius: radii.sm,
-        borderCurve: 'continuous' as const,
-        backgroundColor: palette.gray250,
-        maxWidth: 90,
-    },
-    statusBadgeMe: { backgroundColor: palette.green300 },
-    statusBadgeWaiver: { backgroundColor: palette.purple100 },
-    statusBadgeFA: { backgroundColor: palette.gray250 },
-    statusBadgeText: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.textPlaceholder },
-    statusBadgeTextMe: { color: palette.green600 },
-    statusBadgeTextWaiver: { color: '#7C3AED' },
-
     emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-
-    // Drop picker modal
-    modalOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.5)',
-        justifyContent: 'flex-end',
-    },
-    modalCard: {
-        backgroundColor: colors.bgScreen,
-        borderTopLeftRadius: radii['3xl'],
-        borderTopRightRadius: radii['3xl'],
-        borderCurve: 'continuous' as const,
-        paddingTop: spacing['3xl'],
-        paddingHorizontal: spacing['2xl'],
-        paddingBottom: 36,
-        maxHeight: '80%',
-    },
-    modalTitle: {
-        fontSize: 17,
-        fontWeight: fontWeight.bold,
-        color: colors.textPrimary,
-        textAlign: 'center',
-        marginBottom: spacing.xs,
-    },
-    modalPlayerName: { color: colors.primary },
-    modalSub: { fontSize: fontSize.sm, color: colors.textPlaceholder, textAlign: 'center', marginBottom: spacing.xl },
-
-    dropList: { maxHeight: 360 },
-    dropRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: spacing.lg,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.separator,
-        gap: spacing.lg,
-    },
-    dropInfo: { flex: 1 },
-    dropName: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textPrimary },
-    dropMeta: { fontSize: 12, color: colors.textMuted, marginTop: 1 },
-    dropBtn: {
-        backgroundColor: colors.danger,
-        paddingHorizontal: spacing.lg + spacing.xxs,
-        paddingVertical: 7,
-        borderRadius: radii.md,
-        borderCurve: 'continuous' as const,
-        minWidth: 60,
-        alignItems: 'center',
-    },
-    dropBtnText: { color: colors.textWhite, fontSize: fontSize.sm, fontWeight: fontWeight.bold },
-
-    modalCancel: {
-        marginTop: spacing.xl,
-        paddingVertical: spacing.lg + spacing.xxs,
-        alignItems: 'center',
-        borderRadius: radii.xl,
-        borderCurve: 'continuous' as const,
-        backgroundColor: colors.bgSubtle,
-    },
-    modalCancelText: { fontSize: 15, fontWeight: fontWeight.semibold, color: colors.textSecondary },
 })
