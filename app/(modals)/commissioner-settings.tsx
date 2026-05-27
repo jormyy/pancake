@@ -17,6 +17,7 @@ import { advanceSeason } from '@/lib/rookieDraft'
 import { apiPost } from '@/lib/shared/api'
 import { LoadingScreen } from '@/components/LoadingScreen'
 import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { getErrorMessage } from '@/lib/alert'
 
 async function adminCall(
     path: string,
@@ -28,8 +29,8 @@ async function adminCall(
     try {
         await apiPost(path, body)
         Alert.alert('Done', successMessage)
-    } catch (e: any) {
-        Alert.alert('Error', e.message)
+    } catch (e) {
+        Alert.alert('Error', getErrorMessage(e))
     } finally {
         setBusy(false)
     }
@@ -180,8 +181,8 @@ export default function CommissionerSettingsScreen() {
             ])
             await refresh()
             back()
-        } catch (e: any) {
-            Alert.alert('Error', e.message)
+        } catch (e) {
+            Alert.alert('Error', getErrorMessage(e))
         } finally {
             setSaving(false)
         }
@@ -247,8 +248,8 @@ export default function CommissionerSettingsScreen() {
                             await advanceSeason(league.id)
                             Alert.alert('Done', 'Season advanced. Start the rookie draft when ready.')
                             await refresh()
-                        } catch (e: any) {
-                            Alert.alert('Error', e.message)
+                        } catch (e) {
+                            Alert.alert('Error', getErrorMessage(e))
                         } finally {
                             setAdvancingSeason(false)
                         }

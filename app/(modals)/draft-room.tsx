@@ -27,6 +27,7 @@ import {
 import { RealtimeChannel } from '@supabase/supabase-js'
 import { LoadingScreen } from '@/components/LoadingScreen'
 import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { getErrorMessage } from '@/lib/alert'
 
 type DraftTab = 'budgets' | 'history'
 
@@ -134,8 +135,8 @@ export default function DraftRoomScreen() {
         try {
             await placeBid(draftId, myMemberId, state.openNomination.id, bidAmount)
             load()
-        } catch (e: any) {
-            Alert.alert('Bid failed', e.message)
+        } catch (e) {
+            Alert.alert('Bid failed', getErrorMessage(e))
         } finally {
             setBidding(false)
         }
@@ -150,8 +151,8 @@ export default function DraftRoomScreen() {
             setSearchQuery('')
             setSearchResults([])
             load()
-        } catch (e: any) {
-            Alert.alert('Nomination failed', e.message)
+        } catch (e) {
+            Alert.alert('Nomination failed', getErrorMessage(e))
         } finally {
             setSubmittingNom(false)
         }

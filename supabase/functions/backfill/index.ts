@@ -266,7 +266,7 @@ async function runCDNChunk(seasonYear: number, jobId: string, offset: number) {
       }
 
       completed++
-    } catch (e: any) {
+    } catch (e) {
       failed++
       console.warn(`[backfill/cdn] ${gameId}: ${e.message}`)
     }
@@ -422,7 +422,7 @@ async function runCDNEnumChunk(seasonYear: number, jobId: string, offset: number
         await supabase.from('player_game_stats').upsert(stats, { onConflict: 'player_id,game_id' })
       }
       completed++
-    } catch (e: any) {
+    } catch (e) {
       failed++
       console.warn(`[backfill/cdn-enum] ${gameId}: ${e.message}`)
     }
@@ -679,7 +679,7 @@ async function runBBRefChunk(seasonYear: number, jobId: string, offset: number) 
       }
 
       completed++
-    } catch (e: any) {
+    } catch (e) {
       failed++
       console.warn(`[backfill/bbref] ${gameId}: ${e.message}`)
     }

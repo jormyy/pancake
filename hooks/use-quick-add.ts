@@ -10,6 +10,7 @@ import {
     RosterPlayer,
 } from '@/lib/roster'
 import { submitWaiverClaim } from '@/lib/waivers'
+import { getErrorMessage } from '@/lib/alert'
 
 type IRModalState = {
     ineligible: RosterPlayer[]
@@ -61,8 +62,8 @@ export function useQuickAdd(
                             try {
                                 await submitWaiverClaim(memberId, lid, player.id)
                                 onAfterClaim?.()
-                            } catch (e: any) {
-                                Alert.alert('Error', e.message)
+                            } catch (e) {
+                                Alert.alert('Error', getErrorMessage(e))
                             } finally {
                                 setAdding(null)
                                 refreshOwned()
@@ -81,13 +82,13 @@ export function useQuickAdd(
         try {
             await addFreeAgent(memberId, lid, player.id)
             await refreshOwned()
-        } catch (e: any) {
-            if (e.message?.includes('full')) {
+        } catch (e) {
+            if (getErrorMessage(e)?.includes('full')) {
                 const roster = await getRoster(memberId, lid)
                 setMyRoster(roster.filter((r) => !r.is_on_ir && !r.is_on_taxi))
                 setDropPickerPlayer(player)
             } else {
-                Alert.alert('Error', e.message)
+                Alert.alert('Error', getErrorMessage(e))
             }
         } finally {
             setAdding(null)
@@ -140,8 +141,8 @@ export function useQuickAdd(
         try {
             await addFreeAgent(memberId, leagueId, player.id)
             Alert.alert('Added', `${player.display_name} added to your roster.`)
-        } catch (e: any) {
-            Alert.alert('Error', e.message)
+        } catch (e) {
+            Alert.alert('Error', getErrorMessage(e))
         } finally {
             setAdding(null)
             refreshOwned()
@@ -160,8 +161,8 @@ export function useQuickAdd(
             await addFreeAgent(memberId, leagueId, dropPickerPlayer.id)
             setDropPickerPlayer(null)
             await refreshOwned()
-        } catch (e: any) {
-            Alert.alert('Error', e.message)
+        } catch (e) {
+            Alert.alert('Error', getErrorMessage(e))
         } finally {
             setDropping(null)
         }

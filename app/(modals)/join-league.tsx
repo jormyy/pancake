@@ -14,6 +14,7 @@ import { useAuth } from '@/hooks/use-auth'
 import { useLeagueContext } from '@/contexts/league-context'
 import { joinLeague } from '@/lib/league'
 import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { getErrorMessage } from '@/lib/alert'
 
 export default function JoinLeagueScreen() {
     const { user } = useAuth()
@@ -35,8 +36,8 @@ export default function JoinLeagueScreen() {
             await joinLeague(inviteCode.trim(), user!.id, teamName.trim())
             await refresh()
             back()
-        } catch (e: any) {
-            setError(e.message ?? 'Something went wrong.')
+        } catch (e) {
+            setError(getErrorMessage(e) ?? 'Something went wrong.')
         } finally {
             setLoading(false)
         }

@@ -42,9 +42,9 @@ export function useAsyncData<T>(
             const result = await fetcher()
             if (!isLatest()) return
             setData(result)
-        } catch (e: any) {
+        } catch (e) {
             if (!isLatest()) return
-            setError(e)
+            setError(e instanceof Error ? e : new Error(String(e)))
             console.error(e)
         } finally {
             if (isLatest()) setLoading(false)

@@ -88,7 +88,7 @@ export async function syncStatsByDate(date: Date) {
         if (error) throw error
         statCount += stats.length
       }
-    } catch (e: any) {
+    } catch (e) {
       console.error(`[sync-stats] Error for ${game.nba_game_id}:`, e.message)
     }
   }

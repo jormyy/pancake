@@ -16,6 +16,7 @@ import { useAuth } from '@/hooks/use-auth'
 import { useLeagueContext } from '@/contexts/league-context'
 import { createLeague } from '@/lib/league'
 import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { getErrorMessage } from '@/lib/alert'
 
 export default function CreateLeagueScreen() {
     const { user } = useAuth()
@@ -45,8 +46,8 @@ export default function CreateLeagueScreen() {
             const league = await createLeague(user!.id, leagueName.trim(), teamName.trim(), budget)
             await refresh()
             setInviteCode(league.invite_code)
-        } catch (e: any) {
-            setError(e.message ?? 'Something went wrong.')
+        } catch (e) {
+            setError(getErrorMessage(e) ?? 'Something went wrong.')
         } finally {
             setLoading(false)
         }

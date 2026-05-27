@@ -4,7 +4,7 @@ import { TRADE_STATUS_COLORS, colors, palette, fontSize, fontWeight, radii, spac
 import { Trade, TradeItem, acceptTrade, rejectTrade, vetoTrade, withdrawTrade } from '@/lib/trades'
 import { getRoster, dropPlayer, RosterPlayer } from '@/lib/roster'
 import { DropPlayerPickerModal } from '@/components/DropPlayerPickerModal'
-import { confirmAction } from '@/lib/alert'
+import { confirmAction, getErrorMessage } from '@/lib/alert'
 
 export type TabKey = 'picks' | 'offers' | 'history'
 
@@ -134,8 +134,8 @@ export function TradeCard({
 
             await acceptTrade(trade.id, myMemberId)
             onAction()
-        } catch (e: any) {
-            Alert.alert('Error', e.message ?? 'Could not accept trade.')
+        } catch (e) {
+            Alert.alert('Error', getErrorMessage(e) ?? 'Could not accept trade.')
         } finally {
             setActing(false)
         }
@@ -160,8 +160,8 @@ export function TradeCard({
                 setDropPickerVisible(false)
                 onAction()
             }
-        } catch (e: any) {
-            Alert.alert('Error', e.message ?? 'Could not drop player.')
+        } catch (e) {
+            Alert.alert('Error', getErrorMessage(e) ?? 'Could not drop player.')
         } finally {
             setDropping(null)
         }
@@ -190,8 +190,8 @@ export function TradeCard({
                 try {
                     await rejectTrade(trade.id, myMemberId)
                     onAction()
-                } catch (e: any) {
-                    Alert.alert('Error', e.message ?? 'Could not reject trade.')
+                } catch (e) {
+                    Alert.alert('Error', getErrorMessage(e) ?? 'Could not reject trade.')
                 } finally {
                     setActing(false)
                 }
@@ -206,8 +206,8 @@ export function TradeCard({
                 try {
                     await withdrawTrade(trade.id, myMemberId)
                     onAction()
-                } catch (e: any) {
-                    Alert.alert('Error', e.message ?? 'Could not withdraw trade.')
+                } catch (e) {
+                    Alert.alert('Error', getErrorMessage(e) ?? 'Could not withdraw trade.')
                 } finally {
                     setActing(false)
                 }
@@ -222,8 +222,8 @@ export function TradeCard({
                 try {
                     await vetoTrade(trade.id, myMemberId)
                     onAction()
-                } catch (e: any) {
-                    Alert.alert('Error', e.message ?? 'Could not veto trade.')
+                } catch (e) {
+                    Alert.alert('Error', getErrorMessage(e) ?? 'Could not veto trade.')
                 } finally {
                     setActing(false)
                 }

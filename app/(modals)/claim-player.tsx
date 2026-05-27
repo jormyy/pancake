@@ -18,6 +18,7 @@ import { getPlayer } from '@/lib/players'
 import { submitWaiverClaim, getMyWaiverPriority } from '@/lib/waivers'
 import { LoadingScreen } from '@/components/LoadingScreen'
 import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { getErrorMessage } from '@/lib/alert'
 
 export default function ClaimPlayerScreen() {
     const { playerId } = useLocalSearchParams<{ playerId: string }>()
@@ -81,8 +82,8 @@ export default function ClaimPlayerScreen() {
                 'Your waiver claim has been submitted. Claims are processed nightly.',
                 [{ text: 'OK', onPress: () => back() }],
             )
-        } catch (e: any) {
-            Alert.alert('Error', e.message)
+        } catch (e) {
+            Alert.alert('Error', getErrorMessage(e))
         } finally {
             setSubmitting(false)
         }

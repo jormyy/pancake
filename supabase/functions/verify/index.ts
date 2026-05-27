@@ -52,7 +52,7 @@ async function testNBAEndpoints() {
     try {
       const data = await test.fn()
       results.push({ name: test.name, ok: true, ms: Date.now() - start, count: Array.isArray(data) ? data.length : 1 })
-    } catch (e: any) {
+    } catch (e) {
       results.push({ name: test.name, ok: false, ms: Date.now() - start, error: e.message })
     }
   }

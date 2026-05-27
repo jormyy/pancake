@@ -33,6 +33,7 @@ import {
     View,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { getErrorMessage } from '@/lib/alert'
 
 type Selection =
     | { kind: 'starter'; index: number }
@@ -282,8 +283,8 @@ export default function LineupScreen() {
             if (bPlayer) saves.push(setPlayerSlot(current.id, currentLeague.id, ctx.seasonId, ctx.weekNumber, selectedDate, bPlayer.playerId, aSlot))
             await Promise.all(saves)
             await loadLineup(ctx, currentLeague, selectedDate)
-        } catch (e: any) {
-            Alert.alert('Error', e.message)
+        } catch (e) {
+            Alert.alert('Error', getErrorMessage(e))
         } finally {
             setSaving(false)
         }
@@ -298,8 +299,8 @@ export default function LineupScreen() {
             if (restOfSeason) {
                 Alert.alert('Done', 'Lineup set for the rest of the season.')
             }
-        } catch (e: any) {
-            Alert.alert('Auto-set failed', e?.message ?? String(e))
+        } catch (e) {
+            Alert.alert('Auto-set failed', getErrorMessage(e) ?? String(e))
         } finally {
             setAutoSetting(false)
         }

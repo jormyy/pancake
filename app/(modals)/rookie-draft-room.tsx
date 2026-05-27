@@ -31,6 +31,7 @@ import {
 import { toggleTaxi, dropPlayer, getRoster, type RosterPlayer } from '@/lib/roster'
 import { getPositionColor } from "@/constants/positions"
 import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { getErrorMessage } from '@/lib/alert'
 
 const PICK_TIMEOUT_SEC = 30
 
@@ -158,8 +159,8 @@ export default function RookieDraftRoomScreen() {
                 await autoPickBest(draftId, memberId)
                 setQuery('')
                 await Promise.all([load(), loadProspects()])
-            } catch (e: any) {
-                Alert.alert('Auto-pick failed', e.message)
+            } catch (e) {
+                Alert.alert('Auto-pick failed', getErrorMessage(e))
             } finally {
                 setPicking(false)
             }
@@ -208,8 +209,8 @@ export default function RookieDraftRoomScreen() {
             } else {
                 setTrimOverflow(null)
             }
-        } catch (e: any) {
-            Alert.alert('Error', e.message ?? 'Failed to drop player')
+        } catch (e) {
+            Alert.alert('Error', getErrorMessage(e) ?? 'Failed to drop player')
         } finally {
             setTrimmingId(null)
         }
@@ -248,8 +249,8 @@ export default function RookieDraftRoomScreen() {
                     taxiSlotsAvailable: result.taxiSlotsAvailable,
                 })
             }
-        } catch (e: any) {
-            setPickError(e.message ?? 'Pick failed')
+        } catch (e) {
+            setPickError(getErrorMessage(e) ?? 'Pick failed')
         } finally {
             setPicking(false)
         }
@@ -261,8 +262,8 @@ export default function RookieDraftRoomScreen() {
         try {
             await toggleTaxi(rosterOverflow.newRosterPlayerId, true)
             setRosterOverflow(null)
-        } catch (e: any) {
-            Alert.alert('Error', e.message ?? 'Failed to move to taxi')
+        } catch (e) {
+            Alert.alert('Error', getErrorMessage(e) ?? 'Failed to move to taxi')
         } finally {
             setResolvingOverflow(false)
         }
@@ -274,8 +275,8 @@ export default function RookieDraftRoomScreen() {
         try {
             await dropPlayer(rosterPlayerId)
             setRosterOverflow(null)
-        } catch (e: any) {
-            Alert.alert('Error', e.message ?? 'Failed to drop player')
+        } catch (e) {
+            Alert.alert('Error', getErrorMessage(e) ?? 'Failed to drop player')
         } finally {
             setResolvingOverflow(false)
         }

@@ -110,7 +110,7 @@ export async function fetchBBRefSchedule(seasonEndYear: number): Promise<BBRefGa
 
         games.push({ bbrefId, gameDate, homeTeamBBRef, awayTeamBBRef, homeTeam, awayTeam })
       })
-    } catch (e: any) {
+    } catch (e) {
       if (e.status !== 404) {
         console.warn(`[bbref] Schedule ${seasonEndYear}/${month}: ${e.message}`)
       }
