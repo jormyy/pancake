@@ -7,7 +7,11 @@ import { supabase } from '@/lib/supabase'
 
 type LineupData = { starters: LineupSlot[]; bench: LineupPlayer[]; ir: LineupPlayer[]; taxi: LineupPlayer[] }
 
-export function useMatchupData(current: any, user: any, league: any) {
+export function useMatchupData(
+    current: { id: string } | null,
+    user: { id: string } | null,
+    league: { id: string } | null,
+) {
     const [matchup, setMatchup] = useState<Matchup | null | undefined>(undefined)
     const [weekDays, setWeekDays] = useState<WeekDay[]>([])
     // selectedDate flows into getWeeklyLineup queries that compare against
@@ -22,10 +26,8 @@ export function useMatchupData(current: any, user: any, league: any) {
     const matchupRef = useRef<Matchup | null>(null)
     const isFirstRunRef = useRef(true)
 
-    // Clear stale matchup + lineups synchronously when the active member or
-    // league changes, so the previous league's matchup/lineup doesn't flash
-    // before useFocusEffect triggers load() post-commit. Skip the first run
-    // so we don't clobber the initial mount state before any fetch.
+    const leagueId = league?.id
+
     useEffect(() => {
         if (isFirstRunRef.current) {
             isFirstRunRef.current = false
@@ -36,15 +38,16 @@ export function useMatchupData(current: any, user: any, league: any) {
         setOppLineup(null)
         setMatchupLoading(true)
         matchupRef.current = null
-    }, [current?.id, league?.id])
+    }, [current?.id, leagueId])
 
     const loadLineups = useCallback(
         async (m: Matchup, date: string) => {
+            if (!leagueId) return
             setLineupLoading(true)
             try {
                 const [mine, opp] = await Promise.all([
-                    getWeeklyLineup(m.myMemberId, league?.id, m.seasonId, m.weekNumber, date),
-                    getWeeklyLineup(m.opponentMemberId, league?.id, m.seasonId, m.weekNumber, date),
+                    getWeeklyLineup(m.myMemberId, leagueId, m.seasonId, m.weekNumber, date),
+                    getWeeklyLineup(m.opponentMemberId, leagueId, m.seasonId, m.weekNumber, date),
                 ])
                 setMyLineup(mine)
                 setOppLineup(opp)
@@ -52,40 +55,40 @@ export function useMatchupData(current: any, user: any, league: any) {
                 setLineupLoading(false)
             }
         },
-        [league?.id],
+        [leagueId],
     )
 
     const loadMyLineup = useCallback(
         async (m: Matchup, date: string) => {
-            const data = await getWeeklyLineup(m.myMemberId, league?.id, m.seasonId, m.weekNumber, date)
+            if (!leagueId) return
+            const data = await getWeeklyLineup(m.myMemberId, leagueId, m.seasonId, m.weekNumber, date)
             setMyLineup(data)
         },
-        [league?.id],
+        [leagueId],
     )
 
-    // Silently refreshes both lineups without showing a loading spinner (used by background polls)
     const refreshSilently = useCallback(
         async () => {
             const m = matchupRef.current
-            if (!m) return
+            if (!m || !leagueId) return
             const [mine, opp] = await Promise.all([
-                getWeeklyLineup(m.myMemberId, league?.id, m.seasonId, m.weekNumber, selectedDate),
-                getWeeklyLineup(m.opponentMemberId, league?.id, m.seasonId, m.weekNumber, selectedDate),
+                getWeeklyLineup(m.myMemberId, leagueId, m.seasonId, m.weekNumber, selectedDate),
+                getWeeklyLineup(m.opponentMemberId, leagueId, m.seasonId, m.weekNumber, selectedDate),
             ])
             setMyLineup(mine)
             setOppLineup(opp)
         },
-        [league?.id, selectedDate],
+        [leagueId, selectedDate],
     )
 
     const load = useCallback(async () => {
-        if (!current || !user || !league?.id) return
+        if (!current || !user || !leagueId) return
         setMatchupLoading(true)
         setMyLineup(null)
         setOppLineup(null)
         try {
             setError(null)
-            const m = await getMyMatchup((current as any).id, league.id)
+            const m = await getMyMatchup(current.id, leagueId)
             setMatchup(m)
             matchupRef.current = m
             if (m) {
@@ -103,7 +106,7 @@ export function useMatchupData(current: any, user: any, league: any) {
         } finally {
             setMatchupLoading(false)
         }
-    }, [current, user, league?.id, loadLineups])
+    }, [current, user, leagueId, loadLineups])
 
     useFocusEffect(useCallback(() => { load() }, [load]))
 
