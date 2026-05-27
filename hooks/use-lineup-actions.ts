@@ -194,21 +194,19 @@ export function useLineupActions({
         }
     }, [selectedDate, selected, matchup, myLineup, league, startedTeams, loadMyLineup])
 
-    async function activatePending() {
-        if (!activationOverflowPending) return
-        if (activationOverflowPending.source === 'ir') {
-            await toggleIR(activationOverflowPending.rosterPlayerId, false)
-        } else {
-            await toggleTaxi(activationOverflowPending.rosterPlayerId, false)
-        }
-    }
-
-    async function handleOverflowDrop(dropRosterPlayerId: string) {
+    async function resolveOverflow(
+        freeSlot: (id: string) => Promise<void>,
+        rosterPlayerId: string,
+    ) {
         if (!activationOverflowPending || !matchup) return
         setActivationOverflowSaving(true)
         try {
-            await dropPlayer(dropRosterPlayerId)
-            await activatePending()
+            await freeSlot(rosterPlayerId)
+            if (activationOverflowPending.source === 'ir') {
+                await toggleIR(activationOverflowPending.rosterPlayerId, false)
+            } else {
+                await toggleTaxi(activationOverflowPending.rosterPlayerId, false)
+            }
             setActivationOverflowPending(null)
             await loadMyLineup(matchup, selectedDate)
         } catch (e: any) {
@@ -218,35 +216,9 @@ export function useLineupActions({
         }
     }
 
-    async function handleOverflowMoveToIR(moveRosterPlayerId: string) {
-        if (!activationOverflowPending || !matchup) return
-        setActivationOverflowSaving(true)
-        try {
-            await toggleIR(moveRosterPlayerId, true)
-            await activatePending()
-            setActivationOverflowPending(null)
-            await loadMyLineup(matchup, selectedDate)
-        } catch (e: any) {
-            Alert.alert('Error', e.message)
-        } finally {
-            setActivationOverflowSaving(false)
-        }
-    }
-
-    async function handleOverflowMoveToTaxi(moveRosterPlayerId: string) {
-        if (!activationOverflowPending || !matchup) return
-        setActivationOverflowSaving(true)
-        try {
-            await toggleTaxi(moveRosterPlayerId, true)
-            await activatePending()
-            setActivationOverflowPending(null)
-            await loadMyLineup(matchup, selectedDate)
-        } catch (e: any) {
-            Alert.alert('Error', e.message)
-        } finally {
-            setActivationOverflowSaving(false)
-        }
-    }
+    const handleOverflowDrop = (id: string) => resolveOverflow(dropPlayer, id)
+    const handleOverflowMoveToIR = (id: string) => resolveOverflow((rpId) => toggleIR(rpId, true), id)
+    const handleOverflowMoveToTaxi = (id: string) => resolveOverflow((rpId) => toggleTaxi(rpId, true), id)
 
     async function doAutoSet(date: string | null, restOfSeason?: boolean) {
         if (!matchup) return

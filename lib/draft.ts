@@ -120,20 +120,21 @@ export async function getDraftState(draftId: string): Promise<DraftState | null>
         startedAt: draft.started_at,
     }
 
-    const mappedOrder: DraftOrderEntry[] = (orders ?? []).map((o: any) => ({
+    const mappedOrder: DraftOrderEntry[] = (orders ?? []).map((o) => ({
         position: o.position,
         memberId: o.member_id,
-        teamName: o.league_members?.team_name ?? 'Unknown',
+        teamName: (o.league_members as { team_name: string } | null)?.team_name ?? 'Unknown',
     }))
 
-    const mappedBudgets: DraftBudget[] = (budgets ?? []).map((b: any) => ({
+    const mappedBudgets: DraftBudget[] = (budgets ?? []).map((b) => ({
         memberId: b.member_id,
-        teamName: b.league_members?.team_name ?? 'Unknown',
+        teamName: (b.league_members as { team_name: string } | null)?.team_name ?? 'Unknown',
         remaining: b.remaining,
         initialBudget: b.initial_budget,
     }))
 
-    const mappedNominations: Nomination[] = (nominations ?? []).map((n: any) => ({
+    type PlayerRef = { display_name: string | null; nba_team: string | null; position: string | null }
+    const mappedNominations: Nomination[] = (nominations ?? []).map((n) => ({
         id: n.id,
         status: n.status,
         nominatingMemberId: n.nominating_member_id,
@@ -146,9 +147,9 @@ export async function getDraftState(draftId: string): Promise<DraftState | null>
         nominationOrder: n.nomination_order,
         player: n.players
             ? {
-                  displayName: n.players.display_name,
-                  nbaTeam: n.players.nba_team,
-                  position: n.players.position,
+                  displayName: (n.players as PlayerRef).display_name ?? 'Unknown',
+                  nbaTeam: (n.players as PlayerRef).nba_team,
+                  position: (n.players as PlayerRef).position,
               }
             : null,
     }))
@@ -180,7 +181,7 @@ export async function searchPlayers(query: string, draftId: string) {
         .select('player_id')
         .eq('draft_id', draftId)
 
-    const nominatedIds = new Set((nominated ?? []).map((n: any) => n.player_id))
+    const nominatedIds = new Set((nominated ?? []).map((n) => n.player_id))
 
     // Search players by name
     const { data, error } = await supabase
@@ -191,7 +192,7 @@ export async function searchPlayers(query: string, draftId: string) {
         .limit(20)
 
     if (error) console.error('[searchPlayers]', error)
-    return (data ?? []).filter((p: any) => !nominatedIds.has(p.id))
+    return (data ?? []).filter((p) => !nominatedIds.has(p.id))
 }
 
 

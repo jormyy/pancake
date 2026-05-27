@@ -25,9 +25,10 @@ import {
     subscribeToRookieDraft,
     unsubscribeFromRookieDraft,
     type RookieDraftState,
+    type RookieProspect,
     type SnakePick,
 } from '@/lib/rookieDraft'
-import { toggleTaxi, dropPlayer, getRoster } from '@/lib/roster'
+import { toggleTaxi, dropPlayer, getRoster, type RosterPlayer } from '@/lib/roster'
 import { getPositionColor } from "@/constants/positions"
 import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 
@@ -45,7 +46,7 @@ export default function RookieDraftRoomScreen() {
     const [loading, setLoading] = useState(true)
 
     const [query, setQuery] = useState('')
-    const [prospects, setProspects] = useState<any[]>([])
+    const [prospects, setProspects] = useState<RookieProspect[]>([])
     const [prospectsLoading, setProspectsLoading] = useState(false)
     const [picking, setPicking] = useState(false)
     const [activeTab, setActiveTab] = useState<'prospects' | 'board'>('prospects')
@@ -60,15 +61,15 @@ export default function RookieDraftRoomScreen() {
         newRosterPlayerId: string | null
         taxiSlotsAvailable: boolean
     } | null>(null)
-    const [rosterForDrop, setRosterForDrop] = useState<any[]>([])
+    const [rosterForDrop, setRosterForDrop] = useState<RosterPlayer[]>([])
     const [resolvingOverflow, setResolvingOverflow] = useState(false)
 
     // End-of-draft roster trim state
-    const [trimOverflow, setTrimOverflow] = useState<{ excess: number; dropList: any[] } | null>(null)
+    const [trimOverflow, setTrimOverflow] = useState<{ excess: number; dropList: RosterPlayer[] } | null>(null)
     const [trimmingId, setTrimmingId] = useState<string | null>(null)
     const draftEndCheckedRef = useRef(false)
 
-    const channelRef = useRef<any>(null)
+    const channelRef = useRef<ReturnType<typeof subscribeToRookieDraft> | null>(null)
     const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
     const queryRef = useRef('')
 
@@ -214,7 +215,7 @@ export default function RookieDraftRoomScreen() {
         }
     }
 
-    async function handlePick(player: any) {
+    async function handlePick(player: RookieProspect) {
         const memberId = myMemberIdRef.current
         if (!draftId || !memberId || picking) return
         setPickError(null)
@@ -228,7 +229,7 @@ export default function RookieDraftRoomScreen() {
                 // Fetch the rosterPlayerId for the newly drafted player so we can move them to taxi
                 const lid = currentLeague?.id
                 let newRosterPlayerId: string | null = null
-                let dropList: any[] = []
+                let dropList: RosterPlayer[] = []
                 if (lid) {
                     try {
                         const roster = await getRoster(memberId, lid)
@@ -343,7 +344,7 @@ export default function RookieDraftRoomScreen() {
                             <>
                                 <Text style={styles.overflowDropLabel}>Or drop a player:</Text>
                                 <ScrollView style={styles.overflowDropList} showsVerticalScrollIndicator>
-                                    {rosterForDrop.map((rp: any) => (
+                                    {rosterForDrop.map((rp) => (
                                         <Pressable
                                             key={rp.id}
                                             style={styles.overflowDropRow}
@@ -377,7 +378,7 @@ export default function RookieDraftRoomScreen() {
                         </Text>
                         <Text style={styles.overflowDropLabel}>Select a player to drop:</Text>
                         <ScrollView style={styles.overflowDropList} showsVerticalScrollIndicator>
-                            {trimOverflow?.dropList.map((rp: any) => (
+                            {trimOverflow?.dropList.map((rp) => (
                                 <Pressable
                                     key={rp.id}
                                     style={styles.overflowDropRow}
@@ -537,10 +538,10 @@ function ProspectRow({
     picking,
     onPick,
 }: {
-    player: any
+    player: RookieProspect
     isDone: boolean
     picking: boolean
-    onPick: (player: any) => void
+    onPick: (player: RookieProspect) => void
 }) {
     return (
         <TouchableOpacity

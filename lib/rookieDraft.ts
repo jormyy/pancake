@@ -31,6 +31,14 @@ export type RookieDraftState = {
     nextPick: SnakePick | null
 }
 
+export type RookieProspect = {
+    id: string
+    display_name: string
+    nba_team: string | null
+    position: string | null
+    nba_draft_number: number | null
+}
+
 export type LeaguePickItem = {
     id: string
     seasonYear: number
@@ -82,19 +90,19 @@ export async function getRookieDraftState(draftId: string): Promise<RookieDraftS
     const draft = draftResult.data
     if (!draft) return null
 
-    const mappedPicks: SnakePick[] = (picks ?? []).map((p: any) => ({
+    const mappedPicks: SnakePick[] = (picks ?? []).map((p) => ({
         overallPick: p.overall_pick,
         round: p.round,
         pickInRound: p.pick_in_round,
         memberId: p.member_id,
-        teamName: p.league_members?.team_name ?? 'Unknown',
+        teamName: (p.league_members as { team_name: string } | null)?.team_name ?? 'Unknown',
         pickedAt: p.picked_at,
         player: p.players
             ? {
-                  id: p.players.id,
-                  displayName: p.players.display_name,
-                  nbaTeam: p.players.nba_team,
-                  position: p.players.position,
+                  id: (p.players as { id: string }).id,
+                  displayName: (p.players as { display_name: string }).display_name ?? 'Unknown',
+                  nbaTeam: (p.players as { nba_team: string | null }).nba_team,
+                  position: (p.players as { position: string | null }).position,
               }
             : null,
     }))
@@ -108,10 +116,10 @@ export async function getRookieDraftState(draftId: string): Promise<RookieDraftS
             completedAt: draft.completed_at,
         },
         picks: mappedPicks,
-        orders: (orders ?? []).map((o: any) => ({
+        orders: (orders ?? []).map((o) => ({
             position: o.position,
             memberId: o.member_id,
-            teamName: o.league_members?.team_name ?? 'Unknown',
+            teamName: (o.league_members as { team_name: string } | null)?.team_name ?? 'Unknown',
         })),
         nextPick: mappedPicks.find((p) => !p.player) ?? null,
     }
@@ -133,7 +141,11 @@ export async function getAllLeaguePicks(leagueId: string): Promise<LeaguePickIte
         .order('round', { ascending: true })
 
     if (error) console.error('[getAllLeaguePicks]', error)
-    return (data ?? []).map((p: any) => ({
+    type PickRow = (typeof data extends (infer T)[] | null ? T : never) & {
+        original_owner: { team_name: string } | null
+        current_owner: { team_name: string } | null
+    }
+    return ((data ?? []) as PickRow[]).map((p) => ({
         id: p.id,
         seasonYear: p.season_year,
         round: p.round,
@@ -152,7 +164,7 @@ export async function searchDraftablePlayers(query: string, draftId: string) {
         .eq('draft_id', draftId)
         .not('player_id', 'is', null)
 
-    const pickedIds = new Set((picked ?? []).map((p: any) => p.player_id))
+    const pickedIds = new Set((picked ?? []).map((p) => p.player_id))
 
     const { data } = await supabase
         .from('players')
@@ -162,17 +174,17 @@ export async function searchDraftablePlayers(query: string, draftId: string) {
         .order('last_name')
         .limit(20)
 
-    return (data ?? []).filter((p: any) => !pickedIds.has(p.id))
+    return (data ?? []).filter((p) => !pickedIds.has(p.id))
 }
 
-export async function getRookiePlayers(draftId: string, query?: string) {
+export async function getRookiePlayers(draftId: string, query?: string): Promise<RookieProspect[]> {
     const { data: picked } = await supabase
         .from('snake_draft_picks')
         .select('player_id')
         .eq('draft_id', draftId)
         .not('player_id', 'is', null)
 
-    const pickedIds = new Set((picked ?? []).map((p: any) => p.player_id))
+    const pickedIds = new Set((picked ?? []).map((p) => p.player_id))
 
     let q = supabase
         .from('players')
@@ -188,7 +200,6 @@ export async function getRookiePlayers(draftId: string, query?: string) {
     const { data, error } = await q
     if (error) {
         console.error('[getRookiePlayers] query error:', error.message)
-        // nba_draft_number column may not exist yet — fall back without it
         let fallback = supabase
             .from('players')
             .select('id, display_name, nba_team, position')
@@ -197,9 +208,9 @@ export async function getRookiePlayers(draftId: string, query?: string) {
             .limit(100)
         if (query?.trim()) fallback = fallback.ilike('display_name', `%${query.trim()}%`)
         const { data: fbData } = await fallback
-        return (fbData ?? []).filter((p: any) => !pickedIds.has(p.id))
+        return (fbData ?? []).filter((p) => !pickedIds.has(p.id)) as RookieProspect[]
     }
-    return (data ?? []).filter((p: any) => !pickedIds.has(p.id))
+    return (data ?? []).filter((p) => !pickedIds.has(p.id)) as RookieProspect[]
 }
 
 
