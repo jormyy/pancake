@@ -184,7 +184,9 @@ export default function RookieDraftRoomScreen() {
                 if (excess > 0) {
                     setTrimOverflow({ excess, dropList: active })
                 }
-            } catch {}
+            } catch (e) {
+                console.error('[rookie-draft] post-draft roster check:', e)
+            }
         })()
     }, [draftCompleted, currentLeague?.id, currentLeague?.roster_size, myMemberId])
 
@@ -239,7 +241,9 @@ export default function RookieDraftRoomScreen() {
                         dropList = roster.filter(
                             (rp) => !rp.is_on_ir && !rp.is_on_taxi && rp.players?.id !== player.id,
                         )
-                    } catch {}
+                    } catch (e) {
+                        console.error('[rookie-draft] overflow roster fetch:', e)
+                    }
                 }
                 setRosterForDrop(dropList)
                 setRosterOverflow({
