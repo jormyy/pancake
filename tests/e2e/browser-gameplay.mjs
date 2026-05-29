@@ -276,6 +276,24 @@ const clickExactText = async (session, text, label) => {
   return parsed
 }
 
+const captureScreenshot = async (session, artifactDir, filename) => {
+  const outputPath = path.join(artifactDir, filename)
+  for (const timeout of [60_000, 120_000]) {
+    try {
+      await browser(session, ['screenshot', outputPath], { timeout })
+      return { ok: true, path: outputPath, timeout }
+    } catch (error) {
+      if (timeout === 120_000) {
+        const message = error instanceof Error ? error.message : String(error)
+        await writeFile(`${outputPath}.error.txt`, `${message}\n`).catch(() => {})
+        return { ok: false, path: outputPath, error: message }
+      }
+      await browser(session, ['wait', '1000']).catch(() => {})
+    }
+  }
+  return { ok: false, path: outputPath, error: 'screenshot unavailable' }
+}
+
 const waitForAuctionBid = async (fixture, timeoutMs = 10_000) => {
   const startedAt = Date.now()
   let last = await verifyAuctionBid(fixture)
@@ -356,7 +374,7 @@ export async function runBrowserGameplayScenario({
     await browser(session, ['open', joinUrl(env.frontendUrl, `/draft-room?draftId=${fixture.draft.id}`)])
     await browser(session, ['wait', '2500'])
     await assertPageText(session, ['Auction Draft', fixture.player.display_name, 'Bid $2'], 'auction draft room before bid')
-    await browser(session, ['screenshot', path.join(artifactDir, 'auction-before-bid.png')], { timeout: 60_000 })
+    debug = { ...debug, beforeScreenshot: await captureScreenshot(session, artifactDir, 'auction-before-bid.png') }
     const clickResult = await clickExactText(session, 'Bid $2', 'auction bid button')
     const auctionBid = await waitForAuctionBid(fixture)
     debug = { ...debug, clickResult, auctionBid }
@@ -365,7 +383,7 @@ export async function runBrowserGameplayScenario({
     }
     await browser(session, ['wait', '5500'])
     await assertPageText(session, ['$2', "You're leading"], 'auction draft room after bid')
-    await browser(session, ['screenshot', path.join(artifactDir, 'auction-after-bid.png')], { timeout: 60_000 })
+    debug = { ...debug, afterScreenshot: await captureScreenshot(session, artifactDir, 'auction-after-bid.png') }
 
     const consoleOutput = await browser(session, ['console']).catch((error) => `console unavailable: ${error.message}`)
     const errorOutput = await browser(session, ['errors']).catch((error) => `errors unavailable: ${error.message}`)
