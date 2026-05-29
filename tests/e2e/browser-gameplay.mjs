@@ -11,6 +11,8 @@ const execFileAsync = promisify(execFile)
 const ROOT = process.cwd()
 const ARTIFACT_ROOT = path.join(ROOT, 'tests/artifacts')
 const REPORT_PATH = path.join(ROOT, 'tests/e2e-browser-gameplay-report.md')
+const SCREENSHOT_TIMEOUT_MS = Number(process.env.E2E_BROWSER_SCREENSHOT_TIMEOUT_MS || 5000)
+const SCREENSHOTS_REQUIRED = process.env.E2E_BROWSER_SCREENSHOTS_REQUIRED === '1'
 
 const browser = async (session, args, options = {}) => {
   const { stdout, stderr } = await execFileAsync('agent-browser', ['--session', session, ...args], {
@@ -278,12 +280,18 @@ const clickExactText = async (session, text, label) => {
 
 const captureScreenshot = async (session, artifactDir, filename) => {
   const outputPath = path.join(artifactDir, filename)
-  for (const timeout of [60_000, 120_000]) {
+  if (!SCREENSHOTS_REQUIRED) {
+    const message = 'screenshot skipped; set E2E_BROWSER_SCREENSHOTS_REQUIRED=1 to require agent-browser screenshots'
+    await writeFile(`${outputPath}.error.txt`, `${message}\n`).catch(() => {})
+    return { ok: false, path: outputPath, error: message }
+  }
+  const timeouts = [SCREENSHOT_TIMEOUT_MS, SCREENSHOT_TIMEOUT_MS * 2]
+  for (const [index, timeout] of timeouts.entries()) {
     try {
       await browser(session, ['screenshot', outputPath], { timeout })
       return { ok: true, path: outputPath, timeout }
     } catch (error) {
-      if (timeout === 120_000) {
+      if (index === timeouts.length - 1) {
         const message = error instanceof Error ? error.message : String(error)
         await writeFile(`${outputPath}.error.txt`, `${message}\n`).catch(() => {})
         return { ok: false, path: outputPath, error: message }

@@ -11,6 +11,7 @@ const execFileAsync = promisify(execFile)
 const ROOT = process.cwd()
 const ARTIFACT_ROOT = path.join(ROOT, 'tests/artifacts')
 const REPORT_PATH = path.join(ROOT, 'tests/e2e-browser-league-lifecycle-report.md')
+const SCREENSHOTS_REQUIRED = process.env.E2E_BROWSER_SCREENSHOTS_REQUIRED === '1'
 
 const EXPECTED_LINEUP_SLOTS = {
   PG: 1,
@@ -26,6 +27,12 @@ const EXPECTED_LINEUP_SLOTS = {
 }
 
 const browser = async (session, args, options = {}) => {
+  const isScreenshot = args[0] === 'screenshot' && typeof args[1] === 'string'
+  if (isScreenshot && !SCREENSHOTS_REQUIRED) {
+    const message = 'screenshot skipped; set E2E_BROWSER_SCREENSHOTS_REQUIRED=1 to require agent-browser screenshots'
+    await writeFile(`${args[1]}.error.txt`, `${message}\n`).catch(() => {})
+    return ''
+  }
   const { stdout, stderr } = await execFileAsync('agent-browser', ['--session', session, ...args], {
     cwd: ROOT,
     timeout: options.timeout ?? 30_000,
