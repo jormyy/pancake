@@ -1,43 +1,20 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
-import { execFile } from 'node:child_process'
-import { promisify } from 'node:util'
 import { resolvedEnv, describeEndpoint } from './env.mjs'
 import { installRuntimeOverrides, normalizeBrowserErrors } from './browser-runtime-overrides.mjs'
+import { createBrowser, listBrowserSessions } from './browser-agent.mjs'
 
-const execFileAsync = promisify(execFile)
 const ROOT = process.cwd()
 const STATE_PATH = path.join(ROOT, 'tests/e2e-state.json')
 const ARTIFACT_ROOT = path.join(ROOT, 'tests/artifacts')
 const REPORT_PATH = path.join(ROOT, 'tests/e2e-browser-auth-report.md')
-const SCREENSHOTS_REQUIRED = process.env.E2E_BROWSER_SCREENSHOTS_REQUIRED === '1'
 
 const readState = async () => JSON.parse(await readFile(STATE_PATH, 'utf8'))
 
-const browser = async (session, args, options = {}) => {
-  const isScreenshot = args[0] === 'screenshot' && typeof args[1] === 'string'
-  if (isScreenshot && !SCREENSHOTS_REQUIRED) {
-    const message = 'screenshot skipped; set E2E_BROWSER_SCREENSHOTS_REQUIRED=1 to require agent-browser screenshots'
-    await writeFile(`${args[1]}.error.txt`, `${message}\n`).catch(() => {})
-    return ''
-  }
-  const { stdout, stderr } = await execFileAsync('agent-browser', ['--session', session, ...args], {
-    cwd: ROOT,
-    timeout: options.timeout ?? 30_000,
-    maxBuffer: options.maxBuffer ?? 1024 * 1024 * 4,
-  })
-  return [stdout, stderr].filter(Boolean).join('\n').trim()
-}
+const browser = createBrowser({ cwd: ROOT })
 
-const listSessions = async () => {
-  const { stdout, stderr } = await execFileAsync('agent-browser', ['session', 'list'], {
-    cwd: ROOT,
-    timeout: 10_000,
-    maxBuffer: 1024 * 1024,
-  })
-  return [stdout, stderr].filter(Boolean).join('\n').trim()
-}
+const listSessions = () => listBrowserSessions({ cwd: ROOT })
 
 const safeName = (value) => value.replace(/[^a-zA-Z0-9._-]/g, '-')
 

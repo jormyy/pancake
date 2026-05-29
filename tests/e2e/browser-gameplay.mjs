@@ -1,36 +1,17 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
-import { execFile } from 'node:child_process'
-import { promisify } from 'node:util'
 import { createClient } from '@supabase/supabase-js'
 import { resolvedEnv, requireEnv, describeEndpoint } from './env.mjs'
 import { installRuntimeOverrides, normalizeBrowserErrors } from './browser-runtime-overrides.mjs'
+import { captureBrowserScreenshot, createBrowser, listBrowserSessions } from './browser-agent.mjs'
 
-const execFileAsync = promisify(execFile)
 const ROOT = process.cwd()
 const ARTIFACT_ROOT = path.join(ROOT, 'tests/artifacts')
 const REPORT_PATH = path.join(ROOT, 'tests/e2e-browser-gameplay-report.md')
-const SCREENSHOT_TIMEOUT_MS = Number(process.env.E2E_BROWSER_SCREENSHOT_TIMEOUT_MS || 5000)
-const SCREENSHOTS_REQUIRED = process.env.E2E_BROWSER_SCREENSHOTS_REQUIRED === '1'
 
-const browser = async (session, args, options = {}) => {
-  const { stdout, stderr } = await execFileAsync('agent-browser', ['--session', session, ...args], {
-    cwd: ROOT,
-    timeout: options.timeout ?? 30_000,
-    maxBuffer: options.maxBuffer ?? 1024 * 1024 * 4,
-  })
-  return [stdout, stderr].filter(Boolean).join('\n').trim()
-}
-
-const listSessions = async () => {
-  const { stdout, stderr } = await execFileAsync('agent-browser', ['session', 'list'], {
-    cwd: ROOT,
-    timeout: 10_000,
-    maxBuffer: 1024 * 1024,
-  })
-  return [stdout, stderr].filter(Boolean).join('\n').trim()
-}
+const browser = createBrowser({ cwd: ROOT })
+const listSessions = () => listBrowserSessions({ cwd: ROOT })
 
 const safeName = (value) => value.replace(/[^a-zA-Z0-9._-]/g, '-')
 const joinUrl = (base, pathname) => new URL(pathname, base.endsWith('/') ? base : `${base}/`).toString()
@@ -278,30 +259,6 @@ const clickExactText = async (session, text, label) => {
   return parsed
 }
 
-const captureScreenshot = async (session, artifactDir, filename) => {
-  const outputPath = path.join(artifactDir, filename)
-  if (!SCREENSHOTS_REQUIRED) {
-    const message = 'screenshot skipped; set E2E_BROWSER_SCREENSHOTS_REQUIRED=1 to require agent-browser screenshots'
-    await writeFile(`${outputPath}.error.txt`, `${message}\n`).catch(() => {})
-    return { ok: false, path: outputPath, error: message }
-  }
-  const timeouts = [SCREENSHOT_TIMEOUT_MS, SCREENSHOT_TIMEOUT_MS * 2]
-  for (const [index, timeout] of timeouts.entries()) {
-    try {
-      await browser(session, ['screenshot', outputPath], { timeout })
-      return { ok: true, path: outputPath, timeout }
-    } catch (error) {
-      if (index === timeouts.length - 1) {
-        const message = error instanceof Error ? error.message : String(error)
-        await writeFile(`${outputPath}.error.txt`, `${message}\n`).catch(() => {})
-        return { ok: false, path: outputPath, error: message }
-      }
-      await browser(session, ['wait', '1000']).catch(() => {})
-    }
-  }
-  return { ok: false, path: outputPath, error: 'screenshot unavailable' }
-}
-
 const waitForAuctionBid = async (fixture, timeoutMs = 10_000) => {
   const startedAt = Date.now()
   let last = await verifyAuctionBid(fixture)
@@ -382,7 +339,7 @@ export async function runBrowserGameplayScenario({
     await browser(session, ['open', joinUrl(env.frontendUrl, `/draft-room?draftId=${fixture.draft.id}`)])
     await browser(session, ['wait', '2500'])
     await assertPageText(session, ['Auction Draft', fixture.player.display_name, 'Bid $2'], 'auction draft room before bid')
-    debug = { ...debug, beforeScreenshot: await captureScreenshot(session, artifactDir, 'auction-before-bid.png') }
+    debug = { ...debug, beforeScreenshot: await captureBrowserScreenshot(browser, session, artifactDir, 'auction-before-bid.png') }
     const clickResult = await clickExactText(session, 'Bid $2', 'auction bid button')
     const auctionBid = await waitForAuctionBid(fixture)
     debug = { ...debug, clickResult, auctionBid }
@@ -391,7 +348,7 @@ export async function runBrowserGameplayScenario({
     }
     await browser(session, ['wait', '5500'])
     await assertPageText(session, ['$2', "You're leading"], 'auction draft room after bid')
-    debug = { ...debug, afterScreenshot: await captureScreenshot(session, artifactDir, 'auction-after-bid.png') }
+    debug = { ...debug, afterScreenshot: await captureBrowserScreenshot(browser, session, artifactDir, 'auction-after-bid.png') }
 
     const consoleOutput = await browser(session, ['console']).catch((error) => `console unavailable: ${error.message}`)
     const errorOutput = await browser(session, ['errors']).catch((error) => `errors unavailable: ${error.message}`)
