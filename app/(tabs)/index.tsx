@@ -4,10 +4,10 @@ import {
     Pressable,
     StyleSheet,
     ActivityIndicator,
-    ScrollView,
+    useWindowDimensions,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useAuth } from '@/hooks/use-auth'
 import { Scoreboard } from '@/components/Scoreboard'
@@ -27,6 +27,7 @@ import { useLiveStats } from '@/hooks/use-live-stats'
 import { useLineupActions } from '@/hooks/use-lineup-actions'
 import { shortName } from '@/lib/format'
 import { todayET } from '@/lib/shared/dates'
+import { MotionPressable, MotionView } from '@/components/Motion'
 
 function shouldShowScoreboard(selectedDate: string, today: string): boolean {
     return selectedDate === today
@@ -34,10 +35,13 @@ function shouldShowScoreboard(selectedDate: string, today: string): boolean {
 
 type LineupData = { starters: LineupSlot[]; bench: LineupPlayer[]; ir: LineupPlayer[]; taxi: LineupPlayer[] }
 type Sel = { kind: 'starter'; index: number } | { kind: 'bench'; index: number } | { kind: 'ir'; index: number } | { kind: 'taxi'; index: number }
+type LineupSection = 'starters' | 'bench' | 'ir' | 'taxi'
 
 export default function HomeScreen() {
     const { memberships, current, currentLeague: league, setCurrent, loading } = useLeagueContext()
     const { user } = useAuth()
+    const { width, height } = useWindowDimensions()
+    const compact = width < 560 || height < 840
 
     const {
         matchup, weekDays, selectedDate, setSelectedDate,
@@ -126,6 +130,7 @@ export default function HomeScreen() {
                     const fullMembership = memberships.find((m) => m.id === membership.id)
                     if (fullMembership) setCurrent(fullMembership)
                 }}
+                compact={compact}
             />
 
             {error && (
@@ -137,43 +142,42 @@ export default function HomeScreen() {
             {matchupLoading ? (
                 <ActivityIndicator color={colors.primary} style={{ marginTop: 48 }} />
             ) : matchup ? (
-                <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+                <View style={styles.playSurface}>
                     {shouldShowScoreboard(selectedDate, today)
-                        ? <Scoreboard games={todaysGames} myTeamSet={myTeamSet} />
+                        ? <Scoreboard games={todaysGames} myTeamSet={myTeamSet} compact={compact} />
                         : <Text style={styles.dateLabel}>Showing lineup for {selectedDate}</Text>
                     }
-                    <ScoreCard matchup={matchup} />
+                    <ScoreCard matchup={matchup} compact={compact} />
 
                     {weekDays.length > 0 && (
-                        <DaySelector days={weekDays} selectedDate={selectedDate} onSelect={handleDaySelect} />
+                        <DaySelector days={weekDays} selectedDate={selectedDate} onSelect={handleDaySelect} compact={compact} />
                     )}
 
-                    {/* Auto-set button */}
-                    <View style={styles.lineupHeader}>
-                        <Pressable
+                    <View style={[styles.lineupToolbar, compact && styles.lineupToolbarCompact]}>
+                        <MotionPressable
                             style={styles.autoSetBtn}
                             onPress={handleAutoSet}
                             disabled={autoSetting || saving}
+                            pressedScale={0.92}
                         >
                             {autoSetting
                                 ? <ActivityIndicator size="small" color={colors.primary} />
                                 : <Text style={styles.autoSetText}>AUTO</Text>}
-                        </Pressable>
-                    </View>
+                        </MotionPressable>
 
-                    {/* Selection hint */}
-                    {selected && (
-                        <View style={styles.hint}>
-                            <Text style={styles.hintText}>
-                                {selectedPlayer
-                                    ? `${shortName(selectedPlayer.displayName)} selected — tap another slot to swap`
-                                    : `Empty slot selected — tap a player's slot to fill it`}
-                            </Text>
-                            <Pressable onPress={() => setSelected(null)}>
-                                <Text style={styles.hintCancel}>Cancel</Text>
-                            </Pressable>
-                        </View>
-                    )}
+                        {selected && (
+                            <MotionView style={styles.hint} preset="slide-left">
+                                <Text style={styles.hintText} numberOfLines={1}>
+                                    {selectedPlayer
+                                        ? `${shortName(selectedPlayer.displayName)} selected — tap another slot`
+                                        : `Empty slot selected — tap a player's slot`}
+                                </Text>
+                                <MotionPressable onPress={() => setSelected(null)} pressedScale={0.9}>
+                                    <Text style={styles.hintCancel}>Cancel</Text>
+                                </MotionPressable>
+                            </MotionView>
+                        )}
+                    </View>
 
                     {lineupLoading ? (
                         <ActivityIndicator color={colors.primary} style={{ marginTop: 24 }} />
@@ -189,6 +193,7 @@ export default function HomeScreen() {
                             liveTeams={liveTeams}
                             scoringSettings={scoringSettings}
                             teamMatchups={teamMatchups}
+                            compact={compact}
                         />
                     ) : (
                         <View style={styles.noLineup}>
@@ -198,18 +203,18 @@ export default function HomeScreen() {
                             </Pressable>
                         </View>
                     )}
-                </ScrollView>
+                </View>
             ) : (
-                <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+                <View style={styles.playSurface}>
                     {shouldShowScoreboard(selectedDate, today)
-                        ? <Scoreboard games={todaysGames} myTeamSet={myTeamSet} />
+                        ? <Scoreboard games={todaysGames} myTeamSet={myTeamSet} compact={compact} />
                         : <Text style={styles.dateLabel}>Showing lineup for {selectedDate}</Text>
                     }
                     <View style={styles.noMatchup}>
                         <Text style={styles.noMatchupText}>No matchup this week yet.</Text>
                         <Text style={styles.noMatchupSub}>Matchups are generated before each week starts.</Text>
                     </View>
-                </ScrollView>
+                </View>
             )}
 
             <ActivationOverflowModal
@@ -246,6 +251,7 @@ function MatchupLineupView({
     liveTeams,
     scoringSettings,
     teamMatchups,
+    compact,
 }: {
     myLineup: LineupData
     oppLineup: LineupData
@@ -257,37 +263,81 @@ function MatchupLineupView({
     liveTeams: Set<string>
     scoringSettings: Record<string, number>
     teamMatchups: Map<string, { opponent: string; isHome: boolean }>
+    compact: boolean
 }) {
     const maxBench = Math.max(myLineup.bench.length, oppLineup.bench.length)
     const maxIR = Math.max(myLineup.ir.length, oppLineup.ir.length)
     const maxTaxi = Math.max(myLineup.taxi.length, oppLineup.taxi.length)
+    const [activeSection, setActiveSection] = useState<LineupSection>('starters')
+    const sections = useMemo(
+        () => [
+            { key: 'starters' as const, label: 'Start', count: myLineup.starters.length, color: colors.primary },
+            { key: 'bench' as const, label: 'Bench', count: maxBench, color: colors.textMuted },
+            { key: 'ir' as const, label: 'IR', count: maxIR, color: colors.danger },
+            { key: 'taxi' as const, label: 'Taxi', count: maxTaxi, color: palette.gray500 },
+        ].filter((section) => section.key === 'starters' || section.count > 0),
+        [maxBench, maxIR, maxTaxi, myLineup.starters.length],
+    )
+
+    useEffect(() => {
+        if (!sections.some((section) => section.key === activeSection)) {
+            setActiveSection('starters')
+        }
+    }, [activeSection, sections])
 
     return (
         <View style={styles.lineupContainer}>
-            {/* Starters */}
-            {myLineup.starters.map((slot, i) => (
-                <MatchupRow
-                    key={`s${i}`}
-                    myPlayer={slot.player}
-                    oppPlayer={oppLineup.starters[i]?.player ?? null}
-                    slotType={slot.slotType}
-                    selKind="starter"
-                    selIndex={i}
-                    selected={selected}
-                    onTap={onTap}
-                    saving={saving}
-                    playingTeams={playingTeams}
-                    liveStats={liveStats}
-                    liveTeams={liveTeams}
-                    scoringSettings={scoringSettings}
-                    teamMatchups={teamMatchups}
-                />
-            ))}
+            <View style={styles.sectionTabs}>
+                {sections.map((section) => {
+                    const isActive = activeSection === section.key
+                    return (
+                        <MotionPressable
+                            key={section.key}
+                            style={[
+                                styles.sectionTab,
+                                isActive && { backgroundColor: section.color + '1F', borderColor: section.color },
+                            ]}
+                            onPress={() => setActiveSection(section.key)}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Show ${section.label}`}
+                            accessibilityState={{ selected: isActive }}
+                            pressedScale={0.93}
+                        >
+                            <Text style={[styles.sectionTabText, isActive && { color: section.color }]}>
+                                {section.label}
+                            </Text>
+                            <Text style={[styles.sectionTabCount, isActive && { color: section.color }]}>
+                                {section.count}
+                            </Text>
+                        </MotionPressable>
+                    )
+                })}
+            </View>
 
-            {maxBench > 0 && (
-                <>
-                    <SectionDivider label="BENCH" />
-                    {Array.from({ length: maxBench }, (_, i) => (
+            <View style={styles.lineupRows}>
+                {activeSection === 'starters' && myLineup.starters.map((slot, i) => (
+                    <MatchupRow
+                        key={`s${i}`}
+                        myPlayer={slot.player}
+                        oppPlayer={oppLineup.starters[i]?.player ?? null}
+                        slotType={slot.slotType}
+                        selKind="starter"
+                        selIndex={i}
+                        selected={selected}
+                        onTap={onTap}
+                        saving={saving}
+                        playingTeams={playingTeams}
+                        liveStats={liveStats}
+                        liveTeams={liveTeams}
+                        scoringSettings={scoringSettings}
+                        teamMatchups={teamMatchups}
+                        compact={compact}
+                        motionDelay={i * 18}
+                    />
+                ))}
+
+                {activeSection === 'bench' && maxBench > 0 ? (
+                    Array.from({ length: maxBench }, (_, i) => (
                         <MatchupRow
                             key={`b${i}`}
                             myPlayer={myLineup.bench[i] ?? null}
@@ -304,15 +354,14 @@ function MatchupLineupView({
                             scoringSettings={scoringSettings}
                             teamMatchups={teamMatchups}
                             isExtraOppRow={i >= myLineup.bench.length}
+                            compact={compact}
+                            motionDelay={i * 18}
                         />
-                    ))}
-                </>
-            )}
+                    ))
+                ) : null}
 
-            {maxIR > 0 && (
-                <>
-                    <SectionDivider label="INJURED RESERVE" color={colors.danger} />
-                    {Array.from({ length: maxIR }, (_, i) => (
+                {activeSection === 'ir' && maxIR > 0 ? (
+                    Array.from({ length: maxIR }, (_, i) => (
                         <MatchupRow
                             key={`ir${i}`}
                             myPlayer={myLineup.ir[i] ?? null}
@@ -328,15 +377,14 @@ function MatchupLineupView({
                             liveTeams={liveTeams}
                             scoringSettings={scoringSettings}
                             teamMatchups={teamMatchups}
+                            compact={compact}
+                            motionDelay={i * 18}
                         />
-                    ))}
-                </>
-            )}
+                    ))
+                ) : null}
 
-            {maxTaxi > 0 && (
-                <>
-                    <SectionDivider label="TAXI SQUAD" color={palette.gray500} />
-                    {Array.from({ length: maxTaxi }, (_, i) => (
+                {activeSection === 'taxi' && maxTaxi > 0 ? (
+                    Array.from({ length: maxTaxi }, (_, i) => (
                         <MatchupRow
                             key={`tx${i}`}
                             myPlayer={myLineup.taxi[i] ?? null}
@@ -352,20 +400,12 @@ function MatchupLineupView({
                             liveTeams={liveTeams}
                             scoringSettings={scoringSettings}
                             teamMatchups={teamMatchups}
+                            compact={compact}
+                            motionDelay={i * 18}
                         />
-                    ))}
-                </>
-            )}
-        </View>
-    )
-}
-
-function SectionDivider({ label, color = colors.textMuted }: { label: string; color?: string }) {
-    return (
-        <View style={styles.dividerRow}>
-            <View style={[styles.dividerLine, { backgroundColor: color + '35' }]} />
-            <Text style={[styles.dividerText, { color }]}>{label}</Text>
-            <View style={[styles.dividerLine, { backgroundColor: color + '35' }]} />
+                    ))
+                ) : null}
+            </View>
         </View>
     )
 }
@@ -373,10 +413,19 @@ function SectionDivider({ label, color = colors.textMuted }: { label: string; co
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgScreen },
 
-    scrollContent: { paddingTop: 60, paddingBottom: 40 },
-
-    // Lineup header
-    lineupHeader: { alignItems: 'center', paddingTop: 12, paddingBottom: 4 },
+    playSurface: { flex: 1, minHeight: 0 },
+    lineupToolbar: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        borderBottomWidth: 1,
+        borderBottomColor: colors.borderLight,
+    },
+    lineupToolbarCompact: {
+        paddingVertical: 5,
+    },
     autoSetBtn: {
         height: 30,
         paddingHorizontal: 18,
@@ -390,25 +439,45 @@ const styles = StyleSheet.create({
     },
     autoSetText: { fontSize: 11, fontWeight: '800', color: colors.primary, letterSpacing: 0.6 },
 
-    // Selection hint
     hint: {
+        flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
         backgroundColor: colors.primaryLight,
-        borderTopWidth: 1,
-        borderBottomWidth: 1,
+        borderWidth: 1,
         borderColor: colors.primaryBorder,
-        paddingHorizontal: 16,
-        paddingVertical: 9,
-        marginTop: 4,
+        borderRadius: 14,
+        borderCurve: 'continuous' as const,
+        paddingHorizontal: 12,
+        paddingVertical: 7,
     },
     hintText: { flex: 1, fontSize: 13, color: colors.primaryDark, fontWeight: '500' },
     hintCancel: { fontSize: 13, fontWeight: '700', color: colors.primary, paddingLeft: 12 },
 
-    lineupContainer: { paddingHorizontal: 16 },
-    dividerRow: { flexDirection: 'row', alignItems: 'center', paddingTop: 16, paddingBottom: 4, gap: 8 },
-    dividerLine: { flex: 1, height: 1 },
-    dividerText: { fontSize: 10, fontWeight: '800', letterSpacing: 1.5 },
+    lineupContainer: { flex: 1, minHeight: 0, paddingHorizontal: 16, paddingBottom: 8 },
+    sectionTabs: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        paddingTop: 8,
+        paddingBottom: 4,
+    },
+    sectionTab: {
+        flex: 1,
+        minHeight: 34,
+        borderRadius: 10,
+        borderCurve: 'continuous' as const,
+        borderWidth: 1,
+        borderColor: colors.borderLight,
+        backgroundColor: colors.bgSubtle,
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexDirection: 'row',
+        gap: 5,
+    },
+    sectionTabText: { fontSize: 11, fontWeight: '800', color: colors.textMuted },
+    sectionTabCount: { fontSize: 11, fontWeight: '800', color: colors.textPlaceholder },
+    lineupRows: { flex: 1, minHeight: 0, overflow: 'hidden' },
 
     noLineup: { padding: 32, alignItems: 'center', gap: 12 },
     noLineupText: { fontSize: 14, color: colors.textPlaceholder, textAlign: 'center' },

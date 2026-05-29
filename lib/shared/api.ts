@@ -16,7 +16,7 @@ function runtimeApiUrlOverride(): string | null {
 }
 
 function apiUrl(): string {
-    return runtimeApiUrlOverride() ?? DEFAULT_API_URL
+    return (runtimeApiUrlOverride() ?? DEFAULT_API_URL).replace(/\/+$/, '')
 }
 
 function apiErrorMessage(json: { error?: unknown; message?: unknown } | null, status: number): string {

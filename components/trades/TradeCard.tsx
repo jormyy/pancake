@@ -1,10 +1,11 @@
-import { View, Text, Pressable, StyleSheet, ActivityIndicator, Alert } from 'react-native'
+import { View, Text, StyleSheet, ActivityIndicator, Alert } from 'react-native'
 import { useState } from 'react'
 import { TRADE_STATUS_COLORS, colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 import { Trade, TradeItem, acceptTrade, rejectTrade, vetoTrade, withdrawTrade } from '@/lib/trades'
 import { getRoster, dropPlayer, RosterPlayer } from '@/lib/roster'
 import { DropPlayerPickerModal } from '@/components/DropPlayerPickerModal'
 import { confirmAction, getErrorMessage } from '@/lib/alert'
+import { MotionPressable, MotionView } from '@/components/Motion'
 
 export type TabKey = 'picks' | 'offers' | 'history'
 
@@ -234,7 +235,7 @@ export function TradeCard({
     const remainingDrops = neededDrops - droppedIds.size
 
     return (
-        <View style={styles.card}>
+        <MotionView style={styles.card} preset="rise">
             <View style={styles.cardHeader}>
                 <Text style={styles.cardOpponent}>{opponentName}</Text>
                 <View style={[styles.statusBadge, { backgroundColor: statusStyle.bg }]}>
@@ -258,46 +259,50 @@ export function TradeCard({
                 <>
                     {tab === 'offers' && !isProposer && trade.status === 'pending' && (
                         <View style={styles.cardActions}>
-                            <Pressable
+                            <MotionPressable
                                 style={[styles.actionBtn, styles.actionBtnAccept]}
                                 onPress={handleAccept}
                                 accessibilityRole="button"
                                 accessibilityLabel={`Accept trade with ${opponentName}`}
+                                pressedScale={0.94}
                             >
                                 <Text style={styles.actionBtnAcceptText}>Accept</Text>
-                            </Pressable>
-                            <Pressable
+                            </MotionPressable>
+                            <MotionPressable
                                 style={[styles.actionBtn, styles.actionBtnReject]}
                                 onPress={handleReject}
                                 accessibilityRole="button"
                                 accessibilityLabel={`Reject trade with ${opponentName}`}
+                                pressedScale={0.94}
                             >
                                 <Text style={styles.actionBtnRejectText}>Reject</Text>
-                            </Pressable>
+                            </MotionPressable>
                         </View>
                     )}
                     {tab === 'offers' && isProposer && trade.status === 'pending' && (
                         <View style={styles.cardActions}>
-                            <Pressable
+                            <MotionPressable
                                 style={[styles.actionBtn, styles.actionBtnReject]}
                                 onPress={handleWithdraw}
                                 accessibilityRole="button"
                                 accessibilityLabel={`Withdraw trade with ${opponentName}`}
+                                pressedScale={0.94}
                             >
                                 <Text style={styles.actionBtnRejectText}>Withdraw</Text>
-                            </Pressable>
+                            </MotionPressable>
                         </View>
                     )}
                     {canVeto && (
                         <View style={styles.cardActions}>
-                            <Pressable
+                            <MotionPressable
                                 style={[styles.actionBtn, styles.actionBtnReject]}
                                 onPress={handleVeto}
                                 accessibilityRole="button"
                                 accessibilityLabel={`Veto trade between ${trade.proposerTeamName} and ${trade.recipientTeamName}`}
+                                pressedScale={0.94}
                             >
                                 <Text style={styles.actionBtnRejectText}>Veto</Text>
-                            </Pressable>
+                            </MotionPressable>
                         </View>
                     )}
                 </>
@@ -312,7 +317,7 @@ export function TradeCard({
                 onDrop={(rp) => handleDropAndAccept(rp.id)}
                 onCancel={handleCancelDropPicker}
             />
-        </View>
+        </MotionView>
     )
 }
 

@@ -1,6 +1,7 @@
 import { View, Text, ScrollView, StyleSheet } from 'react-native'
 import { colors, palette, fontWeight, radii, spacing } from '@/constants/tokens'
 import { NBAGameRow } from '@/lib/games'
+import { LivePulse, MotionView } from '@/components/Motion'
 
 // Sort order: InProgress first, then Scheduled, then Final
 function sortGames(games: NBAGameRow[]): NBAGameRow[] {
@@ -18,31 +19,36 @@ function statusLabel(game: NBAGameRow): string {
 export function Scoreboard({
     games,
     myTeamSet,
+    compact = false,
 }: {
     games: NBAGameRow[]
     myTeamSet: Set<string>
+    compact?: boolean
 }) {
     if (games.length === 0) return null
 
     const sorted = sortGames(games)
 
     return (
-        <View style={styles.container}>
+        <View style={[styles.container, compact && styles.containerCompact]}>
             <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.scroll}
+                contentContainerStyle={[styles.scroll, compact && styles.scrollCompact]}
             >
-                {sorted.map((g) => {
+                {sorted.map((g, index) => {
                     const isLive = g.status === 'InProgress'
                     const isFinal = g.status === 'Final'
                     const myAway = myTeamSet.has(g.away_team)
                     const myHome = myTeamSet.has(g.home_team)
                     return (
-                        <View
+                        <MotionView
                             key={g.id}
+                            delay={index * 35}
+                            preset="pop"
                             style={[
                                 styles.card,
+                                compact && styles.cardCompact,
                                 isLive && styles.cardLive,
                                 isFinal && styles.cardFinal,
                             ]}
@@ -76,7 +82,7 @@ export function Scoreboard({
                             </View>
                             {/* Status */}
                             <View style={styles.statusRow}>
-                                {isLive && <View style={styles.liveDot} />}
+                                {isLive && <LivePulse color={colors.primary} size={5} />}
                                 <Text style={[
                                     styles.status,
                                     isLive && styles.statusLive,
@@ -85,7 +91,7 @@ export function Scoreboard({
                                     {statusLabel(g)}
                                 </Text>
                             </View>
-                        </View>
+                        </MotionView>
                     )
                 })}
             </ScrollView>
@@ -99,10 +105,18 @@ const styles = StyleSheet.create({
         borderBottomWidth: 3,
         borderBottomColor: colors.primary,
     },
+    containerCompact: {
+        borderBottomWidth: 2,
+    },
     scroll: {
         paddingHorizontal: spacing.xl,
         paddingVertical: 10,
         gap: spacing.md,
+    },
+    scrollCompact: {
+        paddingHorizontal: spacing.lg,
+        paddingVertical: 6,
+        gap: spacing.sm,
     },
     card: {
         width: 90,
@@ -115,6 +129,12 @@ const styles = StyleSheet.create({
         overflow: 'hidden' as const,
         borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.07)',
+    },
+    cardCompact: {
+        width: 78,
+        paddingHorizontal: 8,
+        paddingVertical: 6,
+        gap: 1,
     },
     cardLive: {
         borderColor: colors.primary,
@@ -167,12 +187,6 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         gap: 3,
         marginTop: 4,
-    },
-    liveDot: {
-        width: 5,
-        height: 5,
-        borderRadius: 3,
-        backgroundColor: colors.primary,
     },
     status: {
         fontSize: 9,

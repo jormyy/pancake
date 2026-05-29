@@ -1,4 +1,4 @@
-import { View, Text, Pressable, StyleSheet, ActivityIndicator, Image } from 'react-native'
+import { View, Text, StyleSheet, ActivityIndicator, Image } from 'react-native'
 import { useState } from 'react'
 import { PlayerRow, getEligiblePositions } from '@/lib/players'
 import { playerHeadshotUrl } from '@/lib/format'
@@ -8,6 +8,7 @@ import { INJURY_COLORS, colors, palette, fontSize, fontWeight, radii, spacing } 
 import { Avatar } from '@/components/Avatar'
 import { Badge } from '@/components/Badge'
 import { PosTag } from '@/components/PosTag'
+import { MotionPressable, MotionView } from '@/components/Motion'
 
 export function PlayerSearchItem({
     item,
@@ -39,10 +40,10 @@ export function PlayerSearchItem({
     const headshotUri = playerHeadshotUrl(item.nba_id)
 
     return (
-        <View style={styles.playerRow}>
+        <MotionView style={styles.playerRow} preset="rise">
             <View style={styles.addCol}>
                 {canAdd ? (
-                    <Pressable
+                    <MotionPressable
                         style={styles.addBtn}
                         onPress={() => onAdd(item)}
                         disabled={isAdding}
@@ -50,19 +51,21 @@ export function PlayerSearchItem({
                         accessibilityLabel={`Add ${item.display_name}`}
                         accessibilityState={{ disabled: isAdding, busy: isAdding }}
                         hitSlop={8}
+                        pressedScale={0.88}
                     >
                         {isAdding
                             ? <ActivityIndicator size="small" color={colors.primary} />
                             : <Text style={styles.addBtnText}>+</Text>}
-                    </Pressable>
+                    </MotionPressable>
                 ) : null}
             </View>
 
-            <Pressable
+            <MotionPressable
                 style={styles.playerCard}
                 onPress={onPress}
                 accessibilityRole="button"
                 accessibilityLabel={`Open ${item.display_name}`}
+                pressedScale={0.985}
             >
                 {headshotUri && !headshotError ? (
                     <Image
@@ -125,8 +128,8 @@ export function PlayerSearchItem({
                         </Text>
                     </View>
                 ) : null}
-            </Pressable>
-        </View>
+            </MotionPressable>
+        </MotionView>
     )
 }
 

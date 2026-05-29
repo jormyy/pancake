@@ -1,4 +1,4 @@
-import { View, Text, Pressable, StyleSheet, ActivityIndicator } from 'react-native'
+import { View, Text, StyleSheet, ActivityIndicator } from 'react-native'
 import { INJURY_COLORS, colors, fontSize, fontWeight, radii, spacing, palette } from '@/constants/tokens'
 import { isIREligible, isTaxiEligible, RosterPlayer } from '@/lib/roster'
 import { getEligiblePositions } from '@/lib/players'
@@ -8,6 +8,7 @@ import { shortDateFmt, playerHeadshotUrl } from '@/lib/format'
 import { Avatar } from '@/components/Avatar'
 import { Badge } from '@/components/Badge'
 import { PosTag } from '@/components/PosTag'
+import { MotionPressable, MotionView } from '@/components/Motion'
 
 export function RosterClaimItem({
     claim,
@@ -26,7 +27,7 @@ export function RosterClaimItem({
         : claim.status === 'pending' ? colors.info
         : colors.danger
     return (
-        <View style={styles.claimRow}>
+        <MotionView style={styles.claimRow} preset="rise">
             {isPending && waiverPriority != null ? (
                 <View style={styles.priorityBadge}>
                     <Text style={styles.priorityBadgeText}>#{waiverPriority}</Text>
@@ -48,19 +49,20 @@ export function RosterClaimItem({
                 </Text>
             </View>
             {isPending ? (
-                <Pressable
+                <MotionPressable
                     style={styles.actionButton}
                     onPress={() => onCancel(claim.id)}
                     disabled={cancellingId === claim.id}
+                    pressedScale={0.92}
                 >
                     {cancellingId === claim.id ? (
                         <ActivityIndicator size="small" color={colors.textMuted} />
                     ) : (
                         <Text style={styles.actionButtonText}>Cancel</Text>
                     )}
-                </Pressable>
+                </MotionPressable>
             ) : null}
-        </View>
+        </MotionView>
     )
 }
 
@@ -73,7 +75,7 @@ export function RosterPickItem({
 }) {
     const isOwn = pick.originalTeamName === myTeamName
     return (
-        <View style={styles.pickRow}>
+        <MotionView style={styles.pickRow} preset="rise">
             <View style={styles.pickCircle}>
                 <Text style={styles.pickCircleText}>
                     {String(pick.seasonYear).slice(2)}
@@ -87,7 +89,7 @@ export function RosterPickItem({
                     <Text style={styles.playerMeta}>via {pick.originalTeamName}</Text>
                 ) : null}
             </View>
-        </View>
+        </MotionView>
     )
 }
 
@@ -119,7 +121,7 @@ export function RosterPlayerItem({
     const isBusy = togglingId === item.id || taxiingId === item.id || droppingId === item.id
     const headshotUri = playerHeadshotUrl(player.nba_id)
     return (
-        <Pressable style={styles.playerRow} onPress={onPress} onLongPress={onLongPress} delayLongPress={400}>
+        <MotionPressable style={styles.playerRow} onPress={onPress} onLongPress={onLongPress} delayLongPress={400} pressedScale={0.985}>
             <Avatar
                 name={player.display_name}
                 color={colors.bgMuted}
@@ -148,10 +150,11 @@ export function RosterPlayerItem({
 
             <View style={styles.rowActions}>
                 {(item.is_on_ir || isIREligible(player.injury_status)) ? (
-                    <Pressable
+                    <MotionPressable
                         style={[styles.actionButton, item.is_on_ir && styles.irButtonActive]}
                         onPress={() => onToggleIR(item)}
                         disabled={isBusy}
+                        pressedScale={0.92}
                     >
                         {togglingId === item.id ? (
                             <ActivityIndicator size="small" color={item.is_on_ir ? colors.textWhite : colors.textMuted} />
@@ -160,23 +163,24 @@ export function RosterPlayerItem({
                                 {item.is_on_ir ? 'Active' : 'IR'}
                             </Text>
                         )}
-                    </Pressable>
+                    </MotionPressable>
                 ) : null}
                 {!item.is_on_ir && taxiSlotsAvailable && isTaxiEligible(player) ? (
-                    <Pressable
+                    <MotionPressable
                         style={[styles.actionButton, styles.taxiButtonOutline]}
                         onPress={() => onToggleTaxi(item)}
                         disabled={isBusy}
+                        pressedScale={0.92}
                     >
                         {taxiingId === item.id ? (
                             <ActivityIndicator size="small" color={palette.indigo500} />
                         ) : (
                             <Text style={styles.taxiButtonOutlineText}>Taxi</Text>
                         )}
-                    </Pressable>
+                    </MotionPressable>
                 ) : null}
             </View>
-        </Pressable>
+        </MotionPressable>
     )
 }
 
@@ -197,7 +201,7 @@ export function TaxiPlayerItem({
     const positions = getEligiblePositions(player)
     const headshotUri = playerHeadshotUrl(player.nba_id)
     return (
-        <Pressable style={styles.playerRow} onPress={onPress}>
+        <MotionPressable style={styles.playerRow} onPress={onPress} pressedScale={0.985}>
             <Avatar
                 name={player.display_name}
                 color={colors.bgMuted}
@@ -215,18 +219,19 @@ export function TaxiPlayerItem({
                 </View>
             </View>
 
-            <Pressable
+            <MotionPressable
                 style={[styles.actionButton, styles.taxiButtonActive]}
                 onPress={() => onToggleTaxi(item)}
                 disabled={taxiingId === item.id}
+                pressedScale={0.92}
             >
                 {taxiingId === item.id ? (
                     <ActivityIndicator size="small" color={colors.textWhite} />
                 ) : (
                     <Text style={[styles.actionButtonText, styles.actionButtonTextActive]}>Activate</Text>
                 )}
-            </Pressable>
-        </Pressable>
+            </MotionPressable>
+        </MotionPressable>
     )
 }
 

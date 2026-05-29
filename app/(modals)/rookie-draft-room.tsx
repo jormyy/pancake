@@ -1,8 +1,6 @@
 import {
     View,
     Text,
-    Pressable,
-    TouchableOpacity,
     TextInput,
     StyleSheet,
     ActivityIndicator,
@@ -32,6 +30,7 @@ import { toggleTaxi, dropPlayer, getRoster, type RosterPlayer } from '@/lib/rost
 import { getPositionColor } from "@/constants/positions"
 import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 import { getErrorMessage } from '@/lib/alert'
+import { MotionPressable, MotionView } from '@/components/Motion'
 
 const PICK_TIMEOUT_SEC = 30
 
@@ -330,10 +329,11 @@ export default function RookieDraftRoomScreen() {
                         </Text>
 
                         {rosterOverflow?.taxiSlotsAvailable && (
-                            <Pressable
+                            <MotionPressable
                                 style={[styles.overflowBtn, styles.overflowBtnPrimary]}
                                 onPress={resolveByTaxi}
                                 disabled={resolvingOverflow}
+                                pressedScale={0.965}
                             >
                                 {resolvingOverflow ? (
                                     <ActivityIndicator color={colors.textWhite} />
@@ -342,7 +342,7 @@ export default function RookieDraftRoomScreen() {
                                         Move {rosterOverflow?.newPlayerName} to Taxi Squad
                                     </Text>
                                 )}
-                            </Pressable>
+                            </MotionPressable>
                         )}
 
                         {rosterForDrop.length > 0 && (
@@ -350,11 +350,12 @@ export default function RookieDraftRoomScreen() {
                                 <Text style={styles.overflowDropLabel}>Or drop a player:</Text>
                                 <ScrollView style={styles.overflowDropList} showsVerticalScrollIndicator>
                                     {rosterForDrop.map((rp) => (
-                                        <Pressable
+                                        <MotionPressable
                                             key={rp.id}
                                             style={styles.overflowDropRow}
                                             onPress={() => resolveByDrop(rp.id)}
                                             disabled={resolvingOverflow}
+                                            pressedScale={0.975}
                                         >
                                             <Text style={styles.overflowDropName}>
                                                 {rp.players?.display_name ?? 'Player'}
@@ -362,7 +363,7 @@ export default function RookieDraftRoomScreen() {
                                             <Text style={styles.overflowDropPos}>
                                                 {rp.players?.position ?? ''} · {rp.players?.nba_team ?? ''}
                                             </Text>
-                                        </Pressable>
+                                        </MotionPressable>
                                     ))}
                                 </ScrollView>
                             </>
@@ -384,11 +385,12 @@ export default function RookieDraftRoomScreen() {
                         <Text style={styles.overflowDropLabel}>Select a player to drop:</Text>
                         <ScrollView style={styles.overflowDropList} showsVerticalScrollIndicator>
                             {trimOverflow?.dropList.map((rp) => (
-                                <Pressable
+                                <MotionPressable
                                     key={rp.id}
                                     style={styles.overflowDropRow}
                                     onPress={() => handleTrimDrop(rp.id)}
                                     disabled={!!trimmingId}
+                                    pressedScale={0.975}
                                 >
                                     {trimmingId === rp.id ? (
                                         <ActivityIndicator size="small" color={colors.danger} />
@@ -402,7 +404,7 @@ export default function RookieDraftRoomScreen() {
                                             </Text>
                                         </>
                                     )}
-                                </Pressable>
+                                </MotionPressable>
                             ))}
                         </ScrollView>
                     </View>
@@ -448,22 +450,24 @@ export default function RookieDraftRoomScreen() {
 
                     {/* ── Tab switcher ─────────────────────────── */}
                     <View style={styles.tabs}>
-                        <Pressable
+                        <MotionPressable
                             style={[styles.tab, activeTab === 'prospects' && styles.tabActive]}
                             onPress={() => setActiveTab('prospects')}
+                            pressedScale={0.96}
                         >
                             <Text style={[styles.tabText, activeTab === 'prospects' && styles.tabTextActive]}>
                                 Prospects
                             </Text>
-                        </Pressable>
-                        <Pressable
+                        </MotionPressable>
+                        <MotionPressable
                             style={[styles.tab, activeTab === 'board' && styles.tabActive]}
                             onPress={() => setActiveTab('board')}
+                            pressedScale={0.96}
                         >
                             <Text style={[styles.tabText, activeTab === 'board' && styles.tabTextActive]}>
                                 Pick Board
                             </Text>
-                        </Pressable>
+                        </MotionPressable>
                     </View>
 
                     {activeTab === 'prospects' ? (
@@ -549,10 +553,11 @@ function ProspectRow({
     onPick: (player: RookieProspect) => void
 }) {
     return (
-        <TouchableOpacity
+        <MotionPressable
             style={styles.resultRow}
             onPress={isDone || picking ? undefined : () => onPick(player)}
-            activeOpacity={isDone || picking ? 1 : 0.6}
+            disabled={isDone || picking}
+            pressedScale={0.985}
         >
             {player.nba_draft_number != null ? (
                 <View style={styles.draftNumChip}>
@@ -581,7 +586,7 @@ function ProspectRow({
                     <Text style={styles.pickBtn}>Pick</Text>
                 )
             )}
-        </TouchableOpacity>
+        </MotionPressable>
     )
 }
 
@@ -598,12 +603,13 @@ function PickRow({
     const isOnClock = !item.player && nextPick?.overallPick === item.overallPick
 
     return (
-        <View
+        <MotionView
             style={[
                 styles.pickRow,
                 isMe && styles.pickRowMe,
                 isOnClock && styles.pickRowOnClock,
             ]}
+            preset={isOnClock ? 'pop' : 'fade'}
         >
             <Text style={[styles.pickNum, isMe && styles.meText]}>
                 {item.overallPick}
@@ -636,7 +642,7 @@ function PickRow({
                     {isOnClock ? '▶ On the clock' : '—'}
                 </Text>
             )}
-        </View>
+        </MotionView>
     )
 }
 
