@@ -4,6 +4,7 @@ import {
     Pressable,
     StyleSheet,
     ActivityIndicator,
+    ScrollView,
     useWindowDimensions,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -42,6 +43,7 @@ export default function HomeScreen() {
     const { user } = useAuth()
     const { width, height } = useWindowDimensions()
     const compact = width < 560 || height < 840
+    const dense = height < 620
 
     const {
         matchup, weekDays, selectedDate, setSelectedDate,
@@ -143,7 +145,7 @@ export default function HomeScreen() {
                 <ActivityIndicator color={colors.primary} style={{ marginTop: 48 }} />
             ) : matchup ? (
                 <View style={styles.playSurface}>
-                    {shouldShowScoreboard(selectedDate, today)
+                    {shouldShowScoreboard(selectedDate, today) && !dense
                         ? <Scoreboard games={todaysGames} myTeamSet={myTeamSet} compact={compact} />
                         : <Text style={styles.dateLabel}>Showing lineup for {selectedDate}</Text>
                     }
@@ -194,6 +196,7 @@ export default function HomeScreen() {
                             scoringSettings={scoringSettings}
                             teamMatchups={teamMatchups}
                             compact={compact}
+                            dense={dense}
                         />
                     ) : (
                         <View style={styles.noLineup}>
@@ -252,6 +255,7 @@ function MatchupLineupView({
     scoringSettings,
     teamMatchups,
     compact,
+    dense,
 }: {
     myLineup: LineupData
     oppLineup: LineupData
@@ -264,6 +268,7 @@ function MatchupLineupView({
     scoringSettings: Record<string, number>
     teamMatchups: Map<string, { opponent: string; isHome: boolean }>
     compact: boolean
+    dense: boolean
 }) {
     const maxBench = Math.max(myLineup.bench.length, oppLineup.bench.length)
     const maxIR = Math.max(myLineup.ir.length, oppLineup.ir.length)
@@ -314,7 +319,12 @@ function MatchupLineupView({
                 })}
             </View>
 
-            <View style={styles.lineupRows}>
+            <ScrollView
+                style={styles.lineupRows}
+                contentContainerStyle={styles.lineupRowsContent}
+                showsVerticalScrollIndicator={false}
+                nestedScrollEnabled
+            >
                 {activeSection === 'starters' && myLineup.starters.map((slot, i) => (
                     <MatchupRow
                         key={`s${i}`}
@@ -332,6 +342,7 @@ function MatchupLineupView({
                         scoringSettings={scoringSettings}
                         teamMatchups={teamMatchups}
                         compact={compact}
+                        dense={dense}
                         motionDelay={i * 18}
                     />
                 ))}
@@ -355,6 +366,7 @@ function MatchupLineupView({
                             teamMatchups={teamMatchups}
                             isExtraOppRow={i >= myLineup.bench.length}
                             compact={compact}
+                            dense={dense}
                             motionDelay={i * 18}
                         />
                     ))
@@ -378,6 +390,7 @@ function MatchupLineupView({
                             scoringSettings={scoringSettings}
                             teamMatchups={teamMatchups}
                             compact={compact}
+                            dense={dense}
                             motionDelay={i * 18}
                         />
                     ))
@@ -401,11 +414,12 @@ function MatchupLineupView({
                             scoringSettings={scoringSettings}
                             teamMatchups={teamMatchups}
                             compact={compact}
+                            dense={dense}
                             motionDelay={i * 18}
                         />
                     ))
                 ) : null}
-            </View>
+            </ScrollView>
         </View>
     )
 }
@@ -477,7 +491,8 @@ const styles = StyleSheet.create({
     },
     sectionTabText: { fontSize: 11, fontWeight: '800', color: colors.textMuted },
     sectionTabCount: { fontSize: 11, fontWeight: '800', color: colors.textPlaceholder },
-    lineupRows: { flex: 1, minHeight: 0, overflow: 'hidden' },
+    lineupRows: { flex: 1, minHeight: 0 },
+    lineupRowsContent: { paddingBottom: 8 },
 
     noLineup: { padding: 32, alignItems: 'center', gap: 12 },
     noLineupText: { fontSize: 14, color: colors.textPlaceholder, textAlign: 'center' },

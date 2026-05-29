@@ -1,6 +1,7 @@
 import { supabase } from './supabase.ts'
 import { fetchBoxScore, parseNBAMinutes, NBABoxScorePlayer } from './nba.ts'
 import { normalizeName } from './nameMatch.ts'
+import { errorMessage } from './responses.ts'
 
 // Returns YYYY-MM-DD for the given Date in America/New_York (ET).
 // nba_games.game_date is ET-keyed; using UTC here misses prime-time games
@@ -89,7 +90,7 @@ export async function syncStatsByDate(date: Date) {
         statCount += stats.length
       }
     } catch (e) {
-      console.error(`[sync-stats] Error for ${game.nba_game_id}:`, e.message)
+      console.error(`[sync-stats] Error for ${game.nba_game_id}:`, errorMessage(e))
     }
   }
 

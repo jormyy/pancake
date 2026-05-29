@@ -77,11 +77,11 @@ async function syncDynastyRankings() {
     }
   }
 
-  for (let i = 0; i < updates.length; i += CHUNK) {
-    const chunk = updates.slice(i, i + CHUNK)
+  for (const update of updates) {
     const { error } = await supabase
       .from('players')
-      .upsert(chunk, { onConflict: 'id' })
+      .update({ dynasty_rank: update.dynasty_rank })
+      .eq('id', update.id)
     if (error) throw error
   }
 

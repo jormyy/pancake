@@ -20,7 +20,7 @@
 import { supabase } from '../_shared/supabase.ts'
 import { buildStatRow } from '../_shared/syncStats.ts'
 import { fetchBBRefSchedule, fetchBBRefBoxScore, BBREF_TO_TRICODE, sleep } from '../_shared/bbref.ts'
-import { internalServerError } from '../_shared/responses.ts'
+import { errorMessage, internalServerError } from '../_shared/responses.ts'
 import type { Json } from '../_shared/database.ts'
 
 // CDN start years (2-digit): 19 = 2019-20 (season_year=2020) … 24 = 2024-25 (season_year=2025)
@@ -268,7 +268,7 @@ async function runCDNChunk(seasonYear: number, jobId: string, offset: number) {
       completed++
     } catch (e) {
       failed++
-      console.warn(`[backfill/cdn] ${gameId}: ${e.message}`)
+      console.warn(`[backfill/cdn] ${gameId}: ${errorMessage(e)}`)
     }
 
     await new Promise((r) => setTimeout(r, CDN_DELAY_MS))
@@ -424,7 +424,7 @@ async function runCDNEnumChunk(seasonYear: number, jobId: string, offset: number
       completed++
     } catch (e) {
       failed++
-      console.warn(`[backfill/cdn-enum] ${gameId}: ${e.message}`)
+      console.warn(`[backfill/cdn-enum] ${gameId}: ${errorMessage(e)}`)
     }
     await new Promise((r) => setTimeout(r, CDN_DELAY_MS))
   }
@@ -681,7 +681,7 @@ async function runBBRefChunk(seasonYear: number, jobId: string, offset: number) 
       completed++
     } catch (e) {
       failed++
-      console.warn(`[backfill/bbref] ${gameId}: ${e.message}`)
+      console.warn(`[backfill/bbref] ${gameId}: ${errorMessage(e)}`)
     }
 
     await sleep(3000)

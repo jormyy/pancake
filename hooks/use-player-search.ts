@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { FlashListRef } from '@shopify/flash-list'
-import { Dimensions } from 'react-native'
+import { Dimensions, type View } from 'react-native'
 import { searchPlayers, PlayerRow } from '@/lib/players'
 import { OwnedEntry } from '@/lib/roster'
 import { getWeekDays, WeekDay, getStartedTeams } from '@/lib/lineup'
@@ -9,6 +9,15 @@ import { currentSeasonYear } from '@/lib/shared/season'
 import { todayET } from '@/lib/shared/dates'
 
 export type SortMode = 'fpts' | 'gamesLeft' | 'name' | 'team' | 'yearsExp'
+type SortDir = 'asc' | 'desc'
+type SearchParams = {
+    query: string
+    position: string
+    selectedTeams: string[]
+    leagueId: string | null
+    playingTeams: string[] | null
+    rookiesOnly: boolean
+}
 
 export const SORT_OPTIONS: { key: SortMode; label: string }[] = [
     { key: 'fpts', label: 'FPts' },
@@ -19,92 +28,18 @@ export const SORT_OPTIONS: { key: SortMode; label: string }[] = [
 ]
 
 const PAGE_SIZE = 60
+const DEFAULT_SEARCH_PARAMS: SearchParams = {
+    query: '',
+    position: 'ALL',
+    selectedTeams: [],
+    leagueId: null,
+    playingTeams: null,
+    rookiesOnly: false,
+}
 
-export function usePlayerSearch(
-    leagueId: string | null,
-    ownedMap: Map<string, OwnedEntry>,
-) {
-    const [query, setQuery] = useState('')
-    const [position, setPosition] = useState('ALL')
-    const [selectedTeams, setSelectedTeams] = useState<string[]>([])
-    const [teamPopover, setTeamPopover] = useState<{ top: number; right: number } | null>(null)
-    const teamBtnRef = useRef<any>(null)
-    const [selectedDays, setSelectedDays] = useState<string[]>([])
+function useWeeklyAvailability() {
     const [weekDays, setWeekDays] = useState<WeekDay[]>([])
     const [startedTeams, setStartedTeams] = useState<Set<string>>(new Set())
-    const [sortMode, setSortMode] = useState<SortMode>('fpts')
-    const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
-    const [availableOnly, setAvailableOnly] = useState(true)
-    const [rookiesOnly, setRookiesOnly] = useState(false)
-    const [players, setPlayers] = useState<PlayerRow[]>([])
-    const [loading, setLoading] = useState(true)
-    const [loadingMore, setLoadingMore] = useState(false)
-    const [hasMore, setHasMore] = useState(false)
-    const searchParamsRef = useRef({ query: '', position: 'ALL', selectedTeams: [] as string[], leagueId: null as string | null, playingTeams: null as string[] | null, rookiesOnly: false })
-    const offsetRef = useRef(0)
-    const listRef = useRef<FlashListRef<PlayerRow>>(null)
-
-    const gamesLeft = useMemo(() => {
-        const today = todayET()
-        const map = new Map<string, number>()
-        for (const day of weekDays) {
-            if (day.date < today) continue
-            for (const team of day.playingTeams) {
-                if (day.date === today && startedTeams.has(team)) continue
-                map.set(team, (map.get(team) ?? 0) + 1)
-            }
-        }
-        return map
-    }, [weekDays, startedTeams])
-
-    const displayedPlayers = useMemo(() => {
-        const list = availableOnly ? players.filter((p) => !ownedMap.has(p.id)) : players
-        const sorted = [...list].sort((a, b) => {
-            let cmp = 0
-            switch (sortMode) {
-                case 'fpts':
-                    break
-                case 'gamesLeft': {
-                    const ga = gamesLeft.get(a.nba_team ?? '') ?? 0
-                    const gb = gamesLeft.get(b.nba_team ?? '') ?? 0
-                    cmp = gb - ga
-                    break
-                }
-                case 'name':
-                    cmp = (a.display_name ?? '').localeCompare(b.display_name ?? '')
-                    break
-                case 'team':
-                    cmp = (a.nba_team ?? '').localeCompare(b.nba_team ?? '')
-                    break
-                case 'yearsExp':
-                    cmp = (a.years_exp ?? 99) - (b.years_exp ?? 99)
-                    break
-            }
-            return sortDir === 'asc' ? cmp : -cmp
-        })
-        return sorted
-    }, [players, availableOnly, ownedMap, sortMode, sortDir, gamesLeft])
-
-    const playingTeams = useMemo<string[] | null>(() => {
-        if (selectedDays.length === 0) return null
-        const sets = selectedDays.map((date) => {
-            const day = weekDays.find((d) => d.date === date)
-            return new Set(day?.playingTeams ?? [])
-        })
-        const [first, ...rest] = sets
-        if (!first) return []
-        const intersection = new Set(first)
-        for (const s of rest) {
-            for (const team of intersection) {
-                if (!s.has(team)) intersection.delete(team)
-            }
-        }
-        return Array.from(intersection)
-    }, [selectedDays, weekDays])
-
-    useEffect(() => {
-        listRef.current?.scrollToOffset({ offset: 0, animated: false })
-    }, [sortMode, sortDir])
 
     useEffect(() => {
         let cancelled = false
@@ -122,15 +57,145 @@ export function usePlayerSearch(
         return () => { cancelled = true }
     }, [])
 
-    const load = useCallback(async (q: string, pos: string, teams: string[], lgId: string | null, playing: string[] | null, rookies: boolean) => {
-        searchParamsRef.current = { query: q, position: pos, selectedTeams: teams, leagueId: lgId, playingTeams: playing, rookiesOnly: rookies }
+    const gamesLeft = useMemo(() => {
+        const today = todayET()
+        const map = new Map<string, number>()
+        for (const day of weekDays) {
+            if (day.date < today) continue
+            for (const team of day.playingTeams) {
+                if (day.date === today && startedTeams.has(team)) continue
+                map.set(team, (map.get(team) ?? 0) + 1)
+            }
+        }
+        return map
+    }, [weekDays, startedTeams])
+
+    return { weekDays, gamesLeft }
+}
+
+function useTeamPicker() {
+    const [selectedTeams, setSelectedTeams] = useState<string[]>([])
+    const [popover, setPopover] = useState<{ top: number; right: number } | null>(null)
+    const buttonRef = useRef<View>(null)
+
+    const toggleTeam = useCallback((team: string) => {
+        setSelectedTeams((prev) =>
+            prev.includes(team) ? prev.filter((value) => value !== team) : [...prev, team],
+        )
+    }, [])
+
+    const open = useCallback(() => {
+        buttonRef.current?.measure((_x, _y, _width, _height, pageX, pageY) => {
+            const screenWidth = Dimensions.get('window').width
+            setPopover({ top: pageY, right: screenWidth - pageX })
+        })
+    }, [])
+
+    return { selectedTeams, setSelectedTeams, toggleTeam, popover, setPopover, buttonRef, open }
+}
+
+function selectedPlayingTeams(selectedDays: string[], weekDays: WeekDay[]): string[] | null {
+    if (selectedDays.length === 0) return null
+    const sets = selectedDays.map((date) => {
+        const day = weekDays.find((candidate) => candidate.date === date)
+        return new Set(day?.playingTeams ?? [])
+    })
+    const [first, ...rest] = sets
+    if (!first) return []
+    const intersection = new Set(first)
+    for (const set of rest) {
+        for (const team of intersection) {
+            if (!set.has(team)) intersection.delete(team)
+        }
+    }
+    return Array.from(intersection)
+}
+
+function sortPlayers(
+    players: PlayerRow[],
+    sortMode: SortMode,
+    sortDir: SortDir,
+    gamesLeft: Map<string, number>,
+) {
+    return [...players].sort((a, b) => {
+        let cmp = 0
+        switch (sortMode) {
+            case 'fpts':
+                break
+            case 'gamesLeft': {
+                const ga = gamesLeft.get(a.nba_team ?? '') ?? 0
+                const gb = gamesLeft.get(b.nba_team ?? '') ?? 0
+                cmp = gb - ga
+                break
+            }
+            case 'name':
+                cmp = (a.display_name ?? '').localeCompare(b.display_name ?? '')
+                break
+            case 'team':
+                cmp = (a.nba_team ?? '').localeCompare(b.nba_team ?? '')
+                break
+            case 'yearsExp':
+                cmp = (a.years_exp ?? 99) - (b.years_exp ?? 99)
+                break
+        }
+        return sortDir === 'asc' ? cmp : -cmp
+    })
+}
+
+export function usePlayerSearch(
+    leagueId: string | null,
+    ownedMap: Map<string, OwnedEntry>,
+) {
+    const [query, setQuery] = useState('')
+    const [position, setPosition] = useState('ALL')
+    const [selectedDays, setSelectedDays] = useState<string[]>([])
+    const [sortMode, setSortMode] = useState<SortMode>('fpts')
+    const [sortDir, setSortDir] = useState<SortDir>('desc')
+    const [availableOnly, setAvailableOnly] = useState(true)
+    const [rookiesOnly, setRookiesOnly] = useState(false)
+    const [players, setPlayers] = useState<PlayerRow[]>([])
+    const [loading, setLoading] = useState(true)
+    const [loadingMore, setLoadingMore] = useState(false)
+    const [hasMore, setHasMore] = useState(false)
+    const searchParamsRef = useRef<SearchParams>(DEFAULT_SEARCH_PARAMS)
+    const offsetRef = useRef(0)
+    const listRef = useRef<FlashListRef<PlayerRow>>(null)
+    const isFirstLeagueRunRef = useRef(true)
+
+    const teamPicker = useTeamPicker()
+    const { selectedTeams, setSelectedTeams } = teamPicker
+    const availability = useWeeklyAvailability()
+    const playingTeams = useMemo(
+        () => selectedPlayingTeams(selectedDays, availability.weekDays),
+        [selectedDays, availability.weekDays],
+    )
+
+    const displayedPlayers = useMemo(() => {
+        const filtered = availableOnly ? players.filter((player) => !ownedMap.has(player.id)) : players
+        return sortPlayers(filtered, sortMode, sortDir, availability.gamesLeft)
+    }, [players, availableOnly, ownedMap, sortMode, sortDir, availability.gamesLeft])
+
+    useEffect(() => {
+        listRef.current?.scrollToOffset({ offset: 0, animated: false })
+    }, [sortMode, sortDir])
+
+    const load = useCallback(async (params: SearchParams) => {
+        searchParamsRef.current = params
         offsetRef.current = 0
         setLoading(true)
         setHasMore(false)
         try {
-            const results = await searchPlayers(q, pos, teams, lgId, playing, rookies, 0)
+            const results = await searchPlayers(
+                params.query,
+                params.position,
+                params.selectedTeams,
+                params.leagueId,
+                params.playingTeams,
+                params.rookiesOnly,
+                0,
+            )
             setPlayers(results)
-            setHasMore(!rookies && results.length === PAGE_SIZE)
+            setHasMore(!params.rookiesOnly && results.length === PAGE_SIZE)
         } catch (e) {
             console.error(e)
         } finally {
@@ -140,11 +205,19 @@ export function usePlayerSearch(
 
     const loadMore = useCallback(async () => {
         if (loadingMore || !hasMore) return
-        const p = searchParamsRef.current
+        const params = searchParamsRef.current
         const nextOffset = offsetRef.current + PAGE_SIZE
         setLoadingMore(true)
         try {
-            const results = await searchPlayers(p.query, p.position, p.selectedTeams, p.leagueId, p.playingTeams, p.rookiesOnly, nextOffset)
+            const results = await searchPlayers(
+                params.query,
+                params.position,
+                params.selectedTeams,
+                params.leagueId,
+                params.playingTeams,
+                params.rookiesOnly,
+                nextOffset,
+            )
             if (results.length > 0) {
                 offsetRef.current = nextOffset
                 setPlayers((prev) => [...prev, ...results])
@@ -157,7 +230,6 @@ export function usePlayerSearch(
         }
     }, [loadingMore, hasMore])
 
-    const isFirstLeagueRunRef = useRef(true)
     useEffect(() => {
         if (isFirstLeagueRunRef.current) {
             isFirstLeagueRunRef.current = false
@@ -168,23 +240,25 @@ export function usePlayerSearch(
     }, [leagueId])
 
     useEffect(() => {
-        const timer = setTimeout(() => load(query, position, selectedTeams, leagueId, playingTeams, rookiesOnly), 300)
+        const params = {
+            query,
+            position,
+            selectedTeams,
+            leagueId,
+            playingTeams,
+            rookiesOnly,
+        }
+        const timer = setTimeout(() => load(params), 300)
         return () => clearTimeout(timer)
     }, [query, position, selectedTeams, leagueId, playingTeams, rookiesOnly, load])
 
-    function toggleTeam(t: string) {
-        setSelectedTeams((prev) =>
-            prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]
-        )
-    }
-
-    function toggleDay(date: string) {
+    const toggleDay = useCallback((date: string) => {
         setSelectedDays((prev) =>
-            prev.includes(date) ? prev.filter((x) => x !== date) : [...prev, date]
+            prev.includes(date) ? prev.filter((value) => value !== date) : [...prev, date],
         )
-    }
+    }, [])
 
-    function clearAllFilters() {
+    const clearAllFilters = useCallback(() => {
         setQuery('')
         setPosition('ALL')
         setSelectedTeams([])
@@ -193,7 +267,7 @@ export function usePlayerSearch(
         setRookiesOnly(false)
         setSortMode('fpts')
         setSortDir('desc')
-    }
+    }, [setSelectedTeams])
 
     const activeFilterCount = useMemo(() => {
         let count = 0
@@ -205,36 +279,23 @@ export function usePlayerSearch(
         if (rookiesOnly) count++
         if (sortMode !== 'fpts') count++
         return count
-    }, [query, position, selectedTeams, selectedDays, availableOnly, rookiesOnly, sortMode])
-
-    function openTeamPicker() {
-        teamBtnRef.current?.measure((_x: number, _y: number, _width: number, _height: number, pageX: number, pageY: number) => {
-            const screenWidth = Dimensions.get('window').width
-            setTeamPopover({ top: pageY, right: screenWidth - pageX })
-        })
-    }
+    }, [query, position, selectedTeams.length, selectedDays.length, availableOnly, rookiesOnly, sortMode])
 
     return {
-        query, setQuery,
-        position, setPosition,
-        selectedTeams, setSelectedTeams,
-        teamPopover, setTeamPopover,
-        teamBtnRef,
-        selectedDays, setSelectedDays,
-        weekDays,
-        sortMode, setSortMode,
-        sortDir, setSortDir,
-        availableOnly, setAvailableOnly,
-        rookiesOnly, setRookiesOnly,
-        loading, loadingMore,
-        gamesLeft,
-        displayedPlayers,
+        search: { query, setQuery },
+        position: { value: position, setValue: setPosition },
+        teamPicker,
+        availability: {
+            weekDays: availability.weekDays,
+            selectedDays,
+            setSelectedDays,
+            toggleDay,
+            gamesLeft: availability.gamesLeft,
+        },
+        sort: { mode: sortMode, setMode: setSortMode, dir: sortDir, setDir: setSortDir },
+        toggles: { availableOnly, setAvailableOnly, rookiesOnly, setRookiesOnly },
+        results: { players: displayedPlayers, loading, loadingMore, listRef, loadMore },
         activeFilterCount,
-        listRef,
-        toggleTeam,
-        toggleDay,
         clearAllFilters,
-        openTeamPicker,
-        loadMore,
     }
 }

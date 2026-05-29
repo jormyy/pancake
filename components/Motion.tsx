@@ -74,7 +74,7 @@ type MotionPressableProps = Omit<PressableProps, 'style'> & {
     disabled?: boolean
     lift?: number
     pressedScale?: number
-    style?: StyleProp<ViewStyle>
+    style?: PressableProps['style']
 }
 
 export function MotionPressable({
@@ -129,7 +129,10 @@ export function MotionPressable({
                 }
                 onPressOut?.(event)
             }}
-            style={[style, animatedStyle]}
+            style={(state) => [
+                typeof style === 'function' ? style(state) : style,
+                animatedStyle,
+            ]}
         >
             {children}
         </AnimatedPressable>

@@ -12,7 +12,7 @@ import {
 import { FlashList } from '@shopify/flash-list'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
-import { OwnedEntry } from '@/lib/roster'
+import { getOwnedPlayerMap, OwnedEntry } from '@/lib/roster'
 import { useLeagueContext } from '@/contexts/league-context'
 import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 import { ItemSeparator } from '@/components/ItemSeparator'
@@ -23,7 +23,6 @@ import { PlayerSearchItem } from '@/components/PlayerSearchItem'
 import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
 import { usePlayerSearch, SORT_OPTIONS } from '@/hooks/use-player-search'
 import { useQuickAdd } from '@/hooks/use-quick-add'
-import { getOwnedPlayerMap } from '@/lib/roster'
 import { getWaiverPlayerIds } from '@/lib/waivers'
 import { todayET } from '@/lib/shared/dates'
 import { PlayerRow } from '@/lib/players'
@@ -70,24 +69,24 @@ export default function PlayersScreen() {
                     style={styles.searchInput}
                     placeholder="Search players..."
                     placeholderTextColor={colors.textPlaceholder}
-                    value={search.query}
-                    onChangeText={search.setQuery}
+                    value={search.search.query}
+                    onChangeText={search.search.setQuery}
                     autoCorrect={false}
                     clearButtonMode="while-editing"
                 />
                 <Pressable
-                    style={[styles.chip, search.availableOnly && styles.chipPrimary]}
-                    onPress={() => search.setAvailableOnly((v) => !v)}
+                    style={[styles.chip, search.toggles.availableOnly && styles.chipPrimary]}
+                    onPress={() => search.toggles.setAvailableOnly((value) => !value)}
                 >
-                    <Text style={[styles.chipText, search.availableOnly && styles.chipTextActive]}>
+                    <Text style={[styles.chipText, search.toggles.availableOnly && styles.chipTextActive]}>
                         Available
                     </Text>
                 </Pressable>
                 <Pressable
-                    style={[styles.chip, search.rookiesOnly && styles.chipSuccess]}
-                    onPress={() => search.setRookiesOnly((v) => !v)}
+                    style={[styles.chip, search.toggles.rookiesOnly && styles.chipSuccess]}
+                    onPress={() => search.toggles.setRookiesOnly((value) => !value)}
                 >
-                    <Text style={[styles.chipText, search.rookiesOnly && styles.chipTextActive]}>
+                    <Text style={[styles.chipText, search.toggles.rookiesOnly && styles.chipTextActive]}>
                         Rookie
                     </Text>
                 </Pressable>
@@ -103,10 +102,10 @@ export default function PlayersScreen() {
                     {POSITIONS.map((item) => (
                         <Pressable
                             key={item}
-                            style={[styles.posChip, search.position === item && styles.posChipActive]}
-                            onPress={() => search.setPosition(item)}
+                            style={[styles.posChip, search.position.value === item && styles.posChipActive]}
+                            onPress={() => search.position.setValue(item)}
                         >
-                            <Text style={[styles.posChipText, search.position === item && styles.posChipTextActive]}>
+                            <Text style={[styles.posChipText, search.position.value === item && styles.posChipTextActive]}>
                                 {item}
                             </Text>
                         </Pressable>
@@ -114,16 +113,16 @@ export default function PlayersScreen() {
                 </ScrollView>
 
                 <Pressable
-                    ref={search.teamBtnRef}
-                    style={[styles.teamDropdown, search.selectedTeams.length > 0 && styles.teamDropdownActive]}
-                    onPress={search.openTeamPicker}
+                    ref={search.teamPicker.buttonRef}
+                    style={[styles.teamDropdown, search.teamPicker.selectedTeams.length > 0 && styles.teamDropdownActive]}
+                    onPress={search.teamPicker.open}
                 >
-                    <Text style={[styles.teamDropdownText, search.selectedTeams.length > 0 && styles.teamDropdownTextActive]}>
-                        {search.selectedTeams.length === 0 ? 'Team'
-                            : search.selectedTeams.length === 1 ? search.selectedTeams[0]
-                            : `${search.selectedTeams.length} teams`}
+                    <Text style={[styles.teamDropdownText, search.teamPicker.selectedTeams.length > 0 && styles.teamDropdownTextActive]}>
+                        {search.teamPicker.selectedTeams.length === 0 ? 'Team'
+                            : search.teamPicker.selectedTeams.length === 1 ? search.teamPicker.selectedTeams[0]
+                            : `${search.teamPicker.selectedTeams.length} teams`}
                     </Text>
-                    <Text style={[styles.teamDropdownCaret, search.selectedTeams.length > 0 && styles.teamDropdownTextActive]}>▾</Text>
+                    <Text style={[styles.teamDropdownCaret, search.teamPicker.selectedTeams.length > 0 && styles.teamDropdownTextActive]}>▾</Text>
                 </Pressable>
             </View>
 
@@ -134,23 +133,23 @@ export default function PlayersScreen() {
                     contentContainerStyle={styles.sortChips}
                 >
                     {SORT_OPTIONS.map((opt) => {
-                        const active = search.sortMode === opt.key
+                        const active = search.sort.mode === opt.key
                         return (
                             <Pressable
                                 key={opt.key}
                                 style={[styles.sortChip, active && styles.sortChipActive]}
                                 onPress={() => {
                                     if (active) {
-                                        search.setSortDir((d) => d === 'asc' ? 'desc' : 'asc')
+                                        search.sort.setDir((dir) => dir === 'asc' ? 'desc' : 'asc')
                                     } else {
-                                        search.setSortMode(opt.key)
-                                        search.setSortDir(opt.key === 'name' || opt.key === 'team' ? 'asc' : 'desc')
+                                        search.sort.setMode(opt.key)
+                                        search.sort.setDir(opt.key === 'name' || opt.key === 'team' ? 'asc' : 'desc')
                                     }
                                 }}
                             >
                                 <Text style={[styles.sortChipText, active && styles.sortChipTextActive]}>
                                     {opt.label}
-                                    {active ? (search.sortDir === 'asc' ? ' ↑' : ' ↓') : ''}
+                                    {active ? (search.sort.dir === 'asc' ? ' ↑' : ' ↓') : ''}
                                 </Text>
                             </Pressable>
                         )
@@ -164,22 +163,22 @@ export default function PlayersScreen() {
                     showsHorizontalScrollIndicator={false}
                     contentContainerStyle={styles.dayChips}
                 >
-                    {search.weekDays.filter((day) => day.date >= todayET()).map((day) => {
-                        const active = search.selectedDays.includes(day.date)
+                    {search.availability.weekDays.filter((day) => day.date >= todayET()).map((day) => {
+                        const active = search.availability.selectedDays.includes(day.date)
                         const label = new Date(day.date + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'short' })
                         return (
                             <Pressable
                                 key={day.date}
                                 style={[styles.dayChip, active && styles.dayChipActive]}
-                                onPress={() => search.toggleDay(day.date)}
+                                onPress={() => search.availability.toggleDay(day.date)}
                             >
                                 <Text style={[styles.dayChipLabel, active && styles.dayChipTextActive]}>{label}</Text>
                                 <Text style={[styles.dayChipNum, active && styles.dayChipTextActive]}>{day.dateNum}</Text>
                             </Pressable>
                         )
                     })}
-                    {search.selectedDays.length > 0 && (
-                        <Pressable style={styles.dayClearBtn} onPress={() => search.setSelectedDays([])}>
+                    {search.availability.selectedDays.length > 0 && (
+                        <Pressable style={styles.dayClearBtn} onPress={() => search.availability.setSelectedDays([])}>
                             <Text style={styles.dayClearText}>Clear</Text>
                         </Pressable>
                     )}
@@ -188,7 +187,7 @@ export default function PlayersScreen() {
 
             <View style={styles.filterStatusRow}>
                 <Text style={styles.filterCountText}>
-                    {search.loading ? 'Searching...' : `${search.displayedPlayers.length} player${search.displayedPlayers.length !== 1 ? 's' : ''}`}
+                    {search.results.loading ? 'Searching...' : `${search.results.players.length} player${search.results.players.length !== 1 ? 's' : ''}`}
                 </Text>
                 {search.activeFilterCount > 0 && (
                     <Pressable style={styles.clearAllChip} onPress={search.clearAllFilters}>
@@ -198,29 +197,29 @@ export default function PlayersScreen() {
             </View>
 
             <Modal
-                visible={search.teamPopover !== null}
+                visible={search.teamPicker.popover !== null}
                 transparent
                 animationType="none"
-                onRequestClose={() => search.setTeamPopover(null)}
+                onRequestClose={() => search.teamPicker.setPopover(null)}
             >
-                <Pressable style={styles.popoverBackdrop} onPress={() => search.setTeamPopover(null)}>
+                <Pressable style={styles.popoverBackdrop} onPress={() => search.teamPicker.setPopover(null)}>
                     <View
-                        style={[styles.teamPopover, search.teamPopover ? { top: search.teamPopover.top, right: search.teamPopover.right } : {}]}
+                        style={[styles.teamPopover, search.teamPicker.popover ? { top: search.teamPicker.popover.top, right: search.teamPicker.popover.right } : {}]}
                         onStartShouldSetResponder={() => true}
                     >
-                        {search.selectedTeams.length > 0 && (
-                            <Pressable onPress={() => search.setSelectedTeams([])} style={styles.popoverClear}>
+                        {search.teamPicker.selectedTeams.length > 0 && (
+                            <Pressable onPress={() => search.teamPicker.setSelectedTeams([])} style={styles.popoverClear}>
                                 <Text style={styles.popoverClearText}>Clear</Text>
                             </Pressable>
                         )}
                         <View style={styles.teamGrid}>
                             {TEAMS.map((t) => {
-                                const active = search.selectedTeams.includes(t)
+                                const active = search.teamPicker.selectedTeams.includes(t)
                                 return (
                                     <Pressable
                                         key={t}
                                         style={[styles.teamCell, active && styles.teamCellActive]}
-                                        onPress={() => search.toggleTeam(t)}
+                                        onPress={() => search.teamPicker.toggleTeam(t)}
                                     >
                                         <Text style={[styles.teamCellText, active && styles.teamCellTextActive]}>{t}</Text>
                                     </Pressable>
@@ -231,14 +230,14 @@ export default function PlayersScreen() {
                 </Pressable>
             </Modal>
 
-            {search.loading ? (
+            {search.results.loading ? (
                 <ActivityIndicator style={styles.flex1} color={colors.primary} />
             ) : (
                 <FlashList
-                    ref={search.listRef}
-                    data={search.displayedPlayers}
+                    ref={search.results.listRef}
+                    data={search.results.players}
                     keyExtractor={(p: PlayerRow) => p.id}
-                    contentContainerStyle={search.displayedPlayers.length === 0 ? styles.emptyContainer : undefined}
+                    contentContainerStyle={search.results.players.length === 0 ? styles.emptyContainer : undefined}
                     ItemSeparatorComponent={ItemSeparator}
                     renderItem={({ item }: { item: PlayerRow }) => (
                         <PlayerSearchItem
@@ -247,15 +246,15 @@ export default function PlayersScreen() {
                             ownedMap={ownedMap}
                             waiverIds={waiverIds}
                             adding={quickAdd.adding}
-                            gamesLeft={search.gamesLeft}
+                            gamesLeft={search.availability.gamesLeft}
                             onAdd={quickAdd.handleAdd}
                             onPress={() => push(`/player/${item.id}`)}
                         />
                     )}
                     ListEmptyComponent={<EmptyState message="No players found." fullScreen={false} />}
-                    onEndReached={search.loadMore}
+                    onEndReached={search.results.loadMore}
                     onEndReachedThreshold={0.3}
-                    ListFooterComponent={search.loadingMore ? <ActivityIndicator style={styles.loadMoreSpinner} color={colors.primary} /> : null}
+                    ListFooterComponent={search.results.loadingMore ? <ActivityIndicator style={styles.loadMoreSpinner} color={colors.primary} /> : null}
                 />
             )}
 

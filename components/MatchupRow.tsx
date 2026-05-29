@@ -62,6 +62,7 @@ type MatchupRowProps = {
     teamMatchups: Map<string, { opponent: string; isHome: boolean }>
     isExtraOppRow?: boolean
     compact?: boolean
+    dense?: boolean
     motionDelay?: number
 }
 
@@ -81,6 +82,7 @@ function MatchupRowImpl({
     teamMatchups,
     isExtraOppRow = false,
     compact = false,
+    dense = false,
     motionDelay = 0,
 }: MatchupRowProps) {
     const { push } = useRouter()
@@ -109,30 +111,35 @@ function MatchupRowImpl({
 
     return (
         <MotionView
-            style={[styles.matchupRow, compact && styles.matchupRowCompact, isExtraOppRow && styles.extraOppRow]}
+            style={[
+                styles.matchupRow,
+                compact && styles.matchupRowCompact,
+                dense && styles.matchupRowDense,
+                isExtraOppRow && styles.extraOppRow,
+            ]}
             preset="fade"
             delay={motionDelay}
         >
             {/* Left: my player (right-aligned) */}
             <MotionPressable
                 style={styles.rowSideLeft}
-                onPress={myPlayer ? () => push(`/player/${myPlayer.playerId}` as any) : undefined}
+                onPress={myPlayer ? () => push({ pathname: '/player/[id]', params: { id: myPlayer.playerId } }) : undefined}
                 disabled={!myPlayer}
                 pressedScale={0.985}
             >
                 {myPlayer ? (
                     <>
                         {myFpts != null && (
-                            <Text style={[styles.fptsNum, myIsLive && styles.fptsLive]}>{myFpts}</Text>
+                            <Text style={[styles.fptsNum, dense && styles.fptsNumDense, myIsLive && styles.fptsLive]}>{myFpts}</Text>
                         )}
                         <View style={styles.playerBlockRight}>
                             <View style={[styles.metaRow, { justifyContent: 'flex-end' }]}>
                                 {myShowInjury && <InjuryBadge status={myPlayer.injuryStatus} />}
-                                <Text style={[styles.sideName, !myHasGame && styles.noGameName]} numberOfLines={1}>
+                                <Text style={[styles.sideName, dense && styles.sideNameDense, !myHasGame && styles.noGameName]} numberOfLines={1}>
                                     {shortName(myPlayer.displayName)}
                                 </Text>
                             </View>
-                            <View style={[styles.metaRow, { justifyContent: 'flex-end' }]}>
+                            {!dense && <View style={[styles.metaRow, { justifyContent: 'flex-end' }]}>
                                 {myIsLive && (
                                     <View style={styles.liveBadgeRow}>
                                         <LivePulse color={palette.green600} size={5} />
@@ -145,8 +152,8 @@ function MatchupRowImpl({
                                         {myPlayer.nbaTeam} {myMatchupLabel}
                                     </Text>
                                 )}
-                            </View>
-                            {myStats ? (
+                            </View>}
+                            {myStats && !dense ? (
                                 <StatLines stats={myStats} isLive={myIsLive} align="right" compact={compact} />
                             ) : null}
                         </View>
@@ -161,6 +168,7 @@ function MatchupRowImpl({
                 style={[
                     styles.slotChipCenter,
                     compact && styles.slotChipCenterCompact,
+                    dense && styles.slotChipCenterDense,
                     { backgroundColor: slotColor + '22' },
                     isSel && styles.slotChipSelected,
                     saving && { opacity: 0.4 },
@@ -181,7 +189,7 @@ function MatchupRowImpl({
             {/* Right: opponent player (left-aligned) */}
             <MotionPressable
                 style={styles.rowSideRight}
-                onPress={oppPlayer ? () => push(`/player/${oppPlayer.playerId}` as any) : undefined}
+                onPress={oppPlayer ? () => push({ pathname: '/player/[id]', params: { id: oppPlayer.playerId } }) : undefined}
                 disabled={!oppPlayer}
                 pressedScale={0.985}
             >
@@ -189,12 +197,12 @@ function MatchupRowImpl({
                     <>
                         <View style={styles.playerBlockLeft}>
                             <View style={styles.metaRow}>
-                                <Text style={[styles.sideName, !oppHasGame && styles.noGameName]} numberOfLines={1}>
+                                <Text style={[styles.sideName, dense && styles.sideNameDense, !oppHasGame && styles.noGameName]} numberOfLines={1}>
                                     {shortName(oppPlayer.displayName)}
                                 </Text>
                                 {oppShowInjury && <InjuryBadge status={oppPlayer.injuryStatus} />}
                             </View>
-                            <View style={styles.metaRow}>
+                            {!dense && <View style={styles.metaRow}>
                                 {!compact && oppPlayer.eligiblePositions.map((pos) => <PosTag key={pos} position={pos} />)}
                                 {oppMatchupLabel !== null && (
                                     <Text style={styles.sideMeta} numberOfLines={1}>
@@ -207,13 +215,13 @@ function MatchupRowImpl({
                                         <Text style={styles.lockedBadge}>LIVE</Text>
                                     </View>
                                 )}
-                            </View>
-                            {oppStats ? (
+                            </View>}
+                            {oppStats && !dense ? (
                                 <StatLines stats={oppStats} isLive={oppIsLive} align="left" compact={compact} />
                             ) : null}
                         </View>
                         {oppFpts != null && (
-                            <Text style={[styles.fptsNum, styles.fptsRight, oppIsLive && styles.fptsLive]}>{oppFpts}</Text>
+                            <Text style={[styles.fptsNum, styles.fptsRight, dense && styles.fptsNumDense, oppIsLive && styles.fptsLive]}>{oppFpts}</Text>
                         )}
                     </>
                 ) : (
@@ -239,6 +247,9 @@ const styles = StyleSheet.create({
         paddingVertical: 4,
         gap: 6,
     },
+    matchupRowDense: {
+        paddingVertical: 2,
+    },
     extraOppRow: {
     },
     rowSideLeft: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end' },
@@ -246,9 +257,11 @@ const styles = StyleSheet.create({
     playerBlockRight: { flex: 1, alignItems: 'flex-end' },
     playerBlockLeft: { flex: 1, alignItems: 'flex-start' },
     fptsNum: { fontSize: 20, fontWeight: '800', color: colors.textMuted, minWidth: 36, textAlign: 'left', marginRight: 6 },
+    fptsNumDense: { fontSize: 16, minWidth: 28 },
     fptsRight: { textAlign: 'right', marginRight: 0, marginLeft: 6 },
     fptsLive: { color: colors.primary },
     sideName: { fontSize: 13, fontWeight: '600', color: colors.textPrimary, flexShrink: 1 },
+    sideNameDense: { fontSize: 12 },
     noGameName: { color: palette.gray500 },
     metaRow: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 2 },
     sideMeta: { fontSize: 11, color: colors.textPlaceholder },
@@ -269,6 +282,10 @@ const styles = StyleSheet.create({
         width: 42,
         height: 26,
         borderRadius: 7,
+    },
+    slotChipCenterDense: {
+        width: 38,
+        height: 24,
     },
     slotChipSelected: { borderWidth: 1.5, borderColor: colors.primary },
     slotChipText: { fontSize: 11, fontWeight: '800', letterSpacing: 0.3 },
