@@ -222,29 +222,43 @@ const runOneAuthUser = async ({ state, env, season, userIndex, sessionList }) =>
 export async function runBrowserAuthScenario({
   season = 0,
   userCount = Number(process.env.E2E_BROWSER_AUTH_USERS ?? 10),
+  concurrency = Number(process.env.E2E_BROWSER_AUTH_CONCURRENCY ?? 2),
 } = {}) {
   const env = resolvedEnv()
   const state = await readState()
   if (!state.password) throw new Error('tests/e2e-state.json is missing the seeded user password')
   if (!Number.isInteger(userCount) || userCount < 1) throw new Error('E2E_BROWSER_AUTH_USERS must be a positive integer')
+  if (!Number.isInteger(concurrency) || concurrency < 1) throw new Error('E2E_BROWSER_AUTH_CONCURRENCY must be a positive integer')
 
   const count = Math.min(userCount, state.users.length)
   const sessionList = await listSessions().catch((error) => `session list unavailable: ${error.message}`)
-  const reports = await Promise.all(
-    Array.from({ length: count }, (_, index) => runOneAuthUser({
-      state,
-      env,
-      season,
-      userIndex: index,
-      sessionList,
-    })),
+  const reports = Array.from({ length: count })
+  let nextIndex = 0
+  const runNext = async () => {
+    while (nextIndex < count) {
+      const index = nextIndex
+      nextIndex += 1
+      reports[index] = await runOneAuthUser({
+        state,
+        env,
+        season,
+        userIndex: index,
+        sessionList,
+      })
+    }
+  }
+
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, count) }, runNext),
   )
 
+  const completedReports = reports.filter(Boolean)
   const report = {
-    status: reports.every((row) => row.status === 'PASS') ? 'PASS' : 'FAIL',
+    status: completedReports.every((row) => row.status === 'PASS') ? 'PASS' : 'FAIL',
     season,
     userCount: count,
-    reports,
+    concurrency,
+    reports: completedReports,
   }
   await writeFile(REPORT_PATH, `${JSON.stringify(report, null, 2)}\n`)
   if (report.status !== 'PASS') {
