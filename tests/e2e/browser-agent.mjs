@@ -9,13 +9,16 @@ const DEFAULT_LIST_TIMEOUT_MS = 10_000
 const DEFAULT_MAX_BUFFER = 1024 * 1024 * 4
 const DEFAULT_LIST_MAX_BUFFER = 1024 * 1024
 const SCREENSHOT_SKIP_MESSAGE =
-  'screenshot skipped; set E2E_BROWSER_SCREENSHOTS_REQUIRED=1 to require agent-browser screenshots'
+  'screenshot skipped because E2E_BROWSER_SKIP_SCREENSHOTS=1'
 
-const screenshotsRequired = () => process.env.E2E_BROWSER_SCREENSHOTS_REQUIRED === '1'
+const screenshotsSkipped = () => process.env.E2E_BROWSER_SKIP_SCREENSHOTS === '1'
 
-const screenshotTimeoutMs = () => {
-  const parsed = Number(process.env.E2E_BROWSER_SCREENSHOT_TIMEOUT_MS ?? 5000)
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 5000
+const screenshotTimeoutsMs = () => {
+  const parsed = (process.env.E2E_BROWSER_SCREENSHOT_TIMEOUTS_MS ?? '')
+    .split(',')
+    .map((value) => Number(value.trim()))
+    .filter((value) => Number.isFinite(value) && value > 0)
+  return parsed.length > 0 ? parsed : [60_000, 120_000]
 }
 
 const writeScreenshotError = async (outputPath, message) => {
@@ -28,17 +31,14 @@ export const createBrowser = ({
   maxBuffer = DEFAULT_MAX_BUFFER,
 } = {}) => async (session, args, options = {}) => {
   const isScreenshot = args[0] === 'screenshot' && typeof args[1] === 'string'
-  if (isScreenshot && !screenshotsRequired()) {
+  if (isScreenshot && screenshotsSkipped()) {
     await writeScreenshotError(args[1], SCREENSHOT_SKIP_MESSAGE)
     return ''
   }
 
-  const timeout = isScreenshot
-    ? Math.min(options.timeout ?? screenshotTimeoutMs(), screenshotTimeoutMs())
-    : options.timeout ?? defaultTimeout
   const { stdout, stderr } = await execFileAsync('agent-browser', ['--session', session, ...args], {
     cwd,
-    timeout,
+    timeout: options.timeout ?? defaultTimeout,
     maxBuffer: options.maxBuffer ?? maxBuffer,
   })
   return [stdout, stderr].filter(Boolean).join('\n').trim()
@@ -59,17 +59,23 @@ export const listBrowserSessions = async ({
 
 export const captureBrowserScreenshot = async (browser, session, artifactDir, filename) => {
   const outputPath = path.join(artifactDir, filename)
-  if (!screenshotsRequired()) {
+  if (screenshotsSkipped()) {
     await writeScreenshotError(outputPath, SCREENSHOT_SKIP_MESSAGE)
     return { ok: false, path: outputPath, skipped: true, error: SCREENSHOT_SKIP_MESSAGE }
   }
 
-  try {
-    await browser(session, ['screenshot', outputPath], { timeout: screenshotTimeoutMs() })
-    return { ok: true, path: outputPath, timeout: screenshotTimeoutMs() }
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    await writeScreenshotError(outputPath, message)
-    throw error instanceof Error ? error : new Error(message)
+  let lastError = null
+  for (const timeout of screenshotTimeoutsMs()) {
+    try {
+      await browser(session, ['screenshot', outputPath], { timeout })
+      return { ok: true, path: outputPath, timeout }
+    } catch (error) {
+      lastError = error
+      await browser(session, ['wait', '1000']).catch(() => {})
+    }
   }
+
+  const message = lastError instanceof Error ? lastError.message : String(lastError)
+  await writeScreenshotError(outputPath, message)
+  throw lastError instanceof Error ? lastError : new Error(message)
 }
