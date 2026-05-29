@@ -1771,8 +1771,8 @@ export async function runBrowserTradeOverflowAcceptScenario({
     await assertPageText(
       session,
       [
-        'Drop 1 player to accept',
-        `Accepting this trade would exceed your ${fixture.rosterSize}-player roster limit.`,
+        'Drop 1 player to make room',
+        `Trade accepted. You must drop 1 player before the veto window closes to stay under your ${fixture.rosterSize}-player roster limit.`,
         fixture.recipientPlayer.display_name,
       ],
       'overflow drop picker',
