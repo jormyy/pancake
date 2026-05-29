@@ -191,6 +191,7 @@ export async function getRookiePlayers(draftId: string, query?: string): Promise
         .select('id, display_name, nba_team, position, nba_draft_number')
         .not('nba_draft_number', 'is', null)
         .order('nba_draft_number', { ascending: true })
+        .order('id', { ascending: true })
         .limit(100)
 
     if (query?.trim()) {
@@ -205,6 +206,7 @@ export async function getRookiePlayers(draftId: string, query?: string): Promise
             .select('id, display_name, nba_team, position')
             .not('nba_draft_number', 'is', null)
             .order('nba_draft_number', { ascending: true })
+            .order('id', { ascending: true })
             .limit(100)
         if (query?.trim()) fallback = fallback.ilike('display_name', `%${query.trim()}%`)
         const { data: fbData } = await fallback

@@ -218,6 +218,7 @@ const setupBrowserRookieDraftFixture = async (env, season) => {
     .select('id, display_name, nba_draft_number')
     .not('nba_draft_number', 'is', null)
     .order('nba_draft_number', { ascending: true })
+    .order('id', { ascending: true })
     .limit(4)
   if (rookiesError) throw new Error(`rookie player lookup: ${rookiesError.message}`)
   if ((rookies ?? []).length < 2) throw new Error('browser rookie draft requires at least two players with nba_draft_number')

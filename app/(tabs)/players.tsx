@@ -61,15 +61,11 @@ export default function PlayersScreen() {
         waiverIds,
         refreshOwned,
     )
-    const playerListVersion = [
-        search.sort.mode,
-        search.sort.dir,
-        search.results.players.map((player) => player.id).join(','),
-        Array.from(search.availability.gamesLeft.entries())
-            .sort(([a], [b]) => a.localeCompare(b))
-            .map(([team, count]) => `${team}:${count}`)
-            .join(','),
-    ].join('|')
+    const gamesLeftVersion = Array.from(search.availability.gamesLeft.entries())
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([team, count]) => `${team}:${count}`)
+        .join(',')
+    const playerListOrderVersion = [search.sort.mode, search.sort.dir, gamesLeftVersion].join('|')
 
     return (
         <SafeAreaView style={styles.container}>
@@ -243,10 +239,10 @@ export default function PlayersScreen() {
                 <ActivityIndicator style={styles.flex1} color={colors.primary} />
             ) : (
                 <FlashList
-                    key={playerListVersion}
+                    key={playerListOrderVersion}
                     ref={search.results.listRef}
                     data={search.results.players}
-                    extraData={playerListVersion}
+                    extraData={playerListOrderVersion}
                     keyExtractor={(p: PlayerRow) => p.id}
                     contentContainerStyle={search.results.players.length === 0 ? styles.emptyContainer : undefined}
                     ItemSeparatorComponent={ItemSeparator}

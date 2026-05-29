@@ -312,6 +312,7 @@ export async function autoPickBest(draftId: string, memberId: string) {
         .select('id')
         .not('nba_draft_number', 'is', null)
         .order('nba_draft_number', { ascending: true })
+        .order('id', { ascending: true })
         .limit(100)
 
     const best = (players ?? []).find((p) => !pickedIds.has(p.id))
