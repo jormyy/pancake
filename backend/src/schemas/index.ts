@@ -99,6 +99,7 @@ export const TradeActionBody = {
     additionalProperties: false,
     properties: {
         memberId: UUID,
+        dropRosterPlayerIds: ID_ARRAY,
     },
 }
 

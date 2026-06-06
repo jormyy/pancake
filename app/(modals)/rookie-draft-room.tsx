@@ -4,7 +4,6 @@ import {
     TextInput,
     StyleSheet,
     ActivityIndicator,
-    Alert,
     KeyboardAvoidingView,
     Modal,
     Platform,
@@ -13,277 +12,45 @@ import {
 import { FlashList } from '@shopify/flash-list'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Stack, useLocalSearchParams } from 'expo-router'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
-import {
-    getRookieDraftState,
-    getRookiePlayers,
-    makeSnakePick,
-    autoPickBest,
-    subscribeToRookieDraft,
-    unsubscribeFromRookieDraft,
-    type RookieDraftState,
-    type RookieProspect,
-    type SnakePick,
-} from '@/lib/rookieDraft'
-import { toggleTaxi, dropPlayer, getRoster, type RosterPlayer } from '@/lib/roster'
+import { type RookieProspect, type SnakePick } from '@/lib/rookieDraft'
 import { getPositionColor } from "@/constants/positions"
 import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
-import { getErrorMessage } from '@/lib/alert'
 import { MotionPressable, MotionView } from '@/components/Motion'
-
-const PICK_TIMEOUT_SEC = 30
+import { useRookieDraftRoomController } from '@/hooks/useRookieDraftRoomController'
 
 export default function RookieDraftRoomScreen() {
     const { draftId } = useLocalSearchParams<{ draftId: string }>()
     const { current, currentLeague } = useLeagueContext()
     const myMemberId = current?.id
-    // Persist the last known valid member ID so transient null context doesn't break picks
-    const myMemberIdRef = useRef<string | undefined>(undefined)
-    if (myMemberId) myMemberIdRef.current = myMemberId
-
-    const [state, setState] = useState<RookieDraftState | null>(null)
-    const [loading, setLoading] = useState(true)
-
-    const [query, setQuery] = useState('')
-    const [prospects, setProspects] = useState<RookieProspect[]>([])
-    const [prospectsLoading, setProspectsLoading] = useState(false)
-    const [picking, setPicking] = useState(false)
-    const [activeTab, setActiveTab] = useState<'prospects' | 'board'>('prospects')
-
-    const [secondsLeft, setSecondsLeft] = useState<number | null>(null)
-    const [pickError, setPickError] = useState<string | null>(null)
-    const autoPickFiredRef = useRef(false)
-
-    const [rosterOverflow, setRosterOverflow] = useState<{
-        newPlayerId: string
-        newPlayerName: string
-        newRosterPlayerId: string | null
-        taxiSlotsAvailable: boolean
-    } | null>(null)
-    const [rosterForDrop, setRosterForDrop] = useState<RosterPlayer[]>([])
-    const [resolvingOverflow, setResolvingOverflow] = useState(false)
-
-    // End-of-draft roster trim state
-    const [trimOverflow, setTrimOverflow] = useState<{ excess: number; dropList: RosterPlayer[] } | null>(null)
-    const [trimmingId, setTrimmingId] = useState<string | null>(null)
-    const draftEndCheckedRef = useRef(false)
-
-    const channelRef = useRef<ReturnType<typeof subscribeToRookieDraft> | null>(null)
-    const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-    const queryRef = useRef('')
-
-    const load = useCallback(async () => {
-        if (!draftId) {
-            setLoading(false)
-            return
-        }
-        const data = await getRookieDraftState(draftId)
-        setState(data)
-        setLoading(false)
-    }, [draftId])
-
-    const loadProspects = useCallback(async (q?: string) => {
-        if (!draftId) return
-        setProspectsLoading(true)
-        const data = await getRookiePlayers(draftId, q)
-        setProspects(data)
-        setProspectsLoading(false)
-    }, [draftId])
-
-    useEffect(() => {
-        load()
-        if (!draftId) return
-        channelRef.current = subscribeToRookieDraft(draftId, () => {
-            load()
-            loadProspects(queryRef.current.trim() || undefined)
-        })
-        return () => {
-            if (channelRef.current) unsubscribeFromRookieDraft(channelRef.current)
-        }
-    }, [draftId, load, loadProspects])
-
-    // Initial prospects load
-    useEffect(() => {
-        loadProspects()
-    }, [loadProspects])
-
-    // Debounced prospects search
-    useEffect(() => {
-        queryRef.current = query
-        if (searchTimer.current) clearTimeout(searchTimer.current)
-        searchTimer.current = setTimeout(() => {
-            loadProspects(query.trim() || undefined)
-        }, 300)
-        return () => {
-            if (searchTimer.current) clearTimeout(searchTimer.current)
-        }
-    }, [query, loadProspects])
-
-    // Derive when the current pick's clock started
-    const madePicksForClock = useMemo(
-        () => (state?.picks ?? []).filter((p) => p.player).sort((a, b) => b.overallPick - a.overallPick),
-        [state?.picks],
-    )
-    const draftStatus = state?.draft.status
-    const draftStartedAt = state?.draft.startedAt
-    const clockEnd = useMemo(() => {
-        if (draftStatus !== 'in_progress') return null
-        const start = madePicksForClock[0]?.pickedAt ?? draftStartedAt
-        if (!start) return null
-        return new Date(start).getTime() + PICK_TIMEOUT_SEC * 1000
-    }, [draftStatus, draftStartedAt, madePicksForClock])
-
-    // Tick the countdown
-    useEffect(() => {
-        if (!clockEnd) { setSecondsLeft(null); return }
-        autoPickFiredRef.current = false
-        const tick = () => setSecondsLeft(Math.max(0, Math.ceil((clockEnd - Date.now()) / 1000)))
-        tick()
-        const id = setInterval(tick, 500)
-        return () => clearInterval(id)
-    }, [clockEnd])
-
-    // Auto-pick when clock hits 0 and it's my turn
-    useEffect(() => {
-        const memberId = myMemberIdRef.current
-        if (secondsLeft !== 0 || !draftId || !memberId || picking) return
-        if (autoPickFiredRef.current) return
-        const isMyTurnNow = state?.nextPick?.memberId === memberId
-        if (!isMyTurnNow) return
-        autoPickFiredRef.current = true
-        ;(async () => {
-            setPicking(true)
-            try {
-                await autoPickBest(draftId, memberId)
-                setQuery('')
-                await Promise.all([load(), loadProspects()])
-            } catch (e) {
-                Alert.alert('Auto-pick failed', getErrorMessage(e))
-            } finally {
-                setPicking(false)
-            }
-        })()
-    }, [secondsLeft, draftId, picking, state?.nextPick?.memberId, load, loadProspects])
-
-    // Check for roster overflow when draft completes
-    const draftCompleted = state?.draft.status === 'completed'
-    useEffect(() => {
-        const memberId = myMemberIdRef.current ?? myMemberId
-        if (!draftCompleted || !memberId || draftEndCheckedRef.current) return
-        const lid = currentLeague?.id
-        if (!lid) return
-        draftEndCheckedRef.current = true
-        ;(async () => {
-            try {
-                const roster = await getRoster(memberId, lid)
-                const rosterSize = currentLeague?.roster_size ?? 20
-                const active = roster.filter((rp) => !rp.is_on_ir && !rp.is_on_taxi)
-                const excess = active.length - rosterSize
-                if (excess > 0) {
-                    setTrimOverflow({ excess, dropList: active })
-                }
-            } catch (e) {
-                console.error('[rookie-draft] post-draft roster check:', e)
-            }
-        })()
-    }, [draftCompleted, currentLeague?.id, currentLeague?.roster_size, myMemberId])
-
-    async function handleTrimDrop(rosterPlayerId: string) {
-        if (trimmingId) return
-        setTrimmingId(rosterPlayerId)
-        try {
-            await dropPlayer(rosterPlayerId)
-            // Recheck roster after drop
-            const memberId = myMemberIdRef.current ?? myMemberId
-            const lid = currentLeague?.id
-            if (memberId && lid) {
-                const roster = await getRoster(memberId, lid)
-                const rosterSize = currentLeague?.roster_size ?? 20
-                const active = roster.filter((rp) => !rp.is_on_ir && !rp.is_on_taxi)
-                const excess = active.length - rosterSize
-                if (excess <= 0) {
-                    setTrimOverflow(null)
-                } else {
-                    setTrimOverflow({ excess, dropList: active })
-                }
-            } else {
-                setTrimOverflow(null)
-            }
-        } catch (e) {
-            Alert.alert('Error', getErrorMessage(e) ?? 'Failed to drop player')
-        } finally {
-            setTrimmingId(null)
-        }
-    }
-
-    async function handlePick(player: RookieProspect) {
-        const memberId = myMemberIdRef.current
-        if (!draftId || !memberId || picking) return
-        setPickError(null)
-        setPicking(true)
-        try {
-            const result = await makeSnakePick(draftId, memberId, player.id)
-            setQuery('')
-            await Promise.all([load(), loadProspects()])
-
-            if (result?.rosterOverflow) {
-                // Fetch the rosterPlayerId for the newly drafted player so we can move them to taxi
-                const lid = currentLeague?.id
-                let newRosterPlayerId: string | null = null
-                let dropList: RosterPlayer[] = []
-                if (lid) {
-                    try {
-                        const roster = await getRoster(memberId, lid)
-                        const match = roster.find((rp) => rp.players?.id === player.id)
-                        newRosterPlayerId = match?.id ?? null
-                        dropList = roster.filter(
-                            (rp) => !rp.is_on_ir && !rp.is_on_taxi && rp.players?.id !== player.id,
-                        )
-                    } catch (e) {
-                        console.error('[rookie-draft] overflow roster fetch:', e)
-                    }
-                }
-                setRosterForDrop(dropList)
-                setRosterOverflow({
-                    newPlayerId: player.id,
-                    newPlayerName: player.display_name,
-                    newRosterPlayerId,
-                    taxiSlotsAvailable: result.taxiSlotsAvailable,
-                })
-            }
-        } catch (e) {
-            setPickError(getErrorMessage(e) ?? 'Pick failed')
-        } finally {
-            setPicking(false)
-        }
-    }
-
-    async function resolveByTaxi() {
-        if (!rosterOverflow?.newRosterPlayerId || resolvingOverflow) return
-        setResolvingOverflow(true)
-        try {
-            await toggleTaxi(rosterOverflow.newRosterPlayerId, true)
-            setRosterOverflow(null)
-        } catch (e) {
-            Alert.alert('Error', getErrorMessage(e) ?? 'Failed to move to taxi')
-        } finally {
-            setResolvingOverflow(false)
-        }
-    }
-
-    async function resolveByDrop(rosterPlayerId: string) {
-        if (resolvingOverflow) return
-        setResolvingOverflow(true)
-        try {
-            await dropPlayer(rosterPlayerId)
-            setRosterOverflow(null)
-        } catch (e) {
-            Alert.alert('Error', getErrorMessage(e) ?? 'Failed to drop player')
-        } finally {
-            setResolvingOverflow(false)
-        }
-    }
+    const {
+        state,
+        loading,
+        query,
+        setQuery,
+        prospects,
+        prospectsLoading,
+        picking,
+        activeTab,
+        setActiveTab,
+        secondsLeft,
+        pickError,
+        rosterOverflow,
+        rosterForDrop,
+        resolvingOverflow,
+        trimOverflow,
+        trimmingId,
+        memberId,
+        handleTrimDrop,
+        handlePick,
+        resolveByTaxi,
+        resolveByDrop,
+    } = useRookieDraftRoomController({
+        draftId,
+        memberId: myMemberId,
+        leagueId: currentLeague?.id,
+        rosterSize: currentLeague?.roster_size ?? 20,
+    })
 
     if (loading) {
         return (
@@ -306,7 +73,7 @@ export default function RookieDraftRoomScreen() {
     }
 
     const { draft, picks, nextPick } = state
-    const isMyTurn = nextPick?.memberId === (myMemberId ?? myMemberIdRef.current)
+    const isMyTurn = nextPick?.memberId === memberId
     const isDone = draft.status === 'completed'
 
     const totalPicks = picks.length
@@ -531,7 +298,7 @@ export default function RookieDraftRoomScreen() {
                             ItemSeparatorComponent={ItemSeparator}
                             ListHeaderComponent={PickBoardHeader}
                             renderItem={({ item }) => (
-                                <PickRow item={item} myMemberId={myMemberId} nextPick={nextPick} />
+                                <PickRow item={item} myMemberId={memberId} nextPick={nextPick} />
                             )}
                         />
                     )}

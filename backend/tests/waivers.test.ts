@@ -47,11 +47,16 @@ function q(data: any = null, error: any = null, count: number | null = null) {
 /** Sequences mockFrom responses in order */
 function setupRpcRows(rows: any[]) {
     let i = 0
-    mockRpc.mockImplementation(async () => {
+    mockRpc.mockImplementation(async (name) => {
+        if (name === 'expire_waiver_wire_logs') return { data: 0, error: null } as any
         const row = rows[i] ?? { processed: false }
         i += 1
         return { data: [row], error: null } as any
     })
+}
+
+function processRpcCalls() {
+    return mockRpc.mock.calls.filter(([name]) => name === 'process_next_waiver_claim_atomic')
 }
 
 describe('processWaiverClaims', () => {
@@ -60,7 +65,8 @@ describe('processWaiverClaims', () => {
         mockFrom.mockReturnValue(q() as any)
 
         await expect(processWaiverClaims()).resolves.toBeUndefined()
-        expect(mockRpc).toHaveBeenCalledTimes(1)
+        expect(processRpcCalls()).toHaveLength(1)
+        expect(mockRpc).toHaveBeenCalledWith('expire_waiver_wire_logs')
     })
 
     it('succeeds: adds player and moves member to back of priority queue', async () => {
@@ -75,9 +81,9 @@ describe('processWaiverClaims', () => {
 
         await processWaiverClaims()
 
-        expect(mockRpc).toHaveBeenCalledTimes(2)
+        expect(processRpcCalls()).toHaveLength(2)
+        expect(mockRpc).toHaveBeenCalledWith('expire_waiver_wire_logs')
         expect(mockFrom.mock.calls.map((c) => c[0])).toContain('players')
-        expect(mockFrom.mock.calls.map((c) => c[0])).toContain('waiver_wire_log')
     })
 
     it('marks second claim for same player as failed_priority', async () => {
@@ -89,7 +95,8 @@ describe('processWaiverClaims', () => {
         mockFrom.mockImplementation((table) => table === 'players' ? q({ display_name: 'LeBron James' }) as any : q() as any)
 
         await processWaiverClaims()
-        expect(mockRpc).toHaveBeenCalledTimes(3)
+        expect(processRpcCalls()).toHaveLength(3)
+        expect(mockRpc).toHaveBeenCalledWith('expire_waiver_wire_logs')
     })
 
     it('fails claim with failed_roster when roster is full and no drop specified', async () => {
@@ -100,7 +107,8 @@ describe('processWaiverClaims', () => {
         mockFrom.mockImplementation((table) => table === 'players' ? q({ display_name: 'Player X' }) as any : q() as any)
 
         await processWaiverClaims()
-        expect(mockRpc).toHaveBeenCalledTimes(2)
+        expect(processRpcCalls()).toHaveLength(2)
+        expect(mockRpc).toHaveBeenCalledWith('expire_waiver_wire_logs')
     })
 
     it('fails claim when player is no longer on waivers', async () => {
@@ -111,7 +119,8 @@ describe('processWaiverClaims', () => {
         mockFrom.mockImplementation((table) => table === 'players' ? q({ display_name: 'Player X' }) as any : q() as any)
 
         await processWaiverClaims()
-        expect(mockRpc).toHaveBeenCalledTimes(2)
+        expect(processRpcCalls()).toHaveLength(2)
+        expect(mockRpc).toHaveBeenCalledWith('expire_waiver_wire_logs')
     })
 
     it('executes drop-then-add when drop_player_id is specified and roster is full', async () => {

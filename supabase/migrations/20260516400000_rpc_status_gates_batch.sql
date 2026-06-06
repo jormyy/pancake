@@ -726,10 +726,12 @@ BEGIN
        AND rp.league_season_id = v_claim.league_season_id
        AND rp.member_id = v_claim.member_id
        AND rp.player_id = v_claim.drop_player_id
+       AND rp.is_on_ir = false
+       AND rp.is_on_taxi = false
      FOR UPDATE;
 
     IF NOT FOUND THEN
-      v_failure := 'Drop player is no longer on this roster.';
+      v_failure := 'Drop player is no longer on this active roster.';
       UPDATE waiver_claims AS wc_update
          SET status = 'failed_roster',
              processed_at = now(),

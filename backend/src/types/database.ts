@@ -669,6 +669,8 @@ export type Database = {
       nba_games: {
         Row: {
           away_score: number
+          bbref_away_team: string | null
+          bbref_home_team: string | null
           away_team: string
           created_at: string
           ended_at: string | null
@@ -688,6 +690,8 @@ export type Database = {
         }
         Insert: {
           away_score?: number
+          bbref_away_team?: string | null
+          bbref_home_team?: string | null
           away_team: string
           created_at?: string
           ended_at?: string | null
@@ -707,6 +711,8 @@ export type Database = {
         }
         Update: {
           away_score?: number
+          bbref_away_team?: string | null
+          bbref_home_team?: string | null
           away_team?: string
           created_at?: string
           ended_at?: string | null
@@ -1508,6 +1514,63 @@ export type Database = {
           },
         ]
       }
+      backfill_game_attempts: {
+        Row: {
+          attempts: number
+          created_at: string
+          game_db_id: string | null
+          game_key: string
+          id: string
+          job_id: string
+          last_error: string | null
+          season_year: number
+          source: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          game_db_id?: string | null
+          game_key: string
+          id?: string
+          job_id: string
+          last_error?: string | null
+          season_year: number
+          source: string
+          status: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          game_db_id?: string | null
+          game_key?: string
+          id?: string
+          job_id?: string
+          last_error?: string | null
+          season_year?: number
+          source?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "backfill_game_attempts_game_db_id_fkey"
+            columns: ["game_db_id"]
+            isOneToOne: false
+            referencedRelation: "nba_games"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "backfill_game_attempts_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "sync_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sync_jobs: {
         Row: {
           completed_at: string | null
@@ -1592,6 +1655,62 @@ export type Database = {
           },
           {
             foreignKeyName: "trade_items_trade_id_fkey"
+            columns: ["trade_id"]
+            isOneToOne: false
+            referencedRelation: "trades"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      trade_drop_reservations: {
+        Row: {
+          created_at: string
+          id: string
+          member_id: string
+          player_id: string
+          roster_player_id: string
+          trade_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          member_id: string
+          player_id: string
+          roster_player_id: string
+          trade_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          member_id?: string
+          player_id?: string
+          roster_player_id?: string
+          trade_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trade_drop_reservations_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "league_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trade_drop_reservations_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trade_drop_reservations_roster_player_id_fkey"
+            columns: ["roster_player_id"]
+            isOneToOne: false
+            referencedRelation: "roster_players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trade_drop_reservations_trade_id_fkey"
             columns: ["trade_id"]
             isOneToOne: false
             referencedRelation: "trades"
@@ -2200,7 +2319,7 @@ export type Database = {
     }
     Functions: {
       accept_trade_atomic: {
-        Args: { p_accepting_member_id: string; p_trade_id: string }
+        Args: { p_accepting_member_id: string; p_drop_roster_player_ids?: string[]; p_trade_id: string }
         Returns: undefined
       }
       add_free_agent_atomic: {
@@ -2213,6 +2332,10 @@ export type Database = {
           new_season_id: string
           new_year: number
         }[]
+      }
+      activate_rookie_draft_league_atomic: {
+        Args: { p_draft_id: string }
+        Returns: boolean
       }
       auto_set_lineup_atomic: {
         Args: {
@@ -2228,9 +2351,47 @@ export type Database = {
         Args: { p_nomination_id: string }
         Returns: boolean
       }
+      clear_ineligible_taxi_players: {
+        Args: never
+        Returns: number
+      }
       complete_accepted_trade_atomic: {
         Args: { p_trade_id: string }
         Returns: undefined
+      }
+      expire_trade_completion_failure_atomic: {
+        Args: { p_reason?: string | null; p_trade_id: string }
+        Returns: undefined
+      }
+      expire_waiver_wire_logs: {
+        Args: never
+        Returns: number
+      }
+      veto_trade_atomic: {
+        Args: { p_member_id: string; p_trade_id: string }
+        Returns: Json
+      }
+      propose_trade_atomic: {
+        Args: {
+          p_league_id: string
+          p_league_season_id: string
+          p_notes?: string | null
+          p_offer_pick_ids: string[]
+          p_offer_player_ids: string[]
+          p_proposer_member_id: string
+          p_recipient_member_id: string
+          p_request_pick_ids: string[]
+          p_request_player_ids: string[]
+        }
+        Returns: string
+      }
+      start_rookie_draft_atomic: {
+        Args: { p_league_id: string; p_rounds?: number }
+        Returns: Json
+      }
+      reseed_rookie_draft_picks_atomic: {
+        Args: { p_draft_id: string; p_rounds?: number }
+        Returns: number
       }
       compute_fantasy_points: {
         Args: { p_league_id: string; p_stat_id: string }
@@ -2239,6 +2400,14 @@ export type Database = {
       count_final_games_missing_stats: {
         Args: { season_year_param: number }
         Returns: number
+      }
+      create_waiver_claim_atomic: {
+        Args: { p_drop_player_id?: string | null; p_league_id: string; p_member_id: string; p_player_id: string; p_user_id?: string | null }
+        Returns: string
+      }
+      cancel_waiver_claim_atomic: {
+        Args: { p_claim_id: string; p_member_id: string; p_user_id?: string | null }
+        Returns: undefined
       }
       create_league: {
         Args: { p_auction_budget?: number; p_name: string; p_team_name: string }
@@ -2278,12 +2447,12 @@ export type Database = {
       process_next_waiver_claim_atomic: {
         Args: { p_process_date: string }
         Returns: {
-          claim_id: string
-          failure_reason: string
-          member_id: string
-          player_id: string
+          claim_id: string | null
+          failure_reason: string | null
+          member_id: string | null
+          player_id: string | null
           processed: boolean
-          status: Database["public"]["Enums"]["waiver_claim_status"]
+          status: Database["public"]["Enums"]["waiver_claim_status"] | null
         }[]
       }
       release_live_poll_lease: {
@@ -2313,7 +2482,7 @@ export type Database = {
       }
       try_live_poll_lease: {
         Args: { p_lock_key: number; p_ttl_seconds?: number }
-        Returns: string
+        Returns: string | null
       }
       try_live_poll_lock: { Args: never; Returns: boolean }
       update_league_settings_atomic: {

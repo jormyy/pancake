@@ -63,18 +63,14 @@ async function processWaiverClaims(): Promise<number> {
     })
     if (error) throw error
 
-    const row = Array.isArray(data) ? data[0] as WaiverProcessRow | undefined : undefined
-    if (!row?.processed) break
+    const rows = Array.isArray(data) ? data as WaiverProcessRow[] : []
+    if (rows.length === 0 || !rows.some((row) => row.processed)) break
 
-    processed += 1
-    await notifyClaimResult(row)
+    processed += rows.filter((row) => row.processed).length
+    for (const row of rows) await notifyClaimResult(row)
   }
 
-  const { error: expiredErr } = await supabase
-    .from('waiver_wire_log')
-    .update({ cleared_at: new Date().toISOString() })
-    .is('cleared_at', null)
-    .lt('clears_at', new Date().toISOString())
+  const { error: expiredErr } = await supabase.rpc('expire_waiver_wire_logs')
   if (expiredErr) throw expiredErr
 
   return processed

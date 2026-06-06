@@ -76,17 +76,21 @@ export async function fetchBBRefSchedule(seasonEndYear: number): Promise<BBRefGa
         try {
             const { data } = await client.get(url)
             const $ = cheerio.load(data)
+            if (!$('table#schedule').length) {
+                throw new Error(`BBRef schedule table missing for ${seasonEndYear}/${month}`)
+            }
 
+            let monthGames = 0
             $('table#schedule tbody tr').each((_, row) => {
                 const $row = $(row)
                 if ($row.hasClass('thead')) return
 
                 const boxScoreLink = $row.find('td[data-stat="box_score_text"] a').attr('href')
-                if (!boxScoreLink) return
+                if (!boxScoreLink) throw new Error(`BBRef schedule row missing boxscore link for ${seasonEndYear}/${month}`)
 
                 // "/boxscores/200312010NJN.html" → "200312010NJN"
                 const bbrefId = boxScoreLink.replace('/boxscores/', '').replace('.html', '')
-                if (bbrefId.length < 12) return
+                if (bbrefId.length < 12) throw new Error(`Malformed BBRef boxscore id for ${seasonEndYear}/${month}: ${bbrefId}`)
 
                 // BBRef game ID: YYYYMMDD + 0 + TEAM
                 const datePart = bbrefId.substring(0, 8)
@@ -99,17 +103,23 @@ export async function fetchBBRefSchedule(seasonEndYear: number): Promise<BBRefGa
                 const visitorHref = $row.find('td[data-stat="visitor_team_name"] a').attr('href') ?? ''
                 const awayTeamBBRef = visitorHref.split('/')[2]?.toUpperCase() ?? ''
 
-                if (!homeTeamBBRef || !awayTeamBBRef) return
+                if (!homeTeamBBRef || !awayTeamBBRef) {
+                    throw new Error(`BBRef schedule row missing team code for ${seasonEndYear}/${month}/${bbrefId}`)
+                }
 
                 const homeTeam = BBREF_TO_TRICODE[homeTeamBBRef] ?? homeTeamBBRef
                 const awayTeam = BBREF_TO_TRICODE[awayTeamBBRef] ?? awayTeamBBRef
 
                 games.push({ bbrefId, gameDate, homeTeamBBRef, awayTeamBBRef, homeTeam, awayTeam })
+                monthGames++
             })
+            if (monthGames === 0) {
+                throw new Error(`BBRef schedule rows missing for ${seasonEndYear}/${month}`)
+            }
         } catch (e: any) {
             // 404 = no games that month (normal for june in early rounds, etc.)
             if (e.response?.status !== 404) {
-                console.warn(`[bbref] Schedule ${seasonEndYear}/${month}: ${e.message}`)
+                throw new Error(`BBRef schedule ${seasonEndYear}/${month}: ${e.message}`)
             }
         }
         await sleep(3000)
@@ -127,10 +137,13 @@ export async function fetchBBRefBoxScore(
     const { data } = await client.get(`/boxscores/${bbrefId}.html`)
     const $ = cheerio.load(data)
 
-    return {
-        home: parseTeamTable($, homeTeamBBRef),
-        away: parseTeamTable($, awayTeamBBRef),
-    }
+    const home = parseTeamTable($, homeTeamBBRef)
+    const away = parseTeamTable($, awayTeamBBRef)
+
+    if (!home.length) throw new Error(`BBRef home table missing for ${bbrefId}/${homeTeamBBRef}`)
+    if (!away.length) throw new Error(`BBRef away table missing for ${bbrefId}/${awayTeamBBRef}`)
+
+    return { home, away }
 }
 
 function parseTeamTable($: cheerio.CheerioAPI, teamCode: string): BBRefPlayerStat[] {
@@ -159,16 +172,31 @@ function parseTeamTable($: cheerio.CheerioAPI, teamCode: string): BBRefPlayerSta
             return
         }
 
-        const n = (stat: string) => parseInt($row.find(`td[data-stat="${stat}"]`).text()) || 0
+        const minutesDecimal = parseMpToDecimal(mp)
+        if (minutesDecimal === null) {
+            throw new Error(`Malformed BBRef minutes for ${teamCode}/${playerName}: ${mp}`)
+        }
+
+        const n = (stat: string) => {
+            const v = $row.find(`td[data-stat="${stat}"]`).text().trim()
+            if (!/^[+-]?\d+$/.test(v)) {
+                throw new Error(`Malformed BBRef stat ${stat} for ${teamCode}/${playerName}: ${v}`)
+            }
+            return parseInt(v, 10)
+        }
         const nOrNull = (stat: string) => {
             const v = $row.find(`td[data-stat="${stat}"]`).text().trim()
-            return v === '' || v === '—' ? null : parseInt(v) || 0
+            if (v === '' || v === '—') return null
+            if (!/^[+-]?\d+$/.test(v)) {
+                throw new Error(`Malformed BBRef stat ${stat} for ${teamCode}/${playerName}: ${v}`)
+            }
+            return parseInt(v, 10)
         }
 
         stats.push({
             playerName,
             dnp: false,
-            minutesDecimal: parseMpToDecimal(mp),
+            minutesDecimal,
             pts: n('pts'), reb: n('trb'), orb: n('orb'), drb: n('drb'),
             ast: n('ast'), stl: n('stl'), blk: n('blk'), tov: n('tov'),
             pf: n('pf'), fgm: n('fg'), fga: n('fga'),
@@ -190,4 +218,3 @@ export function parseMpToDecimal(mp: string): number | null {
     if (isNaN(mins) || isNaN(secs)) return null
     return mins + secs / 60
 }
-

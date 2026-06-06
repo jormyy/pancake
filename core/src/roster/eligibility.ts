@@ -9,6 +9,6 @@ export function isDTD(injuryStatus: string | null): boolean {
     return injuryStatus.toLowerCase() === 'dtd'
 }
 
-export function isTaxiEligible(nbaDraftNumber: number | null): boolean {
-    return nbaDraftNumber != null
+export function isTaxiEligible(nbaDraftNumber: number | null, yearsExp: number | null): boolean {
+    return nbaDraftNumber != null && yearsExp === 0
 }
