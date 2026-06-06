@@ -3,7 +3,6 @@ import { fetchTodaysGames, NBAGame } from '../lib/nba'
 import { syncStatsByDate } from './stats'
 import { syncScores } from './scores'
 import { CONFIG } from '../config'
-import { todayET } from '../lib/utils/date'
 
 // Checks if current ET hour is within the NBA game window (11 AM – 1 AM)
 function isGameWindow(): boolean {
@@ -20,6 +19,39 @@ const LIVE_POLL_LOCK_KEY = 779001
 // TTL must comfortably cover the longest in-loop sync. 90s leaves headroom
 // over the 1-minute cron cadence; if the worker crashes the lease auto-clears.
 const LIVE_POLL_LEASE_TTL_SECONDS = 90
+
+function etDate(offsetDays = 0): string {
+    const date = new Date()
+    date.setUTCDate(date.getUTCDate() + offsetDays)
+    return date.toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
+}
+
+function dateFromISODate(date: string): Date {
+    return new Date(`${date}T12:00:00-05:00`)
+}
+
+function candidateLiveDates(): string[] {
+    return [etDate(-1), etDate()]
+}
+
+async function syncStatsForCandidateDates(): Promise<void> {
+    for (const date of candidateLiveDates()) {
+        await syncStatsByDate(dateFromISODate(date))
+    }
+}
+
+async function dbActiveGameCount(): Promise<number> {
+    const { data, error } = await supabase
+        .from('nba_games')
+        .select('id')
+        .in('game_date', candidateLiveDates())
+        .eq('status', 'InProgress')
+    if (error) {
+        console.error('[livePoller] Failed to read active DB games:', error.message)
+        return 0
+    }
+    return data?.length ?? 0
+}
 
 async function withLivePollLease(fn: () => Promise<void>) {
     const { data: holderId, error } = await supabase.rpc('try_live_poll_lease', {
@@ -86,9 +118,11 @@ class LiveGamePoller {
     private async idleTick() {
         if (!this.running) return
         try {
-            if (isGameWindow() && !this.finalizedDates.has(todayET())) {
+            const hasDbActiveGames = await dbActiveGameCount() > 0
+            if ((isGameWindow() && !this.finalizedDates.has(etDate())) || hasDbActiveGames) {
                 // Switch to active whenever we're in the game window —
-                // don't wait for a game to already be InProgress.
+                // don't wait for a game to already be InProgress. Also
+                // recover after late-night restarts while DB games are active.
                 console.log('[livePoller] Game window active — switching to active mode.')
                 this.switchToActive()
                 return
@@ -130,12 +164,24 @@ class LiveGamePoller {
         this.statsInFlight = true
         try {
             await withLivePollLease(async () => {
-                // Only sync stats when there are InProgress or recently-Final games today
-                const games = await fetchTodaysGames()
-                const hasActiveGames = games.some((g) => g.gameStatus === 2 || g.gameStatus === 3)
+                const priorDbActive = await dbActiveGameCount()
+                let games: NBAGame[]
+                try {
+                    games = await fetchTodaysGames()
+                } catch (e: any) {
+                    if (priorDbActive > 0) {
+                        await syncStatsForCandidateDates()
+                        return
+                    }
+                    throw e
+                }
+
+                // Only sync stats when the CDN has active/recently-final games
+                // or the database still has a candidate-date game marked active.
+                const hasActiveGames = priorDbActive > 0 || games.some((g) => g.gameStatus === 2 || g.gameStatus === 3)
                 if (!hasActiveGames) return
 
-                await syncStatsByDate(new Date())
+                await syncStatsForCandidateDates()
             })
         } catch (e: any) {
             console.error('[livePoller] Stats tick error:', e.message)
@@ -150,42 +196,67 @@ class LiveGamePoller {
         this.scoresInFlight = true
         try {
             await withLivePollLease(async () => {
-                const games = await fetchTodaysGames()
+                const priorDbActive = await dbActiveGameCount()
+                let games: NBAGame[]
+                try {
+                    games = await fetchTodaysGames()
+                } catch (e: any) {
+                    if (priorDbActive > 0) {
+                        await syncStatsForCandidateDates()
+                        await syncScores()
+                        return
+                    }
+                    throw e
+                }
                 const hasLive = games.some((g) => g.gameStatus === 2)
                 const allDone = games.length > 0 && games.every((g) => g.gameStatus === 3)
-                const dateKey = todayET()
 
-                if (games.length === 0) return // no games today, nothing to do
+                if (games.length === 0) {
+                    if (priorDbActive > 0) {
+                        await syncStatsForCandidateDates()
+                        await syncScores()
+                    }
+                    return
+                }
 
                 // Update nba_games status + scores from live scoreboard
-                await updateGameStatuses(games)
+                const updatedGameDates = await updateGameStatuses(games)
+                const dateKeys = updatedGameDates.length > 0 ? updatedGameDates : [etDate()]
 
-                if (allDone && this.finalizedDates.has(dateKey)) {
+                if (allDone && dateKeys.every((dateKey) => this.finalizedDates.has(dateKey))) {
                     this.switchToIdle()
                     return
                 }
 
-                if (hasLive || allDone) {
+                const shouldSync = hasLive || allDone || priorDbActive > 0
+
+                if (priorDbActive > 0 && !hasLive && !allDone) {
+                    await syncStatsForCandidateDates()
+                }
+
+                if (shouldSync) {
                     await syncScores()
                 }
 
                 if (allDone) {
                     // Final stats sync — run now, then again after 2 and 5 minutes
                     // to account for NBA CDN box score cache lag before going idle.
-                    this.finalizedDates.add(dateKey)
-                    await syncStatsByDate(new Date())
+                    await syncStatsForCandidateDates()
                     await syncScores()
-                    const date = new Date()
+                    const dates = Array.from(new Set([...candidateLiveDates(), ...dateKeys])).map(dateFromISODate)
                     this.scheduleFinalSync(
-                        () => withLivePollLease(() => syncStatsByDate(date)),
+                        () => withLivePollLease(async () => {
+                            for (const date of dates) await syncStatsByDate(date)
+                        }),
                         2 * 60_000,
                     )
                     this.scheduleFinalSync(async () => {
                         await withLivePollLease(async () => {
-                            await syncStatsByDate(date)
+                            for (const date of dates) await syncStatsByDate(date)
                             await syncScores()
                         })
                     }, 5 * 60_000)
+                    for (const dateKey of dateKeys) this.finalizedDates.add(dateKey)
                     this.switchToIdle()
                 }
             })
@@ -199,24 +270,29 @@ class LiveGamePoller {
     private scheduleFinalSync(fn: () => void | Promise<void>, delayMs: number) {
         const timer = setTimeout(async () => {
             this.finalSyncTimers.delete(timer)
-            await fn()
+            try {
+                await fn()
+            } catch (e: any) {
+                console.error('[livePoller] Final sync error:', e.message)
+            }
         }, delayMs)
         this.finalSyncTimers.add(timer)
     }
 
 }
 
-export async function updateGameStatuses(games: NBAGame[]) {
-    const today = todayET()
-    const { data: dbGames } = await supabase
+export async function updateGameStatuses(games: NBAGame[]): Promise<string[]> {
+    const { data: dbGames, error } = await supabase
         .from('nba_games')
-        .select('id, nba_game_id, status')
-        .eq('game_date', today)
+        .select('id, nba_game_id, status, game_date')
+        .in('game_date', candidateLiveDates())
         .not('nba_game_id', 'is', null)
+    if (error) throw error
 
-    if (!dbGames?.length) return
+    if (!dbGames?.length) return []
 
     const cdnMap = new Map(games.map((g) => [g.gameId, g]))
+    const gameDates = new Set<string>()
 
     const rows: Array<{
         id: string
@@ -228,6 +304,7 @@ export async function updateGameStatuses(games: NBAGame[]) {
     for (const dbGame of dbGames) {
         const g = cdnMap.get(dbGame.nba_game_id!)
         if (!g) continue
+        gameDates.add(dbGame.game_date)
         const newStatus = g.gameStatus === 2 ? 'InProgress' : g.gameStatus === 3 ? 'Final' : 'Scheduled'
         rows.push({
             id: dbGame.id,
@@ -238,9 +315,22 @@ export async function updateGameStatuses(games: NBAGame[]) {
         })
     }
 
-    if (rows.length === 0) return
+    if (rows.length === 0) return []
 
-    await supabase.from('nba_games').upsert(rows as any, { onConflict: 'id' })
+    for (const row of rows) {
+        const { error } = await supabase
+            .from('nba_games')
+            .update({
+                status: row.status,
+                home_score: row.home_score,
+                away_score: row.away_score,
+                game_status_text: row.game_status_text,
+                updated_at: new Date().toISOString(),
+            })
+            .eq('id', row.id)
+        if (error) throw error
+    }
+    return Array.from(gameDates)
 }
 
 export const livePoller = new LiveGamePoller()

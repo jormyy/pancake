@@ -10,7 +10,7 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Stack, useRouter } from 'expo-router'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
 import { getLineupSlots, updateLeague, updateLineupSlots } from '@/lib/league'
 import { advanceSeason } from '@/lib/rookieDraft'
@@ -22,17 +22,18 @@ import { getErrorMessage } from '@/lib/alert'
 async function adminCall(
     path: string,
     successMessage: string,
-    setBusy: (v: boolean) => void,
+    action: CommissionerActionId,
+    setBusyAction: (action: CommissionerActionId | null) => void,
     body: Record<string, unknown> = {},
 ) {
-    setBusy(true)
+    setBusyAction(action)
     try {
         await apiPost(path, body)
         Alert.alert('Done', successMessage)
     } catch (e) {
         Alert.alert('Error', getErrorMessage(e))
     } finally {
-        setBusy(false)
+        setBusyAction(null)
     }
 }
 
@@ -54,45 +55,72 @@ const SLOT_TYPES = ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F', 'UTIL', 'BE']
 
 type SlotMap = Record<string, number>
 type ScoringMap = Record<string, string> // string for TextInput, parsed on save
+type LeagueStatus = 'setup' | 'drafting' | 'active' | 'playoffs' | 'offseason' | string
+type CommissionerActionId =
+    | 'generate-playoffs'
+    | 'advance-playoffs'
+    | 'process-waivers'
+    | 'sync-stats'
+    | 'sync-scores'
+    | 'sync-rankings'
+    | 'sync-projections'
+    | 'sync-games'
+    | 'generate-schedule'
+    | 'advance-season'
+type CommissionerAction = {
+    id: CommissionerActionId
+    label: string
+    onPress: () => void | Promise<void>
+    color?: string
+}
 
 export default function CommissionerSettingsScreen() {
     const { currentLeague, refresh } = useLeagueContext()
     const { back } = useRouter()
     const league = currentLeague
+    const hydratedLeagueId = useRef<string | null>(null)
 
     const [scoring, setScoring] = useState<ScoringMap>({})
     const [slots, setSlots] = useState<SlotMap>({})
+    const [initialSlots, setInitialSlots] = useState<SlotMap>({})
     const [rosterSize, setRosterSize] = useState('')
     const [irSlots, setIrSlots] = useState('')
     const [taxiSlots, setTaxiSlots] = useState('')
     const [auctionBudget, setAuctionBudget] = useState('')
     const [playoffWeek, setPlayoffWeek] = useState('')
+    const [initialScoring, setInitialScoring] = useState<ScoringMap>({})
+    const [initialGeneral, setInitialGeneral] = useState({
+        rosterSize: '',
+        irSlots: '',
+        taxiSlots: '',
+        auctionBudget: '',
+        playoffWeek: '',
+    })
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
-    const [generatingSchedule, setGeneratingSchedule] = useState(false)
-    const [syncingGames, setSyncingGames] = useState(false)
-    const [syncingScores, setSyncingScores] = useState(false)
-    const [syncingStats, setSyncingStats] = useState(false)
-    const [processingWaivers, setProcessingWaivers] = useState(false)
-    const [generatingPlayoffs, setGeneratingPlayoffs] = useState(false)
-    const [advancingPlayoffs, setAdvancingPlayoffs] = useState(false)
-    const [advancingSeason, setAdvancingSeason] = useState(false)
-    const [syncingRankings, setSyncingRankings] = useState(false)
-    const [syncingProjections, setSyncingProjections] = useState(false)
+    const [busyAction, setBusyAction] = useState<CommissionerActionId | null>(null)
 
-    // Hydrate form state only when the league id changes (initial mount or
-    // league switch). We intentionally read other league fields inside without
-    // adding them as deps so that league-context refreshes returning a fresh
-    // object identity don't clobber in-progress edits.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => {
+        let cancelled = false
+
         async function load() {
-            if (!league) return
+            if (!league) {
+                setLoading(false)
+                return
+            }
+            if (hydratedLeagueId.current === league.id) {
+                setLoading(false)
+                return
+            }
+
+            setLoading(true)
             try {
                 const slotData = await getLineupSlots(league.id)
+                if (cancelled) return
                 const slotMap: SlotMap = {}
                 for (const s of slotData) slotMap[s.slot_type] = s.slot_count
                 setSlots(slotMap)
+                setInitialSlots(slotMap)
 
                 const s =
                     league.scoring_settings &&
@@ -105,20 +133,34 @@ export default function CommissionerSettingsScreen() {
                     scoreMap[key] = s[key] != null ? String(s[key]) : '0'
                 }
                 setScoring(scoreMap)
+                setInitialScoring(scoreMap)
 
-                setRosterSize(String(league.roster_size ?? 20))
-                setIrSlots(String(league.ir_slots ?? 2))
-                setTaxiSlots(String(league.taxi_slots ?? 0))
-                setAuctionBudget(String(league.auction_budget ?? 200))
-                setPlayoffWeek(String(league.playoff_start_week ?? 20))
+                const general = {
+                    rosterSize: String(league.roster_size ?? 20),
+                    irSlots: String(league.ir_slots ?? 2),
+                    taxiSlots: String(league.taxi_slots ?? 0),
+                    auctionBudget: String(league.auction_budget ?? 200),
+                    playoffWeek: String(league.playoff_start_week ?? 20),
+                }
+                setRosterSize(general.rosterSize)
+                setIrSlots(general.irSlots)
+                setTaxiSlots(general.taxiSlots)
+                setAuctionBudget(general.auctionBudget)
+                setPlayoffWeek(general.playoffWeek)
+                setInitialGeneral(general)
+                hydratedLeagueId.current = league.id
             } catch (e) {
                 console.error(e)
             } finally {
-                setLoading(false)
+                if (!cancelled) setLoading(false)
             }
         }
         load()
-    }, [league?.id])
+
+        return () => {
+            cancelled = true
+        }
+    }, [league])
 
     function adjustSlot(type: string, delta: number) {
         setSlots((prev) => {
@@ -163,22 +205,43 @@ export default function CommissionerSettingsScreen() {
             scoringSettings[key] = isNaN(val) ? 0 : val
         }
 
+        const slotsChanged = SLOT_TYPES.some((type) => (slots[type] ?? 0) !== (initialSlots[type] ?? 0))
+        const canUpdateSlots = (league.status as LeagueStatus) === 'setup'
+        if (slotsChanged && !canUpdateSlots) {
+            Alert.alert('Invalid', 'Lineup slots can only be changed during league setup.')
+            return
+        }
+
+        const scoringChanged = SCORING_FIELDS.some(({ key }) => scoring[key] !== initialScoring[key])
+        const updates: {
+            scoring_settings?: Record<string, number>
+            roster_size?: number
+            ir_slots?: number
+            taxi_slots?: number
+            auction_budget?: number
+            playoff_start_week?: number
+        } = {}
+        if (scoringChanged) updates.scoring_settings = scoringSettings
+        if (rosterSize !== initialGeneral.rosterSize) updates.roster_size = parsedRoster
+        if (irSlots !== initialGeneral.irSlots) updates.ir_slots = parsedIR
+        if (taxiSlots !== initialGeneral.taxiSlots) updates.taxi_slots = parsedTaxi
+        if (auctionBudget !== initialGeneral.auctionBudget) updates.auction_budget = parsedBudget
+        if (playoffWeek !== initialGeneral.playoffWeek) updates.playoff_start_week = parsedPlayoff
+
         setSaving(true)
         try {
-            await Promise.all([
-                updateLeague(league.id, {
-                    scoring_settings: scoringSettings,
-                    roster_size: parsedRoster,
-                    ir_slots: parsedIR,
-                    taxi_slots: parsedTaxi,
-                    auction_budget: parsedBudget,
-                    playoff_start_week: parsedPlayoff,
-                }),
-                updateLineupSlots(
+            if (Object.keys(updates).length > 0) {
+                await updateLeague(league.id, updates)
+                setInitialScoring(scoring)
+                setInitialGeneral({ rosterSize, irSlots, taxiSlots, auctionBudget, playoffWeek })
+            }
+            if (slotsChanged) {
+                await updateLineupSlots(
                     league.id,
                     SLOT_TYPES.map((t) => ({ slot_type: t, slot_count: slots[t] ?? 0 })),
-                ),
-            ])
+                )
+                setInitialSlots(slots)
+            }
             await refresh()
             back()
         } catch (e) {
@@ -189,27 +252,27 @@ export default function CommissionerSettingsScreen() {
     }
 
     async function syncStats() {
-        await adminCall('/sync/stats', 'Stats synced (last 7 days).', setSyncingStats, { days: 7 })
+        await adminCall('/sync/stats', 'Stats synced (last 7 days).', 'sync-stats', setBusyAction, { days: 7 })
     }
 
     async function syncScores() {
-        await adminCall('/sync/scores', 'Scores synced.', setSyncingScores)
+        await adminCall('/sync/scores', 'Scores synced.', 'sync-scores', setBusyAction)
     }
 
     async function syncGameSchedule() {
-        await adminCall('/sync/schedule', 'Game schedule synced.', setSyncingGames)
+        await adminCall('/sync/schedule', 'Game schedule synced.', 'sync-games', setBusyAction)
     }
 
     async function processWaivers() {
-        await adminCall('/waivers/process', 'Waiver claims processed.', setProcessingWaivers)
+        await adminCall('/waivers/process', 'Waiver claims processed.', 'process-waivers', setBusyAction)
     }
 
     async function syncRankings() {
-        await adminCall('/sync/rankings', 'Dynasty rankings synced.', setSyncingRankings)
+        await adminCall('/sync/rankings', 'Dynasty rankings synced.', 'sync-rankings', setBusyAction)
     }
 
     async function syncProjections() {
-        await adminCall('/sync/projections', 'Projections synced.', setSyncingProjections)
+        await adminCall('/sync/projections', 'Projections synced.', 'sync-projections', setBusyAction)
     }
 
     async function generatePlayoffBracket() {
@@ -217,7 +280,8 @@ export default function CommissionerSettingsScreen() {
         await adminCall(
             '/playoffs/generate',
             'Semifinal bracket generated.',
-            setGeneratingPlayoffs,
+            'generate-playoffs',
+            setBusyAction,
             { leagueId: league.id },
         )
     }
@@ -227,7 +291,8 @@ export default function CommissionerSettingsScreen() {
         await adminCall(
             '/playoffs/advance',
             'Championship matchup created.',
-            setAdvancingPlayoffs,
+            'advance-playoffs',
+            setBusyAction,
             { leagueId: league.id },
         )
     }
@@ -243,7 +308,7 @@ export default function CommissionerSettingsScreen() {
                     text: 'Advance',
                     style: 'destructive',
                     onPress: async () => {
-                        setAdvancingSeason(true)
+                        setBusyAction('advance-season')
                         try {
                             await advanceSeason(league.id)
                             Alert.alert('Done', 'Season advanced. Start the rookie draft when ready.')
@@ -251,7 +316,7 @@ export default function CommissionerSettingsScreen() {
                         } catch (e) {
                             Alert.alert('Error', getErrorMessage(e))
                         } finally {
-                            setAdvancingSeason(false)
+                            setBusyAction(null)
                         }
                     },
                 },
@@ -263,8 +328,64 @@ export default function CommissionerSettingsScreen() {
         await adminCall(
             '/sync/matchups',
             force ? 'Schedule reset and regenerated.' : 'Schedule generated successfully.',
-            setGeneratingSchedule,
+            'generate-schedule',
+            setBusyAction,
             { force },
+        )
+    }
+
+    const actionGroups: CommissionerAction[][] = [
+        [
+            { id: 'generate-playoffs', label: 'Generate Playoff Bracket', onPress: generatePlayoffBracket },
+            { id: 'advance-playoffs', label: 'Advance to Championship', onPress: advancePlayoffBracket },
+            { id: 'process-waivers', label: 'Process Waiver Claims', onPress: processWaivers },
+            { id: 'sync-stats', label: 'Sync Player Stats', onPress: syncStats },
+            { id: 'sync-scores', label: 'Sync Scores Now', onPress: syncScores },
+            { id: 'sync-rankings', label: 'Sync Dynasty Rankings', onPress: syncRankings },
+            { id: 'sync-projections', label: 'Sync Projections', onPress: syncProjections },
+            { id: 'sync-games', label: 'Sync NBA Game Schedule', onPress: syncGameSchedule },
+            { id: 'generate-schedule', label: 'Generate Season Schedule', onPress: () => generateSchedule(false) },
+            {
+                id: 'generate-schedule',
+                label: 'Reset & Regenerate Schedule',
+                color: colors.danger,
+                onPress: () =>
+                    Alert.alert(
+                        'Reset Schedule',
+                        'This will delete all existing matchups and regenerate. Are you sure?',
+                        [
+                            { text: 'Cancel', style: 'cancel' },
+                            { text: 'Reset', style: 'destructive', onPress: () => generateSchedule(true) },
+                        ],
+                    ),
+            },
+        ],
+        [
+            {
+                id: 'advance-season',
+                label: 'Advance to Next Season',
+                color: colors.info,
+                onPress: handleAdvanceSeason,
+            },
+        ],
+    ]
+
+    function renderAction(action: CommissionerAction) {
+        const busy = busyAction === action.id
+        const color = action.color ?? colors.primary
+        return (
+            <Pressable
+                key={`${action.id}:${action.label}`}
+                style={[styles.actionButton, { borderColor: color }]}
+                onPress={action.onPress}
+                disabled={busyAction !== null}
+            >
+                {busy ? (
+                    <ActivityIndicator color={color} />
+                ) : (
+                    <Text style={[styles.actionButtonText, { color }]}>{action.label}</Text>
+                )}
+            </Pressable>
         )
     }
 
@@ -385,141 +506,11 @@ export default function CommissionerSettingsScreen() {
                         )}
                     </Pressable>
 
-                    {/* ── Commissioner Actions ───────────────────────── */}
                     <Text style={styles.sectionTitle}>COMMISSIONER ACTIONS</Text>
-                    <Pressable
-                        style={styles.actionButton}
-                        onPress={generatePlayoffBracket}
-                        disabled={generatingPlayoffs}
-                    >
-                        {generatingPlayoffs ? (
-                            <ActivityIndicator color={colors.primary} />
-                        ) : (
-                            <Text style={styles.actionButtonText}>Generate Playoff Bracket</Text>
-                        )}
-                    </Pressable>
-                    <Pressable
-                        style={styles.actionButton}
-                        onPress={advancePlayoffBracket}
-                        disabled={advancingPlayoffs}
-                    >
-                        {advancingPlayoffs ? (
-                            <ActivityIndicator color={colors.primary} />
-                        ) : (
-                            <Text style={styles.actionButtonText}>Advance to Championship</Text>
-                        )}
-                    </Pressable>
-                    <Pressable
-                        style={styles.actionButton}
-                        onPress={processWaivers}
-                        disabled={processingWaivers}
-                    >
-                        {processingWaivers ? (
-                            <ActivityIndicator color={colors.primary} />
-                        ) : (
-                            <Text style={styles.actionButtonText}>Process Waiver Claims</Text>
-                        )}
-                    </Pressable>
-                    <Pressable
-                        style={styles.actionButton}
-                        onPress={syncStats}
-                        disabled={syncingStats}
-                    >
-                        {syncingStats ? (
-                            <ActivityIndicator color={colors.primary} />
-                        ) : (
-                            <Text style={styles.actionButtonText}>Sync Player Stats</Text>
-                        )}
-                    </Pressable>
-                    <Pressable
-                        style={styles.actionButton}
-                        onPress={syncScores}
-                        disabled={syncingScores}
-                    >
-                        {syncingScores ? (
-                            <ActivityIndicator color={colors.primary} />
-                        ) : (
-                            <Text style={styles.actionButtonText}>Sync Scores Now</Text>
-                        )}
-                    </Pressable>
-                    <Pressable
-                        style={styles.actionButton}
-                        onPress={syncRankings}
-                        disabled={syncingRankings}
-                    >
-                        {syncingRankings ? (
-                            <ActivityIndicator color={colors.primary} />
-                        ) : (
-                            <Text style={styles.actionButtonText}>Sync Dynasty Rankings</Text>
-                        )}
-                    </Pressable>
-                    <Pressable
-                        style={styles.actionButton}
-                        onPress={syncProjections}
-                        disabled={syncingProjections}
-                    >
-                        {syncingProjections ? (
-                            <ActivityIndicator color={colors.primary} />
-                        ) : (
-                            <Text style={styles.actionButtonText}>Sync Projections</Text>
-                        )}
-                    </Pressable>
-                    <Pressable
-                        style={styles.actionButton}
-                        onPress={syncGameSchedule}
-                        disabled={syncingGames}
-                    >
-                        {syncingGames ? (
-                            <ActivityIndicator color={colors.primary} />
-                        ) : (
-                            <Text style={styles.actionButtonText}>Sync NBA Game Schedule</Text>
-                        )}
-                    </Pressable>
-                    <Pressable
-                        style={styles.actionButton}
-                        onPress={() => generateSchedule(false)}
-                        disabled={generatingSchedule}
-                    >
-                        {generatingSchedule ? (
-                            <ActivityIndicator color={colors.primary} />
-                        ) : (
-                            <Text style={styles.actionButtonText}>Generate Season Schedule</Text>
-                        )}
-                    </Pressable>
-                    <Pressable
-                        style={[styles.actionButton, { borderColor: colors.danger }]}
-                        onPress={() =>
-                            Alert.alert(
-                                'Reset Schedule',
-                                'This will delete all existing matchups and regenerate. Are you sure?',
-                                [
-                                    { text: 'Cancel', style: 'cancel' },
-                                    { text: 'Reset', style: 'destructive', onPress: () => generateSchedule(true) },
-                                ],
-                            )
-                        }
-                        disabled={generatingSchedule}
-                    >
-                        <Text style={[styles.actionButtonText, { color: colors.danger }]}>
-                            Reset &amp; Regenerate Schedule
-                        </Text>
-                    </Pressable>
+                    {actionGroups[0].map(renderAction)}
 
-                    {/* ── Annual Cycle ───────────────────────────── */}
                     <Text style={styles.sectionTitle}>ANNUAL CYCLE</Text>
-                    <Pressable
-                        style={[styles.actionButton, { borderColor: colors.info }]}
-                        onPress={handleAdvanceSeason}
-                        disabled={advancingSeason}
-                    >
-                        {advancingSeason ? (
-                            <ActivityIndicator color={colors.info} />
-                        ) : (
-                            <Text style={[styles.actionButtonText, { color: colors.info }]}>
-                                Advance to Next Season
-                            </Text>
-                        )}
-                    </Pressable>
+                    {actionGroups[1].map(renderAction)}
                 </ScrollView>
             </SafeAreaView>
         </>

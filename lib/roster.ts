@@ -6,7 +6,7 @@ import { apiPost } from '@/lib/shared/api'
 export { isIREligible, isDTD }
 
 export function isTaxiEligible(player: RosterPlayer['players']): boolean {
-    return isEligibleForTaxi(player.nba_draft_number)
+    return isEligibleForTaxi(player.nba_draft_number, player.years_exp)
 }
 
 export type RosterPlayer = {
@@ -23,6 +23,7 @@ export type RosterPlayer = {
         injury_status: string | null
         nba_id: string | null
         nba_draft_number: number | null
+        years_exp: number | null
     }
 }
 
@@ -41,7 +42,7 @@ export async function getRoster(memberId: string, leagueId: string): Promise<Ros
         .select(
             `
       id, is_on_ir, is_on_taxi, acquired_via,
-      players ( id, display_name, nba_team, position, eligible_positions, injury_status, nba_id, nba_draft_number )
+      players ( id, display_name, nba_team, position, eligible_positions, injury_status, nba_id, nba_draft_number, years_exp )
     `,
         )
         .eq('member_id', memberId)
@@ -122,20 +123,37 @@ export async function getPlayerRosterStatus(
         return { status: 'taken', ownerTeamName: data.league_members?.team_name ?? 'Another team' }
     }
 
-    // Check if on waivers
     const now = new Date().toISOString()
-    const { data: waiverLog } = await supabase
+    const { data: waiverLog, error: waiverLogError } = await supabase
         .from('waiver_wire_log')
         .select('id, clears_at')
         .eq('league_id', leagueId)
         .eq('league_season_id', seasonId)
         .eq('player_id', playerId)
         .is('cleared_at', null)
-        .gt('clears_at', now)
+        .order('clears_at', { ascending: true })
+        .limit(1)
         .maybeSingle()
+    if (waiverLogError) throw waiverLogError
 
     if (waiverLog) {
-        return { status: 'on_waivers', logId: waiverLog.id, clearsAt: waiverLog.clears_at }
+        if (waiverLog.clears_at > now) {
+            return { status: 'on_waivers', logId: waiverLog.id, clearsAt: waiverLog.clears_at }
+        }
+
+        const { data: pendingClaim, error: pendingClaimError } = await supabase
+            .from('waiver_claims')
+            .select('id')
+            .eq('league_id', leagueId)
+            .eq('league_season_id', seasonId)
+            .eq('player_id', playerId)
+            .eq('status', 'pending')
+            .limit(1)
+            .maybeSingle()
+        if (pendingClaimError) throw pendingClaimError
+        if (pendingClaim) {
+            return { status: 'on_waivers', logId: waiverLog.id, clearsAt: waiverLog.clears_at }
+        }
     }
 
     return { status: 'free_agent' }

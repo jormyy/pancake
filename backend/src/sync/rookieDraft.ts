@@ -1,195 +1,18 @@
 import { supabase } from '../lib/supabase'
 import { CONFIG } from '../config'
 import { notifyMember } from '../lib/notifications'
+import type { Database } from '../types/database'
 
-type PickAsset = { pickId: string; currentOwnerId: string }
-type PickAssetMap = Map<string, PickAsset>
-
-// Build a map keyed by `${original_owner_id}:${round}` -> current pick asset,
-// so traded picks can be resolved to the current owner during slot assignment.
-async function fetchPickAssetMap(leagueId: string, seasonYear: number | undefined): Promise<PickAssetMap> {
-    // season_year may be undefined when reseeding a draft whose league_seasons
-    // join returns null. The original implementation passed `undefined` to .eq();
-    // we cast here to preserve that exact runtime behavior without re-introducing
-    // an `as any` on the caller.
-    const { data: draftPickAssets } = await supabase
-        .from('draft_picks')
-        .select('id, season_year, round, original_owner_id, current_owner_id')
-        .eq('league_id', leagueId)
-        .eq('season_year', seasonYear as number)
-        .eq('is_used', false)
-        .order('round', { ascending: true })
-
-    const pickAssetMap: PickAssetMap = new Map()
-    for (const dp of draftPickAssets ?? []) {
-        const key = `${dp.original_owner_id}:${dp.round}`
-        if (!pickAssetMap.has(key)) {
-            pickAssetMap.set(key, { pickId: dp.id, currentOwnerId: dp.current_owner_id })
-        }
-    }
-    return pickAssetMap
-}
-
-// Generate serpentine (snake) pick rows: odd rounds use draftOrder as-is,
-// even rounds reverse it. Traded picks resolve to the current owner.
-function buildSnakePickRows(
-    draftId: string,
-    draftOrder: string[],
-    pickAssetMap: PickAssetMap,
-    rounds: number,
-) {
-    const pickRows = []
-    let overall = 1
-    for (let round = 1; round <= rounds; round++) {
-        const isEvenRound = round % 2 === 0
-        const order = isEvenRound ? [...draftOrder].reverse() : draftOrder
-        for (let i = 0; i < order.length; i++) {
-            const originalOwner = order[i]
-            const pickAsset = pickAssetMap.get(`${originalOwner}:${round}`)
-            const member_id = pickAsset?.currentOwnerId ?? originalOwner
-            pickRows.push({
-                draft_id: draftId,
-                overall_pick: overall++,
-                round,
-                pick_in_round: i + 1,
-                member_id,
-                draft_pick_id: pickAsset?.pickId ?? null,
-            })
-        }
-    }
-    return pickRows
-}
+type DraftRow = Database['public']['Tables']['drafts']['Row']
 
 export async function startRookieDraft(leagueId: string) {
-    const { data: league, error: leagueErr } = await supabase
-        .from('leagues')
-        .select('id, status')
-        .eq('id', leagueId)
-        .single()
-    if (leagueErr || !league) throw new Error('League not found')
-    if (league.status !== 'offseason') throw new Error('League must be in offseason to start rookie draft')
+    const { data, error } = await supabase.rpc('start_rookie_draft_atomic', {
+        p_league_id: leagueId,
+        p_rounds: CONFIG.ROOKIE_DRAFT_ROUNDS,
+    })
+    if (error) throw new Error(error.message)
 
-    const { data: season, error: seasonErr } = await supabase
-        .from('league_seasons')
-        .select('id, season_year')
-        .eq('league_id', leagueId)
-        .eq('is_current', true)
-        .single()
-    if (seasonErr || !season) throw new Error('No active season for this league')
-
-    const { data: existing } = await supabase
-        .from('drafts')
-        .select('id, status')
-        .eq('league_id', leagueId)
-        .eq('league_season_id', season.id)
-        .eq('draft_type', 'snake')
-        .in('status', ['pending', 'in_progress'])
-        .maybeSingle()
-    if (existing) throw new Error('A rookie draft already exists for this season')
-
-    // Draft order = inverse standings from last season (worst record picks first)
-    // Fetch last completed season
-    const { data: lastSeason } = await supabase
-        .from('league_seasons')
-        .select('id')
-        .eq('league_id', leagueId)
-        .eq('is_current', false)
-        .order('season_year', { ascending: false })
-        .limit(1)
-        .maybeSingle()
-
-    let draftOrder: string[] = []
-
-    if (lastSeason) {
-        // Get last week's standings from previous season.
-        // The standings table is an append-only weekly snapshot written by
-        // insertStandingsSnapshots, which only accumulates regular_season
-        // matchup results (see backend/src/sync/scores.ts). Playoff weeks
-        // carry forward the prior week's totals unchanged, so "latest"
-        // standings here correctly reflects final regular-season records.
-        const { data: standings } = await supabase
-            .from('standings')
-            .select('member_id, wins, losses, points_for')
-            .eq('league_id', leagueId)
-            .eq('league_season_id', lastSeason.id)
-            .order('week_number', { ascending: false })
-            .limit(100)
-
-        if (standings && standings.length > 0) {
-            // Deduplicate — keep only latest entry per member
-            const latestByMember = new Map<string, typeof standings[0]>()
-            for (const s of standings) {
-                if (!latestByMember.has(s.member_id)) latestByMember.set(s.member_id, s)
-            }
-            // Sort worst to best: fewest wins, then fewest points
-            draftOrder = Array.from(latestByMember.values())
-                .sort((a, b) => a.wins - b.wins || a.points_for - b.points_for)
-                .map((s) => s.member_id)
-        }
-    }
-
-    // Fall back to current members in random order if no standings
-    if (draftOrder.length === 0) {
-        const { data: members } = await supabase
-            .from('league_members')
-            .select('id')
-            .eq('league_id', leagueId)
-        draftOrder = (members ?? []).map((m) => m.id).sort(() => Math.random() - 0.5)
-    }
-
-    if (draftOrder.length < 2) throw new Error('Need at least 2 managers to start a draft')
-
-    const { data: draft, error: draftErr } = await supabase
-        .from('drafts')
-        .insert({
-            league_id: leagueId,
-            league_season_id: season.id,
-            draft_type: 'snake',
-            status: 'in_progress',
-            started_at: new Date().toISOString(),
-        })
-        .select()
-        .single()
-    if (draftErr) {
-        // The pre-INSERT existence check above is best-effort: two concurrent
-        // commissioner double-taps can both observe "no open rookie draft"
-        // before either INSERT commits. The `drafts_one_open_per_season`
-        // partial unique index (migrations/20260516154651) guarantees at most
-        // one pending/in_progress draft per (league_id, league_season_id,
-        // draft_type) at the storage layer; the loser of the race surfaces
-        // here as a 23505 unique violation. Translate that back to the same
-        // user-facing error the pre-check uses so callers don't see a raw
-        // Postgres error.
-        if ((draftErr as { code?: string }).code === '23505') {
-            const details =
-                typeof (draftErr as { message?: string }).message === 'string'
-                    ? (draftErr as { message: string }).message
-                    : ''
-            if (details.includes('drafts_one_open_per_season')) {
-                throw new Error('A rookie draft already exists for this season')
-            }
-        }
-        throw draftErr
-    }
-
-    // Create draft_orders rows
-    const orderRows = draftOrder.map((memberId, i) => ({
-        draft_id: draft.id,
-        member_id: memberId,
-        position: i + 1,
-    }))
-    await supabase.from('draft_orders').insert(orderRows)
-
-    // Build a map of the exact current-season pick asset for each original owner/round
-    // so that traded picks are reflected in this draft's slot assignments.
-    const pickAssetMap = await fetchPickAssetMap(leagueId, season.season_year)
-
-    // Create snake_draft_picks
-    const pickRows = buildSnakePickRows(draft.id, draftOrder, pickAssetMap, CONFIG.ROOKIE_DRAFT_ROUNDS)
-    await supabase.from('snake_draft_picks').insert(pickRows)
-
-    await supabase.from('leagues').update({ status: 'drafting' }).eq('id', leagueId)
-
+    const draft = data as DraftRow
     console.log(`[rookieDraft] Started snake draft ${draft.id} for league ${leagueId}`)
     return draft
 }
@@ -311,6 +134,7 @@ export async function autoPickBest(draftId: string, memberId: string) {
         .from('players')
         .select('id')
         .not('nba_draft_number', 'is', null)
+        .eq('years_exp', 0)
         .order('nba_draft_number', { ascending: true })
         .order('id', { ascending: true })
         .limit(100)
@@ -322,41 +146,15 @@ export async function autoPickBest(draftId: string, memberId: string) {
 }
 
 export async function reseedRookieDraftPicks(draftId: string) {
-    const { data: draft, error: draftErr } = await supabase
-        .from('drafts')
-        .select('id, league_id, league_season_id, status, league_seasons ( season_year )')
-        .eq('id', draftId)
-        .single()
-    if (draftErr || !draft) throw new Error('Draft not found')
-    if (draft.status !== 'in_progress') throw new Error('Draft is not in progress')
+    const { data, error } = await supabase.rpc('reseed_rookie_draft_picks_atomic', {
+        p_draft_id: draftId,
+        p_rounds: CONFIG.ROOKIE_DRAFT_ROUNDS,
+    })
+    if (error) throw new Error(error.message)
 
-    // Ensure no picks have been made yet
-    const { count: madeCount } = await supabase
-        .from('snake_draft_picks')
-        .select('id', { count: 'exact', head: true })
-        .eq('draft_id', draftId)
-        .not('player_id', 'is', null)
-    if ((madeCount ?? 0) > 0) throw new Error('Cannot reseed — picks have already been made')
-
-    // Get the draft order (already saved in draft_orders)
-    const { data: orders, error: ordersErr } = await supabase
-        .from('draft_orders')
-        .select('position, member_id')
-        .eq('draft_id', draftId)
-        .order('position')
-    if (ordersErr || !orders?.length) throw new Error('Draft orders not found')
-    const draftOrder = orders.map((o) => o.member_id)
-
-    // Build exact pick-asset map from current draft_picks trade assets.
-    const pickAssetMap = await fetchPickAssetMap(draft.league_id, draft.league_seasons?.season_year)
-
-    // Delete existing picks and re-insert with correct ownership
-    await supabase.from('snake_draft_picks').delete().eq('draft_id', draftId)
-
-    const pickRows = buildSnakePickRows(draftId, draftOrder, pickAssetMap, CONFIG.ROOKIE_DRAFT_ROUNDS)
-    await supabase.from('snake_draft_picks').insert(pickRows)
-    console.log(`[rookieDraft] Reseeded ${pickRows.length} picks for draft ${draftId}`)
-    return { reseeded: pickRows.length }
+    const reseeded = Number(data ?? 0)
+    console.log(`[rookieDraft] Reseeded ${reseeded} picks for draft ${draftId}`)
+    return { reseeded }
 }
 
 export async function getRookieDraftState(draftId: string) {

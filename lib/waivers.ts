@@ -25,6 +25,42 @@ export type WaiverClaim = {
     priorityAtSubmission: number
 }
 
+type PlayerSummaryRow = {
+    display_name: string | null
+    position?: string | null
+    nba_team?: string | null
+    injury_status?: string | null
+} | null
+type TeamNameRow = { team_name: string | null } | null
+type WaiverEntryQueryRow = {
+    id: string
+    player_id: string
+    clears_at: string
+    players: PlayerSummaryRow
+    dropped_by: TeamNameRow
+}
+type WaiverPlayerIdRow = { player_id: string }
+type WaiverClaimQueryRow = {
+    id: string
+    player_id: string
+    drop_player_id: string | null
+    status: string
+    submitted_at: string
+    process_date: string
+    priority_at_submission: number
+    claim_player: PlayerSummaryRow
+    drop_player: PlayerSummaryRow
+}
+type PriorityMemberRow = {
+    team_name: string | null
+    profiles: { display_name: string | null; username: string | null } | null
+} | null
+type WaiverPriorityQueryRow = {
+    priority: number
+    member_id: string
+    league_members: PriorityMemberRow
+}
+
 export async function getWaiverEntries(leagueId: string): Promise<WaiverEntry[]> {
     const seasonId = await getCurrentSeasonId(leagueId)
     if (!seasonId) return []
@@ -47,7 +83,7 @@ export async function getWaiverEntries(leagueId: string): Promise<WaiverEntry[]>
 
     if (error) throw error
 
-    return (data ?? []).map((row: any) => ({
+    return ((data ?? []) as WaiverEntryQueryRow[]).map((row) => ({
         logId: row.id,
         playerId: row.player_id,
         playerName: row.players?.display_name ?? 'Unknown',
@@ -64,7 +100,7 @@ export async function getWaiverPlayerIds(leagueId: string): Promise<Set<string>>
     if (!seasonId) return new Set()
 
     const now = new Date().toISOString()
-    const { data, error } = await supabase
+    const { data: activeLogs, error } = await supabase
         .from('waiver_wire_log')
         .select('player_id')
         .eq('league_id', leagueId)
@@ -73,7 +109,33 @@ export async function getWaiverPlayerIds(leagueId: string): Promise<Set<string>>
         .gt('clears_at', now)
 
     if (error) throw error
-    return new Set((data ?? []).map((r: any) => r.player_id))
+
+    const playerIds = new Set(((activeLogs ?? []) as WaiverPlayerIdRow[]).map((row) => row.player_id))
+
+    const { data: expiredLogs, error: expiredError } = await supabase
+        .from('waiver_wire_log')
+        .select('player_id')
+        .eq('league_id', leagueId)
+        .eq('league_season_id', seasonId)
+        .is('cleared_at', null)
+        .lte('clears_at', now)
+
+    if (expiredError) throw expiredError
+    const expiredPlayerIds = ((expiredLogs ?? []) as WaiverPlayerIdRow[]).map((row) => row.player_id)
+    if (expiredPlayerIds.length === 0) return playerIds
+
+    const { data: pendingClaims, error: pendingError } = await supabase
+        .from('waiver_claims')
+        .select('player_id')
+        .eq('league_id', leagueId)
+        .eq('league_season_id', seasonId)
+        .eq('status', 'pending')
+        .in('player_id', expiredPlayerIds)
+
+    if (pendingError) throw pendingError
+    for (const row of (pendingClaims ?? []) as WaiverPlayerIdRow[]) playerIds.add(row.player_id)
+
+    return playerIds
 }
 
 export async function submitWaiverClaim(
@@ -122,7 +184,7 @@ export async function getMyWaiverClaims(
 
     if (error) throw error
 
-    return (data ?? []).map((row: any) => ({
+    return ((data ?? []) as WaiverClaimQueryRow[]).map((row) => ({
         id: row.id,
         playerId: row.player_id,
         playerName: row.claim_player?.display_name ?? 'Unknown',
@@ -162,7 +224,7 @@ export async function getWaiverPriorityOrder(leagueId: string): Promise<WaiverPr
 
     if (error) throw error
 
-    return (data ?? []).map((row: any) => {
+    return ((data ?? []) as WaiverPriorityQueryRow[]).map((row) => {
         const member = row.league_members
         const profile = member?.profiles
         return {

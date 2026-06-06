@@ -13,6 +13,60 @@ type LineupAssignment = {
     week_number: number
 }
 
+type SeasonWeekRow = {
+    week_number: number
+    week_start: string
+}
+type RosterPlayerRow = {
+    player_id: string
+    players: {
+        position: string | null
+        eligible_positions: string[] | null
+        nba_team: string | null
+        injury_status: string | null
+    } | null
+}
+type StarterTemplate = {
+    slot_type: string
+    slot_count: number
+}
+type PlayerAverageRow = {
+    player_id: string
+    games_played: number | null
+    avg_points: number | null
+    avg_rebounds: number | null
+    avg_assists: number | null
+    avg_steals: number | null
+    avg_blocks: number | null
+    avg_turnovers: number | null
+    avg_three_pointers_made: number | null
+    avg_field_goals_made: number | null
+    avg_field_goals_attempted: number | null
+    avg_free_throws_made: number | null
+    avg_free_throws_attempted: number | null
+    double_doubles: number | null
+    triple_doubles: number | null
+}
+type LeagueScoringRow = {
+    scoring_settings: Record<string, unknown> | null
+}
+type AutoSetPlayer = {
+    playerId: string
+    eligiblePositions: string[]
+    nbaTeam: string | null
+    projected: number
+}
+type GameRow = {
+    home_team: string | null
+    away_team: string | null
+    status: string | null
+    game_time: string | null
+}
+type WeeklyLineupRow = {
+    player_id: string
+    slot_type: RosterSlotType
+}
+
 async function getRemainingSeasonDates(
     fromWeek: number,
     seasonYear: number,
@@ -30,8 +84,8 @@ async function getRemainingSeasonDates(
         .order('week_number', { ascending: true })
 
     const result: { date: string; weekNumber: number }[] = []
-    for (const w of weeks ?? []) {
-        const start = new Date((w as any).week_start + 'T12:00:00Z')
+    for (const w of (weeks ?? []) as SeasonWeekRow[]) {
+        const start = new Date(w.week_start + 'T12:00:00Z')
         const dow = start.getUTCDay()
         start.setUTCDate(start.getUTCDate() + (dow === 0 ? -6 : 1 - dow))
         for (let i = 0; i < 7; i++) {
@@ -39,7 +93,7 @@ async function getRemainingSeasonDates(
             d.setUTCDate(d.getUTCDate() + i)
             const dateStr = d.toISOString().split('T')[0]
             if (dateStr >= today) {
-                result.push({ date: dateStr, weekNumber: (w as any).week_number })
+                result.push({ date: dateStr, weekNumber: w.week_number })
             }
         }
     }
@@ -73,7 +127,8 @@ export async function autoSetLineup(
             .eq('league_id', leagueId),
     ])
 
-    const playerIds = (roster ?? []).map((r: any) => r.player_id)
+    const rosterRows = (roster ?? []) as RosterPlayerRow[]
+    const playerIds = rosterRows.map((row) => row.player_id)
 
     // Use mv_player_season_averages (1 row per player, already excludes did_not_play games)
     // instead of querying raw player_game_stats. The raw query has no explicit limit and
@@ -92,42 +147,41 @@ export async function autoSetLineup(
             .single(),
     ])
 
-    const s = (leagueRow as any)?.scoring_settings ?? {}
-    const val = (key: string) => Number(s[key] ?? 0)
+    const scoringSettings = ((leagueRow as LeagueScoringRow | null)?.scoring_settings ?? {})
+    const scoringValue = (key: string) => Number(scoringSettings[key] ?? 0)
 
     const avgFptsMap = new Map<string, number>()
-    for (const row of avgRows ?? []) {
-        const r = row as any
-        const gp = Number(r.games_played) || 0
+    for (const row of (avgRows ?? []) as PlayerAverageRow[]) {
+        const gp = Number(row.games_played) || 0
         const fpts =
-            Number(r.avg_points ?? 0)                * val('points') +
-            Number(r.avg_rebounds ?? 0)              * val('rebounds') +
-            Number(r.avg_assists ?? 0)               * val('assists') +
-            Number(r.avg_steals ?? 0)                * val('steals') +
-            Number(r.avg_blocks ?? 0)                * val('blocks') +
-            Number(r.avg_turnovers ?? 0)             * val('turnovers') +
-            Number(r.avg_three_pointers_made ?? 0)   * val('three_pointers_made') +
-            Number(r.avg_field_goals_made ?? 0)      * val('field_goals_made') +
-            Number(r.avg_field_goals_attempted ?? 0) * val('field_goals_attempted') +
-            Number(r.avg_free_throws_made ?? 0)      * val('free_throws_made') +
-            Number(r.avg_free_throws_attempted ?? 0) * val('free_throws_attempted') +
-            (gp > 0 ? (Number(r.double_doubles ?? 0) / gp) * val('double_double') : 0) +
-            (gp > 0 ? (Number(r.triple_doubles ?? 0) / gp) * val('triple_double') : 0)
-        avgFptsMap.set(r.player_id, fpts)
+            Number(row.avg_points ?? 0)                * scoringValue('points') +
+            Number(row.avg_rebounds ?? 0)              * scoringValue('rebounds') +
+            Number(row.avg_assists ?? 0)               * scoringValue('assists') +
+            Number(row.avg_steals ?? 0)                * scoringValue('steals') +
+            Number(row.avg_blocks ?? 0)                * scoringValue('blocks') +
+            Number(row.avg_turnovers ?? 0)             * scoringValue('turnovers') +
+            Number(row.avg_three_pointers_made ?? 0)   * scoringValue('three_pointers_made') +
+            Number(row.avg_field_goals_made ?? 0)      * scoringValue('field_goals_made') +
+            Number(row.avg_field_goals_attempted ?? 0) * scoringValue('field_goals_attempted') +
+            Number(row.avg_free_throws_made ?? 0)      * scoringValue('free_throws_made') +
+            Number(row.avg_free_throws_attempted ?? 0) * scoringValue('free_throws_attempted') +
+            (gp > 0 ? (Number(row.double_doubles ?? 0) / gp) * scoringValue('double_double') : 0) +
+            (gp > 0 ? (Number(row.triple_doubles ?? 0) / gp) * scoringValue('triple_double') : 0)
+        avgFptsMap.set(row.player_id, fpts)
     }
 
-    const players = (roster ?? []).map((r: any) => {
-        const injured = isIREligible(r.players?.injury_status ?? null)
+    const players = rosterRows.map((row) => {
+        const injured = isIREligible(row.players?.injury_status ?? null)
         return {
-            playerId: r.player_id as string,
-            eligiblePositions: getEligiblePositions(r.players ?? {}),
-            nbaTeam: r.players?.nba_team as string | null,
-            projected: injured ? 0 : (avgFptsMap.get(r.player_id) ?? 0),
+            playerId: row.player_id,
+            eligiblePositions: getEligiblePositions(row.players ?? {}),
+            nbaTeam: row.players?.nba_team ?? null,
+            projected: injured ? 0 : (avgFptsMap.get(row.player_id) ?? 0),
         }
     })
 
-    const starterTemplates = (templates ?? []).filter(
-        (t: any) => t.slot_type !== 'BE' && t.slot_type !== 'IR' && t.slot_type !== 'TX',
+    const starterTemplates = ((templates ?? []) as StarterTemplate[]).filter(
+        (template) => template.slot_type !== 'BE' && template.slot_type !== 'IR' && template.slot_type !== 'TX',
     )
 
     // Dates here feed into autoSetForDate where they're matched against
@@ -172,8 +226,8 @@ async function autoSetForDate(
     weekNumber: number,
     seasonYear: number,
     gameDate: string,
-    players: { playerId: string; eligiblePositions: string[]; nbaTeam: string | null; projected: number }[],
-    starterTemplates: any[],
+    players: AutoSetPlayer[],
+    starterTemplates: StarterTemplate[],
 ): Promise<void> {
     // Skip past dates - lineups for already-played games should remain locked.
     // gameDate aligns with nba_games.game_date / weekly_lineups.game_date (ET),
@@ -200,15 +254,15 @@ async function autoSetForDate(
     const playingTeams = new Set<string>()
     const startedTeams = new Set<string>()
     const now = new Date().toISOString()
-    for (const g of games ?? []) {
-        if ((g as any).home_team) playingTeams.add((g as any).home_team)
-        if ((g as any).away_team) playingTeams.add((g as any).away_team)
+    for (const game of (games ?? []) as GameRow[]) {
+        if (game.home_team) playingTeams.add(game.home_team)
+        if (game.away_team) playingTeams.add(game.away_team)
         const hasStarted =
-            ['InProgress', 'Final'].includes((g as any).status) ||
-            ((g as any).game_time && (g as any).game_time <= now)
+            ['InProgress', 'Final'].includes(game.status ?? '') ||
+            (game.game_time != null && game.game_time <= now)
         if (hasStarted) {
-            if ((g as any).home_team) startedTeams.add((g as any).home_team)
-            if ((g as any).away_team) startedTeams.add((g as any).away_team)
+            if (game.home_team) startedTeams.add(game.home_team)
+            if (game.away_team) startedTeams.add(game.away_team)
         }
     }
 
@@ -217,13 +271,13 @@ async function autoSetForDate(
     // Any player whose game has already started is locked — they cannot be moved in any direction.
     const lockedEntries: { playerId: string; slotType: string }[] = []
     const lockedPlayerIds = new Set<string>()
-    for (const entry of existingEntries ?? []) {
-        const team = playerTeamMap.get((entry as any).player_id)
+    for (const entry of (existingEntries ?? []) as WeeklyLineupRow[]) {
+        const team = playerTeamMap.get(entry.player_id)
         if (team && startedTeams.has(team)) {
-            lockedPlayerIds.add((entry as any).player_id)
-            const isStarter = (entry as any).slot_type !== 'BE' && (entry as any).slot_type !== 'IR'
+            lockedPlayerIds.add(entry.player_id)
+            const isStarter = entry.slot_type !== 'BE' && entry.slot_type !== 'IR'
             if (isStarter) {
-                lockedEntries.push({ playerId: (entry as any).player_id, slotType: (entry as any).slot_type })
+                lockedEntries.push({ playerId: entry.player_id, slotType: entry.slot_type })
             }
         }
     }
@@ -256,7 +310,7 @@ async function autoSetForDate(
     }
 
     const templateMap = new Map<string, number>(
-        starterTemplates.map((t: any) => [t.slot_type as string, t.slot_count as number]),
+        starterTemplates.map((template) => [template.slot_type, template.slot_count]),
     )
 
     const slotOrder = [

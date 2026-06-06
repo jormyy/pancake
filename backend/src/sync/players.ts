@@ -4,6 +4,7 @@ import { normalizeName } from '../lib/utils/nameMatch'
 import { todayET } from '../lib/utils/date'
 
 const JUNK_INJURY_STATUSES = new Set(['Scrambled'])
+const AMBIGUOUS = Symbol('ambiguous')
 
 function normalizeInjuryStatus(s: string | null | undefined): string | null {
     if (!s || JUNK_INJURY_STATUSES.has(s)) return null
@@ -25,7 +26,7 @@ export async function syncPlayerStatuses(): Promise<void> {
     console.log(`[syncPlayerStatuses] Fetched ${sleeperPlayers.length} NBA players from Sleeper`)
 
     const statusBySleeperId = new Map<string, StatusFields>()
-    const statusByName = new Map<string, StatusFields>()
+    const statusByName = new Map<string, StatusFields | typeof AMBIGUOUS>()
     for (const p of sleeperPlayers) {
         const pid = (p as any).player_id as string
         const fields: StatusFields = {
@@ -36,37 +37,51 @@ export async function syncPlayerStatuses(): Promise<void> {
         }
         statusBySleeperId.set(pid, fields)
         const fullName = [p.first_name, p.last_name].filter(Boolean).join(' ')
-        if (fullName) statusByName.set(normalizeName(fullName), fields)
+        if (fullName) setUniqueStatus(statusByName, normalizeName(fullName), fields)
     }
 
     // Fetch all DB players
     const { data: players, error } = await supabase
         .from('players')
-        .select('id, display_name, sleeper_id, status, injury_status, nba_team, years_exp')
+        .select('id, display_name, sleeper_id, status, injury_status, nba_team, years_exp, nba_draft_number')
 
     if (error) throw error
 
     // Don't restore injury status for players who have already played today —
     // the stats sync correctly clears those, and Sleeper is just slow to update.
     const today = todayET()
-    const { data: todayGames } = await supabase
+    let preserveExistingInjuryStatuses = false
+    const { data: todayGames, error: todayGamesErr } = await supabase
         .from('nba_games')
         .select('id')
         .eq('game_date', today)
+    if (todayGamesErr) {
+        console.error('[syncPlayerStatuses] Failed to read today games; preserving existing injury statuses:', todayGamesErr.message)
+        preserveExistingInjuryStatuses = true
+    }
+
     const todayGameIds = (todayGames ?? []).map((g: any) => g.id)
-    const { data: playedToday } = await supabase
-        .from('player_game_stats')
-        .select('player_id')
-        .eq('did_not_play', false)
-        .in('game_id', todayGameIds)
-    const playedTodayIds = new Set((playedToday ?? []).map((r: any) => r.player_id as string))
+    const playedTodayIds = new Set<string>()
+    if (!preserveExistingInjuryStatuses && todayGameIds.length > 0) {
+        const { data: playedToday, error: playedTodayErr } = await supabase
+            .from('player_game_stats')
+            .select('player_id')
+            .eq('did_not_play', false)
+            .in('game_id', todayGameIds)
+        if (playedTodayErr) {
+            console.error('[syncPlayerStatuses] Failed to read today player stats; preserving existing injury statuses:', playedTodayErr.message)
+            preserveExistingInjuryStatuses = true
+        } else {
+            for (const row of playedToday ?? []) playedTodayIds.add((row as any).player_id as string)
+        }
+    }
 
     const dbPlayers = players ?? []
     const withId = dbPlayers.filter((p: any) => p.sleeper_id)
     const withoutId = dbPlayers.filter((p: any) => !p.sleeper_id)
     console.log(`[syncPlayerStatuses] DB players: ${withId.length} with sleeper_id, ${withoutId.length} name-matched`)
 
-    const toUpdate: { id: string; fields: StatusFields }[] = []
+    const toUpdate: { id: string; fields: StatusFields; nbaDraftNumber: number | null }[] = []
     let matched = 0
 
     for (const p of withId) {
@@ -74,16 +89,32 @@ export async function syncPlayerStatuses(): Promise<void> {
         if (!incoming) continue
         matched++
         // Skip injury_status restore for players who already played today
-        const fields = playedTodayIds.has((p as any).id) ? { ...incoming, injury_status: null } : incoming
-        if (changed(fields, p as any)) toUpdate.push({ id: (p as any).id, fields })
+        const fields = preserveExistingInjuryStatuses
+            ? { ...incoming, injury_status: (p as any).injury_status ?? null }
+            : playedTodayIds.has((p as any).id) ? { ...incoming, injury_status: null } : incoming
+        if (changed(fields, p as any)) {
+            toUpdate.push({
+                id: (p as any).id,
+                fields,
+                nbaDraftNumber: (p as any).nba_draft_number ?? null,
+            })
+        }
     }
 
     for (const p of withoutId) {
         const incoming = statusByName.get(normalizeName((p as any).display_name))
-        if (!incoming) continue
+        if (!incoming || incoming === AMBIGUOUS) continue
         matched++
-        const fields = playedTodayIds.has((p as any).id) ? { ...incoming, injury_status: null } : incoming
-        if (changed(fields, p as any)) toUpdate.push({ id: (p as any).id, fields })
+        const fields = preserveExistingInjuryStatuses
+            ? { ...incoming, injury_status: (p as any).injury_status ?? null }
+            : playedTodayIds.has((p as any).id) ? { ...incoming, injury_status: null } : incoming
+        if (changed(fields, p as any)) {
+            toUpdate.push({
+                id: (p as any).id,
+                fields,
+                nbaDraftNumber: (p as any).nba_draft_number ?? null,
+            })
+        }
     }
 
     console.log(`[syncPlayerStatuses] Matched ${matched} players, ${toUpdate.length} need updates`)
@@ -92,12 +123,17 @@ export async function syncPlayerStatuses(): Promise<void> {
     // Rows are guaranteed to exist (sourced from the SELECT above); the upsert
     // merges only the specified columns into existing rows.
     const nowIso = new Date().toISOString()
-    const upsertRows = toUpdate.map(({ id, fields }) => ({
+    const upsertRows = toUpdate.map(({ id, fields, nbaDraftNumber }) => ({
         id,
         status: fields.status,
         injury_status: fields.injury_status,
         nba_team: fields.nba_team,
-        years_exp: fields.years_exp,
+        years_exp: fields.years_exp ?? undefined,
+        nba_draft_number: fields.years_exp == null
+            ? nbaDraftNumber
+            : fields.years_exp === 0
+                ? nbaDraftNumber
+                : null,
         updated_at: nowIso,
     }))
     for (let i = 0; i < upsertRows.length; i += 500) {
@@ -108,9 +144,38 @@ export async function syncPlayerStatuses(): Promise<void> {
         if (updateErr) console.error(`[syncPlayerStatuses] Update failed for chunk starting at ${i}:`, updateErr.message)
     }
 
+    const { error: taxiCleanupErr } = await supabase.rpc('clear_ineligible_taxi_players')
+    if (taxiCleanupErr) console.error('[syncPlayerStatuses] Taxi eligibility cleanup failed:', taxiCleanupErr.message)
+
     console.log(`[syncPlayerStatuses] Done. Updated ${toUpdate.length} player statuses.`)
 }
 
-function changed(incoming: StatusFields, p: { status: string | null; injury_status: string | null; nba_team: string | null; years_exp?: number | null }): boolean {
-    return incoming.status !== p.status || incoming.injury_status !== p.injury_status || incoming.nba_team !== p.nba_team || incoming.years_exp !== p.years_exp
+function changed(
+    incoming: StatusFields,
+    p: {
+        status: string | null
+        injury_status: string | null
+        nba_team: string | null
+        years_exp?: number | null
+        nba_draft_number?: number | null
+    },
+): boolean {
+    return incoming.status !== p.status ||
+        incoming.injury_status !== p.injury_status ||
+        incoming.nba_team !== p.nba_team ||
+        incoming.years_exp !== p.years_exp ||
+        (incoming.years_exp !== 0 && p.nba_draft_number != null)
+}
+
+function setUniqueStatus(
+    map: Map<string, StatusFields | typeof AMBIGUOUS>,
+    key: string,
+    fields: StatusFields,
+): void {
+    const existing = map.get(key)
+    if (!existing) {
+        map.set(key, fields)
+    } else {
+        map.set(key, AMBIGUOUS)
+    }
 }

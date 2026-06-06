@@ -58,7 +58,7 @@ export async function getActiveDraft(leagueId: string): Promise<Draft | null> {
         .from('drafts')
         .select('id, league_id, status, draft_type, current_nomination_order, budget_per_team, started_at')
         .eq('league_id', leagueId)
-        .in('status', ['in_progress', 'pending'])
+        .in('status', ['in_progress', 'pending', 'completed'])
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle()

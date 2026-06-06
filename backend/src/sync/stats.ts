@@ -1,7 +1,8 @@
 import { supabase, fetchAllPlayers } from '../lib/supabase'
 import { fetchBoxScore, parseNBAMinutes, NBABoxScorePlayer } from '../lib/nba'
 import { todayET, toETDate } from '../lib/utils/date'
-import { normalizeName } from '../lib/utils/nameMatch'
+import { AMBIGUOUS_PLAYER_ID, buildPlayerLookupMaps, lookupPlayerByName, normalizeName } from '../lib/utils/nameMatch'
+import { persistNbaIdUpdates } from '../lib/playerIdentity'
 
 export interface StatRow {
     player_id: string
@@ -109,15 +110,8 @@ export async function syncStatsByDate(date: Date) {
     // Load player lookup maps — paginated to avoid PostgREST max_rows cap
     const players = await fetchAllPlayers()
 
-    const byNbaId = new Map<string, string>() // nba personId → player.id
-    const byName = new Map<string, string>() // display_name lower → player.id
-    const byNormName = new Map<string, string>() // normalized name → player.id
-    for (const p of players) {
-        if (p.nba_id) byNbaId.set(p.nba_id, p.id)
-        const lower = p.display_name.toLowerCase()
-        byName.set(lower, p.id)
-        byNormName.set(normalizeName(lower), p.id)
-    }
+    const playerLookup = buildPlayerLookupMaps(players)
+    const byNbaId = playerLookup.byNbaId
 
     let statCount = 0
     const nbaIdUpdates: { id: string; nba_id: string }[] = []
@@ -166,8 +160,7 @@ export async function syncStatsByDate(date: Date) {
                 let playerId = byNbaId.get(personId)
 
                 if (!playerId) {
-                    const nameLower = (p.name ?? '').toLowerCase()
-                    playerId = byName.get(nameLower) ?? byNormName.get(normalizeName(nameLower))
+                    playerId = resolveCdnPlayerForStats(playerLookup, personId, p.name ?? '') ?? undefined
                     if (playerId && !byNbaId.has(personId)) {
                         nbaIdUpdates.push({ id: playerId, nba_id: personId })
                         byNbaId.set(personId, playerId)
@@ -188,7 +181,11 @@ export async function syncStatsByDate(date: Date) {
             if (isPast && boxScore.gameStatus === 1) continue
 
             if (boxScore.gameStatus === 3 && game.status !== 'Final') {
-                await supabase.from('nba_games').update({ status: 'Final' }).eq('id', game.id)
+                const { error: finalStatusError } = await supabase
+                    .from('nba_games')
+                    .update({ status: 'Final' })
+                    .eq('id', game.id)
+                if (finalStatusError) throw finalStatusError
             }
 
             if (stats.length) {
@@ -203,18 +200,9 @@ export async function syncStatsByDate(date: Date) {
         }
     }
 
-    // Persist newly discovered nba_id mappings in batches.
-    // Rows are guaranteed to exist (fetched via fetchAllPlayers); upsert(onConflict:'id')
-    // merges nba_id into the existing row without touching other columns.
-    // Cast to any: generated type requires full row, but PostgREST accepts
-    // partial payloads for the UPDATE path of an upsert.
-    for (let i = 0; i < nbaIdUpdates.length; i += 500) {
-        await supabase
-            .from('players')
-            .upsert(nbaIdUpdates.slice(i, i + 500) as any, { onConflict: 'id' })
-    }
+    const persistedNbaIds = await persistNbaIdUpdates(nbaIdUpdates)
     if (nbaIdUpdates.length > 0) {
-        console.log(`[sync] Mapped ${nbaIdUpdates.length} new NBA person IDs.`)
+        console.log(`[sync] Mapped ${persistedNbaIds.updated} new NBA person IDs; merged ${persistedNbaIds.merged} duplicate rows before update.`)
     }
 
     // Clear stale transient injury statuses for players who actually played today.
@@ -239,4 +227,23 @@ export async function syncStatsByDate(date: Date) {
     }
 
     console.log(`[sync] Upserted ${statCount} stat lines for ${dateStr}.`)
+}
+
+function resolveCdnPlayerForStats(
+    playerLookup: ReturnType<typeof buildPlayerLookupMaps>,
+    personId: string,
+    displayName: string,
+): string | null {
+    const existingById = playerLookup.byNbaId.get(personId)
+    if (existingById) return existingById
+
+    const exact = playerLookup.byName.get(displayName.toLowerCase())
+    if (exact && exact !== AMBIGUOUS_PLAYER_ID) return exact
+
+    const normalized = playerLookup.byNormName.get(normalizeName(displayName))
+    if (exact === AMBIGUOUS_PLAYER_ID || normalized === AMBIGUOUS_PLAYER_ID) {
+        throw new Error(`Ambiguous CDN player name without NBA id: ${displayName}`)
+    }
+
+    return lookupPlayerByName(playerLookup, displayName)
 }

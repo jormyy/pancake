@@ -57,11 +57,19 @@ export async function getActiveRookieDraft(leagueId: string) {
         .select('id, league_id, status, draft_type, started_at')
         .eq('league_id', leagueId)
         .eq('draft_type', 'snake')
-        .in('status', ['in_progress', 'pending'])
+        .in('status', ['in_progress', 'pending', 'completed'])
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle()
     return data
+}
+
+export async function activateRookieDraftLeague(draftId: string): Promise<boolean> {
+    const { data, error } = await supabase.rpc('activate_rookie_draft_league_atomic', {
+        p_draft_id: draftId,
+    })
+    if (error) throw error
+    return Boolean(data)
 }
 
 export async function getRookieDraftState(draftId: string): Promise<RookieDraftState | null> {
@@ -190,6 +198,7 @@ export async function getRookiePlayers(draftId: string, query?: string): Promise
         .from('players')
         .select('id, display_name, nba_team, position, nba_draft_number')
         .not('nba_draft_number', 'is', null)
+        .eq('years_exp', 0)
         .order('nba_draft_number', { ascending: true })
         .order('id', { ascending: true })
         .limit(100)
@@ -205,6 +214,7 @@ export async function getRookiePlayers(draftId: string, query?: string): Promise
             .from('players')
             .select('id, display_name, nba_team, position')
             .not('nba_draft_number', 'is', null)
+            .eq('years_exp', 0)
             .order('nba_draft_number', { ascending: true })
             .order('id', { ascending: true })
             .limit(100)

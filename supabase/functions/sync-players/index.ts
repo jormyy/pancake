@@ -6,6 +6,7 @@ const NBA_CDN_BASE_URL = Deno.env.get('NBA_CDN_BASE_URL') ?? 'https://cdn.nba.co
 const SLEEPER_URL = `${SLEEPER_BASE_URL}/players/nba`
 const NBA_PLAYER_INDEX_URL = `${NBA_CDN_BASE_URL}/staticData/playerIndex.json`
 const CHUNK = 500
+const AMBIGUOUS = '__ambiguous__'
 
 Deno.serve(async () => {
   try {
@@ -48,12 +49,13 @@ async function syncPlayers() {
     from += PAGE
   }
 
-  const byName = new Map<string, string>()
+  const byExactName = new Map<string, string>()
+  const byNormName = new Map<string, string>()
   const bySleeperId = new Map<string, string>()
   for (const p of existing) {
     if (p.display_name) {
-      byName.set(p.display_name.toLowerCase(), p.id)
-      byName.set(normalizeName(p.display_name), p.id)
+      setUnique(byExactName, p.display_name.toLowerCase(), p.id)
+      setUnique(byNormName, normalizeName(p.display_name), p.id)
     }
     if (p.sleeper_id) bySleeperId.set(p.sleeper_id, p.id)
   }
@@ -75,9 +77,12 @@ async function syncPlayers() {
       updated_at: new Date().toISOString(),
     }
 
-    const existingId = bySleeperId.get(p.player_id)
-      ?? byName.get(displayName.toLowerCase())
-      ?? byName.get(normalizeName(displayName))
+    const exactNameId = byExactName.get(displayName.toLowerCase())
+    const normalizedNameId = byNormName.get(normalizeName(displayName))
+    const matchedNameId = exactNameId && exactNameId !== AMBIGUOUS
+      ? exactNameId
+      : (normalizedNameId && normalizedNameId !== AMBIGUOUS ? normalizedNameId : null)
+    const existingId = bySleeperId.get(p.player_id) ?? matchedNameId
     if (existingId) {
       toUpdate.push({ id: existingId, ...playerData })
     } else {
@@ -137,17 +142,18 @@ async function syncNBAIds() {
   const lastIdx = headers.indexOf('PLAYER_LAST_NAME')
   const statusIdx = headers.indexOf('ROSTER_STATUS')
 
-  // Build map: normalizedName → nba person_id (active players only)
+  // Build maps from the active CDN index. Exact names are preferred; normalized
+  // names are used only when unique on both the CDN and DB sides.
+  const byExactName = new Map<string, string>()
   const byNormName = new Map<string, string>()
   for (const row of rows) {
     if (row[statusIdx] !== 1) continue // skip inactive
     const fullName = `${row[firstIdx]} ${row[lastIdx]}`
+    const exact = fullName.toLowerCase()
     const norm = normalizeName(fullName)
     const personId = String(row[pidIdx])
-    // Don't overwrite if collision — keep first match
-    if (!byNormName.has(norm)) {
-      byNormName.set(norm, personId)
-    }
+    setUnique(byExactName, exact, personId)
+    setUnique(byNormName, norm, personId)
   }
 
   // Paginate to avoid PostgREST max_rows cap
@@ -166,30 +172,69 @@ async function syncNBAIds() {
     from += PAGE
   }
 
+  const dbNormCounts = new Map<string, number>()
+  const dbExactCounts = new Map<string, number>()
+  const dbByNbaId = new Map<string, string>()
+  for (const player of players) {
+    if (player.nba_id) dbByNbaId.set(player.nba_id, player.id)
+    if (!player.display_name) continue
+    const exact = player.display_name.toLowerCase()
+    const norm = normalizeName(player.display_name)
+    dbExactCounts.set(exact, (dbExactCounts.get(exact) ?? 0) + 1)
+    dbNormCounts.set(norm, (dbNormCounts.get(norm) ?? 0) + 1)
+  }
+
   const updates: { id: string; nba_id: string }[] = []
   for (const p of players) {
     if (!p.display_name) continue
+    const exact = p.display_name.toLowerCase()
     const norm = normalizeName(p.display_name)
-    const personId = byNormName.get(norm)
-    if (personId && p.nba_id !== personId) {
+    const exactPersonId = byExactName.get(exact)
+    const normPersonId = byNormName.get(norm)
+    const personId = exactPersonId && exactPersonId !== AMBIGUOUS && dbExactCounts.get(exact) === 1
+      ? exactPersonId
+      : (dbNormCounts.get(norm) === 1 && normPersonId && normPersonId !== AMBIGUOUS ? normPersonId : null)
+    if (personId && !p.nba_id) {
       updates.push({ id: p.id, nba_id: personId })
     }
   }
 
+  let mergedBeforeUpdate = 0
   for (const update of updates) {
+    const existingOwnerId = dbByNbaId.get(update.nba_id)
+    if (existingOwnerId && existingOwnerId !== update.id) {
+      const { error: mergeErr } = await supabase.rpc('merge_players', {
+        winner_id: existingOwnerId,
+        loser_id: update.id,
+      })
+      if (mergeErr) throw mergeErr
+      mergedBeforeUpdate++
+      continue
+    }
+
     const { error: updateErr } = await supabase
       .from('players')
       .update({ nba_id: update.nba_id })
       .eq('id', update.id)
     if (updateErr) throw updateErr
+    dbByNbaId.set(update.nba_id, update.id)
   }
 
-  console.log(`[sync-players] Updated nba_id for ${updates.length} players.`)
+  console.log(`[sync-players] Updated nba_id for ${updates.length - mergedBeforeUpdate} players; merged ${mergedBeforeUpdate} duplicate rows before update.`)
 
   // Merge any players that ended up with the same nba_id (same real person, two DB rows)
   const { error: mergeErr } = await supabase.rpc('merge_duplicate_players')
   if (mergeErr) console.error('[sync-players] merge_duplicate_players error:', mergeErr.message)
   else console.log('[sync-players] Dedup complete.')
+}
+
+function setUnique(map: Map<string, string>, key: string, value: string): void {
+  const existing = map.get(key)
+  if (!existing) {
+    map.set(key, value)
+  } else if (existing !== value) {
+    map.set(key, AMBIGUOUS)
+  }
 }
 
 import { normalizeName } from '../_shared/nameMatch.ts'

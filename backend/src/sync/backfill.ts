@@ -6,6 +6,8 @@ import { syncCDNHistoricalSeason, CDN_HISTORICAL_SEASONS } from './historicalCDN
 import { syncBBRefSeason, BBREF_SEASONS } from './historicalBBRef'
 import { sleep } from '../lib/utils/sleep'
 import { todayET } from '../lib/utils/date'
+import { buildPlayerLookupMaps, lookupPlayerByName } from '../lib/utils/nameMatch'
+import { persistNbaIdUpdates } from '../lib/playerIdentity'
 
 export interface BackfillOptions {
     fromDate?: string   // YYYY-MM-DD
@@ -88,16 +90,11 @@ async function runBackfill(jobId: string, seasonYear: number, options: BackfillO
         return
     }
 
-    // Unless forceResync, skip games that already have stats
-    let gamesToFetch = allGames
-    if (!options.forceResync) {
-        const { data: syncedGameIds } = await supabase
-            .from('player_game_stats')
-            .select('game_id')
-            .eq('season_year', seasonYear)
-        const synced = new Set((syncedGameIds ?? []).map((r: any) => r.game_id))
-        gamesToFetch = allGames.filter((g) => !synced.has(g.id))
-    }
+    // Reprocess requested games even if some stats already exist. A single
+    // player_game_stats row is not proof that the whole box score was synced;
+    // rerunning repairs partial games instead of making them permanently
+    // invisible to backfill.
+    const gamesToFetch = allGames
 
     await supabase
         .from('sync_jobs')
@@ -108,12 +105,8 @@ async function runBackfill(jobId: string, seasonYear: number, options: BackfillO
 
     // Load player lookup maps once
     const players = await fetchAllPlayers()
-    const byNbaId = new Map<string, string>()
-    const byName = new Map<string, string>()
-    for (const p of players) {
-        if (p.nba_id) byNbaId.set(p.nba_id, p.id)
-        byName.set(p.display_name.toLowerCase(), p.id)
-    }
+    const playerLookup = buildPlayerLookupMaps(players)
+    const byNbaId = playerLookup.byNbaId
 
     const nbaIdUpdates: { id: string; nba_id: string }[] = []
     const errorLog: Array<{ gameId: string; error: string }> = []
@@ -133,22 +126,14 @@ async function runBackfill(jobId: string, seasonYear: number, options: BackfillO
         // Process in chunks of BACKFILL_CONCURRENCY
         for (let i = 0; i < games.length; i += CONFIG.BACKFILL_CONCURRENCY) {
             const chunk = games.slice(i, i + CONFIG.BACKFILL_CONCURRENCY)
-            await Promise.all(
+            const chunkResults = await Promise.all(
                 chunk.map(async (game) => {
                     try {
                         const boxScore = await fetchBoxScore(game.nba_game_id!)
                         const cdnStatus = boxScore.gameStatus
 
-                        // Update game status if CDN says it's Final
-                        if (cdnStatus === 3 && game.status !== 'Final') {
-                            await supabase
-                                .from('nba_games')
-                                .update({ status: 'Final' })
-                                .eq('id', game.id)
-                        }
-
                         // Skip if game isn't actually finished on CDN
-                        if (cdnStatus !== 3) return
+                        if (cdnStatus !== 3) throw new Error(`CDN game is not final (status ${cdnStatus})`)
 
                         const allPlayers = [
                             ...(boxScore.homeTeam?.players ?? []),
@@ -156,31 +141,47 @@ async function runBackfill(jobId: string, seasonYear: number, options: BackfillO
                         ]
 
                         const stats: any[] = []
+                        const unresolvedPlayers: string[] = []
                         for (const p of allPlayers) {
                             if (!p.statistics) continue
                             const personId = String(p.personId)
                             let playerId = byNbaId.get(personId)
 
                             if (!playerId) {
-                                const nameLower = (p.name ?? '').toLowerCase()
-                                playerId = byName.get(nameLower)
+                                playerId = lookupPlayerByName(playerLookup, p.name ?? '') ?? undefined
                                 if (playerId && !byNbaId.has(personId)) {
                                     nbaIdUpdates.push({ id: playerId, nba_id: personId })
                                     byNbaId.set(personId, playerId)
                                 }
                             }
 
-                            if (!playerId) continue
+                            if (!playerId) {
+                                unresolvedPlayers.push(`${p.name ?? 'Unknown'} (${personId})`)
+                                continue
+                            }
 
                             stats.push(buildStatRow(p, playerId, game.id, game.season_year, game.week_number))
                         }
 
-                        if (stats.length) {
-                            const { error } = await supabase
-                                .from('player_game_stats')
-                                .upsert(stats, { onConflict: 'player_id,game_id' })
-                            if (error) throw error
+                        if (unresolvedPlayers.length) {
+                            throw new Error(`Unresolved or ambiguous players: ${unresolvedPlayers.join(', ')}`)
                         }
+
+                        if (!stats.length) throw new Error('No player stats parsed from final box score.')
+
+                        const { error } = await supabase
+                            .from('player_game_stats')
+                            .upsert(stats, { onConflict: 'player_id,game_id' })
+                        if (error) throw error
+
+                        if (game.status !== 'Final') {
+                            const { error: statusError } = await supabase
+                                .from('nba_games')
+                                .update({ status: 'Final' })
+                                .eq('id', game.id)
+                            if (statusError) throw statusError
+                        }
+                        return true
                     } catch (e: any) {
                         // 404 = game not on CDN; log and continue
                         const msg = e.response?.status === 404
@@ -188,11 +189,12 @@ async function runBackfill(jobId: string, seasonYear: number, options: BackfillO
                             : e.message
                         errorLog.push({ gameId: game.nba_game_id!, error: msg })
                         console.warn(`[backfill] ${game.nba_game_id}: ${msg}`)
+                        return false
                     }
                 }),
             )
 
-            completed += chunk.length
+            completed += chunkResults.filter(Boolean).length
 
             // Update progress every chunk
             await supabase
@@ -214,22 +216,15 @@ async function runBackfill(jobId: string, seasonYear: number, options: BackfillO
         await sleep(CONFIG.BACKFILL_DELAY_MS)
     }
 
-    // Persist newly discovered nba_id mappings (single batch upsert).
-    // Rows are guaranteed to exist (sourced from fetchAllPlayers); upsert(onConflict:'id')
-    // merges nba_id into the existing row without touching other columns.
-    // Cast to any: generated type requires full row, but PostgREST accepts
-    // partial payloads for the UPDATE path of an upsert.
     if (nbaIdUpdates.length > 0) {
-        await supabase
-            .from('players')
-            .upsert(nbaIdUpdates as any, { onConflict: 'id' })
-        console.log(`[backfill] Mapped ${nbaIdUpdates.length} new NBA person IDs.`)
+        const persistedNbaIds = await persistNbaIdUpdates(nbaIdUpdates)
+        console.log(`[backfill] Mapped ${persistedNbaIds.updated} new NBA person IDs; merged ${persistedNbaIds.merged} duplicate rows before update.`)
     }
 
     await supabase
         .from('sync_jobs')
         .update({
-            status: 'completed',
+            status: errorLog.length > 0 ? 'completed_with_errors' : 'completed',
             completed_items: completed,
             failed_items: errorLog.length,
             error_log: errorLog.slice(-100),
@@ -292,6 +287,7 @@ async function runFullHistoricalBackfill(
     bbrefSeasons: number[],
 ) {
     let seasonsCompleted = 0
+    let seasonsWithErrors = 0
 
     // CDN seasons (2019-20 through 2024-25)
     for (const startYY of cdnSeasons) {
@@ -312,12 +308,14 @@ async function runFullHistoricalBackfill(
         if (!job) continue
 
         try {
-            await syncCDNHistoricalSeason(startYY, job.id)
+            const result = await syncCDNHistoricalSeason(startYY, job.id)
+            if (result.failed > 0) seasonsWithErrors++
             await supabase.from('sync_jobs').update({
-                status: 'completed',
+                status: result.failed > 0 ? 'completed_with_errors' : 'completed',
                 completed_at: new Date().toISOString(),
             }).eq('id', job.id)
         } catch (e: any) {
+            seasonsWithErrors++
             console.error(`[fullHistory] CDN ${seasonYear} failed:`, e.message)
             await supabase.from('sync_jobs').update({ status: 'failed' }).eq('id', job.id)
         }
@@ -344,12 +342,14 @@ async function runFullHistoricalBackfill(
         if (!job) continue
 
         try {
-            await syncBBRefSeason(seasonEndYear, job.id)
+            const result = await syncBBRefSeason(seasonEndYear, job.id)
+            if (result.failed > 0) seasonsWithErrors++
             await supabase.from('sync_jobs').update({
-                status: 'completed',
+                status: result.failed > 0 ? 'completed_with_errors' : 'completed',
                 completed_at: new Date().toISOString(),
             }).eq('id', job.id)
         } catch (e: any) {
+            seasonsWithErrors++
             console.error(`[fullHistory] BBRef ${seasonEndYear} failed:`, e.message)
             await supabase.from('sync_jobs').update({ status: 'failed' }).eq('id', job.id)
         }
@@ -359,8 +359,9 @@ async function runFullHistoricalBackfill(
     }
 
     await supabase.from('sync_jobs').update({
-        status: 'completed',
+        status: seasonsWithErrors > 0 ? 'completed_with_errors' : 'completed',
         completed_items: seasonsCompleted,
+        failed_items: seasonsWithErrors,
         completed_at: new Date().toISOString(),
     }).eq('id', masterJobId)
 

@@ -1,7 +1,7 @@
 import { supabase } from './supabase.ts'
 import { fetchBoxScore, parseNBAMinutes, NBABoxScorePlayer } from './nba.ts'
-import { normalizeName } from './nameMatch.ts'
 import { errorMessage } from './responses.ts'
+import { loadCdnPlayerResolver, persistNbaIdUpdates, resolveCdnPlayer } from './playerResolver.ts'
 
 // Returns YYYY-MM-DD for the given Date in America/New_York (ET).
 // nba_games.game_date is ET-keyed; using UTC here misses prime-time games
@@ -14,13 +14,15 @@ export async function syncStatsByDate(date: Date) {
   const dateStr = toETDate(date)
   console.log(`[sync-stats] Fetching stats for ${dateStr}...`)
 
-  const { data: games, error: gErr } = await supabase
+  const isPast = dateStr < toETDate(new Date())
+  let query = supabase
     .from('nba_games')
     .select('id, nba_game_id, week_number, season_year, status')
     .eq('game_date', dateStr)
     .not('nba_game_id', 'is', null)
     .not('nba_game_id', 'like', '003%')
-    .neq('status', 'Scheduled')
+  if (!isPast) query = query.neq('status', 'Scheduled')
+  const { data: games, error: gErr } = await query
 
   if (gErr) throw gErr
   if (!games?.length) {
@@ -28,30 +30,8 @@ export async function syncStatsByDate(date: Date) {
     return
   }
 
-  // Paginate to avoid PostgREST max_rows cap
-  const players: { id: string; display_name: string; nba_id: string | null }[] = []
-  const PAGE = 1000
-  let from = 0
-  while (true) {
-    const { data, error } = await supabase.from('players').select('id, display_name, nba_id').range(from, from + PAGE - 1)
-    if (error) throw error
-    if (!data || data.length === 0) break
-    players.push(...data.map((p) => ({ ...p, display_name: p.display_name ?? '' })))
-    if (data.length < PAGE) break
-    from += PAGE
-  }
-
-  const byNbaId = new Map<string, string>()
-  const byName = new Map<string, string>()
-  const byNormName = new Map<string, string>()
-  for (const p of players) {
-    if (p.nba_id) byNbaId.set(p.nba_id, p.id)
-    byName.set(p.display_name.toLowerCase(), p.id)
-    byNormName.set(normalizeName(p.display_name), p.id)
-  }
-
   let statCount = 0
-  const nbaIdUpdates: { id: string; nba_id: string }[] = []
+  const resolver = await loadCdnPlayerResolver()
 
   for (const game of games) {
     try {
@@ -65,17 +45,7 @@ export async function syncStatsByDate(date: Date) {
 
       for (const p of allPlayers) {
         const personId = String(p.personId)
-        let playerId = byNbaId.get(personId)
-
-        if (!playerId) {
-          const nameLower = (p.name ?? '').toLowerCase()
-          playerId = byName.get(nameLower) ?? byNormName.get(normalizeName(p.name ?? ''))
-          if (playerId && !byNbaId.has(personId)) {
-            nbaIdUpdates.push({ id: playerId, nba_id: personId })
-            byNbaId.set(personId, playerId)
-          }
-        }
-
+        const playerId = await resolveCdnPlayer(resolver, personId, p.name ?? '')
         if (!playerId) continue
         if (!p.statistics) continue
 
@@ -89,16 +59,22 @@ export async function syncStatsByDate(date: Date) {
         if (error) throw error
         statCount += stats.length
       }
+
+      if (boxScore.gameStatus === 3 && game.status !== 'Final') {
+        const { error: statusError } = await supabase
+          .from('nba_games')
+          .update({ status: 'Final', updated_at: new Date().toISOString() })
+          .eq('id', game.id)
+        if (statusError) throw statusError
+      }
     } catch (e) {
       console.error(`[sync-stats] Error for ${game.nba_game_id}:`, errorMessage(e))
     }
   }
 
-  for (const u of nbaIdUpdates) {
-    await supabase.from('players').update({ nba_id: u.nba_id }).eq('id', u.id)
-  }
-  if (nbaIdUpdates.length > 0) {
-    console.log(`[sync-stats] Mapped ${nbaIdUpdates.length} new NBA person IDs.`)
+  await persistNbaIdUpdates(resolver.nbaIdUpdates)
+  if (resolver.nbaIdUpdates.length > 0) {
+    console.log(`[sync-stats] Mapped ${resolver.nbaIdUpdates.length} new NBA person IDs.`)
   }
 
   console.log(`[sync-stats] Upserted ${statCount} stat lines for ${dateStr}.`)

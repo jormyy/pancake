@@ -3,6 +3,7 @@
  * and "OG Anunoby" both normalize to "og anunoby".
  */
 const SUFFIX_RE = /\s+(jr\.?|sr\.?|ii|iii|iv|v)$/i
+export const AMBIGUOUS_PLAYER_ID = '__ambiguous__'
 
 export function normalizeName(name: string): string {
     return name
@@ -42,14 +43,8 @@ export function buildPlayerLookupMaps(
     const bySportsDataId = new Map<string, string>()
 
     for (const p of players) {
-        byName.set(p.display_name.toLowerCase(), p.id)
-
-        const norm = normalizeName(p.display_name)
-        if (byNormName.has(norm)) {
-            byNormName.set(norm, '__ambiguous__')
-        } else {
-            byNormName.set(norm, p.id)
-        }
+        setUniqueLookup(byName, p.display_name.toLowerCase(), p.id)
+        setUniqueLookup(byNormName, normalizeName(p.display_name), p.id)
 
         if (p.nba_id) byNbaId.set(p.nba_id, p.id)
         if (p.sleeper_id) bySleeperId.set(p.sleeper_id, p.id)
@@ -57,4 +52,23 @@ export function buildPlayerLookupMaps(
     }
 
     return { byName, byNormName, byNbaId, bySleeperId, bySportsDataId }
+}
+
+export function lookupPlayerByName(maps: PlayerLookupMaps, displayName: string): string | null {
+    const exact = maps.byName.get(displayName.toLowerCase())
+    if (exact && exact !== AMBIGUOUS_PLAYER_ID) return exact
+
+    const normalized = maps.byNormName.get(normalizeName(displayName))
+    if (normalized && normalized !== AMBIGUOUS_PLAYER_ID) return normalized
+
+    return null
+}
+
+function setUniqueLookup(map: Map<string, string>, key: string, playerId: string): void {
+    const existing = map.get(key)
+    if (!existing) {
+        map.set(key, playerId)
+    } else if (existing !== playerId) {
+        map.set(key, AMBIGUOUS_PLAYER_ID)
+    }
 }

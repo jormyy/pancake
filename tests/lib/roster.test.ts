@@ -19,6 +19,7 @@ function mockPlayer(overrides: Partial<RosterPlayer['players']> = {}): RosterPla
         injury_status: null,
         nba_id: '123',
         nba_draft_number: null,
+        years_exp: 1,
         ...overrides,
     }
 }
@@ -46,12 +47,12 @@ const MOCK_PLAYERS: RosterPlayer['players'][] = [
     mockPlayer({ id: 'p-c-nop',   display_name: 'Yves Missi',         nba_team: 'NOP', position: 'C',  eligible_positions: ['C'],              injury_status: null,    nba_id: '1642307', nba_draft_number: 21 }),
     mockPlayer({ id: 'p-c-sas',   display_name: 'Victor Wembanyama',  nba_team: 'SAS', position: 'C',  eligible_positions: ['C', 'PF'],        injury_status: null,    nba_id: '1641705', nba_draft_number: 1  }),
 
-    // Rookies / recent draft picks (taxi-eligible)
-    mockPlayer({ id: 'p-r-atl',   display_name: 'Zaccharie Risacher', nba_team: 'ATL', position: 'SF', eligible_positions: ['SF', 'F'],        injury_status: null,    nba_id: '1642301', nba_draft_number: 1  }),
-    mockPlayer({ id: 'p-r-was',   display_name: 'Alex Sarr',          nba_team: 'WAS', position: 'C',  eligible_positions: ['C', 'PF'],        injury_status: null,    nba_id: '1642302', nba_draft_number: 2  }),
-    mockPlayer({ id: 'p-r-por',   display_name: 'Donovan Clingan',    nba_team: 'POR', position: 'C',  eligible_positions: ['C'],              injury_status: 'DTD',   nba_id: '1642305', nba_draft_number: 7  }),
-    mockPlayer({ id: 'p-r-mem',   display_name: 'Zach Edey',          nba_team: 'MEM', position: 'C',  eligible_positions: ['C'],              injury_status: null,    nba_id: '1642306', nba_draft_number: 9  }),
-    mockPlayer({ id: 'p-r-late',  display_name: 'Late 2nd Rounder',   nba_team: 'CLE', position: 'PG', eligible_positions: ['PG', 'G'],        injury_status: null,    nba_id: '9999999', nba_draft_number: 58 }),
+    // Current rookies / recent draft picks (taxi-eligible)
+    mockPlayer({ id: 'p-r-atl',   display_name: 'Zaccharie Risacher', nba_team: 'ATL', position: 'SF', eligible_positions: ['SF', 'F'],        injury_status: null,    nba_id: '1642301', nba_draft_number: 1,  years_exp: 0 }),
+    mockPlayer({ id: 'p-r-was',   display_name: 'Alex Sarr',          nba_team: 'WAS', position: 'C',  eligible_positions: ['C', 'PF'],        injury_status: null,    nba_id: '1642302', nba_draft_number: 2,  years_exp: 0 }),
+    mockPlayer({ id: 'p-r-por',   display_name: 'Donovan Clingan',    nba_team: 'POR', position: 'C',  eligible_positions: ['C'],              injury_status: 'DTD',   nba_id: '1642305', nba_draft_number: 7,  years_exp: 0 }),
+    mockPlayer({ id: 'p-r-mem',   display_name: 'Zach Edey',          nba_team: 'MEM', position: 'C',  eligible_positions: ['C'],              injury_status: null,    nba_id: '1642306', nba_draft_number: 9,  years_exp: 0 }),
+    mockPlayer({ id: 'p-r-late',  display_name: 'Late 2nd Rounder',   nba_team: 'CLE', position: 'PG', eligible_positions: ['PG', 'G'],        injury_status: null,    nba_id: '9999999', nba_draft_number: 58, years_exp: 0 }),
 
     // Veterans with no draft number stored (pre-database era or undrafted vets)
     mockPlayer({ id: 'p-v-lal',   display_name: 'LeBron James',       nba_team: 'LAL', position: 'SF', eligible_positions: ['SF', 'PF', 'F'],  injury_status: null,    nba_id: '2544',    nba_draft_number: null }),
@@ -120,24 +121,28 @@ describe('isDTD', () => {
 
 describe('isTaxiEligible', () => {
     it('returns true when nba_draft_number is a positive integer', () => {
-        expect(isTaxiEligible(mockPlayer({ nba_draft_number: 1 }))).toBe(true)
+        expect(isTaxiEligible(mockPlayer({ nba_draft_number: 1, years_exp: 0 }))).toBe(true)
     })
 
     it('returns true when nba_draft_number is 0', () => {
-        expect(isTaxiEligible(mockPlayer({ nba_draft_number: 0 }))).toBe(true)
+        expect(isTaxiEligible(mockPlayer({ nba_draft_number: 0, years_exp: 0 }))).toBe(true)
     })
 
     it('returns false when nba_draft_number is null', () => {
-        expect(isTaxiEligible(mockPlayer({ nba_draft_number: null }))).toBe(false)
+        expect(isTaxiEligible(mockPlayer({ nba_draft_number: null, years_exp: 0 }))).toBe(false)
+    })
+
+    it('returns false when a veteran has stale draft metadata', () => {
+        expect(isTaxiEligible(mockPlayer({ nba_draft_number: 1, years_exp: 1 }))).toBe(false)
     })
 
     it('returns true for a high 2nd-round pick (pick 58)', () => {
-        expect(isTaxiEligible(mockPlayer({ nba_draft_number: 58 }))).toBe(true)
+        expect(isTaxiEligible(mockPlayer({ nba_draft_number: 58, years_exp: 0 }))).toBe(true)
     })
 
-    it('returns true for #1 overall picks (Wembanyama, Risacher)', () => {
-        const firstPicks = MOCK_PLAYERS.filter((p) => p.nba_draft_number === 1)
-        expect(firstPicks.length).toBe(2) // Wembanyama (2023), Risacher (2024)
+    it('returns true for current rookie #1 overall picks', () => {
+        const firstPicks = MOCK_PLAYERS.filter((p) => p.nba_draft_number === 1 && p.years_exp === 0)
+        expect(firstPicks.length).toBe(1)
         firstPicks.forEach((p) => expect(isTaxiEligible(p)).toBe(true))
     })
 
@@ -163,8 +168,8 @@ describe('isTaxiEligible', () => {
     it('taxi eligibility is independent of position', () => {
         const positions = ['PG', 'SG', 'SF', 'PF', 'C']
         positions.forEach((pos) => {
-            const withDraftNum = mockPlayer({ position: pos, eligible_positions: [pos], nba_draft_number: 5 })
-            const withoutDraftNum = mockPlayer({ position: pos, eligible_positions: [pos], nba_draft_number: null })
+            const withDraftNum = mockPlayer({ position: pos, eligible_positions: [pos], nba_draft_number: 5, years_exp: 0 })
+            const withoutDraftNum = mockPlayer({ position: pos, eligible_positions: [pos], nba_draft_number: null, years_exp: 0 })
             expect(isTaxiEligible(withDraftNum)).toBe(true)
             expect(isTaxiEligible(withoutDraftNum)).toBe(false)
         })
@@ -173,8 +178,8 @@ describe('isTaxiEligible', () => {
     it('taxi eligibility is independent of team', () => {
         const teams = ['LAL', 'BOS', 'GSW', 'DEN', 'MIL', 'SAS', 'OKC', 'PHI', 'MIN', 'NOP']
         teams.forEach((team) => {
-            expect(isTaxiEligible(mockPlayer({ nba_team: team, nba_draft_number: 10 }))).toBe(true)
-            expect(isTaxiEligible(mockPlayer({ nba_team: team, nba_draft_number: null }))).toBe(false)
+            expect(isTaxiEligible(mockPlayer({ nba_team: team, nba_draft_number: 10, years_exp: 0 }))).toBe(true)
+            expect(isTaxiEligible(mockPlayer({ nba_team: team, nba_draft_number: null, years_exp: 0 }))).toBe(false)
         })
     })
 })

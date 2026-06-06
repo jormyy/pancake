@@ -11,32 +11,32 @@
 import { supabase, fetchAllPlayers } from '../lib/supabase'
 import { fetchBBRefSchedule, fetchBBRefBoxScore, BBRefPlayerStat } from '../lib/bbref'
 import { sleep } from '../lib/utils/sleep'
-import { normalizeName } from '../lib/utils/nameMatch'
+import { buildPlayerLookupMaps, lookupPlayerByName } from '../lib/utils/nameMatch'
 
 // BBRef seasons available: ending years 2004-2019 (2003-04 through 2018-19)
 export const BBREF_SEASONS = Array.from({ length: 16 }, (_, i) => 2004 + i) // 2004..2019
+type HistoricalSeasonResult = { completed: number; failed: number }
 
-export async function syncBBRefSeason(seasonEndYear: number, jobId: string): Promise<void> {
+export async function syncBBRefSeason(seasonEndYear: number, jobId: string): Promise<HistoricalSeasonResult> {
     console.log(`[bbrefHistory] Starting season ${seasonEndYear - 1}-${seasonEndYear}`)
 
     // Load player lookup maps
     const players = await fetchAllPlayers()
-    const byName = new Map<string, string>()
-    for (const p of players) {
-        byName.set(normalizeName(p.display_name), p.id)
-    }
+    const playerLookup = buildPlayerLookupMaps(players)
 
     // Step 1: Scrape schedule to get all game IDs for the season
-    await supabase.from('sync_jobs').update({
-        metadata: { season: seasonEndYear, phase: 'schedule' },
-    }).eq('id', jobId)
+    await mustSupabase(
+        'update BBRef historical schedule phase',
+        supabase.from('sync_jobs').update({
+            metadata: { season: seasonEndYear, phase: 'schedule' },
+        }).eq('id', jobId),
+    )
 
     const games = await fetchBBRefSchedule(seasonEndYear)
     console.log(`[bbrefHistory] Season ${seasonEndYear}: ${games.length} games in schedule`)
 
     if (!games.length) {
-        console.warn(`[bbrefHistory] No games found for season ${seasonEndYear}`)
-        return
+        throw new Error(`BBRef schedule for ${seasonEndYear} returned zero games`)
     }
 
     // Calculate week numbers from season start
@@ -63,6 +63,8 @@ export async function syncBBRefSeason(seasonEndYear: number, jobId: string): Pro
         }
         return {
             nba_game_id: g.bbrefId,
+            bbref_home_team: g.homeTeamBBRef,
+            bbref_away_team: g.awayTeamBBRef,
             season_year: seasonEndYear,
             game_date: g.gameDate,
             home_team: g.homeTeam,
@@ -75,7 +77,10 @@ export async function syncBBRefSeason(seasonEndYear: number, jobId: string): Pro
 
     // Insert game records in chunks
     for (let i = 0; i < gameRecords.length; i += 500) {
-        await supabase.from('nba_games').upsert(gameRecords.slice(i, i + 500), { onConflict: 'nba_game_id' })
+        const { error } = await supabase
+            .from('nba_games')
+            .upsert(gameRecords.slice(i, i + 500), { onConflict: 'nba_game_id' })
+        if (error) throw error
     }
 
     // Upsert season_weeks
@@ -85,42 +90,33 @@ export async function syncBBRefSeason(seasonEndYear: number, jobId: string): Pro
         week_start: range.start,
         week_end: range.end,
     }))
-    await supabase.from('season_weeks').upsert(weeks, { onConflict: 'season_year,week_number' })
+    {
+        const { error } = await supabase.from('season_weeks').upsert(weeks, { onConflict: 'season_year,week_number' })
+        if (error) throw error
+    }
 
     // Update job with total game count
-    await supabase.from('sync_jobs').update({
-        total_items: games.length,
-        metadata: { season: seasonEndYear, phase: 'boxscores' },
-    }).eq('id', jobId)
-
-    // Step 2: Scrape box scores — skip games that already have stats
-    // Paginate through all rows — Supabase caps at 1000 per request
-    const syncedGameIds = new Set<string>()
-    {
-        let pg = 0
-        while (true) {
-            const { data: batch } = await supabase
-                .from('player_game_stats')
-                .select('game_id')
-                .eq('season_year', seasonEndYear)
-                .range(pg * 1000, pg * 1000 + 999)
-            if (!batch?.length) break
-            for (const r of batch as any[]) syncedGameIds.add(r.game_id)
-            if (batch.length < 1000) break
-            pg++
-        }
-    }
+    await mustSupabase(
+        'update BBRef historical total items',
+        supabase.from('sync_jobs').update({
+            total_items: games.length,
+            metadata: { season: seasonEndYear, phase: 'boxscores' },
+        }).eq('id', jobId),
+    )
 
     // Load DB game ID map (paginated — seasons can exceed 1000 games)
     const dbGameMap = new Map<string, any>()
     {
         let pg = 0
         while (true) {
-            const { data: batch } = await supabase
-                .from('nba_games')
-                .select('id, nba_game_id, week_number')
-                .eq('season_year', seasonEndYear)
-                .range(pg * 1000, pg * 1000 + 999)
+            const batch = await mustSupabase(
+                'load BBRef historical game map',
+                supabase
+                    .from('nba_games')
+                    .select('id, nba_game_id, week_number, bbref_home_team, bbref_away_team')
+                    .eq('season_year', seasonEndYear)
+                    .range(pg * 1000, pg * 1000 + 999),
+            )
             if (!batch?.length) break
             for (const g of batch as any[]) dbGameMap.set(g.nba_game_id, g)
             if (batch.length < 1000) break
@@ -134,8 +130,11 @@ export async function syncBBRefSeason(seasonEndYear: number, jobId: string): Pro
 
     for (const game of games) {
         const dbGame = dbGameMap.get(game.bbrefId)
-        if (!dbGame) continue
-        if (syncedGameIds.has(dbGame.id)) { completed++; continue }
+        if (!dbGame) {
+            failed++
+            errorLog.push({ gameId: game.bbrefId, error: 'Game row missing after schedule upsert' })
+            continue
+        }
 
         try {
             const boxScore = await fetchBBRefBoxScore(game.bbrefId, game.homeTeamBBRef, game.awayTeamBBRef)
@@ -145,11 +144,14 @@ export async function syncBBRefSeason(seasonEndYear: number, jobId: string): Pro
             ]
 
             const stats: any[] = []
+            const unresolvedPlayers: string[] = []
             for (const { stat } of allPlayers) {
-                const nameLower = normalizeName(stat.playerName)
-                let playerId = byName.get(nameLower)
+                const playerId = lookupPlayerByName(playerLookup, stat.playerName)
 
-                if (!playerId) continue
+                if (!playerId) {
+                    unresolvedPlayers.push(stat.playerName)
+                    continue
+                }
 
                 const minutesPlayed = stat.minutesDecimal
                 const dnp = stat.dnp || !minutesPlayed || minutesPlayed < 0.5
@@ -190,12 +192,18 @@ export async function syncBBRefSeason(seasonEndYear: number, jobId: string): Pro
                 })
             }
 
-            if (stats.length) {
-                const { error } = await supabase
-                    .from('player_game_stats')
-                    .upsert(stats, { onConflict: 'player_id,game_id' })
-                if (error) throw error
+            if (unresolvedPlayers.length) {
+                throw new Error(`Unresolved or ambiguous BBRef players: ${unresolvedPlayers.join(', ')}`)
             }
+
+            if (!stats.length) throw new Error('No player stats parsed from BBRef box score.')
+
+            await mustSupabase(
+                'upsert BBRef historical stats',
+                supabase
+                    .from('player_game_stats')
+                    .upsert(stats, { onConflict: 'player_id,game_id' }),
+            )
 
             completed++
         } catch (e: any) {
@@ -206,23 +214,37 @@ export async function syncBBRefSeason(seasonEndYear: number, jobId: string): Pro
 
         // Update progress every 20 games
         if (completed % 20 === 0) {
-            await supabase.from('sync_jobs').update({
-                completed_items: completed,
-                failed_items: failed,
-                error_log: errorLog.slice(-100),
-            }).eq('id', jobId)
+            await mustSupabase(
+                'update BBRef historical progress',
+                supabase.from('sync_jobs').update({
+                    completed_items: completed,
+                    failed_items: failed,
+                    error_log: errorLog.slice(-100),
+                }).eq('id', jobId),
+            )
         }
 
         await sleep(3000)
     }
 
-    await supabase.from('sync_jobs').update({
-        completed_items: completed,
-        failed_items: failed,
-        error_log: errorLog.slice(-100),
-    }).eq('id', jobId)
+    await mustSupabase(
+        'update BBRef historical final progress',
+        supabase.from('sync_jobs').update({
+            completed_items: completed,
+            failed_items: failed,
+            error_log: errorLog.slice(-100),
+        }).eq('id', jobId),
+    )
 
     console.log(`[bbrefHistory] Season ${seasonEndYear}: ${completed}/${games.length} games synced, ${failed} errors`)
+    return { completed, failed }
 }
 
-
+async function mustSupabase<T>(
+    label: string,
+    request: PromiseLike<{ data: T; error: any }>,
+): Promise<T> {
+    const { data, error } = await request
+    if (error) throw new Error(`${label}: ${error.message ?? String(error)}`)
+    return data
+}

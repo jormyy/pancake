@@ -39,6 +39,46 @@ export type Trade = {
     recipientGives: TradeItem[]
 }
 
+type TeamNameRow = { team_name: string | null } | null
+type TradePickQueryRow = {
+    id: string
+    season_year: number
+    round: number
+    original_owner: TeamNameRow
+}
+type TradePlayerQueryRow = {
+    display_name: string | null
+    position: string | null
+    nba_team: string | null
+} | null
+type TradeItemQueryRow = {
+    side: 'proposer' | 'recipient'
+    player_id: string | null
+    pick_id: string | null
+    players: TradePlayerQueryRow
+    draft_picks: {
+        season_year: number
+        round: number
+        original_owner: TeamNameRow
+    } | null
+}
+type TradeQueryRow = {
+    id: string
+    status: string
+    proposed_at: string
+    accepted_at: string | null
+    veto_window_expires_at: string | null
+    completed_at: string | null
+    vetoed_at: string | null
+    notes: string | null
+    proposer_member_id: string
+    recipient_member_id: string
+    proposer: TeamNameRow
+    recipient: TeamNameRow
+    trade_vetos: { member_id: string | null }[] | null
+    trade_items: TradeItemQueryRow[] | null
+}
+
 export async function getPicksForMember(memberId: string, leagueId: string): Promise<TradePickItem[]> {
     const { data, error } = await supabase
         .from('draft_picks')
@@ -56,7 +96,7 @@ export async function getPicksForMember(memberId: string, leagueId: string): Pro
 
     if (error) throw error
 
-    return (data ?? []).map((row: any) => ({
+    return ((data ?? []) as TradePickQueryRow[]).map((row) => ({
         kind: 'pick' as const,
         pickId: row.id,
         seasonYear: row.season_year,
@@ -91,8 +131,12 @@ export async function proposeTrade(
     return result.tradeId
 }
 
-export async function acceptTrade(tradeId: string, memberId: string): Promise<void> {
-    await apiPost(`/trades/${tradeId}/accept`, { memberId })
+export async function acceptTrade(
+    tradeId: string,
+    memberId: string,
+    dropRosterPlayerIds: string[] = [],
+): Promise<void> {
+    await apiPost(`/trades/${tradeId}/accept`, { memberId, dropRosterPlayerIds })
 }
 
 export async function rejectTrade(tradeId: string, memberId: string): Promise<void> {
@@ -135,7 +179,7 @@ const TRADE_SELECT = `
             )
         `
 
-function mapTradeRow(row: any, memberId: string): Trade {
+function mapTradeRow(row: TradeQueryRow, memberId: string): Trade {
     const proposerGives: TradeItem[] = []
     const recipientGives: TradeItem[] = []
 
@@ -199,7 +243,7 @@ export async function getMyTrades(memberId: string, leagueId: string): Promise<T
 
     if (error) throw error
 
-    return (data ?? []).map((row: any) => mapTradeRow(row, memberId))
+    return ((data ?? []) as TradeQueryRow[]).map((row) => mapTradeRow(row, memberId))
 }
 
 export async function getVetoableTrades(memberId: string, leagueId: string): Promise<Trade[]> {
@@ -216,7 +260,7 @@ export async function getVetoableTrades(memberId: string, leagueId: string): Pro
 
     if (error) throw error
 
-    return (data ?? []).map((row: any) => mapTradeRow(row, memberId))
+    return ((data ?? []) as TradeQueryRow[]).map((row) => mapTradeRow(row, memberId))
 }
 
 export { getCurrentSeasonId } from '@/lib/shared/season'

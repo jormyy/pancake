@@ -232,103 +232,31 @@ describe('autoPickBest', () => {
     })
 })
 
-// ── startRookieDraft — traded pick accounting ─────────────────────────────────
+// ── startRookieDraft ──────────────────────────────────────────────────────────
 
-describe('startRookieDraft — traded pick accounting', () => {
-    it('assigns snake_draft_pick slot to current_owner_id when pick was traded', async () => {
-        const insertedPicks: any[] = []
-        let n = 0
+describe('startRookieDraft', () => {
+    it('delegates rookie startup to the atomic RPC with configured rounds', async () => {
+        mockRpc.mockReturnValueOnce(Promise.resolve({
+            data: { id: 'd1', league_id: 'lg1', draft_type: 'snake', status: 'in_progress' },
+            error: null,
+        }) as any)
 
-        mockFrom.mockImplementation((table: string) => {
-            n++
-            if (n === 1) return q({ id: 'lg1', status: 'offseason' }) as any  // leagues select
-            if (n === 2) return q({ id: 's1', season_year: 2026 }) as any      // league_seasons (current)
-            if (n === 3) return q(null) as any                                  // drafts (no existing)
-            if (n === 4) return q({ id: 'prev-s' }) as any                     // league_seasons (last)
-            if (n === 5) return q([                                             // standings
-                { member_id: 'm1', wins: 20, losses: 62, points_for: 900 },   // worst → slot 1
-                { member_id: 'm2', wins: 62, losses: 20, points_for: 1800 },  // best  → slot 2
-            ]) as any
-            if (n === 6) {                                                      // drafts insert
-                const chain: any = {
-                    select: () => chain,
-                    single: () => Promise.resolve({ data: { id: 'd1' }, error: null }),
-                    insert: () => chain,
-                    then: (res: any, rej: any) => Promise.resolve({ data: { id: 'd1' }, error: null }).then(res, rej),
-                }
-                return chain
-            }
-            if (n === 7) return q(null) as any                                  // draft_orders insert
-            if (n === 8) return q([                                             // draft_picks (trade assets)
-                // m1 traded their R1 pick to m2
-                { season_year: 2026, round: 1, original_owner_id: 'm1', current_owner_id: 'm2' },
-                // m2 keeps their R1 pick
-                { season_year: 2026, round: 1, original_owner_id: 'm2', current_owner_id: 'm2' },
-            ]) as any
-            if (n === 9) {                                                      // snake_draft_picks insert
-                return {
-                    insert: (rows: any[]) => {
-                        insertedPicks.push(...rows)
-                        return Promise.resolve({ data: null, error: null })
-                    },
-                }
-            }
-            return q(null) as any                                               // leagues update
+        const draft = await startRookieDraft('lg1')
+
+        expect(draft.id).toBe('d1')
+        expect(mockRpc).toHaveBeenCalledWith('start_rookie_draft_atomic', {
+            p_league_id: 'lg1',
+            p_rounds: 3,
         })
-
-        await startRookieDraft('lg1')
-
-        // Draft order: m1 (worst) → slot 1, m2 (best) → slot 2
-        // Round 1 (normal order): originalOwner[0]=m1, originalOwner[1]=m2
-        // m1 traded R1 to m2 → pick_in_round=1 should belong to m2
-        const r1p1 = insertedPicks.find((p: any) => p.round === 1 && p.pick_in_round === 1)
-        expect(r1p1?.member_id).toBe('m2')
+        expect(mockFrom).not.toHaveBeenCalled()
     })
 
-    it('untouched picks retain their original owner', async () => {
-        const insertedPicks: any[] = []
-        let n = 0
+    it('propagates rookie startup RPC errors', async () => {
+        mockRpc.mockReturnValueOnce(Promise.resolve({
+            data: null,
+            error: { message: 'A rookie draft already exists for this season' },
+        }) as any)
 
-        mockFrom.mockImplementation(() => {
-            n++
-            if (n === 1) return q({ id: 'lg1', status: 'offseason' }) as any
-            if (n === 2) return q({ id: 's1', season_year: 2026 }) as any
-            if (n === 3) return q(null) as any
-            if (n === 4) return q({ id: 'prev-s' }) as any
-            if (n === 5) return q([
-                { member_id: 'm1', wins: 20, losses: 62, points_for: 900 },
-                { member_id: 'm2', wins: 62, losses: 20, points_for: 1800 },
-            ]) as any
-            if (n === 6) {
-                const chain: any = {
-                    select: () => chain,
-                    single: () => Promise.resolve({ data: { id: 'd1' }, error: null }),
-                    insert: () => chain,
-                    then: (res: any, rej: any) => Promise.resolve({ data: { id: 'd1' }, error: null }).then(res, rej),
-                }
-                return chain
-            }
-            if (n === 7) return q(null) as any
-            if (n === 8) return q([]) as any  // no traded picks
-            if (n === 9) {
-                return {
-                    insert: (rows: any[]) => {
-                        insertedPicks.push(...rows)
-                        return Promise.resolve({ data: null, error: null })
-                    },
-                }
-            }
-            return q(null) as any
-        })
-
-        await startRookieDraft('lg1')
-
-        // With no trades, round 1 pick 1 goes to m1 (worst record, first in draft order)
-        const r1p1 = insertedPicks.find((p: any) => p.round === 1 && p.pick_in_round === 1)
-        expect(r1p1?.member_id).toBe('m1')
-
-        // Round 2 is snake (reversed): pick 1 goes to m2
-        const r2p1 = insertedPicks.find((p: any) => p.round === 2 && p.pick_in_round === 1)
-        expect(r2p1?.member_id).toBe('m2')
+        await expect(startRookieDraft('lg1')).rejects.toThrow('already exists')
     })
 })

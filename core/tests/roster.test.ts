@@ -58,13 +58,15 @@ describe('isDTD', () => {
 
 describe('isTaxiEligible', () => {
     it('returns false for null', () => {
-        expect(isTaxiEligible(null)).toBe(false)
+        expect(isTaxiEligible(null, 0)).toBe(false)
+        expect(isTaxiEligible(1, 1)).toBe(false)
+        expect(isTaxiEligible(1, null)).toBe(false)
     })
 
-    it('returns true for a draft number', () => {
-        expect(isTaxiEligible(1)).toBe(true)
-        expect(isTaxiEligible(30)).toBe(true)
-        expect(isTaxiEligible(0)).toBe(true)
+    it('returns true for a current rookie draft number', () => {
+        expect(isTaxiEligible(1, 0)).toBe(true)
+        expect(isTaxiEligible(30, 0)).toBe(true)
+        expect(isTaxiEligible(0, 0)).toBe(true)
     })
 })
 

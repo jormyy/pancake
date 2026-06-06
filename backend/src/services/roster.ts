@@ -52,7 +52,7 @@ export async function toggleTaxiStatus(
 ): Promise<void> {
     // Atomic counterpart to toggleIRStatus for the taxi squad. Same lock /
     // re-check / mutate pattern; rejects IR→taxi directly and gates taxi
-    // designations to rookies (nba_draft_number IS NOT NULL).
+    // designations to current rookies (nba_draft_number IS NOT NULL and years_exp = 0).
     const { error } = await supabase.rpc('toggle_taxi_atomic', {
         p_roster_player_id: rosterPlayerId,
         p_to_taxi: isOnTaxi,

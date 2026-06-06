@@ -84,16 +84,20 @@ export async function fetchBBRefSchedule(seasonEndYear: number): Promise<BBRefGa
     try {
       const html = await bbrefGet(path)
       const $ = cheerio.load(html)
+      if (!$('table#schedule').length) {
+        throw new Error(`BBRef schedule table missing for ${seasonEndYear}/${month}`)
+      }
 
+      let monthGames = 0
       $('table#schedule tbody tr').each((_: number, row: AnyNode) => {
         const $row = $(row)
         if ($row.hasClass('thead')) return
 
         const boxScoreLink = $row.find('td[data-stat="box_score_text"] a').attr('href')
-        if (!boxScoreLink) return
+        if (!boxScoreLink) throw new Error(`BBRef schedule row missing boxscore link for ${seasonEndYear}/${month}`)
 
         const bbrefId = boxScoreLink.replace('/boxscores/', '').replace('.html', '')
-        if (bbrefId.length < 12) return
+        if (bbrefId.length < 12) throw new Error(`Malformed BBRef boxscore id for ${seasonEndYear}/${month}: ${bbrefId}`)
 
         const datePart = bbrefId.substring(0, 8)
         const gameDate = `${datePart.substring(0, 4)}-${datePart.substring(4, 6)}-${datePart.substring(6, 8)}`
@@ -102,16 +106,22 @@ export async function fetchBBRefSchedule(seasonEndYear: number): Promise<BBRefGa
         const visitorHref = $row.find('td[data-stat="visitor_team_name"] a').attr('href') ?? ''
         const awayTeamBBRef = visitorHref.split('/')[2]?.toUpperCase() ?? ''
 
-        if (!homeTeamBBRef || !awayTeamBBRef) return
+        if (!homeTeamBBRef || !awayTeamBBRef) {
+          throw new Error(`BBRef schedule row missing team code for ${seasonEndYear}/${month}/${bbrefId}`)
+        }
 
         const homeTeam = BBREF_TO_TRICODE[homeTeamBBRef] ?? homeTeamBBRef
         const awayTeam = BBREF_TO_TRICODE[awayTeamBBRef] ?? awayTeamBBRef
 
         games.push({ bbrefId, gameDate, homeTeamBBRef, awayTeamBBRef, homeTeam, awayTeam })
+        monthGames++
       })
+      if (monthGames === 0) {
+        throw new Error(`BBRef schedule rows missing for ${seasonEndYear}/${month}`)
+      }
     } catch (e) {
       if (errorStatus(e) !== 404) {
-        console.warn(`[bbref] Schedule ${seasonEndYear}/${month}: ${errorMessage(e)}`)
+        throw new Error(`BBRef schedule ${seasonEndYear}/${month}: ${errorMessage(e)}`)
       }
     }
     await sleep(3000)
@@ -134,10 +144,13 @@ export async function fetchBBRefBoxScore(
   const html = await bbrefGet(`/boxscores/${bbrefId}.html`)
   const $ = cheerio.load(html)
 
-  return {
-    home: parseTeamTable($, homeTeamBBRef),
-    away: parseTeamTable($, awayTeamBBRef),
-  }
+  const home = parseTeamTable($, homeTeamBBRef)
+  const away = parseTeamTable($, awayTeamBBRef)
+
+  if (!home.length) throw new Error(`BBRef home table missing for ${bbrefId}/${homeTeamBBRef}`)
+  if (!away.length) throw new Error(`BBRef away table missing for ${bbrefId}/${awayTeamBBRef}`)
+
+  return { home, away }
 }
 
 function parseTeamTable($: ReturnType<typeof cheerio.load>, teamCode: string): BBRefPlayerStat[] {
@@ -166,16 +179,31 @@ function parseTeamTable($: ReturnType<typeof cheerio.load>, teamCode: string): B
       return
     }
 
-    const n = (stat: string) => parseInt($row.find(`td[data-stat="${stat}"]`).text()) || 0
+    const minutesDecimal = parseMpToDecimal(mp)
+    if (minutesDecimal === null) {
+      throw new Error(`Malformed BBRef minutes for ${teamCode}/${playerName}: ${mp}`)
+    }
+
+    const n = (stat: string) => {
+      const v = $row.find(`td[data-stat="${stat}"]`).text().trim()
+      if (!/^[+-]?\d+$/.test(v)) {
+        throw new Error(`Malformed BBRef stat ${stat} for ${teamCode}/${playerName}: ${v}`)
+      }
+      return parseInt(v, 10)
+    }
     const nOrNull = (stat: string) => {
       const v = $row.find(`td[data-stat="${stat}"]`).text().trim()
-      return v === '' || v === '—' ? null : parseInt(v) || 0
+      if (v === '' || v === '—') return null
+      if (!/^[+-]?\d+$/.test(v)) {
+        throw new Error(`Malformed BBRef stat ${stat} for ${teamCode}/${playerName}: ${v}`)
+      }
+      return parseInt(v, 10)
     }
 
     stats.push({
       playerName,
       dnp: false,
-      minutesDecimal: parseMpToDecimal(mp),
+      minutesDecimal,
       pts: n('pts'), reb: n('trb'), orb: n('orb'), drb: n('drb'),
       ast: n('ast'), stl: n('stl'), blk: n('blk'), tov: n('tov'),
       pf: n('pf'), fgm: n('fg'), fga: n('fga'),
