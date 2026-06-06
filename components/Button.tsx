@@ -1,5 +1,6 @@
-import { Pressable, Text, ActivityIndicator, StyleSheet } from 'react-native'
+import { Text, ActivityIndicator, StyleSheet } from 'react-native'
 import { colors, fontSize, fontWeight, radii } from '@/constants/tokens'
+import { MotionPressable } from '@/components/Motion'
 
 type Variant = 'primary' | 'secondary' | 'danger' | 'ghost'
 
@@ -54,7 +55,7 @@ export function Button({
     const border = BORDER[variant]
 
     return (
-        <Pressable
+        <MotionPressable
             style={[
                 styles.base,
                 small ? styles.small : styles.regular,
@@ -68,6 +69,7 @@ export function Button({
             accessibilityLabel={accessibilityLabel ?? title}
             accessibilityState={{ disabled: disabled || loading, busy: loading }}
             hitSlop={small ? 8 : undefined}
+            pressedScale={small ? 0.95 : 0.975}
         >
             {loading ? (
                 <ActivityIndicator size="small" color={LOADER_COLOR[variant]} />
@@ -82,7 +84,7 @@ export function Button({
                     {title}
                 </Text>
             )}
-        </Pressable>
+        </MotionPressable>
     )
 }
 

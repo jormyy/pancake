@@ -1,8 +1,9 @@
 import { View, Text, StyleSheet } from 'react-native'
 import { Matchup } from '@/lib/scoring'
 import { colors } from '@/constants/tokens'
+import { MotionView } from '@/components/Motion'
 
-export function ScoreCard({ matchup }: { matchup: Matchup }) {
+export function ScoreCard({ matchup, compact = false }: { matchup: Matchup; compact?: boolean }) {
     const fmt = (n: number | null) => (n != null ? n.toFixed(1) : '—')
     const myPts = matchup.myPoints ?? 0
     const oppPts = matchup.opponentPoints ?? 0
@@ -24,9 +25,9 @@ export function ScoreCard({ matchup }: { matchup: Matchup }) {
     }
 
     return (
-        <View style={styles.card}>
+        <MotionView style={[styles.card, compact && styles.cardCompact]} preset="rise" delay={80}>
             {/* Header bar */}
-            <View style={styles.header}>
+            <View style={[styles.header, compact && styles.headerCompact]}>
                 <Text style={styles.week}>WEEK {matchup.weekNumber}</Text>
                 <View style={styles.headerRule} />
                 <View style={[styles.statusBadge, { backgroundColor: statusColor + '1A', borderColor: statusColor + '50' }]}>
@@ -35,14 +36,14 @@ export function ScoreCard({ matchup }: { matchup: Matchup }) {
             </View>
 
             {/* Scores */}
-            <View style={styles.scores}>
+            <View style={[styles.scores, compact && styles.scoresCompact]}>
                 {/* My side */}
                 <View style={styles.side}>
                     <Text style={styles.teamName} numberOfLines={1}>{matchup.myTeamName}</Text>
                     {matchup.myUsername ? (
                         <Text style={styles.username} numberOfLines={1}>{matchup.myUsername}</Text>
                     ) : null}
-                    <Text style={[styles.score, iWinning ? styles.scoreWin : styles.scoreLose]}>
+                    <Text style={[styles.score, compact && styles.scoreCompact, iWinning ? styles.scoreWin : styles.scoreLose]}>
                         {fmt(matchup.myPoints)}
                     </Text>
                     <Text style={styles.record}>{matchup.myWins}–{matchup.myLosses}</Text>
@@ -63,7 +64,7 @@ export function ScoreCard({ matchup }: { matchup: Matchup }) {
                             {matchup.opponentUsername}
                         </Text>
                     ) : null}
-                    <Text style={[styles.score, !iWinning ? styles.scoreWin : styles.scoreLose]}>
+                    <Text style={[styles.score, compact && styles.scoreCompact, !iWinning ? styles.scoreWin : styles.scoreLose]}>
                         {fmt(matchup.opponentPoints)}
                     </Text>
                     <Text style={[styles.record, { textAlign: 'right' }]}>
@@ -71,7 +72,7 @@ export function ScoreCard({ matchup }: { matchup: Matchup }) {
                     </Text>
                 </View>
             </View>
-        </View>
+        </MotionView>
     )
 }
 
@@ -87,6 +88,10 @@ const styles = StyleSheet.create({
         overflow: 'hidden' as const,
         boxShadow: '0 2px 12px rgba(44, 26, 14, 0.09)',
     },
+    cardCompact: {
+        marginVertical: 6,
+        borderRadius: 12,
+    },
 
     header: {
         flexDirection: 'row',
@@ -98,6 +103,11 @@ const styles = StyleSheet.create({
         borderBottomWidth: 1,
         borderBottomColor: colors.separator,
         backgroundColor: colors.bgSubtle,
+    },
+    headerCompact: {
+        paddingHorizontal: 14,
+        paddingTop: 8,
+        paddingBottom: 8,
     },
     week: {
         fontSize: 10,
@@ -129,6 +139,10 @@ const styles = StyleSheet.create({
         paddingHorizontal: 18,
         paddingVertical: 18,
     },
+    scoresCompact: {
+        paddingHorizontal: 14,
+        paddingVertical: 10,
+    },
     side: { flex: 1, gap: 2 },
     sideRight: { alignItems: 'flex-end' },
     teamName: {
@@ -151,6 +165,10 @@ const styles = StyleSheet.create({
         fontSize: 40,
         fontWeight: '900',
         lineHeight: 48,
+    },
+    scoreCompact: {
+        fontSize: 30,
+        lineHeight: 35,
     },
     scoreWin: {
         color: colors.textPrimary,

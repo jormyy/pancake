@@ -1,5 +1,11 @@
 import { Alert, Platform } from 'react-native'
 
+export function getErrorMessage(e: unknown): string {
+    if (e instanceof Error) return e.message
+    if (typeof e === 'string') return e
+    return String(e)
+}
+
 /** Simple info/error alert — works on both native and web. */
 export function showAlert(title: string, message?: string) {
     if (Platform.OS === 'web') {

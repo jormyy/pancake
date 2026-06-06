@@ -1,12 +1,10 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
-import { execFile } from 'node:child_process'
-import { promisify } from 'node:util'
 import { resolvedEnv, describeEndpoint } from './env.mjs'
 import { installRuntimeOverrides, normalizeBrowserErrors } from './browser-runtime-overrides.mjs'
+import { createBrowser, listBrowserSessions } from './browser-agent.mjs'
 
-const execFileAsync = promisify(execFile)
 const ROOT = process.cwd()
 const STATE_PATH = path.join(ROOT, 'tests/e2e-state.json')
 const ARTIFACT_ROOT = path.join(ROOT, 'tests/artifacts')
@@ -14,23 +12,9 @@ const REPORT_PATH = path.join(ROOT, 'tests/e2e-browser-auth-report.md')
 
 const readState = async () => JSON.parse(await readFile(STATE_PATH, 'utf8'))
 
-const browser = async (session, args, options = {}) => {
-  const { stdout, stderr } = await execFileAsync('agent-browser', ['--session', session, ...args], {
-    cwd: ROOT,
-    timeout: options.timeout ?? 30_000,
-    maxBuffer: options.maxBuffer ?? 1024 * 1024 * 4,
-  })
-  return [stdout, stderr].filter(Boolean).join('\n').trim()
-}
+const browser = createBrowser({ cwd: ROOT })
 
-const listSessions = async () => {
-  const { stdout, stderr } = await execFileAsync('agent-browser', ['session', 'list'], {
-    cwd: ROOT,
-    timeout: 10_000,
-    maxBuffer: 1024 * 1024,
-  })
-  return [stdout, stderr].filter(Boolean).join('\n').trim()
-}
+const listSessions = () => listBrowserSessions({ cwd: ROOT })
 
 const safeName = (value) => value.replace(/[^a-zA-Z0-9._-]/g, '-')
 
@@ -222,29 +206,43 @@ const runOneAuthUser = async ({ state, env, season, userIndex, sessionList }) =>
 export async function runBrowserAuthScenario({
   season = 0,
   userCount = Number(process.env.E2E_BROWSER_AUTH_USERS ?? 10),
+  concurrency = Number(process.env.E2E_BROWSER_AUTH_CONCURRENCY ?? 2),
 } = {}) {
   const env = resolvedEnv()
   const state = await readState()
   if (!state.password) throw new Error('tests/e2e-state.json is missing the seeded user password')
   if (!Number.isInteger(userCount) || userCount < 1) throw new Error('E2E_BROWSER_AUTH_USERS must be a positive integer')
+  if (!Number.isInteger(concurrency) || concurrency < 1) throw new Error('E2E_BROWSER_AUTH_CONCURRENCY must be a positive integer')
 
   const count = Math.min(userCount, state.users.length)
   const sessionList = await listSessions().catch((error) => `session list unavailable: ${error.message}`)
-  const reports = await Promise.all(
-    Array.from({ length: count }, (_, index) => runOneAuthUser({
-      state,
-      env,
-      season,
-      userIndex: index,
-      sessionList,
-    })),
+  const reports = Array.from({ length: count })
+  let nextIndex = 0
+  const runNext = async () => {
+    while (nextIndex < count) {
+      const index = nextIndex
+      nextIndex += 1
+      reports[index] = await runOneAuthUser({
+        state,
+        env,
+        season,
+        userIndex: index,
+        sessionList,
+      })
+    }
+  }
+
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, count) }, runNext),
   )
 
+  const completedReports = reports.filter(Boolean)
   const report = {
-    status: reports.every((row) => row.status === 'PASS') ? 'PASS' : 'FAIL',
+    status: completedReports.every((row) => row.status === 'PASS') ? 'PASS' : 'FAIL',
     season,
     userCount: count,
-    reports,
+    concurrency,
+    reports: completedReports,
   }
   await writeFile(REPORT_PATH, `${JSON.stringify(report, null, 2)}\n`)
   if (report.status !== 'PASS') {

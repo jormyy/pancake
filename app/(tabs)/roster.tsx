@@ -6,7 +6,7 @@ import {
     ActivityIndicator,
     ScrollView,
 } from 'react-native'
-import { showAlert, confirmAction } from '@/lib/alert'
+import { showAlert, confirmAction, getErrorMessage } from '@/lib/alert'
 import { FlashList } from '@shopify/flash-list'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
@@ -39,7 +39,6 @@ const EMPTY_PICKS: TradePickItem[] = []
 const EMPTY_CLAIMS: WaiverClaim[] = []
 const EMPTY_AVG_MAP = new Map<string, number>()
 
-// ── Main screen ──────────────────────────────────────────────────
 
 export default function RosterScreen() {
     const { push } = useRouter()
@@ -167,8 +166,8 @@ export default function RosterScreen() {
             try {
                 await toggleIR(item.id, !item.is_on_ir)
                 await load()
-            } catch (e: any) {
-                showAlert('Error', e.message)
+            } catch (e) {
+                showAlert('Error', getErrorMessage(e))
             } finally {
                 setTogglingId(null)
             }
@@ -208,8 +207,8 @@ export default function RosterScreen() {
             try {
                 await toggleTaxi(item.id, !item.is_on_taxi)
                 await load()
-            } catch (e: any) {
-                showAlert('Error', e.message)
+            } catch (e) {
+                showAlert('Error', getErrorMessage(e))
             } finally {
                 setTaxiingId(null)
             }
@@ -226,8 +225,8 @@ export default function RosterScreen() {
                 try {
                     await dropPlayer(item.id)
                     await load()
-                } catch (e: any) {
-                    showAlert('Error', e.message)
+                } catch (e) {
+                    showAlert('Error', getErrorMessage(e))
                 } finally {
                     setDroppingId(null)
                 }
@@ -242,8 +241,8 @@ export default function RosterScreen() {
         try {
             await cancelWaiverClaim(claimId, user.id)
             await load()
-        } catch (e: any) {
-            showAlert('Error', e.message)
+        } catch (e) {
+            showAlert('Error', getErrorMessage(e))
         } finally {
             setCancellingId(null)
         }

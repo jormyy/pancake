@@ -83,7 +83,6 @@ const styles = StyleSheet.create({
     picksBankOwner: { width: 110, textAlign: 'right', fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textPrimary },
 })
 
-// ── Standings ────────────────────────────────────────────────────
 
 function StandingsRow({ item, index, isMe, onPress }: { item: StandingRow; index: number; isMe: boolean; onPress: () => void }) {
     return (
@@ -184,7 +183,6 @@ export function StandingsTable({ standings, myMemberId, onSelectTeam }: { standi
     )
 }
 
-// ── Activity Feed ────────────────────────────────────────────────
 
 function ActivityRow({ item, isMe }: { item: TransactionRow; isMe: boolean }) {
     const color = TX_COLORS[item.transactionType] ?? colors.textMuted
@@ -256,7 +254,6 @@ export function ActivityFeed({
     )
 }
 
-// ── Waiver Priority ──────────────────────────────────────────────
 
 function WaiverRow({ item, isMe, rank }: { item: WaiverPriorityRow; isMe: boolean; rank: number }) {
     return (
@@ -300,7 +297,6 @@ export function WaiverPriorityList({ rows, myMemberId }: { rows: WaiverPriorityR
     )
 }
 
-// ── Picks Bank ───────────────────────────────────────────────────
 
 type PicksBankItem =
     | { type: 'yearHeader'; year: number; id: string }

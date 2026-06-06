@@ -1,28 +1,32 @@
-import { Pressable, View, Text, StyleSheet } from 'react-native'
+import { View, Text, StyleSheet } from 'react-native'
 import { WeekDay } from '@/lib/lineup'
 import { todayET } from '@/lib/shared/dates'
 import { colors, palette } from '@/constants/tokens'
+import { MotionPressable } from '@/components/Motion'
 
 export function DaySelector({
     days,
     selectedDate,
     onSelect,
+    compact = false,
 }: {
     days: WeekDay[]
     selectedDate: string
     onSelect: (date: string) => void
+    compact?: boolean
 }) {
     return (
-        <View style={[styles.row, styles.content]}>
+        <View style={[styles.row, styles.content, compact && styles.contentCompact]}>
             {days.map((day) => {
                 const isSelected = day.date === selectedDate
                 const isPast = day.date < todayET()
                 const isFuture = !day.isToday && !isPast
                 return (
-                    <Pressable
+                    <MotionPressable
                         key={day.date}
                         style={[
                             styles.cell,
+                            compact && styles.cellCompact,
                             isSelected && styles.cellSelected,
                             day.isToday && !isSelected && styles.cellToday,
                             !day.hasGames && styles.cellNoGames,
@@ -32,6 +36,7 @@ export function DaySelector({
                         accessibilityLabel={`Select ${day.dayLabel} ${day.dateNum}`}
                         accessibilityState={{ selected: isSelected }}
                         hitSlop={4}
+                        pressedScale={0.92}
                     >
                         <Text style={[styles.label, isSelected && styles.labelSelected, !day.hasGames && styles.labelFaint]}>
                             {day.dayLabel}
@@ -46,7 +51,7 @@ export function DaySelector({
                             <View style={[styles.dash, isSelected && styles.dashSelected]} />
                         )}
                         {isFuture && <View style={styles.indicatorSpacer} />}
-                    </Pressable>
+                    </MotionPressable>
                 )
             })}
         </View>
@@ -56,7 +61,9 @@ export function DaySelector({
 const styles = StyleSheet.create({
     row: { borderBottomWidth: 1, borderBottomColor: colors.borderLight },
     content: { flexDirection: 'row', justifyContent: 'center', paddingHorizontal: 12, paddingVertical: 10, gap: 6 },
+    contentCompact: { paddingVertical: 6, gap: 4 },
     cell: { width: 40, alignItems: 'center', paddingVertical: 6, borderRadius: 10, borderCurve: 'continuous' as const, gap: 2 },
+    cellCompact: { width: 36, paddingVertical: 4, gap: 1 },
     cellSelected: { backgroundColor: colors.primary },
     cellToday: { backgroundColor: colors.primaryLight },
     cellNoGames: { opacity: 0.4 },

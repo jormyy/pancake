@@ -1,4 +1,4 @@
-import { View, Text, Pressable, StyleSheet } from 'react-native'
+import { ScrollView, View, Text, Pressable, StyleSheet, useWindowDimensions } from 'react-native'
 import type { ViewStyle } from 'react-native'
 import { Tabs, usePathname, useRouter } from 'expo-router'
 import { colors, palette } from '@/constants/tokens'
@@ -28,15 +28,25 @@ function isRouteActive(pathname: string, href: string) {
 function WebNavBar() {
     const pathname = usePathname()
     const router = useRouter()
+    const { width } = useWindowDimensions()
+    const compact = width < 720
+    const navItems = compact
+        ? [...NAV_ITEMS, { label: 'Profile', href: '/profile' } as const]
+        : NAV_ITEMS
 
     return (
-        <View style={styles.navbar}>
+        <View style={[styles.navbar, compact && styles.navbarCompact]}>
             {/* Logo */}
-            <Text style={styles.logo}>Pancake</Text>
+            <Text style={[styles.logo, compact && styles.logoCompact]}>Pancake</Text>
 
             {/* Center nav items */}
-            <View style={styles.navItems}>
-                {NAV_ITEMS.map((item) => {
+            <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={compact ? styles.navScrollCompact : styles.navScroll}
+                contentContainerStyle={[styles.navItems, compact && styles.navItemsCompact]}
+            >
+                {navItems.map((item) => {
                     const active = isRouteActive(pathname, item.href)
                     return (
                         <Pressable
@@ -44,19 +54,20 @@ function WebNavBar() {
                             onPress={() => router.push(item.href)}
                             style={({ hovered }: any) => [
                                 styles.navItem,
+                                compact && styles.navItemCompact,
                                 hovered && styles.navItemHovered,
                             ]}
                         >
-                            <Text style={[styles.navLabel, active && styles.navLabelActive]}>
+                            <Text style={[styles.navLabel, compact && styles.navLabelCompact, active && styles.navLabelActive]}>
                                 {item.label}
                             </Text>
                         </Pressable>
                     )
                 })}
-            </View>
+            </ScrollView>
 
             {/* Profile on right */}
-            <Pressable
+            {!compact && <Pressable
                 onPress={() => router.push('/profile')}
                 style={({ hovered }: any) => [
                     styles.profileButton,
@@ -71,7 +82,7 @@ function WebNavBar() {
                 >
                     Profile
                 </Text>
-            </Pressable>
+            </Pressable>}
         </View>
     )
 }
@@ -116,6 +127,10 @@ const styles = StyleSheet.create({
         top: 0,
         zIndex: 1000,
     } as WebNavbarStyle,
+    navbarCompact: {
+        paddingHorizontal: 10,
+        gap: 8,
+    },
     logo: {
         fontSize: 17,
         fontWeight: '600',
@@ -123,17 +138,35 @@ const styles = StyleSheet.create({
         letterSpacing: -0.3,
         minWidth: 100,
     },
-    navItems: {
+    logoCompact: {
+        fontSize: 14,
+        minWidth: 56,
+    },
+    navScroll: {
         flex: 1,
+    },
+    navScrollCompact: {
+        flex: 1,
+        minWidth: 0,
+    },
+    navItems: {
         flexDirection: 'row',
         justifyContent: 'center',
         alignItems: 'center',
         gap: 4,
     },
+    navItemsCompact: {
+        justifyContent: 'flex-start',
+        gap: 2,
+        paddingRight: 4,
+    },
     navItem: {
         paddingHorizontal: 12,
         paddingVertical: 6,
         borderRadius: 6,
+    },
+    navItemCompact: {
+        paddingHorizontal: 6,
     },
     navItemHovered: {
         backgroundColor: palette.cream200,
@@ -143,6 +176,9 @@ const styles = StyleSheet.create({
         fontWeight: '400',
         color: colors.textSecondary,
         letterSpacing: -0.1,
+    },
+    navLabelCompact: {
+        fontSize: 11,
     },
     navLabelActive: {
         color: colors.primary,

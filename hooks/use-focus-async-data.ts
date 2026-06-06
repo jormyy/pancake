@@ -56,8 +56,8 @@ export function useFocusAsyncData<T>(
                 setData(result)
                 hasDataRef.current = true
                 lastLoadedAtRef.current = Date.now()
-            } catch (e: any) {
-                setError(e)
+            } catch (e) {
+                setError(e instanceof Error ? e : new Error(String(e)))
                 console.error(e)
             } finally {
                 setLoading(false)

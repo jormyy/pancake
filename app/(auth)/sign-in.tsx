@@ -12,6 +12,7 @@ import { Link } from 'expo-router'
 import { useState } from 'react'
 import { signIn } from '@/lib/auth'
 import { colors, fontSize, fontWeight, radii, spacing, palette } from '@/constants/tokens'
+import { getErrorMessage } from '@/lib/alert'
 
 export default function SignInScreen() {
     const [email, setEmail] = useState('')
@@ -28,8 +29,8 @@ export default function SignInScreen() {
         setError(null)
         try {
             await signIn(email.trim(), password)
-        } catch (e: any) {
-            setError(e.message ?? 'Something went wrong.')
+        } catch (e) {
+            setError(getErrorMessage(e) ?? 'Something went wrong.')
         } finally {
             setLoading(false)
         }

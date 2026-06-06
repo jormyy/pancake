@@ -4,6 +4,7 @@ import { Matchup } from '@/lib/scoring'
 import { setPlayerSlot, autoSetLineup, canPlaySlot, LineupSlot, LineupPlayer } from '@/lib/lineup'
 import { isIREligible, toggleIR, toggleTaxi, dropPlayer } from '@/lib/roster'
 import { todayET } from '@/lib/shared/dates'
+import { getErrorMessage } from '@/lib/alert'
 
 type LineupData = { starters: LineupSlot[]; bench: LineupPlayer[]; ir: LineupPlayer[]; taxi: LineupPlayer[] }
 type Sel = { kind: 'starter'; index: number } | { kind: 'bench'; index: number } | { kind: 'ir'; index: number } | { kind: 'taxi'; index: number }
@@ -20,7 +21,7 @@ export function useLineupActions({
 }: {
     matchup: Matchup | null | undefined
     myLineup: LineupData | null
-    league: any
+    league: { id: string; roster_size?: number; taxi_slots?: number } | null
     selectedDate: string
     startedTeams: Set<string>
     loadMyLineup: (m: Matchup, date: string) => Promise<void>
@@ -44,7 +45,7 @@ export function useLineupActions({
             setSelected(null); return
         }
         setSelected(null)
-        if (!matchup || !myLineup) return
+        if (!matchup || !myLineup || !league) return
 
         const starters = myLineup.starters
         const bench = myLineup.bench
@@ -107,8 +108,8 @@ export function useLineupActions({
                     }
                 }
                 await loadMyLineup(matchup, selectedDate)
-            } catch (e: any) {
-                Alert.alert('Error', e.message)
+            } catch (e) {
+                Alert.alert('Error', getErrorMessage(e))
             } finally {
                 setSaving(false)
             }
@@ -157,8 +158,8 @@ export function useLineupActions({
                     }
                 }
                 await loadMyLineup(matchup, selectedDate)
-            } catch (e: any) {
-                Alert.alert('Error', e.message)
+            } catch (e) {
+                Alert.alert('Error', getErrorMessage(e))
             } finally {
                 setSaving(false)
             }
@@ -187,69 +188,41 @@ export function useLineupActions({
             if (bPlayer) saves.push(setPlayerSlot(matchup.myMemberId, league.id, matchup.seasonId, matchup.weekNumber, selectedDate, bPlayer.playerId, aSlot))
             await Promise.all(saves)
             await loadMyLineup(matchup, selectedDate)
-        } catch (e: any) {
-            Alert.alert('Error', e.message)
+        } catch (e) {
+            Alert.alert('Error', getErrorMessage(e))
         } finally {
             setSaving(false)
         }
     }, [selectedDate, selected, matchup, myLineup, league, startedTeams, loadMyLineup])
 
-    async function activatePending() {
-        if (!activationOverflowPending) return
-        if (activationOverflowPending.source === 'ir') {
-            await toggleIR(activationOverflowPending.rosterPlayerId, false)
-        } else {
-            await toggleTaxi(activationOverflowPending.rosterPlayerId, false)
-        }
-    }
-
-    async function handleOverflowDrop(dropRosterPlayerId: string) {
+    async function resolveOverflow(
+        freeSlot: (id: string) => Promise<void>,
+        rosterPlayerId: string,
+    ) {
         if (!activationOverflowPending || !matchup) return
         setActivationOverflowSaving(true)
         try {
-            await dropPlayer(dropRosterPlayerId)
-            await activatePending()
+            await freeSlot(rosterPlayerId)
+            if (activationOverflowPending.source === 'ir') {
+                await toggleIR(activationOverflowPending.rosterPlayerId, false)
+            } else {
+                await toggleTaxi(activationOverflowPending.rosterPlayerId, false)
+            }
             setActivationOverflowPending(null)
             await loadMyLineup(matchup, selectedDate)
-        } catch (e: any) {
-            Alert.alert('Error', e.message)
+        } catch (e) {
+            Alert.alert('Error', getErrorMessage(e))
         } finally {
             setActivationOverflowSaving(false)
         }
     }
 
-    async function handleOverflowMoveToIR(moveRosterPlayerId: string) {
-        if (!activationOverflowPending || !matchup) return
-        setActivationOverflowSaving(true)
-        try {
-            await toggleIR(moveRosterPlayerId, true)
-            await activatePending()
-            setActivationOverflowPending(null)
-            await loadMyLineup(matchup, selectedDate)
-        } catch (e: any) {
-            Alert.alert('Error', e.message)
-        } finally {
-            setActivationOverflowSaving(false)
-        }
-    }
-
-    async function handleOverflowMoveToTaxi(moveRosterPlayerId: string) {
-        if (!activationOverflowPending || !matchup) return
-        setActivationOverflowSaving(true)
-        try {
-            await toggleTaxi(moveRosterPlayerId, true)
-            await activatePending()
-            setActivationOverflowPending(null)
-            await loadMyLineup(matchup, selectedDate)
-        } catch (e: any) {
-            Alert.alert('Error', e.message)
-        } finally {
-            setActivationOverflowSaving(false)
-        }
-    }
+    const handleOverflowDrop = (id: string) => resolveOverflow(dropPlayer, id)
+    const handleOverflowMoveToIR = (id: string) => resolveOverflow((rpId) => toggleIR(rpId, true), id)
+    const handleOverflowMoveToTaxi = (id: string) => resolveOverflow((rpId) => toggleTaxi(rpId, true), id)
 
     async function doAutoSet(date: string | null, restOfSeason?: boolean) {
-        if (!matchup) return
+        if (!matchup || !league) return
         setAutoSetting(true)
         try {
             await autoSetLineup(
@@ -260,8 +233,8 @@ export function useLineupActions({
             if (restOfSeason) {
                 Alert.alert('Done', 'Lineup set for the rest of the season.')
             }
-        } catch (e: any) {
-            Alert.alert('Auto-set failed', e?.message ?? String(e))
+        } catch (e) {
+            Alert.alert('Auto-set failed', getErrorMessage(e) ?? String(e))
         } finally {
             setAutoSetting(false)
         }

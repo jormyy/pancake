@@ -54,7 +54,10 @@ export async function getPlayoffBracket(leagueId: string): Promise<PlayoffBracke
     if (!rows || rows.length === 0)
         return { quarterfinals: [], semifinals: [], final: null, champion: null }
 
-    const toMatchup = (r: any, round: BracketRound): BracketMatchup => ({
+    type MemberRef = { id: string; team_name: string } | null
+    type Row = (typeof rows)[number] & { home: MemberRef; away: MemberRef; winner: MemberRef }
+
+    const toMatchup = (r: Row, round: BracketRound): BracketMatchup => ({
         id: r.id,
         round,
         weekNumber: r.week_number,
@@ -68,15 +71,17 @@ export async function getPlayoffBracket(leagueId: string): Promise<PlayoffBracke
         isFinalized: r.is_finalized,
     })
 
-    const quarterfinals = (rows as any[])
+    const typed = rows as Row[]
+
+    const quarterfinals = typed
         .filter((r) => r.matchup_type === 'playoff_quarterfinal')
         .map((r) => toMatchup(r, ROUND_BY_TYPE.playoff_quarterfinal))
 
-    const semis = (rows as any[])
+    const semis = typed
         .filter((r) => r.matchup_type === 'playoff_semifinal')
         .map((r) => toMatchup(r, ROUND_BY_TYPE.playoff_semifinal))
 
-    const finalRow = (rows as any[]).find((r) => r.matchup_type === 'playoff_final')
+    const finalRow = typed.find((r) => r.matchup_type === 'playoff_final')
     const final = finalRow ? toMatchup(finalRow, ROUND_BY_TYPE.playoff_final) : null
 
     let champion: string | null = null

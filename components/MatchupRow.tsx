@@ -1,5 +1,5 @@
 import { memo } from 'react'
-import { View, Text, Pressable, StyleSheet } from 'react-native'
+import { View, Text, StyleSheet } from 'react-native'
 import { useRouter } from 'expo-router'
 import { LineupPlayer } from '@/lib/lineup'
 import { LiveStatLine } from '@/lib/games'
@@ -9,15 +9,17 @@ import { colors, palette, fontWeight } from '@/constants/tokens'
 import { PosTag } from '@/components/PosTag'
 import { InjuryBadge } from '@/components/InjuryBadge'
 import { shortName } from '@/lib/format'
+import { LivePulse, MotionPressable, MotionView } from '@/components/Motion'
 
 type Sel = { kind: 'starter' | 'bench' | 'ir' | 'taxi'; index: number }
 
 const SLOT_W = 52
 
-function StatLines({ stats, isLive, align }: {
+function StatLines({ stats, isLive, align, compact = false }: {
     stats: LiveStatLine
     isLive: boolean
     align: 'left' | 'right'
+    compact?: boolean
 }) {
     const base = [styles.statLine, isLive ? styles.statLineLive : null, { textAlign: align }]
     if (stats.didNotPlay) return <Text style={base}>DNP</Text>
@@ -39,7 +41,7 @@ function StatLines({ stats, isLive, align }: {
     return (
         <>
             <Text style={base} numberOfLines={1}>{line1}</Text>
-            {line2 ? <Text style={base} numberOfLines={1}>{line2}</Text> : null}
+            {!compact && line2 ? <Text style={base} numberOfLines={1}>{line2}</Text> : null}
         </>
     )
 }
@@ -59,6 +61,9 @@ type MatchupRowProps = {
     scoringSettings: Record<string, number>
     teamMatchups: Map<string, { opponent: string; isHome: boolean }>
     isExtraOppRow?: boolean
+    compact?: boolean
+    dense?: boolean
+    motionDelay?: number
 }
 
 function MatchupRowImpl({
@@ -76,6 +81,9 @@ function MatchupRowImpl({
     scoringSettings,
     teamMatchups,
     isExtraOppRow = false,
+    compact = false,
+    dense = false,
+    motionDelay = 0,
 }: MatchupRowProps) {
     const { push } = useRouter()
     const isSel = selected?.kind === selKind && selected.index === selIndex
@@ -102,48 +110,65 @@ function MatchupRowImpl({
     const oppShowInjury = oppPlayer?.injuryStatus && !oppPlayedToday
 
     return (
-        <View style={[styles.matchupRow, isExtraOppRow && styles.extraOppRow]}>
+        <MotionView
+            style={[
+                styles.matchupRow,
+                compact && styles.matchupRowCompact,
+                dense && styles.matchupRowDense,
+                isExtraOppRow && styles.extraOppRow,
+            ]}
+            preset="fade"
+            delay={motionDelay}
+        >
             {/* Left: my player (right-aligned) */}
-            <Pressable
+            <MotionPressable
                 style={styles.rowSideLeft}
-                onPress={myPlayer ? () => push(`/player/${myPlayer.playerId}` as any) : undefined}
+                onPress={myPlayer ? () => push({ pathname: '/player/[id]', params: { id: myPlayer.playerId } }) : undefined}
                 disabled={!myPlayer}
+                pressedScale={0.985}
             >
                 {myPlayer ? (
                     <>
                         {myFpts != null && (
-                            <Text style={[styles.fptsNum, myIsLive && styles.fptsLive]}>{myFpts}</Text>
+                            <Text style={[styles.fptsNum, dense && styles.fptsNumDense, myIsLive && styles.fptsLive]}>{myFpts}</Text>
                         )}
                         <View style={styles.playerBlockRight}>
                             <View style={[styles.metaRow, { justifyContent: 'flex-end' }]}>
                                 {myShowInjury && <InjuryBadge status={myPlayer.injuryStatus} />}
-                                <Text style={[styles.sideName, !myHasGame && styles.noGameName]} numberOfLines={1}>
+                                <Text style={[styles.sideName, dense && styles.sideNameDense, !myHasGame && styles.noGameName]} numberOfLines={1}>
                                     {shortName(myPlayer.displayName)}
                                 </Text>
                             </View>
-                            <View style={[styles.metaRow, { justifyContent: 'flex-end' }]}>
-                                {myIsLive && <Text style={styles.lockedBadge}>LIVE</Text>}
-                                {myPlayer.eligiblePositions.map((pos) => <PosTag key={pos} position={pos} />)}
+                            {!dense && <View style={[styles.metaRow, { justifyContent: 'flex-end' }]}>
+                                {myIsLive && (
+                                    <View style={styles.liveBadgeRow}>
+                                        <LivePulse color={palette.green600} size={5} />
+                                        <Text style={styles.lockedBadge}>LIVE</Text>
+                                    </View>
+                                )}
+                                {!compact && myPlayer.eligiblePositions.map((pos) => <PosTag key={pos} position={pos} />)}
                                 {myMatchupLabel !== null && (
                                     <Text style={styles.sideMeta} numberOfLines={1}>
                                         {myPlayer.nbaTeam} {myMatchupLabel}
                                     </Text>
                                 )}
-                            </View>
-                            {myStats ? (
-                                <StatLines stats={myStats} isLive={myIsLive} align="right" />
+                            </View>}
+                            {myStats && !dense ? (
+                                <StatLines stats={myStats} isLive={myIsLive} align="right" compact={compact} />
                             ) : null}
                         </View>
                     </>
                 ) : isExtraOppRow ? null : (
                     <Text style={[styles.sideName, { color: colors.border, textAlign: 'right' }]}>—</Text>
                 )}
-            </Pressable>
+            </MotionPressable>
 
             {/* Center: slot chip */}
-            <Pressable
+            <MotionPressable
                 style={[
                     styles.slotChipCenter,
+                    compact && styles.slotChipCenterCompact,
+                    dense && styles.slotChipCenterDense,
                     { backgroundColor: slotColor + '22' },
                     isSel && styles.slotChipSelected,
                     saving && { opacity: 0.4 },
@@ -154,49 +179,56 @@ function MatchupRowImpl({
                 accessibilityLabel={`Select ${slotType}`}
                 accessibilityState={{ disabled: saving || isExtraOppRow, selected: isSel }}
                 hitSlop={7}
+                pressedScale={0.88}
             >
                 <Text style={[styles.slotChipText, { color: isSel ? colors.primary : slotColor }]}>
                     {isExtraOppRow ? '—' : slotType}
                 </Text>
-            </Pressable>
+            </MotionPressable>
 
             {/* Right: opponent player (left-aligned) */}
-            <Pressable
+            <MotionPressable
                 style={styles.rowSideRight}
-                onPress={oppPlayer ? () => push(`/player/${oppPlayer.playerId}` as any) : undefined}
+                onPress={oppPlayer ? () => push({ pathname: '/player/[id]', params: { id: oppPlayer.playerId } }) : undefined}
                 disabled={!oppPlayer}
+                pressedScale={0.985}
             >
                 {oppPlayer ? (
                     <>
                         <View style={styles.playerBlockLeft}>
                             <View style={styles.metaRow}>
-                                <Text style={[styles.sideName, !oppHasGame && styles.noGameName]} numberOfLines={1}>
+                                <Text style={[styles.sideName, dense && styles.sideNameDense, !oppHasGame && styles.noGameName]} numberOfLines={1}>
                                     {shortName(oppPlayer.displayName)}
                                 </Text>
                                 {oppShowInjury && <InjuryBadge status={oppPlayer.injuryStatus} />}
                             </View>
-                            <View style={styles.metaRow}>
-                                {oppPlayer.eligiblePositions.map((pos) => <PosTag key={pos} position={pos} />)}
+                            {!dense && <View style={styles.metaRow}>
+                                {!compact && oppPlayer.eligiblePositions.map((pos) => <PosTag key={pos} position={pos} />)}
                                 {oppMatchupLabel !== null && (
                                     <Text style={styles.sideMeta} numberOfLines={1}>
                                         {oppPlayer.nbaTeam} {oppMatchupLabel}
                                     </Text>
                                 )}
-                                {oppIsLive && <Text style={styles.lockedBadge}>LIVE</Text>}
-                            </View>
-                            {oppStats ? (
-                                <StatLines stats={oppStats} isLive={oppIsLive} align="left" />
+                                {oppIsLive && (
+                                    <View style={styles.liveBadgeRow}>
+                                        <LivePulse color={palette.green600} size={5} />
+                                        <Text style={styles.lockedBadge}>LIVE</Text>
+                                    </View>
+                                )}
+                            </View>}
+                            {oppStats && !dense ? (
+                                <StatLines stats={oppStats} isLive={oppIsLive} align="left" compact={compact} />
                             ) : null}
                         </View>
                         {oppFpts != null && (
-                            <Text style={[styles.fptsNum, styles.fptsRight, oppIsLive && styles.fptsLive]}>{oppFpts}</Text>
+                            <Text style={[styles.fptsNum, styles.fptsRight, dense && styles.fptsNumDense, oppIsLive && styles.fptsLive]}>{oppFpts}</Text>
                         )}
                     </>
                 ) : (
                     <Text style={[styles.sideName, { color: colors.border }]}>—</Text>
                 )}
-            </Pressable>
-        </View>
+            </MotionPressable>
+        </MotionView>
     )
 }
 
@@ -211,6 +243,13 @@ const styles = StyleSheet.create({
         borderBottomColor: colors.separator,
         gap: 8,
     },
+    matchupRowCompact: {
+        paddingVertical: 4,
+        gap: 6,
+    },
+    matchupRowDense: {
+        paddingVertical: 2,
+    },
     extraOppRow: {
     },
     rowSideLeft: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end' },
@@ -218,13 +257,16 @@ const styles = StyleSheet.create({
     playerBlockRight: { flex: 1, alignItems: 'flex-end' },
     playerBlockLeft: { flex: 1, alignItems: 'flex-start' },
     fptsNum: { fontSize: 20, fontWeight: '800', color: colors.textMuted, minWidth: 36, textAlign: 'left', marginRight: 6 },
+    fptsNumDense: { fontSize: 16, minWidth: 28 },
     fptsRight: { textAlign: 'right', marginRight: 0, marginLeft: 6 },
     fptsLive: { color: colors.primary },
     sideName: { fontSize: 13, fontWeight: '600', color: colors.textPrimary, flexShrink: 1 },
+    sideNameDense: { fontSize: 12 },
     noGameName: { color: palette.gray500 },
     metaRow: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 2 },
     sideMeta: { fontSize: 11, color: colors.textPlaceholder },
     lockedBadge: { fontSize: 10, fontWeight: fontWeight.bold, color: '#16a34a', letterSpacing: 0.4, marginHorizontal: 3 },
+    liveBadgeRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
     statLine: { fontSize: 11, color: colors.textMuted, textAlign: 'right', marginTop: 1 },
     statLineLive: { color: colors.primary, fontWeight: fontWeight.semibold },
     slotChipCenter: {
@@ -235,6 +277,15 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         flexShrink: 0,
+    },
+    slotChipCenterCompact: {
+        width: 42,
+        height: 26,
+        borderRadius: 7,
+    },
+    slotChipCenterDense: {
+        width: 38,
+        height: 24,
     },
     slotChipSelected: { borderWidth: 1.5, borderColor: colors.primary },
     slotChipText: { fontSize: 11, fontWeight: '800', letterSpacing: 0.3 },

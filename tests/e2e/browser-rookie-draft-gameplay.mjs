@@ -1,25 +1,16 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
-import { execFile } from 'node:child_process'
-import { promisify } from 'node:util'
 import { createClient } from '@supabase/supabase-js'
 import { resolvedEnv, requireEnv, describeEndpoint } from './env.mjs'
 import { installRuntimeOverrides, normalizeBrowserErrors } from './browser-runtime-overrides.mjs'
+import { createBrowser, listBrowserSessions } from './browser-agent.mjs'
 
-const execFileAsync = promisify(execFile)
 const ROOT = process.cwd()
 const ARTIFACT_ROOT = path.join(ROOT, 'tests/artifacts')
 const REPORT_PATH = path.join(ROOT, 'tests/e2e-browser-rookie-draft-report.md')
 
-const browser = async (session, args, options = {}) => {
-  const { stdout, stderr } = await execFileAsync('agent-browser', ['--session', session, ...args], {
-    cwd: ROOT,
-    timeout: options.timeout ?? 30_000,
-    maxBuffer: options.maxBuffer ?? 1024 * 1024 * 4,
-  })
-  return [stdout, stderr].filter(Boolean).join('\n').trim()
-}
+const browser = createBrowser({ cwd: ROOT })
 
 const safeName = (value) => value.replace(/[^a-zA-Z0-9._-]/g, '-')
 const joinUrl = (base, pathname) => new URL(pathname, base.endsWith('/') ? base : `${base}/`).toString()
@@ -30,14 +21,7 @@ const parseEvalJson = (output) => {
   return typeof value === 'string' ? JSON.parse(value) : value
 }
 
-const listSessions = async () => {
-  const { stdout, stderr } = await execFileAsync('agent-browser', ['session', 'list'], {
-    cwd: ROOT,
-    timeout: 10_000,
-    maxBuffer: 1024 * 1024,
-  })
-  return [stdout, stderr].filter(Boolean).join('\n').trim()
-}
+const listSessions = () => listBrowserSessions({ cwd: ROOT })
 
 const backendUrl = (env, pathname) => new URL(pathname, env.apiBaseUrl.endsWith('/') ? env.apiBaseUrl : `${env.apiBaseUrl}/`).toString()
 
@@ -218,6 +202,7 @@ const setupBrowserRookieDraftFixture = async (env, season) => {
     .select('id, display_name, nba_draft_number')
     .not('nba_draft_number', 'is', null)
     .order('nba_draft_number', { ascending: true })
+    .order('id', { ascending: true })
     .limit(4)
   if (rookiesError) throw new Error(`rookie player lookup: ${rookiesError.message}`)
   if ((rookies ?? []).length < 2) throw new Error('browser rookie draft requires at least two players with nba_draft_number')

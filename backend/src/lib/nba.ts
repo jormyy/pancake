@@ -73,7 +73,6 @@ function mapGameStatus(s: number): string {
     return 'Scheduled'
 }
 
-// ── Types ──────────────────────────────────────────────────────
 
 export interface NBAGame {
     gameId: string

@@ -1,5 +1,6 @@
-import { ScrollView, Pressable, Text, StyleSheet } from 'react-native'
+import { ScrollView, Text, StyleSheet } from 'react-native'
 import { colors } from '@/constants/tokens'
+import { MotionPressable } from '@/components/Motion'
 
 export type LeagueSwitcherMembership = {
     id: string
@@ -10,10 +11,12 @@ export function LeagueSwitcher({
     memberships,
     currentId,
     onSelect,
+    compact = false,
 }: {
     memberships: LeagueSwitcherMembership[]
     currentId: string | undefined
     onSelect: (m: LeagueSwitcherMembership) => void
+    compact?: boolean
 }) {
     if (memberships.length <= 1) return null
 
@@ -21,21 +24,22 @@ export function LeagueSwitcher({
         <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            style={styles.switcherRow}
-            contentContainerStyle={styles.switcherContent}
+            style={[styles.switcherRow, compact && styles.switcherRowCompact]}
+            contentContainerStyle={[styles.switcherContent, compact && styles.switcherContentCompact]}
         >
             {memberships.map((m) => {
                 const isActive = m.id === currentId
                 return (
-                    <Pressable
+                    <MotionPressable
                         key={m.id}
                         style={[styles.switcherChip, isActive && styles.switcherChipActive]}
                         onPress={() => onSelect(m)}
+                        pressedScale={0.94}
                     >
                         <Text style={[styles.switcherText, isActive && styles.switcherTextActive]}>
                             {m.leagues?.name ?? 'League'}
                         </Text>
-                    </Pressable>
+                    </MotionPressable>
                 )
             })}
         </ScrollView>
@@ -44,6 +48,7 @@ export function LeagueSwitcher({
 
 const styles = StyleSheet.create({
     switcherRow: { maxHeight: 48, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
+    switcherRowCompact: { maxHeight: 38 },
     switcherContent: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -51,6 +56,7 @@ const styles = StyleSheet.create({
         gap: 8,
         paddingVertical: 8,
     },
+    switcherContentCompact: { paddingVertical: 5 },
     switcherChip: {
         paddingHorizontal: 14,
         paddingVertical: 6,

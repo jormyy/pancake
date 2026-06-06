@@ -9,7 +9,6 @@ declare module 'fastify' {
     }
 }
 
-// ── JWT verification ──────────────────────────────────────────
 // Supabase issues HS256 JWTs. We verify the signature with the
 // SUPABASE_JWT_SECRET env var (available in Dashboard → Settings → API).
 // Using `jose` library instead of custom crypto for correctness and safety.
@@ -26,7 +25,6 @@ async function verifySupabaseJwt(token: string, secret: string): Promise<JWTPayl
     }
 }
 
-// ── Plugin ────────────────────────────────────────────────────
 
 const SKIP_ROUTES = new Set(['/health', '/games/today'])
 

@@ -1,5 +1,6 @@
 import * as cheerio from 'npm:cheerio'
 import type { AnyNode } from 'npm:domhandler'
+import { errorMessage, errorStatus } from './responses.ts'
 
 const BBREF_BASE = 'https://www.basketball-reference.com'
 const BBREF_HEADERS = {
@@ -14,9 +15,7 @@ async function bbrefGet(path: string): Promise<string> {
   try {
     const res = await fetch(`${BBREF_BASE}${path}`, { headers: BBREF_HEADERS, signal: controller.signal })
     if (!res.ok) {
-      const err = new Error(`BBRef ${res.status} for ${path}`) as any
-      err.status = res.status
-      throw err
+      throw new BBRefHttpError(res.status, `BBRef ${res.status} for ${path}`)
     }
     return await res.text()
   } finally {
@@ -110,15 +109,21 @@ export async function fetchBBRefSchedule(seasonEndYear: number): Promise<BBRefGa
 
         games.push({ bbrefId, gameDate, homeTeamBBRef, awayTeamBBRef, homeTeam, awayTeam })
       })
-    } catch (e: any) {
-      if (e.status !== 404) {
-        console.warn(`[bbref] Schedule ${seasonEndYear}/${month}: ${e.message}`)
+    } catch (e) {
+      if (errorStatus(e) !== 404) {
+        console.warn(`[bbref] Schedule ${seasonEndYear}/${month}: ${errorMessage(e)}`)
       }
     }
     await sleep(3000)
   }
 
   return games
+}
+
+class BBRefHttpError extends Error {
+  constructor(public status: number, message: string) {
+    super(message)
+  }
 }
 
 export async function fetchBBRefBoxScore(

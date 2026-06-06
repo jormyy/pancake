@@ -176,12 +176,12 @@ async function syncNBAIds() {
     }
   }
 
-  for (let i = 0; i < updates.length; i += CHUNK) {
-    const chunk = updates.slice(i, i + CHUNK)
-    const { error: upsertErr } = await supabase
+  for (const update of updates) {
+    const { error: updateErr } = await supabase
       .from('players')
-      .upsert(chunk, { onConflict: 'id' })
-    if (upsertErr) throw upsertErr
+      .update({ nba_id: update.nba_id })
+      .eq('id', update.id)
+    if (updateErr) throw updateErr
   }
 
   console.log(`[sync-players] Updated nba_id for ${updates.length} players.`)

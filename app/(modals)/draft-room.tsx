@@ -2,7 +2,6 @@ import {
     View,
     Text,
     TextInput,
-    Pressable,
     StyleSheet,
     ActivityIndicator,
     Alert,
@@ -27,6 +26,8 @@ import {
 import { RealtimeChannel } from '@supabase/supabase-js'
 import { LoadingScreen } from '@/components/LoadingScreen'
 import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { getErrorMessage } from '@/lib/alert'
+import { MotionPressable, MotionView } from '@/components/Motion'
 
 type DraftTab = 'budgets' | 'history'
 
@@ -134,8 +135,8 @@ export default function DraftRoomScreen() {
         try {
             await placeBid(draftId, myMemberId, state.openNomination.id, bidAmount)
             load()
-        } catch (e: any) {
-            Alert.alert('Bid failed', e.message)
+        } catch (e) {
+            Alert.alert('Bid failed', getErrorMessage(e))
         } finally {
             setBidding(false)
         }
@@ -150,8 +151,8 @@ export default function DraftRoomScreen() {
             setSearchQuery('')
             setSearchResults([])
             load()
-        } catch (e: any) {
-            Alert.alert('Nomination failed', e.message)
+        } catch (e) {
+            Alert.alert('Nomination failed', getErrorMessage(e))
         } finally {
             setSubmittingNom(false)
         }
@@ -201,9 +202,9 @@ export default function DraftRoomScreen() {
                     <Text style={styles.draftEndedSub}>
                         All teams are out of budget. Remaining players are free agents.
                     </Text>
-                    <Pressable style={styles.nominateButton} onPress={() => back()}>
+                    <MotionPressable style={styles.nominateButton} onPress={() => back()} pressedScale={0.96}>
                         <Text style={styles.nominateButtonText}>Back to League</Text>
-                    </Pressable>
+                    </MotionPressable>
                 </View>
             </SafeAreaView>
         )
@@ -232,7 +233,7 @@ export default function DraftRoomScreen() {
             >
                 {/* Nomination on the clock */}
                 {openNomination ? (
-                    <View style={styles.card}>
+                    <MotionView style={styles.card} preset="pop">
                         <Text style={styles.cardLabel}>ON THE BLOCK</Text>
                         <Text style={styles.playerName}>
                             {openNomination.player?.displayName ?? 'Unknown Player'}
@@ -273,15 +274,16 @@ export default function DraftRoomScreen() {
 
                         {!iAmLeading && !iAmBankrupt && (
                             <View style={styles.bidInputRow}>
-                                <Pressable
+                                <MotionPressable
                                     style={styles.bidStep}
                                     onPress={() => setBidAmount((v) => Math.max(minBid, v - 1))}
                                     accessibilityRole="button"
                                     accessibilityLabel="Decrease bid"
                                     hitSlop={8}
+                                    pressedScale={0.88}
                                 >
                                     <Text style={styles.bidStepText}>−</Text>
-                                </Pressable>
+                                </MotionPressable>
                                 <TextInput
                                     style={styles.bidAmountInput}
                                     value={String(bidAmount)}
@@ -301,7 +303,7 @@ export default function DraftRoomScreen() {
                                     keyboardType="number-pad"
                                     selectTextOnFocus
                                 />
-                                <Pressable
+                                <MotionPressable
                                     style={styles.bidStep}
                                     onPress={() =>
                                         setBidAmount((v) =>
@@ -311,10 +313,11 @@ export default function DraftRoomScreen() {
                                     accessibilityRole="button"
                                     accessibilityLabel="Increase bid"
                                     hitSlop={8}
+                                    pressedScale={0.88}
                                 >
                                     <Text style={styles.bidStepText}>+</Text>
-                                </Pressable>
-                                <Pressable
+                                </MotionPressable>
+                                <MotionPressable
                                     style={[styles.bidButton, bidding && styles.bidButtonDisabled]}
                                     onPress={handleBid}
                                     accessibilityRole="button"
@@ -325,19 +328,20 @@ export default function DraftRoomScreen() {
                                         iAmLeading ||
                                         timeLeft === 0
                                     }
+                                    pressedScale={0.965}
                                 >
                                     {bidding ? (
                                         <ActivityIndicator size="small" color={colors.textWhite} />
                                     ) : (
                                         <Text style={styles.bidButtonText}>Bid ${bidAmount.toLocaleString()}</Text>
                                     )}
-                                </Pressable>
+                                </MotionPressable>
                             </View>
                         )}
-                    </View>
+                    </MotionView>
                 ) : (
                     /* No open nomination — show whose turn it is */
-                    <View style={styles.card}>
+                    <MotionView style={styles.card} preset="pop">
                         {isMyTurn ? (
                             <>
                                 <Text style={styles.yourTurnBanner}>Your turn to nominate!</Text>
@@ -361,7 +365,7 @@ export default function DraftRoomScreen() {
                                                 keyExtractor={(p) => p.id}
                                                 scrollEnabled={false}
                                                 renderItem={({ item }) => (
-                                                    <Pressable
+                                                    <MotionPressable
                                                         style={styles.playerResult}
                                                         onPress={() =>
                                                             handleNominate(
@@ -370,6 +374,7 @@ export default function DraftRoomScreen() {
                                                             )
                                                         }
                                                         disabled={submittingNom}
+                                                        pressedScale={0.975}
                                                     >
                                                         <View style={styles.flex1}>
                                                             <Text style={styles.playerResultName}>
@@ -390,7 +395,7 @@ export default function DraftRoomScreen() {
                                                                 Nominate
                                                             </Text>
                                                         )}
-                                                    </Pressable>
+                                                    </MotionPressable>
                                                 )}
                                                 ListEmptyComponent={
                                                     searchQuery.length > 0 && !searchLoading ? (
@@ -401,26 +406,28 @@ export default function DraftRoomScreen() {
                                                 }
                                             />
                                         )}
-                                        <Pressable
+                                        <MotionPressable
                                             style={styles.cancelNomButton}
                                             onPress={() => {
                                                 setNominating(false)
                                                 setSearchQuery('')
                                                 setSearchResults([])
                                             }}
+                                            pressedScale={0.94}
                                         >
                                             <Text style={styles.cancelNomText}>Cancel</Text>
-                                        </Pressable>
+                                        </MotionPressable>
                                     </>
                                 ) : (
-                                    <Pressable
+                                    <MotionPressable
                                         style={styles.nominateButton}
                                         onPress={() => setNominating(true)}
+                                        pressedScale={0.965}
                                     >
                                         <Text style={styles.nominateButtonText}>
                                             Search & Nominate a Player
                                         </Text>
-                                    </Pressable>
+                                    </MotionPressable>
                                 )}
                             </>
                         ) : (
@@ -430,16 +437,17 @@ export default function DraftRoomScreen() {
                                 <Text style={styles.waitingText}>to nominate...</Text>
                             </View>
                         )}
-                    </View>
+                    </MotionView>
                 )}
 
                 {/* Tab switcher */}
                 <View style={styles.tabRow}>
                     {(['budgets', 'history'] as DraftTab[]).map((t) => (
-                        <Pressable
+                        <MotionPressable
                             key={t}
                             style={[styles.tabChip, tab === t && styles.tabChipActive]}
                             onPress={() => setTab(t)}
+                            pressedScale={0.94}
                         >
                             <Text
                                 style={[styles.tabChipText, tab === t && styles.tabChipTextActive]}
@@ -448,12 +456,12 @@ export default function DraftRoomScreen() {
                                     ? 'Budgets'
                                     : `History (${closedNominations.length})`}
                             </Text>
-                        </Pressable>
+                        </MotionPressable>
                     ))}
                 </View>
 
                 {tab === 'budgets' ? (
-                    <View style={styles.card}>
+                    <MotionView style={styles.card} preset="rise" delay={80}>
                         {budgets
                             .slice()
                             .sort((a, b) => b.remaining - a.remaining)
@@ -482,13 +490,13 @@ export default function DraftRoomScreen() {
                                     </Text>
                                 </View>
                             ))}
-                    </View>
+                    </MotionView>
                 ) : closedNominations.length === 0 ? (
                     <View style={styles.empty}>
                         <Text style={styles.emptyText}>No players sold yet.</Text>
                     </View>
                 ) : (
-                    <View style={styles.card}>
+                    <MotionView style={styles.card} preset="rise" delay={80}>
                         {closedNominations.map((n, i) => {
                             const winnerTeam = n.winningMemberId
                                 ? budgetByMember.get(n.winningMemberId)?.teamName
@@ -515,7 +523,7 @@ export default function DraftRoomScreen() {
                                 </View>
                             )
                         })}
-                    </View>
+                    </MotionView>
                 )}
             </ScrollView>
             </KeyboardAvoidingView>

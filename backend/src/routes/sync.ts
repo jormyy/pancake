@@ -107,7 +107,6 @@ export default async function syncRoutes(app: FastifyInstance) {
         return { ok: true, ...result }
     })
 
-    // ── NBA data backfill ─────────────────────────────────────────
 
     // Start a background backfill for a full season (or date range)
     // Body: { seasonYear: number, fromDate?: string, toDate?: string, forceResync?: boolean }
@@ -134,7 +133,6 @@ export default async function syncRoutes(app: FastifyInstance) {
         return job
     })
 
-    // ── Testing + verification ────────────────────────────────────
 
     // Test all NBA CDN endpoints and report status/latency
     app.post('/test-endpoints', async (req) => {

@@ -17,7 +17,7 @@ import { supabase } from '../_shared/supabase.ts'
 import { fetchTodaysGames, mapGameStatus } from '../_shared/nba.ts'
 import { syncStatsByDate } from '../_shared/syncStats.ts'
 import { syncScores } from '../_shared/syncScores.ts'
-import { internalServerError } from '../_shared/responses.ts'
+import { errorMessage, internalServerError } from '../_shared/responses.ts'
 
 const LIVE_POLL_LOCK_KEY = 779001
 // TTL must comfortably cover the longest in-loop sync. 90s leaves headroom
@@ -52,7 +52,7 @@ Deno.serve(async () => {
 
       // 2. No active games — check CDN scoreboard for status updates
       const cdnGames = await fetchTodaysGames().catch((e) => {
-        console.warn('[live-poll] CDN scoreboard unavailable:', e.message)
+        console.warn('[live-poll] CDN scoreboard unavailable:', errorMessage(e))
         return []
       })
 

@@ -4,7 +4,6 @@ import { livePoller } from '../sync/livePoller'
 import { syncPlayerStatuses } from '../sync/players'
 import { processAcceptedTrades } from '../sync/trades'
 
-// ── Cron job ownership ────────────────────────────────────────
 //
 // pg_cron + Edge Functions own all scheduled NBA data syncs:
 //   nba-sync-players      → sync-players    Edge Function  (daily 6 AM ET)

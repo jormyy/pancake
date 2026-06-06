@@ -240,7 +240,6 @@ async function runBackfill(jobId: string, seasonYear: number, options: BackfillO
     console.log(`[backfill] Done. ${completed} games processed, ${errorLog.length} errors.`)
 }
 
-// ── Full historical backfill (2003-04 to 2024-25) ──────────────────────────
 
 export interface FullHistoryOptions {
     cdnSeasons?: number[]   // override which CDN start-year 2-digit values to run

@@ -15,7 +15,7 @@ import { useLeagueContext } from '@/contexts/league-context'
 import { getLeagueMembers } from '@/lib/league'
 import { getRoster, RosterPlayer } from '@/lib/roster'
 import { proposeTrade, getCurrentSeasonId, getPicksForMember, TradePickItem } from '@/lib/trades'
-import { showAlert } from '@/lib/alert'
+import { showAlert, getErrorMessage } from '@/lib/alert'
 
 import { yearShort } from '@/lib/format'
 import { Avatar } from '@/components/Avatar'
@@ -155,9 +155,9 @@ export default function ProposeTradeScreen() {
             setMyRoster(myData)
             setTheirPicks(theirPicksData)
             setMyPicks(myPicksData)
-        } catch (e: any) {
+        } catch (e) {
             console.error(e)
-            setRosterError(e?.message ?? 'Unknown error')
+            setRosterError(getErrorMessage(e) ?? 'Unknown error')
         } finally {
             setRosterLoading(false)
         }
@@ -230,8 +230,8 @@ export default function ProposeTradeScreen() {
             Alert.alert('Trade Proposed', 'Your trade offer has been sent.', [
                 { text: 'OK', onPress: () => back() },
             ])
-        } catch (e: any) {
-            showAlert('Error', e.message ?? 'Could not propose trade.')
+        } catch (e) {
+            showAlert('Error', getErrorMessage(e) ?? 'Could not propose trade.')
         } finally {
             submittingRef.current = false
             setSubmitting(false)

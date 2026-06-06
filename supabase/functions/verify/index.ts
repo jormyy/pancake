@@ -8,7 +8,7 @@
 import { supabase } from '../_shared/supabase.ts'
 import { fetchTodaysGames, fetchBoxScore, fetchSeasonSchedule } from '../_shared/nba.ts'
 import { currentSeasonYear } from '../_shared/season.ts'
-import { internalServerError } from '../_shared/responses.ts'
+import { errorMessage, internalServerError } from '../_shared/responses.ts'
 
 Deno.serve(async (req) => {
   try {
@@ -52,8 +52,8 @@ async function testNBAEndpoints() {
     try {
       const data = await test.fn()
       results.push({ name: test.name, ok: true, ms: Date.now() - start, count: Array.isArray(data) ? data.length : 1 })
-    } catch (e: any) {
-      results.push({ name: test.name, ok: false, ms: Date.now() - start, error: e.message })
+    } catch (e) {
+      results.push({ name: test.name, ok: false, ms: Date.now() - start, error: errorMessage(e) })
     }
   }
   return results

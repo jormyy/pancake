@@ -12,7 +12,7 @@ import { useLeagueContext } from '@/contexts/league-context'
 import { usePlayerScreenData } from '@/hooks/use-player-screen-data'
 import { addFreeAgent, dropPlayer, getPlayerRosterStatus, getRoster, toggleIR, type PlayerRosterStatus, type RosterPlayer } from '@/lib/roster'
 import { isIneligibleIR } from '@/lib/format'
-import { showAlert, confirmAction } from '@/lib/alert'
+import { showAlert, confirmAction, getErrorMessage } from '@/lib/alert'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useCallback, useEffect, useState } from 'react'
 import {
@@ -53,7 +53,6 @@ export default function PlayerDetailScreen() {
         roster: RosterPlayer[]
     } | null>(null)
 
-    // ── Load roster status ───────────────────────────────────────────────────
     const loadRosterStatus = useCallback(async () => {
         if (!current || !leagueId) return
         try {
@@ -68,7 +67,6 @@ export default function PlayerDetailScreen() {
         loadRosterStatus()
     }, [loadRosterStatus])
 
-    // ── Roster actions ───────────────────────────────────────────────────────
     async function handleAdd() {
         if (!current || !leagueId) return
         setActionLoading(true)
@@ -84,8 +82,8 @@ export default function PlayerDetailScreen() {
             }
 
             await tryAddFreeAgent()
-        } catch (e: any) {
-            showAlert('Error', e.message)
+        } catch (e) {
+            showAlert('Error', getErrorMessage(e))
         } finally {
             setActionLoading(false)
         }
@@ -97,13 +95,13 @@ export default function PlayerDetailScreen() {
         try {
             await addFreeAgent(current.id, leagueId, id)
             await loadRosterStatus()
-        } catch (e: any) {
-            if (e.message?.includes('full')) {
+        } catch (e) {
+            if (getErrorMessage(e)?.includes('full')) {
                 const roster = await getRoster(current.id, leagueId)
                 setMyRoster(roster.filter((r) => !r.is_on_ir && !r.is_on_taxi))
                 setDropPickerVisible(true)
             } else {
-                showAlert('Error', e.message)
+                showAlert('Error', getErrorMessage(e))
             }
         } finally {
             setActionLoading(false)
@@ -118,8 +116,8 @@ export default function PlayerDetailScreen() {
             await addFreeAgent(current.id, leagueId, id)
             setDropPickerVisible(false)
             await loadRosterStatus()
-        } catch (e: any) {
-            showAlert('Error', e.message)
+        } catch (e) {
+            showAlert('Error', getErrorMessage(e))
         } finally {
             setDropping(null)
         }
@@ -137,10 +135,10 @@ export default function PlayerDetailScreen() {
                 setIrModal(null)
                 await tryAddFreeAgent()
             }
-        } catch (e: any) {
+        } catch (e) {
             // Keep modal open so user can retry — but refresh its state in case
             // the failure left the roster in an unexpected shape.
-            showAlert('Could not activate from IR', e?.message ?? 'Unknown error')
+            showAlert('Could not activate from IR', getErrorMessage(e) ?? 'Unknown error')
             try {
                 const roster = await getRoster(current.id, leagueId)
                 const remaining = roster.filter((r) => isIneligibleIR(r))
@@ -166,8 +164,8 @@ export default function PlayerDetailScreen() {
                 setIrModal(null)
                 await tryAddFreeAgent()
             }
-        } catch (e: any) {
-            const underlying = e?.message ?? 'Unknown error'
+        } catch (e) {
+            const underlying = getErrorMessage(e) ?? 'Unknown error'
             if (dropped) {
                 // Half-committed: drop succeeded but IR activation failed. Make
                 // it crystal clear so the user knows their roster changed.
@@ -202,8 +200,8 @@ export default function PlayerDetailScreen() {
                 try {
                     await dropPlayer(rosterPlayerId)
                     push('/(tabs)/roster')
-                } catch (e: any) {
-                    showAlert('Error', e.message)
+                } catch (e) {
+                    showAlert('Error', getErrorMessage(e))
                     setActionLoading(false)
                 }
             },
@@ -225,7 +223,6 @@ export default function PlayerDetailScreen() {
         push(`/(modals)/claim-player?playerId=${id}`)
     }
 
-    // ── Render ───────────────────────────────────────────────────────────────
     if (loading) {
         return <LoadingScreen />
     }

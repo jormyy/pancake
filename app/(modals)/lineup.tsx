@@ -26,13 +26,14 @@ import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import {
     ActivityIndicator,
     Alert,
-    Pressable,
     ScrollView,
     StyleSheet,
     Text,
     View,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { getErrorMessage } from '@/lib/alert'
+import { MotionPressable, MotionView } from '@/components/Motion'
 
 type Selection =
     | { kind: 'starter'; index: number }
@@ -65,7 +66,7 @@ const StarterRow = memo(function StarterRow({
         : null
 
     return (
-        <Pressable
+        <MotionPressable
             style={[
                 styles.slotRow,
                 index > 0 && styles.divider,
@@ -76,6 +77,7 @@ const StarterRow = memo(function StarterRow({
             accessibilityRole="button"
             accessibilityLabel={p ? `${slot.slotType} ${p.displayName}` : `Empty ${slot.slotType} slot`}
             accessibilityState={{ selected: isSelected, disabled }}
+            pressedScale={0.985}
         >
             <Text style={styles.slotLabel}>{slot.slotType}</Text>
             {p ? (
@@ -101,7 +103,7 @@ const StarterRow = memo(function StarterRow({
             ) : (
                 <Text style={styles.emptySlot}>Empty</Text>
             )}
-        </Pressable>
+        </MotionPressable>
     )
 })
 
@@ -131,7 +133,7 @@ const BenchRow = memo(function BenchRow({
         : null
 
     return (
-        <Pressable
+        <MotionPressable
             style={[
                 styles.benchRow,
                 index > 0 && styles.divider,
@@ -142,6 +144,7 @@ const BenchRow = memo(function BenchRow({
             accessibilityRole="button"
             accessibilityLabel={`Bench ${player.displayName}`}
             accessibilityState={{ selected: isSelected, disabled }}
+            pressedScale={0.985}
         >
             <Avatar
                 name={player.displayName}
@@ -160,7 +163,7 @@ const BenchRow = memo(function BenchRow({
             {isLocked && (
                 <Text style={styles.lockedBadge}>LIVE</Text>
             )}
-        </Pressable>
+        </MotionPressable>
     )
 })
 
@@ -282,8 +285,8 @@ export default function LineupScreen() {
             if (bPlayer) saves.push(setPlayerSlot(current.id, currentLeague.id, ctx.seasonId, ctx.weekNumber, selectedDate, bPlayer.playerId, aSlot))
             await Promise.all(saves)
             await loadLineup(ctx, currentLeague, selectedDate)
-        } catch (e: any) {
-            Alert.alert('Error', e.message)
+        } catch (e) {
+            Alert.alert('Error', getErrorMessage(e))
         } finally {
             setSaving(false)
         }
@@ -298,8 +301,8 @@ export default function LineupScreen() {
             if (restOfSeason) {
                 Alert.alert('Done', 'Lineup set for the rest of the season.')
             }
-        } catch (e: any) {
-            Alert.alert('Auto-set failed', e?.message ?? String(e))
+        } catch (e) {
+            Alert.alert('Auto-set failed', getErrorMessage(e) ?? String(e))
         } finally {
             setAutoSetting(false)
         }
@@ -341,24 +344,25 @@ export default function LineupScreen() {
         <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
             {/* Header */}
             <View style={styles.header}>
-                <Pressable onPress={() => back()} style={styles.closeButton}>
+                <MotionPressable onPress={() => back()} style={styles.closeButton} pressedScale={0.92}>
                     <Text style={styles.closeText}>Done</Text>
-                </Pressable>
+                </MotionPressable>
                 <Text style={styles.headerTitle}>Week {ctx.weekNumber} Lineup</Text>
-                <Pressable
+                <MotionPressable
                     style={styles.autoSetButton}
                     onPress={handleAutoSet}
                     disabled={autoSetting || saving}
                     accessibilityRole="button"
                     accessibilityLabel="Open auto-set lineup options"
                     accessibilityState={{ disabled: autoSetting || saving }}
+                    pressedScale={0.92}
                 >
                     {autoSetting ? (
                         <ActivityIndicator size="small" color={colors.primary} />
                     ) : (
                         <Text style={styles.autoSetText}>Auto-Set</Text>
                     )}
-                </Pressable>
+                </MotionPressable>
             </View>
 
             {/* Day selector */}
@@ -368,19 +372,19 @@ export default function LineupScreen() {
 
             {/* Selection hint */}
             {selected && (
-                <View style={styles.hint}>
+                <MotionView style={styles.hint} preset="slide-left">
                     <Text style={styles.hintText}>
                         {selectedPlayer
                             ? `${selectedPlayer.displayName} selected — tap a slot to move`
                             : `Empty ${selected.kind === 'starter' ? starters[selected.index]?.slotType : ''} slot selected — tap a player`}
                     </Text>
-                </View>
+                </MotionView>
             )}
 
             <ScrollView contentContainerStyle={styles.scroll}>
                 {/* Starters */}
                 <Text style={styles.sectionLabel}>STARTERS</Text>
-                <View style={styles.card}>
+                <MotionView style={styles.card} preset="rise">
                     {starters.map((slot, i) => (
                         <StarterRow
                             key={`starter-${i}`}
@@ -393,11 +397,11 @@ export default function LineupScreen() {
                             disabled={saving}
                         />
                     ))}
-                </View>
+                </MotionView>
 
                 {/* Bench */}
                 <Text style={styles.sectionLabel}>BENCH</Text>
-                <View style={styles.card}>
+                <MotionView style={styles.card} preset="rise" delay={90}>
                     {bench.length === 0 ? (
                         <Text style={styles.benchEmpty}>All players are in the starting lineup</Text>
                     ) : (
@@ -414,7 +418,7 @@ export default function LineupScreen() {
                             />
                         ))
                     )}
-                </View>
+                </MotionView>
             </ScrollView>
 
             {saving && (

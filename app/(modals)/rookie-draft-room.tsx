@@ -1,8 +1,6 @@
 import {
     View,
     Text,
-    Pressable,
-    TouchableOpacity,
     TextInput,
     StyleSheet,
     ActivityIndicator,
@@ -25,11 +23,14 @@ import {
     subscribeToRookieDraft,
     unsubscribeFromRookieDraft,
     type RookieDraftState,
+    type RookieProspect,
     type SnakePick,
 } from '@/lib/rookieDraft'
-import { toggleTaxi, dropPlayer, getRoster } from '@/lib/roster'
+import { toggleTaxi, dropPlayer, getRoster, type RosterPlayer } from '@/lib/roster'
 import { getPositionColor } from "@/constants/positions"
 import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { getErrorMessage } from '@/lib/alert'
+import { MotionPressable, MotionView } from '@/components/Motion'
 
 const PICK_TIMEOUT_SEC = 30
 
@@ -45,7 +46,7 @@ export default function RookieDraftRoomScreen() {
     const [loading, setLoading] = useState(true)
 
     const [query, setQuery] = useState('')
-    const [prospects, setProspects] = useState<any[]>([])
+    const [prospects, setProspects] = useState<RookieProspect[]>([])
     const [prospectsLoading, setProspectsLoading] = useState(false)
     const [picking, setPicking] = useState(false)
     const [activeTab, setActiveTab] = useState<'prospects' | 'board'>('prospects')
@@ -60,15 +61,15 @@ export default function RookieDraftRoomScreen() {
         newRosterPlayerId: string | null
         taxiSlotsAvailable: boolean
     } | null>(null)
-    const [rosterForDrop, setRosterForDrop] = useState<any[]>([])
+    const [rosterForDrop, setRosterForDrop] = useState<RosterPlayer[]>([])
     const [resolvingOverflow, setResolvingOverflow] = useState(false)
 
     // End-of-draft roster trim state
-    const [trimOverflow, setTrimOverflow] = useState<{ excess: number; dropList: any[] } | null>(null)
+    const [trimOverflow, setTrimOverflow] = useState<{ excess: number; dropList: RosterPlayer[] } | null>(null)
     const [trimmingId, setTrimmingId] = useState<string | null>(null)
     const draftEndCheckedRef = useRef(false)
 
-    const channelRef = useRef<any>(null)
+    const channelRef = useRef<ReturnType<typeof subscribeToRookieDraft> | null>(null)
     const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
     const queryRef = useRef('')
 
@@ -157,8 +158,8 @@ export default function RookieDraftRoomScreen() {
                 await autoPickBest(draftId, memberId)
                 setQuery('')
                 await Promise.all([load(), loadProspects()])
-            } catch (e: any) {
-                Alert.alert('Auto-pick failed', e.message)
+            } catch (e) {
+                Alert.alert('Auto-pick failed', getErrorMessage(e))
             } finally {
                 setPicking(false)
             }
@@ -182,7 +183,9 @@ export default function RookieDraftRoomScreen() {
                 if (excess > 0) {
                     setTrimOverflow({ excess, dropList: active })
                 }
-            } catch {}
+            } catch (e) {
+                console.error('[rookie-draft] post-draft roster check:', e)
+            }
         })()
     }, [draftCompleted, currentLeague?.id, currentLeague?.roster_size, myMemberId])
 
@@ -207,14 +210,14 @@ export default function RookieDraftRoomScreen() {
             } else {
                 setTrimOverflow(null)
             }
-        } catch (e: any) {
-            Alert.alert('Error', e.message ?? 'Failed to drop player')
+        } catch (e) {
+            Alert.alert('Error', getErrorMessage(e) ?? 'Failed to drop player')
         } finally {
             setTrimmingId(null)
         }
     }
 
-    async function handlePick(player: any) {
+    async function handlePick(player: RookieProspect) {
         const memberId = myMemberIdRef.current
         if (!draftId || !memberId || picking) return
         setPickError(null)
@@ -228,7 +231,7 @@ export default function RookieDraftRoomScreen() {
                 // Fetch the rosterPlayerId for the newly drafted player so we can move them to taxi
                 const lid = currentLeague?.id
                 let newRosterPlayerId: string | null = null
-                let dropList: any[] = []
+                let dropList: RosterPlayer[] = []
                 if (lid) {
                     try {
                         const roster = await getRoster(memberId, lid)
@@ -237,7 +240,9 @@ export default function RookieDraftRoomScreen() {
                         dropList = roster.filter(
                             (rp) => !rp.is_on_ir && !rp.is_on_taxi && rp.players?.id !== player.id,
                         )
-                    } catch {}
+                    } catch (e) {
+                        console.error('[rookie-draft] overflow roster fetch:', e)
+                    }
                 }
                 setRosterForDrop(dropList)
                 setRosterOverflow({
@@ -247,8 +252,8 @@ export default function RookieDraftRoomScreen() {
                     taxiSlotsAvailable: result.taxiSlotsAvailable,
                 })
             }
-        } catch (e: any) {
-            setPickError(e.message ?? 'Pick failed')
+        } catch (e) {
+            setPickError(getErrorMessage(e) ?? 'Pick failed')
         } finally {
             setPicking(false)
         }
@@ -260,8 +265,8 @@ export default function RookieDraftRoomScreen() {
         try {
             await toggleTaxi(rosterOverflow.newRosterPlayerId, true)
             setRosterOverflow(null)
-        } catch (e: any) {
-            Alert.alert('Error', e.message ?? 'Failed to move to taxi')
+        } catch (e) {
+            Alert.alert('Error', getErrorMessage(e) ?? 'Failed to move to taxi')
         } finally {
             setResolvingOverflow(false)
         }
@@ -273,8 +278,8 @@ export default function RookieDraftRoomScreen() {
         try {
             await dropPlayer(rosterPlayerId)
             setRosterOverflow(null)
-        } catch (e: any) {
-            Alert.alert('Error', e.message ?? 'Failed to drop player')
+        } catch (e) {
+            Alert.alert('Error', getErrorMessage(e) ?? 'Failed to drop player')
         } finally {
             setResolvingOverflow(false)
         }
@@ -324,10 +329,11 @@ export default function RookieDraftRoomScreen() {
                         </Text>
 
                         {rosterOverflow?.taxiSlotsAvailable && (
-                            <Pressable
+                            <MotionPressable
                                 style={[styles.overflowBtn, styles.overflowBtnPrimary]}
                                 onPress={resolveByTaxi}
                                 disabled={resolvingOverflow}
+                                pressedScale={0.965}
                             >
                                 {resolvingOverflow ? (
                                     <ActivityIndicator color={colors.textWhite} />
@@ -336,19 +342,20 @@ export default function RookieDraftRoomScreen() {
                                         Move {rosterOverflow?.newPlayerName} to Taxi Squad
                                     </Text>
                                 )}
-                            </Pressable>
+                            </MotionPressable>
                         )}
 
                         {rosterForDrop.length > 0 && (
                             <>
                                 <Text style={styles.overflowDropLabel}>Or drop a player:</Text>
                                 <ScrollView style={styles.overflowDropList} showsVerticalScrollIndicator>
-                                    {rosterForDrop.map((rp: any) => (
-                                        <Pressable
+                                    {rosterForDrop.map((rp) => (
+                                        <MotionPressable
                                             key={rp.id}
                                             style={styles.overflowDropRow}
                                             onPress={() => resolveByDrop(rp.id)}
                                             disabled={resolvingOverflow}
+                                            pressedScale={0.975}
                                         >
                                             <Text style={styles.overflowDropName}>
                                                 {rp.players?.display_name ?? 'Player'}
@@ -356,7 +363,7 @@ export default function RookieDraftRoomScreen() {
                                             <Text style={styles.overflowDropPos}>
                                                 {rp.players?.position ?? ''} · {rp.players?.nba_team ?? ''}
                                             </Text>
-                                        </Pressable>
+                                        </MotionPressable>
                                     ))}
                                 </ScrollView>
                             </>
@@ -377,12 +384,13 @@ export default function RookieDraftRoomScreen() {
                         </Text>
                         <Text style={styles.overflowDropLabel}>Select a player to drop:</Text>
                         <ScrollView style={styles.overflowDropList} showsVerticalScrollIndicator>
-                            {trimOverflow?.dropList.map((rp: any) => (
-                                <Pressable
+                            {trimOverflow?.dropList.map((rp) => (
+                                <MotionPressable
                                     key={rp.id}
                                     style={styles.overflowDropRow}
                                     onPress={() => handleTrimDrop(rp.id)}
                                     disabled={!!trimmingId}
+                                    pressedScale={0.975}
                                 >
                                     {trimmingId === rp.id ? (
                                         <ActivityIndicator size="small" color={colors.danger} />
@@ -396,7 +404,7 @@ export default function RookieDraftRoomScreen() {
                                             </Text>
                                         </>
                                     )}
-                                </Pressable>
+                                </MotionPressable>
                             ))}
                         </ScrollView>
                     </View>
@@ -442,22 +450,24 @@ export default function RookieDraftRoomScreen() {
 
                     {/* ── Tab switcher ─────────────────────────── */}
                     <View style={styles.tabs}>
-                        <Pressable
+                        <MotionPressable
                             style={[styles.tab, activeTab === 'prospects' && styles.tabActive]}
                             onPress={() => setActiveTab('prospects')}
+                            pressedScale={0.96}
                         >
                             <Text style={[styles.tabText, activeTab === 'prospects' && styles.tabTextActive]}>
                                 Prospects
                             </Text>
-                        </Pressable>
-                        <Pressable
+                        </MotionPressable>
+                        <MotionPressable
                             style={[styles.tab, activeTab === 'board' && styles.tabActive]}
                             onPress={() => setActiveTab('board')}
+                            pressedScale={0.96}
                         >
                             <Text style={[styles.tabText, activeTab === 'board' && styles.tabTextActive]}>
                                 Pick Board
                             </Text>
-                        </Pressable>
+                        </MotionPressable>
                     </View>
 
                     {activeTab === 'prospects' ? (
@@ -537,16 +547,17 @@ function ProspectRow({
     picking,
     onPick,
 }: {
-    player: any
+    player: RookieProspect
     isDone: boolean
     picking: boolean
-    onPick: (player: any) => void
+    onPick: (player: RookieProspect) => void
 }) {
     return (
-        <TouchableOpacity
+        <MotionPressable
             style={styles.resultRow}
             onPress={isDone || picking ? undefined : () => onPick(player)}
-            activeOpacity={isDone || picking ? 1 : 0.6}
+            disabled={isDone || picking}
+            pressedScale={0.985}
         >
             {player.nba_draft_number != null ? (
                 <View style={styles.draftNumChip}>
@@ -575,7 +586,7 @@ function ProspectRow({
                     <Text style={styles.pickBtn}>Pick</Text>
                 )
             )}
-        </TouchableOpacity>
+        </MotionPressable>
     )
 }
 
@@ -592,12 +603,13 @@ function PickRow({
     const isOnClock = !item.player && nextPick?.overallPick === item.overallPick
 
     return (
-        <View
+        <MotionView
             style={[
                 styles.pickRow,
                 isMe && styles.pickRowMe,
                 isOnClock && styles.pickRowOnClock,
             ]}
+            preset={isOnClock ? 'pop' : 'fade'}
         >
             <Text style={[styles.pickNum, isMe && styles.meText]}>
                 {item.overallPick}
@@ -630,7 +642,7 @@ function PickRow({
                     {isOnClock ? '▶ On the clock' : '—'}
                 </Text>
             )}
-        </View>
+        </MotionView>
     )
 }
 

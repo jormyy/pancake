@@ -24,6 +24,7 @@ import { SectionHeader } from '@/components/SectionHeader'
 import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
 import { yearShort } from '@/lib/format'
 import { TradeCard, TabKey } from '@/components/trades/TradeCard'
+import { getErrorMessage } from '@/lib/alert'
 
 type ListItem =
     | { _type: 'trade'; trade: Trade }
@@ -68,9 +69,9 @@ export default function TradesScreen() {
                 getVetoableTrades(myMemberId, leagueId),
             ])
             setTrades([...vetoableTradeData, ...myTradeData])
-        } catch (e: any) {
+        } catch (e) {
             console.error(e)
-            setTradesError(e?.message ?? 'Unknown error')
+            setTradesError(getErrorMessage(e) ?? 'Unknown error')
         } finally {
             setLoading(false)
             setRefreshing(false)

@@ -16,7 +16,7 @@ import { useLeagueContext } from '@/contexts/league-context'
 import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 import { LoadingScreen } from '@/components/LoadingScreen'
 import { Avatar } from '@/components/Avatar'
-import { showAlert, confirmAction } from '@/lib/alert'
+import { showAlert, confirmAction, getErrorMessage } from '@/lib/alert'
 import type { Profile } from '@/types/database'
 
 export default function ProfileScreen() {
@@ -73,8 +73,8 @@ export default function ProfileScreen() {
                 refresh()
             }
             showAlert('Saved', 'Your profile has been updated.')
-        } catch (e: any) {
-            showAlert('Error', e.message)
+        } catch (e) {
+            showAlert('Error', getErrorMessage(e))
         } finally {
             setSaving(false)
         }

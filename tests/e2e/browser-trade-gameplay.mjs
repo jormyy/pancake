@@ -1,13 +1,11 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
-import { execFile } from 'node:child_process'
-import { promisify } from 'node:util'
 import { createClient } from '@supabase/supabase-js'
 import { resolvedEnv, requireEnv, describeEndpoint } from './env.mjs'
 import { installRuntimeOverrides, normalizeBrowserErrors } from './browser-runtime-overrides.mjs'
+import { createBrowser, listBrowserSessions } from './browser-agent.mjs'
 
-const execFileAsync = promisify(execFile)
 const ROOT = process.cwd()
 const ARTIFACT_ROOT = path.join(ROOT, 'tests/artifacts')
 const REPORT_PATH = path.join(ROOT, 'tests/e2e-browser-trade-report.md')
@@ -19,23 +17,9 @@ const OVERFLOW_ACCEPT_REPORT_PATH = path.join(ROOT, 'tests/e2e-browser-trade-ove
 const POST_DEADLINE_REPORT_PATH = path.join(ROOT, 'tests/e2e-browser-trade-post-deadline-report.md')
 const VETO_REPORT_PATH = path.join(ROOT, 'tests/e2e-browser-trade-veto-report.md')
 
-const browser = async (session, args, options = {}) => {
-  const { stdout, stderr } = await execFileAsync('agent-browser', ['--session', session, ...args], {
-    cwd: ROOT,
-    timeout: options.timeout ?? 30_000,
-    maxBuffer: options.maxBuffer ?? 1024 * 1024 * 4,
-  })
-  return [stdout, stderr].filter(Boolean).join('\n').trim()
-}
+const browser = createBrowser({ cwd: ROOT })
 
-const listSessions = async () => {
-  const { stdout, stderr } = await execFileAsync('agent-browser', ['session', 'list'], {
-    cwd: ROOT,
-    timeout: 10_000,
-    maxBuffer: 1024 * 1024,
-  })
-  return [stdout, stderr].filter(Boolean).join('\n').trim()
-}
+const listSessions = () => listBrowserSessions({ cwd: ROOT })
 
 const safeName = (value) => value.replace(/[^a-zA-Z0-9._-]/g, '-')
 const tradeSessionName = (code, runId) => safeName(`pc-${code}-${runId}-${process.pid}`)
@@ -1771,8 +1755,8 @@ export async function runBrowserTradeOverflowAcceptScenario({
     await assertPageText(
       session,
       [
-        'Drop 1 player to accept',
-        `Accepting this trade would exceed your ${fixture.rosterSize}-player roster limit.`,
+        'Drop 1 player to make room',
+        `Trade accepted. You must drop 1 player before the veto window closes to stay under your ${fixture.rosterSize}-player roster limit.`,
         fixture.recipientPlayer.display_name,
       ],
       'overflow drop picker',

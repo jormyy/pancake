@@ -1,13 +1,11 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
-import { execFile } from 'node:child_process'
-import { promisify } from 'node:util'
 import { createClient } from '@supabase/supabase-js'
 import { resolvedEnv, describeEndpoint } from './env.mjs'
 import { installRuntimeOverrides, normalizeBrowserErrors } from './browser-runtime-overrides.mjs'
+import { createBrowser, listBrowserSessions } from './browser-agent.mjs'
 
-const execFileAsync = promisify(execFile)
 const ROOT = process.cwd()
 const STATE_PATH = path.join(ROOT, 'tests/e2e-state.json')
 const ARTIFACT_ROOT = path.join(ROOT, 'tests/artifacts')
@@ -21,23 +19,9 @@ const BROWSER_COMMAND_TIMEOUT_MS = Number(process.env.E2E_BROWSER_PERF_COMMAND_T
 
 const readState = async () => JSON.parse(await readFile(STATE_PATH, 'utf8'))
 
-const browser = async (session, args, options = {}) => {
-  const { stdout, stderr } = await execFileAsync('agent-browser', ['--session', session, ...args], {
-    cwd: ROOT,
-    timeout: options.timeout ?? BROWSER_COMMAND_TIMEOUT_MS,
-    maxBuffer: options.maxBuffer ?? 1024 * 1024 * 4,
-  })
-  return [stdout, stderr].filter(Boolean).join('\n').trim()
-}
+const browser = createBrowser({ cwd: ROOT, defaultTimeout: BROWSER_COMMAND_TIMEOUT_MS })
 
-const listSessions = async () => {
-  const { stdout, stderr } = await execFileAsync('agent-browser', ['session', 'list'], {
-    cwd: ROOT,
-    timeout: 10_000,
-    maxBuffer: 1024 * 1024,
-  })
-  return [stdout, stderr].filter(Boolean).join('\n').trim()
-}
+const listSessions = () => listBrowserSessions({ cwd: ROOT })
 
 const safeName = (value) => value.replace(/[^a-zA-Z0-9._-]/g, '-')
 const joinUrl = (base, pathname) => new URL(pathname, base.endsWith('/') ? base : `${base}/`).toString()
@@ -124,6 +108,15 @@ const ensurePerfAuction = async (supabase, state) => {
   const player = await findAvailablePlayer(supabase, state.leagueId, currentSeason.id)
   const now = new Date().toISOString()
 
+  const { error: cleanupError } = await supabase
+    .from('drafts')
+    .update({ status: 'completed', completed_at: now })
+    .eq('league_id', state.leagueId)
+    .eq('league_season_id', currentSeason.id)
+    .eq('draft_type', 'auction')
+    .eq('status', 'in_progress')
+  if (cleanupError) throw new Error(`D.X.4 stale auction draft cleanup failed: ${cleanupError.message}`)
+
   const { data: draft, error: draftError } = await supabase
     .from('drafts')
     .insert({
@@ -173,22 +166,42 @@ const ensurePerfAuction = async (supabase, state) => {
 
   return {
     draftId: draft.id,
+    leagueSeasonId: currentSeason.id,
     nominationId: nomination.id,
     members,
     player,
   }
 }
 
-const findPerfMatchup = async (supabase, state) => {
+const ensurePerfMatchup = async (supabase, state, leagueSeasonId, members) => {
   const { data, error } = await supabase
     .from('matchups')
     .select('id, home_points, away_points')
     .eq('league_id', state.leagueId)
+    .eq('league_season_id', leagueSeasonId)
     .order('week_number', { ascending: true })
     .limit(1)
     .maybeSingle()
   if (error) throw new Error(`D.X.4 matchup lookup failed: ${error.message}`)
-  return data
+  if (data) return data
+  if (members.length < 2) return null
+
+  const { data: created, error: createError } = await supabase
+    .from('matchups')
+    .upsert({
+      league_id: state.leagueId,
+      league_season_id: leagueSeasonId,
+      week_number: 99,
+      matchup_type: 'regular_season',
+      home_member_id: members[0].id,
+      away_member_id: members[1].id,
+      home_points: 0,
+      away_points: 0,
+    }, { onConflict: 'league_id,league_season_id,week_number,home_member_id,away_member_id' })
+    .select('id, home_points, away_points')
+    .single()
+  if (createError) throw new Error(`D.X.4 matchup fixture upsert failed: ${createError.message}`)
+  return created
 }
 
 const signIn = async (session, env, state, user) => {
@@ -254,24 +267,35 @@ const collectHeartbeat = async (session) => {
 
 const runLoadMutations = async ({ supabase, auction, matchup }) => {
   const startedAt = Date.now()
-  const { data: nomination, error: nominationError } = await supabase
-    .from('nominations')
-    .select('current_bid_amount')
-    .eq('id', auction.nominationId)
-    .single()
-  if (nominationError) throw new Error(`D.X.4 auction nomination lookup failed: ${nominationError.message}`)
-  const startAmount = Number(nomination.current_bid_amount ?? 0) + 1
+  if (!auction?.nominationId && !matchup?.id) {
+    throw new Error('D.X.4 perf smoke has no mutation target')
+  }
+  let startAmount = 0
+  if (auction?.nominationId) {
+    const { data: nomination, error: nominationError } = await supabase
+      .from('nominations')
+      .select('current_bid_amount')
+      .eq('id', auction.nominationId)
+      .single()
+    if (nominationError) throw new Error(`D.X.4 auction nomination lookup failed: ${nominationError.message}`)
+    startAmount = Number(nomination.current_bid_amount ?? 0) + 1
+  }
   const mutations = []
   for (let index = 0; index < MUTATION_COUNT; index += 1) {
-    const bidder = auction.members[(index % (auction.members.length - 1)) + 1]
-    const amount = startAmount + index
-    const { error: bidError } = await supabase.rpc('place_auction_bid_atomic', {
-      p_draft_id: auction.draftId,
-      p_member_id: bidder.id,
-      p_nomination_id: auction.nominationId,
-      p_amount: amount,
-    })
-    if (bidError) throw new Error(`D.X.4 auction bid mutation ${index + 1} failed: ${bidError.message}`)
+    let amount = null
+    let bidderId = null
+    if (auction?.nominationId) {
+      const bidder = auction.members[(index % (auction.members.length - 1)) + 1]
+      amount = startAmount + index
+      bidderId = bidder.id
+      const { error: bidError } = await supabase.rpc('place_auction_bid_atomic', {
+        p_draft_id: auction.draftId,
+        p_member_id: bidder.id,
+        p_nomination_id: auction.nominationId,
+        p_amount: amount,
+      })
+      if (bidError) throw new Error(`D.X.4 auction bid mutation ${index + 1} failed: ${bidError.message}`)
+    }
 
     if (matchup?.id) {
       const { error: matchupError } = await supabase
@@ -283,7 +307,7 @@ const runLoadMutations = async ({ supabase, auction, matchup }) => {
         .eq('id', matchup.id)
       if (matchupError) throw new Error(`D.X.4 matchup mutation ${index + 1} failed: ${matchupError.message}`)
     }
-    mutations.push({ bidAmount: amount, bidderId: bidder.id, matchupUpdated: Boolean(matchup?.id) })
+    mutations.push({ bidAmount: amount, bidderId, matchupUpdated: Boolean(matchup?.id) })
   }
   return {
     count: mutations.length,
@@ -320,7 +344,7 @@ export async function runBrowserPerfSmoke({
 
   const supabase = createClient(env.supabaseUrl, env.serviceRoleKey, { auth: { persistSession: false } })
   const auction = await ensurePerfAuction(supabase, state)
-  const matchup = await findPerfMatchup(supabase, state)
+  const matchup = await ensurePerfMatchup(supabase, state, auction.leagueSeasonId, auction.members)
   const sessionList = await listSessions().catch((error) => `session list unavailable: ${error.message}`)
   const session = sessionName ?? safeName(`pancake-perf-${state.runId ?? 'run'}-s${season}-${process.pid}`)
   const artifactDir = path.join(ARTIFACT_ROOT, `season-${season}`, 'browser-perf')
@@ -351,7 +375,7 @@ export async function runBrowserPerfSmoke({
     await browser(session, ['open', joinUrl(env.frontendUrl, '/')])
     await browser(session, ['wait', String(BROWSER_SETTLE_MS)])
     await installHeartbeat(session)
-    await runLoadMutations({ supabase, auction, matchup })
+    await runLoadMutations({ supabase, auction: null, matchup })
     await browser(session, ['wait', '2500'])
     const homePerf = await collectHeartbeat(session)
     await browser(session, ['screenshot', path.join(artifactDir, 'home-after-live-load.png')], { timeout: 60_000 })

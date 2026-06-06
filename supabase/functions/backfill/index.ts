@@ -20,7 +20,7 @@
 import { supabase } from '../_shared/supabase.ts'
 import { buildStatRow } from '../_shared/syncStats.ts'
 import { fetchBBRefSchedule, fetchBBRefBoxScore, BBREF_TO_TRICODE, sleep } from '../_shared/bbref.ts'
-import { internalServerError } from '../_shared/responses.ts'
+import { errorMessage, internalServerError } from '../_shared/responses.ts'
 import type { Json } from '../_shared/database.ts'
 
 // CDN start years (2-digit): 19 = 2019-20 (season_year=2020) … 24 = 2024-25 (season_year=2025)
@@ -118,7 +118,6 @@ async function invokeSelf(body: Record<string, unknown>) {
   if (error) console.error('[backfill] invokeSelf error:', error.message)
 }
 
-// ── CDN Historical Backfill ──────────────────────────────────────────────
 // DB-driven: queries existing nba_games records and fills in missing stats.
 // Chunk size = CDN_CHUNK games; each chunk fires the next before returning.
 
@@ -267,9 +266,9 @@ async function runCDNChunk(seasonYear: number, jobId: string, offset: number) {
       }
 
       completed++
-    } catch (e: any) {
+    } catch (e) {
       failed++
-      console.warn(`[backfill/cdn] ${gameId}: ${e.message}`)
+      console.warn(`[backfill/cdn] ${gameId}: ${errorMessage(e)}`)
     }
 
     await new Promise((r) => setTimeout(r, CDN_DELAY_MS))
@@ -299,7 +298,6 @@ async function runCDNChunk(seasonYear: number, jobId: string, offset: number) {
   console.log(`[backfill/cdn] Season ${seasonYear} offset=${offset}: ${completed} ok, ${failed} failed, ${pending.length - nextOffset} remaining`)
 }
 
-// ── CDN Enumeration Backfill (historical seasons not yet in DB) ─────────
 // Generates sequential game IDs, fetches box scores, upserts games + stats.
 // CDN_CHUNK=30 × ~700ms/game = ~21s per chunk, well within 150s timeout.
 
@@ -424,9 +422,9 @@ async function runCDNEnumChunk(seasonYear: number, jobId: string, offset: number
         await supabase.from('player_game_stats').upsert(stats, { onConflict: 'player_id,game_id' })
       }
       completed++
-    } catch (e: any) {
+    } catch (e) {
       failed++
-      console.warn(`[backfill/cdn-enum] ${gameId}: ${e.message}`)
+      console.warn(`[backfill/cdn-enum] ${gameId}: ${errorMessage(e)}`)
     }
     await new Promise((r) => setTimeout(r, CDN_DELAY_MS))
   }
@@ -452,7 +450,6 @@ async function runCDNEnumChunk(seasonYear: number, jobId: string, offset: number
   console.log(`[backfill/cdn-enum] Season ${seasonYear} offset=${offset}: ${completed} ok, ${failed} failed`)
 }
 
-// ── BBRef Historical Backfill ────────────────────────────────────────────
 
 async function runBBRefChunk(seasonYear: number, jobId: string, offset: number) {
   // Load player maps (paginated to bypass PostgREST 1000-row cap)
@@ -682,9 +679,9 @@ async function runBBRefChunk(seasonYear: number, jobId: string, offset: number) 
       }
 
       completed++
-    } catch (e: any) {
+    } catch (e) {
       failed++
-      console.warn(`[backfill/bbref] ${gameId}: ${e.message}`)
+      console.warn(`[backfill/bbref] ${gameId}: ${errorMessage(e)}`)
     }
 
     await sleep(3000)
