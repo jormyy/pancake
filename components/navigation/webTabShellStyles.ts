@@ -6,20 +6,17 @@ const SIDEBAR_WIDTH = 248
 const MOBILE_TOPBAR_HEIGHT = 56
 const MOBILE_BOTTOMBAR_HEIGHT = 64
 
-type WebOnlyViewStyle = Omit<ViewStyle, 'position'> & {
+// react-native-web supports these CSS properties at runtime, but React
+// Native's bundled ViewStyle types don't model them. This stays an
+// intersection with ViewStyle so the styles remain assignable to
+// StyleSheet.create. Note: `position: 'fixed' | 'sticky'` can't be added
+// here — intersecting collapses position back to ViewStyle['position'], and
+// widening it would make WebOnlyViewStyle no longer assignable to ViewStyle.
+// The few fixed-position styles below are cast through `unknown` instead.
+type WebOnlyViewStyle = ViewStyle & {
     backdropFilter?: string
     WebkitBackdropFilter?: string
-    display?: 'flex'
-    marginTop?: ViewStyle['marginTop'] | 'auto'
-    minHeight?: ViewStyle['minHeight']
-    position?: ViewStyle['position'] | 'fixed' | 'sticky'
-    top?: number
-    bottom?: number
-    left?: number
-    right?: number
-    zIndex?: number
     boxShadow?: string
-    textDecorationLine?: 'none'
 }
 
 export const styles = StyleSheet.create({
@@ -333,7 +330,7 @@ export const styles = StyleSheet.create({
         WebkitBackdropFilter: 'blur(20px) saturate(180%)',
         borderBottomWidth: 1,
         borderBottomColor: colors.borderLight,
-    } as WebOnlyViewStyle,
+    } as unknown as WebOnlyViewStyle,
     mobileLeagueWrap: {
         flex: 1,
         minWidth: 0,
@@ -363,7 +360,7 @@ export const styles = StyleSheet.create({
         borderTopWidth: 1,
         borderTopColor: colors.borderLight,
         boxShadow: '0 -6px 24px rgba(74, 37, 9, 0.10)',
-    } as WebOnlyViewStyle,
+    } as unknown as WebOnlyViewStyle,
     bottomNavItem: {
         flex: 1,
         height: 54,
@@ -388,7 +385,7 @@ export const styles = StyleSheet.create({
         right: 0,
         zIndex: 90,
         backgroundColor: 'rgba(44, 26, 14, 0.42)',
-    } as WebOnlyViewStyle,
+    } as unknown as WebOnlyViewStyle,
     sheet: {
         backgroundColor: colors.bgCard,
         borderBottomLeftRadius: radii['2xl'],
