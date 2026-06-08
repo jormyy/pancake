@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useFocusEffect } from '@react-navigation/native'
-import { getMyMatchup, Matchup } from '@/lib/scoring'
+import { getLeagueWeekMatchups, getMyMatchup, LeagueWeekMatchup, Matchup } from '@/lib/scoring'
 import { getWeekDays, getWeeklyLineup, LineupSlot, LineupPlayer, WeekDay } from '@/lib/lineup'
 import { todayET } from '@/lib/shared/dates'
 import { supabase } from '@/lib/supabase'
@@ -18,6 +18,7 @@ export function useMatchupData(
     // weekly_lineups.game_date (ET-keyed). Use todayET so non-ET clients
     // don't query against the wrong date.
     const [selectedDate, setSelectedDate] = useState<string>(() => todayET())
+    const [leagueMatchups, setLeagueMatchups] = useState<LeagueWeekMatchup[]>([])
     const [myLineup, setMyLineup] = useState<LineupData | null>(null)
     const [oppLineup, setOppLineup] = useState<LineupData | null>(null)
     const [matchupLoading, setMatchupLoading] = useState(true)
@@ -34,6 +35,7 @@ export function useMatchupData(
             return
         }
         setMatchup(undefined)
+        setLeagueMatchups([])
         setMyLineup(null)
         setOppLineup(null)
         setMatchupLoading(true)
@@ -94,8 +96,12 @@ export function useMatchupData(
             if (m) {
                 // ET-keyed: flows into getWeeklyLineup query against weekly_lineups.game_date
                 const today = todayET()
-                const days = await getWeekDays(m.weekNumber, m.seasonYear)
+                const [days, weekMatchups] = await Promise.all([
+                    getWeekDays(m.weekNumber, m.seasonYear),
+                    getLeagueWeekMatchups(leagueId, m.seasonId, m.weekNumber, m.myMemberId),
+                ])
                 setWeekDays(days)
+                setLeagueMatchups(weekMatchups)
                 setSelectedDate(today)
                 await loadLineups(m, today)
             }
@@ -113,33 +119,49 @@ export function useMatchupData(
     useEffect(() => {
         if (!matchup?.id) return
         const channel = supabase
-            .channel(`matchup_${matchup.id}`)
+            .channel(`league_matchups_${matchup.seasonId}_${matchup.weekNumber}`)
             .on('postgres_changes', {
                 event: 'UPDATE',
                 schema: 'public',
                 table: 'matchups',
-                filter: `id=eq.${matchup.id}`,
+                filter: `league_season_id=eq.${matchup.seasonId}`,
             }, (payload) => {
                 const { home_points, away_points, is_finalized, winner_member_id } = payload.new
-                setMatchup((prev) => {
-                    if (!prev) return prev
-                    const isHome = prev.myMemberId === payload.new.home_member_id
-                    return {
-                        ...prev,
-                        myPoints: isHome ? home_points : away_points,
-                        opponentPoints: isHome ? away_points : home_points,
-                        isFinalized: is_finalized,
-                        iWon: winner_member_id ? winner_member_id === prev.myMemberId : null,
-                    }
-                })
+                if (payload.new.week_number !== matchup.weekNumber) return
+                if (payload.new.id === matchup.id) {
+                    setMatchup((prev) => {
+                        if (!prev) return prev
+                        const isHome = prev.myMemberId === payload.new.home_member_id
+                        return {
+                            ...prev,
+                            myPoints: isHome ? home_points : away_points,
+                            opponentPoints: isHome ? away_points : home_points,
+                            isFinalized: is_finalized,
+                            iWon: winner_member_id ? winner_member_id === prev.myMemberId : null,
+                        }
+                    })
+                }
+                setLeagueMatchups((prev) =>
+                    prev.map((item) =>
+                        item.id === payload.new.id
+                            ? {
+                                  ...item,
+                                  homePoints: home_points != null ? Number(home_points) : null,
+                                  awayPoints: away_points != null ? Number(away_points) : null,
+                                  isFinalized: is_finalized,
+                              }
+                            : item,
+                    ),
+                )
             })
             .subscribe()
 
         return () => { supabase.removeChannel(channel) }
-    }, [matchup?.id])
+    }, [matchup?.id, matchup?.seasonId, matchup?.weekNumber])
 
     return {
         matchup,
+        leagueMatchups,
         weekDays,
         selectedDate,
         setSelectedDate,

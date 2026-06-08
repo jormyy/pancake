@@ -119,11 +119,11 @@ export async function syncPlayerStatuses(): Promise<void> {
 
     console.log(`[syncPlayerStatuses] Matched ${matched} players, ${toUpdate.length} need updates`)
 
-    // Batch updates via upsert(onConflict:'id') in chunks of 500.
-    // Rows are guaranteed to exist (sourced from the SELECT above); the upsert
-    // merges only the specified columns into existing rows.
+    // Rows are guaranteed to exist (sourced from the SELECT above). Use UPDATE
+    // instead of partial upsert so Postgres never validates omitted NOT NULL
+    // insert columns such as first_name/last_name.
     const nowIso = new Date().toISOString()
-    const upsertRows = toUpdate.map(({ id, fields, nbaDraftNumber }) => ({
+    const updateRows = toUpdate.map(({ id, fields, nbaDraftNumber }) => ({
         id,
         status: fields.status,
         injury_status: fields.injury_status,
@@ -136,12 +136,15 @@ export async function syncPlayerStatuses(): Promise<void> {
                 : null,
         updated_at: nowIso,
     }))
-    for (let i = 0; i < upsertRows.length; i += 500) {
-        const chunk = upsertRows.slice(i, i + 500)
-        const { error: updateErr } = await supabase
-            .from('players')
-            .upsert(chunk as any, { onConflict: 'id' })
-        if (updateErr) console.error(`[syncPlayerStatuses] Update failed for chunk starting at ${i}:`, updateErr.message)
+    for (let i = 0; i < updateRows.length; i += 50) {
+        const chunk = updateRows.slice(i, i + 50)
+        await Promise.all(chunk.map(async ({ id, ...fields }) => {
+            const { error: updateErr } = await supabase
+                .from('players')
+                .update(fields as any)
+                .eq('id', id)
+            if (updateErr) throw new Error(`player ${id}: ${updateErr.message}`)
+        }))
     }
 
     const { error: taxiCleanupErr } = await supabase.rpc('clear_ineligible_taxi_players')

@@ -13,6 +13,7 @@ import {
 } from '@/lib/rookieDraft'
 import { dropPlayer, getRoster, toggleTaxi, type RosterPlayer } from '@/lib/roster'
 import { getErrorMessage } from '@/lib/alert'
+import { getRosterStatusChangeLockMessage } from '@/lib/roster-locks'
 
 const PICK_TIMEOUT_SEC = 30
 
@@ -248,6 +249,17 @@ export function useRookieDraftRoomController({
         if (!rosterOverflow?.newRosterPlayerId || resolvingOverflow) return
         setResolvingOverflow(true)
         try {
+            const stableMemberId = memberIdRef.current ?? memberId
+            if (stableMemberId && leagueId) {
+                const roster = await getRoster(stableMemberId, leagueId)
+                const rookie = roster.find((rosterPlayer) => rosterPlayer.id === rosterOverflow.newRosterPlayerId)
+                const lockMessage = await getRosterStatusChangeLockMessage(rookie)
+                if (lockMessage) {
+                    Alert.alert('Roster locked', lockMessage)
+                    return
+                }
+            }
+
             await toggleTaxi(rosterOverflow.newRosterPlayerId, true)
             setRosterOverflow(null)
             if (draftId) {

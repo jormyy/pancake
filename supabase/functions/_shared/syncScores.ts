@@ -14,6 +14,7 @@ type MatchupForScore = {
 type LineupPlayer = {
   member_id: string
   player_id: string
+  game_date: string
 }
 
 type LineupSlot = LineupPlayer & {
@@ -22,6 +23,7 @@ type LineupSlot = LineupPlayer & {
 
 type StatRow = Record<string, unknown> & {
   player_id: string
+  game_date: string
 }
 
 type MatchupForFinalization = {
@@ -93,7 +95,7 @@ async function calcWeekPointsByMember(
 
   const { data: lineup, error: lineupErr } = await supabase
     .from('weekly_lineups')
-    .select('member_id, player_id')
+    .select('member_id, player_id, game_date')
     .in('member_id', memberIds)
     .eq('league_season_id', leagueSeasonId)
     .eq('week_number', weekNumber)
@@ -109,7 +111,7 @@ async function calcWeekPointsByMember(
   const { data: stats, error: statsErr } = await supabase
     .from('player_game_stats')
     .select(
-      'player_id,points,rebounds,assists,steals,blocks,turnovers,' +
+      'player_id,game_date,points,rebounds,assists,steals,blocks,turnovers,' +
         'three_pointers_made,field_goals_made,field_goals_attempted,' +
         'free_throws_made,free_throws_attempted,double_double,triple_double,did_not_play',
     )
@@ -120,11 +122,12 @@ async function calcWeekPointsByMember(
 
   if (statsErr) throw statsErr
 
-  const pointsByPlayer = new Map<string, number>()
+  const pointsByPlayerDate = new Map<string, number>()
   for (const stat of (stats ?? []) as unknown as StatRow[]) {
-    pointsByPlayer.set(
-      stat.player_id,
-      (pointsByPlayer.get(stat.player_id) ?? 0) + calculateFantasyPoints(snakeToStatLine(stat), settings),
+    const key = `${stat.player_id}|${stat.game_date}`
+    pointsByPlayerDate.set(
+      key,
+      (pointsByPlayerDate.get(key) ?? 0) + calculateFantasyPoints(snakeToStatLine(stat), settings),
     )
   }
 
@@ -132,7 +135,7 @@ async function calcWeekPointsByMember(
   for (const row of lineupRows) {
     pointsByMember.set(
       row.member_id,
-      (pointsByMember.get(row.member_id) ?? 0) + (pointsByPlayer.get(row.player_id) ?? 0),
+      (pointsByMember.get(row.member_id) ?? 0) + (pointsByPlayerDate.get(`${row.player_id}|${row.game_date}`) ?? 0),
     )
   }
 
@@ -156,7 +159,7 @@ async function calcWeekMaxPossiblePointsByMember(
 
   const { data: lineup, error: lineupErr } = await supabase
     .from('weekly_lineups')
-    .select('member_id, player_id, slot_type')
+    .select('member_id, player_id, slot_type, game_date')
     .in('member_id', memberIds)
     .eq('league_season_id', leagueSeasonId)
     .eq('week_number', weekNumber)
@@ -177,7 +180,7 @@ async function calcWeekMaxPossiblePointsByMember(
   const { data: stats, error: statsErr } = await supabase
     .from('player_game_stats')
     .select(
-      'player_id,points,rebounds,assists,steals,blocks,turnovers,' +
+      'player_id,game_date,points,rebounds,assists,steals,blocks,turnovers,' +
         'three_pointers_made,field_goals_made,field_goals_attempted,' +
         'free_throws_made,free_throws_attempted,double_double,triple_double,did_not_play',
     )
@@ -188,17 +191,18 @@ async function calcWeekMaxPossiblePointsByMember(
 
   if (statsErr) throw statsErr
 
-  const pointsByPlayer = new Map<string, number>()
+  const pointsByPlayerDate = new Map<string, number>()
   for (const stat of (stats ?? []) as unknown as StatRow[]) {
-    pointsByPlayer.set(
-      stat.player_id,
-      (pointsByPlayer.get(stat.player_id) ?? 0) + calculateFantasyPoints(snakeToStatLine(stat), settings),
+    const key = `${stat.player_id}|${stat.game_date}`
+    pointsByPlayerDate.set(
+      key,
+      (pointsByPlayerDate.get(key) ?? 0) + calculateFantasyPoints(snakeToStatLine(stat), settings),
     )
   }
 
   const playerScoresByMember = new Map(memberIds.map((id) => [id, [] as number[]]))
   for (const row of lineupRows) {
-    playerScoresByMember.get(row.member_id)?.push(pointsByPlayer.get(row.player_id) ?? 0)
+    playerScoresByMember.get(row.member_id)?.push(pointsByPlayerDate.get(`${row.player_id}|${row.game_date}`) ?? 0)
   }
 
   const maxPointsByMember = new Map<string, number>()

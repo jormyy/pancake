@@ -21,6 +21,13 @@ const todayDateString = () => {
   const day = String(d.getDate()).padStart(2, '0')
   return `${y}-${m}-${day}`
 }
+const offsetDateString = (offsetDays) => {
+  const d = new Date(Date.now() + offsetDays * 24 * 60 * 60 * 1000)
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
 
 const parseEvalJson = (output) => {
   const line = output.split('\n').filter(Boolean).at(-1)
@@ -71,15 +78,22 @@ const findPgPlayer = async (admin, leagueId, leagueSeasonId) => {
       .limit(400),
     admin
       .from('nba_games')
-      .select('home_team, away_team')
+      .select('home_team, away_team, status, game_time')
       .eq('game_date', today)
-      .in('status', ['InProgress', 'Final']),
   ])
   if (rosterError) throw new Error(`roster lookup: ${rosterError.message}`)
   if (playersError) throw new Error(`players lookup: ${playersError.message}`)
   if (gamesError) throw new Error(`started game lookup: ${gamesError.message}`)
   const rosteredIds = new Set((rosterRows ?? []).map((row) => row.player_id))
-  const startedTeams = new Set((startedGames ?? []).flatMap((game) => [game.home_team, game.away_team]).filter(Boolean))
+  const now = new Date().toISOString()
+  const startedTeams = new Set(
+    (startedGames ?? [])
+      .filter((game) =>
+        ['InProgress', 'Final'].includes(game.status ?? '') ||
+        (game.game_time != null && game.game_time <= now))
+      .flatMap((game) => [game.home_team, game.away_team])
+      .filter(Boolean),
+  )
   const eligiblePlayers = (players ?? []).filter((row) => {
     const eligible = Array.isArray(row.eligible_positions) ? row.eligible_positions : []
     return row.display_name && !rosteredIds.has(row.id) && (row.position === 'PG' || eligible.includes('PG'))
@@ -265,6 +279,7 @@ const setupLockedLineupFixture = async (env, season) => {
     ? benchPlayer.nba_team
     : lockedPlayer.nba_team === 'BOS' ? 'LAL' : 'BOS'
   const gameId = `e2e-lineup-lock-${fixture.runId}`
+  const scheduledTipoff = new Date(Date.now() - 60_000).toISOString()
   const { error: gameError } = await fixture.admin.from('nba_games').insert({
     sportsdata_game_id: gameId,
     nba_game_id: gameId,
@@ -273,9 +288,9 @@ const setupLockedLineupFixture = async (env, season) => {
     week_number: fixture.week.week_number,
     home_team: lockedPlayer.nba_team,
     away_team: opponent,
-    status: 'InProgress',
-    game_status_text: 'E2E Live',
-    started_at: new Date().toISOString(),
+    status: 'Scheduled',
+    game_status_text: 'E2E Scheduled Past Tipoff',
+    game_time: scheduledTipoff,
   })
   if (gameError) throw new Error(`locked game seed: ${gameError.message}`)
 
@@ -300,6 +315,7 @@ const setupLockedLineupFixture = async (env, season) => {
     ...fixture,
     lockedPlayer,
     benchPlayer,
+    scheduledTipoff,
     lockedRosterRow: (rosterRows ?? []).find((row) => row.player_id === lockedPlayer.id),
     benchRosterRow: (rosterRows ?? []).find((row) => row.player_id === benchPlayer.id),
     lockedLineup: lineup,
@@ -426,6 +442,168 @@ const verifyLockedLineup = async (fixture) => {
   if (lockedRows?.[0]?.slot_type !== 'PG') failures.push(`locked slot_type=${lockedRows?.[0]?.slot_type ?? '<missing>'}; expected PG`)
   if ((benchRows ?? []).length !== 0) failures.push(`bench player weekly_lineups rows=${(benchRows ?? []).length}; expected 0`)
   return { lockedLineup: lockedRows?.[0] ?? null, benchRows: benchRows ?? [], failures }
+}
+
+const verifyForgedLockedLineupRpc = async (env, fixture) => {
+  const client = await signInClient(env, fixture.user.email, fixture.password)
+  try {
+    const { error } = await client.rpc('set_player_slot_atomic', {
+      p_member_id: fixture.member.id,
+      p_league_id: fixture.league.id,
+      p_league_season_id: fixture.currentSeason.id,
+      p_player_id: fixture.lockedPlayer.id,
+      p_game_date: todayDateString(),
+      p_slot_type: 'BE',
+      p_week_number: fixture.week.week_number,
+    })
+    const check = await verifyLockedLineup(fixture)
+    const failures = [...check.failures]
+    if (!error) {
+      failures.push('forged set_player_slot_atomic call succeeded; expected locked-lineup rejection')
+    } else if (!/locked|started/i.test(error.message)) {
+      failures.push(`forged set_player_slot_atomic rejected with "${error.message}"; expected lock/start message`)
+    }
+    return {
+      rejected: Boolean(error),
+      errorMessage: error?.message ?? null,
+      check,
+      failures,
+    }
+  } finally {
+    await client.auth.signOut().catch(() => {})
+  }
+}
+
+const verifyForgedLineupLegalityRpc = async (env, fixture) => {
+  const client = await signInClient(env, fixture.user.email, fixture.password)
+  const gameDate = offsetDateString(1)
+  try {
+    const legal = await client.rpc('set_player_slot_atomic', {
+      p_member_id: fixture.member.id,
+      p_league_id: fixture.league.id,
+      p_league_season_id: fixture.currentSeason.id,
+      p_player_id: fixture.lockedPlayer.id,
+      p_game_date: gameDate,
+      p_slot_type: 'PG',
+      p_week_number: fixture.week.week_number,
+    })
+    const overfill = await client.rpc('set_player_slot_atomic', {
+      p_member_id: fixture.member.id,
+      p_league_id: fixture.league.id,
+      p_league_season_id: fixture.currentSeason.id,
+      p_player_id: fixture.benchPlayer.id,
+      p_game_date: gameDate,
+      p_slot_type: 'PG',
+      p_week_number: fixture.week.week_number,
+    })
+    const ineligible = await client.rpc('set_player_slot_atomic', {
+      p_member_id: fixture.member.id,
+      p_league_id: fixture.league.id,
+      p_league_season_id: fixture.currentSeason.id,
+      p_player_id: fixture.lockedPlayer.id,
+      p_game_date: gameDate,
+      p_slot_type: 'C',
+      p_week_number: fixture.week.week_number,
+    })
+    const { data: rows, error: rowsError } = await fixture.admin
+      .from('weekly_lineups')
+      .select('id, player_id, slot_type, game_date')
+      .eq('league_id', fixture.league.id)
+      .eq('league_season_id', fixture.currentSeason.id)
+      .eq('member_id', fixture.member.id)
+      .eq('game_date', gameDate)
+
+    const failures = []
+    if (legal.error) failures.push(`legal PG starter RPC rejected unexpectedly: ${legal.error.message}`)
+    if (!overfill.error) {
+      failures.push('forged overfilled PG slot RPC succeeded; expected slot-capacity rejection')
+    } else if (!/full|slot/i.test(overfill.error.message)) {
+      failures.push(`forged overfilled PG slot rejected with "${overfill.error.message}"; expected slot-capacity message`)
+    }
+    if (!ineligible.error) {
+      failures.push('forged ineligible C slot RPC succeeded; expected eligibility rejection')
+    } else if (!/eligible/i.test(ineligible.error.message)) {
+      failures.push(`forged ineligible C slot rejected with "${ineligible.error.message}"; expected eligibility message`)
+    }
+    if (rowsError) failures.push(`lineup legality row check failed: ${rowsError.message}`)
+    const pgRows = (rows ?? []).filter((row) => row.slot_type === 'PG')
+    const cRows = (rows ?? []).filter((row) => row.slot_type === 'C')
+    if (pgRows.length !== 1) failures.push(`future PG lineup rows=${pgRows.length}; expected 1`)
+    if (cRows.length !== 0) failures.push(`future C lineup rows=${cRows.length}; expected 0`)
+
+    return {
+      gameDate,
+      legalStarterAccepted: !legal.error,
+      overfillRejected: Boolean(overfill.error),
+      overfillErrorMessage: overfill.error?.message ?? null,
+      ineligibleRejected: Boolean(ineligible.error),
+      ineligibleErrorMessage: ineligible.error?.message ?? null,
+      rows: rows ?? [],
+      failures,
+    }
+  } finally {
+    await client.auth.signOut().catch(() => {})
+  }
+}
+
+const verifyForgedLockedAutoSetRpc = async (env, fixture) => {
+  const client = await signInClient(env, fixture.user.email, fixture.password)
+  try {
+    const { error } = await client.rpc('auto_set_lineup_atomic', {
+      p_member_id: fixture.member.id,
+      p_league_id: fixture.league.id,
+      p_league_season_id: fixture.currentSeason.id,
+      p_game_date: todayDateString(),
+      p_assignments: [],
+    })
+    const check = await verifyLockedLineup(fixture)
+    const failures = [...check.failures]
+    if (!error) {
+      failures.push('forged auto_set_lineup_atomic call succeeded; expected locked-lineup rejection')
+    } else if (!/locked|started/i.test(error.message)) {
+      failures.push(`forged auto_set_lineup_atomic rejected with "${error.message}"; expected lock/start message`)
+    }
+    return {
+      rejected: Boolean(error),
+      errorMessage: error?.message ?? null,
+      check,
+      failures,
+    }
+  } finally {
+    await client.auth.signOut().catch(() => {})
+  }
+}
+
+const verifyForgedLockedMovesRpc = async (env, fixture) => {
+  const client = await signInClient(env, fixture.user.email, fixture.password)
+  try {
+    const { error } = await client.rpc('set_player_slot_moves_atomic', {
+      p_member_id: fixture.member.id,
+      p_league_id: fixture.league.id,
+      p_league_season_id: fixture.currentSeason.id,
+      p_game_date: todayDateString(),
+      p_week_number: fixture.week.week_number,
+      p_moves: [
+        { player_id: fixture.lockedPlayer.id, slot_type: 'BE' },
+        { player_id: fixture.benchPlayer.id, slot_type: 'PG' },
+      ],
+    })
+    const check = await verifyLockedLineup(fixture)
+    const failures = [...check.failures]
+    if (!error) {
+      failures.push('forged set_player_slot_moves_atomic call succeeded; expected locked-lineup rejection')
+    } else if (!/locked|started/i.test(error.message)) {
+      failures.push(`forged set_player_slot_moves_atomic rejected with "${error.message}"; expected lock/start message`)
+    }
+    return {
+      rejected: Boolean(error),
+      errorMessage: error?.message ?? null,
+      check,
+      failures,
+    }
+  } finally {
+    await client.auth.signOut().catch(() => {})
+  }
 }
 
 export async function runBrowserLineupScenario({
@@ -556,7 +734,7 @@ export async function runBrowserLineupLockedScenario({
     await browser(session, ['wait', '3000'])
     await assertPageText(
       session,
-      ['Lineup', 'STARTERS', 'BENCH', fixture.lockedPlayer.display_name, fixture.benchPlayer.display_name, 'LIVE'],
+      ['Lineup', 'STARTERS', 'BENCH', fixture.lockedPlayer.display_name, fixture.benchPlayer.display_name],
       'locked lineup before move',
     )
     debug = { ...debug, beforeScreenshot: await captureBrowserScreenshot(browser, session, artifactDir, 'lineup-locked-before.png') }
@@ -564,9 +742,25 @@ export async function runBrowserLineupLockedScenario({
     const benchClick = await clickButton(session, `Bench ${fixture.benchPlayer.display_name}`, 'bench player row')
     await browser(session, ['wait', '1000'])
     const lockedCheck = await verifyLockedLineup(fixture)
-    debug = { ...debug, starterClick, benchClick, lockedCheck }
+    const forgedRpcCheck = await verifyForgedLockedLineupRpc(env, fixture)
+    const forgedMovesCheck = await verifyForgedLockedMovesRpc(env, fixture)
+    const forgedAutoSetCheck = await verifyForgedLockedAutoSetRpc(env, fixture)
+    const forgedLegalityCheck = await verifyForgedLineupLegalityRpc(env, fixture)
+    debug = { ...debug, starterClick, benchClick, lockedCheck, forgedRpcCheck, forgedMovesCheck, forgedAutoSetCheck, forgedLegalityCheck }
     if (lockedCheck.failures.length > 0) {
       throw new Error(`locked lineup changed unexpectedly: ${lockedCheck.failures.join('; ')}`)
+    }
+    if (forgedRpcCheck.failures.length > 0) {
+      throw new Error(`forged locked lineup RPC was not blocked: ${forgedRpcCheck.failures.join('; ')}`)
+    }
+    if (forgedMovesCheck.failures.length > 0) {
+      throw new Error(`forged locked lineup moves RPC was not blocked: ${forgedMovesCheck.failures.join('; ')}`)
+    }
+    if (forgedAutoSetCheck.failures.length > 0) {
+      throw new Error(`forged locked auto-set RPC was not blocked: ${forgedAutoSetCheck.failures.join('; ')}`)
+    }
+    if (forgedLegalityCheck.failures.length > 0) {
+      throw new Error(`forged lineup legality RPC was not blocked: ${forgedLegalityCheck.failures.join('; ')}`)
     }
     debug = { ...debug, afterScreenshot: await captureBrowserScreenshot(browser, session, artifactDir, 'lineup-locked-after.png') }
 
@@ -575,7 +769,7 @@ export async function runBrowserLineupLockedScenario({
     await writeFile(path.join(artifactDir, 'console.txt'), `${consoleOutput}\n`)
     await writeFile(path.join(artifactDir, 'errors.txt'), `${errorOutput}\n`)
 
-    const failures = [...lockedCheck.failures]
+    const failures = [...lockedCheck.failures, ...forgedRpcCheck.failures, ...forgedMovesCheck.failures, ...forgedAutoSetCheck.failures, ...forgedLegalityCheck.failures]
     if (normalizeBrowserErrors(errorOutput)) failures.push(`browser errors present; see ${path.relative(ROOT, path.join(artifactDir, 'errors.txt'))}`)
     const report = {
       status: failures.length === 0 ? 'PASS' : 'FAIL',
@@ -592,8 +786,13 @@ export async function runBrowserLineupLockedScenario({
         lockedRosterPlayerId: fixture.lockedRosterRow?.id ?? null,
         benchRosterPlayerId: fixture.benchRosterRow?.id ?? null,
         weekNumber: fixture.week.week_number,
+        scheduledTipoff: fixture.scheduledTipoff,
       },
       lockedCheck,
+      forgedRpcCheck,
+      forgedMovesCheck,
+      forgedAutoSetCheck,
+      forgedLegalityCheck,
       notes,
       failures,
     }

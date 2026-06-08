@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react'
 import { Alert } from 'react-native'
 import { Matchup } from '@/lib/scoring'
-import { setPlayerSlot, autoSetLineup, canPlaySlot, LineupSlot, LineupPlayer } from '@/lib/lineup'
+import { setPlayerSlot, setPlayerSlotMoves, autoSetLineup, canPlaySlot, LineupSlot, LineupPlayer } from '@/lib/lineup'
 import { isIREligible, toggleIR, toggleTaxi, dropPlayer } from '@/lib/roster'
 import { todayET } from '@/lib/shared/dates'
 import { getErrorMessage } from '@/lib/alert'
@@ -68,6 +68,12 @@ export function useLineupActions({
         const bPlayer = getPlayer(newSel)
         const aSlot = getSlot(selected)
         const bSlot = getSlot(newSel)
+        const isLocked = (player: LineupPlayer | null) => !!(player?.nbaTeam && startedTeams.has(player.nbaTeam))
+        const lockedPlayer = isLocked(aPlayer) ? aPlayer : isLocked(bPlayer) ? bPlayer : null
+        if (lockedPlayer) {
+            Alert.alert('Lineup locked', `${lockedPlayer.displayName}'s game has already started. No lineup changes are allowed once a game begins.`)
+            return
+        }
 
         // Disallow direct IR ↔ taxi swaps
         if ((aSlot === 'IR' && bSlot === 'TX') || (aSlot === 'TX' && bSlot === 'IR')) {
@@ -166,14 +172,6 @@ export function useLineupActions({
             return
         }
 
-        const aLocked = !!(aPlayer?.nbaTeam && startedTeams.has(aPlayer.nbaTeam))
-        const bLocked = !!(bPlayer?.nbaTeam && startedTeams.has(bPlayer.nbaTeam))
-        if (aLocked || bLocked) {
-            const who = aLocked ? aPlayer! : bPlayer!
-            Alert.alert('Lineup locked', `${who.displayName}'s game has already started. No lineup changes are allowed once a game begins.`)
-            return
-        }
-
         if (aPlayer && bSlot !== 'BE' && !canPlaySlot(aPlayer.eligiblePositions, bSlot)) {
             Alert.alert('Invalid move', `${aPlayer.displayName} can't play ${bSlot}`); return
         }
@@ -183,10 +181,19 @@ export function useLineupActions({
 
         setSaving(true)
         try {
-            const saves: Promise<void>[] = []
-            if (aPlayer) saves.push(setPlayerSlot(matchup.myMemberId, league.id, matchup.seasonId, matchup.weekNumber, selectedDate, aPlayer.playerId, bSlot))
-            if (bPlayer) saves.push(setPlayerSlot(matchup.myMemberId, league.id, matchup.seasonId, matchup.weekNumber, selectedDate, bPlayer.playerId, aSlot))
-            await Promise.all(saves)
+            await setPlayerSlotMoves(
+                {
+                    memberId: matchup.myMemberId,
+                    leagueId: league.id,
+                    seasonId: matchup.seasonId,
+                    weekNumber: matchup.weekNumber,
+                    gameDate: selectedDate,
+                },
+                [
+                    ...(aPlayer ? [{ playerId: aPlayer.playerId, slotType: bSlot }] : []),
+                    ...(bPlayer ? [{ playerId: bPlayer.playerId, slotType: aSlot }] : []),
+                ],
+            )
             await loadMyLineup(matchup, selectedDate)
         } catch (e) {
             Alert.alert('Error', getErrorMessage(e))
@@ -200,6 +207,25 @@ export function useLineupActions({
         rosterPlayerId: string,
     ) {
         if (!activationOverflowPending || !matchup) return
+        const starterPlayers = myLineup?.starters
+            .map((slot) => slot.player)
+            .filter((player): player is LineupPlayer => player != null) ?? []
+        const allPlayers = [
+            ...starterPlayers,
+            ...(myLineup?.bench ?? []),
+            ...(myLineup?.ir ?? []),
+            ...(myLineup?.taxi ?? []),
+        ]
+        const lockedPlayer = allPlayers.find(
+            (player) =>
+                (player.rosterPlayerId === rosterPlayerId || player.rosterPlayerId === activationOverflowPending.rosterPlayerId) &&
+                player.nbaTeam &&
+                startedTeams.has(player.nbaTeam),
+        )
+        if (lockedPlayer) {
+            Alert.alert('Lineup locked', `${lockedPlayer.displayName}'s game has already started. No lineup changes are allowed once a game begins.`)
+            return
+        }
         setActivationOverflowSaving(true)
         try {
             await freeSlot(rosterPlayerId)

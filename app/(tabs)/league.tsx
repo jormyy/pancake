@@ -9,8 +9,8 @@ import {
     RefreshControl,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { useRouter } from 'expo-router'
-import { useState, useRef, useCallback } from 'react'
+import { useLocalSearchParams, useRouter } from 'expo-router'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { useFocusEffect } from '@react-navigation/native'
 import { useLeagueContext } from '@/contexts/league-context'
 import { getLeagueStandings, StandingRow } from '@/lib/scoring'
@@ -18,7 +18,7 @@ import { getActiveDraft, startDraft } from '@/lib/draft'
 import { getWaiverPriorityOrder, WaiverPriorityRow } from '@/lib/waivers'
 import { getLeagueTransactions, TransactionRow } from '@/lib/transactions'
 import { getActiveRookieDraft, startRookieDraft, getAllLeaguePicks, reseedRookieDraftPicks, LeaguePickItem } from '@/lib/rookieDraft'
-import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 import { LoadingScreen } from '@/components/LoadingScreen'
 import { EmptyState } from '@/components/EmptyState'
 import { StandingsTable, ActivityFeed, WaiverPriorityList, PicksBankList } from '@/components/league/LeagueSections'
@@ -28,11 +28,16 @@ type Tab = 'standings' | 'activity' | 'waivers' | 'picks'
 
 const ACTIVITY_LIMIT = 50
 
+function parseLeagueTab(tab: unknown): Tab {
+    return tab === 'activity' || tab === 'waivers' || tab === 'picks' ? tab : 'standings'
+}
 
 export default function LeagueScreen() {
-    const { push } = useRouter()
+    const router = useRouter()
+    const { push } = router
+    const params = useLocalSearchParams<{ tab?: string }>()
     const { current, currentLeague, isCommissioner, loading: currentLeagueLoading } = useLeagueContext()
-    const [tab, setTab] = useState<Tab>('standings')
+    const [tab, setTab] = useState<Tab>(() => parseLeagueTab(params.tab))
     const [draftLoading, setDraftLoading] = useState(false)
 
     // Per-tab data
@@ -51,6 +56,23 @@ export default function LeagueScreen() {
     // Lazy loading: track which tabs have been fetched
     const loadedTabs = useRef<Set<Tab>>(new Set())
     const [refreshing, setRefreshing] = useState(false)
+
+    useEffect(() => {
+        setTab(parseLeagueTab(params.tab))
+    }, [params.tab])
+
+    useEffect(() => {
+        loadedTabs.current.clear()
+        setStandings([])
+        setTransactions([])
+        setWaiverOrder([])
+        setCurrentLeaguePicks([])
+        setActivityOffset(0)
+        setActivityHasMore(false)
+        setActivityLoadingMore(false)
+        setTabError({})
+        setTabLoading({ standings: true })
+    }, [currentLeague?.id])
 
     const fetchTab = useCallback(async (t: Tab, lid: string) => {
         setTabLoading((prev) => ({ ...prev, [t]: true }))
@@ -106,6 +128,7 @@ export default function LeagueScreen() {
     // When switching tabs, fetch if not yet loaded
     function handleTabChange(t: Tab) {
         setTab(t)
+        router.push(`/league?tab=${t}`)
         const lid = currentLeague?.id
         if (!lid) return
         if (!loadedTabs.current.has(t)) {
@@ -413,7 +436,7 @@ const styles = StyleSheet.create({
     header: { padding: spacing['2xl'], borderBottomWidth: 1, borderBottomColor: colors.borderLight, gap: spacing.lg },
     headerTop: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.lg },
     headerInfo: { flex: 1, gap: spacing.xxs },
-    currentLeagueName: { fontSize: fontSize.xl, fontWeight: fontWeight.extrabold },
+    currentLeagueName: { fontSize: fontSize.xl, fontWeight: fontWeight.extrabold, color: colors.textPrimary },
     teamName: { fontSize: fontSize.md, color: colors.textMuted },
 
     headerButtons: { flexDirection: 'row', gap: spacing.md, alignItems: 'center' },
@@ -441,7 +464,9 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: spacing.md,
-        backgroundColor: palette.gray100,
+        backgroundColor: colors.bgCard,
+        borderWidth: 1,
+        borderColor: colors.borderLight,
         borderRadius: radii.lg,
         borderCurve: 'continuous' as const,
         paddingHorizontal: 14,

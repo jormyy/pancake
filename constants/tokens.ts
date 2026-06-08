@@ -1,3 +1,5 @@
+import { Platform } from 'react-native'
+
 // ── Raw palette ─────────────────────────────────────────────────
 // Every color in the app lives here. Components import semantic
 // aliases (below) or domain maps — never raw hex strings.
@@ -90,56 +92,60 @@ export const palette = {
     black:    '#11181C',
 } as const
 
+function webColor(name: string, fallback: string) {
+    return Platform.OS === 'web' ? `var(--pancake-${name}, ${fallback})` : fallback
+}
+
 // ── Semantic tokens ─────────────────────────────────────────────
 
 export const colors = {
     // Text — warm espresso/coffee scale
-    textPrimary:     palette.espresso,    // '#2C1A0E' deep dark brown
-    textSecondary:   palette.mocha,       // '#6B4535' medium brown
-    textMuted:       palette.latte,       // '#9B7060' warm muted
-    textPlaceholder: palette.cappuccino,  // '#B8917F' soft warm placeholder
-    textDisabled:    palette.oatmilk,     // '#CCAA99' very light
+    textPrimary:     webColor('text-primary', palette.espresso),    // '#2C1A0E' deep dark brown
+    textSecondary:   webColor('text-secondary', palette.mocha),      // '#6B4535' medium brown
+    textMuted:       webColor('text-muted', palette.latte),          // '#9B7060' warm muted
+    textPlaceholder: webColor('text-placeholder', palette.cappuccino), // '#B8917F' soft warm placeholder
+    textDisabled:    webColor('text-disabled', palette.oatmilk),     // '#CCAA99' very light
     textWhite:       palette.white,
 
     // Backgrounds — warm cream/parchment
-    bgScreen: palette.cream100,  // '#FDF8EE' warm cream screen
-    bgCard:   palette.cream50,   // '#FFFDF8' near-white warm card
-    bgMuted:  palette.cream200,  // '#F4E8D2' warm muted areas
-    bgSubtle: palette.cream150,  // '#FAF2E2' very subtle warm
-    bgInput:  palette.cream50,   // '#FFFDF8' warm input bg
+    bgScreen: webColor('bg-screen', palette.cream100), // '#FDF8EE' warm cream screen
+    bgCard:   webColor('bg-card', palette.cream50),    // '#FFFDF8' near-white warm card
+    bgMuted:  webColor('bg-muted', palette.cream200),  // '#F4E8D2' warm muted areas
+    bgSubtle: webColor('bg-subtle', palette.cream150), // '#FAF2E2' very subtle warm
+    bgInput:  webColor('bg-input', palette.cream50),   // '#FFFDF8' warm input bg
 
     // Borders / Separators — warm cream
-    separator:   palette.cream300, // '#E8D8BE'
-    border:      palette.cream400, // '#D9C4A5'
-    borderLight: palette.cream300, // '#E8D8BE'
+    separator:   webColor('separator', palette.cream300), // '#E8D8BE'
+    border:      webColor('border', palette.cream400),    // '#D9C4A5'
+    borderLight: webColor('border-light', palette.cream300), // '#E8D8BE'
 
     // Primary — deep maple amber
-    primary:       palette.maple500, // '#C9660F'
-    primaryLight:  palette.maple50,  // '#FEF6E4'
-    primaryBorder: palette.maple200, // '#FAD490'
-    primaryDark:   palette.maple600, // '#A05212'
+    primary:       webColor('primary', palette.maple500),       // '#C9660F'
+    primaryLight:  webColor('primary-light', palette.maple50),  // '#FEF6E4'
+    primaryBorder: webColor('primary-border', palette.maple200), // '#FAD490'
+    primaryDark:   webColor('primary-dark', palette.maple600),  // '#A05212'
 
     // Danger (red)
-    danger:     palette.red500,
-    dangerLight: palette.red100,
-    dangerDark:  palette.red900,
+    danger:     webColor('danger', palette.red500),
+    dangerLight: webColor('danger-light', palette.red100),
+    dangerDark:  webColor('danger-dark', palette.red900),
 
     // Success (green)
-    success:     palette.green500,
-    successLight: palette.green100,
-    successDark:  palette.green900,
+    success:     webColor('success', palette.green500),
+    successLight: webColor('success-light', palette.green100),
+    successDark:  webColor('success-dark', palette.green900),
 
     // Warning (amber)
-    warning:     palette.amber400,
-    warningLight: palette.amber300,
-    warningDark:  palette.amber600,
+    warning:     webColor('warning', palette.amber400),
+    warningLight: webColor('warning-light', palette.amber300),
+    warningDark:  webColor('warning-dark', palette.amber600),
 
     // Info (purple)
-    info:      palette.purple500,
-    infoLight: palette.purple100,
+    info:      webColor('info', palette.purple500),
+    infoLight: webColor('info-light', palette.purple100),
 
     // Accent (blue)
-    accent: palette.blue500,
+    accent: webColor('accent', palette.blue500),
 } as const
 
 // ── Spacing ─────────────────────────────────────────────────────

@@ -332,11 +332,11 @@ const styles = StyleSheet.create({
     statusText: { fontSize: fontSize.xs, fontWeight: fontWeight.bold },
 
     assetBlock: { marginBottom: spacing.xs },
-    assetLabel: { fontSize: 12, fontWeight: fontWeight.semibold, color: palette.gray900, marginBottom: spacing.xxs },
+    assetLabel: { fontSize: 12, fontWeight: fontWeight.semibold, color: colors.textPrimary, marginBottom: spacing.xxs },
     assetEmpty: { fontSize: fontSize.sm, color: colors.textPlaceholder },
     assetPlayer: { fontSize: fontSize.sm, color: colors.textSecondary },
     assetPick: { fontSize: fontSize.sm, color: colors.textSecondary, fontStyle: 'italic' },
-    assetPickVia: { fontSize: 12, color: palette.gray650 },
+    assetPickVia: { fontSize: 12, color: colors.textMuted },
 
     vetoWindowText: { fontSize: 12, color: colors.textMuted, marginBottom: spacing.xs },
     cardNotes: { fontSize: 12, color: colors.textMuted, fontStyle: 'italic', marginTop: spacing.xxs },

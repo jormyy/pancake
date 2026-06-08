@@ -173,7 +173,7 @@ export function RosterPlayerItem({
                         pressedScale={0.92}
                     >
                         {taxiingId === item.id ? (
-                            <ActivityIndicator size="small" color={palette.indigo500} />
+                            <ActivityIndicator size="small" color={colors.info} />
                         ) : (
                             <Text style={styles.taxiButtonOutlineText}>Taxi</Text>
                         )}
@@ -245,7 +245,7 @@ const styles = StyleSheet.create({
     },
 
     info: { flex: 1, gap: 2 },
-    playerName: { fontSize: fontSize.lg, fontWeight: fontWeight.semibold },
+    playerName: { fontSize: fontSize.lg, fontWeight: fontWeight.semibold, color: colors.textPrimary },
     playerMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     playerMeta: { fontSize: fontSize.sm, color: colors.textMuted },
     fptsText: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.primary },
@@ -263,9 +263,9 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     irButtonActive: { backgroundColor: colors.danger, borderColor: colors.danger },
-    taxiButtonActive: { backgroundColor: palette.indigo500, borderColor: palette.indigo500 },
-    taxiButtonOutline: { borderColor: palette.indigo500 },
-    taxiButtonOutlineText: { fontSize: 12, fontWeight: fontWeight.bold, color: palette.indigo500 },
+    taxiButtonActive: { backgroundColor: colors.info, borderColor: colors.info },
+    taxiButtonOutline: { borderColor: colors.info },
+    taxiButtonOutlineText: { fontSize: 12, fontWeight: fontWeight.bold, color: colors.info },
     actionButtonText: { fontSize: 12, fontWeight: fontWeight.bold, color: colors.textMuted },
     actionButtonTextActive: { color: colors.textWhite },
 
@@ -281,7 +281,7 @@ const styles = StyleSheet.create({
         height: 44,
         borderRadius: 22,
         borderCurve: 'continuous' as const,
-        backgroundColor: palette.indigo500,
+        backgroundColor: colors.info,
         justifyContent: 'center',
         alignItems: 'center',
     },

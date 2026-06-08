@@ -20,6 +20,16 @@ export type PlayerRow = {
     headshot_url: string | null
     nba_id: string | null
     years_exp: number | null
+    avg_fantasy_points?: number | null
+    avg_points?: number | null
+    avg_rebounds?: number | null
+    avg_assists?: number | null
+    avg_steals?: number | null
+    avg_blocks?: number | null
+    avg_turnovers?: number | null
+    avg_three_pointers_made?: number | null
+    avg_minutes_played?: number | null
+    games_played?: number | null
 }
 
 export type PlayerSeasonAverages = {
@@ -73,8 +83,140 @@ export type TransactionHistoryEntry = {
     occurredAt: string
 }
 
-export async function searchPlayers(query: string, position: string, teams: string[], leagueId?: string | null, playingTeams?: string[] | null, rookiesOnly = false, offset = 0): Promise<PlayerRow[]> {
+export type PlayerHealthFilter = 'all' | 'healthy' | 'gtd' | 'out' | 'ir'
+export type PlayerSearchQueryConstraints = {
+    includePlayerIds?: string[]
+    excludePlayerIds?: string[]
+    excludedTeams?: string[]
+}
+
+type AverageRow = {
+    player_id: string | null
+    games_played: number | null
+    avg_points: number | null
+    avg_rebounds: number | null
+    avg_assists: number | null
+    avg_steals: number | null
+    avg_blocks: number | null
+    avg_turnovers: number | null
+    avg_three_pointers_made: number | null
+    avg_minutes_played: number | null
+    players?: PlayerRow
+}
+
+const AVG_SELECT = 'player_id, games_played, avg_points, avg_rebounds, avg_assists, avg_steals, avg_blocks, avg_turnovers, avg_three_pointers_made, avg_minutes_played'
+const PLAYER_SELECT = 'id, display_name, nba_team, position, eligible_positions, status, injury_status, nba_id, years_exp'
+const AVG_WITH_PLAYER_SELECT = `${AVG_SELECT}, players!inner(${PLAYER_SELECT})`
+
+function withAverages(player: PlayerRow, averages?: AverageRow, avgFantasyPoints?: number | null): PlayerRow {
+    return {
+        ...player,
+        avg_fantasy_points: avgFantasyPoints ?? player.avg_fantasy_points ?? averages?.avg_points ?? null,
+        avg_points: averages?.avg_points ?? player.avg_points ?? null,
+        avg_rebounds: averages?.avg_rebounds ?? player.avg_rebounds ?? null,
+        avg_assists: averages?.avg_assists ?? player.avg_assists ?? null,
+        avg_steals: averages?.avg_steals ?? player.avg_steals ?? null,
+        avg_blocks: averages?.avg_blocks ?? player.avg_blocks ?? null,
+        avg_turnovers: averages?.avg_turnovers ?? player.avg_turnovers ?? null,
+        avg_three_pointers_made: averages?.avg_three_pointers_made ?? player.avg_three_pointers_made ?? null,
+        avg_minutes_played: averages?.avg_minutes_played ?? player.avg_minutes_played ?? null,
+        games_played: averages?.games_played ?? player.games_played ?? null,
+    }
+}
+
+function mapAverageRows(rows: AverageRow[]): PlayerRow[] {
+    return rows
+        .filter((row) => row.players)
+        .map((row) => withAverages(row.players!, row, row.avg_points))
+}
+
+async function hydrateAverages(
+    players: PlayerRow[],
+    season: number,
+    fantasyPointsById = new Map<string, number | null>(),
+): Promise<PlayerRow[]> {
+    if (players.length === 0) return players
+
+    const { data } = await supabase
+        .from('mv_player_season_averages')
+        .select(AVG_SELECT)
+        .eq('season_year', season)
+        .in('player_id', players.map((player) => player.id))
+
+    const averagesById = new Map<string, AverageRow>()
+    for (const row of (data ?? []) as AverageRow[]) {
+        if (row.player_id) averagesById.set(row.player_id, row)
+    }
+
+    return players.map((player) =>
+        withAverages(player, averagesById.get(player.id), fantasyPointsById.get(player.id)),
+    )
+}
+
+function applyHealthFilter<T>(query: T, column: string, health: PlayerHealthFilter): T {
+    const q = query as any
+    switch (health) {
+        case 'healthy':
+            return q.is(column, null)
+        case 'gtd':
+            return q.in(column, ['GTD', 'DTD', 'Questionable', 'Game Time Decision'])
+        case 'out':
+            return q.in(column, ['Out', 'OUT', 'O'])
+        case 'ir':
+            return q.in(column, ['IR', 'IR-LTI'])
+        default:
+            return query
+    }
+}
+
+function uniqueNonEmpty(values?: string[]): string[] {
+    return Array.from(new Set((values ?? []).filter(Boolean)))
+}
+
+function postgresInList(values: string[]): string {
+    return `(${values.join(',')})`
+}
+
+function applySearchConstraints<T>(
+    query: T,
+    playerColumnPrefix: 'players.' | '',
+    constraints: Required<PlayerSearchQueryConstraints>,
+): T {
+    const q = query as any
+    const includeIds = constraints.includePlayerIds
+    const excludeIds = constraints.excludePlayerIds
+    const excludedTeams = constraints.excludedTeams
+    const idColumn = `${playerColumnPrefix}id`
+    const teamColumn = `${playerColumnPrefix}nba_team`
+
+    let next = q
+    if (includeIds.length > 0) next = next.in(idColumn, includeIds)
+    if (excludeIds.length > 0) next = next.not(idColumn, 'in', postgresInList(excludeIds))
+    if (excludedTeams.length > 0) next = next.not(teamColumn, 'in', postgresInList(excludedTeams))
+    return next
+}
+
+export async function searchPlayers(
+    query: string,
+    position: string,
+    teams: string[],
+    leagueId?: string | null,
+    playingTeams?: string[] | null,
+    rookiesOnly = false,
+    offset = 0,
+    health: PlayerHealthFilter = 'all',
+    constraints: PlayerSearchQueryConstraints = {},
+): Promise<PlayerRow[]> {
     const season = currentSeasonYear()
+    const queryConstraints: Required<PlayerSearchQueryConstraints> = {
+        includePlayerIds: uniqueNonEmpty(constraints.includePlayerIds),
+        excludePlayerIds: uniqueNonEmpty(constraints.excludePlayerIds),
+        excludedTeams: uniqueNonEmpty(constraints.excludedTeams),
+    }
+
+    if (constraints.includePlayerIds && queryConstraints.includePlayerIds.length === 0) {
+        return []
+    }
 
     // Compute effective team filter: intersect explicit teams + playing-on-day teams
     let effectiveTeams: string[] | null = null
@@ -98,14 +240,14 @@ export async function searchPlayers(query: string, position: string, teams: stri
         let statsQ = leagueId
             ? supabase
                 .from('v_player_avg_fantasy_points')
-                .select('avg_fantasy_points, players!inner(id, display_name, nba_team, position, eligible_positions, status, injury_status, nba_id, years_exp)')
+                .select(`avg_fantasy_points, players!inner(${PLAYER_SELECT})`)
                 .eq('league_id', leagueId)
                 .eq('season_year', season)
                 .filter('players.years_exp', 'eq', 0)
                 .order('avg_fantasy_points', { ascending: false })
             : supabase
                 .from('mv_player_season_averages')
-                .select('avg_points, players!inner(id, display_name, nba_team, position, eligible_positions, status, injury_status, nba_id, years_exp)')
+                .select(AVG_WITH_PLAYER_SELECT)
                 .eq('season_year', season)
                 .filter('players.years_exp', 'eq', 0)
                 .order('avg_points', { ascending: false })
@@ -113,9 +255,17 @@ export async function searchPlayers(query: string, position: string, teams: stri
         if (query.trim()) statsQ = statsQ.ilike('players.display_name', `%${query.trim()}%`)
         if (posFilter) statsQ = statsQ.filter('players.eligible_positions', 'ov', `{${posFilter.join(',')}}`)
         if (effectiveTeams != null) statsQ = statsQ.in('players.nba_team', effectiveTeams)
+        statsQ = applyHealthFilter(statsQ, 'players.injury_status', health)
+        statsQ = applySearchConstraints(statsQ, 'players.', queryConstraints)
 
         const { data: statsData } = await statsQ
-        const withStats = (statsData ?? []).map((row: any) => row.players) as PlayerRow[]
+        const withStats = leagueId
+            ? await hydrateAverages(
+                (statsData ?? []).map((row: any) => row.players) as PlayerRow[],
+                season,
+                new Map((statsData ?? []).map((row: any) => [row.players.id, Number(row.avg_fantasy_points)])),
+            )
+            : mapAverageRows((statsData ?? []) as AverageRow[])
         const withStatsIds = new Set(withStats.map((p) => p.id))
 
         // 2. All rookies (to find those without stats)
@@ -128,25 +278,27 @@ export async function searchPlayers(query: string, position: string, teams: stri
         if (query.trim()) allQ = allQ.ilike('display_name', `%${query.trim()}%`)
         if (posFilter) allQ = allQ.filter('eligible_positions', 'ov', `{${posFilter.join(',')}}`)
         if (effectiveTeams != null) allQ = allQ.in('nba_team', effectiveTeams)
+        allQ = applyHealthFilter(allQ, 'injury_status', health)
+        allQ = applySearchConstraints(allQ, '', queryConstraints)
 
         const { data: allData } = await allQ
         const withoutStats = (allData ?? []).filter((p) => !withStatsIds.has(p.id)) as PlayerRow[]
 
-        return [...withStats, ...withoutStats]
+        return [...withStats, ...(await hydrateAverages(withoutStats, season))]
     }
 
     const PAGE = 60
     let q = leagueId
         ? supabase
             .from('v_player_avg_fantasy_points')
-            .select('avg_fantasy_points, players!inner(id, display_name, nba_team, position, eligible_positions, status, injury_status, nba_id, years_exp)')
+            .select(`avg_fantasy_points, players!inner(${PLAYER_SELECT})`)
             .eq('league_id', leagueId)
             .eq('season_year', season)
             .order('avg_fantasy_points', { ascending: false })
             .range(offset, offset + PAGE - 1)
         : supabase
             .from('mv_player_season_averages')
-            .select('avg_points, players!inner(id, display_name, nba_team, position, eligible_positions, status, injury_status, nba_id, years_exp)')
+            .select(AVG_WITH_PLAYER_SELECT)
             .eq('season_year', season)
             .order('avg_points', { ascending: false })
             .range(offset, offset + PAGE - 1)
@@ -164,11 +316,21 @@ export async function searchPlayers(query: string, position: string, teams: stri
     if (effectiveTeams != null) {
         q = q.in('players.nba_team', effectiveTeams)
     }
+    q = applyHealthFilter(q, 'players.injury_status', health)
+    q = applySearchConstraints(q, 'players.', queryConstraints)
 
     const { data, error } = await q
     if (error) throw error
 
-    return (data ?? []).map((row: any) => row.players) as PlayerRow[]
+    if (!leagueId) {
+        return mapAverageRows((data ?? []) as AverageRow[])
+    }
+
+    return hydrateAverages(
+        (data ?? []).map((row: any) => row.players) as PlayerRow[],
+        season,
+        new Map((data ?? []).map((row: any) => [row.players.id, Number(row.avg_fantasy_points)])),
+    )
 }
 
 

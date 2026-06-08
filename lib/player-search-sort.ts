@@ -21,6 +21,7 @@ export function sortPlayerSearchResults(
         let cmp = 0
         switch (sortMode) {
             case 'fpts':
+                cmp = (a.avg_fantasy_points ?? a.avg_points ?? 0) - (b.avg_fantasy_points ?? b.avg_points ?? 0)
                 break
             case 'gamesLeft': {
                 const ga = gamesLeft.get(a.nba_team ?? '') ?? 0

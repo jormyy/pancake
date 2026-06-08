@@ -14,6 +14,7 @@ type MatchupForScore = {
 type LineupPlayer = {
     member_id: string
     player_id: string
+    game_date: string
 }
 
 type LineupSlot = LineupPlayer & {
@@ -22,6 +23,7 @@ type LineupSlot = LineupPlayer & {
 
 type StatRow = Record<string, unknown> & {
     player_id: string
+    game_date: string
 }
 
 type MatchupForFinalization = {
@@ -57,10 +59,10 @@ async function loadWeekLineupAndPlayerPoints(
     weekStart: string,
     weekEnd: string,
     includeBench: boolean,
-): Promise<{ lineupRows: LineupSlot[]; pointsByPlayer: Map<string, number> } | null> {
+): Promise<{ lineupRows: LineupSlot[]; pointsByPlayerDate: Map<string, number> } | null> {
     let lineupQuery = supabase
         .from('weekly_lineups')
-        .select('member_id, player_id, slot_type')
+        .select('member_id, player_id, slot_type, game_date')
         .in('member_id', memberIds)
         .eq('league_season_id', leagueSeasonId)
         .eq('week_number', weekNumber)
@@ -82,7 +84,7 @@ async function loadWeekLineupAndPlayerPoints(
     const { data: stats, error: statsErr } = await supabase
         .from('player_game_stats')
         .select(
-            'player_id,points,rebounds,assists,steals,blocks,turnovers,' +
+            'player_id,game_date,points,rebounds,assists,steals,blocks,turnovers,' +
                 'three_pointers_made,field_goals_made,field_goals_attempted,' +
                 'free_throws_made,free_throws_attempted,double_double,triple_double,did_not_play',
         )
@@ -93,16 +95,17 @@ async function loadWeekLineupAndPlayerPoints(
 
     if (statsErr) throw statsErr
 
-    const pointsByPlayer = new Map<string, number>()
+    const pointsByPlayerDate = new Map<string, number>()
     for (const stat of (stats ?? []) as unknown as StatRow[]) {
-        const current = pointsByPlayer.get(stat.player_id) ?? 0
-        pointsByPlayer.set(
-            stat.player_id,
+        const key = `${stat.player_id}|${stat.game_date}`
+        const current = pointsByPlayerDate.get(key) ?? 0
+        pointsByPlayerDate.set(
+            key,
             current + calculateFantasyPoints(snakeToStatLine(stat), settings),
         )
     }
 
-    return { lineupRows, pointsByPlayer }
+    return { lineupRows, pointsByPlayerDate }
 }
 
 async function calcWeekPointsByMember(
@@ -127,13 +130,13 @@ async function calcWeekPointsByMember(
         false,
     )
     if (!loaded) return new Map(memberIds.map((id) => [id, 0]))
-    const { lineupRows, pointsByPlayer } = loaded
+    const { lineupRows, pointsByPlayerDate } = loaded
 
     const pointsByMember = new Map(memberIds.map((id) => [id, 0]))
     for (const row of lineupRows) {
         pointsByMember.set(
             row.member_id,
-            (pointsByMember.get(row.member_id) ?? 0) + (pointsByPlayer.get(row.player_id) ?? 0),
+            (pointsByMember.get(row.member_id) ?? 0) + (pointsByPlayerDate.get(`${row.player_id}|${row.game_date}`) ?? 0),
         )
     }
 
@@ -166,7 +169,7 @@ async function calcWeekMaxPossiblePointsByMember(
         true,
     )
     if (!loaded) return new Map(memberIds.map((id) => [id, 0]))
-    const { lineupRows, pointsByPlayer } = loaded
+    const { lineupRows, pointsByPlayerDate } = loaded
 
     const starterCounts = new Map(memberIds.map((id) => [id, 0]))
     for (const row of lineupRows) {
@@ -177,7 +180,7 @@ async function calcWeekMaxPossiblePointsByMember(
 
     const playerScoresByMember = new Map(memberIds.map((id) => [id, [] as number[]]))
     for (const row of lineupRows) {
-        playerScoresByMember.get(row.member_id)?.push(pointsByPlayer.get(row.player_id) ?? 0)
+        playerScoresByMember.get(row.member_id)?.push(pointsByPlayerDate.get(`${row.player_id}|${row.game_date}`) ?? 0)
     }
 
     const maxPointsByMember = new Map<string, number>()
@@ -496,7 +499,7 @@ async function updateWeekPoints(
 }
 
 // Main sync: updates live scores for all current-week matchups across all leagues.
-export async function syncScores(leagueId?: string) {
+export async function syncScores(leagueId?: string, referenceDate = new Date()) {
     let seasonQuery = supabase
         .from('league_seasons')
         .select('id, league_id, season_year, leagues ( scoring_settings )')
@@ -517,7 +520,7 @@ export async function syncScores(leagueId?: string) {
             const league = season.leagues as any
             const settings: Record<string, number> = league?.scoring_settings ?? {}
 
-            const weekNumber = await getWeekNumberForDate(new Date(), season.season_year)
+            const weekNumber = await getWeekNumberForDate(referenceDate, season.season_year)
             if (!weekNumber) {
                 console.log(`[scores] No current week for season ${season.season_year}`)
                 return

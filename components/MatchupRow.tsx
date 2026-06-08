@@ -1,6 +1,5 @@
-import { memo } from 'react'
+import { memo, useState } from 'react'
 import { View, Text, StyleSheet } from 'react-native'
-import { useRouter } from 'expo-router'
 import { LineupPlayer } from '@/lib/lineup'
 import { LiveStatLine } from '@/lib/games'
 import { computeLiveFantasyPoints } from '@/lib/scoring'
@@ -46,6 +45,64 @@ function StatLines({ stats, isLive, align, compact = false }: {
     )
 }
 
+function ExpandedStats({ label, player, stats, fpts, isLive }: {
+    label: string
+    player: LineupPlayer | null
+    stats?: LiveStatLine
+    fpts: number | null
+    isLive: boolean
+}) {
+    if (!player) {
+        return (
+            <View style={styles.expandedSide}>
+                <Text style={styles.expandedLabel}>{label}</Text>
+                <Text style={styles.expandedEmpty}>Empty slot</Text>
+            </View>
+        )
+    }
+
+    const items = stats
+        ? [
+              ['FP', fpts ?? '—'],
+              ['PTS', stats.points ?? 0],
+              ['REB', stats.rebounds ?? 0],
+              ['AST', stats.assists ?? 0],
+              ['STL', stats.steals ?? 0],
+              ['BLK', stats.blocks ?? 0],
+              ['3PM', stats.threeMade ?? 0],
+              ['TO', stats.turnovers ?? 0],
+          ]
+        : [
+              ['FP', '—'],
+              ['PTS', '—'],
+              ['REB', '—'],
+              ['AST', '—'],
+              ['STL', '—'],
+              ['BLK', '—'],
+              ['3PM', '—'],
+              ['TO', '—'],
+          ]
+
+    return (
+        <View style={styles.expandedSide}>
+            <Text style={styles.expandedLabel}>{label}</Text>
+            <View style={styles.expandedNameRow}>
+                <Text style={styles.expandedName} numberOfLines={1}>{player.displayName}</Text>
+                {isLive ? <LivePulse color={palette.green600} size={5} /> : null}
+            </View>
+            <View style={styles.expandedGrid}>
+                {items.map(([statLabel, value]) => (
+                    <View key={statLabel} style={styles.expandedStat}>
+                        <Text style={styles.expandedStatValue}>{value}</Text>
+                        <Text style={styles.expandedStatLabel}>{statLabel}</Text>
+                    </View>
+                ))}
+            </View>
+            {stats?.didNotPlay ? <Text style={styles.expandedNote}>Did not play</Text> : null}
+        </View>
+    )
+}
+
 type MatchupRowProps = {
     myPlayer: LineupPlayer | null
     oppPlayer: LineupPlayer | null
@@ -85,7 +142,7 @@ function MatchupRowImpl({
     dense = false,
     motionDelay = 0,
 }: MatchupRowProps) {
-    const { push } = useRouter()
+    const [expanded, setExpanded] = useState(false)
     const isSel = selected?.kind === selKind && selected.index === selIndex
     const slotColor = slotType === 'IR' ? colors.danger : slotType === 'TX' ? palette.gray500 : (POSITION_COLORS[slotType] ?? colors.textPlaceholder)
     const myHasGame = myPlayer?.nbaTeam ? playingTeams.has(myPlayer.nbaTeam) : false
@@ -110,21 +167,23 @@ function MatchupRowImpl({
     const oppShowInjury = oppPlayer?.injuryStatus && !oppPlayedToday
 
     return (
-        <MotionView
-            style={[
-                styles.matchupRow,
-                compact && styles.matchupRowCompact,
-                dense && styles.matchupRowDense,
-                isExtraOppRow && styles.extraOppRow,
-            ]}
-            preset="fade"
-            delay={motionDelay}
-        >
+        <MotionView style={styles.matchupRowWrap} preset="fade" delay={motionDelay}>
+            <View
+                style={[
+                    styles.matchupRow,
+                    compact && styles.matchupRowCompact,
+                    dense && styles.matchupRowDense,
+                    isExtraOppRow && styles.extraOppRow,
+                ]}
+            >
             {/* Left: my player (right-aligned) */}
             <MotionPressable
                 style={styles.rowSideLeft}
-                onPress={myPlayer ? () => push({ pathname: '/player/[id]', params: { id: myPlayer.playerId } }) : undefined}
+                onPress={myPlayer || oppPlayer ? () => setExpanded((value) => !value) : undefined}
                 disabled={!myPlayer}
+                accessibilityRole="button"
+                accessibilityLabel="Toggle matchup stat details"
+                accessibilityState={{ expanded }}
                 pressedScale={0.985}
             >
                 {myPlayer ? (
@@ -189,8 +248,11 @@ function MatchupRowImpl({
             {/* Right: opponent player (left-aligned) */}
             <MotionPressable
                 style={styles.rowSideRight}
-                onPress={oppPlayer ? () => push({ pathname: '/player/[id]', params: { id: oppPlayer.playerId } }) : undefined}
+                onPress={myPlayer || oppPlayer ? () => setExpanded((value) => !value) : undefined}
                 disabled={!oppPlayer}
+                accessibilityRole="button"
+                accessibilityLabel="Toggle matchup stat details"
+                accessibilityState={{ expanded }}
                 pressedScale={0.985}
             >
                 {oppPlayer ? (
@@ -228,6 +290,14 @@ function MatchupRowImpl({
                     <Text style={[styles.sideName, { color: colors.border }]}>—</Text>
                 )}
             </MotionPressable>
+            </View>
+            {expanded ? (
+                <View style={styles.expandedPanel}>
+                    <ExpandedStats label="You" player={myPlayer} stats={myStats} fpts={myFpts} isLive={myIsLive} />
+                    <View style={styles.expandedDivider} />
+                    <ExpandedStats label="Opponent" player={oppPlayer} stats={oppStats} fpts={oppFpts} isLive={oppIsLive} />
+                </View>
+            ) : null}
         </MotionView>
     )
 }
@@ -235,12 +305,14 @@ function MatchupRowImpl({
 export const MatchupRow = memo(MatchupRowImpl)
 
 const styles = StyleSheet.create({
+    matchupRowWrap: {
+        borderBottomWidth: 1,
+        borderBottomColor: colors.separator,
+    },
     matchupRow: {
         flexDirection: 'row',
         alignItems: 'center',
         paddingVertical: 8,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.separator,
         gap: 8,
     },
     matchupRowCompact: {
@@ -289,4 +361,72 @@ const styles = StyleSheet.create({
     },
     slotChipSelected: { borderWidth: 1.5, borderColor: colors.primary },
     slotChipText: { fontSize: 11, fontWeight: '800', letterSpacing: 0.3 },
+    expandedPanel: {
+        flexDirection: 'row',
+        gap: 10,
+        paddingHorizontal: 8,
+        paddingTop: 2,
+        paddingBottom: 10,
+        backgroundColor: colors.bgSubtle,
+    },
+    expandedSide: {
+        flex: 1,
+        minWidth: 0,
+        gap: 5,
+    },
+    expandedDivider: {
+        width: 1,
+        backgroundColor: colors.borderLight,
+    },
+    expandedLabel: {
+        fontSize: 10,
+        fontWeight: fontWeight.extrabold,
+        color: colors.textPlaceholder,
+        letterSpacing: 0.8,
+        textTransform: 'uppercase' as const,
+    },
+    expandedNameRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 5,
+    },
+    expandedName: {
+        flex: 1,
+        fontSize: 12,
+        fontWeight: fontWeight.bold,
+        color: colors.textPrimary,
+    },
+    expandedGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 5,
+    },
+    expandedStat: {
+        width: 42,
+        paddingVertical: 5,
+        borderRadius: 7,
+        backgroundColor: colors.bgCard,
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: colors.borderLight,
+    },
+    expandedStatValue: {
+        fontSize: 12,
+        fontWeight: fontWeight.extrabold,
+        color: colors.textPrimary,
+    },
+    expandedStatLabel: {
+        fontSize: 9,
+        fontWeight: fontWeight.bold,
+        color: colors.textMuted,
+    },
+    expandedEmpty: {
+        fontSize: 12,
+        color: colors.textPlaceholder,
+    },
+    expandedNote: {
+        fontSize: 11,
+        fontWeight: fontWeight.semibold,
+        color: colors.textMuted,
+    },
 })

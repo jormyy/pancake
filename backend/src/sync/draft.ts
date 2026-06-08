@@ -208,7 +208,7 @@ export async function closeExpiredNominations() {
     const now = new Date().toISOString()
     const { data: expired } = await supabase
         .from('nominations')
-        .select('id, draft_id, player_id, current_bid_amount, current_bidder_id')
+        .select('id, draft_id, player_id, current_bid_amount, current_bidder_id, drafts(status)')
         .eq('status', 'open')
         .lt('countdown_expires_at', now)
 
@@ -219,6 +219,23 @@ export async function closeExpiredNominations() {
 
     const results = await Promise.allSettled(
         expired.map(async (nom) => {
+            const draft = Array.isArray((nom as any).drafts)
+                ? (nom as any).drafts[0]
+                : (nom as any).drafts
+            if (draft?.status !== 'in_progress') {
+                const { error } = await supabase
+                    .from('nominations')
+                    .update({
+                        status: 'no_bid',
+                        countdown_expires_at: null,
+                        closed_at: now,
+                    })
+                    .eq('id', nom.id)
+                    .eq('status', 'open')
+                if (error) throw error
+                return nom.id
+            }
+
             const { error } = await supabase.rpc('close_auction_nomination_atomic', {
                 p_nomination_id: nom.id,
             })

@@ -6,7 +6,7 @@ import { WaiverPriorityRow } from '@/lib/waivers'
 import { TransactionRow, TRANSACTION_LABELS } from '@/lib/transactions'
 import { LeaguePickItem } from '@/lib/rookieDraft'
 import { getPositionColor } from '@/constants/positions'
-import { colors, palette, fontSize, fontWeight, spacing, TX_COLORS } from '@/constants/tokens'
+import { colors, fontSize, fontWeight, spacing, TX_COLORS } from '@/constants/tokens'
 import { playerHeadshotUrl, timeAgo } from '@/lib/format'
 import { ItemSeparator } from '@/components/ItemSeparator'
 import { EmptyState } from '@/components/EmptyState'
@@ -25,7 +25,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: spacing.xl,
         paddingVertical: 11,
     },
-    standingsRowMe: { backgroundColor: palette.maple50 },
+    standingsRowMe: { backgroundColor: colors.primaryLight },
     standingsHeader: { borderBottomWidth: 1, borderBottomColor: colors.borderLight, paddingVertical: spacing.md },
     standingsHeaderText: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.textPlaceholder },
     standingsHeaderActive: { color: colors.primary },
@@ -53,7 +53,7 @@ const styles = StyleSheet.create({
         paddingVertical: spacing.lg,
         gap: spacing.lg,
     },
-    txRowMe: { backgroundColor: palette.maple50 },
+    txRowMe: { backgroundColor: colors.primaryLight },
     txInfo: { flex: 1, gap: spacing.xxs },
     txNameRow: { flexDirection: 'row', alignItems: 'center', gap: 4, flexWrap: 'wrap' },
     txPlayer: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textPrimary },
@@ -373,4 +373,3 @@ export function PicksBankList({ picks, myMemberId }: { picks: LeaguePickItem[]; 
         />
     )
 }
-

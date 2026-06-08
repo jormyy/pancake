@@ -7,5 +7,6 @@ export {
     getWeekDays,
     getWeeklyLineup,
     setPlayerSlot,
+    setPlayerSlotMoves,
 } from './lineup/read'
 export { autoSetLineup } from './lineup/autoSet'

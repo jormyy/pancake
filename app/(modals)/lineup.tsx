@@ -17,7 +17,7 @@ import {
     LineupContext,
     LineupPlayer,
     LineupSlot,
-    setPlayerSlot,
+    setPlayerSlotMoves,
     WeekDay,
 } from '@/lib/lineup'
 import { todayET } from '@/lib/shared/dates'
@@ -280,10 +280,19 @@ export default function LineupScreen() {
 
         setSaving(true)
         try {
-            const saves: Promise<void>[] = []
-            if (aPlayer) saves.push(setPlayerSlot(current.id, currentLeague.id, ctx.seasonId, ctx.weekNumber, selectedDate, aPlayer.playerId, bSlot))
-            if (bPlayer) saves.push(setPlayerSlot(current.id, currentLeague.id, ctx.seasonId, ctx.weekNumber, selectedDate, bPlayer.playerId, aSlot))
-            await Promise.all(saves)
+            await setPlayerSlotMoves(
+                {
+                    memberId: current.id,
+                    leagueId: currentLeague.id,
+                    seasonId: ctx.seasonId,
+                    weekNumber: ctx.weekNumber,
+                    gameDate: selectedDate,
+                },
+                [
+                    ...(aPlayer ? [{ playerId: aPlayer.playerId, slotType: bSlot }] : []),
+                    ...(bPlayer ? [{ playerId: bPlayer.playerId, slotType: aSlot }] : []),
+                ],
+            )
             await loadLineup(ctx, currentLeague, selectedDate)
         } catch (e) {
             Alert.alert('Error', getErrorMessage(e))

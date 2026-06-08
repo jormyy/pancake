@@ -284,7 +284,7 @@ const styles = StyleSheet.create({
         borderBottomWidth: 1,
         borderBottomColor: colors.borderLight,
     },
-    headerTitle: { fontSize: 17, fontWeight: fontWeight.bold },
+    headerTitle: { fontSize: 17, fontWeight: fontWeight.bold, color: colors.textPrimary },
     proposeBtn: {
         backgroundColor: colors.primary,
         paddingHorizontal: spacing.lg,
@@ -333,7 +333,7 @@ const styles = StyleSheet.create({
     },
     pickCircleText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.sm },
     pickInfo: { flex: 1, gap: 2 },
-    pickLabel: { fontSize: fontSize.md, fontWeight: fontWeight.semibold },
+    pickLabel: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textPrimary },
     pickMeta: { fontSize: fontSize.sm, color: colors.textMuted },
     pickHint: { fontSize: 12, color: colors.primary, fontWeight: fontWeight.bold },
 

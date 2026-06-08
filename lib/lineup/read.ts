@@ -48,15 +48,19 @@ function endOfETDayUTC(gameDate: string): string {
     return nextDay.toISOString().slice(0, 10) + 'T05:00:00Z'
 }
 
-// Returns the set of NBA team abbreviations whose game has already started (InProgress or Final) on the given date.
+// Returns the set of NBA team abbreviations whose game has already started on the given date.
 export async function getStartedTeams(gameDate: string): Promise<Set<string>> {
     const { data } = await supabase
         .from('nba_games')
-        .select('home_team, away_team')
+        .select('home_team, away_team, status, game_time')
         .eq('game_date', gameDate)
-        .in('status', ['InProgress', 'Final'])
     const teams = new Set<string>()
+    const now = new Date().toISOString()
     for (const g of data ?? []) {
+        const hasStarted =
+            ['InProgress', 'Final'].includes(g.status ?? '') ||
+            (g.game_time != null && g.game_time <= now)
+        if (!hasStarted) continue
         if (g.home_team) teams.add(g.home_team)
         if (g.away_team) teams.add(g.away_team)
     }
@@ -354,6 +358,42 @@ export async function setPlayerSlot(
         p_game_date: gameDate,
         p_slot_type: slotType as RosterSlotType,
         p_week_number: weekNumber,
+    })
+    if (error) throw error
+}
+
+export type LineupSlotMove = {
+    playerId: string
+    slotType: string
+}
+
+export async function setPlayerSlotMoves(
+    {
+        memberId,
+        leagueId,
+        seasonId,
+        weekNumber,
+        gameDate,
+    }: {
+        memberId: string
+        leagueId: string
+        seasonId: string
+        weekNumber: number
+        gameDate: string
+    },
+    moves: LineupSlotMove[],
+): Promise<void> {
+    if (moves.length === 0) return
+    const { error } = await supabase.rpc('set_player_slot_moves_atomic', {
+        p_member_id: memberId,
+        p_league_id: leagueId,
+        p_league_season_id: seasonId,
+        p_game_date: gameDate,
+        p_week_number: weekNumber,
+        p_moves: moves.map((move) => ({
+            player_id: move.playerId,
+            slot_type: move.slotType as RosterSlotType,
+        })),
     })
     if (error) throw error
 }

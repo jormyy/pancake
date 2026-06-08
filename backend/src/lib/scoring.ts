@@ -77,19 +77,11 @@ export async function getWeekNumberForDate(date: Date, seasonYear: number): Prom
         .maybeSingle()
     if (exact) return exact.week_number
 
-    // Try without season_year filter in case of data mismatch
-    const { data: anySeason } = await supabase
-        .from('season_weeks')
-        .select('week_number, season_year')
-        .lte('week_start', dateISO)
-        .gte('week_end', dateISO)
-        .maybeSingle()
-    if (anySeason) return anySeason.week_number
-
     // Today is between weeks (gap day) — return the most recently started week
     const { data: last } = await supabase
         .from('season_weeks')
         .select('week_number, week_end, season_year')
+        .eq('season_year', seasonYear)
         .lte('week_start', dateISO)
         .order('week_start', { ascending: false })
         .limit(1)

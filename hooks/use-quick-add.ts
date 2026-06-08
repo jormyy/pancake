@@ -11,6 +11,7 @@ import {
 } from '@/lib/roster'
 import { submitWaiverClaim } from '@/lib/waivers'
 import { getErrorMessage } from '@/lib/alert'
+import { getRosterStatusChangeLockMessage } from '@/lib/roster-locks'
 
 type IRModalState = {
     ineligible: RosterPlayer[]
@@ -170,12 +171,24 @@ export function useQuickAdd(
 
     async function handleIRActivate(rp: RosterPlayer) {
         if (!leagueId) return
+        const lockMessage = await getRosterStatusChangeLockMessage(rp)
+        if (lockMessage) {
+            Alert.alert('Roster locked', lockMessage)
+            return
+        }
+
         await toggleIR(rp.id, false)
         await afterIRMutation(leagueId)
     }
 
     async function handleDropAndIRActivate(toDrop: RosterPlayer, activatePlayer: RosterPlayer) {
         if (!leagueId) return
+        const lockMessage = await getRosterStatusChangeLockMessage(activatePlayer)
+        if (lockMessage) {
+            Alert.alert('Roster locked', lockMessage)
+            return
+        }
+
         await dropPlayer(toDrop.id)
         await toggleIR(activatePlayer.id, false)
         await afterIRMutation(leagueId)

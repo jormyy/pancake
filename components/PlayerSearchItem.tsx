@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ActivityIndicator, Image } from 'react-native'
+import { View, Text, StyleSheet, ActivityIndicator, Image, Pressable } from 'react-native'
 import { useState } from 'react'
 import { PlayerRow, getEligiblePositions } from '@/lib/players'
 import { playerHeadshotUrl } from '@/lib/format'
@@ -17,6 +17,7 @@ export function PlayerSearchItem({
     waiverIds,
     adding,
     gamesLeft,
+    showStats = false,
     onAdd,
     onPress,
 }: {
@@ -26,6 +27,7 @@ export function PlayerSearchItem({
     waiverIds: Set<string>
     adding: string | null
     gamesLeft: Map<string, number>
+    showStats?: boolean
     onAdd: (player: PlayerRow) => void
     onPress: () => void
 }) {
@@ -38,6 +40,17 @@ export function PlayerSearchItem({
     const isAdding = adding === item.id
     const [headshotError, setHeadshotError] = useState(false)
     const headshotUri = playerHeadshotUrl(item.nba_id)
+    const stats = [
+        { label: 'FP', value: item.avg_fantasy_points ?? item.avg_points, highlight: true },
+        { label: 'PTS', value: item.avg_points },
+        { label: 'REB', value: item.avg_rebounds },
+        { label: 'AST', value: item.avg_assists },
+        { label: 'STL', value: item.avg_steals },
+        { label: 'BLK', value: item.avg_blocks },
+        { label: '3PM', value: item.avg_three_pointers_made },
+        { label: 'TO', value: item.avg_turnovers },
+        { label: 'GP', value: item.games_played, integer: true },
+    ]
 
     return (
         <MotionView style={styles.playerRow} preset="rise">
@@ -60,12 +73,11 @@ export function PlayerSearchItem({
                 ) : null}
             </View>
 
-            <MotionPressable
+            <Pressable
                 style={styles.playerCard}
                 onPress={onPress}
                 accessibilityRole="button"
                 accessibilityLabel={`Open ${item.display_name}`}
-                pressedScale={0.985}
             >
                 {headshotUri && !headshotError ? (
                     <Image
@@ -80,7 +92,7 @@ export function PlayerSearchItem({
                     />
                 )}
 
-                <View style={styles.playerInfo}>
+                <View style={[styles.playerInfo, !showStats && styles.playerInfoCompact]}>
                     <Text style={styles.playerName}>{item.display_name}</Text>
                     <View style={styles.playerMetaRow}>
                         {item.nba_team && <Text style={styles.playerMeta}>{item.nba_team}</Text>}
@@ -97,6 +109,19 @@ export function PlayerSearchItem({
                         )}
                     </View>
                 </View>
+
+                {showStats ? (
+                    <View style={styles.statsGrid}>
+                        {stats.map((stat) => (
+                            <StatCell
+                                key={stat.label}
+                                value={stat.value}
+                                highlight={stat.highlight}
+                                integer={stat.integer}
+                            />
+                        ))}
+                    </View>
+                ) : null}
 
                 {item.injury_status ? (
                     <Badge
@@ -128,8 +153,25 @@ export function PlayerSearchItem({
                         </Text>
                     </View>
                 ) : null}
-            </MotionPressable>
+            </Pressable>
         </MotionView>
+    )
+}
+
+function StatCell({
+    value,
+    highlight = false,
+    integer = false,
+}: {
+    value?: number | null
+    highlight?: boolean
+    integer?: boolean
+}) {
+    const display = value == null ? '—' : integer ? String(Math.round(Number(value))) : Number(value).toFixed(1)
+    return (
+        <Text style={[styles.statCell, highlight && styles.statCellPrimary]} numberOfLines={1}>
+            {display}
+        </Text>
     )
 }
 
@@ -167,18 +209,38 @@ const styles = StyleSheet.create({
         borderCurve: 'continuous' as const,
         backgroundColor: colors.bgMuted,
     },
-    playerInfo: { flex: 1 },
-    playerName: { fontSize: fontSize.lg, fontWeight: fontWeight.semibold },
+    playerInfo: { width: 420, flexShrink: 0 },
+    playerInfoCompact: { flex: 1, width: undefined, flexShrink: 1 },
+    playerName: { fontSize: fontSize.lg, fontWeight: fontWeight.semibold, color: colors.textPrimary },
     playerMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: spacing.xxs },
     playerMeta: { fontSize: fontSize.sm, color: colors.textMuted },
     gamesLeftText: { fontSize: fontSize.xs, fontWeight: fontWeight.semibold, color: colors.textMuted },
+    statsGrid: {
+        width: 9 * 54,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'flex-end',
+        flexShrink: 0,
+    },
+    statCell: {
+        width: 54,
+        textAlign: 'right',
+        fontSize: fontSize.sm,
+        fontWeight: fontWeight.semibold,
+        color: colors.textSecondary,
+    },
+    statCellPrimary: {
+        color: colors.primary,
+        fontWeight: fontWeight.extrabold,
+    },
     statusBadge: {
         paddingHorizontal: 7,
         paddingVertical: 3,
         borderRadius: radii.sm,
         borderCurve: 'continuous' as const,
         backgroundColor: palette.gray250,
-        maxWidth: 90,
+        width: 90,
+        alignItems: 'center',
     },
     statusBadgeMe: { backgroundColor: palette.green300 },
     statusBadgeWaiver: { backgroundColor: palette.purple100 },

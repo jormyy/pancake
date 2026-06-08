@@ -26,6 +26,7 @@ const OptionalLeagueIdBody = {
     type: 'object' as const,
     properties: {
         leagueId: { type: 'string' as const },
+        date: { type: 'string' as const },
     },
 }
 
@@ -76,11 +77,16 @@ export default async function e2eRoutes(app: FastifyInstance) {
     })
 
     app.post('/sync-scores', { schema: { body: OptionalLeagueIdBody } }, async (req) => {
-        const { leagueId } = (req.body ?? {}) as { leagueId?: string }
-        const games = await fetchTodaysGames()
-        if (games.length > 0) await updateGameStatuses(games)
-        await syncScores(leagueId)
-        return { ok: true, games: games.length }
+        const { date, leagueId } = (req.body ?? {}) as { date?: string; leagueId?: string }
+        const referenceDate = date ? parseDate(date) : new Date()
+        let gameCount = 0
+        if (!date) {
+            const games = await fetchTodaysGames()
+            gameCount = games.length
+            if (games.length > 0) await updateGameStatuses(games)
+        }
+        await syncScores(leagueId, referenceDate)
+        return { ok: true, games: gameCount }
     })
 
     app.post('/live-poll', { schema: { body: DateBody } }, async (req) => {

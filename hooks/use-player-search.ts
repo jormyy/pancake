@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { FlashListRef } from '@shopify/flash-list'
-import { Dimensions, type View } from 'react-native'
 import { searchPlayers, PlayerRow } from '@/lib/players'
 import { OwnedEntry } from '@/lib/roster'
 import { getWeekDays, WeekDay, getStartedTeams } from '@/lib/lineup'
@@ -22,10 +21,17 @@ type SearchParams = {
     selectedTeams: string[]
     leagueId: string | null
     playingTeams: string[] | null
+    excludedTeams: string[]
+    includePlayerIds?: string[]
+    excludePlayerIds?: string[]
     rookiesOnly: boolean
+    health: HealthFilter
 }
 
 export const SORT_OPTIONS = PLAYER_SEARCH_SORT_OPTIONS
+export type HealthFilter = 'all' | 'healthy' | 'gtd' | 'out' | 'ir'
+export type AvailabilityFilter = 'all' | 'free_agents' | 'waivers' | 'rostered' | 'mine'
+export type PlayingFilter = 'all' | 'today' | 'not_today'
 
 const PAGE_SIZE = 60
 const DEFAULT_SEARCH_PARAMS: SearchParams = {
@@ -34,7 +40,9 @@ const DEFAULT_SEARCH_PARAMS: SearchParams = {
     selectedTeams: [],
     leagueId: null,
     playingTeams: null,
+    excludedTeams: [],
     rookiesOnly: false,
+    health: 'all',
 }
 
 function useWeeklyAvailability() {
@@ -73,54 +81,20 @@ function useWeeklyAvailability() {
     return { weekDays, gamesLeft }
 }
 
-function useTeamPicker() {
-    const [selectedTeams, setSelectedTeams] = useState<string[]>([])
-    const [popover, setPopover] = useState<{ top: number; right: number } | null>(null)
-    const buttonRef = useRef<View>(null)
-
-    const toggleTeam = useCallback((team: string) => {
-        setSelectedTeams((prev) =>
-            prev.includes(team) ? prev.filter((value) => value !== team) : [...prev, team],
-        )
-    }, [])
-
-    const open = useCallback(() => {
-        buttonRef.current?.measure((_x, _y, _width, _height, pageX, pageY) => {
-            const screenWidth = Dimensions.get('window').width
-            setPopover({ top: pageY, right: screenWidth - pageX })
-        })
-    }, [])
-
-    return { selectedTeams, setSelectedTeams, toggleTeam, popover, setPopover, buttonRef, open }
-}
-
-function selectedPlayingTeams(selectedDays: string[], weekDays: WeekDay[]): string[] | null {
-    if (selectedDays.length === 0) return null
-    const sets = selectedDays.map((date) => {
-        const day = weekDays.find((candidate) => candidate.date === date)
-        return new Set(day?.playingTeams ?? [])
-    })
-    const [first, ...rest] = sets
-    if (!first) return []
-    const intersection = new Set(first)
-    for (const set of rest) {
-        for (const team of intersection) {
-            if (!set.has(team)) intersection.delete(team)
-        }
-    }
-    return Array.from(intersection)
-}
-
 export function usePlayerSearch(
     leagueId: string | null,
     ownedMap: Map<string, OwnedEntry>,
+    waiverIds: Set<string>,
+    currentMemberId?: string,
 ) {
     const [query, setQuery] = useState('')
     const [position, setPosition] = useState('ALL')
-    const [selectedDays, setSelectedDays] = useState<string[]>([])
+    const [selectedTeams, setSelectedTeams] = useState<string[]>([])
+    const [playingFilter, setPlayingFilter] = useState<PlayingFilter>('all')
     const [sortMode, setSortMode] = useState<SortMode>('fpts')
     const [sortDir, setSortDir] = useState<SortDir>('desc')
-    const [availableOnly, setAvailableOnly] = useState(true)
+    const [health, setHealth] = useState<HealthFilter>('all')
+    const [availabilityFilter, setAvailabilityFilter] = useState<AvailabilityFilter>('free_agents')
     const [rookiesOnly, setRookiesOnly] = useState(false)
     const [players, setPlayers] = useState<PlayerRow[]>([])
     const [loading, setLoading] = useState(true)
@@ -131,18 +105,45 @@ export function usePlayerSearch(
     const listRef = useRef<FlashListRef<PlayerRow>>(null)
     const isFirstLeagueRunRef = useRef(true)
 
-    const teamPicker = useTeamPicker()
-    const { selectedTeams, setSelectedTeams } = teamPicker
-    const availability = useWeeklyAvailability()
+    const weeklyAvailability = useWeeklyAvailability()
+    const todayTeams = useMemo(() => {
+        const today = todayET()
+        const todayRow = weeklyAvailability.weekDays.find((day) => day.date === today)
+        return new Set(todayRow?.playingTeams ?? [])
+    }, [weeklyAvailability.weekDays])
+    const todayTeamList = useMemo(() => Array.from(todayTeams), [todayTeams])
     const playingTeams = useMemo(
-        () => selectedPlayingTeams(selectedDays, availability.weekDays),
-        [selectedDays, availability.weekDays],
+        () => playingFilter === 'today' ? todayTeamList : null,
+        [playingFilter, todayTeamList],
     )
+    const excludedTeams = useMemo(
+        () => playingFilter === 'not_today' ? todayTeamList : [],
+        [playingFilter, todayTeamList],
+    )
+    const availabilityPlayerScope = useMemo(() => {
+        const ownedIds = Array.from(ownedMap.keys())
+        const waiverIdList = Array.from(waiverIds)
+        switch (availabilityFilter) {
+            case 'free_agents':
+                return { excludePlayerIds: Array.from(new Set([...ownedIds, ...waiverIdList])) }
+            case 'waivers':
+                return { includePlayerIds: waiverIdList }
+            case 'rostered':
+                return { includePlayerIds: ownedIds }
+            case 'mine':
+                return {
+                    includePlayerIds: Array.from(ownedMap.entries())
+                        .filter(([, entry]) => entry.memberId === currentMemberId)
+                        .map(([playerId]) => playerId),
+                }
+            default:
+                return {}
+        }
+    }, [availabilityFilter, ownedMap, waiverIds, currentMemberId])
 
     const displayedPlayers = useMemo(() => {
-        const filtered = availableOnly ? players.filter((player) => !ownedMap.has(player.id)) : players
-        return sortPlayerSearchResults(filtered, sortMode, sortDir, availability.gamesLeft)
-    }, [players, availableOnly, ownedMap, sortMode, sortDir, availability.gamesLeft])
+        return sortPlayerSearchResults(players, sortMode, sortDir, weeklyAvailability.gamesLeft)
+    }, [players, sortMode, sortDir, weeklyAvailability.gamesLeft])
 
     useEffect(() => {
         listRef.current?.scrollToOffset({ offset: 0, animated: false })
@@ -162,6 +163,12 @@ export function usePlayerSearch(
                 params.playingTeams,
                 params.rookiesOnly,
                 0,
+                params.health,
+                {
+                    includePlayerIds: params.includePlayerIds,
+                    excludePlayerIds: params.excludePlayerIds,
+                    excludedTeams: params.excludedTeams,
+                },
             )
             setPlayers(results)
             setHasMore(!params.rookiesOnly && results.length === PAGE_SIZE)
@@ -186,6 +193,12 @@ export function usePlayerSearch(
                 params.playingTeams,
                 params.rookiesOnly,
                 nextOffset,
+                params.health,
+                {
+                    includePlayerIds: params.includePlayerIds,
+                    excludePlayerIds: params.excludePlayerIds,
+                    excludedTeams: params.excludedTeams,
+                },
             )
             if (results.length > 0) {
                 offsetRef.current = nextOffset
@@ -215,25 +228,24 @@ export function usePlayerSearch(
             selectedTeams,
             leagueId,
             playingTeams,
+            excludedTeams,
+            includePlayerIds: availabilityPlayerScope.includePlayerIds,
+            excludePlayerIds: availabilityPlayerScope.excludePlayerIds,
             rookiesOnly,
+            health,
         }
         const timer = setTimeout(() => load(params), 300)
         return () => clearTimeout(timer)
-    }, [query, position, selectedTeams, leagueId, playingTeams, rookiesOnly, load])
-
-    const toggleDay = useCallback((date: string) => {
-        setSelectedDays((prev) =>
-            prev.includes(date) ? prev.filter((value) => value !== date) : [...prev, date],
-        )
-    }, [])
+    }, [query, position, selectedTeams, leagueId, playingTeams, excludedTeams, availabilityPlayerScope, rookiesOnly, health, load])
 
     const clearAllFilters = useCallback(() => {
         setQuery('')
         setPosition('ALL')
         setSelectedTeams([])
-        setSelectedDays([])
-        setAvailableOnly(true)
+        setPlayingFilter('all')
+        setAvailabilityFilter('free_agents')
         setRookiesOnly(false)
+        setHealth('all')
         setSortMode('fpts')
         setSortDir('desc')
     }, [setSelectedTeams])
@@ -243,26 +255,27 @@ export function usePlayerSearch(
         if (query.trim()) count++
         if (position !== 'ALL') count++
         if (selectedTeams.length > 0) count++
-        if (selectedDays.length > 0) count++
-        if (!availableOnly) count++
+        if (playingFilter !== 'all') count++
+        if (availabilityFilter !== 'free_agents') count++
         if (rookiesOnly) count++
+        if (health !== 'all') count++
         if (sortMode !== 'fpts') count++
         return count
-    }, [query, position, selectedTeams.length, selectedDays.length, availableOnly, rookiesOnly, sortMode])
+    }, [query, position, selectedTeams.length, playingFilter, availabilityFilter, rookiesOnly, health, sortMode])
 
     return {
         search: { query, setQuery },
         position: { value: position, setValue: setPosition },
-        teamPicker,
+        teamPicker: { selectedTeams, setSelectedTeams },
         availability: {
-            weekDays: availability.weekDays,
-            selectedDays,
-            setSelectedDays,
-            toggleDay,
-            gamesLeft: availability.gamesLeft,
+            weekDays: weeklyAvailability.weekDays,
+            gamesLeft: weeklyAvailability.gamesLeft,
         },
+        playing: { value: playingFilter, setValue: setPlayingFilter },
         sort: { mode: sortMode, setMode: setSortMode, dir: sortDir, setDir: setSortDir },
-        toggles: { availableOnly, setAvailableOnly, rookiesOnly, setRookiesOnly },
+        health: { value: health, setValue: setHealth },
+        availabilityFilter: { value: availabilityFilter, setValue: setAvailabilityFilter },
+        toggles: { rookiesOnly, setRookiesOnly },
         results: { players: displayedPlayers, loading, loadingMore, listRef, loadMore },
         activeFilterCount,
         clearAllFilters,

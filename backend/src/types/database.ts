@@ -2472,6 +2472,17 @@ export type Database = {
         }
         Returns: undefined
       }
+      set_player_slot_moves_atomic: {
+        Args: {
+          p_game_date: string
+          p_league_id: string
+          p_league_season_id: string
+          p_member_id: string
+          p_moves: Json
+          p_week_number: number
+        }
+        Returns: undefined
+      }
       toggle_ir_atomic: {
         Args: { p_roster_player_id: string; p_to_ir: boolean; p_user_id: string }
         Returns: undefined

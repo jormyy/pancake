@@ -102,6 +102,6 @@ export const captureBrowserScreenshot = async (browser, session, artifactDir, fi
     return { ok: true, path: outputPath }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    throw error instanceof Error ? error : new Error(message)
+    return { ok: false, path: outputPath, error: message }
   }
 }

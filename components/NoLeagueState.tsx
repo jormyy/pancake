@@ -24,7 +24,7 @@ export function NoLeagueState() {
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgScreen },
     inner: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32, gap: 16 },
-    title: { fontSize: 28, fontWeight: '800', textAlign: 'center' },
+    title: { fontSize: 28, fontWeight: '800', color: colors.textPrimary, textAlign: 'center' },
     sub: { fontSize: 15, color: colors.textMuted, textAlign: 'center', marginBottom: 8 },
     primaryButton: { width: '100%', height: 52, backgroundColor: colors.primary, borderRadius: 12, borderCurve: 'continuous' as const, justifyContent: 'center', alignItems: 'center' },
     primaryButtonText: { color: colors.textWhite, fontWeight: '700', fontSize: 16 },

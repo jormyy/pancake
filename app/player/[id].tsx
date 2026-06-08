@@ -13,6 +13,7 @@ import { usePlayerScreenData } from '@/hooks/use-player-screen-data'
 import { addFreeAgent, dropPlayer, getPlayerRosterStatus, getRoster, toggleIR, type PlayerRosterStatus, type RosterPlayer } from '@/lib/roster'
 import { isIneligibleIR } from '@/lib/format'
 import { showAlert, confirmAction, getErrorMessage } from '@/lib/alert'
+import { getRosterStatusChangeLockMessage } from '@/lib/roster-locks'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useCallback, useEffect, useState } from 'react'
 import {
@@ -126,6 +127,12 @@ export default function PlayerDetailScreen() {
     async function handleIRActivate(rp: RosterPlayer) {
         if (!current || !leagueId) return
         try {
+            const lockMessage = await getRosterStatusChangeLockMessage(rp)
+            if (lockMessage) {
+                showAlert('Roster locked', lockMessage)
+                return
+            }
+
             await toggleIR(rp.id, false)
             const roster = await getRoster(current.id, leagueId)
             const remaining = roster.filter((r) => isIneligibleIR(r))
@@ -153,6 +160,12 @@ export default function PlayerDetailScreen() {
         if (!current || !leagueId) return
         let dropped = false
         try {
+            const lockMessage = await getRosterStatusChangeLockMessage(activatePlayer)
+            if (lockMessage) {
+                showAlert('Roster locked', lockMessage)
+                return
+            }
+
             await dropPlayer(toDrop.id)
             dropped = true
             await toggleIR(activatePlayer.id, false)

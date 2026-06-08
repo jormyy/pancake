@@ -2049,6 +2049,11 @@ const assertCommissionerSettingsScenario = async ({ supabase, env, state, season
 }
 
 const scoringFixtureSeasonYear = () => 6000 + Number(Date.now().toString().slice(-6))
+const scoringFixtureWeekNumber = (season) => 700 + season
+const scoringFixtureDate = (season, offsetDays = 0) => {
+  const date = new Date(Date.UTC(2040, 0, 1 + season * 7 + offsetDays))
+  return date.toISOString().split('T')[0]
+}
 
 const calculateFixturePoints = (stats, settings) => {
   if (stats.did_not_play) return 0
@@ -2089,9 +2094,11 @@ const readScoringMatchup = async (supabase, matchupId, label) => {
 const assertWeeklyScoringFinalizationScenario = async ({ supabase, env, state, season }) => {
   const failures = []
   const label = 'D.SEA.2'
-  const gameDate = todayET()
   const fixtureSeasonYear = scoringFixtureSeasonYear()
-  const weekNumber = 1
+  const weekNumber = scoringFixtureWeekNumber(season)
+  const gameDate = scoringFixtureDate(season)
+  const secondDate = scoringFixtureDate(season, 1)
+  const scoringReferenceDate = `${gameDate}T12:00:00Z`
   const fixture = await createDisposableLeagueFromSeedUsers({
     supabase,
     state,
@@ -2132,7 +2139,7 @@ const assertWeeklyScoringFinalizationScenario = async ({ supabase, env, state, s
       season_year: fixtureSeasonYear,
       week_number: weekNumber,
       week_start: gameDate,
-      week_end: gameDate,
+      week_end: secondDate,
     }, { onConflict: 'season_year,week_number' })
   if (weekError) throw new Error(`${label}: season week fixture insert failed: ${weekError.message}`)
 
@@ -2157,6 +2164,22 @@ const assertWeeklyScoringFinalizationScenario = async ({ supabase, env, state, s
     .select('id')
     .single()
   if (gameError) throw new Error(`${label}: game fixture insert failed: ${gameError.message}`)
+
+  const { data: secondGame, error: secondGameError } = await supabase
+    .from('nba_games')
+    .insert({
+      sportsdata_game_id: `e2e-scoring-second-${fixtureSeasonYear}-${Date.now()}`,
+      nba_game_id: `E2ESCORINGSECOND${fixtureSeasonYear}`,
+      season_year: fixtureSeasonYear,
+      game_date: secondDate,
+      week_number: weekNumber,
+      home_team: 'E2H',
+      away_team: 'E2A',
+      status: 'Scheduled',
+    })
+    .select('id')
+    .single()
+  if (secondGameError) throw new Error(`${label}: second game fixture insert failed: ${secondGameError.message}`)
 
   const homeStarterStats = {
     player_id: homeStarter.id,
@@ -2197,6 +2220,26 @@ const assertWeeklyScoringFinalizationScenario = async ({ supabase, env, state, s
     free_throws_attempted: 2,
     double_double: false,
     triple_double: true,
+  }
+  const homeStarterSecondStats = {
+    player_id: homeStarter.id,
+    game_id: secondGame.id,
+    season_year: fixtureSeasonYear,
+    week_number: weekNumber,
+    game_date: secondDate,
+    points: 20,
+    rebounds: 2,
+    assists: 3,
+    steals: 0,
+    blocks: 1,
+    turnovers: 2,
+    three_pointers_made: 1,
+    field_goals_made: 7,
+    field_goals_attempted: 13,
+    free_throws_made: 5,
+    free_throws_attempted: 6,
+    double_double: false,
+    triple_double: false,
   }
   const benchStats = [
     {
@@ -2243,10 +2286,19 @@ const assertWeeklyScoringFinalizationScenario = async ({ supabase, env, state, s
 
   const { error: statsError } = await supabase
     .from('player_game_stats')
-    .insert([homeStarterStats, awayStarterStats, ...benchStats])
+    .insert([homeStarterStats, homeStarterSecondStats, awayStarterStats, ...benchStats])
   if (statsError) throw new Error(`${label}: player stats fixture insert failed: ${statsError.message}`)
 
   const { error: lineupError } = await supabase.from('weekly_lineups').insert([
+    {
+      league_id: fixture.league.id,
+      league_season_id: fixture.leagueSeason.id,
+      member_id: homeMember.id,
+      player_id: homeStarter.id,
+      week_number: weekNumber,
+      game_date: secondDate,
+      slot_type: 'PG',
+    },
     {
       league_id: fixture.league.id,
       league_season_id: fixture.leagueSeason.id,
@@ -2306,9 +2358,9 @@ const assertWeeklyScoringFinalizationScenario = async ({ supabase, env, state, s
     league_season_id: fixture.leagueSeason.id,
     week_number: weekNumber,
   })
-  await backendJson(env, '/e2e/sync-scores', { leagueId: fixture.league.id })
+  await backendJson(env, '/e2e/sync-scores', { leagueId: fixture.league.id, date: scoringReferenceDate })
   const scheduledSyncMatchup = await readScoringMatchup(supabase, matchup.id, label)
-  const expectedHomePoints = calculateFixturePoints(homeStarterStats, scoringSettings)
+  const expectedHomePoints = calculateFixturePoints(homeStarterStats, scoringSettings) + calculateFixturePoints(homeStarterSecondStats, scoringSettings)
   const expectedAwayPoints = calculateFixturePoints(awayStarterStats, scoringSettings)
 
   assertNumberEquals(failures, `${label}: scheduled-sync home_points`, scheduledSyncMatchup.home_points, expectedHomePoints)
@@ -2320,10 +2372,10 @@ const assertWeeklyScoringFinalizationScenario = async ({ supabase, env, state, s
   const { error: finalGameError } = await supabase
     .from('nba_games')
     .update({ status: 'Final', home_score: 120, away_score: 111, ended_at: new Date().toISOString() })
-    .eq('id', game.id)
+    .in('id', [game.id, secondGame.id])
   if (finalGameError) throw new Error(`${label}: final game update failed: ${finalGameError.message}`)
 
-  await backendJson(env, '/e2e/sync-scores', { leagueId: fixture.league.id })
+  await backendJson(env, '/e2e/sync-scores', { leagueId: fixture.league.id, date: scoringReferenceDate })
   const finalizedMatchup = await readScoringMatchup(supabase, matchup.id, label)
   const standingsAfter = await countRows(supabase, 'standings', {
     league_id: fixture.league.id,
@@ -2352,8 +2404,10 @@ const assertWeeklyScoringFinalizationScenario = async ({ supabase, env, state, s
     leagueSeasonId: fixture.leagueSeason.id,
     fixtureSeasonYear,
     weekNumber,
-    gameDate,
-    gameId: game.id,
+      gameDate,
+      secondDate,
+      gameId: game.id,
+      secondGameId: secondGame.id,
     matchupId: matchup.id,
     members: {
       home: homeMember,
@@ -2473,6 +2527,16 @@ const assertSeasonResetScenario = async ({ supabase, env, state, season }) => {
     priority: fixture.members.length - index,
   }))
 
+  const { error: weekError } = await supabase
+    .from('season_weeks')
+    .upsert({
+      season_year: fixtureSeasonYear,
+      week_number: 19,
+      week_start: `${fixtureSeasonYear}-04-08`,
+      week_end: `${fixtureSeasonYear}-04-14`,
+    }, { onConflict: 'season_year,week_number' })
+  if (weekError) throw new Error(`${label}: season week insert failed: ${weekError.message}`)
+
   const [{ error: picksError }, { error: standingsError }, { error: rosterError }, { error: lineupError }, { error: waiverError }] = await Promise.all([
     supabase.from('draft_picks').insert(pickRows),
     supabase.from('standings').insert(standingsRows),
@@ -2504,6 +2568,12 @@ const assertSeasonResetScenario = async ({ supabase, env, state, season }) => {
     .select('id')
     .single()
   if (matchupError || !matchup) throw new Error(`${label}: historical matchup insert failed: ${matchupError?.message ?? 'missing row'}`)
+
+  const { error: statusError } = await supabase
+    .from('leagues')
+    .update({ status: 'playoffs' })
+    .eq('id', fixture.league.id)
+  if (statusError) throw new Error(`${label}: playoff status staging failed: ${statusError.message}`)
 
   const resetResult = await backendJson(env, '/e2e/advance-season', { leagueId: fixture.league.id })
   const newSeasonId = resetResult.newSeasonId
@@ -3300,6 +3370,15 @@ const insertRealtimeAuctionTarget = async (supabase, leagueId, season) => {
   const player = await findAvailablePlayer(supabase, leagueId, currentSeason.id)
   const now = new Date().toISOString()
 
+  const { error: cleanupDraftError } = await supabase
+    .from('drafts')
+    .update({ status: 'completed', completed_at: now })
+    .eq('league_id', leagueId)
+    .eq('league_season_id', currentSeason.id)
+    .eq('draft_type', 'auction')
+    .in('status', ['pending', 'in_progress'])
+  if (cleanupDraftError) throw new Error(`D.X.2 realtime auction draft cleanup: ${cleanupDraftError.message}`)
+
   const { data: draft, error: draftError } = await supabase
     .from('drafts')
     .insert({
@@ -3391,19 +3470,21 @@ const assertRealtimeDelivery = async ({ supabase, env, state, leagueId, season }
   const expectedAwayPoints = 900 + season
   const expectedBidAmount = 2
   const warmupSeen = new Set()
+  let bidSucceeded = false
+  const realtimeAccessToken = await signInForAccessToken(
+    env,
+    state.users[0].email,
+    state.password,
+    'D.X.2 realtime sign-in',
+  )
 
   try {
-    const users = Array.from({ length: REALTIME_CLIENTS }, (_, index) => state.users[index % state.users.length])
-    const setups = await Promise.all(users.map(async (user, index) => {
+    const setups = Array.from({ length: REALTIME_CLIENTS }, (_, index) => {
       const client = createClient(env.supabaseUrl, env.anonKey, {
         auth: { persistSession: false },
         realtime: { transport: WebSocket, timeout: REALTIME_SUBSCRIBE_TIMEOUT_MS },
       })
-      const { data: signInData, error: signInError } = await client.auth.signInWithPassword({ email: user.email, password: state.password })
-      if (signInError) throw new Error(`D.X.2 realtime sign-in failed for ${user.email}: ${signInError.message}`)
-      if (signInData.session?.access_token) {
-        client.realtime.setAuth(signInData.session.access_token)
-      }
+      client.realtime.setAuth(realtimeAccessToken)
 
       let resolveWarmup
       const warmupDelivery = new Promise((resolve) => {
@@ -3454,7 +3535,7 @@ const assertRealtimeDelivery = async ({ supabase, env, state, leagueId, season }
         })
       })
       return { client, channel, warmupDelivery, delivery, bidDelivery }
-    }))
+    })
     clients.push(...setups.map(({ client }) => client))
     channels.push(...setups.map(({ client, channel }) => ({ client, channel })))
     warmupDeliveries.push(...setups.map(({ warmupDelivery }) => warmupDelivery))
@@ -3510,6 +3591,7 @@ const assertRealtimeDelivery = async ({ supabase, env, state, leagueId, season }
       p_amount: expectedBidAmount,
     })
     if (bidError) throw new Error(`D.X.2 realtime auction bid RPC: ${bidError.message}`)
+    bidSucceeded = true
     const bidCommittedMs = nowMs()
 
     const bidResults = await withTimeout(
@@ -3540,6 +3622,28 @@ const assertRealtimeDelivery = async ({ supabase, env, state, leagueId, season }
       }, null, 2)}\n`,
     )
   } finally {
+    const closedAt = new Date().toISOString()
+    await supabase
+      .from('nominations')
+      .update(bidSucceeded
+        ? {
+            status: 'sold',
+            winning_member_id: bidTarget.bidderTwo,
+            final_price: expectedBidAmount,
+            countdown_expires_at: null,
+            closed_at: closedAt,
+          }
+        : {
+            status: 'no_bid',
+            countdown_expires_at: null,
+            closed_at: closedAt,
+          })
+      .eq('id', bidTarget.nominationId)
+      .eq('status', 'open')
+    await supabase
+      .from('drafts')
+      .update({ status: 'completed', completed_at: closedAt })
+      .eq('id', bidTarget.draftId)
     await Promise.allSettled(channels.map(({ client, channel }) => client.removeChannel(channel)))
     await Promise.allSettled(clients.map(async (client) => {
       if (typeof client.removeAllChannels === 'function') {
@@ -3810,18 +3914,26 @@ const assertBackendUsesFakePush = async (env, fakePort) => {
   }
 }
 
-const signInForAccessToken = async (env, email, password) => {
+const signInForAccessToken = async (env, email, password, label = 'E2E sign-in') => {
   if (!env.anonKey) {
     throw new Error(
       'E2E authenticated backend scenarios require E2E_SUPABASE_PUBLISHABLE_KEY, EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY, E2E_SUPABASE_ANON_KEY, or EXPO_PUBLIC_SUPABASE_ANON_KEY',
     )
   }
   const client = createClient(env.supabaseUrl, env.anonKey, { auth: { persistSession: false } })
-  const { data, error } = await client.auth.signInWithPassword({ email, password })
-  if (error) throw new Error(`E2E sign-in failed for ${email}: ${error.message}`)
-  const token = data.session?.access_token
-  if (!token) throw new Error(`E2E sign-in for ${email} returned no access token`)
-  return token
+  let lastError = null
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const { data, error } = await client.auth.signInWithPassword({ email, password })
+    if (!error) {
+      const token = data.session?.access_token
+      if (!token) throw new Error(`${label} for ${email} returned no access token`)
+      return token
+    }
+    lastError = error
+    if (!/rate limit/i.test(error.message) || attempt === 4) break
+    await sleep((attempt + 1) * 5000)
+  }
+  throw new Error(`${label} failed for ${email}: ${lastError?.message ?? 'unknown error'}`)
 }
 
 const assertTradePushNotification = async ({ supabase, env, state, leagueId, season, fakePort }) => {
@@ -4155,6 +4267,14 @@ const assertAuctionBidValidation = async ({ supabase, leagueId, season }) => {
 
   const [{ id: bidderOne }, { id: bidderTwo }] = members
   const now = new Date().toISOString()
+  const { error: cleanupDraftError } = await supabase
+    .from('drafts')
+    .update({ status: 'completed', completed_at: now })
+    .eq('league_id', leagueId)
+    .eq('league_season_id', currentSeason.id)
+    .in('status', ['pending', 'in_progress', 'paused'])
+  if (cleanupDraftError) throw new Error(`D.SET.4 auction draft cleanup: ${cleanupDraftError.message}`)
+
   const { data: draft, error: draftError } = await supabase
     .from('drafts')
     .insert({
@@ -5090,6 +5210,11 @@ const main = async () => {
               scenarios.historyFixtures.push(fixture)
             }
           }
+          const { error: targetStatusError } = await supabase
+            .from('leagues')
+            .update({ status: 'playoffs' })
+            .eq('id', targetLeagueId)
+          if (targetStatusError) throw new Error(`D.SEA.6 target playoff status staging failed: ${targetStatusError.message}`)
           await backendJson(env, '/e2e/advance-season', { leagueId: targetLeagueId })
           failuresAfterReset.push(...await runInvariants(supabase, targetLeagueId, scenarios))
           if (args.history) {

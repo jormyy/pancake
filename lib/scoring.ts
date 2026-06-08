@@ -62,6 +62,18 @@ export type StandingRow = {
     maxPointsFor: number
 }
 
+export type LeagueWeekMatchup = {
+    id: string
+    homeMemberId: string
+    awayMemberId: string
+    homeTeamName: string
+    awayTeamName: string
+    homePoints: number | null
+    awayPoints: number | null
+    isFinalized: boolean
+    isMine: boolean
+}
+
 export async function getMyMatchup(memberId: string, leagueId: string): Promise<Matchup | null> {
     const season = await getCurrentSeason(leagueId)
     if (!season) return null
@@ -144,6 +156,51 @@ export async function getMyMatchup(memberId: string, leagueId: string): Promise<
         seasonId: season.id,
         seasonYear: season.seasonYear,
     }
+}
+
+export async function getLeagueWeekMatchups(
+    leagueId: string,
+    seasonId: string,
+    weekNumber: number,
+    myMemberId: string,
+): Promise<LeagueWeekMatchup[]> {
+    const { data: rows, error } = await supabase
+        .from('matchups')
+        .select(
+            `
+            id, home_member_id, away_member_id, home_points, away_points, is_finalized,
+            home:league_members!matchups_home_member_id_fkey(id, team_name),
+            away:league_members!matchups_away_member_id_fkey(id, team_name)
+            `,
+        )
+        .eq('league_id', leagueId)
+        .eq('league_season_id', seasonId)
+        .eq('week_number', weekNumber)
+
+    if (error) throw error
+    if (!rows?.length) return []
+
+    type MemberRef = { id: string; team_name: string } | null
+    type Row = (typeof rows)[number] & { home: MemberRef; away: MemberRef }
+
+    return (rows as Row[])
+        .map((row) => ({
+            id: row.id,
+            homeMemberId: row.home_member_id,
+            awayMemberId: row.away_member_id,
+            homeTeamName: row.home?.team_name ?? 'Home',
+            awayTeamName: row.away?.team_name ?? 'Away',
+            homePoints: row.home_points != null ? Number(row.home_points) : null,
+            awayPoints: row.away_points != null ? Number(row.away_points) : null,
+            isFinalized: row.is_finalized,
+            isMine: row.home_member_id === myMemberId || row.away_member_id === myMemberId,
+        }))
+        .sort((a, b) => {
+            if (a.isMine !== b.isMine) return a.isMine ? -1 : 1
+            const aMax = Math.max(a.homePoints ?? 0, a.awayPoints ?? 0)
+            const bMax = Math.max(b.homePoints ?? 0, b.awayPoints ?? 0)
+            return bMax - aMax
+        })
 }
 
 export async function getLeagueStandings(leagueId: string): Promise<StandingRow[]> {
