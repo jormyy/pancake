@@ -6,7 +6,7 @@ const SIDEBAR_WIDTH = 248
 const MOBILE_TOPBAR_HEIGHT = 56
 const MOBILE_BOTTOMBAR_HEIGHT = 64
 
-type WebOnlyViewStyle = ViewStyle & {
+type WebOnlyViewStyle = Omit<ViewStyle, 'position'> & {
     backdropFilter?: string
     WebkitBackdropFilter?: string
     display?: 'flex'
