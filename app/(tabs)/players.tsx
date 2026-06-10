@@ -263,11 +263,17 @@ export default function PlayersScreen() {
                     ItemSeparatorComponent={ItemSeparator}
                     ListHeaderComponent={showStatTable ? (
                         <View style={styles.tableHeader}>
-                            <Text style={styles.tableHeaderPlayer}>Player</Text>
-                            {TABLE_COLUMNS.map((column) => (
-                                <Text key={column} style={styles.tableHeaderStat}>{column}</Text>
-                            ))}
-                            <Text style={styles.tableHeaderStatus}>Status</Text>
+                            <View style={styles.tableHeaderAddSpacer} />
+                            <View style={styles.tableHeaderCardRow}>
+                                <View style={styles.tableHeaderHeadshotSpacer} />
+                                <Text style={styles.tableHeaderPlayer}>Player</Text>
+                                <Text style={styles.tableHeaderOwnership}>Ownership</Text>
+                                <View style={styles.tableHeaderStatsGroup}>
+                                    {TABLE_COLUMNS.map((column) => (
+                                        <Text key={column} style={styles.tableHeaderStat}>{column}</Text>
+                                    ))}
+                                </View>
+                            </View>
                         </View>
                     ) : null}
                     renderItem={({ item }: { item: PlayerRow }) => (
@@ -453,30 +459,47 @@ const styles = StyleSheet.create({
         minHeight: 34,
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: spacing.xl,
+        paddingLeft: spacing.lg,    // mirrors playerRow.paddingLeft
         borderTopWidth: 1,
         borderBottomWidth: 1,
         borderColor: colors.borderLight,
         backgroundColor: colors.bgSubtle,
     },
+    tableHeaderAddSpacer: { width: 36 },    // mirrors addCol.width
+    tableHeaderCardRow: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingLeft: spacing.md,    // mirrors playerCard.paddingLeft
+        paddingRight: spacing['4xl'], // mirrors playerCard.paddingRight
+        gap: spacing.lg,            // mirrors playerCard.gap
+    },
+    tableHeaderHeadshotSpacer: { width: 44 },  // mirrors headshot.width
     tableHeaderPlayer: {
-        width: 36 + 420,
+        flex: 1,                    // mirrors playerInfo flex: 1
         fontSize: 10,
         fontWeight: fontWeight.extrabold,
         color: colors.textMuted,
         letterSpacing: 0.8,
         textTransform: 'uppercase' as const,
     },
-    tableHeaderStat: {
-        width: 54,
-        textAlign: 'right',
+    tableHeaderOwnership: {
+        width: 90,                  // mirrors statusBadge.width
+        textAlign: 'center',
         fontSize: 10,
         fontWeight: fontWeight.extrabold,
         color: colors.textMuted,
         letterSpacing: 0.7,
+        textTransform: 'uppercase' as const,
     },
-    tableHeaderStatus: {
-        width: 90,
+    tableHeaderStatsGroup: {
+        width: 9 * 54,              // mirrors statsGrid.width
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'flex-end', // mirrors statsGrid.justifyContent
+    },
+    tableHeaderStat: {
+        width: 54,                  // mirrors statCell.width
         textAlign: 'right',
         fontSize: 10,
         fontWeight: fontWeight.extrabold,
