@@ -1,7 +1,7 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { ComponentProps, useCallback, useEffect, useMemo, useState } from 'react'
 import { ActivityIndicator, Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native'
-import { Link, Tabs, useGlobalSearchParams, usePathname, useRouter } from 'expo-router'
+import { Link, Tabs, usePathname, useRouter } from 'expo-router'
 import { useLeagueContext } from '@/contexts/league-context'
 import { getActiveDraft } from '@/lib/draft'
 import { colors } from '@/constants/tokens'
@@ -280,12 +280,8 @@ function useDraftRoomLauncher() {
 function WebSidebar() {
     const pathname = usePathname()
     const router = useRouter()
-    const params = useGlobalSearchParams<{ tab?: string }>()
     const { current, isCommissioner } = useLeagueContext()
     const { openDraftRoom, draftLoading } = useDraftRoomLauncher()
-    const activeLeagueTab = params.tab === 'activity' || params.tab === 'waivers' || params.tab === 'picks'
-        ? params.tab
-        : 'standings'
 
     return (
         <View style={styles.sidebar}>
@@ -312,17 +308,13 @@ function WebSidebar() {
                     ))}
                 </View>
 
-                <Text style={styles.navSectionLabel}>League</Text>
                 <View style={styles.navGroup}>
-                    {LEAGUE_NAV.map((item) => (
-                        <SidebarNavButton
-                            key={item.tab}
-                            label={item.label}
-                            icon={item.icon}
-                            active={pathname.startsWith('/league') && activeLeagueTab === item.tab}
-                            href={`/league?tab=${item.tab}`}
-                        />
-                    ))}
+                    <SidebarNavButton
+                        label="League"
+                        icon="emoji-events"
+                        active={pathname.startsWith('/league')}
+                        href="/league"
+                    />
                 </View>
 
                 <Text style={styles.navSectionLabel}>Season</Text>
