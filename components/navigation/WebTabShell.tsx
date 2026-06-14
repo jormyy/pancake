@@ -1,7 +1,7 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { ComponentProps, useCallback, useEffect, useMemo, useState } from 'react'
-import { ActivityIndicator, Pressable, Text, useWindowDimensions, View } from 'react-native'
-import { Link, Tabs, useGlobalSearchParams, usePathname, useRouter } from 'expo-router'
+import { ActivityIndicator, Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native'
+import { Link, Tabs, usePathname, useRouter } from 'expo-router'
 import { useLeagueContext } from '@/contexts/league-context'
 import { getActiveDraft } from '@/lib/draft'
 import { colors } from '@/constants/tokens'
@@ -112,24 +112,11 @@ function injectThemeVariables() {
 }
 
 function usePancakeWebTheme() {
-    const [theme, setTheme] = useState<'light' | 'dark'>(() => {
-        if (typeof window === 'undefined') return 'light'
-        const stored = window.localStorage.getItem('pancake-web-theme')
-        if (stored === 'light' || stored === 'dark') return stored
-        return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
-    })
-
     useEffect(() => {
         injectThemeVariables()
-    }, [])
-
-    useEffect(() => {
         if (typeof document === 'undefined') return
-        document.documentElement.setAttribute('data-pancake-theme', theme)
-        window.localStorage.setItem('pancake-web-theme', theme)
-    }, [theme])
-
-    return { theme, setTheme }
+        document.documentElement.setAttribute('data-pancake-theme', 'light')
+    }, [])
 }
 
 function BrandMark({ compact = false }: { compact?: boolean }) {
@@ -238,36 +225,11 @@ function SidebarNavButton({
     disabled?: boolean
     loading?: boolean
 }) {
-    const content = (
-        <>
-            {loading ? <ActivityIndicator size="small" color="rgba(255, 246, 232, 0.82)" /> : <NavIcon name={icon} active={active} />}
-            <Text style={[styles.sideNavText, active && styles.sideNavTextActive]} numberOfLines={1}>{label}</Text>
-        </>
-    )
-
-    if (href && !disabled && !loading) {
-        return (
-            <Link href={href} asChild>
-                <Pressable
-                    style={({ hovered, pressed }: PressableState) => [
-                        styles.sideNavItem,
-                        active && styles.sideNavItemActive,
-                        hovered && !active && styles.sideNavItemHover,
-                        pressed && styles.pressed,
-                    ]}
-                    accessibilityRole="button"
-                    accessibilityLabel={label}
-                    accessibilityState={{ selected: active }}
-                >
-                    {content}
-                </Pressable>
-            </Link>
-        )
-    }
+    const router = useRouter()
 
     return (
         <Pressable
-            onPress={onPress}
+            onPress={onPress ?? (href ? () => router.push(href) : undefined)}
             disabled={disabled || loading}
             style={({ hovered, pressed }: PressableState) => [
                 styles.sideNavItem,
@@ -280,35 +242,12 @@ function SidebarNavButton({
             accessibilityLabel={label}
             accessibilityState={{ selected: active, disabled: disabled || loading }}
         >
-            {content}
+            {loading ? <ActivityIndicator size="small" color="rgba(255, 246, 232, 0.82)" /> : <NavIcon name={icon} active={active} />}
+            <Text style={[styles.sideNavText, active && styles.sideNavTextActive]} numberOfLines={1}>{label}</Text>
         </Pressable>
     )
 }
 
-function ThemeToggle({ theme, setTheme }: ReturnType<typeof usePancakeWebTheme>) {
-    return (
-        <View style={styles.themeToggle}>
-            <View style={[styles.themeKnob, theme === 'dark' && styles.themeKnobDark]} />
-            {(['light', 'dark'] as const).map((option) => {
-                const active = theme === option
-                return (
-                    <Pressable
-                        key={option}
-                        onPress={() => setTheme(option)}
-                        style={styles.themeOption}
-                        accessibilityRole="button"
-                        accessibilityState={{ selected: active }}
-                    >
-                        <MaterialIcons name={option === 'light' ? 'light-mode' : 'dark-mode'} size={15} color={active ? colors.textWhite : 'rgba(232, 210, 184, 0.68)'} />
-                        <Text style={[styles.themeOptionText, active && styles.themeOptionTextActive]}>
-                            {option === 'light' ? 'Light' : 'Dark'}
-                        </Text>
-                    </Pressable>
-                )
-            })}
-        </View>
-    )
-}
 
 function useDraftRoomLauncher() {
     const router = useRouter()
@@ -338,64 +277,57 @@ function useDraftRoomLauncher() {
     return { openDraftRoom, draftLoading }
 }
 
-function WebSidebar({ theme, setTheme }: ReturnType<typeof usePancakeWebTheme>) {
+function WebSidebar() {
     const pathname = usePathname()
     const router = useRouter()
-    const params = useGlobalSearchParams<{ tab?: string }>()
     const { current, isCommissioner } = useLeagueContext()
     const { openDraftRoom, draftLoading } = useDraftRoomLauncher()
-    const activeLeagueTab = params.tab === 'activity' || params.tab === 'waivers' || params.tab === 'picks'
-        ? params.tab
-        : 'standings'
 
     return (
         <View style={styles.sidebar}>
-            <View style={styles.brandRow}>
-                <BrandMark />
-                <View>
-                    <Text style={styles.brandTitle}>Pancake</Text>
-                    <Text style={styles.brandSubtitle}>Dynasty Hoops</Text>
+            <ScrollView style={styles.sidebarScroll} contentContainerStyle={styles.sidebarScrollContent} showsVerticalScrollIndicator={false}>
+                <View style={styles.brandRow}>
+                    <BrandMark />
+                    <View>
+                        <Text style={styles.brandTitle}>Pancake</Text>
+                        <Text style={styles.brandSubtitle}>Dynasty Hoops</Text>
+                    </View>
                 </View>
-            </View>
 
-            <LeagueSwitcher />
+                <LeagueSwitcher />
 
-            <View style={styles.navGroup}>
-                {PRIMARY_NAV.map((item) => (
+                <View style={styles.navGroup}>
+                    {PRIMARY_NAV.map((item) => (
+                        <SidebarNavButton
+                            key={item.href}
+                            label={item.label}
+                            icon={item.icon}
+                            active={isRouteActive(pathname, item.href)}
+                            href={item.href}
+                        />
+                    ))}
+                </View>
+
+                <View style={styles.navGroup}>
                     <SidebarNavButton
-                        key={item.href}
-                        label={item.label}
-                        icon={item.icon}
-                        active={isRouteActive(pathname, item.href)}
-                        href={item.href}
+                        label="League"
+                        icon="emoji-events"
+                        active={pathname.startsWith('/league')}
+                        href="/league"
                     />
-                ))}
-            </View>
+                </View>
 
-            <Text style={styles.navSectionLabel}>League</Text>
-            <View style={styles.navGroup}>
-                {LEAGUE_NAV.map((item) => (
-                    <SidebarNavButton
-                        key={item.tab}
-                        label={item.label}
-                        icon={item.icon}
-                        active={pathname.startsWith('/league') && activeLeagueTab === item.tab}
-                        href={`/league?tab=${item.tab}`}
-                    />
-                ))}
-            </View>
-
-            <Text style={styles.navSectionLabel}>Season</Text>
-            <View style={styles.navGroup}>
-                <SidebarNavButton label="Draft Room" icon="flash-on" onPress={openDraftRoom} loading={draftLoading} />
-                <SidebarNavButton label="Playoffs" icon="account-tree" onPress={() => router.push('/(modals)/bracket')} />
-                {isCommissioner ? (
-                    <SidebarNavButton label="Commissioner" icon="admin-panel-settings" onPress={() => router.push('/(modals)/commissioner-settings')} />
-                ) : null}
-            </View>
+                <Text style={styles.navSectionLabel}>Season</Text>
+                <View style={styles.navGroup}>
+                    <SidebarNavButton label="Draft Room" icon="flash-on" onPress={openDraftRoom} loading={draftLoading} />
+                    <SidebarNavButton label="Playoffs" icon="account-tree" onPress={() => router.push('/(modals)/bracket')} />
+                    {isCommissioner ? (
+                        <SidebarNavButton label="Commissioner" icon="admin-panel-settings" onPress={() => router.push('/(modals)/commissioner-settings')} />
+                    ) : null}
+                </View>
+            </ScrollView>
 
             <View style={styles.sidebarFooter}>
-                <ThemeToggle theme={theme} setTheme={setTheme} />
                 <Pressable
                     onPress={() => router.push('/profile')}
                     style={({ hovered, pressed }: PressableState) => [
@@ -456,12 +388,7 @@ function MobileBottomNav() {
     )
 }
 
-function MobileMenuSheet({
-    visible,
-    onClose,
-    theme,
-    setTheme,
-}: { visible: boolean; onClose: () => void } & ReturnType<typeof usePancakeWebTheme>) {
+function MobileMenuSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
     const router = useRouter()
     const { isCommissioner } = useLeagueContext()
     const { openDraftRoom, draftLoading } = useDraftRoomLauncher()
@@ -513,9 +440,6 @@ function MobileMenuSheet({
                         )}
                     </Pressable>
                 ))}
-                <View style={styles.sheetThemeWrap}>
-                    <ThemeToggle theme={theme} setTheme={setTheme} />
-                </View>
             </View>
         </Pressable>
     )
@@ -524,12 +448,12 @@ function MobileMenuSheet({
 function WebShell() {
     const { width } = useWindowDimensions()
     const compact = width < 780
-    const themeState = usePancakeWebTheme()
+    usePancakeWebTheme()
     const [menuOpen, setMenuOpen] = useState(false)
 
     return (
         <View style={[styles.root, compact ? styles.rootCompact : styles.rootDesktop]}>
-            {compact ? <MobileTopBar onMenuPress={() => setMenuOpen(true)} /> : <WebSidebar {...themeState} />}
+            {compact ? <MobileTopBar onMenuPress={() => setMenuOpen(true)} /> : <WebSidebar />}
             <View style={[styles.content, compact && styles.contentCompact]}>
                 <Tabs tabBar={() => null} screenOptions={{ headerShown: false }}>
                     <Tabs.Screen name="index" />
@@ -543,7 +467,7 @@ function WebShell() {
             {compact ? (
                 <>
                     <MobileBottomNav />
-                    <MobileMenuSheet visible={menuOpen} onClose={() => setMenuOpen(false)} {...themeState} />
+                    <MobileMenuSheet visible={menuOpen} onClose={() => setMenuOpen(false)} />
                 </>
             ) : null}
         </View>

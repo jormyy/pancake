@@ -21,8 +21,6 @@ import Animated, {
     withTiming,
 } from 'react-native-reanimated'
 
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable)
-
 const ENTER_SPRING = { damping: 18, stiffness: 210, mass: 0.72 }
 const PRESS_SPRING = { damping: 16, stiffness: 360, mass: 0.42 }
 
@@ -74,7 +72,7 @@ type MotionPressableProps = Omit<PressableProps, 'style'> & {
     disabled?: boolean
     lift?: number
     pressedScale?: number
-    style?: PressableProps['style']
+    style?: StyleProp<ViewStyle>
 }
 
 export function MotionPressable({
@@ -101,41 +99,42 @@ export function MotionPressable({
         ],
     }), [disabled, lift, pressedScale])
 
+    // Animated.View owns layout + animation; Pressable is an absoluteFill overlay
+    // so that static layout styles (flexDirection, padding, etc.) always apply
+    // correctly on web (createAnimatedComponent(Pressable) drops static styles on web).
     return (
-        <AnimatedPressable
-            {...props}
-            disabled={disabled}
-            onHoverIn={(event) => {
-                if (!reduceMotion && !disabled) {
-                    hovered.value = withSpring(1, PRESS_SPRING)
-                }
-                onHoverIn?.(event)
-            }}
-            onHoverOut={(event) => {
-                if (!reduceMotion) {
-                    hovered.value = withSpring(0, PRESS_SPRING)
-                }
-                onHoverOut?.(event)
-            }}
-            onPressIn={(event) => {
-                if (!reduceMotion && !disabled) {
-                    pressed.value = withSpring(1, PRESS_SPRING)
-                }
-                onPressIn?.(event)
-            }}
-            onPressOut={(event) => {
-                if (!reduceMotion) {
-                    pressed.value = withSpring(0, PRESS_SPRING)
-                }
-                onPressOut?.(event)
-            }}
-            style={(state) => [
-                typeof style === 'function' ? style(state) : style,
-                animatedStyle,
-            ]}
-        >
+        <Animated.View style={[style, animatedStyle]}>
             {children}
-        </AnimatedPressable>
+            <Pressable
+                {...props}
+                disabled={disabled}
+                style={StyleSheet.absoluteFill}
+                onHoverIn={(event) => {
+                    if (!reduceMotion && !disabled) {
+                        hovered.value = withSpring(1, PRESS_SPRING)
+                    }
+                    onHoverIn?.(event)
+                }}
+                onHoverOut={(event) => {
+                    if (!reduceMotion) {
+                        hovered.value = withSpring(0, PRESS_SPRING)
+                    }
+                    onHoverOut?.(event)
+                }}
+                onPressIn={(event) => {
+                    if (!reduceMotion && !disabled) {
+                        pressed.value = withSpring(1, PRESS_SPRING)
+                    }
+                    onPressIn?.(event)
+                }}
+                onPressOut={(event) => {
+                    if (!reduceMotion) {
+                        pressed.value = withSpring(0, PRESS_SPRING)
+                    }
+                    onPressOut?.(event)
+                }}
+            />
+        </Animated.View>
     )
 }
 

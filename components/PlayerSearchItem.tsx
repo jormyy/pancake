@@ -92,7 +92,7 @@ export function PlayerSearchItem({
                     />
                 )}
 
-                <View style={[styles.playerInfo, !showStats && styles.playerInfoCompact]}>
+                <View style={styles.playerInfo}>
                     <Text style={styles.playerName}>{item.display_name}</Text>
                     <View style={styles.playerMetaRow}>
                         {item.nba_team && <Text style={styles.playerMeta}>{item.nba_team}</Text>}
@@ -107,29 +107,15 @@ export function PlayerSearchItem({
                                 {gamesLeft.get(item.nba_team) ?? 0}G left
                             </Text>
                         )}
+                        {item.injury_status ? (
+                            <Badge
+                                label={item.injury_status}
+                                color={INJURY_COLORS[item.injury_status] ?? colors.textMuted}
+                                variant="solid"
+                            />
+                        ) : null}
                     </View>
                 </View>
-
-                {showStats ? (
-                    <View style={styles.statsGrid}>
-                        {stats.map((stat) => (
-                            <StatCell
-                                key={stat.label}
-                                value={stat.value}
-                                highlight={stat.highlight}
-                                integer={stat.integer}
-                            />
-                        ))}
-                    </View>
-                ) : null}
-
-                {item.injury_status ? (
-                    <Badge
-                        label={item.injury_status}
-                        color={INJURY_COLORS[item.injury_status] ?? colors.textMuted}
-                        variant="solid"
-                    />
-                ) : null}
 
                 {currentMemberId ? (
                     <View style={[
@@ -151,6 +137,19 @@ export function PlayerSearchItem({
                                 : isWaiver ? 'W'
                                 : 'FA'}
                         </Text>
+                    </View>
+                ) : null}
+
+                {showStats ? (
+                    <View style={styles.statsGrid}>
+                        {stats.map((stat) => (
+                            <StatCell
+                                key={stat.label}
+                                value={stat.value}
+                                highlight={stat.highlight}
+                                integer={stat.integer}
+                            />
+                        ))}
                     </View>
                 ) : null}
             </Pressable>
@@ -188,16 +187,18 @@ const styles = StyleSheet.create({
         height: 28,
         borderRadius: 14,
         borderCurve: 'continuous' as const,
-        backgroundColor: colors.primary,
+        backgroundColor: colors.primaryLight,
+        borderWidth: 1.5,
+        borderColor: colors.primaryBorder,
         alignItems: 'center',
         justifyContent: 'center',
     },
-    addBtnText: { color: colors.textWhite, fontSize: fontSize.xl, fontWeight: fontWeight.light, lineHeight: 24, marginTop: -1 },
+    addBtnText: { color: colors.primary, fontSize: fontSize.xl, fontWeight: fontWeight.light, lineHeight: 24, marginTop: -1 },
     playerCard: {
         flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
-        paddingRight: spacing.xl,
+        paddingRight: spacing['4xl'],
         paddingVertical: spacing.lg,
         paddingLeft: spacing.md,
         gap: spacing.lg,
@@ -209,8 +210,7 @@ const styles = StyleSheet.create({
         borderCurve: 'continuous' as const,
         backgroundColor: colors.bgMuted,
     },
-    playerInfo: { width: 420, flexShrink: 0 },
-    playerInfoCompact: { flex: 1, width: undefined, flexShrink: 1 },
+    playerInfo: { flex: 1 },
     playerName: { fontSize: fontSize.lg, fontWeight: fontWeight.semibold, color: colors.textPrimary },
     playerMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: spacing.xxs },
     playerMeta: { fontSize: fontSize.sm, color: colors.textMuted },

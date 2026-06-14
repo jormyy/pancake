@@ -38,13 +38,19 @@ export const styles = StyleSheet.create({
 
     sidebar: {
         width: SIDEBAR_WIDTH,
+        flexShrink: 0,
         backgroundColor: '#2A1A0E',
-        paddingHorizontal: 14,
-        paddingTop: 18,
         paddingBottom: 14,
-        gap: spacing.sm,
         borderRightWidth: 1,
         borderRightColor: 'rgba(0, 0, 0, 0.24)',
+    },
+    sidebarScroll: {
+        flex: 1,
+    },
+    sidebarScrollContent: {
+        paddingHorizontal: 14,
+        paddingTop: 18,
+        gap: spacing.sm,
     },
     brandRow: {
         flexDirection: 'row',
@@ -227,49 +233,10 @@ export const styles = StyleSheet.create({
     },
 
     sidebarFooter: {
-        marginTop: 'auto',
-        gap: spacing.md,
-        paddingTop: spacing.lg,
-    } as WebOnlyViewStyle,
-    themeToggle: {
-        minHeight: 38,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: spacing.sm,
-        padding: spacing.xs,
-        borderRadius: radii.full,
-        backgroundColor: 'rgba(255, 255, 255, 0.06)',
-        position: 'relative',
-        overflow: 'hidden',
-    },
-    themeKnob: {
-        position: 'absolute',
-        top: spacing.xs,
-        bottom: spacing.xs,
-        left: spacing.xs,
-        width: '50%',
-        borderRadius: radii.full,
-        backgroundColor: colors.primary,
-    },
-    themeKnobDark: {
-        left: '50%',
-    },
-    themeOption: {
-        flex: 1,
-        minHeight: 30,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: spacing.sm,
-        zIndex: 1,
-    },
-    themeOptionText: {
-        color: 'rgba(232, 210, 184, 0.68)',
-        fontSize: fontSize.xs,
-        fontWeight: fontWeight.bold,
-    },
-    themeOptionTextActive: {
-        color: colors.textWhite,
+        paddingHorizontal: 14,
+        paddingTop: spacing.md,
+        borderTopWidth: 1,
+        borderTopColor: 'rgba(255, 255, 255, 0.06)',
     },
     userChip: {
         minHeight: 50,
@@ -428,10 +395,5 @@ export const styles = StyleSheet.create({
         color: colors.textPrimary,
         fontSize: 15,
         fontWeight: fontWeight.bold,
-    },
-    sheetThemeWrap: {
-        marginTop: spacing.lg,
-        backgroundColor: '#2A1A0E',
-        borderRadius: radii.full,
     },
 })
