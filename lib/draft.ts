@@ -52,6 +52,16 @@ export type DraftState = {
     currentNominatorMemberId: string | null
 }
 
+export type DraftSearchPlayer = {
+    id: string
+    display_name: string | null
+    nba_team: string | null
+    position: string | null
+    dynasty_rank: number | null
+    dynasty_rank_source: string | null
+    dynasty_rank_fetched_at: string | null
+}
+
 
 export async function getActiveDraft(leagueId: string): Promise<Draft | null> {
     const { data } = await supabase
@@ -174,7 +184,7 @@ export async function getDraftState(draftId: string): Promise<DraftState | null>
 }
 
 
-export async function searchPlayers(query: string, draftId: string) {
+export async function searchPlayers(query: string, draftId: string): Promise<DraftSearchPlayer[]> {
     // Get already-nominated player IDs to filter out
     const { data: nominated } = await supabase
         .from('nominations')
@@ -183,16 +193,28 @@ export async function searchPlayers(query: string, draftId: string) {
 
     const nominatedIds = new Set((nominated ?? []).map((n) => n.player_id))
 
-    // Search players by name
-    const { data, error } = await supabase
+    // Startup drafts use dynasty rank as the default board order. Hashtag's
+    // list is not every NBA player, so unranked players fall back alphabetically.
+    let playerQuery = supabase
         .from('players')
-        .select('id, display_name, nba_team, position')
-        .ilike('display_name', `%${query}%`)
+        .select('id, display_name, nba_team, position, dynasty_rank, dynasty_rank_source, dynasty_rank_fetched_at')
+        .order('dynasty_rank', { ascending: true, nullsFirst: false })
         .order('last_name')
         .limit(20)
 
+    if (nominatedIds.size > 0) playerQuery = playerQuery.not('id', 'in', postgresInList([...nominatedIds]))
+
+    const trimmed = query.trim()
+    if (trimmed) playerQuery = playerQuery.ilike('display_name', `%${trimmed}%`)
+
+    const { data, error } = await playerQuery
+
     if (error) console.error('[searchPlayers]', error)
-    return (data ?? []).filter((p) => !nominatedIds.has(p.id))
+    return (data ?? []) as DraftSearchPlayer[]
+}
+
+function postgresInList(values: string[]): string {
+    return `(${values.join(',')})`
 }
 
 

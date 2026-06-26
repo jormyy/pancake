@@ -22,6 +22,7 @@ import {
     placeBid,
     searchPlayers,
     DraftState,
+    DraftSearchPlayer,
 } from '@/lib/draft'
 import { RealtimeChannel } from '@supabase/supabase-js'
 import { LoadingScreen } from '@/components/LoadingScreen'
@@ -47,7 +48,7 @@ export default function DraftRoomScreen() {
     // Nomination / player search
     const [nominating, setNominating] = useState(false)
     const [searchQuery, setSearchQuery] = useState('')
-    const [searchResults, setSearchResults] = useState<any[]>([])
+    const [searchResults, setSearchResults] = useState<DraftSearchPlayer[]>([])
     const [searchLoading, setSearchLoading] = useState(false)
     const [submittingNom, setSubmittingNom] = useState(false)
 
@@ -113,7 +114,7 @@ export default function DraftRoomScreen() {
 
     // Player search
     useEffect(() => {
-        if (!searchQuery.trim() || !draftId) {
+        if (!nominating || !draftId) {
             setSearchResults([])
             return
         }
@@ -127,7 +128,7 @@ export default function DraftRoomScreen() {
             }
         }, 300)
         return () => clearTimeout(timeout)
-    }, [searchQuery, draftId])
+    }, [searchQuery, draftId, nominating])
 
     async function handleBid() {
         if (!state?.openNomination || !myMemberId || !draftId) return
@@ -142,7 +143,7 @@ export default function DraftRoomScreen() {
         }
     }
 
-    async function handleNominate(playerId: string, playerName: string) {
+    async function handleNominate(playerId: string) {
         if (!myMemberId || !draftId) return
         setSubmittingNom(true)
         try {
@@ -368,10 +369,7 @@ export default function DraftRoomScreen() {
                                                     <MotionPressable
                                                         style={styles.playerResult}
                                                         onPress={() =>
-                                                            handleNominate(
-                                                                item.id,
-                                                                item.display_name,
-                                                            )
+                                                            handleNominate(item.id)
                                                         }
                                                         disabled={submittingNom}
                                                         pressedScale={0.975}
@@ -381,8 +379,10 @@ export default function DraftRoomScreen() {
                                                                 {item.display_name}
                                                             </Text>
                                                             <Text style={styles.playerResultMeta}>
-                                                                {item.nba_team ?? '—'} ·{' '}
-                                                                {item.position ?? '—'}
+                                                                {item.dynasty_rank != null
+                                                                    ? `#${item.dynasty_rank} · `
+                                                                    : ''}
+                                                                {item.nba_team ?? '—'} · {item.position ?? '—'}
                                                             </Text>
                                                         </View>
                                                         {submittingNom ? (
