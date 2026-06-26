@@ -3,6 +3,7 @@ import {
     startDraft,
     nominatePlayer,
     placeBid,
+    withdrawNomination,
     getDraftState,
 } from '../sync/draft'
 import {
@@ -19,6 +20,7 @@ import {
     DraftParams,
     NominateBody,
     BidBody,
+    WithdrawNominationBody,
     SnakePickBody,
     AutoPickBody,
 } from '../schemas'
@@ -67,6 +69,19 @@ export default async function draftRoutes(app: FastifyInstance) {
             }
             await verifyMemberAccess(req.userId, memberId)
             return await placeBid(draftId, memberId, nominationId, amount)
+        },
+    )
+
+    app.post(
+        '/:draftId/withdraw-nomination',
+        {
+            schema: { params: DraftParams, body: WithdrawNominationBody },
+            config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
+        },
+        async (req) => {
+            const { memberId, nominationId } = req.body as { memberId: string; nominationId: string }
+            await verifyMemberAccess(req.userId, memberId)
+            return await withdrawNomination(memberId, nominationId, req.userId)
         },
     )
 

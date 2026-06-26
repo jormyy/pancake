@@ -58,6 +58,16 @@ export const BidBody = {
     },
 }
 
+export const WithdrawNominationBody = {
+    type: 'object' as const,
+    required: ['memberId', 'nominationId'],
+    additionalProperties: false,
+    properties: {
+        memberId: UUID,
+        nominationId: UUID,
+    },
+}
+
 export const SnakePickBody = {
     type: 'object' as const,
     required: ['memberId', 'playerId'],

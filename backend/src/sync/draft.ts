@@ -204,6 +204,20 @@ export async function placeBid(
     return { ok: true }
 }
 
+export async function withdrawNomination(
+    memberId: string,
+    nominationId: string,
+    userId: string,
+) {
+    const { data, error } = await supabase.rpc('withdraw_auction_nomination_atomic', {
+        p_nomination_id: nominationId,
+        p_member_id: memberId,
+        p_user_id: userId,
+    })
+    if (error) throw error
+    return { ok: true, withdrawn: Boolean(data) }
+}
+
 export async function closeExpiredNominations() {
     const now = new Date().toISOString()
     const { data: expired } = await supabase

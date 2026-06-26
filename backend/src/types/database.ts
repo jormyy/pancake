@@ -2450,6 +2450,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      withdraw_auction_nomination_atomic: {
+        Args: { p_nomination_id: string; p_member_id: string; p_user_id?: string | null }
+        Returns: boolean
+      }
       process_next_waiver_claim_atomic: {
         Args: { p_process_date: string }
         Returns: {
@@ -2533,7 +2537,7 @@ export type Database = {
         | "playoff_semifinal"
         | "playoff_final"
       nba_position: "PG" | "SG" | "SF" | "PF" | "C" | "G" | "F"
-      nomination_status: "open" | "sold" | "no_bid"
+      nomination_status: "open" | "sold" | "no_bid" | "withdrawn"
       roster_slot_type:
         | "PG"
         | "SG"
@@ -2717,7 +2721,7 @@ export const Constants = {
         "playoff_final",
       ],
       nba_position: ["PG", "SG", "SF", "PF", "C", "G", "F"],
-      nomination_status: ["open", "sold", "no_bid"],
+      nomination_status: ["open", "sold", "no_bid", "withdrawn"],
       roster_slot_type: [
         "PG",
         "SG",

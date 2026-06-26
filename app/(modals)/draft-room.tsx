@@ -20,6 +20,7 @@ import {
     unsubscribeFromDraft,
     nominatePlayer,
     placeBid,
+    withdrawNomination,
     searchPlayers,
     DraftState,
     DraftSearchPlayer,
@@ -41,9 +42,11 @@ export default function DraftRoomScreen() {
     const [loading, setLoading] = useState(true)
     const [tab, setTab] = useState<DraftTab>('budgets')
 
-    // Bidding
-    const [bidAmount, setBidAmount] = useState(2)
+    // Bidding — held as raw text so the field can be cleared/typed freely;
+    // the value is validated and clamped only on submit (handleBid).
+    const [bidText, setBidText] = useState('2')
     const [bidding, setBidding] = useState(false)
+    const [withdrawing, setWithdrawing] = useState(false)
 
     // Nomination / player search
     const [nominating, setNominating] = useState(false)
@@ -73,7 +76,7 @@ export default function DraftRoomScreen() {
                             1000,
                     ),
                 )
-                setBidAmount(Math.max((s.openNomination.currentBidAmount ?? 1) + 1, 2))
+                setBidText(String(Math.max((s.openNomination.currentBidAmount ?? 1) + 1, 2)))
                 setTimeLeft(diff)
             }
         } catch (e) {
@@ -132,14 +135,40 @@ export default function DraftRoomScreen() {
 
     async function handleBid() {
         if (!state?.openNomination || !myMemberId || !draftId) return
+        // Guard the typed bid only at submit time: must be a whole-dollar amount
+        // at least the minimum and within remaining budget.
+        const min = Math.max(1, (state.openNomination.currentBidAmount ?? 0) + 1)
+        const remaining = state.budgets.find((b) => b.memberId === myMemberId)?.remaining ?? 0
+        const amount = parseInt(bidText, 10)
+        if (isNaN(amount) || amount < min) {
+            Alert.alert('Invalid bid', `Enter a whole-dollar bid of at least $${min}.`)
+            return
+        }
+        if (amount > remaining) {
+            Alert.alert('Over budget', `You only have $${remaining} left to spend.`)
+            return
+        }
         setBidding(true)
         try {
-            await placeBid(draftId, myMemberId, state.openNomination.id, bidAmount)
+            await placeBid(draftId, myMemberId, state.openNomination.id, amount)
             load()
         } catch (e) {
             Alert.alert('Bid failed', getErrorMessage(e))
         } finally {
             setBidding(false)
+        }
+    }
+
+    async function handleWithdraw() {
+        if (!state?.openNomination || !myMemberId || !draftId) return
+        setWithdrawing(true)
+        try {
+            await withdrawNomination(draftId, myMemberId, state.openNomination.id)
+            load()
+        } catch (e) {
+            Alert.alert('Could not withdraw', getErrorMessage(e))
+        } finally {
+            setWithdrawing(false)
         }
     }
 
@@ -191,6 +220,9 @@ export default function DraftRoomScreen() {
     const iAmBankrupt = (myBudget?.remaining ?? 0) < 1
     // Min bid is current + 1, floored at 1
     const minBid = Math.max(1, (openNomination?.currentBidAmount ?? 0) + 1)
+    const remainingBudget = myBudget?.remaining ?? Infinity
+    const bidValue = parseInt(bidText, 10) // NaN while the field is empty/partial
+    const bidValid = !isNaN(bidValue) && bidValue >= minBid && bidValue <= remainingBudget
 
     if (draft.status === 'completed') {
         return (
@@ -277,7 +309,9 @@ export default function DraftRoomScreen() {
                             <View style={styles.bidInputRow}>
                                 <MotionPressable
                                     style={styles.bidStep}
-                                    onPress={() => setBidAmount((v) => Math.max(minBid, v - 1))}
+                                    onPress={() =>
+                                        setBidText((t) => String(Math.max(minBid, (parseInt(t, 10) || minBid) - 1)))
+                                    }
                                     accessibilityRole="button"
                                     accessibilityLabel="Decrease bid"
                                     hitSlop={8}
@@ -287,28 +321,17 @@ export default function DraftRoomScreen() {
                                 </MotionPressable>
                                 <TextInput
                                     style={styles.bidAmountInput}
-                                    value={String(bidAmount)}
-                                    onChangeText={(v) => {
-                                        const n = parseInt(v, 10)
-                                        if (!isNaN(n)) setBidAmount(n)
-                                        else if (v === '') setBidAmount(minBid)
-                                    }}
-                                    onBlur={() =>
-                                        setBidAmount((v) =>
-                                            Math.min(
-                                                myBudget?.remaining ?? 999,
-                                                Math.max(minBid, v),
-                                            ),
-                                        )
-                                    }
+                                    value={bidText}
+                                    onChangeText={(v) => setBidText(v.replace(/[^0-9]/g, ''))}
                                     keyboardType="number-pad"
                                     selectTextOnFocus
+                                    accessibilityLabel="Bid amount"
                                 />
                                 <MotionPressable
                                     style={styles.bidStep}
                                     onPress={() =>
-                                        setBidAmount((v) =>
-                                            Math.min(myBudget?.remaining ?? 999, v + 1),
+                                        setBidText((t) =>
+                                            String(Math.min(remainingBudget, (parseInt(t, 10) || minBid - 1) + 1)),
                                         )
                                     }
                                     accessibilityRole="button"
@@ -319,26 +342,41 @@ export default function DraftRoomScreen() {
                                     <Text style={styles.bidStepText}>+</Text>
                                 </MotionPressable>
                                 <MotionPressable
-                                    style={[styles.bidButton, bidding && styles.bidButtonDisabled]}
+                                    style={[styles.bidButton, (bidding || !bidValid) && styles.bidButtonDisabled]}
                                     onPress={handleBid}
                                     accessibilityRole="button"
-                                    accessibilityLabel={`Bid $${bidAmount.toLocaleString()}`}
-                                    disabled={
-                                        bidding ||
-                                        bidAmount <= openNomination.currentBidAmount ||
-                                        iAmLeading ||
-                                        timeLeft === 0
-                                    }
+                                    accessibilityLabel={`Bid $${(bidValid ? bidValue : minBid).toLocaleString()}`}
+                                    disabled={bidding || !bidValid || iAmLeading || timeLeft === 0}
                                     pressedScale={0.965}
                                 >
                                     {bidding ? (
                                         <ActivityIndicator size="small" color={colors.textWhite} />
                                     ) : (
-                                        <Text style={styles.bidButtonText}>Bid ${bidAmount.toLocaleString()}</Text>
+                                        <Text style={styles.bidButtonText}>
+                                            Bid ${(bidValid ? bidValue : minBid).toLocaleString()}
+                                        </Text>
                                     )}
                                 </MotionPressable>
                             </View>
                         )}
+
+                        {openNomination.nominatingMemberId === myMemberId &&
+                            openNomination.currentBidderId == null && (
+                                <MotionPressable
+                                    style={styles.withdrawButton}
+                                    onPress={handleWithdraw}
+                                    disabled={withdrawing}
+                                    accessibilityRole="button"
+                                    accessibilityLabel="Withdraw nomination"
+                                    pressedScale={0.96}
+                                >
+                                    {withdrawing ? (
+                                        <ActivityIndicator size="small" color={colors.primary} />
+                                    ) : (
+                                        <Text style={styles.withdrawButtonText}>Withdraw nomination</Text>
+                                    )}
+                                </MotionPressable>
+                            )}
                     </MotionView>
                 ) : (
                     /* No open nomination — show whose turn it is */
@@ -511,13 +549,17 @@ export default function DraftRoomScreen() {
                                             {n.player?.displayName ?? 'Unknown'}
                                         </Text>
                                         <Text style={styles.historyMeta}>
-                                            {n.status === 'sold' ? (winnerTeam ?? '—') : 'No bid'}
+                                            {n.status === 'sold'
+                                                ? (winnerTeam ?? '—')
+                                                : n.status === 'withdrawn'
+                                                  ? 'Withdrawn'
+                                                  : 'No bid'}
                                         </Text>
                                     </View>
                                     {n.status === 'sold' && (
                                         <Text style={styles.historyPrice}>${n.finalPrice}</Text>
                                     )}
-                                    {n.status === 'no_bid' && (
+                                    {(n.status === 'no_bid' || n.status === 'withdrawn') && (
                                         <Text style={styles.historyNoBid}>FA</Text>
                                     )}
                                 </View>
@@ -667,6 +709,15 @@ const styles = StyleSheet.create({
     emptySearch: { fontSize: fontSize.sm, color: colors.textPlaceholder, textAlign: 'center', marginTop: spacing.md },
     cancelNomButton: { marginTop: spacing.md, alignItems: 'center' },
     cancelNomText: { fontSize: fontSize.md, color: colors.textMuted, fontWeight: fontWeight.semibold },
+    withdrawButton: {
+        marginTop: spacing.md,
+        alignItems: 'center',
+        paddingVertical: spacing.sm,
+        borderRadius: radii.lg,
+        borderWidth: 1,
+        borderColor: colors.border,
+    },
+    withdrawButtonText: { fontSize: fontSize.md, color: colors.textMuted, fontWeight: fontWeight.semibold },
 
     waitingRow: { alignItems: 'center', gap: spacing.xs, paddingVertical: spacing.md },
     waitingText: { fontSize: fontSize.md, color: colors.textMuted },

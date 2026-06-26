@@ -17,7 +17,7 @@ export type DraftBudget = {
 
 export type Nomination = {
     id: string
-    status: 'open' | 'sold' | 'no_bid'
+    status: 'open' | 'sold' | 'no_bid' | 'withdrawn'
     nominatingMemberId: string
     currentBidAmount: number
     currentBidderId: string | null
@@ -246,6 +246,14 @@ export async function placeBid(
     amount: number,
 ): Promise<void> {
     await sharedApiPost(`/draft/${draftId}/bid`, { memberId, nominationId, amount })
+}
+
+export async function withdrawNomination(
+    draftId: string,
+    memberId: string,
+    nominationId: string,
+): Promise<void> {
+    await sharedApiPost(`/draft/${draftId}/withdraw-nomination`, { memberId, nominationId })
 }
 
 
