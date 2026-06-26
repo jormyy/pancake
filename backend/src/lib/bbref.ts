@@ -35,6 +35,95 @@ const SCHEDULE_MONTHS = [
     'february', 'march', 'april', 'may', 'june',
 ]
 
+// Real NBA franchise codes BBRef uses. Both "teams" of an All-Star / exhibition
+// game (e.g. East/West, Team LeBron/Team Giannis) fall outside this set.
+const NBA_FRANCHISE_CODES = new Set(Object.keys(BBREF_TO_TRICODE))
+
+// BBRef monthly schedule pages mark the postseason with a full-width "Playoffs"
+// header row (class="thead"). Every game listed at or after it is postseason.
+export function isPlayoffsDividerRow(text: string): boolean {
+    return text.trim().toLowerCase().includes('playoff')
+}
+
+// All-Star / exhibition games list both sides as non-franchise selections, so a
+// matchup where NEITHER side is a real franchise is not a regular-season game.
+// (A single unknown code is treated as a franchise-map gap, not an exhibition.)
+export function isNonRegularMatchup(homeBBRef: string, awayBBRef: string): boolean {
+    return !NBA_FRANCHISE_CODES.has(homeBBRef) && !NBA_FRANCHISE_CODES.has(awayBBRef)
+}
+
+export interface ScheduleParseState {
+    // Set once the postseason divider is crossed. The BBRef schedule is
+    // chronological, so once true no later month contains regular-season games.
+    playoffsReached: boolean
+}
+
+// Parse one monthly schedule page into regular-season games only. Pure (cheerio
+// over a string) so it is unit-testable against HTML fixtures. Mutates
+// `state.playoffsReached` when the postseason divider is crossed.
+export function parseBBRefScheduleHtml(
+    html: string,
+    seasonEndYear: number,
+    month: string,
+    state: ScheduleParseState,
+): BBRefGame[] {
+    const $ = cheerio.load(html)
+    if (!$('table#schedule').length) {
+        throw new Error(`BBRef schedule table missing for ${seasonEndYear}/${month}`)
+    }
+
+    const games: BBRefGame[] = []
+    let candidateRows = 0
+    $('table#schedule tbody tr').each((_, row) => {
+        const $row = $(row)
+        if ($row.hasClass('thead')) {
+            if (isPlayoffsDividerRow($row.text())) state.playoffsReached = true
+            return
+        }
+        // Drop every postseason row once the divider has been crossed.
+        if (state.playoffsReached) return
+
+        const boxScoreLink = $row.find('td[data-stat="box_score_text"] a').attr('href')
+        if (!boxScoreLink) throw new Error(`BBRef schedule row missing boxscore link for ${seasonEndYear}/${month}`)
+        candidateRows++
+
+        // "/boxscores/200312010NJN.html" → "200312010NJN"
+        const bbrefId = boxScoreLink.replace('/boxscores/', '').replace('.html', '')
+        if (bbrefId.length < 12) throw new Error(`Malformed BBRef boxscore id for ${seasonEndYear}/${month}: ${bbrefId}`)
+
+        // BBRef game ID: YYYYMMDD + 0 + TEAM
+        const datePart = bbrefId.substring(0, 8)
+        const gameDate = `${datePart.substring(0, 4)}-${datePart.substring(4, 6)}-${datePart.substring(6, 8)}`
+        const homeTeamBBRef = bbrefId.substring(9) // everything after the "0" separator
+
+        // Away team from the visitor column href: "/teams/SAS/2004.html"
+        // BBRef schedule pages use data-stat="visitor_team_name" (verified against live HTML);
+        // there is no visitor_team_id column. Must match _shared/bbref.ts.
+        const visitorHref = $row.find('td[data-stat="visitor_team_name"] a').attr('href') ?? ''
+        const awayTeamBBRef = visitorHref.split('/')[2]?.toUpperCase() ?? ''
+
+        if (!homeTeamBBRef || !awayTeamBBRef) {
+            throw new Error(`BBRef schedule row missing team code for ${seasonEndYear}/${month}/${bbrefId}`)
+        }
+
+        // Exclude All-Star / exhibition games — only regular-season data reaches a stat.
+        if (isNonRegularMatchup(homeTeamBBRef, awayTeamBBRef)) return
+
+        const homeTeam = BBREF_TO_TRICODE[homeTeamBBRef] ?? homeTeamBBRef
+        const awayTeam = BBREF_TO_TRICODE[awayTeamBBRef] ?? awayTeamBBRef
+
+        games.push({ bbrefId, gameDate, homeTeamBBRef, awayTeamBBRef, homeTeam, awayTeam })
+    })
+
+    // A loaded schedule page must yield at least one boxscore-bearing row, unless
+    // the postseason divider explains why no regular-season games remain.
+    if (candidateRows === 0 && !state.playoffsReached) {
+        throw new Error(`BBRef schedule rows missing for ${seasonEndYear}/${month}`)
+    }
+
+    return games
+}
+
 export interface BBRefGame {
     bbrefId: string      // e.g. "200312010SAS"
     gameDate: string     // YYYY-MM-DD
@@ -70,52 +159,17 @@ export interface BBRefPlayerStat {
 // seasonEndYear: ending year (2004 = 2003-04 season)
 export async function fetchBBRefSchedule(seasonEndYear: number): Promise<BBRefGame[]> {
     const games: BBRefGame[] = []
+    const state: ScheduleParseState = { playoffsReached: false }
 
     for (const month of SCHEDULE_MONTHS) {
+        // The schedule is chronological; once the postseason starts every later
+        // month is entirely playoffs, so stop fetching (and counting) them.
+        if (state.playoffsReached) break
+
         const url = `/leagues/NBA_${seasonEndYear}_games-${month}.html`
         try {
             const { data } = await client.get(url)
-            const $ = cheerio.load(data)
-            if (!$('table#schedule').length) {
-                throw new Error(`BBRef schedule table missing for ${seasonEndYear}/${month}`)
-            }
-
-            let monthGames = 0
-            $('table#schedule tbody tr').each((_, row) => {
-                const $row = $(row)
-                if ($row.hasClass('thead')) return
-
-                const boxScoreLink = $row.find('td[data-stat="box_score_text"] a').attr('href')
-                if (!boxScoreLink) throw new Error(`BBRef schedule row missing boxscore link for ${seasonEndYear}/${month}`)
-
-                // "/boxscores/200312010NJN.html" → "200312010NJN"
-                const bbrefId = boxScoreLink.replace('/boxscores/', '').replace('.html', '')
-                if (bbrefId.length < 12) throw new Error(`Malformed BBRef boxscore id for ${seasonEndYear}/${month}: ${bbrefId}`)
-
-                // BBRef game ID: YYYYMMDD + 0 + TEAM
-                const datePart = bbrefId.substring(0, 8)
-                const gameDate = `${datePart.substring(0, 4)}-${datePart.substring(4, 6)}-${datePart.substring(6, 8)}`
-                const homeTeamBBRef = bbrefId.substring(9) // everything after the "0" separator
-
-                // Away team from the visitor column href: "/teams/SAS/2004.html"
-                // BBRef schedule pages use data-stat="visitor_team_name" (verified against live HTML);
-                // there is no visitor_team_id column. Must match _shared/bbref.ts.
-                const visitorHref = $row.find('td[data-stat="visitor_team_name"] a').attr('href') ?? ''
-                const awayTeamBBRef = visitorHref.split('/')[2]?.toUpperCase() ?? ''
-
-                if (!homeTeamBBRef || !awayTeamBBRef) {
-                    throw new Error(`BBRef schedule row missing team code for ${seasonEndYear}/${month}/${bbrefId}`)
-                }
-
-                const homeTeam = BBREF_TO_TRICODE[homeTeamBBRef] ?? homeTeamBBRef
-                const awayTeam = BBREF_TO_TRICODE[awayTeamBBRef] ?? awayTeamBBRef
-
-                games.push({ bbrefId, gameDate, homeTeamBBRef, awayTeamBBRef, homeTeam, awayTeam })
-                monthGames++
-            })
-            if (monthGames === 0) {
-                throw new Error(`BBRef schedule rows missing for ${seasonEndYear}/${month}`)
-            }
+            games.push(...parseBBRefScheduleHtml(data, seasonEndYear, month, state))
         } catch (e: any) {
             // 404 = no games that month (normal for june in early rounds, etc.)
             if (e.response?.status !== 404) {
