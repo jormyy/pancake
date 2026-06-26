@@ -3,8 +3,6 @@
 const UUID = { type: 'string' as const, format: 'uuid' as const, maxLength: 64 }
 const NOTES_STR = { type: 'string' as const, maxLength: 500 }
 const DATE_STR = { type: 'string' as const, maxLength: 32 } // YYYY-MM-DD plus slack
-const NOTIF_TITLE = { type: 'string' as const, maxLength: 200 }
-const NOTIF_BODY = { type: 'string' as const, maxLength: 2000 }
 
 // Bid amounts are auction-draft dollars. MIN_BID is 1 in config; cap at 1M
 // to short-circuit any MAX_SAFE_INTEGER style abuse while leaving room for
@@ -79,17 +77,6 @@ export const AutoPickBody = {
     additionalProperties: false,
     properties: {
         memberId: UUID,
-    },
-}
-
-export const NotifyTradeBody = {
-    type: 'object' as const,
-    required: ['memberId', 'title', 'body'],
-    additionalProperties: false,
-    properties: {
-        memberId: UUID,
-        title: NOTIF_TITLE,
-        body: NOTIF_BODY,
     },
 }
 
