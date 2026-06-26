@@ -1,5 +1,5 @@
 import { supabase } from '../_shared/supabase.ts'
-import { calculateFantasyPoints, snakeToStatLine, getWeekNumberForDate } from '../_shared/scoring.ts'
+import { calculateFantasyPoints, snakeToStatLine } from '../_shared/scoring.ts'
 import { currentSeasonYear } from '../_shared/season.ts'
 import { internalServerError } from '../_shared/responses.ts'
 
@@ -26,10 +26,10 @@ Deno.serve(async () => {
 async function syncProjections() {
   const today = new Date()
   const seasonYear = currentSeasonYear()
-  const weekNumber = await getWeekNumberForDate(today, seasonYear)
+  const weekNumber = await getCurrentRegularSeasonWeekNumber(today, seasonYear)
 
   if (!weekNumber) {
-    console.log('[sync-projections] No current week found, skipping.')
+    console.log('[sync-projections] No current regular-season week found, skipping.')
     return
   }
 
@@ -46,11 +46,12 @@ async function syncProjections() {
       .select(
         'player_id, points, rebounds, assists, steals, blocks, turnovers, ' +
           'three_pointers_made, field_goals_made, field_goals_attempted, ' +
-          'free_throws_made, free_throws_attempted, did_not_play',
+          'free_throws_made, free_throws_attempted, did_not_play, nba_games!inner(nba_game_id)',
       )
       .eq('season_year', seasonYear)
       .gte('week_number', minWeek)
       .lte('week_number', weekNumber)
+      .like('nba_games.nba_game_id', '002%')
       .range(from, from + PAGE - 1)
     if (error) throw error
     if (!data || data.length === 0) break
@@ -91,4 +92,29 @@ async function syncProjections() {
   }
 
   console.log(`[sync-projections] Upserted ${projections.length} projections for week ${weekNumber}.`)
+}
+
+async function getCurrentRegularSeasonWeekNumber(date: Date, seasonYear: number): Promise<number | null> {
+  const dateISO = date.toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
+  const { data: week, error: weekError } = await supabase
+    .from('season_weeks')
+    .select('week_number')
+    .eq('season_year', seasonYear)
+    .lte('week_start', dateISO)
+    .gte('week_end', dateISO)
+    .maybeSingle()
+  if (weekError) throw weekError
+  if (!week) return null
+
+  const { data: game, error: gameError } = await supabase
+    .from('nba_games')
+    .select('id')
+    .eq('season_year', seasonYear)
+    .eq('week_number', week.week_number)
+    .like('nba_game_id', '002%')
+    .limit(1)
+    .maybeSingle()
+  if (gameError) throw gameError
+
+  return game ? week.week_number : null
 }

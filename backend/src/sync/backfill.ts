@@ -73,7 +73,7 @@ async function runBackfill(jobId: string, seasonYear: number, options: BackfillO
         .from('nba_games')
         .select('id, nba_game_id, game_date, week_number, season_year, status')
         .eq('season_year', seasonYear)
-        .not('nba_game_id', 'is', null)
+        .like('nba_game_id', '002%')
         .lt('game_date', today) // Don't touch today — that's syncStatsByDate's job
         .order('game_date', { ascending: true })
 

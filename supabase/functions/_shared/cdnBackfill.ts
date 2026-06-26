@@ -192,7 +192,7 @@ async function loadFinalCdnGames(seasonYear: number): Promise<DbGame[]> {
         .select('id, nba_game_id, week_number')
         .eq('season_year', seasonYear)
         .eq('status', 'Final')
-        .not('nba_game_id', 'is', null)
+        .like('nba_game_id', '002%')
         .order('game_date', { ascending: true })
         .range(page * 1000, (page + 1) * 1000 - 1),
     )
@@ -215,7 +215,7 @@ async function loadCdnSeasonGames(seasonYear: number): Promise<Array<{ id: strin
         .select('id, nba_game_id, game_date')
         .eq('season_year', seasonYear)
         .eq('status', 'Final')
-        .not('nba_game_id', 'is', null)
+        .like('nba_game_id', '002%')
         .order('game_date', { ascending: true })
         .range(page * 1000, (page + 1) * 1000 - 1),
     )
@@ -320,11 +320,6 @@ function buildCandidateGameIds(seasonYear: number): string[] {
   const yy = String(seasonYear - 2001).padStart(2, '0')
   const gameIds: string[] = []
   for (let n = 1; n <= 1300; n++) gameIds.push(`002${yy}0${String(n).padStart(4, '0')}`)
-  for (let series = 1; series <= 40; series++) {
-    for (let game = 1; game <= 7; game++) {
-      gameIds.push(`004${yy}${String(series).padStart(3, '0')}${String(game).padStart(2, '0')}`)
-    }
-  }
   return gameIds
 }
 
