@@ -3,11 +3,11 @@
  *
  * NBA CDN box scores are available for all games in these seasons.
  * Since no schedule file exists for prior seasons, we enumerate game IDs
- * sequentially (regular season 0001-1300, playoffs 0001-0300) and fetch
+ * sequentially (regular season 0001-1300) and fetch
  * each one, skipping 404s.
  *
  * Game ID format: {type}{YY}0{NNNN}
- *   type: 002 = regular season, 004 = playoffs
+ *   type: 002 = regular season
  *   YY:   2-digit start year (e.g. 19 for 2019-20, 24 for 2024-25)
  *   NNNN: 4-digit sequential game number
  */
@@ -318,7 +318,7 @@ async function loadPersistedSeasonGames(seasonYear: number): Promise<Array<{ gam
             .select('nba_game_id, game_date')
             .eq('season_year', seasonYear)
             .eq('status', 'Final')
-            .not('nba_game_id', 'is', null)
+            .like('nba_game_id', '002%')
             .order('game_date', { ascending: true })
             .range(page * 1000, page * 1000 + 999)
         if (error) throw error
@@ -338,13 +338,7 @@ function buildCandidateGameIdRanges(yy: string): string[][] {
         { length: 1300 },
         (_, index) => `002${yy}0${String(index + 1).padStart(4, '0')}`,
     )
-    const playoffs: string[] = []
-    for (let series = 1; series <= 40; series++) {
-        for (let game = 1; game <= 7; game++) {
-            playoffs.push(`004${yy}${String(series).padStart(3, '0')}${String(game).padStart(2, '0')}`)
-        }
-    }
-    return [regularSeason, playoffs]
+    return [regularSeason]
 }
 
 async function loadAttemptedGameIds(jobId: string): Promise<Set<string>> {

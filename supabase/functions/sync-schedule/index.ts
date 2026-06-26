@@ -1,5 +1,5 @@
 import { supabase } from '../_shared/supabase.ts'
-import { fetchSeasonSchedule } from '../_shared/nba.ts'
+import { fetchSeasonSchedule, isRegularSeasonGameId } from '../_shared/nba.ts'
 import { currentSeasonYear } from '../_shared/season.ts'
 import { internalServerError } from '../_shared/responses.ts'
 
@@ -20,21 +20,18 @@ async function syncSchedule() {
   if (!raw.length) { console.log('[sync-schedule] No schedule data.'); return }
 
   const seasonYear = currentSeasonYear()
-  const regularAndPlayoff = raw.filter(
-    (g) => g.gameId.startsWith('002') || g.gameId.startsWith('004'),
-  )
-  if (!regularAndPlayoff.length) { console.log('[sync-schedule] No regular season games.'); return }
+  const regularSeason = raw.filter((g) => isRegularSeasonGameId(g.gameId))
+  if (!regularSeason.length) { console.log('[sync-schedule] No regular season games.'); return }
 
   // Season start = first date with >= 5 games (skips international openers)
-  const regularOnly = regularAndPlayoff.filter((g) => g.gameId.startsWith('002'))
   const dateCounts = new Map<string, number>()
-  for (const g of regularOnly) dateCounts.set(g.gameDate, (dateCounts.get(g.gameDate) ?? 0) + 1)
+  for (const g of regularSeason) dateCounts.set(g.gameDate, (dateCounts.get(g.gameDate) ?? 0) + 1)
   const bulkStartDates = [...dateCounts.entries()]
     .filter(([, count]) => count >= 5).map(([date]) => date).sort()
-  const seasonStart = bulkStartDates[0] ?? regularOnly.map((g) => g.gameDate).sort()[0]
-  const startMs = new Date(seasonStart).getTime()
+  const seasonStart = bulkStartDates[0] ?? regularSeason.map((g) => g.gameDate).sort()[0]
+  if (!seasonStart) { console.log('[sync-schedule] No regular season start date.'); return }
 
-  const games = regularAndPlayoff
+  const games = regularSeason
     .filter((g) => g.homeTeam && g.awayTeam)
     .map((g) => {
       return {

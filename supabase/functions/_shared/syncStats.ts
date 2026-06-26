@@ -19,8 +19,7 @@ export async function syncStatsByDate(date: Date) {
     .from('nba_games')
     .select('id, nba_game_id, week_number, season_year, status')
     .eq('game_date', dateStr)
-    .not('nba_game_id', 'is', null)
-    .not('nba_game_id', 'like', '003%')
+    .like('nba_game_id', '002%')
   if (!isPast) query = query.neq('status', 'Scheduled')
   const { data: games, error: gErr } = await query
 

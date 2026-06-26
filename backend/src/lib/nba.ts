@@ -24,10 +24,22 @@ export function parseNBAMinutes(iso: string | null | undefined): number | null {
     return Math.round((mins + secs / 60) * 100) / 100
 }
 
+export function isRegularSeasonGameId(gameId: string | null | undefined): boolean {
+    const id = gameId?.trim()
+    if (!id) return false
+
+    // NBA CDN/API game IDs use a 00x prefix:
+    // 001 = preseason, 002 = regular season, 003 = All-Star, 004 = playoffs.
+    // Historical BBRef IDs are date/team keys, so keep them countable.
+    if (id.startsWith('002')) return true
+    if (/^00\d/.test(id)) return false
+    return true
+}
+
 // GET today's scoreboard — returns list of games with status + scores
 export async function fetchTodaysGames(): Promise<NBAGame[]> {
     const { data } = await client.get(`${NBA_CDN}/liveData/scoreboard/todaysScoreboard_00.json`)
-    return (data?.scoreboard?.games ?? []) as NBAGame[]
+    return ((data?.scoreboard?.games ?? []) as NBAGame[]).filter((game) => isRegularSeasonGameId(game.gameId))
 }
 
 // GET live/final box score for a specific game

@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase'
-import { fetchSeasonSchedule } from '../lib/nba'
+import { fetchSeasonSchedule, isRegularSeasonGameId } from '../lib/nba'
 
 // Syncs the scheduled tip-off time (game_time) for all games in the season
 // from the NBA CDN static schedule. Run once per season and after schedule changes.
@@ -8,7 +8,7 @@ export async function syncGameTimes(): Promise<{ updated: number }> {
 
     // Build candidate rows (skip entries missing required keys; same as before).
     const candidates = games
-        .filter((g) => g.startedAt && g.gameId)
+        .filter((g) => g.startedAt && isRegularSeasonGameId(g.gameId))
         .map((g) => ({
             nba_game_id: g.gameId,
             game_time: new Date(g.startedAt as string).toISOString(),
