@@ -53,12 +53,25 @@ The branch's uncommitted changes + untracked files are **coherent hardening WIP*
 | Build | Discovery wire-up + QOL + auth + cohesion + perf + PWA | ⏳ pending | — |
 | 1 | ui-quality-loop | ⏳ pending | 0/2 |
 | 2 | logic-hardening-loop | ⏳ pending | 0/2 |
-| 3 | Integration gate (prod) | ⏳ pending | — |
+| 3 | Integration gate (prod) | ✅ PASS | — |
 | 4 | security-loop | ⏳ pending | 0/2 |
 | 5 | code-quality-loop (aggressive) | ⏳ pending | 0/2 |
 | 6 | code-review-pass | ⏳ pending | — |
 | 7 | Final regression (prod build) | ⏳ pending | — |
 | Outer | Full-gauntlet convergence | ⏳ pending | 0/2 |
+
+---
+
+## Stage 3 — Integration gate (prod `ceeytbfmwsnzalxlkalc`, user-approved)
+
+Proven live against the real backend on 2026-06-26:
+- **Migrations applied + verified.** The 3 `20260624*` security migrations were already on remote; applied the pending `20260626000003` (sync_jobs revoke) via `supabase db push`; `supabase migration list` shows Local|Remote parity through `20260626000003`.
+- **DB lint (`supabase db lint --linked`): clean** — only 2 "warning extra" dead-local-variable notes (`create_waiver_claim_atomic` / `set_player_slot_moves_atomic` unused `v_member`) → **C-DEAD-1**, queued for code-quality.
+- **Data health:** players 2595 · nba_games 7229 · player_game_stats 234916 · leagues 2 · profiles 4. Latest game `0022501197` (002=regular), `2026-04-12 Final`. **Non-regular CDN games (001/003/004): 0** — purity holds in prod. Earliest season_year = **2021**.
+- **L-01 residual resolved:** prod has **no** BBRef (2004-2019) data (earliest season 2021), so there are no already-ingested playoff/All-Star rows to clean; the code fix prevents future contamination.
+- **S-02 denial test (live, before→after):** throwaway authenticated user read **56** `sync_jobs` rows (incl. `error_log`/`metadata`) before; after the migration → **`permission denied for table sync_jobs`** (0 rows). Service-role still reads (RLS bypass).
+- **CRUD smoke:** signup → `profiles` insert (client grant) → `create_league` RPC (SECURITY DEFINER) → member-scoped RLS read-back → cleanup. All green.
+- **Cleanup:** all throwaway users + the smoke league deleted via service-role admin.
 
 ---
 
@@ -78,7 +91,7 @@ Every confirmed defect → permanent regression test. Columns: ID · gate · sev
 
 ### Security findings — resolved
 - **S-01** (security, **Medium**): **fixed+verified.** `/notify/trade` let any authenticated member POST `{memberId, title, body}` and push **attacker-controlled** content to any member of a shared league (spam/phishing). It had **zero client callers** and all real trade/waiver/score/draft notifications are emitted server-side with server-constructed text. Removed the route, registration, and schema. Permanent invariant test `backend/tests/notification-security.test.ts`: no route forwards a client-supplied `{title, body}` into a push; `/notify` surface gone (5 cases).
-- **S-02** (security, Low/info-leak): **fixed+verified (code) / prod-apply pending Stage 3.** `sync_jobs_select USING (true)` exposed internal job metadata + `error_log` to every authenticated user; no client reads `sync_jobs`. Migration `20260626000003` drops the policy and revokes client SELECT (RLS deny-all; service-role bypasses). Prod-applied + denial-probed in Stage 3.
+- **S-02** (security, Low/info-leak): **fixed+verified (prod).** `sync_jobs_select USING (true)` exposed internal job metadata + `error_log` to every authenticated user; no client reads `sync_jobs`. Migration `20260626000003` drops the policy + revokes client SELECT. **Applied to prod + live denial-tested:** authenticated read went from 56 rows → `permission denied` (Stage 3).
 - **S-03** (security, Low/defense-in-depth): **fixed+verified.** CORS was `origin: true` (reflect any). API is bearer-only (no cookies) so cross-origin JS can't read tokens, but made origin env-configurable (`CORS_ALLOWED_ORIGINS`) so prod can lock to the web origin. `resolveCorsOrigin` unit-tested.
 - **S-04** (security): **not-reproducible.** `activate_rookie_draft_league_atomic` is member-gated by design — it's auto-finalization called by *any participant's* draft-room client when the rookie draft completes (`hooks/useRookieDraftRoomController.ts:170,191,266,283`); commissioner-gating would strand the league. The RPC's draft-complete + roster-valid preconditions bound it.
 - **S-05** (security): **not-reproducible.** `cancel_waiver_claim_atomic` enforces ownership via `claim.member_id = p_member_id AND member.user_id = p_user_id` (route passes `req.userId` from the JWT); a forged member_id fails the join (`20260626...waiver_claim_cancel`).
