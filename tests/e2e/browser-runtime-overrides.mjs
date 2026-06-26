@@ -1,6 +1,11 @@
 export const installRuntimeOverrides = async (browser, session, env, options = {}) => {
+  const overrideUrl = new URL(env.frontendUrl)
+  overrideUrl.searchParams.set('pancake_api_url', env.apiBaseUrl)
+  overrideUrl.searchParams.set('pancake_supabase_url', env.supabaseUrl)
+  overrideUrl.searchParams.set('pancake_supabase_anon_key', env.anonKey)
+
   if (options.openBeforeSet !== false) {
-    await browser(session, ['open', env.frontendUrl])
+    await browser(session, ['open', overrideUrl.toString()])
   }
   await browser(session, [
     'eval',

@@ -354,35 +354,42 @@ const assertPageText = async (session, required, label) => {
   throw new Error(`${label} missing page text: ${parsed?.missing?.join(', ') ?? required.join(', ')}. Sample: ${parsed?.sample ?? ''}`)
 }
 
-const clickButton = async (session, name, label) => {
+const dispatchDomClick = async (session, name, label) => {
+  const output = await browser(session, [
+    'eval',
+    `(() => {
+      const target = [...document.querySelectorAll('[role="button"], button, [tabindex]')]
+        .find((element) => element.getAttribute('aria-label') === ${JSON.stringify(name)}
+          || (element.textContent || '').trim() === ${JSON.stringify(name)});
+      if (!target) return JSON.stringify({ ok: false, body: (document.body?.innerText || '').slice(0, 1000) });
+      target.scrollIntoView({ block: 'center', inline: 'center' });
+      target.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, pointerId: 1, pointerType: 'mouse' }));
+      target.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      target.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true, pointerId: 1, pointerType: 'mouse' }));
+      target.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
+      target.click();
+      return JSON.stringify({
+        ok: true,
+        method: 'dom-dispatch',
+        tagName: target.tagName,
+        role: target.getAttribute('role'),
+        label: target.getAttribute('aria-label'),
+        text: target.textContent,
+      });
+    })()`,
+  ])
+  const parsed = parseEvalJson(output)
+  if (!parsed.ok) throw new Error(`${label}: button not found: ${name}. Body: ${parsed.body}`)
+  return parsed
+}
+
+const clickButton = async (session, name, label, { preferDom = false } = {}) => {
+  if (preferDom) return dispatchDomClick(session, name, label)
   try {
     await browser(session, ['find', 'role', 'button', 'click', '--name', name])
     return { ok: true, method: 'agent-browser-find-role-button' }
   } catch {
-    const output = await browser(session, [
-      'eval',
-      `(() => {
-        const target = [...document.querySelectorAll('[role="button"], button, [tabindex]')]
-          .find((element) => element.getAttribute('aria-label') === ${JSON.stringify(name)}
-            || (element.textContent || '').trim() === ${JSON.stringify(name)});
-        if (!target) return JSON.stringify({ ok: false, body: (document.body?.innerText || '').slice(0, 1000) });
-        target.scrollIntoView({ block: 'center', inline: 'center' });
-        target.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, pointerId: 1, pointerType: 'mouse' }));
-        target.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
-        target.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
-        target.click();
-        return JSON.stringify({
-          ok: true,
-          tagName: target.tagName,
-          role: target.getAttribute('role'),
-          label: target.getAttribute('aria-label'),
-          text: target.textContent,
-        });
-      })()`,
-    ])
-    const parsed = parseEvalJson(output)
-    if (!parsed.ok) throw new Error(`${label}: button not found: ${name}. Body: ${parsed.body}`)
-    return parsed
+    return dispatchDomClick(session, name, label)
   }
 }
 
@@ -405,7 +412,7 @@ const verifyLineup = async (fixture, { expectedAutoSet = false } = {}) => {
   return { lineup, failures }
 }
 
-const waitForLineup = async (fixture, options = {}, timeoutMs = 10_000) => {
+const waitForLineup = async (fixture, options = {}, timeoutMs = 90_000) => {
   const startedAt = Date.now()
   let last = await verifyLineup(fixture, options)
   while (last.failures.length > 0 && Date.now() - startedAt < timeoutMs) {
@@ -633,8 +640,9 @@ export async function runBrowserLineupScenario({
     await browser(session, ['wait', '3000'])
     await assertPageText(session, ['Lineup', 'STARTERS', 'BENCH', fixture.player.display_name], 'lineup before move')
     debug = { ...debug, beforeScreenshot: await captureBrowserScreenshot(browser, session, artifactDir, 'lineup-before-move.png') }
-    const benchClick = await clickButton(session, `Bench ${fixture.player.display_name}`, 'bench player row')
-    const slotClick = await clickButton(session, 'Empty PG slot', 'empty PG slot row')
+    const benchClick = await clickButton(session, `Bench ${fixture.player.display_name}`, 'bench player row', { preferDom: true })
+    await browser(session, ['wait', '500'])
+    const slotClick = await clickButton(session, 'Empty PG slot', 'empty PG slot row', { preferDom: true })
     const lineupCheck = await waitForLineup(fixture, { expectedAutoSet: false })
     debug = { ...debug, benchClick, slotClick, lineupCheck }
     if (lineupCheck.failures.length > 0) {

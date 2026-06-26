@@ -32,6 +32,13 @@ const COMPARE_FIELDS: Array<{ cdnKey: keyof CdnStats; dbKey: string }> = [
     { cdnKey: 'freeThrowsMade', dbKey: 'free_throws_made' },
 ]
 
+function assertSupabaseOk<T extends { error: { message?: string } | null }>(label: string, result: T): T {
+    if (result.error) {
+        throw new Error(`[verify] ${label}: ${result.error.message ?? 'Supabase query failed'}`)
+    }
+    return result
+}
+
 interface CdnStats {
     points: number
     reboundsTotal: number
@@ -55,13 +62,13 @@ function shuffle<T>(arr: T[]): T[] {
 
 export async function verifySampleStats(sampleSize = 10): Promise<VerifyResult> {
     // Pick random Final games that have a nba_game_id
-    const { data: allGames } = await supabase
+    const { data: allGames } = assertSupabaseOk('final game sample lookup', await supabase
         .from('nba_games')
         .select('id, nba_game_id, game_date')
         .eq('status', 'Final')
         .not('nba_game_id', 'is', null)
         .order('game_date', { ascending: false })
-        .limit(sampleSize * 5) // oversample then shuffle
+        .limit(sampleSize * 5)) // oversample then shuffle
 
     if (!allGames?.length) {
         return { gamesChecked: 0, gamesMatched: 0, gamesMismatched: 0, mismatches: [], missingGames: [] }
@@ -71,7 +78,10 @@ export async function verifySampleStats(sampleSize = 10): Promise<VerifyResult> 
     const shuffled = shuffle(allGames).slice(0, sampleSize)
 
     // Load player lookup (nba_id → { id, display_name })
-    const { data: players } = await supabase.from('players').select('id, display_name, nba_id').limit(10000)
+    const { data: players } = assertSupabaseOk(
+        'player lookup for stat verification',
+        await supabase.from('players').select('id, display_name, nba_id').limit(10000),
+    )
     const byNbaId = new Map<string, { id: string; name: string }>()
     for (const p of players ?? []) {
         if (p.nba_id) byNbaId.set(p.nba_id, { id: p.id, name: p.display_name ?? 'Unknown' })
@@ -91,10 +101,10 @@ export async function verifySampleStats(sampleSize = 10): Promise<VerifyResult> 
             ]
 
             // Load stored stats for this game
-            const { data: dbStats } = await supabase
+            const { data: dbStats } = assertSupabaseOk('stored stat lookup', await supabase
                 .from('player_game_stats')
                 .select('player_id,points,rebounds,assists,steals,blocks,turnovers,three_pointers_made,field_goals_made,free_throws_made')
-                .eq('game_id', game.id)
+                .eq('game_id', game.id))
 
             if (!dbStats?.length) {
                 missingGames.push(game.nba_game_id!)
@@ -165,12 +175,12 @@ export async function verifySeasonTotals(seasonYear?: number): Promise<SeasonTot
     const allRows: any[] = []
     let pg = 0
     while (true) {
-        const { data: batch } = await supabase
+        const { data: batch } = assertSupabaseOk('season totals page lookup', await supabase
             .from('player_game_stats')
             .select('player_id, points, rebounds, assists, steals, blocks, did_not_play')
             .eq('season_year', year)
             .eq('did_not_play', false)
-            .range(pg * 1000, pg * 1000 + 999)
+            .range(pg * 1000, pg * 1000 + 999))
         if (!batch?.length) break
         allRows.push(...batch)
         if (batch.length < 1000) break
@@ -194,7 +204,10 @@ export async function verifySeasonTotals(seasonYear?: number): Promise<SeasonTot
     }
 
     // Load player names
-    const { data: players } = await supabase.from('players').select('id, display_name').limit(10000)
+    const { data: players } = assertSupabaseOk(
+        'player name lookup for season totals',
+        await supabase.from('players').select('id, display_name').limit(10000),
+    )
     const nameMap = new Map((players ?? []).map((p: any) => [p.id, p.display_name]))
 
     return Array.from(totals.entries())
@@ -231,40 +244,40 @@ export interface ValidationReport {
 export async function validateDatabase(seasonYear?: number): Promise<ValidationReport> {
     const year = seasonYear ?? currentSeasonYear()
 
-    const { count: totalGames } = await supabase
+    const { count: totalGames } = assertSupabaseOk('nba_games total count', await supabase
         .from('nba_games')
         .select('id', { count: 'exact', head: true })
-        .eq('season_year', year)
+        .eq('season_year', year))
 
-    const { count: finalGames } = await supabase
+    const { count: finalGames } = assertSupabaseOk('nba_games final count', await supabase
         .from('nba_games')
         .select('id', { count: 'exact', head: true })
         .eq('season_year', year)
-        .eq('status', 'Final')
+        .eq('status', 'Final'))
 
-    const { count: gamesMissingNbaGameId } = await supabase
+    const { count: gamesMissingNbaGameId } = assertSupabaseOk('nba_games missing nba_game_id count', await supabase
         .from('nba_games')
         .select('id', { count: 'exact', head: true })
         .eq('season_year', year)
-        .is('nba_game_id', null)
+        .is('nba_game_id', null))
 
     // Final games with zero stat rows
-    const { data: finalGameIds } = await supabase
+    const { data: finalGameIds } = assertSupabaseOk('final game id lookup', await supabase
         .from('nba_games')
         .select('id, nba_game_id, game_date, home_team, away_team')
         .eq('season_year', year)
         .eq('status', 'Final')
-        .not('nba_game_id', 'is', null)
+        .not('nba_game_id', 'is', null))
 
     // Fetch distinct game_ids — paginate at 1000 rows (Supabase server cap)
     const syncedSet = new Set<string>()
     let page = 0
     while (true) {
-        const { data: batch } = await supabase
+        const { data: batch } = assertSupabaseOk('synced stat game id page lookup', await supabase
             .from('player_game_stats')
             .select('game_id')
             .eq('season_year', year)
-            .range(page * 1000, page * 1000 + 999)
+            .range(page * 1000, page * 1000 + 999))
         if (!batch?.length) break
         for (const r of batch) syncedSet.add(r.game_id)
         if (batch.length < 1000) break
@@ -272,10 +285,10 @@ export async function validateDatabase(seasonYear?: number): Promise<ValidationR
     }
     const unsyncedGames = (finalGameIds ?? []).filter((g: any) => !syncedSet.has(g.id))
 
-    const { count: playersWithoutNbaId } = await supabase
+    const { count: playersWithoutNbaId } = assertSupabaseOk('players missing nba_id count', await supabase
         .from('players')
         .select('id', { count: 'exact', head: true })
-        .is('nba_id', null)
+        .is('nba_id', null))
 
     return {
         seasonYear: year,

@@ -967,6 +967,8 @@ export type Database = {
           created_at: string
           display_name: string | null
           dynasty_rank: number | null
+          dynasty_rank_fetched_at: string | null
+          dynasty_rank_source: string | null
           eligible_positions: string[]
           first_name: string
           headshot_url: string | null
@@ -988,6 +990,8 @@ export type Database = {
           created_at?: string
           display_name?: string | null
           dynasty_rank?: number | null
+          dynasty_rank_fetched_at?: string | null
+          dynasty_rank_source?: string | null
           eligible_positions?: string[]
           first_name: string
           headshot_url?: string | null
@@ -1009,6 +1013,8 @@ export type Database = {
           created_at?: string
           display_name?: string | null
           dynasty_rank?: number | null
+          dynasty_rank_fetched_at?: string | null
+          dynasty_rank_source?: string | null
           eligible_positions?: string[]
           first_name?: string
           headshot_url?: string | null
