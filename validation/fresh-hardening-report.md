@@ -131,6 +131,10 @@ Ran a 17-agent workflow reviewing the session diff across correctness / security
 
 After fixes: app+backend typecheck, backend build, web export, **217 root + 83 backend tests** all green.
 
+**Second fresh-eyes review pass** (3 axes × verify, over the post-fix + nomination-modes diff): **2 raised → 0 confirmed** (both dismissed as not-defects by the verifiers). Acted on them anyway:
+- **CR-7** (proactive hardening): a *transient* `getDraftState()` null between polls could reset `lastNomIdRef`, letting the next good poll reseed and clobber a typed bid (a rare recurrence of CR-1). Guarded the seed block behind `if (s)` so a transient null never touches the ref/bid. (Verifier: not-a-defect; fixed regardless.)
+- **By-projection ≈ manager-nominated ordering** (accepted, verifier-dismissed): `searchPlayers` branches ordering only on `alphabetical`; `by_projection` and `user_nominated` share the dynasty-rank default (which *is* projection order). Defensible design — both modes default to the projection board; `alphabetical` is genuinely distinct; all three are stored/validated/labeled. Full auto-nomination per mode is a noted future enhancement, not a defect.
+
 ---
 
 ## Skipped / not-applicable stages (logged so a silent skip never reads as "covered")

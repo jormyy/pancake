@@ -76,22 +76,28 @@ export default function DraftRoomScreen() {
         try {
             const s = await getDraftState(draftId)
             setState(s)
-            if (s) nominationModeRef.current = s.draft.nominationOrderMode
-            const nom = s?.openNomination ?? null
-            if (nom?.countdownExpiresAt) {
-                const diff = Math.max(
-                    0,
-                    Math.floor((new Date(nom.countdownExpiresAt).getTime() - Date.now()) / 1000),
-                )
-                setTimeLeft(diff)
-            }
-            // Seed the default bid ONLY when a new player comes on the block — not
-            // on every poll — so typed bids survive refreshes. Min-bid changes
-            // within a nomination are handled by the submit guard, not by reset.
-            const nomId = nom?.id ?? null
-            if (nomId !== lastNomIdRef.current) {
-                lastNomIdRef.current = nomId
-                if (nom) setBidText(String(Math.max((nom.currentBidAmount ?? 1) + 1, 2)))
+            // A transient fetch failure returns null (not a throw). Don't let it
+            // touch the nomination ref / bid field — otherwise the next good poll
+            // would treat the same nomination as "new" and reseed, clobbering a
+            // value the user is typing.
+            if (s) {
+                nominationModeRef.current = s.draft.nominationOrderMode
+                const nom = s.openNomination ?? null
+                if (nom?.countdownExpiresAt) {
+                    const diff = Math.max(
+                        0,
+                        Math.floor((new Date(nom.countdownExpiresAt).getTime() - Date.now()) / 1000),
+                    )
+                    setTimeLeft(diff)
+                }
+                // Seed the default bid ONLY when a new player comes on the block —
+                // not on every poll — so typed bids survive refreshes. Min-bid
+                // changes within a nomination are handled by the submit guard.
+                const nomId = nom?.id ?? null
+                if (nomId !== lastNomIdRef.current) {
+                    lastNomIdRef.current = nomId
+                    if (nom) setBidText(String(Math.max((nom.currentBidAmount ?? 1) + 1, 2)))
+                }
             }
         } catch (e) {
             console.error(e)
