@@ -66,6 +66,7 @@ type CommissionerActionId =
     | 'sync-projections'
     | 'sync-games'
     | 'generate-schedule'
+    | 'reset-schedule'
     | 'advance-season'
 type CommissionerAction = {
     id: CommissionerActionId
@@ -328,7 +329,8 @@ export default function CommissionerSettingsScreen() {
         await adminCall(
             '/sync/matchups',
             force ? 'Schedule reset and regenerated.' : 'Schedule generated successfully.',
-            'generate-schedule',
+            // Distinct ids so only the pressed button shows its busy spinner.
+            force ? 'reset-schedule' : 'generate-schedule',
             setBusyAction,
             { force },
         )
@@ -346,7 +348,7 @@ export default function CommissionerSettingsScreen() {
             { id: 'sync-games', label: 'Sync NBA Game Schedule', onPress: syncGameSchedule },
             { id: 'generate-schedule', label: 'Generate Season Schedule', onPress: () => generateSchedule(false) },
             {
-                id: 'generate-schedule',
+                id: 'reset-schedule',
                 label: 'Reset & Regenerate Schedule',
                 color: colors.danger,
                 onPress: () =>

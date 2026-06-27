@@ -188,7 +188,14 @@ Rotated critics (cross-screen state resilience · accessibility · SQL aggregati
 
 After fixes: app+backend typecheck, lint, deno check, backend build, **217 root + 86 backend tests**, web/PWA export all green.
 
-> **Outer-convergence status (honest):** 3 passes run (6 → 5 → 14 confirmed; **~25 real findings fixed**, 0 deferred). Severity is trending down (pass-1 had a Medium IDOR; the pass-3 Highs are self-healing state-fetch races). The streak is **0/2** — no fully-clean pass yet, because each rotated critic opens genuine new surface (now a11y). Reaching 2 consecutive clean passes requires (a) the **brand-vs-AA decision** above and (b) further rounds against the long tail. This is the honest state of the loop, not a silent stop.
+### Outer Gauntlet Pass #4 — **NOT clean** (2 confirmed → streak still 0, both fixed)
+Fresh angles (backend resilience · validation/injection · remaining screens · concurrency/money). **Sharp convergence**: the **validation/injection and concurrency/money gates came back fully CLEAN**, backend-resilience's one finding was dismissed (not-a-defect). Only 2 niche screen bugs confirmed, both fixed:
+- **O4-1** (Medium): `app/player/[id].tsx` — the IR-resolution modal didn't track its originating flow, so resolving an IR conflict during a **waiver claim** wrongly resumed the **add-free-agent** path (misleading "on waivers" error; claim not submitted, recoverable on a 2nd tap). **Fixed**: tag the modal with `action: 'add' | 'claim'` and resume the right flow (`continueAfterIR`).
+- **O4-2** (Low): `commissioner-settings.tsx` — two schedule buttons shared the action id `generate-schedule`, so pressing one spun both. **Fixed**: distinct `reset-schedule` id.
+
+After fixes: app typecheck, lint, **217 tests**, web export green.
+
+> **Outer-convergence status (honest):** 4 passes run — confirmed findings **6 → 5 → 14 → 2**, **~27 real findings fixed, 0 deferred**. The trend is now **clearly converging**: the systemic categories (state-fetch races, a11y, IDOR, scoring/PWA/cron) are closed, the high-stakes gates (validation/injection, concurrency/money, security-deep) came back clean, and pass-4's residue was 2 niche screen bugs. Streak is **0/2** (no fully-clean pass yet); the next pass is a genuine candidate for the first clean pass. The brand-vs-AA conflict is resolved (user decision). This is real convergence, not spinning.
 
 ---
 
