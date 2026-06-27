@@ -234,11 +234,12 @@ export const TX_COLORS: Record<string, string> = {
 }
 
 export const TRADE_STATUS_COLORS: Record<string, { bg: string; text: string }> = {
-    pending: { bg: palette.amber300, text: palette.amber600 },
+    // Text shades darkened to clear WCAG AA (>=4.5:1) on their badge backgrounds.
+    pending: { bg: palette.amber300, text: palette.maple900 },
     accepted: { bg: palette.green100, text: palette.green900 },
     rejected: { bg: palette.red100, text: palette.red900 },
-    withdrawn: { bg: palette.cream200, text: palette.latte },
+    withdrawn: { bg: palette.cream200, text: palette.mocha },
     completed: { bg: palette.green100, text: palette.green900 },
-    expired: { bg: palette.cream200, text: palette.latte },
+    expired: { bg: palette.cream200, text: palette.mocha },
     vetoed: { bg: palette.red100, text: palette.red900 },
 }

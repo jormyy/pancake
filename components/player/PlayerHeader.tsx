@@ -9,7 +9,7 @@ import {
 import { useState } from 'react'
 import type { PlayerRosterStatus } from '@/lib/roster'
 import { getPositionColor } from '@/constants/positions'
-import { INJURY_COLORS, colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { INJURY_COLORS, colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 import { Avatar } from '@/components/Avatar'
 import { Badge } from '@/components/Badge'
 import { PosTag } from '@/components/PosTag'
@@ -195,7 +195,7 @@ const styles = StyleSheet.create({
         minWidth: 68,
         alignItems: 'center',
     },
-    dropButtonText: { color: colors.danger, fontWeight: fontWeight.bold, fontSize: fontSize.md },
+    dropButtonText: { color: palette.red900, fontWeight: fontWeight.bold, fontSize: fontSize.md },
 
     claimButton: {
         backgroundColor: colors.info,

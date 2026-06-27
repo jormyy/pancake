@@ -62,6 +62,8 @@ export default function LeagueScreen() {
 
     // Lazy loading: track which tabs have been fetched
     const loadedTabs = useRef<Set<Tab>>(new Set())
+    const activeLeagueIdRef = useRef<string | undefined>(undefined)
+    activeLeagueIdRef.current = currentLeague?.id
     const [refreshing, setRefreshing] = useState(false)
 
     useEffect(() => {
@@ -85,30 +87,36 @@ export default function LeagueScreen() {
         setTabLoading((prev) => ({ ...prev, [t]: true }))
         setTabError((prev) => { const next = { ...prev }; delete next[t]; return next })
         try {
+            let commit: () => void = () => {}
             switch (t) {
                 case 'standings': {
                     const data = await getLeagueStandings(lid)
-                    setStandings(data)
+                    commit = () => setStandings(data)
                     break
                 }
                 case 'activity': {
                     const data = await getLeagueTransactions(lid, ACTIVITY_LIMIT, 0)
-                    setTransactions(data)
-                    setActivityOffset(0)
-                    setActivityHasMore(data.length === ACTIVITY_LIMIT)
+                    commit = () => {
+                        setTransactions(data)
+                        setActivityOffset(0)
+                        setActivityHasMore(data.length === ACTIVITY_LIMIT)
+                    }
                     break
                 }
                 case 'waivers': {
                     const data = await getWaiverPriorityOrder(lid)
-                    setWaiverOrder(data)
+                    commit = () => setWaiverOrder(data)
                     break
                 }
                 case 'picks': {
                     const data = await getAllLeaguePicks(lid)
-                    setCurrentLeaguePicks(data)
+                    commit = () => setCurrentLeaguePicks(data)
                     break
                 }
             }
+            // Drop the result if the active league changed while this tab loaded.
+            if (activeLeagueIdRef.current !== lid) return
+            commit()
             loadedTabs.current.add(t)
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : 'Unknown error'

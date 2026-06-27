@@ -171,7 +171,24 @@ Rotated critics (timezone/DST · security-deep · auction-state-machine · regre
 - **O2-4** (Low, scoring): the win/tie push notification formatted totals at `toFixed(1)` while the winner is decided on `toFixed(2)` totals → a sub-0.1 win rendered "110.0–110.0" (looks like a tie). **Fixed**: `toFixed(2)` in backend + edge scorers.
 - **O2-5** (Low, tz): the edge live-poll pg_cron window assumes EDT and misses the 12–1 AM ET slot in EST (winter); the source comment is also inverted. **Fixed**: migration `20260626000009` widens the UTC window to `15-23,0-5` (applied to prod); the always-on Railway poller already covered it (defense-in-depth).
 
-After fixes: app+backend typecheck, deno check, backend build, **217 root + 86 backend tests**, web/PWA export all green. → Re-running for the first *clean* pass.
+After fixes: app+backend typecheck, deno check, backend build, **217 root + 86 backend tests**, web/PWA export all green.
+
+### Outer Gauntlet Pass #3 — **NOT clean** (14 confirmed → streak still 0)
+Rotated critics (cross-screen state resilience · accessibility · SQL aggregation · regression-from-fixes). The cross-pollination angle exposed the draft-room state-fetch class as **systemic**. **14 confirmed**, fixed/dispositioned:
+- **State-fetch resilience** (the big systemic cluster) — applied the draft-room pattern everywhere:
+  - **O3-1** (High): `hooks/use-focus-async-data.ts` (shared by roster + trades) leaked the in-flight promise across a deps change → showed the **previous league's data** and skipped the new fetch. **Fixed**: generation token + clear `inFlightRef` on deps change; drop superseded results.
+  - **O3-2** (High): `useRookieDraftRoomController` committed `setState(null)` on a transient fetch null (blanking the live room, "Draft not found") with **no poll fallback**. **Fixed**: `if (data) setState`, load-seq guard, try/catch, + a 5s poll mirroring the auction room.
+  - **O3-3** (Medium): `hooks/use-matchup-data.ts` league-switch race. **Fixed**: load-seq guard + post-await league recheck.
+  - **O3-4** (Low): `league.tsx fetchTab` stale-league race. **Fixed**: compute-then-commit under an `activeLeagueIdRef` guard.
+  - **O3-5** (Low): `lineup.tsx` has no error state on a failed open → **documented minor** (one-shot modal, reopenable).
+- **Accessibility** (WCAG AA contrast):
+  - **O3-6** (fixed): trade-status badge text (pending/withdrawn/expired) darkened to AA-passing on-brand shades (`maple900`/`mocha`); rookie on-clock + overflow-drop + PlayerHeader drop + PlayerSearchItem "Mine" badge text darkened (`green800`/`red900`).
+  - **O3-7** (**external-blocker — brand decision**): the **locked brand maple** `#C9660F` as a button fill under white text (3.90:1) and as primary-colored text (3.68:1), plus `textMuted` latte (4.06:1), fail AA. Resolving these means darkening the **signature brand color** — which conflicts with the locked decision "keep & refine the warm maple/cream/espresso brand, don't reinvent the identity." This is a genuine brand-vs-AA trade-off that is **the user's call** (see decision asked at end of run).
+- **SQL** — **O3-8** (Low): `compute_fantasy_points` lost its `SET search_path = public` when 20260626000002 re-created it (CREATE OR REPLACE reverts unspecified SET params). **Fixed**: migration `20260626000010` re-pins it + `is_regular_season_game_id` via `ALTER FUNCTION` (applied to prod).
+
+After fixes: app+backend typecheck, lint, deno check, backend build, **217 root + 86 backend tests**, web/PWA export all green.
+
+> **Outer-convergence status (honest):** 3 passes run (6 → 5 → 14 confirmed; **~25 real findings fixed**, 0 deferred). Severity is trending down (pass-1 had a Medium IDOR; the pass-3 Highs are self-healing state-fetch races). The streak is **0/2** — no fully-clean pass yet, because each rotated critic opens genuine new surface (now a11y). Reaching 2 consecutive clean passes requires (a) the **brand-vs-AA decision** above and (b) further rounds against the long tail. This is the honest state of the loop, not a silent stop.
 
 ---
 

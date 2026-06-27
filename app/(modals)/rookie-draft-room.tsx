@@ -557,7 +557,7 @@ const styles = StyleSheet.create({
     pickedName: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textPrimary },
     pickedTeam: { fontSize: fontSize.xs, color: colors.textMuted },
 
-    onClockText: { color: colors.success, fontWeight: fontWeight.bold },
+    onClockText: { color: palette.green800, fontWeight: fontWeight.bold },
     meText: { color: colors.primary, fontWeight: fontWeight.bold },
 
     overflowOverlay: {
@@ -614,7 +614,7 @@ const styles = StyleSheet.create({
     overflowDropName: {
         fontSize: fontSize.md,
         fontWeight: fontWeight.semibold,
-        color: colors.danger,
+        color: palette.red900,
     },
     overflowDropPos: {
         fontSize: fontSize.xs,

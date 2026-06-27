@@ -63,23 +63,39 @@ export function useRookieDraftRoomController({
     const channelRef = useRef<ReturnType<typeof subscribeToRookieDraft> | null>(null)
     const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
     const queryRef = useRef('')
+    const loadSeqRef = useRef(0)
 
     const load = useCallback(async () => {
         if (!draftId) {
             setLoading(false)
             return
         }
-        const data = await getRookieDraftState(draftId)
-        setState(data)
-        setLoading(false)
+        const seq = ++loadSeqRef.current
+        try {
+            const data = await getRookieDraftState(draftId)
+            if (seq !== loadSeqRef.current) return // superseded by a newer load
+            // Only commit a definite state — getRookieDraftState() returns null
+            // (not a throw) on a transient fetch failure; committing null would
+            // blank the entire live draft room.
+            if (data) setState(data)
+        } catch (e) {
+            console.error(e)
+        } finally {
+            if (seq === loadSeqRef.current) setLoading(false)
+        }
     }, [draftId])
 
     const loadProspects = useCallback(async (q?: string) => {
         if (!draftId) return
         setProspectsLoading(true)
-        const data = await getRookiePlayers(draftId, q)
-        setProspects(data)
-        setProspectsLoading(false)
+        try {
+            const data = await getRookiePlayers(draftId, q)
+            setProspects(data)
+        } catch (e) {
+            console.error(e)
+        } finally {
+            setProspectsLoading(false)
+        }
     }, [draftId])
 
     useEffect(() => {
@@ -89,8 +105,12 @@ export function useRookieDraftRoomController({
             load()
             loadProspects(queryRef.current.trim() || undefined)
         })
+        // Poll fallback (mirrors the auction room) so a missed realtime event or
+        // a transient null can't leave the room stale on your own clock.
+        const poll = setInterval(load, 5000)
         return () => {
             if (channelRef.current) unsubscribeFromRookieDraft(channelRef.current)
+            clearInterval(poll)
         }
     }, [draftId, load, loadProspects])
 
