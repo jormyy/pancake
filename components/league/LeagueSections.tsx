@@ -1,5 +1,5 @@
-import { View, Text, Pressable, StyleSheet } from 'react-native'
-import { useCallback, useMemo, useState } from 'react'
+import { View, Text, Pressable, StyleSheet, type RefreshControlProps } from 'react-native'
+import { useCallback, useMemo, useState, type ReactElement } from 'react'
 import { FlashList, type ListRenderItem } from '@shopify/flash-list'
 import { StandingRow } from '@/lib/scoring'
 import { WaiverPriorityRow } from '@/lib/waivers'
@@ -133,7 +133,7 @@ const StandingsListHeader = ({
     )
 }
 
-export function StandingsTable({ standings, myMemberId, onSelectTeam }: { standings: StandingRow[]; myMemberId?: string; onSelectTeam: (memberId: string, teamName: string) => void }) {
+export function StandingsTable({ standings, myMemberId, onSelectTeam, refreshControl }: { standings: StandingRow[]; myMemberId?: string; onSelectTeam: (memberId: string, teamName: string) => void; refreshControl?: ReactElement<RefreshControlProps> }) {
     const [sortBy, setSortBy] = useState<StandingsSortKey>('wins')
     const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
 
@@ -174,6 +174,7 @@ export function StandingsTable({ standings, myMemberId, onSelectTeam }: { standi
 
     return (
         <FlashList
+            refreshControl={refreshControl}
             data={sorted}
             keyExtractor={(s) => s.memberId}
             ListHeaderComponent={<StandingsListHeader sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />}
@@ -218,11 +219,13 @@ export function ActivityFeed({
     myMemberId,
     onLoadMore,
     hasMore,
+    refreshControl,
 }: {
     transactions: TransactionRow[]
     myMemberId?: string
     onLoadMore?: () => void
     hasMore?: boolean
+    refreshControl?: ReactElement<RefreshControlProps>
 }) {
     const renderItem = useCallback<ListRenderItem<TransactionRow>>(({ item }) => (
         <ActivityRow item={item} isMe={item.memberId === myMemberId} />
@@ -245,6 +248,7 @@ export function ActivityFeed({
 
     return (
         <FlashList
+            refreshControl={refreshControl}
             data={transactions}
             keyExtractor={(t) => t.id}
             ItemSeparatorComponent={ItemSeparator}
@@ -277,7 +281,7 @@ const WaiverListHeader = (
     </View>
 )
 
-export function WaiverPriorityList({ rows, myMemberId }: { rows: WaiverPriorityRow[]; myMemberId?: string }) {
+export function WaiverPriorityList({ rows, myMemberId, refreshControl }: { rows: WaiverPriorityRow[]; myMemberId?: string; refreshControl?: ReactElement<RefreshControlProps> }) {
     const renderItem = useCallback<ListRenderItem<WaiverPriorityRow>>(({ item, index }) => (
         <WaiverRow item={item} isMe={item.memberId === myMemberId} rank={index + 1} />
     ), [myMemberId])
@@ -288,6 +292,7 @@ export function WaiverPriorityList({ rows, myMemberId }: { rows: WaiverPriorityR
 
     return (
         <FlashList
+            refreshControl={refreshControl}
             data={rows}
             keyExtractor={(r) => r.memberId}
             ListHeaderComponent={WaiverListHeader}
@@ -329,7 +334,7 @@ const PicksBankListHeader = (
     </View>
 )
 
-export function PicksBankList({ picks, myMemberId }: { picks: LeaguePickItem[]; myMemberId?: string }) {
+export function PicksBankList({ picks, myMemberId, refreshControl }: { picks: LeaguePickItem[]; myMemberId?: string; refreshControl?: ReactElement<RefreshControlProps> }) {
     const flatData = useMemo<PicksBankItem[]>(() => {
         const byYear = new Map<number, LeaguePickItem[]>()
         for (const p of picks) {
@@ -364,6 +369,7 @@ export function PicksBankList({ picks, myMemberId }: { picks: LeaguePickItem[]; 
 
     return (
         <FlashList
+            refreshControl={refreshControl}
             data={flatData}
             keyExtractor={(item) => item.id}
             ListHeaderComponent={PicksBankListHeader}

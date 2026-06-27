@@ -310,11 +310,17 @@ export default function LeagueScreen() {
                 </Pressable>
             )
         }
+        // The active tab's FlashList is the scroll container (so it virtualizes);
+        // it owns pull-to-refresh via this RefreshControl.
+        const refresh = (
+            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.primary} />
+        )
         if (tab === 'standings') {
             return (
                 <StandingsTable
                     standings={standings}
                     myMemberId={current?.id}
+                    refreshControl={refresh}
                     onSelectTeam={(memberId, teamName) =>
                         push({ pathname: '/(modals)/team-roster', params: { memberId, teamName } })
                     }
@@ -326,15 +332,16 @@ export default function LeagueScreen() {
                 <ActivityFeed
                     transactions={transactions}
                     myMemberId={current?.id}
+                    refreshControl={refresh}
                     onLoadMore={handleLoadMoreActivity}
                     hasMore={activityHasMore && !activityLoadingMore}
                 />
             )
         }
         if (tab === 'waivers') {
-            return <WaiverPriorityList rows={waiverOrder} myMemberId={current?.id} />
+            return <WaiverPriorityList rows={waiverOrder} myMemberId={current?.id} refreshControl={refresh} />
         }
-        return <PicksBankList picks={currentLeaguePicks} myMemberId={current?.id} />
+        return <PicksBankList picks={currentLeaguePicks} myMemberId={current?.id} refreshControl={refresh} />
     }
 
     return (
@@ -446,20 +453,9 @@ export default function LeagueScreen() {
                 ))}
             </ScrollView>
 
-            {/* Tab content with pull-to-refresh */}
-            <ScrollView
-                style={styles.contentScroll}
-                contentContainerStyle={styles.contentScrollInner}
-                refreshControl={
-                    <RefreshControl
-                        refreshing={refreshing}
-                        onRefresh={handleRefresh}
-                        tintColor={colors.primary}
-                    />
-                }
-            >
-                {renderTabContent()}
-            </ScrollView>
+            {/* Tab content — each tab's FlashList is the scroll container so it
+                virtualizes (no wrapping vertical ScrollView). */}
+            <View style={styles.contentScroll}>{renderTabContent()}</View>
         </SafeAreaView>
     )
 }
@@ -558,7 +554,6 @@ const styles = StyleSheet.create({
     tabChipTextActive: { color: colors.textWhite },
 
     contentScroll: { flex: 1 },
-    contentScrollInner: { flexGrow: 1 },
 
     errorBanner: {
         margin: spacing['2xl'],

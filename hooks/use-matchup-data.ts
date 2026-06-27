@@ -46,16 +46,20 @@ export function useMatchupData(
     const loadLineups = useCallback(
         async (m: Matchup, date: string) => {
             if (!leagueId) return
+            // Inherit the in-flight load token so a league switch mid-fetch can't
+            // commit the previous league's starters/bench (last-writer-wins).
+            const seq = loadSeqRef.current
             setLineupLoading(true)
             try {
                 const [mine, opp] = await Promise.all([
                     getWeeklyLineup(m.myMemberId, leagueId, m.seasonId, m.weekNumber, date),
                     getWeeklyLineup(m.opponentMemberId, leagueId, m.seasonId, m.weekNumber, date),
                 ])
+                if (seq !== loadSeqRef.current) return
                 setMyLineup(mine)
                 setOppLineup(opp)
             } finally {
-                setLineupLoading(false)
+                if (seq === loadSeqRef.current) setLineupLoading(false)
             }
         },
         [leagueId],
@@ -64,7 +68,9 @@ export function useMatchupData(
     const loadMyLineup = useCallback(
         async (m: Matchup, date: string) => {
             if (!leagueId) return
+            const seq = loadSeqRef.current
             const data = await getWeeklyLineup(m.myMemberId, leagueId, m.seasonId, m.weekNumber, date)
+            if (seq !== loadSeqRef.current) return
             setMyLineup(data)
         },
         [leagueId],
@@ -74,10 +80,12 @@ export function useMatchupData(
         async () => {
             const m = matchupRef.current
             if (!m || !leagueId) return
+            const seq = loadSeqRef.current
             const [mine, opp] = await Promise.all([
                 getWeeklyLineup(m.myMemberId, leagueId, m.seasonId, m.weekNumber, selectedDate),
                 getWeeklyLineup(m.opponentMemberId, leagueId, m.seasonId, m.weekNumber, selectedDate),
             ])
+            if (seq !== loadSeqRef.current) return
             setMyLineup(mine)
             setOppLineup(opp)
         },
