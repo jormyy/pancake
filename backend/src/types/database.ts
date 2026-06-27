@@ -260,6 +260,7 @@ export type Database = {
           completed_at: string | null
           created_at: string
           current_nomination_order: number
+          nomination_order_mode: string
           draft_type: Database["public"]["Enums"]["draft_type"]
           id: string
           league_id: string
@@ -273,6 +274,7 @@ export type Database = {
           completed_at?: string | null
           created_at?: string
           current_nomination_order?: number
+          nomination_order_mode?: string
           draft_type?: Database["public"]["Enums"]["draft_type"]
           id?: string
           league_id: string
@@ -286,6 +288,7 @@ export type Database = {
           completed_at?: string | null
           created_at?: string
           current_nomination_order?: number
+          nomination_order_mode?: string
           draft_type?: Database["public"]["Enums"]["draft_type"]
           id?: string
           league_id?: string

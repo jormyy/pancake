@@ -14,7 +14,13 @@ import { useState, useRef, useCallback, useEffect } from 'react'
 import { useFocusEffect } from '@react-navigation/native'
 import { useLeagueContext } from '@/contexts/league-context'
 import { getLeagueStandings, StandingRow } from '@/lib/scoring'
-import { getActiveDraft, startDraft } from '@/lib/draft'
+import {
+    getActiveDraft,
+    startDraft,
+    NOMINATION_ORDER_MODES,
+    NOMINATION_ORDER_MODE_LABELS,
+    type NominationOrderMode,
+} from '@/lib/draft'
 import { getWaiverPriorityOrder, WaiverPriorityRow } from '@/lib/waivers'
 import { getLeagueTransactions, TransactionRow } from '@/lib/transactions'
 import { getActiveRookieDraft, startRookieDraft, getAllLeaguePicks, reseedRookieDraftPicks, LeaguePickItem } from '@/lib/rookieDraft'
@@ -39,6 +45,7 @@ export default function LeagueScreen() {
     const { current, currentLeague, isCommissioner, loading: currentLeagueLoading } = useLeagueContext()
     const [tab, setTab] = useState<Tab>(() => parseLeagueTab(params.tab))
     const [draftLoading, setDraftLoading] = useState(false)
+    const [nominationMode, setNominationMode] = useState<NominationOrderMode>('user_nominated')
 
     // Per-tab data
     const [standings, setStandings] = useState<StandingRow[]>([])
@@ -172,7 +179,7 @@ export default function LeagueScreen() {
             async () => {
                 setDraftLoading(true)
                 try {
-                    const draft = await startDraft(currentLeague.id)
+                    const draft = await startDraft(currentLeague.id, nominationMode)
                     push({ pathname: '/(modals)/draft-room', params: { draftId: draft.id } })
                 } catch (e: unknown) {
                     showAlert('Could not start draft', e instanceof Error ? e.message : undefined)
@@ -361,9 +368,30 @@ export default function LeagueScreen() {
 
                 {/* Draft actions */}
                 {currentLeague?.status === 'setup' && isCommissioner ? (
-                    <Pressable style={styles.draftButton} onPress={handleStartDraft} disabled={draftLoading}>
-                        {draftLoading ? <ActivityIndicator size="small" color={colors.textWhite} /> : <Text style={styles.draftButtonText}>Start Auction Draft</Text>}
-                    </Pressable>
+                    <>
+                        <Text style={styles.nominationModeLabel}>Nomination order</Text>
+                        <View style={styles.nominationModeRow}>
+                            {NOMINATION_ORDER_MODES.map((mode) => {
+                                const selected = nominationMode === mode
+                                return (
+                                    <Pressable
+                                        key={mode}
+                                        style={[styles.nominationModeChip, selected && styles.nominationModeChipOn]}
+                                        onPress={() => setNominationMode(mode)}
+                                        accessibilityRole="button"
+                                        accessibilityState={{ selected }}
+                                    >
+                                        <Text style={[styles.nominationModeChipText, selected && styles.nominationModeChipTextOn]}>
+                                            {NOMINATION_ORDER_MODE_LABELS[mode]}
+                                        </Text>
+                                    </Pressable>
+                                )
+                            })}
+                        </View>
+                        <Pressable style={styles.draftButton} onPress={handleStartDraft} disabled={draftLoading}>
+                            {draftLoading ? <ActivityIndicator size="small" color={colors.textWhite} /> : <Text style={styles.draftButtonText}>Start Auction Draft</Text>}
+                        </Pressable>
+                    </>
                 ) : null}
                 {currentLeague?.status === 'drafting' ? (
                     <Pressable style={styles.draftButton} onPress={handleJoinDraftRoom} disabled={draftLoading}>
@@ -459,6 +487,27 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     draftButtonText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: 15 },
+    nominationModeLabel: {
+        fontSize: fontSize.xs,
+        fontWeight: fontWeight.bold,
+        color: colors.textMuted,
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+        marginBottom: spacing.xs,
+    },
+    nominationModeRow: { flexDirection: 'row', gap: spacing.xs, marginBottom: spacing.sm },
+    nominationModeChip: {
+        flex: 1,
+        paddingVertical: spacing.sm,
+        borderRadius: radii.md,
+        borderWidth: 1,
+        borderColor: colors.border,
+        backgroundColor: colors.bgCard,
+        alignItems: 'center',
+    },
+    nominationModeChipOn: { borderColor: colors.primary, backgroundColor: colors.bgSubtle },
+    nominationModeChipText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textSecondary },
+    nominationModeChipTextOn: { color: colors.primary },
 
     inviteRow: {
         flexDirection: 'row',

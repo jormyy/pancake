@@ -17,6 +17,7 @@ import { NotFoundError } from '../plugins/errorHandler'
 import { requireCommissioner, requireCommissionerForDraft, verifyMemberAccess } from '../lib/authz'
 import {
     LeagueIdBody,
+    StartDraftBody,
     DraftParams,
     NominateBody,
     BidBody,
@@ -24,12 +25,16 @@ import {
     SnakePickBody,
     AutoPickBody,
 } from '../schemas'
+import type { NominationOrderMode } from '../sync/draft'
 
 export default async function draftRoutes(app: FastifyInstance) {
-    app.post('/start', { schema: { body: LeagueIdBody } }, async (req) => {
-        const { leagueId } = req.body as { leagueId: string }
+    app.post('/start', { schema: { body: StartDraftBody } }, async (req) => {
+        const { leagueId, nominationOrderMode } = req.body as {
+            leagueId: string
+            nominationOrderMode?: NominationOrderMode
+        }
         await requireCommissioner(req.userId, leagueId)
-        const draft = await startDraft(leagueId)
+        const draft = await startDraft(leagueId, nominationOrderMode)
         return { ok: true, draft }
     })
 

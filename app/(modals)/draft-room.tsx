@@ -24,6 +24,8 @@ import {
     searchPlayers,
     DraftState,
     DraftSearchPlayer,
+    NominationOrderMode,
+    NOMINATION_ORDER_MODE_LABELS,
 } from '@/lib/draft'
 import { RealtimeChannel } from '@supabase/supabase-js'
 import { LoadingScreen } from '@/components/LoadingScreen'
@@ -61,6 +63,9 @@ export default function DraftRoomScreen() {
     // Track which nomination the bid field was last seeded for, so the 5s poll /
     // realtime refresh never clobbers a value the user is actively typing.
     const lastNomIdRef = useRef<string | null>(null)
+    // The draft's nomination-order mode is stable; keep it in a ref so the search
+    // effect can read it without re-running on every poll-driven state change.
+    const nominationModeRef = useRef<NominationOrderMode>('user_nominated')
 
     const channelRef = useRef<RealtimeChannel | null>(null)
     const myMemberId = current?.id
@@ -71,6 +76,7 @@ export default function DraftRoomScreen() {
         try {
             const s = await getDraftState(draftId)
             setState(s)
+            if (s) nominationModeRef.current = s.draft.nominationOrderMode
             const nom = s?.openNomination ?? null
             if (nom?.countdownExpiresAt) {
                 const diff = Math.max(
@@ -132,7 +138,7 @@ export default function DraftRoomScreen() {
         const timeout = setTimeout(async () => {
             setSearchLoading(true)
             try {
-                const results = await searchPlayers(searchQuery, draftId)
+                const results = await searchPlayers(searchQuery, draftId, nominationModeRef.current)
                 setSearchResults(results)
             } finally {
                 setSearchLoading(false)
@@ -393,6 +399,9 @@ export default function DraftRoomScreen() {
                         {isMyTurn ? (
                             <>
                                 <Text style={styles.yourTurnBanner}>Your turn to nominate!</Text>
+                                <Text style={styles.nominationModeHint}>
+                                    Board order: {NOMINATION_ORDER_MODE_LABELS[draft.nominationOrderMode]}
+                                </Text>
                                 {nominating ? (
                                     <>
                                         <TextInput
@@ -679,6 +688,7 @@ const styles = StyleSheet.create({
     bidButtonText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: 15 },
 
     yourTurnBanner: { fontSize: fontSize.lg, fontWeight: fontWeight.extrabold, color: colors.primary, textAlign: 'center' },
+    nominationModeHint: { fontSize: fontSize.sm, color: colors.textMuted, textAlign: 'center', marginTop: spacing.xs },
     nominateButton: {
         marginTop: spacing.xs,
         height: 48,

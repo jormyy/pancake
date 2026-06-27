@@ -1,7 +1,16 @@
 import { supabase } from '../lib/supabase'
 import { CONFIG } from '../config'
 
-export async function startDraft(leagueId: string) {
+export const NOMINATION_ORDER_MODES = ['user_nominated', 'by_projection', 'alphabetical'] as const
+export type NominationOrderMode = (typeof NOMINATION_ORDER_MODES)[number]
+
+export async function startDraft(
+    leagueId: string,
+    nominationOrderMode: NominationOrderMode = 'user_nominated',
+) {
+    if (!NOMINATION_ORDER_MODES.includes(nominationOrderMode)) {
+        throw new Error(`Invalid nomination order mode: ${nominationOrderMode}`)
+    }
     const { data: league, error: leagueErr } = await supabase
         .from('leagues')
         .select('id, auction_budget, roster_size, ir_slots')
@@ -43,6 +52,7 @@ export async function startDraft(leagueId: string) {
             budget_per_team: league.auction_budget,
             started_at: new Date().toISOString(),
             current_nomination_order: 1,
+            nomination_order_mode: nominationOrderMode,
         })
         .select()
         .single()

@@ -58,6 +58,19 @@ export const BidBody = {
     },
 }
 
+export const StartDraftBody = {
+    type: 'object' as const,
+    required: ['leagueId'],
+    additionalProperties: false,
+    properties: {
+        leagueId: UUID,
+        nominationOrderMode: {
+            type: 'string' as const,
+            enum: ['user_nominated', 'by_projection', 'alphabetical'],
+        },
+    },
+}
+
 export const WithdrawNominationBody = {
     type: 'object' as const,
     required: ['memberId', 'nominationId'],
