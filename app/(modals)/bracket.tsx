@@ -264,7 +264,7 @@ const styles = StyleSheet.create({
     },
     statusPending: { backgroundColor: colors.bgMuted },
     statusLive: { backgroundColor: palette.green300 },
-    statusFinal: { backgroundColor: '#F3F4F6' },
+    statusFinal: { backgroundColor: colors.bgMuted },
     statusText: { fontSize: fontSize.xs, fontWeight: fontWeight.bold },
     statusTextPending: { color: colors.textPlaceholder },
     statusTextLive: { color: palette.green600 },

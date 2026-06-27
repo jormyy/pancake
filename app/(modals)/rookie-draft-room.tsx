@@ -477,7 +477,7 @@ const styles = StyleSheet.create({
         backgroundColor: palette.red50,
         borderRadius: radii.md,
         borderWidth: 1,
-        borderColor: '#FECACA',
+        borderColor: palette.red200,
     },
     pickErrorText: { color: colors.danger, fontSize: fontSize.sm, fontWeight: fontWeight.semibold },
 

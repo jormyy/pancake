@@ -157,32 +157,6 @@ export async function reseedRookieDraftPicks(draftId: string) {
     return { reseeded }
 }
 
-export async function getRookieDraftState(draftId: string) {
-    const [{ data: draft }, { data: picks }, { data: orders }] = await Promise.all([
-        supabase
-            .from('drafts')
-            .select('id, league_id, league_season_id, status, started_at, completed_at')
-            .eq('id', draftId)
-            .single(),
-        supabase
-            .from('snake_draft_picks')
-            .select(
-                `overall_pick, round, pick_in_round, member_id, picked_at, player_id,
-         players ( id, display_name, nba_team, position ),
-         league_members ( team_name )`,
-            )
-            .eq('draft_id', draftId)
-            .order('overall_pick'),
-        supabase
-            .from('draft_orders')
-            .select('position, member_id, league_members ( team_name )')
-            .eq('draft_id', draftId)
-            .order('position'),
-    ])
-
-    if (!draft) return null
-
-    const nextPick = (picks ?? []).find((p) => !p.player_id) ?? null
-
-    return { draft, picks, orders, nextPick }
-}
+// Rookie draft state is read client-side via RLS-scoped Supabase queries
+// (lib/rookieDraft.ts). The former service-role backend reader + its GET route
+// were removed to avoid leaking private draft state across leagues.

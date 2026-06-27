@@ -32,6 +32,8 @@ export const palette = {
     // ── Red ──
     red50:    '#FEF2F2',
     red100:   '#FEE2E2',
+    red200:   '#FECACA',
+    red300:   '#FCA5A5',
     red500:   '#EF4444',
     red900:   '#991B1B',
     redDark:  '#7F1D1D',

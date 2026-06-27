@@ -54,8 +54,13 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       fetch(request)
         .then((response) => {
-          const copy = response.clone()
-          caches.open(SHELL_CACHE).then((cache) => cache.put(SHELL_URL, copy))
+          // Only refresh the cached shell from a successful, same-origin,
+          // non-redirected response — never let a 404/502 (e.g. mid-deploy or an
+          // un-rewritten deep path) poison the offline shell.
+          if (response && response.ok && response.type === 'basic') {
+            const copy = response.clone()
+            caches.open(SHELL_CACHE).then((cache) => cache.put(SHELL_URL, copy))
+          }
           return response
         })
         .catch(() => caches.match(SHELL_URL).then((r) => r || caches.match(request))),

@@ -337,7 +337,7 @@ const styles = StyleSheet.create({
     noGameName: { color: palette.gray500 },
     metaRow: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 2 },
     sideMeta: { fontSize: 11, color: colors.textPlaceholder },
-    lockedBadge: { fontSize: 10, fontWeight: fontWeight.bold, color: '#16a34a', letterSpacing: 0.4, marginHorizontal: 3 },
+    lockedBadge: { fontSize: 10, fontWeight: fontWeight.bold, color: palette.green600, letterSpacing: 0.4, marginHorizontal: 3 },
     liveBadgeRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
     statLine: { fontSize: 11, color: colors.textMuted, textAlign: 'right', marginTop: 1 },
     statLineLive: { color: colors.primary, fontWeight: fontWeight.semibold },

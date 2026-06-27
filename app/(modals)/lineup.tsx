@@ -540,7 +540,7 @@ const styles = StyleSheet.create({
     lockedBadge: {
         fontSize: 10,
         fontWeight: fontWeight.bold,
-        color: '#16a34a',
+        color: palette.green600,
         letterSpacing: 0.4,
     },
     benchEmpty: { padding: spacing.xl, fontSize: fontSize.sm, color: colors.textPlaceholder, textAlign: 'center' },

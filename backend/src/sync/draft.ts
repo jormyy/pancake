@@ -281,37 +281,6 @@ export async function closeExpiredNominations() {
     return { checked: expired.length, closed, failed }
 }
 
-export async function getDraftState(draftId: string) {
-    const [{ data: draft }, { data: orders }, { data: budgets }, { data: nominations }] =
-        await Promise.all([
-            supabase
-                .from('drafts')
-                .select(
-                    'id, league_id, status, current_nomination_order, budget_per_team, started_at',
-                )
-                .eq('id', draftId)
-                .single(),
-            supabase
-                .from('draft_orders')
-                .select('position, member_id, league_members(team_name)')
-                .eq('draft_id', draftId)
-                .order('position'),
-            supabase
-                .from('draft_budgets')
-                .select('member_id, remaining, initial_budget, league_members(team_name)')
-                .eq('draft_id', draftId),
-            supabase
-                .from('nominations')
-                .select(
-                    `
-        id, status, current_bid_amount, current_bidder_id, countdown_expires_at,
-        winning_member_id, final_price, nominating_member_id, nominated_at, nomination_order,
-        players ( display_name, nba_team, position )
-      `,
-                )
-                .eq('draft_id', draftId)
-                .order('nomination_order'),
-        ])
-
-    return { draft, orders, budgets, nominations }
-}
+// Draft state is read client-side via RLS-scoped Supabase queries (lib/draft.ts).
+// A backend service-role read would bypass RLS and leak private draft state, so
+// the former getDraftState() backend reader + its GET route were removed.

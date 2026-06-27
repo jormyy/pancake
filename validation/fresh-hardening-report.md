@@ -148,6 +148,23 @@ After fixes: app+backend typecheck, backend build, web export, **217 root + 83 b
 
 ---
 
+## Outer convergence loop (the whole gauntlet re-run from fresh, blind eyes)
+
+Per the goal: "re-run the whole gauntlet from fresh eyes; a pass is clean only if no gate surfaces a new finding; ship only after 2 consecutive fully-clean passes; any new finding resets the streak to 0."
+
+### Outer Gauntlet Pass #1 — **NOT clean** (6 confirmed → streak reset to 0, all fixed)
+A 15-agent blind fresh-eyes re-audit (logic/security/ui-cohesion/code-quality/correctness × adversarial verify) over the whole converged branch. **10 raised → 6 confirmed**, all now fixed+verified:
+- **O1-1** (Medium, security/IDOR): `GET /draft/:draftId` + `/draft/:draftId/rookie-state` read private draft state (budgets/bids/picks) via the **service-role client (RLS bypass)** with **no membership check** — any authenticated user could read any league's draft. The endpoints were also **dead** (zero callers; the client reads via the RLS-scoped Supabase client). **Fixed**: removed both routes + the backend `getDraftState`/`getRookieDraftState` readers (kills the IDOR *and* the dead/diverged code, O1-6). Permanent guard `backend/tests/draft-route-security.test.ts`: no backend GET draft-state route; every draft route carries an authz guard (3 cases). _Takes effect on backend redeploy._
+- **O1-2** (Medium, correctness/PWA): `public/sw.js` cached **non-OK** navigations (no `response.ok` guard) → a 404/502 mid-deploy could poison the offline shell. **Fixed**: cache the shell only on a successful, same-origin, non-redirected response.
+- **O1-3/4** (Low, dead code): deleted unused `components/Button.tsx` + `components/ScheduleGrid.tsx` (verified zero importers).
+- **O1-5** (Low, token drift): `#F3F4F6` (cool-gray in the warm theme) → `colors.bgMuted`; 5 off-palette raw hex (`#16a34a`×2 → `palette.green600`; `#7C3AED` → `palette.purple500`; `#FCA5A5`/`#FECACA` → new `palette.red300`/`red200`). `tokens.ts` is again the single color source.
+
+Dismissed (verifier, not-defects): modal scrim opacity (misattributed), nomination-mode list duplication (intentional cross-runtime sync), by_projection≈user_nominated ordering (accepted design).
+
+After fixes: app+backend typecheck, backend build, **217 root + 86 backend tests**, web/PWA export all green. → Re-running the gauntlet for the first *clean* pass.
+
+---
+
 ## Final report
 
 **Exit reason:** One comprehensive Design→Build→Harden→Verify→Ship pass completed; every in-scope finding ended **fixed+verified** or **not-reproducible (with evidence)** — zero deferrals, zero open blockers. (Full 2× outer convergence not reached this session — honest status: outer streak 1/2.)

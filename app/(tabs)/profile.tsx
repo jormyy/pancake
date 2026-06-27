@@ -293,7 +293,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 1,
-        borderColor: '#FCA5A5',
+        borderColor: palette.red300,
     },
     signOutText: { fontSize: 15, fontWeight: fontWeight.semibold, color: colors.danger },
 })
