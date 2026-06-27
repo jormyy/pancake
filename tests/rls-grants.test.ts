@@ -79,4 +79,36 @@ describe('service-role-only RPCs are never granted to client roles', () => {
             expect(granted, `${fn} is never granted to service_role`).toBe(true)
         }
     })
+
+    // CREATE FUNCTION grants EXECUTE to PUBLIC by default, and PostgREST exposes
+    // any public function with EXECUTE as an RPC to anon/authenticated. A
+    // service_role grant does NOT remove PUBLIC — only an explicit REVOKE does.
+    it.each(SERVICE_ROLE_ONLY_RPCS)('%s has its default PUBLIC EXECUTE revoked', (fn) => {
+        const revokedFromPublic = new RegExp(
+            `REVOKE\\s+[^;]*\\bON\\s+FUNCTION\\s+(?:public\\.)?${fn}\\s*\\([^)]*\\)\\s+FROM\\s+[^;]*\\bPUBLIC\\b`,
+            'i',
+        ).test(sql)
+        expect(revokedFromPublic, `${fn} never REVOKEs default EXECUTE FROM PUBLIC — still client-callable`).toBe(true)
+    })
+
+    it('no migration grants EXECUTE to client roles via a blanket / default-privilege statement', () => {
+        // e.g. GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO authenticated;
+        const blanketAll = sql.match(
+            /GRANT\s+EXECUTE\s+ON\s+ALL\s+(?:FUNCTIONS|ROUTINES)\s+IN\s+SCHEMA\s+public\s+TO\s+[^;]+;/gi,
+        ) ?? []
+        for (const stmt of blanketAll) {
+            expect(stmt.toLowerCase(), `blanket function grant to a client role: ${stmt}`).not.toMatch(
+                /\b(authenticated|anon|public)\b/,
+            )
+        }
+        // e.g. ALTER DEFAULT PRIVILEGES ... GRANT EXECUTE ON FUNCTIONS TO authenticated;
+        const defaultPriv = sql.match(
+            /ALTER\s+DEFAULT\s+PRIVILEGES[^;]*GRANT\s+EXECUTE\s+ON\s+(?:FUNCTIONS|ROUTINES)\s+TO\s+[^;]+;/gi,
+        ) ?? []
+        for (const stmt of defaultPriv) {
+            expect(stmt.toLowerCase(), `default-privilege function grant to a client role: ${stmt}`).not.toMatch(
+                /\b(authenticated|anon|public)\b/,
+            )
+        }
+    })
 })

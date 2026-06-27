@@ -87,24 +87,45 @@ describe('scoring parity — TS copies', () => {
 
 describe('scoring parity — SQL copy', () => {
     const sql = latestScoringMigration()
+    // Slice the fn body and the view body separately so each site is asserted
+    // individually (a whole-file count can pass when only one site is correct).
+    const fnBody = sql.slice(
+        sql.indexOf('FUNCTION compute_fantasy_points'),
+        sql.indexOf('CREATE OR REPLACE VIEW v_fantasy_points'),
+    )
+    const viewBody = sql.slice(sql.indexOf('VIEW v_fantasy_points'))
+
+    const keysIn = (body: string): string[] =>
+        [...new Set([...body.matchAll(/->>'([a-z_]+)'/g)].map((m) => m[1]).filter((k) => k !== 'scoring_settings'))].sort()
 
     it('compute_fantasy_points references exactly the canonical settings keys', () => {
-        const fn = sql.slice(sql.indexOf('FUNCTION compute_fantasy_points'), sql.indexOf('CREATE OR REPLACE VIEW v_fantasy_points'))
-        const keys = [...fn.matchAll(/->>'([a-z_]+)'/g)].map((m) => m[1]).filter((k) => k !== 'scoring_settings')
-        expect([...new Set(keys)].sort()).toEqual(ALL_SETTINGS_KEYS)
+        expect(keysIn(fnBody)).toEqual(ALL_SETTINGS_KEYS)
     })
 
     it('v_fantasy_points references exactly the canonical settings keys', () => {
-        const view = sql.slice(sql.indexOf('VIEW v_fantasy_points'))
-        const keys = [...view.matchAll(/->>'([a-z_]+)'/g)].map((m) => m[1])
-        expect([...new Set(keys)].sort()).toEqual(ALL_SETTINGS_KEYS)
+        expect(keysIn(viewBody)).toEqual(ALL_SETTINGS_KEYS)
     })
 
-    it('SQL fn and view both zero out DNP and filter to regular-season games', () => {
-        expect(sql).toMatch(/did_not_play\s+THEN\s+RETURN\s+0/i)
-        expect(sql).toMatch(/WHEN\s+pgs\.did_not_play\s+THEN\s+0/i)
-        // regular-season purity must be enforced in both the fn and the view
-        const purityMatches = sql.match(/is_regular_season_game_id/gi) ?? []
-        expect(purityMatches.length).toBeGreaterThanOrEqual(2)
+    // Stat column ↔ settings key must be PAIRED (column name == key in this
+    // schema): the first `->>'X'` after each `<prefix>.<key>` must be that key,
+    // so a swap like `v_stats.points * (->>'rebounds')` fails.
+    it('each SQL stat column is multiplied by its own settings key (fn + view, no swap)', () => {
+        const firstKeyAfter = (body: string, prefix: string, col: string): string | null => {
+            const idx = body.search(new RegExp(`${prefix}\\.${col}\\b`))
+            if (idx < 0) return null
+            const m = body.slice(idx).match(/->>'([a-z_]+)'/)
+            return m ? m[1] : null
+        }
+        for (const key of ALL_SETTINGS_KEYS) {
+            expect(firstKeyAfter(fnBody, 'v_stats', key), `fn: ${key} column paired with wrong key`).toBe(key)
+            expect(firstKeyAfter(viewBody, 'pgs', key), `view: ${key} column paired with wrong key`).toBe(key)
+        }
+    })
+
+    it('SQL fn and view each zero out DNP and filter to regular-season games', () => {
+        expect(fnBody).toMatch(/did_not_play\s+THEN\s+RETURN\s+0/i)
+        expect(viewBody).toMatch(/WHEN\s+pgs\.did_not_play\s+THEN\s+0/i)
+        expect(fnBody, 'compute_fantasy_points missing regular-season purity filter').toMatch(/is_regular_season_game_id/i)
+        expect(viewBody, 'v_fantasy_points missing regular-season purity filter').toMatch(/is_regular_season_game_id/i)
     })
 })

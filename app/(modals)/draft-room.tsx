@@ -58,6 +58,9 @@ export default function DraftRoomScreen() {
     // Countdown timer
     const [timeLeft, setTimeLeft] = useState(0)
     const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+    // Track which nomination the bid field was last seeded for, so the 5s poll /
+    // realtime refresh never clobbers a value the user is actively typing.
+    const lastNomIdRef = useRef<string | null>(null)
 
     const channelRef = useRef<RealtimeChannel | null>(null)
     const myMemberId = current?.id
@@ -68,16 +71,21 @@ export default function DraftRoomScreen() {
         try {
             const s = await getDraftState(draftId)
             setState(s)
-            if (s?.openNomination?.countdownExpiresAt) {
+            const nom = s?.openNomination ?? null
+            if (nom?.countdownExpiresAt) {
                 const diff = Math.max(
                     0,
-                    Math.floor(
-                        (new Date(s.openNomination.countdownExpiresAt).getTime() - Date.now()) /
-                            1000,
-                    ),
+                    Math.floor((new Date(nom.countdownExpiresAt).getTime() - Date.now()) / 1000),
                 )
-                setBidText(String(Math.max((s.openNomination.currentBidAmount ?? 1) + 1, 2)))
                 setTimeLeft(diff)
+            }
+            // Seed the default bid ONLY when a new player comes on the block — not
+            // on every poll — so typed bids survive refreshes. Min-bid changes
+            // within a nomination are handled by the submit guard, not by reset.
+            const nomId = nom?.id ?? null
+            if (nomId !== lastNomIdRef.current) {
+                lastNomIdRef.current = nomId
+                if (nom) setBidText(String(Math.max((nom.currentBidAmount ?? 1) + 1, 2)))
             }
         } catch (e) {
             console.error(e)
@@ -138,7 +146,8 @@ export default function DraftRoomScreen() {
         // Guard the typed bid only at submit time: must be a whole-dollar amount
         // at least the minimum and within remaining budget.
         const min = Math.max(1, (state.openNomination.currentBidAmount ?? 0) + 1)
-        const remaining = state.budgets.find((b) => b.memberId === myMemberId)?.remaining ?? 0
+        // Match bidValid's fallback; the RPC is the authoritative budget check.
+        const remaining = state.budgets.find((b) => b.memberId === myMemberId)?.remaining ?? Infinity
         const amount = parseInt(bidText, 10)
         if (isNaN(amount) || amount < min) {
             Alert.alert('Invalid bid', `Enter a whole-dollar bid of at least $${min}.`)
@@ -549,17 +558,13 @@ export default function DraftRoomScreen() {
                                             {n.player?.displayName ?? 'Unknown'}
                                         </Text>
                                         <Text style={styles.historyMeta}>
-                                            {n.status === 'sold'
-                                                ? (winnerTeam ?? '—')
-                                                : n.status === 'withdrawn'
-                                                  ? 'Withdrawn'
-                                                  : 'No bid'}
+                                            {n.status === 'sold' ? (winnerTeam ?? '—') : 'No bid'}
                                         </Text>
                                     </View>
                                     {n.status === 'sold' && (
                                         <Text style={styles.historyPrice}>${n.finalPrice}</Text>
                                     )}
-                                    {(n.status === 'no_bid' || n.status === 'withdrawn') && (
+                                    {n.status === 'no_bid' && (
                                         <Text style={styles.historyNoBid}>FA</Text>
                                     )}
                                 </View>
