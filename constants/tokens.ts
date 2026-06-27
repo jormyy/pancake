@@ -57,6 +57,7 @@ export const palette = {
     purple100: '#EDE9FE',
     purple300: '#C4B5FD',
     purple500: '#8B5CF6',
+    purple600: '#7C3AED',  // waiver-badge text — keeps >=4.5:1 (WCAG AA) on purple100
 
     // ── Indigo ──
     indigo500: '#6366F1',

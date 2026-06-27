@@ -66,6 +66,9 @@ export default function DraftRoomScreen() {
     // The draft's nomination-order mode is stable; keep it in a ref so the search
     // effect can read it without re-running on every poll-driven state change.
     const nominationModeRef = useRef<NominationOrderMode>('user_nominated')
+    // Monotonic load token: realtime handlers + the 5s poll + post-action reloads
+    // fire load() concurrently, so drop any result that a newer load supersedes.
+    const loadSeqRef = useRef(0)
 
     const channelRef = useRef<RealtimeChannel | null>(null)
     const myMemberId = current?.id
@@ -73,14 +76,17 @@ export default function DraftRoomScreen() {
 
     const load = useCallback(async () => {
         if (!draftId) return
+        const seq = ++loadSeqRef.current
         try {
             const s = await getDraftState(draftId)
-            setState(s)
-            // A transient fetch failure returns null (not a throw). Don't let it
-            // touch the nomination ref / bid field — otherwise the next good poll
-            // would treat the same nomination as "new" and reseed, clobbering a
-            // value the user is typing.
+            // Ignore a stale, out-of-order result once a newer load has started.
+            if (seq !== loadSeqRef.current) return
+            // Only commit a DEFINITE state. getDraftState() returns null (not a
+            // throw) on a transient fetch failure; committing null would blank the
+            // whole live auction room (LoadingScreen) for seconds during bidding,
+            // and would also reseed the bid field on the next good poll.
             if (s) {
+                setState(s)
                 nominationModeRef.current = s.draft.nominationOrderMode
                 const nom = s.openNomination ?? null
                 if (nom?.countdownExpiresAt) {

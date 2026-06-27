@@ -161,7 +161,17 @@ A 15-agent blind fresh-eyes re-audit (logic/security/ui-cohesion/code-quality/co
 
 Dismissed (verifier, not-defects): modal scrim opacity (misattributed), nomination-mode list duplication (intentional cross-runtime sync), by_projection≈user_nominated ordering (accepted design).
 
-After fixes: app+backend typecheck, backend build, **217 root + 86 backend tests**, web/PWA export all green. → Re-running the gauntlet for the first *clean* pass.
+After fixes: app+backend typecheck, backend build, **217 root + 86 backend tests**, web/PWA export all green.
+
+### Outer Gauntlet Pass #2 — **NOT clean** (5 confirmed → streak still 0, all fixed)
+Rotated critics (timezone/DST · security-deep · auction-state-machine · regression-from-my-own-fixes). **5 raised → 5 confirmed**, all fixed:
+- **O2-1** (Medium, auction): the CR-7 transient-null fix only guarded the bid field — `setState(null)` was still unconditional, so a transient `getDraftState()` null **blanked the entire live auction room** (LoadingScreen) for seconds mid-bid. **Fixed**: only commit non-null state (`if (s) setState(s)`).
+- **O2-2** (Low, auction): concurrent `load()` calls (4 realtime handlers + 5s poll + post-action reloads) had no sequencing → stale out-of-order renders. **Fixed**: added a monotonic `loadSeqRef` token; drop superseded results.
+- **O2-3** (Low, **regression I introduced**): my "no-op" `#7C3AED → palette.purple500` swap actually changed the waiver badge to a lighter purple that **fails WCAG AA** (4.80:1 → 3.57:1 on purple100). **Fixed**: added `palette.purple600 = #7C3AED` (the exact accessible color) and used it.
+- **O2-4** (Low, scoring): the win/tie push notification formatted totals at `toFixed(1)` while the winner is decided on `toFixed(2)` totals → a sub-0.1 win rendered "110.0–110.0" (looks like a tie). **Fixed**: `toFixed(2)` in backend + edge scorers.
+- **O2-5** (Low, tz): the edge live-poll pg_cron window assumes EDT and misses the 12–1 AM ET slot in EST (winter); the source comment is also inverted. **Fixed**: migration `20260626000009` widens the UTC window to `15-23,0-5` (applied to prod); the always-on Railway poller already covered it (defense-in-depth).
+
+After fixes: app+backend typecheck, deno check, backend build, **217 root + 86 backend tests**, web/PWA export all green. → Re-running for the first *clean* pass.
 
 ---
 

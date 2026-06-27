@@ -247,5 +247,5 @@ const styles = StyleSheet.create({
     statusBadgeFA: { backgroundColor: palette.gray250 },
     statusBadgeText: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.textPlaceholder },
     statusBadgeTextMe: { color: palette.green600 },
-    statusBadgeTextWaiver: { color: palette.purple500 },
+    statusBadgeTextWaiver: { color: palette.purple600 },
 })
