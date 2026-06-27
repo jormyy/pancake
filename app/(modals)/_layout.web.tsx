@@ -22,6 +22,7 @@ export default function ModalsLayoutWeb() {
             <Stack.Screen name="create-league" options={{ title: 'Create League' }} />
             <Stack.Screen name="join-league" options={{ title: 'Join League' }} />
             <Stack.Screen name="commissioner-settings" options={{ title: 'League Settings' }} />
+            <Stack.Screen name="change-password" options={{ title: 'Change Password' }} />
             <Stack.Screen name="draft-room" options={{ title: 'Draft Room' }} />
             <Stack.Screen name="rookie-draft-room" options={{ title: 'Rookie Draft' }} />
             <Stack.Screen name="lineup" options={{ headerShown: false }} />

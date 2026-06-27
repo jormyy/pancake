@@ -8,11 +8,12 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useEffect, useState } from 'react'
+import { useRouter } from 'expo-router'
 import { useAuth } from '@/hooks/use-auth'
 import { getProfile, updateProfile, signOut } from '@/lib/auth'
 import { updateTeamName } from '@/lib/league'
 import { useLeagueContext } from '@/contexts/league-context'
-import { colors, fontSize, fontWeight, spacing } from '@/constants/tokens'
+import { colors, fontSize, fontWeight, spacing, layout } from '@/constants/tokens'
 import { LoadingScreen } from '@/components/LoadingScreen'
 import { Avatar } from '@/components/Avatar'
 import { Button } from '@/components/ui'
@@ -21,6 +22,7 @@ import type { Profile } from '@/types/database'
 
 export default function ProfileScreen() {
     const { user } = useAuth()
+    const router = useRouter()
     const { current, currentLeague, refresh } = useLeagueContext()
     // On narrow screens stack value under label (left-aligned) so long
     // emails/usernames read on their own line instead of right-aligned wraps.
@@ -186,6 +188,17 @@ export default function ProfileScreen() {
                     <Button title="Edit Profile" variant="outline" fullWidth icon="edit" onPress={() => setEditing(true)} />
                 )}
 
+                {/* Account actions */}
+                {!editing ? (
+                    <Button
+                        title="Change Password"
+                        variant="outline"
+                        fullWidth
+                        icon="lock"
+                        onPress={() => router.push('/(modals)/change-password')}
+                    />
+                ) : null}
+
                 {/* Sign out */}
                 <Button title="Sign Out" variant="ghost" fullWidth icon="logout" onPress={handleSignOut} style={styles.signOutButton} />
                 <View style={styles.appMeta}>
@@ -199,7 +212,7 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgScreen },
     scroll: { flex: 1 },
-    scrollContent: { padding: spacing['3xl'], gap: spacing.xl, width: '100%', maxWidth: 640, alignSelf: 'center' },
+    scrollContent: { padding: spacing['3xl'], gap: spacing.xl, width: '100%', maxWidth: layout.contentMaxWidth, alignSelf: 'center' },
 
     avatarSection: { alignItems: 'center', paddingTop: 48, paddingBottom: spacing.md },
 

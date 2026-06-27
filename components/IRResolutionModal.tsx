@@ -15,6 +15,7 @@ import {
     fontSize,
     fontWeight,
     radii,
+    scrim,
     spacing,
 } from '@/constants/tokens'
 import { Avatar } from '@/components/Avatar'
@@ -203,7 +204,7 @@ export function IRResolutionModal({
 const styles = StyleSheet.create({
     modalOverlay: {
         flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.5)',
+        backgroundColor: scrim,
         justifyContent: 'flex-end',
     },
     modalCard: {

@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { sortPlayerSearchResults } from '@/lib/player-search-sort'
+import { sortPlayerRows, PLAYER_SORT_MV_COLUMN, STAT_COLUMN_SORT } from '@/lib/player-search-sort'
 import type { PlayerRow } from '@/lib/players'
 
-function player(id: string, team: string, displayName = id): PlayerRow {
+function player(id: string, avgPoints: number, avgRebounds = 0): PlayerRow {
     return {
         id,
-        display_name: displayName,
-        nba_team: team,
+        display_name: id,
+        nba_team: 'ATL',
         position: 'PG',
         eligible_positions: ['PG'],
         status: 'Active',
@@ -14,29 +14,37 @@ function player(id: string, team: string, displayName = id): PlayerRow {
         headshot_url: null,
         nba_id: null,
         years_exp: null,
+        avg_points: avgPoints,
+        avg_rebounds: avgRebounds,
     }
 }
 
-describe('sortPlayerSearchResults', () => {
-    const players = [
-        player('low', 'ATL'),
-        player('high', 'DEN'),
-        player('none', 'FA'),
-        player('mid', 'LAL'),
-    ]
-    const gamesLeft = new Map([
-        ['ATL', 1],
-        ['DEN', 3],
-        ['LAL', 2],
-    ])
+describe('sortPlayerRows', () => {
+    const players = [player('low', 5, 1), player('high', 30, 2), player('none', 0, 9), player('mid', 15, 3)]
 
-    it('orders G Left descending with the most games first', () => {
-        const sorted = sortPlayerSearchResults(players, 'gamesLeft', 'desc', gamesLeft)
-        expect(sorted.map((item) => item.id)).toEqual(['high', 'mid', 'low', 'none'])
+    it('orders by points descending (highest first)', () => {
+        expect(sortPlayerRows(players, 'pts', 'desc').map((p) => p.id)).toEqual(['high', 'mid', 'low', 'none'])
     })
 
-    it('orders G Left ascending with the fewest games first', () => {
-        const sorted = sortPlayerSearchResults(players, 'gamesLeft', 'asc', gamesLeft)
-        expect(sorted.map((item) => item.id)).toEqual(['none', 'low', 'mid', 'high'])
+    it('orders by points ascending (lowest first)', () => {
+        expect(sortPlayerRows(players, 'pts', 'asc').map((p) => p.id)).toEqual(['none', 'low', 'mid', 'high'])
+    })
+
+    it('orders by a different stat (rebounds) independently of points', () => {
+        expect(sortPlayerRows(players, 'reb', 'desc').map((p) => p.id)).toEqual(['none', 'mid', 'high', 'low'])
+    })
+})
+
+describe('sort column maps', () => {
+    it('maps each sort mode to an mv_player_season_averages column', () => {
+        expect(PLAYER_SORT_MV_COLUMN.reb).toBe('avg_rebounds')
+        expect(PLAYER_SORT_MV_COLUMN.gp).toBe('games_played')
+        expect(PLAYER_SORT_MV_COLUMN.tpm).toBe('avg_three_pointers_made')
+    })
+
+    it('maps each desktop table header label to a sort mode', () => {
+        expect(STAT_COLUMN_SORT['3PM']).toBe('tpm')
+        expect(STAT_COLUMN_SORT.FP).toBe('fpts')
+        expect(STAT_COLUMN_SORT.GP).toBe('gp')
     })
 })

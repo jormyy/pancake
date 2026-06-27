@@ -64,6 +64,21 @@ export async function signOut() {
     }
 }
 
+export async function changePassword(currentPassword: string, newPassword: string) {
+    const { data: userData, error: userErr } = await supabase.auth.getUser()
+    const email = userData.user?.email
+    if (userErr || !email) throw new Error('You must be signed in to change your password.')
+
+    // supabase.auth.updateUser({ password }) does NOT require the current
+    // password, so verify identity first by re-authenticating. This prevents a
+    // walk-up attacker (or a hijacked session) from silently changing it.
+    const { error: reauthError } = await supabase.auth.signInWithPassword({ email, password: currentPassword })
+    if (reauthError) throw new Error('Your current password is incorrect.')
+
+    const { error } = await supabase.auth.updateUser({ password: newPassword })
+    if (error) throw error
+}
+
 export async function getProfile(userId: string) {
     // Explicit column list — push_token is column-revoked from authenticated
     // (iter 27 Slice C); `select('*')` would 42501 in production.

@@ -106,6 +106,21 @@ export async function startDraft(
     return draft
 }
 
+// Commissioner controls. stop_draft_atomic / reset_draft_atomic aren't in the
+// generated Database types yet, so the rpc name is cast (same pattern as
+// lib/league.ts join_league).
+export async function stopDraft(draftId: string) {
+    const { error } = await (supabase as any).rpc('stop_draft_atomic', { p_draft_id: draftId })
+    if (error) throw error
+    return { ok: true }
+}
+
+export async function resetDraft(draftId: string) {
+    const { error } = await (supabase as any).rpc('reset_draft_atomic', { p_draft_id: draftId })
+    if (error) throw error
+    return { ok: true }
+}
+
 export async function nominatePlayer(draftId: string, memberId: string, playerId: string) {
     const { data: draft, error: draftErr } = await supabase
         .from('drafts')

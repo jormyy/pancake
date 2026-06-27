@@ -298,6 +298,15 @@ export const motion = {
     pressedOpacity: 0.76,
 } as const
 
+// ── Layout ──────────────────────────────────────────────────────
+// Shared content-column width so every primary tab fills the desktop
+// content area the same way (Players is the reference at 1280). Applied to
+// the screens that were previously capped narrow (Trades 680, League 760,
+// Profile 640); Roster/Commissioner stay uncapped (already full-width).
+export const layout = {
+    contentMaxWidth: 1280,
+} as const
+
 // ── Breakpoints ─────────────────────────────────────────────────
 // One source of truth for width breakpoints (mirrors web CSS + native
 // useWindowDimensions logic).

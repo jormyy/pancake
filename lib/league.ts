@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase'
-import type { Json, League } from '@/types/database'
+import type { Json, League, LeagueStatus } from '@/types/database'
+import { todayET } from '@/lib/shared/dates'
 
 export async function createLeague(
     _userId: string,
@@ -46,7 +47,8 @@ export async function fetchUserLeagues(userId: string) {
         playoff_start_week,
         roster_size,
         ir_slots,
-        taxi_slots
+        taxi_slots,
+        trade_deadline
       )
     `,
         )
@@ -54,6 +56,20 @@ export async function fetchUserLeagues(userId: string) {
 
     if (error) throw error
     return data ?? []
+}
+
+/**
+ * Dynasty trade window (mirrors propose_trade_atomic): trading is open at all
+ * times except mid-season once the trade deadline has passed — it reopens when
+ * the league rolls into the offseason after finals. A null deadline never locks.
+ */
+export function isTradingClosed(
+    league: { status: LeagueStatus; trade_deadline?: string | null } | null | undefined,
+): boolean {
+    if (!league) return false
+    if (league.status !== 'active' && league.status !== 'playoffs') return false
+    if (!league.trade_deadline) return false
+    return league.trade_deadline < todayET()
 }
 
 export async function getLeagueMembers(leagueId: string) {

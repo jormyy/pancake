@@ -2,6 +2,12 @@ import { supabase } from '@/lib/supabase'
 import type { NBAPosition } from '@/types/database'
 import { currentSeasonYear } from '@/lib/shared/season'
 import { TRANSACTION_LABELS } from '@/lib/shared/transaction-labels'
+import {
+    PLAYER_SORT_MV_COLUMN,
+    sortPlayerRows,
+    type PlayerSearchSortDir,
+    type PlayerSearchSortMode,
+} from '@/lib/player-search-sort'
 
 /** Resolves a player's eligible positions, falling back to the primary position. */
 export function getEligiblePositions(player: { eligible_positions?: string[] | null; position?: string | null }): string[] {
@@ -206,6 +212,8 @@ export async function searchPlayers(
     offset = 0,
     health: PlayerHealthFilter = 'all',
     constraints: PlayerSearchQueryConstraints = {},
+    sortBy: PlayerSearchSortMode = 'fpts',
+    sortDir: PlayerSearchSortDir = 'desc',
 ): Promise<PlayerRow[]> {
     const season = currentSeasonYear()
     const queryConstraints: Required<PlayerSearchQueryConstraints> = {
@@ -284,23 +292,39 @@ export async function searchPlayers(
         const { data: allData } = await allQ
         const withoutStats = (allData ?? []).filter((p) => !withStatsIds.has(p.id)) as PlayerRow[]
 
-        return [...withStats, ...(await hydrateAverages(withoutStats, season))]
+        // The rookie branch returns every rookie unpaginated, so we can honor the
+        // chosen stat sort over the full set in memory.
+        return sortPlayerRows(
+            [...withStats, ...(await hydrateAverages(withoutStats, season))],
+            sortBy,
+            sortDir,
+        )
     }
 
     const PAGE = 60
-    let q = leagueId
+    const ascending = sortDir === 'asc'
+    // Fantasy-points order is the only sort that lives on the per-league scoring
+    // view; every other stat lives on the season-averages materialized view, so
+    // we order there and overlay this league's FP afterward. Either way the sort
+    // is applied to the WHOLE filtered pool server-side, then paginated — so
+    // changing the sort re-queries from the top instead of reordering one page.
+    const useFantasyOrder = Boolean(leagueId) && sortBy === 'fpts'
+
+    let q = useFantasyOrder
         ? supabase
             .from('v_player_avg_fantasy_points')
             .select(`avg_fantasy_points, players!inner(${PLAYER_SELECT})`)
-            .eq('league_id', leagueId)
+            .eq('league_id', leagueId!)
             .eq('season_year', season)
-            .order('avg_fantasy_points', { ascending: false })
+            .order('avg_fantasy_points', { ascending, nullsFirst: false })
+            .order('player_id', { ascending: true })
             .range(offset, offset + PAGE - 1)
         : supabase
             .from('mv_player_season_averages')
             .select(AVG_WITH_PLAYER_SELECT)
             .eq('season_year', season)
-            .order('avg_points', { ascending: false })
+            .order(PLAYER_SORT_MV_COLUMN[sortBy], { ascending, nullsFirst: false })
+            .order('player_id', { ascending: true })
             .range(offset, offset + PAGE - 1)
 
     if (query.trim()) {
@@ -322,14 +346,44 @@ export async function searchPlayers(
     const { data, error } = await q
     if (error) throw error
 
-    if (!leagueId) {
-        return mapAverageRows((data ?? []) as AverageRow[])
+    // League + fantasy-points order: rows come from the FP view; hydrate stats.
+    if (useFantasyOrder) {
+        return hydrateAverages(
+            (data ?? []).map((row: any) => row.players) as PlayerRow[],
+            season,
+            new Map((data ?? []).map((row: any) => [row.players.id, Number(row.avg_fantasy_points)])),
+        )
     }
 
-    return hydrateAverages(
-        (data ?? []).map((row: any) => row.players) as PlayerRow[],
-        season,
-        new Map((data ?? []).map((row: any) => [row.players.id, Number(row.avg_fantasy_points)])),
+    // Stat order (or no league): rows come from the season-averages view.
+    const players = mapAverageRows((data ?? []) as AverageRow[])
+    if (!leagueId) return players
+    // League present but ordered by a raw stat — overlay per-league FP so the FP
+    // column still reflects this league's scoring rather than the avg-points proxy.
+    return hydrateLeagueFantasyPoints(players, leagueId, season)
+}
+
+async function hydrateLeagueFantasyPoints(
+    players: PlayerRow[],
+    leagueId: string,
+    season: number,
+): Promise<PlayerRow[]> {
+    if (players.length === 0) return players
+
+    const { data } = await supabase
+        .from('v_player_avg_fantasy_points')
+        .select('player_id, avg_fantasy_points')
+        .eq('league_id', leagueId)
+        .eq('season_year', season)
+        .in('player_id', players.map((player) => player.id))
+
+    const fpById = new Map<string, number>()
+    for (const row of (data ?? []) as { player_id: string | null; avg_fantasy_points: number | null }[]) {
+        if (row.player_id != null) fpById.set(row.player_id, Number(row.avg_fantasy_points))
+    }
+
+    return players.map((player) =>
+        fpById.has(player.id) ? { ...player, avg_fantasy_points: fpById.get(player.id)! } : player,
     )
 }
 

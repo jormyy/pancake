@@ -11,18 +11,59 @@ import {
 } from 'react-native'
 import { FlashList } from '@shopify/flash-list'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { Stack, useLocalSearchParams } from 'expo-router'
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useLeagueContext } from '@/contexts/league-context'
 import { type RookieProspect, type SnakePick } from '@/lib/rookieDraft'
+import { stopDraft, resetDraft } from '@/lib/draft'
 import { getPositionColor } from "@/constants/positions"
-import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { colors, palette, fontSize, fontWeight, radii, scrim, spacing } from '@/constants/tokens'
 import { MotionPressable, MotionView } from '@/components/Motion'
+import { confirmAction, showAlert, showSuccess, getErrorMessage } from '@/lib/alert'
 import { useRookieDraftRoomController } from '@/hooks/useRookieDraftRoomController'
 
 export default function RookieDraftRoomScreen() {
     const { draftId } = useLocalSearchParams<{ draftId: string }>()
-    const { current, currentLeague } = useLeagueContext()
+    const { current, currentLeague, isCommissioner } = useLeagueContext()
+    const { back } = useRouter()
     const myMemberId = current?.id
+
+    const handleStopDraft = () => {
+        if (!draftId) return
+        confirmAction(
+            'Stop draft?',
+            'This ends the rookie draft now. Players already drafted stay on their rosters and the league moves into the season. This cannot be undone.',
+            () => {
+                void (async () => {
+                    try {
+                        await stopDraft(draftId)
+                        back()
+                    } catch (e) {
+                        showAlert('Could not stop draft', getErrorMessage(e))
+                    }
+                })()
+            },
+            'Stop Draft',
+        )
+    }
+
+    const handleResetDraft = () => {
+        if (!draftId) return
+        confirmAction(
+            'Reset draft?',
+            'This clears every pick, returns all pick assets, and restarts the draft from the first selection. This cannot be undone.',
+            () => {
+                void (async () => {
+                    try {
+                        await resetDraft(draftId)
+                        showSuccess('Draft Reset', 'The rookie draft has been reset to the first pick.')
+                    } catch (e) {
+                        showAlert('Could not reset draft', getErrorMessage(e))
+                    }
+                })()
+            },
+            'Reset Draft',
+        )
+    }
     const {
         state,
         loading,
@@ -74,7 +115,8 @@ export default function RookieDraftRoomScreen() {
 
     const { draft, picks, nextPick } = state
     const isMyTurn = nextPick?.memberId === memberId
-    const isDone = draft.status === 'completed'
+    const stopped = draft.status === 'cancelled'
+    const isDone = draft.status === 'completed' || stopped
 
     const totalPicks = picks.length
     const madePicks = picks.filter((p) => p.player).length
@@ -186,7 +228,7 @@ export default function RookieDraftRoomScreen() {
                     {/* ── Status banner ────────────────────────── */}
                     <View style={[styles.banner, isDone && styles.bannerDone]}>
                         {isDone ? (
-                            <Text style={styles.bannerTitle}>Draft Complete</Text>
+                            <Text style={styles.bannerTitle}>{stopped ? 'Draft Stopped' : 'Draft Complete'}</Text>
                         ) : (
                             <>
                                 <View style={styles.bannerRow}>
@@ -214,6 +256,32 @@ export default function RookieDraftRoomScreen() {
                             </>
                         )}
                     </View>
+
+                    {isCommissioner && !isDone ? (
+                        <View style={styles.adminBar}>
+                            <Text style={styles.adminBarLabel}>Commissioner</Text>
+                            <View style={styles.adminBarBtns}>
+                                <MotionPressable
+                                    style={[styles.adminBtn, styles.adminBtnReset]}
+                                    onPress={handleResetDraft}
+                                    pressedScale={0.94}
+                                    accessibilityRole="button"
+                                    accessibilityLabel="Reset draft"
+                                >
+                                    <Text style={styles.adminBtnResetText}>Reset</Text>
+                                </MotionPressable>
+                                <MotionPressable
+                                    style={[styles.adminBtn, styles.adminBtnStop]}
+                                    onPress={handleStopDraft}
+                                    pressedScale={0.94}
+                                    accessibilityRole="button"
+                                    accessibilityLabel="Stop draft"
+                                >
+                                    <Text style={styles.adminBtnStopText}>Stop</Text>
+                                </MotionPressable>
+                            </View>
+                        </View>
+                    ) : null}
 
                     {/* ── Tab switcher ─────────────────────────── */}
                     <View style={styles.tabs}>
@@ -429,6 +497,34 @@ const styles = StyleSheet.create({
         gap: spacing.xs,
     },
     bannerDone: { backgroundColor: palette.green50, borderBottomColor: palette.green200 },
+    adminBar: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: spacing['2xl'],
+        paddingVertical: spacing.sm,
+        backgroundColor: colors.bgSubtle,
+        borderBottomWidth: 1,
+        borderBottomColor: colors.borderLight,
+    },
+    adminBarLabel: {
+        fontSize: 10,
+        fontWeight: fontWeight.extrabold,
+        letterSpacing: 0.8,
+        textTransform: 'uppercase' as const,
+        color: colors.textMuted,
+    },
+    adminBarBtns: { flexDirection: 'row', gap: spacing.md },
+    adminBtn: {
+        paddingHorizontal: spacing.lg,
+        paddingVertical: 6,
+        borderRadius: radii.md,
+        borderWidth: 1,
+    },
+    adminBtnReset: { backgroundColor: colors.bgCard, borderColor: colors.border },
+    adminBtnStop: { backgroundColor: colors.dangerLight, borderColor: colors.danger },
+    adminBtnResetText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.textSecondary },
+    adminBtnStopText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.dangerDark },
     bannerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     bannerTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.extrabold, color: colors.textPrimary },
     bannerClock: { fontSize: fontSize.lg, fontWeight: fontWeight.extrabold, color: colors.textMuted },
@@ -562,7 +658,7 @@ const styles = StyleSheet.create({
 
     overflowOverlay: {
         flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.6)',
+        backgroundColor: scrim,
         justifyContent: 'flex-end',
     },
     overflowCard: {

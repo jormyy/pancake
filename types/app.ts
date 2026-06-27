@@ -16,6 +16,7 @@ export interface LeagueInfo {
     roster_size: number
     ir_slots: number
     taxi_slots?: number
+    trade_deadline?: string | null
 }
 
 /**

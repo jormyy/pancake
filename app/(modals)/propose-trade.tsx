@@ -6,12 +6,13 @@ import {
     ActivityIndicator,
     ScrollView,
     TextInput,
+    useWindowDimensions,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
-import { getLeagueMembers } from '@/lib/league'
+import { getLeagueMembers, isTradingClosed } from '@/lib/league'
 import { getRoster, RosterPlayer } from '@/lib/roster'
 import { proposeTrade, getCurrentSeasonId, getPicksForMember, TradePickItem } from '@/lib/trades'
 import { showAlert, showSuccess, getErrorMessage } from '@/lib/alert'
@@ -19,7 +20,7 @@ import { showAlert, showSuccess, getErrorMessage } from '@/lib/alert'
 import { yearShort } from '@/lib/format'
 import { Avatar } from '@/components/Avatar'
 import { EmptyState } from '@/components/EmptyState'
-import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { colors, palette, fontSize, fontWeight, radii, spacing, breakpoints } from '@/constants/tokens'
 
 function PlayerRow({
     player,
@@ -97,6 +98,79 @@ function PickRow({
     )
 }
 
+function TeamColumn({
+    title,
+    subtitle,
+    side,
+    twoColumn,
+    roster,
+    picks,
+    selectedPlayerIds,
+    selectedPickIds,
+    onTogglePlayer,
+    onTogglePick,
+    emptyText,
+}: {
+    title: string
+    subtitle: string
+    side: 'give' | 'receive'
+    twoColumn: boolean
+    roster: RosterPlayer[]
+    picks: TradePickItem[]
+    selectedPlayerIds: Set<string>
+    selectedPickIds: Set<string>
+    onTogglePlayer: (id: string) => void
+    onTogglePick: (id: string) => void
+    emptyText: string
+}) {
+    const selectedCount =
+        roster.filter((rp) => selectedPlayerIds.has(rp.players.id)).length +
+        picks.filter((p) => selectedPickIds.has(p.pickId)).length
+
+    return (
+        <View style={[styles.column, !twoColumn && styles.columnStacked]}>
+            <View style={styles.columnHeader}>
+                <View style={styles.flex1}>
+                    <Text style={[styles.columnTitle, side === 'receive' && styles.columnTitleReceive]}>{title}</Text>
+                    <Text style={styles.columnSubtitle} numberOfLines={1}>{subtitle}</Text>
+                </View>
+                {selectedCount > 0 ? (
+                    <View style={[styles.columnCount, side === 'receive' && styles.columnCountReceive]}>
+                        <Text style={styles.columnCountText}>{selectedCount}</Text>
+                    </View>
+                ) : null}
+            </View>
+
+            {roster.length === 0 ? (
+                <Text style={styles.emptyRowText}>{emptyText}</Text>
+            ) : (
+                roster.map((rp) => (
+                    <PlayerRow
+                        key={rp.id}
+                        player={rp}
+                        selected={selectedPlayerIds.has(rp.players.id)}
+                        onToggle={() => onTogglePlayer(rp.players.id)}
+                    />
+                ))
+            )}
+
+            {picks.length > 0 ? (
+                <>
+                    <Text style={styles.subSectionLabel}>DRAFT PICKS</Text>
+                    {picks.map((pick) => (
+                        <PickRow
+                            key={pick.pickId}
+                            pick={pick}
+                            selected={selectedPickIds.has(pick.pickId)}
+                            onToggle={() => onTogglePick(pick.pickId)}
+                        />
+                    ))}
+                </>
+            ) : null}
+        </View>
+    )
+}
+
 export default function ProposeTradeScreen() {
     const { current, currentLeague } = useLeagueContext()
     const params = useLocalSearchParams<{ recipientMemberId?: string }>()
@@ -104,6 +178,9 @@ export default function ProposeTradeScreen() {
 
     const myMemberId = current?.id ?? ''
     const leagueId = currentLeague?.id ?? ''
+    const { width } = useWindowDimensions()
+    const twoColumn = width >= breakpoints.roster
+    const myTeamName = current?.team_name ?? 'Your team'
 
     const [members, setMembers] = useState<any[]>([])
     const [selectedRecipientId, setSelectedRecipientId] = useState<string | null>(
@@ -242,7 +319,8 @@ export default function ProposeTradeScreen() {
 
     const hasOffer = offerIds.size > 0 || offerPickIds.size > 0
     const hasRequest = requestIds.size > 0 || requestPickIds.size > 0
-    const canSubmit = selectedRecipientId !== null && hasOffer && hasRequest && !submitting
+    const tradingClosed = isTradingClosed(currentLeague)
+    const canSubmit = selectedRecipientId !== null && hasOffer && hasRequest && !submitting && !tradingClosed
 
     if (!current) {
         return (
@@ -285,6 +363,14 @@ export default function ProposeTradeScreen() {
             </View>
 
             <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+                {tradingClosed ? (
+                    <View style={styles.lockBanner}>
+                        <Text style={styles.lockBannerText}>
+                            The trade deadline has passed. Trades reopen after the season finals.
+                        </Text>
+                    </View>
+                ) : null}
+
                 {/* Team picker */}
                 <Text style={styles.sectionLabel}>TRADE WITH</Text>
                 {loading ? (
@@ -316,108 +402,64 @@ export default function ProposeTradeScreen() {
                 )}
 
                 {selectedRecipientId && (
-                    <>
-                        {rosterLoading ? (
-                            <ActivityIndicator color={colors.primary} style={{ margin: spacing['3xl'] }} />
-                        ) : rosterError ? (
-                            <>
-                                <Text style={styles.sectionLabel}>
-                                    YOU RECEIVE — from {recipientTeamName}
-                                </Text>
-                                <Pressable
-                                    style={styles.rosterErrorRow}
-                                    onPress={loadRosters}
-                                    accessibilityRole="button"
-                                    accessibilityLabel="Failed to load rosters. Tap to retry."
-                                >
-                                    <Text style={styles.rosterErrorText}>Failed to load rosters. Tap to retry.</Text>
-                                </Pressable>
-                                <Text style={styles.sectionLabel}>YOU GIVE</Text>
-                                <Pressable
-                                    style={styles.rosterErrorRow}
-                                    onPress={loadRosters}
-                                    accessibilityRole="button"
-                                    accessibilityLabel="Failed to load rosters. Tap to retry."
-                                >
-                                    <Text style={styles.rosterErrorText}>Failed to load rosters. Tap to retry.</Text>
-                                </Pressable>
-                            </>
-                        ) : (
-                            <>
-                                {/* YOU RECEIVE section */}
-                                <Text style={styles.sectionLabel}>
-                                    YOU RECEIVE — from {recipientTeamName}
-                                </Text>
-                                {theirRoster.length === 0 ? (
-                                    <Text style={styles.emptyRowText}>No players on their roster.</Text>
-                                ) : (
-                                    theirRoster.map((rp) => (
-                                        <PlayerRow
-                                            key={rp.id}
-                                            player={rp}
-                                            selected={requestIds.has(rp.players.id)}
-                                            onToggle={() => toggleRequest(rp.players.id)}
-                                        />
-                                    ))
-                                )}
-
-                                {theirPicks.length > 0 && (
-                                    <>
-                                        <Text style={styles.subSectionLabel}>DRAFT PICKS</Text>
-                                        {theirPicks.map((pick) => (
-                                            <PickRow
-                                                key={pick.pickId}
-                                                pick={pick}
-                                                selected={requestPickIds.has(pick.pickId)}
-                                                onToggle={() => toggleRequestPick(pick.pickId)}
-                                            />
-                                        ))}
-                                    </>
-                                )}
-
-                                {/* YOU GIVE section */}
-                                <Text style={styles.sectionLabel}>YOU GIVE</Text>
-                                {myRoster.length === 0 ? (
-                                    <Text style={styles.emptyRowText}>No players on your roster.</Text>
-                                ) : (
-                                    myRoster.map((rp) => (
-                                        <PlayerRow
-                                            key={rp.id}
-                                            player={rp}
-                                            selected={offerIds.has(rp.players.id)}
-                                            onToggle={() => toggleOffer(rp.players.id)}
-                                        />
-                                    ))
-                                )}
-
-                                {myPicks.length > 0 && (
-                                    <>
-                                        <Text style={styles.subSectionLabel}>DRAFT PICKS</Text>
-                                        {myPicks.map((pick) => (
-                                            <PickRow
-                                                key={pick.pickId}
-                                                pick={pick}
-                                                selected={offerPickIds.has(pick.pickId)}
-                                                onToggle={() => toggleOfferPick(pick.pickId)}
-                                            />
-                                        ))}
-                                    </>
-                                )}
-
-                                {/* Notes */}
-                                <Text style={styles.sectionLabel}>NOTES (optional)</Text>
-                                <TextInput
-                                    style={styles.notesInput}
-                                    placeholder="Add a message to your trade offer..."
-                                    placeholderTextColor={colors.textPlaceholder}
-                                    value={notes}
-                                    onChangeText={setNotes}
-                                    multiline
-                                    numberOfLines={3}
+                    rosterLoading ? (
+                        <ActivityIndicator color={colors.primary} style={{ margin: spacing['3xl'] }} />
+                    ) : rosterError ? (
+                        <Pressable
+                            style={styles.rosterErrorRow}
+                            onPress={loadRosters}
+                            accessibilityRole="button"
+                            accessibilityLabel="Failed to load rosters. Tap to retry."
+                        >
+                            <Text style={styles.rosterErrorText}>Failed to load rosters. Tap to retry.</Text>
+                        </Pressable>
+                    ) : (
+                        <>
+                            {/* Two-column compare: your team (give) on the left, their
+                                team (receive) on the right. Stacks on narrow viewports. */}
+                            <View style={[styles.compareRow, !twoColumn && styles.compareColStack]}>
+                                <TeamColumn
+                                    title="YOU GIVE"
+                                    subtitle={myTeamName}
+                                    side="give"
+                                    twoColumn={twoColumn}
+                                    roster={myRoster}
+                                    picks={myPicks}
+                                    selectedPlayerIds={offerIds}
+                                    selectedPickIds={offerPickIds}
+                                    onTogglePlayer={toggleOffer}
+                                    onTogglePick={toggleOfferPick}
+                                    emptyText="No players on your roster."
                                 />
-                            </>
-                        )}
-                    </>
+                                <View style={twoColumn ? styles.columnDivider : styles.columnDividerH} />
+                                <TeamColumn
+                                    title="YOU RECEIVE"
+                                    subtitle={recipientTeamName}
+                                    side="receive"
+                                    twoColumn={twoColumn}
+                                    roster={theirRoster}
+                                    picks={theirPicks}
+                                    selectedPlayerIds={requestIds}
+                                    selectedPickIds={requestPickIds}
+                                    onTogglePlayer={toggleRequest}
+                                    onTogglePick={toggleRequestPick}
+                                    emptyText="No players on their roster."
+                                />
+                            </View>
+
+                            {/* Notes */}
+                            <Text style={styles.sectionLabel}>NOTES (optional)</Text>
+                            <TextInput
+                                style={styles.notesInput}
+                                placeholder="Add a message to your trade offer..."
+                                placeholderTextColor={colors.textPlaceholder}
+                                value={notes}
+                                onChangeText={setNotes}
+                                multiline
+                                numberOfLines={3}
+                            />
+                        </>
+                    )
                 )}
 
                 {!selectedRecipientId && !loading && (
@@ -489,6 +531,37 @@ const styles = StyleSheet.create({
         paddingTop: spacing.lg,
         paddingBottom: spacing.sm,
     },
+
+    // Two-column compare layout
+    compareRow: { flexDirection: 'row', alignItems: 'flex-start' },
+    compareColStack: { flexDirection: 'column' },
+    column: { flex: 1, minWidth: 0 },
+    columnStacked: { flex: 0, width: '100%' },
+    columnDivider: { width: 1, alignSelf: 'stretch', backgroundColor: colors.borderLight },
+    columnDividerH: { height: 1, backgroundColor: colors.borderLight, marginVertical: spacing.md, marginHorizontal: spacing.xl },
+    columnHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.md,
+        paddingHorizontal: spacing.xl,
+        paddingTop: spacing['2xl'],
+        paddingBottom: spacing.md,
+    },
+    flex1: { flex: 1, minWidth: 0 },
+    columnTitle: { fontSize: fontSize.sm, fontWeight: fontWeight.extrabold, color: colors.textPrimary, letterSpacing: 0.5 },
+    columnTitleReceive: { color: colors.primaryDark },
+    columnSubtitle: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: spacing.xxs, fontWeight: fontWeight.semibold },
+    columnCount: {
+        minWidth: 22,
+        height: 22,
+        paddingHorizontal: spacing.sm,
+        borderRadius: radii.full,
+        backgroundColor: palette.mocha,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    columnCountReceive: { backgroundColor: colors.primary },
+    columnCountText: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.textWhite },
 
     teamChips: {
         paddingHorizontal: spacing.xl,
@@ -578,6 +651,16 @@ const styles = StyleSheet.create({
         fontWeight: fontWeight.semibold,
         textAlign: 'center',
     },
+    lockBanner: {
+        marginHorizontal: spacing.xl,
+        marginTop: spacing.xl,
+        padding: spacing.lg,
+        borderRadius: radii.lg,
+        borderWidth: 1,
+        borderColor: colors.warningDark,
+        backgroundColor: colors.warningLight,
+    },
+    lockBannerText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.warningDark, textAlign: 'center' },
     emptyCenter: {
         alignItems: 'center',
         padding: spacing['5xl'],

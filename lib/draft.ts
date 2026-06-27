@@ -255,6 +255,14 @@ export async function startDraft(
     }
 }
 
+export async function stopDraft(draftId: string): Promise<void> {
+    await sharedApiPost(`/draft/${draftId}/stop`, {})
+}
+
+export async function resetDraft(draftId: string): Promise<void> {
+    await sharedApiPost(`/draft/${draftId}/reset`, {})
+}
+
 export async function nominatePlayer(
     draftId: string,
     memberId: string,

@@ -1,6 +1,8 @@
 import { FastifyInstance } from 'fastify'
 import {
     startDraft,
+    stopDraft,
+    resetDraft,
     nominatePlayer,
     placeBid,
     withdrawNomination,
@@ -33,6 +35,18 @@ export default async function draftRoutes(app: FastifyInstance) {
         await requireCommissioner(req.userId, leagueId)
         const draft = await startDraft(leagueId, nominationOrderMode)
         return { ok: true, draft }
+    })
+
+    app.post('/:draftId/stop', { schema: { params: DraftParams } }, async (req) => {
+        const { draftId } = req.params as { draftId: string }
+        await requireCommissionerForDraft(req.userId, draftId)
+        return await stopDraft(draftId)
+    })
+
+    app.post('/:draftId/reset', { schema: { params: DraftParams } }, async (req) => {
+        const { draftId } = req.params as { draftId: string }
+        await requireCommissionerForDraft(req.userId, draftId)
+        return await resetDraft(draftId)
     })
 
     // NOTE: draft state is read client-side via RLS-scoped Supabase queries

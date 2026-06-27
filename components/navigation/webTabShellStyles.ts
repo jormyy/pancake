@@ -142,8 +142,14 @@ export const styles = StyleSheet.create({
         color: '#A9876B',
         fontSize: fontSize.xs,
     },
-    // Light variant for the mobile top bar (web is light-themed).
+    // Light variant for the mobile top bar (web is light-themed). Sized to sit
+    // at ~40px so it lines up with the 38px hamburger and 34px brand mark in the
+    // 56px top bar — the default 52px height made it look too tall / detached.
     leagueSwitchLight: {
+        minHeight: 40,
+        paddingVertical: spacing.xs,
+        paddingHorizontal: spacing.md,
+        gap: spacing.md,
         backgroundColor: colors.bgMuted,
         borderColor: colors.borderLight,
     },
@@ -161,7 +167,10 @@ export const styles = StyleSheet.create({
     },
     leagueMenu: {
         position: 'absolute',
-        top: 58,
+        // Anchor to the bottom of the switch (whatever its height) so the menu
+        // sits flush below both the 52px sidebar switch and the 40px mobile one.
+        top: '100%',
+        marginTop: spacing.xs,
         left: 0,
         right: 0,
         zIndex: 100,

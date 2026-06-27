@@ -15,7 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { getOwnedPlayerMap, OwnedEntry } from '@/lib/roster'
 import { useLeagueContext } from '@/contexts/league-context'
-import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { colors, fontSize, fontWeight, radii, spacing, layout } from '@/constants/tokens'
 import { ItemSeparator } from '@/components/ItemSeparator'
 import { EmptyState } from '@/components/EmptyState'
 import { IRResolutionModal } from '@/components/IRResolutionModal'
@@ -23,6 +23,7 @@ import { DropPlayerPickerModal } from '@/components/DropPlayerPickerModal'
 import { PlayerSearchItem } from '@/components/PlayerSearchItem'
 import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
 import { usePlayerSearch, SORT_OPTIONS } from '@/hooks/use-player-search'
+import { STAT_COLUMN_SORT, type PlayerSearchSortMode } from '@/lib/player-search-sort'
 import { useQuickAdd } from '@/hooks/use-quick-add'
 import { getWaiverPlayerIds } from '@/lib/waivers'
 import { PlayerRow } from '@/lib/players'
@@ -223,6 +224,17 @@ export default function PlayersScreen() {
     const waiverIds = ownedData?.waiverIds ?? EMPTY_WAIVER_IDS
 
     const search = usePlayerSearch(leagueId, ownedMap, waiverIds, current?.id)
+    // ESPN-style column sort: click a stat header to sort the whole pool by it;
+    // click the active one again to flip direction. All stats default to
+    // descending (best first).
+    const handleColumnSort = (mode: PlayerSearchSortMode) => {
+        if (search.sort.mode === mode) {
+            search.sort.setDir((dir) => (dir === 'asc' ? 'desc' : 'asc'))
+        } else {
+            search.sort.setMode(mode)
+            search.sort.setDir('desc')
+        }
+    }
     const quickAdd = useQuickAdd(
         current?.id,
         leagueId,
@@ -333,7 +345,7 @@ export default function PlayersScreen() {
                         options={SORT_OPTIONS}
                         onChange={(value) => {
                             search.sort.setMode(value)
-                            search.sort.setDir(value === 'name' || value === 'team' ? 'asc' : 'desc')
+                            search.sort.setDir('desc')
                         }}
                     />
                     <Pressable
@@ -365,9 +377,24 @@ export default function PlayersScreen() {
                                 <Text style={styles.tableHeaderPlayer}>Player</Text>
                                 <Text style={styles.tableHeaderOwnership}>Ownership</Text>
                                 <View style={styles.tableHeaderStatsGroup}>
-                                    {TABLE_COLUMNS.map((column) => (
-                                        <Text key={column} style={styles.tableHeaderStat} accessibilityLabel={STAT_LABELS[column] ?? column}>{column}</Text>
-                                    ))}
+                                    {TABLE_COLUMNS.map((column) => {
+                                        const mode = STAT_COLUMN_SORT[column]
+                                        const active = mode != null && search.sort.mode === mode
+                                        return (
+                                            <Pressable
+                                                key={column}
+                                                style={styles.tableHeaderStatBtn}
+                                                onPress={() => mode && handleColumnSort(mode)}
+                                                accessibilityRole="button"
+                                                accessibilityState={{ selected: active }}
+                                                accessibilityLabel={`Sort by ${STAT_LABELS[column] ?? column}${active ? (search.sort.dir === 'asc' ? ', ascending' : ', descending') : ''}`}
+                                            >
+                                                <Text style={[styles.tableHeaderStat, active && styles.tableHeaderStatActive]} numberOfLines={1}>
+                                                    {column}{active ? (search.sort.dir === 'asc' ? ' ▲' : ' ▼') : ''}
+                                                </Text>
+                                            </Pressable>
+                                        )
+                                    })}
                                 </View>
                             </View>
                         </View>
@@ -419,7 +446,7 @@ export default function PlayersScreen() {
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgScreen },
-    contentWrap: { flex: 1, width: '100%', maxWidth: 1280, alignSelf: 'center' },
+    contentWrap: { flex: 1, width: '100%', maxWidth: layout.contentMaxWidth, alignSelf: 'center' },
     flex1: { flex: 1 },
     loadMoreSpinner: { paddingVertical: 16 },
     filterCard: {
@@ -655,14 +682,22 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'flex-end', // mirrors statsGrid.justifyContent
     },
-    tableHeaderStat: {
+    tableHeaderStatBtn: {
         width: 54,                  // mirrors statCell.width
+        minHeight: 34,
+        alignItems: 'flex-end',
+        justifyContent: 'center',
+    },
+    tableHeaderStat: {
         textAlign: 'right',
         fontSize: 10,
         fontWeight: fontWeight.extrabold,
         color: colors.textSecondary,
         letterSpacing: 0.7,
         textTransform: 'uppercase' as const,
+    },
+    tableHeaderStatActive: {
+        color: colors.primaryDark,
     },
 
     searchInput: {

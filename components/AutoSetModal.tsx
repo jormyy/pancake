@@ -1,5 +1,5 @@
 import { Modal, View, Text, Pressable, StyleSheet } from 'react-native'
-import { colors } from '@/constants/tokens'
+import { colors, scrim } from '@/constants/tokens'
 
 export function AutoSetModal({
     visible,
@@ -66,7 +66,7 @@ export function AutoSetModal({
 }
 
 const styles = StyleSheet.create({
-    overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center', padding: 20 },
+    overlay: { flex: 1, backgroundColor: scrim, justifyContent: 'center', alignItems: 'center', padding: 20 },
     content: { backgroundColor: colors.bgScreen, borderRadius: 16, padding: 20, width: '100%', gap: 16 },
     title: { fontSize: 19, fontWeight: '800', color: colors.textPrimary, textAlign: 'center' },
     text: { fontSize: 14, color: colors.textMuted, textAlign: 'center' },

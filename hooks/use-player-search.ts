@@ -8,7 +8,6 @@ import { currentSeasonYear } from '@/lib/shared/season'
 import { todayET } from '@/lib/shared/dates'
 import {
     PLAYER_SEARCH_SORT_OPTIONS,
-    sortPlayerSearchResults,
     type PlayerSearchSortDir,
     type PlayerSearchSortMode,
 } from '@/lib/player-search-sort'
@@ -26,6 +25,8 @@ type SearchParams = {
     excludePlayerIds?: string[]
     rookiesOnly: boolean
     health: HealthFilter
+    sortBy: SortMode
+    sortDir: SortDir
 }
 
 export const SORT_OPTIONS = PLAYER_SEARCH_SORT_OPTIONS
@@ -43,6 +44,8 @@ const DEFAULT_SEARCH_PARAMS: SearchParams = {
     excludedTeams: [],
     rookiesOnly: false,
     health: 'all',
+    sortBy: 'fpts',
+    sortDir: 'desc',
 }
 
 function useWeeklyAvailability() {
@@ -141,10 +144,9 @@ export function usePlayerSearch(
         }
     }, [availabilityFilter, ownedMap, waiverIds, currentMemberId])
 
-    const displayedPlayers = useMemo(() => {
-        return sortPlayerSearchResults(players, sortMode, sortDir, weeklyAvailability.gamesLeft)
-    }, [players, sortMode, sortDir, weeklyAvailability.gamesLeft])
-
+    // Sorting is applied server-side across the whole filtered pool (see
+    // searchPlayers), so the list renders the accumulated pages as-is. Changing
+    // the sort re-queries from page 0 (via the load effect) and resets scroll.
     useEffect(() => {
         listRef.current?.scrollToOffset({ offset: 0, animated: false })
     }, [sortMode, sortDir])
@@ -169,6 +171,8 @@ export function usePlayerSearch(
                     excludePlayerIds: params.excludePlayerIds,
                     excludedTeams: params.excludedTeams,
                 },
+                params.sortBy,
+                params.sortDir,
             )
             setPlayers(results)
             setHasMore(!params.rookiesOnly && results.length === PAGE_SIZE)
@@ -199,6 +203,8 @@ export function usePlayerSearch(
                     excludePlayerIds: params.excludePlayerIds,
                     excludedTeams: params.excludedTeams,
                 },
+                params.sortBy,
+                params.sortDir,
             )
             if (results.length > 0) {
                 offsetRef.current = nextOffset
@@ -233,10 +239,12 @@ export function usePlayerSearch(
             excludePlayerIds: availabilityPlayerScope.excludePlayerIds,
             rookiesOnly,
             health,
+            sortBy: sortMode,
+            sortDir,
         }
         const timer = setTimeout(() => load(params), 300)
         return () => clearTimeout(timer)
-    }, [query, position, selectedTeams, leagueId, playingTeams, excludedTeams, availabilityPlayerScope, rookiesOnly, health, load])
+    }, [query, position, selectedTeams, leagueId, playingTeams, excludedTeams, availabilityPlayerScope, rookiesOnly, health, sortMode, sortDir, load])
 
     const clearAllFilters = useCallback(() => {
         setQuery('')
@@ -276,7 +284,7 @@ export function usePlayerSearch(
         health: { value: health, setValue: setHealth },
         availabilityFilter: { value: availabilityFilter, setValue: setAvailabilityFilter },
         toggles: { rookiesOnly, setRookiesOnly },
-        results: { players: displayedPlayers, loading, loadingMore, listRef, loadMore },
+        results: { players, loading, loadingMore, listRef, loadMore },
         activeFilterCount,
         clearAllFilters,
     }

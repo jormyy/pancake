@@ -11,6 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
+import { isTradingClosed } from '@/lib/league'
 import {
     getMyTrades,
     getVetoableTrades,
@@ -18,7 +19,7 @@ import {
     TradePickItem,
     getPicksForMember,
 } from '@/lib/trades'
-import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { colors, palette, fontSize, fontWeight, radii, spacing, layout } from '@/constants/tokens'
 import { ItemSeparator } from '@/components/ItemSeparator'
 import { SectionHeader } from '@/components/SectionHeader'
 import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
@@ -48,6 +49,7 @@ export default function TradesScreen() {
     const leagueId = currentLeague?.id ?? ''
     const rosterSize: number = currentLeague?.roster_size ?? 20
     const myTeamName = current?.team_name ?? ''
+    const tradingClosed = isTradingClosed(currentLeague)
 
     const [tab, setTab] = useState<TabKey>('picks')
     const [trades, setTrades] = useState<Trade[]>([])
@@ -156,7 +158,7 @@ export default function TradesScreen() {
 
         if (tab === 'picks') {
             // Group picks under a year header so the long pick bank is scannable.
-            const sorted = [...picksList].sort((a, b) => a.seasonYear - b.seasonYear || a.round - b.round)
+            const sorted = [...picksList].sort((a, b) => a.seasonYear - b.seasonYear || a.round - b.round || a.originalTeamName.localeCompare(b.originalTeamName) || a.pickId.localeCompare(b.pickId))
             let lastYear: number | null = null
             sorted.forEach((p) => {
                 if (p.seasonYear !== lastYear) {
@@ -206,12 +208,16 @@ export default function TradesScreen() {
             <View style={styles.header}>
                 <Text style={styles.headerTitle}>Trades</Text>
                 <Pressable
-                    style={styles.proposeBtn}
+                    style={[styles.proposeBtn, tradingClosed && styles.proposeBtnDisabled]}
                     onPress={() => push('/(modals)/propose-trade')}
+                    disabled={tradingClosed}
                     accessibilityRole="button"
-                    accessibilityLabel="Propose trade"
+                    accessibilityLabel={tradingClosed ? 'Trades locked — deadline passed' : 'Propose trade'}
+                    accessibilityState={{ disabled: tradingClosed }}
                 >
-                    <Text style={styles.proposeBtnText}>+ Propose</Text>
+                    <Text style={[styles.proposeBtnText, tradingClosed && styles.proposeBtnTextDisabled]}>
+                        {tradingClosed ? 'Locked' : '+ Propose'}
+                    </Text>
                 </Pressable>
             </View>
 
@@ -285,7 +291,7 @@ export default function TradesScreen() {
 }
 
 const styles = StyleSheet.create({
-    content: { flex: 1, width: '100%', maxWidth: 680, alignSelf: 'center' },
+    content: { flex: 1, width: '100%', maxWidth: layout.contentMaxWidth, alignSelf: 'center' },
     container: { flex: 1, backgroundColor: colors.bgScreen },
 
     header: {
@@ -308,6 +314,8 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     proposeBtnText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.md },
+    proposeBtnDisabled: { backgroundColor: colors.bgMuted, borderWidth: 1, borderColor: colors.borderLight },
+    proposeBtnTextDisabled: { color: colors.textPlaceholder },
 
     tabRow: {
         flexDirection: 'row',

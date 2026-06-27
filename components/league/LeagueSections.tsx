@@ -358,10 +358,24 @@ const PicksBankListHeader = (
     </View>
 )
 
+// Deterministic pick order: year asc → round asc → owner name → original team
+// name → id. Without the name/id tiebreakers, picks sharing a year+round (a
+// team holding multiple same-round picks via trades) come back in arbitrary,
+// run-to-run order from Postgres and the list visibly shuffles.
+function comparePicks(a: LeaguePickItem, b: LeaguePickItem): number {
+    return (
+        a.seasonYear - b.seasonYear ||
+        a.round - b.round ||
+        a.currentTeamName.localeCompare(b.currentTeamName) ||
+        a.originalTeamName.localeCompare(b.originalTeamName) ||
+        a.id.localeCompare(b.id)
+    )
+}
+
 export function PicksBankList({ picks, myMemberId, refreshControl }: { picks: LeaguePickItem[]; myMemberId?: string; refreshControl?: ReactElement<RefreshControlProps> }) {
     const flatData = useMemo<PicksBankItem[]>(() => {
         const byYear = new Map<number, LeaguePickItem[]>()
-        for (const p of picks) {
+        for (const p of [...picks].sort(comparePicks)) {
             if (!byYear.has(p.seasonYear)) byYear.set(p.seasonYear, [])
             byYear.get(p.seasonYear)!.push(p)
         }

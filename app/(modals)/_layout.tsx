@@ -16,6 +16,10 @@ export default function ModalsLayout() {
                 options={{ title: 'League Settings', presentation: 'modal' }}
             />
             <Stack.Screen
+                name="change-password"
+                options={{ title: 'Change Password', presentation: 'modal' }}
+            />
+            <Stack.Screen
                 name="draft-room"
                 options={{ title: 'Draft Room', headerBackVisible: false }}
             />

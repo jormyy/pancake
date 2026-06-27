@@ -1,5 +1,5 @@
 import { View, Text, Pressable, StyleSheet, Modal, ScrollView } from 'react-native'
-import { colors, palette } from '@/constants/tokens'
+import { colors, palette, scrim } from '@/constants/tokens'
 import { LineupPlayer } from '@/lib/lineup'
 import { isIREligible } from '@/lib/roster'
 
@@ -92,7 +92,7 @@ export function ActivationOverflowModal({
 }
 
 const styles = StyleSheet.create({
-    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
+    modalOverlay: { flex: 1, backgroundColor: scrim, justifyContent: 'flex-end' },
     modalSheet: { backgroundColor: colors.bgScreen, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, gap: 12 },
     modalTitle: { fontSize: 17, fontWeight: '800', color: colors.textPrimary },
     modalSub: { fontSize: 13, color: colors.textMuted, marginBottom: 4 },

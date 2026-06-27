@@ -20,6 +20,8 @@ import {
     nominatePlayer,
     placeBid,
     withdrawNomination,
+    stopDraft,
+    resetDraft,
     searchPlayers,
     DraftState,
     DraftSearchPlayer,
@@ -29,14 +31,14 @@ import {
 import { RealtimeChannel } from '@supabase/supabase-js'
 import { LoadingScreen } from '@/components/LoadingScreen'
 import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
-import { showAlert, getErrorMessage } from '@/lib/alert'
+import { showAlert, confirmAction, getErrorMessage } from '@/lib/alert'
 import { MotionPressable, MotionView } from '@/components/Motion'
 
 type DraftTab = 'budgets' | 'history'
 
 export default function DraftRoomScreen() {
     const { draftId } = useLocalSearchParams<{ draftId: string }>()
-    const { current } = useLeagueContext()
+    const { current, isCommissioner } = useLeagueContext()
     const { back } = useRouter()
 
     const [state, setState] = useState<DraftState | null>(null)
@@ -110,6 +112,44 @@ export default function DraftRoomScreen() {
             setLoading(false)
         }
     }, [draftId])
+
+    const handleStopDraft = useCallback(() => {
+        if (!draftId) return
+        confirmAction(
+            'Stop draft?',
+            'This ends the draft now. Players already drafted stay on their rosters and the league moves into the season. This cannot be undone.',
+            () => {
+                void (async () => {
+                    try {
+                        await stopDraft(draftId)
+                        back()
+                    } catch (e) {
+                        showAlert('Could not stop draft', getErrorMessage(e))
+                    }
+                })()
+            },
+            'Stop Draft',
+        )
+    }, [draftId, back])
+
+    const handleResetDraft = useCallback(() => {
+        if (!draftId) return
+        confirmAction(
+            'Reset draft?',
+            'This wipes every pick, bid, and budget and restarts the draft from scratch. This cannot be undone.',
+            () => {
+                void (async () => {
+                    try {
+                        await resetDraft(draftId)
+                        await load()
+                    } catch (e) {
+                        showAlert('Could not reset draft', getErrorMessage(e))
+                    }
+                })()
+            },
+            'Reset Draft',
+        )
+    }, [draftId, load])
 
     // Load + subscribe + poll fallback
     useEffect(() => {
@@ -250,16 +290,19 @@ export default function DraftRoomScreen() {
     const bidValue = parseInt(bidText, 10) // NaN while the field is empty/partial
     const bidValid = !isNaN(bidValue) && bidValue >= minBid && bidValue <= remainingBudget
 
-    if (draft.status === 'completed') {
+    if (draft.status === 'completed' || draft.status === 'cancelled') {
+        const stopped = draft.status === 'cancelled'
         return (
             <SafeAreaView style={styles.container} edges={['bottom']}>
                 <View style={styles.header}>
                     <Text style={styles.headerTitle}>Auction Draft</Text>
                 </View>
                 <View style={styles.draftEndedContainer}>
-                    <Text style={styles.draftEndedTitle}>Draft Complete</Text>
+                    <Text style={styles.draftEndedTitle}>{stopped ? 'Draft Stopped' : 'Draft Complete'}</Text>
                     <Text style={styles.draftEndedSub}>
-                        All teams are out of budget. Remaining players are free agents.
+                        {stopped
+                            ? 'The commissioner ended the draft. Players already drafted are on their rosters; everyone else is a free agent.'
+                            : 'All teams are out of budget. Remaining players are free agents.'}
                     </Text>
                     <MotionPressable style={styles.nominateButton} onPress={() => back()} pressedScale={0.96}>
                         <Text style={styles.nominateButtonText}>Back to League</Text>
@@ -282,6 +325,32 @@ export default function DraftRoomScreen() {
                     )}
                 </View>
             </View>
+
+            {isCommissioner ? (
+                <View style={styles.adminBar}>
+                    <Text style={styles.adminBarLabel}>Commissioner</Text>
+                    <View style={styles.adminBarBtns}>
+                        <MotionPressable
+                            style={[styles.adminBtn, styles.adminBtnReset]}
+                            onPress={handleResetDraft}
+                            pressedScale={0.94}
+                            accessibilityRole="button"
+                            accessibilityLabel="Reset draft"
+                        >
+                            <Text style={styles.adminBtnResetText}>Reset</Text>
+                        </MotionPressable>
+                        <MotionPressable
+                            style={[styles.adminBtn, styles.adminBtnStop]}
+                            onPress={handleStopDraft}
+                            pressedScale={0.94}
+                            accessibilityRole="button"
+                            accessibilityLabel="Stop draft"
+                        >
+                            <Text style={styles.adminBtnStopText}>Stop</Text>
+                        </MotionPressable>
+                    </View>
+                </View>
+            ) : null}
 
             <KeyboardAvoidingView
                 style={styles.keyboard}
@@ -633,6 +702,34 @@ const styles = StyleSheet.create({
         borderColor: colors.primaryBorder,
     },
     budgetChipText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.primaryDark },
+    adminBar: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: spacing.xl,
+        paddingVertical: spacing.sm,
+        backgroundColor: colors.bgSubtle,
+        borderBottomWidth: 1,
+        borderBottomColor: colors.borderLight,
+    },
+    adminBarLabel: {
+        fontSize: 10,
+        fontWeight: fontWeight.extrabold,
+        letterSpacing: 0.8,
+        textTransform: 'uppercase' as const,
+        color: colors.textMuted,
+    },
+    adminBarBtns: { flexDirection: 'row', gap: spacing.md },
+    adminBtn: {
+        paddingHorizontal: spacing.lg,
+        paddingVertical: 6,
+        borderRadius: radii.md,
+        borderWidth: 1,
+    },
+    adminBtnReset: { backgroundColor: colors.bgCard, borderColor: colors.border },
+    adminBtnStop: { backgroundColor: colors.dangerLight, borderColor: colors.danger },
+    adminBtnResetText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.textSecondary },
+    adminBtnStopText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.dangerDark },
 
     card: {
         backgroundColor: colors.bgScreen,

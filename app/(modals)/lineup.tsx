@@ -4,7 +4,7 @@ import { DaySelector } from '@/components/DaySelector'
 import { LoadingScreen } from '@/components/LoadingScreen'
 import { PosTag } from '@/components/PosTag'
 import { getPositionColor } from "@/constants/positions"
-import { colors, fontSize, fontWeight, palette, radii, spacing } from '@/constants/tokens'
+import { colors, fontSize, fontWeight, palette, radii, scrim, spacing } from '@/constants/tokens'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useAuth } from '@/hooks/use-auth'
 import { useLiveStats } from '@/hooks/use-live-stats'
@@ -571,7 +571,7 @@ const styles = StyleSheet.create({
         position: 'absolute',
         bottom: 24,
         alignSelf: 'center',
-        backgroundColor: 'rgba(0,0,0,0.6)',
+        backgroundColor: scrim,
         borderRadius: radii['3xl'],
         borderCurve: 'continuous' as const,
         paddingHorizontal: spacing['2xl'],

@@ -10,7 +10,7 @@ import {
 import type { RosterPlayer } from '@/lib/roster'
 import { getEligiblePositions } from '@/lib/players'
 import { getPositionColor } from '@/constants/positions'
-import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { colors, fontSize, fontWeight, radii, scrim, spacing } from '@/constants/tokens'
 import { Avatar } from '@/components/Avatar'
 import { PosTag } from '@/components/PosTag'
 
@@ -76,7 +76,7 @@ export function DropPlayerPickerModal({ visible, title, subtitle, roster, droppi
 }
 
 const styles = StyleSheet.create({
-    overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+    overlay: { flex: 1, backgroundColor: scrim, justifyContent: 'flex-end' },
     card: {
         backgroundColor: colors.bgScreen,
         borderTopLeftRadius: radii['3xl'],
