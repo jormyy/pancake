@@ -6,7 +6,6 @@ import {
     ScrollView,
     StyleSheet,
     ActivityIndicator,
-    Alert,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Stack, useRouter } from 'expo-router'
@@ -16,8 +15,8 @@ import { getLineupSlots, updateLeague, updateLineupSlots } from '@/lib/league'
 import { advanceSeason } from '@/lib/rookieDraft'
 import { apiPost } from '@/lib/shared/api'
 import { LoadingScreen } from '@/components/LoadingScreen'
-import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
-import { getErrorMessage } from '@/lib/alert'
+import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { showAlert, showSuccess, confirmAction, getErrorMessage } from '@/lib/alert'
 
 async function adminCall(
     path: string,
@@ -29,9 +28,9 @@ async function adminCall(
     setBusyAction(action)
     try {
         await apiPost(path, body)
-        Alert.alert('Done', successMessage)
+        showSuccess('Done', successMessage)
     } catch (e) {
-        Alert.alert('Error', getErrorMessage(e))
+        showAlert('Error', getErrorMessage(e))
     } finally {
         setBusyAction(null)
     }
@@ -180,23 +179,23 @@ export default function CommissionerSettingsScreen() {
         const parsedPlayoff = parseInt(playoffWeek)
 
         if (isNaN(parsedRoster) || parsedRoster < 1) {
-            Alert.alert('Invalid', 'Roster size must be at least 1.')
+            showAlert('Invalid', 'Roster size must be at least 1.')
             return
         }
         if (isNaN(parsedIR) || parsedIR < 0) {
-            Alert.alert('Invalid', 'IR slots must be 0 or more.')
+            showAlert('Invalid', 'IR slots must be 0 or more.')
             return
         }
         if (isNaN(parsedTaxi) || parsedTaxi < 0) {
-            Alert.alert('Invalid', 'Taxi squad slots must be 0 or more.')
+            showAlert('Invalid', 'Taxi squad slots must be 0 or more.')
             return
         }
         if (isNaN(parsedBudget) || parsedBudget < 1) {
-            Alert.alert('Invalid', 'Auction budget must be at least 1.')
+            showAlert('Invalid', 'Auction budget must be at least 1.')
             return
         }
         if (isNaN(parsedPlayoff) || parsedPlayoff < 18 || parsedPlayoff > 26) {
-            Alert.alert('Invalid', 'Playoff start week must be between 18 and 26.')
+            showAlert('Invalid', 'Playoff start week must be between 18 and 26.')
             return
         }
 
@@ -209,7 +208,7 @@ export default function CommissionerSettingsScreen() {
         const slotsChanged = SLOT_TYPES.some((type) => (slots[type] ?? 0) !== (initialSlots[type] ?? 0))
         const canUpdateSlots = (league.status as LeagueStatus) === 'setup'
         if (slotsChanged && !canUpdateSlots) {
-            Alert.alert('Invalid', 'Lineup slots can only be changed during league setup.')
+            showAlert('Invalid', 'Lineup slots can only be changed during league setup.')
             return
         }
 
@@ -246,7 +245,7 @@ export default function CommissionerSettingsScreen() {
             await refresh()
             back()
         } catch (e) {
-            Alert.alert('Error', getErrorMessage(e))
+            showAlert('Error', getErrorMessage(e))
         } finally {
             setSaving(false)
         }
@@ -300,28 +299,23 @@ export default function CommissionerSettingsScreen() {
 
     async function handleAdvanceSeason() {
         if (!league?.id) return
-        Alert.alert(
+        confirmAction(
             'Advance Season',
             'This will create a new season, carry rosters forward, and set the league to offseason. Continue?',
-            [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'Advance',
-                    style: 'destructive',
-                    onPress: async () => {
-                        setBusyAction('advance-season')
-                        try {
-                            await advanceSeason(league.id)
-                            Alert.alert('Done', 'Season advanced. Start the rookie draft when ready.')
-                            await refresh()
-                        } catch (e) {
-                            Alert.alert('Error', getErrorMessage(e))
-                        } finally {
-                            setBusyAction(null)
-                        }
-                    },
-                },
-            ],
+            async () => {
+                setBusyAction('advance-season')
+                try {
+                    await advanceSeason(league.id)
+                    showSuccess('Done', 'Season advanced. Start the rookie draft when ready.')
+                    await refresh()
+                } catch (e) {
+                    showAlert('Error', getErrorMessage(e))
+                } finally {
+                    setBusyAction(null)
+                }
+            },
+            'Advance',
+            true,
         )
     }
 
@@ -352,13 +346,12 @@ export default function CommissionerSettingsScreen() {
                 label: 'Reset & Regenerate Schedule',
                 color: colors.danger,
                 onPress: () =>
-                    Alert.alert(
+                    confirmAction(
                         'Reset Schedule',
                         'This will delete all existing matchups and regenerate. Are you sure?',
-                        [
-                            { text: 'Cancel', style: 'cancel' },
-                            { text: 'Reset', style: 'destructive', onPress: () => generateSchedule(true) },
-                        ],
+                        () => generateSchedule(true),
+                        'Reset',
+                        true,
                     ),
             },
         ],
@@ -521,7 +514,7 @@ export default function CommissionerSettingsScreen() {
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgSubtle },
-    scroll: { padding: spacing['2xl'], gap: spacing.md, paddingBottom: spacing['5xl'] },
+    scroll: { padding: spacing['2xl'], gap: spacing.md, paddingBottom: 96 },
 
     sectionTitle: {
         fontSize: fontSize.xs,
@@ -556,15 +549,15 @@ const styles = StyleSheet.create({
 
     stepper: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg },
     stepBtn: {
-        width: 30,
-        height: 30,
+        width: 44,
+        height: 44,
         borderRadius: radii.md,
         borderCurve: 'continuous' as const,
         backgroundColor: colors.bgMuted,
         justifyContent: 'center',
         alignItems: 'center',
     },
-    stepBtnText: { fontSize: 18, color: palette.gray900, lineHeight: 22 },
+    stepBtnText: { fontSize: 20, color: colors.textPrimary, lineHeight: 24 },
     stepValue: {
         fontSize: fontSize.lg,
         fontWeight: fontWeight.bold,

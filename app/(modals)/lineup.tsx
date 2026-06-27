@@ -25,14 +25,13 @@ import { useRouter } from 'expo-router'
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import {
     ActivityIndicator,
-    Alert,
     ScrollView,
     StyleSheet,
     Text,
     View,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { getErrorMessage } from '@/lib/alert'
+import { showAlert, showSuccess, getErrorMessage } from '@/lib/alert'
 import { MotionPressable, MotionView } from '@/components/Motion'
 
 type Selection =
@@ -234,7 +233,7 @@ export default function LineupScreen() {
         // lineupCtx.today (ET-keyed) so compare against todayET to avoid
         // a local-vs-ET skew misclassifying the current day.
         if (selectedDate < todayET()) {
-            Alert.alert('Past lineup', 'Lineups for past days cannot be changed.')
+            showAlert('Past lineup', 'Lineups for past days cannot be changed.')
             return
         }
 
@@ -264,17 +263,17 @@ export default function LineupScreen() {
         const bLocked = !!(bPlayer?.nbaTeam && startedTeamsRef.current.has(bPlayer.nbaTeam))
         if (aLocked || bLocked) {
             const who = aLocked ? aPlayer! : bPlayer!
-            Alert.alert('Lineup locked', `${who.displayName}'s game has already started. No lineup changes are allowed once a game begins.`)
+            showAlert('Lineup locked', `${who.displayName}'s game has already started. No lineup changes are allowed once a game begins.`)
             return
         }
 
         // Validate eligibility
         if (aPlayer && bSlot !== 'BE' && !canPlaySlot(aPlayer.eligiblePositions, bSlot)) {
-            Alert.alert('Invalid move', `${aPlayer.displayName} can't play ${bSlot}`)
+            showAlert('Invalid move', `${aPlayer.displayName} can't play ${bSlot}`)
             return
         }
         if (bPlayer && aSlot !== 'BE' && !canPlaySlot(bPlayer.eligiblePositions, aSlot)) {
-            Alert.alert('Invalid move', `${bPlayer.displayName} can't play ${aSlot}`)
+            showAlert('Invalid move', `${bPlayer.displayName} can't play ${aSlot}`)
             return
         }
 
@@ -295,7 +294,7 @@ export default function LineupScreen() {
             )
             await loadLineup(ctx, currentLeague, selectedDate)
         } catch (e) {
-            Alert.alert('Error', getErrorMessage(e))
+            showAlert('Error', getErrorMessage(e))
         } finally {
             setSaving(false)
         }
@@ -308,10 +307,10 @@ export default function LineupScreen() {
             await autoSetLineup(current.id, currentLeague.id, ctx.seasonId, ctx.weekNumber, ctx.seasonYear, date, restOfSeason)
             await loadLineup(ctx, currentLeague, selectedDate)
             if (restOfSeason) {
-                Alert.alert('Done', 'Lineup set for the rest of the season.')
+                showSuccess('Done', 'Lineup set for the rest of the season.')
             }
         } catch (e) {
-            Alert.alert('Auto-set failed', getErrorMessage(e) ?? String(e))
+            showAlert('Auto-set failed', getErrorMessage(e) ?? String(e))
         } finally {
             setAutoSetting(false)
         }
@@ -349,6 +348,8 @@ export default function LineupScreen() {
         )
     }
 
+    const rosterEmpty = starters.every((s) => !s.player) && bench.length === 0
+
     return (
         <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
             {/* Header */}
@@ -358,18 +359,18 @@ export default function LineupScreen() {
                 </MotionPressable>
                 <Text style={styles.headerTitle}>Week {ctx.weekNumber} Lineup</Text>
                 <MotionPressable
-                    style={styles.autoSetButton}
+                    style={[styles.autoSetButton, rosterEmpty && styles.autoSetButtonDisabled]}
                     onPress={handleAutoSet}
-                    disabled={autoSetting || saving}
+                    disabled={autoSetting || saving || rosterEmpty}
                     accessibilityRole="button"
                     accessibilityLabel="Open auto-set lineup options"
-                    accessibilityState={{ disabled: autoSetting || saving }}
+                    accessibilityState={{ disabled: autoSetting || saving || rosterEmpty }}
                     pressedScale={0.92}
                 >
                     {autoSetting ? (
                         <ActivityIndicator size="small" color={colors.primary} />
                     ) : (
-                        <Text style={styles.autoSetText}>Auto-Set</Text>
+                        <Text style={[styles.autoSetText, rosterEmpty && styles.autoSetTextDisabled]}>Auto-Set</Text>
                     )}
                 </MotionPressable>
             </View>
@@ -391,6 +392,13 @@ export default function LineupScreen() {
             )}
 
             <ScrollView contentContainerStyle={styles.scroll}>
+                {rosterEmpty ? (
+                    <View style={styles.preDraftHint}>
+                        <Text style={styles.preDraftHintText}>
+                            No players yet — your roster fills as you draft. Draft players to set your Week {ctx.weekNumber} lineup.
+                        </Text>
+                    </View>
+                ) : null}
                 {/* Starters */}
                 <Text style={styles.sectionLabel}>STARTERS</Text>
                 <MotionView style={styles.card} preset="rise">
@@ -412,7 +420,7 @@ export default function LineupScreen() {
                 <Text style={styles.sectionLabel}>BENCH</Text>
                 <MotionView style={styles.card} preset="rise" delay={90}>
                     {bench.length === 0 ? (
-                        <Text style={styles.benchEmpty}>All players are in the starting lineup</Text>
+                        <Text style={styles.benchEmpty}>{rosterEmpty ? 'Your bench fills after the draft' : 'All players are in the starting lineup'}</Text>
                     ) : (
                         bench.map((player, i) => (
                             <BenchRow
@@ -473,6 +481,17 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     autoSetText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.primaryDark },
+    autoSetButtonDisabled: { borderColor: colors.borderLight, backgroundColor: colors.bgMuted, opacity: 0.55 },
+    autoSetTextDisabled: { color: colors.textMuted },
+    preDraftHint: {
+        padding: spacing.lg,
+        borderRadius: radii.lg,
+        borderCurve: 'continuous' as const,
+        backgroundColor: colors.primaryLight,
+        borderWidth: 1,
+        borderColor: colors.primaryBorder,
+    },
+    preDraftHintText: { fontSize: fontSize.sm, color: colors.primaryDark, fontWeight: fontWeight.medium, lineHeight: 18 },
 
     hint: {
         backgroundColor: colors.primaryLight,
@@ -483,7 +502,7 @@ const styles = StyleSheet.create({
     },
     hintText: { fontSize: fontSize.sm, color: colors.primaryDark, fontWeight: fontWeight.medium },
 
-    scroll: { padding: spacing.xl, gap: spacing.md },
+    scroll: { padding: spacing.xl, gap: spacing.md, width: '100%', maxWidth: 640, alignSelf: 'center' },
 
     sectionLabel: {
         fontSize: fontSize.xs,
@@ -536,7 +555,7 @@ const styles = StyleSheet.create({
     playerMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     playerMeta: { fontSize: 12, color: colors.textMuted },
 
-    emptySlot: { fontSize: fontSize.md, color: palette.gray500, fontStyle: 'italic' },
+    emptySlot: { fontSize: fontSize.md, color: colors.textMuted, fontStyle: 'italic' },
     lockedBadge: {
         fontSize: 10,
         fontWeight: fontWeight.bold,

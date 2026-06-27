@@ -8,7 +8,9 @@ import {
     useWindowDimensions,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { useRouter } from 'expo-router'
 import { useCallback, useEffect, useMemo } from 'react'
+import { EmptyState } from '@/components/EmptyState'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useAuth } from '@/hooks/use-auth'
 import { Scoreboard } from '@/components/Scoreboard'
@@ -41,6 +43,7 @@ type Sel = { kind: 'starter'; index: number } | { kind: 'bench'; index: number }
 export default function HomeScreen() {
     const { memberships, current, currentLeague: league, setCurrent, loading } = useLeagueContext()
     const { user } = useAuth()
+    const router = useRouter()
     const { width, height } = useWindowDimensions()
     const compact = width < 560 || height < 840
     const dense = height < 620
@@ -214,10 +217,27 @@ export default function HomeScreen() {
                         ? <Scoreboard games={todaysGames} myTeamSet={myTeamSet} compact={compact} />
                         : <Text style={styles.dateLabel}>Showing lineup for {selectedDate}</Text>
                     }
-                    <View style={styles.noMatchup}>
-                        <Text style={styles.noMatchupText}>No matchup this week yet.</Text>
-                        <Text style={styles.noMatchupSub}>Matchups are generated before each week starts.</Text>
-                    </View>
+                    {league?.status === 'drafting' ? (
+                        <EmptyState
+                            fullScreen={false}
+                            framed
+                            icon="flash-on"
+                            message="Your draft is live"
+                            description="The auction draft is underway — nominate players and build your roster before the season tips off."
+                            actionLabel="Go to Draft Room"
+                            onAction={() => router.push('/league')}
+                        />
+                    ) : (
+                        <EmptyState
+                            fullScreen={false}
+                            framed
+                            icon="event"
+                            message="No matchup this week yet"
+                            description="Matchups post before each week starts. Until then, scout the player pool and get your roster ready."
+                            actionLabel="Browse Players"
+                            onAction={() => router.push('/players')}
+                        />
+                    )}
                 </View>
             )}
 

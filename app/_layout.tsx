@@ -9,6 +9,8 @@ import { useColorScheme } from '@/hooks/use-color-scheme'
 import { AuthProvider, useAuth } from '@/hooks/use-auth'
 import { LeagueProvider } from '@/contexts/league-context'
 import { usePushNotifications } from '@/hooks/use-push-notifications'
+import { FeedbackProvider } from '@/components/ui'
+import { WebAppShell } from '@/components/navigation/WebTabShell'
 
 export const unstable_settings = {
     anchor: '(tabs)',
@@ -24,9 +26,11 @@ export default function RootLayout() {
 
     return (
         <ThemeProvider value={navTheme}>
-            <AuthProvider>
-                <RootContent />
-            </AuthProvider>
+            <FeedbackProvider>
+                <AuthProvider>
+                    <RootContent />
+                </AuthProvider>
+            </FeedbackProvider>
             <StatusBar style={Platform.OS === 'web' ? 'dark' : 'auto'} />
         </ThemeProvider>
     )
@@ -48,13 +52,30 @@ function RootContent() {
         }
     }, [session, loading, segments, router])
 
+    const inAuthGroup = segments[0] === '(auth)'
+    // On web, mount the persistent app-shell (sidebar / mobile nav) at the root
+    // so it wraps EVERY authenticated route — tabs, former modals, and player
+    // detail alike. The chrome never disappears mid-flow. The shell stays mounted
+    // for all web routes (chrome toggles off for auth/loading) so an auth-state
+    // change never remounts the route tree. Native keeps its own bottom-tab
+    // shell + platform stack modals.
+    const webChrome = !!session && !inAuthGroup
+
+    const stack = (
+        <Stack>
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+            <Stack.Screen name="(modals)" options={{ headerShown: false }} />
+            {/* Declare the dynamic player route so a cold deep-link (/player/<id>)
+                rehydrates a valid navigation state instead of crashing in
+                getRehydratedState. The screen sets its own header options. */}
+            <Stack.Screen name="player/[id]" />
+        </Stack>
+    )
+
     return (
         <LeagueProvider>
-            <Stack>
-                <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-                <Stack.Screen name="(modals)" options={{ headerShown: false }} />
-            </Stack>
+            {Platform.OS === 'web' ? <WebAppShell chrome={webChrome}>{stack}</WebAppShell> : stack}
         </LeagueProvider>
     )
 }

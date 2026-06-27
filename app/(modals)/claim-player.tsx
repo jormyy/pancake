@@ -4,7 +4,6 @@ import {
     Pressable,
     StyleSheet,
     ActivityIndicator,
-    Alert,
 } from 'react-native'
 import { FlashList } from '@shopify/flash-list'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -18,7 +17,7 @@ import { getPlayer } from '@/lib/players'
 import { submitWaiverClaim, getMyWaiverPriority } from '@/lib/waivers'
 import { LoadingScreen } from '@/components/LoadingScreen'
 import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
-import { getErrorMessage } from '@/lib/alert'
+import { showAlert, showSuccess, getErrorMessage } from '@/lib/alert'
 
 export default function ClaimPlayerScreen() {
     const { playerId } = useLocalSearchParams<{ playerId: string }>()
@@ -65,7 +64,7 @@ export default function ClaimPlayerScreen() {
     async function handleSubmit() {
         if (!current || !user || !playerId || !currentLeague) return
         if (needsDrop && !selectedDrop) {
-            Alert.alert('Select Drop', 'Your roster is full. Select a player to drop.')
+            showAlert('Select Drop', 'Your roster is full. Select a player to drop.')
             return
         }
 
@@ -77,13 +76,13 @@ export default function ClaimPlayerScreen() {
                 playerId,
                 selectedDrop?.players.id,
             )
-            Alert.alert(
+            showSuccess(
                 'Claim Submitted',
                 'Your waiver claim has been submitted. Claims are processed nightly.',
-                [{ text: 'OK', onPress: () => back() }],
             )
+            back()
         } catch (e) {
-            Alert.alert('Error', getErrorMessage(e))
+            showAlert('Error', getErrorMessage(e))
         } finally {
             setSubmitting(false)
         }

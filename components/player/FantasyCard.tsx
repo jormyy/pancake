@@ -34,9 +34,9 @@ const styles = StyleSheet.create({
         gap: 10,
     },
     title: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.primaryDark, textTransform: 'uppercase', letterSpacing: 0.5 },
-    row: { flexDirection: 'row', alignItems: 'center' },
-    stat: { flex: 1, alignItems: 'center', gap: spacing.xs },
-    divider: { width: 1, height: 36, backgroundColor: palette.maple200 },
+    row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing['5xl'] },
+    stat: { alignItems: 'center', gap: spacing.xs, minWidth: 88 },
+    divider: { width: 1, height: 36, backgroundColor: colors.primaryBorder },
     statValue: { fontSize: fontSize['2xl'], fontWeight: fontWeight.extrabold, color: colors.primaryDark },
     statLabel: { fontSize: fontSize.xs, fontWeight: fontWeight.semibold, color: palette.maple900 },
 })

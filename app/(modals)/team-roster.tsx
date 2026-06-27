@@ -15,6 +15,7 @@ import { getEligiblePositions } from '@/lib/players'
 import { getPositionColor } from "@/constants/positions"
 import { Avatar } from '@/components/Avatar'
 import { Badge } from '@/components/Badge'
+import { EmptyState } from '@/components/EmptyState'
 import { ItemSeparator } from '@/components/ItemSeparator'
 import { PosTag } from '@/components/PosTag'
 import { colors, palette, fontSize, fontWeight, spacing } from '@/constants/tokens'
@@ -54,17 +55,29 @@ export default function TeamRosterScreen() {
                 <ActivityIndicator style={styles.loading} color={colors.primary} />
             ) : (
                 <FlashList
+                    contentContainerStyle={styles.listContent}
                     data={[...active, ...ir, ...taxi]}
                     keyExtractor={(r) => r.id}
                     ItemSeparatorComponent={ItemSeparator}
                     ListHeaderComponent={
-                        <View style={styles.countRow}>
-                            <Text style={styles.countText}>
-                                {active.length} active
-                                {ir.length > 0 ? ` · ${ir.length} IR` : ''}
-                                {taxi.length > 0 ? ` · ${taxi.length} Taxi` : ''}
-                            </Text>
-                        </View>
+                        roster.length === 0 ? null : (
+                            <View style={styles.countRow}>
+                                <Text style={styles.countText}>
+                                    {active.length} active
+                                    {ir.length > 0 ? ` · ${ir.length} IR` : ''}
+                                    {taxi.length > 0 ? ` · ${taxi.length} Taxi` : ''}
+                                </Text>
+                            </View>
+                        )
+                    }
+                    ListEmptyComponent={
+                        <EmptyState
+                            icon="sports-basketball"
+                            message="No players yet"
+                            description="This team's roster fills as the draft and season unfold. Check back once the draft is underway."
+                            fullScreen={false}
+                            framed
+                        />
                     }
                     renderItem={({ item }) => {
                         const p = item.players
@@ -127,6 +140,7 @@ const styles = StyleSheet.create({
     headerTitle: { flex: 1, fontSize: 18, fontWeight: fontWeight.extrabold, textAlign: 'center' },
 
     loading: { marginTop: 40 },
+    listContent: { width: '100%', maxWidth: 680, alignSelf: 'center' },
 
     countRow: {
         paddingHorizontal: spacing.xl,

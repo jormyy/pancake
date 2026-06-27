@@ -1,20 +1,18 @@
 import {
     View,
     Text,
-    TextInput,
-    Pressable,
     StyleSheet,
     KeyboardAvoidingView,
     Platform,
-    ActivityIndicator,
     ScrollView,
     useWindowDimensions,
 } from 'react-native'
 import { Link } from 'expo-router'
 import { useState } from 'react'
 import { signUp } from '@/lib/auth'
-import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { brand, colors, elevation, fontSize, fontWeight, radii, spacing, breakpoints } from '@/constants/tokens'
 import { getErrorMessage } from '@/lib/alert'
+import { Button, Input } from '@/components/ui'
 
 export default function SignUpScreen() {
     const [email, setEmail] = useState('')
@@ -24,7 +22,7 @@ export default function SignUpScreen() {
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const { width } = useWindowDimensions()
-    const split = Platform.OS === 'web' && width >= 860
+    const split = Platform.OS === 'web' && width >= breakpoints.auth
 
     async function handleSignUp() {
         if (!email || !password || !username || !displayName) {
@@ -72,64 +70,47 @@ export default function SignUpScreen() {
                                 <Text style={styles.subtitle}>Create your manager profile, then create or join a league.</Text>
                             </View>
 
-                            {error ? <Text style={styles.error}>{error}</Text> : null}
+                            {error ? <Text style={styles.error} accessibilityLiveRegion="polite">{error}</Text> : null}
 
                             <View style={styles.formBlock}>
-                                <Field label="Display name">
-                                    <TextInput
-                                        style={styles.input}
-                                        placeholder="Maple Manager"
-                                        placeholderTextColor={colors.textPlaceholder}
-                                        textContentType="name"
-                                        value={displayName}
-                                        onChangeText={setDisplayName}
-                                    />
-                                </Field>
-
-                                <Field label="Username">
-                                    <TextInput
-                                        style={styles.input}
-                                        placeholder="hoopsgod"
-                                        placeholderTextColor={colors.textPlaceholder}
-                                        autoCapitalize="none"
-                                        autoCorrect={false}
-                                        value={username}
-                                        onChangeText={(value) => setUsername(value.toLowerCase())}
-                                    />
-                                </Field>
-
-                                <Field label="Email">
-                                    <TextInput
-                                        style={styles.input}
-                                        placeholder="you@example.com"
-                                        placeholderTextColor={colors.textPlaceholder}
-                                        autoCapitalize="none"
-                                        keyboardType="email-address"
-                                        textContentType="emailAddress"
-                                        value={email}
-                                        onChangeText={setEmail}
-                                    />
-                                </Field>
-
-                                <Field label="Password">
-                                    <TextInput
-                                        style={styles.input}
-                                        placeholder="Minimum 8 characters"
-                                        placeholderTextColor={colors.textPlaceholder}
-                                        secureTextEntry
-                                        textContentType="newPassword"
-                                        value={password}
-                                        onChangeText={setPassword}
-                                    />
-                                </Field>
-
-                                <Pressable style={styles.button} onPress={handleSignUp} disabled={loading}>
-                                    {loading ? (
-                                        <ActivityIndicator color={colors.textWhite} />
-                                    ) : (
-                                        <Text style={styles.buttonText}>Create Account</Text>
-                                    )}
-                                </Pressable>
+                                <Input
+                                    label="Display name"
+                                    placeholder="Maple Manager"
+                                    autoComplete="name"
+                                    textContentType="name"
+                                    value={displayName}
+                                    onChangeText={setDisplayName}
+                                />
+                                <Input
+                                    label="Username"
+                                    placeholder="hoopsgod"
+                                    autoCapitalize="none"
+                                    autoCorrect={false}
+                                    hint="Lowercase letters, numbers, underscores"
+                                    value={username}
+                                    onChangeText={(value) => setUsername(value.toLowerCase())}
+                                />
+                                <Input
+                                    label="Email"
+                                    placeholder="you@example.com"
+                                    autoCapitalize="none"
+                                    autoComplete="email"
+                                    keyboardType="email-address"
+                                    textContentType="emailAddress"
+                                    value={email}
+                                    onChangeText={setEmail}
+                                />
+                                <Input
+                                    label="Password"
+                                    placeholder="Minimum 8 characters"
+                                    secureTextEntry
+                                    autoComplete="new-password"
+                                    textContentType="newPassword"
+                                    value={password}
+                                    onChangeText={setPassword}
+                                    onSubmitEditing={handleSignUp}
+                                />
+                                <Button title="Create Account" size="lg" fullWidth loading={loading} onPress={handleSignUp} style={styles.submit} />
                             </View>
 
                             <Link href="/(auth)/sign-in" style={styles.link}>
@@ -165,7 +146,7 @@ function BrandPanel() {
             <View style={styles.brandMiddle}>
                 <Text style={styles.brandHeadline}>Build a league with staying power.</Text>
                 <Text style={styles.brandCopy}>
-                    Create your manager profile, join a dynasty room, and carry auction values, rookie picks, waivers, trades, IR, and taxi squads across seasons.
+                    Create your manager profile, join a league, and carry auction values, rookie picks, waivers, trades, IR, and taxi squads across seasons.
                 </Text>
                 <View style={styles.featureList}>
                     <FeatureLine title="Ten-team leagues with five-year pick banks" />
@@ -200,15 +181,6 @@ function FeatureLine({ title }: { title: string }) {
     )
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-    return (
-        <View style={styles.field}>
-            <Text style={styles.fieldLabel}>{label}</Text>
-            {children}
-        </View>
-    )
-}
-
 type WebAuthStyle = {
     backgroundImage?: string
     boxShadow?: string
@@ -216,17 +188,13 @@ type WebAuthStyle = {
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgScreen },
-    shell: {
-        flex: 1,
-    },
-    shellSplit: {
-        flexDirection: 'row',
-    },
+    shell: { flex: 1 },
+    shellSplit: { flexDirection: 'row' },
     brandPanel: {
         flex: 1.05,
         padding: 56,
-        backgroundColor: '#1A1008',
-        backgroundImage: 'linear-gradient(150deg, #2A1A0E 0%, #160D06 100%)',
+        backgroundColor: brand.surfaceDeep,
+        backgroundImage: `linear-gradient(150deg, ${brand.surface} 0%, ${brand.surfaceDeeper} 100%)`,
     } as WebAuthStyle,
     brandTop: {
         flexDirection: 'row',
@@ -239,7 +207,7 @@ const styles = StyleSheet.create({
         maxWidth: 520,
     },
     brandHeadline: {
-        color: '#FFF7EC',
+        color: brand.on,
         fontSize: 44,
         lineHeight: 48,
         fontWeight: fontWeight.extrabold,
@@ -247,7 +215,7 @@ const styles = StyleSheet.create({
     },
     brandCopy: {
         marginTop: spacing.xl,
-        color: '#C9A988',
+        color: brand.onMuted,
         fontSize: fontSize.lg,
         lineHeight: 24,
         maxWidth: 460,
@@ -265,26 +233,26 @@ const styles = StyleSheet.create({
         width: 12,
         height: 12,
         borderRadius: radii.full,
-        backgroundColor: colors.primary,
+        backgroundColor: colors.primaryBorder,
     },
     featureText: {
-        color: '#E6D2B6',
+        color: brand.onStrong,
         fontSize: 15,
         fontWeight: fontWeight.semibold,
     },
     brandFoot: {
-        color: '#8C6A4C',
+        color: brand.onFaint,
         fontSize: fontSize.sm,
         fontWeight: fontWeight.semibold,
     },
     brandName: {
-        color: '#FFF6E8',
+        color: brand.on,
         fontSize: 22,
         fontWeight: fontWeight.extrabold,
     },
     brandSub: {
         marginTop: -2,
-        color: '#B98E64',
+        color: brand.onSubtle,
         fontSize: 10,
         fontWeight: fontWeight.bold,
         letterSpacing: 2,
@@ -312,9 +280,7 @@ const styles = StyleSheet.create({
         width: '100%',
         maxWidth: 392,
     },
-    formCardMobile: {
-        maxWidth: 430,
-    },
+    formCardMobile: { maxWidth: 430 },
     mobileBrand: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -328,21 +294,19 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         backgroundColor: colors.primary,
-        boxShadow: '0 6px 18px rgba(201, 102, 15, 0.5)',
-    } as WebAuthStyle,
+        ...(elevation('brandGlow') as object),
+    },
     brandMarkCompact: {
         width: 40,
         height: 40,
         borderRadius: radii.lg,
     },
     brandMarkText: {
-        color: '#FFF6E8',
+        color: brand.on,
         fontSize: 24,
         fontWeight: fontWeight.extrabold,
     },
-    brandMarkTextCompact: {
-        fontSize: 21,
-    },
+    brandMarkTextCompact: { fontSize: 21 },
     mobileBrandName: {
         color: colors.textPrimary,
         fontSize: 21,
@@ -355,11 +319,9 @@ const styles = StyleSheet.create({
         letterSpacing: 1.8,
         textTransform: 'uppercase' as const,
     },
-    titleBlock: {
-        marginBottom: spacing['3xl'],
-    },
+    titleBlock: { marginBottom: spacing['3xl'] },
     eyebrow: {
-        color: colors.primary,
+        color: colors.primaryDark,
         fontSize: fontSize.xs,
         fontWeight: fontWeight.extrabold,
         letterSpacing: 1.5,
@@ -384,48 +346,11 @@ const styles = StyleSheet.create({
         fontWeight: fontWeight.semibold,
         marginBottom: spacing.lg,
     },
-    formBlock: {
-        gap: spacing.lg,
-    },
-    field: {
-        gap: spacing.sm,
-    },
-    fieldLabel: {
-        color: colors.textMuted,
-        fontSize: fontSize.xs,
-        fontWeight: fontWeight.extrabold,
-        letterSpacing: 0.6,
-        textTransform: 'uppercase' as const,
-    },
-    input: {
-        height: 52,
-        borderWidth: 1,
-        borderColor: colors.border,
-        borderRadius: radii.lg,
-        borderCurve: 'continuous' as const,
-        paddingHorizontal: spacing.xl,
-        fontSize: fontSize.lg,
-        backgroundColor: colors.bgInput,
-        color: colors.textPrimary,
-    },
-    button: {
-        height: 52,
-        backgroundColor: colors.primary,
-        borderRadius: radii.lg,
-        borderCurve: 'continuous' as const,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginTop: spacing.sm,
-        boxShadow: '0 4px 14px rgba(201, 102, 15, 0.36)',
-    } as WebAuthStyle,
-    buttonText: {
-        color: colors.textWhite,
-        fontWeight: fontWeight.extrabold,
-        fontSize: fontSize.lg,
-    },
+    formBlock: { gap: spacing.lg },
+    submit: { marginTop: spacing.sm },
     link: {
         textAlign: 'center',
-        color: colors.primary,
+        color: colors.primaryDark,
         marginTop: spacing['3xl'],
         fontSize: fontSize.md,
         fontWeight: fontWeight.semibold,

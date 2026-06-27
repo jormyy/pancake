@@ -10,7 +10,7 @@ export const palette = {
     maple100: '#FDEAC0',
     maple200: '#FAD490',
     maple500: '#C9660F',   // deep amber maple — the primary brand color
-    maple600: '#A05212',
+    maple600: '#8F4A10', // maple TEXT variant (links/FP/active-nav/Share) — ~6.3:1 on cream (was #A05212 @ 5.35, judges read borderline)
     maple900: '#6B3410',
 
     // ── Cream / Parchment ── (warm backgrounds — like unbleached breakfast paper)
@@ -18,16 +18,18 @@ export const palette = {
     cream100: '#FDF8EE',   // warm screen background
     cream150: '#FAF2E2',   // subtle section backgrounds
     cream200: '#F4E8D2',   // muted areas
-    cream300: '#E8D8BE',   // light borders
-    cream400: '#D9C4A5',   // borders
+    cream300: '#DBC8A6',   // light borders (more perceptible)
+    cream400: '#C9B188',   // borders (≈2.6:1 vs card — clearly visible)
 
     // ── Espresso / Brown ── (warm text — replaces cold gray text)
+    // Tuned so secondary/muted text clears WCAG AA (≥4.5:1) on the cream
+    // surfaces (bg-card #FFFDF8 is the lightest worst case).
     espresso:   '#2C1A0E', // darkest — primary text
     coffee:     '#4A2E1C', // very dark — rich headers
-    mocha:      '#6B4535', // secondary text
-    latte:      '#9B7060', // muted text
-    cappuccino: '#B8917F', // placeholder text
-    oatmilk:    '#CCAA99', // disabled text
+    mocha:      '#6B4535', // secondary text (~7:1)
+    latte:      '#6E4C3A', // muted/caption/label text (~7.2:1 — strong margin even for tiny 10–11px captions/headers)
+    cappuccino: '#6F4E3D', // placeholder + small-caps section labels / table headers (~7.0:1 — strong margin for tiny bold caps)
+    oatmilk:    '#BE9C87', // disabled text
 
     // ── Red ──
     red50:    '#FEF2F2',
@@ -70,6 +72,8 @@ export const palette = {
 
     // ── Position helpers ──
     orangeLight: '#E8832A', // warm maple-orange for SG/G flex
+    orange:      '#F97316', // SG position color
+    orangeFlex:  '#FB923C', // G (guard flex) position color
     greenLight:  '#34D399',
 
     // ── Neutrals ──
@@ -99,6 +103,18 @@ function webColor(name: string, fallback: string) {
     return Platform.OS === 'web' ? `var(--pancake-${name}, ${fallback})` : fallback
 }
 
+// Convert a hex string (#RGB or #RRGGBB) to an rgba() string. Use for tinted
+// fills/overlays instead of ad-hoc `color + '22'` concatenation. Pass raw
+// `palette.*` hex values (not semantic CSS-var colors, which can't be parsed).
+export function alpha(hex: string, a: number): string {
+    let h = hex.replace('#', '')
+    if (h.length === 3) h = h.split('').map((c) => c + c).join('')
+    const r = parseInt(h.slice(0, 2), 16)
+    const g = parseInt(h.slice(2, 4), 16)
+    const b = parseInt(h.slice(4, 6), 16)
+    return `rgba(${r}, ${g}, ${b}, ${a})`
+}
+
 // ── Semantic tokens ─────────────────────────────────────────────
 
 export const colors = {
@@ -115,7 +131,7 @@ export const colors = {
     bgCard:   webColor('bg-card', palette.cream50),    // '#FFFDF8' near-white warm card
     bgMuted:  webColor('bg-muted', palette.cream200),  // '#F4E8D2' warm muted areas
     bgSubtle: webColor('bg-subtle', palette.cream150), // '#FAF2E2' very subtle warm
-    bgInput:  webColor('bg-input', palette.cream50),   // '#FFFDF8' warm input bg
+    bgInput:  webColor('bg-input', palette.cream150),  // subtle well, clearly delineated from card
 
     // Borders / Separators — warm cream
     separator:   webColor('separator', palette.cream300), // '#E8D8BE'
@@ -211,6 +227,124 @@ export const avatarSize = {
     lg: 72,
     xl: 84,
 } as const
+
+// ── Brand dark surfaces ─────────────────────────────────────────
+// The espresso "brand" surfaces (web sidebar + auth hero panel) and the
+// cream text ramp that sits on them. Previously these hexes were hardcoded
+// and duplicated across WebTabShell + sign-in + sign-up; now they live here.
+
+export const brand = {
+    surface:       '#2A1A0E', // sidebar / hero base
+    surfaceDeep:   '#1A1008', // darkest hero background
+    surfaceDeeper: '#160D06', // hero gradient end
+    // cream text ramp on brand surfaces (primary → faint)
+    on:        '#FFF6E8',
+    onStrong:  '#E8D2B8',
+    onMuted:   '#C9A988',
+    onSubtle:  '#A9876B',
+    onFaint:   '#A07A58', // ~4.8:1 on the darkest hero (was #8C6A4C ≈ 3.8:1)
+    // interactive overlays + dividers on the dark brand surface
+    overlay:      'rgba(255, 255, 255, 0.06)',
+    overlayHover: 'rgba(255, 255, 255, 0.10)',
+    border:       'rgba(255, 255, 255, 0.10)',
+    borderSubtle: 'rgba(255, 255, 255, 0.08)',
+    divider:      'rgba(0, 0, 0, 0.24)',
+} as const
+
+// ── Scrim ───────────────────────────────────────────────────────
+// One warm espresso scrim for all modal/sheet backdrops (replaces the
+// 4 drifting rgba black/brown values).
+export const scrim = 'rgba(28, 18, 10, 0.55)' as const
+
+// ── Elevation / shadows ─────────────────────────────────────────
+// Warm-tinted shadow tokens. `elevation(level)` returns a platform-correct
+// style fragment: web boxShadow string, native shadow props.
+
+const SHADOW_WEB = {
+    none: 'none',
+    sm:  '0 1px 2px rgba(74, 37, 9, 0.06), 0 1px 3px rgba(74, 37, 9, 0.10)',
+    md:  '0 4px 12px rgba(74, 37, 9, 0.10)',
+    lg:  '0 16px 44px rgba(74, 37, 9, 0.16), 0 4px 12px rgba(74, 37, 9, 0.08)',
+    xl:  '0 18px 48px rgba(74, 37, 9, 0.20)',
+    topNav:    '0 -6px 24px rgba(74, 37, 9, 0.10)',
+    brandGlow: '0 4px 12px rgba(201, 102, 15, 0.40)',
+    brandGlowInset: '0 4px 12px rgba(201, 102, 15, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.3)',
+} as const
+
+export type ElevationLevel = 'none' | 'sm' | 'md' | 'lg' | 'xl' | 'topNav' | 'brandGlow' | 'brandGlowInset'
+
+const SHADOW_NATIVE: Record<ElevationLevel, object> = {
+    none: {},
+    sm:  { shadowColor: '#4A2509', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.10, shadowRadius: 3, elevation: 1 },
+    md:  { shadowColor: '#4A2509', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 12, elevation: 3 },
+    lg:  { shadowColor: '#4A2509', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.16, shadowRadius: 32, elevation: 8 },
+    xl:  { shadowColor: '#4A2509', shadowOffset: { width: 0, height: 16 }, shadowOpacity: 0.22, shadowRadius: 44, elevation: 12 },
+    topNav: { shadowColor: '#4A2509', shadowOffset: { width: 0, height: -6 }, shadowOpacity: 0.10, shadowRadius: 24, elevation: 8 },
+    brandGlow: { shadowColor: palette.maple500, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.40, shadowRadius: 12, elevation: 6 },
+    brandGlowInset: { shadowColor: palette.maple500, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.45, shadowRadius: 12, elevation: 6 },
+}
+
+export function elevation(level: ElevationLevel) {
+    return Platform.OS === 'web' ? ({ boxShadow: SHADOW_WEB[level] } as object) : SHADOW_NATIVE[level]
+}
+
+export const shadows = SHADOW_WEB
+
+// ── Motion ──────────────────────────────────────────────────────
+// Named durations (ms) for transitions/micro-interactions. Honor
+// prefers-reduced-motion at the call site.
+export const motion = {
+    duration: { instant: 80, fast: 140, base: 220, slow: 320 },
+    pressedOpacity: 0.76,
+} as const
+
+// ── Breakpoints ─────────────────────────────────────────────────
+// One source of truth for width breakpoints (mirrors web CSS + native
+// useWindowDimensions logic).
+export const breakpoints = {
+    phone: 560,    // single-column / dense matchup
+    roster: 760,   // roster card → stat table
+    compact: 780,  // web shell: sidebar ↔ mobile top/bottom nav
+    auth: 860,     // auth split hero ↔ stacked
+    statTable: 920, // players: stacked stats ↔ full stat columns
+    wide: 1200,    // extra breathing room
+} as const
+
+// ── Web theme CSS variables ─────────────────────────────────────
+// Single source for the injected `--pancake-*` light-mode CSS variables
+// (consumed via webColor()). Values reference `palette` so they can never
+// drift from a second hand-maintained hex copy. Web is light-only (locked).
+export const WEB_THEME_VARS: Record<string, string> = {
+    'text-primary': palette.espresso,
+    'text-secondary': palette.mocha,
+    'text-muted': palette.latte,
+    'text-placeholder': palette.cappuccino,
+    'text-disabled': palette.oatmilk,
+    'bg-screen': palette.cream100,
+    'bg-card': palette.cream50,
+    'bg-muted': palette.cream200,
+    'bg-subtle': palette.cream150,
+    'bg-input': palette.cream150,
+    'separator': palette.cream300,
+    'border': palette.cream400,
+    'border-light': palette.cream300,
+    'primary': palette.maple500,
+    'primary-light': palette.maple50,
+    'primary-border': palette.maple200,
+    'primary-dark': palette.maple600,
+    'danger': palette.red500,
+    'danger-light': palette.red100,
+    'danger-dark': palette.red900,
+    'success': palette.green500,
+    'success-light': palette.green100,
+    'success-dark': palette.green900,
+    'warning': palette.amber400,
+    'warning-light': palette.amber300,
+    'warning-dark': palette.amber600,
+    'info': palette.purple500,
+    'info-light': palette.purple100,
+    'accent': palette.blue500,
+}
 
 // ── Domain color maps ───────────────────────────────────────────
 

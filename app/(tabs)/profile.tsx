@@ -2,10 +2,9 @@ import {
     View,
     Text,
     TextInput,
-    Pressable,
     ScrollView,
     StyleSheet,
-    ActivityIndicator,
+    useWindowDimensions,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useEffect, useState } from 'react'
@@ -13,15 +12,21 @@ import { useAuth } from '@/hooks/use-auth'
 import { getProfile, updateProfile, signOut } from '@/lib/auth'
 import { updateTeamName } from '@/lib/league'
 import { useLeagueContext } from '@/contexts/league-context'
-import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { colors, fontSize, fontWeight, spacing } from '@/constants/tokens'
 import { LoadingScreen } from '@/components/LoadingScreen'
 import { Avatar } from '@/components/Avatar'
+import { Button } from '@/components/ui'
 import { showAlert, confirmAction, getErrorMessage } from '@/lib/alert'
 import type { Profile } from '@/types/database'
 
 export default function ProfileScreen() {
     const { user } = useAuth()
     const { current, currentLeague, refresh } = useLeagueContext()
+    // On narrow screens stack value under label (left-aligned) so long
+    // emails/usernames read on their own line instead of right-aligned wraps.
+    const narrow = useWindowDimensions().width < 480
+    const rowStyle = [styles.row, narrow && styles.rowNarrow]
+    const valueStyle = [styles.rowValue, narrow && styles.rowValueNarrow]
     const [profile, setProfile] = useState<Profile | null>(null)
     const [loading, setLoading] = useState(true)
     const [editing, setEditing] = useState(false)
@@ -112,7 +117,7 @@ export default function ProfileScreen() {
 
                 {/* Info card */}
                 <View style={styles.card}>
-                    <View style={styles.row}>
+                    <View style={rowStyle}>
                         <Text style={styles.rowLabel}>Name</Text>
                         {editing ? (
                             <TextInput
@@ -123,22 +128,22 @@ export default function ProfileScreen() {
                                 returnKeyType="next"
                             />
                         ) : (
-                            <Text style={styles.rowValue}>{profile?.display_name ?? '—'}</Text>
+                            <Text style={valueStyle}>{profile?.display_name ?? '—'}</Text>
                         )}
                     </View>
 
                     <View style={styles.divider} />
 
-                    <View style={styles.row}>
+                    <View style={rowStyle}>
                         <Text style={styles.rowLabel}>Username</Text>
-                        <Text style={styles.rowValue}>@{profile?.username}</Text>
+                        <Text style={valueStyle} numberOfLines={narrow ? 2 : 1}>@{profile?.username}</Text>
                     </View>
 
                     <View style={styles.divider} />
 
-                    <View style={styles.row}>
+                    <View style={rowStyle}>
                         <Text style={styles.rowLabel}>Email</Text>
-                        <Text style={styles.rowValue}>{user?.email}</Text>
+                        <Text style={valueStyle} numberOfLines={narrow ? 2 : 1}>{user?.email}</Text>
                     </View>
                 </View>
 
@@ -149,7 +154,7 @@ export default function ProfileScreen() {
                             {currentLeague?.name?.toUpperCase() ?? 'LEAGUE'}
                         </Text>
                         <View style={styles.card}>
-                            <View style={styles.row}>
+                            <View style={rowStyle}>
                                 <Text style={styles.rowLabel}>Team Name</Text>
                                 {editing ? (
                                     <TextInput
@@ -159,10 +164,10 @@ export default function ProfileScreen() {
                                         returnKeyType="done"
                                         onSubmitEditing={handleSave}
                                         placeholder="Your team name"
-                                        placeholderTextColor={palette.gray500}
+                                        placeholderTextColor={colors.textPlaceholder}
                                     />
                                 ) : (
-                                    <Text style={styles.rowValue}>
+                                    <Text style={valueStyle}>
                                         {current?.team_name ?? '—'}
                                     </Text>
                                 )}
@@ -174,40 +179,27 @@ export default function ProfileScreen() {
                 {/* Edit / Save / Cancel buttons */}
                 {editing ? (
                     <View style={styles.actionRow}>
-                        <Pressable style={styles.cancelButton} onPress={handleCancel}>
-                            <Text style={styles.cancelButtonText}>Cancel</Text>
-                        </Pressable>
-                        <Pressable
-                            style={styles.saveButton}
-                            onPress={handleSave}
-                            disabled={saving}
-                        >
-                            {saving ? (
-                                <ActivityIndicator size="small" color={colors.textWhite} />
-                            ) : (
-                                <Text style={styles.saveButtonText}>Save</Text>
-                            )}
-                        </Pressable>
+                        <Button title="Cancel" variant="secondary" onPress={handleCancel} style={styles.flexBtn} />
+                        <Button title="Save" onPress={handleSave} loading={saving} style={styles.flexBtn} />
                     </View>
                 ) : (
-                    <Pressable style={styles.editButton} onPress={() => setEditing(true)}>
-                        <Text style={styles.editButtonText}>Edit Profile</Text>
-                    </Pressable>
+                    <Button title="Edit Profile" variant="outline" fullWidth icon="edit" onPress={() => setEditing(true)} />
                 )}
 
                 {/* Sign out */}
-                <Pressable style={styles.signOutButton} onPress={handleSignOut}>
-                    <Text style={styles.signOutText}>Sign Out</Text>
-                </Pressable>
+                <Button title="Sign Out" variant="ghost" fullWidth icon="logout" onPress={handleSignOut} style={styles.signOutButton} />
+                <View style={styles.appMeta}>
+                    <Text style={styles.appMetaText}>Pancake · Dynasty Hoops</Text>
+                </View>
             </ScrollView>
         </SafeAreaView>
     )
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: colors.bgSubtle },
+    container: { flex: 1, backgroundColor: colors.bgScreen },
     scroll: { flex: 1 },
-    scrollContent: { padding: spacing['3xl'], gap: spacing.xl },
+    scrollContent: { padding: spacing['3xl'], gap: spacing.xl, width: '100%', maxWidth: 640, alignSelf: 'center' },
 
     avatarSection: { alignItems: 'center', paddingTop: 48, paddingBottom: spacing.md },
 
@@ -237,8 +229,10 @@ const styles = StyleSheet.create({
         gap: spacing.lg,
     },
     divider: { height: 1, backgroundColor: colors.separator, marginLeft: spacing.xl },
-    rowLabel: { width: 80, fontSize: fontSize.md, color: colors.textPlaceholder, fontWeight: fontWeight.medium },
-    rowValue: { flex: 1, fontSize: 15, color: colors.textPrimary, fontWeight: fontWeight.medium },
+    rowNarrow: { flexDirection: 'column', alignItems: 'flex-start', gap: spacing.xs, paddingVertical: spacing.lg },
+    rowLabel: { width: 80, fontSize: fontSize.md, color: colors.textMuted, fontWeight: fontWeight.medium },
+    rowValue: { flex: 1, minWidth: 0, fontSize: 15, color: colors.textPrimary, fontWeight: fontWeight.medium, textAlign: 'right' },
+    rowValueNarrow: { width: '100%', flex: 0, textAlign: 'left' },
     input: {
         flex: 1,
         fontSize: 15,
@@ -250,50 +244,8 @@ const styles = StyleSheet.create({
     },
 
     actionRow: { flexDirection: 'row', gap: spacing.lg },
-    editButton: {
-        backgroundColor: colors.bgCard,
-        borderRadius: radii.xl,
-        borderCurve: 'continuous' as const,
-        height: 48,
-        justifyContent: 'center',
-        alignItems: 'center',
-        borderWidth: 1,
-        borderColor: colors.border,
-    },
-    editButtonText: { fontSize: 15, fontWeight: fontWeight.semibold, color: colors.textSecondary },
-
-    saveButton: {
-        flex: 1,
-        backgroundColor: colors.primary,
-        borderRadius: radii.xl,
-        borderCurve: 'continuous' as const,
-        height: 48,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    saveButtonText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: 15 },
-    cancelButton: {
-        flex: 1,
-        backgroundColor: colors.bgCard,
-        borderRadius: radii.xl,
-        borderCurve: 'continuous' as const,
-        height: 48,
-        justifyContent: 'center',
-        alignItems: 'center',
-        borderWidth: 1,
-        borderColor: colors.border,
-    },
-    cancelButtonText: { fontSize: 15, fontWeight: fontWeight.semibold, color: colors.textSecondary },
-
-    signOutButton: {
-        marginTop: spacing.md,
-        height: 48,
-        borderRadius: radii.xl,
-        borderCurve: 'continuous' as const,
-        justifyContent: 'center',
-        alignItems: 'center',
-        borderWidth: 1,
-        borderColor: palette.red300,
-    },
-    signOutText: { fontSize: 15, fontWeight: fontWeight.semibold, color: colors.danger },
+    flexBtn: { flex: 1 },
+    signOutButton: { marginTop: spacing.md },
+    appMeta: { alignItems: 'center', paddingTop: spacing.lg },
+    appMetaText: { fontSize: fontSize.xs, color: colors.textMuted, fontWeight: fontWeight.semibold, letterSpacing: 0.5 },
 })

@@ -4,7 +4,6 @@ import {
     TextInput,
     StyleSheet,
     ActivityIndicator,
-    Alert,
     ScrollView,
     KeyboardAvoidingView,
     Platform,
@@ -30,7 +29,7 @@ import {
 import { RealtimeChannel } from '@supabase/supabase-js'
 import { LoadingScreen } from '@/components/LoadingScreen'
 import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
-import { getErrorMessage } from '@/lib/alert'
+import { showAlert, getErrorMessage } from '@/lib/alert'
 import { MotionPressable, MotionView } from '@/components/Motion'
 
 type DraftTab = 'budgets' | 'history'
@@ -168,11 +167,11 @@ export default function DraftRoomScreen() {
         const remaining = state.budgets.find((b) => b.memberId === myMemberId)?.remaining ?? Infinity
         const amount = parseInt(bidText, 10)
         if (isNaN(amount) || amount < min) {
-            Alert.alert('Invalid bid', `Enter a whole-dollar bid of at least $${min}.`)
+            showAlert('Invalid bid', `Enter a whole-dollar bid of at least $${min}.`)
             return
         }
         if (amount > remaining) {
-            Alert.alert('Over budget', `You only have $${remaining} left to spend.`)
+            showAlert('Over budget', `You only have $${remaining} left to spend.`)
             return
         }
         setBidding(true)
@@ -180,7 +179,7 @@ export default function DraftRoomScreen() {
             await placeBid(draftId, myMemberId, state.openNomination.id, amount)
             load()
         } catch (e) {
-            Alert.alert('Bid failed', getErrorMessage(e))
+            showAlert('Bid failed', getErrorMessage(e))
         } finally {
             setBidding(false)
         }
@@ -193,7 +192,7 @@ export default function DraftRoomScreen() {
             await withdrawNomination(draftId, myMemberId, state.openNomination.id)
             load()
         } catch (e) {
-            Alert.alert('Could not withdraw', getErrorMessage(e))
+            showAlert('Could not withdraw', getErrorMessage(e))
         } finally {
             setWithdrawing(false)
         }
@@ -209,7 +208,7 @@ export default function DraftRoomScreen() {
             setSearchResults([])
             load()
         } catch (e) {
-            Alert.alert('Nomination failed', getErrorMessage(e))
+            showAlert('Nomination failed', getErrorMessage(e))
         } finally {
             setSubmittingNom(false)
         }
@@ -274,12 +273,14 @@ export default function DraftRoomScreen() {
         <SafeAreaView style={styles.container} edges={['bottom']}>
             {/* Header */}
             <View style={styles.header}>
-                <Text style={styles.headerTitle}>Auction Draft</Text>
-                {myBudget && (
-                    <View style={styles.budgetChip}>
-                        <Text style={styles.budgetChipText}>${myBudget.remaining} left</Text>
-                    </View>
-                )}
+                <View style={styles.headerInner}>
+                    <Text style={styles.headerTitle}>Auction Draft</Text>
+                    {myBudget && (
+                        <View style={styles.budgetChip}>
+                            <Text style={styles.budgetChipText}>${myBudget.remaining} left</Text>
+                        </View>
+                    )}
+                </View>
             </View>
 
             <KeyboardAvoidingView
@@ -412,7 +413,7 @@ export default function DraftRoomScreen() {
                             <>
                                 <Text style={styles.yourTurnBanner}>Your turn to nominate!</Text>
                                 <Text style={styles.nominationModeHint}>
-                                    Board order: {NOMINATION_ORDER_MODE_LABELS[draft.nominationOrderMode]}
+                                    Nomination order: {NOMINATION_ORDER_MODE_LABELS[draft.nominationOrderMode]}
                                 </Text>
                                 {nominating ? (
                                     <>
@@ -604,17 +605,22 @@ const styles = StyleSheet.create({
     flex1: { flex: 1 },
     keyboard: { flex: 1 },
     scroll: { flex: 1 },
-    scrollContent: { padding: spacing.xl, paddingBottom: spacing['3xl'], gap: spacing.lg },
+    scrollContent: { padding: spacing.xl, paddingBottom: spacing['3xl'], gap: spacing.lg, width: '100%', maxWidth: 760, alignSelf: 'center' },
 
     header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: spacing.xl,
         paddingVertical: 14,
         backgroundColor: colors.bgScreen,
         borderBottomWidth: 1,
         borderBottomColor: colors.borderLight,
+    },
+    headerInner: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: spacing.xl,
+        width: '100%',
+        maxWidth: 760,
+        alignSelf: 'center',
     },
     headerTitle: { fontSize: 18, fontWeight: fontWeight.extrabold },
     budgetChip: {

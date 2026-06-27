@@ -1,5 +1,5 @@
-import { View, Text, StyleSheet } from 'react-native'
-import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { View, Text, StyleSheet, useWindowDimensions } from 'react-native'
+import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 import type { PlayerSeasonAverages } from '@/lib/players'
 
 function pct(made: number, attempted: number): string {
@@ -17,6 +17,10 @@ type Props = {
 }
 
 export function StatsOverview({ averages, seasonYear }: Props) {
+    // 2-col on very narrow screens so hyphenated range values (e.g. 9.9-17.4)
+    // never break mid-number in a too-narrow cell.
+    const { width } = useWindowDimensions()
+    const cellMinWidth = (width < 400 ? '46%' : '22%') as `${number}%`
     return (
         <View style={styles.section}>
             <Text style={styles.sectionTitle}>{seasonLabel(seasonYear)} Averages</Text>
@@ -33,7 +37,7 @@ export function StatsOverview({ averages, seasonYear }: Props) {
                     { label: 'TO', value: averages.avgTurnovers.toFixed(1) },
                     { label: 'MIN', value: averages.avgMinutesPlayed.toFixed(1) },
                 ].map(({ label, value }) => (
-                    <View key={label} style={styles.cell}>
+                    <View key={label} style={[styles.cell, { minWidth: cellMinWidth }]}>
                         <Text style={styles.cellValue}>{value}</Text>
                         <Text style={styles.cellLabel}>{label}</Text>
                     </View>
@@ -61,24 +65,24 @@ export function StatsOverview({ averages, seasonYear }: Props) {
                         value: `${averages.avgFreeThrowsMade.toFixed(1)}-${averages.avgFreeThrowsAttempted.toFixed(1)}`,
                     },
                 ].map(({ label, value }) => (
-                    <View key={label} style={styles.cell}>
+                    <View key={label} style={[styles.cell, { minWidth: cellMinWidth }]}>
                         <Text style={styles.cellValue}>{value}</Text>
                         <Text style={styles.cellLabel}>{label}</Text>
                     </View>
                 ))}
             </View>
 
-            {/* Extras row */}
+            {/* Production totals (games played, double/triple-doubles) */}
+            <Text style={styles.subTitle}>Production</Text>
             <View style={styles.extrasRow}>
                 {[
                     { label: 'GP', value: String(averages.gamesPlayed) },
-                    { label: 'DD', value: String(averages.doubleDoubles) },
-                    { label: 'TD', value: String(averages.tripleDoubles) },
-                    { label: 'FTA', value: averages.avgFreeThrowsAttempted.toFixed(1) },
+                    { label: 'Double-Doubles', value: String(averages.doubleDoubles) },
+                    { label: 'Triple-Doubles', value: String(averages.tripleDoubles) },
                 ].map(({ label, value }) => (
                     <View key={label} style={styles.extraCell}>
                         <Text style={styles.extraValue}>{value}</Text>
-                        <Text style={styles.cellLabel}>{label}</Text>
+                        <Text style={styles.cellLabel} numberOfLines={1}>{label}</Text>
                     </View>
                 ))}
             </View>
@@ -121,10 +125,10 @@ const styles = StyleSheet.create({
     },
     extraCell: {
         flex: 1,
-        backgroundColor: palette.gray50,
+        backgroundColor: colors.bgSubtle,
         alignItems: 'center',
         paddingVertical: 10,
         gap: spacing.xs,
     },
-    extraValue: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: palette.gray900 },
+    extraValue: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: colors.textPrimary },
 })

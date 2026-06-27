@@ -1,4 +1,4 @@
-import { createReadStream, existsSync, statSync } from 'node:fs';
+import { createReadStream, existsSync, readdirSync, statSync } from 'node:fs';
 import { createServer } from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -44,7 +44,7 @@ function insideRoot(filePath) {
 }
 
 function existingFile(filePath) {
-  if (!insideRoot(filePath) || !existsSync(filePath)) {
+  if (!filePath || !insideRoot(filePath) || !existsSync(filePath)) {
     return null;
   }
   const stats = statSync(filePath);
@@ -54,6 +54,28 @@ function existingFile(filePath) {
   if (stats.isDirectory()) {
     return existingFile(path.join(filePath, 'index.html'));
   }
+  return null;
+}
+
+// Match a path segment against an expo-router dynamic-route template file
+// (`[id].html`, `[...rest].html`) in the directory where the literal file would
+// live, so deep-linking `/player/<uuid>` serves `player/[id].html` — the correct
+// template — instead of falling back to the root index.html (which mounts blank).
+function dynamicTemplate(routePath) {
+  const segments = routePath.split('/').filter(Boolean);
+  if (segments.length === 0) return null;
+  const parentDir = path.join(root, ...segments.slice(0, -1));
+  if (!insideRoot(parentDir) || !existsSync(parentDir)) return null;
+  let entries;
+  try {
+    entries = readdirSync(parentDir);
+  } catch {
+    return null;
+  }
+  const single = entries.find((e) => /^\[[^.[\]]+\]\.html$/.test(e));
+  if (single) return path.join(parentDir, single);
+  const rest = entries.find((e) => /^\[\.\.\.[^[\]]+\]\.html$/.test(e));
+  if (rest) return path.join(parentDir, rest);
   return null;
 }
 
@@ -67,6 +89,7 @@ function resolveRoute(urlPath) {
     existingFile(path.join(root, stripped)) ??
     existingFile(path.join(root, `${withoutSlash}.html`)) ??
     existingFile(path.join(root, withoutSlash, 'index.html')) ??
+    existingFile(dynamicTemplate(withoutSlash)) ??
     existingFile(path.join(root, 'index.html'))
   );
 }

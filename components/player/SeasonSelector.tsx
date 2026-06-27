@@ -1,5 +1,5 @@
-import { ScrollView, Text, Pressable, StyleSheet } from 'react-native'
-import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { View, Text, Pressable, StyleSheet } from 'react-native'
+import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 
 function seasonLabel(year: number): string {
     return `${year - 1}–${String(year).slice(2)}`
@@ -15,12 +15,7 @@ export function SeasonSelector({ seasons, selectedSeason, onSelect }: Props) {
     if (seasons.length <= 1) return null
 
     return (
-        <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.row}
-            style={styles.scroll}
-        >
+        <View style={styles.row}>
             {seasons.map((year) => {
                 const active = year === selectedSeason
                 return (
@@ -35,13 +30,13 @@ export function SeasonSelector({ seasons, selectedSeason, onSelect }: Props) {
                     </Pressable>
                 )
             })}
-        </ScrollView>
+        </View>
     )
 }
 
 const styles = StyleSheet.create({
-    scroll: { marginHorizontal: -20 },
-    row: { flexDirection: 'row', gap: spacing.md, paddingHorizontal: spacing['2xl'], paddingVertical: 2 },
+    // Wrap to a second row on narrow widths so the last season is never clipped.
+    row: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, paddingVertical: 2 },
     pill: {
         paddingHorizontal: 14,
         paddingVertical: 7,
@@ -50,6 +45,6 @@ const styles = StyleSheet.create({
         backgroundColor: colors.bgMuted,
     },
     pillActive: { backgroundColor: colors.primary },
-    pillText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: palette.gray900 },
+    pillText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textPrimary },
     pillTextActive: { color: colors.textWhite },
 })

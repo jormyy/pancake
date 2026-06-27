@@ -15,7 +15,7 @@ import { useRef, useState } from 'react'
 import { useAuth } from '@/hooks/use-auth'
 import { useLeagueContext } from '@/contexts/league-context'
 import { createLeague } from '@/lib/league'
-import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 import { getErrorMessage } from '@/lib/alert'
 
 export default function CreateLeagueScreen() {
@@ -105,7 +105,7 @@ export default function CreateLeagueScreen() {
                 <Text style={styles.label}>Your Team Name</Text>
                 <TextInput
                     style={styles.input}
-                    placeholder="e.g. Buckets FC"
+                    placeholder="e.g. Buckets BC"
                     placeholderTextColor={colors.textPlaceholder}
                     value={teamName}
                     onChangeText={setTeamName}
@@ -138,7 +138,7 @@ export default function CreateLeagueScreen() {
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgScreen },
-    inner: { padding: spacing['3xl'], gap: spacing.md },
+    inner: { padding: spacing['3xl'], gap: spacing.md, width: '100%', maxWidth: 560, alignSelf: 'center' },
     label: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textSecondary, marginTop: spacing.lg },
     input: {
         height: 50,
@@ -151,7 +151,7 @@ const styles = StyleSheet.create({
         backgroundColor: colors.bgInput,
     },
     hint: { fontSize: 12, color: colors.textPlaceholder },
-    error: { color: palette.redBright, fontSize: fontSize.md, marginTop: spacing.md },
+    error: { color: colors.danger, fontSize: fontSize.md, marginTop: spacing.md },
     button: {
         height: 50,
         backgroundColor: colors.primary,

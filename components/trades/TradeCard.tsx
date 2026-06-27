@@ -1,10 +1,10 @@
-import { View, Text, StyleSheet, ActivityIndicator, Alert } from 'react-native'
+import { View, Text, StyleSheet, ActivityIndicator } from 'react-native'
 import { useState } from 'react'
 import { TRADE_STATUS_COLORS, colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 import { Trade, TradeItem, acceptTrade, rejectTrade, vetoTrade, withdrawTrade } from '@/lib/trades'
 import { getRoster, RosterPlayer } from '@/lib/roster'
 import { DropPlayerPickerModal } from '@/components/DropPlayerPickerModal'
-import { confirmAction, getErrorMessage } from '@/lib/alert'
+import { showAlert, confirmAction, getErrorMessage } from '@/lib/alert'
 import { MotionPressable, MotionView } from '@/components/Motion'
 
 export type TabKey = 'picks' | 'offers' | 'history'
@@ -134,7 +134,7 @@ export function TradeCard({
             await acceptTrade(trade.id, myMemberId)
             onAction()
         } catch (e) {
-            Alert.alert('Error', getErrorMessage(e) ?? 'Could not accept trade.')
+            showAlert('Error', getErrorMessage(e) ?? 'Could not accept trade.')
         } finally {
             setActing(false)
         }
@@ -154,7 +154,7 @@ export function TradeCard({
             setDropPickerVisible(false)
             onAction()
         } catch (e) {
-            Alert.alert('Error', getErrorMessage(e) ?? 'Could not accept trade.')
+            showAlert('Error', getErrorMessage(e) ?? 'Could not accept trade.')
         } finally {
             setDropping(null)
         }
@@ -174,7 +174,7 @@ export function TradeCard({
                     await rejectTrade(trade.id, myMemberId)
                     onAction()
                 } catch (e) {
-                    Alert.alert('Error', getErrorMessage(e) ?? 'Could not reject trade.')
+                    showAlert('Error', getErrorMessage(e) ?? 'Could not reject trade.')
                 } finally {
                     setActing(false)
                 }
@@ -190,7 +190,7 @@ export function TradeCard({
                     await withdrawTrade(trade.id, myMemberId)
                     onAction()
                 } catch (e) {
-                    Alert.alert('Error', getErrorMessage(e) ?? 'Could not withdraw trade.')
+                    showAlert('Error', getErrorMessage(e) ?? 'Could not withdraw trade.')
                 } finally {
                     setActing(false)
                 }
@@ -206,7 +206,7 @@ export function TradeCard({
                     await vetoTrade(trade.id, myMemberId)
                     onAction()
                 } catch (e) {
-                    Alert.alert('Error', getErrorMessage(e) ?? 'Could not veto trade.')
+                    showAlert('Error', getErrorMessage(e) ?? 'Could not veto trade.')
                 } finally {
                     setActing(false)
                 }

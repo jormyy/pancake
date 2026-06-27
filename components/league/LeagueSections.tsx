@@ -1,4 +1,4 @@
-import { View, Text, Pressable, StyleSheet, type RefreshControlProps } from 'react-native'
+import { View, Text, Pressable, StyleSheet, useWindowDimensions, type RefreshControlProps } from 'react-native'
 import { useCallback, useMemo, useState, type ReactElement } from 'react'
 import { FlashList, type ListRenderItem } from '@shopify/flash-list'
 import { StandingRow } from '@/lib/scoring'
@@ -30,10 +30,17 @@ const styles = StyleSheet.create({
     standingsHeaderText: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.textPlaceholder },
     standingsHeaderActive: { color: colors.primaryDark },
     standingsRank: { width: 24, fontSize: fontSize.md, fontWeight: fontWeight.bold, color: colors.textSecondary },
-    standingsTeam: { flex: 1, fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textPrimary },
+    standingsTeam: { flex: 1, minWidth: 72, paddingRight: spacing.md, fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textPrimary },
     standingsCell: { width: 32, textAlign: 'center', fontSize: fontSize.md, color: colors.textSecondary },
     standingsPts: { width: 64, textAlign: 'center', fontSize: fontSize.sm, color: colors.textSecondary },
     standingsMe: { color: colors.primaryDark, fontWeight: fontWeight.bold },
+    standingsLegend: {
+        paddingHorizontal: spacing.xl,
+        paddingTop: spacing.lg,
+        fontSize: fontSize.xs,
+        color: colors.textMuted,
+        lineHeight: 16,
+    },
 
     waiverRow: {
         flexDirection: 'row',
@@ -84,9 +91,14 @@ const styles = StyleSheet.create({
 })
 
 
-function StandingsRow({ item, index, isMe, onPress }: { item: StandingRow; index: number; isMe: boolean; onPress: () => void }) {
+function StandingsRow({ item, index, isMe, onPress, showMaxPf, showPa }: { item: StandingRow; index: number; isMe: boolean; onPress: () => void; showMaxPf: boolean; showPa: boolean }) {
     return (
-        <Pressable style={[styles.standingsRow, isMe && styles.standingsRowMe]} onPress={onPress}>
+        <Pressable
+            style={[styles.standingsRow, isMe && styles.standingsRowMe]}
+            onPress={onPress}
+            accessibilityRole="button"
+            accessibilityLabel={`View ${item.teamName} roster`}
+        >
             <Text style={[styles.standingsRank, isMe && styles.standingsMe]}>{index + 1}</Text>
             <Text style={[styles.standingsTeam, isMe && styles.standingsMe]} numberOfLines={1}>
                 {item.teamName}
@@ -94,8 +106,8 @@ function StandingsRow({ item, index, isMe, onPress }: { item: StandingRow; index
             <Text style={[styles.standingsCell, isMe && styles.standingsMe]}>{item.wins}</Text>
             <Text style={[styles.standingsCell, isMe && styles.standingsMe]}>{item.losses}</Text>
             <Text style={[styles.standingsPts, isMe && styles.standingsMe]}>{item.pointsFor.toFixed(1)}</Text>
-            <Text style={[styles.standingsPts, isMe && styles.standingsMe]}>{item.maxPointsFor.toFixed(1)}</Text>
-            <Text style={[styles.standingsPts, isMe && styles.standingsMe]}>{item.pointsAgainst.toFixed(1)}</Text>
+            {showMaxPf ? <Text style={[styles.standingsPts, isMe && styles.standingsMe]}>{item.maxPointsFor.toFixed(1)}</Text> : null}
+            {showPa ? <Text style={[styles.standingsPts, isMe && styles.standingsMe]}>{item.pointsAgainst.toFixed(1)}</Text> : null}
         </Pressable>
     )
 }
@@ -104,10 +116,14 @@ const StandingsListHeader = ({
     sortBy,
     sortDir,
     onSort,
+    showMaxPf,
+    showPa,
 }: {
     sortBy: StandingsSortKey
     sortDir: 'asc' | 'desc'
     onSort: (key: StandingsSortKey) => void
+    showMaxPf: boolean
+    showPa: boolean
 }) => {
     const arrow = (key: StandingsSortKey) =>
         sortBy === key ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''
@@ -116,19 +132,23 @@ const StandingsListHeader = ({
         <View style={[styles.standingsRow, styles.standingsHeader]}>
             <Text style={[styles.standingsRank, styles.standingsHeaderText]}>#</Text>
             <Text style={[styles.standingsTeam, styles.standingsHeaderText]}>Team</Text>
-            <Pressable style={styles.standingsCell} onPress={() => onSort('wins')}>
+            <Pressable style={styles.standingsCell} onPress={() => onSort('wins')} accessibilityRole="button" accessibilityLabel="Sort by wins">
                 <Text style={[styles.standingsHeaderText, sortBy === 'wins' && styles.standingsHeaderActive]}>W{arrow('wins')}</Text>
             </Pressable>
-            <Text style={[styles.standingsCell, styles.standingsHeaderText]}>L</Text>
-            <Pressable style={styles.standingsPts} onPress={() => onSort('pf')}>
+            <Text style={[styles.standingsCell, styles.standingsHeaderText]} accessibilityLabel="Losses">L</Text>
+            <Pressable style={styles.standingsPts} onPress={() => onSort('pf')} accessibilityRole="button" accessibilityLabel="Sort by points for">
                 <Text style={[styles.standingsHeaderText, sortBy === 'pf' && styles.standingsHeaderActive]}>PF{arrow('pf')}</Text>
             </Pressable>
-            <Pressable style={styles.standingsPts} onPress={() => onSort('maxPf')}>
-                <Text style={[styles.standingsHeaderText, sortBy === 'maxPf' && styles.standingsHeaderActive]}>MAX PF{arrow('maxPf')}</Text>
-            </Pressable>
-            <Pressable style={styles.standingsPts} onPress={() => onSort('pa')}>
-                <Text style={[styles.standingsHeaderText, sortBy === 'pa' && styles.standingsHeaderActive]}>PA{arrow('pa')}</Text>
-            </Pressable>
+            {showMaxPf ? (
+                <Pressable style={styles.standingsPts} onPress={() => onSort('maxPf')} accessibilityRole="button" accessibilityLabel="Sort by maximum possible points for">
+                    <Text style={[styles.standingsHeaderText, sortBy === 'maxPf' && styles.standingsHeaderActive]}>MAX PF{arrow('maxPf')}</Text>
+                </Pressable>
+            ) : null}
+            {showPa ? (
+                <Pressable style={styles.standingsPts} onPress={() => onSort('pa')} accessibilityRole="button" accessibilityLabel="Sort by points against">
+                    <Text style={[styles.standingsHeaderText, sortBy === 'pa' && styles.standingsHeaderActive]}>PA{arrow('pa')}</Text>
+                </Pressable>
+            ) : null}
         </View>
     )
 }
@@ -136,6 +156,11 @@ const StandingsListHeader = ({
 export function StandingsTable({ standings, myMemberId, onSelectTeam, refreshControl }: { standings: StandingRow[]; myMemberId?: string; onSelectTeam: (memberId: string, teamName: string) => void; refreshControl?: ReactElement<RefreshControlProps> }) {
     const [sortBy, setSortBy] = useState<StandingsSortKey>('wins')
     const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
+    // Drop secondary point columns on narrow viewports so the Team name never
+    // collapses (320px would otherwise squeeze it to a single letter).
+    const { width } = useWindowDimensions()
+    const showPa = width >= 440
+    const showMaxPf = width >= 560
 
     const sorted = useMemo(() => {
         return [...standings].sort((a, b) => {
@@ -165,17 +190,25 @@ export function StandingsTable({ standings, myMemberId, onSelectTeam, refreshCon
             index={index}
             isMe={item.memberId === myMemberId}
             onPress={() => onSelectTeam(item.memberId, item.teamName)}
+            showMaxPf={showMaxPf}
+            showPa={showPa}
         />
-    ), [myMemberId, onSelectTeam])
+    ), [myMemberId, onSelectTeam, showMaxPf, showPa])
 
     return (
         <FlashList
             refreshControl={refreshControl}
             data={sorted}
             keyExtractor={(s) => s.memberId}
-            ListHeaderComponent={sorted.length ? <StandingsListHeader sortBy={sortBy} sortDir={sortDir} onSort={handleSort} /> : undefined}
+            ListHeaderComponent={sorted.length ? <StandingsListHeader sortBy={sortBy} sortDir={sortDir} onSort={handleSort} showMaxPf={showMaxPf} showPa={showPa} /> : undefined}
             ItemSeparatorComponent={ItemSeparator}
             renderItem={renderItem}
+            ListFooterComponent={sorted.length ? (
+                <Text style={styles.standingsLegend}>
+                    PF = Points For{showPa ? ' · PA = Points Against' : ''}{showMaxPf ? ' · MAX PF = best possible score' : ''}.
+                    {'\n'}Records update once games are scored.
+                </Text>
+            ) : null}
             ListEmptyComponent={<EmptyState message="No standings yet — matchups will appear once games are scored." fullScreen={false} />}
         />
     )

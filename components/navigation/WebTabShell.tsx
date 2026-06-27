@@ -1,10 +1,10 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
-import { ComponentProps, useCallback, useEffect, useMemo, useState } from 'react'
+import { ComponentProps, ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 import { ActivityIndicator, Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native'
 import { Link, Tabs, usePathname, useRouter } from 'expo-router'
 import { useLeagueContext } from '@/contexts/league-context'
 import { getActiveDraft } from '@/lib/draft'
-import { colors } from '@/constants/tokens'
+import { breakpoints, colors, WEB_THEME_VARS } from '@/constants/tokens'
 import { styles } from './webTabShellStyles'
 
 type IconName = ComponentProps<typeof MaterialIcons>['name']
@@ -40,73 +40,19 @@ function isRouteActive(pathname: string, href: RouteHref) {
 function injectThemeVariables() {
     if (typeof document === 'undefined' || document.getElementById('pancake-web-theme-vars')) return
 
+    // Generated from the single token source (WEB_THEME_VARS) so the web CSS
+    // variables can never drift from constants/tokens.ts. Web is light-only.
+    const declarations = Object.entries(WEB_THEME_VARS)
+        .map(([name, value]) => `            --pancake-${name}: ${value};`)
+        .join('\n')
+
     const style = document.createElement('style')
     style.id = 'pancake-web-theme-vars'
     style.textContent = `
         :root,
         :root[data-pancake-theme="light"] {
-            --pancake-text-primary: #2C1A0E;
-            --pancake-text-secondary: #6B4535;
-            --pancake-text-muted: #9B7060;
-            --pancake-text-placeholder: #B8917F;
-            --pancake-text-disabled: #CCAA99;
-            --pancake-bg-screen: #FDF8EE;
-            --pancake-bg-card: #FFFDF8;
-            --pancake-bg-muted: #F4E8D2;
-            --pancake-bg-subtle: #FAF2E2;
-            --pancake-bg-input: #FFFDF8;
-            --pancake-separator: #E8D8BE;
-            --pancake-border: #D9C4A5;
-            --pancake-border-light: #E8D8BE;
-            --pancake-primary: #C9660F;
-            --pancake-primary-light: #FEF6E4;
-            --pancake-primary-border: #FAD490;
-            --pancake-primary-dark: #A05212;
-            --pancake-danger: #EF4444;
-            --pancake-danger-light: #FEE2E2;
-            --pancake-danger-dark: #991B1B;
-            --pancake-success: #10B981;
-            --pancake-success-light: #D1FAE5;
-            --pancake-success-dark: #065F46;
-            --pancake-warning: #F59E0B;
-            --pancake-warning-light: #FEF3C7;
-            --pancake-warning-dark: #D97706;
-            --pancake-info: #8B5CF6;
-            --pancake-info-light: #EDE9FE;
-            --pancake-accent: #3B82F6;
+${declarations}
         }
-        :root[data-pancake-theme="dark"] {
-            --pancake-text-primary: #F5EBDA;
-            --pancake-text-secondary: #CDB89D;
-            --pancake-text-muted: #9C8268;
-            --pancake-text-placeholder: #7A6147;
-            --pancake-text-disabled: #5F4935;
-            --pancake-bg-screen: #140D07;
-            --pancake-bg-card: #211710;
-            --pancake-bg-muted: #2B1F15;
-            --pancake-bg-subtle: #19110A;
-            --pancake-bg-input: #19110A;
-            --pancake-separator: #382819;
-            --pancake-border: #463320;
-            --pancake-border-light: #382819;
-            --pancake-primary: #E0852C;
-            --pancake-primary-light: #2E2012;
-            --pancake-primary-border: #5A3D1C;
-            --pancake-primary-dark: #F2B765;
-            --pancake-danger: #F0584A;
-            --pancake-danger-light: #361712;
-            --pancake-danger-dark: #FFB7AF;
-            --pancake-success: #2DBE73;
-            --pancake-success-light: #14301F;
-            --pancake-success-dark: #95E6B8;
-            --pancake-warning: #E8B53A;
-            --pancake-warning-light: #302410;
-            --pancake-warning-dark: #F5D47A;
-            --pancake-info: #7C8BE8;
-            --pancake-info-light: #1C2246;
-            --pancake-accent: #6EA8FF;
-        }
-        :root[data-pancake-theme="dark"] body { background: #140D07; }
     `
     document.head.appendChild(style)
 }
@@ -135,17 +81,21 @@ function NavIcon({ name, active = false, size = 19 }: { name: IconName; active?:
     )
 }
 
-function LeagueSwitcher() {
+function LeagueSwitcher({ tone = 'dark' }: { tone?: 'dark' | 'light' }) {
     const { memberships, current, setCurrent } = useLeagueContext()
     const [open, setOpen] = useState(false)
+    const light = tone === 'light'
+    const nameStyle = [styles.leagueName, light && styles.leagueNameLight]
+    const metaStyle = [styles.leagueMeta, light && styles.leagueMetaLight]
+    const chevronColor = light ? colors.textMuted : 'rgba(255, 246, 232, 0.7)'
 
     if (!current) {
         return (
-            <View style={styles.leagueSwitch}>
+            <View style={[styles.leagueSwitch, light && styles.leagueSwitchLight]}>
                 <View style={styles.leagueCrest}><Text style={styles.leagueCrestText}>P</Text></View>
                 <View style={styles.flex1}>
-                    <Text style={styles.leagueName} numberOfLines={1}>No league</Text>
-                    <Text style={styles.leagueMeta} numberOfLines={1}>Create or join from League</Text>
+                    <Text style={nameStyle} numberOfLines={1}>No league</Text>
+                    <Text style={metaStyle} numberOfLines={1}>Create or join from League</Text>
                 </View>
             </View>
         )
@@ -157,7 +107,8 @@ function LeagueSwitcher() {
                 onPress={() => setOpen((value) => !value)}
                 style={({ hovered, pressed }: PressableState) => [
                     styles.leagueSwitch,
-                    hovered && styles.leagueSwitchHover,
+                    light && styles.leagueSwitchLight,
+                    hovered && (light ? styles.leagueSwitchLightHover : styles.leagueSwitchHover),
                     pressed && styles.pressed,
                 ]}
                 accessibilityRole="button"
@@ -167,10 +118,10 @@ function LeagueSwitcher() {
                     <Text style={styles.leagueCrestText}>{(current.team_name ?? 'Team').slice(0, 1).toUpperCase()}</Text>
                 </View>
                 <View style={styles.flex1}>
-                    <Text style={styles.leagueName} numberOfLines={1}>{current.leagues?.name ?? 'Pancake League'}</Text>
-                    <Text style={styles.leagueMeta} numberOfLines={1}>{current.team_name ?? 'Team'}</Text>
+                    <Text style={nameStyle} numberOfLines={1}>{current.leagues?.name ?? 'Pancake League'}</Text>
+                    <Text style={metaStyle} numberOfLines={1}>{current.team_name ?? 'Team'}</Text>
                 </View>
-                <MaterialIcons name={open ? 'expand-less' : 'expand-more'} size={18} color="rgba(255, 246, 232, 0.7)" />
+                <MaterialIcons name={open ? 'expand-less' : 'expand-more'} size={18} color={chevronColor} />
             </Pressable>
 
             {open ? (
@@ -355,7 +306,7 @@ function MobileTopBar({ onMenuPress }: { onMenuPress: () => void }) {
         <View style={styles.mobileTopbar}>
             <BrandMark compact />
             <View style={styles.mobileLeagueWrap}>
-                <LeagueSwitcher />
+                <LeagueSwitcher tone="light" />
             </View>
             <Pressable onPress={onMenuPress} style={styles.mobileMenuButton} accessibilityRole="button" accessibilityLabel="Open menu">
                 <MaterialIcons name="menu" size={22} color={colors.textPrimary} />
@@ -445,25 +396,28 @@ function MobileMenuSheet({ visible, onClose }: { visible: boolean; onClose: () =
     )
 }
 
-function WebShell() {
+/**
+ * The persistent web app-shell: sidebar (wide) or mobile top/bottom nav
+ * (compact) wrapping a content area. Mounted ONCE at the root for every
+ * authenticated route, so the navigation chrome never disappears — including
+ * during the draft, lineup, trades, and on player detail. Former full-screen
+ * `(modals)` takeovers now render as pages inside this content area.
+ */
+export function WebAppShell({ children, chrome = true }: { children: ReactNode; chrome?: boolean }) {
     const { width } = useWindowDimensions()
-    const compact = width < 780
+    const compact = width < breakpoints.compact
     usePancakeWebTheme()
     const [menuOpen, setMenuOpen] = useState(false)
+
+    // Keep the shell mounted for ALL web routes (stable element type) so toggling
+    // chrome on auth state change never remounts the route tree. Auth/loading
+    // routes render chrome-less.
+    if (!chrome) return <>{children}</>
 
     return (
         <View style={[styles.root, compact ? styles.rootCompact : styles.rootDesktop]}>
             {compact ? <MobileTopBar onMenuPress={() => setMenuOpen(true)} /> : <WebSidebar />}
-            <View style={[styles.content, compact && styles.contentCompact]}>
-                <Tabs tabBar={() => null} screenOptions={{ headerShown: false }}>
-                    <Tabs.Screen name="index" />
-                    <Tabs.Screen name="players" />
-                    <Tabs.Screen name="roster" />
-                    <Tabs.Screen name="trades" />
-                    <Tabs.Screen name="league" />
-                    <Tabs.Screen name="profile" />
-                </Tabs>
-            </View>
+            <View style={[styles.content, compact && styles.contentCompact]}>{children}</View>
             {compact ? (
                 <>
                     <MobileBottomNav />
@@ -474,6 +428,19 @@ function WebShell() {
     )
 }
 
-export default function WebTabLayout() {
-    return <WebShell />
+/**
+ * The `(tabs)` web layout — now just the Tabs navigator (no chrome). The chrome
+ * lives in WebAppShell at the root, so tab content renders in its content area.
+ */
+export default function WebTabsLayout() {
+    return (
+        <Tabs tabBar={() => null} screenOptions={{ headerShown: false }}>
+            <Tabs.Screen name="index" />
+            <Tabs.Screen name="players" />
+            <Tabs.Screen name="roster" />
+            <Tabs.Screen name="trades" />
+            <Tabs.Screen name="league" />
+            <Tabs.Screen name="profile" />
+        </Tabs>
+    )
 }

@@ -4,11 +4,11 @@ export type PlayerSearchSortMode = 'fpts' | 'gamesLeft' | 'name' | 'team' | 'yea
 export type PlayerSearchSortDir = 'asc' | 'desc'
 
 export const PLAYER_SEARCH_SORT_OPTIONS: { key: PlayerSearchSortMode; label: string }[] = [
-    { key: 'fpts', label: 'FPts' },
-    { key: 'gamesLeft', label: 'G Left' },
+    { key: 'fpts', label: 'Fantasy Pts' },
+    { key: 'gamesLeft', label: 'Games left' },
     { key: 'name', label: 'Name' },
     { key: 'team', label: 'Team' },
-    { key: 'yearsExp', label: 'Exp' },
+    { key: 'yearsExp', label: 'Experience' },
 ]
 
 export function sortPlayerSearchResults(

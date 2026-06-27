@@ -1,4 +1,5 @@
 import { Alert, Platform } from 'react-native'
+import { feedbackBridge } from '@/components/ui/feedback'
 
 export function getErrorMessage(e: unknown): string {
     if (e instanceof Error) return e.message
@@ -6,8 +7,17 @@ export function getErrorMessage(e: unknown): string {
     return String(e)
 }
 
-/** Simple info/error alert — works on both native and web. */
-export function showAlert(title: string, message?: string) {
+/**
+ * Info/error notice. Routes through the in-app toast/feedback system when a
+ * FeedbackProvider is mounted; falls back to a native alert otherwise.
+ * `variant` lets callers signal success vs error; defaults to error-styled.
+ */
+export function showAlert(title: string, message?: string, variant: 'info' | 'success' | 'error' = 'error') {
+    const api = feedbackBridge.api
+    if (api) {
+        api.toast({ title, message: message ?? title, variant })
+        return
+    }
     if (Platform.OS === 'web') {
         window.alert(message ? `${title}\n\n${message}` : title)
     } else {
@@ -15,16 +25,29 @@ export function showAlert(title: string, message?: string) {
     }
 }
 
+/** Success toast convenience. */
+export function showSuccess(title: string, message?: string) {
+    showAlert(title, message, 'success')
+}
+
 /**
- * Destructive confirmation dialog — Cancel vs confirmText.
- * Uses native Alert on iOS/Android, window.confirm on web.
+ * Destructive confirmation. Routes through the in-app confirm dialog when a
+ * FeedbackProvider is mounted; falls back to native Alert / window.confirm.
  */
 export function confirmAction(
     title: string,
     message: string,
     onConfirm: () => void,
     confirmText = 'Confirm',
+    destructive = true,
 ) {
+    const api = feedbackBridge.api
+    if (api) {
+        void api.confirm({ title, message, confirmText, destructive }).then((ok) => {
+            if (ok) onConfirm()
+        })
+        return
+    }
     if (Platform.OS === 'web') {
         if (window.confirm(`${title}\n\n${message}`)) {
             onConfirm()
@@ -32,7 +55,7 @@ export function confirmAction(
     } else {
         Alert.alert(title, message, [
             { text: 'Cancel', style: 'cancel' },
-            { text: confirmText, style: 'destructive', onPress: onConfirm },
+            { text: confirmText, style: destructive ? 'destructive' : 'default', onPress: onConfirm },
         ])
     }
 }

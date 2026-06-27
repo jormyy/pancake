@@ -59,10 +59,14 @@ const PLAYING_FILTERS = [
     { key: 'not_today', label: 'Not playing' },
 ] as const
 const CLASS_FILTERS = [
-    { key: 'all', label: 'All classes' },
-    { key: 'rookies', label: 'Rookies' },
+    { key: 'all', label: 'All' },
+    { key: 'rookies', label: 'Rookies only' },
 ] as const
 const TABLE_COLUMNS = ['FP', 'PTS', 'REB', 'AST', 'STL', 'BLK', '3PM', 'TO', 'GP']
+const STAT_LABELS: Record<string, string> = {
+    FP: 'Fantasy points', PTS: 'Points', REB: 'Rebounds', AST: 'Assists', STL: 'Steals',
+    BLK: 'Blocks', '3PM': 'Three-pointers made', TO: 'Turnovers', GP: 'Games played',
+}
 
 const EMPTY_OWNED_MAP = new Map<string, OwnedEntry>()
 const EMPTY_WAIVER_IDS = new Set<string>()
@@ -125,12 +129,83 @@ function FilterSelect<T extends string>({
     )
 }
 
+function MultiTeamSelect({
+    label,
+    selected,
+    onChange,
+}: {
+    label: string
+    selected: string[]
+    onChange: (teams: string[]) => void
+}) {
+    const [open, setOpen] = useState(false)
+    const summary = selected.length === 0 ? 'All' : selected.length === 1 ? selected[0] : `${selected.length} teams`
+    const toggle = (team: string) =>
+        onChange(selected.includes(team) ? selected.filter((t) => t !== team) : [...selected, team])
+
+    return (
+        <View style={styles.filterSelectWrap}>
+            <Text style={styles.filterSelectLabel}>{label}</Text>
+            <Pressable
+                style={styles.filterSelectButton}
+                onPress={() => setOpen(true)}
+                accessibilityRole="button"
+                accessibilityLabel={`${label}: ${summary}`}
+            >
+                <Text style={styles.filterSelectValue} numberOfLines={1}>{summary}</Text>
+                <Text style={styles.filterSelectCaret}>▾</Text>
+            </Pressable>
+            <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
+                <Pressable style={styles.selectBackdrop} onPress={() => setOpen(false)}>
+                    <View style={styles.selectSheet} onStartShouldSetResponder={() => true}>
+                        <View style={styles.multiHeader}>
+                            <Text style={styles.selectTitle}>{label}</Text>
+                            {selected.length > 0 ? (
+                                <Pressable onPress={() => onChange([])} accessibilityRole="button" accessibilityLabel="Clear teams">
+                                    <Text style={styles.multiClear}>Clear</Text>
+                                </Pressable>
+                            ) : null}
+                        </View>
+                        <ScrollView>
+                            <View style={styles.teamGrid}>
+                                {TEAMS.map((team) => {
+                                    const active = selected.includes(team)
+                                    return (
+                                        <Pressable
+                                            key={team}
+                                            style={[styles.teamChip, active && styles.teamChipActive]}
+                                            onPress={() => toggle(team)}
+                                            accessibilityRole="checkbox"
+                                            accessibilityState={{ checked: active }}
+                                            accessibilityLabel={team}
+                                        >
+                                            <Text style={[styles.teamChipText, active && styles.teamChipTextActive]}>{team}</Text>
+                                        </Pressable>
+                                    )
+                                })}
+                            </View>
+                        </ScrollView>
+                        <Pressable style={styles.multiDone} onPress={() => setOpen(false)} accessibilityRole="button" accessibilityLabel="Done">
+                            <Text style={styles.multiDoneText}>Done</Text>
+                        </Pressable>
+                    </View>
+                </Pressable>
+            </Modal>
+        </View>
+    )
+}
+
 export default function PlayersScreen() {
     const { push } = useRouter()
     const { current, currentLeague } = useLeagueContext()
     const { width } = useWindowDimensions()
     const leagueId = currentLeague?.id ?? null
     const showStatTable = width >= 1180
+    // On phones the full filter grid buries the results below the fold, so it
+    // collapses behind a toggle; on wider screens it's always shown.
+    const collapsibleFilters = width < 780
+    const [filtersOpen, setFiltersOpen] = useState(false)
+    const filtersVisible = !collapsibleFilters || filtersOpen
 
     const {
         data: ownedData,
@@ -168,10 +243,10 @@ export default function PlayersScreen() {
         search.teamPicker.selectedTeams.join(','),
         gamesLeftVersion,
     ].join('|')
-    const teamValue = search.teamPicker.selectedTeams[0] ?? 'ALL'
 
     return (
         <SafeAreaView style={styles.container}>
+          <View style={styles.contentWrap}>
             <View style={styles.filterCard}>
                 <View style={styles.filterCardTop}>
                     <TextInput
@@ -184,17 +259,38 @@ export default function PlayersScreen() {
                         clearButtonMode="while-editing"
                     />
                     <Text style={styles.resultCountText}>
-                        {search.results.loading ? 'Searching...' : `${search.results.players.length} players`}
+                        {search.results.loading
+                            ? 'Searching…'
+                            : `${search.results.players.length}${search.activeFilterCount > 0 ? ' filtered' : ''} player${search.results.players.length === 1 ? '' : 's'}`}
                     </Text>
                 </View>
                 <View style={styles.filterCardHeader}>
-                    <Text style={styles.filterCardTitle}>Filters</Text>
+                    {collapsibleFilters ? (
+                        <Pressable
+                            style={styles.filterToggle}
+                            onPress={() => setFiltersOpen((v) => !v)}
+                            accessibilityRole="button"
+                            accessibilityLabel={`${filtersOpen ? 'Hide' : 'Show'} filters`}
+                            accessibilityState={{ expanded: filtersOpen }}
+                        >
+                            <Text style={styles.filterCardTitle}>Filters</Text>
+                            {search.activeFilterCount > 0 ? (
+                                <View style={styles.filterCountDot}>
+                                    <Text style={styles.filterCountDotText}>{search.activeFilterCount}</Text>
+                                </View>
+                            ) : null}
+                            <Text style={styles.filterSelectCaret}>{filtersOpen ? '▴' : '▾'}</Text>
+                        </Pressable>
+                    ) : (
+                        <Text style={styles.filterCardTitle}>Filters</Text>
+                    )}
                     {search.activeFilterCount > 0 ? (
                         <Pressable style={styles.clearAllChip} onPress={search.clearAllFilters}>
                             <Text style={styles.clearAllChipText}>Clear all ({search.activeFilterCount})</Text>
                         </Pressable>
                     ) : null}
                 </View>
+                {filtersVisible ? (
                 <View style={styles.filterGrid}>
                     <FilterSelect
                         label="Availability"
@@ -208,11 +304,10 @@ export default function PlayersScreen() {
                         options={POSITIONS}
                         onChange={search.position.setValue}
                     />
-                    <FilterSelect
+                    <MultiTeamSelect
                         label="Pro team"
-                        value={teamValue}
-                        options={[{ key: 'ALL', label: 'All' }, ...TEAMS.map((team) => ({ key: team, label: team }))] as const}
-                        onChange={(value) => search.teamPicker.setSelectedTeams(value === 'ALL' ? [] : [value])}
+                        selected={search.teamPicker.selectedTeams}
+                        onChange={search.teamPicker.setSelectedTeams}
                     />
                     <FilterSelect
                         label="Health"
@@ -221,13 +316,13 @@ export default function PlayersScreen() {
                         onChange={search.health.setValue}
                     />
                     <FilterSelect
-                        label="Playing"
+                        label="Game today"
                         value={search.playing.value}
                         options={PLAYING_FILTERS}
                         onChange={search.playing.setValue}
                     />
                     <FilterSelect
-                        label="Class"
+                        label="Experience"
                         value={search.toggles.rookiesOnly ? 'rookies' : 'all'}
                         options={CLASS_FILTERS}
                         onChange={(value) => search.toggles.setRookiesOnly(value === 'rookies')}
@@ -248,6 +343,7 @@ export default function PlayersScreen() {
                         <Text style={styles.sortDirText}>{search.sort.dir === 'asc' ? 'Ascending ↑' : 'Descending ↓'}</Text>
                     </Pressable>
                 </View>
+                ) : null}
             </View>
 
             {search.results.loading ? (
@@ -270,7 +366,7 @@ export default function PlayersScreen() {
                                 <Text style={styles.tableHeaderOwnership}>Ownership</Text>
                                 <View style={styles.tableHeaderStatsGroup}>
                                     {TABLE_COLUMNS.map((column) => (
-                                        <Text key={column} style={styles.tableHeaderStat}>{column}</Text>
+                                        <Text key={column} style={styles.tableHeaderStat} accessibilityLabel={STAT_LABELS[column] ?? column}>{column}</Text>
                                     ))}
                                 </View>
                             </View>
@@ -295,6 +391,7 @@ export default function PlayersScreen() {
                     ListFooterComponent={search.results.loadingMore ? <ActivityIndicator style={styles.loadMoreSpinner} color={colors.primary} /> : null}
                 />
             )}
+          </View>
 
             <DropPlayerPickerModal
                 visible={quickAdd.dropPickerPlayer !== null}
@@ -322,6 +419,7 @@ export default function PlayersScreen() {
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgScreen },
+    contentWrap: { flex: 1, width: '100%', maxWidth: 1280, alignSelf: 'center' },
     flex1: { flex: 1 },
     loadMoreSpinner: { paddingVertical: 16 },
     filterCard: {
@@ -353,6 +451,22 @@ const styles = StyleSheet.create({
         letterSpacing: 0.6,
         textTransform: 'uppercase' as const,
     },
+    filterToggle: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.md,
+        minHeight: 32,
+    },
+    filterCountDot: {
+        minWidth: 20,
+        height: 20,
+        paddingHorizontal: 6,
+        borderRadius: radii.full,
+        backgroundColor: colors.primary,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    filterCountDotText: { fontSize: 11, fontWeight: fontWeight.bold, color: colors.textWhite },
     resultCountText: {
         flexShrink: 0,
         fontSize: fontSize.sm,
@@ -425,6 +539,49 @@ const styles = StyleSheet.create({
         fontWeight: fontWeight.extrabold,
         color: colors.textPrimary,
     },
+    multiHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+    },
+    multiClear: {
+        paddingHorizontal: spacing.sm,
+        fontSize: fontSize.sm,
+        fontWeight: fontWeight.bold,
+        color: colors.danger,
+    },
+    teamGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: spacing.sm,
+        padding: spacing.sm,
+    },
+    teamChip: {
+        minWidth: 52,
+        minHeight: 36,
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingHorizontal: spacing.md,
+        borderRadius: radii.md,
+        borderWidth: 1,
+        borderColor: colors.borderLight,
+        backgroundColor: colors.bgMuted,
+    },
+    teamChipActive: {
+        backgroundColor: colors.primaryLight,
+        borderColor: colors.primaryBorder,
+    },
+    teamChipText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.textSecondary },
+    teamChipTextActive: { color: colors.primaryDark },
+    multiDone: {
+        marginTop: spacing.sm,
+        minHeight: 44,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: radii.md,
+        backgroundColor: colors.primary,
+    },
+    multiDoneText: { fontSize: fontSize.md, fontWeight: fontWeight.bold, color: colors.textWhite },
     selectOption: {
         minHeight: 42,
         justifyContent: 'center',
@@ -503,7 +660,7 @@ const styles = StyleSheet.create({
         textAlign: 'right',
         fontSize: 10,
         fontWeight: fontWeight.extrabold,
-        color: colors.textMuted,
+        color: colors.textSecondary,
         letterSpacing: 0.7,
         textTransform: 'uppercase' as const,
     },

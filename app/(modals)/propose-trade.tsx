@@ -4,7 +4,6 @@ import {
     Pressable,
     StyleSheet,
     ActivityIndicator,
-    Alert,
     ScrollView,
     TextInput,
 } from 'react-native'
@@ -15,10 +14,11 @@ import { useLeagueContext } from '@/contexts/league-context'
 import { getLeagueMembers } from '@/lib/league'
 import { getRoster, RosterPlayer } from '@/lib/roster'
 import { proposeTrade, getCurrentSeasonId, getPicksForMember, TradePickItem } from '@/lib/trades'
-import { showAlert, getErrorMessage } from '@/lib/alert'
+import { showAlert, showSuccess, getErrorMessage } from '@/lib/alert'
 
 import { yearShort } from '@/lib/format'
 import { Avatar } from '@/components/Avatar'
+import { EmptyState } from '@/components/EmptyState'
 import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 
 function PlayerRow({
@@ -227,9 +227,8 @@ export default function ProposeTradeScreen() {
                 notes.trim() || undefined,
             )
 
-            Alert.alert('Trade Proposed', 'Your trade offer has been sent.', [
-                { text: 'OK', onPress: () => back() },
-            ])
+            showSuccess('Trade Proposed', 'Your trade offer has been sent.')
+            back()
         } catch (e) {
             showAlert('Error', getErrorMessage(e) ?? 'Could not propose trade.')
         } finally {
@@ -259,6 +258,7 @@ export default function ProposeTradeScreen() {
         <SafeAreaView style={styles.container} edges={['top']}>
             {/* Header */}
             <View style={styles.header}>
+              <View style={styles.headerInner}>
                 <Pressable
                     onPress={() => back()}
                     style={styles.cancelBtn}
@@ -278,22 +278,19 @@ export default function ProposeTradeScreen() {
                     {submitting ? (
                         <ActivityIndicator size="small" color={colors.textWhite} />
                     ) : (
-                        <Text style={styles.submitBtnText}>Send</Text>
+                        <Text style={[styles.submitBtnText, !canSubmit && styles.submitBtnTextDisabled]}>Send</Text>
                     )}
                 </Pressable>
+              </View>
             </View>
 
-            <ScrollView style={styles.scroll} keyboardShouldPersistTaps="handled">
+            <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
                 {/* Team picker */}
                 <Text style={styles.sectionLabel}>TRADE WITH</Text>
                 {loading ? (
                     <ActivityIndicator color={colors.primary} style={{ margin: spacing.xl }} />
                 ) : (
-                    <ScrollView
-                        horizontal
-                        showsHorizontalScrollIndicator={false}
-                        contentContainerStyle={styles.teamChips}
-                    >
+                    <View style={styles.teamChips}>
                         {members.map((m) => {
                             const active = selectedRecipientId === m.id
                             return (
@@ -315,7 +312,7 @@ export default function ProposeTradeScreen() {
                                 </Pressable>
                             )
                         })}
-                    </ScrollView>
+                    </View>
                 )}
 
                 {selectedRecipientId && (
@@ -412,7 +409,7 @@ export default function ProposeTradeScreen() {
                                 <TextInput
                                     style={styles.notesInput}
                                     placeholder="Add a message to your trade offer..."
-                                    placeholderTextColor={colors.textDisabled}
+                                    placeholderTextColor={colors.textPlaceholder}
                                     value={notes}
                                     onChangeText={setNotes}
                                     multiline
@@ -424,9 +421,13 @@ export default function ProposeTradeScreen() {
                 )}
 
                 {!selectedRecipientId && !loading && (
-                    <View style={styles.emptyCenter}>
-                        <Text style={styles.emptyText}>Select a team to trade with.</Text>
-                    </View>
+                    <EmptyState
+                        icon="swap-horiz"
+                        message="Pick a team to trade with"
+                        description="Choose a team above to see both rosters side by side, then build your offer."
+                        fullScreen={false}
+                        framed
+                    />
                 )}
 
                 <View style={{ height: 40 }} />
@@ -438,15 +439,21 @@ export default function ProposeTradeScreen() {
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgScreen },
     scroll: { flex: 1 },
+    scrollContent: { width: '100%', maxWidth: 900, alignSelf: 'center' },
 
     header: {
+        paddingVertical: spacing.lg,
+        borderBottomWidth: 1,
+        borderBottomColor: colors.borderLight,
+    },
+    headerInner: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingHorizontal: spacing.xl,
-        paddingVertical: spacing.lg,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.borderLight,
+        width: '100%',
+        maxWidth: 900,
+        alignSelf: 'center',
     },
     headerTitle: { fontSize: 17, fontWeight: fontWeight.bold },
     cancelBtn: { paddingVertical: spacing.sm, paddingHorizontal: spacing.xs },
@@ -460,8 +467,9 @@ const styles = StyleSheet.create({
         minWidth: 52,
         alignItems: 'center',
     },
-    submitBtnDisabled: { backgroundColor: colors.border },
+    submitBtnDisabled: { backgroundColor: colors.bgMuted, borderWidth: 1, borderColor: colors.borderLight, opacity: 0.55 },
     submitBtnText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: 15 },
+    submitBtnTextDisabled: { color: colors.textPlaceholder },
 
     sectionLabel: {
         fontSize: fontSize.xs,
@@ -475,7 +483,7 @@ const styles = StyleSheet.create({
     subSectionLabel: {
         fontSize: 10,
         fontWeight: fontWeight.bold,
-        color: colors.textDisabled,
+        color: colors.textSecondary,
         letterSpacing: 0.5,
         paddingHorizontal: spacing.xl,
         paddingTop: spacing.lg,
@@ -487,6 +495,7 @@ const styles = StyleSheet.create({
         paddingVertical: spacing.xs,
         gap: spacing.md,
         flexDirection: 'row',
+        flexWrap: 'wrap',
     },
     teamChip: {
         paddingHorizontal: 14,

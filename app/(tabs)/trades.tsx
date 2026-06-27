@@ -127,12 +127,13 @@ export default function TradesScreen() {
                             {yearShort(item.pick.seasonYear)}
                         </Text>
                     </View>
-                    <View style={styles.pickInfo}>
-                        <Text style={styles.pickLabel}>
-                            {item.pick.seasonYear} · Round {item.pick.round}
-                        </Text>
-                        <Text style={styles.pickMeta}>
-                            {isOwn ? 'Own pick' : `from ${item.pick.originalTeamName}`}
+                    <Text style={styles.pickLabel}>
+                        Round {item.pick.round}
+                    </Text>
+                    <View style={styles.pickSpacer} />
+                    <View style={[styles.pickChip, !isOwn && styles.pickChipTraded]}>
+                        <Text style={styles.pickChipText} numberOfLines={1}>
+                            {isOwn ? 'Own pick' : `From ${item.pick.originalTeamName}`}
                         </Text>
                     </View>
                 </View>
@@ -154,7 +155,16 @@ export default function TradesScreen() {
         const result: ListItem[] = []
 
         if (tab === 'picks') {
-            picksList.forEach((p) => result.push({ _type: 'pick', pick: p }))
+            // Group picks under a year header so the long pick bank is scannable.
+            const sorted = [...picksList].sort((a, b) => a.seasonYear - b.seasonYear || a.round - b.round)
+            let lastYear: number | null = null
+            sorted.forEach((p) => {
+                if (p.seasonYear !== lastYear) {
+                    result.push({ _type: 'header', label: `${p.seasonYear} Picks` })
+                    lastYear = p.seasonYear
+                }
+                result.push({ _type: 'pick', pick: p })
+            })
         } else if (tab === 'offers') {
             result.push({ _type: 'header', label: 'Veto Window' })
             vetoableTrades.forEach((t) => result.push({ _type: 'trade', trade: t }))
@@ -192,6 +202,7 @@ export default function TradesScreen() {
 
     return (
         <SafeAreaView style={styles.container}>
+          <View style={styles.content}>
             <View style={styles.header}>
                 <Text style={styles.headerTitle}>Trades</Text>
                 <Pressable
@@ -268,11 +279,13 @@ export default function TradesScreen() {
                     renderItem={renderItem}
                 />
             )}
+          </View>
         </SafeAreaView>
     )
 }
 
 const styles = StyleSheet.create({
+    content: { flex: 1, width: '100%', maxWidth: 680, alignSelf: 'center' },
     container: { flex: 1, backgroundColor: colors.bgScreen },
 
     header: {
@@ -327,14 +340,22 @@ const styles = StyleSheet.create({
         height: 44,
         borderRadius: 22,
         borderCurve: 'continuous' as const,
-        backgroundColor: palette.indigo500,
+        backgroundColor: palette.mocha,
         justifyContent: 'center',
         alignItems: 'center',
     },
     pickCircleText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.sm },
-    pickInfo: { flex: 1, gap: 2 },
-    pickLabel: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textPrimary },
-    pickMeta: { fontSize: fontSize.sm, color: colors.textMuted },
+    pickLabel: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textPrimary, minWidth: 84 },
+    pickSpacer: { flex: 1 },
+    pickChip: {
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: radii.lg,
+        borderCurve: 'continuous' as const,
+        backgroundColor: colors.bgMuted,
+    },
+    pickChipTraded: { backgroundColor: colors.primaryLight },
+    pickChipText: { fontSize: fontSize.xs, fontWeight: fontWeight.semibold, color: colors.textSecondary },
     pickHint: { fontSize: 12, color: colors.primaryDark, fontWeight: fontWeight.bold },
 
     emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', marginTop: spacing['4xl'] },

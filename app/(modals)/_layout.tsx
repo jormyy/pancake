@@ -20,6 +20,10 @@ export default function ModalsLayout() {
                 options={{ title: 'Draft Room', headerBackVisible: false }}
             />
             <Stack.Screen
+                name="rookie-draft-room"
+                options={{ title: 'Rookie Draft', headerBackVisible: false }}
+            />
+            <Stack.Screen
                 name="lineup"
                 options={{ headerShown: false, presentation: 'modal' }}
             />

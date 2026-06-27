@@ -29,9 +29,12 @@ export default function Root({ children }: PropsWithChildren) {
                     content="Dynasty fantasy basketball — drafts, lineups, trades, waivers, and live scoring."
                 />
 
-                {/* PWA */}
+                {/* PWA — theme-color matches the cream app surface so the installed
+                    status bar blends with the header instead of an orange strip;
+                    the body background prevents a white flash before first paint. */}
                 <link rel="manifest" href="/manifest.webmanifest" />
-                <meta name="theme-color" content="#C9660F" />
+                <meta name="theme-color" content="#FDF8EE" />
+                <style dangerouslySetInnerHTML={{ __html: 'html,body,#root{background-color:#FDF8EE;}' }} />
                 <link rel="icon" href="/favicon.ico" />
                 <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
                 <meta name="mobile-web-app-capable" content="yes" />

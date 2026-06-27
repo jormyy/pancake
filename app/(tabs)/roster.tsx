@@ -389,12 +389,14 @@ export default function RosterScreen() {
                         {active.length}/{league?.roster_size ?? 20} active · {ir.length}/{league?.ir_slots ?? 2} IR · {taxi.length}/{taxiSlots} taxi
                     </Text>
                 </View>
-                <Pressable
-                    style={styles.lineupButton}
-                    onPress={() => push('/(modals)/lineup')}
-                >
-                    <Text style={styles.lineupButtonText}>Set Lineup</Text>
-                </Pressable>
+                {roster.length > 0 ? (
+                    <Pressable
+                        style={styles.lineupButton}
+                        onPress={() => push('/(modals)/lineup')}
+                    >
+                        <Text style={styles.lineupButtonText}>Set Lineup</Text>
+                    </Pressable>
+                ) : null}
             </View>
 
             {/* Error banner */}
@@ -407,10 +409,17 @@ export default function RosterScreen() {
             {loading ? (
                 <ActivityIndicator style={styles.flex1} color={colors.primary} />
             ) : roster.length === 0 ? (
-                <View style={styles.empty}>
-                    <Text style={styles.emptyTitle}>Your roster is empty</Text>
-                    <Text style={styles.emptyText}>Players will appear here after the draft.</Text>
-                </View>
+                <EmptyState
+                    fullScreen={false}
+                    framed
+                    icon="groups"
+                    message="Your roster is empty"
+                    description={currentLeague?.status === 'drafting'
+                        ? 'Your roster fills up as you draft — the auction is live now.'
+                        : 'Players you draft, add, or acquire in a trade will show up here. Browse the player pool to get started.'}
+                    actionLabel={currentLeague?.status === 'drafting' ? 'Go to Draft Room' : 'Browse Players'}
+                    onAction={() => push(currentLeague?.status === 'drafting' ? '/league' : '/players')}
+                />
             ) : (
                 <FlashList
                     data={listData}

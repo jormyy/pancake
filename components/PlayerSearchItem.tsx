@@ -74,7 +74,7 @@ export function PlayerSearchItem({
             </View>
 
             <Pressable
-                style={styles.playerCard}
+                style={[styles.playerCard, !showStats && styles.playerCardNarrow]}
                 onPress={onPress}
                 accessibilityRole="button"
                 accessibilityLabel={`Open ${item.display_name}`}
@@ -102,9 +102,9 @@ export function PlayerSearchItem({
                                 {item.years_exp === 0 ? 'Rookie' : `Yr ${item.years_exp + 1}`}
                             </Text>
                         )}
-                        {item.nba_team != null && (
+                        {item.nba_team != null && (gamesLeft.get(item.nba_team) ?? 0) > 0 && (
                             <Text style={styles.gamesLeftText}>
-                                {gamesLeft.get(item.nba_team) ?? 0}G left
+                                {gamesLeft.get(item.nba_team)} {gamesLeft.get(item.nba_team) === 1 ? 'game' : 'games'} left
                             </Text>
                         )}
                         {item.injury_status ? (
@@ -115,11 +115,32 @@ export function PlayerSearchItem({
                             />
                         ) : null}
                     </View>
+                    {!showStats ? (
+                        <View style={styles.compactStats}>
+                            {[
+                                { label: 'FP', value: item.avg_fantasy_points ?? item.avg_points, highlight: true },
+                                { label: 'PTS', value: item.avg_points },
+                                { label: 'REB', value: item.avg_rebounds },
+                                { label: 'AST', value: item.avg_assists },
+                                { label: 'STL', value: item.avg_steals },
+                                { label: 'BLK', value: item.avg_blocks },
+                                { label: '3PM', value: item.avg_three_pointers_made },
+                            ].map((stat) => (
+                                <View key={stat.label} style={styles.compactStat}>
+                                    <Text style={styles.compactStatLabel}>{stat.label}</Text>
+                                    <Text style={[styles.compactStatValue, stat.highlight && styles.compactStatValuePrimary]}>
+                                        {stat.value == null ? '—' : Number(stat.value).toFixed(1)}
+                                    </Text>
+                                </View>
+                            ))}
+                        </View>
+                    ) : null}
                 </View>
 
                 {currentMemberId ? (
                     <View style={[
                         styles.statusBadge,
+                        !showStats && styles.statusBadgeNarrow,
                         isMe && styles.statusBadgeMe,
                         isWaiver && styles.statusBadgeWaiver,
                         isFA && styles.statusBadgeFA,
@@ -181,11 +202,11 @@ const styles = StyleSheet.create({
         paddingLeft: spacing.lg,
         gap: 0,
     },
-    addCol: { width: 36, alignItems: 'center' },
+    addCol: { width: 48, alignItems: 'center' },
     addBtn: {
-        width: 28,
-        height: 28,
-        borderRadius: 14,
+        width: 40,
+        height: 40,
+        borderRadius: 20,
         borderCurve: 'continuous' as const,
         backgroundColor: colors.primaryLight,
         borderWidth: 1.5,
@@ -203,6 +224,9 @@ const styles = StyleSheet.create({
         paddingLeft: spacing.md,
         gap: spacing.lg,
     },
+    // On narrow viewports top-align the avatar with the name (so it doesn't float
+    // mid-row beside the wrapped stat strip) and tighten the right padding.
+    playerCardNarrow: { alignItems: 'flex-start', paddingRight: spacing.lg },
     headshot: {
         width: 44,
         height: 44,
@@ -210,10 +234,25 @@ const styles = StyleSheet.create({
         borderCurve: 'continuous' as const,
         backgroundColor: colors.bgMuted,
     },
-    playerInfo: { flex: 1 },
+    playerInfo: { flex: 1, minWidth: 0 },
     playerName: { fontSize: fontSize.lg, fontWeight: fontWeight.semibold, color: colors.textPrimary },
-    playerMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: spacing.xxs },
+    playerMetaRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 4, marginTop: spacing.xxs },
     playerMeta: { fontSize: fontSize.sm, color: colors.textMuted },
+    compactStats: { flexDirection: 'row', flexWrap: 'wrap', columnGap: spacing.lg, rowGap: spacing.xs, marginTop: spacing.sm },
+    compactStat: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.xs },
+    compactStatLabel: {
+        fontSize: 10,
+        fontWeight: fontWeight.bold,
+        color: colors.textSecondary,
+        letterSpacing: 0.4,
+    },
+    compactStatValue: {
+        fontSize: fontSize.sm,
+        fontWeight: fontWeight.bold,
+        color: colors.textSecondary,
+        fontVariant: ['tabular-nums'],
+    },
+    compactStatValuePrimary: { color: colors.primaryDark, fontWeight: fontWeight.extrabold },
     gamesLeftText: { fontSize: fontSize.xs, fontWeight: fontWeight.semibold, color: colors.textMuted },
     statsGrid: {
         width: 9 * 54,
@@ -238,14 +277,15 @@ const styles = StyleSheet.create({
         paddingVertical: 3,
         borderRadius: radii.sm,
         borderCurve: 'continuous' as const,
-        backgroundColor: palette.gray250,
+        backgroundColor: colors.bgMuted,
         width: 90,
         alignItems: 'center',
     },
-    statusBadgeMe: { backgroundColor: palette.green300 },
-    statusBadgeWaiver: { backgroundColor: palette.purple100 },
-    statusBadgeFA: { backgroundColor: palette.gray250 },
-    statusBadgeText: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.textPlaceholder },
-    statusBadgeTextMe: { color: palette.green800 },
+    statusBadgeNarrow: { width: 'auto', minWidth: 40, alignSelf: 'flex-start', marginTop: 2 },
+    statusBadgeMe: { backgroundColor: colors.successLight },
+    statusBadgeWaiver: { backgroundColor: colors.infoLight },
+    statusBadgeFA: { backgroundColor: colors.bgMuted },
+    statusBadgeText: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.textMuted },
+    statusBadgeTextMe: { color: colors.successDark },
     statusBadgeTextWaiver: { color: palette.purple600 },
 })

@@ -1,7 +1,6 @@
 import {
     View,
     Text,
-    ScrollView,
     Pressable,
     StyleSheet,
     ActivityIndicator,
@@ -346,12 +345,13 @@ export default function LeagueScreen() {
 
     return (
         <SafeAreaView style={styles.container}>
+          <View style={styles.contentWrap}>
             {/* Header */}
             <View style={styles.header}>
                 <View style={styles.headerTop}>
                     <View style={styles.headerInfo}>
-                        <Text style={styles.currentLeagueName}>{currentLeague?.name}</Text>
-                        <Text style={styles.teamName}>{current.team_name}</Text>
+                        <Text style={styles.currentLeagueName} numberOfLines={2}>{currentLeague?.name}</Text>
+                        <Text style={styles.teamName} numberOfLines={1}>{current.team_name}</Text>
                     </View>
                     <View style={styles.headerButtons}>
                         <Pressable
@@ -414,9 +414,12 @@ export default function LeagueScreen() {
                     </Pressable>
                 ) : null}
                 {currentLeague?.status === 'drafting' && isCommissioner ? (
-                    <Pressable style={[styles.draftButton, { backgroundColor: colors.bgSubtle, borderWidth: 1, borderColor: colors.border, marginTop: 8 }]} onPress={handleReseedRookiePicks} disabled={draftLoading}>
-                        <Text style={[styles.draftButtonText, { color: colors.textSecondary }]}>Fix Traded Pick Slots</Text>
-                    </Pressable>
+                    <View style={styles.syncWrap}>
+                        <Pressable style={[styles.draftButton, { backgroundColor: colors.bgSubtle, borderWidth: 1, borderColor: colors.border }]} onPress={handleReseedRookiePicks} disabled={draftLoading}>
+                            <Text style={[styles.draftButtonText, { color: colors.textSecondary }]}>Sync Traded Picks</Text>
+                        </Pressable>
+                        <Text style={styles.syncHint}>Commissioner only — pull in picks acquired via trade so the draft board is current.</Text>
+                    </View>
                 ) : null}
                 {currentLeague?.status === 'offseason' && isCommissioner ? (
                     <Pressable style={styles.draftButton} onPress={handleStartRookieDraft} disabled={draftLoading}>
@@ -430,13 +433,9 @@ export default function LeagueScreen() {
                 ) : null}
             </View>
 
-            {/* Tab switcher */}
-            <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                style={styles.tabRow}
-                contentContainerStyle={styles.tabRowContent}
-            >
+            {/* Tab switcher — wraps to a second row on narrow widths so every pill
+                stays reachable (no horizontal clip at 320). */}
+            <View style={styles.tabRow}>
                 {(['standings', 'activity', 'waivers', 'picks'] as Tab[]).map((t) => (
                     <Pressable
                         key={t}
@@ -451,11 +450,12 @@ export default function LeagueScreen() {
                         </Text>
                     </Pressable>
                 ))}
-            </ScrollView>
+            </View>
 
             {/* Tab content — each tab's FlashList is the scroll container so it
                 virtualizes (no wrapping vertical ScrollView). */}
             <View style={styles.contentScroll}>{renderTabContent()}</View>
+          </View>
         </SafeAreaView>
     )
 }
@@ -463,11 +463,12 @@ export default function LeagueScreen() {
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgScreen },
+    contentWrap: { flex: 1, width: '100%', maxWidth: 760, alignSelf: 'center' },
     loadingMargin: { marginTop: spacing['3xl'] },
 
     header: { padding: spacing['2xl'], borderBottomWidth: 1, borderBottomColor: colors.borderLight, gap: spacing.lg },
     headerTop: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.lg },
-    headerInfo: { flex: 1, gap: spacing.xxs },
+    headerInfo: { flex: 1, minWidth: 0, gap: spacing.xxs },
     currentLeagueName: { fontSize: fontSize.xl, fontWeight: fontWeight.extrabold, color: colors.textPrimary },
     teamName: { fontSize: fontSize.md, color: colors.textMuted },
 
@@ -491,6 +492,8 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     draftButtonText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: 15 },
+    syncWrap: { gap: spacing.xs, marginTop: spacing.md },
+    syncHint: { fontSize: fontSize.xs, color: colors.textMuted, paddingHorizontal: spacing.xs, lineHeight: 15 },
     nominationModeLabel: {
         fontSize: fontSize.xs,
         fontWeight: fontWeight.bold,
@@ -530,21 +533,17 @@ const styles = StyleSheet.create({
     inviteCopy: { fontSize: fontSize.sm, color: colors.primaryDark, fontWeight: fontWeight.semibold },
 
     tabRow: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: spacing.sm,
+        paddingHorizontal: spacing.xl,
+        paddingVertical: spacing.lg,
         borderBottomWidth: 1,
         borderBottomColor: colors.borderLight,
-        flexGrow: 0,
-        flexShrink: 0,
-    },
-    tabRowContent: {
-        flexDirection: 'row',
-        gap: spacing.md,
-        paddingLeft: spacing['2xl'],
-        paddingRight: spacing['4xl'],
-        paddingVertical: spacing.lg,
     },
     tabChip: {
-        paddingHorizontal: 14,
-        paddingVertical: 7,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
         borderRadius: radii['3xl'],
         borderCurve: 'continuous' as const,
         backgroundColor: colors.bgMuted,

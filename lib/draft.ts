@@ -37,8 +37,8 @@ export const NOMINATION_ORDER_MODES = ['user_nominated', 'by_projection', 'alpha
 export type NominationOrderMode = (typeof NOMINATION_ORDER_MODES)[number]
 
 export const NOMINATION_ORDER_MODE_LABELS: Record<NominationOrderMode, string> = {
-    user_nominated: 'Manager nominated',
-    by_projection: 'By projection',
+    user_nominated: "Manager's choice",
+    by_projection: 'By projection rank',
     alphabetical: 'Alphabetical',
 }
 

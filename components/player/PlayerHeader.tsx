@@ -92,7 +92,7 @@ export function PlayerHeader({
                     )}
                     {player.dynasty_rank != null && (
                         <Badge
-                            label={`Dynasty #${player.dynasty_rank}`}
+                            label={`Dynasty rank #${player.dynasty_rank}`}
                             color={colors.textSecondary}
                             variant="soft"
                             textColor={colors.textSecondary}

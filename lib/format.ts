@@ -3,9 +3,13 @@
 import { isIREligible } from '@pancake/core'
 
 export function getInitials(name: string): string {
-    const parts = name.trim().split(/\s+/)
-    if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
-    return name.slice(0, 2).toUpperCase()
+    const words = name.trim().split(/\s+/).filter((w) => /[a-zA-Z0-9]/.test(w))
+    // Prefer tokens that start with a letter so "Team #1" → "T", not "#".
+    const letterWords = words.filter((w) => /^[a-zA-Z]/.test(w))
+    const pick = letterWords.length ? letterWords : words
+    if (pick.length >= 2) return (pick[0][0] + pick[pick.length - 1][0]).toUpperCase()
+    if (pick.length === 1) return pick[0].replace(/[^a-zA-Z0-9]/g, '').slice(0, 2).toUpperCase()
+    return (name.replace(/[^a-zA-Z0-9]/g, '').slice(0, 2) || '?').toUpperCase()
 }
 
 export const shortDateFmt = new Intl.DateTimeFormat('en-US', {

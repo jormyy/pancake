@@ -369,7 +369,7 @@ export default function PlayerDetailScreen() {
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgScreen },
-    scroll: { padding: spacing['2xl'], gap: spacing['3xl'] },
+    scroll: { padding: spacing['2xl'], gap: spacing['3xl'], width: '100%', maxWidth: 900, alignSelf: 'center' },
     seasonLoader: { marginVertical: spacing['4xl'] },
     section: { gap: spacing.lg },
     sectionTitle: { fontSize: 17, fontWeight: fontWeight.bold, color: colors.textPrimary },

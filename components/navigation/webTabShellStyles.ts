@@ -73,7 +73,8 @@ export const styles = StyleSheet.create({
         width: 34,
         height: 34,
         borderRadius: 9,
-    },
+        boxShadow: 'none', // the glow bleeds into the league switcher on the light top bar
+    } as WebOnlyViewStyle,
     brandMarkText: {
         color: '#FFF6E8',
         fontSize: 20,
@@ -139,6 +140,23 @@ export const styles = StyleSheet.create({
     },
     leagueMeta: {
         color: '#A9876B',
+        fontSize: fontSize.xs,
+    },
+    // Light variant for the mobile top bar (web is light-themed).
+    leagueSwitchLight: {
+        backgroundColor: colors.bgMuted,
+        borderColor: colors.borderLight,
+    },
+    leagueSwitchLightHover: {
+        backgroundColor: colors.bgSubtle,
+    },
+    leagueNameLight: {
+        color: colors.textPrimary,
+        fontWeight: fontWeight.bold,
+        fontSize: fontSize.sm,
+    },
+    leagueMetaLight: {
+        color: colors.textMuted,
         fontSize: fontSize.xs,
     },
     leagueMenu: {
@@ -290,8 +308,8 @@ export const styles = StyleSheet.create({
         height: MOBILE_TOPBAR_HEIGHT,
         flexDirection: 'row',
         alignItems: 'center',
-        gap: spacing.md,
-        paddingHorizontal: spacing.lg,
+        gap: spacing.lg,
+        paddingHorizontal: spacing.xl,
         backgroundColor: 'rgba(253, 248, 238, 0.88)',
         backdropFilter: 'blur(20px) saturate(180%)',
         WebkitBackdropFilter: 'blur(20px) saturate(180%)',
@@ -301,8 +319,6 @@ export const styles = StyleSheet.create({
     mobileLeagueWrap: {
         flex: 1,
         minWidth: 0,
-        backgroundColor: '#2A1A0E',
-        borderRadius: radii.md,
     },
     mobileMenuButton: {
         width: 38,
@@ -341,7 +357,7 @@ export const styles = StyleSheet.create({
         color: colors.textMuted,
     },
     bottomNavTextActive: {
-        color: colors.primary,
+        color: colors.primaryDark,
     },
 
     sheetScrim: {

@@ -5,15 +5,17 @@ import {
     StyleSheet,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { Stack } from 'expo-router'
+import { Stack, useRouter } from 'expo-router'
 import { useEffect, useState } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
 import { getPlayoffBracket, PlayoffBracket, BracketMatchup } from '@/lib/bracket'
 import { LoadingScreen } from '@/components/LoadingScreen'
+import { EmptyState } from '@/components/EmptyState'
 import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 
 export default function BracketScreen() {
     const { current, currentLeague } = useLeagueContext()
+    const router = useRouter()
     const [bracket, setBracket] = useState<PlayoffBracket | null>(null)
     const [loading, setLoading] = useState(true)
 
@@ -46,13 +48,13 @@ export default function BracketScreen() {
                   (bracket.quarterfinals.length === 0 &&
                       bracket.semifinals.length === 0 &&
                       !bracket.final) ? (
-                    <View style={styles.empty}>
-                        <Text style={styles.emptyTitle}>No Bracket Yet</Text>
-                        <Text style={styles.emptyText}>
-                            The commissioner generates the playoff bracket at the end of the regular
-                            season.
-                        </Text>
-                    </View>
+                    <EmptyState
+                        icon="account-tree"
+                        message="No playoff bracket yet"
+                        description="The bracket is generated at the end of the regular season. Check the standings to see who's in contention."
+                        actionLabel="View Standings"
+                        onAction={() => router.replace('/league?tab=standings')}
+                    />
                 ) : (
                     <ScrollView contentContainerStyle={styles.scroll}>
                         {bracket.champion && (
