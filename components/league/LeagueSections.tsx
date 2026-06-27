@@ -28,12 +28,12 @@ const styles = StyleSheet.create({
     standingsRowMe: { backgroundColor: colors.primaryLight },
     standingsHeader: { borderBottomWidth: 1, borderBottomColor: colors.borderLight, paddingVertical: spacing.md },
     standingsHeaderText: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.textPlaceholder },
-    standingsHeaderActive: { color: colors.primary },
+    standingsHeaderActive: { color: colors.primaryDark },
     standingsRank: { width: 24, fontSize: fontSize.md, fontWeight: fontWeight.bold, color: colors.textSecondary },
     standingsTeam: { flex: 1, fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textPrimary },
     standingsCell: { width: 32, textAlign: 'center', fontSize: fontSize.md, color: colors.textSecondary },
     standingsPts: { width: 64, textAlign: 'center', fontSize: fontSize.sm, color: colors.textSecondary },
-    standingsMe: { color: colors.primary, fontWeight: fontWeight.bold },
+    standingsMe: { color: colors.primaryDark, fontWeight: fontWeight.bold },
 
     waiverRow: {
         flexDirection: 'row',
@@ -233,7 +233,7 @@ export function ActivityFeed({
             onPress={onLoadMore}
             style={{ padding: spacing['2xl'], alignItems: 'center' }}
         >
-            <Text style={{ fontSize: fontSize.sm, color: colors.primary, fontWeight: fontWeight.semibold }}>
+            <Text style={{ fontSize: fontSize.sm, color: colors.primaryDark, fontWeight: fontWeight.semibold }}>
                 Load More
             </Text>
         </Pressable>

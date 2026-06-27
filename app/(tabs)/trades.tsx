@@ -335,7 +335,7 @@ const styles = StyleSheet.create({
     pickInfo: { flex: 1, gap: 2 },
     pickLabel: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textPrimary },
     pickMeta: { fontSize: fontSize.sm, color: colors.textMuted },
-    pickHint: { fontSize: 12, color: colors.primary, fontWeight: fontWeight.bold },
+    pickHint: { fontSize: 12, color: colors.primaryDark, fontWeight: fontWeight.bold },
 
     emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', marginTop: spacing['4xl'] },
     emptyStateText: { fontSize: fontSize.md, color: colors.textPlaceholder },

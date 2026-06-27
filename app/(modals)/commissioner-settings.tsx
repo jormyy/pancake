@@ -548,7 +548,7 @@ const styles = StyleSheet.create({
         textAlign: 'right',
         fontSize: 15,
         fontWeight: fontWeight.semibold,
-        color: colors.primary,
+        color: colors.primaryDark,
         padding: 0,
     },
 
@@ -592,5 +592,5 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
-    actionButtonText: { color: colors.primary, fontWeight: fontWeight.bold, fontSize: fontSize.lg },
+    actionButtonText: { color: colors.primaryDark, fontWeight: fontWeight.bold, fontSize: fontSize.lg },
 })

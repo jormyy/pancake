@@ -555,7 +555,7 @@ const styles = StyleSheet.create({
         width: 46,
         fontSize: 11,
         fontWeight: fontWeight.extrabold,
-        color: colors.primary,
+        color: colors.primaryDark,
         textTransform: 'uppercase' as const,
     },
     rosterTablePlayer: {
@@ -590,7 +590,7 @@ const styles = StyleSheet.create({
         color: colors.textSecondary,
     },
     rosterTableFp: {
-        color: colors.primary,
+        color: colors.primaryDark,
         fontWeight: fontWeight.extrabold,
     },
     rosterTableAction: {
@@ -619,7 +619,7 @@ const styles = StyleSheet.create({
     tableActionText: {
         fontSize: fontSize.xs,
         fontWeight: fontWeight.bold,
-        color: colors.primary,
+        color: colors.primaryDark,
     },
 
     header: {

@@ -649,7 +649,7 @@ const styles = StyleSheet.create({
         marginTop: spacing.xs,
     },
     bidInfo: { gap: spacing.xxs },
-    bidAmount: { fontSize: fontSize['3xl'], fontWeight: fontWeight.extrabold, color: colors.primary },
+    bidAmount: { fontSize: fontSize['3xl'], fontWeight: fontWeight.extrabold, color: colors.primaryDark },
     bidLeader: { fontSize: fontSize.sm, color: colors.textMuted },
 
     countdown: {
@@ -699,7 +699,7 @@ const styles = StyleSheet.create({
     bidButtonDisabled: { opacity: 0.5 },
     bidButtonText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: 15 },
 
-    yourTurnBanner: { fontSize: fontSize.lg, fontWeight: fontWeight.extrabold, color: colors.primary, textAlign: 'center' },
+    yourTurnBanner: { fontSize: fontSize.lg, fontWeight: fontWeight.extrabold, color: colors.primaryDark, textAlign: 'center' },
     nominationModeHint: { fontSize: fontSize.sm, color: colors.textMuted, textAlign: 'center', marginTop: spacing.xs },
     nominateButton: {
         marginTop: spacing.xs,
@@ -732,7 +732,7 @@ const styles = StyleSheet.create({
     },
     playerResultName: { fontSize: 15, fontWeight: fontWeight.semibold },
     playerResultMeta: { fontSize: 12, color: colors.textMuted, marginTop: 1 },
-    nominateLabel: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.primary },
+    nominateLabel: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.primaryDark },
     emptySearch: { fontSize: fontSize.sm, color: colors.textPlaceholder, textAlign: 'center', marginTop: spacing.md },
     cancelNomButton: { marginTop: spacing.md, alignItems: 'center' },
     cancelNomText: { fontSize: fontSize.md, color: colors.textMuted, fontWeight: fontWeight.semibold },
@@ -766,7 +766,7 @@ const styles = StyleSheet.create({
     budgetDivider: { borderTopWidth: 1, borderTopColor: colors.separator },
     budgetTeam: { flex: 1, fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textPrimary },
     budgetAmount: { fontSize: fontSize.lg, fontWeight: fontWeight.extrabold, color: colors.textPrimary },
-    meAccent: { color: colors.primary },
+    meAccent: { color: colors.primaryDark },
 
     historyRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10 },
     historyPlayer: { fontSize: fontSize.md, fontWeight: fontWeight.semibold },

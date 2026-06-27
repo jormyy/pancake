@@ -383,7 +383,7 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         marginBottom: spacing.xs,
     },
-    modalPlayerName: { color: colors.primary },
+    modalPlayerName: { color: colors.primaryDark },
     modalSub: { fontSize: fontSize.sm, color: colors.textPlaceholder, textAlign: 'center', marginBottom: spacing.xl },
     dropList: { maxHeight: 360 },
     dropRow: {

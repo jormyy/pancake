@@ -123,7 +123,7 @@ const styles = StyleSheet.create({
         borderBottomColor: colors.borderLight,
     },
     closeButton: { minWidth: 48 },
-    closeText: { fontSize: 15, fontWeight: fontWeight.semibold, color: colors.primary },
+    closeText: { fontSize: 15, fontWeight: fontWeight.semibold, color: colors.primaryDark },
     headerTitle: { flex: 1, fontSize: 18, fontWeight: fontWeight.extrabold, textAlign: 'center' },
 
     loading: { marginTop: 40 },

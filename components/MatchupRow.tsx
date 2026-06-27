@@ -331,7 +331,7 @@ const styles = StyleSheet.create({
     fptsNum: { fontSize: 20, fontWeight: '800', color: colors.textMuted, minWidth: 36, textAlign: 'left', marginRight: 6 },
     fptsNumDense: { fontSize: 16, minWidth: 28 },
     fptsRight: { textAlign: 'right', marginRight: 0, marginLeft: 6 },
-    fptsLive: { color: colors.primary },
+    fptsLive: { color: colors.primaryDark },
     sideName: { fontSize: 13, fontWeight: '600', color: colors.textPrimary, flexShrink: 1 },
     sideNameDense: { fontSize: 12 },
     noGameName: { color: palette.gray500 },
@@ -340,7 +340,7 @@ const styles = StyleSheet.create({
     lockedBadge: { fontSize: 10, fontWeight: fontWeight.bold, color: palette.green600, letterSpacing: 0.4, marginHorizontal: 3 },
     liveBadgeRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
     statLine: { fontSize: 11, color: colors.textMuted, textAlign: 'right', marginTop: 1 },
-    statLineLive: { color: colors.primary, fontWeight: fontWeight.semibold },
+    statLineLive: { color: colors.primaryDark, fontWeight: fontWeight.semibold },
     slotChipCenter: {
         width: SLOT_W,
         height: 30,

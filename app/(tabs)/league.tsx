@@ -515,7 +515,7 @@ const styles = StyleSheet.create({
     },
     nominationModeChipOn: { borderColor: colors.primary, backgroundColor: colors.bgSubtle },
     nominationModeChipText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textSecondary },
-    nominationModeChipTextOn: { color: colors.primary },
+    nominationModeChipTextOn: { color: colors.primaryDark },
 
     inviteRow: {
         flexDirection: 'row',
@@ -531,7 +531,7 @@ const styles = StyleSheet.create({
     },
     inviteLabel: { fontSize: fontSize.sm, color: colors.textMuted, flex: 1 },
     inviteCode: { fontSize: 15, fontWeight: fontWeight.extrabold, color: colors.textPrimary, letterSpacing: 2 },
-    inviteCopy: { fontSize: fontSize.sm, color: colors.primary, fontWeight: fontWeight.semibold },
+    inviteCopy: { fontSize: fontSize.sm, color: colors.primaryDark, fontWeight: fontWeight.semibold },
 
     tabRow: {
         borderBottomWidth: 1,

@@ -286,7 +286,7 @@ const styles = StyleSheet.create({
     teamName: { fontSize: fontSize.lg, fontWeight: fontWeight.semibold, color: colors.textPrimary, flex: 1 },
     teamNameWon: { color: palette.green700, fontWeight: fontWeight.bold },
     teamNameLost: { color: palette.gray650 },
-    teamNameMe: { color: colors.primary },
+    teamNameMe: { color: colors.primaryDark },
     meTag: { fontSize: fontSize.sm, color: colors.textPlaceholder, fontWeight: fontWeight.regular },
     teamPoints: { fontSize: 18, fontWeight: fontWeight.bold, color: palette.gray900, minWidth: 60, textAlign: 'right' },
     teamPointsWon: { color: palette.green700 },

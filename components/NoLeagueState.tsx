@@ -29,5 +29,5 @@ const styles = StyleSheet.create({
     primaryButton: { width: '100%', height: 52, backgroundColor: colors.primary, borderRadius: 12, borderCurve: 'continuous' as const, justifyContent: 'center', alignItems: 'center' },
     primaryButtonText: { color: colors.textWhite, fontWeight: '700', fontSize: 16 },
     secondaryButton: { width: '100%', height: 52, borderWidth: 1.5, borderColor: colors.primary, borderRadius: 12, borderCurve: 'continuous' as const, justifyContent: 'center', alignItems: 'center' },
-    secondaryButtonText: { color: colors.primary, fontWeight: '700', fontSize: 16 },
+    secondaryButtonText: { color: colors.primaryDark, fontWeight: '700', fontSize: 16 },
 })

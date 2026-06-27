@@ -434,7 +434,7 @@ const styles = StyleSheet.create({
     bannerClock: { fontSize: fontSize.lg, fontWeight: fontWeight.extrabold, color: colors.textMuted },
     bannerClockUrgent: { color: colors.danger },
     bannerSub: { fontSize: fontSize.md, color: colors.textSecondary },
-    bannerMe: { color: colors.primary, fontWeight: fontWeight.bold },
+    bannerMe: { color: colors.primaryDark, fontWeight: fontWeight.bold },
 
     tabs: {
         flexDirection: 'row',
@@ -451,7 +451,7 @@ const styles = StyleSheet.create({
         borderBottomColor: colors.primary,
     },
     tabText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textMuted },
-    tabTextActive: { color: colors.primary },
+    tabTextActive: { color: colors.primaryDark },
 
     searchContainer: {
         flexDirection: 'row',
@@ -491,7 +491,7 @@ const styles = StyleSheet.create({
     resultInfo: { flex: 1 },
     resultName: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textPrimary },
     resultTeam: { fontSize: 12, color: colors.textMuted },
-    pickBtn: { fontSize: fontSize.md, fontWeight: fontWeight.bold, color: colors.primary },
+    pickBtn: { fontSize: fontSize.md, fontWeight: fontWeight.bold, color: colors.primaryDark },
 
     draftNumChip: {
         width: 36,
@@ -558,7 +558,7 @@ const styles = StyleSheet.create({
     pickedTeam: { fontSize: fontSize.xs, color: colors.textMuted },
 
     onClockText: { color: palette.green800, fontWeight: fontWeight.bold },
-    meText: { color: colors.primary, fontWeight: fontWeight.bold },
+    meText: { color: colors.primaryDark, fontWeight: fontWeight.bold },
 
     overflowOverlay: {
         flex: 1,

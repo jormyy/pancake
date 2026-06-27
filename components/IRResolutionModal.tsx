@@ -229,7 +229,7 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         marginBottom: spacing.xl,
     },
-    modalPlayerName: { color: colors.primary, fontWeight: fontWeight.semibold },
+    modalPlayerName: { color: colors.primaryDark, fontWeight: fontWeight.semibold },
 
     list: { maxHeight: 360 },
     row: {

@@ -331,7 +331,7 @@ function MatchupLineupView({
                 key: 'starters' as const,
                 label: 'Starters',
                 count: myLineup.starters.length,
-                color: colors.primary,
+                color: colors.primaryDark,
                 rows: myLineup.starters.map((slot, i) => ({
                     key: `s${i}`,
                     myPlayer: slot.player,
@@ -508,7 +508,7 @@ const styles = StyleSheet.create({
         textAlign: 'right',
     },
     aroundLeagueScoreLeading: {
-        color: colors.primary,
+        color: colors.primaryDark,
     },
     aroundLeagueDivider: {
         height: 1,
@@ -546,7 +546,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
-    autoSetText: { fontSize: 11, fontWeight: '800', color: colors.primary, letterSpacing: 0.6 },
+    autoSetText: { fontSize: 11, fontWeight: '800', color: colors.primaryDark, letterSpacing: 0.6 },
 
     hint: {
         flex: 1,
@@ -561,7 +561,7 @@ const styles = StyleSheet.create({
         paddingVertical: 7,
     },
     hintText: { flex: 1, fontSize: 13, color: colors.primaryDark, fontWeight: '500' },
-    hintCancel: { fontSize: 13, fontWeight: '700', color: colors.primary, paddingLeft: 12 },
+    hintCancel: { fontSize: 13, fontWeight: '700', color: colors.primaryDark, paddingLeft: 12 },
 
     lineupContainer: { flex: 1, minHeight: 0, paddingHorizontal: 16, paddingBottom: 8 },
     lineupHeader: {

@@ -112,7 +112,7 @@ const styles = StyleSheet.create({
     week: {
         fontSize: 10,
         fontWeight: '800',
-        color: colors.primary,
+        color: colors.primaryDark,
         letterSpacing: 2,
     },
     headerRule: {
