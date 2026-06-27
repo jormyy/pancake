@@ -48,10 +48,48 @@ const pickRowsForSnakeDraft = (members, rounds = 3) => {
   return rows
 }
 
+const ensureSnakeDraftPickAssets = async (supabase, { leagueId, seasonYear, draftId, members }) => {
+  const { data: slots, error: slotsError } = await supabase
+    .from('snake_draft_picks')
+    .select('id, round, member_id, draft_pick_id')
+    .eq('draft_id', draftId)
+    .order('overall_pick', { ascending: true })
+  if (slotsError) throw new Error(`UI sweep snake pick asset lookup: ${slotsError.message}`)
+
+  const missingSlots = (slots ?? []).filter((slot) => !slot.draft_pick_id)
+  if (missingSlots.length === 0) return
+
+  const pickRows = missingSlots.map((slot) => {
+    const member = members.find((candidate) => candidate.id === slot.member_id)
+    return {
+      league_id: leagueId,
+      season_year: seasonYear,
+      round: slot.round,
+      original_owner_id: member?.id ?? slot.member_id,
+      current_owner_id: slot.member_id,
+    }
+  })
+  const { data: picks, error: pickError } = await supabase
+    .from('draft_picks')
+    .insert(pickRows)
+    .select('id')
+  if (pickError) throw new Error(`UI sweep draft pick asset insert: ${pickError.message}`)
+
+  for (const [index, slot] of missingSlots.entries()) {
+    const pickId = picks?.[index]?.id
+    if (!pickId) throw new Error('UI sweep draft pick asset insert returned fewer rows than expected')
+    const { error: updateError } = await supabase
+      .from('snake_draft_picks')
+      .update({ draft_pick_id: pickId })
+      .eq('id', slot.id)
+    if (updateError) throw new Error(`UI sweep snake pick asset link: ${updateError.message}`)
+  }
+}
+
 const ensureSweepDrafts = async (supabase, state, members) => {
   const { data: season, error: seasonError } = await supabase
     .from('league_seasons')
-    .select('id')
+    .select('id, season_year')
     .eq('league_id', state.leagueId)
     .eq('is_current', true)
     .single()
@@ -148,6 +186,12 @@ const ensureSweepDrafts = async (supabase, state, members) => {
     if (orderError) throw new Error(`UI sweep snake order insert: ${orderError.message}`)
     if (pickError) throw new Error(`UI sweep snake pick insert: ${pickError.message}`)
   }
+  await ensureSnakeDraftPickAssets(supabase, {
+    leagueId: state.leagueId,
+    seasonYear: season.season_year,
+    draftId: rookieDraft.id,
+    members,
+  })
 
   return { auctionDraft, rookieDraft }
 }

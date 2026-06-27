@@ -440,7 +440,7 @@ const styles = StyleSheet.create({
         color: colors.textSecondary,
     },
     selectOptionTextActive: {
-        color: colors.primary,
+        color: colors.primaryDark,
     },
     sortDirButton: {
         minHeight: 38,

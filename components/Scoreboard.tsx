@@ -196,7 +196,7 @@ const styles = StyleSheet.create({
         letterSpacing: 0.3,
     },
     statusLive: {
-        color: colors.primary,
+        color: colors.primaryDark,
         fontWeight: fontWeight.extrabold,
         letterSpacing: 0.5,
     },

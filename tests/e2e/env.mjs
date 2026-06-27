@@ -3,6 +3,7 @@ import path from 'node:path'
 import process from 'node:process'
 
 const ROOT = process.cwd()
+const DEFAULT_PRODUCTION_SUPABASE_REF = 'ceeytbfmwsnzalxlkalc'
 
 export const loadEnvFile = (filePath) => {
   if (!existsSync(filePath)) return
@@ -55,10 +56,31 @@ export const resolvedEnv = () => ({
   backendTicksEnabled: envValue('E2E_ENABLE_BACKEND_TICKS') === '1',
 })
 
+export const isProductionSupabaseUrl = (value) => {
+  if (!value) return false
+  const productionRef = envValue('E2E_PRODUCTION_SUPABASE_REF', 'PRODUCTION_SUPABASE_REF') ?? DEFAULT_PRODUCTION_SUPABASE_REF
+  try {
+    const url = new URL(value)
+    return url.hostname === `${productionRef}.supabase.co` || url.hostname.startsWith(`${productionRef}.`)
+  } catch {
+    return value.includes(productionRef)
+  }
+}
+
 export const requireEnv = (env, keys) => {
   const missing = keys.filter((key) => !env[key])
   if (missing.length > 0) {
     throw new Error(`Missing required E2E environment: ${missing.join(', ')}`)
+  }
+  if (
+    keys.includes('serviceRoleKey') &&
+    isProductionSupabaseUrl(env.supabaseUrl) &&
+    process.env.E2E_ALLOW_PROD_WRITES !== '1'
+  ) {
+    throw new Error(
+      'Refusing to run service-role E2E against the production Supabase project. ' +
+        'Use a local/test project, or set E2E_ALLOW_PROD_WRITES=1 only for an intentional, cleanup-backed production run.',
+    )
   }
 }
 

@@ -460,7 +460,7 @@ const styles = StyleSheet.create({
         borderBottomColor: colors.borderLight,
     },
     closeButton: { minWidth: 48 },
-    closeText: { fontSize: 15, fontWeight: fontWeight.semibold, color: colors.primary },
+    closeText: { fontSize: 15, fontWeight: fontWeight.semibold, color: colors.primaryDark },
     headerTitle: { flex: 1, fontSize: 18, fontWeight: fontWeight.extrabold, textAlign: 'center' },
     autoSetButton: {
         paddingHorizontal: 14,
@@ -472,7 +472,7 @@ const styles = StyleSheet.create({
         minWidth: 80,
         alignItems: 'center',
     },
-    autoSetText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.primary },
+    autoSetText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.primaryDark },
 
     hint: {
         backgroundColor: colors.primaryLight,
@@ -540,7 +540,7 @@ const styles = StyleSheet.create({
     lockedBadge: {
         fontSize: 10,
         fontWeight: fontWeight.bold,
-        color: '#16a34a',
+        color: palette.green600,
         letterSpacing: 0.4,
     },
     benchEmpty: { padding: spacing.xl, fontSize: fontSize.sm, color: colors.textPlaceholder, textAlign: 'center' },

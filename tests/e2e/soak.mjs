@@ -3936,63 +3936,6 @@ const signInForAccessToken = async (env, email, password, label = 'E2E sign-in')
   throw new Error(`${label} failed for ${email}: ${lastError?.message ?? 'unknown error'}`)
 }
 
-const assertTradePushNotification = async ({ supabase, env, state, leagueId, season, fakePort }) => {
-  if (!state?.password || !Array.isArray(state.users) || state.users.length < 2) {
-    throw new Error('D.X.1: E2E_ENABLE_PUSH=1 requires tests/e2e-state.json from npm run e2e:seed')
-  }
-
-  const [senderUser, recipientUser] = state.users
-  const tokenValue = `ExponentPushToken[e2e-${state.runId ?? 'run'}-${season}]`
-  const { error: profileError } = await supabase
-    .from('profiles')
-    .update({ push_token: tokenValue })
-    .eq('id', recipientUser.id)
-  if (profileError) throw new Error(`D.X.1 push token setup: ${profileError.message}`)
-
-  const { data: recipientMember, error: memberError } = await supabase
-    .from('league_members')
-    .select('id, user_id, team_name')
-    .eq('league_id', leagueId)
-    .eq('user_id', recipientUser.id)
-    .single()
-  if (memberError || !recipientMember) {
-    throw new Error(`D.X.1 recipient member lookup: ${memberError?.message ?? 'missing row'}`)
-  }
-
-  await postJson(`http://127.0.0.1:${fakePort}/admin/clear-pushes`, {})
-  const accessToken = await signInForAccessToken(env, senderUser.email, state.password)
-  const title = `E2E Trade Proposed S${season}`
-  const body = `Trade notification intercept for ${recipientMember.team_name}`
-  await backendAuthedJson(env, '/notify/trade', accessToken, {
-    memberId: recipientMember.id,
-    title,
-    body,
-  })
-
-  const response = await fetch(`http://127.0.0.1:${fakePort}/admin/pushes`)
-  if (!response.ok) throw new Error(`D.X.1 push capture returned ${response.status}`)
-  const { pushes } = await response.json()
-  const match = pushes?.find((push) => (
-    push.body?.to === tokenValue &&
-    push.body?.title === title &&
-    push.body?.body === body
-  ))
-  if (!match) {
-    throw new Error(`D.X.1: trade push was not captured for token ${tokenValue}`)
-  }
-
-  const artifact = {
-    season,
-    recipientMemberId: recipientMember.id,
-    recipientUserId: recipientUser.id,
-    captured: match,
-  }
-  await writeFile(
-    path.join(ARTIFACT_ROOT, `season-${season}`, 'push-notifications.json'),
-    `${JSON.stringify(artifact, null, 2)}\n`,
-  )
-}
-
 const todayET = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
 
 const findAvailablePlayer = async (supabase, leagueId, leagueSeasonId) => {
@@ -4584,14 +4527,15 @@ const assertDraftPushNotification = async ({ supabase, env, state, season, fakeP
 
 const assertPushNotifications = async (params) => {
   await postJson(`http://127.0.0.1:${params.fakePort}/admin/clear-pushes`, {})
-  await assertTradePushNotification(params)
+  // The push pipeline is verified end-to-end by the real, server-emitted waiver
+  // notification. (The former trade-push check drove the removed /notify/trade
+  // endpoint; real trade notifications are now emitted server-side by the
+  // /trades/* routes during the main soak.)
   const waiver = await assertWaiverPushNotification(params)
 
-  const artifactPath = path.join(ARTIFACT_ROOT, `season-${params.season}`, 'push-notifications.json')
-  const existing = JSON.parse(await readFile(artifactPath, 'utf8'))
   await writeFile(
-    artifactPath,
-    `${JSON.stringify({ trade: existing, waiver }, null, 2)}\n`,
+    path.join(ARTIFACT_ROOT, `season-${params.season}`, 'push-notifications.json'),
+    `${JSON.stringify({ waiver }, null, 2)}\n`,
   )
 }
 

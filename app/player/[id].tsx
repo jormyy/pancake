@@ -52,7 +52,21 @@ export default function PlayerDetailScreen() {
     const [irModal, setIrModal] = useState<{
         ineligible: RosterPlayer[]
         roster: RosterPlayer[]
+        // Which flow opened the IR modal, so the continuation resumes the right
+        // action once IR is resolved (add a free agent vs. submit a waiver claim).
+        action: 'add' | 'claim'
     } | null>(null)
+
+    // Resume the originating flow after the IR conflict is cleared.
+    const continueAfterIR = useCallback(
+        (action: 'add' | 'claim') => {
+            if (action === 'claim') push(`/(modals)/claim-player?playerId=${id}`)
+            else tryAddFreeAgent()
+        },
+        // tryAddFreeAgent/push/id are stable enough for this modal flow
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [id],
+    )
 
     const loadRosterStatus = useCallback(async () => {
         if (!current || !leagueId) return
@@ -78,7 +92,7 @@ export default function PlayerDetailScreen() {
 
             if (ineligible.length > 0) {
                 setActionLoading(false)
-                setIrModal({ ineligible, roster })
+                setIrModal({ ineligible, roster, action: 'add' })
                 return
             }
 
@@ -139,8 +153,9 @@ export default function PlayerDetailScreen() {
             if (remaining.length > 0) {
                 setIrModal((prev) => prev ? { ...prev, ineligible: remaining, roster } : null)
             } else {
+                const action = irModal?.action ?? 'add'
                 setIrModal(null)
-                await tryAddFreeAgent()
+                continueAfterIR(action)
             }
         } catch (e) {
             // Keep modal open so user can retry — but refresh its state in case
@@ -174,8 +189,9 @@ export default function PlayerDetailScreen() {
             if (remaining.length > 0) {
                 setIrModal((prev) => prev ? { ...prev, ineligible: remaining, roster } : null)
             } else {
+                const action = irModal?.action ?? 'add'
                 setIrModal(null)
-                await tryAddFreeAgent()
+                continueAfterIR(action)
             }
         } catch (e) {
             const underlying = getErrorMessage(e) ?? 'Unknown error'
@@ -229,7 +245,7 @@ export default function PlayerDetailScreen() {
         const ineligible = roster.filter((r) => isIneligibleIR(r))
 
         if (ineligible.length > 0) {
-            setIrModal({ ineligible, roster })
+            setIrModal({ ineligible, roster, action: 'claim' })
             return
         }
 
@@ -383,7 +399,7 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         marginBottom: spacing.xs,
     },
-    modalPlayerName: { color: colors.primary },
+    modalPlayerName: { color: colors.primaryDark },
     modalSub: { fontSize: fontSize.sm, color: colors.textPlaceholder, textAlign: 'center', marginBottom: spacing.xl },
     dropList: { maxHeight: 360 },
     dropRow: {

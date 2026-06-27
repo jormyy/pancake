@@ -248,7 +248,7 @@ const styles = StyleSheet.create({
     playerName: { fontSize: fontSize.lg, fontWeight: fontWeight.semibold, color: colors.textPrimary },
     playerMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     playerMeta: { fontSize: fontSize.sm, color: colors.textMuted },
-    fptsText: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.primary },
+    fptsText: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.primaryDark },
 
     rowActions: { flexDirection: 'row', gap: spacing.sm },
 

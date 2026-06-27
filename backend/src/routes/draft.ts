@@ -3,39 +3,43 @@ import {
     startDraft,
     nominatePlayer,
     placeBid,
-    getDraftState,
+    withdrawNomination,
 } from '../sync/draft'
 import {
     startRookieDraft,
     makeSnakePick,
-    getRookieDraftState,
     reseedRookieDraftPicks,
     autoPickBest,
 } from '../sync/rookieDraft'
-import { NotFoundError } from '../plugins/errorHandler'
 import { requireCommissioner, requireCommissionerForDraft, verifyMemberAccess } from '../lib/authz'
 import {
     LeagueIdBody,
+    StartDraftBody,
     DraftParams,
     NominateBody,
     BidBody,
+    WithdrawNominationBody,
     SnakePickBody,
     AutoPickBody,
 } from '../schemas'
+import type { NominationOrderMode } from '../sync/draft'
 
 export default async function draftRoutes(app: FastifyInstance) {
-    app.post('/start', { schema: { body: LeagueIdBody } }, async (req) => {
-        const { leagueId } = req.body as { leagueId: string }
+    app.post('/start', { schema: { body: StartDraftBody } }, async (req) => {
+        const { leagueId, nominationOrderMode } = req.body as {
+            leagueId: string
+            nominationOrderMode?: NominationOrderMode
+        }
         await requireCommissioner(req.userId, leagueId)
-        const draft = await startDraft(leagueId)
+        const draft = await startDraft(leagueId, nominationOrderMode)
         return { ok: true, draft }
     })
 
-    app.get('/:draftId', { schema: { params: DraftParams } }, async (req) => {
-        const { draftId } = req.params as { draftId: string }
-        const state = await getDraftState(draftId)
-        return { ok: true, ...state }
-    })
+    // NOTE: draft state is read client-side via RLS-scoped Supabase queries
+    // (lib/draft.ts, lib/rookieDraft.ts). There is deliberately NO backend
+    // GET draft-state route: the only safe reader is the per-user RLS client.
+    // A service-role GET here would bypass RLS and leak any league's private
+    // draft state (budgets/bids/picks) to any authenticated user.
 
     app.post(
         '/:draftId/nominate',
@@ -70,6 +74,19 @@ export default async function draftRoutes(app: FastifyInstance) {
         },
     )
 
+    app.post(
+        '/:draftId/withdraw-nomination',
+        {
+            schema: { params: DraftParams, body: WithdrawNominationBody },
+            config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
+        },
+        async (req) => {
+            const { memberId, nominationId } = req.body as { memberId: string; nominationId: string }
+            await verifyMemberAccess(req.userId, memberId)
+            return await withdrawNomination(memberId, nominationId, req.userId)
+        },
+    )
+
 
     app.post('/start-rookie', { schema: { body: LeagueIdBody } }, async (req) => {
         const { leagueId } = req.body as { leagueId: string }
@@ -77,19 +94,6 @@ export default async function draftRoutes(app: FastifyInstance) {
         const draft = await startRookieDraft(leagueId)
         return { ok: true, draft }
     })
-
-    app.get(
-        '/:draftId/rookie-state',
-        { schema: { params: DraftParams } },
-        async (req) => {
-            const { draftId } = req.params as { draftId: string }
-            const state = await getRookieDraftState(draftId)
-            if (!state) {
-                throw new NotFoundError('Draft not found')
-            }
-            return { ok: true, ...state }
-        },
-    )
 
     app.post(
         '/:draftId/auto-pick',

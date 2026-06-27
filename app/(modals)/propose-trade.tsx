@@ -524,7 +524,7 @@ const styles = StyleSheet.create({
 
     playerInfo: { flex: 1 },
     playerName: { fontSize: 15, fontWeight: fontWeight.semibold, color: colors.textPrimary },
-    playerNameSelected: { color: colors.primary },
+    playerNameSelected: { color: colors.primaryDark },
     playerMeta: { fontSize: 12, color: colors.textMuted, marginTop: spacing.xxs },
     checkBadge: {
         width: 24,

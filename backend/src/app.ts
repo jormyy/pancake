@@ -8,16 +8,16 @@ import syncRoutes from './routes/sync'
 import draftRoutes from './routes/draft'
 import waiverRoutes from './routes/waivers'
 import playoffRoutes from './routes/playoffs'
-import notifyRoutes from './routes/notifications'
 import leagueRoutes from './routes/league'
 import gamesRoutes from './routes/games'
 import tradeRoutes from './routes/trades'
 import e2eRoutes from './routes/e2e'
+import { resolveCorsOrigin } from './lib/cors'
 
 export async function buildApp() {
     const app = Fastify({ logger: true })
 
-    await app.register(cors, { origin: true })
+    await app.register(cors, { origin: resolveCorsOrigin() })
     await app.register(rateLimit, {
         max: process.env.ENABLE_E2E_ROUTES === '1' ? 10000 : 100,
         timeWindow: '1 minute',
@@ -36,7 +36,6 @@ export async function buildApp() {
     await app.register(draftRoutes, { prefix: '/draft' })
     await app.register(waiverRoutes, { prefix: '/waivers' })
     await app.register(playoffRoutes, { prefix: '/playoffs' })
-    await app.register(notifyRoutes, { prefix: '/notify' })
     await app.register(leagueRoutes, { prefix: '/league' })
     await app.register(gamesRoutes, { prefix: '/games' })
     await app.register(tradeRoutes, { prefix: '/trades' })

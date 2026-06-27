@@ -1,5 +1,5 @@
-import { View, Text, Pressable, StyleSheet } from 'react-native'
-import { useCallback, useMemo, useState } from 'react'
+import { View, Text, Pressable, StyleSheet, type RefreshControlProps } from 'react-native'
+import { useCallback, useMemo, useState, type ReactElement } from 'react'
 import { FlashList, type ListRenderItem } from '@shopify/flash-list'
 import { StandingRow } from '@/lib/scoring'
 import { WaiverPriorityRow } from '@/lib/waivers'
@@ -28,12 +28,12 @@ const styles = StyleSheet.create({
     standingsRowMe: { backgroundColor: colors.primaryLight },
     standingsHeader: { borderBottomWidth: 1, borderBottomColor: colors.borderLight, paddingVertical: spacing.md },
     standingsHeaderText: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.textPlaceholder },
-    standingsHeaderActive: { color: colors.primary },
+    standingsHeaderActive: { color: colors.primaryDark },
     standingsRank: { width: 24, fontSize: fontSize.md, fontWeight: fontWeight.bold, color: colors.textSecondary },
     standingsTeam: { flex: 1, fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textPrimary },
     standingsCell: { width: 32, textAlign: 'center', fontSize: fontSize.md, color: colors.textSecondary },
     standingsPts: { width: 64, textAlign: 'center', fontSize: fontSize.sm, color: colors.textSecondary },
-    standingsMe: { color: colors.primary, fontWeight: fontWeight.bold },
+    standingsMe: { color: colors.primaryDark, fontWeight: fontWeight.bold },
 
     waiverRow: {
         flexDirection: 'row',
@@ -133,7 +133,7 @@ const StandingsListHeader = ({
     )
 }
 
-export function StandingsTable({ standings, myMemberId, onSelectTeam }: { standings: StandingRow[]; myMemberId?: string; onSelectTeam: (memberId: string, teamName: string) => void }) {
+export function StandingsTable({ standings, myMemberId, onSelectTeam, refreshControl }: { standings: StandingRow[]; myMemberId?: string; onSelectTeam: (memberId: string, teamName: string) => void; refreshControl?: ReactElement<RefreshControlProps> }) {
     const [sortBy, setSortBy] = useState<StandingsSortKey>('wins')
     const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
 
@@ -168,17 +168,15 @@ export function StandingsTable({ standings, myMemberId, onSelectTeam }: { standi
         />
     ), [myMemberId, onSelectTeam])
 
-    if (standings.length === 0) {
-        return <EmptyState message="No standings yet — matchups will appear once games are scored." fullScreen={false} />
-    }
-
     return (
         <FlashList
+            refreshControl={refreshControl}
             data={sorted}
             keyExtractor={(s) => s.memberId}
-            ListHeaderComponent={<StandingsListHeader sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />}
+            ListHeaderComponent={sorted.length ? <StandingsListHeader sortBy={sortBy} sortDir={sortDir} onSort={handleSort} /> : undefined}
             ItemSeparatorComponent={ItemSeparator}
             renderItem={renderItem}
+            ListEmptyComponent={<EmptyState message="No standings yet — matchups will appear once games are scored." fullScreen={false} />}
         />
     )
 }
@@ -218,11 +216,13 @@ export function ActivityFeed({
     myMemberId,
     onLoadMore,
     hasMore,
+    refreshControl,
 }: {
     transactions: TransactionRow[]
     myMemberId?: string
     onLoadMore?: () => void
     hasMore?: boolean
+    refreshControl?: ReactElement<RefreshControlProps>
 }) {
     const renderItem = useCallback<ListRenderItem<TransactionRow>>(({ item }) => (
         <ActivityRow item={item} isMe={item.memberId === myMemberId} />
@@ -233,23 +233,21 @@ export function ActivityFeed({
             onPress={onLoadMore}
             style={{ padding: spacing['2xl'], alignItems: 'center' }}
         >
-            <Text style={{ fontSize: fontSize.sm, color: colors.primary, fontWeight: fontWeight.semibold }}>
+            <Text style={{ fontSize: fontSize.sm, color: colors.primaryDark, fontWeight: fontWeight.semibold }}>
                 Load More
             </Text>
         </Pressable>
     ) : null
 
-    if (transactions.length === 0) {
-        return <EmptyState message="No transactions yet. Adds, drops, and trades will appear here." fullScreen={false} />
-    }
-
     return (
         <FlashList
+            refreshControl={refreshControl}
             data={transactions}
             keyExtractor={(t) => t.id}
             ItemSeparatorComponent={ItemSeparator}
             renderItem={renderItem}
             ListFooterComponent={ListFooter}
+            ListEmptyComponent={<EmptyState message="No transactions yet. Adds, drops, and trades will appear here." fullScreen={false} />}
         />
     )
 }
@@ -277,22 +275,20 @@ const WaiverListHeader = (
     </View>
 )
 
-export function WaiverPriorityList({ rows, myMemberId }: { rows: WaiverPriorityRow[]; myMemberId?: string }) {
+export function WaiverPriorityList({ rows, myMemberId, refreshControl }: { rows: WaiverPriorityRow[]; myMemberId?: string; refreshControl?: ReactElement<RefreshControlProps> }) {
     const renderItem = useCallback<ListRenderItem<WaiverPriorityRow>>(({ item, index }) => (
         <WaiverRow item={item} isMe={item.memberId === myMemberId} rank={index + 1} />
     ), [myMemberId])
 
-    if (rows.length === 0) {
-        return <EmptyState message="Waiver priorities will appear here once the season starts." fullScreen={false} />
-    }
-
     return (
         <FlashList
+            refreshControl={refreshControl}
             data={rows}
             keyExtractor={(r) => r.memberId}
-            ListHeaderComponent={WaiverListHeader}
+            ListHeaderComponent={rows.length ? WaiverListHeader : undefined}
             ItemSeparatorComponent={ItemSeparator}
             renderItem={renderItem}
+            ListEmptyComponent={<EmptyState message="Waiver priorities will appear here once the season starts." fullScreen={false} />}
         />
     )
 }
@@ -329,7 +325,7 @@ const PicksBankListHeader = (
     </View>
 )
 
-export function PicksBankList({ picks, myMemberId }: { picks: LeaguePickItem[]; myMemberId?: string }) {
+export function PicksBankList({ picks, myMemberId, refreshControl }: { picks: LeaguePickItem[]; myMemberId?: string; refreshControl?: ReactElement<RefreshControlProps> }) {
     const flatData = useMemo<PicksBankItem[]>(() => {
         const byYear = new Map<number, LeaguePickItem[]>()
         for (const p of picks) {
@@ -358,18 +354,16 @@ export function PicksBankList({ picks, myMemberId }: { picks: LeaguePickItem[]; 
         )
     }, [myMemberId])
 
-    if (picks.length === 0) {
-        return <EmptyState message="No future draft picks to display." fullScreen={false} />
-    }
-
     return (
         <FlashList
+            refreshControl={refreshControl}
             data={flatData}
             keyExtractor={(item) => item.id}
-            ListHeaderComponent={PicksBankListHeader}
+            ListHeaderComponent={flatData.length ? PicksBankListHeader : undefined}
             getItemType={(item) => item.type}
             ItemSeparatorComponent={ItemSeparator}
             renderItem={renderItem}
+            ListEmptyComponent={<EmptyState message="No future draft picks to display." fullScreen={false} />}
         />
     )
 }

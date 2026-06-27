@@ -2,6 +2,7 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native
 import { Stack, useRouter, useSegments } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import { useEffect } from 'react'
+import { Platform } from 'react-native'
 import 'react-native-reanimated'
 
 import { useColorScheme } from '@/hooks/use-color-scheme'
@@ -16,12 +17,17 @@ export const unstable_settings = {
 export default function RootLayout() {
     const colorScheme = useColorScheme()
 
+    // Web ships light-only (locked decision): never let react-navigation chrome
+    // (modal/stack headers) follow the OS dark preference. Native keeps dark.
+    const navTheme =
+        Platform.OS !== 'web' && colorScheme === 'dark' ? DarkTheme : DefaultTheme
+
     return (
-        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+        <ThemeProvider value={navTheme}>
             <AuthProvider>
                 <RootContent />
             </AuthProvider>
-            <StatusBar style="auto" />
+            <StatusBar style={Platform.OS === 'web' ? 'dark' : 'auto'} />
         </ThemeProvider>
     )
 }

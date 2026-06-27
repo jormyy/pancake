@@ -226,30 +226,46 @@ const assertPageText = async (session, required, label) => {
   return parsed
 }
 
-const clickExactText = async (session, text, label) => {
-  try {
+const clickExactText = async (session, text, label, { preferDom = false } = {}) => {
+  if (!preferDom) {
+    try {
     await browser(session, ['find', 'role', 'button', 'click', '--name', text])
     return { ok: true, method: 'agent-browser-find-role-button' }
-  } catch {
-    // Continue through the text and DOM fallbacks below.
+    } catch {
+      // Continue through the text and DOM fallbacks below.
+    }
   }
 
   const output = await browser(session, [
     'eval',
     `(() => {
+      const exact = ${JSON.stringify(text)};
+      const exactText = (value) => (value || '').replace(/\\s+/g, ' ').trim() === exact;
+      const buttonTarget = [...document.querySelectorAll('[role="button"], button, [tabindex]')]
+        .reverse()
+        .find((element) => exactText(element.getAttribute('aria-label')) || exactText(element.textContent));
       const textNode = [...document.querySelectorAll('*')]
         .reverse()
-        .find((element) => (element.textContent || '').trim() === ${JSON.stringify(text)});
-      const target = textNode?.closest?.('[role="button"], button, [tabindex]') || textNode;
+        .find((element) => exactText(element.textContent));
+      const target = buttonTarget || textNode?.closest?.('[role="button"], button, [tabindex]') || textNode;
       if (!target) return JSON.stringify({ ok: false, body: (document.body?.innerText || '').slice(0, 1000) });
-      target.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, pointerId: 1, pointerType: 'mouse' }));
-      target.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
-      target.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
+      const rect = target.getBoundingClientRect?.() || { left: 0, top: 0, width: 1, height: 1 };
+      const clientX = rect.left + rect.width / 2;
+      const clientY = rect.top + rect.height / 2;
+      const pointerInit = { bubbles: true, cancelable: true, pointerId: 1, pointerType: 'mouse', clientX, clientY };
+      const mouseInit = { bubbles: true, cancelable: true, clientX, clientY };
+      target.dispatchEvent(new PointerEvent('pointerdown', pointerInit));
+      target.dispatchEvent(new MouseEvent('mousedown', mouseInit));
+      target.dispatchEvent(new PointerEvent('pointerup', pointerInit));
+      target.dispatchEvent(new MouseEvent('mouseup', mouseInit));
       target.click();
       return JSON.stringify({
         ok: true,
+        method: 'dom-dispatch',
         tagName: target.tagName,
         role: target.getAttribute('role'),
+        ariaLabel: target.getAttribute('aria-label'),
+        ariaDisabled: target.getAttribute('aria-disabled'),
         text: target.textContent,
       });
     })()`,
@@ -340,8 +356,13 @@ export async function runBrowserGameplayScenario({
     await browser(session, ['wait', '2500'])
     await assertPageText(session, ['Auction Draft', fixture.player.display_name, 'Bid $2'], 'auction draft room before bid')
     debug = { ...debug, beforeScreenshot: await captureBrowserScreenshot(browser, session, artifactDir, 'auction-before-bid.png') }
-    const clickResult = await clickExactText(session, 'Bid $2', 'auction bid button')
-    const auctionBid = await waitForAuctionBid(fixture)
+    let clickResult = await clickExactText(session, 'Bid $2', 'auction bid button')
+    let auctionBid = await waitForAuctionBid(fixture, 3_000)
+    if (auctionBid.failures.length > 0 && clickResult.method === 'agent-browser-find-role-button') {
+      const retryClick = await clickExactText(session, 'Bid $2', 'auction bid button', { preferDom: true })
+      auctionBid = await waitForAuctionBid(fixture)
+      clickResult = { ...clickResult, retryClick }
+    }
     debug = { ...debug, clickResult, auctionBid }
     if (auctionBid.failures.length > 0) {
       throw new Error(`auction bid did not persist: ${auctionBid.failures.join('; ')}`)

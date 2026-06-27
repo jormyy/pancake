@@ -16,6 +16,7 @@ function q(data: any = null, error: any = null, count: number | null = null) {
     const chain: any = {
         select: () => chain,
         eq: () => chain,
+        not: () => chain,
         in: () => chain,
         order: () => chain,
         limit: () => chain,

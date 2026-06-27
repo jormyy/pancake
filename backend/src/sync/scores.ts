@@ -406,15 +406,17 @@ async function finalizeWeekIfComplete(
                 .eq('id', m.id)
 
             if (winnerId === null) {
-                const tiePts = homePoints.toFixed(1)
+                // Match the 2-decimal precision the winner is decided on, so a
+                // sub-0.1 margin never renders both scores identical.
+                const tiePts = homePoints.toFixed(2)
                 await Promise.all([
                     notifyMember(m.home_member_id, `Week ${weekNumber} Final`, `You tied ${tiePts}–${tiePts}.`),
                     notifyMember(m.away_member_id, `Week ${weekNumber} Final`, `You tied ${tiePts}–${tiePts}.`),
                 ]).catch(console.error)
             } else {
                 const loserId = winnerId === m.home_member_id ? m.away_member_id : m.home_member_id
-                const winnerPts = Math.max(homePoints, awayPoints).toFixed(1)
-                const loserPts = Math.min(homePoints, awayPoints).toFixed(1)
+                const winnerPts = Math.max(homePoints, awayPoints).toFixed(2)
+                const loserPts = Math.min(homePoints, awayPoints).toFixed(2)
                 await Promise.all([
                     notifyMember(winnerId, `Week ${weekNumber} Final`, `You won ${winnerPts}–${loserPts}! 🏆`),
                     notifyMember(loserId, `Week ${weekNumber} Final`, `You lost ${loserPts}–${winnerPts}.`),

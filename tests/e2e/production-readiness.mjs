@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs'
 import { readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
+import { createClient } from '@supabase/supabase-js'
 import { describeEndpoint, envValue, loadEnvFile } from './env.mjs'
 
 const ROOT = process.cwd()
@@ -85,6 +86,29 @@ const writeReportIfChanged = async (reportPath, report) => {
   await writeFile(reportPath, report)
 }
 
+const canQueryWithSupabaseKey = async (url, key) => {
+  if (!url || !key) return { ok: false, evidence: 'Supabase URL or admin key is not configured.' }
+  try {
+    const client = createClient(url, key, { auth: { persistSession: false } })
+    const { error, status } = await client
+      .from('nba_games')
+      .select('id', { count: 'exact', head: true })
+      .limit(1)
+    if (error || (status && status >= 400)) {
+      return {
+        ok: false,
+        evidence: `Admin key PostgREST probe failed with status ${status ?? 'unknown'}; values intentionally not printed.`,
+      }
+    }
+    return { ok: true, evidence: 'Admin key can query PostgREST through Supabase client.' }
+  } catch (error) {
+    return {
+      ok: false,
+      evidence: `Admin key PostgREST probe threw: ${cleanMessage(error instanceof Error ? error.message : String(error))}`,
+    }
+  }
+}
+
 const main = async () => {
   const rows = []
 
@@ -163,11 +187,12 @@ const main = async () => {
       : 'Set PANCAKE_SUPABASE_SECRET_KEY, SUPABASE_SECRET_KEY, or E2E_* equivalent to a Supabase secret key before disabling legacy service-role JWTs.',
   })
 
-  const dbPasswordPresent = Boolean(envValue('SUPABASE_DB_PASSWORD'))
+  const supabaseUrl = envValue('E2E_SUPABASE_URL', 'SUPABASE_URL', 'EXPO_PUBLIC_SUPABASE_URL')
+  const adminKeyProbe = await canQueryWithSupabaseKey(supabaseUrl, adminKey)
   rows.push({
-    requirement: 'Linked Supabase DB password available',
-    status: statusFrom(dbPasswordPresent),
-    evidence: dbPasswordPresent ? 'SUPABASE_DB_PASSWORD is present in the process environment.' : 'SUPABASE_DB_PASSWORD is not set.',
+    requirement: 'Local backend Supabase admin key is usable',
+    status: statusFrom(adminKeyProbe.ok),
+    evidence: adminKeyProbe.evidence,
   })
 
   const dbQuery = run('supabase', ['db', 'query', '--linked', 'select now();'], { timeout: 45000 })
@@ -186,6 +211,18 @@ const main = async () => {
     evidence: dbPush.status === 0
       ? 'supabase db push --dry-run completed.'
       : cleanMessage(dbPush.stderr || dbPush.stdout || String(dbPush.error)),
+  })
+
+  const dbPasswordPresent = Boolean(envValue('SUPABASE_DB_PASSWORD'))
+  const linkedDbAccessVerified = dbPasswordPresent || (dbQuery.status === 0 && dbPush.status === 0)
+  rows.push({
+    requirement: 'Linked Supabase DB credential path verified',
+    status: statusFrom(linkedDbAccessVerified),
+    evidence: dbPasswordPresent
+      ? 'SUPABASE_DB_PASSWORD is present in the process environment.'
+      : linkedDbAccessVerified
+        ? 'Supabase CLI linked DB query and migration dry-run completed via the temporary login role without SUPABASE_DB_PASSWORD.'
+        : 'Set SUPABASE_DB_PASSWORD or restore Supabase temporary login-role creation, then rerun linked DB query and migration dry-run checks.',
   })
 
   const apiUrl = envValue('E2E_REMOTE_API_URL', 'EXPO_PUBLIC_API_URL')
@@ -261,7 +298,7 @@ const main = async () => {
     '- Manual flags are only accepted for host/dashboard operations that are not readable through local repo or Supabase CLI state.',
     '- Before disabling legacy Supabase JWT keys, deploy hosted Fastify with `PANCAKE_SUPABASE_SECRET_KEY` or `SUPABASE_SECRET_KEY` and verify `/health` reports `supabaseAdminKeyMode=modern-secret`.',
     '- To disable legacy Supabase JWT keys after hosted Fastify is verified, use the Supabase Management API endpoint: `PUT https://api.supabase.com/v1/projects/{ref}/api-keys/legacy?enabled=false`.',
-    '- To unblock linked Supabase migrations, provide `SUPABASE_DB_PASSWORD` or restore Supabase temporary login-role creation, then rerun `supabase db query --linked "select now();"` and `supabase db push --dry-run`.',
+    '- If linked Supabase DB access fails, provide `SUPABASE_DB_PASSWORD` or restore Supabase temporary login-role creation, then rerun `supabase db query --linked "select now();"` and `supabase db push --dry-run`.',
     '- To unblock hosted Fastify verification from this machine, authenticate Railway with `railway login` or provide a valid Railway token/session for `npx --yes @railway/cli whoami`.',
     '- No GitHub-hosted Railway deploy fallback is configured: the repository has only the `Tests` workflow, and repository/environment secrets and variables are empty.',
   ]

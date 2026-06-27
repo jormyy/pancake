@@ -184,7 +184,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: spacing['5xl'],
         marginVertical: spacing.md,
     },
-    codeText: { fontSize: fontSize['5xl'], fontWeight: fontWeight.extrabold, color: colors.primary, letterSpacing: 8 },
+    codeText: { fontSize: fontSize['5xl'], fontWeight: fontWeight.extrabold, color: colors.primaryDark, letterSpacing: 8 },
     shareButton: {
         width: '100%',
         height: 52,

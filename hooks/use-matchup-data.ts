@@ -26,6 +26,7 @@ export function useMatchupData(
     const [error, setError] = useState<string | null>(null)
     const matchupRef = useRef<Matchup | null>(null)
     const isFirstRunRef = useRef(true)
+    const loadSeqRef = useRef(0)
 
     const leagueId = league?.id
 
@@ -45,16 +46,20 @@ export function useMatchupData(
     const loadLineups = useCallback(
         async (m: Matchup, date: string) => {
             if (!leagueId) return
+            // Inherit the in-flight load token so a league switch mid-fetch can't
+            // commit the previous league's starters/bench (last-writer-wins).
+            const seq = loadSeqRef.current
             setLineupLoading(true)
             try {
                 const [mine, opp] = await Promise.all([
                     getWeeklyLineup(m.myMemberId, leagueId, m.seasonId, m.weekNumber, date),
                     getWeeklyLineup(m.opponentMemberId, leagueId, m.seasonId, m.weekNumber, date),
                 ])
+                if (seq !== loadSeqRef.current) return
                 setMyLineup(mine)
                 setOppLineup(opp)
             } finally {
-                setLineupLoading(false)
+                if (seq === loadSeqRef.current) setLineupLoading(false)
             }
         },
         [leagueId],
@@ -63,7 +68,9 @@ export function useMatchupData(
     const loadMyLineup = useCallback(
         async (m: Matchup, date: string) => {
             if (!leagueId) return
+            const seq = loadSeqRef.current
             const data = await getWeeklyLineup(m.myMemberId, leagueId, m.seasonId, m.weekNumber, date)
+            if (seq !== loadSeqRef.current) return
             setMyLineup(data)
         },
         [leagueId],
@@ -73,10 +80,12 @@ export function useMatchupData(
         async () => {
             const m = matchupRef.current
             if (!m || !leagueId) return
+            const seq = loadSeqRef.current
             const [mine, opp] = await Promise.all([
                 getWeeklyLineup(m.myMemberId, leagueId, m.seasonId, m.weekNumber, selectedDate),
                 getWeeklyLineup(m.opponentMemberId, leagueId, m.seasonId, m.weekNumber, selectedDate),
             ])
+            if (seq !== loadSeqRef.current) return
             setMyLineup(mine)
             setOppLineup(opp)
         },
@@ -85,12 +94,16 @@ export function useMatchupData(
 
     const load = useCallback(async () => {
         if (!current || !user || !leagueId) return
+        // Sequence concurrent loads (league switch / focus) so a slower fetch for
+        // a previous league can never overwrite the current league's matchup.
+        const seq = ++loadSeqRef.current
         setMatchupLoading(true)
         setMyLineup(null)
         setOppLineup(null)
         try {
             setError(null)
             const m = await getMyMatchup(current.id, leagueId)
+            if (seq !== loadSeqRef.current) return
             setMatchup(m)
             matchupRef.current = m
             if (m) {
@@ -100,17 +113,19 @@ export function useMatchupData(
                     getWeekDays(m.weekNumber, m.seasonYear),
                     getLeagueWeekMatchups(leagueId, m.seasonId, m.weekNumber, m.myMemberId),
                 ])
+                if (seq !== loadSeqRef.current) return
                 setWeekDays(days)
                 setLeagueMatchups(weekMatchups)
                 setSelectedDate(today)
                 await loadLineups(m, today)
             }
         } catch (e) {
+            if (seq !== loadSeqRef.current) return
             console.error(e)
             setMatchup(null)
             setError('Failed to load matchup')
         } finally {
-            setMatchupLoading(false)
+            if (seq === loadSeqRef.current) setMatchupLoading(false)
         }
     }, [current, user, leagueId, loadLineups])
 

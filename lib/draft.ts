@@ -17,7 +17,7 @@ export type DraftBudget = {
 
 export type Nomination = {
     id: string
-    status: 'open' | 'sold' | 'no_bid'
+    status: 'open' | 'sold' | 'no_bid' | 'withdrawn'
     nominatingMemberId: string
     currentBidAmount: number
     currentBidderId: string | null
@@ -33,12 +33,22 @@ export type Nomination = {
     } | null
 }
 
+export const NOMINATION_ORDER_MODES = ['user_nominated', 'by_projection', 'alphabetical'] as const
+export type NominationOrderMode = (typeof NOMINATION_ORDER_MODES)[number]
+
+export const NOMINATION_ORDER_MODE_LABELS: Record<NominationOrderMode, string> = {
+    user_nominated: 'Manager nominated',
+    by_projection: 'By projection',
+    alphabetical: 'Alphabetical',
+}
+
 export type Draft = {
     id: string
     leagueId: string
     status: string
     draftType: string
     currentNominationOrder: number
+    nominationOrderMode: NominationOrderMode
     budgetPerTeam: number | null
     startedAt: string | null
 }
@@ -66,7 +76,7 @@ export type DraftSearchPlayer = {
 export async function getActiveDraft(leagueId: string): Promise<Draft | null> {
     const { data } = await supabase
         .from('drafts')
-        .select('id, league_id, status, draft_type, current_nomination_order, budget_per_team, started_at')
+        .select('id, league_id, status, draft_type, current_nomination_order, nomination_order_mode, budget_per_team, started_at')
         .eq('league_id', leagueId)
         .in('status', ['in_progress', 'pending', 'completed'])
         .order('created_at', { ascending: false })
@@ -81,6 +91,7 @@ export async function getActiveDraft(leagueId: string): Promise<Draft | null> {
         status: data.status,
         draftType: data.draft_type,
         currentNominationOrder: data.current_nomination_order,
+        nominationOrderMode: (data.nomination_order_mode ?? 'user_nominated') as NominationOrderMode,
         budgetPerTeam: data.budget_per_team,
         startedAt: data.started_at,
     }
@@ -92,7 +103,7 @@ export async function getDraftState(draftId: string): Promise<DraftState | null>
             supabase
                 .from('drafts')
                 .select(
-                    'id, league_id, status, draft_type, current_nomination_order, budget_per_team, started_at',
+                    'id, league_id, status, draft_type, current_nomination_order, nomination_order_mode, budget_per_team, started_at',
                 )
                 .eq('id', draftId)
                 .single(),
@@ -126,6 +137,8 @@ export async function getDraftState(draftId: string): Promise<DraftState | null>
         status: draft.status,
         draftType: draft.draft_type,
         currentNominationOrder: draft.current_nomination_order,
+        nominationOrderMode: ((draft as { nomination_order_mode?: string }).nomination_order_mode ??
+            'user_nominated') as NominationOrderMode,
         budgetPerTeam: draft.budget_per_team,
         startedAt: draft.started_at,
     }
@@ -184,7 +197,11 @@ export async function getDraftState(draftId: string): Promise<DraftState | null>
 }
 
 
-export async function searchPlayers(query: string, draftId: string): Promise<DraftSearchPlayer[]> {
+export async function searchPlayers(
+    query: string,
+    draftId: string,
+    mode: NominationOrderMode = 'user_nominated',
+): Promise<DraftSearchPlayer[]> {
     // Get already-nominated player IDs to filter out
     const { data: nominated } = await supabase
         .from('nominations')
@@ -193,14 +210,17 @@ export async function searchPlayers(query: string, draftId: string): Promise<Dra
 
     const nominatedIds = new Set((nominated ?? []).map((n) => n.player_id))
 
-    // Startup drafts use dynasty rank as the default board order. Hashtag's
-    // list is not every NBA player, so unranked players fall back alphabetically.
+    // Nomination board order follows the draft's mode: alphabetical sorts A→Z;
+    // by_projection / user_nominated use dynasty rank (Hashtag's list isn't every
+    // NBA player, so unranked players fall back alphabetically).
     let playerQuery = supabase
         .from('players')
         .select('id, display_name, nba_team, position, dynasty_rank, dynasty_rank_source, dynasty_rank_fetched_at')
-        .order('dynasty_rank', { ascending: true, nullsFirst: false })
-        .order('last_name')
-        .limit(20)
+    playerQuery =
+        mode === 'alphabetical'
+            ? playerQuery.order('last_name').order('display_name')
+            : playerQuery.order('dynasty_rank', { ascending: true, nullsFirst: false }).order('last_name')
+    playerQuery = playerQuery.limit(20)
 
     if (nominatedIds.size > 0) playerQuery = playerQuery.not('id', 'in', postgresInList([...nominatedIds]))
 
@@ -218,14 +238,18 @@ function postgresInList(values: string[]): string {
 }
 
 
-export async function startDraft(leagueId: string): Promise<Draft> {
-    const json = await sharedApiPost<any>('/draft/start', { leagueId })
+export async function startDraft(
+    leagueId: string,
+    nominationOrderMode: NominationOrderMode = 'user_nominated',
+): Promise<Draft> {
+    const json = await sharedApiPost<any>('/draft/start', { leagueId, nominationOrderMode })
     return {
         id: json.draft.id,
         leagueId: json.draft.league_id,
         status: json.draft.status,
         draftType: json.draft.draft_type ?? 'auction',
         currentNominationOrder: json.draft.current_nomination_order,
+        nominationOrderMode: (json.draft.nomination_order_mode ?? 'user_nominated') as NominationOrderMode,
         budgetPerTeam: json.draft.budget_per_team,
         startedAt: json.draft.started_at,
     }
@@ -246,6 +270,14 @@ export async function placeBid(
     amount: number,
 ): Promise<void> {
     await sharedApiPost(`/draft/${draftId}/bid`, { memberId, nominationId, amount })
+}
+
+export async function withdrawNomination(
+    draftId: string,
+    memberId: string,
+    nominationId: string,
+): Promise<void> {
+    await sharedApiPost(`/draft/${draftId}/withdraw-nomination`, { memberId, nominationId })
 }
 
 

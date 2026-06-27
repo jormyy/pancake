@@ -92,5 +92,5 @@ const styles = StyleSheet.create({
         borderRadius: radii.md,
         borderCurve: 'continuous' as const,
     },
-    loadMoreText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.primary },
+    loadMoreText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.primaryDark },
 })

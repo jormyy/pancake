@@ -20,11 +20,23 @@ const supabasePublicKey =
 const SUPABASE_URL_OVERRIDE_KEY = 'PANCAKE_SUPABASE_URL'
 const SUPABASE_PUBLIC_KEY_OVERRIDE_KEY = 'PANCAKE_SUPABASE_ANON_KEY'
 
+const overrideParamName = (key: string): string | null => {
+    if (key === SUPABASE_URL_OVERRIDE_KEY) return 'pancake_supabase_url'
+    if (key === SUPABASE_PUBLIC_KEY_OVERRIDE_KEY) return 'pancake_supabase_anon_key'
+    return null
+}
+
 function runtimeSupabaseOverride(key: string): string | null {
     if (process.env.NODE_ENV === 'production') return null
     if (Platform.OS !== 'web' || typeof window === 'undefined') return null
 
     try {
+        const paramName = overrideParamName(key)
+        const paramValue = paramName ? new URLSearchParams(window.location.search).get(paramName) : null
+        if (paramValue) {
+            window.localStorage.setItem(key, paramValue)
+            return paramValue
+        }
         return window.localStorage.getItem(key)
     } catch {
         return null

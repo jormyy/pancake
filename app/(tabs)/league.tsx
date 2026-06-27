@@ -14,7 +14,13 @@ import { useState, useRef, useCallback, useEffect } from 'react'
 import { useFocusEffect } from '@react-navigation/native'
 import { useLeagueContext } from '@/contexts/league-context'
 import { getLeagueStandings, StandingRow } from '@/lib/scoring'
-import { getActiveDraft, startDraft } from '@/lib/draft'
+import {
+    getActiveDraft,
+    startDraft,
+    NOMINATION_ORDER_MODES,
+    NOMINATION_ORDER_MODE_LABELS,
+    type NominationOrderMode,
+} from '@/lib/draft'
 import { getWaiverPriorityOrder, WaiverPriorityRow } from '@/lib/waivers'
 import { getLeagueTransactions, TransactionRow } from '@/lib/transactions'
 import { getActiveRookieDraft, startRookieDraft, getAllLeaguePicks, reseedRookieDraftPicks, LeaguePickItem } from '@/lib/rookieDraft'
@@ -39,6 +45,7 @@ export default function LeagueScreen() {
     const { current, currentLeague, isCommissioner, loading: currentLeagueLoading } = useLeagueContext()
     const [tab, setTab] = useState<Tab>(() => parseLeagueTab(params.tab))
     const [draftLoading, setDraftLoading] = useState(false)
+    const [nominationMode, setNominationMode] = useState<NominationOrderMode>('user_nominated')
 
     // Per-tab data
     const [standings, setStandings] = useState<StandingRow[]>([])
@@ -55,6 +62,8 @@ export default function LeagueScreen() {
 
     // Lazy loading: track which tabs have been fetched
     const loadedTabs = useRef<Set<Tab>>(new Set())
+    const activeLeagueIdRef = useRef<string | undefined>(undefined)
+    activeLeagueIdRef.current = currentLeague?.id
     const [refreshing, setRefreshing] = useState(false)
 
     useEffect(() => {
@@ -78,30 +87,36 @@ export default function LeagueScreen() {
         setTabLoading((prev) => ({ ...prev, [t]: true }))
         setTabError((prev) => { const next = { ...prev }; delete next[t]; return next })
         try {
+            let commit: () => void = () => {}
             switch (t) {
                 case 'standings': {
                     const data = await getLeagueStandings(lid)
-                    setStandings(data)
+                    commit = () => setStandings(data)
                     break
                 }
                 case 'activity': {
                     const data = await getLeagueTransactions(lid, ACTIVITY_LIMIT, 0)
-                    setTransactions(data)
-                    setActivityOffset(0)
-                    setActivityHasMore(data.length === ACTIVITY_LIMIT)
+                    commit = () => {
+                        setTransactions(data)
+                        setActivityOffset(0)
+                        setActivityHasMore(data.length === ACTIVITY_LIMIT)
+                    }
                     break
                 }
                 case 'waivers': {
                     const data = await getWaiverPriorityOrder(lid)
-                    setWaiverOrder(data)
+                    commit = () => setWaiverOrder(data)
                     break
                 }
                 case 'picks': {
                     const data = await getAllLeaguePicks(lid)
-                    setCurrentLeaguePicks(data)
+                    commit = () => setCurrentLeaguePicks(data)
                     break
                 }
             }
+            // Drop the result if the active league changed while this tab loaded.
+            if (activeLeagueIdRef.current !== lid) return
+            commit()
             loadedTabs.current.add(t)
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : 'Unknown error'
@@ -172,7 +187,7 @@ export default function LeagueScreen() {
             async () => {
                 setDraftLoading(true)
                 try {
-                    const draft = await startDraft(currentLeague.id)
+                    const draft = await startDraft(currentLeague.id, nominationMode)
                     push({ pathname: '/(modals)/draft-room', params: { draftId: draft.id } })
                 } catch (e: unknown) {
                     showAlert('Could not start draft', e instanceof Error ? e.message : undefined)
@@ -295,11 +310,17 @@ export default function LeagueScreen() {
                 </Pressable>
             )
         }
+        // The active tab's FlashList is the scroll container (so it virtualizes);
+        // it owns pull-to-refresh via this RefreshControl.
+        const refresh = (
+            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.primary} />
+        )
         if (tab === 'standings') {
             return (
                 <StandingsTable
                     standings={standings}
                     myMemberId={current?.id}
+                    refreshControl={refresh}
                     onSelectTeam={(memberId, teamName) =>
                         push({ pathname: '/(modals)/team-roster', params: { memberId, teamName } })
                     }
@@ -311,15 +332,16 @@ export default function LeagueScreen() {
                 <ActivityFeed
                     transactions={transactions}
                     myMemberId={current?.id}
+                    refreshControl={refresh}
                     onLoadMore={handleLoadMoreActivity}
                     hasMore={activityHasMore && !activityLoadingMore}
                 />
             )
         }
         if (tab === 'waivers') {
-            return <WaiverPriorityList rows={waiverOrder} myMemberId={current?.id} />
+            return <WaiverPriorityList rows={waiverOrder} myMemberId={current?.id} refreshControl={refresh} />
         }
-        return <PicksBankList picks={currentLeaguePicks} myMemberId={current?.id} />
+        return <PicksBankList picks={currentLeaguePicks} myMemberId={current?.id} refreshControl={refresh} />
     }
 
     return (
@@ -361,9 +383,30 @@ export default function LeagueScreen() {
 
                 {/* Draft actions */}
                 {currentLeague?.status === 'setup' && isCommissioner ? (
-                    <Pressable style={styles.draftButton} onPress={handleStartDraft} disabled={draftLoading}>
-                        {draftLoading ? <ActivityIndicator size="small" color={colors.textWhite} /> : <Text style={styles.draftButtonText}>Start Auction Draft</Text>}
-                    </Pressable>
+                    <>
+                        <Text style={styles.nominationModeLabel}>Nomination order</Text>
+                        <View style={styles.nominationModeRow}>
+                            {NOMINATION_ORDER_MODES.map((mode) => {
+                                const selected = nominationMode === mode
+                                return (
+                                    <Pressable
+                                        key={mode}
+                                        style={[styles.nominationModeChip, selected && styles.nominationModeChipOn]}
+                                        onPress={() => setNominationMode(mode)}
+                                        accessibilityRole="button"
+                                        accessibilityState={{ selected }}
+                                    >
+                                        <Text style={[styles.nominationModeChipText, selected && styles.nominationModeChipTextOn]}>
+                                            {NOMINATION_ORDER_MODE_LABELS[mode]}
+                                        </Text>
+                                    </Pressable>
+                                )
+                            })}
+                        </View>
+                        <Pressable style={styles.draftButton} onPress={handleStartDraft} disabled={draftLoading}>
+                            {draftLoading ? <ActivityIndicator size="small" color={colors.textWhite} /> : <Text style={styles.draftButtonText}>Start Auction Draft</Text>}
+                        </Pressable>
+                    </>
                 ) : null}
                 {currentLeague?.status === 'drafting' ? (
                     <Pressable style={styles.draftButton} onPress={handleJoinDraftRoom} disabled={draftLoading}>
@@ -410,20 +453,9 @@ export default function LeagueScreen() {
                 ))}
             </ScrollView>
 
-            {/* Tab content with pull-to-refresh */}
-            <ScrollView
-                style={styles.contentScroll}
-                contentContainerStyle={styles.contentScrollInner}
-                refreshControl={
-                    <RefreshControl
-                        refreshing={refreshing}
-                        onRefresh={handleRefresh}
-                        tintColor={colors.primary}
-                    />
-                }
-            >
-                {renderTabContent()}
-            </ScrollView>
+            {/* Tab content — each tab's FlashList is the scroll container so it
+                virtualizes (no wrapping vertical ScrollView). */}
+            <View style={styles.contentScroll}>{renderTabContent()}</View>
         </SafeAreaView>
     )
 }
@@ -459,6 +491,27 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     draftButtonText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: 15 },
+    nominationModeLabel: {
+        fontSize: fontSize.xs,
+        fontWeight: fontWeight.bold,
+        color: colors.textMuted,
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+        marginBottom: spacing.xs,
+    },
+    nominationModeRow: { flexDirection: 'row', gap: spacing.xs, marginBottom: spacing.sm },
+    nominationModeChip: {
+        flex: 1,
+        paddingVertical: spacing.sm,
+        borderRadius: radii.md,
+        borderWidth: 1,
+        borderColor: colors.border,
+        backgroundColor: colors.bgCard,
+        alignItems: 'center',
+    },
+    nominationModeChipOn: { borderColor: colors.primary, backgroundColor: colors.bgSubtle },
+    nominationModeChipText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textSecondary },
+    nominationModeChipTextOn: { color: colors.primaryDark },
 
     inviteRow: {
         flexDirection: 'row',
@@ -474,7 +527,7 @@ const styles = StyleSheet.create({
     },
     inviteLabel: { fontSize: fontSize.sm, color: colors.textMuted, flex: 1 },
     inviteCode: { fontSize: 15, fontWeight: fontWeight.extrabold, color: colors.textPrimary, letterSpacing: 2 },
-    inviteCopy: { fontSize: fontSize.sm, color: colors.primary, fontWeight: fontWeight.semibold },
+    inviteCopy: { fontSize: fontSize.sm, color: colors.primaryDark, fontWeight: fontWeight.semibold },
 
     tabRow: {
         borderBottomWidth: 1,
@@ -501,7 +554,6 @@ const styles = StyleSheet.create({
     tabChipTextActive: { color: colors.textWhite },
 
     contentScroll: { flex: 1 },
-    contentScrollInner: { flexGrow: 1 },
 
     errorBanner: {
         margin: spacing['2xl'],

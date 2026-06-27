@@ -149,7 +149,7 @@ const styles = StyleSheet.create({
     numCell: { width: 38, textAlign: 'center', fontSize: fontSize.sm, color: palette.gray900 },
     shotCell: { width: 52, textAlign: 'center', fontSize: 12, color: palette.gray900 },
     fptsCell: { width: 46, textAlign: 'center', fontSize: fontSize.sm, color: colors.textPlaceholder },
-    fptsValue: { color: colors.primary, fontWeight: fontWeight.semibold },
+    fptsValue: { color: colors.primaryDark, fontWeight: fontWeight.semibold },
 
     colHdr: { fontSize: 10, fontWeight: fontWeight.bold, color: colors.textPlaceholder },
     dnpText: { color: colors.textPlaceholder },

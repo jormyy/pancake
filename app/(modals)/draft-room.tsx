@@ -20,9 +20,12 @@ import {
     unsubscribeFromDraft,
     nominatePlayer,
     placeBid,
+    withdrawNomination,
     searchPlayers,
     DraftState,
     DraftSearchPlayer,
+    NominationOrderMode,
+    NOMINATION_ORDER_MODE_LABELS,
 } from '@/lib/draft'
 import { RealtimeChannel } from '@supabase/supabase-js'
 import { LoadingScreen } from '@/components/LoadingScreen'
@@ -41,9 +44,11 @@ export default function DraftRoomScreen() {
     const [loading, setLoading] = useState(true)
     const [tab, setTab] = useState<DraftTab>('budgets')
 
-    // Bidding
-    const [bidAmount, setBidAmount] = useState(2)
+    // Bidding — held as raw text so the field can be cleared/typed freely;
+    // the value is validated and clamped only on submit (handleBid).
+    const [bidText, setBidText] = useState('2')
     const [bidding, setBidding] = useState(false)
+    const [withdrawing, setWithdrawing] = useState(false)
 
     // Nomination / player search
     const [nominating, setNominating] = useState(false)
@@ -55,6 +60,15 @@ export default function DraftRoomScreen() {
     // Countdown timer
     const [timeLeft, setTimeLeft] = useState(0)
     const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+    // Track which nomination the bid field was last seeded for, so the 5s poll /
+    // realtime refresh never clobbers a value the user is actively typing.
+    const lastNomIdRef = useRef<string | null>(null)
+    // The draft's nomination-order mode is stable; keep it in a ref so the search
+    // effect can read it without re-running on every poll-driven state change.
+    const nominationModeRef = useRef<NominationOrderMode>('user_nominated')
+    // Monotonic load token: realtime handlers + the 5s poll + post-action reloads
+    // fire load() concurrently, so drop any result that a newer load supersedes.
+    const loadSeqRef = useRef(0)
 
     const channelRef = useRef<RealtimeChannel | null>(null)
     const myMemberId = current?.id
@@ -62,19 +76,34 @@ export default function DraftRoomScreen() {
 
     const load = useCallback(async () => {
         if (!draftId) return
+        const seq = ++loadSeqRef.current
         try {
             const s = await getDraftState(draftId)
-            setState(s)
-            if (s?.openNomination?.countdownExpiresAt) {
-                const diff = Math.max(
-                    0,
-                    Math.floor(
-                        (new Date(s.openNomination.countdownExpiresAt).getTime() - Date.now()) /
-                            1000,
-                    ),
-                )
-                setBidAmount(Math.max((s.openNomination.currentBidAmount ?? 1) + 1, 2))
-                setTimeLeft(diff)
+            // Ignore a stale, out-of-order result once a newer load has started.
+            if (seq !== loadSeqRef.current) return
+            // Only commit a DEFINITE state. getDraftState() returns null (not a
+            // throw) on a transient fetch failure; committing null would blank the
+            // whole live auction room (LoadingScreen) for seconds during bidding,
+            // and would also reseed the bid field on the next good poll.
+            if (s) {
+                setState(s)
+                nominationModeRef.current = s.draft.nominationOrderMode
+                const nom = s.openNomination ?? null
+                if (nom?.countdownExpiresAt) {
+                    const diff = Math.max(
+                        0,
+                        Math.floor((new Date(nom.countdownExpiresAt).getTime() - Date.now()) / 1000),
+                    )
+                    setTimeLeft(diff)
+                }
+                // Seed the default bid ONLY when a new player comes on the block —
+                // not on every poll — so typed bids survive refreshes. Min-bid
+                // changes within a nomination are handled by the submit guard.
+                const nomId = nom?.id ?? null
+                if (nomId !== lastNomIdRef.current) {
+                    lastNomIdRef.current = nomId
+                    if (nom) setBidText(String(Math.max((nom.currentBidAmount ?? 1) + 1, 2)))
+                }
             }
         } catch (e) {
             console.error(e)
@@ -121,7 +150,7 @@ export default function DraftRoomScreen() {
         const timeout = setTimeout(async () => {
             setSearchLoading(true)
             try {
-                const results = await searchPlayers(searchQuery, draftId)
+                const results = await searchPlayers(searchQuery, draftId, nominationModeRef.current)
                 setSearchResults(results)
             } finally {
                 setSearchLoading(false)
@@ -132,14 +161,41 @@ export default function DraftRoomScreen() {
 
     async function handleBid() {
         if (!state?.openNomination || !myMemberId || !draftId) return
+        // Guard the typed bid only at submit time: must be a whole-dollar amount
+        // at least the minimum and within remaining budget.
+        const min = Math.max(1, (state.openNomination.currentBidAmount ?? 0) + 1)
+        // Match bidValid's fallback; the RPC is the authoritative budget check.
+        const remaining = state.budgets.find((b) => b.memberId === myMemberId)?.remaining ?? Infinity
+        const amount = parseInt(bidText, 10)
+        if (isNaN(amount) || amount < min) {
+            Alert.alert('Invalid bid', `Enter a whole-dollar bid of at least $${min}.`)
+            return
+        }
+        if (amount > remaining) {
+            Alert.alert('Over budget', `You only have $${remaining} left to spend.`)
+            return
+        }
         setBidding(true)
         try {
-            await placeBid(draftId, myMemberId, state.openNomination.id, bidAmount)
+            await placeBid(draftId, myMemberId, state.openNomination.id, amount)
             load()
         } catch (e) {
             Alert.alert('Bid failed', getErrorMessage(e))
         } finally {
             setBidding(false)
+        }
+    }
+
+    async function handleWithdraw() {
+        if (!state?.openNomination || !myMemberId || !draftId) return
+        setWithdrawing(true)
+        try {
+            await withdrawNomination(draftId, myMemberId, state.openNomination.id)
+            load()
+        } catch (e) {
+            Alert.alert('Could not withdraw', getErrorMessage(e))
+        } finally {
+            setWithdrawing(false)
         }
     }
 
@@ -191,6 +247,9 @@ export default function DraftRoomScreen() {
     const iAmBankrupt = (myBudget?.remaining ?? 0) < 1
     // Min bid is current + 1, floored at 1
     const minBid = Math.max(1, (openNomination?.currentBidAmount ?? 0) + 1)
+    const remainingBudget = myBudget?.remaining ?? Infinity
+    const bidValue = parseInt(bidText, 10) // NaN while the field is empty/partial
+    const bidValid = !isNaN(bidValue) && bidValue >= minBid && bidValue <= remainingBudget
 
     if (draft.status === 'completed') {
         return (
@@ -277,7 +336,9 @@ export default function DraftRoomScreen() {
                             <View style={styles.bidInputRow}>
                                 <MotionPressable
                                     style={styles.bidStep}
-                                    onPress={() => setBidAmount((v) => Math.max(minBid, v - 1))}
+                                    onPress={() =>
+                                        setBidText((t) => String(Math.max(minBid, (parseInt(t, 10) || minBid) - 1)))
+                                    }
                                     accessibilityRole="button"
                                     accessibilityLabel="Decrease bid"
                                     hitSlop={8}
@@ -287,28 +348,17 @@ export default function DraftRoomScreen() {
                                 </MotionPressable>
                                 <TextInput
                                     style={styles.bidAmountInput}
-                                    value={String(bidAmount)}
-                                    onChangeText={(v) => {
-                                        const n = parseInt(v, 10)
-                                        if (!isNaN(n)) setBidAmount(n)
-                                        else if (v === '') setBidAmount(minBid)
-                                    }}
-                                    onBlur={() =>
-                                        setBidAmount((v) =>
-                                            Math.min(
-                                                myBudget?.remaining ?? 999,
-                                                Math.max(minBid, v),
-                                            ),
-                                        )
-                                    }
+                                    value={bidText}
+                                    onChangeText={(v) => setBidText(v.replace(/[^0-9]/g, ''))}
                                     keyboardType="number-pad"
                                     selectTextOnFocus
+                                    accessibilityLabel="Bid amount"
                                 />
                                 <MotionPressable
                                     style={styles.bidStep}
                                     onPress={() =>
-                                        setBidAmount((v) =>
-                                            Math.min(myBudget?.remaining ?? 999, v + 1),
+                                        setBidText((t) =>
+                                            String(Math.min(remainingBudget, (parseInt(t, 10) || minBid - 1) + 1)),
                                         )
                                     }
                                     accessibilityRole="button"
@@ -319,26 +369,41 @@ export default function DraftRoomScreen() {
                                     <Text style={styles.bidStepText}>+</Text>
                                 </MotionPressable>
                                 <MotionPressable
-                                    style={[styles.bidButton, bidding && styles.bidButtonDisabled]}
+                                    style={[styles.bidButton, (bidding || !bidValid) && styles.bidButtonDisabled]}
                                     onPress={handleBid}
                                     accessibilityRole="button"
-                                    accessibilityLabel={`Bid $${bidAmount.toLocaleString()}`}
-                                    disabled={
-                                        bidding ||
-                                        bidAmount <= openNomination.currentBidAmount ||
-                                        iAmLeading ||
-                                        timeLeft === 0
-                                    }
+                                    accessibilityLabel={`Bid $${(bidValid ? bidValue : minBid).toLocaleString()}`}
+                                    disabled={bidding || !bidValid || iAmLeading || timeLeft === 0}
                                     pressedScale={0.965}
                                 >
                                     {bidding ? (
                                         <ActivityIndicator size="small" color={colors.textWhite} />
                                     ) : (
-                                        <Text style={styles.bidButtonText}>Bid ${bidAmount.toLocaleString()}</Text>
+                                        <Text style={styles.bidButtonText}>
+                                            Bid ${(bidValid ? bidValue : minBid).toLocaleString()}
+                                        </Text>
                                     )}
                                 </MotionPressable>
                             </View>
                         )}
+
+                        {openNomination.nominatingMemberId === myMemberId &&
+                            openNomination.currentBidderId == null && (
+                                <MotionPressable
+                                    style={styles.withdrawButton}
+                                    onPress={handleWithdraw}
+                                    disabled={withdrawing}
+                                    accessibilityRole="button"
+                                    accessibilityLabel="Withdraw nomination"
+                                    pressedScale={0.96}
+                                >
+                                    {withdrawing ? (
+                                        <ActivityIndicator size="small" color={colors.primary} />
+                                    ) : (
+                                        <Text style={styles.withdrawButtonText}>Withdraw nomination</Text>
+                                    )}
+                                </MotionPressable>
+                            )}
                     </MotionView>
                 ) : (
                     /* No open nomination — show whose turn it is */
@@ -346,6 +411,9 @@ export default function DraftRoomScreen() {
                         {isMyTurn ? (
                             <>
                                 <Text style={styles.yourTurnBanner}>Your turn to nominate!</Text>
+                                <Text style={styles.nominationModeHint}>
+                                    Board order: {NOMINATION_ORDER_MODE_LABELS[draft.nominationOrderMode]}
+                                </Text>
                                 {nominating ? (
                                     <>
                                         <TextInput
@@ -581,7 +649,7 @@ const styles = StyleSheet.create({
         marginTop: spacing.xs,
     },
     bidInfo: { gap: spacing.xxs },
-    bidAmount: { fontSize: fontSize['3xl'], fontWeight: fontWeight.extrabold, color: colors.primary },
+    bidAmount: { fontSize: fontSize['3xl'], fontWeight: fontWeight.extrabold, color: colors.primaryDark },
     bidLeader: { fontSize: fontSize.sm, color: colors.textMuted },
 
     countdown: {
@@ -631,7 +699,8 @@ const styles = StyleSheet.create({
     bidButtonDisabled: { opacity: 0.5 },
     bidButtonText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: 15 },
 
-    yourTurnBanner: { fontSize: fontSize.lg, fontWeight: fontWeight.extrabold, color: colors.primary, textAlign: 'center' },
+    yourTurnBanner: { fontSize: fontSize.lg, fontWeight: fontWeight.extrabold, color: colors.primaryDark, textAlign: 'center' },
+    nominationModeHint: { fontSize: fontSize.sm, color: colors.textMuted, textAlign: 'center', marginTop: spacing.xs },
     nominateButton: {
         marginTop: spacing.xs,
         height: 48,
@@ -663,10 +732,19 @@ const styles = StyleSheet.create({
     },
     playerResultName: { fontSize: 15, fontWeight: fontWeight.semibold },
     playerResultMeta: { fontSize: 12, color: colors.textMuted, marginTop: 1 },
-    nominateLabel: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.primary },
+    nominateLabel: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.primaryDark },
     emptySearch: { fontSize: fontSize.sm, color: colors.textPlaceholder, textAlign: 'center', marginTop: spacing.md },
     cancelNomButton: { marginTop: spacing.md, alignItems: 'center' },
     cancelNomText: { fontSize: fontSize.md, color: colors.textMuted, fontWeight: fontWeight.semibold },
+    withdrawButton: {
+        marginTop: spacing.md,
+        alignItems: 'center',
+        paddingVertical: spacing.sm,
+        borderRadius: radii.lg,
+        borderWidth: 1,
+        borderColor: colors.border,
+    },
+    withdrawButtonText: { fontSize: fontSize.md, color: colors.textMuted, fontWeight: fontWeight.semibold },
 
     waitingRow: { alignItems: 'center', gap: spacing.xs, paddingVertical: spacing.md },
     waitingText: { fontSize: fontSize.md, color: colors.textMuted },
@@ -688,7 +766,7 @@ const styles = StyleSheet.create({
     budgetDivider: { borderTopWidth: 1, borderTopColor: colors.separator },
     budgetTeam: { flex: 1, fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textPrimary },
     budgetAmount: { fontSize: fontSize.lg, fontWeight: fontWeight.extrabold, color: colors.textPrimary },
-    meAccent: { color: colors.primary },
+    meAccent: { color: colors.primaryDark },
 
     historyRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10 },
     historyPlayer: { fontSize: fontSize.md, fontWeight: fontWeight.semibold },

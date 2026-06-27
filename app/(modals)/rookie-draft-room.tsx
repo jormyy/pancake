@@ -434,7 +434,7 @@ const styles = StyleSheet.create({
     bannerClock: { fontSize: fontSize.lg, fontWeight: fontWeight.extrabold, color: colors.textMuted },
     bannerClockUrgent: { color: colors.danger },
     bannerSub: { fontSize: fontSize.md, color: colors.textSecondary },
-    bannerMe: { color: colors.primary, fontWeight: fontWeight.bold },
+    bannerMe: { color: colors.primaryDark, fontWeight: fontWeight.bold },
 
     tabs: {
         flexDirection: 'row',
@@ -451,7 +451,7 @@ const styles = StyleSheet.create({
         borderBottomColor: colors.primary,
     },
     tabText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textMuted },
-    tabTextActive: { color: colors.primary },
+    tabTextActive: { color: colors.primaryDark },
 
     searchContainer: {
         flexDirection: 'row',
@@ -477,7 +477,7 @@ const styles = StyleSheet.create({
         backgroundColor: palette.red50,
         borderRadius: radii.md,
         borderWidth: 1,
-        borderColor: '#FECACA',
+        borderColor: palette.red200,
     },
     pickErrorText: { color: colors.danger, fontSize: fontSize.sm, fontWeight: fontWeight.semibold },
 
@@ -491,7 +491,7 @@ const styles = StyleSheet.create({
     resultInfo: { flex: 1 },
     resultName: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textPrimary },
     resultTeam: { fontSize: 12, color: colors.textMuted },
-    pickBtn: { fontSize: fontSize.md, fontWeight: fontWeight.bold, color: colors.primary },
+    pickBtn: { fontSize: fontSize.md, fontWeight: fontWeight.bold, color: colors.primaryDark },
 
     draftNumChip: {
         width: 36,
@@ -557,8 +557,8 @@ const styles = StyleSheet.create({
     pickedName: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textPrimary },
     pickedTeam: { fontSize: fontSize.xs, color: colors.textMuted },
 
-    onClockText: { color: colors.success, fontWeight: fontWeight.bold },
-    meText: { color: colors.primary, fontWeight: fontWeight.bold },
+    onClockText: { color: palette.green800, fontWeight: fontWeight.bold },
+    meText: { color: colors.primaryDark, fontWeight: fontWeight.bold },
 
     overflowOverlay: {
         flex: 1,
@@ -614,7 +614,7 @@ const styles = StyleSheet.create({
     overflowDropName: {
         fontSize: fontSize.md,
         fontWeight: fontWeight.semibold,
-        color: colors.danger,
+        color: palette.red900,
     },
     overflowDropPos: {
         fontSize: fontSize.xs,

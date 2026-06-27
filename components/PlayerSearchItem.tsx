@@ -193,7 +193,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
-    addBtnText: { color: colors.primary, fontSize: fontSize.xl, fontWeight: fontWeight.light, lineHeight: 24, marginTop: -1 },
+    addBtnText: { color: colors.primaryDark, fontSize: fontSize.xl, fontWeight: fontWeight.light, lineHeight: 24, marginTop: -1 },
     playerCard: {
         flex: 1,
         flexDirection: 'row',
@@ -230,7 +230,7 @@ const styles = StyleSheet.create({
         color: colors.textSecondary,
     },
     statCellPrimary: {
-        color: colors.primary,
+        color: colors.primaryDark,
         fontWeight: fontWeight.extrabold,
     },
     statusBadge: {
@@ -246,6 +246,6 @@ const styles = StyleSheet.create({
     statusBadgeWaiver: { backgroundColor: palette.purple100 },
     statusBadgeFA: { backgroundColor: palette.gray250 },
     statusBadgeText: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.textPlaceholder },
-    statusBadgeTextMe: { color: palette.green600 },
-    statusBadgeTextWaiver: { color: '#7C3AED' },
+    statusBadgeTextMe: { color: palette.green800 },
+    statusBadgeTextWaiver: { color: palette.purple600 },
 })

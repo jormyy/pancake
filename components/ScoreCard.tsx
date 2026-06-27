@@ -7,7 +7,10 @@ export function ScoreCard({ matchup, compact = false }: { matchup: Matchup; comp
     const fmt = (n: number | null) => (n != null ? n.toFixed(1) : '—')
     const myPts = matchup.myPoints ?? 0
     const oppPts = matchup.opponentPoints ?? 0
+    // Neither side is "winning" on a tie (incl. the 0–0 week start), so a tie
+    // shows both scores neutrally rather than crowning the opponent.
     const iWinning = myPts > oppPts
+    const oppWinning = oppPts > myPts
 
     let statusLabel = 'In Progress'
     let statusColor: string = colors.primary
@@ -64,7 +67,7 @@ export function ScoreCard({ matchup, compact = false }: { matchup: Matchup; comp
                             {matchup.opponentUsername}
                         </Text>
                     ) : null}
-                    <Text style={[styles.score, compact && styles.scoreCompact, !iWinning ? styles.scoreWin : styles.scoreLose]}>
+                    <Text style={[styles.score, compact && styles.scoreCompact, oppWinning ? styles.scoreWin : styles.scoreLose]}>
                         {fmt(matchup.opponentPoints)}
                     </Text>
                     <Text style={[styles.record, { textAlign: 'right' }]}>
@@ -112,7 +115,7 @@ const styles = StyleSheet.create({
     week: {
         fontSize: 10,
         fontWeight: '800',
-        color: colors.primary,
+        color: colors.primaryDark,
         letterSpacing: 2,
     },
     headerRule: {

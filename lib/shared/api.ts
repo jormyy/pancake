@@ -3,12 +3,18 @@ import { supabase } from '@/lib/supabase'
 const DEFAULT_API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000'
 export const API_URL = DEFAULT_API_URL
 const API_URL_OVERRIDE_KEY = 'PANCAKE_API_URL'
+const API_URL_OVERRIDE_PARAM = 'pancake_api_url'
 
 function runtimeApiUrlOverride(): string | null {
     if (process.env.NODE_ENV === 'production') return null
     if (typeof window === 'undefined') return null
 
     try {
+        const paramValue = new URLSearchParams(window.location.search).get(API_URL_OVERRIDE_PARAM)
+        if (paramValue) {
+            window.localStorage.setItem(API_URL_OVERRIDE_KEY, paramValue)
+            return paramValue
+        }
         return window.localStorage.getItem(API_URL_OVERRIDE_KEY)
     } catch {
         return null

@@ -260,6 +260,7 @@ export type Database = {
           completed_at: string | null
           created_at: string
           current_nomination_order: number
+          nomination_order_mode: string
           draft_type: Database["public"]["Enums"]["draft_type"]
           id: string
           league_id: string
@@ -273,6 +274,7 @@ export type Database = {
           completed_at?: string | null
           created_at?: string
           current_nomination_order?: number
+          nomination_order_mode?: string
           draft_type?: Database["public"]["Enums"]["draft_type"]
           id?: string
           league_id: string
@@ -286,6 +288,7 @@ export type Database = {
           completed_at?: string | null
           created_at?: string
           current_nomination_order?: number
+          nomination_order_mode?: string
           draft_type?: Database["public"]["Enums"]["draft_type"]
           id?: string
           league_id?: string
@@ -967,6 +970,8 @@ export type Database = {
           created_at: string
           display_name: string | null
           dynasty_rank: number | null
+          dynasty_rank_fetched_at: string | null
+          dynasty_rank_source: string | null
           eligible_positions: string[]
           first_name: string
           headshot_url: string | null
@@ -988,6 +993,8 @@ export type Database = {
           created_at?: string
           display_name?: string | null
           dynasty_rank?: number | null
+          dynasty_rank_fetched_at?: string | null
+          dynasty_rank_source?: string | null
           eligible_positions?: string[]
           first_name: string
           headshot_url?: string | null
@@ -1009,6 +1016,8 @@ export type Database = {
           created_at?: string
           display_name?: string | null
           dynasty_rank?: number | null
+          dynasty_rank_fetched_at?: string | null
+          dynasty_rank_source?: string | null
           eligible_positions?: string[]
           first_name?: string
           headshot_url?: string | null
@@ -2444,6 +2453,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      withdraw_auction_nomination_atomic: {
+        Args: { p_nomination_id: string; p_member_id: string; p_user_id?: string | null }
+        Returns: boolean
+      }
       process_next_waiver_claim_atomic: {
         Args: { p_process_date: string }
         Returns: {
@@ -2527,7 +2540,7 @@ export type Database = {
         | "playoff_semifinal"
         | "playoff_final"
       nba_position: "PG" | "SG" | "SF" | "PF" | "C" | "G" | "F"
-      nomination_status: "open" | "sold" | "no_bid"
+      nomination_status: "open" | "sold" | "no_bid" | "withdrawn"
       roster_slot_type:
         | "PG"
         | "SG"
@@ -2711,7 +2724,7 @@ export const Constants = {
         "playoff_final",
       ],
       nba_position: ["PG", "SG", "SF", "PF", "C", "G", "F"],
-      nomination_status: ["open", "sold", "no_bid"],
+      nomination_status: ["open", "sold", "no_bid", "withdrawn"],
       roster_slot_type: [
         "PG",
         "SG",

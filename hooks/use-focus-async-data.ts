@@ -22,6 +22,9 @@ export function useFocusAsyncData<T>(
     const inFlightRef = useRef<Promise<void> | null>(null)
     const hasDataRef = useRef(false)
     const isFirstRunRef = useRef(true)
+    // Bumped on every deps change so a fetch started for the previous identity
+    // (e.g. the old league) can never commit its result over the new one.
+    const genRef = useRef(0)
     const staleMs = options.staleMs ?? 30_000
 
     // Reset freshness gate when deps change so the next focus fetches fresh
@@ -32,6 +35,11 @@ export function useFocusAsyncData<T>(
             isFirstRunRef.current = false
             return
         }
+        // Abandon any in-flight fetch for the previous deps so the new identity
+        // fetches fresh (without this, load() would return the stale task and
+        // commit the old league's data).
+        genRef.current += 1
+        inFlightRef.current = null
         hasDataRef.current = false
         lastLoadedAtRef.current = 0
         setData(null)
@@ -50,19 +58,24 @@ export function useFocusAsyncData<T>(
         if (hasData) setRefreshing(true)
         else setLoading(true)
         setError(null)
+        const gen = genRef.current
         const task = (async () => {
             try {
                 const result = await fetcher()
+                if (gen !== genRef.current) return // deps changed mid-fetch — drop stale result
                 setData(result)
                 hasDataRef.current = true
                 lastLoadedAtRef.current = Date.now()
             } catch (e) {
+                if (gen !== genRef.current) return
                 setError(e instanceof Error ? e : new Error(String(e)))
                 console.error(e)
             } finally {
-                setLoading(false)
-                setRefreshing(false)
-                inFlightRef.current = null
+                if (gen === genRef.current) {
+                    setLoading(false)
+                    setRefreshing(false)
+                    inFlightRef.current = null
+                }
             }
         })()
         inFlightRef.current = task
