@@ -56,7 +56,7 @@ The branch's uncommitted changes + untracked files are **coherent hardening WIP*
 | 4 | security-loop | ✅ 1 pass (S-01..S-07 resolved) | 1 |
 | 5 | code-quality-loop (aggressive) | ✅ 1 pass (U-02, C-PERF-1) | 1 |
 | 6 | code-review-pass | ✅ 6 confirmed, all fixed | — |
-| 7 | Final regression (prod build) | ✅ all gates green (372 tests, audit clean) | — |
+| 7 | Final regression (prod build) | ✅ all gates green (375 tests, audit clean) | — |
 | Outer | Full-gauntlet convergence | ◑ 1 comprehensive pass; all findings fixed+verified | 1/2 |
 
 > **D2 Competitive parity (Fantrax/Sleeper deep research)** — **not run this session** (logged, not silently skipped). Would require a `deep-research` web pass; the implemented dynasty feature set (auction + rookie drafts with order modes, IR/taxi, future-pick trades, waivers w/ priority + clearance, daily lineups w/ locks, playoffs) already covers the core Fantrax parity surface. Recommended as the next discrete task.
@@ -207,7 +207,7 @@ After fixes: app typecheck, lint, **217 tests**, web export green.
 
 **Headline ledger metrics:** 16 issue IDs tracked → **all resolved** (L-01 BBRef purity, S-01 abuse endpoint, S-02 prod info-leak, S-06 IDOR grant-guard, U-02 dead-theming, U-03 a/b/c draft options, U-05 web light-only, P-01 PWA, C-PERF-1 FK indexes, CR-1..CR-6 review fixes; L-02/03/04/05, S-04/05/07, C-DEAD-1 not-reproducible/accepted with evidence). **8 new regression/guard test suites**; **5 prod migrations applied + verified** (sync_jobs revoke denial-tested live, withdraw RPC, FK indexes, nomination-mode).
 
-**Tests green:** lint ✅ · typecheck app/backend/core ✅ · **372 unit/guard tests** (217 root + 83 backend + 72 core) ✅ · backend build ✅ · web/PWA export ✅ · `npm audit --audit-level=high` 0 vulns ✅. Prod integration verified (migrations applied, db-lint clean, CRUD smoke, S-02 denial).
+**Tests green:** lint ✅ · typecheck app/backend/core ✅ · **375 unit/guard tests** (217 root + 86 backend + 72 core) ✅ · backend build ✅ · web/PWA export ✅ · `npm audit --audit-level=high` 0 vulns ✅. Prod integration verified (migrations applied, db-lint clean, CRUD smoke, S-02 denial).
 
 **Commits:** 12 small reviewable units on `codex/annual-draft-sync` (not pushed — awaiting go).
 

@@ -168,18 +168,15 @@ export function StandingsTable({ standings, myMemberId, onSelectTeam, refreshCon
         />
     ), [myMemberId, onSelectTeam])
 
-    if (standings.length === 0) {
-        return <EmptyState message="No standings yet — matchups will appear once games are scored." fullScreen={false} />
-    }
-
     return (
         <FlashList
             refreshControl={refreshControl}
             data={sorted}
             keyExtractor={(s) => s.memberId}
-            ListHeaderComponent={<StandingsListHeader sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />}
+            ListHeaderComponent={sorted.length ? <StandingsListHeader sortBy={sortBy} sortDir={sortDir} onSort={handleSort} /> : undefined}
             ItemSeparatorComponent={ItemSeparator}
             renderItem={renderItem}
+            ListEmptyComponent={<EmptyState message="No standings yet — matchups will appear once games are scored." fullScreen={false} />}
         />
     )
 }
@@ -242,10 +239,6 @@ export function ActivityFeed({
         </Pressable>
     ) : null
 
-    if (transactions.length === 0) {
-        return <EmptyState message="No transactions yet. Adds, drops, and trades will appear here." fullScreen={false} />
-    }
-
     return (
         <FlashList
             refreshControl={refreshControl}
@@ -254,6 +247,7 @@ export function ActivityFeed({
             ItemSeparatorComponent={ItemSeparator}
             renderItem={renderItem}
             ListFooterComponent={ListFooter}
+            ListEmptyComponent={<EmptyState message="No transactions yet. Adds, drops, and trades will appear here." fullScreen={false} />}
         />
     )
 }
@@ -286,18 +280,15 @@ export function WaiverPriorityList({ rows, myMemberId, refreshControl }: { rows:
         <WaiverRow item={item} isMe={item.memberId === myMemberId} rank={index + 1} />
     ), [myMemberId])
 
-    if (rows.length === 0) {
-        return <EmptyState message="Waiver priorities will appear here once the season starts." fullScreen={false} />
-    }
-
     return (
         <FlashList
             refreshControl={refreshControl}
             data={rows}
             keyExtractor={(r) => r.memberId}
-            ListHeaderComponent={WaiverListHeader}
+            ListHeaderComponent={rows.length ? WaiverListHeader : undefined}
             ItemSeparatorComponent={ItemSeparator}
             renderItem={renderItem}
+            ListEmptyComponent={<EmptyState message="Waiver priorities will appear here once the season starts." fullScreen={false} />}
         />
     )
 }
@@ -363,19 +354,16 @@ export function PicksBankList({ picks, myMemberId, refreshControl }: { picks: Le
         )
     }, [myMemberId])
 
-    if (picks.length === 0) {
-        return <EmptyState message="No future draft picks to display." fullScreen={false} />
-    }
-
     return (
         <FlashList
             refreshControl={refreshControl}
             data={flatData}
             keyExtractor={(item) => item.id}
-            ListHeaderComponent={PicksBankListHeader}
+            ListHeaderComponent={flatData.length ? PicksBankListHeader : undefined}
             getItemType={(item) => item.type}
             ItemSeparatorComponent={ItemSeparator}
             renderItem={renderItem}
+            ListEmptyComponent={<EmptyState message="No future draft picks to display." fullScreen={false} />}
         />
     )
 }
