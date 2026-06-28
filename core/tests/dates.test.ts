@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { todayDateString, todayET } from '../src/dates'
+import { endOfETDayUTC, todayDateString, todayET } from '../src/dates'
 
 describe('todayDateString', () => {
     it('returns a string in YYYY-MM-DD format', () => {
@@ -30,5 +30,17 @@ describe('todayET', () => {
         expect(m).toBeLessThanOrEqual(12)
         expect(d).toBeGreaterThanOrEqual(1)
         expect(d).toBeLessThanOrEqual(31)
+    })
+})
+
+describe('endOfETDayUTC', () => {
+    it('returns next ET midnight in UTC for EST and EDT dates', () => {
+        expect(endOfETDayUTC('2026-01-15')).toBe('2026-01-16T05:00:00.000Z')
+        expect(endOfETDayUTC('2026-07-15')).toBe('2026-07-16T04:00:00.000Z')
+    })
+
+    it('handles DST transition dates using the offset at next local midnight', () => {
+        expect(endOfETDayUTC('2026-03-08')).toBe('2026-03-09T04:00:00.000Z')
+        expect(endOfETDayUTC('2026-11-01')).toBe('2026-11-02T05:00:00.000Z')
     })
 })

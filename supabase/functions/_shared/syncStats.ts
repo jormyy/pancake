@@ -31,10 +31,13 @@ export async function syncStatsByDate(date: Date) {
 
   let statCount = 0
   const resolver = await loadCdnPlayerResolver()
+  const syncFailures: string[] = []
 
   for (const game of games) {
     try {
       const boxScore = await fetchBoxScore(game.nba_game_id!)
+      if (isPast && boxScore.gameStatus === 1) continue
+
       const allPlayers = [
         ...(boxScore.homeTeam?.players ?? []),
         ...(boxScore.awayTeam?.players ?? []),
@@ -68,12 +71,17 @@ export async function syncStatsByDate(date: Date) {
       }
     } catch (e) {
       console.error(`[sync-stats] Error for ${game.nba_game_id}:`, errorMessage(e))
+      syncFailures.push(`${game.nba_game_id}: ${errorMessage(e)}`)
     }
   }
 
   await persistNbaIdUpdates(resolver.nbaIdUpdates)
   if (resolver.nbaIdUpdates.length > 0) {
     console.log(`[sync-stats] Mapped ${resolver.nbaIdUpdates.length} new NBA person IDs.`)
+  }
+
+  if (syncFailures.length > 0) {
+    throw new Error(`[sync-stats] Failed to sync ${syncFailures.length} game(s) for ${dateStr}: ${syncFailures.join('; ')}`)
   }
 
   console.log(`[sync-stats] Upserted ${statCount} stat lines for ${dateStr}.`)
@@ -88,7 +96,7 @@ export function buildStatRow(
 ): Record<string, unknown> {
   const s = p.statistics
   const minutesPlayed = parseNBAMinutes(s.minutes)
-  const dnp = !minutesPlayed || minutesPlayed < 0.5
+  const dnp = minutesPlayed == null
 
   const reb = s.reboundsTotal ?? 0
   const ast = s.assists ?? 0

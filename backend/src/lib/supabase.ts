@@ -2,10 +2,13 @@ import { createClient } from '@supabase/supabase-js'
 import type { Database } from '../types/database'
 
 const supabaseUrl = process.env.SUPABASE_URL!
-const adminKey =
-    process.env.PANCAKE_SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY!
+const adminKey = process.env.PANCAKE_SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SECRET_KEY
 
-// Admin client: prefer Supabase secret keys; legacy service-role JWT is local fallback only.
+if (!adminKey) {
+    throw new Error('Missing PANCAKE_SUPABASE_SECRET_KEY or SUPABASE_SECRET_KEY')
+}
+
+// Admin client: use Supabase secret keys only; legacy service-role JWTs are not accepted.
 export const supabase = createClient<Database>(supabaseUrl, adminKey, {
     auth: { persistSession: false },
 })

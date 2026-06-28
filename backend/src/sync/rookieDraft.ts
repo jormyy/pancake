@@ -122,15 +122,16 @@ export async function makeSnakePick(draftId: string, memberId: string, playerId:
 
 export async function autoPickBest(draftId: string, memberId: string) {
     // Get already-picked player IDs for this draft
-    const { data: pickedRows } = await supabase
+    const { data: pickedRows, error: pickedErr } = await supabase
         .from('snake_draft_picks')
         .select('player_id')
         .eq('draft_id', draftId)
         .not('player_id', 'is', null)
+    if (pickedErr) throw pickedErr
     const pickedIds = new Set((pickedRows ?? []).map((r) => r.player_id))
 
     // Best available = lowest nba_draft_number not yet picked
-    const { data: players } = await supabase
+    const { data: players, error: playersErr } = await supabase
         .from('players')
         .select('id')
         .not('nba_draft_number', 'is', null)
@@ -138,6 +139,7 @@ export async function autoPickBest(draftId: string, memberId: string) {
         .order('nba_draft_number', { ascending: true })
         .order('id', { ascending: true })
         .limit(100)
+    if (playersErr) throw playersErr
 
     const best = (players ?? []).find((p) => !pickedIds.has(p.id))
     if (!best) throw new Error('No available players for auto-pick')

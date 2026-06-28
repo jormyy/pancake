@@ -2,7 +2,7 @@ import { supabase } from '@/lib/supabase'
 import type { Database, RosterSlotType } from '@/types/database'
 import { getCurrentSeason } from '@/lib/shared/season'
 import { getCurrentWeekNumber } from '@/lib/shared/week'
-import { todayET } from '@/lib/shared/dates'
+import { endOfETDayUTC, todayET } from '@/lib/shared/dates'
 import { getEligiblePositions } from '@/lib/players'
 
 type PlayerRow = Database['public']['Tables']['players']['Row']
@@ -36,16 +36,6 @@ export type WeekDay = {
     hasGames: boolean    // any NBA games scheduled
     isToday: boolean
     playingTeams: string[]
-}
-
-// Given a YYYY-MM-DD ET-keyed date, return the UTC ISO timestamp that is strictly
-// >= end-of-day in America/New_York. End-of-ET-day in UTC is the next calendar
-// day at 04:00Z (EDT) or 05:00Z (EST). 05:00Z of the next UTC day is always
-// >= the true ET-day boundary year-round (exact during EST, ~1h fuzz during EDT).
-function endOfETDayUTC(gameDate: string): string {
-    const [y, m, d] = gameDate.split('-').map(Number)
-    const nextDay = new Date(Date.UTC(y, m - 1, d + 1))
-    return nextDay.toISOString().slice(0, 10) + 'T05:00:00Z'
 }
 
 // Returns the set of NBA team abbreviations whose game has already started on the given date.
@@ -263,12 +253,9 @@ export async function getWeeklyLineup(
                 .eq('member_id', memberId)
                 .eq('league_id', leagueId)
                 .eq('league_season_id', seasonId)
-                .in('transaction_type', ['fa_add', 'waiver_add', 'trade_in', 'draft_won'])
-                // gameDate is ET-keyed (YYYY-MM-DD). End-of-ET-day in UTC is the NEXT
-                // calendar day at 04:00Z (EDT) or 05:00Z (EST). Using 'T23:59:59Z' of
-                // gameDate would be 18:59/19:59 ET *same* day — wrongly classifying
-                // late-evening same-day transactions as "after". Use 05:00Z of the
-                // next UTC day: always > end-of-ET-day (exact for EST, ~1h fuzz for EDT).
+                .in('transaction_type', ['fa_add', 'waiver_add', 'trade_in', 'draft_won', 'carry_over'])
+                // gameDate is ET-keyed (YYYY-MM-DD). Use exact next local midnight
+                // so DST does not shift post-slate transaction history by an hour.
                 .gt('occurred_at', endOfETDayUTC(gameDate)),
         ])
 

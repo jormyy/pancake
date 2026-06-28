@@ -1,30 +1,35 @@
 import { useCallback, useState } from 'react'
 import { Alert } from 'react-native'
-import { Matchup } from '@/lib/scoring'
 import { setPlayerSlot, setPlayerSlotMoves, autoSetLineup, canPlaySlot, LineupSlot, LineupPlayer } from '@/lib/lineup'
-import { isIREligible, toggleIR, toggleTaxi, dropPlayer } from '@/lib/roster'
+import { activateRosterPlayerWithOverflow, isIREligible, toggleIR, toggleTaxi } from '@/lib/roster'
 import { todayET } from '@/lib/shared/dates'
 import { getErrorMessage } from '@/lib/alert'
 
-type LineupData = { starters: LineupSlot[]; bench: LineupPlayer[]; ir: LineupPlayer[]; taxi: LineupPlayer[] }
+type LineupData = { starters: LineupSlot[]; bench: LineupPlayer[]; ir?: LineupPlayer[]; taxi?: LineupPlayer[] }
 type Sel = { kind: 'starter'; index: number } | { kind: 'bench'; index: number } | { kind: 'ir'; index: number } | { kind: 'taxi'; index: number }
-// rosterPlayerId = the player being activated from IR/taxi; source tells us which toggle to call
 type PendingActivation = { rosterPlayerId: string; source: 'ir' | 'taxi' }
+export type LineupActionContext = {
+    memberId: string
+    leagueId: string
+    seasonId: string
+    weekNumber: number
+    seasonYear: number
+}
 
 export function useLineupActions({
-    matchup,
+    actionContext,
     myLineup,
     league,
     selectedDate,
     startedTeams,
-    loadMyLineup,
+    reloadLineup,
 }: {
-    matchup: Matchup | null | undefined
+    actionContext: LineupActionContext | null | undefined
     myLineup: LineupData | null
-    league: { id: string; roster_size?: number; taxi_slots?: number } | null
+    league: { roster_size?: number; taxi_slots?: number } | null
     selectedDate: string
     startedTeams: Set<string>
-    loadMyLineup: (m: Matchup, date: string) => Promise<void>
+    reloadLineup: (date: string) => Promise<void>
 }) {
     const [selected, setSelected] = useState<Sel | null>(null)
     const [saving, setSaving] = useState(false)
@@ -45,13 +50,12 @@ export function useLineupActions({
             setSelected(null); return
         }
         setSelected(null)
-        if (!matchup || !myLineup || !league) return
+        if (!actionContext || !myLineup || !league) return
 
         const starters = myLineup.starters
         const bench = myLineup.bench
-        const ir = myLineup.ir
-
-        const taxi = myLineup.taxi
+        const ir = myLineup.ir ?? []
+        const taxi = myLineup.taxi ?? []
 
         const getPlayer = (s: Sel): LineupPlayer | null =>
             s.kind === 'starter' ? starters[s.index]?.player ?? null
@@ -109,11 +113,11 @@ export function useLineupActions({
                     if (actSel.kind === 'starter') {
                         const slotType = starters[actSel.index]?.slotType
                         if (slotType && canPlaySlot(irPlayer.eligiblePositions, slotType)) {
-                            await setPlayerSlot(matchup.myMemberId, league.id, matchup.seasonId, matchup.weekNumber, selectedDate, irPlayer.playerId, slotType)
+                            await setPlayerSlot(actionContext.memberId, actionContext.leagueId, actionContext.seasonId, actionContext.weekNumber, selectedDate, irPlayer.playerId, slotType)
                         }
                     }
                 }
-                await loadMyLineup(matchup, selectedDate)
+                await reloadLineup(selectedDate)
             } catch (e) {
                 Alert.alert('Error', getErrorMessage(e))
             } finally {
@@ -159,11 +163,11 @@ export function useLineupActions({
                     if (actSel.kind === 'starter') {
                         const slotType = starters[actSel.index]?.slotType
                         if (slotType && canPlaySlot(taxiPlayer.eligiblePositions, slotType)) {
-                            await setPlayerSlot(matchup.myMemberId, league.id, matchup.seasonId, matchup.weekNumber, selectedDate, taxiPlayer.playerId, slotType)
+                            await setPlayerSlot(actionContext.memberId, actionContext.leagueId, actionContext.seasonId, actionContext.weekNumber, selectedDate, taxiPlayer.playerId, slotType)
                         }
                     }
                 }
-                await loadMyLineup(matchup, selectedDate)
+                await reloadLineup(selectedDate)
             } catch (e) {
                 Alert.alert('Error', getErrorMessage(e))
             } finally {
@@ -183,10 +187,10 @@ export function useLineupActions({
         try {
             await setPlayerSlotMoves(
                 {
-                    memberId: matchup.myMemberId,
-                    leagueId: league.id,
-                    seasonId: matchup.seasonId,
-                    weekNumber: matchup.weekNumber,
+                    memberId: actionContext.memberId,
+                    leagueId: actionContext.leagueId,
+                    seasonId: actionContext.seasonId,
+                    weekNumber: actionContext.weekNumber,
                     gameDate: selectedDate,
                 },
                 [
@@ -194,19 +198,16 @@ export function useLineupActions({
                     ...(bPlayer ? [{ playerId: bPlayer.playerId, slotType: aSlot }] : []),
                 ],
             )
-            await loadMyLineup(matchup, selectedDate)
+            await reloadLineup(selectedDate)
         } catch (e) {
             Alert.alert('Error', getErrorMessage(e))
         } finally {
             setSaving(false)
         }
-    }, [selectedDate, selected, matchup, myLineup, league, startedTeams, loadMyLineup])
+    }, [selectedDate, selected, actionContext, myLineup, league, startedTeams, reloadLineup])
 
-    async function resolveOverflow(
-        freeSlot: (id: string) => Promise<void>,
-        rosterPlayerId: string,
-    ) {
-        if (!activationOverflowPending || !matchup) return
+    async function resolveOverflow(freeAction: 'drop' | 'ir' | 'taxi', rosterPlayerId: string) {
+        if (!activationOverflowPending || !actionContext) return
         const starterPlayers = myLineup?.starters
             .map((slot) => slot.player)
             .filter((player): player is LineupPlayer => player != null) ?? []
@@ -228,14 +229,14 @@ export function useLineupActions({
         }
         setActivationOverflowSaving(true)
         try {
-            await freeSlot(rosterPlayerId)
-            if (activationOverflowPending.source === 'ir') {
-                await toggleIR(activationOverflowPending.rosterPlayerId, false)
-            } else {
-                await toggleTaxi(activationOverflowPending.rosterPlayerId, false)
-            }
+            await activateRosterPlayerWithOverflow(
+                activationOverflowPending.rosterPlayerId,
+                activationOverflowPending.source,
+                rosterPlayerId,
+                freeAction,
+            )
             setActivationOverflowPending(null)
-            await loadMyLineup(matchup, selectedDate)
+            await reloadLineup(selectedDate)
         } catch (e) {
             Alert.alert('Error', getErrorMessage(e))
         } finally {
@@ -243,19 +244,19 @@ export function useLineupActions({
         }
     }
 
-    const handleOverflowDrop = (id: string) => resolveOverflow(dropPlayer, id)
-    const handleOverflowMoveToIR = (id: string) => resolveOverflow((rpId) => toggleIR(rpId, true), id)
-    const handleOverflowMoveToTaxi = (id: string) => resolveOverflow((rpId) => toggleTaxi(rpId, true), id)
+    const handleOverflowDrop = (id: string) => resolveOverflow('drop', id)
+    const handleOverflowMoveToIR = (id: string) => resolveOverflow('ir', id)
+    const handleOverflowMoveToTaxi = (id: string) => resolveOverflow('taxi', id)
 
     async function doAutoSet(date: string | null, restOfSeason?: boolean) {
-        if (!matchup || !league) return
+        if (!actionContext || !league) return
         setAutoSetting(true)
         try {
             await autoSetLineup(
-                matchup.myMemberId, league.id, matchup.seasonId,
-                matchup.weekNumber, matchup.seasonYear, date, restOfSeason,
+                actionContext.memberId, actionContext.leagueId, actionContext.seasonId,
+                actionContext.weekNumber, actionContext.seasonYear, date, restOfSeason,
             )
-            await loadMyLineup(matchup, selectedDate)
+            await reloadLineup(selectedDate)
             if (restOfSeason) {
                 Alert.alert('Done', 'Lineup set for the rest of the season.')
             }

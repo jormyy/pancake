@@ -1,8 +1,39 @@
-import { describe, it, expect, vi } from 'vitest'
+import { beforeEach, describe, it, expect, vi } from 'vitest'
 
 vi.mock('../src/lib/supabase', () => ({ supabase: { from: vi.fn() } }))
 
-import { roundRobinRounds } from '../src/sync/matchups'
+import { supabase } from '../src/lib/supabase'
+import { generateMatchups, roundRobinRounds } from '../src/sync/matchups'
+
+const mockFrom = vi.mocked(supabase.from)
+
+function q(result: { data?: any; error?: any; count?: number | null }, onInsert?: (rows: any[]) => void) {
+    const chain: any = {
+        select: vi.fn(() => chain),
+        eq: vi.fn(() => chain),
+        in: vi.fn(() => chain),
+        order: vi.fn(() => chain),
+        delete: vi.fn(() => chain),
+        insert: vi.fn((rows: any[]) => {
+            onInsert?.(rows)
+            return Promise.resolve(result)
+        }),
+        then: (resolve: any, reject: any) => Promise.resolve(result).then(resolve, reject),
+    }
+    return chain
+}
+
+function queueQueries(results: Array<{ data?: any; error?: any; count?: number | null }>, onInsert?: (rows: any[]) => void) {
+    mockFrom.mockImplementation(() => {
+        const result = results.shift()
+        if (!result) throw new Error('Unexpected Supabase query')
+        return q(result, onInsert) as any
+    })
+}
+
+beforeEach(() => {
+    vi.clearAllMocks()
+})
 
 describe('roundRobinRounds', () => {
     it('generates 1 round for 2 teams with 1 matchup', () => {
@@ -107,5 +138,49 @@ describe('roundRobinRounds', () => {
                 seen.add(away)
             }
         }
+    })
+})
+
+describe('generateMatchups force safety', () => {
+    it('surfaces existing-matchup count failures before inserting a schedule', async () => {
+        const insertedRows: any[] = []
+        queueQueries([
+            { data: [{ id: 'm1' }, { id: 'm2' }], error: null },
+            { count: null, error: new Error('matchup count failed') },
+        ], (rows) => insertedRows.push(...rows))
+
+        await expect(generateMatchups('lg1', 'season1', 2)).rejects.toThrow('matchup count failed')
+
+        expect(insertedRows).toHaveLength(0)
+    })
+
+    it('refuses to force-regenerate once finalized matchups exist', async () => {
+        queueQueries([
+            { data: [{ id: 'm1' }, { id: 'm2' }], error: null },
+            { count: 1, error: null },
+            { count: 1, error: null },
+            { count: 0, error: null },
+        ])
+
+        await expect(generateMatchups('lg1', 'season1', 2, true)).rejects.toThrow(
+            'Cannot force-regenerate matchups after finalized or playoff matchups exist.',
+        )
+
+        expect(mockFrom).toHaveBeenCalledTimes(4)
+    })
+
+    it('surfaces force-regeneration delete failures before inserting replacements', async () => {
+        const insertedRows: any[] = []
+        queueQueries([
+            { data: [{ id: 'm1' }, { id: 'm2' }], error: null },
+            { count: 1, error: null },
+            { count: 0, error: null },
+            { count: 0, error: null },
+            { error: new Error('delete denied') },
+        ], (rows) => insertedRows.push(...rows))
+
+        await expect(generateMatchups('lg1', 'season1', 2, true)).rejects.toThrow('delete denied')
+
+        expect(insertedRows).toHaveLength(0)
     })
 })

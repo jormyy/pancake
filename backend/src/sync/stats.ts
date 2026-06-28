@@ -42,7 +42,7 @@ export function buildStatRow(
 ): StatRow {
     const s = p.statistics
     const minutesPlayed = parseNBAMinutes(s.minutes)
-    const dnp = !minutesPlayed || minutesPlayed < 0.5
+    const dnp = minutesPlayed == null
 
     const reb = s.reboundsTotal ?? 0
     const ast = s.assists ?? 0
@@ -113,6 +113,7 @@ export async function syncStatsByDate(date: Date) {
 
     let statCount = 0
     const nbaIdUpdates: { id: string; nba_id: string }[] = []
+    const syncFailures: string[] = []
 
     // Parallelize CDN box-score fetches in chunks. Each fetch is independent
     // (read-only HTTP GET), but downstream accumulation (nbaIdUpdates, DB writes)
@@ -142,6 +143,7 @@ export async function syncStatsByDate(date: Date) {
         const { game } = result
         if (!result.ok) {
             console.error(`[sync] Error fetching box score for ${game.nba_game_id}:`, result.error?.message)
+            syncFailures.push(`fetch ${game.nba_game_id}: ${result.error?.message ?? result.error}`)
             continue
         }
         try {
@@ -195,6 +197,7 @@ export async function syncStatsByDate(date: Date) {
             }
         } catch (e: any) {
             console.error(`[sync] Error processing box score for ${game.nba_game_id}:`, e.message)
+            syncFailures.push(`process ${game.nba_game_id}: ${e.message}`)
         }
     }
 
@@ -222,6 +225,10 @@ export async function syncStatsByDate(date: Date) {
             .update({ injury_status: null })
             .in('id', stalePlayers)
         console.log(`[sync] Cleared stale injury status for ${stalePlayers.length} player(s) who played on ${dateStr}.`)
+    }
+
+    if (syncFailures.length > 0) {
+        throw new Error(`[sync] Failed to sync ${syncFailures.length} game(s) for ${dateStr}: ${syncFailures.join('; ')}`)
     }
 
     console.log(`[sync] Upserted ${statCount} stat lines for ${dateStr}.`)

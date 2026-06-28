@@ -64,13 +64,16 @@ loadEnvFile(path.join(ROOT, '.env'))
 loadEnvFile(path.join(ROOT, 'backend/.env'))
 
 const supabaseUrl = process.env.E2E_SUPABASE_URL || process.env.SUPABASE_URL || process.env.EXPO_PUBLIC_SUPABASE_URL
-const serviceRoleKey = process.env.E2E_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY
+const adminKey = process.env.E2E_PANCAKE_SUPABASE_SECRET_KEY ||
+  process.env.PANCAKE_SUPABASE_SECRET_KEY ||
+  process.env.E2E_SUPABASE_SECRET_KEY ||
+  process.env.SUPABASE_SECRET_KEY
 
-if (!supabaseUrl || !serviceRoleKey) {
-  throw new Error('SUPABASE_URL/EXPO_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required.')
+if (!supabaseUrl || !adminKey) {
+  throw new Error('SUPABASE_URL/EXPO_PUBLIC_SUPABASE_URL and PANCAKE_SUPABASE_SECRET_KEY/SUPABASE_SECRET_KEY are required.')
 }
 
-const supabase = createClient(supabaseUrl, serviceRoleKey, {
+const supabase = createClient(supabaseUrl, adminKey, {
   auth: { persistSession: false },
 })
 

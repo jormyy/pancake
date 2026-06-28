@@ -112,29 +112,6 @@ export async function getWaiverPlayerIds(leagueId: string): Promise<Set<string>>
 
     const playerIds = new Set(((activeLogs ?? []) as WaiverPlayerIdRow[]).map((row) => row.player_id))
 
-    const { data: expiredLogs, error: expiredError } = await supabase
-        .from('waiver_wire_log')
-        .select('player_id')
-        .eq('league_id', leagueId)
-        .eq('league_season_id', seasonId)
-        .is('cleared_at', null)
-        .lte('clears_at', now)
-
-    if (expiredError) throw expiredError
-    const expiredPlayerIds = ((expiredLogs ?? []) as WaiverPlayerIdRow[]).map((row) => row.player_id)
-    if (expiredPlayerIds.length === 0) return playerIds
-
-    const { data: pendingClaims, error: pendingError } = await supabase
-        .from('waiver_claims')
-        .select('player_id')
-        .eq('league_id', leagueId)
-        .eq('league_season_id', seasonId)
-        .eq('status', 'pending')
-        .in('player_id', expiredPlayerIds)
-
-    if (pendingError) throw pendingError
-    for (const row of (pendingClaims ?? []) as WaiverPlayerIdRow[]) playerIds.add(row.player_id)
-
     return playerIds
 }
 

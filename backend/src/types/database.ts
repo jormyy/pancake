@@ -2335,6 +2335,10 @@ export type Database = {
         Args: { p_league_id: string; p_member_id: string; p_player_id: string }
         Returns: undefined
       }
+      drop_and_add_free_agent_atomic: {
+        Args: { p_league_id: string; p_member_id: string; p_player_id: string; p_roster_player_id: string }
+        Returns: undefined
+      }
       advance_season_atomic: {
         Args: { p_league_id: string }
         Returns: {
@@ -2345,6 +2349,10 @@ export type Database = {
       activate_rookie_draft_league_atomic: {
         Args: { p_draft_id: string }
         Returns: boolean
+      }
+      activate_roster_player_with_overflow_atomic: {
+        Args: { p_activate_roster_player_id: string; p_activate_source: string; p_free_action: string; p_free_roster_player_id: string }
+        Returns: undefined
       }
       auto_set_lineup_atomic: {
         Args: {
@@ -2360,6 +2368,16 @@ export type Database = {
         Args: { p_nomination_id: string }
         Returns: boolean
       }
+      create_auction_nomination_atomic: {
+        Args: {
+          p_countdown_seconds?: number
+          p_draft_id: string
+          p_member_id: string
+          p_player_id: string
+          p_user_id: string
+        }
+        Returns: Database["public"]["Tables"]["nominations"]["Row"]
+      }
       clear_ineligible_taxi_players: {
         Args: never
         Returns: number
@@ -2367,6 +2385,18 @@ export type Database = {
       complete_accepted_trade_atomic: {
         Args: { p_trade_id: string }
         Returns: undefined
+      }
+      finalize_score_week_atomic: {
+        Args: {
+          p_finalized_at?: string
+          p_league_id: string
+          p_league_season_id: string
+          p_matchups: Json
+          p_reconciliation_at?: string
+          p_standings: Json
+          p_week_number: number
+        }
+        Returns: Json
       }
       expire_trade_completion_failure_atomic: {
         Args: { p_reason?: string | null; p_trade_id: string }
@@ -2397,6 +2427,10 @@ export type Database = {
       start_rookie_draft_atomic: {
         Args: { p_league_id: string; p_rounds?: number }
         Returns: Json
+      }
+      start_auction_draft_atomic: {
+        Args: { p_league_id: string; p_nomination_order_mode?: string }
+        Returns: Database["public"]["Tables"]["drafts"]["Row"]
       }
       reseed_rookie_draft_picks_atomic: {
         Args: { p_draft_id: string; p_rounds?: number }
@@ -2450,11 +2484,12 @@ export type Database = {
           p_draft_id: string
           p_member_id: string
           p_nomination_id: string
+          p_user_id: string
         }
         Returns: undefined
       }
       withdraw_auction_nomination_atomic: {
-        Args: { p_nomination_id: string; p_member_id: string; p_user_id?: string | null }
+        Args: { p_nomination_id: string; p_member_id: string; p_user_id: string }
         Returns: boolean
       }
       process_next_waiver_claim_atomic: {

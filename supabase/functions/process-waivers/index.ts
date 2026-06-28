@@ -1,5 +1,6 @@
 import { supabase } from '../_shared/supabase.ts'
 import { notifyMember } from '../_shared/notifications.ts'
+import { requireInternalFunctionAuth } from '../_shared/auth.ts'
 import { internalServerError } from '../_shared/responses.ts'
 
 type WaiverStatus = 'succeeded' | 'failed_priority' | 'failed_roster' | 'cancelled' | 'pending'
@@ -13,7 +14,10 @@ type WaiverProcessRow = {
   failure_reason: string | null
 }
 
-Deno.serve(async () => {
+Deno.serve(async (req) => {
+  const authError = requireInternalFunctionAuth(req)
+  if (authError) return authError
+
   try {
     const processed = await processWaiverClaims()
     return Response.json({ ok: true, processed })

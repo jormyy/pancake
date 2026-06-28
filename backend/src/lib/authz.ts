@@ -21,17 +21,29 @@ export async function requireCommissioner(userId: string, leagueId: string): Pro
 }
 
 export async function requireCommissionerForDraft(userId: string, draftId: string): Promise<void> {
+    const { data: commissionerRows, error: commissionerError } = await supabase
+        .from('league_members')
+        .select('league_id')
+        .eq('user_id', userId)
+        .in('role', ['commissioner', 'co_commissioner'])
+
+    if (commissionerError) throw commissionerError
+
+    const commissionerLeagueIds = (commissionerRows ?? []).map((row) => row.league_id)
+    if (commissionerLeagueIds.length === 0) {
+        throw new NotFoundError('Draft not found')
+    }
+
     const { data, error } = await supabase
         .from('drafts')
-        .select('league_id')
+        .select('id')
         .eq('id', draftId)
-        .single()
+        .in('league_id', commissionerLeagueIds)
+        .maybeSingle()
 
     if (error || !data) {
         throw new NotFoundError('Draft not found')
     }
-
-    await requireCommissioner(userId, data.league_id)
 }
 
 /**
@@ -59,7 +71,7 @@ export async function verifyMemberAccess(userId: string, memberId: string): Prom
         .maybeSingle()
 
     if (!commissioner) {
-        throw new AppError('Access denied', 403)
+        throw new NotFoundError('Member not found')
     }
 }
 
@@ -67,19 +79,23 @@ export async function verifyMemberAccess(userId: string, memberId: string): Prom
  * Verify the requesting user owns the member record. Commissioner override is
  * intentionally not allowed for actions that represent a manager's consent.
  */
-export async function verifyOwnMember(userId: string, memberId: string): Promise<void> {
+export async function requireOwnMember(userId: string, memberId: string): Promise<{ leagueId: string }> {
     const { data, error } = await supabase
         .from('league_members')
-        .select('user_id')
+        .select('league_id')
         .eq('id', memberId)
-        .single()
+        .eq('user_id', userId)
+        .maybeSingle()
 
     if (error || !data) {
         throw new NotFoundError('Member not found')
     }
-    if (data.user_id !== userId) {
-        throw new AppError('Access denied', 403)
-    }
+
+    return { leagueId: data.league_id }
+}
+
+export async function verifyOwnMember(userId: string, memberId: string): Promise<void> {
+    await requireOwnMember(userId, memberId)
 }
 
 /**
@@ -99,7 +115,7 @@ export async function verifySameLeague(userId: string, memberId: string): Promis
     const requesterInLeague = rows?.some(
         (r) => r.user_id === userId && r.league_id === target.league_id,
     )
-    if (!requesterInLeague) throw new AppError('Not a member of this league', 403)
+    if (!requesterInLeague) throw new NotFoundError('Member not found')
 
     return target.league_id
 }

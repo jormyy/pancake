@@ -131,29 +131,14 @@ export async function getPlayerRosterStatus(
         .eq('league_season_id', seasonId)
         .eq('player_id', playerId)
         .is('cleared_at', null)
+        .gt('clears_at', now)
         .order('clears_at', { ascending: true })
         .limit(1)
         .maybeSingle()
     if (waiverLogError) throw waiverLogError
 
     if (waiverLog) {
-        if (waiverLog.clears_at > now) {
-            return { status: 'on_waivers', logId: waiverLog.id, clearsAt: waiverLog.clears_at }
-        }
-
-        const { data: pendingClaim, error: pendingClaimError } = await supabase
-            .from('waiver_claims')
-            .select('id')
-            .eq('league_id', leagueId)
-            .eq('league_season_id', seasonId)
-            .eq('player_id', playerId)
-            .eq('status', 'pending')
-            .limit(1)
-            .maybeSingle()
-        if (pendingClaimError) throw pendingClaimError
-        if (pendingClaim) {
-            return { status: 'on_waivers', logId: waiverLog.id, clearsAt: waiverLog.clears_at }
-        }
+        return { status: 'on_waivers', logId: waiverLog.id, clearsAt: waiverLog.clears_at }
     }
 
     return { status: 'free_agent' }
@@ -182,6 +167,25 @@ export async function addFreeAgent(
     }
 }
 
+export async function dropAndAddFreeAgent(
+    rosterPlayerId: string,
+    memberId: string,
+    leagueId: string,
+    playerId: string,
+): Promise<void> {
+    const { error } = await supabase.rpc('drop_and_add_free_agent_atomic', {
+        p_roster_player_id: rosterPlayerId,
+        p_member_id: memberId,
+        p_league_id: leagueId,
+        p_player_id: playerId,
+    })
+
+    if (error) {
+        if (error.code === '23505') throw new Error('This player is already on a roster.')
+        throw new Error(error.message)
+    }
+}
+
 export async function dropPlayer(rosterPlayerId: string): Promise<void> {
     // Atomic: delete roster row, insert 48h waiver_wire_log, insert
     // roster_transactions audit row — all in a single Postgres transaction.
@@ -197,4 +201,23 @@ export async function dropPlayer(rosterPlayerId: string): Promise<void> {
         }
         throw error
     }
+}
+
+export type RosterOverflowFreeAction = 'drop' | 'ir' | 'taxi'
+export type RosterActivationSource = 'ir' | 'taxi'
+
+export async function activateRosterPlayerWithOverflow(
+    activateRosterPlayerId: string,
+    activateSource: RosterActivationSource,
+    freeRosterPlayerId: string,
+    freeAction: RosterOverflowFreeAction,
+): Promise<void> {
+    const { error } = await supabase.rpc('activate_roster_player_with_overflow_atomic', {
+        p_activate_roster_player_id: activateRosterPlayerId,
+        p_activate_source: activateSource,
+        p_free_roster_player_id: freeRosterPlayerId,
+        p_free_action: freeAction,
+    })
+
+    if (error) throw new Error(error.message)
 }

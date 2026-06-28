@@ -8,7 +8,6 @@ import { currentSeasonYear } from '@/lib/shared/season'
 import { todayET } from '@/lib/shared/dates'
 import {
     PLAYER_SEARCH_SORT_OPTIONS,
-    sortPlayerSearchResults,
     type PlayerSearchSortDir,
     type PlayerSearchSortMode,
 } from '@/lib/player-search-sort'
@@ -141,10 +140,6 @@ export function usePlayerSearch(
         }
     }, [availabilityFilter, ownedMap, waiverIds, currentMemberId])
 
-    const displayedPlayers = useMemo(() => {
-        return sortPlayerSearchResults(players, sortMode, sortDir, weeklyAvailability.gamesLeft)
-    }, [players, sortMode, sortDir, weeklyAvailability.gamesLeft])
-
     useEffect(() => {
         listRef.current?.scrollToOffset({ offset: 0, animated: false })
     }, [sortMode, sortDir])
@@ -169,6 +164,12 @@ export function usePlayerSearch(
                     excludePlayerIds: params.excludePlayerIds,
                     excludedTeams: params.excludedTeams,
                 },
+                {
+                    sortMode,
+                    sortDir,
+                    pageSize: PAGE_SIZE,
+                    gamesLeft: weeklyAvailability.gamesLeft,
+                },
             )
             setPlayers(results)
             setHasMore(!params.rookiesOnly && results.length === PAGE_SIZE)
@@ -177,7 +178,7 @@ export function usePlayerSearch(
         } finally {
             setLoading(false)
         }
-    }, [])
+    }, [sortDir, sortMode, weeklyAvailability.gamesLeft])
 
     const loadMore = useCallback(async () => {
         if (loadingMore || !hasMore) return
@@ -199,6 +200,7 @@ export function usePlayerSearch(
                     excludePlayerIds: params.excludePlayerIds,
                     excludedTeams: params.excludedTeams,
                 },
+                { sortMode, sortDir, pageSize: PAGE_SIZE, gamesLeft: weeklyAvailability.gamesLeft },
             )
             if (results.length > 0) {
                 offsetRef.current = nextOffset
@@ -210,7 +212,7 @@ export function usePlayerSearch(
         } finally {
             setLoadingMore(false)
         }
-    }, [loadingMore, hasMore])
+    }, [loadingMore, hasMore, sortDir, sortMode, weeklyAvailability.gamesLeft])
 
     useEffect(() => {
         if (isFirstLeagueRunRef.current) {
@@ -236,7 +238,7 @@ export function usePlayerSearch(
         }
         const timer = setTimeout(() => load(params), 300)
         return () => clearTimeout(timer)
-    }, [query, position, selectedTeams, leagueId, playingTeams, excludedTeams, availabilityPlayerScope, rookiesOnly, health, load])
+    }, [query, position, selectedTeams, leagueId, playingTeams, excludedTeams, availabilityPlayerScope, rookiesOnly, health, sortMode, sortDir, load])
 
     const clearAllFilters = useCallback(() => {
         setQuery('')
@@ -276,7 +278,7 @@ export function usePlayerSearch(
         health: { value: health, setValue: setHealth },
         availabilityFilter: { value: availabilityFilter, setValue: setAvailabilityFilter },
         toggles: { rookiesOnly, setRookiesOnly },
-        results: { players: displayedPlayers, loading, loadingMore, listRef, loadMore },
+        results: { players, loading, loadingMore, listRef, loadMore },
         activeFilterCount,
         clearAllFilters,
     }

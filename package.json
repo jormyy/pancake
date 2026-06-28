@@ -12,6 +12,9 @@
     "typecheck:backend": "npm run typecheck --workspace backend",
     "typecheck:core": "npm run typecheck --workspace core",
     "build:backend": "npm run build --workspace backend",
+    "check:core-cjs": "node scripts/check-core-cjs.mjs",
+    "generate:edge-shared": "node scripts/generate-edge-shared.mjs",
+    "check:edge-shared": "node scripts/generate-edge-shared.mjs --check",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:workspaces": "npm test && npm test --workspace backend && npm test --workspace core",
@@ -40,7 +43,12 @@
     "e2e:browser-trade-veto": "node tests/e2e/browser-trade-gameplay.mjs --veto",
     "e2e:web-static": "node tests/e2e/static-web-server.mjs",
     "e2e:fake-upstream": "node tests/e2e/fake-upstream.mjs",
-    "prod:check": "node tests/e2e/production-readiness.mjs"
+    "prod:check": "node tests/e2e/production-readiness.mjs",
+    "prod:data-health": "node tests/e2e/prod-data-source-health.mjs",
+    "security:db-catalog": "node tests/e2e/db-security-catalog.mjs",
+    "security:edge-auth": "node tests/e2e/edge-internal-auth.mjs",
+    "security:edge-auth:linked": "node tests/e2e/edge-internal-auth.mjs --linked",
+    "security:local-secrets": "node tests/e2e/local-secret-scan.mjs"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",

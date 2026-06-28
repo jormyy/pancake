@@ -13,11 +13,18 @@ function defaultSecretKey(): string | undefined {
   }
 }
 
+function requiredSecretKey(): string {
+  const key =
+    Deno.env.get('PANCAKE_SUPABASE_SECRET_KEY') ??
+    Deno.env.get('SUPABASE_SECRET_KEY') ??
+    defaultSecretKey()
+
+  if (!key) throw new Error('Missing Supabase secret key')
+  return key
+}
+
 export const supabase = createClient<Database>(
   Deno.env.get('SUPABASE_URL')!,
-  Deno.env.get('PANCAKE_SUPABASE_SECRET_KEY') ??
-    Deno.env.get('SUPABASE_SECRET_KEY') ??
-    defaultSecretKey() ??
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+  requiredSecretKey(),
   { auth: { persistSession: false } },
 )

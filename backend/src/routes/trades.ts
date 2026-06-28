@@ -1,8 +1,8 @@
 import { FastifyInstance } from 'fastify'
 import { supabase } from '../lib/supabase'
-import { verifyOwnMember } from '../lib/authz'
+import { requireOwnMember, verifyOwnMember } from '../lib/authz'
 import { notifyMember } from '../lib/notifications'
-import { AppError, NotFoundError, ValidationError } from '../plugins/errorHandler'
+import { NotFoundError, ValidationError } from '../plugins/errorHandler'
 import { TradeActionBody, TradeParams, TradeProposeBody, TradeVetoBody } from '../schemas'
 
 type TradeProposeRequest = {
@@ -84,7 +84,22 @@ export default async function tradeRoutes(app: FastifyInstance) {
             const { tradeId } = req.params as { tradeId: string }
             const { memberId, dropRosterPlayerIds = [] } = req.body as TradeActionRequest
 
-            await verifyOwnMember(req.userId, memberId)
+            const [, tradeRes] = await Promise.all([
+                requireOwnMember(req.userId, memberId),
+                supabase
+                    .from('trades')
+                    .select('id, proposer_member_id, recipient_member_id, status')
+                    .eq('id', tradeId)
+                    .eq('recipient_member_id', memberId)
+                    .maybeSingle(),
+            ])
+
+            const { data: trade, error: fetchError } = tradeRes
+            if (fetchError) throw fetchError
+            if (!trade) throw new NotFoundError('Trade not found.')
+            if (trade.status !== 'pending') {
+                throw new ValidationError('This trade is no longer pending.')
+            }
 
             const { error } = await supabase.rpc('accept_trade_atomic', {
                 p_trade_id: tradeId,
@@ -93,12 +108,6 @@ export default async function tradeRoutes(app: FastifyInstance) {
             })
 
             if (error) throw error
-
-            const { data: trade } = await supabase
-                .from('trades')
-                .select('proposer_member_id, recipient_member_id')
-                .eq('id', tradeId)
-                .single()
 
             if (trade) {
                 Promise.all([
@@ -128,7 +137,15 @@ export default async function tradeRoutes(app: FastifyInstance) {
             const { tradeId } = req.params as { tradeId: string }
             const { memberId } = req.body as TradeVetoRequest
 
-            await verifyOwnMember(req.userId, memberId)
+            const { leagueId } = await requireOwnMember(req.userId, memberId)
+            const { data: trade, error: tradeError } = await supabase
+                .from('trades')
+                .select('id')
+                .eq('id', tradeId)
+                .eq('league_id', leagueId)
+                .maybeSingle()
+            if (tradeError) throw tradeError
+            if (!trade) throw new NotFoundError('Trade not found.')
 
             const { data, error } = await supabase.rpc('veto_trade_atomic', {
                 p_trade_id: tradeId,
@@ -171,30 +188,34 @@ export default async function tradeRoutes(app: FastifyInstance) {
             const { memberId } = req.body as { memberId: string }
 
             const [, tradeRes] = await Promise.all([
-                verifyOwnMember(req.userId, memberId),
+                requireOwnMember(req.userId, memberId),
                 supabase
                     .from('trades')
                     .select('id, proposer_member_id, recipient_member_id, status')
                     .eq('id', tradeId)
-                    .single(),
+                    .eq('recipient_member_id', memberId)
+                    .maybeSingle(),
             ])
 
             const { data: trade, error: fetchError } = tradeRes
-            if (fetchError || !trade) throw new NotFoundError('Trade not found.')
-            if (trade.recipient_member_id !== memberId) {
-                throw new AppError('Only the recipient can reject this trade.', 403)
-            }
+            if (fetchError) throw fetchError
+            if (!trade) throw new NotFoundError('Trade not found.')
             if (trade.status !== 'pending') {
                 throw new ValidationError('This trade is no longer pending.')
             }
 
-            const { error: updateError } = await supabase
+            const { data: updatedTrade, error: updateError } = await supabase
                 .from('trades')
                 .update({ status: 'rejected' })
                 .eq('id', tradeId)
                 .eq('status', 'pending')
+                .select('id')
+                .maybeSingle()
 
             if (updateError) throw updateError
+            if (!updatedTrade) {
+                throw new ValidationError('This trade is no longer pending.')
+            }
 
             notifyMember(
                 trade.proposer_member_id,
@@ -215,30 +236,34 @@ export default async function tradeRoutes(app: FastifyInstance) {
             const { memberId } = req.body as { memberId: string }
 
             const [, tradeRes] = await Promise.all([
-                verifyOwnMember(req.userId, memberId),
+                requireOwnMember(req.userId, memberId),
                 supabase
                     .from('trades')
                     .select('id, proposer_member_id, recipient_member_id, status')
                     .eq('id', tradeId)
-                    .single(),
+                    .eq('proposer_member_id', memberId)
+                    .maybeSingle(),
             ])
 
             const { data: trade, error: fetchError } = tradeRes
-            if (fetchError || !trade) throw new NotFoundError('Trade not found.')
-            if (trade.proposer_member_id !== memberId) {
-                throw new AppError('Only the proposer can withdraw this trade.', 403)
-            }
+            if (fetchError) throw fetchError
+            if (!trade) throw new NotFoundError('Trade not found.')
             if (trade.status !== 'pending') {
                 throw new ValidationError('This trade is no longer pending.')
             }
 
-            const { error: updateError } = await supabase
+            const { data: updatedTrade, error: updateError } = await supabase
                 .from('trades')
                 .update({ status: 'withdrawn' })
                 .eq('id', tradeId)
                 .eq('status', 'pending')
+                .select('id')
+                .maybeSingle()
 
             if (updateError) throw updateError
+            if (!updatedTrade) {
+                throw new ValidationError('This trade is no longer pending.')
+            }
 
             notifyMember(
                 trade.recipient_member_id,

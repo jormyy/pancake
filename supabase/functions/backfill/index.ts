@@ -1,6 +1,7 @@
 import { runBBRefChunk } from '../_shared/bbrefBackfill.ts'
 import { runCDNChunk, runCDNEnumChunk } from '../_shared/cdnBackfill.ts'
 import { createBackfillJob, failBackfillJob, invokeBackfill } from '../_shared/backfillJobs.ts'
+import { requireInternalFunctionAuth } from '../_shared/auth.ts'
 import { internalServerError } from '../_shared/responses.ts'
 
 const CDN_START_YEARS = [24, 23, 22, 21, 20, 19] as const
@@ -15,6 +16,9 @@ type BackfillBody = {
 }
 
 Deno.serve(async (req) => {
+  const authError = requireInternalFunctionAuth(req)
+  if (authError) return authError
+
   let body: BackfillBody = {}
   try {
     body = await req.json() as BackfillBody

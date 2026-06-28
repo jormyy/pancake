@@ -215,7 +215,7 @@ async function upsertBBRefStats(
     if (!playerId) continue
 
     const minutesPlayed = stat.minutesDecimal
-    const didNotPlay = stat.dnp || !minutesPlayed || minutesPlayed < 0.5
+    const didNotPlay = stat.dnp || minutesPlayed == null
     const doubleDoubleStats = [stat.pts, stat.reb, stat.ast, stat.stl, stat.blk].filter((value) => value >= 10).length
 
     stats.push({

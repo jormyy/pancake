@@ -177,6 +177,22 @@ describe('makeSnakePick', () => {
 // ── autoPickBest ──────────────────────────────────────────────────────────────
 
 describe('autoPickBest', () => {
+    it('surfaces already-picked query failures before choosing an auto-pick', async () => {
+        mockFrom.mockReturnValueOnce(q(null, new Error('picked read failed')) as any)
+
+        await expect(autoPickBest('d1', 'm1')).rejects.toThrow('picked read failed')
+        expect(mockRpc).not.toHaveBeenCalled()
+    })
+
+    it('surfaces rookie candidate query failures before choosing an auto-pick', async () => {
+        mockFrom
+            .mockReturnValueOnce(q([]) as any)
+            .mockReturnValueOnce(q(null, new Error('rookie candidates failed')) as any)
+
+        await expect(autoPickBest('d1', 'm1')).rejects.toThrow('rookie candidates failed')
+        expect(mockRpc).not.toHaveBeenCalled()
+    })
+
     it('selects the player with the lowest available nba_draft_number', async () => {
         let n = 0
         mockFrom.mockImplementation(() => {

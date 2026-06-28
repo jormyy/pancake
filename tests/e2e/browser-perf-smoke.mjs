@@ -293,6 +293,7 @@ const runLoadMutations = async ({ supabase, auction, matchup }) => {
         p_member_id: bidder.id,
         p_nomination_id: auction.nominationId,
         p_amount: amount,
+        p_user_id: bidder.user_id,
       })
       if (bidError) throw new Error(`D.X.4 auction bid mutation ${index + 1} failed: ${bidError.message}`)
     }

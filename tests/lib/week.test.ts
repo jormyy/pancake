@@ -1,12 +1,29 @@
-import { describe, it, expect, vi } from 'vitest'
+import { beforeEach, describe, it, expect, vi } from 'vitest'
 
 vi.mock('@/lib/supabase', () => ({ supabase: { from: vi.fn() } }))
-vi.mock('@/lib/shared/dates', () => ({ todayDateString: vi.fn().mockReturnValue('2026-04-22') }))
+vi.mock('@/lib/shared/dates', () => ({ todayET: vi.fn().mockReturnValue('2026-04-22') }))
 
-import { calculateWeekNumberFromDate } from '@/lib/shared/week'
+import { supabase } from '@/lib/supabase'
+import { todayET } from '@/lib/shared/dates'
+import { calculateWeekNumberFromDate, getCurrentWeekNumber } from '@/lib/shared/week'
 
 const WEEK1_START = '2025-10-21'
 const WEEK1_END = '2025-10-26'
+const mockFrom = vi.mocked(supabase.from)
+const mockTodayET = vi.mocked(todayET)
+
+function seasonWeekQuery(data: unknown, error: unknown = null) {
+    const chain: any = {
+        select: vi.fn(() => chain),
+        eq: vi.fn(() => chain),
+        lte: vi.fn(() => chain),
+        gte: vi.fn(() => chain),
+        order: vi.fn(() => chain),
+        limit: vi.fn(() => chain),
+        maybeSingle: vi.fn().mockResolvedValue({ data, error }),
+    }
+    return chain
+}
 
 describe('calculateWeekNumberFromDate', () => {
     describe('Week 1 (Oct 21–26, 2025)', () => {
@@ -51,5 +68,44 @@ describe('calculateWeekNumberFromDate', () => {
 
     it('calculates a late-season week correctly (Apr 12, 2026 = week 25)', () => {
         expect(calculateWeekNumberFromDate('2026-04-12', WEEK1_START, WEEK1_END)).toBe(25)
+    })
+})
+
+describe('getCurrentWeekNumber', () => {
+    beforeEach(() => {
+        mockFrom.mockReset()
+        mockTodayET.mockReturnValue('2026-04-22')
+    })
+
+    it('uses the ET date key when querying season weeks', async () => {
+        const query = seasonWeekQuery({ week_number: 22, week_start: '2026-04-20', week_end: '2026-04-26' })
+        mockFrom.mockReturnValue(query)
+
+        await expect(getCurrentWeekNumber(2026)).resolves.toBe(22)
+
+        expect(query.lte).toHaveBeenCalledWith('week_start', '2026-04-22')
+        expect(query.gte).toHaveBeenCalledWith('week_end', '2026-04-22')
+    })
+
+    it('returns the last seeded week after the schedule ends', async () => {
+        mockTodayET.mockReturnValue('2026-09-15')
+        const todayQuery = seasonWeekQuery(null)
+        const futureQuery = seasonWeekQuery(null)
+        const lastQuery = seasonWeekQuery({ week_number: 25, week_start: '2026-04-06', week_end: '2026-04-12' })
+        mockFrom
+            .mockReturnValueOnce(todayQuery)
+            .mockReturnValueOnce(futureQuery)
+            .mockReturnValueOnce(lastQuery)
+
+        await expect(getCurrentWeekNumber(2026)).resolves.toBe(25)
+
+        expect(lastQuery.order).toHaveBeenCalledWith('week_number', { ascending: false })
+    })
+
+    it('surfaces season week lookup errors instead of falling back to stale week math', async () => {
+        const query = seasonWeekQuery(null, new Error('season weeks unavailable'))
+        mockFrom.mockReturnValue(query)
+
+        await expect(getCurrentWeekNumber(2026)).rejects.toThrow('season weeks unavailable')
     })
 })

@@ -1,56 +1,92 @@
+import { buildScheduleSyncPlan, type ScheduleGameRow, type SeasonWeekRow } from '@pancake/core'
 import { supabase } from '../lib/supabase'
-import { fetchSeasonSchedule, isRegularSeasonGameId } from '../lib/nba'
+import { fetchSeasonSchedule } from '../lib/nba'
+
+const CHUNK = 500
+
+async function syncSeasonWeeks(weeks: SeasonWeekRow[]): Promise<number> {
+    if (weeks.length === 0) return 0
+
+    const { error } = await supabase
+        .from('season_weeks')
+        .upsert(weeks, { onConflict: 'season_year,week_number' })
+    if (error) throw error
+    return weeks.length
+}
 
 // Syncs the scheduled tip-off time (game_time) for all games in the season
 // from the NBA CDN static schedule. Run once per season and after schedule changes.
-export async function syncGameTimes(): Promise<{ updated: number }> {
-    const games = await fetchSeasonSchedule()
-
-    // Build candidate rows (skip entries missing required keys; same as before).
-    const candidates = games
-        .filter((g) => g.startedAt && isRegularSeasonGameId(g.gameId))
-        .map((g) => ({
-            nba_game_id: g.gameId,
-            game_time: new Date(g.startedAt as string).toISOString(),
-        }))
-
-    if (candidates.length === 0) {
-        console.log(`[schedule] Updated game_time for 0 games`)
-        return { updated: 0 }
+export async function syncGameTimes(): Promise<{ updated: number; inserted: number; weeks: number }> {
+    const raw = await fetchSeasonSchedule()
+    const plan = buildScheduleSyncPlan(raw)
+    if (plan.regularSeason.length === 0) {
+        console.log('[schedule] No regular season games')
+        return { updated: 0, inserted: 0, weeks: 0 }
     }
 
-    // Preserve original behavior: only update rows that already exist.
-    // (Original .update().eq() silently no-ops for missing rows.)
-    // Doing one SELECT + chunked UPSERTs replaces N per-row UPDATEs.
-    const candidateIds = candidates.map((r) => r.nba_game_id)
-    const existing = new Set<string>()
-    const SELECT_CHUNK = 500
-    for (let i = 0; i < candidateIds.length; i += SELECT_CHUNK) {
-        const slice = candidateIds.slice(i, i + SELECT_CHUNK)
+    if (!plan.seasonStart) {
+        console.log('[schedule] No regular season start date')
+        return { updated: 0, inserted: 0, weeks: 0 }
+    }
+
+    if (plan.rows.length === 0) {
+        console.log('[schedule] No schedule rows to sync')
+        return { updated: 0, inserted: 0, weeks: 0 }
+    }
+
+    const existing: { id: string; game_date: string; home_team: string; away_team: string; nba_game_id: string | null }[] = []
+    for (let from = 0; ; from += CHUNK) {
         const { data, error } = await supabase
             .from('nba_games')
-            .select('nba_game_id')
-            .in('nba_game_id', slice)
-        if (error || !data) continue
-        for (const row of data) {
-            if (row.nba_game_id) existing.add(row.nba_game_id)
+            .select('id, game_date, home_team, away_team, nba_game_id')
+            .range(from, from + CHUNK - 1)
+        if (error) throw error
+        const page = data ?? []
+        existing.push(...page)
+        if (page.length < CHUNK) break
+    }
+
+    const byNbaGameId = new Map<string, string>()
+    const byDateTeams = new Map<string, string>()
+    for (const game of existing) {
+        if (game.nba_game_id) byNbaGameId.set(game.nba_game_id, game.id)
+        byDateTeams.set(`${game.game_date}_${game.home_team}_${game.away_team}`, game.id)
+    }
+
+    const toUpdate: (ScheduleGameRow & { id: string })[] = []
+    const toInsert: ScheduleGameRow[] = []
+    for (const game of plan.rows) {
+        const key = `${game.game_date}_${game.home_team}_${game.away_team}`
+        const existingId = byNbaGameId.get(game.nba_game_id) ?? byDateTeams.get(key)
+        if (existingId) {
+            toUpdate.push({ id: existingId, ...game })
+        } else {
+            toInsert.push(game)
         }
     }
 
-    const rows = candidates.filter((r) => existing.has(r.nba_game_id))
-
     let updated = 0
-    const UPSERT_CHUNK = 500
-    for (let i = 0; i < rows.length; i += UPSERT_CHUNK) {
-        const chunk = rows.slice(i, i + UPSERT_CHUNK)
-        // Cast to any: generated type requires full row, but PostgREST accepts
-        // partial payloads for the UPDATE path of an upsert when the row exists.
+    for (let i = 0; i < toUpdate.length; i += CHUNK) {
+        const chunk = toUpdate.slice(i, i + CHUNK)
+        const { error } = await supabase
+            .from('nba_games')
+            .upsert(chunk as any, { onConflict: 'id' })
+        if (error) throw error
+        updated += chunk.length
+    }
+
+    let inserted = 0
+    for (let i = 0; i < toInsert.length; i += CHUNK) {
+        const chunk = toInsert.slice(i, i + CHUNK)
         const { error } = await supabase
             .from('nba_games')
             .upsert(chunk as any, { onConflict: 'nba_game_id' })
-        if (!error) updated += chunk.length
+        if (error) throw error
+        inserted += chunk.length
     }
 
-    console.log(`[schedule] Updated game_time for ${updated} games`)
-    return { updated }
+    const weeks = await syncSeasonWeeks(plan.weeks)
+
+    console.log(`[schedule] ${updated} updated, ${inserted} inserted, ${weeks} weeks synced`)
+    return { updated, inserted, weeks }
 }

@@ -38,4 +38,10 @@ describe('calculateWeekNumberFromDate', () => {
         // Mar 9 = week 21 (133 days after Oct 27 → floor(133/7) = 19 + 2 = 21)
         expect(calculateWeekNumberFromDate('2026-03-09', week1Start, week1End)).toBe(21)
     })
+
+    it('uses calendar-day arithmetic across DST changes', () => {
+        expect(calculateWeekNumberFromDate('2025-11-02', week1Start, week1End)).toBe(2)
+        expect(calculateWeekNumberFromDate('2026-03-08', week1Start, week1End)).toBe(20)
+        expect(calculateWeekNumberFromDate('2026-03-09', week1Start, week1End)).toBe(21)
+    })
 })

@@ -107,6 +107,47 @@ BEGIN
   WHERE league_id = p_league_id
     AND league_season_id = v_current_season.id;
 
+  INSERT INTO roster_transactions (
+    league_id,
+    league_season_id,
+    member_id,
+    player_id,
+    transaction_type,
+    occurred_at
+  )
+  SELECT
+    league_id,
+    league_season_id,
+    member_id,
+    player_id,
+    'carry_over',
+    acquired_at
+  FROM roster_players
+  WHERE league_id = p_league_id
+    AND league_season_id = v_new_season_id
+    AND acquired_via = 'carry_over';
+
+  INSERT INTO roster_transactions (
+    league_id,
+    league_season_id,
+    member_id,
+    player_id,
+    transaction_type,
+    occurred_at
+  )
+  SELECT
+    league_id,
+    league_season_id,
+    member_id,
+    player_id,
+    CASE WHEN is_on_ir THEN 'ir_designate' ELSE 'taxi_designate' END,
+    acquired_at + interval '1 millisecond'
+  FROM roster_players
+  WHERE league_id = p_league_id
+    AND league_season_id = v_new_season_id
+    AND acquired_via = 'carry_over'
+    AND (is_on_ir = true OR is_on_taxi = true);
+
   INSERT INTO draft_picks (
     league_id,
     season_year,

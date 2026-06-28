@@ -10,10 +10,9 @@ import { TransactionHistory } from '@/components/player/TransactionHistory'
 import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 import { useLeagueContext } from '@/contexts/league-context'
 import { usePlayerScreenData } from '@/hooks/use-player-screen-data'
-import { addFreeAgent, dropPlayer, getPlayerRosterStatus, getRoster, toggleIR, type PlayerRosterStatus, type RosterPlayer } from '@/lib/roster'
-import { isIneligibleIR } from '@/lib/format'
+import { dropAndAddFreeAgent, dropPlayer, getPlayerRosterStatus, type PlayerRosterStatus, type RosterPlayer } from '@/lib/roster'
+import { addFreeAgentOrRequestDrop, loadRosterAddGate, resolveRosterAddIRConflict } from '@/lib/roster-add-flow'
 import { showAlert, confirmAction, getErrorMessage } from '@/lib/alert'
-import { getRosterStatusChangeLockMessage } from '@/lib/roster-locks'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useCallback, useEffect, useState } from 'react'
 import {
@@ -57,16 +56,10 @@ export default function PlayerDetailScreen() {
         action: 'add' | 'claim'
     } | null>(null)
 
-    // Resume the originating flow after the IR conflict is cleared.
-    const continueAfterIR = useCallback(
-        (action: 'add' | 'claim') => {
-            if (action === 'claim') push(`/(modals)/claim-player?playerId=${id}`)
-            else tryAddFreeAgent()
-        },
-        // tryAddFreeAgent/push/id are stable enough for this modal flow
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-        [id],
-    )
+    function continueAfterIR(action: 'add' | 'claim') {
+        if (action === 'claim') push(`/(modals)/claim-player?playerId=${id}`)
+        else tryAddFreeAgent()
+    }
 
     const loadRosterStatus = useCallback(async () => {
         if (!current || !leagueId) return
@@ -86,9 +79,7 @@ export default function PlayerDetailScreen() {
         if (!current || !leagueId) return
         setActionLoading(true)
         try {
-            // Check for ineligible IR players before adding
-            const roster = await getRoster(current.id, leagueId)
-            const ineligible = roster.filter((r) => isIneligibleIR(r))
+            const { roster, ineligible } = await loadRosterAddGate(current.id, leagueId)
 
             if (ineligible.length > 0) {
                 setActionLoading(false)
@@ -108,16 +99,15 @@ export default function PlayerDetailScreen() {
         if (!current || !leagueId) return
         setActionLoading(true)
         try {
-            await addFreeAgent(current.id, leagueId, id)
-            await loadRosterStatus()
-        } catch (e) {
-            if (getErrorMessage(e)?.includes('full')) {
-                const roster = await getRoster(current.id, leagueId)
-                setMyRoster(roster.filter((r) => !r.is_on_ir && !r.is_on_taxi))
+            const result = await addFreeAgentOrRequestDrop(current.id, leagueId, id)
+            if (result.status === 'roster_full') {
+                setMyRoster(result.activeRoster)
                 setDropPickerVisible(true)
             } else {
-                showAlert('Error', getErrorMessage(e))
+                await loadRosterStatus()
             }
+        } catch (e) {
+            showAlert('Error', getErrorMessage(e))
         } finally {
             setActionLoading(false)
         }
@@ -127,8 +117,7 @@ export default function PlayerDetailScreen() {
         if (!current || !leagueId) return
         setDropping(rosterPlayer.id)
         try {
-            await dropPlayer(rosterPlayer.id)
-            await addFreeAgent(current.id, leagueId, id)
+            await dropAndAddFreeAgent(rosterPlayer.id, current.id, leagueId, id)
             setDropPickerVisible(false)
             await loadRosterStatus()
         } catch (e) {
@@ -141,17 +130,18 @@ export default function PlayerDetailScreen() {
     async function handleIRActivate(rp: RosterPlayer) {
         if (!current || !leagueId) return
         try {
-            const lockMessage = await getRosterStatusChangeLockMessage(rp)
-            if (lockMessage) {
-                showAlert('Roster locked', lockMessage)
+            const result = await resolveRosterAddIRConflict({
+                memberId: current.id,
+                leagueId,
+                activatePlayer: rp,
+            })
+            if (result.status === 'locked') {
+                showAlert('Roster locked', result.message)
                 return
             }
 
-            await toggleIR(rp.id, false)
-            const roster = await getRoster(current.id, leagueId)
-            const remaining = roster.filter((r) => isIneligibleIR(r))
-            if (remaining.length > 0) {
-                setIrModal((prev) => prev ? { ...prev, ineligible: remaining, roster } : null)
+            if (result.remaining.length > 0) {
+                setIrModal((prev) => prev ? { ...prev, ineligible: result.remaining, roster: result.roster } : null)
             } else {
                 const action = irModal?.action ?? 'add'
                 setIrModal(null)
@@ -162,9 +152,8 @@ export default function PlayerDetailScreen() {
             // the failure left the roster in an unexpected shape.
             showAlert('Could not activate from IR', getErrorMessage(e) ?? 'Unknown error')
             try {
-                const roster = await getRoster(current.id, leagueId)
-                const remaining = roster.filter((r) => isIneligibleIR(r))
-                setIrModal((prev) => prev ? { ...prev, ineligible: remaining, roster } : null)
+                const { roster, ineligible } = await loadRosterAddGate(current.id, leagueId)
+                setIrModal((prev) => prev ? { ...prev, ineligible, roster } : null)
             } catch {
                 // best-effort refresh; swallow secondary failures
             }
@@ -173,21 +162,20 @@ export default function PlayerDetailScreen() {
 
     async function handleDropAndIRActivate(toDrop: RosterPlayer, activatePlayer: RosterPlayer) {
         if (!current || !leagueId) return
-        let dropped = false
         try {
-            const lockMessage = await getRosterStatusChangeLockMessage(activatePlayer)
-            if (lockMessage) {
-                showAlert('Roster locked', lockMessage)
+            const result = await resolveRosterAddIRConflict({
+                memberId: current.id,
+                leagueId,
+                activatePlayer,
+                dropPlayer: toDrop,
+            })
+            if (result.status === 'locked') {
+                showAlert('Roster locked', result.message)
                 return
             }
 
-            await dropPlayer(toDrop.id)
-            dropped = true
-            await toggleIR(activatePlayer.id, false)
-            const roster = await getRoster(current.id, leagueId)
-            const remaining = roster.filter((r) => isIneligibleIR(r))
-            if (remaining.length > 0) {
-                setIrModal((prev) => prev ? { ...prev, ineligible: remaining, roster } : null)
+            if (result.remaining.length > 0) {
+                setIrModal((prev) => prev ? { ...prev, ineligible: result.remaining, roster: result.roster } : null)
             } else {
                 const action = irModal?.action ?? 'add'
                 setIrModal(null)
@@ -195,23 +183,11 @@ export default function PlayerDetailScreen() {
             }
         } catch (e) {
             const underlying = getErrorMessage(e) ?? 'Unknown error'
-            if (dropped) {
-                // Half-committed: drop succeeded but IR activation failed. Make
-                // it crystal clear so the user knows their roster changed.
-                const droppedName = toDrop.players?.display_name ?? 'Player'
-                const activateName = activatePlayer.players?.display_name ?? 'the IR player'
-                showAlert(
-                    'Partial failure',
-                    `${droppedName} was dropped to free agency, but activating ${activateName} failed: ${underlying}`,
-                )
-            } else {
-                showAlert('Could not drop player', underlying)
-            }
-            // Refresh modal state to reflect actual roster after the partial change.
+            showAlert('Could not update roster', underlying)
+            // Refresh modal state to reflect actual roster after the failed transaction.
             try {
-                const roster = await getRoster(current.id, leagueId)
-                const remaining = roster.filter((r) => isIneligibleIR(r))
-                setIrModal((prev) => prev ? { ...prev, ineligible: remaining, roster } : null)
+                const { roster, ineligible } = await loadRosterAddGate(current.id, leagueId)
+                setIrModal((prev) => prev ? { ...prev, ineligible, roster } : null)
             } catch {
                 // best-effort refresh; swallow secondary failures
             }
@@ -241,8 +217,7 @@ export default function PlayerDetailScreen() {
     async function handleClaim() {
         if (!current || !leagueId) return
         // Check for ineligible IR players before allowing waiver claim
-        const roster = await getRoster(current.id, leagueId)
-        const ineligible = roster.filter((r) => isIneligibleIR(r))
+        const { roster, ineligible } = await loadRosterAddGate(current.id, leagueId)
 
         if (ineligible.length > 0) {
             setIrModal({ ineligible, roster, action: 'claim' })

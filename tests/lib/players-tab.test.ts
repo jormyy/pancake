@@ -4,7 +4,7 @@ vi.mock('@/lib/supabase', () => ({ supabase: { from: vi.fn() } }))
 vi.mock('@/lib/shared/season', () => ({ currentSeasonYear: vi.fn(() => 2025) }))
 
 import { supabase } from '@/lib/supabase'
-import { getPlayerTransactionHistory } from '@/lib/players'
+import { getPlayerGameLog, getPlayerTransactionHistory, searchPlayers } from '@/lib/players'
 
 // ── Pure logic helpers (extracted from component logic) ──────────────────────
 
@@ -139,5 +139,155 @@ describe('getPlayerTransactionHistory', () => {
         const result = await getPlayerTransactionHistory('player-1', 'league-1')
 
         expect(result).toHaveLength(0)
+    })
+})
+
+describe('getPlayerGameLog', () => {
+    const gameRow = (id: string, nbaGameId: string, gameDate: string) => ({
+        id,
+        points: 10,
+        rebounds: 3,
+        offensive_rebounds: 1,
+        defensive_rebounds: 2,
+        assists: 4,
+        steals: 1,
+        blocks: 0,
+        turnovers: 2,
+        personal_fouls: 1,
+        field_goals_made: 4,
+        field_goals_attempted: 8,
+        three_pointers_made: 1,
+        three_pointers_attempted: 3,
+        free_throws_made: 1,
+        free_throws_attempted: 2,
+        plus_minus: 5,
+        double_double: false,
+        triple_double: false,
+        did_not_play: false,
+        minutes_played: 12.5,
+        nba_games: {
+            id: `game-${id}`,
+            nba_game_id: nbaGameId,
+            game_date: gameDate,
+            home_team: 'BOS',
+            away_team: 'NYK',
+        },
+    })
+
+    function setupGameLogMock(rows: any[]) {
+        const rangeStub = vi.fn().mockResolvedValue({ data: rows, error: null })
+        const orderStub = vi.fn().mockReturnValue({ range: rangeStub })
+        const likeStub = vi.fn().mockReturnValue({ order: orderStub })
+        const eqSeasonStub = vi.fn().mockReturnValue({ like: likeStub })
+        const eqPlayerStub = vi.fn().mockReturnValue({ eq: eqSeasonStub })
+        const selectStub = vi.fn().mockReturnValue({ eq: eqPlayerStub })
+        ;(supabase.from as ReturnType<typeof vi.fn>).mockReturnValue({ select: selectStub })
+        return { likeStub, rangeStub }
+    }
+
+    beforeEach(() => {
+        vi.clearAllMocks()
+    })
+
+    it('filters regular-season games in the query before applying range pagination', async () => {
+        const queriedRows = [
+            gameRow('regular-2', '0022700002', '2027-10-24'),
+            gameRow('regular-3', '0022700003', '2027-10-26'),
+            gameRow('regular-4', '0022700004', '2027-10-28'),
+        ]
+        const { likeStub, rangeStub } = setupGameLogMock(queriedRows)
+
+        const result = await getPlayerGameLog('player-1', 'BOS', 2027, 2, 1)
+
+        expect(likeStub).toHaveBeenCalledWith('nba_games.nba_game_id', '002%')
+        expect(rangeStub).toHaveBeenCalledWith(1, 3)
+        expect(result.hasMore).toBe(true)
+        expect(result.games.map((game) => game.gameId)).toEqual(['regular-2', 'regular-3'])
+    })
+})
+
+describe('searchPlayers', () => {
+    beforeEach(() => {
+        vi.clearAllMocks()
+    })
+
+    function query(data: any[]) {
+        const calls: string[] = []
+        let resultData = data
+        const chain: any = {
+            calls,
+            select: vi.fn((columns: string) => {
+                calls.push(`select:${columns}`)
+                return chain
+            }),
+            eq: vi.fn(() => chain),
+            in: vi.fn(() => chain),
+            not: vi.fn(() => chain),
+            is: vi.fn(() => chain),
+            ilike: vi.fn(() => chain),
+            filter: vi.fn(() => chain),
+            order: vi.fn(() => chain),
+            limit: vi.fn(() => chain),
+            range: vi.fn((from: number, to: number) => {
+                resultData = data.slice(from, to + 1)
+                return chain
+            }),
+            then: (resolve: any, reject: any) => Promise.resolve({ data: resultData, error: null }).then(resolve, reject),
+        }
+        return chain
+    }
+
+    it('uses season averages as the base table for no-league FPts sorting', async () => {
+        const averagesQuery = query([
+            {
+                player_id: 'player-high',
+                avg_points: 18,
+                games_played: 2,
+                players: {
+                    id: 'player-high',
+                    display_name: 'High Player',
+                    nba_team: 'NYK',
+                    position: 'SG',
+                    eligible_positions: ['SG'],
+                    status: null,
+                    injury_status: null,
+                    nba_id: '2',
+                    years_exp: 2,
+                },
+            },
+            {
+                player_id: 'player-low',
+                avg_points: 4,
+                games_played: 1,
+                players: {
+                    id: 'player-low',
+                    display_name: 'Low Player',
+                    nba_team: 'BOS',
+                    position: 'PG',
+                    eligible_positions: ['PG'],
+                    status: null,
+                    injury_status: null,
+                    nba_id: '1',
+                    years_exp: 3,
+                },
+            },
+        ])
+        const from = supabase.from as ReturnType<typeof vi.fn>
+        from.mockImplementation((table: string) => {
+            if (table === 'mv_player_season_averages') return averagesQuery
+            throw new Error(`Unexpected table ${table}`)
+        })
+
+        const result = await searchPlayers('', 'ALL', [], null, null, false, 0, 'all', {}, {
+            sortMode: 'fpts',
+            sortDir: 'desc',
+            pageSize: 1,
+        })
+
+        expect(from.mock.calls.map(([table]) => table)).toEqual(['mv_player_season_averages'])
+        expect(averagesQuery.select).toHaveBeenCalledWith(expect.stringContaining('players!inner'))
+        expect(averagesQuery.order).toHaveBeenCalledWith('avg_points', { ascending: false })
+        expect(averagesQuery.range).toHaveBeenCalledWith(0, 0)
+        expect(result.map((player) => player.id)).toEqual(['player-high'])
     })
 })

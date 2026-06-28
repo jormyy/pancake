@@ -2,10 +2,11 @@
     "name": "@pancake/core",
     "version": "1.0.0",
     "private": true,
-    "main": "./src/index.ts",
+    "main": "./cjs/index.js",
     "types": "./src/index.ts",
     "scripts": {
-        "build": "tsc",
+        "build": "tsc && tsc -p tsconfig.cjs.json",
+        "build:cjs": "tsc -p tsconfig.cjs.json",
         "typecheck": "tsc --noEmit",
         "test": "vitest run",
         "test:watch": "vitest"

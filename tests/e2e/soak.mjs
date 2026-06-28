@@ -470,9 +470,9 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
       evidence: args.tradeAccept ? 'Trade-accept mode creates a disposable player+future-pick trade, verifies mismatched auth/member acceptance is rejected, accepts through the real /trades/:tradeId/accept route, checks assets stay put during the veto window, expires the window, runs /e2e/process-trades, and checks players, picks, trade status, and transaction rows.' : 'Enable E2E_ENABLE_TRADE_ACCEPT=1 to exercise authenticated multi-asset trade acceptance.',
     },
     {
-      requirement: 'D.SEA.3 standings tiebreakers/RPS',
+      requirement: 'D.SEA.3 standings tiebreakers',
       status: tiebreakerStatus,
-      evidence: args.tiebreakers ? 'Tiebreaker mode seeds a disposable four-way tie and calls the real authenticated /playoffs/generate route to verify max-points/points-against/RPS handling.' : 'No forced four-way tie or RPS browser/backend scenario implemented; enable E2E_ENABLE_TIEBREAKERS=1 for standings tiebreaker coverage.',
+      evidence: args.tiebreakers ? 'Tiebreaker mode seeds a disposable four-way tie and calls the real authenticated /playoffs/generate route to verify max-points/points-against/deterministic tiebreaker handling.' : 'No forced four-way tie scenario implemented; enable E2E_ENABLE_TIEBREAKERS=1 for standings tiebreaker coverage.',
     },
     {
       requirement: 'D.SEA.4 playoffs/champion',
@@ -582,7 +582,7 @@ const assertEnv = async (seasons) => {
   const missing = []
   if (!env.supabaseUrl) missing.push('E2E_SUPABASE_URL or SUPABASE_URL')
   if (!env.serviceRoleKey) {
-    missing.push('E2E_PANCAKE_SUPABASE_SECRET_KEY, PANCAKE_SUPABASE_SECRET_KEY, E2E_SUPABASE_SECRET_KEY, SUPABASE_SECRET_KEY, E2E_SUPABASE_SERVICE_ROLE_KEY, or SUPABASE_SERVICE_ROLE_KEY')
+    missing.push('E2E_PANCAKE_SUPABASE_SECRET_KEY, PANCAKE_SUPABASE_SECRET_KEY, E2E_SUPABASE_SECRET_KEY, or SUPABASE_SECRET_KEY')
   }
   if (missing.length === 0) return
 
@@ -638,7 +638,7 @@ const runSchemaPreflight = async (supabase) => {
     requireRpc(
       supabase,
       'place_auction_bid_atomic',
-      { p_draft_id: zeroUuid, p_member_id: zeroUuid, p_nomination_id: zeroUuid, p_amount: 0 },
+      { p_draft_id: zeroUuid, p_member_id: zeroUuid, p_nomination_id: zeroUuid, p_amount: 0, p_user_id: zeroUuid },
       /positive integer/i,
     ),
     requireRpc(supabase, 'process_next_waiver_claim_atomic', { p_process_date: '1900-01-01' }, null),
@@ -939,7 +939,7 @@ const setupFuturePickChain = async (supabase, leagueId) => {
     'id, season_year',
     { league_id: leagueId, is_current: true },
   )
-  const members = await fetchAll(supabase, 'league_members', 'id, team_name, joined_at', { league_id: leagueId })
+  const members = await fetchAll(supabase, 'league_members', 'id, user_id, team_name, joined_at', { league_id: leagueId })
   members.sort((a, b) => {
     const joined = String(a.joined_at).localeCompare(String(b.joined_at))
     return joined === 0 ? String(a.id).localeCompare(String(b.id)) : joined
@@ -1225,7 +1225,7 @@ const assertHistoryRetained = async (supabase, fixtures, runSeason) => {
   return failures
 }
 
-const e2eCode = () => Math.random().toString(36).replace(/[^a-z0-9]/g, '').slice(2, 8).toUpperCase().padEnd(6, '0')
+const e2eCode = () => Math.random().toString(36).replace(/[^a-z0-9]/g, '').slice(2, 18).toUpperCase().padEnd(16, '0')
 
 const EXPECTED_DEFAULT_LINEUP_SLOTS = {
   PG: 1,
@@ -1829,8 +1829,8 @@ const assertLeagueLifecycleScenario = async ({ supabase, env, state, season }) =
   })
   if (createError) throw new Error(`${label}: create_league failed: ${createError.message}`)
   if (!createdLeague?.id) throw new Error(`${label}: create_league returned no league id`)
-  if (!/^[A-Z0-9]{6}$/.test(createdLeague.invite_code ?? '')) {
-    failures.push(`${label}: invite_code=${createdLeague.invite_code ?? '<missing>'}; expected six uppercase alnum chars`)
+  if (!/^[A-Z0-9]{16}$/.test(createdLeague.invite_code ?? '')) {
+    failures.push(`${label}: invite_code=${createdLeague.invite_code ?? '<missing>'}; expected 16 uppercase alnum chars`)
   }
 
   for (const [index, user] of users.slice(1).entries()) {
@@ -3266,10 +3266,10 @@ const assertStandingsTiebreakerScenario = async ({ supabase, env, state, season 
         'points_for',
         'max_possible_points',
         'points_against',
-        'rps_challenges',
+        'deterministic_tiebreaker_audit',
       ],
       maxPointsScenario: 'all four teams are 1-1 with equal points_for; max_possible_points should seed D.SEA.3 Seed 2 first, Seed 4 second, Seed 1 third, Seed 3 fourth',
-      rpsScenario: 'all four teams are 1-1 with equal points_for, max_possible_points, and points_against; RPS challenges should be created before deterministic playoff seeding',
+      rpsScenario: 'all four teams are 1-1 with equal points_for, max_possible_points, and points_against; completed tiebreaker audit rows should be created while deterministic playoff seeding succeeds',
     },
     seeds: maxFixture.members.map((member, index) => ({
       expectedSeed: index + 1,
@@ -3431,6 +3431,7 @@ const insertRealtimeAuctionTarget = async (supabase, leagueId, season) => {
     nominationId: nomination.id,
     bidderOne: members[0].id,
     bidderTwo: members[1].id,
+    bidderTwoUserId: members[1].user_id,
     playerId: player.id,
   }
 }
@@ -3589,6 +3590,7 @@ const assertRealtimeDelivery = async ({ supabase, env, state, leagueId, season }
       p_member_id: bidTarget.bidderTwo,
       p_nomination_id: bidTarget.nominationId,
       p_amount: expectedBidAmount,
+      p_user_id: bidTarget.bidderTwoUserId,
     })
     if (bidError) throw new Error(`D.X.2 realtime auction bid RPC: ${bidError.message}`)
     bidSucceeded = true
@@ -4208,7 +4210,10 @@ const assertAuctionBidValidation = async ({ supabase, leagueId, season }) => {
   if (members.length < 2) throw new Error('D.SET.4: auction validation requires at least two league members')
   const player = await findAvailablePlayer(supabase, leagueId, currentSeason.id)
 
-  const [{ id: bidderOne }, { id: bidderTwo }] = members
+  const [
+    { id: bidderOne, user_id: bidderOneUserId },
+    { id: bidderTwo, user_id: bidderTwoUserId },
+  ] = members
   const now = new Date().toISOString()
   const { error: cleanupDraftError } = await supabase
     .from('drafts')
@@ -4273,13 +4278,13 @@ const assertAuctionBidValidation = async ({ supabase, leagueId, season }) => {
     currentBid: await expectAuctionRpcError({
       supabase,
       label: 'bid at current amount',
-      args: { ...baseArgs, p_member_id: bidderOne, p_amount: 1 },
+      args: { ...baseArgs, p_member_id: bidderOne, p_amount: 1, p_user_id: bidderOneUserId },
       pattern: /Bid must exceed current bid/i,
     }),
     overBudget: await expectAuctionRpcError({
       supabase,
       label: 'bid over budget',
-      args: { ...baseArgs, p_member_id: bidderOne, p_amount: 6 },
+      args: { ...baseArgs, p_member_id: bidderOne, p_amount: 6, p_user_id: bidderOneUserId },
       pattern: /Insufficient budget/i,
     }),
   }
@@ -4288,13 +4293,14 @@ const assertAuctionBidValidation = async ({ supabase, leagueId, season }) => {
     ...baseArgs,
     p_member_id: bidderOne,
     p_amount: 2,
+    p_user_id: bidderOneUserId,
   })
   if (firstBidError) throw new Error(`D.SET.4 first valid auction bid: ${firstBidError.message}`)
 
   rejected.selfOverbid = await expectAuctionRpcError({
     supabase,
     label: 'self-overbid',
-    args: { ...baseArgs, p_member_id: bidderOne, p_amount: 3 },
+    args: { ...baseArgs, p_member_id: bidderOne, p_amount: 3, p_user_id: bidderOneUserId },
     pattern: /already the highest bidder/i,
   })
 
@@ -4302,6 +4308,7 @@ const assertAuctionBidValidation = async ({ supabase, leagueId, season }) => {
     ...baseArgs,
     p_member_id: bidderTwo,
     p_amount: 3,
+    p_user_id: bidderTwoUserId,
   })
   if (secondBidError) throw new Error(`D.SET.4 second valid auction bid: ${secondBidError.message}`)
 
@@ -4761,8 +4768,8 @@ const main = async () => {
       ? 'Playoff bracket scenario enabled through E2E_ENABLE_PLAYOFFS=1.'
       : 'Playoff bracket scenario disabled; set E2E_ENABLE_PLAYOFFS=1 to exercise the D.SEA.4 top-6 bracket slice.',
     args.tiebreakers
-      ? 'Standings tiebreaker/RPS scenario enabled through E2E_ENABLE_TIEBREAKERS=1.'
-      : 'Standings tiebreaker/RPS scenario disabled; set E2E_ENABLE_TIEBREAKERS=1 to exercise D.SEA.3.',
+      ? 'Standings tiebreaker scenario enabled through E2E_ENABLE_TIEBREAKERS=1.'
+      : 'Standings tiebreaker scenario disabled; set E2E_ENABLE_TIEBREAKERS=1 to exercise D.SEA.3.',
     args.settings
       ? 'Commissioner settings propagation scenario enabled through E2E_ENABLE_SETTINGS=1.'
       : 'Commissioner settings propagation scenario disabled; set E2E_ENABLE_SETTINGS=1 to exercise D.SET.3.',

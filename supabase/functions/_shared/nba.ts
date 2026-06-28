@@ -1,3 +1,6 @@
+import { isRegularSeasonGameId } from './gameId.ts'
+export { isRegularSeasonGameId } from './gameId.ts'
+
 const NBA_CDN = Deno.env.get('NBA_CDN_BASE_URL') ?? 'https://cdn.nba.com/static/json'
 
 const NBA_HEADERS = {
@@ -34,15 +37,6 @@ export function parseNBAMinutes(iso: string | null | undefined): number | null {
   return Math.round((mins + secs / 60) * 100) / 100
 }
 
-export function isRegularSeasonGameId(gameId: string | null | undefined): boolean {
-  const id = gameId?.trim()
-  if (!id) return false
-
-  if (id.startsWith('002')) return true
-  if (/^00\d/.test(id)) return false
-  return true
-}
-
 export async function fetchTodaysGames(): Promise<NBAGame[]> {
   const data = await cdnGet('/liveData/scoreboard/todaysScoreboard_00.json') as any
   return ((data?.scoreboard?.games ?? []) as NBAGame[]).filter((game) => isRegularSeasonGameId(game.gameId))
@@ -55,30 +49,41 @@ export async function fetchBoxScore(gameId: string): Promise<NBABoxScore> {
 
 export async function fetchSeasonSchedule(): Promise<NBAScheduledGame[]> {
   const data = await cdnGet('/staticData/scheduleLeagueV2_1.json') as any
+  const scheduleSeasonYear = firstString(data?.leagueSchedule?.seasonYear)
   const gameDates: unknown[] = data?.leagueSchedule?.gameDates ?? []
 
   const games: NBAScheduledGame[] = []
   for (const day of gameDates as any[]) {
     for (const g of day.games ?? []) {
-      const gameDate = g.gameDateEst
-        ? g.gameDateEst.split('T')[0]
-        : g.gameEt
-          ? g.gameEt.split('T')[0]
-          : null
-      if (!gameDate) continue
-
-      games.push({
-        gameId: g.gameId,
-        gameDate,
-        homeTeam: g.homeTeam?.teamTricode ?? '',
-        awayTeam: g.awayTeam?.teamTricode ?? '',
-        status: mapGameStatus(g.gameStatus),
-        startedAt: g.gameEt ?? null,
-        weekNumber: g.weekNumber ?? null,
-      })
+      const game = parseNBAScheduleGame(g, scheduleSeasonYear)
+      if (game) games.push(game)
     }
   }
   return games
+}
+
+function firstString(...values: unknown[]): string | null {
+  for (const value of values) {
+    if (typeof value === 'string' && value.length > 0) return value
+  }
+  return null
+}
+
+export function parseNBAScheduleGame(g: any, scheduleSeasonYear: string | null = null): NBAScheduledGame | null {
+  const gameDateSource = firstString(g.gameDateEst, g.gameDateTimeEst, g.gameEt, g.gameDateTimeUTC)
+  const gameDate = gameDateSource?.split('T')[0] ?? null
+  if (!gameDate) return null
+
+  return {
+    gameId: g.gameId,
+    gameDate,
+    homeTeam: g.homeTeam?.teamTricode ?? '',
+    awayTeam: g.awayTeam?.teamTricode ?? '',
+    status: mapGameStatus(g.gameStatus),
+    startedAt: firstString(g.gameDateTimeUTC, g.gameDateTimeEst, g.gameEt),
+    weekNumber: g.weekNumber ?? null,
+    scheduleSeasonYear,
+  }
 }
 
 export function mapGameStatus(s: number): string {
@@ -104,6 +109,7 @@ export interface NBAScheduledGame {
   status: string
   startedAt: string | null
   weekNumber: number | null
+  scheduleSeasonYear: string | null
 }
 
 export interface NBABoxScore {

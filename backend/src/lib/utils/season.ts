@@ -1,8 +1,5 @@
 import { supabase } from '../supabase'
-export function currentSeasonYear(): number {
-    const now = new Date()
-    return now.getMonth() >= 9 ? now.getFullYear() + 1 : now.getFullYear()
-}
+export { currentSeasonYear } from '@pancake/core'
 
 /**
  * Fetches the current league season row (id + season_year).

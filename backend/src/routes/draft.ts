@@ -11,7 +11,7 @@ import {
     reseedRookieDraftPicks,
     autoPickBest,
 } from '../sync/rookieDraft'
-import { requireCommissioner, requireCommissionerForDraft, verifyMemberAccess } from '../lib/authz'
+import { requireCommissioner, requireCommissionerForDraft, verifyOwnMember } from '../lib/authz'
 import {
     LeagueIdBody,
     StartDraftBody,
@@ -50,8 +50,8 @@ export default async function draftRoutes(app: FastifyInstance) {
         async (req) => {
             const { draftId } = req.params as { draftId: string }
             const { memberId, playerId } = req.body as { memberId: string; playerId: string }
-            await verifyMemberAccess(req.userId, memberId)
-            const nomination = await nominatePlayer(draftId, memberId, playerId)
+            await verifyOwnMember(req.userId, memberId)
+            const nomination = await nominatePlayer(draftId, memberId, playerId, req.userId)
             return { ok: true, nomination }
         },
     )
@@ -69,8 +69,8 @@ export default async function draftRoutes(app: FastifyInstance) {
                 nominationId: string
                 amount: number
             }
-            await verifyMemberAccess(req.userId, memberId)
-            return await placeBid(draftId, memberId, nominationId, amount)
+            await verifyOwnMember(req.userId, memberId)
+            return await placeBid(draftId, memberId, nominationId, amount, req.userId)
         },
     )
 
@@ -81,9 +81,10 @@ export default async function draftRoutes(app: FastifyInstance) {
             config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
         },
         async (req) => {
+            const { draftId } = req.params as { draftId: string }
             const { memberId, nominationId } = req.body as { memberId: string; nominationId: string }
-            await verifyMemberAccess(req.userId, memberId)
-            return await withdrawNomination(memberId, nominationId, req.userId)
+            await verifyOwnMember(req.userId, memberId)
+            return await withdrawNomination(draftId, memberId, nominationId, req.userId)
         },
     )
 
@@ -101,7 +102,7 @@ export default async function draftRoutes(app: FastifyInstance) {
         async (req) => {
             const { draftId } = req.params as { draftId: string }
             const { memberId } = req.body as { memberId: string }
-            await verifyMemberAccess(req.userId, memberId)
+            await verifyOwnMember(req.userId, memberId)
             const result = await autoPickBest(draftId, memberId)
             return { ok: true, ...result }
         },
@@ -124,7 +125,7 @@ export default async function draftRoutes(app: FastifyInstance) {
         async (req) => {
             const { draftId } = req.params as { draftId: string }
             const { memberId, playerId } = req.body as { memberId: string; playerId: string }
-            await verifyMemberAccess(req.userId, memberId)
+            await verifyOwnMember(req.userId, memberId)
             const result = await makeSnakePick(draftId, memberId, playerId)
             return { ok: true, ...result }
         },

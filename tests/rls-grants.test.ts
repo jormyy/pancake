@@ -1,6 +1,12 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync, readdirSync } from 'node:fs'
 import path from 'node:path'
+import {
+    functionPrivilegeStatements,
+    latestFunctionDefinition,
+    latestPolicyDefinition,
+    tablePrivilegeStatements,
+} from './source-guard'
 
 // Persistence-layer IDOR guard.
 //
@@ -27,6 +33,7 @@ const SERVICE_ROLE_ONLY_RPCS = [
     'create_waiver_claim_atomic',
     'cancel_waiver_claim_atomic',
     'process_next_waiver_claim_atomic',
+    'create_auction_nomination_atomic',
     'place_auction_bid_atomic',
     'close_auction_nomination_atomic',
     'withdraw_auction_nomination_atomic',
@@ -41,6 +48,7 @@ const SERVICE_ROLE_ONLY_RPCS = [
     'try_live_poll_lease',
     'release_live_poll_lease',
     'invoke_edge_function',
+    'invoke_edge_function_at_et_time',
     'merge_players',
     'merge_duplicate_players',
     'count_final_games_missing_stats',
@@ -110,5 +118,126 @@ describe('service-role-only RPCs are never granted to client roles', () => {
                 /\b(authenticated|anon|public)\b/,
             )
         }
+    })
+
+    it('locks the ET cron Edge wrapper away from client roles', () => {
+        const privileges = functionPrivilegeStatements('invoke_edge_function_at_et_time').join('\n')
+
+        expect(privileges).toContain('REVOKE ALL ON FUNCTION public.invoke_edge_function_at_et_time(text, int, int) FROM PUBLIC')
+        expect(privileges).toContain('REVOKE ALL ON FUNCTION public.invoke_edge_function_at_et_time(text, int, int) FROM anon')
+        expect(privileges).toContain('REVOKE ALL ON FUNCTION public.invoke_edge_function_at_et_time(text, int, int) FROM authenticated')
+        expect(privileges).toContain('GRANT EXECUTE ON FUNCTION public.invoke_edge_function_at_et_time(text, int, int) TO service_role')
+    })
+})
+
+describe('waiver privacy policies', () => {
+    it('does not allow league-wide reads of other managers pending waiver claims', () => {
+        const claimPolicy = latestPolicyDefinition(
+            'waiver_claims_select_own_pending_or_league_resolved',
+            'waiver_claims',
+        )
+
+        expect(claimPolicy).toContain("status <> 'pending'::waiver_claim_status")
+        expect(claimPolicy).toContain('OR member_id IN (SELECT private.my_member_ids())')
+        expect(claimPolicy).not.toContain('USING (league_id IN (SELECT private.my_league_ids()))')
+    })
+
+    it('does not expose pending claim rows through the direct waiver table policy', () => {
+        const claimPolicy = latestPolicyDefinition(
+            'waiver_claims_select_own_pending_or_league_resolved',
+            'waiver_claims',
+        )
+
+        expect(claimPolicy).toContain("status <> 'pending'::waiver_claim_status")
+        expect(claimPolicy).toContain('OR member_id IN (SELECT private.my_member_ids())')
+        expect(claimPolicy).not.toContain('priority_at_submission')
+    })
+})
+
+describe('profile privacy and invite capacity policies', () => {
+    it('blocks direct invite joins after the tenth league member', () => {
+        const joinBody = latestFunctionDefinition('join_league_by_invite_code')
+
+        expect(joinBody).toContain('v_member_count')
+        expect(joinBody).toContain('SELECT count(*)')
+        expect(joinBody).toContain('IF v_member_count >= 10 THEN')
+        expect(joinBody).toContain('This league is full.')
+    })
+
+    it('does not allow global profile enumeration or client push-token reads', () => {
+        const profilePolicy = latestPolicyDefinition('profiles_select_self_or_shared_league', 'profiles')
+        const profilePrivileges = tablePrivilegeStatements('profiles').join('\n')
+
+        expect(profilePolicy).toContain('id = (SELECT auth.uid())')
+        expect(profilePolicy).toContain('JOIN public.league_members AS visible_member')
+        expect(profilePolicy).toContain('visible_member.user_id = profiles.id')
+        expect(profilePrivileges).toContain('REVOKE SELECT ON public.profiles FROM anon, authenticated')
+        expect(profilePrivileges).toContain('GRANT SELECT (')
+        expect(profilePrivileges).toContain('updated_at')
+        expect(profilePrivileges).toContain('REVOKE SELECT (push_token) ON public.profiles FROM anon, authenticated')
+
+        const authenticatedGrant = profilePrivileges.match(/GRANT SELECT \([^;]*?\) ON public\.profiles TO authenticated;/i)?.[0]
+        expect(authenticatedGrant).toBeTruthy()
+        expect(authenticatedGrant).not.toContain('push_token')
+    })
+
+    it('does not keep a public username-availability oracle', () => {
+        const authSource = readFileSync(path.resolve(__dirname, '../lib/auth.ts'), 'utf8')
+
+        expect(() => latestFunctionDefinition('is_username_available')).toThrow(/dropped after its latest definition/)
+        expect(authSource).not.toContain('is_username_available')
+    })
+})
+
+describe('waiver intent oracle closure', () => {
+    it('hides expired uncleared waiver-wire rows from direct league-wide reads', () => {
+        const logPolicy = latestPolicyDefinition('waiver_wire_log_select_visible_league_rows', 'waiver_wire_log')
+
+        expect(logPolicy).toContain('league_id IN (SELECT private.my_league_ids())')
+        expect(logPolicy).toContain('cleared_at IS NOT NULL')
+        expect(logPolicy).toContain('OR clears_at > now()')
+        const waiverSource = readFileSync(path.resolve(__dirname, '../lib/waivers.ts'), 'utf8')
+        const playerIdsBody = waiverSource.slice(
+            waiverSource.indexOf('export async function getWaiverPlayerIds'),
+            waiverSource.indexOf('export async function submitWaiverClaim'),
+        )
+        const rosterSource = readFileSync(path.resolve(__dirname, '../lib/roster.ts'), 'utf8')
+        const rosterStatusBody = rosterSource.slice(
+            rosterSource.indexOf('export async function getPlayerRosterStatus'),
+            rosterSource.indexOf('export async function addFreeAgent'),
+        )
+
+        expect(playerIdsBody).toContain(".gt('clears_at', now)")
+        expect(rosterStatusBody).toContain(".gt('clears_at', now)")
+    })
+
+    it('does not branch on hidden pending waiver claims inside client-callable free-agent adds', () => {
+        const addBody = latestFunctionDefinition('add_free_agent_atomic')
+
+        expect(addBody).toContain('IF v_waiver_log_id IS NOT NULL THEN')
+        expect(addBody).toContain('This player is on waivers - submit a waiver claim instead.')
+        expect(addBody).not.toContain('FROM waiver_claims')
+        expect(addBody).not.toContain("wc.status = 'pending'")
+        expect(addBody).not.toContain('SET cleared_at = now()')
+    })
+})
+
+describe('trade privacy policies', () => {
+    it('keeps pending trade rows visible only to the proposing or receiving managers', () => {
+        const tradePolicy = latestPolicyDefinition('trades_select_parties_or_accepted', 'trades')
+
+        expect(tradePolicy).toContain("status = 'accepted'::public.trade_status")
+        expect(tradePolicy).toContain('OR proposer_member_id IN (SELECT private.my_member_ids())')
+        expect(tradePolicy).toContain('OR recipient_member_id IN (SELECT private.my_member_ids())')
+        expect(tradePolicy).not.toContain('USING (league_id IN (SELECT private.my_league_ids()))')
+    })
+
+    it('applies the same visibility rule to nested trade items', () => {
+        const itemPolicy = latestPolicyDefinition('trade_items_select_parties_or_accepted', 'trade_items')
+
+        expect(itemPolicy).toContain('WHERE trade.id = trade_items.trade_id')
+        expect(itemPolicy).toContain("trade.status = 'accepted'::public.trade_status")
+        expect(itemPolicy).toContain('OR trade.proposer_member_id IN (SELECT private.my_member_ids())')
+        expect(itemPolicy).toContain('OR trade.recipient_member_id IN (SELECT private.my_member_ids())')
     })
 })

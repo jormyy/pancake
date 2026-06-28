@@ -1,6 +1,8 @@
 import { supabase } from '../lib/supabase'
 import { CONFIG } from '../config'
 
+const PLAYOFF_MATCHUP_TYPES = ['playoff_quarterfinal', 'playoff_semifinal', 'playoff_final'] as const
+
 // Standard round-robin: fix teams[0], rotate the rest each round.
 // Returns an array of rounds, each round being a list of home/away pairs.
 export function roundRobinRounds(ids: string[]): { home: string; away: string }[][] {
@@ -27,6 +29,26 @@ export function roundRobinRounds(ids: string[]): { home: string; away: string }[
     return rounds
 }
 
+async function assertCanForceRegenerate(leagueSeasonId: string): Promise<void> {
+    const [finalizedRes, playoffRes] = await Promise.all([
+        supabase
+            .from('matchups')
+            .select('id', { count: 'exact', head: true })
+            .eq('league_season_id', leagueSeasonId)
+            .eq('is_finalized', true),
+        supabase
+            .from('matchups')
+            .select('id', { count: 'exact', head: true })
+            .eq('league_season_id', leagueSeasonId)
+            .in('matchup_type', PLAYOFF_MATCHUP_TYPES),
+    ])
+    if (finalizedRes.error) throw finalizedRes.error
+    if (playoffRes.error) throw playoffRes.error
+    if ((finalizedRes.count ?? 0) > 0 || (playoffRes.count ?? 0) > 0) {
+        throw new Error('Cannot force-regenerate matchups after finalized or playoff matchups exist.')
+    }
+}
+
 // Generates the full regular-season H2H schedule for a league.
 // Safe to call multiple times — skips if matchups already exist for the season.
 export async function generateMatchups(
@@ -47,17 +69,20 @@ export async function generateMatchups(
     }
 
     // Idempotency check (skip unless force)
-    const { count } = await supabase
+    const { count, error: countErr } = await supabase
         .from('matchups')
         .select('id', { count: 'exact', head: true })
         .eq('league_season_id', leagueSeasonId)
+    if (countErr) throw countErr
     if ((count ?? 0) > 0) {
         if (!force) {
             console.log('[matchups] Schedule already generated for this season.')
             return
         }
+        await assertCanForceRegenerate(leagueSeasonId)
         console.log('[matchups] Force-regenerating — deleting existing matchups...')
-        await supabase.from('matchups').delete().eq('league_season_id', leagueSeasonId)
+        const { error: deleteErr } = await supabase.from('matchups').delete().eq('league_season_id', leagueSeasonId)
+        if (deleteErr) throw deleteErr
     }
 
     const memberIds = members.map((m) => m.id)

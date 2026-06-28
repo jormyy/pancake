@@ -8,15 +8,23 @@
 import { supabase } from '../_shared/supabase.ts'
 import { fetchTodaysGames, fetchBoxScore, fetchSeasonSchedule } from '../_shared/nba.ts'
 import { currentSeasonYear } from '../_shared/season.ts'
+import { requireInternalFunctionAuth } from '../_shared/auth.ts'
 import { errorMessage, internalServerError } from '../_shared/responses.ts'
 
 Deno.serve(async (req) => {
+  const authError = requireInternalFunctionAuth(req)
+  if (authError) return authError
+
   try {
     const url = new URL(req.url)
     const body = req.method === 'POST' ? await req.json().catch(() => ({})) : {}
     const action = url.searchParams.get('action') ?? body.action
     const seasonYearParam = url.searchParams.get('seasonYear') ?? body.seasonYear
     const seasonYear = seasonYearParam ? parseInt(seasonYearParam) : currentSeasonYear()
+
+    if (action === '__edge_auth_probe__') {
+      return Response.json({ ok: true, action })
+    }
 
     if (action === 'test-endpoints') {
       const results = await testNBAEndpoints()

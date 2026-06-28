@@ -19,16 +19,17 @@ export async function buildApp() {
 
     await app.register(cors, { origin: resolveCorsOrigin() })
     await app.register(rateLimit, {
-        max: process.env.ENABLE_E2E_ROUTES === '1' ? 10000 : 100,
+        max: 100,
         timeWindow: '1 minute',
         skipOnError: true,
         allowList: (req) => (
             process.env.ENABLE_E2E_ROUTES === '1' &&
             Boolean(process.env.E2E_ADMIN_SECRET) &&
-            req.url.startsWith('/e2e/')
+            req.url.startsWith('/e2e/') &&
+            req.headers['x-e2e-secret'] === process.env.E2E_ADMIN_SECRET
         ),
     })
-    await app.register(errorHandlerPlugin)
+    await errorHandlerPlugin(app)
     await authPlugin(app)
 
     await app.register(healthRoutes)

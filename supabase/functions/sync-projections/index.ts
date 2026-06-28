@@ -1,6 +1,7 @@
 import { supabase } from '../_shared/supabase.ts'
 import { calculateFantasyPoints, snakeToStatLine } from '../_shared/scoring.ts'
 import { currentSeasonYear } from '../_shared/season.ts'
+import { requireInternalFunctionAuth } from '../_shared/auth.ts'
 import { internalServerError } from '../_shared/responses.ts'
 
 const LOOKBACK_WEEKS = 4
@@ -14,7 +15,10 @@ const STD_SCORING: Record<string, number> = {
   free_throws_made: 0, free_throws_attempted: 0,
 }
 
-Deno.serve(async () => {
+Deno.serve(async (req) => {
+  const authError = requireInternalFunctionAuth(req)
+  if (authError) return authError
+
   try {
     await syncProjections()
     return Response.json({ ok: true })

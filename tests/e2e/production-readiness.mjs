@@ -1,10 +1,17 @@
-import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
-import { readFile, writeFile } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
 import { createClient } from '@supabase/supabase-js'
-import { describeEndpoint, envValue, loadEnvFile } from './env.mjs'
+import {
+  cleanMessage,
+  describeEndpoint,
+  envValue,
+  loadEnvFile,
+  runCommand,
+  statusFrom,
+  writeReportIfChanged,
+} from './env.mjs'
 
 const ROOT = process.cwd()
 const REPORT_PATH = path.join(ROOT, 'tests/production-readiness-report.md')
@@ -12,36 +19,7 @@ const REPORT_PATH = path.join(ROOT, 'tests/production-readiness-report.md')
 loadEnvFile(path.join(ROOT, '.env'))
 loadEnvFile(path.join(ROOT, 'backend/.env'))
 
-const commandText = (command, args) => [command, ...args].join(' ')
-
-const run = (command, args, options = {}) => {
-  const result = spawnSync(command, args, {
-    cwd: ROOT,
-    encoding: 'utf8',
-    timeout: options.timeout ?? 30000,
-    env: process.env,
-  })
-  return {
-    command: commandText(command, args),
-    status: result.status,
-    signal: result.signal,
-    stdout: result.stdout ?? '',
-    stderr: result.stderr ?? '',
-    error: result.error,
-  }
-}
-
-const statusFrom = (condition, blocked = 'BLOCKED') => (condition ? 'PASS' : blocked)
-
-const cleanMessage = (text) => text
-  .replaceAll(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, '[redacted-jwt]')
-  .replaceAll(/\bsb_secret_[A-Za-z0-9_-]+\b/g, '[redacted-secret-key]')
-  .replaceAll(/\bsb_publishable_[A-Za-z0-9_-]+\b/g, '[redacted-publishable-key]')
-  .split(/\r?\n/)
-  .map((line) => line.trim())
-  .filter(Boolean)
-  .slice(0, 6)
-  .join(' / ')
+const run = runCommand
 
 const readProjectRef = async () => {
   const refPath = path.join(ROOT, 'supabase/.temp/project-ref')
@@ -76,16 +54,6 @@ const legacyKeyNames = (rows) => {
 
 const startsWith = (value, prefix) => typeof value === 'string' && value.startsWith(prefix)
 
-const normalizeGeneratedAt = (text) => text.replace(/^- Generated: .+$/m, '- Generated: [generated]')
-
-const writeReportIfChanged = async (reportPath, report) => {
-  if (existsSync(reportPath)) {
-    const current = await readFile(reportPath, 'utf8')
-    if (normalizeGeneratedAt(current) === normalizeGeneratedAt(report)) return
-  }
-  await writeFile(reportPath, report)
-}
-
 const canQueryWithSupabaseKey = async (url, key) => {
   if (!url || !key) return { ok: false, evidence: 'Supabase URL or admin key is not configured.' }
   try {
@@ -104,7 +72,7 @@ const canQueryWithSupabaseKey = async (url, key) => {
   } catch (error) {
     return {
       ok: false,
-      evidence: `Admin key PostgREST probe threw: ${cleanMessage(error instanceof Error ? error.message : String(error))}`,
+        evidence: `Admin key PostgREST probe threw: ${cleanMessage(error instanceof Error ? error.message : String(error), { maxLines: 6 })}`,
     }
   }
 }
@@ -116,7 +84,7 @@ const main = async () => {
   rows.push({
     requirement: 'Supabase CLI available',
     status: statusFrom(supabaseVersion.status === 0),
-    evidence: supabaseVersion.status === 0 ? cleanMessage(supabaseVersion.stdout) : cleanMessage(supabaseVersion.stderr || String(supabaseVersion.error)),
+    evidence: supabaseVersion.status === 0 ? cleanMessage(supabaseVersion.stdout, { maxLines: 6 }) : cleanMessage(supabaseVersion.stderr || String(supabaseVersion.error), { maxLines: 6 }),
   })
 
   const projectRef = await readProjectRef()
@@ -133,7 +101,7 @@ const main = async () => {
     status: statusFrom(hasSecretKeys),
     evidence: hasSecretKeys
       ? 'Supabase Edge secrets include SUPABASE_SECRET_KEYS.'
-      : `Could not verify SUPABASE_SECRET_KEYS: ${cleanMessage(secrets.stderr || secrets.stdout || String(secrets.error))}`,
+      : `Could not verify SUPABASE_SECRET_KEYS: ${cleanMessage(secrets.stderr || secrets.stdout || String(secrets.error), { maxLines: 6 })}`,
   })
 
   const apiKeys = run('supabase', ['projects', 'api-keys', '-o', 'json'])
@@ -146,7 +114,7 @@ const main = async () => {
     status: statusFrom(apiKeys.status === 0),
     evidence: apiKeys.status === 0
       ? `Management API returned ${Array.isArray(apiKeyRows) ? apiKeyRows.length : 'unknown'} API-key metadata row(s); values intentionally not printed.`
-      : cleanMessage(apiKeys.stderr || apiKeys.stdout || String(apiKeys.error)),
+      : cleanMessage(apiKeys.stderr || apiKeys.stdout || String(apiKeys.error), { maxLines: 6 }),
   })
 
   rows.push({
@@ -176,8 +144,6 @@ const main = async () => {
     'PANCAKE_SUPABASE_SECRET_KEY',
     'E2E_SUPABASE_SECRET_KEY',
     'SUPABASE_SECRET_KEY',
-    'E2E_SUPABASE_SERVICE_ROLE_KEY',
-    'SUPABASE_SERVICE_ROLE_KEY',
   )
   rows.push({
     requirement: 'Local backend Supabase admin key is non-legacy',
@@ -201,7 +167,7 @@ const main = async () => {
     status: statusFrom(dbQuery.status === 0),
     evidence: dbQuery.status === 0
       ? 'supabase db query --linked completed.'
-      : cleanMessage(dbQuery.stderr || dbQuery.stdout || String(dbQuery.error)),
+      : cleanMessage(dbQuery.stderr || dbQuery.stdout || String(dbQuery.error), { maxLines: 6 }),
   })
 
   const dbPush = run('supabase', ['db', 'push', '--dry-run'], { timeout: 45000 })
@@ -210,7 +176,7 @@ const main = async () => {
     status: statusFrom(dbPush.status === 0),
     evidence: dbPush.status === 0
       ? 'supabase db push --dry-run completed.'
-      : cleanMessage(dbPush.stderr || dbPush.stdout || String(dbPush.error)),
+      : cleanMessage(dbPush.stderr || dbPush.stdout || String(dbPush.error), { maxLines: 6 }),
   })
 
   const dbPasswordPresent = Boolean(envValue('SUPABASE_DB_PASSWORD'))
@@ -234,7 +200,7 @@ const main = async () => {
     rows.push({
       requirement: 'Hosted Fastify health endpoint reachable',
       status: statusFrom(health.status === 0),
-      evidence: health.status === 0 ? `${describeEndpoint(healthUrl)} returned healthy JSON.` : cleanMessage(health.stderr || health.stdout || String(health.error)),
+      evidence: health.status === 0 ? `${describeEndpoint(healthUrl)} returned healthy JSON.` : cleanMessage(health.stderr || health.stdout || String(health.error), { maxLines: 6 }),
     })
   } else {
     rows.push({
@@ -244,18 +210,18 @@ const main = async () => {
     })
   }
 
-  const hostedFastifyModernKey = remoteHealth?.supabaseAdminKeyMode === 'modern-secret'
   const hostedFastifyManualVerified = envValue('PANCAKE_HOSTED_FASTIFY_SECRET_KEY_VERIFIED') === '1'
+  const hostedFastifyModernSecret = remoteHealth?.supabaseAdminKeyMode === 'modern-secret'
   rows.push({
     requirement: 'Hosted Fastify secret-key env verified',
-    status: statusFrom(hostedFastifyModernKey || hostedFastifyManualVerified),
-    evidence: hostedFastifyModernKey
-      ? 'Hosted /health reports supabaseAdminKeyMode=modern-secret.'
-      : hostedFastifyManualVerified
+    status: statusFrom(hostedFastifyModernSecret || hostedFastifyManualVerified),
+    evidence: hostedFastifyModernSecret
+        ? 'Hosted /health reports modern-secret.'
+        : hostedFastifyManualVerified
         ? 'Manual deployment/env verification flag is set.'
         : remoteHealth?.supabaseAdminKeyMode === 'legacy-service-role'
-          ? 'Hosted /health reports legacy-service-role; set PANCAKE_SUPABASE_SECRET_KEY or SUPABASE_SECRET_KEY on the host before disabling legacy keys.'
-        : 'Deploy a backend that exposes /health.supabaseAdminKeyMode, or set PANCAKE_HOSTED_FASTIFY_SECRET_KEY_VERIFIED=1 only after the host has PANCAKE_SUPABASE_SECRET_KEY or SUPABASE_SECRET_KEY configured.',
+          ? 'Hosted /health still reports legacy-service-role from an older deployment; set PANCAKE_SUPABASE_SECRET_KEY or SUPABASE_SECRET_KEY on the host before disabling legacy keys.'
+          : 'Verify hosted Fastify has PANCAKE_SUPABASE_SECRET_KEY or SUPABASE_SECRET_KEY through host configuration, then set PANCAKE_HOSTED_FASTIFY_SECRET_KEY_VERIFIED=1.',
   })
 
   const railwayAuth = run('npx', ['--yes', '@railway/cli', 'whoami'], { timeout: 30000 })
@@ -264,7 +230,7 @@ const main = async () => {
     status: statusFrom(railwayAuth.status === 0),
     evidence: railwayAuth.status === 0
       ? 'Railway CLI is authenticated; hosted Fastify env can be inspected with Railway project access.'
-      : cleanMessage(railwayAuth.stderr || railwayAuth.stdout || String(railwayAuth.error)),
+      : cleanMessage(railwayAuth.stderr || railwayAuth.stdout || String(railwayAuth.error), { maxLines: 6 }),
   })
 
   const legacyKeysDisabled = Array.isArray(legacyKeys) && legacyKeys.length === 0
@@ -296,7 +262,7 @@ const main = async () => {
     '',
     '- This check intentionally avoids printing secret values.',
     '- Manual flags are only accepted for host/dashboard operations that are not readable through local repo or Supabase CLI state.',
-    '- Before disabling legacy Supabase JWT keys, deploy hosted Fastify with `PANCAKE_SUPABASE_SECRET_KEY` or `SUPABASE_SECRET_KEY` and verify `/health` reports `supabaseAdminKeyMode=modern-secret`.',
+    '- Before disabling legacy Supabase JWT keys, deploy hosted Fastify with `PANCAKE_SUPABASE_SECRET_KEY` or `SUPABASE_SECRET_KEY`, verify the host env out-of-band, then set `PANCAKE_HOSTED_FASTIFY_SECRET_KEY_VERIFIED=1`.',
     '- To disable legacy Supabase JWT keys after hosted Fastify is verified, use the Supabase Management API endpoint: `PUT https://api.supabase.com/v1/projects/{ref}/api-keys/legacy?enabled=false`.',
     '- If linked Supabase DB access fails, provide `SUPABASE_DB_PASSWORD` or restore Supabase temporary login-role creation, then rerun `supabase db query --linked "select now();"` and `supabase db push --dry-run`.',
     '- To unblock hosted Fastify verification from this machine, authenticate Railway with `railway login` or provide a valid Railway token/session for `npx --yes @railway/cli whoami`.',

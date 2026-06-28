@@ -16,4 +16,5 @@ export const TRANSACTION_LABELS: Record<string, string> = {
     taxi_designate: 'Placed on Taxi Squad',
     taxi_return: 'Activated from Taxi Squad',
     draft_won: 'Drafted',
+    carry_over: 'Carried Over',
 }

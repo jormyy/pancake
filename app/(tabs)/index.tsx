@@ -53,6 +53,17 @@ export default function HomeScreen() {
     } = useMatchupData(current, user, league)
 
     const { todaysGames, liveStats, startedTeams, liveTeams, teamMatchups } = useLiveStats(selectedDate, refreshSilently)
+    const actionContext = matchup && league ? {
+        memberId: matchup.myMemberId,
+        leagueId: league.id,
+        seasonId: matchup.seasonId,
+        weekNumber: matchup.weekNumber,
+        seasonYear: matchup.seasonYear,
+    } : null
+    const reloadLineupForActions = useCallback(async (date: string) => {
+        if (!matchup) return
+        await loadMyLineup(matchup, date)
+    }, [matchup, loadMyLineup])
 
     const {
         selected, setSelected, saving, autoSetting,
@@ -60,7 +71,7 @@ export default function HomeScreen() {
         activationOverflowPending, setActivationOverflowPending, activationOverflowSaving,
         handleTap, handleOverflowDrop, handleOverflowMoveToIR, handleOverflowMoveToTaxi,
         doAutoSet, handleAutoSet,
-    } = useLineupActions({ matchup, myLineup, league, selectedDate, startedTeams, loadMyLineup })
+    } = useLineupActions({ actionContext, myLineup, league, selectedDate, startedTeams, reloadLineup: reloadLineupForActions })
 
     // Clear selection whenever lineup reloads (tab focus / league change)
     useEffect(() => {
