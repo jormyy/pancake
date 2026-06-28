@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { supabase } from '../lib/supabase'
 import { CONFIG } from '../config'
 import type { Database } from '../types/database'
@@ -10,41 +11,67 @@ type PlayoffSeed = {
     pointsFor: number
     maxPossiblePoints: number
     pointsAgainst: number
+    tieToken: string
 }
 
 type SeasonContext = {
     seasonId: string
+    seasonYear: number
     playoffStartWeek: number
 }
 
 async function getSeasonContext(leagueId: string): Promise<SeasonContext> {
-    const { data: season } = await supabase
+    const { data: season, error: seasonErr } = await supabase
         .from('league_seasons')
-        .select('id')
+        .select('id, season_year')
         .eq('league_id', leagueId)
         .eq('is_current', true)
         .single()
+    if (seasonErr) throw seasonErr
     if (!season) throw new Error('No active season found.')
 
-    const { data: league } = await supabase
+    const { data: league, error: leagueErr } = await supabase
         .from('leagues')
         .select('playoff_start_week')
         .eq('id', leagueId)
         .single()
+    if (leagueErr) throw leagueErr
     if (!league) throw new Error('League not found.')
 
     return {
         seasonId: season.id,
+        seasonYear: season.season_year,
         playoffStartWeek: league.playoff_start_week ?? CONFIG.DEFAULT_PLAYOFF_START_WEEK,
     }
 }
 
-async function getPlayoffSeeds(leagueId: string, leagueSeasonId: string): Promise<PlayoffSeed[]> {
+async function assertRegularSeasonFinalized(leagueSeasonId: string, playoffStartWeek: number): Promise<void> {
+    const { data: unfinalized, error } = await supabase
+        .from('matchups')
+        .select('id')
+        .eq('league_season_id', leagueSeasonId)
+        .eq('matchup_type', 'regular_season')
+        .lt('week_number', playoffStartWeek)
+        .eq('is_finalized', false)
+        .limit(1)
+    if (error) throw error
+    if ((unfinalized ?? []).length > 0) {
+        throw new Error('Regular season matchups must be finalized before generating playoffs.')
+    }
+}
+
+async function getPlayoffSeeds(
+    leagueId: string,
+    leagueSeasonId: string,
+    playoffStartWeek: number,
+): Promise<PlayoffSeed[]> {
     const { data: matchups, error: matchupErr } = await supabase
         .from('matchups')
         .select('home_member_id, away_member_id, home_points, away_points, home_max_possible_points, away_max_possible_points, winner_member_id, is_finalized')
         .eq('league_season_id', leagueSeasonId)
         .eq('matchup_type', 'regular_season')
+        .lt('week_number', playoffStartWeek)
+        .eq('is_finalized', true)
     if (matchupErr) throw matchupErr
 
     const { data: members, error: memberErr } = await supabase
@@ -61,6 +88,7 @@ async function getPlayoffSeeds(leagueId: string, leagueSeasonId: string): Promis
             pointsFor: 0,
             maxPossiblePoints: 0,
             pointsAgainst: 0,
+            tieToken: deterministicTiebreakerToken(leagueSeasonId, member.id),
         })
     }
 
@@ -86,36 +114,24 @@ async function getPlayoffSeeds(leagueId: string, leagueSeasonId: string): Promis
         }
     }
 
-    const sorted = [...stats.values()].sort((a, b) => (
-        b.wins - a.wins ||
+    return [...stats.values()].sort(comparePlayoffSeeds)
+}
+
+function deterministicTiebreakerToken(leagueSeasonId: string, memberId: string): string {
+    return createHash('sha256').update(`${leagueSeasonId}:${memberId}`).digest('hex')
+}
+
+function compareStandingsMetrics(a: PlayoffSeed, b: PlayoffSeed): number {
+    return b.wins - a.wins ||
         b.pointsFor - a.pointsFor ||
         b.maxPossiblePoints - a.maxPossiblePoints ||
-        a.pointsAgainst - b.pointsAgainst ||
-        a.memberId.localeCompare(b.memberId)
-    ))
+        a.pointsAgainst - b.pointsAgainst
+}
 
-    // Honor RESOLVED RPS tiebreakers: for adjacent identical-metric pairs, put the
-    // completed-challenge winner first (deterministic memberId order is the
-    // fallback when a tie was never played). This is what makes RPS results
-    // actually affect seeding instead of being write-only.
-    const { data: rps } = await supabase
-        .from('rps_challenges')
-        .select('member_a_id, member_b_id, winner_member_id')
-        .eq('league_season_id', leagueSeasonId)
-        .not('winner_member_id', 'is', null)
-    const winnerByPair = new Map<string, string>()
-    for (const c of rps ?? []) {
-        if (c.winner_member_id) winnerByPair.set(rpsPairKey(c.member_a_id, c.member_b_id), c.winner_member_id)
-    }
-    for (let i = 0; i + 1 < sorted.length; i++) {
-        if (
-            sameTiebreaker(sorted[i], sorted[i + 1]) &&
-            winnerByPair.get(rpsPairKey(sorted[i].memberId, sorted[i + 1].memberId)) === sorted[i + 1].memberId
-        ) {
-            ;[sorted[i], sorted[i + 1]] = [sorted[i + 1], sorted[i]]
-        }
-    }
-    return sorted
+function comparePlayoffSeeds(a: PlayoffSeed, b: PlayoffSeed): number {
+    return compareStandingsMetrics(a, b) ||
+        a.tieToken.localeCompare(b.tieToken) ||
+        a.memberId.localeCompare(b.memberId)
 }
 
 function rpsPairKey(a: string, b: string): string {
@@ -129,53 +145,124 @@ function sameTiebreaker(a: PlayoffSeed, b: PlayoffSeed): boolean {
         a.pointsAgainst === b.pointsAgainst
 }
 
-// Record unresolved standings ties (including the bubble: the last team IN vs the
-// first team OUT) as RPS challenges, deduped against existing challenges. This is
-// NON-BLOCKING: seeding always proceeds deterministically, and a resolved RPS is
-// honored by getPlayoffSeeds — so a tie can never deadlock playoff generation.
-async function ensureRpsChallengesForTies(
+type TiebreakerPair = {
+    memberAId: string
+    memberBId: string
+    winnerMemberId: string
+}
+
+function relevantTiebreakerPairs(seeds: PlayoffSeed[], playoffSize: number): TiebreakerPair[] {
+    // Include the full exact-tie group whenever that group overlaps a playoff
+    // seed. That covers ties inside the bracket and ties crossing the final
+    // qualifying spot without truncating larger tied groups.
+    const tiedPairs: TiebreakerPair[] = []
+    let index = 0
+    while (index < seeds.length) {
+        let next = index + 1
+        while (next < seeds.length && sameTiebreaker(seeds[index], seeds[next])) {
+            next += 1
+        }
+        const groupOverlapsPlayoffField = index < playoffSize
+        if (!groupOverlapsPlayoffField) break
+        for (let i = index; i < next; i += 1) {
+            for (let j = i + 1; j < next; j += 1) {
+                const a = seeds[i]
+                const b = seeds[j]
+                tiedPairs.push({
+                    memberAId: a.memberId,
+                    memberBId: b.memberId,
+                    winnerMemberId: comparePlayoffSeeds(a, b) <= 0 ? a.memberId : b.memberId,
+                })
+            }
+        }
+        index = next > index + 1 ? next : index + 1
+    }
+    return tiedPairs
+}
+
+// Exact standings ties are resolved by the season-scoped deterministic token in
+// comparePlayoffSeeds. Record the resulting pairwise decisions as completed
+// tiebreaker audit rows so standings-tiebreaker scenarios are inspectable without
+// depending on a separate browser RPS workflow.
+async function recordTiebreakerAuditRows(
     leagueId: string,
     leagueSeasonId: string,
     seeds: PlayoffSeed[],
     playoffSize: number,
 ): Promise<void> {
-    // playoffSize + 1 so a tie for the FINAL qualifying spot is also captured.
-    const relevantSeeds = seeds.slice(0, playoffSize + 1)
-    const tiedPairs: Array<[string, string]> = []
-    let index = 0
-    while (index < relevantSeeds.length) {
-        let next = index + 1
-        while (next < relevantSeeds.length && sameTiebreaker(relevantSeeds[index], relevantSeeds[next])) {
-            next += 1
-        }
-        for (let i = index; i + 1 < next; i += 2) {
-            tiedPairs.push([relevantSeeds[i].memberId, relevantSeeds[i + 1].memberId])
-        }
-        index = next > index + 1 ? next : index + 1
-    }
+    const tiedPairs = relevantTiebreakerPairs(seeds, playoffSize)
     if (tiedPairs.length === 0) return
 
     const { data: existing, error: existingErr } = await supabase
         .from('rps_challenges')
-        .select('member_a_id, member_b_id')
+        .select('id, member_a_id, member_b_id, winner_member_id, status')
         .eq('league_id', leagueId)
         .eq('league_season_id', leagueSeasonId)
+        .eq('context', 'standings_playoff_tiebreaker')
     if (existingErr) throw existingErr
-    const existingPairs = new Set((existing ?? []).map((c) => rpsPairKey(c.member_a_id, c.member_b_id)))
+    const existingByPair = new Map(
+        (existing ?? []).map((challenge) => [rpsPairKey(challenge.member_a_id, challenge.member_b_id), challenge]),
+    )
+    const resolvedAt = new Date().toISOString()
 
     const rows = tiedPairs
-        .filter(([a, b]) => !existingPairs.has(rpsPairKey(a, b)))
-        .map(([a, b]) => ({
+        .filter((pair) => !existingByPair.has(rpsPairKey(pair.memberAId, pair.memberBId)))
+        .map((pair) => ({
             league_id: leagueId,
             league_season_id: leagueSeasonId,
-            member_a_id: a,
-            member_b_id: b,
-            status: 'pending' as const,
+            member_a_id: pair.memberAId,
+            member_b_id: pair.memberBId,
+            winner_member_id: pair.winnerMemberId,
+            status: 'completed' as const,
             context: 'standings_playoff_tiebreaker',
+            resolved_at: resolvedAt,
         }))
-    if (rows.length === 0) return
-    const { error: insertErr } = await supabase.from('rps_challenges').insert(rows)
-    if (insertErr) throw insertErr
+    if (rows.length > 0) {
+        const { error: insertErr } = await supabase.from('rps_challenges').insert(rows)
+        if (insertErr) throw insertErr
+    }
+
+    for (const pair of tiedPairs) {
+        const existingChallenge = existingByPair.get(rpsPairKey(pair.memberAId, pair.memberBId))
+        if (
+            !existingChallenge ||
+            (existingChallenge.status === 'completed' && existingChallenge.winner_member_id === pair.winnerMemberId)
+        ) {
+            continue
+        }
+        const { error: updateErr } = await supabase
+            .from('rps_challenges')
+            .update({
+                winner_member_id: pair.winnerMemberId,
+                member_a_choice: null,
+                member_b_choice: null,
+                status: 'completed' as const,
+                resolved_at: resolvedAt,
+            })
+            .eq('id', existingChallenge.id)
+        if (updateErr) throw updateErr
+    }
+}
+
+async function assertPlayoffWeeksAvailable(
+    seasonYear: number,
+    playoffStartWeek: number,
+    playoffRounds: number,
+): Promise<void> {
+    const { data: lastWeek, error } = await supabase
+        .from('season_weeks')
+        .select('week_number')
+        .eq('season_year', seasonYear)
+        .order('week_number', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+    if (error) throw error
+
+    const lastWeekNumber = Number(lastWeek?.week_number ?? 0)
+    const finalPlayoffWeek = playoffStartWeek + playoffRounds - 1
+    if (!Number.isFinite(lastWeekNumber) || lastWeekNumber < finalPlayoffWeek) {
+        throw new Error('Playoff start week does not leave enough season weeks for every playoff round.')
+    }
 }
 
 /**
@@ -185,26 +272,26 @@ async function ensureRpsChallengesForTies(
  * Safe to call once — skips if SF matchups already exist.
  */
 export async function generateSemifinals(leagueId: string): Promise<void> {
-    const { seasonId, playoffStartWeek } = await getSeasonContext(leagueId)
+    const { seasonId, seasonYear, playoffStartWeek } = await getSeasonContext(leagueId)
+    await assertRegularSeasonFinalized(seasonId, playoffStartWeek)
 
     // Idempotency check
-    const { count } = await supabase
+    const { count, error: playoffCountErr } = await supabase
         .from('matchups')
         .select('id', { count: 'exact', head: true })
         .eq('league_season_id', seasonId)
         .in('matchup_type', ['playoff_quarterfinal', 'playoff_semifinal'])
+    if (playoffCountErr) throw playoffCountErr
     if ((count ?? 0) > 0) {
         console.log('[playoffs] Playoff bracket already generated.')
         return
     }
 
-    const seeds = await getPlayoffSeeds(leagueId, seasonId)
+    const seeds = await getPlayoffSeeds(leagueId, seasonId, playoffStartWeek)
     if (seeds.length < 4) throw new Error('Not enough teams to seed playoffs (need 4).')
     const playoffSize = seeds.length >= 10 ? 6 : 4
-    // Record any unresolved standings ties (non-blocking); seeds are already
-    // ordered deterministically and honor any RESOLVED RPS result, so the bracket
-    // always generates — no deadlock on a tie.
-    await ensureRpsChallengesForTies(leagueId, seasonId, seeds, playoffSize)
+    await assertPlayoffWeeksAvailable(seasonYear, playoffStartWeek, playoffSize >= 6 ? 3 : 2)
+    await recordTiebreakerAuditRows(leagueId, seasonId, seeds, playoffSize)
 
     const seededMemberIds = seeds.slice(0, playoffSize).map((seed) => seed.memberId)
 
@@ -256,14 +343,15 @@ export async function generateSemifinals(leagueId: string): Promise<void> {
  * Safe to call multiple times — skips if Final already exists.
  */
 export async function advanceToFinal(leagueId: string): Promise<void> {
-    const { seasonId, playoffStartWeek } = await getSeasonContext(leagueId)
+    const { seasonId } = await getSeasonContext(leagueId)
 
     // Idempotency check
-    const { count: finalCount } = await supabase
+    const { count: finalCount, error: finalCountErr } = await supabase
         .from('matchups')
         .select('id', { count: 'exact', head: true })
         .eq('league_season_id', seasonId)
         .eq('matchup_type', 'playoff_final')
+    if (finalCountErr) throw finalCountErr
     if ((finalCount ?? 0) > 0) {
         console.log('[playoffs] Final already generated.')
         return
@@ -277,7 +365,7 @@ export async function advanceToFinal(leagueId: string): Promise<void> {
     // So below we pair seeds[0] ↔ qfWinners[1] and seeds[1] ↔ qfWinners[0].
     const { data: quarterfinals, error: qfErr } = await supabase
         .from('matchups')
-        .select('id, home_member_id, away_member_id, winner_member_id, is_finalized, created_at')
+        .select('id, home_member_id, away_member_id, winner_member_id, is_finalized, created_at, week_number')
         .eq('league_season_id', seasonId)
         .eq('matchup_type', 'playoff_quarterfinal')
         .order('created_at', { ascending: true })
@@ -285,16 +373,18 @@ export async function advanceToFinal(leagueId: string): Promise<void> {
     if (qfErr) throw qfErr
 
     if ((quarterfinals ?? []).length > 0) {
-        const { count: semiCount } = await supabase
+        const quarterfinalWeek = Math.min(...(quarterfinals ?? []).map((m) => Number(m.week_number)))
+        const { count: semiCount, error: semiCountErr } = await supabase
             .from('matchups')
             .select('id', { count: 'exact', head: true })
             .eq('league_season_id', seasonId)
             .eq('matchup_type', 'playoff_semifinal')
+        if (semiCountErr) throw semiCountErr
         if ((semiCount ?? 0) === 0) {
             const unfinished = (quarterfinals ?? []).filter((m) => !m.is_finalized)
             if (unfinished.length > 0) throw new Error('Quarterfinals are not yet finalized.')
 
-            const seeds = await getPlayoffSeeds(leagueId, seasonId)
+            const seeds = await getPlayoffSeeds(leagueId, seasonId, quarterfinalWeek)
             const qfWinners = (quarterfinals ?? []).map((m) => m.winner_member_id).filter((id): id is string => Boolean(id))
             if (qfWinners.length < 2) throw new Error('Could not determine quarterfinal winners.')
 
@@ -302,7 +392,7 @@ export async function advanceToFinal(leagueId: string): Promise<void> {
                 {
                     league_id: leagueId,
                     league_season_id: seasonId,
-                    week_number: playoffStartWeek + 1,
+                    week_number: quarterfinalWeek + 1,
                     matchup_type: 'playoff_semifinal',
                     home_member_id: seeds[0].memberId,
                     away_member_id: qfWinners[1],
@@ -310,7 +400,7 @@ export async function advanceToFinal(leagueId: string): Promise<void> {
                 {
                     league_id: leagueId,
                     league_season_id: seasonId,
-                    week_number: playoffStartWeek + 1,
+                    week_number: quarterfinalWeek + 1,
                     matchup_type: 'playoff_semifinal',
                     home_member_id: seeds[1].memberId,
                     away_member_id: qfWinners[0],
@@ -322,12 +412,15 @@ export async function advanceToFinal(leagueId: string): Promise<void> {
         }
     }
 
-    // Get semifinal results
+    // Get semifinal results in bracket insertion order. Final home/away is
+    // deterministic and is also the last-resort playoff tie fallback.
     const { data: semis, error: semiErr } = await supabase
         .from('matchups')
-        .select('id, home_member_id, away_member_id, winner_member_id, is_finalized')
+        .select('id, home_member_id, away_member_id, winner_member_id, is_finalized, created_at, week_number')
         .eq('league_season_id', seasonId)
         .eq('matchup_type', 'playoff_semifinal')
+        .order('created_at', { ascending: true })
+        .order('id', { ascending: true })
     if (semiErr) throw semiErr
     if (!semis || semis.length < 2) throw new Error('Semifinals not found.')
 
@@ -336,11 +429,12 @@ export async function advanceToFinal(leagueId: string): Promise<void> {
 
     const winners = semis.map((m) => m.winner_member_id).filter((id): id is string => Boolean(id))
     if (winners.length < 2) throw new Error('Could not determine semifinal winners.')
+    const finalWeek = Math.max(...semis.map((m) => Number(m.week_number))) + 1
 
     const { error } = await supabase.from('matchups').insert({
         league_id: leagueId,
         league_season_id: seasonId,
-        week_number: playoffStartWeek + ((quarterfinals ?? []).length > 0 ? 2 : 1),
+        week_number: finalWeek,
         matchup_type: 'playoff_final',
         home_member_id: winners[0],
         away_member_id: winners[1],

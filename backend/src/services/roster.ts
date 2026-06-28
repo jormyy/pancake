@@ -35,38 +35,59 @@ function todayET(): string {
     return `${get('year')}-${get('month')}-${get('day')}`
 }
 
+function addDaysToETDate(dateKey: string, days: number): string {
+    const [year, month, day] = dateKey.split('-').map(Number)
+    return new Date(Date.UTC(year, month - 1, day + days, 12, 0, 0)).toISOString().slice(0, 10)
+}
+
+function isRosterToggleLockedGame(game: {
+    game_date: string
+    status: string | null
+    game_time: string | null
+    started_at: string | null
+}, today: string, now: Date): boolean {
+    const nowTime = now.getTime()
+    const recentWindowStart = nowTime - 12 * 60 * 60 * 1000
+    if (game.status === 'InProgress') return true
+    if (game.game_date === today && game.status === 'Final') return true
+
+    for (const value of [game.game_time, game.started_at]) {
+        if (!value) continue
+        const startedTime = Date.parse(value)
+        if (Number.isNaN(startedTime) || startedTime > nowTime) continue
+        if (game.game_date === today || startedTime >= recentWindowStart) return true
+    }
+    return false
+}
+
 async function assertRosterToggleUnlocked(
     rosterPlayerId: string,
     userId: string,
 ): Promise<void> {
     const gameDate = todayET()
+    const candidateDates = [addDaysToETDate(gameDate, -1), gameDate]
     const { data: rosterPlayer, error: rosterError } = await supabase
         .from('roster_players')
         .select('id, players!inner(display_name, nba_team), league_members!inner(user_id)')
         .eq('id', rosterPlayerId)
+        .eq('league_members.user_id', userId)
         .maybeSingle()
 
     if (rosterError) throw mapToggleError(rosterError)
     if (!rosterPlayer) throw new NotFoundError('Roster player not found')
-    if (rosterPlayer.league_members?.user_id !== userId) {
-        throw new AppError('Not authorized to modify this roster player.', 403)
-    }
 
     const team = rosterPlayer.players?.nba_team
     if (!team) return
 
-    const now = new Date().toISOString()
-    const { data: startedGame, error: gameError } = await supabase
+    const now = new Date()
+    const { data: games, error: gameError } = await supabase
         .from('nba_games')
-        .select('id')
-        .eq('game_date', gameDate)
+        .select('id, game_date, status, game_time, started_at')
+        .in('game_date', candidateDates)
         .or(`home_team.eq.${team},away_team.eq.${team}`)
-        .or(`status.in.(InProgress,Final),game_time.lte.${now}`)
-        .limit(1)
-        .maybeSingle()
 
     if (gameError) throw mapToggleError(gameError)
-    if (startedGame) {
+    if ((games ?? []).some((game) => isRosterToggleLockedGame(game, gameDate, now))) {
         throw new ValidationError(`${rosterPlayer.players.display_name}'s game has already started. No roster status changes are allowed for that slate.`)
     }
 }

@@ -1,4 +1,6 @@
 import axios from 'axios'
+import { isRegularSeasonGameId } from '@pancake/core'
+export { isRegularSeasonGameId } from '@pancake/core'
 
 const NBA_CDN = process.env.NBA_CDN_BASE_URL ?? 'https://cdn.nba.com/static/json'
 
@@ -24,18 +26,6 @@ export function parseNBAMinutes(iso: string | null | undefined): number | null {
     return Math.round((mins + secs / 60) * 100) / 100
 }
 
-export function isRegularSeasonGameId(gameId: string | null | undefined): boolean {
-    const id = gameId?.trim()
-    if (!id) return false
-
-    // NBA CDN/API game IDs use a 00x prefix:
-    // 001 = preseason, 002 = regular season, 003 = All-Star, 004 = playoffs.
-    // Historical BBRef IDs are date/team keys, so keep them countable.
-    if (id.startsWith('002')) return true
-    if (/^00\d/.test(id)) return false
-    return true
-}
-
 // GET today's scoreboard — returns list of games with status + scores
 export async function fetchTodaysGames(): Promise<NBAGame[]> {
     const { data } = await client.get(`${NBA_CDN}/liveData/scoreboard/todaysScoreboard_00.json`)
@@ -52,30 +42,41 @@ export async function fetchBoxScore(gameId: string): Promise<NBABoxScore> {
 // NOTE: The _1 suffix is season-specific; update for 2025-26 → scheduleLeagueV2_2.json (or similar)
 export async function fetchSeasonSchedule(): Promise<NBAScheduledGame[]> {
     const { data } = await client.get(`${NBA_CDN}/staticData/scheduleLeagueV2_1.json`)
+    const scheduleSeasonYear = firstString(data?.leagueSchedule?.seasonYear)
     const gameDates: any[] = data?.leagueSchedule?.gameDates ?? []
 
     const games: NBAScheduledGame[] = []
     for (const day of gameDates) {
         for (const g of day.games ?? []) {
-            // gameEt format: "2024-10-22T19:30:00-05:00"
-            const gameDate = g.gameDateEst
-                ? g.gameDateEst.split('T')[0]
-                : g.gameEt
-                  ? g.gameEt.split('T')[0]
-                  : null
-            if (!gameDate) continue
-
-            games.push({
-                gameId: g.gameId,
-                gameDate,
-                homeTeam: g.homeTeam?.teamTricode ?? '',
-                awayTeam: g.awayTeam?.teamTricode ?? '',
-                status: mapGameStatus(g.gameStatus),
-                startedAt: g.gameEt ?? null,
-            })
+            const game = parseNBAScheduleGame(g, scheduleSeasonYear)
+            if (game) games.push(game)
         }
     }
     return games
+}
+
+function firstString(...values: unknown[]): string | null {
+    for (const value of values) {
+        if (typeof value === 'string' && value.length > 0) return value
+    }
+    return null
+}
+
+export function parseNBAScheduleGame(g: any, scheduleSeasonYear: string | null = null): NBAScheduledGame | null {
+    const gameDateSource = firstString(g.gameDateEst, g.gameDateTimeEst, g.gameEt, g.gameDateTimeUTC)
+    const gameDate = gameDateSource?.split('T')[0] ?? null
+    if (!gameDate) return null
+
+    return {
+        gameId: g.gameId,
+        gameDate,
+        homeTeam: g.homeTeam?.teamTricode ?? '',
+        awayTeam: g.awayTeam?.teamTricode ?? '',
+        status: mapGameStatus(g.gameStatus),
+        startedAt: firstString(g.gameDateTimeUTC, g.gameDateTimeEst, g.gameEt),
+        weekNumber: g.weekNumber ?? null,
+        scheduleSeasonYear,
+    }
 }
 
 function mapGameStatus(s: number): string {
@@ -101,6 +102,8 @@ export interface NBAScheduledGame {
     awayTeam: string // tricode
     status: string
     startedAt: string | null
+    weekNumber: number | null
+    scheduleSeasonYear: string | null
 }
 
 export interface NBABoxScore {

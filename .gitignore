@@ -41,6 +41,7 @@ tests/artifacts/
 tests/snapshots/
 tests/*.md
 tests/e2e-state.json
+validation/
 
 # docs
 /*.md

@@ -72,8 +72,10 @@ describe('getLeagueStandings', () => {
 
         expect(alpha.wins).toBe(1)
         expect(alpha.losses).toBe(0)
+        expect(alpha.ties).toBe(0)
         expect(beta.wins).toBe(0)
         expect(beta.losses).toBe(1)
+        expect(beta.ties).toBe(0)
     })
 
     it('accumulates points for and against', async () => {
@@ -143,6 +145,49 @@ describe('getLeagueStandings', () => {
         expect(standings[2].memberId).toBe('m3')
     })
 
+    it('tracks tied finalized matchups and sorts by max possible then points against after points for', async () => {
+        const members = [
+            { id: 'm1', team_name: 'Alpha' },
+            { id: 'm2', team_name: 'Beta' },
+            { id: 'm3', team_name: 'Gamma' },
+        ]
+        const matchups = [
+            {
+                home_member_id: 'm1', away_member_id: 'm2',
+                home_points: 100, away_points: 100,
+                home_max_possible_points: 120, away_max_possible_points: 140,
+                winner_member_id: null, is_finalized: true,
+            },
+            {
+                home_member_id: 'm3', away_member_id: 'm1',
+                home_points: 90, away_points: 100,
+                home_max_possible_points: 100, away_max_possible_points: 120,
+                winner_member_id: 'm1', is_finalized: true,
+            },
+            {
+                home_member_id: 'm2', away_member_id: 'm3',
+                home_points: 100, away_points: 90,
+                home_max_possible_points: 140, away_max_possible_points: 100,
+                winner_member_id: 'm2', is_finalized: true,
+            },
+        ]
+
+        vi.mocked(supabase.from).mockImplementation((table: string) => {
+            if (table === 'league_members') return q(members) as any
+            if (table === 'matchups') return q(matchups) as any
+            return q(null) as any
+        })
+
+        const standings = await getLeagueStandings('league-1')
+        const alpha = standings.find((s) => s.memberId === 'm1')!
+        const beta = standings.find((s) => s.memberId === 'm2')!
+
+        expect(alpha.ties).toBe(1)
+        expect(beta.ties).toBe(1)
+        expect(standings[0].memberId).toBe('m2')
+        expect(standings[1].memberId).toBe('m1')
+    })
+
     it('ignores non-finalized matchups for win/loss calculation', async () => {
         const members = [{ id: 'm1', team_name: 'Alpha' }, { id: 'm2', team_name: 'Beta' }]
         const matchups = [
@@ -159,19 +204,21 @@ describe('getLeagueStandings', () => {
         })
 
         const standings = await getLeagueStandings('league-1')
-        expect(standings.every((s) => s.wins === 0 && s.losses === 0)).toBe(true)
+        expect(standings.every((s) => s.wins === 0 && s.losses === 0 && s.ties === 0)).toBe(true)
     })
 
-    it('tracks max single-week score per team', async () => {
+    it('tracks cumulative max possible points per team', async () => {
         const members = [{ id: 'm1', team_name: 'Alpha' }, { id: 'm2', team_name: 'Beta' }]
         const matchups = [
             {
                 home_member_id: 'm1', away_member_id: 'm2',
                 home_points: 150, away_points: 120, winner_member_id: 'm1', is_finalized: true,
+                home_max_possible_points: 165, away_max_possible_points: 145,
             },
             {
                 home_member_id: 'm1', away_member_id: 'm2',
                 home_points: 110, away_points: 140, winner_member_id: 'm2', is_finalized: true,
+                home_max_possible_points: 130, away_max_possible_points: 155,
             },
         ]
 
@@ -183,6 +230,8 @@ describe('getLeagueStandings', () => {
 
         const standings = await getLeagueStandings('league-1')
         const alpha = standings.find((s) => s.memberId === 'm1')!
-        expect(alpha.maxPointsFor).toBe(150)
+        const beta = standings.find((s) => s.memberId === 'm2')!
+        expect(alpha.maxPointsFor).toBe(295)
+        expect(beta.maxPointsFor).toBe(300)
     })
 })

@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import path from 'node:path'
 
 const draftRoutes = readFileSync(path.resolve(__dirname, '../src/routes/draft.ts'), 'utf8')
+const authz = readFileSync(path.resolve(__dirname, '../src/lib/authz.ts'), 'utf8')
 
 // Regression for the removed draft-state IDOR: GET /draft/:draftId and
 // /draft/:draftId/rookie-state read private draft state (budgets/bids/picks)
@@ -11,7 +12,7 @@ const draftRoutes = readFileSync(path.resolve(__dirname, '../src/routes/draft.ts
 // backend draft-state GET route may exist, and every draft mutation route must
 // carry an authorization guard.
 
-const AUTHZ = ['requireCommissioner', 'requireCommissionerForDraft', 'verifyMemberAccess']
+const AUTHZ = ['requireCommissioner', 'requireCommissionerForDraft', 'verifyMemberAccess', 'verifyOwnMember']
 
 describe('draft route authorization (no service-role IDOR)', () => {
     it('exposes no backend GET draft-state route (state is read via RLS client-side)', () => {
@@ -33,5 +34,38 @@ describe('draft route authorization (no service-role IDOR)', () => {
             const hasGuard = AUTHZ.some((g) => seg.includes(`${g}(`))
             expect(hasGuard, `draft route ${routePath} has no authz guard (${AUTHZ.join('/')})`).toBe(true)
         }
+    })
+
+    it('requires member ownership for manager-consent draft actions', () => {
+        for (const route of ['nominate', 'bid', 'withdraw-nomination', 'auto-pick', 'snake-pick']) {
+            expect(draftRoutes).toMatch(new RegExp(`/${route}[\\s\\S]*?verifyOwnMember\\(req\\.userId, memberId\\)`))
+        }
+    })
+
+    it('scopes nomination withdrawal by the route draft id before service-role mutation', () => {
+        const withdrawRoute = draftRoutes.slice(
+            draftRoutes.indexOf("'/:draftId/withdraw-nomination'"),
+            draftRoutes.indexOf("app.post('/start-rookie'"),
+        )
+
+        expect(withdrawRoute).toContain('const { draftId } = req.params')
+        expect(withdrawRoute).toContain('withdrawNomination(draftId, memberId, nominationId, req.userId)')
+    })
+
+    it('does not reveal draft IDs outside commissioner-visible leagues', () => {
+        const fnBody = authz.slice(
+            authz.indexOf('export async function requireCommissionerForDraft'),
+            authz.indexOf('/**\n * Verify the requesting user owns the member record', authz.indexOf('export async function requireCommissionerForDraft')),
+        )
+
+        expect(fnBody).toContain(".from('league_members')")
+        expect(fnBody).toContain(".eq('user_id', userId)")
+        expect(fnBody).toContain(".in('role', ['commissioner', 'co_commissioner'])")
+        expect(fnBody).toContain('commissionerLeagueIds')
+        expect(fnBody).toContain(".from('drafts')")
+        expect(fnBody).toContain(".eq('id', draftId)")
+        expect(fnBody).toContain(".in('league_id', commissionerLeagueIds)")
+        expect(fnBody).toContain('.maybeSingle()')
+        expect(fnBody).not.toContain('await requireCommissioner(userId, data.league_id)')
     })
 })

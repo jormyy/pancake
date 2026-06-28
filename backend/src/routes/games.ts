@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify'
 import { supabase } from '../lib/supabase'
 import { todayET } from '../lib/utils/date'
+import { isRegularSeasonGameId } from '../lib/nba'
 
 export default async function gamesRoutes(app: FastifyInstance) {
     // GET /games/today — today's NBA games with live scores
@@ -21,6 +22,6 @@ export default async function gamesRoutes(app: FastifyInstance) {
             .order('id', { ascending: true })
 
         if (error) throw error
-        return { games: data ?? [] }
+        return { games: (data ?? []).filter((game) => isRegularSeasonGameId(game.nba_game_id)) }
     })
 }

@@ -1,17 +1,13 @@
 import { useState, useCallback } from 'react'
 import { Alert } from 'react-native'
 import { PlayerRow } from '@/lib/players'
-import { isIneligibleIR } from '@/lib/format'
 import {
-    addFreeAgent,
-    dropPlayer,
-    toggleIR,
-    getRoster,
+    dropAndAddFreeAgent,
     RosterPlayer,
 } from '@/lib/roster'
+import { addFreeAgentOrRequestDrop, loadRosterAddGate, resolveRosterAddIRConflict } from '@/lib/roster-add-flow'
 import { submitWaiverClaim } from '@/lib/waivers'
 import { getErrorMessage } from '@/lib/alert'
-import { getRosterStatusChangeLockMessage } from '@/lib/roster-locks'
 
 type IRModalState = {
     ineligible: RosterPlayer[]
@@ -35,10 +31,7 @@ export function useQuickAdd(
     const checkIR = useCallback(
         async (player: PlayerRow, lid: string, excludeRosterId?: string): Promise<RosterPlayer[] | null> => {
             if (!memberId) return null
-            const roster = await getRoster(memberId, lid)
-            const ineligible = roster.filter(
-                (r) => isIneligibleIR(r) && r.id !== excludeRosterId
-            )
+            const { roster, ineligible } = await loadRosterAddGate(memberId, lid, excludeRosterId)
             if (ineligible.length > 0) {
                 setIrModal({ ineligible, roster, pendingPlayer: player })
                 return null
@@ -81,16 +74,15 @@ export function useQuickAdd(
         if (!memberId) return
         setAdding(player.id)
         try {
-            await addFreeAgent(memberId, lid, player.id)
+            const result = await addFreeAgentOrRequestDrop(memberId, lid, player.id)
+            if (result.status === 'roster_full') {
+                setMyRoster(result.activeRoster)
+                setDropPickerPlayer(player)
+                return
+            }
             await refreshOwned()
         } catch (e) {
-            if (getErrorMessage(e)?.includes('full')) {
-                const roster = await getRoster(memberId, lid)
-                setMyRoster(roster.filter((r) => !r.is_on_ir && !r.is_on_taxi))
-                setDropPickerPlayer(player)
-            } else {
-                Alert.alert('Error', getErrorMessage(e))
-            }
+            Alert.alert('Error', getErrorMessage(e))
         } finally {
             setAdding(null)
         }
@@ -104,10 +96,7 @@ export function useQuickAdd(
         }
     }
 
-    async function afterIRMutation(lid: string) {
-        if (!memberId) return
-        const roster = await getRoster(memberId, lid)
-        const remaining = roster.filter((r) => isIneligibleIR(r))
+    async function continueAfterIRResolution(lid: string, roster: RosterPlayer[], remaining: RosterPlayer[]) {
         if (remaining.length > 0) {
             setIrModal((prev) => prev ? { ...prev, ineligible: remaining, roster } : null)
         } else {
@@ -140,8 +129,13 @@ export function useQuickAdd(
 
         setAdding(player.id)
         try {
-            await addFreeAgent(memberId, leagueId, player.id)
-            Alert.alert('Added', `${player.display_name} added to your roster.`)
+            const result = await addFreeAgentOrRequestDrop(memberId, leagueId, player.id)
+            if (result.status === 'roster_full') {
+                setDropPickerPlayer(player)
+                setMyRoster(result.activeRoster)
+            } else {
+                Alert.alert('Added', `${player.display_name} added to your roster.`)
+            }
         } catch (e) {
             Alert.alert('Error', getErrorMessage(e))
         } finally {
@@ -158,8 +152,7 @@ export function useQuickAdd(
 
         setDropping(rosterPlayer.id)
         try {
-            await dropPlayer(rosterPlayer.id)
-            await addFreeAgent(memberId, leagueId, dropPickerPlayer.id)
+            await dropAndAddFreeAgent(rosterPlayer.id, memberId, leagueId, dropPickerPlayer.id)
             setDropPickerPlayer(null)
             await refreshOwned()
         } catch (e) {
@@ -170,28 +163,23 @@ export function useQuickAdd(
     }
 
     async function handleIRActivate(rp: RosterPlayer) {
-        if (!leagueId) return
-        const lockMessage = await getRosterStatusChangeLockMessage(rp)
-        if (lockMessage) {
-            Alert.alert('Roster locked', lockMessage)
-            return
+        if (!memberId || !leagueId) return
+        const result = await resolveRosterAddIRConflict({ memberId, leagueId, activatePlayer: rp })
+        if (result.status === 'locked') {
+            Alert.alert('Roster locked', result.message)
+        } else {
+            await continueAfterIRResolution(leagueId, result.roster, result.remaining)
         }
-
-        await toggleIR(rp.id, false)
-        await afterIRMutation(leagueId)
     }
 
     async function handleDropAndIRActivate(toDrop: RosterPlayer, activatePlayer: RosterPlayer) {
-        if (!leagueId) return
-        const lockMessage = await getRosterStatusChangeLockMessage(activatePlayer)
-        if (lockMessage) {
-            Alert.alert('Roster locked', lockMessage)
-            return
+        if (!memberId || !leagueId) return
+        const result = await resolveRosterAddIRConflict({ memberId, leagueId, activatePlayer, dropPlayer: toDrop })
+        if (result.status === 'locked') {
+            Alert.alert('Roster locked', result.message)
+        } else {
+            await continueAfterIRResolution(leagueId, result.roster, result.remaining)
         }
-
-        await dropPlayer(toDrop.id)
-        await toggleIR(activatePlayer.id, false)
-        await afterIRMutation(leagueId)
     }
 
     return {

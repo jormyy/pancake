@@ -1,5 +1,6 @@
 import { supabase } from '../_shared/supabase.ts'
 import { normalizeName } from '../_shared/nameMatch.ts'
+import { requireInternalFunctionAuth } from '../_shared/auth.ts'
 import { internalServerError } from '../_shared/responses.ts'
 import * as cheerio from 'npm:cheerio'
 import type { AnyNode } from 'npm:domhandler'
@@ -48,7 +49,10 @@ const TEAM_ALIASES: Record<string, string> = {
   SAS: 'SA',
 }
 
-Deno.serve(async () => {
+Deno.serve(async (req) => {
+  const authError = requireInternalFunctionAuth(req)
+  if (authError) return authError
+
   try {
     await syncDynastyRankings()
     return Response.json({ ok: true })

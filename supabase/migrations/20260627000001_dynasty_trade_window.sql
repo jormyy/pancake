@@ -1,20 +1,5 @@
--- Dynasty trade window
--- ---------------------------------------------------------------------------
--- Previously propose_trade_atomic only allowed trades while the league was
--- 'active'/'playoffs' AND on/before the trade deadline — which also meant once
--- the deadline passed trades were locked forever, and the dynasty offseason
--- (when most dynasty trading happens) was closed entirely.
---
--- New rule (dynasty): trading is allowed at all times EXCEPT the window that
--- runs from the trade deadline through the end of the season's finals. Concretely
--- it is blocked only while the league is mid-season ('active' or 'playoffs') and
--- the trade deadline has passed; it reopens automatically once the league rolls
--- into 'offseason' (finals complete) and stays open through 'drafting' and the
--- next 'active' phase until that season's deadline. A NULL trade_deadline means
--- no deadline is set, so trading is never blocked on that basis.
---
--- Only the league-eligibility check changes; the rest of the function is
--- preserved verbatim from 20260606000000_propose_trade_atomic.sql.
+-- Dynasty trade window.
+-- Trading is allowed unless the league is mid-season past the trade deadline.
 
 CREATE OR REPLACE FUNCTION public.propose_trade_atomic(
   p_league_id uuid,
@@ -66,7 +51,6 @@ BEGIN
     RAISE EXCEPTION 'Duplicate requested picks are not allowed.';
   END IF;
 
-  -- Dynasty trade window: allowed unless we are mid-season past the deadline.
   PERFORM 1
     FROM leagues
    WHERE id = p_league_id
@@ -211,8 +195,6 @@ BEGIN
 END;
 $$;
 
--- CREATE OR REPLACE preserves the existing ACL, but re-affirm the service_role
--- grant so the function is callable by the backend regardless of prior state.
 REVOKE ALL ON FUNCTION public.propose_trade_atomic(
   uuid, uuid, uuid, uuid, uuid[], uuid[], uuid[], uuid[], text
 ) FROM PUBLIC, anon, authenticated;

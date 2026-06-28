@@ -48,14 +48,14 @@ process.on('SIGINT', () => {
     void shutdown('SIGINT', 0)
 })
 
-// Validate required env vars. Prefer Supabase's non-legacy secret key; keep the
-// service-role JWT fallback for local Supabase CLI compatibility.
+// Validate required env vars. Supabase admin access must use non-legacy secret
+// keys; legacy service-role JWTs are intentionally rejected.
 if (
     !process.env.SUPABASE_URL ||
     getSupabaseAdminKeyMode() === 'missing'
 ) {
     console.error(
-        '[startup] Missing SUPABASE_URL and PANCAKE_SUPABASE_SECRET_KEY/SUPABASE_SECRET_KEY/SUPABASE_SERVICE_ROLE_KEY',
+        '[startup] Missing SUPABASE_URL and PANCAKE_SUPABASE_SECRET_KEY/SUPABASE_SECRET_KEY',
     )
     process.exit(1)
 }

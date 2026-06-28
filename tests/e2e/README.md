@@ -9,7 +9,7 @@ The runner loads `.env` and `backend/.env` automatically. Existing app variables
 - `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
 - `EXPO_PUBLIC_API_URL`
 
-Legacy Supabase JWT keys are fallback-only while the hosted project migration is in progress: `SUPABASE_SERVICE_ROLE_KEY`, `E2E_SUPABASE_SERVICE_ROLE_KEY`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, and `E2E_SUPABASE_ANON_KEY`.
+Legacy Supabase service-role JWT keys are not accepted. Legacy anon JWTs remain read-only public-key fallbacks while the hosted project migration is in progress: `EXPO_PUBLIC_SUPABASE_ANON_KEY` and `E2E_SUPABASE_ANON_KEY`.
 
 Explicit E2E overrides are still supported:
 
@@ -18,7 +18,6 @@ export E2E_SUPABASE_URL=...
 export E2E_PANCAKE_SUPABASE_SECRET_KEY=...
 export E2E_SUPABASE_SECRET_KEY=...
 export E2E_SUPABASE_PUBLISHABLE_KEY=...
-export E2E_SUPABASE_SERVICE_ROLE_KEY=... # legacy fallback only
 export E2E_SUPABASE_ANON_KEY=... # legacy fallback only
 export E2E_API_BASE_URL=http://127.0.0.1:3000
 export E2E_FRONTEND_URL=http://127.0.0.1:8081
@@ -77,7 +76,7 @@ Auction bid validation is available with `E2E_ENABLE_AUCTION=1` or `--auction=tr
 
 Playoff bracket checks are available with `E2E_ENABLE_PLAYOFFS=1` or `--playoffs=true`. The runner creates a disposable 10-team league from the seeded users, inserts deterministic finalized regular-season matchups, signs in as the seeded commissioner, calls the real authenticated `/playoffs/generate` route, verifies `/playoffs/advance` blocks before prerequisite games are finalized, and checks that a 10-team league gets a top-6 bracket with seeds 1 and 2 on bye. Artifacts are written to `tests/artifacts/season-<N>/playoff-bracket.json`. This covers the bracket-generation slice of D.SEA.4; champion crowning through completed playoff gameplay remains pending.
 
-Standings tiebreaker checks are available with `E2E_ENABLE_TIEBREAKERS=1` or `--tiebreakers=true`. The runner creates disposable four-team leagues from seeded users, forces equal wins and points-for, calls the real authenticated `/playoffs/generate` route, verifies max-possible-points affects playoff seeding before points-against, then forces a full four-way tie and checks that `rps_challenges` are created instead of silently seeding a bracket. Artifacts are written to `tests/artifacts/season-<N>/standings-tiebreakers.json`. This covers the D.SEA.3 backend seeding/RPS slice; browser RPS gameplay remains pending.
+Standings tiebreaker checks are available with `E2E_ENABLE_TIEBREAKERS=1` or `--tiebreakers=true`. The runner creates disposable four-team leagues from seeded users, forces equal wins and points-for, calls the real authenticated `/playoffs/generate` route, verifies max-possible-points affects playoff seeding before points-against, then forces a full four-way tie and checks that completed `rps_challenges` audit rows are created while deterministic playoff seeding still succeeds. Artifacts are written to `tests/artifacts/season-<N>/standings-tiebreakers.json`. This covers the D.SEA.3 backend seeding/tiebreaker slice.
 
 Commissioner settings checks are available with `E2E_ENABLE_SETTINGS=1` or `--settings=true`. The runner creates a disposable league from seeded users, signs in through Supabase Auth as the commissioner and a manager, updates league/scoring/lineup-slot settings through the anon client under real RLS, verifies the manager can read the propagated settings, and verifies a manager write attempt does not mutate commissioner-only league settings. The scoring assertion uses the schema-valid `triple_double` key for the prompt's triple-double bonus because the live schema rejects `triple_double_bonus`. Artifacts are written to `tests/artifacts/season-<N>/commissioner-settings.json`. This covers the D.SET.3 propagation/RLS slice; browser editing of the settings form remains pending.
 

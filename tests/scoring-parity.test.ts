@@ -1,27 +1,25 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync, readdirSync } from 'node:fs'
 import path from 'node:path'
+import { calculateFantasyPoints, roundFantasyPoints } from '@pancake/core'
 
 // Scoring parity drift-guard.
 //
-// The fantasy-points formula is physically duplicated because Railway (backend)
-// and Supabase Edge (Deno) deploys cannot resolve the @pancake/core workspace
-// package, and Postgres needs its own copy. There is therefore no single
-// importable source of truth — so this test IS the source of truth: it fails the
-// build the moment any copy's arithmetic or category set drifts from the others.
+// The fantasy-points formula lives in @pancake/core. The backend imports that
+// package directly; Supabase Edge cannot import workspaces during deploy, so its
+// deployable copy is generated from core and checked by generated-edge-shared.
 //
 // Covered copies:
 //   - core/src/scoring/formula.ts            (canonical TS)
-//   - backend/src/lib/scoring.ts             (authoritative matchup scorer)
-//   - supabase/functions/_shared/scoring.ts  (edge mirror)
+//   - backend/src/lib/scoring.ts             (adapter to core)
+//   - supabase/functions/_shared/scoringCore.ts (generated Edge mirror)
 //   - SQL compute_fantasy_points() + v_fantasy_points (latest migration)
 
 const ROOT = path.resolve(__dirname, '..')
 
 const TS_SCORERS: Record<string, string> = {
     core: 'core/src/scoring/formula.ts',
-    backend: 'backend/src/lib/scoring.ts',
-    edge: 'supabase/functions/_shared/scoring.ts',
+    edge: 'supabase/functions/_shared/scoringCore.ts',
 }
 
 // statField -> scoring_settings key. Order is irrelevant; presence is enforced.
@@ -44,7 +42,7 @@ const ALL_SETTINGS_KEYS = [...CATEGORY_PAIRS.map(([, k]) => k), ...BONUS_KEYS].s
 const read = (rel: string): string => readFileSync(path.join(ROOT, rel), 'utf8')
 
 const extractTsFormula = (src: string): string => {
-    const m = src.match(/stats\.points[\s\S]*?\.toFixed\(2\)/)
+    const m = src.match(/stats\.points[\s\S]*?\(stats\.tripleDouble \? \(settings\.triple_double \?\? 0\) : 0\)/)
     if (!m) throw new Error('calculateFantasyPoints arithmetic block not found')
     return m[0].replace(/\s+/g, '')
 }
@@ -64,9 +62,14 @@ describe('scoring parity — TS copies', () => {
         Object.entries(TS_SCORERS).map(([name, rel]) => [name, extractTsFormula(read(rel))]),
     )
 
-    it('all three TS implementations have byte-identical arithmetic', () => {
-        expect(blocks.backend).toBe(blocks.core)
+    it('the generated Edge implementation has byte-identical arithmetic', () => {
         expect(blocks.edge).toBe(blocks.core)
+    })
+
+    it('backend scoring delegates pure formula helpers to core', () => {
+        const backend = read('backend/src/lib/scoring.ts')
+        expect(backend).toContain("from '@pancake/core'")
+        expect(backend).not.toContain('stats.points * (settings.points')
     })
 
     it.each(Object.keys(TS_SCORERS))('%s scores every category against the right settings key', (name) => {
@@ -81,7 +84,39 @@ describe('scoring parity — TS copies', () => {
     it.each(Object.entries(TS_SCORERS))('%s short-circuits DNP and rounds to 2 decimals', (_name, rel) => {
         const src = read(rel).replace(/\s+/g, '')
         expect(src).toContain('if(stats.didNotPlay)return0')
-        expect(src).toContain('.toFixed(2)')
+        expect(src).toContain('roundFantasyPoints(')
+        expect(src).not.toContain('.toFixed(2)')
+    })
+
+    it('rounds fractional scoring weights to the same 2-decimal oracle', () => {
+        expect(calculateFantasyPoints(
+            {
+                points: 1,
+                rebounds: 1,
+                assists: 0,
+                steals: 0,
+                blocks: 0,
+                turnovers: 0,
+                threePointersMade: 0,
+                fieldGoalsMade: 0,
+                fieldGoalsAttempted: 0,
+                freeThrowsMade: 0,
+                freeThrowsAttempted: 0,
+                doubleDouble: false,
+                tripleDouble: false,
+                didNotPlay: false,
+            },
+            { points: 1 / 3, rebounds: 1 / 3 },
+        )).toBe(0.67)
+    })
+
+    it('matches SQL half-away-from-zero rounding at cent ties', () => {
+        expect(roundFantasyPoints(1.005)).toBe(1.01)
+        expect(roundFantasyPoints(2.675)).toBe(2.68)
+        expect(roundFantasyPoints(10.075)).toBe(10.08)
+        expect(roundFantasyPoints(-1.005)).toBe(-1.01)
+        expect(roundFantasyPoints(-2.675)).toBe(-2.68)
+        expect(roundFantasyPoints(-10.075)).toBe(-10.08)
     })
 })
 
@@ -127,5 +162,32 @@ describe('scoring parity — SQL copy', () => {
         expect(viewBody).toMatch(/WHEN\s+pgs\.did_not_play\s+THEN\s+0/i)
         expect(fnBody, 'compute_fantasy_points missing regular-season purity filter').toMatch(/is_regular_season_game_id/i)
         expect(viewBody, 'v_fantasy_points missing regular-season purity filter').toMatch(/is_regular_season_game_id/i)
+    })
+
+    it('SQL fn and view each round per-game fantasy points to 2 decimals', () => {
+        expect(fnBody).toMatch(/RETURN\s+ROUND\(v_total,\s*2\)/i)
+        expect(viewBody).toMatch(/ELSE\s+ROUND\(/i)
+    })
+})
+
+describe('regular-season game-id parity', () => {
+    it('keeps backend and Edge adapters pointed at core/generated helpers', () => {
+        expect(read('backend/src/lib/nba.ts')).toContain("from '@pancake/core'")
+        expect(read('supabase/functions/_shared/nba.ts')).toContain("from './gameId.ts'")
+    })
+
+    it('keeps the generated Edge helper byte-identical to core', () => {
+        const core = read('core/src/season/gameId.ts').replace(/\s+/g, '')
+        const edge = read('supabase/functions/_shared/gameId.ts')
+            .replace('// Generated by scripts/generate-edge-shared.mjs. Do not edit manually.', '')
+            .replace(/\s+/g, '')
+        expect(edge).toBe(core)
+    })
+
+    it('keeps SQL regular-season predicate aligned with the TypeScript rule', () => {
+        const scoringCronAuctionMigration = read('supabase/migrations/20260626000002_exclude_non_regular_nba_games.sql')
+        expect(scoringCronAuctionMigration).toContain("WHEN btrim(p_game_id) LIKE '002%' THEN true")
+        expect(scoringCronAuctionMigration).toContain("WHEN btrim(p_game_id) ~ '^00[0-9]' THEN false")
+        expect(scoringCronAuctionMigration).toContain('ELSE true')
     })
 })

@@ -1,7 +1,7 @@
 import { View, Text, Pressable, StyleSheet, useWindowDimensions, type RefreshControlProps } from 'react-native'
 import { useCallback, useMemo, useState, type ReactElement } from 'react'
 import { FlashList, type ListRenderItem } from '@shopify/flash-list'
-import { StandingRow } from '@/lib/scoring'
+import { compareStandingsRows, type StandingRow } from '@/lib/scoring'
 import { WaiverPriorityRow } from '@/lib/waivers'
 import { TransactionRow, TRANSACTION_LABELS } from '@/lib/transactions'
 import { LeaguePickItem } from '@/lib/rookieDraft'
@@ -105,6 +105,7 @@ function StandingsRow({ item, index, isMe, onPress, showMaxPf, showPa }: { item:
             </Text>
             <Text style={[styles.standingsCell, isMe && styles.standingsMe]}>{item.wins}</Text>
             <Text style={[styles.standingsCell, isMe && styles.standingsMe]}>{item.losses}</Text>
+            <Text style={[styles.standingsCell, isMe && styles.standingsMe]}>{item.ties}</Text>
             <Text style={[styles.standingsPts, isMe && styles.standingsMe]}>{item.pointsFor.toFixed(1)}</Text>
             {showMaxPf ? <Text style={[styles.standingsPts, isMe && styles.standingsMe]}>{item.maxPointsFor.toFixed(1)}</Text> : null}
             {showPa ? <Text style={[styles.standingsPts, isMe && styles.standingsMe]}>{item.pointsAgainst.toFixed(1)}</Text> : null}
@@ -136,6 +137,7 @@ const StandingsListHeader = ({
                 <Text style={[styles.standingsHeaderText, sortBy === 'wins' && styles.standingsHeaderActive]}>W{arrow('wins')}</Text>
             </Pressable>
             <Text style={[styles.standingsCell, styles.standingsHeaderText]} accessibilityLabel="Losses">L</Text>
+            <Text style={[styles.standingsCell, styles.standingsHeaderText]}>T</Text>
             <Pressable style={styles.standingsPts} onPress={() => onSort('pf')} accessibilityRole="button" accessibilityLabel="Sort by points for">
                 <Text style={[styles.standingsHeaderText, sortBy === 'pf' && styles.standingsHeaderActive]}>PF{arrow('pf')}</Text>
             </Pressable>
@@ -166,7 +168,7 @@ export function StandingsTable({ standings, myMemberId, onSelectTeam, refreshCon
         return [...standings].sort((a, b) => {
             let cmp = 0
             switch (sortBy) {
-                case 'wins': cmp = a.wins - b.wins || a.pointsFor - b.pointsFor; break
+                case 'wins': cmp = -compareStandingsRows(a, b); break
                 case 'pf': cmp = a.pointsFor - b.pointsFor; break
                 case 'maxPf': cmp = a.maxPointsFor - b.maxPointsFor; break
                 case 'pa': cmp = a.pointsAgainst - b.pointsAgainst; break

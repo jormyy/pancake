@@ -8,12 +8,13 @@ export { calculateWeekNumberFromDate }
  * Fetches the start/end dates for week 1 of a given season year.
  */
 async function getWeek1Bounds(seasonYear: number): Promise<{ weekStart: string; weekEnd: string } | null> {
-    const { data } = await supabase
+    const { data, error } = await supabase
         .from('season_weeks')
         .select('week_start, week_end')
         .eq('season_year', seasonYear)
         .eq('week_number', 1)
         .maybeSingle()
+    if (error) throw error
 
     return data ? { weekStart: data.week_start, weekEnd: data.week_end } : null
 }
@@ -31,20 +32,21 @@ export async function getCurrentWeekNumber(seasonYear: number): Promise<number |
     const today = todayET()
 
     // Try to find a week that contains today
-    const { data: todayWeek } = await supabase
+    const { data: todayWeek, error: todayErr } = await supabase
         .from('season_weeks')
         .select('week_number, week_start, week_end')
         .eq('season_year', seasonYear)
         .lte('week_start', today)
         .gte('week_end', today)
         .maybeSingle()
+    if (todayErr) throw todayErr
 
     if (todayWeek) {
         return todayWeek.week_number
     }
 
     // Find week with week_end >= today (current or future week)
-    const { data: futureWeek } = await supabase
+    const { data: futureWeek, error: futureErr } = await supabase
         .from('season_weeks')
         .select('week_number, week_start, week_end')
         .eq('season_year', seasonYear)
@@ -52,9 +54,25 @@ export async function getCurrentWeekNumber(seasonYear: number): Promise<number |
         .order('week_start', { ascending: true })
         .limit(1)
         .maybeSingle()
+    if (futureErr) throw futureErr
 
     if (futureWeek) {
         return futureWeek.week_number
+    }
+
+    // After the final seeded fantasy week, do not keep extrapolating fake
+    // offseason week numbers. Keep reads anchored to the last known week.
+    const { data: lastWeek, error: lastErr } = await supabase
+        .from('season_weeks')
+        .select('week_number, week_end')
+        .eq('season_year', seasonYear)
+        .order('week_number', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+    if (lastErr) throw lastErr
+
+    if (lastWeek && today > lastWeek.week_end) {
+        return lastWeek.week_number
     }
 
     // Fallback: calculate from date using week 1 boundaries

@@ -1,0 +1,83 @@
+import { supabase } from '../lib/supabase'
+
+const PAGE_SIZE = 1000
+
+export type SeasonWeekBounds = {
+    week_number: number
+    week_start: string
+    week_end: string
+}
+
+type LeagueMemberId = {
+    id: string
+}
+
+export async function fetchAllPages<T>(queryFactory: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: any }>): Promise<T[]> {
+    const rows: T[] = []
+    for (let from = 0; ; from += PAGE_SIZE) {
+        const { data, error } = await queryFactory(from, from + PAGE_SIZE - 1)
+        if (error) throw error
+        const page = data ?? []
+        rows.push(...page)
+        if (page.length < PAGE_SIZE) break
+    }
+    return rows
+}
+
+export function dateFromETDate(dateKey: string): Date {
+    return new Date(`${dateKey}T12:00:00Z`)
+}
+
+export function weekRange(startWeek: number, endWeek: number): number[] {
+    const weeks: number[] = []
+    for (let week = startWeek; week <= endWeek; week += 1) {
+        weeks.push(week)
+    }
+    return weeks
+}
+
+export function weekNumberForGameDate(gameDate: string, weeks: SeasonWeekBounds[]): number | null {
+    const week = weeks.find((row) => row.week_start <= gameDate && gameDate <= row.week_end)
+    return week?.week_number ?? null
+}
+
+export async function loadSeasonWeekBounds(seasonYear: number, throughWeek: number): Promise<SeasonWeekBounds[]> {
+    return fetchAllPages<SeasonWeekBounds>((from, to) => supabase
+        .from('season_weeks')
+        .select('week_number, week_start, week_end')
+        .eq('season_year', seasonYear)
+        .lte('week_number', throughWeek)
+        .order('week_number')
+        .range(from, to) as any)
+}
+
+export async function loadLeagueMemberIds(leagueId: string): Promise<string[]> {
+    const rows = await fetchAllPages<LeagueMemberId>((from, to) => supabase
+        .from('league_members')
+        .select('id')
+        .eq('league_id', leagueId)
+        .order('id')
+        .range(from, to) as any)
+    return rows.map((row) => row.id)
+}
+
+function newYorkOffsetMinutes(utcDate: Date): number {
+    const offsetPart = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/New_York',
+        timeZoneName: 'longOffset',
+    }).formatToParts(utcDate).find((part) => part.type === 'timeZoneName')?.value
+    const match = offsetPart?.match(/^GMT([+-])(\d{2}):?(\d{2})?$/)
+    if (!match) return -300
+    const sign = match[1] === '-' ? -1 : 1
+    return sign * (Number(match[2]) * 60 + Number(match[3] ?? 0))
+}
+
+export function endOfETDayUTC(gameDate: string): string {
+    const [year, month, day] = gameDate.split('-').map(Number)
+    const nextLocalMidnightAsUTC = Date.UTC(year, month - 1, day + 1, 0, 0, 0)
+    let utcTime = nextLocalMidnightAsUTC + 5 * 60 * 60 * 1000
+    for (let i = 0; i < 2; i += 1) {
+        utcTime = nextLocalMidnightAsUTC - newYorkOffsetMinutes(new Date(utcTime)) * 60 * 1000
+    }
+    return new Date(utcTime).toISOString()
+}

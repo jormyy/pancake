@@ -17,24 +17,19 @@ import { supabase } from '../_shared/supabase.ts'
 import { fetchTodaysGames, mapGameStatus } from '../_shared/nba.ts'
 import { syncStatsByDate } from '../_shared/syncStats.ts'
 import { syncScores } from '../_shared/syncScores.ts'
+import { requireInternalFunctionAuth } from '../_shared/auth.ts'
 import { errorMessage, internalServerError } from '../_shared/responses.ts'
+import {
+  LIVE_POLL_LEASE_TTL_SECONDS,
+  LIVE_POLL_LOCK_KEY,
+  dateFromETDate,
+  livePollCandidateDates,
+} from '../_shared/livePoll.ts'
 
-const LIVE_POLL_LOCK_KEY = 779001
-// TTL must comfortably cover the longest in-loop sync. 90s leaves headroom
-// over the 1-minute cron cadence; if the worker crashes the lease auto-clears.
-const LIVE_POLL_LEASE_TTL_SECONDS = 90
+Deno.serve(async (req) => {
+  const authError = requireInternalFunctionAuth(req)
+  if (authError) return authError
 
-function etDate(offsetDays = 0): string {
-  const date = new Date()
-  date.setUTCDate(date.getUTCDate() + offsetDays)
-  return date.toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
-}
-
-function dateFromISODate(date: string): Date {
-  return new Date(`${date}T12:00:00-05:00`)
-}
-
-Deno.serve(async () => {
   try {
     const { data: holderId, error: lockErr } = await supabase.rpc('try_live_poll_lease', {
       p_lock_key: LIVE_POLL_LOCK_KEY,
@@ -44,9 +39,7 @@ Deno.serve(async () => {
     if (!holderId) return Response.json({ ok: true, action: 'lease-skip' })
 
     try {
-      const todayStr = etDate()
-      const yesterdayStr = etDate(-1)
-      const candidateDates = [yesterdayStr, todayStr]
+      const candidateDates = livePollCandidateDates()
 
       const { data: activeGames, error: activeGamesError } = await supabase
         .from('nba_games')
@@ -135,6 +128,6 @@ Deno.serve(async () => {
 
 async function syncCandidateDates(candidateDates: string[]): Promise<void> {
   for (const date of candidateDates) {
-    await syncStatsByDate(dateFromISODate(date))
+    await syncStatsByDate(dateFromETDate(date))
   }
 }

@@ -7,12 +7,13 @@ export { currentSeasonYear } from '@pancake/core'
 export async function getCurrentSeason(
     leagueId: string,
 ): Promise<{ id: string; seasonYear: number } | null> {
-    const { data } = await supabase
+    const { data, error } = await supabase
         .from('league_seasons')
         .select('id, season_year')
         .eq('league_id', leagueId)
         .eq('is_current', true)
-        .single()
+        .maybeSingle()
+    if (error) throw error
     return data ? { id: data.id, seasonYear: data.season_year } : null
 }
 
@@ -31,12 +32,13 @@ export async function getCurrentSeasonId(leagueId: string): Promise<string | nul
 export async function getActiveSeasonId(leagueId: string): Promise<string | null> {
     const current = await getCurrentSeasonId(leagueId)
     if (current) return current
-    const { data } = await supabase
+    const { data, error } = await supabase
         .from('league_seasons')
         .select('id')
         .eq('league_id', leagueId)
         .order('season_year', { ascending: false })
         .limit(1)
-        .single()
+        .maybeSingle()
+    if (error) throw error
     return data?.id ?? null
 }

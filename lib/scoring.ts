@@ -57,9 +57,18 @@ export type StandingRow = {
     teamName: string
     wins: number
     losses: number
+    ties: number
     pointsFor: number
     pointsAgainst: number
     maxPointsFor: number
+}
+
+export function compareStandingsRows(a: StandingRow, b: StandingRow): number {
+    return b.wins - a.wins ||
+        b.pointsFor - a.pointsFor ||
+        b.maxPointsFor - a.maxPointsFor ||
+        a.pointsAgainst - b.pointsAgainst ||
+        a.memberId.localeCompare(b.memberId)
 }
 
 export type LeagueWeekMatchup = {
@@ -212,7 +221,7 @@ export async function getLeagueStandings(leagueId: string): Promise<StandingRow[
         supabase
             .from('matchups')
             .select(
-                'home_member_id, away_member_id, home_points, away_points, winner_member_id, is_finalized',
+                'home_member_id, away_member_id, home_points, away_points, home_max_possible_points, away_max_possible_points, winner_member_id, is_finalized',
             )
             .eq('league_id', leagueId)
             .eq('league_season_id', season.id)
@@ -229,6 +238,7 @@ export async function getLeagueStandings(leagueId: string): Promise<StandingRow[
             teamName: m.team_name ?? 'Team',
             wins: 0,
             losses: 0,
+            ties: 0,
             pointsFor: 0,
             pointsAgainst: 0,
             maxPointsFor: 0,
@@ -239,16 +249,18 @@ export async function getLeagueStandings(leagueId: string): Promise<StandingRow[
         if (m.is_finalized) {
             const hp = Number(m.home_points ?? 0)
             const ap = Number(m.away_points ?? 0)
+            const hMax = Number(m.home_max_possible_points ?? 0)
+            const aMax = Number(m.away_max_possible_points ?? 0)
 
             if (map[m.home_member_id]) {
                 map[m.home_member_id].pointsFor += hp
                 map[m.home_member_id].pointsAgainst += ap
-                if (hp > map[m.home_member_id].maxPointsFor) map[m.home_member_id].maxPointsFor = hp
+                map[m.home_member_id].maxPointsFor += hMax
             }
             if (map[m.away_member_id]) {
                 map[m.away_member_id].pointsFor += ap
                 map[m.away_member_id].pointsAgainst += hp
-                if (ap > map[m.away_member_id].maxPointsFor) map[m.away_member_id].maxPointsFor = ap
+                map[m.away_member_id].maxPointsFor += aMax
             }
         }
 
@@ -257,8 +269,11 @@ export async function getLeagueStandings(leagueId: string): Promise<StandingRow[
                 m.winner_member_id === m.home_member_id ? m.away_member_id : m.home_member_id
             if (map[m.winner_member_id]) map[m.winner_member_id].wins++
             if (map[loserId]) map[loserId].losses++
+        } else if (m.is_finalized) {
+            if (map[m.home_member_id]) map[m.home_member_id].ties++
+            if (map[m.away_member_id]) map[m.away_member_id].ties++
         }
     }
 
-    return Object.values(map).sort((a, b) => b.wins - a.wins || b.pointsFor - a.pointsFor)
+    return Object.values(map).sort(compareStandingsRows)
 }

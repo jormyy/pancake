@@ -126,6 +126,23 @@ BEGIN
     'draft'
   );
 
+  INSERT INTO roster_transactions (
+    league_id,
+    league_season_id,
+    member_id,
+    player_id,
+    transaction_type,
+    occurred_at
+  )
+  VALUES (
+    v_draft.league_id,
+    v_draft.league_season_id,
+    p_member_id,
+    p_player_id,
+    'draft_won',
+    v_now
+  );
+
   UPDATE draft_picks
      SET is_used = true,
          used_at = v_now,

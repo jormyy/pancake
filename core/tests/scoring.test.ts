@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { calculateFantasyPoints } from '../src/scoring/formula'
+import { calculateFantasyPoints, roundFantasyPoints } from '../src/scoring/formula'
 import type { StatLine, ScoringSettings } from '../src/scoring/types'
 
 const baseStats: StatLine = {
@@ -157,6 +157,15 @@ describe('calculateFantasyPoints', () => {
         const stats: StatLine = { ...baseStats, points: 1.236 }
         const settings: ScoringSettings = { points: 1 }
         expect(calculateFantasyPoints(stats, settings)).toBe(1.24)
+    })
+
+    it('rounds cent ties like SQL for positive and negative fantasy points', () => {
+        expect(roundFantasyPoints(1.005)).toBe(1.01)
+        expect(roundFantasyPoints(2.675)).toBe(2.68)
+        expect(roundFantasyPoints(10.075)).toBe(10.08)
+        expect(roundFantasyPoints(-1.005)).toBe(-1.01)
+        expect(roundFantasyPoints(-2.675)).toBe(-2.68)
+        expect(roundFantasyPoints(-10.075)).toBe(-10.08)
     })
 
     it('produces a number type', () => {

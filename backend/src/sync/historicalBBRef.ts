@@ -154,7 +154,7 @@ export async function syncBBRefSeason(seasonEndYear: number, jobId: string): Pro
                 }
 
                 const minutesPlayed = stat.minutesDecimal
-                const dnp = stat.dnp || !minutesPlayed || minutesPlayed < 0.5
+                const dnp = stat.dnp || minutesPlayed == null
 
                 const pts = stat.pts
                 const reb = stat.reb

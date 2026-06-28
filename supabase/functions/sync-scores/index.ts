@@ -1,16 +1,25 @@
 import { supabase } from '../_shared/supabase.ts'
 import { syncScores } from '../_shared/syncScores.ts'
+import { syncStatsByDate } from '../_shared/syncStats.ts'
+import { requireInternalFunctionAuth } from '../_shared/auth.ts'
 import { internalServerError } from '../_shared/responses.ts'
+import {
+  LIVE_POLL_LEASE_TTL_SECONDS,
+  LIVE_POLL_LOCK_KEY,
+  dateFromETDate,
+  livePollCandidateDates,
+} from '../_shared/livePoll.ts'
 
-// Must match supabase/functions/live-poll/index.ts and
-// backend/src/sync/livePoller.ts — manual sync-scores invocations need to
-// share the same lease so they don't race the cron poller and crash on the
-// (league_id, league_season_id, member_id, week_number) UNIQUE in
-// standings_snapshots.
-const LIVE_POLL_LOCK_KEY = 779001
-const LIVE_POLL_LEASE_TTL_SECONDS = 90
+async function syncStatsForScoreCandidateDates(): Promise<void> {
+  for (const date of livePollCandidateDates()) {
+    await syncStatsByDate(dateFromETDate(date))
+  }
+}
 
-Deno.serve(async () => {
+Deno.serve(async (req) => {
+  const authError = requireInternalFunctionAuth(req)
+  if (authError) return authError
+
   try {
     const { data: holderId, error: lockErr } = await supabase.rpc('try_live_poll_lease', {
       p_lock_key: LIVE_POLL_LOCK_KEY,
@@ -25,6 +34,7 @@ Deno.serve(async () => {
     }
 
     try {
+      await syncStatsForScoreCandidateDates()
       await syncScores()
       return Response.json({ ok: true })
     } finally {

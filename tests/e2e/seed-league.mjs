@@ -175,8 +175,8 @@ const main = async () => {
     league = createdLeague
     checks.push({
       name: 'invite_code',
-      status: /^[A-Z0-9]{6}$/.test(league?.invite_code ?? '') ? 'PASS' : 'FAIL',
-      detail: league?.invite_code ? '6-character code generated' : 'missing invite_code',
+      status: /^[A-Z0-9]{16}$/.test(league?.invite_code ?? '') ? 'PASS' : 'FAIL',
+      detail: league?.invite_code ? '16-character code generated' : 'missing invite_code',
     })
 
     for (const user of users.slice(1)) {

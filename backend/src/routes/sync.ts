@@ -15,6 +15,12 @@ import { AppError, NotFoundError } from '../plugins/errorHandler'
 import { requireAdmin } from '../lib/authz'
 import { supabase } from '../lib/supabase'
 import {
+    LIVE_POLL_LEASE_TTL_SECONDS,
+    LIVE_POLL_LOCK_KEY,
+    dateFromETDate,
+    livePollCandidateDates,
+} from '@pancake/core'
+import {
     SyncStatsBody,
     SyncMatchupsBody,
     BackfillBody,
@@ -23,13 +29,6 @@ import {
     ValidateDbBody,
     DraftOrderBody,
 } from '../schemas'
-
-// Mirrors the lease constants in backend/src/sync/livePoller.ts and
-// supabase/functions/live-poll. Manual /sync/scores must share this key so a
-// commissioner press doesn't race the cron poller into the standings UNIQUE
-// (league_id, league_season_id, member_id, week_number).
-const LIVE_POLL_LOCK_KEY = 779001
-const LIVE_POLL_LEASE_TTL_SECONDS = 90
 
 async function withLivePollLeaseOrThrow<T>(fn: () => Promise<T>): Promise<T> {
     const { data: holderId, error } = await supabase.rpc('try_live_poll_lease', {
@@ -59,6 +58,32 @@ function parseQuerySeasonYear(query: Record<string, string | undefined>): number
     return query?.seasonYear ? parseInt(query.seasonYear) : currentSeasonYear()
 }
 
+function currentEtMonth(now = new Date()): number {
+    const month = Number(new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/New_York',
+        month: 'numeric',
+    }).format(now))
+    if (!Number.isInteger(month)) {
+        throw new AppError('Could not resolve current ET month', 500)
+    }
+    return month
+}
+
+function defaultDraftOrderSeasonYear(now = new Date()): number {
+    const month = currentEtMonth(now)
+    if (month !== 6 && month !== 7) {
+        throw new AppError('seasonYear is required outside the June/July draft-order sync window', 400)
+    }
+    return currentSeasonYear(now)
+}
+
+async function syncStatsForScoreCandidateDates(): Promise<void> {
+    const dateKeys = livePollCandidateDates()
+    for (const dateKey of dateKeys) {
+        await syncStatsByDate(dateFromETDate(dateKey))
+    }
+}
+
 export default async function syncRoutes(app: FastifyInstance) {
     app.post('/stats', { schema: { body: SyncStatsBody } }, async (req) => {
         requireAdmin(req.userId)
@@ -86,8 +111,9 @@ export default async function syncRoutes(app: FastifyInstance) {
 
     app.post('/draft-order', { schema: { body: DraftOrderBody } }, async (req) => {
         requireAdmin(req.userId)
-        const { seasonYear = new Date().getFullYear() } = (req.body ?? {}) as { seasonYear?: number }
-        const result = await syncDraftOrder(seasonYear)
+        const { seasonYear } = (req.body ?? {}) as { seasonYear?: number }
+        const draftYear = seasonYear ?? defaultDraftOrderSeasonYear()
+        const result = await syncDraftOrder(draftYear)
         return { ok: true, ...result }
     })
 
@@ -96,6 +122,7 @@ export default async function syncRoutes(app: FastifyInstance) {
         await withLivePollLeaseOrThrow(async () => {
             const games = await fetchTodaysGames()
             if (games.length) await updateGameStatuses(games)
+            await syncStatsForScoreCandidateDates()
             await syncScores()
         })
         return { ok: true }

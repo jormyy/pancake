@@ -51,7 +51,8 @@ BEGIN
   SELECT *
   INTO   v_league
   FROM   public.leagues
-  WHERE  invite_code = upper(trim(p_invite_code));
+  WHERE  invite_code = upper(trim(p_invite_code))
+  FOR UPDATE;
 
   IF NOT FOUND THEN
     RAISE EXCEPTION 'League not found. Check your invite code.';

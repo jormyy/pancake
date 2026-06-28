@@ -1,4 +1,5 @@
 import { supabase } from '../_shared/supabase.ts'
+import { requireInternalFunctionAuth } from '../_shared/auth.ts'
 import { internalServerError } from '../_shared/responses.ts'
 
 const SLEEPER_BASE_URL = Deno.env.get('SLEEPER_BASE_URL') ?? 'https://api.sleeper.app/v1'
@@ -8,7 +9,10 @@ const NBA_PLAYER_INDEX_URL = `${NBA_CDN_BASE_URL}/staticData/playerIndex.json`
 const CHUNK = 500
 const AMBIGUOUS = '__ambiguous__'
 
-Deno.serve(async () => {
+Deno.serve(async (req) => {
+  const authError = requireInternalFunctionAuth(req)
+  if (authError) return authError
+
   try {
     await syncPlayers()
     await syncNBAIds()

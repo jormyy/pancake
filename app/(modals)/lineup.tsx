@@ -7,17 +7,15 @@ import { getPositionColor } from "@/constants/positions"
 import { colors, fontSize, fontWeight, palette, radii, scrim, spacing } from '@/constants/tokens'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useAuth } from '@/hooks/use-auth'
+import { useLineupActions } from '@/hooks/use-lineup-actions'
 import { useLiveStats } from '@/hooks/use-live-stats'
 import {
-    autoSetLineup,
-    canPlaySlot,
     getLineupContext,
     getWeekDays,
     getWeeklyLineup,
     LineupContext,
     LineupPlayer,
     LineupSlot,
-    setPlayerSlotMoves,
     WeekDay,
 } from '@/lib/lineup'
 import { todayET } from '@/lib/shared/dates'
@@ -31,12 +29,7 @@ import {
     View,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { showAlert, showSuccess, getErrorMessage } from '@/lib/alert'
 import { MotionPressable, MotionView } from '@/components/Motion'
-
-type Selection =
-    | { kind: 'starter'; index: number }
-    | { kind: 'bench'; index: number }
 
 // Memoized row component that only re-renders when its props change
 const StarterRow = memo(function StarterRow({
@@ -184,16 +177,9 @@ export default function LineupScreen() {
     const [bench, setBench] = useState<LineupPlayer[]>([])
     const [loading, setLoading] = useState(true)
 
-    const [saving, setSaving] = useState(false)
-    const [autoSetting, setAutoSetting] = useState(false)
-    const [autoSetModalVisible, setAutoSetModalVisible] = useState(false)
-    const [selected, setSelected] = useState<Selection | null>(null)
-
     const { startedTeams, liveTeams, teamMatchups } = useLiveStats(selectedDate)
-    // Wrap in refs so memoized row components read the latest value without re-rendering on poll updates
-    const startedTeamsRef = useRef(startedTeams)
+    // Wrap in a ref so memoized row components read the latest value without re-rendering on poll updates
     const liveTeamsRef = useRef(liveTeams)
-    startedTeamsRef.current = startedTeams
     liveTeamsRef.current = liveTeams
 
     const loadLineup = useCallback(async (lineupCtx: LineupContext, league: any, date: string) => {
@@ -228,97 +214,36 @@ export default function LineupScreen() {
 
     useEffect(() => { load() }, [load])
 
-    async function handleTap(newSel: Selection) {
-        // Block all moves on past days. selectedDate is set from
-        // lineupCtx.today (ET-keyed) so compare against todayET to avoid
-        // a local-vs-ET skew misclassifying the current day.
-        if (selectedDate < todayET()) {
-            showAlert('Past lineup', 'Lineups for past days cannot be changed.')
-            return
-        }
-
-        // First tap — select
-        if (!selected) {
-            setSelected(newSel)
-            return
-        }
-
-        // Same item tapped again — deselect
-        if (selected.kind === newSel.kind && selected.index === newSel.index) {
-            setSelected(null)
-            return
-        }
-
-        setSelected(null)
-
-        if (!current || !ctx || !currentLeague) return
-
-        const aPlayer = selected.kind === 'starter' ? starters[selected.index].player : bench[selected.index]
-        const bPlayer = newSel.kind === 'starter' ? starters[newSel.index].player : bench[newSel.index]
-        const aSlot = selected.kind === 'starter' ? starters[selected.index].slotType : 'BE'
-        const bSlot = newSel.kind === 'starter' ? starters[newSel.index].slotType : 'BE'
-
-        // Block any move involving a player whose game has already started (InProgress or Final)
-        const aLocked = !!(aPlayer?.nbaTeam && startedTeamsRef.current.has(aPlayer.nbaTeam))
-        const bLocked = !!(bPlayer?.nbaTeam && startedTeamsRef.current.has(bPlayer.nbaTeam))
-        if (aLocked || bLocked) {
-            const who = aLocked ? aPlayer! : bPlayer!
-            showAlert('Lineup locked', `${who.displayName}'s game has already started. No lineup changes are allowed once a game begins.`)
-            return
-        }
-
-        // Validate eligibility
-        if (aPlayer && bSlot !== 'BE' && !canPlaySlot(aPlayer.eligiblePositions, bSlot)) {
-            showAlert('Invalid move', `${aPlayer.displayName} can't play ${bSlot}`)
-            return
-        }
-        if (bPlayer && aSlot !== 'BE' && !canPlaySlot(bPlayer.eligiblePositions, aSlot)) {
-            showAlert('Invalid move', `${bPlayer.displayName} can't play ${aSlot}`)
-            return
-        }
-
-        setSaving(true)
-        try {
-            await setPlayerSlotMoves(
-                {
-                    memberId: current.id,
-                    leagueId: currentLeague.id,
-                    seasonId: ctx.seasonId,
-                    weekNumber: ctx.weekNumber,
-                    gameDate: selectedDate,
-                },
-                [
-                    ...(aPlayer ? [{ playerId: aPlayer.playerId, slotType: bSlot }] : []),
-                    ...(bPlayer ? [{ playerId: bPlayer.playerId, slotType: aSlot }] : []),
-                ],
-            )
-            await loadLineup(ctx, currentLeague, selectedDate)
-        } catch (e) {
-            showAlert('Error', getErrorMessage(e))
-        } finally {
-            setSaving(false)
-        }
-    }
-
-    async function doAutoSet(date: string | null, restOfSeason?: boolean) {
-        if (!current || !ctx || !currentLeague) return
-        setAutoSetting(true)
-        try {
-            await autoSetLineup(current.id, currentLeague.id, ctx.seasonId, ctx.weekNumber, ctx.seasonYear, date, restOfSeason)
-            await loadLineup(ctx, currentLeague, selectedDate)
-            if (restOfSeason) {
-                showSuccess('Done', 'Lineup set for the rest of the season.')
-            }
-        } catch (e) {
-            showAlert('Auto-set failed', getErrorMessage(e) ?? String(e))
-        } finally {
-            setAutoSetting(false)
-        }
-    }
-
-    function handleAutoSet() {
-        setAutoSetModalVisible(true)
-    }
+    const actionContext = current && ctx && currentLeague ? {
+        memberId: current.id,
+        leagueId: currentLeague.id,
+        seasonId: ctx.seasonId,
+        weekNumber: ctx.weekNumber,
+        seasonYear: ctx.seasonYear,
+    } : null
+    const lineupForActions = ctx ? { starters, bench } : null
+    const reloadLineupForActions = useCallback(async (date: string) => {
+        if (!ctx || !currentLeague) return
+        await loadLineup(ctx, currentLeague, date)
+    }, [ctx, currentLeague, loadLineup])
+    const {
+        selected,
+        setSelected,
+        saving,
+        autoSetting,
+        autoSetModalVisible,
+        setAutoSetModalVisible,
+        handleTap,
+        doAutoSet,
+        handleAutoSet,
+    } = useLineupActions({
+        actionContext,
+        myLineup: lineupForActions,
+        league: currentLeague,
+        selectedDate,
+        startedTeams,
+        reloadLineup: reloadLineupForActions,
+    })
 
     async function handleDaySelect(date: string) {
         if (!ctx || !currentLeague) return

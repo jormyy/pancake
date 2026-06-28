@@ -1,6 +1,8 @@
 import { supabase } from '../_shared/supabase.ts'
+import { requireInternalFunctionAuth } from '../_shared/auth.ts'
 import { internalServerError } from '../_shared/responses.ts'
 import { normalizeName } from '../_shared/nameMatch.ts'
+import { currentSeasonYear } from '../_shared/season.ts'
 
 const NBA_STATS_URL = 'https://stats.nba.com/stats/drafthistory'
 const NBA_COM_BASE_URL = 'https://www.nba.com'
@@ -34,12 +36,34 @@ const HTTP_HEADERS = {
   'Accept-Language': 'en-US,en;q=0.9',
 }
 
+function currentEtMonth(now = new Date()): number {
+  const month = Number(new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    month: 'numeric',
+  }).format(now))
+  if (!Number.isInteger(month)) {
+    throw new Error('Could not resolve current ET month')
+  }
+  return month
+}
+
+function defaultDraftOrderSeasonYear(now = new Date()): number {
+  const month = currentEtMonth(now)
+  if (month !== 6 && month !== 7) {
+    throw new Error('seasonYear is required outside the June/July draft-order sync window')
+  }
+  return currentSeasonYear(now)
+}
+
 Deno.serve(async (req) => {
+  const authError = requireInternalFunctionAuth(req)
+  if (authError) return authError
+
   try {
     const body = await readBody(req)
     const seasonYear = Number.isInteger(body.seasonYear)
       ? Number(body.seasonYear)
-      : currentSeasonYear()
+      : defaultDraftOrderSeasonYear()
     const result = await syncDraftOrder(seasonYear)
     return Response.json({ ok: true, ...result })
   } catch (e: unknown) {
@@ -53,11 +77,6 @@ async function readBody(req: Request): Promise<Record<string, unknown>> {
   } catch {
     return {}
   }
-}
-
-function currentSeasonYear(): number {
-  const now = new Date()
-  return now.getMonth() >= 9 ? now.getFullYear() + 1 : now.getFullYear()
 }
 
 async function syncDraftOrder(seasonYear: number) {

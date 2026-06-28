@@ -206,10 +206,10 @@ export async function runBrowserLeagueLifecycleScenario({ season = 0 } = {}) {
     await clickExactText(session, 'Create League', 'create league button')
     const createBody = await waitForBodyText(
       session,
-      `(text) => text.includes('League Created!') && /\\b[A-Z0-9]{6}\\b/.test(text)`,
+      `(text) => text.includes('League Created!') && /\\b[A-Z0-9]{16}\\b/.test(text)`,
       'create league success',
     )
-    const inviteCode = createBody.match(/\b[A-Z0-9]{6}\b/)?.[0]
+    const inviteCode = createBody.match(/\b[A-Z0-9]{16}\b/)?.[0]
     if (!inviteCode) throw new Error('D.SET.2 browser create league: invite code not visible')
     await browser(session, ['screenshot', path.join(artifactDir, 'created-league.png')], { timeout: 60_000 })
 

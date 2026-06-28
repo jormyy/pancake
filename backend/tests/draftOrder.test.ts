@@ -160,6 +160,13 @@ describe('isDraftOrderAutoSyncWindow', () => {
         expect(isDraftOrderAutoSyncWindow(new Date('2027-07-15T12:00:00Z'))).toBe(true)
         expect(isDraftOrderAutoSyncWindow(new Date('2027-07-16T12:00:00Z'))).toBe(false)
     })
+
+    it('uses Eastern Time day boundaries for the auto-sync window', () => {
+        expect(isDraftOrderAutoSyncWindow(new Date('2027-06-20T03:30:00Z'))).toBe(false)
+        expect(isDraftOrderAutoSyncWindow(new Date('2027-06-20T04:30:00Z'))).toBe(true)
+        expect(isDraftOrderAutoSyncWindow(new Date('2027-07-16T03:30:00Z'))).toBe(true)
+        expect(isDraftOrderAutoSyncWindow(new Date('2027-07-16T04:30:00Z'))).toBe(false)
+    })
 })
 
 describe('syncDraftOrder', () => {

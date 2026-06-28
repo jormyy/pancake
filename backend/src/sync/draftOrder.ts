@@ -8,6 +8,7 @@ const MIN_COMPLETE_DRAFT_PICKS = 50
 const PLAYER_UPDATE_CONCURRENCY = 10
 const AUTO_SYNC_START_MONTH = 5 // June, zero-indexed
 const AUTO_SYNC_END_MONTH = 6 // July, zero-indexed
+const ET_TIME_ZONE = 'America/New_York'
 
 export type DraftOrderSource = 'stats.nba.com' | 'nba.com'
 
@@ -449,14 +450,36 @@ function setUnique(map: Map<string, string>, key: string, value: string): void {
 }
 
 export function isDraftOrderAutoSyncWindow(now = new Date()): boolean {
-    const month = now.getMonth()
-    if (month === AUTO_SYNC_START_MONTH) return now.getDate() >= 20
-    if (month === AUTO_SYNC_END_MONTH) return now.getDate() <= 15
+    const { month, day } = etDateParts(now)
+    if (month === AUTO_SYNC_START_MONTH) return day >= 20
+    if (month === AUTO_SYNC_END_MONTH) return day <= 15
     return false
 }
 
 export async function syncCurrentDraftOrderIfDue(now = new Date()): Promise<SyncDraftOrderResult | null> {
     if (!isDraftOrderAutoSyncWindow(now)) return null
-    const seasonYear = now.getMonth() >= 9 ? now.getFullYear() + 1 : now.getFullYear()
+    const { year, month } = etDateParts(now)
+    const seasonYear = month >= 9 ? year + 1 : year
     return syncDraftOrder(seasonYear)
+}
+
+function etDateParts(date: Date): { year: number; month: number; day: number } {
+    const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: ET_TIME_ZONE,
+        year: 'numeric',
+        month: 'numeric',
+        day: 'numeric',
+    }).formatToParts(date)
+
+    const get = (type: string) => {
+        const value = parts.find((part) => part.type === type)?.value
+        if (!value) throw new Error(`Could not resolve ET ${type} from ${date.toISOString()}`)
+        return Number(value)
+    }
+
+    return {
+        year: get('year'),
+        month: get('month') - 1,
+        day: get('day'),
+    }
 }

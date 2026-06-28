@@ -519,6 +519,7 @@ const styles = StyleSheet.create({
     inviteRow: {
         flexDirection: 'row',
         alignItems: 'center',
+        flexWrap: 'wrap',
         gap: spacing.md,
         backgroundColor: colors.bgCard,
         borderWidth: 1,
@@ -529,7 +530,7 @@ const styles = StyleSheet.create({
         paddingVertical: spacing.lg,
     },
     inviteLabel: { fontSize: fontSize.sm, color: colors.textMuted, flex: 1 },
-    inviteCode: { fontSize: 15, fontWeight: fontWeight.extrabold, color: colors.textPrimary, letterSpacing: 2 },
+    inviteCode: { flexShrink: 1, fontSize: fontSize.sm, fontWeight: fontWeight.extrabold, color: colors.textPrimary, letterSpacing: 1 },
     inviteCopy: { fontSize: fontSize.sm, color: colors.primaryDark, fontWeight: fontWeight.semibold },
 
     tabRow: {

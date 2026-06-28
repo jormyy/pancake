@@ -76,12 +76,13 @@ async function getRemainingSeasonDates(
     // ET-keyed). Use todayET so non-ET clients don't include already-past
     // ET dates and silently wipe scored weekly_lineups rows.
     const today = todayET()
-    const { data: weeks } = await supabase
+    const { data: weeks, error: weeksErr } = await supabase
         .from('season_weeks')
         .select('week_number, week_start')
         .eq('season_year', seasonYear)
         .gte('week_number', fromWeek)
         .order('week_number', { ascending: true })
+    if (weeksErr) throw weeksErr
 
     const result: { date: string; weekNumber: number }[] = []
     for (const w of (weeks ?? []) as SeasonWeekRow[]) {
@@ -112,7 +113,7 @@ export async function autoSetLineup(
     gameDate: string | null, // null = whole week
     restOfSeason?: boolean,
 ): Promise<void> {
-    const [{ data: roster }, { data: templates }] = await Promise.all([
+    const [{ data: roster, error: rosterErr }, { data: templates, error: templatesErr }] = await Promise.all([
         supabase
             .from('roster_players')
             .select('id, player_id, players(position, eligible_positions, nba_team, injury_status)')
@@ -126,6 +127,8 @@ export async function autoSetLineup(
             .select('slot_type, slot_count')
             .eq('league_id', leagueId),
     ])
+    if (rosterErr) throw rosterErr
+    if (templatesErr) throw templatesErr
 
     const rosterRows = (roster ?? []) as RosterPlayerRow[]
     const playerIds = rosterRows.map((row) => row.player_id)
@@ -134,7 +137,7 @@ export async function autoSetLineup(
     // instead of querying raw player_game_stats. The raw query has no explicit limit and
     // Supabase truncates at 1000 rows — with 15+ players × 70+ games each, some players'
     // stats get silently dropped, giving them projected = 0 and leaving them on bench.
-    const [{ data: avgRows }, { data: leagueRow }] = await Promise.all([
+    const [{ data: avgRows, error: avgErr }, { data: leagueRow, error: leagueErr }] = await Promise.all([
         supabase
             .from('mv_player_season_averages')
             .select('player_id, games_played, avg_points, avg_rebounds, avg_assists, avg_steals, avg_blocks, avg_turnovers, avg_three_pointers_made, avg_field_goals_made, avg_field_goals_attempted, avg_free_throws_made, avg_free_throws_attempted, double_doubles, triple_doubles')
@@ -146,6 +149,8 @@ export async function autoSetLineup(
             .eq('id', leagueId)
             .single(),
     ])
+    if (avgErr) throw avgErr
+    if (leagueErr) throw leagueErr
 
     const scoringSettings = ((leagueRow as LeagueScoringRow | null)?.scoring_settings ?? {})
     const scoringValue = (key: string) => Number(scoringSettings[key] ?? 0)
@@ -236,7 +241,7 @@ async function autoSetForDate(
     // non-ET clients during the 0–3h skew window.
     if (gameDate < todayET()) return
 
-    const [{ data: games }, { data: existingEntries }] = await Promise.all([
+    const [{ data: games, error: gamesErr }, { data: existingEntries, error: existingErr }] = await Promise.all([
         supabase
             .from('nba_games')
             .select('home_team, away_team, status, game_time')
@@ -250,6 +255,8 @@ async function autoSetForDate(
             .eq('league_season_id', seasonId)
             .eq('game_date', gameDate),
     ])
+    if (gamesErr) throw gamesErr
+    if (existingErr) throw existingErr
 
     const playingTeams = new Set<string>()
     const startedTeams = new Set<string>()

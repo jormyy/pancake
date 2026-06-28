@@ -2,7 +2,8 @@ import { describe, it, expect, vi } from 'vitest'
 
 vi.mock('../src/lib/supabase', () => ({ supabase: { from: vi.fn() } }))
 
-import { calculateFantasyPoints, snakeToStatLine } from '../src/lib/scoring'
+import { calculateFantasyPoints, roundFantasyPoints, snakeToStatLine } from '../src/lib/scoring'
+import { resolveMatchupWinnerForScore } from '../src/sync/scores'
 
 const defaultSettings: Record<string, number> = {
     points: 1,
@@ -101,5 +102,56 @@ describe('calculateFantasyPoints (backend)', () => {
         const s = stat({ rebounds: 1 }) // 1 * 1.25 = 1.25
         const result = calculateFantasyPoints(s, defaultSettings)
         expect(result.toString()).not.toMatch(/\.\d{3,}/)
+    })
+
+    it('rounds cent ties like SQL for positive and negative fantasy points', () => {
+        expect(roundFantasyPoints(1.005)).toBe(1.01)
+        expect(roundFantasyPoints(2.675)).toBe(2.68)
+        expect(roundFantasyPoints(10.075)).toBe(10.08)
+        expect(roundFantasyPoints(-1.005)).toBe(-1.01)
+        expect(roundFantasyPoints(-2.675)).toBe(-2.68)
+        expect(roundFantasyPoints(-10.075)).toBe(-10.08)
+    })
+})
+
+describe('resolveMatchupWinnerForScore', () => {
+    const matchup = {
+        matchup_type: 'regular_season',
+        home_member_id: 'home',
+        away_member_id: 'away',
+    }
+
+    it('keeps regular-season tied matchups as ties', () => {
+        expect(resolveMatchupWinnerForScore(matchup, 100, 100, 130, 150)).toBeNull()
+    })
+
+    it('uses max possible points to break playoff score ties', () => {
+        expect(resolveMatchupWinnerForScore(
+            { ...matchup, matchup_type: 'playoff_semifinal' },
+            100,
+            100,
+            130,
+            150,
+        )).toBe('away')
+    })
+
+    it('uses the stored home side as deterministic playoff fallback when score and max are tied', () => {
+        expect(resolveMatchupWinnerForScore(
+            { ...matchup, matchup_type: 'playoff_final' },
+            100,
+            100,
+            150,
+            150,
+        )).toBe('home')
+    })
+
+    it('does not let max possible override a non-tied playoff score', () => {
+        expect(resolveMatchupWinnerForScore(
+            { ...matchup, matchup_type: 'playoff_quarterfinal' },
+            101,
+            100,
+            120,
+            150,
+        )).toBe('home')
     })
 })

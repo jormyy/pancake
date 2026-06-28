@@ -15,18 +15,13 @@ const browser = createBrowser({ cwd: ROOT })
 const safeName = (value) => value.replace(/[^a-zA-Z0-9._-]/g, '-')
 const joinUrl = (base, pathname) => new URL(pathname, base.endsWith('/') ? base : `${base}/`).toString()
 const todayDateString = () => {
-  const d = new Date()
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
 }
 const offsetDateString = (offsetDays) => {
-  const d = new Date(Date.now() + offsetDays * 24 * 60 * 60 * 1000)
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
+  const today = todayDateString()
+  const [year, month, day] = today.split('-').map(Number)
+  const d = new Date(Date.UTC(year, month - 1, day + offsetDays, 12, 0, 0))
+  return d.toISOString().slice(0, 10)
 }
 
 const parseEvalJson = (output) => {

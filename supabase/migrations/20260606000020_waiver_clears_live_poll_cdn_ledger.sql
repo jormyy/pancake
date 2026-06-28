@@ -323,7 +323,20 @@ BEGIN
        AND wl.league_season_id = v_claim.league_season_id
        AND wl.member_id = v_claim.member_id
        AND wl.player_id = v_claim.drop_player_id
-       AND wl.game_date >= (now() AT TIME ZONE 'America/New_York')::date;
+       AND wl.game_date >= (now() AT TIME ZONE 'America/New_York')::date
+       AND NOT EXISTS (
+         SELECT 1
+           FROM players AS p
+           JOIN nba_games AS g
+             ON g.game_date = wl.game_date
+            AND (g.home_team = p.nba_team OR g.away_team = p.nba_team)
+          WHERE p.id = wl.player_id
+            AND (
+              g.status IN ('InProgress', 'Final')
+              OR (g.game_time IS NOT NULL AND g.game_time <= now())
+              OR (g.started_at IS NOT NULL AND g.started_at <= now())
+            )
+       );
 
     INSERT INTO waiver_wire_log (
       league_id,
@@ -367,7 +380,20 @@ BEGIN
    WHERE wl.league_id = v_claim.league_id
      AND wl.league_season_id = v_claim.league_season_id
      AND wl.player_id = v_claim.player_id
-     AND wl.game_date >= (now() AT TIME ZONE 'America/New_York')::date;
+     AND wl.game_date >= (now() AT TIME ZONE 'America/New_York')::date
+     AND NOT EXISTS (
+       SELECT 1
+         FROM players AS p
+         JOIN nba_games AS g
+           ON g.game_date = wl.game_date
+          AND (g.home_team = p.nba_team OR g.away_team = p.nba_team)
+        WHERE p.id = wl.player_id
+          AND (
+            g.status IN ('InProgress', 'Final')
+            OR (g.game_time IS NOT NULL AND g.game_time <= now())
+            OR (g.started_at IS NOT NULL AND g.started_at <= now())
+          )
+     );
 
   INSERT INTO roster_players (
     league_id,

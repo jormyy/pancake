@@ -194,8 +194,8 @@ export default function CommissionerSettingsScreen() {
             showAlert('Invalid', 'Auction budget must be at least 1.')
             return
         }
-        if (isNaN(parsedPlayoff) || parsedPlayoff < 18 || parsedPlayoff > 26) {
-            showAlert('Invalid', 'Playoff start week must be between 18 and 26.')
+        if (isNaN(parsedPlayoff) || parsedPlayoff < 18 || parsedPlayoff > 24) {
+            showAlert('Invalid', 'Playoff start week must be between 18 and 24.')
             return
         }
 
@@ -471,7 +471,7 @@ export default function CommissionerSettingsScreen() {
                                 set: setAuctionBudget,
                             },
                             {
-                                label: 'Playoff Start Week (18–26)',
+                                label: 'Playoff Start Week (18–24)',
                                 value: playoffWeek,
                                 set: setPlayoffWeek,
                             },

@@ -7,19 +7,6 @@ export async function signUp(
     username: string,
     displayName: string,
 ) {
-    // Pre-check username availability BEFORE creating the auth user.
-    // Rolling back auth.users from the client is impossible (admin-only), so we
-    // try to catch the most common profile-insert failure (duplicate username)
-    // ahead of time. There's still a TOCTOU race, but it eliminates the common case.
-    const { data: existing, error: lookupError } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('username', username)
-        .maybeSingle()
-
-    if (lookupError) throw lookupError
-    if (existing) throw new Error('That username is taken. Please choose another.')
-
     const { data, error } = await supabase.auth.signUp({ email, password })
     if (error) throw error
 

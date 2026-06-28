@@ -1,6 +1,6 @@
-export function toETDate(date: Date): string {
-    return date.toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
-}
+import { toETDate } from '@pancake/core'
+
+export { toETDate }
 
 export function todayET(): string {
     return toETDate(new Date())

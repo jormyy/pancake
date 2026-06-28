@@ -95,6 +95,11 @@ export type PlayerSearchQueryConstraints = {
     excludePlayerIds?: string[]
     excludedTeams?: string[]
 }
+export type PlayerSearchOptions = {
+    sortMode?: PlayerSearchSortMode
+    sortDir?: PlayerSearchSortDir
+    pageSize?: number
+}
 
 type AverageRow = {
     player_id: string | null
@@ -212,10 +217,14 @@ export async function searchPlayers(
     offset = 0,
     health: PlayerHealthFilter = 'all',
     constraints: PlayerSearchQueryConstraints = {},
-    sortBy: PlayerSearchSortMode = 'fpts',
-    sortDir: PlayerSearchSortDir = 'desc',
+    sortByOrOptions: PlayerSearchSortMode | PlayerSearchOptions = 'fpts',
+    sortDirArg: PlayerSearchSortDir = 'desc',
 ): Promise<PlayerRow[]> {
     const season = currentSeasonYear()
+    const hasSearchOptions = typeof sortByOrOptions === 'object' && sortByOrOptions !== null
+    const sortBy = hasSearchOptions ? (sortByOrOptions.sortMode ?? 'fpts') : sortByOrOptions
+    const sortDir = hasSearchOptions ? (sortByOrOptions.sortDir ?? 'desc') : sortDirArg
+    const pageSize = hasSearchOptions ? (sortByOrOptions.pageSize ?? 60) : 60
     const queryConstraints: Required<PlayerSearchQueryConstraints> = {
         includePlayerIds: uniqueNonEmpty(constraints.includePlayerIds),
         excludePlayerIds: uniqueNonEmpty(constraints.excludePlayerIds),
@@ -301,7 +310,6 @@ export async function searchPlayers(
         )
     }
 
-    const PAGE = 60
     const ascending = sortDir === 'asc'
     // Fantasy-points order is the only sort that lives on the per-league scoring
     // view; every other stat lives on the season-averages materialized view, so
@@ -318,14 +326,14 @@ export async function searchPlayers(
             .eq('season_year', season)
             .order('avg_fantasy_points', { ascending, nullsFirst: false })
             .order('player_id', { ascending: true })
-            .range(offset, offset + PAGE - 1)
+            .range(offset, offset + pageSize - 1)
         : supabase
             .from('mv_player_season_averages')
             .select(AVG_WITH_PLAYER_SELECT)
             .eq('season_year', season)
-            .order(PLAYER_SORT_MV_COLUMN[sortBy], { ascending, nullsFirst: false })
+            .order(PLAYER_SORT_MV_COLUMN[sortBy], { ascending })
             .order('player_id', { ascending: true })
-            .range(offset, offset + PAGE - 1)
+            .range(offset, offset + pageSize - 1)
 
     if (query.trim()) {
         q = q.ilike('players.display_name', `%${query.trim()}%`)
@@ -460,10 +468,11 @@ export async function getPlayerGameLog(
             free_throws_made, free_throws_attempted,
             plus_minus, double_double, triple_double,
             did_not_play, minutes_played,
-            nba_games ( id, game_date, home_team, away_team )
+            nba_games!inner ( id, nba_game_id, game_date, home_team, away_team )
         `)
         .eq('player_id', playerId)
         .eq('season_year', seasonYear)
+        .like('nba_games.nba_game_id', '002%')
         .order('game_date', { ascending: false })
         .range(offset, offset + fetchLimit - 1)
 

@@ -3,6 +3,13 @@ import { fetchTodaysGames, NBAGame } from '../lib/nba'
 import { syncStatsByDate } from './stats'
 import { syncScores } from './scores'
 import { CONFIG } from '../config'
+import {
+    LIVE_POLL_LEASE_TTL_SECONDS,
+    LIVE_POLL_LOCK_KEY,
+    dateFromETDate,
+    livePollCandidateDates,
+    todayET,
+} from '@pancake/core'
 
 // Checks if current ET hour is within the NBA game window (11 AM – 1 AM)
 function isGameWindow(): boolean {
@@ -12,31 +19,13 @@ function isGameWindow(): boolean {
     return etHour >= 11 || etHour < 1
 }
 
-// Shared with supabase/functions/live-poll — both pollers must use the same
-// lock_key so the lease provides mutual exclusion across the edge function and
-// the backend worker.
-const LIVE_POLL_LOCK_KEY = 779001
-// TTL must comfortably cover the longest in-loop sync. 90s leaves headroom
-// over the 1-minute cron cadence; if the worker crashes the lease auto-clears.
-const LIVE_POLL_LEASE_TTL_SECONDS = 90
-
-function etDate(offsetDays = 0): string {
-    const date = new Date()
-    date.setUTCDate(date.getUTCDate() + offsetDays)
-    return date.toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
-}
-
-function dateFromISODate(date: string): Date {
-    return new Date(`${date}T12:00:00-05:00`)
-}
-
 function candidateLiveDates(): string[] {
-    return [etDate(-1), etDate()]
+    return livePollCandidateDates()
 }
 
 async function syncStatsForCandidateDates(): Promise<void> {
     for (const date of candidateLiveDates()) {
-        await syncStatsByDate(dateFromISODate(date))
+        await syncStatsByDate(dateFromETDate(date))
     }
 }
 
@@ -119,7 +108,7 @@ class LiveGamePoller {
         if (!this.running) return
         try {
             const hasDbActiveGames = await dbActiveGameCount() > 0
-            if ((isGameWindow() && !this.finalizedDates.has(etDate())) || hasDbActiveGames) {
+            if ((isGameWindow() && !this.finalizedDates.has(todayET())) || hasDbActiveGames) {
                 // Switch to active whenever we're in the game window —
                 // don't wait for a game to already be InProgress. Also
                 // recover after late-night restarts while DB games are active.
@@ -221,7 +210,7 @@ class LiveGamePoller {
 
                 // Update nba_games status + scores from live scoreboard
                 const updatedGameDates = await updateGameStatuses(games)
-                const dateKeys = updatedGameDates.length > 0 ? updatedGameDates : [etDate()]
+                const dateKeys = updatedGameDates.length > 0 ? updatedGameDates : [todayET()]
 
                 if (allDone && dateKeys.every((dateKey) => this.finalizedDates.has(dateKey))) {
                     this.switchToIdle()
@@ -234,7 +223,7 @@ class LiveGamePoller {
                     await syncStatsForCandidateDates()
                 }
 
-                if (shouldSync) {
+                if (shouldSync && !allDone) {
                     await syncScores()
                 }
 
@@ -243,7 +232,7 @@ class LiveGamePoller {
                     // to account for NBA CDN box score cache lag before going idle.
                     await syncStatsForCandidateDates()
                     await syncScores()
-                    const dates = Array.from(new Set([...candidateLiveDates(), ...dateKeys])).map(dateFromISODate)
+                    const dates = Array.from(new Set([...candidateLiveDates(), ...dateKeys])).map(dateFromETDate)
                     this.scheduleFinalSync(
                         () => withLivePollLease(async () => {
                             for (const date of dates) await syncStatsByDate(date)
