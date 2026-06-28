@@ -54,6 +54,28 @@ const legacyKeyNames = (rows) => {
 
 const startsWith = (value, prefix) => typeof value === 'string' && value.startsWith(prefix)
 
+const linkedDbRows = (label, sql) => {
+  const result = run('supabase', ['db', 'query', '--linked', '-o', 'json', sql], { timeout: 45000 })
+  if (result.status !== 0) {
+    return {
+      ok: false,
+      rows: null,
+      evidence: cleanMessage(result.stderr || result.stdout || String(result.error), { maxLines: 6 }),
+    }
+  }
+
+  const parsed = parseJson(result.stdout)
+  if (!Array.isArray(parsed?.rows)) {
+    return {
+      ok: false,
+      rows: null,
+      evidence: `${label} did not return parseable JSON rows.`,
+    }
+  }
+
+  return { ok: true, rows: parsed.rows, evidence: `${label} completed.` }
+}
+
 const decodeSupabaseKeychainValue = (value) => {
   if (!value.startsWith('go-keyring-base64:')) return value
   return Buffer.from(value.slice('go-keyring-base64:'.length), 'base64').toString('utf8')
@@ -250,6 +272,31 @@ const main = async () => {
     evidence: dbQuery.status === 0
       ? 'supabase db query --linked completed.'
       : cleanMessage(dbQuery.stderr || dbQuery.stdout || String(dbQuery.error), { maxLines: 6 }),
+  })
+
+  const cronTokenProbe = linkedDbRows('DB cron internal token probe', `
+SELECT
+  COALESCE(
+    NULLIF(current_setting('app.edge_internal_token', true), ''),
+    (
+      SELECT NULLIF(decrypted_secret, '')
+        FROM vault.decrypted_secrets
+       WHERE name = 'pancake_edge_internal_token'
+       ORDER BY updated_at DESC NULLS LAST, created_at DESC
+       LIMIT 1
+    )
+  ) IS NOT NULL AS token_configured,
+  pg_get_functiondef('public.invoke_edge_function(text,jsonb)'::regprocedure) NOT ILIKE '%RAISE WARNING%' AS fail_closed;
+`)
+  const cronTokenRow = cronTokenProbe.rows?.[0]
+  const cronTokenConfigured = cronTokenRow?.token_configured === true
+  const cronWrapperFailClosed = cronTokenRow?.fail_closed === true
+  rows.push({
+    requirement: 'DB cron Edge internal token configured',
+    status: statusFrom(cronTokenProbe.ok && cronTokenConfigured && cronWrapperFailClosed),
+    evidence: cronTokenProbe.ok
+      ? `token_configured=${cronTokenConfigured}; fail_closed=${cronWrapperFailClosed}; values intentionally not printed.`
+      : cronTokenProbe.evidence,
   })
 
   const dbPush = run('supabase', ['db', 'push', '--dry-run'], { timeout: 45000 })

@@ -36,8 +36,8 @@ The former Railway/Fastify implementation is isolated in
 | `POST /draft/:draftId/snake-pick` | `api/draft.ts` | Supabase JWT + pick owner | `make_snake_pick_atomic` RPC | rookie draft room |
 | `POST /draft/:draftId/auto-pick` | `api/draft.ts` | Supabase JWT + commissioner or E2E secret | `make_snake_pick_atomic` RPC | rookie draft room/E2E |
 | `POST /draft/:draftId/reseed-picks` | `api/draft.ts` | Supabase JWT + commissioner | `reseed_rookie_draft_picks_atomic` RPC | commissioner tools |
-| `POST /playoffs/generate` | `api/playoffs.ts` | Supabase JWT + commissioner | `insert_playoff_matchups_atomic` RPC | league tab |
-| `POST /playoffs/advance` | `api/playoffs.ts` | Supabase JWT + commissioner | `insert_playoff_matchups_atomic` RPC | league tab |
+| `POST /playoffs/generate` | `api/playoffs.ts` | Supabase JWT + commissioner | `generate_playoff_bracket_atomic` RPC | league tab |
+| `POST /playoffs/advance` | `api/playoffs.ts` | Supabase JWT + commissioner | `advance_playoff_bracket_atomic` RPC | league tab |
 
 ## Admin And E2E Routes
 

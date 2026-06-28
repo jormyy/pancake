@@ -34,11 +34,12 @@ BEGIN
      LIMIT 1;
   END IF;
 
-  IF _base_url IS NULL OR _internal_token IS NULL THEN
-    RAISE WARNING
-      '[cron] Supabase Edge base URL or internal token not set; skipping %.',
-      function_name;
-    RETURN;
+  IF _base_url IS NULL THEN
+    RAISE EXCEPTION '[cron] Supabase Edge base URL is not configured.';
+  END IF;
+
+  IF _internal_token IS NULL THEN
+    RAISE EXCEPTION '[cron] Supabase Edge internal token is not configured.';
   END IF;
 
   PERFORM net.http_post(

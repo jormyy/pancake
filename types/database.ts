@@ -1769,6 +1769,7 @@ export type Database = {
       trades: {
         Row: {
           accepted_at: string | null
+          completion_failure_reason: string | null
           completed_at: string | null
           id: string
           league_id: string
@@ -1783,6 +1784,7 @@ export type Database = {
         }
         Insert: {
           accepted_at?: string | null
+          completion_failure_reason?: string | null
           completed_at?: string | null
           id?: string
           league_id: string
@@ -1797,6 +1799,7 @@ export type Database = {
         }
         Update: {
           accepted_at?: string | null
+          completion_failure_reason?: string | null
           completed_at?: string | null
           id?: string
           league_id?: string
@@ -2415,14 +2418,12 @@ export type Database = {
         Args: never
         Returns: number
       }
-      insert_playoff_matchups_atomic: {
-        Args: {
-          p_league_id: string
-          p_league_season_id: string
-          p_matchups?: Json
-          p_skip_if_matchup_types?: Json
-          p_tiebreakers?: Json
-        }
+      generate_playoff_bracket_atomic: {
+        Args: { p_league_id: string }
+        Returns: Json
+      }
+      advance_playoff_bracket_atomic: {
+        Args: { p_league_id: string }
         Returns: Json
       }
       process_due_accepted_trades_atomic: {
@@ -2443,6 +2444,14 @@ export type Database = {
           p_league_season_id: string
           p_matchups?: Json
         }
+        Returns: Json
+      }
+      reject_trade_atomic: {
+        Args: { p_member_id: string; p_trade_id: string; p_user_id: string }
+        Returns: Json
+      }
+      withdraw_trade_atomic: {
+        Args: { p_member_id: string; p_trade_id: string; p_user_id: string }
         Returns: Json
       }
       veto_trade_atomic: {

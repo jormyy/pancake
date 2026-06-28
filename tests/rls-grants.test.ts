@@ -27,6 +27,8 @@ const MIGRATIONS = path.resolve(__dirname, '../supabase/migrations')
 const SERVICE_ROLE_ONLY_RPCS = [
     'propose_trade_atomic',
     'accept_trade_atomic',
+    'reject_trade_atomic',
+    'withdraw_trade_atomic',
     'complete_accepted_trade_atomic',
     'veto_trade_atomic',
     'expire_trade_completion_failure_atomic',
@@ -48,7 +50,8 @@ const SERVICE_ROLE_ONLY_RPCS = [
     'expire_waiver_wire_logs',
     'clear_ineligible_taxi_players',
     'replace_regular_season_matchups_atomic',
-    'insert_playoff_matchups_atomic',
+    'generate_playoff_bracket_atomic',
+    'advance_playoff_bracket_atomic',
     'try_live_poll_lease',
     'release_live_poll_lease',
     'invoke_edge_function',

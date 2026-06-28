@@ -95,19 +95,37 @@ describe('Supabase Edge API cutover', () => {
     it('keeps schedule and playoff bracket writes inside atomic SQL RPCs', () => {
         const matchups = read('supabase/functions/api/matchups.ts')
         const playoffs = read('supabase/functions/api/playoffs.ts')
-        const migration = read('supabase/migrations/20260628000004_edge_atomic_batches.sql')
+        const migration = read('supabase/migrations/20260628000005_edge_atomic_playoffs_and_trade_terminal.sql')
 
         expect(matchups).toContain('replace_regular_season_matchups_atomic')
-        expect(playoffs).toContain('insert_playoff_matchups_atomic')
+        expect(playoffs).toContain('generate_playoff_bracket_atomic')
+        expect(playoffs).toContain('advance_playoff_bracket_atomic')
         expect(`${matchups}\n${playoffs}`).not.toMatch(/from\('matchups'\)\.(?:insert|delete|upsert|update)/)
         expect(`${matchups}\n${playoffs}`).not.toMatch(/from\('rps_challenges'\)\.(?:insert|delete|upsert|update)/)
         expect(migration).toContain('pg_advisory_xact_lock')
+        expect(migration).toContain('generate_playoff_bracket_atomic')
+        expect(migration).toContain('advance_playoff_bracket_atomic')
         expect(migration).toContain('FOR UPDATE OF trade SKIP LOCKED')
-        expect(migration).toContain('FOR UPDATE OF nomination SKIP LOCKED')
         expect(read('types/database.ts')).toContain('replace_regular_season_matchups_atomic')
-        expect(read('types/database.ts')).toContain('insert_playoff_matchups_atomic')
+        expect(read('types/database.ts')).toContain('generate_playoff_bracket_atomic')
+        expect(read('types/database.ts')).toContain('advance_playoff_bracket_atomic')
         expect(read('types/database.ts')).toContain('process_due_accepted_trades_atomic')
         expect(read('types/database.ts')).toContain('close_expired_auction_nominations_atomic')
+    })
+
+    it('keeps trade terminal states behind explicit SQL contracts', () => {
+        const trades = read('supabase/functions/api/trades.ts')
+        const migration = read('supabase/migrations/20260628000005_edge_atomic_playoffs_and_trade_terminal.sql')
+
+        expect(trades).toContain('reject_trade_atomic')
+        expect(trades).toContain('withdraw_trade_atomic')
+        expect(trades).not.toMatch(/from\('trades'\)\.update/)
+        expect(migration).toContain("USING ERRCODE = 'PT001'")
+        expect(migration).toContain("IF v_error_code = 'PT001' THEN")
+        expect(migration).not.toContain("v_error_code NOT IN")
+        expect(migration).toContain('completion_failure_reason = p_reason')
+        expect(read('types/database.ts')).toContain('reject_trade_atomic')
+        expect(read('types/database.ts')).toContain('withdraw_trade_atomic')
     })
 
     it('isolates the former Railway backend outside active runtime paths', () => {

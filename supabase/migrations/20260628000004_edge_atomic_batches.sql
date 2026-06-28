@@ -160,226 +160,6 @@ BEGIN
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION public.insert_playoff_matchups_atomic(
-  p_league_id uuid,
-  p_league_season_id uuid,
-  p_matchups jsonb DEFAULT '[]'::jsonb,
-  p_tiebreakers jsonb DEFAULT '[]'::jsonb,
-  p_skip_if_matchup_types jsonb DEFAULT '[]'::jsonb
-)
-RETURNS jsonb
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-DECLARE
-  v_inserted_count int := 0;
-  v_tiebreaker record;
-  v_existing_challenge public.rps_challenges%ROWTYPE;
-BEGIN
-  IF p_matchups IS NULL OR jsonb_typeof(p_matchups) <> 'array' THEN
-    RAISE EXCEPTION 'p_matchups must be a JSON array.';
-  END IF;
-
-  IF p_tiebreakers IS NULL OR jsonb_typeof(p_tiebreakers) <> 'array' THEN
-    RAISE EXCEPTION 'p_tiebreakers must be a JSON array.';
-  END IF;
-
-  IF p_skip_if_matchup_types IS NULL OR jsonb_typeof(p_skip_if_matchup_types) <> 'array' THEN
-    RAISE EXCEPTION 'p_skip_if_matchup_types must be a JSON array.';
-  END IF;
-
-  PERFORM pg_advisory_xact_lock(hashtext('playoff-matchups'), hashtext(p_league_season_id::text));
-
-  PERFORM 1
-    FROM public.league_seasons AS season
-   WHERE season.id = p_league_season_id
-     AND season.league_id = p_league_id
-     AND season.is_current = true
-   FOR UPDATE;
-
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'Current league season not found for playoff generation.';
-  END IF;
-
-  IF EXISTS (
-    SELECT 1
-      FROM public.matchups AS matchup
-     WHERE matchup.league_season_id = p_league_season_id
-       AND matchup.matchup_type::text IN (
-         SELECT value
-           FROM jsonb_array_elements_text(p_skip_if_matchup_types)
-       )
-  ) THEN
-    RETURN jsonb_build_object('inserted', 0, 'skipped', true);
-  END IF;
-
-  IF EXISTS (
-    SELECT 1
-      FROM jsonb_to_recordset(p_matchups) AS requested(
-        league_id uuid,
-        league_season_id uuid,
-        week_number int,
-        matchup_type text,
-        home_member_id uuid,
-        away_member_id uuid
-      )
-     WHERE requested.league_id IS DISTINCT FROM p_league_id
-        OR requested.league_season_id IS DISTINCT FROM p_league_season_id
-        OR requested.week_number IS NULL
-        OR requested.week_number < 1
-        OR requested.matchup_type NOT IN ('playoff_quarterfinal', 'playoff_semifinal', 'playoff_final')
-        OR requested.home_member_id IS NULL
-        OR requested.away_member_id IS NULL
-        OR requested.home_member_id = requested.away_member_id
-        OR NOT EXISTS (
-          SELECT 1
-            FROM public.league_members AS member
-           WHERE member.id = requested.home_member_id
-             AND member.league_id = p_league_id
-        )
-        OR NOT EXISTS (
-          SELECT 1
-            FROM public.league_members AS member
-           WHERE member.id = requested.away_member_id
-             AND member.league_id = p_league_id
-        )
-  ) THEN
-    RAISE EXCEPTION 'p_matchups contains invalid playoff rows.';
-  END IF;
-
-  IF EXISTS (
-    SELECT 1
-      FROM jsonb_to_recordset(p_matchups) AS requested(
-        league_id uuid,
-        league_season_id uuid,
-        week_number int,
-        matchup_type text,
-        home_member_id uuid,
-        away_member_id uuid
-      )
-     GROUP BY
-        requested.league_id,
-        requested.league_season_id,
-        requested.week_number,
-        requested.matchup_type,
-        LEAST(requested.home_member_id::text, requested.away_member_id::text),
-        GREATEST(requested.home_member_id::text, requested.away_member_id::text)
-    HAVING count(*) > 1
-  ) THEN
-    RAISE EXCEPTION 'p_matchups contains duplicate playoff pairings.';
-  END IF;
-
-  FOR v_tiebreaker IN
-    SELECT *
-      FROM jsonb_to_recordset(p_tiebreakers) AS requested(
-        league_id uuid,
-        league_season_id uuid,
-        member_a_id uuid,
-        member_b_id uuid,
-        winner_member_id uuid
-      )
-  LOOP
-    IF v_tiebreaker.league_id IS DISTINCT FROM p_league_id
-      OR v_tiebreaker.league_season_id IS DISTINCT FROM p_league_season_id
-      OR v_tiebreaker.member_a_id IS NULL
-      OR v_tiebreaker.member_b_id IS NULL
-      OR v_tiebreaker.member_a_id = v_tiebreaker.member_b_id
-      OR v_tiebreaker.winner_member_id NOT IN (v_tiebreaker.member_a_id, v_tiebreaker.member_b_id)
-      OR NOT EXISTS (
-        SELECT 1
-          FROM public.league_members AS member
-         WHERE member.id IN (v_tiebreaker.member_a_id, v_tiebreaker.member_b_id, v_tiebreaker.winner_member_id)
-           AND member.league_id = p_league_id
-        GROUP BY member.league_id
-        HAVING count(*) = 3
-      )
-    THEN
-      RAISE EXCEPTION 'p_tiebreakers contains invalid rows.';
-    END IF;
-
-    SELECT *
-      INTO v_existing_challenge
-      FROM public.rps_challenges AS challenge
-     WHERE challenge.league_id = p_league_id
-       AND challenge.league_season_id = p_league_season_id
-       AND challenge.context = 'standings_playoff_tiebreaker'
-       AND LEAST(challenge.member_a_id, challenge.member_b_id) = LEAST(v_tiebreaker.member_a_id, v_tiebreaker.member_b_id)
-       AND GREATEST(challenge.member_a_id, challenge.member_b_id) = GREATEST(v_tiebreaker.member_a_id, v_tiebreaker.member_b_id)
-     FOR UPDATE;
-
-    IF FOUND THEN
-      UPDATE public.rps_challenges
-         SET winner_member_id = v_tiebreaker.winner_member_id,
-             member_a_choice = NULL,
-             member_b_choice = NULL,
-             status = 'completed'::public.rps_status,
-             resolved_at = now()
-       WHERE id = v_existing_challenge.id;
-    ELSE
-      INSERT INTO public.rps_challenges (
-        league_id,
-        league_season_id,
-        member_a_id,
-        member_b_id,
-        winner_member_id,
-        status,
-        context,
-        resolved_at
-      )
-      VALUES (
-        p_league_id,
-        p_league_season_id,
-        v_tiebreaker.member_a_id,
-        v_tiebreaker.member_b_id,
-        v_tiebreaker.winner_member_id,
-        'completed'::public.rps_status,
-        'standings_playoff_tiebreaker',
-        now()
-      );
-    END IF;
-  END LOOP;
-
-  WITH requested AS (
-    SELECT *
-      FROM jsonb_to_recordset(p_matchups) AS requested(
-        league_id uuid,
-        league_season_id uuid,
-        week_number int,
-        matchup_type text,
-        home_member_id uuid,
-        away_member_id uuid
-      )
-  ),
-  inserted AS (
-    INSERT INTO public.matchups (
-      league_id,
-      league_season_id,
-      week_number,
-      matchup_type,
-      home_member_id,
-      away_member_id
-    )
-    SELECT
-      requested.league_id,
-      requested.league_season_id,
-      requested.week_number,
-      requested.matchup_type::public.matchup_type,
-      requested.home_member_id,
-      requested.away_member_id
-    FROM requested
-    ON CONFLICT (league_id, league_season_id, week_number, home_member_id, away_member_id)
-    DO NOTHING
-    RETURNING 1
-  )
-  SELECT count(*)
-    INTO v_inserted_count
-    FROM inserted;
-
-  RETURN jsonb_build_object('inserted', v_inserted_count, 'skipped', false);
-END;
-$$;
-
 CREATE OR REPLACE FUNCTION public.process_due_accepted_trades_atomic(
   p_limit int DEFAULT 50
 )
@@ -434,28 +214,17 @@ BEGIN
       v_error_code := SQLSTATE;
       v_error_message := SQLERRM;
 
-      IF v_error_code NOT IN ('40001', '40P01', '57014', '53300', '08000', '08003', '08006') THEN
-        BEGIN
-          PERFORM public.expire_trade_completion_failure_atomic(v_trade.id, v_error_message);
+      IF v_error_code = 'PT001' THEN
+        PERFORM public.expire_trade_completion_failure_atomic(v_trade.id, v_error_message);
 
-          RETURN QUERY
-          SELECT
-            v_trade.id,
-            v_trade.proposer_member_id,
-            v_trade.recipient_member_id,
-            'expired_terminal_failure'::text,
-            v_error_code,
-            v_error_message;
-        EXCEPTION WHEN OTHERS THEN
-          RETURN QUERY
-          SELECT
-            v_trade.id,
-            v_trade.proposer_member_id,
-            v_trade.recipient_member_id,
-            'failed_retryable'::text,
-            SQLSTATE::text,
-            SQLERRM::text;
-        END;
+        RETURN QUERY
+        SELECT
+          v_trade.id,
+          v_trade.proposer_member_id,
+          v_trade.recipient_member_id,
+          'expired_terminal_failure'::text,
+          v_error_code,
+          v_error_message;
       ELSE
         RETURN QUERY
         SELECT
@@ -527,11 +296,6 @@ REVOKE ALL ON FUNCTION public.replace_regular_season_matchups_atomic(uuid, uuid,
 REVOKE ALL ON FUNCTION public.replace_regular_season_matchups_atomic(uuid, uuid, boolean, jsonb) FROM anon;
 REVOKE ALL ON FUNCTION public.replace_regular_season_matchups_atomic(uuid, uuid, boolean, jsonb) FROM authenticated;
 GRANT EXECUTE ON FUNCTION public.replace_regular_season_matchups_atomic(uuid, uuid, boolean, jsonb) TO service_role;
-
-REVOKE ALL ON FUNCTION public.insert_playoff_matchups_atomic(uuid, uuid, jsonb, jsonb, jsonb) FROM PUBLIC;
-REVOKE ALL ON FUNCTION public.insert_playoff_matchups_atomic(uuid, uuid, jsonb, jsonb, jsonb) FROM anon;
-REVOKE ALL ON FUNCTION public.insert_playoff_matchups_atomic(uuid, uuid, jsonb, jsonb, jsonb) FROM authenticated;
-GRANT EXECUTE ON FUNCTION public.insert_playoff_matchups_atomic(uuid, uuid, jsonb, jsonb, jsonb) TO service_role;
 
 REVOKE ALL ON FUNCTION public.process_due_accepted_trades_atomic(int) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.process_due_accepted_trades_atomic(int) FROM anon;

@@ -1,4 +1,5 @@
 import { notifyMember } from '../_shared/notifications.ts'
+import type { Json } from '../_shared/database.ts'
 import { supabase } from '../_shared/supabase.ts'
 import {
   json,
@@ -22,6 +23,25 @@ type TradeVetoResult = {
   threshold: number
   proposerMemberId: string
   recipientMemberId: string
+}
+
+type TradeActionResult = {
+  proposerMemberId: string
+  recipientMemberId: string
+}
+
+function parseTradeActionResult(value: Json | null): TradeActionResult {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new Error('Trade action did not return notification member ids.')
+  }
+
+  const proposerMemberId = value.proposerMemberId
+  const recipientMemberId = value.recipientMemberId
+  if (typeof proposerMemberId !== 'string' || typeof recipientMemberId !== 'string') {
+    throw new Error('Trade action returned malformed notification member ids.')
+  }
+
+  return { proposerMemberId, recipientMemberId }
 }
 
 function splitTradeAction(path: string): { tradeId: string; action: string } | null {
@@ -111,21 +131,17 @@ async function acceptTrade(userId: string, tradeId: string, body: Record<string,
 async function rejectTrade(userId: string, tradeId: string, body: Record<string, unknown>): Promise<void> {
   const memberId = uuidField(body, 'memberId')
   await requireOwnMember(userId, memberId)
-  const trade = await fetchPendingTradeForAction(tradeId, memberId, 'recipient_member_id')
 
-  const { data, error } = await supabase
-    .from('trades')
-    .update({ status: 'rejected' })
-    .eq('id', tradeId)
-    .eq('status', 'pending')
-    .select('id')
-    .maybeSingle()
-
+  const { data, error } = await supabase.rpc('reject_trade_atomic', {
+    p_trade_id: tradeId,
+    p_member_id: memberId,
+    p_user_id: userId,
+  })
   if (error) throwDb(error)
-  if (!data) throw new ValidationError('This trade is no longer pending.')
+  const trade = parseTradeActionResult(data)
 
   notifyMember(
-    trade.proposer_member_id,
+    trade.proposerMemberId,
     'Trade Rejected',
     'Your trade offer was declined.',
     { tradeId },
@@ -135,21 +151,17 @@ async function rejectTrade(userId: string, tradeId: string, body: Record<string,
 async function withdrawTrade(userId: string, tradeId: string, body: Record<string, unknown>): Promise<void> {
   const memberId = uuidField(body, 'memberId')
   await requireOwnMember(userId, memberId)
-  const trade = await fetchPendingTradeForAction(tradeId, memberId, 'proposer_member_id')
 
-  const { data, error } = await supabase
-    .from('trades')
-    .update({ status: 'withdrawn' })
-    .eq('id', tradeId)
-    .eq('status', 'pending')
-    .select('id')
-    .maybeSingle()
-
+  const { data, error } = await supabase.rpc('withdraw_trade_atomic', {
+    p_trade_id: tradeId,
+    p_member_id: memberId,
+    p_user_id: userId,
+  })
   if (error) throwDb(error)
-  if (!data) throw new ValidationError('This trade is no longer pending.')
+  const trade = parseTradeActionResult(data)
 
   notifyMember(
-    trade.recipient_member_id,
+    trade.recipientMemberId,
     'Trade Withdrawn',
     'A trade offer sent to you has been withdrawn.',
     { tradeId },

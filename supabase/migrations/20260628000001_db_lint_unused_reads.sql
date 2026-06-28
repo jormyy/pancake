@@ -5,6 +5,9 @@
 -- dynamic function-text rewrite migration shape, so fresh databases apply
 -- deterministic CREATE OR REPLACE statements.
 
+ALTER TABLE public.trades
+  ADD COLUMN IF NOT EXISTS completion_failure_reason text;
+
 CREATE OR REPLACE FUNCTION public.add_free_agent_atomic(p_member_id uuid, p_league_id uuid, p_player_id uuid)
  RETURNS void
  LANGUAGE plpgsql
@@ -2280,8 +2283,6 @@ DECLARE
   v_league_status text;
   v_is_current boolean;
 BEGIN
-  PERFORM p_reason;
-
   SELECT *
     INTO v_trade
     FROM trades
@@ -2327,7 +2328,8 @@ BEGIN
 
   UPDATE trades
      SET status = 'expired',
-         completed_at = NULL
+         completed_at = NULL,
+         completion_failure_reason = p_reason
    WHERE id = p_trade_id
      AND status = 'accepted';
 
