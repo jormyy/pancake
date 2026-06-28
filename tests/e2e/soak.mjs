@@ -641,6 +641,7 @@ const runSchemaPreflight = async (supabase) => {
       { p_draft_id: zeroUuid, p_member_id: zeroUuid, p_nomination_id: zeroUuid, p_amount: 0, p_user_id: zeroUuid },
       /positive integer/i,
     ),
+    requireRpc(supabase, 'process_due_waiver_claims_atomic', { p_process_date: '1900-01-01', p_limit: 1 }, null),
     requireRpc(supabase, 'process_next_waiver_claim_atomic', { p_process_date: '1900-01-01' }, null),
     requireColumn(supabase, 'snake_draft_picks', 'draft_pick_id'),
   ])

@@ -18,7 +18,7 @@ The former Railway/Fastify implementation is isolated in
 | `POST /league/roster/ir` | `api/league.ts` | Supabase JWT + member ownership | `toggle_ir_atomic` RPC | roster UI |
 | `POST /league/roster/taxi` | `api/league.ts` | Supabase JWT + member ownership | `toggle_taxi_atomic` RPC | roster UI |
 | `POST /league/advance-season` | `api/league.ts` | Supabase JWT + commissioner | `advance_season_atomic` RPC | commissioner lifecycle |
-| `POST /waivers/claims` | `api/waivers.ts` | Supabase JWT + member ownership | `submit_waiver_claim_atomic` RPC | claim-player modal |
+| `POST /waivers/claims` | `api/waivers.ts` | Supabase JWT + member ownership | `create_waiver_claim_atomic` RPC | claim-player modal |
 | `POST /waivers/claims/:claimId/cancel` | `api/waivers.ts` | Supabase JWT + member ownership | `cancel_waiver_claim_atomic` RPC | waiver claims UI |
 | `POST /waivers/process` | `api/waivers.ts` | Supabase JWT + commissioner | internal `process-waivers` Edge Function | commissioner/admin tools |
 | `POST /trades/propose` | `api/trades.ts` | Supabase JWT + proposer ownership | `propose_trade_atomic` RPC | propose-trade modal |
@@ -29,7 +29,7 @@ The former Railway/Fastify implementation is isolated in
 | `POST /draft/start` | `api/draft.ts` | Supabase JWT + commissioner | `start_auction_draft_atomic` RPC | auction draft room |
 | `POST /draft/:draftId/stop` | `api/draft.ts` | Supabase JWT + commissioner | `stop_draft_atomic` RPC | auction draft room |
 | `POST /draft/:draftId/reset` | `api/draft.ts` | Supabase JWT + commissioner | `reset_draft_atomic` RPC | auction draft room |
-| `POST /draft/:draftId/nominate` | `api/draft.ts` | Supabase JWT + member ownership | `nominate_player_atomic` RPC | auction draft room |
+| `POST /draft/:draftId/nominate` | `api/draft.ts` | Supabase JWT + member ownership | `create_auction_nomination_atomic` RPC | auction draft room |
 | `POST /draft/:draftId/bid` | `api/draft.ts` | Supabase JWT + member ownership | `place_auction_bid_atomic` RPC | auction draft room |
 | `POST /draft/:draftId/withdraw-nomination` | `api/draft.ts` | Supabase JWT + member ownership | `withdraw_auction_nomination_atomic` RPC | auction draft room |
 | `POST /draft/start-rookie` | `api/draft.ts` | Supabase JWT + commissioner | `start_rookie_draft_atomic` RPC | rookie draft setup |
@@ -66,7 +66,7 @@ The former Railway/Fastify implementation is isolated in
 | Player sync | Supabase Cron + `sync-players` | existing cron | former Railway cron |
 | Stats/scores/rankings/projections | Supabase Cron + Edge Functions | existing cron | former Railway cron/admin routes |
 | Live poll | Supabase Cron + `live-poll` | game-window cron | former always-on poller |
-| Waiver processing | Supabase Cron/admin + `process-waivers` | existing cron/manual API | former backend processor |
+| Waiver processing | Supabase Cron/admin + `process-waivers` calling `process_due_waiver_claims_atomic` | existing cron/manual API | former backend processor |
 | Accepted trade completion | Supabase Cron + `process-trades` calling `process_due_accepted_trades_atomic` | every 5 minutes | former interval loop |
 | Auction nomination expiry | Supabase Cron + `close-expired-nominations` calling `close_expired_auction_nominations_atomic` | every minute | former interval loop |
 

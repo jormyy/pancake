@@ -13,7 +13,7 @@
     "check:core-cjs": "node scripts/check-core-cjs.mjs",
     "generate:edge-shared": "node scripts/generate-edge-shared.mjs",
     "check:edge-shared": "node scripts/generate-edge-shared.mjs --check",
-    "check:edge-functions": "deno check supabase/functions/api/index.ts supabase/functions/sync-scores/index.ts supabase/functions/process-trades/index.ts supabase/functions/close-expired-nominations/index.ts",
+    "check:edge-functions": "deno check supabase/functions/api/index.ts supabase/functions/sync-scores/index.ts supabase/functions/process-waivers/index.ts supabase/functions/process-trades/index.ts supabase/functions/close-expired-nominations/index.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:workspaces": "npm test && npm test --workspace core",

@@ -78,18 +78,23 @@ describe('Supabase Edge API cutover', () => {
     it('moves Railway interval work to Supabase Edge cron targets', () => {
         const processTrades = read('supabase/functions/process-trades/index.ts')
         const closeNominations = read('supabase/functions/close-expired-nominations/index.ts')
+        const processWaivers = read('supabase/functions/process-waivers/index.ts')
 
         expect(processTrades).toContain('process_due_accepted_trades_atomic')
         expect(processTrades).not.toContain('complete_accepted_trade_atomic')
         expect(processTrades).not.toContain('TERMINAL_COMPLETION_ERROR_FRAGMENTS')
         expect(closeNominations).toContain('close_expired_auction_nominations_atomic')
         expect(closeNominations).not.toContain('close_auction_nomination_atomic')
-        expect(`${processTrades}\n${closeNominations}`).not.toContain('Promise.allSettled')
+        expect(processWaivers).toContain('process_due_waiver_claims_atomic')
+        expect(processWaivers).not.toContain('process_next_waiver_claim_atomic')
+        expect(processWaivers).not.toContain('while (true)')
+        expect(`${processTrades}\n${closeNominations}\n${processWaivers}`).not.toContain('Promise.allSettled')
 
         const migration = read('supabase/migrations/20260628000003_supabase_api_cron_cutover.sql')
         expect(migration).toContain('x-internal-function-token')
         expect(migration).toContain("'nba-process-trades'")
         expect(migration).toContain("'nba-close-expired-nominations'")
+        expect(read('types/database.ts')).toContain('process_due_waiver_claims_atomic')
     })
 
     it('keeps schedule and playoff bracket writes inside atomic SQL RPCs', () => {

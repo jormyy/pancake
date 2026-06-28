@@ -65,6 +65,7 @@ const CORE_RPCS = [
   'make_snake_pick_atomic',
   'merge_players',
   'place_auction_bid_atomic',
+  'process_due_waiver_claims_atomic',
   'process_next_waiver_claim_atomic',
   'release_live_poll_lease',
   'reseed_rookie_draft_picks_atomic',

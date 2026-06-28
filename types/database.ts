@@ -2437,6 +2437,17 @@ export type Database = {
           trade_id: string
         }[]
       }
+      process_due_waiver_claims_atomic: {
+        Args: { p_limit?: number; p_process_date: string }
+        Returns: {
+          claim_id: string | null
+          failure_reason: string | null
+          member_id: string | null
+          player_id: string | null
+          processed: boolean
+          status: Database["public"]["Enums"]["waiver_claim_status"] | null
+        }[]
+      }
       replace_regular_season_matchups_atomic: {
         Args: {
           p_force?: boolean

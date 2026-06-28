@@ -36,6 +36,7 @@ const SERVICE_ROLE_ONLY_RPCS = [
     'create_waiver_claim_atomic',
     'cancel_waiver_claim_atomic',
     'process_next_waiver_claim_atomic',
+    'process_due_waiver_claims_atomic',
     'create_auction_nomination_atomic',
     'place_auction_bid_atomic',
     'close_auction_nomination_atomic',

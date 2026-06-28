@@ -30,18 +30,45 @@ type TradeActionResult = {
   recipientMemberId: string
 }
 
-function parseTradeActionResult(value: Json | null): TradeActionResult {
+function jsonObject(value: Json | undefined, label: string): { [key: string]: Json | undefined } {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-    throw new Error('Trade action did not return notification member ids.')
+    throw new Error(`${label} must be a JSON object.`)
   }
+  return value
+}
 
-  const proposerMemberId = value.proposerMemberId
-  const recipientMemberId = value.recipientMemberId
-  if (typeof proposerMemberId !== 'string' || typeof recipientMemberId !== 'string') {
-    throw new Error('Trade action returned malformed notification member ids.')
+function jsonString(value: Json | undefined, label: string): string {
+  if (typeof value !== 'string') throw new Error(`${label} must be a string.`)
+  return value
+}
+
+function jsonNumber(value: Json | undefined, label: string): number {
+  if (typeof value !== 'number') throw new Error(`${label} must be a number.`)
+  return value
+}
+
+function jsonBoolean(value: Json | undefined, label: string): boolean {
+  if (typeof value !== 'boolean') throw new Error(`${label} must be a boolean.`)
+  return value
+}
+
+function parseTradeActionResult(value: Json | null): TradeActionResult {
+  const result = jsonObject(value ?? undefined, 'Trade action result')
+  return {
+    proposerMemberId: jsonString(result.proposerMemberId, 'proposerMemberId'),
+    recipientMemberId: jsonString(result.recipientMemberId, 'recipientMemberId'),
   }
+}
 
-  return { proposerMemberId, recipientMemberId }
+function parseTradeVetoResult(value: Json | null): TradeVetoResult {
+  const result = jsonObject(value ?? undefined, 'Trade veto result')
+  return {
+    vetoed: jsonBoolean(result.vetoed, 'vetoed'),
+    vetoCount: jsonNumber(result.vetoCount, 'vetoCount'),
+    threshold: jsonNumber(result.threshold, 'threshold'),
+    proposerMemberId: jsonString(result.proposerMemberId, 'proposerMemberId'),
+    recipientMemberId: jsonString(result.recipientMemberId, 'recipientMemberId'),
+  }
 }
 
 function splitTradeAction(path: string): { tradeId: string; action: string } | null {
@@ -184,12 +211,9 @@ async function vetoTrade(userId: string, tradeId: string, body: Record<string, u
     p_trade_id: tradeId,
     p_member_id: memberId,
   })
-  if (error || !data) {
-    if (error) throwDb(error)
-    throw new Error('Could not veto trade.')
-  }
+  if (error) throwDb(error)
 
-  const result = data as TradeVetoResult
+  const result = parseTradeVetoResult(data)
   if (result.vetoed) {
     Promise.all([
       notifyMember(

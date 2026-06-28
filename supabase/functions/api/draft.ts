@@ -1,4 +1,5 @@
 import { notifyMember } from '../_shared/notifications.ts'
+import type { Json } from '../_shared/database.ts'
 import { supabase } from '../_shared/supabase.ts'
 import {
   assertUuid,
@@ -22,6 +23,60 @@ const DEFAULT_ROSTER_SIZE = 20
 const DEFAULT_TAXI_SLOTS = 2
 const NOMINATION_ORDER_MODES = ['user_nominated', 'by_projection', 'alphabetical'] as const
 type NominationOrderMode = (typeof NOMINATION_ORDER_MODES)[number]
+type SnakePickResult = {
+  pick: {
+    id: string
+    overall_pick: number
+    round: number
+    pick_in_round: number
+    member_id: string
+    draft_pick_id: string | null
+  }
+  remaining: number
+  league_id: string
+  league_season_id: string
+}
+
+function jsonObject(value: Json | undefined, label: string): { [key: string]: Json | undefined } {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new Error(`${label} must be a JSON object.`)
+  }
+  return value
+}
+
+function jsonString(value: Json | undefined, label: string): string {
+  if (typeof value !== 'string') throw new Error(`${label} must be a string.`)
+  return value
+}
+
+function jsonNumber(value: Json | undefined, label: string): number {
+  if (typeof value !== 'number') throw new Error(`${label} must be a number.`)
+  return value
+}
+
+function jsonNullableString(value: Json | undefined, label: string): string | null {
+  if (value === null) return null
+  return jsonString(value, label)
+}
+
+function parseSnakePickResult(value: Json | null): SnakePickResult {
+  const root = jsonObject(value ?? undefined, 'Snake-pick result')
+  const pick = jsonObject(root.pick, 'Snake-pick result pick')
+
+  return {
+    pick: {
+      id: jsonString(pick.id, 'pick.id'),
+      overall_pick: jsonNumber(pick.overall_pick, 'pick.overall_pick'),
+      round: jsonNumber(pick.round, 'pick.round'),
+      pick_in_round: jsonNumber(pick.pick_in_round, 'pick.pick_in_round'),
+      member_id: jsonString(pick.member_id, 'pick.member_id'),
+      draft_pick_id: jsonNullableString(pick.draft_pick_id, 'pick.draft_pick_id'),
+    },
+    remaining: jsonNumber(root.remaining, 'remaining'),
+    league_id: jsonString(root.league_id, 'league_id'),
+    league_season_id: jsonString(root.league_season_id, 'league_season_id'),
+  }
+}
 
 function splitDraftAction(path: string): { draftId: string; action: string } | null {
   const match = path.match(/^\/draft\/([^/]+)\/([^/]+)$/)
@@ -141,12 +196,7 @@ async function makeSnakePick(draftId: string, memberId: string, playerId: string
   })
   if (rpcError) throwDb(rpcError)
 
-  const result = rpcData as {
-    pick: { id: string; overall_pick: number; round: number; pick_in_round: number; member_id: string; draft_pick_id: string | null }
-    remaining: number
-    league_id: string
-    league_season_id: string
-  }
+  const result = parseSnakePickResult(rpcData)
 
   const { data: leagueRow, error: leagueError } = await supabase
     .from('leagues')
