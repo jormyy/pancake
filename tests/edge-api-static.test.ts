@@ -90,11 +90,23 @@ describe('Supabase Edge API cutover', () => {
         expect(processWaivers).not.toContain('while (true)')
         expect(`${processTrades}\n${closeNominations}\n${processWaivers}`).not.toContain('Promise.allSettled')
 
+        const cronInvoker = read('supabase/migrations/20260628000007_edge_cron_invoker_no_fallback.sql')
+        expect(cronInvoker).toContain('x-internal-function-token')
+        expect(cronInvoker).not.toContain('ceeytbfmwsnzalxlkalc')
         const migration = read('supabase/migrations/20260628000003_supabase_api_cron_cutover.sql')
-        expect(migration).toContain('x-internal-function-token')
         expect(migration).toContain("'nba-process-trades'")
         expect(migration).toContain("'nba-close-expired-nominations'")
         expect(read('types/database.ts')).toContain('process_due_waiver_claims_atomic')
+    })
+
+    it('keeps runtime API defaults environment-bound', () => {
+        const api = read('lib/shared/api.ts')
+
+        expect(api).toContain('EXPO_PUBLIC_API_URL')
+        expect(api).toContain('EXPO_PUBLIC_SUPABASE_URL')
+        expect(api).toContain('EXPO_PUBLIC_API_URL or EXPO_PUBLIC_SUPABASE_URL is required.')
+        expect(api).not.toContain('DEFAULT_SUPABASE_URL')
+        expect(api).not.toContain('ceeytbfmwsnzalxlkalc')
     })
 
     it('keeps schedule and playoff bracket writes inside atomic SQL RPCs', () => {

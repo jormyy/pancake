@@ -2,7 +2,6 @@
 -- - playoff bracket decisions and writes live in one SQL transaction
 -- - trade completion only terminalizes explicit domain-drift failures
 -- - reject/withdraw trade terminal states live behind service-role RPCs
--- - DB cron configuration fails closed when the internal token is missing
 
 ALTER TABLE public.trades
   ADD COLUMN IF NOT EXISTS completion_failure_reason text;
@@ -1052,55 +1051,6 @@ BEGIN
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION public.invoke_edge_function(
-  function_name text,
-  body jsonb DEFAULT '{}'::jsonb
-)
-RETURNS void
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = ''
-AS $$
-DECLARE
-  _base_url text;
-  _internal_token text;
-BEGIN
-  _base_url := COALESCE(
-    NULLIF(current_setting('app.supabase_url', true), ''),
-    'https://ceeytbfmwsnzalxlkalc.supabase.co'
-  );
-  _internal_token := NULLIF(current_setting('app.edge_internal_token', true), '');
-
-  IF _internal_token IS NULL THEN
-    SELECT NULLIF(decrypted_secret, '')
-      INTO _internal_token
-      FROM vault.decrypted_secrets
-     WHERE name = 'pancake_edge_internal_token'
-     ORDER BY updated_at DESC NULLS LAST, created_at DESC
-     LIMIT 1;
-  END IF;
-
-  IF _base_url IS NULL THEN
-    RAISE EXCEPTION '[cron] Supabase Edge base URL is not configured.';
-  END IF;
-
-  IF _internal_token IS NULL THEN
-    RAISE EXCEPTION '[cron] Supabase Edge internal token is not configured.';
-  END IF;
-
-  PERFORM net.http_post(
-    _base_url || '/functions/v1/' || function_name,
-    body,
-    NULL,
-    jsonb_build_object(
-      'x-internal-function-token', _internal_token,
-      'Content-Type', 'application/json'
-    ),
-    30000
-  );
-END;
-$$;
-
 DROP FUNCTION IF EXISTS public.insert_playoff_matchups_atomic(uuid, uuid, jsonb, jsonb, jsonb);
 
 REVOKE ALL ON FUNCTION public.expire_trade_completion_failure_atomic(uuid, text) FROM PUBLIC;
@@ -1137,8 +1087,3 @@ REVOKE ALL ON FUNCTION public.advance_playoff_bracket_atomic(uuid) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.advance_playoff_bracket_atomic(uuid) FROM anon;
 REVOKE ALL ON FUNCTION public.advance_playoff_bracket_atomic(uuid) FROM authenticated;
 GRANT EXECUTE ON FUNCTION public.advance_playoff_bracket_atomic(uuid) TO service_role;
-
-REVOKE ALL ON FUNCTION public.invoke_edge_function(text, jsonb) FROM PUBLIC;
-REVOKE ALL ON FUNCTION public.invoke_edge_function(text, jsonb) FROM anon;
-REVOKE ALL ON FUNCTION public.invoke_edge_function(text, jsonb) FROM authenticated;
-GRANT EXECUTE ON FUNCTION public.invoke_edge_function(text, jsonb) TO service_role;

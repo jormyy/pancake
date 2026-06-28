@@ -288,6 +288,7 @@ SELECT
   ) IS NOT NULL AS token_configured,
   pg_get_functiondef('public.invoke_edge_function(text,jsonb)'::regprocedure) ILIKE '%vault.decrypted_secrets%' AS reads_vault_token,
   pg_get_functiondef('public.invoke_edge_function(text,jsonb)'::regprocedure) ILIKE '%x-internal-function-token%' AS sets_internal_header,
+  pg_get_functiondef('public.invoke_edge_function(text,jsonb)'::regprocedure) NOT ILIKE '%ceeytbfmwsnzalxlkalc%' AS omits_hardcoded_project_ref,
   pg_get_functiondef('public.invoke_edge_function(text,jsonb)'::regprocedure) NOT ILIKE '%Authorization%' AS omits_authorization_header,
   pg_get_functiondef('public.invoke_edge_function(text,jsonb)'::regprocedure) NOT ILIKE '%app.service_role_key%' AS omits_service_role_key,
   pg_get_functiondef('public.invoke_edge_function(text,jsonb)'::regprocedure) ILIKE '%RAISE EXCEPTION%internal token%' AS fails_closed_without_token,
@@ -297,6 +298,7 @@ SELECT
   const cronTokenConfigured = cronTokenRow?.token_configured === true
   const cronContractOk = cronTokenRow?.reads_vault_token === true &&
     cronTokenRow?.sets_internal_header === true &&
+    cronTokenRow?.omits_hardcoded_project_ref === true &&
     cronTokenRow?.omits_authorization_header === true &&
     cronTokenRow?.omits_service_role_key === true &&
     cronTokenRow?.fails_closed_without_token === true &&
@@ -305,7 +307,7 @@ SELECT
     requirement: 'DB cron Edge internal token configured',
     status: statusFrom(cronTokenProbe.ok && cronTokenConfigured && cronContractOk),
     evidence: cronTokenProbe.ok
-      ? `token_configured=${cronTokenConfigured}; reads_vault=${cronTokenRow?.reads_vault_token === true}; internal_header=${cronTokenRow?.sets_internal_header === true}; no_authorization=${cronTokenRow?.omits_authorization_header === true}; no_service_role_key=${cronTokenRow?.omits_service_role_key === true}; fail_closed_token=${cronTokenRow?.fails_closed_without_token === true}; fail_closed_base_url=${cronTokenRow?.fails_closed_without_base_url === true}; values intentionally not printed.`
+      ? `token_configured=${cronTokenConfigured}; reads_vault=${cronTokenRow?.reads_vault_token === true}; internal_header=${cronTokenRow?.sets_internal_header === true}; no_hardcoded_project_ref=${cronTokenRow?.omits_hardcoded_project_ref === true}; no_authorization=${cronTokenRow?.omits_authorization_header === true}; no_service_role_key=${cronTokenRow?.omits_service_role_key === true}; fail_closed_token=${cronTokenRow?.fails_closed_without_token === true}; fail_closed_base_url=${cronTokenRow?.fails_closed_without_base_url === true}; values intentionally not printed.`
       : cronTokenProbe.evidence,
   })
 

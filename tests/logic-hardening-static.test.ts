@@ -77,6 +77,8 @@ describe('logic hardening source guards - scoring and security', () => {
         expect(invokeBody).toContain('app.supabase_url')
         expect(invokeBody).toContain('app.edge_internal_token')
         expect(invokeBody).toContain('x-internal-function-token')
+        expect(invokeBody).not.toContain('https://ceeytbfmwsnzalxlkalc.supabase.co')
+        expect(invokeBody).not.toMatch(/COALESCE[\s\S]*app\.supabase_url/i)
         expect(invokeBody).not.toContain('app.service_role_key')
         expect(invokeBody).not.toContain("'Authorization'")
         expect(invokeBody).not.toContain("'apikey'")
