@@ -1,20 +1,12 @@
 import { requireInternalFunctionAuth } from '../_shared/auth.ts'
+import type { Database } from '../_shared/database.ts'
 import { notifyMember } from '../_shared/notifications.ts'
 import { internalServerError } from '../_shared/responses.ts'
 import { supabase } from '../_shared/supabase.ts'
 
-const TERMINAL_COMPLETION_ERROR_FRAGMENTS = [
-  'Player asset is no longer owned by the expected trade side',
-  'Player asset is no longer owned by the expected active roster side',
-  'Draft-pick asset is no longer owned by the expected trade side',
-  'Reserved drop player is no longer on the expected roster',
-  'Failed to move player asset atomically',
-  'Failed to move draft-pick asset atomically',
-  'Trade completion would overfill a roster',
-  'This roster player is reserved for an accepted trade',
-  'Inactive roster players must be activated before they can be traded',
-  'Trade player assets must be active and unreserved roster players',
-]
+const PROCESS_BATCH_LIMIT = 50
+
+type ProcessedTradeRow = Database['public']['Functions']['process_due_accepted_trades_atomic']['Returns'][number]
 
 Deno.serve(async (req) => {
   const authError = requireInternalFunctionAuth(req)
@@ -29,81 +21,40 @@ Deno.serve(async (req) => {
 })
 
 async function processAcceptedTrades(): Promise<{ processed: number; failed: number; failures: string[] }> {
-  const { data: trades, error } = await supabase
-    .from('trades')
-    .select('id, proposer_member_id, recipient_member_id, league_seasons!inner(is_current, leagues!inner(status))')
-    .eq('status', 'accepted')
-    .lte('veto_window_expires_at', new Date().toISOString())
-    .eq('league_seasons.is_current', true)
-    .in('league_seasons.leagues.status', ['active', 'playoffs'])
-
+  const { data, error } = await supabase.rpc('process_due_accepted_trades_atomic', {
+    p_limit: PROCESS_BATCH_LIMIT,
+  })
   if (error) throw error
 
   let processed = 0
   let failed = 0
   const failures: string[] = []
-
-  const results = await Promise.allSettled(
-    (trades ?? []).map((trade) =>
-      supabase
-        .rpc('complete_accepted_trade_atomic', { p_trade_id: trade.id })
-        .then((res) => ({
-          tradeId: trade.id,
-          proposerMemberId: trade.proposer_member_id,
-          recipientMemberId: trade.recipient_member_id,
-          error: res.error,
-        }))),
-  )
+  const results: ProcessedTradeRow[] = data ?? []
 
   for (const result of results) {
-    if (result.status === 'rejected') {
+    if (result.status !== 'completed') {
       failed += 1
-      failures.push(`Trade <unknown>: ${result.reason?.message ?? String(result.reason)}`)
-      continue
-    }
-
-    if (result.value.error) {
-      const message = result.value.error.message
-      if (isTerminalCompletionError(message)) {
-        const { error: expireError } = await supabase.rpc('expire_trade_completion_failure_atomic', {
-          p_trade_id: result.value.tradeId,
-          p_reason: message,
-        })
-
-        failed += 1
-        failures.push(
-          expireError
-            ? `Trade ${result.value.tradeId}: completion failed (${message}); terminalization failed: ${expireError.message}`
-            : `Trade ${result.value.tradeId}: expired after deterministic completion drift: ${message}`,
-        )
-        continue
-      }
-
-      failed += 1
-      failures.push(`Trade ${result.value.tradeId}: ${message}`)
+      const message = result.error_message ?? result.error_code ?? result.status
+      failures.push(`Trade ${result.trade_id}: ${result.status}: ${message}`)
       continue
     }
 
     processed += 1
     await Promise.all([
       notifyMember(
-        result.value.proposerMemberId,
+        result.proposer_member_id,
         'Trade Completed',
         'Assets have moved. Check your roster.',
-        { tradeId: result.value.tradeId },
+        { tradeId: result.trade_id },
       ),
       notifyMember(
-        result.value.recipientMemberId,
+        result.recipient_member_id,
         'Trade Completed',
         'Assets have moved. Check your roster.',
-        { tradeId: result.value.tradeId },
+        { tradeId: result.trade_id },
       ),
     ]).catch((notifyError) => console.error('[process-trades] notification failed', notifyError))
   }
 
   return { processed, failed, failures }
-}
-
-function isTerminalCompletionError(message: string): boolean {
-  return TERMINAL_COMPLETION_ERROR_FRAGMENTS.some((fragment) => message.includes(fragment))
 }

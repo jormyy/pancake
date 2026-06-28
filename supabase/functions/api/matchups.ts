@@ -1,10 +1,16 @@
 import { supabase } from '../_shared/supabase.ts'
 import { throwDb } from '../_shared/apiRuntime.ts'
-import type { Database } from '../_shared/database.ts'
 
 const DEFAULT_PLAYOFF_START_WEEK = 20
-const PLAYOFF_MATCHUP_TYPES = ['playoff_quarterfinal', 'playoff_semifinal', 'playoff_final'] as const
-type MatchupInsert = Database['public']['Tables']['matchups']['Insert']
+
+type RegularSeasonMatchupPayload = {
+  league_id: string
+  league_season_id: string
+  week_number: number
+  home_member_id: string
+  away_member_id: string
+  matchup_type: 'regular_season'
+}
 
 export function roundRobinRounds(ids: string[]): { home: string; away: string }[][] {
   const teams = ids.length % 2 === 0 ? [...ids] : [...ids, '__bye__']
@@ -28,27 +34,6 @@ export function roundRobinRounds(ids: string[]): { home: string; away: string }[
   return rounds
 }
 
-async function assertCanForceRegenerate(leagueSeasonId: string): Promise<void> {
-  const [finalizedRes, playoffRes] = await Promise.all([
-    supabase
-      .from('matchups')
-      .select('id', { count: 'exact', head: true })
-      .eq('league_season_id', leagueSeasonId)
-      .eq('is_finalized', true),
-    supabase
-      .from('matchups')
-      .select('id', { count: 'exact', head: true })
-      .eq('league_season_id', leagueSeasonId)
-      .in('matchup_type', PLAYOFF_MATCHUP_TYPES),
-  ])
-
-  if (finalizedRes.error) throwDb(finalizedRes.error)
-  if (playoffRes.error) throwDb(playoffRes.error)
-  if ((finalizedRes.count ?? 0) > 0 || (playoffRes.count ?? 0) > 0) {
-    throw new Error('Cannot force-regenerate matchups after finalized or playoff matchups exist.')
-  }
-}
-
 export async function generateMatchups(
   leagueId: string,
   leagueSeasonId: string,
@@ -62,22 +47,9 @@ export async function generateMatchups(
   if (memberError) throwDb(memberError)
   if (!members || members.length < 2) return
 
-  const { count, error: countError } = await supabase
-    .from('matchups')
-    .select('id', { count: 'exact', head: true })
-    .eq('league_season_id', leagueSeasonId)
-  if (countError) throwDb(countError)
-
-  if ((count ?? 0) > 0) {
-    if (!force) return
-    await assertCanForceRegenerate(leagueSeasonId)
-    const { error } = await supabase.from('matchups').delete().eq('league_season_id', leagueSeasonId)
-    if (error) throwDb(error)
-  }
-
   const memberIds = members.map((member) => member.id)
   const rounds = roundRobinRounds(memberIds)
-  const rows: MatchupInsert[] = []
+  const rows: RegularSeasonMatchupPayload[] = []
 
   for (let week = 1; week <= regularSeasonWeeks; week += 1) {
     const round = rounds[(week - 1) % rounds.length]
@@ -93,7 +65,12 @@ export async function generateMatchups(
     }
   }
 
-  const { error } = await supabase.from('matchups').insert(rows)
+  const { error } = await supabase.rpc('replace_regular_season_matchups_atomic', {
+    p_league_id: leagueId,
+    p_league_season_id: leagueSeasonId,
+    p_force: force,
+    p_matchups: rows,
+  })
   if (error) throwDb(error)
 }
 

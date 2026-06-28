@@ -80,6 +80,8 @@ postseason (the "Playoffs" divider) and All-Star/exhibition games. The fantasy-p
 formula is shared through core/generated adapters for app, Edge, SQL, and the isolated legacy reference
 because each runtime needs its own copy — `tests/scoring-parity.test.ts` fails the build if
 any copy drifts in formula, category set, DNP handling, or regular-season filtering.
+Edge sync source lives under `supabase/shared-src/`; the isolated legacy backend is not a
+source for generated runtime files.
 
 ## Testing & validation
 

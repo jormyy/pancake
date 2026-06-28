@@ -76,13 +76,38 @@ describe('Supabase Edge API cutover', () => {
     })
 
     it('moves Railway interval work to Supabase Edge cron targets', () => {
-        expect(read('supabase/functions/process-trades/index.ts')).toContain('complete_accepted_trade_atomic')
-        expect(read('supabase/functions/close-expired-nominations/index.ts')).toContain('close_auction_nomination_atomic')
+        const processTrades = read('supabase/functions/process-trades/index.ts')
+        const closeNominations = read('supabase/functions/close-expired-nominations/index.ts')
+
+        expect(processTrades).toContain('process_due_accepted_trades_atomic')
+        expect(processTrades).not.toContain('complete_accepted_trade_atomic')
+        expect(processTrades).not.toContain('TERMINAL_COMPLETION_ERROR_FRAGMENTS')
+        expect(closeNominations).toContain('close_expired_auction_nominations_atomic')
+        expect(closeNominations).not.toContain('close_auction_nomination_atomic')
+        expect(`${processTrades}\n${closeNominations}`).not.toContain('Promise.allSettled')
 
         const migration = read('supabase/migrations/20260628000003_supabase_api_cron_cutover.sql')
         expect(migration).toContain('x-internal-function-token')
         expect(migration).toContain("'nba-process-trades'")
         expect(migration).toContain("'nba-close-expired-nominations'")
+    })
+
+    it('keeps schedule and playoff bracket writes inside atomic SQL RPCs', () => {
+        const matchups = read('supabase/functions/api/matchups.ts')
+        const playoffs = read('supabase/functions/api/playoffs.ts')
+        const migration = read('supabase/migrations/20260628000004_edge_atomic_batches.sql')
+
+        expect(matchups).toContain('replace_regular_season_matchups_atomic')
+        expect(playoffs).toContain('insert_playoff_matchups_atomic')
+        expect(`${matchups}\n${playoffs}`).not.toMatch(/from\('matchups'\)\.(?:insert|delete|upsert|update)/)
+        expect(`${matchups}\n${playoffs}`).not.toMatch(/from\('rps_challenges'\)\.(?:insert|delete|upsert|update)/)
+        expect(migration).toContain('pg_advisory_xact_lock')
+        expect(migration).toContain('FOR UPDATE OF trade SKIP LOCKED')
+        expect(migration).toContain('FOR UPDATE OF nomination SKIP LOCKED')
+        expect(read('types/database.ts')).toContain('replace_regular_season_matchups_atomic')
+        expect(read('types/database.ts')).toContain('insert_playoff_matchups_atomic')
+        expect(read('types/database.ts')).toContain('process_due_accepted_trades_atomic')
+        expect(read('types/database.ts')).toContain('close_expired_auction_nominations_atomic')
     })
 
     it('isolates the former Railway backend outside active runtime paths', () => {
@@ -91,6 +116,22 @@ describe('Supabase Edge API cutover', () => {
         expect(existsSync('backend')).toBe(false)
         expect(rootPackage.workspaces ?? []).not.toContain('backend')
         expect(Object.values(rootPackage.scripts ?? {}).join('\n')).not.toContain('--workspace backend')
+        expect(read('scripts/generate-edge-shared.mjs')).not.toContain('backend-legacy-railway/src')
         expect(read('backend-legacy-railway/README.md')).toContain('non-runtime rollback reference')
+    })
+
+    it('does not bypass generated RPC typing in the Edge API', () => {
+        const apiSources = [
+            'supabase/functions/api/draft.ts',
+            'supabase/functions/api/league.ts',
+            'supabase/functions/api/playoffs.ts',
+            'supabase/functions/api/trades.ts',
+            'supabase/functions/api/waivers.ts',
+        ].map(read).join('\n')
+
+        expect(apiSources).not.toContain('as unknown as')
+        expect(apiSources).not.toContain('as any')
+        expect(read('types/database.ts')).toContain('stop_draft_atomic')
+        expect(read('types/database.ts')).toContain('reset_draft_atomic')
     })
 })

@@ -2368,6 +2368,15 @@ export type Database = {
         Args: { p_nomination_id: string }
         Returns: boolean
       }
+      close_expired_auction_nominations_atomic: {
+        Args: { p_limit?: number }
+        Returns: {
+          closed: boolean
+          error_code: string | null
+          error_message: string | null
+          nomination_id: string
+        }[]
+      }
       create_auction_nomination_atomic: {
         Args: {
           p_countdown_seconds?: number
@@ -2406,6 +2415,36 @@ export type Database = {
         Args: never
         Returns: number
       }
+      insert_playoff_matchups_atomic: {
+        Args: {
+          p_league_id: string
+          p_league_season_id: string
+          p_matchups?: Json
+          p_skip_if_matchup_types?: Json
+          p_tiebreakers?: Json
+        }
+        Returns: Json
+      }
+      process_due_accepted_trades_atomic: {
+        Args: { p_limit?: number }
+        Returns: {
+          error_code: string | null
+          error_message: string | null
+          proposer_member_id: string
+          recipient_member_id: string
+          status: string
+          trade_id: string
+        }[]
+      }
+      replace_regular_season_matchups_atomic: {
+        Args: {
+          p_force?: boolean
+          p_league_id: string
+          p_league_season_id: string
+          p_matchups?: Json
+        }
+        Returns: Json
+      }
       veto_trade_atomic: {
         Args: { p_member_id: string; p_trade_id: string }
         Returns: Json
@@ -2435,6 +2474,14 @@ export type Database = {
       reseed_rookie_draft_picks_atomic: {
         Args: { p_draft_id: string; p_rounds?: number }
         Returns: number
+      }
+      reset_draft_atomic: {
+        Args: { p_draft_id: string }
+        Returns: undefined
+      }
+      stop_draft_atomic: {
+        Args: { p_draft_id: string }
+        Returns: undefined
       }
       compute_fantasy_points: {
         Args: { p_league_id: string; p_stat_id: string }

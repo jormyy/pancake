@@ -27,17 +27,17 @@ The former Railway/Fastify implementation is isolated in
 | `POST /trades/:tradeId/withdraw` | `api/trades.ts` | Supabase JWT + trade proposer | `withdraw_trade_atomic` RPC | offers tab |
 | `POST /trades/:tradeId/veto` | `api/trades.ts` | Supabase JWT + league member/commissioner | `veto_trade_atomic` RPC | offers tab |
 | `POST /draft/start` | `api/draft.ts` | Supabase JWT + commissioner | `start_auction_draft_atomic` RPC | auction draft room |
-| `POST /draft/:draftId/stop` | `api/draft.ts` | Supabase JWT + commissioner | draft status update | auction draft room |
-| `POST /draft/:draftId/reset` | `api/draft.ts` | Supabase JWT + commissioner | draft/nomination/bid reset | auction draft room |
+| `POST /draft/:draftId/stop` | `api/draft.ts` | Supabase JWT + commissioner | `stop_draft_atomic` RPC | auction draft room |
+| `POST /draft/:draftId/reset` | `api/draft.ts` | Supabase JWT + commissioner | `reset_draft_atomic` RPC | auction draft room |
 | `POST /draft/:draftId/nominate` | `api/draft.ts` | Supabase JWT + member ownership | `nominate_player_atomic` RPC | auction draft room |
 | `POST /draft/:draftId/bid` | `api/draft.ts` | Supabase JWT + member ownership | `place_auction_bid_atomic` RPC | auction draft room |
 | `POST /draft/:draftId/withdraw-nomination` | `api/draft.ts` | Supabase JWT + member ownership | `withdraw_auction_nomination_atomic` RPC | auction draft room |
 | `POST /draft/start-rookie` | `api/draft.ts` | Supabase JWT + commissioner | `start_rookie_draft_atomic` RPC | rookie draft setup |
 | `POST /draft/:draftId/snake-pick` | `api/draft.ts` | Supabase JWT + pick owner | `make_snake_pick_atomic` RPC | rookie draft room |
 | `POST /draft/:draftId/auto-pick` | `api/draft.ts` | Supabase JWT + commissioner or E2E secret | `make_snake_pick_atomic` RPC | rookie draft room/E2E |
-| `POST /draft/:draftId/reseed-picks` | `api/draft.ts` | Supabase JWT + commissioner | rookie pick reseed writes | commissioner tools |
-| `POST /playoffs/generate` | `api/playoffs.ts` | Supabase JWT + commissioner | playoff matchup/standings writes | league tab |
-| `POST /playoffs/advance` | `api/playoffs.ts` | Supabase JWT + commissioner | playoff round/status writes | league tab |
+| `POST /draft/:draftId/reseed-picks` | `api/draft.ts` | Supabase JWT + commissioner | `reseed_rookie_draft_picks_atomic` RPC | commissioner tools |
+| `POST /playoffs/generate` | `api/playoffs.ts` | Supabase JWT + commissioner | `insert_playoff_matchups_atomic` RPC | league tab |
+| `POST /playoffs/advance` | `api/playoffs.ts` | Supabase JWT + commissioner | `insert_playoff_matchups_atomic` RPC | league tab |
 
 ## Admin And E2E Routes
 
@@ -46,7 +46,7 @@ The former Railway/Fastify implementation is isolated in
 | `/sync/stats` | `api/sync.ts` | Supabase JWT + `ADMIN_USER_IDS` | `sync-stats` Edge Function |
 | `/sync/scores` | `api/sync.ts` | Supabase JWT + `ADMIN_USER_IDS` | `sync-scores` Edge Function |
 | `/sync/schedule` | `api/sync.ts` | Supabase JWT + `ADMIN_USER_IDS` | `sync-schedule` Edge Function |
-| `/sync/matchups` | `api/sync.ts` | Supabase JWT + `ADMIN_USER_IDS` | `api/matchups.ts` service routine |
+| `/sync/matchups` | `api/sync.ts` | Supabase JWT + `ADMIN_USER_IDS` | `replace_regular_season_matchups_atomic` RPC |
 | `/sync/players` | `api/sync.ts` | Supabase JWT + `ADMIN_USER_IDS` | `sync-players` Edge Function |
 | `/sync/rankings` | `api/sync.ts` | Supabase JWT + `ADMIN_USER_IDS` | `sync-rankings` Edge Function |
 | `/sync/projections` | `api/sync.ts` | Supabase JWT + `ADMIN_USER_IDS` | `sync-projections` Edge Function |
@@ -67,14 +67,14 @@ The former Railway/Fastify implementation is isolated in
 | Stats/scores/rankings/projections | Supabase Cron + Edge Functions | existing cron | former Railway cron/admin routes |
 | Live poll | Supabase Cron + `live-poll` | game-window cron | former always-on poller |
 | Waiver processing | Supabase Cron/admin + `process-waivers` | existing cron/manual API | former backend processor |
-| Accepted trade completion | Supabase Cron + `process-trades` | every 5 minutes | former interval loop |
-| Auction nomination expiry | Supabase Cron + `close-expired-nominations` | every minute | former interval loop |
+| Accepted trade completion | Supabase Cron + `process-trades` calling `process_due_accepted_trades_atomic` | every 5 minutes | former interval loop |
+| Auction nomination expiry | Supabase Cron + `close-expired-nominations` calling `close_expired_auction_nominations_atomic` | every minute | former interval loop |
 
 ## Deleted Or Isolated Surfaces
 
 | Surface | Status |
 | --- | --- |
-| Railway deploy config | isolated under `backend-legacy-railway/railway.json`; no active workspace path |
-| Fastify startup | isolated under `backend-legacy-railway/src/index.ts`; no root script or workspace |
+| Railway deploy config | isolated under `backend-legacy-railway/railway.json`; no active workspace or generated-code source path |
+| Fastify startup | isolated under `backend-legacy-railway/src/index.ts`; no root script, workspace, or generated-code source path |
 | Legacy Supabase JWT keys | disabled in hosted Supabase project; app and E2E use `sb_publishable_`/`sb_secret_` keys |
 | Direct frontend Railway URL | removed; `lib/shared/api.ts` falls back to `/functions/v1/api` |

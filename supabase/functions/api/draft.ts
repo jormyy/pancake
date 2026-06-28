@@ -48,16 +48,12 @@ async function startDraft(leagueId: string, mode: NominationOrderMode): Promise<
 }
 
 async function stopDraft(draftId: string): Promise<void> {
-  const { error } = await (supabase as unknown as {
-    rpc: (name: string, args: Record<string, unknown>) => Promise<{ error: unknown }>
-  }).rpc('stop_draft_atomic', { p_draft_id: draftId })
+  const { error } = await supabase.rpc('stop_draft_atomic', { p_draft_id: draftId })
   if (error) throwDb(error)
 }
 
 async function resetDraft(draftId: string): Promise<void> {
-  const { error } = await (supabase as unknown as {
-    rpc: (name: string, args: Record<string, unknown>) => Promise<{ error: unknown }>
-  }).rpc('reset_draft_atomic', { p_draft_id: draftId })
+  const { error } = await supabase.rpc('reset_draft_atomic', { p_draft_id: draftId })
   if (error) throwDb(error)
 }
 

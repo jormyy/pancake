@@ -112,7 +112,7 @@ async function scoringCore() {
 }
 
 async function syncScores() {
-  const source = rewriteImportDeclarations(await read('backend-legacy-railway/src/sync/scores.ts'), 'syncScores', {
+  const source = rewriteImportDeclarations(await read('supabase/shared-src/sync/scores.ts'), 'syncScores', {
     '../lib/supabase': './supabase.ts',
     '../lib/scoring': './scoring.ts',
     '../lib/notifications': './notifications.ts',
@@ -127,7 +127,7 @@ async function syncScores() {
 }
 
 async function scoreLineups() {
-  const source = rewriteImportDeclarations(await read('backend-legacy-railway/src/sync/scoreLineups.ts'), 'scoreLineups', {
+  const source = rewriteImportDeclarations(await read('supabase/shared-src/sync/scoreLineups.ts'), 'scoreLineups', {
     '../lib/scoring': './scoring.ts',
     '../lib/nba': './nba.ts',
     '../lib/supabase': './supabase.ts',
@@ -137,7 +137,7 @@ async function scoreLineups() {
 }
 
 async function scoreShared() {
-  const source = rewriteImportDeclarations(await read('backend-legacy-railway/src/sync/scoreShared.ts'), 'scoreShared', {
+  const source = rewriteImportDeclarations(await read('supabase/shared-src/sync/scoreShared.ts'), 'scoreShared', {
     '../lib/supabase': './supabase.ts',
   })
   return `${HEADER}${source}`

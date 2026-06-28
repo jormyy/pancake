@@ -1,5 +1,4 @@
 import { supabase } from '../_shared/supabase.ts'
-import type { Database } from '../_shared/database.ts'
 import {
   json,
   readJsonObject,
@@ -11,8 +10,22 @@ import {
 } from '../_shared/apiRuntime.ts'
 
 const DEFAULT_PLAYOFF_START_WEEK = 20
-type MatchupInsert = Database['public']['Tables']['matchups']['Insert']
-type RpsChallengeInsert = Database['public']['Tables']['rps_challenges']['Insert']
+type PlayoffMatchupType = 'playoff_quarterfinal' | 'playoff_semifinal' | 'playoff_final'
+type PlayoffMatchupPayload = {
+  league_id: string
+  league_season_id: string
+  week_number: number
+  matchup_type: PlayoffMatchupType
+  home_member_id: string
+  away_member_id: string
+}
+type PlayoffTiebreakerPayload = {
+  league_id: string
+  league_season_id: string
+  member_a_id: string
+  member_b_id: string
+  winner_member_id: string
+}
 
 type PlayoffSeed = {
   memberId: string
@@ -142,10 +155,6 @@ async function getPlayoffSeeds(
   return [...stats.values()].sort(comparePlayoffSeeds)
 }
 
-function rpsPairKey(a: string, b: string): string {
-  return [a, b].sort().join('|')
-}
-
 function sameTiebreaker(a: PlayoffSeed, b: PlayoffSeed): boolean {
   return a.wins === b.wins &&
     a.pointsFor === b.pointsFor &&
@@ -179,65 +188,40 @@ function relevantTiebreakerPairs(
   return tiedPairs
 }
 
-async function recordTiebreakerAuditRows(
+function playoffTiebreakerRows(
   leagueId: string,
   leagueSeasonId: string,
   seeds: PlayoffSeed[],
   playoffSize: number,
-): Promise<void> {
+): PlayoffTiebreakerPayload[] {
   const tiedPairs = relevantTiebreakerPairs(seeds, playoffSize)
-  if (tiedPairs.length === 0) return
-
-  const { data: existing, error: existingError } = await supabase
-    .from('rps_challenges')
-    .select('id, member_a_id, member_b_id, winner_member_id, status')
-    .eq('league_id', leagueId)
-    .eq('league_season_id', leagueSeasonId)
-    .eq('context', 'standings_playoff_tiebreaker')
-  if (existingError) throwDb(existingError)
-
-  const existingByPair = new Map(
-    (existing ?? []).map((challenge) => [rpsPairKey(challenge.member_a_id, challenge.member_b_id), challenge]),
-  )
-  const resolvedAt = new Date().toISOString()
-  const rows: RpsChallengeInsert[] = tiedPairs
-    .filter((pair) => !existingByPair.has(rpsPairKey(pair.memberAId, pair.memberBId)))
+  return tiedPairs
     .map((pair) => ({
       league_id: leagueId,
       league_season_id: leagueSeasonId,
       member_a_id: pair.memberAId,
       member_b_id: pair.memberBId,
       winner_member_id: pair.winnerMemberId,
-      status: 'completed' as const,
-      context: 'standings_playoff_tiebreaker',
-      resolved_at: resolvedAt,
     }))
+}
 
-  if (rows.length > 0) {
-    const { error } = await supabase.from('rps_challenges').insert(rows)
-    if (error) throwDb(error)
-  }
+async function insertPlayoffMatchupsAtomic(
+  leagueId: string,
+  leagueSeasonId: string,
+  rows: PlayoffMatchupPayload[],
+  tiebreakers: PlayoffTiebreakerPayload[],
+  skipIfMatchupTypes: PlayoffMatchupType[],
+): Promise<void> {
+  if (rows.length === 0) return
 
-  for (const pair of tiedPairs) {
-    const existingChallenge = existingByPair.get(rpsPairKey(pair.memberAId, pair.memberBId))
-    if (
-      !existingChallenge ||
-      (existingChallenge.status === 'completed' && existingChallenge.winner_member_id === pair.winnerMemberId)
-    ) {
-      continue
-    }
-    const { error } = await supabase
-      .from('rps_challenges')
-      .update({
-        winner_member_id: pair.winnerMemberId,
-        member_a_choice: null,
-        member_b_choice: null,
-        status: 'completed',
-        resolved_at: resolvedAt,
-      })
-      .eq('id', existingChallenge.id)
-    if (error) throwDb(error)
-  }
+  const { error } = await supabase.rpc('insert_playoff_matchups_atomic', {
+    p_league_id: leagueId,
+    p_league_season_id: leagueSeasonId,
+    p_matchups: rows,
+    p_tiebreakers: tiebreakers,
+    p_skip_if_matchup_types: skipIfMatchupTypes,
+  })
+  if (error) throwDb(error)
 }
 
 async function assertPlayoffWeeksAvailable(
@@ -277,16 +261,16 @@ async function generateSemifinals(leagueId: string): Promise<void> {
   if (seeds.length < 4) throw new ValidationError('Not enough teams to seed playoffs (need 4).')
   const playoffSize = seeds.length >= 10 ? 6 : 4
   await assertPlayoffWeeksAvailable(seasonYear, playoffStartWeek, playoffSize >= 6 ? 3 : 2)
-  await recordTiebreakerAuditRows(leagueId, seasonId, seeds, playoffSize)
+  const tiebreakers = playoffTiebreakerRows(leagueId, seasonId, seeds, playoffSize)
 
   const seededMemberIds = seeds.slice(0, playoffSize).map((seed) => seed.memberId)
-  const rows: MatchupInsert[] = playoffSize >= 6
+  const rows: PlayoffMatchupPayload[] = playoffSize >= 6
     ? [
       {
         league_id: leagueId,
         league_season_id: seasonId,
         week_number: playoffStartWeek,
-        matchup_type: 'playoff_quarterfinal' as const,
+        matchup_type: 'playoff_quarterfinal',
         home_member_id: seededMemberIds[2],
         away_member_id: seededMemberIds[5],
       },
@@ -294,7 +278,7 @@ async function generateSemifinals(leagueId: string): Promise<void> {
         league_id: leagueId,
         league_season_id: seasonId,
         week_number: playoffStartWeek,
-        matchup_type: 'playoff_quarterfinal' as const,
+        matchup_type: 'playoff_quarterfinal',
         home_member_id: seededMemberIds[3],
         away_member_id: seededMemberIds[4],
       },
@@ -304,7 +288,7 @@ async function generateSemifinals(leagueId: string): Promise<void> {
         league_id: leagueId,
         league_season_id: seasonId,
         week_number: playoffStartWeek,
-        matchup_type: 'playoff_semifinal' as const,
+        matchup_type: 'playoff_semifinal',
         home_member_id: seededMemberIds[0],
         away_member_id: seededMemberIds[3],
       },
@@ -312,14 +296,16 @@ async function generateSemifinals(leagueId: string): Promise<void> {
         league_id: leagueId,
         league_season_id: seasonId,
         week_number: playoffStartWeek,
-        matchup_type: 'playoff_semifinal' as const,
+        matchup_type: 'playoff_semifinal',
         home_member_id: seededMemberIds[1],
         away_member_id: seededMemberIds[2],
       },
     ]
 
-  const { error } = await supabase.from('matchups').insert(rows)
-  if (error) throwDb(error)
+  await insertPlayoffMatchupsAtomic(leagueId, seasonId, rows, tiebreakers, [
+    'playoff_quarterfinal',
+    'playoff_semifinal',
+  ])
 }
 
 async function advanceToFinal(leagueId: string): Promise<void> {
@@ -365,12 +351,12 @@ async function advanceToFinal(leagueId: string): Promise<void> {
       const qfWinners = (quarterfinals ?? []).map((matchup) => matchup.winner_member_id).filter((id): id is string => Boolean(id))
       if (qfWinners.length < 2) throw new ValidationError('Could not determine quarterfinal winners.')
 
-      const { error } = await supabase.from('matchups').insert([
+      const rows: PlayoffMatchupPayload[] = [
         {
           league_id: leagueId,
           league_season_id: seasonId,
           week_number: quarterfinalWeek + 1,
-          matchup_type: 'playoff_semifinal' as const,
+          matchup_type: 'playoff_semifinal',
           home_member_id: seeds[0].memberId,
           away_member_id: qfWinners[1],
         },
@@ -378,12 +364,12 @@ async function advanceToFinal(leagueId: string): Promise<void> {
           league_id: leagueId,
           league_season_id: seasonId,
           week_number: quarterfinalWeek + 1,
-          matchup_type: 'playoff_semifinal' as const,
+          matchup_type: 'playoff_semifinal',
           home_member_id: seeds[1].memberId,
           away_member_id: qfWinners[0],
         },
-      ])
-      if (error) throwDb(error)
+      ]
+      await insertPlayoffMatchupsAtomic(leagueId, seasonId, rows, [], ['playoff_semifinal'])
       return
     }
   }
@@ -403,15 +389,16 @@ async function advanceToFinal(leagueId: string): Promise<void> {
   if (winners.length < 2) throw new ValidationError('Could not determine semifinal winners.')
   const finalWeek = Math.max(...semis.map((matchup) => Number(matchup.week_number))) + 1
 
-  const { error } = await supabase.from('matchups').insert({
-    league_id: leagueId,
-    league_season_id: seasonId,
-    week_number: finalWeek,
-    matchup_type: 'playoff_final' as const,
-    home_member_id: winners[0],
-    away_member_id: winners[1],
-  })
-  if (error) throwDb(error)
+  await insertPlayoffMatchupsAtomic(leagueId, seasonId, [
+    {
+      league_id: leagueId,
+      league_season_id: seasonId,
+      week_number: finalWeek,
+      matchup_type: 'playoff_final',
+      home_member_id: winners[0],
+      away_member_id: winners[1],
+    },
+  ], [], ['playoff_final'])
 }
 
 export async function handlePlayoffRoute(req: Request, path: string): Promise<Response | null> {
