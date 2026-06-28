@@ -1,11 +1,15 @@
 import { createClient } from '@supabase/supabase-js'
 import type { Database } from '../types/database'
+import { getSupabaseAdminKeyMode } from './supabaseKeyMode'
 
 const supabaseUrl = process.env.SUPABASE_URL!
 const adminKey = process.env.PANCAKE_SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SECRET_KEY
 
 if (!adminKey) {
     throw new Error('Missing PANCAKE_SUPABASE_SECRET_KEY or SUPABASE_SECRET_KEY')
+}
+if (getSupabaseAdminKeyMode() !== 'modern-secret') {
+    throw new Error('PANCAKE_SUPABASE_SECRET_KEY or SUPABASE_SECRET_KEY must be an sb_secret_ key')
 }
 
 // Admin client: use Supabase secret keys only; legacy service-role JWTs are not accepted.

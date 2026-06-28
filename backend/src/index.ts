@@ -3,7 +3,7 @@ import type { FastifyInstance } from 'fastify'
 import { buildApp } from './app'
 import { registerCronJobs } from './cron'
 import { CONFIG } from './config'
-import { getSupabaseAdminKeyMode } from './lib/supabaseKeyMode'
+import { isModernSupabaseSecretKey } from './lib/supabaseKeyMode'
 
 // Holds the Fastify instance once main() has constructed it so the top-level
 // shutdown handler can close it gracefully. Stays null until buildApp() resolves.
@@ -52,10 +52,10 @@ process.on('SIGINT', () => {
 // keys; legacy service-role JWTs are intentionally rejected.
 if (
     !process.env.SUPABASE_URL ||
-    getSupabaseAdminKeyMode() === 'missing'
+    !isModernSupabaseSecretKey()
 ) {
     console.error(
-        '[startup] Missing SUPABASE_URL and PANCAKE_SUPABASE_SECRET_KEY/SUPABASE_SECRET_KEY',
+        '[startup] Missing SUPABASE_URL or modern PANCAKE_SUPABASE_SECRET_KEY/SUPABASE_SECRET_KEY',
     )
     process.exit(1)
 }

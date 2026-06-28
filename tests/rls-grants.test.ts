@@ -130,6 +130,20 @@ describe('service-role-only RPCs are never granted to client roles', () => {
     })
 })
 
+describe('trusted server table grants', () => {
+    const sql = allMigrationSql()
+
+    it('keeps service_role able to read through PostgREST after client grant lockdown', () => {
+        expect(sql).toMatch(/GRANT\s+SELECT\s+ON\s+ALL\s+TABLES\s+IN\s+SCHEMA\s+public\s+TO\s+service_role;/i)
+        expect(sql).toMatch(
+            /ALTER\s+DEFAULT\s+PRIVILEGES\s+IN\s+SCHEMA\s+public\s+GRANT\s+SELECT\s+ON\s+TABLES\s+TO\s+service_role;/i,
+        )
+        expect(sql).not.toMatch(
+            /GRANT\s+SELECT\s+ON\s+ALL\s+TABLES\s+IN\s+SCHEMA\s+public\s+TO\s+[^;]*\b(?:anon|authenticated|public)\b/i,
+        )
+    })
+})
+
 describe('waiver privacy policies', () => {
     it('does not allow league-wide reads of other managers pending waiver claims', () => {
         const claimPolicy = latestPolicyDefinition(

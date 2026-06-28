@@ -13,6 +13,7 @@ vi.mock('../src/lib/supabase', () => ({
 import { supabase } from '../src/lib/supabase'
 import { buildApp } from '../src/app'
 import healthRoutes from '../src/routes/health'
+import { getSupabaseAdminKeyMode } from '../src/lib/supabaseKeyMode'
 
 const appSource = readFileSync(path.resolve(__dirname, '../src/app.ts'), 'utf8')
 const healthSource = readFileSync(path.resolve(__dirname, '../src/routes/health.ts'), 'utf8')
@@ -70,6 +71,12 @@ describe('backend public security boundaries', () => {
         expect(response.json()).toEqual({ status: 'ok' })
         expect(healthSource).not.toContain('supabaseAdminKeyMode')
         expect(healthSource).not.toContain('getSupabaseAdminKeyMode')
+    })
+
+    it('rejects legacy service-role JWTs for backend admin access', () => {
+        expect(getSupabaseAdminKeyMode({ PANCAKE_SUPABASE_SECRET_KEY: 'sb_secret_test' } as any)).toBe('modern-secret')
+        expect(getSupabaseAdminKeyMode({ SUPABASE_SECRET_KEY: 'legacy-service-role-jwt' } as any)).toBe('legacy-service-role')
+        expect(getSupabaseAdminKeyMode({} as any)).toBe('missing')
     })
 
     it('does not exempt bad E2E admin-secret guesses from rate limiting', () => {

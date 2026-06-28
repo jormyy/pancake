@@ -211,16 +211,16 @@ const main = async () => {
   }
 
   const hostedFastifyManualVerified = envValue('PANCAKE_HOSTED_FASTIFY_SECRET_KEY_VERIFIED') === '1'
-  const hostedFastifyModernSecret = remoteHealth?.supabaseAdminKeyMode === 'modern-secret'
+  const hostedFastifyExposesKeyMode = remoteHealth && Object.hasOwn(remoteHealth, 'supabaseAdminKeyMode')
   rows.push({
     requirement: 'Hosted Fastify secret-key env verified',
-    status: statusFrom(hostedFastifyModernSecret || hostedFastifyManualVerified),
-    evidence: hostedFastifyModernSecret
-        ? 'Hosted /health reports modern-secret.'
-        : hostedFastifyManualVerified
+    status: statusFrom(hostedFastifyManualVerified),
+    evidence: hostedFastifyManualVerified
         ? 'Manual deployment/env verification flag is set.'
         : remoteHealth?.supabaseAdminKeyMode === 'legacy-service-role'
           ? 'Hosted /health still reports legacy-service-role from an older deployment; set PANCAKE_SUPABASE_SECRET_KEY or SUPABASE_SECRET_KEY on the host before disabling legacy keys.'
+          : hostedFastifyExposesKeyMode
+          ? 'Hosted /health still exposes secret-key posture from an older deployment; deploy the current backend and verify host env out-of-band.'
           : 'Verify hosted Fastify has PANCAKE_SUPABASE_SECRET_KEY or SUPABASE_SECRET_KEY through host configuration, then set PANCAKE_HOSTED_FASTIFY_SECRET_KEY_VERIFIED=1.',
   })
 

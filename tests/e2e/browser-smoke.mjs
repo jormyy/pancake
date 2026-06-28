@@ -21,6 +21,25 @@ const safeName = (value) => value.replace(/[^a-zA-Z0-9._-]/g, '-')
 
 const joinUrl = (base, pathname) => new URL(pathname, base.endsWith('/') ? base : `${base}/`).toString()
 
+const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+const refForAccessibleNode = (snapshot, role, name) => {
+  const pattern = new RegExp(`${escapeRegExp(role)} "${escapeRegExp(name)}" \\[ref=([^\\]]+)\\]`)
+  const match = snapshot.match(pattern)
+  if (!match) throw new Error(`Could not find ${role} "${name}" in browser snapshot.`)
+  return match[1]
+}
+
+const fillTextbox = async (session, name, value) => {
+  const snapshot = await browser(session, ['snapshot'])
+  await browser(session, ['fill', refForAccessibleNode(snapshot, 'textbox', name), value])
+}
+
+const clickButton = async (session, name) => {
+  const snapshot = await browser(session, ['snapshot'])
+  await browser(session, ['click', refForAccessibleNode(snapshot, 'button', name)])
+}
+
 const encodeQuery = (pathname, params) => {
   const search = new URLSearchParams()
   for (const [key, value] of Object.entries(params)) {
@@ -311,11 +330,11 @@ export async function runBrowserSmoke({
       }
     }
 
-    await browser(session, ['open', env.frontendUrl])
+    await browser(session, ['open', joinUrl(env.frontendUrl, '/sign-in')])
     await browser(session, ['wait', '1500'])
-    await browser(session, ['find', 'placeholder', 'Email', 'fill', user.email])
-    await browser(session, ['find', 'placeholder', 'Password', 'fill', state.password])
-    await browser(session, ['find', 'text', 'Sign In', 'click'])
+    await fillTextbox(session, 'Email', user.email)
+    await fillTextbox(session, 'Password', state.password)
+    await clickButton(session, 'Sign In')
     await browser(session, ['wait', '4000'])
 
     const routes = [

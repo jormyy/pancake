@@ -102,14 +102,14 @@ npm audit --audit-level=high       # dependency audit
 ```
 
 Cross-cutting guard tests: `tests/scoring-parity.test.ts` (scoring drift),
-`tests/rls-grants.test.ts` (service-role-only RPCs never granted to client roles + default
-PUBLIC EXECUTE revoked), `backend/tests/bbref-schedule.test.ts` (regular-season purity
-oracle), `backend/tests/notification-security.test.ts` (no client-supplied push content).
+`tests/rls-grants.test.ts` (service-role-only RPCs never granted to client roles, default
+PUBLIC EXECUTE revoked, service-role read grants preserved), `backend/tests/bbref-schedule.test.ts`
+(regular-season purity oracle), `backend/tests/notification-security.test.ts` (no client-supplied push content).
 Browser E2E flows live in `tests/e2e/` (see [tests/e2e/README.md](./tests/e2e/README.md));
 the multi-season soak is `npm run e2e:soak`.
 
-The latest launch-readiness hardening pass — baseline, logic, security, prod integration,
-UI, PWA, code-review, and the full issue ledger — is recorded in
+The latest launch-readiness hardening pass, including the remaining hosted deployment
+blockers, is recorded in
 [validation/fresh-hardening-report.md](./validation/fresh-hardening-report.md).
 
 ## Security posture (summary)
@@ -117,6 +117,8 @@ UI, PWA, code-review, and the full issue ledger — is recorded in
 - RLS is enabled on every public table; `anon` has no write capability anywhere.
 - All gameplay mutations flow through `SECURITY DEFINER` RPCs or the backend service-role
   client; client direct-writes are limited to `profiles` and `league_members.team_name`.
+- Backend admin access must use a revealed Supabase `sb_secret_...` key; legacy
+  service-role JWTs are rejected at startup.
 - The backend authenticates every request (Supabase JWT via `jose`) and re-derives the
   acting member from the token before calling service-role-only RPCs.
 - Set `CORS_ALLOWED_ORIGINS` in production to restrict the browser origin surface.
