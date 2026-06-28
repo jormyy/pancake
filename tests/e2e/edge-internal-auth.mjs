@@ -23,7 +23,6 @@ const targetConfig = (target) => {
     apiUrl: envValue('E2E_SUPABASE_URL', 'SUPABASE_URL', 'EXPO_PUBLIC_SUPABASE_URL'),
     publicKeys: [
       envValue('E2E_SUPABASE_PUBLISHABLE_KEY', 'EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY'),
-      envValue('E2E_SUPABASE_ANON_KEY', 'EXPO_PUBLIC_SUPABASE_ANON_KEY'),
     ].filter(Boolean),
   }
 }

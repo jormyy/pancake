@@ -1,4 +1,5 @@
 import { existsSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
@@ -17,15 +18,14 @@ const ROOT = process.cwd()
 const REPORT_PATH = path.join(ROOT, 'tests/production-readiness-report.md')
 
 loadEnvFile(path.join(ROOT, '.env'))
-loadEnvFile(path.join(ROOT, 'backend/.env'))
 
 const run = runCommand
 
-const readProjectRef = async () => {
+const readLinkedProjectRef = async () => {
   const refPath = path.join(ROOT, 'supabase/.temp/project-ref')
   if (!existsSync(refPath)) return null
   const value = (await readFile(refPath, 'utf8')).trim()
-  return value ? '[linked-project-ref-present]' : null
+  return value || null
 }
 
 const parseJson = (text) => {
@@ -53,6 +53,80 @@ const legacyKeyNames = (rows) => {
 }
 
 const startsWith = (value, prefix) => typeof value === 'string' && value.startsWith(prefix)
+
+const decodeSupabaseKeychainValue = (value) => {
+  if (!value.startsWith('go-keyring-base64:')) return value
+  return Buffer.from(value.slice('go-keyring-base64:'.length), 'base64').toString('utf8')
+}
+
+const supabaseAccessToken = () => {
+  const envToken = envValue('SUPABASE_ACCESS_TOKEN')
+  if (envToken) return envToken
+  if (process.platform !== 'darwin') return null
+
+  try {
+    const raw = execFileSync('security', [
+      'find-generic-password',
+      '-s',
+      'Supabase CLI',
+      '-a',
+      'supabase',
+      '-w',
+    ], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim()
+    return raw ? decodeSupabaseKeychainValue(raw) : null
+  } catch {
+    return null
+  }
+}
+
+const legacyApiKeysEnabled = async (projectRef) => {
+  const token = supabaseAccessToken()
+  if (!projectRef || !token) return { ok: false, enabled: null, evidence: 'Supabase Management API access token is unavailable.' }
+
+  try {
+    const response = await fetch(
+      `https://api.supabase.com/v1/projects/${projectRef}/api-keys/legacy`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      },
+    )
+    const text = await response.text()
+    const parsed = parseJson(text)
+    if (!response.ok) {
+      return {
+        ok: false,
+        enabled: null,
+        evidence: `Management API legacy-key state probe failed with status ${response.status}; ${cleanMessage(text, { maxLines: 4 })}`,
+      }
+    }
+    if (typeof parsed?.enabled !== 'boolean') {
+      return {
+        ok: false,
+        enabled: null,
+        evidence: `Management API legacy-key state probe returned an unexpected payload: ${cleanMessage(text, { maxLines: 4 })}`,
+      }
+    }
+    return {
+      ok: true,
+      enabled: parsed.enabled,
+      evidence: parsed.enabled
+        ? 'Management API reports legacy Supabase JWT keys are still enabled.'
+        : 'Management API reports legacy Supabase JWT keys are disabled.',
+    }
+  } catch (error) {
+    return {
+      ok: false,
+      enabled: null,
+      evidence: `Management API legacy-key state probe threw: ${cleanMessage(error instanceof Error ? error.message : String(error), { maxLines: 4 })}`,
+    }
+  }
+}
 
 const canQueryWithSupabaseKey = async (url, key) => {
   if (!url || !key) return { ok: false, evidence: 'Supabase URL or admin key is not configured.' }
@@ -87,21 +161,31 @@ const main = async () => {
     evidence: supabaseVersion.status === 0 ? cleanMessage(supabaseVersion.stdout, { maxLines: 6 }) : cleanMessage(supabaseVersion.stderr || String(supabaseVersion.error), { maxLines: 6 }),
   })
 
-  const projectRef = await readProjectRef()
+  const projectRef = await readLinkedProjectRef()
   rows.push({
     requirement: 'Supabase project linked',
     status: statusFrom(Boolean(projectRef)),
-    evidence: projectRef ?? 'supabase/.temp/project-ref is missing',
+    evidence: projectRef ? '[linked-project-ref-present]' : 'supabase/.temp/project-ref is missing',
   })
 
   const secrets = run('supabase', ['secrets', 'list', '-o', 'json'])
   const hasSecretKeys = secrets.status === 0 && hasSecretName(secrets.stdout, 'SUPABASE_SECRET_KEYS')
+  const hasInternalToken = secrets.status === 0 &&
+    (hasSecretName(secrets.stdout, 'PANCAKE_EDGE_INTERNAL_TOKEN') ||
+      hasSecretName(secrets.stdout, 'EDGE_FUNCTION_INTERNAL_TOKEN'))
   rows.push({
     requirement: 'Hosted Edge secret-key dictionary present',
     status: statusFrom(hasSecretKeys),
     evidence: hasSecretKeys
       ? 'Supabase Edge secrets include SUPABASE_SECRET_KEYS.'
       : `Could not verify SUPABASE_SECRET_KEYS: ${cleanMessage(secrets.stderr || secrets.stdout || String(secrets.error), { maxLines: 6 })}`,
+  })
+  rows.push({
+    requirement: 'Hosted Edge internal token present',
+    status: statusFrom(hasInternalToken),
+    evidence: hasInternalToken
+      ? 'Supabase Edge secrets include PANCAKE_EDGE_INTERNAL_TOKEN or EDGE_FUNCTION_INTERNAL_TOKEN.'
+      : `Could not verify hosted Edge internal token: ${cleanMessage(secrets.stderr || secrets.stdout || String(secrets.error), { maxLines: 6 })}`,
   })
 
   const apiKeys = run('supabase', ['projects', 'api-keys', '-o', 'json'])
@@ -128,15 +212,13 @@ const main = async () => {
   const publicKey = envValue(
     'E2E_SUPABASE_PUBLISHABLE_KEY',
     'EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY',
-    'E2E_SUPABASE_ANON_KEY',
-    'EXPO_PUBLIC_SUPABASE_ANON_KEY',
   )
   rows.push({
     requirement: 'Local frontend Supabase key is non-legacy',
     status: statusFrom(startsWith(publicKey, 'sb_publishable_')),
     evidence: startsWith(publicKey, 'sb_publishable_')
       ? 'Frontend/E2E env resolves to an sb_publishable_ key.'
-      : 'Set EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY or E2E_SUPABASE_PUBLISHABLE_KEY to a Supabase publishable key before disabling legacy anon JWTs.',
+      : 'Set EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY or E2E_SUPABASE_PUBLISHABLE_KEY to a Supabase publishable key.',
   })
 
   const adminKey = envValue(
@@ -197,54 +279,45 @@ const main = async () => {
     const healthUrl = `${apiUrl.replace(/\/$/, '')}/health`
     const health = run('curl', ['-fsS', '--max-time', '15', healthUrl])
     remoteHealth = health.status === 0 ? parseJson(health.stdout) : null
+    const edgeApiHealthy = health.status === 0 &&
+      remoteHealth?.ok === true &&
+      remoteHealth?.service === 'pancake-supabase-api' &&
+      remoteHealth?.runtime === 'supabase-edge'
     rows.push({
-      requirement: 'Hosted Fastify health endpoint reachable',
-      status: statusFrom(health.status === 0),
-      evidence: health.status === 0 ? `${describeEndpoint(healthUrl)} returned healthy JSON.` : cleanMessage(health.stderr || health.stdout || String(health.error), { maxLines: 6 }),
+      requirement: 'Hosted Supabase Edge API health endpoint reachable',
+      status: statusFrom(edgeApiHealthy),
+      evidence: edgeApiHealthy
+        ? `${describeEndpoint(healthUrl)} returned Supabase Edge API health JSON.`
+        : health.status === 0
+          ? `Unexpected health payload: ${cleanMessage(health.stdout, { maxLines: 6 })}`
+          : cleanMessage(health.stderr || health.stdout || String(health.error), { maxLines: 6 }),
     })
   } else {
     rows.push({
-      requirement: 'Hosted Fastify health endpoint reachable',
+      requirement: 'Hosted Supabase Edge API health endpoint reachable',
       status: 'BLOCKED',
       evidence: 'E2E_REMOTE_API_URL or EXPO_PUBLIC_API_URL is not configured.',
     })
   }
 
-  const hostedFastifyManualVerified = envValue('PANCAKE_HOSTED_FASTIFY_SECRET_KEY_VERIFIED') === '1'
-  const hostedFastifyExposesKeyMode = remoteHealth && Object.hasOwn(remoteHealth, 'supabaseAdminKeyMode')
-  rows.push({
-    requirement: 'Hosted Fastify secret-key env verified',
-    status: statusFrom(hostedFastifyManualVerified),
-    evidence: hostedFastifyManualVerified
-        ? 'Manual deployment/env verification flag is set.'
-        : remoteHealth?.supabaseAdminKeyMode === 'legacy-service-role'
-          ? 'Hosted /health still reports legacy-service-role from an older deployment; set PANCAKE_SUPABASE_SECRET_KEY or SUPABASE_SECRET_KEY on the host before disabling legacy keys.'
-          : hostedFastifyExposesKeyMode
-          ? 'Hosted /health still exposes secret-key posture from an older deployment; deploy the current backend and verify host env out-of-band.'
-          : 'Verify hosted Fastify has PANCAKE_SUPABASE_SECRET_KEY or SUPABASE_SECRET_KEY through host configuration, then set PANCAKE_HOSTED_FASTIFY_SECRET_KEY_VERIFIED=1.',
-  })
-
-  const railwayAuth = run('npx', ['--yes', '@railway/cli', 'whoami'], { timeout: 30000 })
-  rows.push({
-    requirement: 'Railway CLI authenticated',
-    status: statusFrom(railwayAuth.status === 0),
-    evidence: railwayAuth.status === 0
-      ? 'Railway CLI is authenticated; hosted Fastify env can be inspected with Railway project access.'
-      : cleanMessage(railwayAuth.stderr || railwayAuth.stdout || String(railwayAuth.error), { maxLines: 6 }),
-  })
-
+  const legacyState = await legacyApiKeysEnabled(projectRef)
   const legacyKeysDisabled = Array.isArray(legacyKeys) && legacyKeys.length === 0
+  const legacyKeysDisabledByState = legacyState.ok && legacyState.enabled === false
   const legacyKeysManualVerified = envValue('PANCAKE_LEGACY_SUPABASE_JWT_ROTATED') === '1'
   rows.push({
     requirement: 'Remote legacy Supabase JWT keys disabled/revoked',
-    status: statusFrom(legacyKeysDisabled || legacyKeysManualVerified),
-    evidence: legacyKeysDisabled
-      ? 'Supabase API-key metadata no longer includes legacy JWT key records.'
-      : legacyKeysManualVerified
+    status: statusFrom(legacyKeysDisabledByState || legacyKeysDisabled || legacyKeysManualVerified),
+    evidence: legacyKeysDisabledByState
+      ? legacyState.evidence
+      : legacyKeysDisabled
+        ? 'Supabase API-key metadata no longer includes legacy JWT key records.'
+        : legacyKeysManualVerified
         ? 'Manual hosted-project legacy-key disable/revocation verification flag is set.'
-        : Array.isArray(legacyKeys)
-          ? `Supabase API-key metadata still includes legacy key record(s): ${legacyKeys.join(', ')}.`
-          : 'Could not parse Supabase API-key metadata; set PANCAKE_LEGACY_SUPABASE_JWT_ROTATED=1 only after independent hosted-project legacy-key disable/revocation verification.',
+        : legacyState.ok
+          ? legacyState.evidence
+          : Array.isArray(legacyKeys)
+            ? `Supabase API-key metadata still includes legacy key record(s): ${legacyKeys.join(', ')}; ${legacyState.evidence}`
+            : `Could not parse Supabase API-key metadata; ${legacyState.evidence} Set PANCAKE_LEGACY_SUPABASE_JWT_ROTATED=1 only after independent hosted-project legacy-key disable/revocation verification.`,
   })
 
   const blockers = rows.filter((row) => row.status !== 'PASS')
@@ -261,12 +334,10 @@ const main = async () => {
     '## Notes',
     '',
     '- This check intentionally avoids printing secret values.',
-    '- Manual flags are only accepted for host/dashboard operations that are not readable through local repo or Supabase CLI state.',
-    '- Before disabling legacy Supabase JWT keys, deploy hosted Fastify with `PANCAKE_SUPABASE_SECRET_KEY` or `SUPABASE_SECRET_KEY`, verify the host env out-of-band, then set `PANCAKE_HOSTED_FASTIFY_SECRET_KEY_VERIFIED=1`.',
-    '- To disable legacy Supabase JWT keys after hosted Fastify is verified, use the Supabase Management API endpoint: `PUT https://api.supabase.com/v1/projects/{ref}/api-keys/legacy?enabled=false`.',
+    '- Manual flags are only accepted for host/dashboard operations that are not readable through local repo, Supabase CLI state, or the Supabase Management API.',
+    '- Before disabling legacy Supabase JWT keys, deploy the Supabase `api`, `process-trades`, and `close-expired-nominations` Edge Functions and verify `/functions/v1/api/health`.',
+    '- To disable legacy Supabase JWT keys after Supabase Edge API verification, use the Supabase Management API endpoint: `PUT https://api.supabase.com/v1/projects/{ref}/api-keys/legacy?enabled=false`.',
     '- If linked Supabase DB access fails, provide `SUPABASE_DB_PASSWORD` or restore Supabase temporary login-role creation, then rerun `supabase db query --linked "select now();"` and `supabase db push --dry-run`.',
-    '- To unblock hosted Fastify verification from this machine, authenticate Railway with `railway login` or provide a valid Railway token/session for `npx --yes @railway/cli whoami`.',
-    '- No GitHub-hosted Railway deploy fallback is configured: the repository has only the `Tests` workflow, and repository/environment secrets and variables are empty.',
   ]
 
   await writeReportIfChanged(REPORT_PATH, `${lines.join('\n')}\n`)

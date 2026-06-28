@@ -1,6 +1,8 @@
 import { supabase } from '@/lib/supabase'
 
-const DEFAULT_API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000'
+const DEFAULT_SUPABASE_URL = 'https://ceeytbfmwsnzalxlkalc.supabase.co'
+const SUPABASE_API_URL = `${(process.env.EXPO_PUBLIC_SUPABASE_URL ?? DEFAULT_SUPABASE_URL).replace(/\/+$/, '')}/functions/v1/api`
+const DEFAULT_API_URL = process.env.EXPO_PUBLIC_API_URL ?? SUPABASE_API_URL
 export const API_URL = DEFAULT_API_URL
 const API_URL_OVERRIDE_KEY = 'PANCAKE_API_URL'
 const API_URL_OVERRIDE_PARAM = 'pancake_api_url'

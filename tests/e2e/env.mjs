@@ -27,7 +27,6 @@ export const loadEnvFile = (filePath) => {
 }
 
 loadEnvFile(path.join(ROOT, '.env'))
-loadEnvFile(path.join(ROOT, 'backend/.env'))
 
 export const envValue = (...names) => {
   for (const name of names) {
@@ -140,14 +139,22 @@ export const resolvedEnv = () => ({
   anonKey: envValue(
     'E2E_SUPABASE_PUBLISHABLE_KEY',
     'EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY',
-    'E2E_SUPABASE_ANON_KEY',
-    'EXPO_PUBLIC_SUPABASE_ANON_KEY',
   ),
-  apiBaseUrl: envValue('E2E_API_BASE_URL', 'EXPO_PUBLIC_API_URL') ?? 'http://127.0.0.1:3000',
+  apiBaseUrl: envValue('E2E_API_BASE_URL', 'EXPO_PUBLIC_API_URL') ??
+    edgeApiUrl(envValue('E2E_SUPABASE_URL', 'SUPABASE_URL', 'EXPO_PUBLIC_SUPABASE_URL')),
   frontendUrl: envValue('E2E_FRONTEND_URL') ?? 'http://127.0.0.1:8081',
   e2eAdminSecret: envValue('E2E_ADMIN_SECRET'),
-  backendTicksEnabled: envValue('E2E_ENABLE_BACKEND_TICKS') === '1',
+  backendTicksEnabled: envValue('E2E_ENABLE_EDGE_TICKS', 'E2E_ENABLE_BACKEND_TICKS') === '1',
 })
+
+const edgeApiUrl = (supabaseUrl) => {
+  if (!supabaseUrl) return undefined
+  try {
+    return new URL('/functions/v1/api', supabaseUrl.endsWith('/') ? supabaseUrl : `${supabaseUrl}/`).toString().replace(/\/$/, '')
+  } catch {
+    return undefined
+  }
+}
 
 export const isProductionSupabaseUrl = (value) => {
   if (!value) return false

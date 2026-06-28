@@ -21,6 +21,14 @@ Deno.serve(async (req) => {
   if (authError) return authError
 
   try {
+    const body = req.method === 'POST' ? await req.json().catch(() => ({})) : {}
+    const leagueId = typeof body.leagueId === 'string' ? body.leagueId : undefined
+    const date = typeof body.date === 'string' ? new Date(body.date) : null
+    if (date && !Number.isNaN(date.getTime())) {
+      await syncScores(leagueId, date)
+      return Response.json({ ok: true, date: body.date, leagueId: leagueId ?? null })
+    }
+
     const { data: holderId, error: lockErr } = await supabase.rpc('try_live_poll_lease', {
       p_lock_key: LIVE_POLL_LOCK_KEY,
       p_ttl_seconds: LIVE_POLL_LEASE_TTL_SECONDS,

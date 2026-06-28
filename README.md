@@ -5,12 +5,12 @@ A dynasty fantasy basketball app targeting the gap between ESPN (no dynasty supp
 ## Tech Stack
 
 - **Frontend**: Expo / React Native (TypeScript)
-- **Backend**: Node.js / Fastify API server with cron jobs
+- **Backend**: Supabase Edge Functions + Postgres RPCs + Supabase Cron
 - **Database**: PostgreSQL via Supabase
 - **Auth**: Supabase Auth
 - **Real-time**: Supabase Realtime
 - **Data Sources**: NBA CDN (schedules/scores) + Sleeper API (players/projections)
-- **Hosting**: Supabase (DB/auth) + Railway (API)
+- **Hosting**: Supabase (DB/auth/API/cron)
 
 ## Getting Started
 
@@ -21,30 +21,23 @@ npm install
 npx expo start
 ```
 
-### Backend
+### Supabase Edge API
 
 ```bash
-cd backend
-npm install
-npm run dev
+supabase functions serve api --env-file .env
 ```
 
 ### Environment
 
-Copy `.env.example` to `.env` and fill in values for Supabase URL, anon key, and any other required secrets.
+Copy `.env.example` to `.env` and fill in the Supabase URL, publishable key, and
+`EXPO_PUBLIC_API_URL=https://<project-ref>.supabase.co/functions/v1/api`.
+Runtime overrides remain available in local web builds with `?pancake_api_url=...`.
 
 ## Project Structure
 
 ```
 app/          # Expo Router screens (auth, tabs, modals)
-backend/      # Node.js/Fastify API server + cron jobs
-  src/
-    routes/   # Fastify route plugins
-    sync/     # Data sync modules
-    cron/     # Cron job registration
-    lib/      # Shared libraries + utils
-    plugins/  # Fastify plugins
-    schemas/  # Request validation schemas
+backend-legacy-railway/ # Non-runtime Railway/Fastify rollback reference
 lib/          # Frontend data layer
   shared/     # Deduplicated utilities
 hooks/        # React hooks
@@ -52,7 +45,7 @@ components/   # Reusable UI components
 constants/    # App constants
 types/        # TypeScript type definitions
 contexts/     # React context providers
-supabase/     # Database migrations
+supabase/     # Database migrations and Edge Functions
 ```
 
 ## Key Features
@@ -84,27 +77,25 @@ and service-worker registration.
 Only **regular-season** NBA data ever reaches a stat, projection, or score. The NBA-CDN
 path filters by `002%` game ids; the historical Basketball-Reference backfill excludes the
 postseason (the "Playoffs" divider) and All-Star/exhibition games. The fantasy-points
-formula is duplicated across core (TS), backend (TS), edge (Deno), and SQL because each
-runtime needs its own copy — `tests/scoring-parity.test.ts` fails the build if any copy
-drifts in formula, category set, DNP handling, or regular-season filtering.
+formula is shared through core/generated adapters for app, Edge, SQL, and the isolated legacy reference
+because each runtime needs its own copy — `tests/scoring-parity.test.ts` fails the build if
+any copy drifts in formula, category set, DNP handling, or regular-season filtering.
 
 ## Testing & validation
 
 ```bash
 npm run lint                       # expo lint
 npm run typecheck                  # app
-npm run typecheck:backend          # backend
+npm run check:edge-shared          # generated Edge scoring/sync parity
+deno check supabase/functions/api/index.ts
 npm test                           # root + frontend lib + cross-cutting guards
-npm test --workspace backend       # backend unit + guard tests
-npm run build:backend              # backend tsc build
 npx expo export --platform web     # web/PWA build
 npm audit --audit-level=high       # dependency audit
 ```
 
 Cross-cutting guard tests: `tests/scoring-parity.test.ts` (scoring drift),
 `tests/rls-grants.test.ts` (service-role-only RPCs never granted to client roles, default
-PUBLIC EXECUTE revoked, service-role read grants preserved), `backend/tests/bbref-schedule.test.ts`
-(regular-season purity oracle), `backend/tests/notification-security.test.ts` (no client-supplied push content).
+PUBLIC EXECUTE revoked, service-role read grants preserved), and Edge/API static guards.
 Browser E2E flows live in `tests/e2e/` (see [tests/e2e/README.md](./tests/e2e/README.md));
 the multi-season soak is `npm run e2e:soak`.
 
@@ -115,10 +106,19 @@ blockers, is recorded in
 ## Security posture (summary)
 
 - RLS is enabled on every public table; `anon` has no write capability anywhere.
-- All gameplay mutations flow through `SECURITY DEFINER` RPCs or the backend service-role
-  client; client direct-writes are limited to `profiles` and `league_members.team_name`.
-- Backend admin access must use a revealed Supabase `sb_secret_...` key; legacy
-  service-role JWTs are rejected at startup.
-- The backend authenticates every request (Supabase JWT via `jose`) and re-derives the
+- All gameplay mutations flow through `SECURITY DEFINER` RPCs or Supabase Edge
+  service-role clients; client direct-writes are limited to `profiles` and
+  `league_members.team_name`.
+- Edge Functions use Supabase secret keys from hosted secrets and a dedicated internal
+  token for cron/admin function-to-function calls.
+- The public `api` Edge Function verifies the Supabase session token and re-derives the
   acting member from the token before calling service-role-only RPCs.
-- Set `CORS_ALLOWED_ORIGINS` in production to restrict the browser origin surface.
+- The `api` Edge Function is the stable HTTP boundary at
+  `/functions/v1/api`; Railway is not part of the target runtime path.
+
+## Legacy Backend Status
+
+`backend-legacy-railway/` is a non-runtime rollback reference for the former
+Railway/Fastify service. It is not a root workspace, has no active startup path,
+and should be deleted after the Supabase Edge API has stabilized through the next
+production validation window.

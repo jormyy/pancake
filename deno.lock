@@ -58,24 +58,6 @@
       }
     },
     "members": {
-      "backend": {
-        "packageJson": {
-          "dependencies": [
-            "npm:@fastify/cors@^11.2.0",
-            "npm:@fastify/rate-limit@^10.3.0",
-            "npm:@supabase/supabase-js@^2.49.1",
-            "npm:@types/node@^22.13.5",
-            "npm:axios@^1.18.1",
-            "npm:cheerio@^1.2.0",
-            "npm:dotenv@^16.4.7",
-            "npm:fastify@^5.2.1",
-            "npm:jose@^6.2.2",
-            "npm:tsx@^4.22.4",
-            "npm:typescript@^5.7.3",
-            "npm:vitest@^4.1.9"
-          ]
-        }
-      },
       "core": {
         "packageJson": {
           "dependencies": [

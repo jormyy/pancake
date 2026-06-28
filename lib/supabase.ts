@@ -15,14 +15,13 @@ const ExpoSecureStoreAdapter =
           }
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL!
-const supabasePublicKey =
-    process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!
+const supabasePublicKey = process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY!
 const SUPABASE_URL_OVERRIDE_KEY = 'PANCAKE_SUPABASE_URL'
-const SUPABASE_PUBLIC_KEY_OVERRIDE_KEY = 'PANCAKE_SUPABASE_ANON_KEY'
+const SUPABASE_PUBLIC_KEY_OVERRIDE_KEY = 'PANCAKE_SUPABASE_PUBLIC_KEY'
 
 const overrideParamName = (key: string): string | null => {
     if (key === SUPABASE_URL_OVERRIDE_KEY) return 'pancake_supabase_url'
-    if (key === SUPABASE_PUBLIC_KEY_OVERRIDE_KEY) return 'pancake_supabase_anon_key'
+    if (key === SUPABASE_PUBLIC_KEY_OVERRIDE_KEY) return 'pancake_supabase_public_key'
     return null
 }
 

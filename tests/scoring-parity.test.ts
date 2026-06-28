@@ -11,7 +11,7 @@ import { calculateFantasyPoints, roundFantasyPoints } from '@pancake/core'
 //
 // Covered copies:
 //   - core/src/scoring/formula.ts            (canonical TS)
-//   - backend/src/lib/scoring.ts             (adapter to core)
+//   - backend-legacy-railway/src/lib/scoring.ts             (adapter to core)
 //   - supabase/functions/_shared/scoringCore.ts (generated Edge mirror)
 //   - SQL compute_fantasy_points() + v_fantasy_points (latest migration)
 
@@ -67,7 +67,7 @@ describe('scoring parity — TS copies', () => {
     })
 
     it('backend scoring delegates pure formula helpers to core', () => {
-        const backend = read('backend/src/lib/scoring.ts')
+        const backend = read('backend-legacy-railway/src/lib/scoring.ts')
         expect(backend).toContain("from '@pancake/core'")
         expect(backend).not.toContain('stats.points * (settings.points')
     })
@@ -172,7 +172,7 @@ describe('scoring parity — SQL copy', () => {
 
 describe('regular-season game-id parity', () => {
     it('keeps backend and Edge adapters pointed at core/generated helpers', () => {
-        expect(read('backend/src/lib/nba.ts')).toContain("from '@pancake/core'")
+        expect(read('backend-legacy-railway/src/lib/nba.ts')).toContain("from '@pancake/core'")
         expect(read('supabase/functions/_shared/nba.ts')).toContain("from './gameId.ts'")
     })
 

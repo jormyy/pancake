@@ -24,7 +24,7 @@ const {
 describe('logic hardening source guards - scoring, playoffs, schedule', () => {
     it('uses paged weekly scoring reads and legal active-roster lineup optimization for max possible', () => {
         for (const rel of [
-            'backend/src/sync/scoreLineups.ts',
+            'backend-legacy-railway/src/sync/scoreLineups.ts',
             'supabase/functions/_shared/scoreLineups.ts',
         ]) {
             const src = read(rel)
@@ -61,7 +61,7 @@ describe('logic hardening source guards - scoring, playoffs, schedule', () => {
             expect(src).not.toContain('scoresByPlayer')
         }
         for (const rel of [
-            'backend/src/sync/scoreShared.ts',
+            'backend-legacy-railway/src/sync/scoreShared.ts',
             'supabase/functions/_shared/scoreShared.ts',
         ]) {
             const src = read(rel)
@@ -71,7 +71,7 @@ describe('logic hardening source guards - scoring, playoffs, schedule', () => {
             expect(src).not.toContain('T05:00:00Z')
         }
         for (const rel of [
-            'backend/src/sync/scores.ts',
+            'backend-legacy-railway/src/sync/scores.ts',
             'supabase/functions/_shared/syncScores.ts',
         ]) {
             const src = read(rel)
@@ -82,7 +82,7 @@ describe('logic hardening source guards - scoring, playoffs, schedule', () => {
 
     it('surfaces stat sync failures before any final scoring pass can freeze standings', () => {
         for (const rel of [
-            'backend/src/sync/stats.ts',
+            'backend-legacy-railway/src/sync/stats.ts',
             'supabase/functions/_shared/syncStats.ts',
         ]) {
             const src = read(rel)
@@ -94,7 +94,7 @@ describe('logic hardening source guards - scoring, playoffs, schedule', () => {
 
     it('skips stale past scheduled CDN box scores before persisting stats in backend and Edge', () => {
         for (const rel of [
-            'backend/src/sync/stats.ts',
+            'backend-legacy-railway/src/sync/stats.ts',
             'supabase/functions/_shared/syncStats.ts',
         ]) {
             const src = read(rel)
@@ -110,7 +110,7 @@ describe('logic hardening source guards - scoring, playoffs, schedule', () => {
     })
 
     it('generates playoff brackets only from finalized regular-season state', () => {
-        const src = read('backend/src/sync/playoffs.ts')
+        const src = read('backend-legacy-railway/src/sync/playoffs.ts')
         const generatorBody = src.slice(
             src.indexOf('export async function generateSemifinals'),
             src.indexOf('/**', src.indexOf('export async function generateSemifinals') + 1),
@@ -131,7 +131,7 @@ describe('logic hardening source guards - scoring, playoffs, schedule', () => {
     })
 
     it('records deterministic playoff tiebreakers and blocks unscorable playoff weeks', () => {
-        const src = read('backend/src/sync/playoffs.ts')
+        const src = read('backend-legacy-railway/src/sync/playoffs.ts')
         const generatorBody = src.slice(
             src.indexOf('export async function generateSemifinals'),
             src.indexOf('/**', src.indexOf('export async function generateSemifinals') + 1),
@@ -176,7 +176,7 @@ describe('logic hardening source guards - scoring, playoffs, schedule', () => {
     })
 
     it('anchors playoff advancement to stored bracket weeks after generation', () => {
-        const src = read('backend/src/sync/playoffs.ts')
+        const src = read('backend-legacy-railway/src/sync/playoffs.ts')
         const playoffGuardBody = latestFunctionDefinition('prevent_playoff_start_week_change_after_bracket')
         const playoffGuardTrigger = latestTriggerStatement('prevent_playoff_start_week_change_after_bracket')
 
@@ -215,7 +215,7 @@ describe('logic hardening source guards - scoring, playoffs, schedule', () => {
 
     it('does not finalize weeks when pending-game reads fail', () => {
         for (const rel of [
-            'backend/src/sync/scores.ts',
+            'backend-legacy-railway/src/sync/scores.ts',
             'supabase/functions/_shared/syncScores.ts',
         ]) {
             const src = read(rel)
@@ -225,7 +225,7 @@ describe('logic hardening source guards - scoring, playoffs, schedule', () => {
     })
 
     it('runs final stat sync before final scoring when the live poller sees all games complete', () => {
-        const livePoller = read('backend/src/sync/livePoller.ts')
+        const livePoller = read('backend-legacy-railway/src/sync/livePoller.ts')
         expect(livePoller).toContain('if (shouldSync && !allDone)')
 
         const allDoneBody = livePoller.slice(
@@ -237,7 +237,7 @@ describe('logic hardening source guards - scoring, playoffs, schedule', () => {
     })
 
     it('runs stat sync before manual score finalization', () => {
-        const syncRoutes = read('backend/src/routes/sync.ts')
+        const syncRoutes = read('backend-legacy-railway/src/routes/sync.ts')
         const scoresBody = syncRoutes.slice(
             syncRoutes.indexOf("app.post('/scores'"),
             syncRoutes.indexOf("app.post('/schedule'"),
@@ -254,7 +254,7 @@ describe('logic hardening source guards - scoring, playoffs, schedule', () => {
 
     it('finalizes scoring weeks in cumulative standings order', () => {
         for (const rel of [
-            'backend/src/sync/scores.ts',
+            'backend-legacy-railway/src/sync/scores.ts',
             'supabase/functions/_shared/syncScores.ts',
         ]) {
             const src = read(rel)
@@ -346,7 +346,7 @@ describe('logic hardening source guards - scoring, playoffs, schedule', () => {
 
     it('resolves playoff score ties before finalizing matchup winners', () => {
         for (const rel of [
-            'backend/src/sync/scores.ts',
+            'backend-legacy-railway/src/sync/scores.ts',
             'supabase/functions/_shared/syncScores.ts',
         ]) {
             const src = read(rel)
@@ -380,7 +380,7 @@ describe('logic hardening source guards - scoring, playoffs, schedule', () => {
 
     it('derives schedule season year from game dates and caps post-season week lookup', () => {
         const edgeSchedule = read('supabase/functions/sync-schedule/index.ts')
-        const backendSchedule = read('backend/src/sync/schedule.ts')
+        const backendSchedule = read('backend-legacy-railway/src/sync/schedule.ts')
         const sharedSchedule = read('core/src/season/schedule.ts')
         const edgeSharedSchedule = read('supabase/functions/_shared/schedule.ts')
         expect(edgeSchedule).toContain("from '../_shared/schedule.ts'")

@@ -51,8 +51,6 @@ const authEndpoint = (target) => {
     publicKey: envValue(
       'E2E_SUPABASE_PUBLISHABLE_KEY',
       'EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY',
-      'E2E_SUPABASE_ANON_KEY',
-      'EXPO_PUBLIC_SUPABASE_ANON_KEY',
     ),
   }
 }

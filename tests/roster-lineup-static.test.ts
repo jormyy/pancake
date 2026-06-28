@@ -24,7 +24,7 @@ const {
 describe('logic hardening source guards - lineup and roster locks', () => {
     it('caps backend and Edge scoring week lookup to the last seeded week after the schedule ends', () => {
         for (const rel of [
-            'backend/src/lib/scoring.ts',
+            'backend-legacy-railway/src/lib/scoring.ts',
             'supabase/functions/_shared/scoring.ts',
         ]) {
             const src = read(rel)
@@ -35,7 +35,7 @@ describe('logic hardening source guards - lineup and roster locks', () => {
             expect(src).not.toContain('return last.week_number + 1')
         }
         expect(read('supabase/functions/_shared/scoring.ts')).toContain('if (boundsErr) throw boundsErr')
-        const backendScores = read('backend/src/sync/scores.ts')
+        const backendScores = read('backend-legacy-railway/src/sync/scores.ts')
         expect(backendScores).toContain('error: weekErr')
         expect(backendScores).toContain('if (weekErr) throw weekErr')
     })
@@ -75,7 +75,7 @@ describe('logic hardening source guards - lineup and roster locks', () => {
 
     it('parses current NBA schedule tipoff fields in backend and Edge', () => {
         for (const rel of [
-            'backend/src/lib/nba.ts',
+            'backend-legacy-railway/src/lib/nba.ts',
             'supabase/functions/_shared/nba.ts',
         ]) {
             const src = read(rel)
@@ -113,7 +113,7 @@ describe('logic hardening source guards - lineup and roster locks', () => {
 
     it('requires explicit draft-order seasonYear outside the June/July cron window', () => {
         for (const rel of [
-            'backend/src/routes/sync.ts',
+            'backend-legacy-railway/src/routes/sync.ts',
             'supabase/functions/sync-draft-order/index.ts',
         ]) {
             const src = read(rel)
@@ -142,7 +142,7 @@ describe('logic hardening source guards - lineup and roster locks', () => {
 
     it('enforces started-game locks inside IR and taxi roster toggle RPCs', () => {
         const toggleMigration = read('supabase/migrations/20260606000022_roster_toggles_lock_order.sql')
-        const backendRoster = read('backend/src/services/roster.ts')
+        const backendRoster = read('backend-legacy-railway/src/services/roster.ts')
         const irBody = toggleMigration.slice(
             toggleMigration.indexOf('FUNCTION public.toggle_ir_atomic'),
             toggleMigration.indexOf('REVOKE ALL ON FUNCTION public.toggle_ir_atomic'),
