@@ -37,7 +37,6 @@ Runtime overrides remain available in local web builds with `?pancake_api_url=..
 
 ```
 app/          # Expo Router screens (auth, tabs, modals)
-backend-legacy-railway/ # Non-runtime Railway/Fastify rollback reference
 lib/          # Frontend data layer
   shared/     # Deduplicated utilities
 hooks/        # React hooks
@@ -77,11 +76,10 @@ and service-worker registration.
 Only **regular-season** NBA data ever reaches a stat, projection, or score. The NBA-CDN
 path filters by `002%` game ids; the historical Basketball-Reference backfill excludes the
 postseason (the "Playoffs" divider) and All-Star/exhibition games. The fantasy-points
-formula is shared through core/generated adapters for app, Edge, SQL, and the isolated legacy reference
+formula is shared through core/generated adapters for app, Edge, and SQL
 because each runtime needs its own copy — `tests/scoring-parity.test.ts` fails the build if
 any copy drifts in formula, category set, DNP handling, or regular-season filtering.
-Edge sync source lives under `supabase/shared-src/`; the isolated legacy backend is not a
-source for generated runtime files.
+Edge sync source lives under `supabase/shared-src/`.
 
 ## Testing & validation
 
@@ -101,10 +99,6 @@ PUBLIC EXECUTE revoked, service-role read grants preserved), and Edge/API static
 Browser E2E flows live in `tests/e2e/` (see [tests/e2e/README.md](./tests/e2e/README.md));
 the multi-season soak is `npm run e2e:soak`.
 
-The latest launch-readiness hardening pass, including the remaining hosted deployment
-blockers, is recorded in
-[validation/fresh-hardening-report.md](./validation/fresh-hardening-report.md).
-
 ## Security posture (summary)
 
 - RLS is enabled on every public table; `anon` has no write capability anywhere.
@@ -116,11 +110,9 @@ blockers, is recorded in
 - The public `api` Edge Function verifies the Supabase session token and re-derives the
   acting member from the token before calling service-role-only RPCs.
 - The `api` Edge Function is the stable HTTP boundary at
-  `/functions/v1/api`; Railway is not part of the target runtime path.
+  `/functions/v1/api`; no alternate backend is part of the target runtime path.
 
-## Legacy Backend Status
+## Retired Backend
 
-`backend-legacy-railway/` is a non-runtime rollback reference for the former
-Railway/Fastify service. It is not a root workspace, has no active startup path,
-and should be deleted after the Supabase Edge API has stabilized through the next
-production validation window.
+The former standalone backend has been removed. Supabase Edge Functions and
+Postgres RPCs are the only runtime API path.

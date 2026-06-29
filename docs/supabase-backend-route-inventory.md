@@ -6,8 +6,7 @@ Pancake runtime backend traffic now targets:
 
 `https://<project-ref>.supabase.co/functions/v1/api`
 
-The former Railway/Fastify implementation is isolated in
-`backend-legacy-railway/` as non-runtime rollback reference only.
+The former standalone backend implementation has been removed from the repo.
 
 ## Public API Routes
 
@@ -62,19 +61,19 @@ The former Railway/Fastify implementation is isolated in
 
 | Job | Supabase owner | Schedule | Replacement |
 | --- | --- | --- | --- |
-| NBA schedule sync | Supabase Cron + `sync-schedule` | existing cron | former Railway cron |
-| Player sync | Supabase Cron + `sync-players` | existing cron | former Railway cron |
-| Stats/scores/rankings/projections | Supabase Cron + Edge Functions | existing cron | former Railway cron/admin routes |
+| NBA schedule sync | Supabase Cron + `sync-schedule` | existing cron | former standalone cron |
+| Player sync | Supabase Cron + `sync-players` | existing cron | former standalone cron |
+| Stats/scores/rankings/projections | Supabase Cron + Edge Functions | existing cron | former standalone cron/admin routes |
 | Live poll | Supabase Cron + `live-poll` | game-window cron | former always-on poller |
 | Waiver processing | Supabase Cron/admin + `process-waivers` calling `process_due_waiver_claims_atomic` | existing cron/manual API | former backend processor |
 | Accepted trade completion | Supabase Cron + `process-trades` calling `process_due_accepted_trades_atomic` | every 5 minutes | former interval loop |
 | Auction nomination expiry | Supabase Cron + `close-expired-nominations` calling `close_expired_auction_nominations_atomic` | every minute | former interval loop |
 
-## Deleted Or Isolated Surfaces
+## Deleted Surfaces
 
 | Surface | Status |
 | --- | --- |
-| Railway deploy config | isolated under `backend-legacy-railway/railway.json`; no active workspace or generated-code source path |
-| Fastify startup | isolated under `backend-legacy-railway/src/index.ts`; no root script, workspace, or generated-code source path |
+| Former deploy config | removed with the retired backend directory |
+| Former standalone startup | removed with the retired backend directory |
 | Legacy Supabase JWT keys | disabled in hosted Supabase project; app and E2E use `sb_publishable_`/`sb_secret_` keys |
-| Direct frontend Railway URL | removed; `lib/shared/api.ts` falls back to `/functions/v1/api` |
+| Direct frontend legacy API URL | removed; `lib/shared/api.ts` falls back to `/functions/v1/api` |

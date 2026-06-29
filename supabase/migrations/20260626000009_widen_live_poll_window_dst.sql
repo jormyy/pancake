@@ -9,9 +9,8 @@
 -- live. Widen the UTC window to also cover 05:00–05:59 UTC (= 12–12:59 AM ET in
 -- EST). cron.schedule() upserts by job name, so this re-schedules in place.
 --
--- (Defense in depth: the always-on Railway backend poller — livePoller.ts — is
--- DST-aware via an America/New_York hour check and already covers this slot; the
--- edge cron is the redundant poller.)
+-- This widens the Edge cron coverage so hosted polling does not depend on any
+-- always-on process.
 -- ============================================================
 
 DO $$

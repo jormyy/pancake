@@ -14,7 +14,7 @@ describe('Supabase Edge API cutover', () => {
         expect(result.status, result.stderr || result.stdout).toBe(0)
     })
 
-    it('covers the migrated user-facing Fastify route surface', () => {
+    it('covers the migrated user-facing route surface', () => {
         const apiSources = [
             'supabase/functions/api/games.ts',
             'supabase/functions/api/league.ts',
@@ -75,7 +75,7 @@ describe('Supabase Edge API cutover', () => {
         }
     })
 
-    it('moves Railway interval work to Supabase Edge cron targets', () => {
+    it('moves interval work to Supabase Edge cron targets', () => {
         const processTrades = read('supabase/functions/process-trades/index.ts')
         const closeNominations = read('supabase/functions/close-expired-nominations/index.ts')
         const processWaivers = read('supabase/functions/process-waivers/index.ts')
@@ -148,17 +148,20 @@ describe('Supabase Edge API cutover', () => {
         expect(read('types/database.ts')).toContain('withdraw_trade_atomic')
     })
 
-    it('isolates the former Railway backend outside active runtime paths', () => {
+    it('removes the former backend from active runtime paths', () => {
         const rootPackage = JSON.parse(read('package.json')) as { workspaces?: string[]; scripts?: Record<string, string> }
         const workflow = read('.github/workflows/test.yml')
+        const retiredBackendDir = ['backend', 'legacy', 'rail' + 'way'].join('-')
 
         expect(existsSync('backend')).toBe(false)
+        expect(existsSync(retiredBackendDir)).toBe(false)
         expect(rootPackage.workspaces ?? []).not.toContain('backend')
         expect(Object.values(rootPackage.scripts ?? {}).join('\n')).not.toContain('--workspace backend')
         expect(workflow).not.toContain('--workspace backend')
         expect(workflow).toContain('npm run check:edge-functions')
-        expect(read('scripts/generate-edge-shared.mjs')).not.toContain('backend-legacy-railway/src')
-        expect(read('backend-legacy-railway/README.md')).toContain('non-runtime rollback reference')
+        expect(read('scripts/generate-edge-shared.mjs')).not.toContain(retiredBackendDir)
+        expect(read('README.md')).not.toContain(retiredBackendDir)
+        expect(read('docs/supabase-backend-route-inventory.md')).not.toContain(retiredBackendDir)
     })
 
     it('keeps no-Authorization Edge entrypoints explicit in Supabase config', () => {

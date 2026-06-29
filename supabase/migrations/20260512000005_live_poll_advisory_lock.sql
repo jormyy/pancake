@@ -1,4 +1,4 @@
--- Shared live-poll lease for Fastify poller and Supabase pg_cron/Edge poller.
+-- Shared live-poll lease for server pollers.
 --
 -- Finding:
 -- - P1-13: backend live polling and pg_cron Edge live-poll can run the same

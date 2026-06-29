@@ -93,7 +93,7 @@
 --     sync/{draft,rookieDraft,matchups,playoffs}):
 --       Every reference to leagues / league_members is .select()
 --       or .update(). No .insert() into either table from any
---       backend Fastify route or sync worker.
+--       server route or sync worker.
 --   • supabase/functions/_shared/notifications.ts:
 --       .from('league_members').select('user_id') only.
 --   • supabase/migrations/*:

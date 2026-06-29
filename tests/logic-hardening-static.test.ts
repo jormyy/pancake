@@ -28,20 +28,16 @@ describe('logic hardening source guards - scoring and security', () => {
         expect(viewBody).toMatch(/THEN\s+0::numeric\s+ELSE\s+ROUND\(/i)
     })
 
-    it('keeps backend and Edge weekly scoring behind the regular-season predicate', () => {
-        const backendScores = read('backend-legacy-railway/src/sync/scores.ts')
+    it('keeps Edge weekly scoring behind the regular-season predicate', () => {
         const edgeScores = read('supabase/functions/_shared/syncScores.ts')
 
-        for (const src of [backendScores, edgeScores]) {
-            expect(src).toContain('nba_games!inner(nba_game_id')
-            expect(src).toContain('isRegularSeasonGameId')
-        }
+        expect(edgeScores).toContain('nba_games!inner(nba_game_id')
+        expect(edgeScores).toContain('isRegularSeasonGameId')
     })
 
     it('keeps product game/stat read paths behind the regular-season predicate', () => {
         expect(read('lib/games.ts')).toContain('isRegularSeasonGameId')
         expect(read('lib/players.ts')).toContain(".like('nba_games.nba_game_id', '002%')")
-        expect(read('backend-legacy-railway/src/routes/games.ts')).toContain('isRegularSeasonGameId')
     })
 
     it('uses an ET-aware cron wrapper for daily wall-clock jobs', () => {
@@ -57,7 +53,7 @@ describe('logic hardening source guards - scoring and security', () => {
     })
 
     it('removes nondeterministic draft order from auction and rookie startup', () => {
-        expect(read('backend-legacy-railway/src/sync/draft.ts')).not.toContain('Math.random')
+        expect(read('supabase/functions/api/draft.ts')).not.toContain('Math.random')
         const auctionStartup = latestFunctionDefinition('start_auction_draft_atomic')
         const rookieStartup = latestFunctionDefinition('start_rookie_draft_atomic')
 
@@ -205,14 +201,11 @@ describe('logic hardening source guards - scoring and security', () => {
             expect(src).toContain('Math.round(shifted)')
             expect(src).not.toContain('.toFixed(2)')
         }
-        expect(read('backend-legacy-railway/src/lib/scoring.ts')).toContain("from '@pancake/core'")
         expect(read('supabase/functions/_shared/scoring.ts')).toContain('./scoringCore.ts')
     })
 
-    it('only treats missing minutes as DNP in backend and Edge stat sync', () => {
+    it('only treats missing minutes as DNP in Edge stat sync', () => {
         for (const rel of [
-            'backend-legacy-railway/src/sync/stats.ts',
-            'backend-legacy-railway/src/sync/historicalBBRef.ts',
             'supabase/functions/_shared/syncStats.ts',
             'supabase/functions/_shared/bbrefBackfill.ts',
         ]) {
@@ -223,14 +216,9 @@ describe('logic hardening source guards - scoring and security', () => {
     })
 
     it('does not let non-regular pending games block week finalization', () => {
-        for (const rel of [
-            'backend-legacy-railway/src/sync/scores.ts',
-            'supabase/functions/_shared/syncScores.ts',
-        ]) {
-            const src = read(rel)
-            expect(src).toContain(".select('id, nba_game_id')")
-            expect(src).toContain('isRegularSeasonGameId(game.nba_game_id)')
-        }
+        const src = read('supabase/functions/_shared/syncScores.ts')
+        expect(src).toContain(".select('id, nba_game_id')")
+        expect(src).toContain('isRegularSeasonGameId(game.nba_game_id)')
     })
 
     it('paginates player game logs after query-level regular-season filtering', () => {

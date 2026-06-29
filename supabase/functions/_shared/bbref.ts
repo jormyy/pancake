@@ -49,8 +49,7 @@ const SCHEDULE_MONTHS = [
 // game (e.g. East/West, Team LeBron/Team Giannis) fall outside this set.
 const NBA_FRANCHISE_CODES = new Set(Object.keys(BBREF_TO_TRICODE))
 
-// Mirrors the legacy BBRef parser's regular-season filter; keep the Edge copy in sync.
-// The legacy unit test (backend-legacy-railway/tests/bbref-schedule.test.ts) is the oracle.
+// Keep the schedule parser's regular-season filter aligned with the static guards.
 export function isPlayoffsDividerRow(text: string): boolean {
   return text.trim().toLowerCase().includes('playoff')
 }

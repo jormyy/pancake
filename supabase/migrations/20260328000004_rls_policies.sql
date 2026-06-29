@@ -9,7 +9,7 @@
 -- Architecture:
 --   • The React Native client uses the anon key + authenticated JWT.
 --     All data access goes through these policies.
---   • The Fastify backend and Edge Functions use the service_role key,
+--   • Server-side functions use the service_role key,
 --     which bypasses RLS entirely — those paths are unaffected.
 --
 -- Rollback (per-table, instant):
@@ -209,8 +209,8 @@ CREATE POLICY "weekly_lineups_delete" ON weekly_lineups
 
 -- ============================================================
 -- TIER 5: DRAFT TABLES
--- All mutations (start draft, bid, pick) go through the Fastify
--- backend (service_role). Clients only read.
+-- All mutations (start draft, bid, pick) go through service-role
+-- server paths. Clients only read.
 -- ============================================================
 
 -- drafts ──────────────────────────────────────────────────────

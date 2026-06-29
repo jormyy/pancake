@@ -1,7 +1,7 @@
 -- Supabase backend cutover:
 -- - pg_cron invokes Edge Functions through public.invoke_edge_function.
 -- - accepted-trade completion and auction nomination expiry move out of the
---   Railway/Fastify interval loops and into Supabase Cron + Edge Functions.
+--   former interval loops and into Supabase Cron + Edge Functions.
 --
 -- Required hosted DB secret after deploy:
 --   select vault.create_secret('<PANCAKE_EDGE_INTERNAL_TOKEN>', 'pancake_edge_internal_token');

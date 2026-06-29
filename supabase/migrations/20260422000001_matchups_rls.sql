@@ -1,6 +1,6 @@
 -- Enable RLS on matchups (missed from the original rls_policies migration).
 -- Matchups are league-scoped and read-only for clients; all writes go through
--- the Fastify backend via service_role which bypasses RLS.
+-- service-role server paths that bypass RLS.
 
 CREATE POLICY "matchups_select" ON matchups
   FOR SELECT TO authenticated
