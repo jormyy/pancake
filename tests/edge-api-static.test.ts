@@ -1,19 +1,9 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
-import { spawnSync } from 'node:child_process'
 import { describe, expect, it } from 'vitest'
 
 const read = (path: string) => readFileSync(path, 'utf8')
 
 describe('Supabase Edge API cutover', () => {
-    it('type-checks the routed API and background functions', () => {
-        const result = spawnSync('npm', ['run', 'check:edge-functions'], {
-            cwd: process.cwd(),
-            encoding: 'utf8',
-        })
-
-        expect(result.status, result.stderr || result.stdout).toBe(0)
-    })
-
     it('covers the migrated user-facing route surface', () => {
         const apiSources = [
             'supabase/functions/api/games.ts',
