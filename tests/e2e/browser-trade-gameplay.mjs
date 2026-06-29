@@ -4,7 +4,7 @@ import process from 'node:process'
 import { createClient } from '@supabase/supabase-js'
 import { resolvedEnv, requireEnv, describeEndpoint } from './env.mjs'
 import { installRuntimeOverrides, normalizeBrowserErrors } from './browser-runtime-overrides.mjs'
-import { createBrowser, listBrowserSessions } from './browser-agent.mjs'
+import { createBrowser, fillSignInCredentials, listBrowserSessions } from './browser-agent.mjs'
 
 const ROOT = process.cwd()
 const ARTIFACT_ROOT = path.join(ROOT, 'tests/artifacts')
@@ -463,8 +463,7 @@ const signInBrowser = async (session, env, user, password) => {
   let lastState = null
   for (let attempt = 1; attempt <= 3; attempt += 1) {
     try {
-      await browser(session, ['find', 'placeholder', 'Email', 'fill', user.email])
-      await browser(session, ['find', 'placeholder', 'Password', 'fill', password])
+      await fillSignInCredentials(browser, session, user.email, password)
       await clickSignInButton(session)
     } catch (error) {
       lastState = await readAuthScreenState(session).catch(() => null)

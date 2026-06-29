@@ -4,7 +4,7 @@ import process from 'node:process'
 import { createClient } from '@supabase/supabase-js'
 import { resolvedEnv, describeEndpoint } from './env.mjs'
 import { installRuntimeOverrides, normalizeBrowserErrors } from './browser-runtime-overrides.mjs'
-import { createBrowser, listBrowserSessions } from './browser-agent.mjs'
+import { clickButtonByName, createBrowser, fillSignInCredentials, listBrowserSessions } from './browser-agent.mjs'
 
 const ROOT = process.cwd()
 const STATE_PATH = path.join(ROOT, 'tests/e2e-state.json')
@@ -207,9 +207,8 @@ const ensurePerfMatchup = async (supabase, state, leagueSeasonId, members) => {
 const signIn = async (session, env, state, user) => {
   await installRuntimeOverrides(browser, session, env)
   await browser(session, ['wait', '1500'])
-  await browser(session, ['find', 'placeholder', 'Email', 'fill', user.email])
-  await browser(session, ['find', 'placeholder', 'Password', 'fill', state.password])
-  await browser(session, ['find', 'text', 'Sign In', 'click'])
+  await fillSignInCredentials(browser, session, user.email, state.password)
+  await clickButtonByName(browser, session, 'Sign In')
   await browser(session, ['wait', '4000'])
 }
 

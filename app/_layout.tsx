@@ -41,18 +41,18 @@ function RootContent() {
     const router = useRouter()
     const segments = useSegments()
     usePushNotifications()
+    const firstSegment = segments[0]
+    const inAuthGroup = firstSegment === '(auth)' || firstSegment === 'sign-in' || firstSegment === 'sign-up'
 
     useEffect(() => {
         if (loading) return
-        const inAuthGroup = segments[0] === '(auth)'
         if (session && inAuthGroup) {
-            router.replace('/(tabs)')
+            router.replace('/')
         } else if (!session && !inAuthGroup) {
             router.replace('/(auth)/sign-in')
         }
-    }, [session, loading, segments, router])
+    }, [session, loading, inAuthGroup, router])
 
-    const inAuthGroup = segments[0] === '(auth)'
     // On web, mount the persistent app-shell (sidebar / mobile nav) at the root
     // so it wraps EVERY authenticated route — tabs, former modals, and player
     // detail alike. The chrome never disappears mid-flow. The shell stays mounted

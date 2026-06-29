@@ -3,7 +3,7 @@ import path from 'node:path'
 import process from 'node:process'
 import { resolvedEnv, describeEndpoint } from './env.mjs'
 import { installRuntimeOverrides, normalizeBrowserErrors } from './browser-runtime-overrides.mjs'
-import { createBrowser, listBrowserSessions } from './browser-agent.mjs'
+import { clickButtonByName, createBrowser, fillSignInCredentials, listBrowserSessions } from './browser-agent.mjs'
 
 const ROOT = process.cwd()
 const STATE_PATH = path.join(ROOT, 'tests/e2e-state.json')
@@ -63,14 +63,14 @@ const waitForEmailPlaceholder = async (session, label) => {
   let lastError = null
   for (let attempt = 0; attempt < 6; attempt += 1) {
     try {
-      await browser(session, ['find', 'placeholder', 'Email'])
+      await fillSignInCredentials(browser, session, '', '')
       return
     } catch (error) {
       lastError = error
       await browser(session, ['wait', '1000']).catch(() => {})
     }
   }
-  throw new Error(`${label}: Email placeholder did not appear: ${lastError?.message ?? 'unknown error'}`)
+  throw new Error(`${label}: Email textbox did not appear: ${lastError?.message ?? 'unknown error'}`)
 }
 
 const openPage = async (session, url, label, attempts = 3) => {
@@ -137,9 +137,8 @@ const runOneAuthUser = async ({ state, env, season, userIndex, sessionList }) =>
     await browser(session, ['screenshot', path.join(artifactDir, 'auth-guard.png')], { timeout: 60_000 })
     visited.push('auth-guard')
 
-    await browser(session, ['find', 'placeholder', 'Email', 'fill', user.email])
-    await browser(session, ['find', 'placeholder', 'Password', 'fill', state.password])
-    await browser(session, ['find', 'text', 'Sign In', 'click'])
+    await fillSignInCredentials(browser, session, user.email, state.password)
+    await clickButtonByName(browser, session, 'Sign In')
     await browser(session, ['wait', '4000'])
     await assertSignedInSurface(session, user)
     await browser(session, ['screenshot', path.join(artifactDir, 'signed-in-profile.png')], { timeout: 60_000 })

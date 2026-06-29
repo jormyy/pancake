@@ -4,7 +4,7 @@ import process from 'node:process'
 import { createClient } from '@supabase/supabase-js'
 import { resolvedEnv, requireEnv, describeEndpoint } from './env.mjs'
 import { installRuntimeOverrides, normalizeBrowserErrors } from './browser-runtime-overrides.mjs'
-import { captureBrowserScreenshot, createBrowser, listBrowserSessions } from './browser-agent.mjs'
+import { captureBrowserScreenshot, clickButtonByName, createBrowser, fillSignInCredentials, listBrowserSessions } from './browser-agent.mjs'
 
 const ROOT = process.cwd()
 const ARTIFACT_ROOT = path.join(ROOT, 'tests/artifacts')
@@ -320,9 +320,8 @@ const setupLockedLineupFixture = async (env, season) => {
 const signInBrowser = async (session, env, user, password) => {
   await installRuntimeOverrides(browser, session, env, { alerts: true })
   await browser(session, ['wait', '1500'])
-  await browser(session, ['find', 'placeholder', 'Email', 'fill', user.email])
-  await browser(session, ['find', 'placeholder', 'Password', 'fill', password])
-  await browser(session, ['find', 'text', 'Sign In', 'click'])
+  await fillSignInCredentials(browser, session, user.email, password)
+  await clickButtonByName(browser, session, 'Sign In')
   await browser(session, ['wait', '4000'])
 }
 

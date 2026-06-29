@@ -90,6 +90,29 @@ export const listBrowserSessions = async ({
   return [stdout, stderr].filter(Boolean).join('\n').trim()
 }
 
+const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+const refForRoleByName = async (browser, session, role, name) => {
+  const snapshot = await browser(session, ['snapshot'])
+  const pattern = new RegExp(`${escapeRegExp(role)} "${escapeRegExp(name)}" \\[ref=([^\\]]+)\\]`)
+  const match = snapshot.match(pattern)
+  if (!match) throw new Error(`Could not find ${role} "${name}" in browser snapshot.`)
+  return match[1]
+}
+
+export const fillTextboxByName = async (browser, session, name, value) => {
+  await browser(session, ['fill', await refForRoleByName(browser, session, 'textbox', name), value])
+}
+
+export const clickButtonByName = async (browser, session, name) => {
+  await browser(session, ['click', await refForRoleByName(browser, session, 'button', name)])
+}
+
+export const fillSignInCredentials = async (browser, session, email, password) => {
+  await fillTextboxByName(browser, session, 'Email', email)
+  await fillTextboxByName(browser, session, 'Password', password)
+}
+
 export const captureBrowserScreenshot = async (browser, session, artifactDir, filename) => {
   const outputPath = path.join(artifactDir, filename)
   if (screenshotsSkipped()) {

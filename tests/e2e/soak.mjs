@@ -3870,7 +3870,10 @@ const postJson = async (url, body) => {
   return response.json()
 }
 
-const backendUrl = (env, pathname) => new URL(pathname, env.apiBaseUrl.endsWith('/') ? env.apiBaseUrl : `${env.apiBaseUrl}/`).toString()
+const backendUrl = (env, pathname) => {
+  const base = env.apiBaseUrl.endsWith('/') ? env.apiBaseUrl : `${env.apiBaseUrl}/`
+  return new URL(pathname.replace(/^\/+/, ''), base).toString()
+}
 
 const backendJson = async (env, pathname, body = {}) => {
   const response = await fetch(backendUrl(env, pathname), {

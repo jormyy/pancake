@@ -4,7 +4,7 @@ import process from 'node:process'
 import { createClient } from '@supabase/supabase-js'
 import { resolvedEnv, requireEnv, describeEndpoint } from './env.mjs'
 import { installRuntimeOverrides, normalizeBrowserErrors } from './browser-runtime-overrides.mjs'
-import { createBrowser, listBrowserSessions } from './browser-agent.mjs'
+import { clickButtonByName, createBrowser, fillSignInCredentials, listBrowserSessions } from './browser-agent.mjs'
 
 const ROOT = process.cwd()
 const ARTIFACT_ROOT = path.join(ROOT, 'tests/artifacts')
@@ -73,9 +73,8 @@ const clickExactText = async (session, text, label) => {
 const signIn = async (session, env, user) => {
   await browser(session, ['open', joinUrl(env.frontendUrl, '/sign-in')])
   await browser(session, ['wait', '1500'])
-  await browser(session, ['find', 'placeholder', 'Email', 'fill', user.email])
-  await browser(session, ['find', 'placeholder', 'Password', 'fill', user.password])
-  await browser(session, ['find', 'text', 'Sign In', 'click'])
+  await fillSignInCredentials(browser, session, user.email, user.password)
+  await clickButtonByName(browser, session, 'Sign In')
   await waitForBodyText(
     session,
     `(text) => text.includes('Players') || text.includes('Join or create') || text.includes(${JSON.stringify(user.email)})`,
@@ -201,7 +200,7 @@ export async function runBrowserLeagueLifecycleScenario({ season = 0 } = {}) {
     await browser(session, ['open', joinUrl(env.frontendUrl, '/create-league')])
     await browser(session, ['wait', '1500'])
     await browser(session, ['find', 'placeholder', 'e.g. Hoops Dynasty', 'fill', `Browser Dynasty ${runId}`])
-    await browser(session, ['find', 'placeholder', 'e.g. Buckets FC', 'fill', commissioner.teamName])
+    await browser(session, ['find', 'placeholder', 'e.g. Buckets BC', 'fill', commissioner.teamName])
     await browser(session, ['find', 'placeholder', '200', 'fill', '200'])
     await clickExactText(session, 'Create League', 'create league button')
     const createBody = await waitForBodyText(
