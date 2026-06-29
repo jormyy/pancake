@@ -112,7 +112,7 @@ describe('Supabase Edge API cutover', () => {
     it('keeps schedule and playoff bracket writes inside atomic SQL RPCs', () => {
         const matchups = read('supabase/functions/api/matchups.ts')
         const playoffs = read('supabase/functions/api/playoffs.ts')
-        const migration = read('supabase/migrations/20260628000005_edge_atomic_playoffs_and_trade_terminal.sql')
+        const migration = read('supabase/migrations/20260628000008_edge_atomic_playoffs.sql')
 
         expect(matchups).toContain('replace_regular_season_matchups_atomic')
         expect(playoffs).toContain('generate_playoff_bracket_atomic')
@@ -120,9 +120,10 @@ describe('Supabase Edge API cutover', () => {
         expect(`${matchups}\n${playoffs}`).not.toMatch(/from\('matchups'\)\.(?:insert|delete|upsert|update)/)
         expect(`${matchups}\n${playoffs}`).not.toMatch(/from\('rps_challenges'\)\.(?:insert|delete|upsert|update)/)
         expect(migration).toContain('pg_advisory_xact_lock')
+        expect(migration).toContain('playoff_seed_rankings')
         expect(migration).toContain('generate_playoff_bracket_atomic')
         expect(migration).toContain('advance_playoff_bracket_atomic')
-        expect(migration).toContain('FOR UPDATE OF trade SKIP LOCKED')
+        expect(read('supabase/migrations/20260628000005_edge_atomic_playoffs_and_trade_terminal.sql')).toContain('FOR UPDATE OF trade SKIP LOCKED')
         expect(read('types/database.ts')).toContain('replace_regular_season_matchups_atomic')
         expect(read('types/database.ts')).toContain('generate_playoff_bracket_atomic')
         expect(read('types/database.ts')).toContain('advance_playoff_bracket_atomic')
