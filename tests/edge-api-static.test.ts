@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { describe, expect, it } from 'vitest'
 
@@ -150,12 +150,28 @@ describe('Supabase Edge API cutover', () => {
 
     it('isolates the former Railway backend outside active runtime paths', () => {
         const rootPackage = JSON.parse(read('package.json')) as { workspaces?: string[]; scripts?: Record<string, string> }
+        const workflow = read('.github/workflows/test.yml')
 
         expect(existsSync('backend')).toBe(false)
         expect(rootPackage.workspaces ?? []).not.toContain('backend')
         expect(Object.values(rootPackage.scripts ?? {}).join('\n')).not.toContain('--workspace backend')
+        expect(workflow).not.toContain('--workspace backend')
+        expect(workflow).toContain('npm run check:edge-functions')
         expect(read('scripts/generate-edge-shared.mjs')).not.toContain('backend-legacy-railway/src')
         expect(read('backend-legacy-railway/README.md')).toContain('non-runtime rollback reference')
+    })
+
+    it('keeps no-Authorization Edge entrypoints explicit in Supabase config', () => {
+        const config = read('supabase/config.toml')
+        const functionNames = readdirSync('supabase/functions', { withFileTypes: true })
+            .filter((entry) => entry.isDirectory() && !entry.name.startsWith('_'))
+            .map((entry) => entry.name)
+            .sort()
+
+        for (const functionName of functionNames) {
+            const pattern = new RegExp(`\\[functions\\.${functionName}\\]\\s+verify_jwt\\s*=\\s*false`, 'm')
+            expect(config, `${functionName} must be deployable without platform JWT verification`).toMatch(pattern)
+        }
     })
 
     it('does not bypass generated RPC typing in the Edge API', () => {

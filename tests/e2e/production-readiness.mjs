@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
@@ -20,6 +20,19 @@ const REPORT_PATH = path.join(ROOT, 'tests/production-readiness-report.md')
 loadEnvFile(path.join(ROOT, '.env'))
 
 const run = runCommand
+
+const edgeFunctionNames = () => readdirSync(path.join(ROOT, 'supabase/functions'), { withFileTypes: true })
+  .filter((entry) => entry.isDirectory() && !entry.name.startsWith('_'))
+  .map((entry) => entry.name)
+  .sort()
+
+const missingNoJwtConfig = () => {
+  const config = readFileSync(path.join(ROOT, 'supabase/config.toml'), 'utf8')
+  return edgeFunctionNames().filter((functionName) => {
+    const pattern = new RegExp(`\\[functions\\.${functionName}\\]\\s+verify_jwt\\s*=\\s*false`, 'm')
+    return !pattern.test(config)
+  })
+}
 
 const readLinkedProjectRef = async () => {
   const refPath = path.join(ROOT, 'supabase/.temp/project-ref')
@@ -208,6 +221,14 @@ const main = async () => {
     evidence: hasInternalToken
       ? 'Supabase Edge secrets include PANCAKE_EDGE_INTERNAL_TOKEN or EDGE_FUNCTION_INTERNAL_TOKEN.'
       : `Could not verify hosted Edge internal token: ${cleanMessage(secrets.stderr || secrets.stdout || String(secrets.error), { maxLines: 6 })}`,
+  })
+  const missingNoJwt = missingNoJwtConfig()
+  rows.push({
+    requirement: 'Supabase function JWT verification config is explicit',
+    status: statusFrom(missingNoJwt.length === 0),
+    evidence: missingNoJwt.length === 0
+      ? 'Every checked-in Edge function has verify_jwt = false in supabase/config.toml.'
+      : `Missing verify_jwt = false config for: ${missingNoJwt.join(', ')}`,
   })
 
   const apiKeys = run('supabase', ['projects', 'api-keys', '-o', 'json'])
