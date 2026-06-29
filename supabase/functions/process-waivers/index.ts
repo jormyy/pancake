@@ -99,10 +99,10 @@ async function processWaiverClaims(): Promise<number> {
   if (error) throw error
 
   const rows: WaiverProcessRow[] = data ?? []
-  const expireWaivers = supabase.rpc('expire_waiver_wire_logs')
-  await notifyClaimResults(rows)
-
-  const { error: expiredErr } = await expireWaivers
+  const [, { error: expiredErr }] = await Promise.all([
+    notifyClaimResults(rows),
+    supabase.rpc('expire_waiver_wire_logs'),
+  ])
   if (expiredErr) throw expiredErr
 
   return rows.filter((row) => row.processed).length

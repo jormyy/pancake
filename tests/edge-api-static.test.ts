@@ -86,6 +86,8 @@ describe('Supabase Edge API cutover', () => {
         expect(closeNominations).toContain('close_expired_auction_nominations_atomic')
         expect(closeNominations).not.toContain('close_auction_nomination_atomic')
         expect(processWaivers).toContain('process_due_waiver_claims_atomic')
+        expect(processWaivers).toContain('await Promise.all')
+        expect(processWaivers).toContain('expire_waiver_wire_logs')
         expect(processWaivers).not.toContain('process_next_waiver_claim_atomic')
         expect(processWaivers).not.toContain('while (true)')
         expect(`${processTrades}\n${closeNominations}\n${processWaivers}`).not.toContain('Promise.allSettled')
