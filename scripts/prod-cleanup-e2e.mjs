@@ -61,7 +61,6 @@ const loadEnvFile = (filePath) => {
 }
 
 loadEnvFile(path.join(ROOT, '.env'))
-loadEnvFile(path.join(ROOT, 'backend/.env'))
 
 const supabaseUrl = process.env.E2E_SUPABASE_URL || process.env.SUPABASE_URL || process.env.EXPO_PUBLIC_SUPABASE_URL
 const adminKey = process.env.E2E_PANCAKE_SUPABASE_SECRET_KEY ||

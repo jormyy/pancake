@@ -22,22 +22,18 @@ const {
 } = sources
 
 describe('logic hardening source guards - lineup and roster locks', () => {
-    it('caps backend and Edge scoring week lookup to the last seeded week after the schedule ends', () => {
-        for (const rel of [
-            'backend/src/lib/scoring.ts',
-            'supabase/functions/_shared/scoring.ts',
-        ]) {
-            const src = read(rel)
-            expect(src).toContain('if (dateISO > last.week_end)')
-            expect(src).toContain('return last.week_number')
-            expect(src).toContain('if (exactErr) throw exactErr')
-            expect(src).toContain('if (lastErr) throw lastErr')
-            expect(src).not.toContain('return last.week_number + 1')
-        }
-        expect(read('supabase/functions/_shared/scoring.ts')).toContain('if (boundsErr) throw boundsErr')
-        const backendScores = read('backend/src/sync/scores.ts')
-        expect(backendScores).toContain('error: weekErr')
-        expect(backendScores).toContain('if (weekErr) throw weekErr')
+    it('caps Edge scoring week lookup to the last seeded week after the schedule ends', () => {
+        const scoring = read('supabase/functions/_shared/scoring.ts')
+        expect(scoring).toContain('if (dateISO > last.week_end)')
+        expect(scoring).toContain('return last.week_number')
+        expect(scoring).toContain('if (exactErr) throw exactErr')
+        expect(scoring).toContain('if (lastErr) throw lastErr')
+        expect(scoring).toContain('if (boundsErr) throw boundsErr')
+        expect(scoring).not.toContain('return last.week_number + 1')
+
+        const edgeScores = read('supabase/functions/_shared/syncScores.ts')
+        expect(edgeScores).toContain('error: weekErr')
+        expect(edgeScores).toContain('if (weekErr) throw weekErr')
     })
 
     it('uses exact ET midnight for lineup history transaction cutoffs', () => {
@@ -73,20 +69,15 @@ describe('logic hardening source guards - lineup and roster locks', () => {
         }
     })
 
-    it('parses current NBA schedule tipoff fields in backend and Edge', () => {
-        for (const rel of [
-            'backend/src/lib/nba.ts',
-            'supabase/functions/_shared/nba.ts',
-        ]) {
-            const src = read(rel)
-            expect(src).toContain('parseNBAScheduleGame')
-            expect(src).toContain('gameDateTimeUTC')
-            expect(src).toContain('gameDateTimeEst')
-            expect(src).toContain('gameEt')
-            expect(src).toContain('startedAt: firstString(g.gameDateTimeUTC, g.gameDateTimeEst, g.gameEt)')
-            expect(src).toContain('weekNumber: g.weekNumber ?? null')
-            expect(src).toContain('scheduleSeasonYear')
-        }
+    it('parses current NBA schedule tipoff fields in Edge', () => {
+        const src = read('supabase/functions/_shared/nba.ts')
+        expect(src).toContain('parseNBAScheduleGame')
+        expect(src).toContain('gameDateTimeUTC')
+        expect(src).toContain('gameDateTimeEst')
+        expect(src).toContain('gameEt')
+        expect(src).toContain('startedAt: firstString(g.gameDateTimeUTC, g.gameDateTimeEst, g.gameEt)')
+        expect(src).toContain('weekNumber: g.weekNumber ?? null')
+        expect(src).toContain('scheduleSeasonYear')
     })
 
     it('shows cumulative max possible in app standings', () => {
@@ -112,15 +103,10 @@ describe('logic hardening source guards - lineup and roster locks', () => {
     })
 
     it('requires explicit draft-order seasonYear outside the June/July cron window', () => {
-        for (const rel of [
-            'backend/src/routes/sync.ts',
-            'supabase/functions/sync-draft-order/index.ts',
-        ]) {
-            const src = read(rel)
-            expect(src).toContain('defaultDraftOrderSeasonYear')
-            expect(src).toContain('month !== 6 && month !== 7')
-            expect(src).toContain('seasonYear is required outside the June/July draft-order sync window')
-        }
+        const src = read('supabase/functions/sync-draft-order/index.ts')
+        expect(src).toContain('defaultDraftOrderSeasonYear')
+        expect(src).toContain('month !== 6 && month !== 7')
+        expect(src).toContain('seasonYear is required outside the June/July draft-order sync window')
     })
 
     it('preserves already-started lineup rows during roster drop, waiver, IR, and taxi cleanup', () => {
@@ -142,7 +128,7 @@ describe('logic hardening source guards - lineup and roster locks', () => {
 
     it('enforces started-game locks inside IR and taxi roster toggle RPCs', () => {
         const toggleMigration = read('supabase/migrations/20260606000022_roster_toggles_lock_order.sql')
-        const backendRoster = read('backend/src/services/roster.ts')
+        const edgeLeague = read('supabase/functions/api/league.ts')
         const irBody = toggleMigration.slice(
             toggleMigration.indexOf('FUNCTION public.toggle_ir_atomic'),
             toggleMigration.indexOf('REVOKE ALL ON FUNCTION public.toggle_ir_atomic'),
@@ -166,10 +152,10 @@ describe('logic hardening source guards - lineup and roster locks', () => {
             expect(body).toContain("g.started_at >= now() - interval '12 hours'")
         }
 
-        expect(backendRoster).toContain('candidateDates = [addDaysToETDate(gameDate, -1), gameDate]')
-        expect(backendRoster).toContain('isRosterToggleLockedGame')
-        expect(backendRoster).toContain('recentWindowStart')
-        expect(backendRoster).toContain("game.status === 'InProgress'")
-        expect(backendRoster).toContain("game.game_date === today && game.status === 'Final'")
+        expect(edgeLeague).toContain('candidateDates = [addDaysToETDate(gameDate, -1), gameDate]')
+        expect(edgeLeague).toContain('isRosterToggleLockedGame')
+        expect(edgeLeague).toContain('recentWindowStart')
+        expect(edgeLeague).toContain("game.status === 'InProgress'")
+        expect(edgeLeague).toContain("game.game_date === today && game.status === 'Final'")
     })
 })

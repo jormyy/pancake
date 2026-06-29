@@ -4,7 +4,7 @@ import process from 'node:process'
 import { createClient } from '@supabase/supabase-js'
 import { resolvedEnv, requireEnv, describeEndpoint } from './env.mjs'
 import { installRuntimeOverrides, normalizeBrowserErrors } from './browser-runtime-overrides.mjs'
-import { createBrowser, listBrowserSessions } from './browser-agent.mjs'
+import { clickButtonByName, createBrowser, fillSignInCredentials, listBrowserSessions } from './browser-agent.mjs'
 
 const ROOT = process.cwd()
 const ARTIFACT_ROOT = path.join(ROOT, 'tests/artifacts')
@@ -109,6 +109,12 @@ const setupWaiverGameplayFixture = async (env, season, { requiresDrop = false, h
     p_auction_budget: 200,
   })
   if (createError) throw new Error(`create_league: ${createError.message}`)
+
+  const { error: activeLeagueError } = await admin
+    .from('leagues')
+    .update({ status: 'active' })
+    .eq('id', league.id)
+  if (activeLeagueError) throw new Error(`waiver league activation: ${activeLeagueError.message}`)
 
   const currentSeason = await fetchCurrentSeason(admin, league.id)
   const { data: member, error: memberError } = await admin
@@ -223,9 +229,8 @@ const setupWaiverGameplayFixture = async (env, season, { requiresDrop = false, h
 const signInBrowser = async (session, env, user, password) => {
   await installRuntimeOverrides(browser, session, env, { alerts: true })
   await browser(session, ['wait', '1500'])
-  await browser(session, ['find', 'placeholder', 'Email', 'fill', user.email])
-  await browser(session, ['find', 'placeholder', 'Password', 'fill', password])
-  await browser(session, ['find', 'text', 'Sign In', 'click'])
+  await fillSignInCredentials(browser, session, user.email, password)
+  await clickButtonByName(browser, session, 'Sign In')
   await browser(session, ['wait', '4000'])
 }
 

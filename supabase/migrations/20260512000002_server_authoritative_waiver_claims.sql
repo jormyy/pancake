@@ -1,4 +1,4 @@
--- Move waiver claim submission/cancellation behind the Fastify backend.
+-- Move waiver claim submission/cancellation behind server-side authorization.
 --
 -- Finding:
 -- - P1-23: clients could forge waiver claim priority/process/status fields

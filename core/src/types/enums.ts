@@ -1,4 +1,4 @@
-// Mirrors Database['public']['Enums'] in backend/src/types/database.ts (the
+// Mirrors Database['public']['Enums'] in types/database.ts (the
 // Supabase-generated source of truth). Kept in sync manually so @pancake/core
 // can be consumed without a Supabase dep. Regenerate by hand whenever an enum
 // changes in supabase/migrations.

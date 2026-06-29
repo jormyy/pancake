@@ -5,13 +5,12 @@ import { calculateFantasyPoints, roundFantasyPoints } from '@pancake/core'
 
 // Scoring parity drift-guard.
 //
-// The fantasy-points formula lives in @pancake/core. The backend imports that
-// package directly; Supabase Edge cannot import workspaces during deploy, so its
-// deployable copy is generated from core and checked by generated-edge-shared.
+// The fantasy-points formula lives in @pancake/core. Supabase Edge cannot import
+// workspaces during deploy, so its deployable copy is generated from core and
+// checked by generated-edge-shared.
 //
 // Covered copies:
 //   - core/src/scoring/formula.ts            (canonical TS)
-//   - backend/src/lib/scoring.ts             (adapter to core)
 //   - supabase/functions/_shared/scoringCore.ts (generated Edge mirror)
 //   - SQL compute_fantasy_points() + v_fantasy_points (latest migration)
 
@@ -64,12 +63,6 @@ describe('scoring parity — TS copies', () => {
 
     it('the generated Edge implementation has byte-identical arithmetic', () => {
         expect(blocks.edge).toBe(blocks.core)
-    })
-
-    it('backend scoring delegates pure formula helpers to core', () => {
-        const backend = read('backend/src/lib/scoring.ts')
-        expect(backend).toContain("from '@pancake/core'")
-        expect(backend).not.toContain('stats.points * (settings.points')
     })
 
     it.each(Object.keys(TS_SCORERS))('%s scores every category against the right settings key', (name) => {
@@ -171,8 +164,7 @@ describe('scoring parity — SQL copy', () => {
 })
 
 describe('regular-season game-id parity', () => {
-    it('keeps backend and Edge adapters pointed at core/generated helpers', () => {
-        expect(read('backend/src/lib/nba.ts')).toContain("from '@pancake/core'")
+    it('keeps the Edge adapter pointed at generated helpers', () => {
         expect(read('supabase/functions/_shared/nba.ts')).toContain("from './gameId.ts'")
     })
 

@@ -4,7 +4,7 @@ import process from 'node:process'
 import { createClient } from '@supabase/supabase-js'
 import { resolvedEnv, requireEnv, describeEndpoint } from './env.mjs'
 import { installRuntimeOverrides, normalizeBrowserErrors } from './browser-runtime-overrides.mjs'
-import { createBrowser, listBrowserSessions } from './browser-agent.mjs'
+import { clickButtonByName, createBrowser, fillSignInCredentials, listBrowserSessions } from './browser-agent.mjs'
 
 const ROOT = process.cwd()
 const ARTIFACT_ROOT = path.join(ROOT, 'tests/artifacts')
@@ -23,7 +23,10 @@ const parseEvalJson = (output) => {
 
 const listSessions = () => listBrowserSessions({ cwd: ROOT })
 
-const backendUrl = (env, pathname) => new URL(pathname, env.apiBaseUrl.endsWith('/') ? env.apiBaseUrl : `${env.apiBaseUrl}/`).toString()
+const backendUrl = (env, pathname) => {
+  const base = env.apiBaseUrl.endsWith('/') ? env.apiBaseUrl : `${env.apiBaseUrl}/`
+  return new URL(pathname.replace(/^\/+/, ''), base).toString()
+}
 
 const backendJson = async (env, pathname, body = {}) => {
   const response = await fetch(backendUrl(env, pathname), {
@@ -66,9 +69,8 @@ const signInClient = async (env, email, password) => {
 const signInBrowser = async (session, env, user, password) => {
   await installRuntimeOverrides(browser, session, env, { alerts: true })
   await browser(session, ['wait', '1500'])
-  await browser(session, ['find', 'placeholder', 'Email', 'fill', user.email])
-  await browser(session, ['find', 'placeholder', 'Password', 'fill', password])
-  await browser(session, ['find', 'text', 'Sign In', 'click'])
+  await fillSignInCredentials(browser, session, user.email, password)
+  await clickButtonByName(browser, session, 'Sign In')
   await browser(session, ['wait', '4000'])
 }
 

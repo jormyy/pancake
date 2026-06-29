@@ -9,15 +9,14 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "typecheck:backend": "npm run typecheck --workspace backend",
     "typecheck:core": "npm run typecheck --workspace core",
-    "build:backend": "npm run build --workspace backend",
     "check:core-cjs": "node scripts/check-core-cjs.mjs",
     "generate:edge-shared": "node scripts/generate-edge-shared.mjs",
     "check:edge-shared": "node scripts/generate-edge-shared.mjs --check",
+    "check:edge-functions": "deno check supabase/functions/api/index.ts supabase/functions/sync-scores/index.ts supabase/functions/process-waivers/index.ts supabase/functions/process-trades/index.ts supabase/functions/close-expired-nominations/index.ts && deno test --allow-env --allow-net supabase/functions/api/router.test.ts",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:workspaces": "npm test && npm test --workspace backend && npm test --workspace core",
+    "test:workspaces": "npm test && npm test --workspace core",
     "e2e:seed": "node tests/e2e/seed-league.mjs",
     "e2e:soak": "node tests/e2e/soak.mjs --seasons=10",
     "e2e:browser-smoke": "node tests/e2e/browser-smoke.mjs",
@@ -102,7 +101,6 @@
   },
   "private": true,
   "workspaces": [
-    "core",
-    "backend"
+    "core"
   ]
 }

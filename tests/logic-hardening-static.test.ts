@@ -28,20 +28,16 @@ describe('logic hardening source guards - scoring and security', () => {
         expect(viewBody).toMatch(/THEN\s+0::numeric\s+ELSE\s+ROUND\(/i)
     })
 
-    it('keeps backend and Edge weekly scoring behind the regular-season predicate', () => {
-        const backendScores = read('backend/src/sync/scores.ts')
+    it('keeps Edge weekly scoring behind the regular-season predicate', () => {
         const edgeScores = read('supabase/functions/_shared/syncScores.ts')
 
-        for (const src of [backendScores, edgeScores]) {
-            expect(src).toContain('nba_games!inner(nba_game_id')
-            expect(src).toContain('isRegularSeasonGameId')
-        }
+        expect(edgeScores).toContain('nba_games!inner(nba_game_id')
+        expect(edgeScores).toContain('isRegularSeasonGameId')
     })
 
     it('keeps product game/stat read paths behind the regular-season predicate', () => {
         expect(read('lib/games.ts')).toContain('isRegularSeasonGameId')
         expect(read('lib/players.ts')).toContain(".like('nba_games.nba_game_id', '002%')")
-        expect(read('backend/src/routes/games.ts')).toContain('isRegularSeasonGameId')
     })
 
     it('uses an ET-aware cron wrapper for daily wall-clock jobs', () => {
@@ -57,7 +53,7 @@ describe('logic hardening source guards - scoring and security', () => {
     })
 
     it('removes nondeterministic draft order from auction and rookie startup', () => {
-        expect(read('backend/src/sync/draft.ts')).not.toContain('Math.random')
+        expect(read('supabase/functions/api/draft.ts')).not.toContain('Math.random')
         const auctionStartup = latestFunctionDefinition('start_auction_draft_atomic')
         const rookieStartup = latestFunctionDefinition('start_rookie_draft_atomic')
 
@@ -71,15 +67,17 @@ describe('logic hardening source guards - scoring and security', () => {
         const invokeBody = latestFunctionDefinition('invoke_edge_function')
 
         expect(invokeBody).toContain('PERFORM net.http_post(')
-        expect(invokeBody).toContain("_base_url || '/functions/v1/' || function_name,")
+        expect(invokeBody).toContain("'/functions/v1/' || function_name")
         expect(invokeBody).toContain('body,')
         expect(invokeBody).toContain('30000')
+        expect(invokeBody).toContain('app.supabase_url')
         expect(invokeBody).toContain('app.edge_internal_token')
-        expect(invokeBody).toContain('vault.decrypted_secrets')
-        expect(invokeBody).toContain('pancake_edge_internal_token')
         expect(invokeBody).toContain('x-internal-function-token')
+        expect(invokeBody).not.toContain('https://ceeytbfmwsnzalxlkalc.supabase.co')
+        expect(invokeBody).not.toMatch(/COALESCE[\s\S]*app\.supabase_url/i)
         expect(invokeBody).not.toContain('app.service_role_key')
-        expect(invokeBody).not.toContain('Authorization')
+        expect(invokeBody).not.toContain("'Authorization'")
+        expect(invokeBody).not.toContain("'apikey'")
         expect(invokeBody).not.toMatch(/\burl\s*=>|\bheaders\s*=>|\bbody\s*=>/i)
     })
 
@@ -98,7 +96,7 @@ describe('logic hardening source guards - scoring and security', () => {
         expect(authHelper).not.toContain('Bearer')
 
         const edgeFunctions = readdirSync(path.join(ROOT, 'supabase/functions'), { withFileTypes: true })
-            .filter((entry) => entry.isDirectory() && !entry.name.startsWith('_'))
+            .filter((entry) => entry.isDirectory() && !entry.name.startsWith('_') && entry.name !== 'api')
             .map((entry) => entry.name)
 
         for (const functionName of edgeFunctions) {
@@ -203,14 +201,11 @@ describe('logic hardening source guards - scoring and security', () => {
             expect(src).toContain('Math.round(shifted)')
             expect(src).not.toContain('.toFixed(2)')
         }
-        expect(read('backend/src/lib/scoring.ts')).toContain("from '@pancake/core'")
         expect(read('supabase/functions/_shared/scoring.ts')).toContain('./scoringCore.ts')
     })
 
-    it('only treats missing minutes as DNP in backend and Edge stat sync', () => {
+    it('only treats missing minutes as DNP in Edge stat sync', () => {
         for (const rel of [
-            'backend/src/sync/stats.ts',
-            'backend/src/sync/historicalBBRef.ts',
             'supabase/functions/_shared/syncStats.ts',
             'supabase/functions/_shared/bbrefBackfill.ts',
         ]) {
@@ -221,14 +216,9 @@ describe('logic hardening source guards - scoring and security', () => {
     })
 
     it('does not let non-regular pending games block week finalization', () => {
-        for (const rel of [
-            'backend/src/sync/scores.ts',
-            'supabase/functions/_shared/syncScores.ts',
-        ]) {
-            const src = read(rel)
-            expect(src).toContain(".select('id, nba_game_id')")
-            expect(src).toContain('isRegularSeasonGameId(game.nba_game_id)')
-        }
+        const src = read('supabase/functions/_shared/syncScores.ts')
+        expect(src).toContain(".select('id, nba_game_id')")
+        expect(src).toContain('isRegularSeasonGameId(game.nba_game_id)')
     })
 
     it('paginates player game logs after query-level regular-season filtering', () => {

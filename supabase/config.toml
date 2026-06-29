@@ -361,8 +361,53 @@ inspector_port = 8083
 # The Deno major version to use.
 deno_version = 2
 
-# [edge_runtime.secrets]
-# secret_key = "env(SECRET_VALUE)"
+[edge_runtime.secrets]
+# Local-only token used by `supabase start` so internal Edge auth can be
+# exercised without committing a production secret. Hosted deployments must set
+# PANCAKE_EDGE_INTERNAL_TOKEN or EDGE_FUNCTION_INTERNAL_TOKEN in Supabase.
+PANCAKE_EDGE_INTERNAL_TOKEN = "pancake-local-edge-auth-probe-token"
+
+[functions.api]
+verify_jwt = false
+
+[functions.backfill]
+verify_jwt = false
+
+[functions.close-expired-nominations]
+verify_jwt = false
+
+[functions.live-poll]
+verify_jwt = false
+
+[functions.process-trades]
+verify_jwt = false
+
+[functions.process-waivers]
+verify_jwt = false
+
+[functions.sync-draft-order]
+verify_jwt = false
+
+[functions.sync-players]
+verify_jwt = false
+
+[functions.sync-projections]
+verify_jwt = false
+
+[functions.sync-rankings]
+verify_jwt = false
+
+[functions.sync-schedule]
+verify_jwt = false
+
+[functions.sync-scores]
+verify_jwt = false
+
+[functions.sync-stats]
+verify_jwt = false
+
+[functions.verify]
+verify_jwt = false
 
 [analytics]
 enabled = true

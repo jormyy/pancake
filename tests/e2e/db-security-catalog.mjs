@@ -51,8 +51,6 @@ const authEndpoint = (target) => {
     publicKey: envValue(
       'E2E_SUPABASE_PUBLISHABLE_KEY',
       'EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY',
-      'E2E_SUPABASE_ANON_KEY',
-      'EXPO_PUBLIC_SUPABASE_ANON_KEY',
     ),
   }
 }
@@ -129,6 +127,19 @@ edge_invoker AS (
 ),
 rookie_activation AS (
   SELECT pg_get_functiondef('public.activate_rookie_draft_league_atomic(uuid)'::regprocedure) AS function_def
+),
+service_role_reads AS (
+  SELECT count(*) FILTER (
+    WHERE NOT has_table_privilege(
+      'service_role',
+      format('%I.%I', n.nspname, c.relname),
+      'SELECT'
+    )
+  ) AS missing_read_count
+    FROM pg_class c
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+   WHERE n.nspname = 'public'
+     AND c.relkind IN ('r', 'p', 'v', 'm', 'f')
 )
 SELECT
   expected.latest_version,
@@ -150,8 +161,9 @@ SELECT
   edge_invoker.function_def ILIKE '%x-internal-function-token%' AS edge_invoker_sets_internal_header,
   edge_invoker.function_def NOT ILIKE '%app.service_role_key%' AS edge_invoker_drops_service_role_key,
   edge_invoker.function_def NOT ILIKE '%Authorization%' AS edge_invoker_drops_authorization_header,
-  rookie_activation.function_def ILIKE '%private.is_commissioner(v_draft.league_id)%' AS rookie_activation_checks_commissioner
-FROM expected, migration, cron_wrapper, waiver_policy, drop_player, edge_invoker, rookie_activation;
+  rookie_activation.function_def ILIKE '%private.is_commissioner(v_draft.league_id)%' AS rookie_activation_checks_commissioner,
+  service_role_reads.missing_read_count AS service_role_missing_read_count
+FROM expected, migration, cron_wrapper, waiver_policy, drop_player, edge_invoker, rookie_activation, service_role_reads;
 `
 
 const rows = []
@@ -185,6 +197,7 @@ for (const target of targets) {
       catalog?.edge_invoker_drops_service_role_key === true &&
       catalog?.edge_invoker_drops_authorization_header === true
     const rookieActivationGuarded = catalog?.rookie_activation_checks_commissioner === true
+    const serviceRoleReadsPublicRelations = Number(catalog?.service_role_missing_read_count ?? 0) === 0
 
     addRow(
       target,
@@ -221,6 +234,12 @@ for (const target of targets) {
       'Rookie activation RPC requires commissioner authority',
       rookieActivationGuarded ? 'PASS' : 'BLOCKED',
       `checks_commissioner=${catalog?.rookie_activation_checks_commissioner}.`,
+    )
+    addRow(
+      target,
+      'Trusted service_role can read public relations',
+      serviceRoleReadsPublicRelations ? 'PASS' : 'BLOCKED',
+      `missing_read_count=${catalog?.service_role_missing_read_count}.`,
     )
   } catch (error) {
     addRow(target, 'DB security catalog query', 'BLOCKED', error instanceof Error ? error.message : String(error))

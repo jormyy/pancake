@@ -31,7 +31,6 @@ const loadEnvFile = (filePath) => {
 }
 
 loadEnvFile(path.join(ROOT, '.env'))
-loadEnvFile(path.join(ROOT, 'backend/.env'))
 
 const apply = process.argv.includes('--apply')
 const supabaseUrl = process.env.SUPABASE_URL || process.env.EXPO_PUBLIC_SUPABASE_URL

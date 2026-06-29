@@ -1,6 +1,15 @@
 import { supabase } from '@/lib/supabase'
 
-const DEFAULT_API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000'
+const configuredApiUrl = process.env.EXPO_PUBLIC_API_URL?.trim()
+const configuredSupabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL?.trim()
+
+function defaultApiUrl(): string {
+    if (configuredApiUrl) return configuredApiUrl
+    if (configuredSupabaseUrl) return `${configuredSupabaseUrl.replace(/\/+$/, '')}/functions/v1/api`
+    throw new Error('EXPO_PUBLIC_API_URL or EXPO_PUBLIC_SUPABASE_URL is required.')
+}
+
+const DEFAULT_API_URL = defaultApiUrl()
 export const API_URL = DEFAULT_API_URL
 const API_URL_OVERRIDE_KEY = 'PANCAKE_API_URL'
 const API_URL_OVERRIDE_PARAM = 'pancake_api_url'

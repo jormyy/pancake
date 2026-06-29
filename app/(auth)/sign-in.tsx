@@ -6,7 +6,7 @@ import {
     Platform,
     useWindowDimensions,
 } from 'react-native'
-import { Link } from 'expo-router'
+import { Link, useRouter } from 'expo-router'
 import { useState } from 'react'
 import { signIn } from '@/lib/auth'
 import { brand, colors, elevation, fontSize, fontWeight, radii, spacing, breakpoints } from '@/constants/tokens'
@@ -19,6 +19,7 @@ export default function SignInScreen() {
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const { width } = useWindowDimensions()
+    const router = useRouter()
     const split = Platform.OS === 'web' && width >= breakpoints.auth
 
     async function handleSignIn() {
@@ -30,6 +31,11 @@ export default function SignInScreen() {
         setError(null)
         try {
             await signIn(email.trim(), password)
+            if (Platform.OS === 'web' && typeof window !== 'undefined') {
+                window.location.assign('/')
+            } else {
+                router.replace('/')
+            }
         } catch (e) {
             setError(getErrorMessage(e) ?? 'Something went wrong.')
         } finally {

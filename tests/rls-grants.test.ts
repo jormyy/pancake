@@ -27,15 +27,20 @@ const MIGRATIONS = path.resolve(__dirname, '../supabase/migrations')
 const SERVICE_ROLE_ONLY_RPCS = [
     'propose_trade_atomic',
     'accept_trade_atomic',
+    'reject_trade_atomic',
+    'withdraw_trade_atomic',
     'complete_accepted_trade_atomic',
     'veto_trade_atomic',
     'expire_trade_completion_failure_atomic',
+    'process_due_accepted_trades_atomic',
     'create_waiver_claim_atomic',
     'cancel_waiver_claim_atomic',
     'process_next_waiver_claim_atomic',
+    'process_due_waiver_claims_atomic',
     'create_auction_nomination_atomic',
     'place_auction_bid_atomic',
     'close_auction_nomination_atomic',
+    'close_expired_auction_nominations_atomic',
     'withdraw_auction_nomination_atomic',
     'make_snake_pick_atomic',
     'start_rookie_draft_atomic',
@@ -45,6 +50,9 @@ const SERVICE_ROLE_ONLY_RPCS = [
     'toggle_taxi_atomic',
     'expire_waiver_wire_logs',
     'clear_ineligible_taxi_players',
+    'replace_regular_season_matchups_atomic',
+    'generate_playoff_bracket_atomic',
+    'advance_playoff_bracket_atomic',
     'try_live_poll_lease',
     'release_live_poll_lease',
     'invoke_edge_function',
@@ -127,6 +135,20 @@ describe('service-role-only RPCs are never granted to client roles', () => {
         expect(privileges).toContain('REVOKE ALL ON FUNCTION public.invoke_edge_function_at_et_time(text, int, int) FROM anon')
         expect(privileges).toContain('REVOKE ALL ON FUNCTION public.invoke_edge_function_at_et_time(text, int, int) FROM authenticated')
         expect(privileges).toContain('GRANT EXECUTE ON FUNCTION public.invoke_edge_function_at_et_time(text, int, int) TO service_role')
+    })
+})
+
+describe('trusted server table grants', () => {
+    const sql = allMigrationSql()
+
+    it('keeps service_role able to read through PostgREST after client grant lockdown', () => {
+        expect(sql).toMatch(/GRANT\s+SELECT\s+ON\s+ALL\s+TABLES\s+IN\s+SCHEMA\s+public\s+TO\s+service_role;/i)
+        expect(sql).toMatch(
+            /ALTER\s+DEFAULT\s+PRIVILEGES\s+IN\s+SCHEMA\s+public\s+GRANT\s+SELECT\s+ON\s+TABLES\s+TO\s+service_role;/i,
+        )
+        expect(sql).not.toMatch(
+            /GRANT\s+SELECT\s+ON\s+ALL\s+TABLES\s+IN\s+SCHEMA\s+public\s+TO\s+[^;]*\b(?:anon|authenticated|public)\b/i,
+        )
     })
 })
 

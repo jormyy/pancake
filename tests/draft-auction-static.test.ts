@@ -56,9 +56,6 @@ describe('logic hardening source guards - draft, auction, roster history', () =>
         const bidBody = latestFunctionDefinition('place_auction_bid_atomic')
         const closeBody = latestFunctionDefinition('close_auction_nomination_atomic')
 
-        expect(read('backend/src/routes/draft.ts')).toContain('verifyOwnMember(req.userId, memberId)')
-        expect(read('backend/src/sync/draft.ts')).toContain('p_user_id: userId')
-
         for (const body of [nominateBody, bidBody]) {
             expect(body).toContain('p_user_id uuid')
             expect(body).toContain('Not authorized to act for this member')
@@ -80,7 +77,6 @@ describe('logic hardening source guards - draft, auction, roster history', () =>
         expect(withdrawBody).not.toContain('p_user_id uuid DEFAULT NULL')
         expect(withdrawBody).toContain('p_user_id IS NULL OR NOT EXISTS')
         expect(withdrawBody).toContain('user_id = p_user_id')
-        expect(read('backend/src/sync/draft.ts')).toContain('p_user_id: userId')
     })
 
     it('serializes invite-code joins with league lifecycle transitions', () => {

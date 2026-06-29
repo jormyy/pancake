@@ -3,7 +3,7 @@
  *   cached "/" SPA shell when offline.
  * - Fast repeat loads: same-origin static assets (hashed _expo / assets /
  *   fonts / images) use stale-while-revalidate.
- * - Cross-origin requests (Supabase, the Railway API, realtime) are never
+ * - Cross-origin requests (Supabase, realtime, external APIs) are never
  *   intercepted — the app's own offline/empty states handle them.
  */
 const VERSION = 'pancake-v1'
