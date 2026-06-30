@@ -68,6 +68,10 @@ const RANK_COL_WIDTH = 44
 const HEADSHOT_SIZE = 44
 // Below this the stat table is dropped for the inline compact strip.
 const WIDE_BREAKPOINT = 1200
+// Blurb sits under the player: aligned with the name on wide screens; on narrow
+// ones a lighter indent (under the headshot) leaves it more room to read.
+const COMMENT_INDENT_WIDE = RANK_COL_WIDTH + HEADSHOT_SIZE + spacing.lg * 2
+const COMMENT_INDENT_COMPACT = RANK_COL_WIDTH + spacing.lg
 
 function isPlaceholderHeadshot(uri: string | null): boolean {
     return uri?.endsWith('/0.png') ?? false
@@ -180,27 +184,32 @@ function RankingRow({
             accessibilityRole={canOpen ? 'button' : undefined}
             accessibilityLabel={canOpen ? `Open ${player.displayName}` : player.displayName}
         >
-            <View style={styles.rankNumber}>
-                <Text style={styles.rankNumberText}>{player.dynastyRank}</Text>
-                <RankMovement value={player.rankChange} />
-            </View>
-
-            <Avatar name={player.displayName} uri={playerAvatarUri(player)} size={HEADSHOT_SIZE} />
-
-            <View style={styles.rankMain}>
-                <Text style={styles.playerName} numberOfLines={1}>{player.displayName}</Text>
-                <View style={styles.metaRow}>
-                    {sourceMeta(player).map((part) => <Text key={part} style={styles.metaText}>{part}</Text>)}
-                    {positions.map((pos) => <PosTag key={pos} position={pos} />)}
-                    {player.injuryStatus ? <Text style={styles.injuryText}>{player.injuryStatus}</Text> : null}
+            <View style={styles.rankRowTop}>
+                <View style={styles.rankNumber}>
+                    <Text style={styles.rankNumberText}>{player.dynastyRank}</Text>
+                    <RankMovement value={player.rankChange} />
                 </View>
-                {!showStats ? <CompactStats player={player} /> : null}
-                {player.comment ? (
-                    <Text style={styles.comment} numberOfLines={showStats ? 1 : 2}>{player.comment}</Text>
-                ) : null}
+
+                <Avatar name={player.displayName} uri={playerAvatarUri(player)} size={HEADSHOT_SIZE} />
+
+                <View style={styles.rankMain}>
+                    <Text style={styles.playerName} numberOfLines={1}>{player.displayName}</Text>
+                    <View style={styles.metaRow}>
+                        {sourceMeta(player).map((part) => <Text key={part} style={styles.metaText}>{part}</Text>)}
+                        {positions.map((pos) => <PosTag key={pos} position={pos} />)}
+                        {player.injuryStatus ? <Text style={styles.injuryText}>{player.injuryStatus}</Text> : null}
+                    </View>
+                    {!showStats ? <CompactStats player={player} /> : null}
+                </View>
+
+                {showStats ? <StatGrid player={player} /> : null}
             </View>
 
-            {showStats ? <StatGrid player={player} /> : null}
+            {player.comment ? (
+                <Text style={[styles.comment, { marginLeft: showStats ? COMMENT_INDENT_WIDE : COMMENT_INDENT_COMPACT }]}>
+                    {player.comment}
+                </Text>
+            ) : null}
         </Pressable>
     )
 }
@@ -385,7 +394,7 @@ const styles = StyleSheet.create({
         width: '100%',
         maxWidth: layout.contentMaxWidth,
         alignSelf: 'center',
-        paddingHorizontal: spacing.xl,
+        paddingHorizontal: spacing['3xl'],
         paddingTop: spacing.xl,
         gap: spacing.lg,
     },
@@ -423,7 +432,9 @@ const styles = StyleSheet.create({
     // which also keeps them pinned in place when switching tabs. Full width so
     // the horizontal track has a definite size to scroll within when it overflows.
     tabBar: { width: '100%' },
-    body: { flex: 1 },
+    // gap separates the search row from the list below it (rankings tab); the
+    // news tab has a single child so the gap is inert there.
+    body: { flex: 1, gap: spacing.lg },
     searchRow: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -439,7 +450,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: spacing.lg,
-        paddingHorizontal: spacing.md,
+        paddingHorizontal: spacing.lg,
         paddingBottom: spacing.sm,
         borderBottomWidth: 1,
         borderColor: colors.borderLight,
@@ -456,11 +467,13 @@ const styles = StyleSheet.create({
         textTransform: 'uppercase',
     },
     rankRow: {
+        paddingVertical: spacing.lg,
+        paddingHorizontal: spacing.lg,
+    },
+    rankRowTop: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: spacing.lg,
-        paddingVertical: spacing.lg,
-        paddingHorizontal: spacing.md,
     },
     rankNumber: {
         width: RANK_COL_WIDTH,
@@ -481,7 +494,15 @@ const styles = StyleSheet.create({
     metaRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: spacing.xs },
     metaText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textMuted },
     injuryText: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.danger },
-    comment: { marginTop: spacing.xxs, fontSize: fontSize.sm, lineHeight: 18, color: colors.textMuted },
+    // The editorial blurb flows under each player's data row as a full-width
+    // sub-row (marginLeft applied inline per viewport); no line clamp so it can
+    // wrap to as many lines as it needs.
+    comment: {
+        marginTop: spacing.sm,
+        fontSize: fontSize.sm,
+        lineHeight: 19,
+        color: colors.textMuted,
+    },
     statsGrid: {
         width: STAT_COLUMNS.length * STAT_CELL_WIDTH,
         flexDirection: 'row',
