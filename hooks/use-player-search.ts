@@ -98,6 +98,7 @@ export function usePlayerSearch(
     const searchParamsRef = useRef<PlayerSearchParams>(DEFAULT_PLAYER_SEARCH_PARAMS)
     const offsetRef = useRef(0)
     const listRef = useRef<FlashListRef<PlayerRow>>(null)
+    const pendingScrollTopRef = useRef(false)
     const isFirstLeagueRunRef = useRef(true)
     const currentKeyRef = useRef(playerSearchParamsKey(DEFAULT_PLAYER_SEARCH_PARAMS))
     const requestSeqRef = useRef(0)
@@ -193,16 +194,37 @@ export function usePlayerSearch(
         playersRef.current = players
     }, [players])
 
+    // FlashList v2 anchors on the previously-visible row when the data array
+    // changes, so a brand-new filter/sort/search result set lands scrolled
+    // partway down (an immediate scrollToOffset gets undone once the async page
+    // commits). Snap back to the top after the fresh result set renders — armed
+    // only by a param change, so paging in more rows via loadMore never jumps.
+    useEffect(() => {
+        if (!pendingScrollTopRef.current) return
+        pendingScrollTopRef.current = false
+        const raf = requestAnimationFrame(() => {
+            listRef.current?.scrollToOffset({ offset: 0, animated: false })
+        })
+        return () => cancelAnimationFrame(raf)
+    }, [players])
+
     useEffect(() => {
         searchParamsRef.current = searchParams
         currentKeyRef.current = searchParamsKey
         offsetRef.current = 0
         setLoadingMore(false)
         setHasMore(false)
+        pendingScrollTopRef.current = true
         listRef.current?.scrollToOffset({ offset: 0, animated: false })
 
         const cached = pageCacheRef.current.get(searchParamsKey)
         if (cached) {
+            // Re-selecting the params already on screen yields a reference-equal
+            // array, so the [players] effect won't re-run to consume the flag.
+            // The immediate scroll above already reset it and no re-anchor is
+            // coming (data unchanged), so retire the flag here instead of letting
+            // it leak onto the next loadMore.
+            if (playersRef.current === cached.players) pendingScrollTopRef.current = false
             setPlayers(cached.players)
             playersRef.current = cached.players
             setHasMore(cached.hasMore)
