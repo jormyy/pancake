@@ -18,6 +18,7 @@ export function PlayerSearchItem({
     adding,
     gamesLeft,
     showStats = false,
+    animate = true,
     onAdd,
     onPress,
 }: {
@@ -28,6 +29,7 @@ export function PlayerSearchItem({
     adding: string | null
     gamesLeft: Map<string, number>
     showStats?: boolean
+    animate?: boolean
     onAdd: (player: PlayerRow) => void
     onPress: () => void
 }) {
@@ -52,8 +54,8 @@ export function PlayerSearchItem({
         { label: 'GP', value: item.games_played, integer: true },
     ]
 
-    return (
-        <MotionView style={styles.playerRow} preset="rise">
+    const content = (
+        <>
             <View style={styles.addCol}>
                 {canAdd ? (
                     <MotionPressable
@@ -174,7 +176,17 @@ export function PlayerSearchItem({
                     </View>
                 ) : null}
             </Pressable>
+        </>
+    )
+
+    return animate ? (
+        <MotionView style={styles.playerRow} preset="rise">
+            {content}
         </MotionView>
+    ) : (
+        <View style={styles.playerRow}>
+            {content}
+        </View>
     )
 }
 

@@ -1,7 +1,8 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
+import { StackRouter } from '@react-navigation/native'
 import { ComponentProps, ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 import { ActivityIndicator, Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native'
-import { Link, Tabs, usePathname, useRouter } from 'expo-router'
+import { Link, Navigator, usePathname, useRouter } from 'expo-router'
 import { useLeagueContext } from '@/contexts/league-context'
 import { getActiveDraft } from '@/lib/draft'
 import { breakpoints, colors, WEB_THEME_VARS } from '@/constants/tokens'
@@ -9,11 +10,12 @@ import { styles } from './webTabShellStyles'
 
 type IconName = ComponentProps<typeof MaterialIcons>['name']
 type LeagueTab = 'standings' | 'activity' | 'waivers' | 'picks'
-type RouteHref = '/' | '/players' | '/roster' | '/trades' | '/league' | '/profile'
+type RouteHref = '/' | '/players' | '/dynasty' | '/roster' | '/trades' | '/league' | '/profile'
 
 const PRIMARY_NAV: { label: string; href: RouteHref; icon: IconName }[] = [
     { label: 'Matchup', href: '/', icon: 'home' },
     { label: 'Players', href: '/players', icon: 'groups' },
+    { label: 'Dynasty', href: '/dynasty', icon: 'auto-awesome' },
     { label: 'Roster', href: '/roster', icon: 'assignment' },
     { label: 'Trades', href: '/trades', icon: 'swap-horiz' },
 ]
@@ -29,6 +31,20 @@ const MOBILE_NAV: { label: string; href: RouteHref; icon: IconName }[] = [
     ...PRIMARY_NAV,
     { label: 'League', href: '/league', icon: 'emoji-events' },
 ]
+
+const webStackRouter: typeof StackRouter = (options) => {
+    const router = StackRouter(options)
+
+    return {
+        ...router,
+        getRehydratedState(partialState, routeOptions) {
+            if (partialState == null) {
+                return router.getInitialState(routeOptions)
+            }
+            return router.getRehydratedState(partialState, routeOptions)
+        },
+    }
+}
 
 type PressableState = { hovered?: boolean; pressed?: boolean }
 
@@ -429,18 +445,21 @@ export function WebAppShell({ children, chrome = true }: { children: ReactNode; 
 }
 
 /**
- * The `(tabs)` web layout — now just the Tabs navigator (no chrome). The chrome
- * lives in WebAppShell at the root, so tab content renders in its content area.
+ * The `(tabs)` web layout has no web tab navigator. The chrome lives in
+ * WebAppShell at the root and drives links directly, so a Slot avoids the hidden
+ * BottomTabNavigator rehydrating stale nested state during auth redirects.
  */
 export default function WebTabsLayout() {
     return (
-        <Tabs tabBar={() => null} screenOptions={{ headerShown: false }}>
-            <Tabs.Screen name="index" />
-            <Tabs.Screen name="players" />
-            <Tabs.Screen name="roster" />
-            <Tabs.Screen name="trades" />
-            <Tabs.Screen name="league" />
-            <Tabs.Screen name="profile" />
-        </Tabs>
+        <Navigator router={webStackRouter} initialRouteName="index">
+            <Navigator.Screen name="index" />
+            <Navigator.Screen name="players" />
+            <Navigator.Screen name="dynasty" />
+            <Navigator.Screen name="roster" />
+            <Navigator.Screen name="trades" />
+            <Navigator.Screen name="league" />
+            <Navigator.Screen name="profile" />
+            <Navigator.Slot />
+        </Navigator>
     )
 }

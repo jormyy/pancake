@@ -1,10 +1,11 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 
-vi.mock('@/lib/supabase', () => ({ supabase: { from: vi.fn() } }))
+vi.mock('@/lib/supabase', () => ({ supabase: { from: vi.fn(), rpc: vi.fn() } }))
 vi.mock('@/lib/shared/season', () => ({ currentSeasonYear: vi.fn(() => 2025) }))
 
 import { supabase } from '@/lib/supabase'
 import { getPlayerGameLog, getPlayerTransactionHistory, searchPlayers } from '@/lib/players'
+import { read } from '../source-guard'
 
 // ── Pure logic helpers (extracted from component logic) ──────────────────────
 
@@ -211,83 +212,82 @@ describe('searchPlayers', () => {
         vi.clearAllMocks()
     })
 
-    function query(data: any[]) {
-        const calls: string[] = []
-        let resultData = data
-        const chain: any = {
-            calls,
-            select: vi.fn((columns: string) => {
-                calls.push(`select:${columns}`)
-                return chain
-            }),
-            eq: vi.fn(() => chain),
-            in: vi.fn(() => chain),
-            not: vi.fn(() => chain),
-            is: vi.fn(() => chain),
-            ilike: vi.fn(() => chain),
-            filter: vi.fn(() => chain),
-            order: vi.fn(() => chain),
-            limit: vi.fn(() => chain),
-            range: vi.fn((from: number, to: number) => {
-                resultData = data.slice(from, to + 1)
-                return chain
-            }),
-            then: (resolve: any, reject: any) => Promise.resolve({ data: resultData, error: null }).then(resolve, reject),
-        }
-        return chain
-    }
-
-    it('uses season averages as the base table for no-league FPts sorting', async () => {
-        const averagesQuery = query([
-            {
-                player_id: 'player-high',
+    it('queries the canonical player search RPC with sort, filter, and pagination args', async () => {
+        ;(supabase.rpc as ReturnType<typeof vi.fn>).mockResolvedValue({
+            data: [{
+                id: 'player-high',
+                display_name: 'High Player',
+                nba_team: 'NYK',
+                position: 'SG',
+                eligible_positions: ['SG'],
+                status: null,
+                injury_status: null,
+                headshot_url: null,
+                nba_id: '2',
+                years_exp: 2,
+                avg_fantasy_points: 18,
                 avg_points: 18,
                 games_played: 2,
-                players: {
-                    id: 'player-high',
-                    display_name: 'High Player',
-                    nba_team: 'NYK',
-                    position: 'SG',
-                    eligible_positions: ['SG'],
-                    status: null,
-                    injury_status: null,
-                    nba_id: '2',
-                    years_exp: 2,
-                },
-            },
-            {
-                player_id: 'player-low',
-                avg_points: 4,
-                games_played: 1,
-                players: {
-                    id: 'player-low',
-                    display_name: 'Low Player',
-                    nba_team: 'BOS',
-                    position: 'PG',
-                    eligible_positions: ['PG'],
-                    status: null,
-                    injury_status: null,
-                    nba_id: '1',
-                    years_exp: 3,
-                },
-            },
-        ])
-        const from = supabase.from as ReturnType<typeof vi.fn>
-        from.mockImplementation((table: string) => {
-            if (table === 'mv_player_season_averages') return averagesQuery
-            throw new Error(`Unexpected table ${table}`)
+            }],
+            error: null,
         })
 
-        const result = await searchPlayers('', 'ALL', [], null, null, false, 0, 'all', {}, {
+        const result = await searchPlayers('high', 'G', ['NYK'], 'league-1', ['NYK', 'BOS'], false, 60, 'healthy', {
+            excludedTeams: ['BOS'],
+            excludePlayerIds: ['drop-me'],
+        }, {
             sortMode: 'fpts',
             sortDir: 'desc',
-            pageSize: 1,
+            pageSize: 25,
         })
 
-        expect(from.mock.calls.map(([table]) => table)).toEqual(['mv_player_season_averages'])
-        expect(averagesQuery.select).toHaveBeenCalledWith(expect.stringContaining('players!inner'))
-        expect(averagesQuery.order).toHaveBeenCalledWith('avg_points', { ascending: false })
-        expect(averagesQuery.range).toHaveBeenCalledWith(0, 0)
+        expect(supabase.rpc).toHaveBeenCalledWith('search_players', {
+            p_query: 'high',
+            p_position: 'G',
+            p_teams: ['NYK'],
+            p_league_id: 'league-1',
+            p_playing_teams: ['NYK', 'BOS'],
+            p_excluded_teams: ['BOS'],
+            p_include_player_ids: null,
+            p_exclude_player_ids: ['drop-me'],
+            p_rookies_only: false,
+            p_health: 'healthy',
+            p_sort_by: 'fpts',
+            p_sort_dir: 'desc',
+            p_season_year: 2025,
+            p_limit: 25,
+            p_offset: 60,
+        })
         expect(result.map((player) => player.id)).toEqual(['player-high'])
+    })
+
+    it('passes an explicit empty include scope so empty waiver/mine filters stay empty', async () => {
+        ;(supabase.rpc as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [], error: null })
+
+        await searchPlayers('', 'ALL', [], null, null, false, 0, 'all', { includePlayerIds: [] })
+
+        expect(supabase.rpc).toHaveBeenCalledWith('search_players', expect.objectContaining({
+            p_include_player_ids: [],
+        }))
+    })
+})
+
+describe('Players tab jitter guards', () => {
+    it('does not remount FlashList or replay row entrance animations on sort changes', () => {
+        const source = read('app/(tabs)/players.tsx')
+        const flashListBody = source.slice(source.indexOf('<FlashList'), source.indexOf('ListHeaderComponent'))
+
+        expect(flashListBody).not.toMatch(/\n\s+key=\{/)
+        expect(flashListBody).toContain('extraData={playerListExtraData}')
+        expect(source).toContain('animate={false}')
+    })
+
+    it('keeps rookies-only search as a complete internally paged result set', () => {
+        const source = read('hooks/use-player-search.ts')
+
+        expect(source).toContain('const ROOKIE_SEARCH_MAX_PAGES')
+        expect(source).toContain('if (!params.rookiesOnly || firstPage.length < PLAYER_SEARCH_PAGE_SIZE) return firstPage')
+        expect(source).toContain('fetchCompleteResults(searchParams)')
+        expect(source).toContain('const hasNext = !searchParams.rookiesOnly && results.length === PLAYER_SEARCH_PAGE_SIZE')
     })
 })

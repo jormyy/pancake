@@ -57,6 +57,14 @@ The former standalone backend implementation has been removed from the repo.
 | `/sync/validate-db` | `api/sync.ts` | Supabase JWT + `ADMIN_USER_IDS` | `verify` Edge Function |
 | `/e2e/*` | `api/e2e.ts` | `x-e2e-secret` | targeted Edge/RPC hooks for local-prod browser validation |
 
+## Client Read Models And RPCs
+
+| Surface | Owner | Auth | Purpose |
+| --- | --- | --- | --- |
+| `search_players` RPC | Postgres migration `20260629000001_player_search_dynasty_news.sql` | authenticated | Canonical player-pool search with indexed name/stat sorting, availability scopes, health/team/playing-day filters, rookies, and no-stat player inclusion |
+| `players.dynasty_rank` | synced player data | authenticated read | Dynasty Hub ranking list and player detail context |
+| `dynasty_news` table | service-role sync/admin paths | authenticated read, service-role write | Curated Dynasty Hub player-movement news |
+
 ## Scheduled Work
 
 | Job | Supabase owner | Schedule | Replacement |

@@ -328,6 +328,47 @@ export type Database = {
           },
         ]
       }
+      dynasty_news: {
+        Row: {
+          created_at: string
+          id: string
+          player_id: string | null
+          published_at: string
+          source: string
+          summary: string
+          title: string
+          url: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          player_id?: string | null
+          published_at?: string
+          source: string
+          summary: string
+          title: string
+          url?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          player_id?: string | null
+          published_at?: string
+          source?: string
+          summary?: string
+          title?: string
+          url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dynasty_news_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       league_members: {
         Row: {
           id: string
@@ -2456,6 +2497,47 @@ export type Database = {
           p_matchups?: Json
         }
         Returns: Json
+      }
+      search_players: {
+        Args: {
+          p_exclude_player_ids?: string[] | null
+          p_excluded_teams?: string[] | null
+          p_health?: string
+          p_include_player_ids?: string[] | null
+          p_league_id?: string | null
+          p_limit?: number
+          p_offset?: number
+          p_playing_teams?: string[] | null
+          p_position?: string
+          p_query?: string
+          p_rookies_only?: boolean
+          p_season_year?: number
+          p_sort_by?: string
+          p_sort_dir?: string
+          p_teams?: string[] | null
+        }
+        Returns: {
+          avg_assists: number | null
+          avg_blocks: number | null
+          avg_fantasy_points: number | null
+          avg_minutes_played: number | null
+          avg_points: number | null
+          avg_rebounds: number | null
+          avg_steals: number | null
+          avg_three_pointers_made: number | null
+          avg_turnovers: number | null
+          display_name: string
+          eligible_positions: string[]
+          games_played: number | null
+          headshot_url: string | null
+          id: string
+          injury_status: string | null
+          nba_id: string | null
+          nba_team: string | null
+          position: string | null
+          status: string | null
+          years_exp: number | null
+        }[]
       }
       reject_trade_atomic: {
         Args: { p_member_id: string; p_trade_id: string; p_user_id: string }

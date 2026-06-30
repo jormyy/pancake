@@ -3,8 +3,6 @@ import type { NBAPosition } from '@/types/database'
 import { currentSeasonYear } from '@/lib/shared/season'
 import { TRANSACTION_LABELS } from '@/lib/shared/transaction-labels'
 import {
-    PLAYER_SORT_MV_COLUMN,
-    sortPlayerRows,
     type PlayerSearchSortDir,
     type PlayerSearchSortMode,
 } from '@/lib/player-search-sort'
@@ -101,110 +99,8 @@ export type PlayerSearchOptions = {
     pageSize?: number
 }
 
-type AverageRow = {
-    player_id: string | null
-    games_played: number | null
-    avg_points: number | null
-    avg_rebounds: number | null
-    avg_assists: number | null
-    avg_steals: number | null
-    avg_blocks: number | null
-    avg_turnovers: number | null
-    avg_three_pointers_made: number | null
-    avg_minutes_played: number | null
-    players?: PlayerRow
-}
-
-const AVG_SELECT = 'player_id, games_played, avg_points, avg_rebounds, avg_assists, avg_steals, avg_blocks, avg_turnovers, avg_three_pointers_made, avg_minutes_played'
-const PLAYER_SELECT = 'id, display_name, nba_team, position, eligible_positions, status, injury_status, nba_id, years_exp'
-const AVG_WITH_PLAYER_SELECT = `${AVG_SELECT}, players!inner(${PLAYER_SELECT})`
-
-function withAverages(player: PlayerRow, averages?: AverageRow, avgFantasyPoints?: number | null): PlayerRow {
-    return {
-        ...player,
-        avg_fantasy_points: avgFantasyPoints ?? player.avg_fantasy_points ?? averages?.avg_points ?? null,
-        avg_points: averages?.avg_points ?? player.avg_points ?? null,
-        avg_rebounds: averages?.avg_rebounds ?? player.avg_rebounds ?? null,
-        avg_assists: averages?.avg_assists ?? player.avg_assists ?? null,
-        avg_steals: averages?.avg_steals ?? player.avg_steals ?? null,
-        avg_blocks: averages?.avg_blocks ?? player.avg_blocks ?? null,
-        avg_turnovers: averages?.avg_turnovers ?? player.avg_turnovers ?? null,
-        avg_three_pointers_made: averages?.avg_three_pointers_made ?? player.avg_three_pointers_made ?? null,
-        avg_minutes_played: averages?.avg_minutes_played ?? player.avg_minutes_played ?? null,
-        games_played: averages?.games_played ?? player.games_played ?? null,
-    }
-}
-
-function mapAverageRows(rows: AverageRow[]): PlayerRow[] {
-    return rows
-        .filter((row) => row.players)
-        .map((row) => withAverages(row.players!, row, row.avg_points))
-}
-
-async function hydrateAverages(
-    players: PlayerRow[],
-    season: number,
-    fantasyPointsById = new Map<string, number | null>(),
-): Promise<PlayerRow[]> {
-    if (players.length === 0) return players
-
-    const { data } = await supabase
-        .from('mv_player_season_averages')
-        .select(AVG_SELECT)
-        .eq('season_year', season)
-        .in('player_id', players.map((player) => player.id))
-
-    const averagesById = new Map<string, AverageRow>()
-    for (const row of (data ?? []) as AverageRow[]) {
-        if (row.player_id) averagesById.set(row.player_id, row)
-    }
-
-    return players.map((player) =>
-        withAverages(player, averagesById.get(player.id), fantasyPointsById.get(player.id)),
-    )
-}
-
-function applyHealthFilter<T>(query: T, column: string, health: PlayerHealthFilter): T {
-    const q = query as any
-    switch (health) {
-        case 'healthy':
-            return q.is(column, null)
-        case 'gtd':
-            return q.in(column, ['GTD', 'DTD', 'Questionable', 'Game Time Decision'])
-        case 'out':
-            return q.in(column, ['Out', 'OUT', 'O'])
-        case 'ir':
-            return q.in(column, ['IR', 'IR-LTI'])
-        default:
-            return query
-    }
-}
-
 function uniqueNonEmpty(values?: string[]): string[] {
     return Array.from(new Set((values ?? []).filter(Boolean)))
-}
-
-function postgresInList(values: string[]): string {
-    return `(${values.join(',')})`
-}
-
-function applySearchConstraints<T>(
-    query: T,
-    playerColumnPrefix: 'players.' | '',
-    constraints: Required<PlayerSearchQueryConstraints>,
-): T {
-    const q = query as any
-    const includeIds = constraints.includePlayerIds
-    const excludeIds = constraints.excludePlayerIds
-    const excludedTeams = constraints.excludedTeams
-    const idColumn = `${playerColumnPrefix}id`
-    const teamColumn = `${playerColumnPrefix}nba_team`
-
-    let next = q
-    if (includeIds.length > 0) next = next.in(idColumn, includeIds)
-    if (excludeIds.length > 0) next = next.not(idColumn, 'in', postgresInList(excludeIds))
-    if (excludedTeams.length > 0) next = next.not(teamColumn, 'in', postgresInList(excludedTeams))
-    return next
 }
 
 export async function searchPlayers(
@@ -225,174 +121,27 @@ export async function searchPlayers(
     const sortBy = hasSearchOptions ? (sortByOrOptions.sortMode ?? 'fpts') : sortByOrOptions
     const sortDir = hasSearchOptions ? (sortByOrOptions.sortDir ?? 'desc') : sortDirArg
     const pageSize = hasSearchOptions ? (sortByOrOptions.pageSize ?? 60) : 60
-    const queryConstraints: Required<PlayerSearchQueryConstraints> = {
-        includePlayerIds: uniqueNonEmpty(constraints.includePlayerIds),
-        excludePlayerIds: uniqueNonEmpty(constraints.excludePlayerIds),
-        excludedTeams: uniqueNonEmpty(constraints.excludedTeams),
-    }
+    const includePlayerIds = constraints.includePlayerIds == null ? null : uniqueNonEmpty(constraints.includePlayerIds)
 
-    if (constraints.includePlayerIds && queryConstraints.includePlayerIds.length === 0) {
-        return []
-    }
-
-    // Compute effective team filter: intersect explicit teams + playing-on-day teams
-    let effectiveTeams: string[] | null = null
-    if (playingTeams != null && teams.length > 0) {
-        effectiveTeams = teams.filter((t) => playingTeams.includes(t))
-        if (effectiveTeams.length === 0) return []
-    } else if (playingTeams != null) {
-        effectiveTeams = playingTeams
-    } else if (teams.length > 0) {
-        effectiveTeams = teams
-    }
-
-    // Rookie filter: get rookies with stats (sorted by fantasy pts) + rookies without stats
-    if (rookiesOnly) {
-        const posFilter: string[] | null = position === 'ALL' ? null
-            : position === 'G' ? ['PG', 'SG']
-            : position === 'F' ? ['SF', 'PF']
-            : [position]
-
-        // 1. Rookies who have stats this season, sorted by avg fantasy pts
-        let statsQ = leagueId
-            ? supabase
-                .from('v_player_avg_fantasy_points')
-                .select(`avg_fantasy_points, players!inner(${PLAYER_SELECT})`)
-                .eq('league_id', leagueId)
-                .eq('season_year', season)
-                .filter('players.years_exp', 'eq', 0)
-                .order('avg_fantasy_points', { ascending: false })
-            : supabase
-                .from('mv_player_season_averages')
-                .select(AVG_WITH_PLAYER_SELECT)
-                .eq('season_year', season)
-                .filter('players.years_exp', 'eq', 0)
-                .order('avg_points', { ascending: false })
-
-        if (query.trim()) statsQ = statsQ.ilike('players.display_name', `%${query.trim()}%`)
-        if (posFilter) statsQ = statsQ.filter('players.eligible_positions', 'ov', `{${posFilter.join(',')}}`)
-        if (effectiveTeams != null) statsQ = statsQ.in('players.nba_team', effectiveTeams)
-        statsQ = applyHealthFilter(statsQ, 'players.injury_status', health)
-        statsQ = applySearchConstraints(statsQ, 'players.', queryConstraints)
-
-        const { data: statsData } = await statsQ
-        const withStats = leagueId
-            ? await hydrateAverages(
-                (statsData ?? []).map((row: any) => row.players) as PlayerRow[],
-                season,
-                new Map((statsData ?? []).map((row: any) => [row.players.id, Number(row.avg_fantasy_points)])),
-            )
-            : mapAverageRows((statsData ?? []) as AverageRow[])
-        const withStatsIds = new Set(withStats.map((p) => p.id))
-
-        // 2. All rookies (to find those without stats)
-        let allQ = supabase
-            .from('players')
-            .select('id, display_name, nba_team, position, eligible_positions, status, injury_status, nba_id, years_exp')
-            .eq('years_exp', 0)
-            .order('last_name')
-
-        if (query.trim()) allQ = allQ.ilike('display_name', `%${query.trim()}%`)
-        if (posFilter) allQ = allQ.filter('eligible_positions', 'ov', `{${posFilter.join(',')}}`)
-        if (effectiveTeams != null) allQ = allQ.in('nba_team', effectiveTeams)
-        allQ = applyHealthFilter(allQ, 'injury_status', health)
-        allQ = applySearchConstraints(allQ, '', queryConstraints)
-
-        const { data: allData } = await allQ
-        const withoutStats = (allData ?? []).filter((p) => !withStatsIds.has(p.id)) as PlayerRow[]
-
-        // The rookie branch returns every rookie unpaginated, so we can honor the
-        // chosen stat sort over the full set in memory.
-        return sortPlayerRows(
-            [...withStats, ...(await hydrateAverages(withoutStats, season))],
-            sortBy,
-            sortDir,
-        )
-    }
-
-    const ascending = sortDir === 'asc'
-    // Fantasy-points order is the only sort that lives on the per-league scoring
-    // view; every other stat lives on the season-averages materialized view, so
-    // we order there and overlay this league's FP afterward. Either way the sort
-    // is applied to the WHOLE filtered pool server-side, then paginated — so
-    // changing the sort re-queries from the top instead of reordering one page.
-    const useFantasyOrder = Boolean(leagueId) && sortBy === 'fpts'
-
-    let q = useFantasyOrder
-        ? supabase
-            .from('v_player_avg_fantasy_points')
-            .select(`avg_fantasy_points, players!inner(${PLAYER_SELECT})`)
-            .eq('league_id', leagueId!)
-            .eq('season_year', season)
-            .order('avg_fantasy_points', { ascending, nullsFirst: false })
-            .order('player_id', { ascending: true })
-            .range(offset, offset + pageSize - 1)
-        : supabase
-            .from('mv_player_season_averages')
-            .select(AVG_WITH_PLAYER_SELECT)
-            .eq('season_year', season)
-            .order(PLAYER_SORT_MV_COLUMN[sortBy], { ascending })
-            .order('player_id', { ascending: true })
-            .range(offset, offset + pageSize - 1)
-
-    if (query.trim()) {
-        q = q.ilike('players.display_name', `%${query.trim()}%`)
-    }
-    if (position !== 'ALL') {
-        const posFilter: string[] =
-            position === 'G' ? ['PG', 'SG']
-            : position === 'F' ? ['SF', 'PF']
-            : [position]
-        q = q.filter('players.eligible_positions', 'ov', `{${posFilter.join(',')}}`)
-    }
-    if (effectiveTeams != null) {
-        q = q.in('players.nba_team', effectiveTeams)
-    }
-    q = applyHealthFilter(q, 'players.injury_status', health)
-    q = applySearchConstraints(q, 'players.', queryConstraints)
-
-    const { data, error } = await q
+    const { data, error } = await supabase.rpc('search_players', {
+        p_query: query,
+        p_position: position,
+        p_teams: uniqueNonEmpty(teams),
+        p_league_id: leagueId ?? null,
+        p_playing_teams: playingTeams == null ? null : uniqueNonEmpty(playingTeams),
+        p_excluded_teams: uniqueNonEmpty(constraints.excludedTeams),
+        p_include_player_ids: includePlayerIds,
+        p_exclude_player_ids: uniqueNonEmpty(constraints.excludePlayerIds),
+        p_rookies_only: rookiesOnly,
+        p_health: health,
+        p_sort_by: sortBy,
+        p_sort_dir: sortDir,
+        p_season_year: season,
+        p_limit: pageSize,
+        p_offset: offset,
+    })
     if (error) throw error
-
-    // League + fantasy-points order: rows come from the FP view; hydrate stats.
-    if (useFantasyOrder) {
-        return hydrateAverages(
-            (data ?? []).map((row: any) => row.players) as PlayerRow[],
-            season,
-            new Map((data ?? []).map((row: any) => [row.players.id, Number(row.avg_fantasy_points)])),
-        )
-    }
-
-    // Stat order (or no league): rows come from the season-averages view.
-    const players = mapAverageRows((data ?? []) as AverageRow[])
-    if (!leagueId) return players
-    // League present but ordered by a raw stat — overlay per-league FP so the FP
-    // column still reflects this league's scoring rather than the avg-points proxy.
-    return hydrateLeagueFantasyPoints(players, leagueId, season)
-}
-
-async function hydrateLeagueFantasyPoints(
-    players: PlayerRow[],
-    leagueId: string,
-    season: number,
-): Promise<PlayerRow[]> {
-    if (players.length === 0) return players
-
-    const { data } = await supabase
-        .from('v_player_avg_fantasy_points')
-        .select('player_id, avg_fantasy_points')
-        .eq('league_id', leagueId)
-        .eq('season_year', season)
-        .in('player_id', players.map((player) => player.id))
-
-    const fpById = new Map<string, number>()
-    for (const row of (data ?? []) as { player_id: string | null; avg_fantasy_points: number | null }[]) {
-        if (row.player_id != null) fpById.set(row.player_id, Number(row.avg_fantasy_points))
-    }
-
-    return players.map((player) =>
-        fpById.has(player.id) ? { ...player, avg_fantasy_points: fpById.get(player.id)! } : player,
-    )
+    return (data ?? []) as PlayerRow[]
 }
 
 

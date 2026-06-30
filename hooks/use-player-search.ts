@@ -11,41 +11,42 @@ import {
     type PlayerSearchSortDir,
     type PlayerSearchSortMode,
 } from '@/lib/player-search-sort'
+import {
+    activePlayerFilterCount,
+    availabilityPlayerScope,
+    DEFAULT_PLAYER_SEARCH_PARAMS,
+    PLAYER_SEARCH_PAGE_SIZE,
+    playerSearchParamsKey,
+    type PlayerAvailabilityFilter,
+    type PlayerPlayingFilter,
+    type PlayerSearchHealthFilter,
+    type PlayerSearchParams,
+} from '@/lib/player-search-state'
 
 export type SortMode = PlayerSearchSortMode
 type SortDir = PlayerSearchSortDir
-type SearchParams = {
-    query: string
-    position: string
-    selectedTeams: string[]
-    leagueId: string | null
-    playingTeams: string[] | null
-    excludedTeams: string[]
-    includePlayerIds?: string[]
-    excludePlayerIds?: string[]
-    rookiesOnly: boolean
-    health: HealthFilter
-    sortBy: SortMode
-    sortDir: SortDir
-}
 
 export const SORT_OPTIONS = PLAYER_SEARCH_SORT_OPTIONS
-export type HealthFilter = 'all' | 'healthy' | 'gtd' | 'out' | 'ir'
-export type AvailabilityFilter = 'all' | 'free_agents' | 'waivers' | 'rostered' | 'mine'
-export type PlayingFilter = 'all' | 'today' | 'not_today'
+export type HealthFilter = PlayerSearchHealthFilter
+export type AvailabilityFilter = PlayerAvailabilityFilter
+export type PlayingFilter = PlayerPlayingFilter
 
-const PAGE_SIZE = 60
-const DEFAULT_SEARCH_PARAMS: SearchParams = {
-    query: '',
-    position: 'ALL',
-    selectedTeams: [],
-    leagueId: null,
-    playingTeams: null,
-    excludedTeams: [],
-    rookiesOnly: false,
-    health: 'all',
-    sortBy: 'fpts',
-    sortDir: 'desc',
+type CachedPage = {
+    players: PlayerRow[]
+    hasMore: boolean
+    offset: number
+}
+const ROOKIE_SEARCH_MAX_PAGES = 20
+
+function useDebouncedValue<T>(value: T, delayMs: number): T {
+    const [debounced, setDebounced] = useState(value)
+
+    useEffect(() => {
+        const timer = setTimeout(() => setDebounced(value), delayMs)
+        return () => clearTimeout(timer)
+    }, [value, delayMs])
+
+    return debounced
 }
 
 function useWeeklyAvailability() {
@@ -101,12 +102,19 @@ export function usePlayerSearch(
     const [rookiesOnly, setRookiesOnly] = useState(false)
     const [players, setPlayers] = useState<PlayerRow[]>([])
     const [loading, setLoading] = useState(true)
+    const [refreshing, setRefreshing] = useState(false)
     const [loadingMore, setLoadingMore] = useState(false)
     const [hasMore, setHasMore] = useState(false)
-    const searchParamsRef = useRef<SearchParams>(DEFAULT_SEARCH_PARAMS)
+    const searchParamsRef = useRef<PlayerSearchParams>(DEFAULT_PLAYER_SEARCH_PARAMS)
     const offsetRef = useRef(0)
     const listRef = useRef<FlashListRef<PlayerRow>>(null)
     const isFirstLeagueRunRef = useRef(true)
+    const currentKeyRef = useRef(playerSearchParamsKey(DEFAULT_PLAYER_SEARCH_PARAMS))
+    const requestSeqRef = useRef(0)
+    const loadMoreSeqRef = useRef(0)
+    const playersRef = useRef<PlayerRow[]>([])
+    const pageCacheRef = useRef(new Map<string, CachedPage>())
+    const debouncedQuery = useDebouncedValue(query, 300)
 
     const weeklyAvailability = useWeeklyAvailability()
     const todayTeams = useMemo(() => {
@@ -123,100 +131,150 @@ export function usePlayerSearch(
         () => playingFilter === 'not_today' ? todayTeamList : [],
         [playingFilter, todayTeamList],
     )
-    const availabilityPlayerScope = useMemo(() => {
-        const ownedIds = Array.from(ownedMap.keys())
-        const waiverIdList = Array.from(waiverIds)
-        switch (availabilityFilter) {
-            case 'free_agents':
-                return { excludePlayerIds: Array.from(new Set([...ownedIds, ...waiverIdList])) }
-            case 'waivers':
-                return { includePlayerIds: waiverIdList }
-            case 'rostered':
-                return { includePlayerIds: ownedIds }
-            case 'mine':
-                return {
-                    includePlayerIds: Array.from(ownedMap.entries())
-                        .filter(([, entry]) => entry.memberId === currentMemberId)
-                        .map(([playerId]) => playerId),
-                }
-            default:
-                return {}
-        }
-    }, [availabilityFilter, ownedMap, waiverIds, currentMemberId])
+    const scopedPlayerIds = useMemo(
+        () => availabilityPlayerScope(availabilityFilter, ownedMap, waiverIds, currentMemberId),
+        [availabilityFilter, ownedMap, waiverIds, currentMemberId],
+    )
 
-    // Sorting is applied server-side across the whole filtered pool (see
-    // searchPlayers), so the list renders the accumulated pages as-is. Changing
-    // the sort re-queries from page 0 (via the load effect) and resets scroll.
+    const searchParams = useMemo<PlayerSearchParams>(() => ({
+        query: debouncedQuery,
+        position,
+        selectedTeams,
+        leagueId,
+        playingTeams,
+        excludedTeams,
+        includePlayerIds: scopedPlayerIds.includePlayerIds,
+        excludePlayerIds: scopedPlayerIds.excludePlayerIds,
+        rookiesOnly,
+        health,
+        sortBy: sortMode,
+        sortDir,
+    }), [
+        debouncedQuery,
+        position,
+        selectedTeams,
+        leagueId,
+        playingTeams,
+        excludedTeams,
+        scopedPlayerIds,
+        rookiesOnly,
+        health,
+        sortMode,
+        sortDir,
+    ])
+    const searchParamsKey = useMemo(() => playerSearchParamsKey(searchParams), [searchParams])
+
+    const fetchPage = useCallback((params: PlayerSearchParams, offset: number) =>
+        searchPlayers(
+            params.query,
+            params.position,
+            params.selectedTeams,
+            params.leagueId,
+            params.playingTeams,
+            params.rookiesOnly,
+            offset,
+            params.health,
+            {
+                includePlayerIds: params.includePlayerIds,
+                excludePlayerIds: params.excludePlayerIds,
+                excludedTeams: params.excludedTeams,
+            },
+            params.sortBy,
+            params.sortDir,
+        ), [])
+
+    const fetchCompleteResults = useCallback(async (params: PlayerSearchParams) => {
+        const firstPage = await fetchPage(params, 0)
+        if (!params.rookiesOnly || firstPage.length < PLAYER_SEARCH_PAGE_SIZE) return firstPage
+
+        const players = [...firstPage]
+        let nextOffset = PLAYER_SEARCH_PAGE_SIZE
+        for (let page = 1; page < ROOKIE_SEARCH_MAX_PAGES; page += 1) {
+            const nextPage = await fetchPage(params, nextOffset)
+            if (nextPage.length === 0) break
+            players.push(...nextPage)
+            if (nextPage.length < PLAYER_SEARCH_PAGE_SIZE) break
+            nextOffset += PLAYER_SEARCH_PAGE_SIZE
+        }
+        return players
+    }, [fetchPage])
+
     useEffect(() => {
-        listRef.current?.scrollToOffset({ offset: 0, animated: false })
-    }, [sortMode, sortDir])
+        playersRef.current = players
+    }, [players])
 
-    const load = useCallback(async (params: SearchParams) => {
-        searchParamsRef.current = params
+    useEffect(() => {
+        searchParamsRef.current = searchParams
+        currentKeyRef.current = searchParamsKey
         offsetRef.current = 0
-        setLoading(true)
+        setLoadingMore(false)
         setHasMore(false)
-        try {
-            const results = await searchPlayers(
-                params.query,
-                params.position,
-                params.selectedTeams,
-                params.leagueId,
-                params.playingTeams,
-                params.rookiesOnly,
-                0,
-                params.health,
-                {
-                    includePlayerIds: params.includePlayerIds,
-                    excludePlayerIds: params.excludePlayerIds,
-                    excludedTeams: params.excludedTeams,
-                },
-                params.sortBy,
-                params.sortDir,
-            )
-            setPlayers(results)
-            setHasMore(!params.rookiesOnly && results.length === PAGE_SIZE)
-        } catch (e) {
-            console.error(e)
-        } finally {
+        listRef.current?.scrollToOffset({ offset: 0, animated: false })
+
+        const cached = pageCacheRef.current.get(searchParamsKey)
+        if (cached) {
+            setPlayers(cached.players)
+            playersRef.current = cached.players
+            setHasMore(cached.hasMore)
+            offsetRef.current = cached.offset
             setLoading(false)
+            setRefreshing(false)
+            return
         }
-    }, [])
+
+        const requestId = ++requestSeqRef.current
+        setRefreshing(true)
+        setLoading(playersRef.current.length === 0)
+
+        fetchCompleteResults(searchParams)
+            .then((results) => {
+                if (requestSeqRef.current !== requestId || currentKeyRef.current !== searchParamsKey) return
+                const hasNext = !searchParams.rookiesOnly && results.length === PLAYER_SEARCH_PAGE_SIZE
+                pageCacheRef.current.set(searchParamsKey, { players: results, hasMore: hasNext, offset: 0 })
+                playersRef.current = results
+                setPlayers(results)
+                setHasMore(hasNext)
+            })
+            .catch(console.error)
+            .finally(() => {
+                if (requestSeqRef.current !== requestId || currentKeyRef.current !== searchParamsKey) return
+                setLoading(false)
+                setRefreshing(false)
+            })
+    }, [searchParams, searchParamsKey, fetchCompleteResults])
 
     const loadMore = useCallback(async () => {
         if (loadingMore || !hasMore) return
         const params = searchParamsRef.current
-        const nextOffset = offsetRef.current + PAGE_SIZE
+        const paramsKey = currentKeyRef.current
+        const nextOffset = offsetRef.current + PLAYER_SEARCH_PAGE_SIZE
+        const requestId = ++loadMoreSeqRef.current
         setLoadingMore(true)
         try {
-            const results = await searchPlayers(
-                params.query,
-                params.position,
-                params.selectedTeams,
-                params.leagueId,
-                params.playingTeams,
-                params.rookiesOnly,
-                nextOffset,
-                params.health,
-                {
-                    includePlayerIds: params.includePlayerIds,
-                    excludePlayerIds: params.excludePlayerIds,
-                    excludedTeams: params.excludedTeams,
-                },
-                params.sortBy,
-                params.sortDir,
-            )
+            const results = await fetchPage(params, nextOffset)
+            if (loadMoreSeqRef.current !== requestId || currentKeyRef.current !== paramsKey) return
             if (results.length > 0) {
                 offsetRef.current = nextOffset
-                setPlayers((prev) => [...prev, ...results])
+                setPlayers((prev) => {
+                    const merged = [...prev, ...results]
+                    playersRef.current = merged
+                    pageCacheRef.current.set(paramsKey, {
+                        players: merged,
+                        hasMore: results.length === PLAYER_SEARCH_PAGE_SIZE,
+                        offset: nextOffset,
+                    })
+                    return merged
+                })
             }
-            setHasMore(results.length === PAGE_SIZE)
+            setHasMore(results.length === PLAYER_SEARCH_PAGE_SIZE)
         } catch (e) {
             console.error(e)
         } finally {
-            setLoadingMore(false)
+            if (loadMoreSeqRef.current === requestId && currentKeyRef.current === paramsKey) {
+                setLoadingMore(false)
+            }
         }
-    }, [loadingMore, hasMore])
+    }, [loadingMore, hasMore, fetchPage])
 
     useEffect(() => {
         if (isFirstLeagueRunRef.current) {
@@ -224,27 +282,10 @@ export function usePlayerSearch(
             return
         }
         setPlayers([])
+        playersRef.current = []
         setLoading(true)
+        setRefreshing(false)
     }, [leagueId])
-
-    useEffect(() => {
-        const params = {
-            query,
-            position,
-            selectedTeams,
-            leagueId,
-            playingTeams,
-            excludedTeams,
-            includePlayerIds: availabilityPlayerScope.includePlayerIds,
-            excludePlayerIds: availabilityPlayerScope.excludePlayerIds,
-            rookiesOnly,
-            health,
-            sortBy: sortMode,
-            sortDir,
-        }
-        const timer = setTimeout(() => load(params), 300)
-        return () => clearTimeout(timer)
-    }, [query, position, selectedTeams, leagueId, playingTeams, excludedTeams, availabilityPlayerScope, rookiesOnly, health, sortMode, sortDir, load])
 
     const clearAllFilters = useCallback(() => {
         setQuery('')
@@ -258,18 +299,19 @@ export function usePlayerSearch(
         setSortDir('desc')
     }, [setSelectedTeams])
 
-    const activeFilterCount = useMemo(() => {
-        let count = 0
-        if (query.trim()) count++
-        if (position !== 'ALL') count++
-        if (selectedTeams.length > 0) count++
-        if (playingFilter !== 'all') count++
-        if (availabilityFilter !== 'free_agents') count++
-        if (rookiesOnly) count++
-        if (health !== 'all') count++
-        if (sortMode !== 'fpts') count++
-        return count
-    }, [query, position, selectedTeams.length, playingFilter, availabilityFilter, rookiesOnly, health, sortMode])
+    const activeFilterCount = useMemo(
+        () => activePlayerFilterCount({
+            query,
+            position,
+            selectedTeams,
+            playingFilter,
+            availabilityFilter,
+            rookiesOnly,
+            health,
+            sortMode,
+        }),
+        [query, position, selectedTeams, playingFilter, availabilityFilter, rookiesOnly, health, sortMode],
+    )
 
     return {
         search: { query, setQuery },
@@ -284,7 +326,7 @@ export function usePlayerSearch(
         health: { value: health, setValue: setHealth },
         availabilityFilter: { value: availabilityFilter, setValue: setAvailabilityFilter },
         toggles: { rookiesOnly, setRookiesOnly },
-        results: { players, loading, loadingMore, listRef, loadMore },
+        results: { players, loading, refreshing, loadingMore, listRef, loadMore },
         activeFilterCount,
         clearAllFilters,
     }
