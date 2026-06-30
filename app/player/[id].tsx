@@ -247,6 +247,7 @@ export default function PlayerDetailScreen() {
 
     const showFantasy = leagueId != null && fantasyPointsMap !== null && fantasyPointsMap.size > 0
     const showTransactions = leagueId != null && transactions.length > 0
+    const showSeasonFallback = seasonLoading && seasonAverages == null && gameLog.length === 0
 
     return (
         <>
@@ -272,8 +273,14 @@ export default function PlayerDetailScreen() {
                         selectedSeason={selectedSeason}
                         onSelect={handleSeasonSelect}
                     />
+                    {seasonLoading && !showSeasonFallback ? (
+                        <View style={styles.inlineLoading}>
+                            <ActivityIndicator size="small" color={colors.primary} />
+                            <Text style={styles.inlineLoadingText}>Updating season stats</Text>
+                        </View>
+                    ) : null}
 
-                    {seasonLoading ? (
+                    {showSeasonFallback ? (
                         <ActivityIndicator color={colors.primary} style={styles.seasonLoader} />
                     ) : (
                         <>
@@ -352,6 +359,8 @@ const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgScreen },
     scroll: { padding: spacing['2xl'], gap: spacing['3xl'], width: '100%', maxWidth: 900, alignSelf: 'center' },
     seasonLoader: { marginVertical: spacing['4xl'] },
+    inlineLoading: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 24 },
+    inlineLoadingText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textMuted },
     section: { gap: spacing.lg },
     sectionTitle: { fontSize: 17, fontWeight: fontWeight.bold, color: colors.textPrimary },
     noData: { color: colors.textPlaceholder, fontSize: fontSize.md },

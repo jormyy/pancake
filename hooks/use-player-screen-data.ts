@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import {
     getPlayer,
     getAvailableSeasons,
@@ -15,6 +15,18 @@ import { todayET } from '@/lib/shared/dates'
 import { supabase } from '@/lib/supabase'
 
 const GAME_LOG_PAGE = 15
+type SeasonCacheEntry = {
+    seasonAverages: PlayerSeasonAverages | null
+    gameLog: GameLogEntry[]
+    gameLogOffset: number
+    hasMoreGames: boolean
+    fantasyPointsMap: Map<string, number> | null
+    avgFantasyPoints: number
+}
+
+function seasonCacheKey(playerId: string, leagueId: string | null, season: number): string {
+    return `${playerId}:${leagueId ?? 'no-league'}:${season}`
+}
 
 export function usePlayerScreenData(playerId: string, leagueId: string | null) {
     const [player, setPlayer] = useState<any>(null)
@@ -36,10 +48,13 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null) {
     const [avgFantasyPoints, setAvgFantasyPoints] = useState(0)
 
     const [transactions, setTransactions] = useState<TransactionHistoryEntry[]>([])
+    const seasonCacheRef = useRef(new Map<string, SeasonCacheEntry>())
+    const seasonRequestRef = useRef(0)
 
-    // Load player core + available seasons
     useEffect(() => {
+        seasonRequestRef.current += 1
         setLoading(true)
+        setPlayer(null)
         async function load() {
             try {
                 const [p, seasons, todayStats] = await Promise.all([
@@ -69,51 +84,63 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null) {
         load()
     }, [playerId])
 
-    // Load season-dependent data (averages + game log)
     useEffect(() => {
-        if (!player) return
-        setSeasonLoading(true)
+        if (!player || player.id !== playerId) return
+        const key = seasonCacheKey(playerId, leagueId, selectedSeason)
+        const requestId = ++seasonRequestRef.current
+        const cached = seasonCacheRef.current.get(key)
+        if (cached) {
+            setSeasonAverages(cached.seasonAverages)
+            setGameLog(cached.gameLog)
+            setGameLogOffset(cached.gameLogOffset)
+            setHasMoreGames(cached.hasMoreGames)
+            setFantasyPointsMap(cached.fantasyPointsMap)
+            setAvgFantasyPoints(cached.avgFantasyPoints)
+            setSeasonLoading(false)
+            return
+        }
+
+        setSeasonAverages(null)
         setGameLog([])
         setGameLogOffset(0)
         setHasMoreGames(false)
         setFantasyPointsMap(null)
         setAvgFantasyPoints(0)
+        setSeasonLoading(true)
         async function loadSeasonData() {
             try {
-                const [avgs, gameLogResult] = await Promise.all([
+                const [avgs, gameLogResult, fantasyPoints] = await Promise.all([
                     getPlayerSeasonAveragesFromView(playerId, selectedSeason),
                     getPlayerGameLog(playerId, player.nba_team, selectedSeason, GAME_LOG_PAGE, 0),
+                    leagueId ? getPlayerFantasyPoints(playerId, leagueId, selectedSeason) : Promise.resolve(null),
                 ])
+                if (seasonRequestRef.current !== requestId) return
+                const fpMap = fantasyPoints ? new Map(fantasyPoints.map((p) => [p.gameId, p.fantasyPoints])) : null
+                const avgFantasy = fantasyPoints && fantasyPoints.length > 0
+                    ? fantasyPoints.reduce((sum, p) => sum + p.fantasyPoints, 0) / fantasyPoints.length
+                    : 0
+                const entry = {
+                    seasonAverages: avgs,
+                    gameLog: gameLogResult.games,
+                    gameLogOffset: gameLogResult.games.length,
+                    hasMoreGames: gameLogResult.hasMore,
+                    fantasyPointsMap: fpMap,
+                    avgFantasyPoints: avgFantasy,
+                }
+                seasonCacheRef.current.set(key, entry)
                 setSeasonAverages(avgs)
                 setGameLog(gameLogResult.games)
                 setGameLogOffset(gameLogResult.games.length)
                 setHasMoreGames(gameLogResult.hasMore)
+                setFantasyPointsMap(fpMap)
+                setAvgFantasyPoints(avgFantasy)
             } catch (e) {
                 console.error(e)
             } finally {
-                setSeasonLoading(false)
+                if (seasonRequestRef.current === requestId) setSeasonLoading(false)
             }
         }
         loadSeasonData()
-    }, [playerId, selectedSeason, player?.nba_team])
-
-    // Load fantasy points (league-aware)
-    useEffect(() => {
-        if (!leagueId || !player) return
-        async function loadFantasy() {
-            try {
-                const pts = await getPlayerFantasyPoints(playerId, leagueId!, selectedSeason)
-                const map = new Map(pts.map((p) => [p.gameId, p.fantasyPoints]))
-                setFantasyPointsMap(map)
-                if (pts.length > 0) {
-                    const avg = pts.reduce((sum, p) => sum + p.fantasyPoints, 0) / pts.length
-                    setAvgFantasyPoints(avg)
-                }
-            } catch (e) {
-                console.error(e)
-            }
-        }
-        loadFantasy()
     }, [playerId, leagueId, selectedSeason, player?.nba_team])
 
     // Load transaction history
@@ -141,22 +168,31 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null) {
                 GAME_LOG_PAGE,
                 gameLogOffset,
             )
-            setGameLog((prev) => [...prev, ...result.games])
-            setGameLogOffset((prev) => prev + result.games.length)
+            setGameLog((prev) => {
+                const merged = [...prev, ...result.games]
+                const key = seasonCacheKey(playerId, leagueId, selectedSeason)
+                const cached = seasonCacheRef.current.get(key)
+                if (cached) {
+                    seasonCacheRef.current.set(key, {
+                        ...cached,
+                        gameLog: merged,
+                        gameLogOffset: gameLogOffset + result.games.length,
+                        hasMoreGames: result.hasMore,
+                    })
+                }
+                return merged
+            })
+            setGameLogOffset(gameLogOffset + result.games.length)
             setHasMoreGames(result.hasMore)
         } catch (e) {
             console.error(e)
         } finally {
             setGameLogLoading(false)
         }
-    }, [playerId, player, selectedSeason, gameLogOffset, gameLogLoading, hasMoreGames])
+    }, [playerId, leagueId, player, selectedSeason, gameLogOffset, gameLogLoading, hasMoreGames])
 
     function handleSeasonSelect(year: number) {
-        if (year !== selectedSeason) {
-            setFantasyPointsMap(new Map())
-            setAvgFantasyPoints(0)
-            setSelectedSeason(year)
-        }
+        if (year !== selectedSeason) setSelectedSeason(year)
     }
 
     return {

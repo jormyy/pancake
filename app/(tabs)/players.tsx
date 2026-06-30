@@ -246,7 +246,7 @@ export default function PlayersScreen() {
         .sort(([a], [b]) => a.localeCompare(b))
         .map(([team, count]) => `${team}:${count}`)
         .join(',')
-    const playerListOrderVersion = [
+    const playerListExtraData = [
         search.sort.mode,
         search.sort.dir,
         search.availabilityFilter.value,
@@ -271,8 +271,10 @@ export default function PlayersScreen() {
                         clearButtonMode="while-editing"
                     />
                     <Text style={styles.resultCountText}>
-                        {search.results.loading
-                            ? 'Searching…'
+                        {search.results.loading && search.results.players.length === 0
+                            ? 'Searching...'
+                            : search.results.refreshing
+                              ? `Updating ${search.results.players.length} player${search.results.players.length === 1 ? '' : 's'}`
                             : `${search.results.players.length}${search.activeFilterCount > 0 ? ' filtered' : ''} player${search.results.players.length === 1 ? '' : 's'}`}
                     </Text>
                 </View>
@@ -358,14 +360,13 @@ export default function PlayersScreen() {
                 ) : null}
             </View>
 
-            {search.results.loading ? (
+            {search.results.loading && search.results.players.length === 0 ? (
                 <ActivityIndicator style={styles.flex1} color={colors.primary} />
             ) : (
                 <FlashList
-                    key={playerListOrderVersion}
                     ref={search.results.listRef}
                     data={search.results.players}
-                    extraData={playerListOrderVersion}
+                    extraData={playerListExtraData}
                     keyExtractor={(p: PlayerRow) => p.id}
                     contentContainerStyle={search.results.players.length === 0 ? styles.emptyContainer : undefined}
                     ItemSeparatorComponent={ItemSeparator}
@@ -408,6 +409,7 @@ export default function PlayersScreen() {
                             adding={quickAdd.adding}
                             gamesLeft={search.availability.gamesLeft}
                             showStats={showStatTable}
+                            animate={false}
                             onAdd={quickAdd.handleAdd}
                             onPress={() => push(`/player/${item.id}`)}
                         />

@@ -14,6 +14,10 @@ export default function TabLayout() {
                 <Label>Players</Label>
                 <Icon sf="person.2.fill" />
             </NativeTabs.Trigger>
+            <NativeTabs.Trigger name="dynasty">
+                <Label>Dynasty</Label>
+                <Icon sf="sparkles" />
+            </NativeTabs.Trigger>
             <NativeTabs.Trigger name="roster">
                 <Label>Roster</Label>
                 <Icon sf="list.bullet.clipboard.fill" />

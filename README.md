@@ -55,6 +55,8 @@ supabase/     # Database migrations and Edge Functions
   - Free-form bid input (clear/type any value, validated on submit)
 - **Snake rookie draft** for annual offseason drafts (pick-ownership ordered)
 - **Daily lineups** with manual and auto-set options, tip-off locks (ET)
+- **Player discovery** with indexed search, sort, availability, health, team, playing-day, and rookie filters
+- **Dynasty Hub** with long-term rankings and curated player-movement news
 - **Waiver wire** with priority-based claiming and a 48h clearance window
 - **Trades** with players and future draft picks, 24-hour veto window
 - **H2H matchups** with cumulative weekly scoring (regular-season only)
@@ -80,6 +82,12 @@ formula is shared through core/generated adapters for app, Edge, and SQL
 because each runtime needs its own copy — `tests/scoring-parity.test.ts` fails the build if
 any copy drifts in formula, category set, DNP handling, or regular-season filtering.
 Edge sync source lives under `supabase/shared-src/`.
+
+Player discovery uses the `search_players` Postgres RPC as the canonical read path. The RPC starts
+from the full player pool, left-joins season stats, preserves players without current-season rows,
+and uses indexed name/stat access for high-volume search and sorting. The Dynasty Hub reads rankings
+from synced player data and curated news from `dynasty_news`, which is client read-only and
+service-role managed.
 
 ## Testing & validation
 
