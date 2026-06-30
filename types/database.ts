@@ -369,6 +369,95 @@ export type Database = {
           },
         ]
       }
+      dynasty_rankings: {
+        Row: {
+          age: number | null
+          assists: number | null
+          blocks: number | null
+          comment: string | null
+          created_at: string
+          fetched_at: string
+          field_goal_pct: number | null
+          free_throw_pct: number | null
+          games_played: number | null
+          id: string
+          player_id: string | null
+          points: number | null
+          rank_change: number
+          rebounds: number | null
+          source: string
+          source_player_id: string | null
+          source_player_name: string
+          source_positions: string[]
+          source_rank: number
+          source_team: string | null
+          steals: number | null
+          three_pointers_made: number | null
+          turnovers: number | null
+          updated_at: string
+        }
+        Insert: {
+          age?: number | null
+          assists?: number | null
+          blocks?: number | null
+          comment?: string | null
+          created_at?: string
+          fetched_at?: string
+          field_goal_pct?: number | null
+          free_throw_pct?: number | null
+          games_played?: number | null
+          id?: string
+          player_id?: string | null
+          points?: number | null
+          rank_change?: number
+          rebounds?: number | null
+          source: string
+          source_player_id?: string | null
+          source_player_name: string
+          source_positions?: string[]
+          source_rank: number
+          source_team?: string | null
+          steals?: number | null
+          three_pointers_made?: number | null
+          turnovers?: number | null
+          updated_at?: string
+        }
+        Update: {
+          age?: number | null
+          assists?: number | null
+          blocks?: number | null
+          comment?: string | null
+          created_at?: string
+          fetched_at?: string
+          field_goal_pct?: number | null
+          free_throw_pct?: number | null
+          games_played?: number | null
+          id?: string
+          player_id?: string | null
+          points?: number | null
+          rank_change?: number
+          rebounds?: number | null
+          source?: string
+          source_player_id?: string | null
+          source_player_name?: string
+          source_positions?: string[]
+          source_rank?: number
+          source_team?: string | null
+          steals?: number | null
+          three_pointers_made?: number | null
+          turnovers?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dynasty_rankings_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       league_members: {
         Row: {
           id: string
@@ -2538,6 +2627,15 @@ export type Database = {
           status: string | null
           years_exp: number | null
         }[]
+      }
+      replace_dynasty_rankings: {
+        Args: {
+          p_fetched_at: string
+          p_min_rows?: number
+          p_rows: Json
+          p_source: string
+        }
+        Returns: Json
       }
       reject_trade_atomic: {
         Args: { p_member_id: string; p_trade_id: string; p_user_id: string }
