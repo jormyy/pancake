@@ -17,6 +17,7 @@ import { useRouter } from 'expo-router'
 import { Avatar } from '@/components/Avatar'
 import { EmptyState } from '@/components/EmptyState'
 import { ItemSeparator } from '@/components/ItemSeparator'
+import { PosTag } from '@/components/PosTag'
 import { Card, Input, SegmentedControl } from '@/components/ui'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useDynastyRankings } from '@/hooks/use-dynasty-rankings'
@@ -43,7 +44,9 @@ type StatKey = keyof Pick<
 >
 
 const EMPTY_NEWS: DynastyNewsItem[] = []
-const STAT_COLUMNS: { key: StatKey; label: string; format?: 'integer' | 'pct' }[] = [
+type StatColumn = { key: StatKey; label: string; format?: 'integer' | 'pct' }
+// Full table shown on wide screens; column labels live in the table header row.
+const STAT_COLUMNS: StatColumn[] = [
     { key: 'gamesPlayed', label: 'GP', format: 'integer' },
     { key: 'fieldGoalPct', label: 'FG%', format: 'pct' },
     { key: 'freeThrowPct', label: 'FT%', format: 'pct' },
@@ -55,6 +58,16 @@ const STAT_COLUMNS: { key: StatKey; label: string; format?: 'integer' | 'pct' }[
     { key: 'blocks', label: 'BLK' },
     { key: 'turnovers', label: 'TO' },
 ]
+// On narrow screens each player stays a single tidy row, so only the headline
+// counting stats ride inline under the name.
+const COMPACT_STAT_COLUMNS: StatColumn[] = STAT_COLUMNS.filter((column) =>
+    ['points', 'rebounds', 'assists', 'steals', 'blocks'].includes(column.key),
+)
+const STAT_CELL_WIDTH = 54
+const RANK_COL_WIDTH = 44
+const HEADSHOT_SIZE = 44
+// Below this the stat table is dropped for the inline compact strip.
+const WIDE_BREAKPOINT = 1200
 
 function isPlaceholderHeadshot(uri: string | null): boolean {
     return uri?.endsWith('/0.png') ?? false
@@ -101,43 +114,69 @@ function RankMovement({ value }: { value: number }) {
 
     return (
         <View style={styles.rankMovement}>
-            <MaterialIcons name={icon} size={14} color={color} />
+            <MaterialIcons name={icon} size={13} color={color} />
             {value !== 0 ? <Text style={[styles.rankMovementText, { color }]}>{Math.abs(value)}</Text> : null}
         </View>
     )
 }
 
-function StatStrip({ player, compact }: { player: DynastyRankPlayer; compact: boolean }) {
+function StatGrid({ player }: { player: DynastyRankPlayer }) {
     return (
-        <View style={[styles.statStrip, compact && styles.statStripCompact]}>
+        <View style={styles.statsGrid}>
             {STAT_COLUMNS.map((stat) => (
-                <View key={stat.key} style={styles.statCell}>
-                    <Text style={styles.statValue}>{formatStat(player[stat.key], stat.format)}</Text>
-                    <Text style={styles.statLabel}>{stat.label}</Text>
+                <Text key={stat.key} style={styles.statCell} numberOfLines={1}>
+                    {formatStat(player[stat.key], stat.format)}
+                </Text>
+            ))}
+        </View>
+    )
+}
+
+function CompactStats({ player }: { player: DynastyRankPlayer }) {
+    return (
+        <View style={styles.compactStats}>
+            {COMPACT_STAT_COLUMNS.map((stat) => (
+                <View key={stat.key} style={styles.compactStat}>
+                    <Text style={styles.compactStatLabel}>{stat.label}</Text>
+                    <Text style={styles.compactStatValue}>{formatStat(player[stat.key], stat.format)}</Text>
                 </View>
             ))}
         </View>
     )
 }
 
+function RankingsTableHeader() {
+    return (
+        <View style={styles.tableHeader}>
+            <View style={styles.rankColSpacer} />
+            <View style={styles.headshotSpacer} />
+            <Text style={styles.tableHeaderPlayer}>Player</Text>
+            <View style={styles.statsGrid}>
+                {STAT_COLUMNS.map((stat) => (
+                    <Text key={stat.key} style={styles.statHeaderCell} numberOfLines={1}>{stat.label}</Text>
+                ))}
+            </View>
+        </View>
+    )
+}
+
 function RankingRow({
     player,
-    compact,
+    showStats,
     onPress,
 }: {
     player: DynastyRankPlayer
-    compact: boolean
+    showStats: boolean
     onPress: () => void
 }) {
     const positions = playerPositions(player)
     const canOpen = player.playerId != null
-    const headshotUri = playerAvatarUri(player)
 
     return (
         <Pressable
             onPress={onPress}
             disabled={!canOpen}
-            style={[styles.rankRow, compact && styles.rankRowCompact]}
+            style={styles.rankRow}
             accessibilityRole={canOpen ? 'button' : undefined}
             accessibilityLabel={canOpen ? `Open ${player.displayName}` : player.displayName}
         >
@@ -146,23 +185,22 @@ function RankingRow({
                 <RankMovement value={player.rankChange} />
             </View>
 
-            <Avatar name={player.displayName} uri={headshotUri} size={compact ? 44 : 52} />
+            <Avatar name={player.displayName} uri={playerAvatarUri(player)} size={HEADSHOT_SIZE} />
 
             <View style={styles.rankMain}>
-                <View style={styles.rankTitleRow}>
-                    <Text style={styles.playerName} numberOfLines={1}>{player.displayName}</Text>
-                    {canOpen ? <MaterialIcons name="chevron-right" size={22} color={colors.textPlaceholder} /> : null}
-                </View>
+                <Text style={styles.playerName} numberOfLines={1}>{player.displayName}</Text>
                 <View style={styles.metaRow}>
                     {sourceMeta(player).map((part) => <Text key={part} style={styles.metaText}>{part}</Text>)}
-                    {positions.map((pos) => <Text key={pos} style={styles.positionPill}>{pos}</Text>)}
-                    {player.injuryStatus ? <Text style={styles.metaText}>{player.injuryStatus}</Text> : null}
+                    {positions.map((pos) => <PosTag key={pos} position={pos} />)}
+                    {player.injuryStatus ? <Text style={styles.injuryText}>{player.injuryStatus}</Text> : null}
                 </View>
-                {compact ? <StatStrip player={player} compact /> : null}
-                {player.comment ? <Text style={styles.comment} numberOfLines={compact ? 2 : 3}>{player.comment}</Text> : null}
+                {!showStats ? <CompactStats player={player} /> : null}
+                {player.comment ? (
+                    <Text style={styles.comment} numberOfLines={showStats ? 1 : 2}>{player.comment}</Text>
+                ) : null}
             </View>
 
-            {!compact ? <StatStrip player={player} compact={false} /> : null}
+            {showStats ? <StatGrid player={player} /> : null}
         </Pressable>
     )
 }
@@ -197,7 +235,7 @@ export default function DynastyScreen() {
     const router = useRouter()
     const { current, currentLeague } = useLeagueContext()
     const { width } = useWindowDimensions()
-    const compactRows = width < 980
+    const showStats = width >= WIDE_BREAKPOINT
     const [tab, setTab] = useState<DynastyTab>('rankings')
     const rankings = useDynastyRankings()
     const {
@@ -246,17 +284,20 @@ export default function DynastyScreen() {
                     )}
                 </View>
 
-                <SegmentedControl<DynastyTab>
-                    value={tab}
-                    onChange={setTab}
-                    options={[
-                        { label: 'Rankings', value: 'rankings', badge: rankings.players.length },
-                        { label: 'News', value: 'news', badge: news.length },
-                        { label: 'My News', value: 'my-news', badge: myNews.length },
-                    ]}
-                    scrollable
-                />
+                <View style={styles.tabBar}>
+                    <SegmentedControl<DynastyTab>
+                        value={tab}
+                        onChange={setTab}
+                        options={[
+                            { label: 'Rankings', value: 'rankings', badge: rankings.players.length },
+                            { label: 'News', value: 'news', badge: news.length },
+                            { label: 'My News', value: 'my-news', badge: myNews.length },
+                        ]}
+                        scrollable
+                    />
+                </View>
 
+                <View style={styles.body}>
                 {tab === 'rankings' ? (
                     <>
                         <View style={styles.searchRow}>
@@ -290,13 +331,15 @@ export default function DynastyScreen() {
                         ) : (
                             <FlashList
                                 data={rankings.players}
+                                extraData={showStats}
                                 keyExtractor={(player) => player.rankingId}
                                 ItemSeparatorComponent={ItemSeparator}
                                 contentContainerStyle={rankings.players.length === 0 ? styles.emptyContainer : undefined}
+                                ListHeaderComponent={showStats && rankings.players.length > 0 ? <RankingsTableHeader /> : null}
                                 renderItem={({ item }) => (
                                     <RankingRow
                                         player={item}
-                                        compact={compactRows}
+                                        showStats={showStats}
                                         onPress={() => item.playerId && router.push(`/player/${item.playerId}`)}
                                     />
                                 )}
@@ -329,6 +372,7 @@ export default function DynastyScreen() {
                         </Card>
                     </ScrollView>
                 )}
+                </View>
             </View>
         </SafeAreaView>
     )
@@ -374,6 +418,12 @@ const styles = StyleSheet.create({
         backgroundColor: colors.primaryLight,
     },
     syncText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.primaryDark },
+    // Fixed-height tab strip: wrapping the (scrollable → RNW ScrollView)
+    // control stops it from flex-growing and floating the tabs mid-screen,
+    // which also keeps them pinned in place when switching tabs. Full width so
+    // the horizontal track has a definite size to scroll within when it overflows.
+    tabBar: { width: '100%' },
+    body: { flex: 1 },
     searchRow: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -385,81 +435,87 @@ const styles = StyleSheet.create({
         fontWeight: fontWeight.bold,
         color: colors.textMuted,
     },
+    tableHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.lg,
+        paddingHorizontal: spacing.md,
+        paddingBottom: spacing.sm,
+        borderBottomWidth: 1,
+        borderColor: colors.borderLight,
+    },
+    rankColSpacer: { width: RANK_COL_WIDTH },
+    headshotSpacer: { width: HEADSHOT_SIZE },
+    tableHeaderPlayer: {
+        flex: 1,
+        minWidth: 0,
+        fontSize: 10,
+        fontWeight: fontWeight.extrabold,
+        color: colors.textMuted,
+        letterSpacing: 0.8,
+        textTransform: 'uppercase',
+    },
     rankRow: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: spacing.lg,
-        minHeight: 104,
         paddingVertical: spacing.lg,
         paddingHorizontal: spacing.md,
     },
-    rankRowCompact: {
-        alignItems: 'flex-start',
-        minHeight: 132,
-        gap: spacing.md,
-    },
     rankNumber: {
-        width: 52,
+        width: RANK_COL_WIDTH,
         alignItems: 'center',
-        gap: spacing.xs,
+        gap: spacing.xxs,
     },
     rankNumberText: { fontSize: fontSize.lg, fontWeight: fontWeight.extrabold, color: colors.primaryDark },
     rankMovement: {
-        minHeight: 18,
+        minHeight: 16,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
         gap: 2,
     },
     rankMovementText: { fontSize: fontSize.xs, fontWeight: fontWeight.bold },
-    rankMain: { flex: 1, minWidth: 0, gap: spacing.xs },
-    rankTitleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-    playerName: { flex: 1, minWidth: 0, fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: colors.textPrimary },
+    rankMain: { flex: 1, minWidth: 0, gap: spacing.xxs },
+    playerName: { fontSize: fontSize.lg, fontWeight: fontWeight.semibold, color: colors.textPrimary },
     metaRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: spacing.xs },
     metaText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textMuted },
-    positionPill: {
-        paddingHorizontal: spacing.sm,
-        paddingVertical: 2,
-        borderRadius: radii.sm,
-        backgroundColor: colors.bgMuted,
-        fontSize: fontSize.xs,
-        fontWeight: fontWeight.bold,
-        color: colors.textSecondary,
-    },
-    comment: {
-        fontSize: fontSize.sm,
-        lineHeight: 18,
-        color: colors.textSecondary,
-    },
-    statStrip: {
-        width: 500,
+    injuryText: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.danger },
+    comment: { marginTop: spacing.xxs, fontSize: fontSize.sm, lineHeight: 18, color: colors.textMuted },
+    statsGrid: {
+        width: STAT_COLUMNS.length * STAT_CELL_WIDTH,
         flexDirection: 'row',
-        alignItems: 'stretch',
-        borderWidth: 1,
-        borderColor: colors.borderLight,
-        borderRadius: radii.md,
-        overflow: 'hidden',
-        backgroundColor: colors.bgCard,
-    },
-    statStripCompact: {
-        width: '100%',
-        maxWidth: 520,
-        flexWrap: 'wrap',
-        borderWidth: 0,
-        gap: spacing.xs,
-        backgroundColor: 'transparent',
+        alignItems: 'center',
+        justifyContent: 'flex-end',
+        flexShrink: 0,
     },
     statCell: {
-        width: 50,
-        minHeight: 42,
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderRightWidth: 1,
-        borderColor: colors.borderLight,
-        backgroundColor: colors.bgSubtle,
+        width: STAT_CELL_WIDTH,
+        textAlign: 'right',
+        fontSize: fontSize.sm,
+        fontWeight: fontWeight.semibold,
+        color: colors.textSecondary,
+        fontVariant: ['tabular-nums'],
     },
-    statValue: { fontSize: fontSize.sm, fontWeight: fontWeight.extrabold, color: colors.textPrimary },
-    statLabel: { marginTop: 1, fontSize: 10, fontWeight: fontWeight.bold, color: colors.textMuted },
+    statHeaderCell: {
+        width: STAT_CELL_WIDTH,
+        textAlign: 'right',
+        fontSize: 10,
+        fontWeight: fontWeight.extrabold,
+        color: colors.textMuted,
+        letterSpacing: 0.6,
+        textTransform: 'uppercase',
+    },
+    compactStats: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        columnGap: spacing.lg,
+        rowGap: spacing.xs,
+        marginTop: spacing.xs,
+    },
+    compactStat: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.xs },
+    compactStatLabel: { fontSize: 10, fontWeight: fontWeight.bold, color: colors.textSecondary, letterSpacing: 0.4 },
+    compactStatValue: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.textSecondary, fontVariant: ['tabular-nums'] },
     newsContent: { paddingBottom: spacing.xl },
     listCard: { overflow: 'hidden' },
     newsRow: { paddingVertical: spacing.lg, paddingHorizontal: spacing.md, gap: spacing.sm },
