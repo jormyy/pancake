@@ -4,6 +4,7 @@ import { handleE2eRoute } from './e2e.ts'
 import { handleGamesRoute } from './games.ts'
 import { handleLeagueRoute } from './league.ts'
 import { handlePlayoffRoute } from './playoffs.ts'
+import { handlePlayersRoute } from './players.ts'
 import { handleSyncRoute } from './sync.ts'
 import { handleTradeRoute } from './trades.ts'
 import { handleWaiverRoute } from './waivers.ts'
@@ -23,6 +24,7 @@ export function handleApiRoute(req: Request): Promise<Response> {
     const route =
       await handleE2eRoute(req, path) ??
       await handleGamesRoute(req, path) ??
+      await handlePlayersRoute(req, path) ??
       await handleLeagueRoute(req, path) ??
       await handleWaiverRoute(req, path) ??
       await handleTradeRoute(req, path) ??

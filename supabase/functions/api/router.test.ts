@@ -44,6 +44,7 @@ Deno.test({
   fn: async () => {
     const routes = [
       ['GET', '/games/today'],
+      ['GET', '/players/headshot/1641705'],
       ['POST', '/league/roster/ir'],
       ['POST', '/league/roster/taxi'],
       ['POST', '/league/advance-season'],

@@ -56,7 +56,7 @@ supabase/     # Database migrations and Edge Functions
 - **Snake rookie draft** for annual offseason drafts (pick-ownership ordered)
 - **Daily lineups** with manual and auto-set options, tip-off locks (ET)
 - **Player discovery** with indexed search, sort, availability, health, team, playing-day, and rookie filters
-- **Dynasty Hub** with long-term rankings and curated player-movement news
+- **Dynasty Hub** with Hashtag Basketball dynasty rankings, full source stat strips, player headshots, curated news, and roster-filtered My News
 - **Waiver wire** with priority-based claiming and a 48h clearance window
 - **Trades** with players and future draft picks, 24-hour veto window
 - **H2H matchups** with cumulative weekly scoring (regular-season only)
@@ -85,8 +85,11 @@ Edge sync source lives under `supabase/shared-src/`.
 
 Player discovery uses the `search_players` Postgres RPC as the canonical read path. The RPC starts
 from the full player pool, left-joins season stats, preserves players without current-season rows,
-and uses indexed name/stat access for high-volume search and sorting. The Dynasty Hub reads rankings
-from synced player data and curated news from `dynasty_news`, which is client read-only and
+and uses indexed name/stat access for high-volume search and sorting. The Dynasty Hub reads Hashtag
+Basketball rows from `dynasty_rankings`, joins matched players for app headshots and injuries, and
+loads rankings 50 rows at a time. `sync-rankings` replaces that read model through the
+service-role-only `replace_dynasty_rankings` RPC and also keeps `players.dynasty_rank` in sync for
+player detail context. Curated news still lives in `dynasty_news`, which is client read-only and
 service-role managed.
 
 ## Testing & validation

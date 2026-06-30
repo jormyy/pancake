@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { View, Text, Image, StyleSheet } from 'react-native'
 import { colors, fontWeight } from '@/constants/tokens'
 import { getInitials } from '@/lib/format'
@@ -13,8 +14,13 @@ type Props = {
 
 /** Circular avatar — shows headshot image when uri is provided, falls back to initials */
 export function Avatar({ name, color = colors.primary, size = 44, uri }: Props) {
+    const [imageFailed, setImageFailed] = useState(false)
     const half = size / 2
     const fs = size <= 38 ? 12 : size <= 44 ? 14 : 18
+
+    useEffect(() => {
+        setImageFailed(false)
+    }, [uri])
 
     return (
         <View
@@ -23,11 +29,12 @@ export function Avatar({ name, color = colors.primary, size = 44, uri }: Props) 
                 { width: size, height: size, borderRadius: half, backgroundColor: color },
             ]}
         >
-            {uri ? (
+            {uri && !imageFailed ? (
                 <Image
                     source={{ uri }}
                     style={{ width: size, height: size, borderRadius: half }}
                     resizeMode="cover"
+                    onError={() => setImageFailed(true)}
                 />
             ) : (
                 <Text style={[styles.text, { fontSize: fs }]}>{getInitials(name)}</Text>

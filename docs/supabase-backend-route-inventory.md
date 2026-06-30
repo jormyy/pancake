@@ -56,13 +56,16 @@ The former standalone backend implementation has been removed from the repo.
 | `/sync/season-totals` | `api/sync.ts` | Supabase JWT + `ADMIN_USER_IDS` | `verify` Edge Function |
 | `/sync/validate-db` | `api/sync.ts` | Supabase JWT + `ADMIN_USER_IDS` | `verify` Edge Function |
 | `/e2e/*` | `api/e2e.ts` | `x-e2e-secret` | targeted Edge/RPC hooks for local-prod browser validation |
+| `/players/headshot/:nbaId` | `api/players.ts` | public GET | cached proxy for NBA CDN player headshots used by Dynasty Hub avatars |
 
 ## Client Read Models And RPCs
 
 | Surface | Owner | Auth | Purpose |
 | --- | --- | --- | --- |
 | `search_players` RPC | Postgres migration `20260629000001_player_search_dynasty_news.sql` | authenticated | Canonical player-pool search with indexed name/stat sorting, availability scopes, health/team/playing-day filters, rookies, and no-stat player inclusion |
-| `players.dynasty_rank` | synced player data | authenticated read | Dynasty Hub ranking list and player detail context |
+| `dynasty_rankings` table | Hashtag Basketball via `sync-rankings` | authenticated read, service-role write | Dynasty Hub source ranking rows with source rank/name/team/positions, matched player id, movement, stats, comments, and sync timestamp |
+| `replace_dynasty_rankings` RPC | Postgres migration `20260630000002_replace_dynasty_rankings_rpc.sql` | service-role only | Atomic replacement path for Hashtag dynasty rankings; validates rank payloads, deletes stale source rows, and refreshes `players.dynasty_rank` |
+| `players.dynasty_rank` | Hashtag Basketball via `replace_dynasty_rankings` | authenticated read | Denormalized current dynasty rank for player detail context and legacy surfaces |
 | `dynasty_news` table | service-role sync/admin paths | authenticated read, service-role write | Curated Dynasty Hub player-movement news |
 
 ## Scheduled Work

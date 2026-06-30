@@ -11,6 +11,7 @@ import {
     type PlayerSearchSortDir,
     type PlayerSearchSortMode,
 } from '@/lib/player-search-sort'
+import { useDebouncedValue } from '@/hooks/use-debounced-value'
 import {
     activePlayerFilterCount,
     availabilityPlayerScope,
@@ -37,17 +38,6 @@ type CachedPage = {
     offset: number
 }
 const ROOKIE_SEARCH_MAX_PAGES = 20
-
-function useDebouncedValue<T>(value: T, delayMs: number): T {
-    const [debounced, setDebounced] = useState(value)
-
-    useEffect(() => {
-        const timer = setTimeout(() => setDebounced(value), delayMs)
-        return () => clearTimeout(timer)
-    }, [value, delayMs])
-
-    return debounced
-}
 
 function useWeeklyAvailability() {
     const [weekDays, setWeekDays] = useState<WeekDay[]>([])
