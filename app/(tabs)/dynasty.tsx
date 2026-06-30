@@ -176,6 +176,28 @@ function RankingRow({
     // (same column); we mirror that — stats on top, comment on the line below.
     const commentNode = player.comment ? <Text style={styles.comment}>{player.comment}</Text> : null
 
+    // Draft-pick placeholders carry no player, stats, or headshot — they're
+    // ranked slots (e.g. an incoming 2026 first-rounder), so render a slim row.
+    if (player.isDraftPick) {
+        return (
+            <View style={styles.rankRow}>
+                <View style={styles.rankRowTop}>
+                    <View style={styles.rankNumber}>
+                        <Text style={styles.rankNumberText}>{player.dynastyRank}</Text>
+                        <RankMovement value={player.rankChange} />
+                    </View>
+                    <View style={styles.draftBadge}>
+                        <MaterialIcons name="style" size={20} color={colors.primaryDark} />
+                    </View>
+                    <View style={styles.rankMain}>
+                        <Text style={styles.playerName} numberOfLines={1}>{player.displayName}</Text>
+                        <Text style={styles.draftLabel}>Future draft pick</Text>
+                    </View>
+                </View>
+            </View>
+        )
+    }
+
     return (
         <Pressable
             onPress={onPress}
@@ -496,6 +518,21 @@ const styles = StyleSheet.create({
     metaRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: spacing.xs },
     metaText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textMuted },
     injuryText: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.danger },
+    draftBadge: {
+        width: HEADSHOT_SIZE,
+        height: HEADSHOT_SIZE,
+        borderRadius: HEADSHOT_SIZE / 2,
+        borderCurve: 'continuous',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: colors.primaryLight,
+    },
+    draftLabel: {
+        marginTop: spacing.xxs,
+        fontSize: fontSize.sm,
+        fontWeight: fontWeight.semibold,
+        color: colors.textMuted,
+    },
     // Sits directly under the stats (wide) or the inline strip (compact); no
     // line clamp so it wraps to as many lines as it needs.
     comment: {

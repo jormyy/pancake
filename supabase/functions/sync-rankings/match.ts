@@ -61,8 +61,9 @@ export function buildDynastyRankingPayload(
   const rows: DynastyRankingInsert[] = []
 
   for (const ranking of rankings) {
-    if (isDraftPlaceholder(ranking)) continue
-
+    // Draft-pick placeholders (e.g. "2026 Draft (Pick 1)") are kept as ranked
+    // rows but never matched to a player — findPlayerForRanking returns null for
+    // them, so they store unmatched (player_id null) with the source's empty stats.
     const player = findPlayerForRanking(ranking, playerMaps)
     rows.push({
       source: RANKINGS_SOURCE,

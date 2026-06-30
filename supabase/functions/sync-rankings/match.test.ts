@@ -54,13 +54,18 @@ Deno.test('builds ranking payload with source rows, normalized teams, and matche
     fetchedAt,
   )
 
-  expect(payload.rows.length === 1, `expected draft placeholders skipped, got ${payload.rows.length}`)
+  expect(payload.rows.length === 2, `expected draft placeholders kept, got ${payload.rows.length}`)
   expect(payload.matched === 1, `expected one match, got ${payload.matched}`)
   expect(payload.rows[0].source === 'hashtagbasketball.com', 'expected source')
   expect(payload.rows[0].source_team === 'GS', `expected normalized team, got ${payload.rows[0].source_team}`)
   expect(payload.rows[0].player_id === 'matched-player', `expected player id, got ${payload.rows[0].player_id}`)
   expect(payload.rows[0].source_positions.join(',') === 'PG,SG', 'expected source positions')
   expect(payload.rows[0].fetched_at === fetchedAt, 'expected fetched timestamp')
+
+  const draft = payload.rows[1]
+  expect(draft.source_rank === 2, `expected draft kept at its rank, got ${draft.source_rank}`)
+  expect(draft.source_player_name === '2026 Draft (Pick 1)', 'expected draft name preserved')
+  expect(draft.player_id === null, `expected draft unmatched, got ${draft.player_id}`)
 })
 
 Deno.test('uses aliases and team narrowing for ambiguous name matches', () => {

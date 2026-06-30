@@ -34,6 +34,12 @@ export type DynastyRankPlayer = {
     comment: string | null
     rankSource: string
     rankFetchedAt: string
+    isDraftPick: boolean
+}
+
+/** Source rows like "2026 Draft (Pick 1)" are ranked placeholders, not players. */
+function isDraftPickRow(name: string, team: string | null): boolean {
+    return team?.toUpperCase() === 'DRA' || /^\d{4}\s+draft\s+\(/i.test(name)
 }
 
 export type DynastyRankingsPage = {
@@ -149,6 +155,7 @@ export async function getDynastyRankingsPage({
                 comment: row.comment,
                 rankSource: row.source,
                 rankFetchedAt: row.fetched_at,
+                isDraftPick: isDraftPickRow(row.source_player_name, row.source_team),
             }
         }),
     }
