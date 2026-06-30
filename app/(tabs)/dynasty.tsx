@@ -68,10 +68,7 @@ const RANK_COL_WIDTH = 44
 const HEADSHOT_SIZE = 44
 // Below this the stat table is dropped for the inline compact strip.
 const WIDE_BREAKPOINT = 1200
-// Blurb sits under the player: aligned with the name on wide screens; on narrow
-// ones a lighter indent (under the headshot) leaves it more room to read.
-const COMMENT_INDENT_WIDE = RANK_COL_WIDTH + HEADSHOT_SIZE + spacing.lg * 2
-const COMMENT_INDENT_COMPACT = RANK_COL_WIDTH + spacing.lg
+const STAT_GRID_WIDTH = STAT_COLUMNS.length * STAT_CELL_WIDTH
 
 function isPlaceholderHeadshot(uri: string | null): boolean {
     return uri?.endsWith('/0.png') ?? false
@@ -175,6 +172,9 @@ function RankingRow({
 }) {
     const positions = playerPositions(player)
     const canOpen = player.playerId != null
+    // hashtagbasketball stacks the write-up directly beneath that player's stats
+    // (same column); we mirror that — stats on top, comment on the line below.
+    const commentNode = player.comment ? <Text style={styles.comment}>{player.comment}</Text> : null
 
     return (
         <Pressable
@@ -200,16 +200,16 @@ function RankingRow({
                         {player.injuryStatus ? <Text style={styles.injuryText}>{player.injuryStatus}</Text> : null}
                     </View>
                     {!showStats ? <CompactStats player={player} /> : null}
+                    {!showStats ? commentNode : null}
                 </View>
 
-                {showStats ? <StatGrid player={player} /> : null}
+                {showStats ? (
+                    <View style={styles.statsBlock}>
+                        <StatGrid player={player} />
+                        {commentNode}
+                    </View>
+                ) : null}
             </View>
-
-            {player.comment ? (
-                <Text style={[styles.comment, { marginLeft: showStats ? COMMENT_INDENT_WIDE : COMMENT_INDENT_COMPACT }]}>
-                    {player.comment}
-                </Text>
-            ) : null}
         </Pressable>
     )
 }
@@ -470,9 +470,11 @@ const styles = StyleSheet.create({
         paddingVertical: spacing.lg,
         paddingHorizontal: spacing.lg,
     },
+    // Top-aligned so the stats sit level with the player name and the blurb can
+    // grow downward beneath them without re-centering the identity column.
     rankRowTop: {
         flexDirection: 'row',
-        alignItems: 'center',
+        alignItems: 'flex-start',
         gap: spacing.lg,
     },
     rankNumber: {
@@ -494,17 +496,21 @@ const styles = StyleSheet.create({
     metaRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: spacing.xs },
     metaText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textMuted },
     injuryText: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.danger },
-    // The editorial blurb flows under each player's data row as a full-width
-    // sub-row (marginLeft applied inline per viewport); no line clamp so it can
-    // wrap to as many lines as it needs.
+    // Sits directly under the stats (wide) or the inline strip (compact); no
+    // line clamp so it wraps to as many lines as it needs.
     comment: {
         marginTop: spacing.sm,
         fontSize: fontSize.sm,
         lineHeight: 19,
         color: colors.textMuted,
     },
+    // Right column on wide screens: stat row on top, blurb stacked beneath it.
+    statsBlock: {
+        width: STAT_GRID_WIDTH,
+        flexShrink: 0,
+    },
     statsGrid: {
-        width: STAT_COLUMNS.length * STAT_CELL_WIDTH,
+        width: STAT_GRID_WIDTH,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'flex-end',
