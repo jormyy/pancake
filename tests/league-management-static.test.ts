@@ -43,7 +43,7 @@ describe('league management deletion', () => {
         const appTypes = read('types/app.ts')
         const databaseTypes = read('types/database.ts')
 
-        expect(leagueSource).toContain('leagues!inner')
+        expect(leagueSource).toContain('leagues!league_members_league_id_fkey!inner')
         expect(leagueSource).toContain(".is('leagues.deleted_at', null)")
         expect(leagueSource).toContain('export async function deleteLeague')
         expect(settingsSource).toContain('deleteLeague')

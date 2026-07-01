@@ -78,7 +78,7 @@ export async function fetchUserLeagues(userId: string) {
       id,
       role,
       team_name,
-      leagues!inner (
+      leagues!league_members_league_id_fkey!inner (
         id,
         name,
         invite_code,
