@@ -175,6 +175,17 @@ function parseNameWithTrailingMeta(value: string): {
   positions: string[]
   status: string | null
 } {
+  const parenthesizedMeta = value.match(/^(.*?)\s+(\([^)]+\)(?:\s+.+)?)$/)
+  if (parenthesizedMeta) {
+    const parsedMeta = parseTrailingMeta(parenthesizedMeta[2])
+    if (parsedMeta.team || parsedMeta.positions.length > 0 || parsedMeta.status) {
+      return {
+        name: cleanText(parenthesizedMeta[1]),
+        ...parsedMeta,
+      }
+    }
+  }
+
   const match = value.match(/^(.*?)\s+([A-Z]{2,4}|FA)\s*-\s*([A-Z,\s/]+?)(?:\s+([A-Za-z][A-Za-z\s-]+|O|Q))?$/)
   if (!match) return { name: value, team: null, positions: [], status: null }
 
@@ -192,7 +203,7 @@ function parseTrailingMeta(value: string): {
   status: string | null
 } {
   const cleaned = cleanText(value.replace(/^[-,]/, ''))
-  const match = cleaned.match(/^([A-Z]{2,4}|FA)\s*-\s*([A-Z,\s/]+?)(?:\s+([A-Za-z][A-Za-z\s-]+|O|Q))?$/)
+  const match = cleaned.match(/^\(?\s*([A-Z]{2,4}|FA)\s*-\s*([A-Z,\s/]+?)(?:\s*\))?(?:\s+([A-Za-z][A-Za-z\s-]+|O|Q))?$/)
   if (!match) return { team: null, positions: [], status: null }
 
   return {

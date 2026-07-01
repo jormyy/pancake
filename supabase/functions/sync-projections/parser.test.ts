@@ -43,6 +43,23 @@ Deno.test('parses player-cell variants including aliases, status suffixes, free 
   const freeAgent = parseFantasyProsPlayerCell('<td><a>Malik Newman</a> FA - SG Out</td>')
   expect(freeAgent.team === 'FA', `expected FA, got ${freeAgent.team}`)
   expect(freeAgent.status === 'Out', `expected Out, got ${freeAgent.status}`)
+
+  const parenthesized = parseFantasyProsPlayerCell('<td><a>Tyrese Maxey</a> (PHI - PG)</td>')
+  expect(parenthesized.team === 'PHI', `expected PHI, got ${parenthesized.team}`)
+  expect(parenthesized.positions.join(',') === 'PG', `expected PG, got ${parenthesized.positions.join(',')}`)
+
+  const parenthesizedStatus = parseFantasyProsPlayerCell('<td><a>Brandon Ingram</a> (LAC - SG,SF,PF) OUT</td>')
+  expect(parenthesizedStatus.team === 'LAC', `expected LAC, got ${parenthesizedStatus.team}`)
+  expect(
+    parenthesizedStatus.positions.join(',') === 'SG,SF,PF',
+    `expected SG,SF,PF, got ${parenthesizedStatus.positions.join(',')}`,
+  )
+  expect(parenthesizedStatus.status === 'Out', `expected Out, got ${parenthesizedStatus.status}`)
+
+  const unlinkedParenthesized = parseFantasyProsPlayerCell('<td>Tre Jones (CHI - PG,SG) Q</td>')
+  expect(unlinkedParenthesized.name === 'Tre Jones', `expected Tre Jones, got ${unlinkedParenthesized.name}`)
+  expect(unlinkedParenthesized.team === 'CHI', `expected CHI, got ${unlinkedParenthesized.team}`)
+  expect(unlinkedParenthesized.status === 'Questionable', `expected Questionable, got ${unlinkedParenthesized.status}`)
 })
 
 Deno.test('returns no rows when projections are unavailable or table shape changes', () => {
