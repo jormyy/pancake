@@ -292,9 +292,12 @@ async function autoSetMemberDate(
   const lockedPlayerIds = new Set<string>()
   for (const entry of (existingEntries ?? []) as WeeklyLineupRow[]) {
     const team = playerTeamMap.get(entry.player_id)
-    if (team && startedTeams.has(team) && entry.slot_type !== 'BE' && entry.slot_type !== 'IR') {
+    if (team && startedTeams.has(team)) {
       lockedPlayerIds.add(entry.player_id)
-      lockedEntries.push({ playerId: entry.player_id, slotType: entry.slot_type })
+      const isStarter = entry.slot_type !== 'BE' && entry.slot_type !== 'IR'
+      if (isStarter) {
+        lockedEntries.push({ playerId: entry.player_id, slotType: entry.slot_type })
+      }
     }
   }
 

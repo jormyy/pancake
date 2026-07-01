@@ -19,7 +19,7 @@ VALUES
     'active',
     12,
     200,
-    '{"points": 1}'::jsonb
+    '{"points": 1, "rebounds": 1, "assists": 1, "double_double": 1.5, "triple_double": 3}'::jsonb
   ),
   (
     '00000000-0000-0000-0000-000000020102',
@@ -279,8 +279,8 @@ VALUES
     '00000000-0000-0000-0000-000000020301',
     'matched',
     100,
-    0,
-    0,
+    10,
+    10,
     0,
     0,
     0,
@@ -355,8 +355,8 @@ BEGIN
       0
     );
 
-  IF v_row.projection_source <> 'fantasypros_daily' OR v_row.projection_fantasy_points <> 100 THEN
-    RAISE EXCEPTION 'Standard scoring should prefer successful FantasyPros daily rows, got %', row_to_json(v_row);
+  IF v_row.projection_source <> 'fantasypros_daily' OR v_row.projection_fantasy_points <> 124.5 THEN
+    RAISE EXCEPTION 'Default bonus scoring should prefer successful FantasyPros daily rows, got %', row_to_json(v_row);
   END IF;
 
   SELECT *
@@ -462,7 +462,7 @@ BEGIN
       0
     );
 
-  IF v_projection_leader.avg_fantasy_points <> 10 OR v_projection_leader.projection_fantasy_points <> 100 THEN
+  IF v_projection_leader.avg_fantasy_points <> 10 OR v_projection_leader.projection_fantasy_points <> 124.5 THEN
     RAISE EXCEPTION 'search_players mixed average and projection fields for projection leader: %', row_to_json(v_projection_leader);
   END IF;
 

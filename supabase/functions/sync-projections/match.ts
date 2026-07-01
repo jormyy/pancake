@@ -38,6 +38,7 @@ const TEAM_ALIASES: Record<string, string> = {
   MIL: 'MIL',
   MIN: 'MIN',
   NO: 'NOP',
+  NOR: 'NOP',
   NOP: 'NOP',
   NY: 'NYK',
   NYK: 'NYK',

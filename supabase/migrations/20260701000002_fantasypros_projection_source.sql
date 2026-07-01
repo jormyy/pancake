@@ -147,6 +147,15 @@ LANGUAGE sql
 IMMUTABLE
 SET search_path = public
 AS $$
+  WITH category_counts AS (
+    SELECT (
+      (COALESCE(p_points, 0) >= 10)::int +
+      (COALESCE(p_rebounds, 0) >= 10)::int +
+      (COALESCE(p_assists, 0) >= 10)::int +
+      (COALESCE(p_steals, 0) >= 10)::int +
+      (COALESCE(p_blocks, 0) >= 10)::int
+    ) AS ten_plus_categories
+  )
   SELECT ROUND((
     COALESCE(p_points, 0)              * COALESCE((p_scoring_settings->>'points')::numeric, 0) +
     COALESCE(p_rebounds, 0)            * COALESCE((p_scoring_settings->>'rebounds')::numeric, 0) +
@@ -159,9 +168,12 @@ AS $$
     COALESCE(p_field_goals_attempted, 0) * COALESCE((p_scoring_settings->>'field_goals_attempted')::numeric, 0) +
     COALESCE(p_free_throws_made, 0)    * COALESCE((p_scoring_settings->>'free_throws_made')::numeric, 0) +
     COALESCE(p_free_throws_attempted, 0) * COALESCE((p_scoring_settings->>'free_throws_attempted')::numeric, 0) +
-    COALESCE(p_double_doubles, 0)      * COALESCE((p_scoring_settings->>'double_double')::numeric, 0) +
-    COALESCE(p_triple_doubles, 0)      * COALESCE((p_scoring_settings->>'triple_double')::numeric, 0)
-  ), 2);
+    COALESCE(p_double_doubles, CASE WHEN ten_plus_categories >= 2 THEN 1 ELSE 0 END) *
+      COALESCE((p_scoring_settings->>'double_double')::numeric, 0) +
+    COALESCE(p_triple_doubles, CASE WHEN ten_plus_categories >= 3 THEN 1 ELSE 0 END) *
+      COALESCE((p_scoring_settings->>'triple_double')::numeric, 0)
+  ), 2)
+  FROM category_counts;
 $$;
 
 GRANT EXECUTE ON FUNCTION public.projection_stat_fantasy_points(numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric, jsonb)
@@ -228,9 +240,7 @@ league AS (
       COALESCE((scoring_settings->>'field_goals_made')::numeric, 0) <> 0 OR
       COALESCE((scoring_settings->>'field_goals_attempted')::numeric, 0) <> 0 OR
       COALESCE((scoring_settings->>'free_throws_made')::numeric, 0) <> 0 OR
-      COALESCE((scoring_settings->>'free_throws_attempted')::numeric, 0) <> 0 OR
-      COALESCE((scoring_settings->>'double_double')::numeric, 0) <> 0 OR
-      COALESCE((scoring_settings->>'triple_double')::numeric, 0) <> 0
+      COALESCE((scoring_settings->>'free_throws_attempted')::numeric, 0) <> 0
     ) AS uses_fantasypros_unsupported_scoring
   FROM public.leagues
   WHERE id = p_league_id

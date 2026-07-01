@@ -70,6 +70,7 @@ Deno.test('marks duplicate normalized-name matches ambiguous unless team disambi
 Deno.test('normalizes FantasyPros team aliases to Pancake NBA team codes', () => {
   expect(normalizeFantasyProsTeam('GS') === 'GSW', 'expected GS -> GSW')
   expect(normalizeFantasyProsTeam('NO') === 'NOP', 'expected NO -> NOP')
+  expect(normalizeFantasyProsTeam('NOR') === 'NOP', 'expected NOR -> NOP')
   expect(normalizeFantasyProsTeam('NY') === 'NYK', 'expected NY -> NYK')
   expect(normalizeFantasyProsTeam('SA') === 'SAS', 'expected SA -> SAS')
   expect(normalizeFantasyProsTeam('FA') === null, 'expected FA -> null')
