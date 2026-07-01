@@ -67,12 +67,8 @@ type ProjectionRow = {
   player_id: string
   projection_fantasy_points: number | null
 }
-type UntypedSupabase = typeof supabase & {
-  rpc: (fn: string, args?: Record<string, unknown>) => any
-}
 
 const FILL_ORDER = ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F', 'UTIL']
-const db = supabase as UntypedSupabase
 
 Deno.serve(async (req) => {
   const authError = requireInternalFunctionAuth(req)
@@ -239,7 +235,7 @@ async function autoSetMemberDate(
 
   const [{ data: projections, error: projectionErr }, { data: games, error: gamesErr }, { data: existingEntries, error: existingErr }] =
     await Promise.all([
-      db.rpc('get_league_projection_rows', {
+      supabase.rpc('get_league_projection_rows', {
         p_league_id: setting.league_id,
         p_season_year: dateContext.seasonYear,
         p_game_date: dateContext.date,

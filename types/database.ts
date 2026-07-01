@@ -1293,8 +1293,15 @@ export type Database = {
           fetched_at: string
           id: string
           player_id: string
+          projected_assists: number | null
+          projected_blocks: number | null
           projected_minutes: number | null
           projected_points: number | null
+          projected_rebounds: number | null
+          projected_stat_points: number | null
+          projected_steals: number | null
+          projected_three_pointers_made: number | null
+          projected_turnovers: number | null
           season_year: number
           week_number: number
         }
@@ -1302,8 +1309,15 @@ export type Database = {
           fetched_at?: string
           id?: string
           player_id: string
+          projected_assists?: number | null
+          projected_blocks?: number | null
           projected_minutes?: number | null
           projected_points?: number | null
+          projected_rebounds?: number | null
+          projected_stat_points?: number | null
+          projected_steals?: number | null
+          projected_three_pointers_made?: number | null
+          projected_turnovers?: number | null
           season_year: number
           week_number: number
         }
@@ -1311,8 +1325,15 @@ export type Database = {
           fetched_at?: string
           id?: string
           player_id?: string
+          projected_assists?: number | null
+          projected_blocks?: number | null
           projected_minutes?: number | null
           projected_points?: number | null
+          projected_rebounds?: number | null
+          projected_stat_points?: number | null
+          projected_steals?: number | null
+          projected_three_pointers_made?: number | null
+          projected_turnovers?: number | null
           season_year?: number
           week_number?: number
         }
@@ -2844,6 +2865,50 @@ export type Database = {
         Args: { p_league_id: string }
         Returns: Json
       }
+      get_league_projection_rows: {
+        Args: {
+          p_game_date?: string
+          p_league_id: string
+          p_limit?: number
+          p_offset?: number
+          p_player_ids?: string[] | null
+          p_season_year?: number
+          p_view?: string
+        }
+        Returns: {
+          display_name: string
+          eligible_positions: string[]
+          headshot_url: string | null
+          injury_status: string | null
+          nba_id: string | null
+          nba_team: string | null
+          next_game_date: string | null
+          next_game_opponent: string | null
+          next_game_time: string | null
+          player_id: string
+          position: string | null
+          projection_assists: number | null
+          projection_blocks: number | null
+          projection_date: string | null
+          projection_fantasy_points: number | null
+          projection_fetched_at: string | null
+          projection_field_goal_pct: number | null
+          projection_free_throw_pct: number | null
+          projection_games_played: number | null
+          projection_is_fresh: boolean | null
+          projection_minutes: number | null
+          projection_points: number | null
+          projection_rebounds: number | null
+          projection_source: string
+          projection_source_label: string
+          projection_status: string | null
+          projection_steals: number | null
+          projection_three_pointers_made: number | null
+          projection_turnovers: number | null
+          projection_view: string
+          projection_week_number: number | null
+        }[]
+      }
       advance_playoff_bracket_atomic: {
         Args: { p_league_id: string }
         Returns: Json
@@ -2916,6 +2981,21 @@ export type Database = {
           nba_id: string | null
           nba_team: string | null
           position: string | null
+          projection_assists: number | null
+          projection_blocks: number | null
+          projection_date: string | null
+          projection_fantasy_points: number | null
+          projection_fetched_at: string | null
+          projection_minutes: number | null
+          projection_opponent: string | null
+          projection_points: number | null
+          projection_rebounds: number | null
+          projection_source: string | null
+          projection_source_label: string | null
+          projection_status: string | null
+          projection_steals: number | null
+          projection_three_pointers_made: number | null
+          projection_turnovers: number | null
           status: string | null
           years_exp: number | null
         }[]

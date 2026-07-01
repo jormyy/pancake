@@ -1,5 +1,4 @@
 import { supabase } from '../_shared/supabase.ts'
-import { calculateFantasyPoints, snakeToStatLine } from '../_shared/scoring.ts'
 import { currentSeasonYear } from '../_shared/season.ts'
 import { requireInternalFunctionAuth } from '../_shared/auth.ts'
 import { internalServerError } from '../_shared/responses.ts'
@@ -24,35 +23,47 @@ const FANTASYPROS_SOURCES: {
   { projectionType: 'weekly_total', url: 'https://www.fantasypros.com/nba/projections/weekly-overall.php' },
 ]
 
-const STD_SCORING: Record<string, number> = {
-  points: 1,
-  rebounds: 1.2,
-  assists: 1.5,
-  steals: 3,
-  blocks: 3,
-  turnovers: -1,
-  three_pointers_made: 1,
-  field_goals_made: 0,
-  field_goals_attempted: 0,
-  free_throws_made: 0,
-  free_throws_attempted: 0,
-}
-
 type SourceResult = {
   projectionType: FantasyProsProjectionType
-  status: 'success' | 'failed'
+  status: 'success' | 'failed' | 'skipped'
   rows: number
   matched: number
   unmatched: number
   error?: string
 }
+type InternalFallbackStatRow = {
+  player_id: string
+  points: number | null
+  rebounds: number | null
+  assists: number | null
+  steals: number | null
+  blocks: number | null
+  turnovers: number | null
+  three_pointers_made: number | null
+  minutes_played: number | null
+  did_not_play: boolean | null
+}
+type InternalProjectionUpsert = {
+  player_id: string
+  season_year: number
+  week_number: number
+  projected_stat_points: number
+  projected_rebounds: number
+  projected_assists: number
+  projected_steals: number
+  projected_blocks: number
+  projected_three_pointers_made: number
+  projected_turnovers: number
+  projected_minutes: number
+  fetched_at: string
+}
 
-type UntypedSupabase = typeof supabase & {
+type UntypedSupabase = {
   from: (table: string) => any
   rpc: (fn: string, args?: Record<string, unknown>) => any
 }
 
-const db = supabase as UntypedSupabase
+const db = supabase as unknown as UntypedSupabase
 
 Deno.serve(async (req) => {
   const authError = requireInternalFunctionAuth(req)
@@ -127,6 +138,25 @@ async function syncFantasyProsSource({
     if (!response.ok) throw new Error(`FantasyPros ${projectionType} fetch failed with HTTP ${response.status}`)
 
     const parsedRows = parseFantasyProsProjectionHtml(html)
+    if (parsedRows.length === 0) {
+      const message = `No FantasyPros ${projectionType} projection rows parsed from public HTML`
+      await finishSyncRun(run.id, {
+        status: 'skipped',
+        httpStatus: response.status,
+        rowCount: 0,
+        matchedCount: 0,
+        unmatchedCount: 0,
+        errorMessage: message,
+        metadata: {
+          parserVersion: PARSER_VERSION,
+          crawlDelaySeconds: 5,
+          sourceConstraint: 'public FantasyPros HTML only',
+        },
+      })
+      console.warn(`[sync-projections] FantasyPros ${projectionType} skipped: ${message}`)
+      return { projectionType, status: 'skipped', rows: 0, matched: 0, unmatched: 0, error: message }
+    }
+
     const payload = buildFantasyProsProjectionPayload({
       runId: run.id,
       projectionType,
@@ -278,11 +308,11 @@ async function syncInternalFallbackProjections(
   }
 
   const minWeek = Math.max(1, weekNumber - (LOOKBACK_WEEKS - 1))
-  const rows: any[] = []
+  const rows: InternalFallbackStatRow[] = []
   const PAGE = 1000
   let from = 0
   while (true) {
-    const { data, error } = await supabase
+    const { data, error } = await db
       .from('player_game_stats')
       .select(
         'player_id, points, rebounds, assists, steals, blocks, turnovers, ' +
@@ -296,7 +326,7 @@ async function syncInternalFallbackProjections(
       .range(from, from + PAGE - 1)
     if (error) throw error
     if (!data || data.length === 0) break
-    rows.push(...data)
+    rows.push(...(data as InternalFallbackStatRow[]))
     if (data.length < PAGE) break
     from += PAGE
   }
@@ -306,25 +336,30 @@ async function syncInternalFallbackProjections(
     return 0
   }
 
-  const playerGames = new Map<string, any[]>()
+  const playerGames = new Map<string, InternalFallbackStatRow[]>()
   for (const stat of rows) {
     if (stat.did_not_play) continue
     if (!playerGames.has(stat.player_id)) playerGames.set(stat.player_id, [])
     playerGames.get(stat.player_id)!.push(stat)
   }
 
-  const projections: any[] = []
+  const projections: InternalProjectionUpsert[] = []
+  const fetchedAt = new Date().toISOString()
   for (const [playerId, games] of playerGames) {
     if (!games.length) continue
-    const avg =
-      games.reduce((sum, game) => sum + calculateFantasyPoints(snakeToStatLine(game), STD_SCORING), 0) /
-      games.length
     projections.push({
       player_id: playerId,
       season_year: seasonYear,
       week_number: weekNumber,
-      projected_points: parseFloat(avg.toFixed(2)),
-      fetched_at: new Date().toISOString(),
+      projected_stat_points: averageStat(games, 'points'),
+      projected_rebounds: averageStat(games, 'rebounds'),
+      projected_assists: averageStat(games, 'assists'),
+      projected_steals: averageStat(games, 'steals'),
+      projected_blocks: averageStat(games, 'blocks'),
+      projected_three_pointers_made: averageStat(games, 'three_pointers_made'),
+      projected_turnovers: averageStat(games, 'turnovers'),
+      projected_minutes: averageStat(games, 'minutes_played'),
+      fetched_at: fetchedAt,
     })
   }
 
@@ -337,6 +372,24 @@ async function syncInternalFallbackProjections(
 
   console.log(`[sync-projections] Upserted ${projections.length} internal fallback projections for week ${weekNumber}.`)
   return projections.length
+}
+
+function averageStat(
+  games: InternalFallbackStatRow[],
+  key: keyof Pick<
+    InternalFallbackStatRow,
+    | 'points'
+    | 'rebounds'
+    | 'assists'
+    | 'steals'
+    | 'blocks'
+    | 'turnovers'
+    | 'three_pointers_made'
+    | 'minutes_played'
+  >,
+): number {
+  const total = games.reduce((sum, game) => sum + Number(game[key] ?? 0), 0)
+  return parseFloat((total / games.length).toFixed(2))
 }
 
 async function getCurrentRegularSeasonWeekNumber(date: Date, seasonYear: number): Promise<number | null> {

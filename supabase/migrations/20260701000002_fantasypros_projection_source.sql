@@ -93,6 +93,15 @@ CREATE INDEX IF NOT EXISTS idx_fantasypros_projection_rows_unmatched
 CREATE INDEX IF NOT EXISTS idx_player_projections_week_read
   ON public.player_projections (season_year, week_number, player_id, fetched_at DESC);
 
+ALTER TABLE public.player_projections
+  ADD COLUMN IF NOT EXISTS projected_stat_points numeric(8,2),
+  ADD COLUMN IF NOT EXISTS projected_rebounds numeric(8,2),
+  ADD COLUMN IF NOT EXISTS projected_assists numeric(8,2),
+  ADD COLUMN IF NOT EXISTS projected_steals numeric(8,2),
+  ADD COLUMN IF NOT EXISTS projected_blocks numeric(8,2),
+  ADD COLUMN IF NOT EXISTS projected_three_pointers_made numeric(8,2),
+  ADD COLUMN IF NOT EXISTS projected_turnovers numeric(8,2);
+
 ALTER TABLE public.projection_sync_runs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.fantasypros_projection_rows ENABLE ROW LEVEL SECURITY;
 
@@ -368,15 +377,19 @@ internal_candidates AS (
     'internal'::text AS projection_source,
     'Internal Projection'::text AS projection_source_label,
     'fallback'::text AS projection_view,
-    pp.projected_points AS projection_fantasy_points,
+    public.projection_stat_fantasy_points(
+      pp.projected_stat_points, pp.projected_rebounds, pp.projected_assists, pp.projected_steals,
+      pp.projected_blocks, pp.projected_three_pointers_made, pp.projected_turnovers,
+      l.scoring_settings
+    ) AS projection_fantasy_points,
     pp.projected_minutes AS projection_minutes,
-    NULL::numeric AS projection_points,
-    NULL::numeric AS projection_rebounds,
-    NULL::numeric AS projection_assists,
-    NULL::numeric AS projection_steals,
-    NULL::numeric AS projection_blocks,
-    NULL::numeric AS projection_three_pointers_made,
-    NULL::numeric AS projection_turnovers,
+    pp.projected_stat_points AS projection_points,
+    pp.projected_rebounds AS projection_rebounds,
+    pp.projected_assists AS projection_assists,
+    pp.projected_steals AS projection_steals,
+    pp.projected_blocks AS projection_blocks,
+    pp.projected_three_pointers_made AS projection_three_pointers_made,
+    pp.projected_turnovers AS projection_turnovers,
     NULL::int AS projection_games_played,
     NULL::numeric AS projection_field_goal_pct,
     NULL::numeric AS projection_free_throw_pct,
@@ -387,10 +400,11 @@ internal_candidates AS (
     true AS projection_is_fresh,
     3 AS priority
   FROM week_ctx wc
+  JOIN league l ON true
   JOIN public.player_projections pp
     ON pp.season_year = p_season_year
    AND pp.week_number = wc.week_number
-   AND pp.projected_points IS NOT NULL
+   AND pp.projected_stat_points IS NOT NULL
   ORDER BY pp.player_id, pp.fetched_at DESC
 ),
 season_avg_candidates AS (
@@ -583,20 +597,7 @@ WITH args AS (
     LEAST(GREATEST(COALESCE(p_limit, 60), 1), 100) AS page_limit,
     GREATEST(COALESCE(p_offset, 0), 0) AS page_offset
 ),
-projection AS (
-  SELECT *
-  FROM public.get_league_projection_rows(
-    p_league_id,
-    p_season_year,
-    (timezone('America/New_York', now()))::date,
-    'today',
-    NULL,
-    1000,
-    0
-  )
-  WHERE p_league_id IS NOT NULL
-),
-filtered AS (
+filtered_base AS (
   SELECT
     p.id,
     COALESCE(p.display_name, concat_ws(' ', p.first_name, p.last_name)) AS display_name,
@@ -608,7 +609,7 @@ filtered AS (
     p.headshot_url,
     p.nba_id,
     p.years_exp,
-    COALESCE(proj.projection_fantasy_points, fp.avg_fantasy_points, avg.avg_points) AS avg_fantasy_points,
+    COALESCE(fp.avg_fantasy_points, avg.avg_points) AS avg_fantasy_points,
     avg.avg_points,
     avg.avg_rebounds,
     avg.avg_assists,
@@ -617,22 +618,7 @@ filtered AS (
     avg.avg_turnovers,
     avg.avg_three_pointers_made,
     avg.avg_minutes_played,
-    avg.games_played::int AS games_played,
-    proj.projection_fantasy_points,
-    proj.projection_source,
-    proj.projection_source_label,
-    proj.projection_fetched_at,
-    proj.projection_date,
-    proj.next_game_opponent AS projection_opponent,
-    proj.projection_minutes,
-    proj.projection_points,
-    proj.projection_rebounds,
-    proj.projection_assists,
-    proj.projection_steals,
-    proj.projection_blocks,
-    proj.projection_three_pointers_made,
-    proj.projection_turnovers,
-    proj.projection_status
+    avg.games_played::int AS games_played
   FROM args
   JOIN public.players AS p ON true
   LEFT JOIN public.mv_player_season_averages AS avg
@@ -642,8 +628,6 @@ filtered AS (
     ON fp.player_id = p.id
    AND fp.season_year = p_season_year
    AND fp.league_id = p_league_id
-  LEFT JOIN projection AS proj
-    ON proj.player_id = p.id
   WHERE
     (args.query_text IS NULL OR p.display_name ILIKE ('%' || args.query_text || '%'))
     AND (cardinality(args.pos_filter) = 0 OR EXISTS (
@@ -663,6 +647,60 @@ filtered AS (
       WHEN 'ir' THEN p.injury_status = ANY(ARRAY['IR', 'IR-LTI'])
       ELSE true
     END
+),
+projection AS (
+  SELECT *
+  FROM public.get_league_projection_rows(
+    p_league_id,
+    p_season_year,
+    (timezone('America/New_York', now()))::date,
+    'today',
+    COALESCE((SELECT array_agg(filtered_base.id ORDER BY filtered_base.id) FROM filtered_base), ARRAY[]::uuid[]),
+    1000,
+    0
+  )
+  WHERE p_league_id IS NOT NULL
+),
+filtered AS (
+  SELECT
+    fb.id,
+    fb.display_name,
+    fb.nba_team,
+    fb."position",
+    fb.eligible_positions,
+    fb.status,
+    fb.injury_status,
+    fb.headshot_url,
+    fb.nba_id,
+    fb.years_exp,
+    COALESCE(proj.projection_fantasy_points, fb.avg_fantasy_points) AS avg_fantasy_points,
+    fb.avg_points,
+    fb.avg_rebounds,
+    fb.avg_assists,
+    fb.avg_steals,
+    fb.avg_blocks,
+    fb.avg_turnovers,
+    fb.avg_three_pointers_made,
+    fb.avg_minutes_played,
+    fb.games_played,
+    proj.projection_fantasy_points,
+    proj.projection_source,
+    proj.projection_source_label,
+    proj.projection_fetched_at,
+    proj.projection_date,
+    proj.next_game_opponent AS projection_opponent,
+    proj.projection_minutes,
+    proj.projection_points,
+    proj.projection_rebounds,
+    proj.projection_assists,
+    proj.projection_steals,
+    proj.projection_blocks,
+    proj.projection_three_pointers_made,
+    proj.projection_turnovers,
+    proj.projection_status
+  FROM filtered_base fb
+  LEFT JOIN projection AS proj
+    ON proj.player_id = fb.id
 )
 SELECT
   filtered.id,

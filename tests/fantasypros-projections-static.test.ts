@@ -84,9 +84,25 @@ describe('FantasyPros projection source implementation', () => {
         expect(projectionRpc).toContain("r.projection_type = 'weekly_avg'")
         expect(projectionRpc).toContain("r.projection_type = 'weekly_total'")
         expect(projectionRpc).toContain('public.player_projections pp')
+        expect(projectionRpc).toContain('pp.projected_stat_points')
+        expect(projectionRpc).not.toContain('pp.projected_points AS projection_fantasy_points')
         expect(projectionRpc).toContain('public.mv_player_season_averages avg')
         expect(projectionRpc).toContain("CASE WHEN args.view_name = 'week_avg' THEN 1 ELSE 2 END AS priority")
         expect(projectionRpc).toContain('ORDER BY cu.player_id, cu.priority ASC')
+    })
+
+    it('enriches player search projections after applying player filters', () => {
+        const searchRpc = latestFunctionDefinition('search_players')
+
+        expect(searchRpc).toContain('filtered_base AS')
+        expect(searchRpc).toContain('COALESCE((SELECT array_agg(filtered_base.id ORDER BY filtered_base.id) FROM filtered_base), ARRAY[]::uuid[])')
+        expect(searchRpc).not.toContain("'today',\n    NULL,\n    1000")
+    })
+
+    it('does not record zero-row FantasyPros parses as successful sync runs', () => {
+        expect(syncProjectionSource).toContain('if (parsedRows.length === 0)')
+        expect(syncProjectionSource).toContain("status: 'skipped'")
+        expect(syncProjectionSource).toContain('No FantasyPros ${projectionType} projection rows parsed from public HTML')
     })
 
     it('wires player, projections, manual Auto-Set, and season optimizer surfaces to the shared projection source', () => {
@@ -103,7 +119,7 @@ describe('FantasyPros projection source implementation', () => {
 
         expect(autoSetSource).toContain('getProjectionMap')
         expect(autoSetSource).toContain('projection_fantasy_points')
-        expect(lineupOptimizerSource).toContain("db.rpc('get_league_projection_rows'")
+        expect(lineupOptimizerSource).toContain("supabase.rpc('get_league_projection_rows'")
         expect(lineupOptimizerSource).toContain('projection_fantasy_points')
     })
 })

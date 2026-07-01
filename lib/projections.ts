@@ -38,20 +38,6 @@ export type LeagueProjectionRow = {
     projection_is_fresh: boolean | null
 }
 
-type ProjectionRpcArgs = {
-    p_league_id: string
-    p_season_year: number
-    p_game_date: string
-    p_view: ProjectionView
-    p_player_ids: string[] | null
-    p_limit: number
-    p_offset: number
-}
-
-type SupabaseRpc = {
-    rpc: (fn: string, args: ProjectionRpcArgs) => Promise<{ data: unknown[] | null; error: Error | null }>
-}
-
 export async function getLeagueProjections({
     leagueId,
     view = 'today',
@@ -69,7 +55,7 @@ export async function getLeagueProjections({
     limit?: number
     offset?: number
 }): Promise<LeagueProjectionRow[]> {
-    const { data, error } = await (supabase as unknown as SupabaseRpc).rpc('get_league_projection_rows', {
+    const { data, error } = await supabase.rpc('get_league_projection_rows', {
         p_league_id: leagueId,
         p_season_year: seasonYear,
         p_game_date: gameDate,
