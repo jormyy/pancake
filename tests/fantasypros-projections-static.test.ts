@@ -126,6 +126,9 @@ describe('FantasyPros projection source implementation', () => {
         expect(projectionRpc).toContain('ORDER BY cu.player_id, cu.priority ASC')
         expect(syncProjectionSource).toContain('projected_field_goals_made')
         expect(syncProjectionSource).toContain('projected_double_doubles')
+        expect(projectionRpc).toContain('week_game_counts AS')
+        expect(projectionRpc).toContain('m.games_multiplier')
+        expect(projectionRpc).toContain('COALESCE(wgc.scheduled_games, 0)::numeric')
         expect(projectionRpc).toContain('COALESCE(r.points, 0) / NULLIF(r.games_played, 0)')
         expect(projectionRpc).toContain('THEN r.games_played::numeric')
         expect(syncProjectionSource).toMatch(
@@ -154,6 +157,8 @@ describe('FantasyPros projection source implementation', () => {
         expect(dbProjectionTest).toContain('v_first.id <>')
         expect(dbProjectionTest).toContain('v_projection_leader.avg_fantasy_points <> 10')
         expect(dbProjectionTest).toContain('v_projection_leader.projection_fantasy_points <> 124.5')
+        expect(dbProjectionTest).toContain('Unsupported weekly total fallback should scale internal projections')
+        expect(dbProjectionTest).toContain('Unsupported weekly total fallback should scale season averages')
     })
 
     it('does not record zero-row FantasyPros parses as successful sync runs', () => {

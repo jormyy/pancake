@@ -55,7 +55,9 @@ VALUES (
 INSERT INTO public.nba_games (id, sportsdata_game_id, nba_game_id, season_year, game_date, game_time, week_number, home_team, away_team, status)
 VALUES
   ('00000000-0000-0000-0000-000000020501', 'fp-proj-game-1', '0029900001', 2099, (timezone('America/New_York', now()))::date, now() + interval '1 hour', 1, 'ATL', 'BOS', 'Scheduled'),
-  ('00000000-0000-0000-0000-000000020502', 'fp-proj-game-2', '0029900002', 2099, (timezone('America/New_York', now()))::date, now() + interval '1 hour', 1, 'CHI', 'DAL', 'Scheduled');
+  ('00000000-0000-0000-0000-000000020502', 'fp-proj-game-2', '0029900002', 2099, (timezone('America/New_York', now()))::date, now() + interval '1 hour', 1, 'CHI', 'DAL', 'Scheduled'),
+  ('00000000-0000-0000-0000-000000020503', 'fp-proj-game-3', '0029900003', 2099, (timezone('America/New_York', now()))::date + 1, now() + interval '25 hours', 1, 'ATL', 'NYK', 'Scheduled'),
+  ('00000000-0000-0000-0000-000000020504', 'fp-proj-game-4', '0029900004', 2099, (timezone('America/New_York', now()))::date + 2, now() + interval '49 hours', 1, 'MIA', 'CHI', 'Scheduled');
 
 INSERT INTO public.player_game_stats (
   id,
@@ -466,6 +468,44 @@ BEGIN
 
   IF v_row.projection_source <> 'fantasypros_weekly_total' OR v_row.projection_fantasy_points <> 60 THEN
     RAISE EXCEPTION 'Weekly total bonus scoring should infer DD/TD from per-game stat rates, got %', row_to_json(v_row);
+  END IF;
+
+  SELECT *
+    INTO v_row
+    FROM public.get_league_projection_rows(
+      '00000000-0000-0000-0000-000000020102',
+      2099,
+      (timezone('America/New_York', now()))::date,
+      'week_total',
+      ARRAY['00000000-0000-0000-0000-000000020301']::uuid[],
+      10,
+      0
+    );
+
+  IF v_row.projection_source <> 'internal'
+     OR v_row.projection_games_played <> 2
+     OR v_row.projection_points <> 80
+     OR v_row.projection_fantasy_points <> 180 THEN
+    RAISE EXCEPTION 'Unsupported weekly total fallback should scale internal projections by scheduled games, got %', row_to_json(v_row);
+  END IF;
+
+  SELECT *
+    INTO v_row
+    FROM public.get_league_projection_rows(
+      '00000000-0000-0000-0000-000000020102',
+      2099,
+      (timezone('America/New_York', now()))::date,
+      'week_total',
+      ARRAY['00000000-0000-0000-0000-000000020303']::uuid[],
+      10,
+      0
+    );
+
+  IF v_row.projection_source <> 'season_avg'
+     OR v_row.projection_games_played <> 2
+     OR v_row.projection_points <> 30
+     OR v_row.projection_fantasy_points <> 150 THEN
+    RAISE EXCEPTION 'Unsupported weekly total fallback should scale season averages by scheduled games, got %', row_to_json(v_row);
   END IF;
 END $$;
 

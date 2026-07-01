@@ -291,6 +291,20 @@ next_games AS (
     LIMIT 1
   ) g ON true
 ),
+week_game_counts AS (
+  SELECT
+    bp.id AS player_id,
+    COUNT(ng.id)::int AS scheduled_games
+  FROM base_players bp
+  JOIN week_ctx wc ON true
+  JOIN public.nba_games ng
+    ON ng.season_year = p_season_year
+   AND ng.week_number = wc.week_number
+   AND public.is_regular_season_game_id(ng.nba_game_id)
+   AND bp.nba_team IS NOT NULL
+   AND (ng.home_team = bp.nba_team OR ng.away_team = bp.nba_team)
+  GROUP BY bp.id
+),
 daily_candidates AS (
   SELECT DISTINCT ON (r.player_id)
     r.player_id,
@@ -455,22 +469,30 @@ internal_candidates AS (
     'Internal Projection'::text AS projection_source_label,
     'fallback'::text AS projection_view,
     public.projection_stat_fantasy_points(
-      pp.projected_stat_points, pp.projected_rebounds, pp.projected_assists, pp.projected_steals,
-      pp.projected_blocks, pp.projected_three_pointers_made, pp.projected_turnovers,
-      pp.projected_field_goals_made, pp.projected_field_goals_attempted,
-      pp.projected_free_throws_made, pp.projected_free_throws_attempted,
-      pp.projected_double_doubles, pp.projected_triple_doubles,
+      pp.projected_stat_points * m.games_multiplier,
+      pp.projected_rebounds * m.games_multiplier,
+      pp.projected_assists * m.games_multiplier,
+      pp.projected_steals * m.games_multiplier,
+      pp.projected_blocks * m.games_multiplier,
+      pp.projected_three_pointers_made * m.games_multiplier,
+      pp.projected_turnovers * m.games_multiplier,
+      pp.projected_field_goals_made * m.games_multiplier,
+      pp.projected_field_goals_attempted * m.games_multiplier,
+      pp.projected_free_throws_made * m.games_multiplier,
+      pp.projected_free_throws_attempted * m.games_multiplier,
+      pp.projected_double_doubles * m.games_multiplier,
+      pp.projected_triple_doubles * m.games_multiplier,
       l.scoring_settings
     ) AS projection_fantasy_points,
-    pp.projected_minutes AS projection_minutes,
-    pp.projected_stat_points AS projection_points,
-    pp.projected_rebounds AS projection_rebounds,
-    pp.projected_assists AS projection_assists,
-    pp.projected_steals AS projection_steals,
-    pp.projected_blocks AS projection_blocks,
-    pp.projected_three_pointers_made AS projection_three_pointers_made,
-    pp.projected_turnovers AS projection_turnovers,
-    NULL::int AS projection_games_played,
+    pp.projected_minutes * m.games_multiplier AS projection_minutes,
+    pp.projected_stat_points * m.games_multiplier AS projection_points,
+    pp.projected_rebounds * m.games_multiplier AS projection_rebounds,
+    pp.projected_assists * m.games_multiplier AS projection_assists,
+    pp.projected_steals * m.games_multiplier AS projection_steals,
+    pp.projected_blocks * m.games_multiplier AS projection_blocks,
+    pp.projected_three_pointers_made * m.games_multiplier AS projection_three_pointers_made,
+    pp.projected_turnovers * m.games_multiplier AS projection_turnovers,
+    CASE WHEN args.view_name = 'week_total' THEN m.games_multiplier::int ELSE NULL::int END AS projection_games_played,
     NULL::numeric AS projection_field_goal_pct,
     NULL::numeric AS projection_free_throw_pct,
     NULL::text AS projection_status,
@@ -479,12 +501,21 @@ internal_candidates AS (
     pp.week_number AS projection_week_number,
     true AS projection_is_fresh,
     3 AS priority
-  FROM week_ctx wc
+  FROM args
+  JOIN week_ctx wc ON true
   JOIN league l ON true
   JOIN public.player_projections pp
     ON pp.season_year = p_season_year
    AND pp.week_number = wc.week_number
    AND pp.projected_stat_points IS NOT NULL
+  LEFT JOIN week_game_counts wgc
+    ON wgc.player_id = pp.player_id
+  CROSS JOIN LATERAL (
+    SELECT CASE
+      WHEN args.view_name = 'week_total' THEN COALESCE(wgc.scheduled_games, 0)::numeric
+      ELSE 1::numeric
+    END AS games_multiplier
+  ) m
   ORDER BY pp.player_id, pp.fetched_at DESC
 ),
 season_avg_candidates AS (
@@ -494,27 +525,34 @@ season_avg_candidates AS (
     'Season Avg'::text AS projection_source_label,
     'fallback'::text AS projection_view,
     public.projection_stat_fantasy_points(
-      avg.avg_points, avg.avg_rebounds, avg.avg_assists, avg.avg_steals, avg.avg_blocks,
-      avg.avg_three_pointers_made, avg.avg_turnovers,
-      avg.avg_field_goals_made, avg.avg_field_goals_attempted,
-      avg.avg_free_throws_made, avg.avg_free_throws_attempted,
-      CASE WHEN COALESCE(avg.games_played, 0) > 0
+      avg.avg_points * m.games_multiplier,
+      avg.avg_rebounds * m.games_multiplier,
+      avg.avg_assists * m.games_multiplier,
+      avg.avg_steals * m.games_multiplier,
+      avg.avg_blocks * m.games_multiplier,
+      avg.avg_three_pointers_made * m.games_multiplier,
+      avg.avg_turnovers * m.games_multiplier,
+      avg.avg_field_goals_made * m.games_multiplier,
+      avg.avg_field_goals_attempted * m.games_multiplier,
+      avg.avg_free_throws_made * m.games_multiplier,
+      avg.avg_free_throws_attempted * m.games_multiplier,
+      (CASE WHEN COALESCE(avg.games_played, 0) > 0
         THEN COALESCE(avg.double_doubles, 0)::numeric / avg.games_played
-        ELSE 0 END,
-      CASE WHEN COALESCE(avg.games_played, 0) > 0
+        ELSE 0 END) * m.games_multiplier,
+      (CASE WHEN COALESCE(avg.games_played, 0) > 0
         THEN COALESCE(avg.triple_doubles, 0)::numeric / avg.games_played
-        ELSE 0 END,
+        ELSE 0 END) * m.games_multiplier,
       l.scoring_settings
     ) AS projection_fantasy_points,
-    avg.avg_minutes_played AS projection_minutes,
-    avg.avg_points AS projection_points,
-    avg.avg_rebounds AS projection_rebounds,
-    avg.avg_assists AS projection_assists,
-    avg.avg_steals AS projection_steals,
-    avg.avg_blocks AS projection_blocks,
-    avg.avg_three_pointers_made AS projection_three_pointers_made,
-    avg.avg_turnovers AS projection_turnovers,
-    avg.games_played::int AS projection_games_played,
+    avg.avg_minutes_played * m.games_multiplier AS projection_minutes,
+    avg.avg_points * m.games_multiplier AS projection_points,
+    avg.avg_rebounds * m.games_multiplier AS projection_rebounds,
+    avg.avg_assists * m.games_multiplier AS projection_assists,
+    avg.avg_steals * m.games_multiplier AS projection_steals,
+    avg.avg_blocks * m.games_multiplier AS projection_blocks,
+    avg.avg_three_pointers_made * m.games_multiplier AS projection_three_pointers_made,
+    avg.avg_turnovers * m.games_multiplier AS projection_turnovers,
+    CASE WHEN args.view_name = 'week_total' THEN m.games_multiplier::int ELSE avg.games_played::int END AS projection_games_played,
     NULL::numeric AS projection_field_goal_pct,
     NULL::numeric AS projection_free_throw_pct,
     NULL::text AS projection_status,
@@ -523,9 +561,18 @@ season_avg_candidates AS (
     NULL::int AS projection_week_number,
     true AS projection_is_fresh,
     4 AS priority
-  FROM league l
+  FROM args
+  JOIN league l ON true
   JOIN public.mv_player_season_averages avg
     ON avg.season_year = p_season_year
+  LEFT JOIN week_game_counts wgc
+    ON wgc.player_id = avg.player_id
+  CROSS JOIN LATERAL (
+    SELECT CASE
+      WHEN args.view_name = 'week_total' THEN COALESCE(wgc.scheduled_games, 0)::numeric
+      ELSE 1::numeric
+    END AS games_multiplier
+  ) m
 ),
 candidate_union AS (
   SELECT * FROM daily_candidates
