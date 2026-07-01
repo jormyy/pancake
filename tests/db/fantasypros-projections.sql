@@ -200,6 +200,7 @@ INSERT INTO public.projection_sync_runs (
   season_year,
   week_number,
   projection_date,
+  started_at,
   completed_at,
   status,
   http_status,
@@ -216,11 +217,12 @@ VALUES
     2099,
     1,
     (timezone('America/New_York', now()))::date,
-    now(),
+    now() - interval '10 minutes',
+    now() - interval '10 minutes',
     'success',
     200,
-    2,
-    2,
+    1,
+    1,
     0
   ),
   (
@@ -231,7 +233,8 @@ VALUES
     2099,
     1,
     (timezone('America/New_York', now()))::date,
-    now(),
+    now() - interval '20 minutes',
+    now() - interval '20 minutes',
     'failed',
     500,
     1,
@@ -246,7 +249,8 @@ VALUES
     2099,
     1,
     NULL,
-    now(),
+    now() - interval '10 minutes',
+    now() - interval '10 minutes',
     'success',
     200,
     1,
@@ -261,11 +265,12 @@ VALUES
     2099,
     1,
     NULL,
-    now(),
+    now() - interval '10 minutes',
+    now() - interval '10 minutes',
     'success',
     200,
-    1,
-    1,
+    2,
+    2,
     0
   );
 
@@ -495,6 +500,64 @@ BEGIN
     RAISE EXCEPTION 'Failed FantasyPros sync run row leaked into projection RPC: %', row_to_json(v_row);
   END IF;
 
+  UPDATE public.projection_sync_runs
+     SET row_count = 2,
+         matched_count = 2
+   WHERE id = '00000000-0000-0000-0000-000000020804';
+
+  INSERT INTO public.fantasypros_projection_rows (
+    run_id,
+    projection_type,
+    source_url,
+    source_row_number,
+    season_year,
+    week_number,
+    projection_date,
+    fetched_at,
+    source_player_name,
+    normalized_player_name,
+    source_team,
+    source_positions,
+    player_id,
+    match_status,
+    points,
+    rebounds,
+    assists,
+    steals,
+    blocks,
+    three_pointers_made,
+    turnovers,
+    minutes,
+    games_played,
+    raw_player_cell
+  )
+  VALUES (
+    '00000000-0000-0000-0000-000000020804',
+    'weekly_avg',
+    'https://www.fantasypros.com/nba/projections/avg-weekly-overall.php',
+    2,
+    2099,
+    1,
+    NULL,
+    now(),
+    'Season Fallback',
+    'seasonfallback',
+    'CHI',
+    ARRAY['SF'],
+    '00000000-0000-0000-0000-000000020303',
+    'matched',
+    8,
+    8,
+    0,
+    0,
+    0,
+    0,
+    0,
+    28,
+    2,
+    'Season Fallback CHI SF'
+  );
+
   SELECT *
     INTO v_row
     FROM public.get_league_projection_rows(
@@ -535,6 +598,25 @@ BEGIN
   SELECT *
     INTO v_row
     FROM public.get_league_projection_rows(
+      '00000000-0000-0000-0000-000000020101',
+      2099,
+      (timezone('America/New_York', now()))::date,
+      'week_total',
+      ARRAY['00000000-0000-0000-0000-000000020303']::uuid[],
+      10,
+      0
+    );
+
+  IF v_row.projection_source <> 'fantasypros_weekly_avg_total'
+     OR v_row.projection_points <> 16
+     OR v_row.projection_rebounds <> 16
+     OR v_row.projection_fantasy_points <> 32 THEN
+    RAISE EXCEPTION 'Week-total view should not derive DD/TD bonuses from scaled weekly-average totals, got %', row_to_json(v_row);
+  END IF;
+
+  SELECT *
+    INTO v_row
+    FROM public.get_league_projection_rows(
       '00000000-0000-0000-0000-000000020102',
       2099,
       (timezone('America/New_York', now()))::date,
@@ -568,6 +650,104 @@ BEGIN
      OR v_row.projection_points <> 30
      OR v_row.projection_fantasy_points <> 150 THEN
     RAISE EXCEPTION 'Unsupported weekly total fallback should scale season averages by scheduled games, got %', row_to_json(v_row);
+  END IF;
+
+  INSERT INTO public.projection_sync_runs (
+    id,
+    source,
+    projection_type,
+    source_url,
+    season_year,
+    week_number,
+    projection_date,
+    started_at,
+    completed_at,
+    status,
+    http_status,
+    row_count,
+    matched_count,
+    unmatched_count
+  )
+  VALUES (
+    '00000000-0000-0000-0000-000000020806',
+    'fantasypros',
+    'weekly_total',
+    'https://www.fantasypros.com/nba/projections/weekly-overall.php',
+    2099,
+    1,
+    NULL,
+    now() + interval '1 minute',
+    now() + interval '1 minute',
+    'skipped',
+    200,
+    0,
+    0,
+    0
+  );
+
+  SELECT *
+    INTO v_row
+    FROM public.get_league_projection_rows(
+      '00000000-0000-0000-0000-000000020101',
+      2099,
+      (timezone('America/New_York', now()))::date,
+      'week_total',
+      ARRAY['00000000-0000-0000-0000-000000020301']::uuid[],
+      10,
+      0
+    );
+
+  IF v_row.projection_source <> 'internal' OR v_row.projection_fantasy_points <> 80 THEN
+    RAISE EXCEPTION 'Newer skipped weekly-total run should suppress older FantasyPros weekly-total rows, got %', row_to_json(v_row);
+  END IF;
+
+  INSERT INTO public.projection_sync_runs (
+    id,
+    source,
+    projection_type,
+    source_url,
+    season_year,
+    week_number,
+    projection_date,
+    started_at,
+    completed_at,
+    status,
+    http_status,
+    row_count,
+    matched_count,
+    unmatched_count
+  )
+  VALUES (
+    '00000000-0000-0000-0000-000000020807',
+    'fantasypros',
+    'weekly_avg',
+    'https://www.fantasypros.com/nba/projections/avg-weekly-overall.php',
+    2099,
+    1,
+    NULL,
+    now() + interval '1 minute',
+    now() + interval '1 minute',
+    'skipped',
+    200,
+    0,
+    0,
+    0
+  );
+
+  SELECT *
+    INTO v_row
+    FROM public.get_league_projection_rows(
+      '00000000-0000-0000-0000-000000020101',
+      2099,
+      (timezone('America/New_York', now()))::date,
+      'week_total',
+      ARRAY['00000000-0000-0000-0000-000000020302']::uuid[],
+      10,
+      0
+    );
+
+  IF v_row.projection_source <> 'season_avg' OR v_row.projection_fantasy_points <> 30 THEN
+    RAISE EXCEPTION 'Newer skipped weekly-average run should suppress older FantasyPros weekly-average rows, got %', row_to_json(v_row);
   END IF;
 END $$;
 
@@ -651,6 +831,60 @@ BEGIN
 
   IF v_average_leader.avg_fantasy_points <> 30 OR v_average_leader.projection_fantasy_points <> 20 THEN
     RAISE EXCEPTION 'search_players mixed average and projection fields for average leader: %', row_to_json(v_average_leader);
+  END IF;
+END $$;
+
+DO $$
+DECLARE
+  v_row record;
+BEGIN
+  INSERT INTO public.projection_sync_runs (
+    id,
+    source,
+    projection_type,
+    source_url,
+    season_year,
+    week_number,
+    projection_date,
+    started_at,
+    completed_at,
+    status,
+    http_status,
+    row_count,
+    matched_count,
+    unmatched_count
+  )
+  VALUES (
+    '00000000-0000-0000-0000-000000020805',
+    'fantasypros',
+    'daily',
+    'https://www.fantasypros.com/nba/projections/daily-overall.php',
+    2099,
+    1,
+    (timezone('America/New_York', now()))::date,
+    now() + interval '1 minute',
+    now() + interval '1 minute',
+    'skipped',
+    200,
+    0,
+    0,
+    0
+  );
+
+  SELECT *
+    INTO v_row
+    FROM public.get_league_projection_rows(
+      '00000000-0000-0000-0000-000000020101',
+      2099,
+      (timezone('America/New_York', now()))::date,
+      'today',
+      ARRAY['00000000-0000-0000-0000-000000020301']::uuid[],
+      10,
+      0
+    );
+
+  IF v_row.projection_source <> 'internal' OR v_row.projection_fantasy_points <> 40 THEN
+    RAISE EXCEPTION 'Newer skipped daily run should suppress older FantasyPros daily rows, got %', row_to_json(v_row);
   END IF;
 END $$;
 

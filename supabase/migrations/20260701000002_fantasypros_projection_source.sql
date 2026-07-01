@@ -305,6 +305,46 @@ week_game_counts AS (
    AND (ng.home_team = bp.nba_team OR ng.away_team = bp.nba_team)
   GROUP BY bp.id
 ),
+latest_daily_run AS (
+  SELECT latest_run.id
+  FROM args
+  JOIN public.projection_sync_runs latest_run
+    ON latest_run.source = 'fantasypros'
+   AND latest_run.projection_type = 'daily'
+   AND latest_run.projection_date = args.game_date
+   AND latest_run.status IN ('success', 'failed', 'skipped')
+   AND latest_run.completed_at IS NOT NULL
+  ORDER BY latest_run.started_at DESC, latest_run.id DESC
+  LIMIT 1
+),
+latest_weekly_avg_run AS (
+  SELECT latest_run.id
+  FROM args
+  LEFT JOIN week_ctx wc ON true
+  JOIN public.projection_sync_runs latest_run
+    ON latest_run.source = 'fantasypros'
+   AND latest_run.projection_type = 'weekly_avg'
+   AND latest_run.season_year = p_season_year
+   AND (wc.week_number IS NULL OR latest_run.week_number IS NULL OR latest_run.week_number = wc.week_number)
+   AND latest_run.status IN ('success', 'failed', 'skipped')
+   AND latest_run.completed_at IS NOT NULL
+  ORDER BY latest_run.week_number DESC NULLS LAST, latest_run.started_at DESC, latest_run.id DESC
+  LIMIT 1
+),
+latest_weekly_total_run AS (
+  SELECT latest_run.id
+  FROM args
+  LEFT JOIN week_ctx wc ON true
+  JOIN public.projection_sync_runs latest_run
+    ON latest_run.source = 'fantasypros'
+   AND latest_run.projection_type = 'weekly_total'
+   AND latest_run.season_year = p_season_year
+   AND (wc.week_number IS NULL OR latest_run.week_number IS NULL OR latest_run.week_number = wc.week_number)
+   AND latest_run.status IN ('success', 'failed', 'skipped')
+   AND latest_run.completed_at IS NOT NULL
+  ORDER BY latest_run.week_number DESC NULLS LAST, latest_run.started_at DESC, latest_run.id DESC
+  LIMIT 1
+),
 daily_candidates AS (
   SELECT DISTINCT ON (r.player_id)
     r.player_id,
@@ -341,6 +381,8 @@ daily_candidates AS (
    AND r.player_id IS NOT NULL
    AND r.projection_date = args.game_date
    AND r.fetched_at >= now() - interval '36 hours'
+  JOIN latest_daily_run ldr
+    ON ldr.id = r.run_id
   JOIN public.projection_sync_runs psr
     ON psr.id = r.run_id
    AND psr.status = 'success'
@@ -383,6 +425,7 @@ weekly_avg_candidates AS (
           (COALESCE(r.steals, 0) >= 10)::int +
           (COALESCE(r.blocks, 0) >= 10)::int
         ) >= 2 THEN m.games_multiplier
+        WHEN args.view_name = 'week_total' THEN 0::numeric
         ELSE NULL::numeric
       END,
       CASE
@@ -393,6 +436,7 @@ weekly_avg_candidates AS (
           (COALESCE(r.steals, 0) >= 10)::int +
           (COALESCE(r.blocks, 0) >= 10)::int
         ) >= 3 THEN m.games_multiplier
+        WHEN args.view_name = 'week_total' THEN 0::numeric
         ELSE NULL::numeric
       END,
       l.scoring_settings
@@ -428,6 +472,8 @@ weekly_avg_candidates AS (
    AND r.season_year = p_season_year
    AND (wc.week_number IS NULL OR r.week_number IS NULL OR r.week_number = wc.week_number)
    AND r.fetched_at >= now() - interval '8 days'
+  JOIN latest_weekly_avg_run lwar
+    ON lwar.id = r.run_id
   JOIN public.projection_sync_runs psr
     ON psr.id = r.run_id
    AND psr.status = 'success'
@@ -501,6 +547,8 @@ weekly_total_candidates AS (
    AND r.season_year = p_season_year
    AND (wc.week_number IS NULL OR r.week_number IS NULL OR r.week_number = wc.week_number)
    AND r.fetched_at >= now() - interval '8 days'
+  JOIN latest_weekly_total_run lwtr
+    ON lwtr.id = r.run_id
   JOIN public.projection_sync_runs psr
     ON psr.id = r.run_id
    AND psr.status = 'success'
