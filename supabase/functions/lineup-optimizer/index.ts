@@ -11,7 +11,6 @@ type OptimizerSetting = {
 }
 type LeagueRow = {
   status: string
-  scoring_settings: Record<string, unknown> | null
 }
 type SeasonRow = {
   season_year: number
@@ -35,28 +34,14 @@ type StarterTemplate = {
   slot_type: string
   slot_count: number
 }
-type PlayerAverageRow = {
-  player_id: string
-  games_played: number | null
-  avg_points: number | null
-  avg_rebounds: number | null
-  avg_assists: number | null
-  avg_steals: number | null
-  avg_blocks: number | null
-  avg_turnovers: number | null
-  avg_three_pointers_made: number | null
-  avg_field_goals_made: number | null
-  avg_field_goals_attempted: number | null
-  avg_free_throws_made: number | null
-  avg_free_throws_attempted: number | null
-  double_doubles: number | null
-  triple_doubles: number | null
-}
 type AutoSetPlayer = {
   playerId: string
   eligiblePositions: string[]
   nbaTeam: string | null
   projected: number
+  projectionSource: string | null
+  projectionSourceLabel: string | null
+  projectionView: string | null
   avoidInLineup: boolean
 }
 type GameRow = {
@@ -80,6 +65,13 @@ type AssignmentScore = {
 type AssignmentResult = {
   assignments: { playerId: string; slotType: string }[]
   score: AssignmentScore
+}
+type ProjectionRow = {
+  player_id: string
+  projection_fantasy_points: number | null
+  projection_source: string | null
+  projection_source_label: string | null
+  projection_view: string | null
 }
 
 const FILL_ORDER = ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F', 'UTIL']
@@ -128,7 +120,7 @@ async function processEnabledLineupOptimizers(requestedDate: string | null): Pro
         skipped++
         continue
       }
-      await autoSetMemberDate(setting, dateContext, league?.scoring_settings ?? {})
+      await autoSetMemberDate(setting, dateContext)
       optimized++
     }
   }
@@ -186,7 +178,7 @@ async function loadDateContexts(requestedDate: string | null): Promise<DateConte
 async function loadLeague(leagueId: string): Promise<LeagueRow | null> {
   const { data, error } = await supabase
     .from('leagues')
-    .select('status, scoring_settings')
+    .select('status')
     .eq('id', leagueId)
     .maybeSingle()
   if (error) throw error
@@ -225,7 +217,6 @@ function addDays(date: string, days: number): string {
 async function autoSetMemberDate(
   setting: OptimizerSetting,
   dateContext: DateContext,
-  scoringSettings: Record<string, unknown>,
 ): Promise<void> {
   const [{ data: roster, error: rosterErr }, { data: templates, error: templatesErr }] = await Promise.all([
     supabase
@@ -248,13 +239,17 @@ async function autoSetMemberDate(
   const playerIds = rosterRows.map((row) => row.player_id)
   if (playerIds.length === 0) return
 
-  const [{ data: avgRows, error: avgErr }, { data: games, error: gamesErr }, { data: existingEntries, error: existingErr }] =
+  const [{ data: projections, error: projectionErr }, { data: games, error: gamesErr }, { data: existingEntries, error: existingErr }] =
     await Promise.all([
-      supabase
-        .from('mv_player_season_averages')
-        .select('player_id, games_played, avg_points, avg_rebounds, avg_assists, avg_steals, avg_blocks, avg_turnovers, avg_three_pointers_made, avg_field_goals_made, avg_field_goals_attempted, avg_free_throws_made, avg_free_throws_attempted, double_doubles, triple_doubles')
-        .eq('season_year', dateContext.seasonYear)
-        .in('player_id', playerIds),
+      supabase.rpc('get_league_projection_rows', {
+        p_league_id: setting.league_id,
+        p_season_year: dateContext.seasonYear,
+        p_game_date: dateContext.date,
+        p_view: 'today',
+        p_player_ids: playerIds,
+        p_limit: Math.min(Math.max(playerIds.length, 1), 1000),
+        p_offset: 0,
+      }),
       supabase
         .from('nba_games')
         .select('home_team, away_team, status, game_time')
@@ -268,18 +263,24 @@ async function autoSetMemberDate(
         .eq('league_season_id', setting.league_season_id)
         .eq('game_date', dateContext.date),
     ])
-  if (avgErr) throw avgErr
+  if (projectionErr) throw projectionErr
   if (gamesErr) throw gamesErr
   if (existingErr) throw existingErr
 
-  const avgFptsMap = projectedPointsByPlayer((avgRows ?? []) as PlayerAverageRow[], scoringSettings)
-  const players: AutoSetPlayer[] = rosterRows.map((row) => ({
-    playerId: row.player_id,
-    eligiblePositions: eligiblePositions(row.players),
-    nbaTeam: row.players?.nba_team ?? null,
-    projected: avgFptsMap.get(row.player_id) ?? 0,
-    avoidInLineup: isAvoidedInjury(row.players?.injury_status ?? null),
-  }))
+  const projectionMap = new Map(((projections ?? []) as ProjectionRow[]).map((row) => [row.player_id, row]))
+  const players: AutoSetPlayer[] = rosterRows.map((row) => {
+    const projection = projectionMap.get(row.player_id)
+    return {
+      playerId: row.player_id,
+      eligiblePositions: eligiblePositions(row.players),
+      nbaTeam: row.players?.nba_team ?? null,
+      projected: Number(projection?.projection_fantasy_points ?? 0),
+      projectionSource: projection?.projection_source ?? null,
+      projectionSourceLabel: projection?.projection_source_label ?? null,
+      projectionView: projection?.projection_view ?? null,
+      avoidInLineup: isAvoidedInjury(row.players?.injury_status ?? null),
+    }
+  })
 
   const playingTeams = new Set<string>()
   const startedTeams = new Set<string>()
@@ -298,12 +299,19 @@ async function autoSetMemberDate(
 
   const playerTeamMap = new Map(players.map((player) => [player.playerId, player.nbaTeam]))
   const lockedEntries: { playerId: string; slotType: string }[] = []
-  const lockedPlayerIds = new Set<string>()
+  const lockedPlayerIds = new Set(
+    players
+      .filter((player) => player.nbaTeam != null && startedTeams.has(player.nbaTeam))
+      .map((player) => player.playerId),
+  )
   for (const entry of (existingEntries ?? []) as WeeklyLineupRow[]) {
     const team = playerTeamMap.get(entry.player_id)
-    if (team && startedTeams.has(team) && entry.slot_type !== 'BE' && entry.slot_type !== 'IR') {
+    if (team && startedTeams.has(team)) {
       lockedPlayerIds.add(entry.player_id)
-      lockedEntries.push({ playerId: entry.player_id, slotType: entry.slot_type })
+      const isStarter = entry.slot_type !== 'BE' && entry.slot_type !== 'IR'
+      if (isStarter) {
+        lockedEntries.push({ playerId: entry.player_id, slotType: entry.slot_type })
+      }
     }
   }
 
@@ -319,6 +327,7 @@ async function autoSetMemberDate(
     availablePlayers,
     (player) => !!(player.nbaTeam && playingTeams.has(player.nbaTeam)),
   )
+  const playerMap = new Map(players.map((player) => [player.playerId, player]))
 
   const assignments = [
     ...lockedEntries.map((entry) => ({
@@ -344,6 +353,23 @@ async function autoSetMemberDate(
   })
   if (error) throw error
 
+  console.log('[lineup-optimizer] auto-set projection sources', {
+    leagueId: setting.league_id,
+    memberId: setting.member_id,
+    date: dateContext.date,
+    assignments: newAssignments.map((entry) => {
+      const player = playerMap.get(entry.playerId)
+      return {
+        playerId: entry.playerId,
+        slotType: entry.slotType,
+        projected: player?.projected ?? 0,
+        projectionSource: player?.projectionSource ?? null,
+        projectionSourceLabel: player?.projectionSourceLabel ?? null,
+        projectionView: player?.projectionView ?? null,
+      }
+    }),
+  })
+
   const { error: updateError } = await supabase
     .from('lineup_optimizer_settings')
     .update({ last_optimized_at: new Date().toISOString() })
@@ -351,34 +377,6 @@ async function autoSetMemberDate(
     .eq('league_season_id', setting.league_season_id)
     .eq('member_id', setting.member_id)
   if (updateError) throw updateError
-}
-
-function projectedPointsByPlayer(
-  rows: PlayerAverageRow[],
-  scoringSettings: Record<string, unknown>,
-): Map<string, number> {
-  const scoringValue = (key: string) => Number(scoringSettings[key] ?? 0)
-  const result = new Map<string, number>()
-  for (const row of rows) {
-    const gp = Number(row.games_played) || 0
-    result.set(
-      row.player_id,
-      Number(row.avg_points ?? 0) * scoringValue('points') +
-        Number(row.avg_rebounds ?? 0) * scoringValue('rebounds') +
-        Number(row.avg_assists ?? 0) * scoringValue('assists') +
-        Number(row.avg_steals ?? 0) * scoringValue('steals') +
-        Number(row.avg_blocks ?? 0) * scoringValue('blocks') +
-        Number(row.avg_turnovers ?? 0) * scoringValue('turnovers') +
-        Number(row.avg_three_pointers_made ?? 0) * scoringValue('three_pointers_made') +
-        Number(row.avg_field_goals_made ?? 0) * scoringValue('field_goals_made') +
-        Number(row.avg_field_goals_attempted ?? 0) * scoringValue('field_goals_attempted') +
-        Number(row.avg_free_throws_made ?? 0) * scoringValue('free_throws_made') +
-        Number(row.avg_free_throws_attempted ?? 0) * scoringValue('free_throws_attempted') +
-        (gp > 0 ? (Number(row.double_doubles ?? 0) / gp) * scoringValue('double_double') : 0) +
-        (gp > 0 ? (Number(row.triple_doubles ?? 0) / gp) * scoringValue('triple_double') : 0),
-    )
-  }
-  return result
 }
 
 function eligiblePositions(player: RosterPlayerRow['players']): string[] {

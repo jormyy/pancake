@@ -34,6 +34,22 @@ export type PlayerRow = {
     avg_three_pointers_made?: number | null
     avg_minutes_played?: number | null
     games_played?: number | null
+    projection_fantasy_points?: number | null
+    projection_source?: string | null
+    projection_source_label?: string | null
+    projection_view?: string | null
+    projection_fetched_at?: string | null
+    projection_date?: string | null
+    projection_opponent?: string | null
+    projection_minutes?: number | null
+    projection_points?: number | null
+    projection_rebounds?: number | null
+    projection_assists?: number | null
+    projection_steals?: number | null
+    projection_blocks?: number | null
+    projection_three_pointers_made?: number | null
+    projection_turnovers?: number | null
+    projection_status?: string | null
 }
 
 export type PlayerSeasonAverages = {

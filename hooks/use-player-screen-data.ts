@@ -13,6 +13,7 @@ import {
 import { currentSeasonYear } from '@/lib/shared/season'
 import { todayET } from '@/lib/shared/dates'
 import { supabase } from '@/lib/supabase'
+import { getPlayerProjection, type LeagueProjectionRow } from '@/lib/projections'
 
 const GAME_LOG_PAGE = 15
 type SeasonCacheEntry = {
@@ -46,6 +47,7 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null) {
 
     const [fantasyPointsMap, setFantasyPointsMap] = useState<Map<string, number> | null>(null)
     const [avgFantasyPoints, setAvgFantasyPoints] = useState(0)
+    const [nextProjection, setNextProjection] = useState<LeagueProjectionRow | null>(null)
 
     const [transactions, setTransactions] = useState<TransactionHistoryEntry[]>([])
     const seasonCacheRef = useRef(new Map<string, SeasonCacheEntry>())
@@ -157,6 +159,20 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null) {
         loadTransactions()
     }, [playerId, leagueId])
 
+    useEffect(() => {
+        let cancelled = false
+        setNextProjection(null)
+        if (!leagueId) return
+
+        getPlayerProjection(playerId, leagueId)
+            .then((projection) => {
+                if (!cancelled) setNextProjection(projection)
+            })
+            .catch(console.error)
+
+        return () => { cancelled = true }
+    }, [playerId, leagueId])
+
     const loadMoreGames = useCallback(async () => {
         if (gameLogLoading || !hasMoreGames || !player) return
         setGameLogLoading(true)
@@ -201,6 +217,7 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null) {
         seasonAverages, seasonLoading,
         gameLog, hasMoreGames, gameLogLoading, loadMoreGames,
         fantasyPointsMap, avgFantasyPoints,
+        nextProjection,
         transactions,
     }
 }
