@@ -189,7 +189,7 @@ describe('FantasyPros projection source implementation', () => {
         expect(projectionsScreen).toContain("'week_avg'")
         expect(projectionsScreen).toContain("'week_total'")
         expect(projectionsScreen).toContain("'mine'")
-        expect(projectionsScreen).toContain("'available'")
+        expect(projectionsScreen).toContain("'free_agents'")
         expect(projectionsScreen).toContain('getLeagueProjections')
         expect(playerItem).toContain('projection_fantasy_points')
         expect(playerItem).toContain('projection_source_label')

@@ -1,68 +1,256 @@
-import MaterialIcons from '@expo/vector-icons/MaterialIcons'
-import { FlashList } from '@shopify/flash-list'
-import { useRouter } from 'expo-router'
-import { useEffect, useMemo, useState } from 'react'
 import {
     ActivityIndicator,
+    Modal,
+    Platform,
     Pressable,
+    ScrollView,
     StyleSheet,
     Text,
+    TextInput,
     View,
     useWindowDimensions,
 } from 'react-native'
+import { FlashList } from '@shopify/flash-list'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { useRouter } from 'expo-router'
+import { useEffect, useMemo, useState } from 'react'
+import { DropPlayerPickerModal } from '@/components/DropPlayerPickerModal'
 import { EmptyState } from '@/components/EmptyState'
-import { Avatar } from '@/components/Avatar'
-import { Badge } from '@/components/Badge'
-import { PosTag } from '@/components/PosTag'
-import { ProjectionCard } from '@/components/projections/ProjectionCard'
-import { Chip } from '@/components/ui/Chip'
-import { SegmentedControl } from '@/components/ui/SegmentedControl'
-import { INJURY_COLORS, colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
-import { getPositionColor } from '@/constants/positions'
+import { IRResolutionModal } from '@/components/IRResolutionModal'
+import { ItemSeparator } from '@/components/ItemSeparator'
+import { PlayerSearchItem } from '@/components/PlayerSearchItem'
+import { colors, fontSize, fontWeight, layout, radii, spacing } from '@/constants/tokens'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
-import { playerHeadshotUrl } from '@/lib/format'
+import { useQuickAdd } from '@/hooks/use-quick-add'
+import { todayET } from '@/lib/shared/dates'
 import { getOwnedPlayerMap, type OwnedEntry } from '@/lib/roster'
 import { getWaiverPlayerIds } from '@/lib/waivers'
 import {
     getLeagueProjections,
+    projectionViewLabel,
     type LeagueProjectionRow,
     type ProjectionView,
 } from '@/lib/projections'
+import type { PlayerRow } from '@/lib/players'
+import {
+    STAT_COLUMN_SORT,
+    type PlayerSearchSortDir,
+    type PlayerSearchSortMode,
+} from '@/lib/player-search-sort'
+import type {
+    PlayerAvailabilityFilter,
+    PlayerPlayingFilter,
+    PlayerSearchHealthFilter,
+} from '@/lib/player-search-state'
 
-const VIEW_OPTIONS = [
-    { label: 'Today', value: 'today' },
-    { label: 'Week Avg', value: 'week_avg' },
-    { label: 'Week Total', value: 'week_total' },
-] satisfies { label: string; value: ProjectionView }[]
-
-const SCOPE_OPTIONS = [
-    { key: 'all', label: 'All Players' },
-    { key: 'mine', label: 'My Roster' },
-    { key: 'available', label: 'Available' },
+const POSITIONS = [
+    { key: 'ALL', label: 'All' },
+    { key: 'PG', label: 'PG' },
+    { key: 'SG', label: 'SG' },
+    { key: 'SF', label: 'SF' },
+    { key: 'PF', label: 'PF' },
+    { key: 'C', label: 'C' },
+    { key: 'G', label: 'G' },
+    { key: 'F', label: 'F' },
 ] as const
-
-const POSITIONS = ['ALL', 'PG', 'SG', 'SF', 'PF', 'C', 'G', 'F'] as const
-type ProjectionScope = typeof SCOPE_OPTIONS[number]['key']
+const TEAMS = ['ATL', 'BOS', 'BKN', 'CHA', 'CHI', 'CLE', 'DAL', 'DEN', 'DET', 'GSW', 'HOU', 'IND', 'LAC', 'LAL', 'MEM', 'MIA', 'MIL', 'MIN', 'NOP', 'NYK', 'OKC', 'ORL', 'PHI', 'PHX', 'POR', 'SAC', 'SAS', 'TOR', 'UTA', 'WAS']
+const VIEW_OPTIONS = [
+    { key: 'today', label: 'Today' },
+    { key: 'week_avg', label: 'Week Avg' },
+    { key: 'week_total', label: 'Week Total' },
+] satisfies readonly { key: ProjectionView; label: string }[]
+const AVAILABILITY_FILTERS = [
+    { key: 'all', label: 'All players' },
+    { key: 'free_agents', label: 'Free agents' },
+    { key: 'waivers', label: 'On waivers' },
+    { key: 'rostered', label: 'Rostered' },
+    { key: 'mine', label: 'My team' },
+] as const
+const HEALTH_FILTERS = [
+    { key: 'all', label: 'All' },
+    { key: 'healthy', label: 'Healthy' },
+    { key: 'gtd', label: 'Game-time' },
+    { key: 'out', label: 'Out' },
+    { key: 'ir', label: 'IR' },
+] as const
+const PLAYING_FILTERS = [
+    { key: 'all', label: 'All' },
+    { key: 'today', label: 'Playing today' },
+    { key: 'not_today', label: 'Not playing' },
+] as const
+const SORT_OPTIONS = [
+    { key: 'fpts', label: 'Fantasy Pts' },
+    { key: 'pts', label: 'Points' },
+    { key: 'reb', label: 'Rebounds' },
+    { key: 'ast', label: 'Assists' },
+    { key: 'stl', label: 'Steals' },
+    { key: 'blk', label: 'Blocks' },
+    { key: 'tpm', label: '3-Pointers' },
+    { key: 'to', label: 'Turnovers' },
+    { key: 'gp', label: 'Games Played' },
+] satisfies readonly { key: PlayerSearchSortMode; label: string }[]
+const TABLE_COLUMNS = ['FP', 'PTS', 'REB', 'AST', 'STL', 'BLK', '3PM', 'TO', 'GP']
+const STAT_LABELS: Record<string, string> = {
+    FP: 'Fantasy points', PTS: 'Points', REB: 'Rebounds', AST: 'Assists', STL: 'Steals',
+    BLK: 'Blocks', '3PM': 'Three-pointers made', TO: 'Turnovers', GP: 'Games played',
+}
 
 const EMPTY_OWNED_MAP = new Map<string, OwnedEntry>()
 const EMPTY_WAIVER_IDS = new Set<string>()
+const EMPTY_GAMES_LEFT = new Map<string, number>()
+
+type FilterOption<T extends string> = { key: T; label: string }
+
+function FilterSelect<T extends string>({
+    label,
+    value,
+    options,
+    onChange,
+}: {
+    label: string
+    value: T
+    options: readonly FilterOption<T>[]
+    onChange: (value: T) => void
+}) {
+    const [open, setOpen] = useState(false)
+    const current = options.find((option) => option.key === value) ?? options[0]
+
+    return (
+        <View style={styles.filterSelectWrap}>
+            <Text style={styles.filterSelectLabel}>{label}</Text>
+            <Pressable
+                style={styles.filterSelectButton}
+                onPress={() => setOpen(true)}
+                accessibilityRole="button"
+                accessibilityLabel={`${label}: ${current.label}`}
+            >
+                <Text style={styles.filterSelectValue} numberOfLines={1}>{current.label}</Text>
+                <Text style={styles.filterSelectCaret}>▾</Text>
+            </Pressable>
+            <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
+                <Pressable style={styles.selectBackdrop} onPress={() => setOpen(false)}>
+                    <View style={styles.selectSheet} onStartShouldSetResponder={() => true}>
+                        <Text style={styles.selectTitle}>{label}</Text>
+                        <ScrollView>
+                            {options.map((option) => {
+                                const active = option.key === value
+                                return (
+                                    <Pressable
+                                        key={option.key}
+                                        style={[styles.selectOption, active && styles.selectOptionActive]}
+                                        onPress={() => {
+                                            onChange(option.key)
+                                            setOpen(false)
+                                        }}
+                                    >
+                                        <Text style={[styles.selectOptionText, active && styles.selectOptionTextActive]}>
+                                            {option.label}
+                                        </Text>
+                                    </Pressable>
+                                )
+                            })}
+                        </ScrollView>
+                    </View>
+                </Pressable>
+            </Modal>
+        </View>
+    )
+}
+
+function MultiTeamSelect({
+    label,
+    selected,
+    onChange,
+}: {
+    label: string
+    selected: string[]
+    onChange: (teams: string[]) => void
+}) {
+    const [open, setOpen] = useState(false)
+    const summary = selected.length === 0 ? 'All' : selected.length === 1 ? selected[0] : `${selected.length} teams`
+    const toggle = (team: string) =>
+        onChange(selected.includes(team) ? selected.filter((t) => t !== team) : [...selected, team])
+
+    return (
+        <View style={styles.filterSelectWrap}>
+            <Text style={styles.filterSelectLabel}>{label}</Text>
+            <Pressable
+                style={styles.filterSelectButton}
+                onPress={() => setOpen(true)}
+                accessibilityRole="button"
+                accessibilityLabel={`${label}: ${summary}`}
+            >
+                <Text style={styles.filterSelectValue} numberOfLines={1}>{summary}</Text>
+                <Text style={styles.filterSelectCaret}>▾</Text>
+            </Pressable>
+            <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
+                <Pressable style={styles.selectBackdrop} onPress={() => setOpen(false)}>
+                    <View style={styles.selectSheet} onStartShouldSetResponder={() => true}>
+                        <View style={styles.multiHeader}>
+                            <Text style={styles.selectTitle}>{label}</Text>
+                            {selected.length > 0 ? (
+                                <Pressable onPress={() => onChange([])} accessibilityRole="button" accessibilityLabel="Clear teams">
+                                    <Text style={styles.multiClear}>Clear</Text>
+                                </Pressable>
+                            ) : null}
+                        </View>
+                        <ScrollView>
+                            <View style={styles.teamGrid}>
+                                {TEAMS.map((team) => {
+                                    const active = selected.includes(team)
+                                    return (
+                                        <Pressable
+                                            key={team}
+                                            style={[styles.teamChip, active && styles.teamChipActive]}
+                                            onPress={() => toggle(team)}
+                                            accessibilityRole="checkbox"
+                                            accessibilityState={{ checked: active }}
+                                            accessibilityLabel={team}
+                                        >
+                                            <Text style={[styles.teamChipText, active && styles.teamChipTextActive]}>{team}</Text>
+                                        </Pressable>
+                                    )
+                                })}
+                            </View>
+                        </ScrollView>
+                        <Pressable style={styles.multiDone} onPress={() => setOpen(false)} accessibilityRole="button" accessibilityLabel="Done">
+                            <Text style={styles.multiDoneText}>Done</Text>
+                        </Pressable>
+                    </View>
+                </Pressable>
+            </Modal>
+        </View>
+    )
+}
 
 export default function ProjectionsScreen() {
-    const router = useRouter()
+    const { push } = useRouter()
     const { current, currentLeague } = useLeagueContext()
     const { width } = useWindowDimensions()
     const leagueId = currentLeague?.id ?? null
+    const showStatTable = width >= 1180
+    const collapsibleFilters = width < 780
+    const [filtersOpen, setFiltersOpen] = useState(false)
+    const filtersVisible = !collapsibleFilters || filtersOpen
+    const [query, setQuery] = useState('')
     const [view, setView] = useState<ProjectionView>('today')
-    const [scope, setScope] = useState<ProjectionScope>('all')
-    const [position, setPosition] = useState<typeof POSITIONS[number]>('ALL')
+    const [availabilityFilter, setAvailabilityFilter] = useState<PlayerAvailabilityFilter>('all')
+    const [position, setPosition] = useState('ALL')
+    const [selectedTeams, setSelectedTeams] = useState<string[]>([])
+    const [health, setHealth] = useState<PlayerSearchHealthFilter>('all')
+    const [playingFilter, setPlayingFilter] = useState<PlayerPlayingFilter>('all')
+    const [sortMode, setSortMode] = useState<PlayerSearchSortMode>('fpts')
+    const [sortDir, setSortDir] = useState<PlayerSearchSortDir>('desc')
     const [rows, setRows] = useState<LeagueProjectionRow[]>([])
     const [loading, setLoading] = useState(true)
     const [refreshing, setRefreshing] = useState(false)
     const [error, setError] = useState<string | null>(null)
 
-    const { data: ownership } = useFocusAsyncData(async () => {
+    const {
+        data: ownedData,
+        refresh: refreshOwned,
+    } = useFocusAsyncData(async () => {
         if (!leagueId) return { ownedMap: EMPTY_OWNED_MAP, waiverIds: EMPTY_WAIVER_IDS }
         const [ownedMap, waiverIds] = await Promise.all([
             getOwnedPlayerMap(leagueId),
@@ -71,8 +259,15 @@ export default function ProjectionsScreen() {
         return { ownedMap, waiverIds }
     }, [leagueId])
 
-    const ownedMap = ownership?.ownedMap ?? EMPTY_OWNED_MAP
-    const waiverIds = ownership?.waiverIds ?? EMPTY_WAIVER_IDS
+    const ownedMap = ownedData?.ownedMap ?? EMPTY_OWNED_MAP
+    const waiverIds = ownedData?.waiverIds ?? EMPTY_WAIVER_IDS
+    const quickAdd = useQuickAdd(
+        current?.id,
+        leagueId,
+        currentLeague?.roster_size ?? 20,
+        waiverIds,
+        refreshOwned,
+    )
 
     async function load(nextView = view) {
         if (!leagueId) {
@@ -83,7 +278,7 @@ export default function ProjectionsScreen() {
         setError(null)
         setRefreshing(true)
         try {
-            const projections = await getLeagueProjections({ leagueId, view: nextView, limit: 800 })
+            const projections = await getLeagueProjections({ leagueId, view: nextView, limit: 1000 })
             setRows(projections)
         } catch (e) {
             setError(e instanceof Error ? e.message : String(e))
@@ -100,25 +295,97 @@ export default function ProjectionsScreen() {
     }, [leagueId, view])
 
     const filteredRows = useMemo(() => {
-        return rows.filter((row) => {
-            const owned = ownedMap.get(row.player_id)
-            if (scope === 'mine' && owned?.memberId !== current?.id) return false
-            if (scope === 'available' && (owned || waiverIds.has(row.player_id))) return false
-            if (position !== 'ALL') {
-                const positions = row.eligible_positions?.length ? row.eligible_positions : row.position ? [row.position] : []
-                if (position === 'G' && !positions.some((pos) => pos === 'PG' || pos === 'SG')) return false
-                else if (position === 'F' && !positions.some((pos) => pos === 'SF' || pos === 'PF')) return false
-                else if (position !== 'G' && position !== 'F' && !positions.includes(position)) return false
-            }
-            return true
-        })
-    }, [current?.id, ownedMap, position, rows, scope, waiverIds])
+        const search = query.trim().toLocaleLowerCase()
+        const today = todayET()
+        return rows
+            .filter((row) => {
+                const owned = ownedMap.get(row.player_id)
+                if (search) {
+                    const searchable = [row.display_name, row.nba_team, row.position, ...(row.eligible_positions ?? [])]
+                        .filter(Boolean)
+                        .join(' ')
+                        .toLocaleLowerCase()
+                    if (!searchable.includes(search)) return false
+                }
+                if (availabilityFilter === 'free_agents' && (owned || waiverIds.has(row.player_id))) return false
+                if (availabilityFilter === 'waivers' && (owned || !waiverIds.has(row.player_id))) return false
+                if (availabilityFilter === 'rostered' && !owned) return false
+                if (availabilityFilter === 'mine' && owned?.memberId !== current?.id) return false
+                if (position !== 'ALL') {
+                    const positions = row.eligible_positions?.length ? row.eligible_positions : row.position ? [row.position] : []
+                    if (position === 'G' && !positions.some((pos) => pos === 'PG' || pos === 'SG')) return false
+                    else if (position === 'F' && !positions.some((pos) => pos === 'SF' || pos === 'PF')) return false
+                    else if (position !== 'G' && position !== 'F' && !positions.includes(position)) return false
+                }
+                if (selectedTeams.length > 0 && (!row.nba_team || !selectedTeams.includes(row.nba_team))) return false
+                if (!matchesHealth(row.injury_status, health)) return false
 
-    const fallbackCount = useMemo(
-        () => filteredRows.filter((row) => view === 'today' && row.projection_source !== 'fantasypros_daily').length,
-        [filteredRows, view],
-    )
-    const compact = width < 720
+                const projectedDate = row.projection_date ?? row.next_game_date
+                const playsToday = projectedDate === today
+                if (playingFilter === 'today' && !playsToday) return false
+                if (playingFilter === 'not_today' && playsToday) return false
+                return true
+            })
+            .sort((a, b) => compareProjectionRows(a, b, sortMode, sortDir))
+    }, [
+        availabilityFilter,
+        current?.id,
+        health,
+        ownedMap,
+        playingFilter,
+        position,
+        query,
+        rows,
+        selectedTeams,
+        sortDir,
+        sortMode,
+        waiverIds,
+    ])
+
+    const playerRows = useMemo(() => filteredRows.map(toPlayerRow), [filteredRows])
+    const activeFilterCount = useMemo(() => {
+        let count = 0
+        if (query.trim()) count++
+        if (view !== 'today') count++
+        if (availabilityFilter !== 'all') count++
+        if (position !== 'ALL') count++
+        if (selectedTeams.length > 0) count++
+        if (health !== 'all') count++
+        if (playingFilter !== 'all') count++
+        if (sortMode !== 'fpts') count++
+        return count
+    }, [availabilityFilter, health, playingFilter, position, query, selectedTeams.length, sortMode, view])
+
+    const clearAllFilters = () => {
+        setQuery('')
+        setView('today')
+        setAvailabilityFilter('all')
+        setPosition('ALL')
+        setSelectedTeams([])
+        setHealth('all')
+        setPlayingFilter('all')
+        setSortMode('fpts')
+        setSortDir('desc')
+    }
+
+    const handleColumnSort = (mode: PlayerSearchSortMode) => {
+        if (sortMode === mode) {
+            setSortDir((dir) => dir === 'asc' ? 'desc' : 'asc')
+        } else {
+            setSortMode(mode)
+            setSortDir('desc')
+        }
+    }
+
+    const playerListExtraData = [
+        view,
+        sortMode,
+        sortDir,
+        availabilityFilter,
+        playingFilter,
+        health,
+        selectedTeams.join(','),
+    ].join('|')
 
     if (!leagueId) {
         return (
@@ -130,166 +397,538 @@ export default function ProjectionsScreen() {
 
     return (
         <SafeAreaView style={styles.container}>
-            <View style={styles.content}>
-                <View style={styles.header}>
-                    <View>
-                        <Text style={styles.title}>Projections</Text>
-                        <Text style={styles.subtitle} numberOfLines={2}>
-                            {filteredRows.length} player{filteredRows.length === 1 ? '' : 's'}
-                            {fallbackCount > 0 ? ` · ${fallbackCount} using fallback source` : ''}
-                        </Text>
-                    </View>
+          <View style={styles.contentWrap}>
+            <View style={styles.filterCard}>
+                <View style={styles.filterCardTop}>
+                    <TextInput
+                        style={styles.searchInput}
+                        placeholder="Search players..."
+                        placeholderTextColor={colors.textPlaceholder}
+                        value={query}
+                        onChangeText={setQuery}
+                        autoCorrect={false}
+                        clearButtonMode="while-editing"
+                    />
+                    <Text style={styles.resultCountText}>
+                        {loading && playerRows.length === 0
+                            ? 'Searching...'
+                            : refreshing
+                              ? `Updating ${playerRows.length} player${playerRows.length === 1 ? '' : 's'}`
+                            : `${playerRows.length}${activeFilterCount > 0 ? ' filtered' : ''} player${playerRows.length === 1 ? '' : 's'}`}
+                    </Text>
+                </View>
+                <View style={styles.filterCardHeader}>
+                    {collapsibleFilters ? (
+                        <Pressable
+                            style={styles.filterToggle}
+                            onPress={() => setFiltersOpen((value) => !value)}
+                            accessibilityRole="button"
+                            accessibilityLabel={`${filtersOpen ? 'Hide' : 'Show'} filters`}
+                            accessibilityState={{ expanded: filtersOpen }}
+                        >
+                            <Text style={styles.filterCardTitle}>Filters</Text>
+                            {activeFilterCount > 0 ? (
+                                <View style={styles.filterCountDot}>
+                                    <Text style={styles.filterCountDotText}>{activeFilterCount}</Text>
+                                </View>
+                            ) : null}
+                            <Text style={styles.filterSelectCaret}>{filtersOpen ? '▴' : '▾'}</Text>
+                        </Pressable>
+                    ) : (
+                        <Text style={styles.filterCardTitle}>Filters</Text>
+                    )}
+                    {activeFilterCount > 0 ? (
+                        <Pressable style={styles.clearAllChip} onPress={clearAllFilters}>
+                            <Text style={styles.clearAllChipText}>Clear all ({activeFilterCount})</Text>
+                        </Pressable>
+                    ) : null}
+                </View>
+                {filtersVisible ? (
+                <View style={styles.filterGrid}>
+                    <FilterSelect
+                        label="Projection"
+                        value={view}
+                        options={VIEW_OPTIONS}
+                        onChange={setView}
+                    />
+                    <FilterSelect
+                        label="Availability"
+                        value={availabilityFilter}
+                        options={AVAILABILITY_FILTERS}
+                        onChange={setAvailabilityFilter}
+                    />
+                    <FilterSelect
+                        label="Position"
+                        value={position}
+                        options={POSITIONS}
+                        onChange={setPosition}
+                    />
+                    <MultiTeamSelect
+                        label="Pro team"
+                        selected={selectedTeams}
+                        onChange={setSelectedTeams}
+                    />
+                    <FilterSelect
+                        label="Health"
+                        value={health}
+                        options={HEALTH_FILTERS}
+                        onChange={setHealth}
+                    />
+                    <FilterSelect
+                        label="Game today"
+                        value={playingFilter}
+                        options={PLAYING_FILTERS}
+                        onChange={setPlayingFilter}
+                    />
+                    <FilterSelect
+                        label="Sort"
+                        value={sortMode}
+                        options={SORT_OPTIONS}
+                        onChange={(value) => {
+                            setSortMode(value)
+                            setSortDir('desc')
+                        }}
+                    />
                     <Pressable
-                        style={styles.refreshButton}
-                        onPress={() => load()}
-                        disabled={refreshing}
-                        accessibilityRole="button"
-                        accessibilityLabel="Refresh projections"
-                        accessibilityState={{ busy: refreshing, disabled: refreshing }}
+                        style={styles.sortDirButton}
+                        onPress={() => setSortDir((dir) => dir === 'asc' ? 'desc' : 'asc')}
                     >
-                        {refreshing ? (
-                            <ActivityIndicator size="small" color={colors.primaryDark} />
-                        ) : (
-                            <MaterialIcons name="refresh" size={20} color={colors.primaryDark} />
-                        )}
+                        <Text style={styles.sortDirText}>{sortDir === 'asc' ? 'Ascending ↑' : 'Descending ↓'}</Text>
                     </Pressable>
                 </View>
-
-                <View style={styles.controls}>
-                    <SegmentedControl options={VIEW_OPTIONS} value={view} onChange={setView} scrollable />
-                    <View style={styles.chipRow}>
-                        {SCOPE_OPTIONS.map((option) => (
-                            <Chip
-                                key={option.key}
-                                label={option.label}
-                                selected={scope === option.key}
-                                onPress={() => setScope(option.key)}
-                            />
-                        ))}
-                    </View>
-                    <View style={styles.chipRow}>
-                        {POSITIONS.map((pos) => (
-                            <Chip
-                                key={pos}
-                                label={pos === 'ALL' ? 'All Pos' : pos}
-                                selected={position === pos}
-                                onPress={() => setPosition(pos)}
-                            />
-                        ))}
-                    </View>
-                </View>
-
-                {error ? (
-                    <View style={styles.errorBox}>
-                        <Text style={styles.errorText}>{error}</Text>
-                    </View>
                 ) : null}
-
-                {loading ? (
-                    <ActivityIndicator style={styles.loader} color={colors.primary} />
-                ) : (
-                    <FlashList
-                        data={filteredRows}
-                        keyExtractor={(row) => row.player_id}
-                        ItemSeparatorComponent={ProjectionCardSeparator}
-                        contentContainerStyle={filteredRows.length === 0 ? styles.emptyContainer : undefined}
-                        renderItem={({ item }) => (
-                            <ProjectionRow
-                                row={item}
-                                owned={ownedMap.get(item.player_id)}
-                                isMine={ownedMap.get(item.player_id)?.memberId === current?.id}
-                                compact={compact}
-                                onPress={() => router.push(`/player/${item.player_id}`)}
-                            />
-                        )}
-                        ListEmptyComponent={<EmptyState message="No projections match these filters." fullScreen={false} />}
-                    />
-                )}
             </View>
+
+            {error ? (
+                <View style={styles.errorBox}>
+                    <Text style={styles.errorText}>{error}</Text>
+                </View>
+            ) : null}
+
+            {loading && playerRows.length === 0 ? (
+                <ActivityIndicator style={styles.flex1} color={colors.primary} />
+            ) : (
+                <FlashList
+                    data={playerRows}
+                    extraData={playerListExtraData}
+                    keyExtractor={(player) => player.id}
+                    contentContainerStyle={playerRows.length === 0 ? styles.emptyContainer : undefined}
+                    ItemSeparatorComponent={ItemSeparator}
+                    ListHeaderComponent={showStatTable ? (
+                        <View style={styles.tableHeader}>
+                            <View style={styles.tableHeaderAddSpacer} />
+                            <View style={styles.tableHeaderCardRow}>
+                                <View style={styles.tableHeaderHeadshotSpacer} />
+                                <Text style={styles.tableHeaderPlayer}>Player</Text>
+                                <Text style={styles.tableHeaderOwnership}>Ownership</Text>
+                                <View style={styles.tableHeaderStatsGroup}>
+                                    {TABLE_COLUMNS.map((column) => {
+                                        const mode = STAT_COLUMN_SORT[column]
+                                        const active = mode != null && sortMode === mode
+                                        return (
+                                            <Pressable
+                                                key={column}
+                                                style={styles.tableHeaderStatBtn}
+                                                onPress={() => mode && handleColumnSort(mode)}
+                                                accessibilityRole="button"
+                                                accessibilityState={{ selected: active }}
+                                                accessibilityLabel={`Sort by ${STAT_LABELS[column] ?? column}${active ? (sortDir === 'asc' ? ', ascending' : ', descending') : ''}`}
+                                            >
+                                                <Text style={[styles.tableHeaderStat, active && styles.tableHeaderStatActive]} numberOfLines={1}>
+                                                    {column}{active ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
+                                                </Text>
+                                            </Pressable>
+                                        )
+                                    })}
+                                </View>
+                            </View>
+                        </View>
+                    ) : null}
+                    renderItem={({ item }: { item: PlayerRow }) => (
+                        <PlayerSearchItem
+                            item={item}
+                            currentMemberId={current?.id}
+                            ownedMap={ownedMap}
+                            waiverIds={waiverIds}
+                            adding={quickAdd.adding}
+                            gamesLeft={EMPTY_GAMES_LEFT}
+                            showStats={showStatTable}
+                            statMode="projection"
+                            animate={false}
+                            onAdd={quickAdd.handleAdd}
+                            onPress={() => push(`/player/${item.id}`)}
+                        />
+                    )}
+                    ListEmptyComponent={<EmptyState message="No projections found." fullScreen={false} />}
+                />
+            )}
+          </View>
+
+            <DropPlayerPickerModal
+                visible={quickAdd.dropPickerPlayer !== null}
+                title={`Drop a player to add\n${quickAdd.dropPickerPlayer?.display_name ?? ''}`}
+                subtitle="Your roster is full. Pick someone to release."
+                roster={quickAdd.myRoster}
+                dropping={quickAdd.dropping}
+                onDrop={quickAdd.handleDropAndAdd}
+                onCancel={() => quickAdd.setDropPickerPlayer(null)}
+            />
+
+            <IRResolutionModal
+                visible={quickAdd.irModal !== null}
+                ineligibleIR={quickAdd.irModal?.ineligible ?? []}
+                activeRoster={(quickAdd.irModal?.roster ?? []).filter((player) => !player.is_on_ir && !player.is_on_taxi)}
+                rosterSize={currentLeague?.roster_size ?? 20}
+                pendingPlayerName={quickAdd.irModal?.pendingPlayer.display_name ?? ''}
+                onActivate={quickAdd.handleIRActivate}
+                onDropAndActivate={quickAdd.handleDropAndIRActivate}
+                onCancel={() => quickAdd.setIrModal(null)}
+            />
         </SafeAreaView>
     )
 }
 
-function ProjectionRow({
-    row,
-    owned,
-    isMine,
-    compact,
-    onPress,
-}: {
-    row: LeagueProjectionRow
-    owned?: OwnedEntry
-    isMine: boolean
-    compact: boolean
-    onPress: () => void
-}) {
-    const positions = row.eligible_positions?.length ? row.eligible_positions : row.position ? [row.position] : []
-    const headshotUri = playerHeadshotUrl(row.nba_id) ?? row.headshot_url
-    const ownershipLabel = owned ? (isMine ? 'Mine' : owned.teamName) : null
-
-    return (
-        <ProjectionCard
-            projection={row}
-            compact={compact}
-            onPress={onPress}
-            accessibilityLabel={`Open ${row.display_name}`}
-            header={(
-                <View style={styles.playerHeader}>
-                    <Avatar
-                        name={row.display_name}
-                        color={getPositionColor(positions[0] ?? row.position)}
-                        size={compact ? 44 : 52}
-                        uri={headshotUri}
-                    />
-                    <View style={styles.playerInfo}>
-                        <View style={styles.nameLine}>
-                            <Text style={styles.name} numberOfLines={1}>{row.display_name}</Text>
-                            {row.nba_team ? <Text style={styles.team}>{row.nba_team}</Text> : null}
-                            {positions.map((pos) => <PosTag key={pos} position={pos} />)}
-                            {row.injury_status ? (
-                                <Badge
-                                    label={row.injury_status}
-                                    color={INJURY_COLORS[row.injury_status] ?? colors.textMuted}
-                                    variant="solid"
-                                />
-                            ) : null}
-                        </View>
-                        {ownershipLabel ? (
-                            <Text style={[styles.ownership, isMine && styles.ownershipMine]} numberOfLines={1}>
-                                {ownershipLabel}
-                            </Text>
-                        ) : null}
-                    </View>
-                </View>
-            )}
-        />
-    )
+function toPlayerRow(row: LeagueProjectionRow): PlayerRow {
+    return {
+        id: row.player_id,
+        display_name: row.display_name,
+        nba_team: row.nba_team,
+        position: row.position,
+        eligible_positions: row.eligible_positions,
+        status: null,
+        injury_status: row.injury_status,
+        headshot_url: row.headshot_url,
+        nba_id: row.nba_id,
+        years_exp: null,
+        projection_fantasy_points: row.projection_fantasy_points,
+        projection_source: row.projection_source,
+        projection_source_label: row.projection_source_label ?? projectionViewLabel(row.projection_view),
+        projection_view: row.projection_view,
+        projection_fetched_at: row.projection_fetched_at,
+        projection_date: row.projection_date,
+        projection_opponent: row.next_game_opponent,
+        projection_minutes: row.projection_minutes,
+        projection_points: row.projection_points,
+        projection_rebounds: row.projection_rebounds,
+        projection_assists: row.projection_assists,
+        projection_steals: row.projection_steals,
+        projection_blocks: row.projection_blocks,
+        projection_three_pointers_made: row.projection_three_pointers_made,
+        projection_turnovers: row.projection_turnovers,
+        projection_games_played: row.projection_games_played,
+        projection_status: row.projection_status,
+    }
 }
 
-function ProjectionCardSeparator() {
-    return <View style={styles.cardSeparator} />
+function compareProjectionRows(
+    a: LeagueProjectionRow,
+    b: LeagueProjectionRow,
+    mode: PlayerSearchSortMode,
+    dir: PlayerSearchSortDir,
+): number {
+    const cmp = projectionStatValue(a, mode) - projectionStatValue(b, mode)
+    if (cmp !== 0) return dir === 'asc' ? cmp : -cmp
+    return a.display_name.localeCompare(b.display_name)
+}
+
+function projectionStatValue(row: LeagueProjectionRow, mode: PlayerSearchSortMode): number {
+    switch (mode) {
+        case 'fpts': return row.projection_fantasy_points ?? 0
+        case 'pts': return row.projection_points ?? 0
+        case 'reb': return row.projection_rebounds ?? 0
+        case 'ast': return row.projection_assists ?? 0
+        case 'stl': return row.projection_steals ?? 0
+        case 'blk': return row.projection_blocks ?? 0
+        case 'tpm': return row.projection_three_pointers_made ?? 0
+        case 'to': return row.projection_turnovers ?? 0
+        case 'gp': return row.projection_games_played ?? 0
+    }
+}
+
+function matchesHealth(injuryStatus: string | null, filter: PlayerSearchHealthFilter): boolean {
+    switch (filter) {
+        case 'healthy': return injuryStatus == null
+        case 'gtd': return ['GTD', 'DTD', 'Questionable', 'Game Time Decision'].includes(injuryStatus ?? '')
+        case 'out': return ['Out', 'OUT', 'O'].includes(injuryStatus ?? '')
+        case 'ir': return ['IR', 'IR-LTI'].includes(injuryStatus ?? '')
+        default: return true
+    }
 }
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgScreen },
-    content: { flex: 1, width: '100%', maxWidth: 1180, alignSelf: 'center', padding: spacing['2xl'], gap: spacing.xl },
-    header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.lg },
-    title: { fontSize: fontSize['3xl'], fontWeight: fontWeight.extrabold, color: colors.textPrimary },
-    subtitle: { marginTop: spacing.xs, fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textMuted },
-    refreshButton: {
-        width: 40,
-        height: 40,
-        borderRadius: radii.md,
-        borderCurve: 'continuous',
+    contentWrap: { flex: 1, width: '100%', maxWidth: layout.contentMaxWidth, alignSelf: 'center' },
+    flex1: { flex: 1 },
+    filterCard: {
+        margin: spacing.xl,
+        marginBottom: spacing.md,
+        padding: spacing.lg,
         borderWidth: 1,
-        borderColor: colors.primaryBorder,
-        backgroundColor: colors.primaryLight,
+        borderColor: colors.borderLight,
+        borderRadius: radii.lg,
+        backgroundColor: colors.bgCard,
+        gap: spacing.lg,
+        ...(Platform.OS === 'web' ? { boxShadow: '0 10px 28px rgba(74, 37, 9, 0.08)' } : {}),
+    },
+    filterCardTop: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.lg,
+    },
+    filterCardHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: spacing.md,
+    },
+    filterCardTitle: {
+        fontSize: fontSize.sm,
+        fontWeight: fontWeight.extrabold,
+        color: colors.textPrimary,
+        letterSpacing: 0.6,
+        textTransform: 'uppercase' as const,
+    },
+    filterToggle: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.md,
+        minHeight: 32,
+    },
+    filterCountDot: {
+        minWidth: 20,
+        height: 20,
+        paddingHorizontal: 6,
+        borderRadius: radii.full,
+        backgroundColor: colors.primary,
         alignItems: 'center',
         justifyContent: 'center',
     },
-    controls: { gap: spacing.md },
-    chipRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: spacing.sm },
+    filterCountDotText: { fontSize: 11, fontWeight: fontWeight.bold, color: colors.textWhite },
+    resultCountText: {
+        flexShrink: 0,
+        fontSize: fontSize.sm,
+        fontWeight: fontWeight.bold,
+        color: colors.textMuted,
+    },
+    filterGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: spacing.md,
+    },
+    filterSelectWrap: {
+        minWidth: 142,
+        flexGrow: 1,
+        flexBasis: 142,
+        gap: spacing.xs,
+    },
+    filterSelectLabel: {
+        fontSize: 10,
+        fontWeight: fontWeight.extrabold,
+        color: colors.textMuted,
+        letterSpacing: 0.8,
+        textTransform: 'uppercase' as const,
+    },
+    filterSelectButton: {
+        minHeight: 38,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.sm,
+        borderWidth: 1,
+        borderColor: colors.borderLight,
+        borderRadius: radii.md,
+        backgroundColor: colors.bgMuted,
+        paddingHorizontal: spacing.md,
+    },
+    filterSelectValue: {
+        flex: 1,
+        minWidth: 0,
+        fontSize: fontSize.sm,
+        fontWeight: fontWeight.bold,
+        color: colors.textPrimary,
+    },
+    filterSelectCaret: {
+        flexShrink: 0,
+        fontSize: 11,
+        color: colors.textMuted,
+    },
+    selectBackdrop: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: spacing.xl,
+        backgroundColor: 'rgba(44, 26, 14, 0.36)',
+    },
+    selectSheet: {
+        width: '100%',
+        maxWidth: 360,
+        maxHeight: 460,
+        borderWidth: 1,
+        borderColor: colors.border,
+        borderRadius: radii.lg,
+        backgroundColor: colors.bgCard,
+        padding: spacing.md,
+        ...(Platform.OS === 'web' ? { boxShadow: '0 18px 48px rgba(0,0,0,0.22)' } : {}),
+    },
+    selectTitle: {
+        paddingHorizontal: spacing.sm,
+        paddingVertical: spacing.sm,
+        fontSize: fontSize.md,
+        fontWeight: fontWeight.extrabold,
+        color: colors.textPrimary,
+    },
+    multiHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+    },
+    multiClear: {
+        paddingHorizontal: spacing.sm,
+        fontSize: fontSize.sm,
+        fontWeight: fontWeight.bold,
+        color: colors.danger,
+    },
+    teamGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: spacing.sm,
+        padding: spacing.sm,
+    },
+    teamChip: {
+        minWidth: 52,
+        minHeight: 36,
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingHorizontal: spacing.md,
+        borderRadius: radii.md,
+        borderWidth: 1,
+        borderColor: colors.borderLight,
+        backgroundColor: colors.bgMuted,
+    },
+    teamChipActive: {
+        backgroundColor: colors.primaryLight,
+        borderColor: colors.primaryBorder,
+    },
+    teamChipText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.textSecondary },
+    teamChipTextActive: { color: colors.primaryDark },
+    multiDone: {
+        marginTop: spacing.sm,
+        minHeight: 44,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: radii.md,
+        backgroundColor: colors.primary,
+    },
+    multiDoneText: { fontSize: fontSize.md, fontWeight: fontWeight.bold, color: colors.textWhite },
+    selectOption: {
+        minHeight: 42,
+        justifyContent: 'center',
+        borderRadius: radii.md,
+        paddingHorizontal: spacing.md,
+    },
+    selectOptionActive: {
+        backgroundColor: colors.primaryLight,
+    },
+    selectOptionText: {
+        fontSize: fontSize.md,
+        fontWeight: fontWeight.semibold,
+        color: colors.textSecondary,
+    },
+    selectOptionTextActive: {
+        color: colors.primaryDark,
+    },
+    sortDirButton: {
+        minHeight: 38,
+        alignSelf: 'flex-end',
+        justifyContent: 'center',
+        borderRadius: radii.md,
+        backgroundColor: colors.bgMuted,
+        paddingHorizontal: spacing.lg,
+    },
+    sortDirText: {
+        fontSize: fontSize.sm,
+        fontWeight: fontWeight.bold,
+        color: colors.textSecondary,
+    },
+    tableHeader: {
+        minHeight: 34,
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingLeft: spacing.lg,
+        borderTopWidth: 1,
+        borderBottomWidth: 1,
+        borderColor: colors.borderLight,
+        backgroundColor: colors.bgSubtle,
+    },
+    tableHeaderAddSpacer: { width: 36 },
+    tableHeaderCardRow: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingLeft: spacing.md,
+        paddingRight: spacing['4xl'],
+        gap: spacing.lg,
+    },
+    tableHeaderHeadshotSpacer: { width: 44 },
+    tableHeaderPlayer: {
+        flex: 1,
+        fontSize: 10,
+        fontWeight: fontWeight.extrabold,
+        color: colors.textMuted,
+        letterSpacing: 0.8,
+        textTransform: 'uppercase' as const,
+    },
+    tableHeaderOwnership: {
+        width: 90,
+        textAlign: 'center',
+        fontSize: 10,
+        fontWeight: fontWeight.extrabold,
+        color: colors.textMuted,
+        letterSpacing: 0.7,
+        textTransform: 'uppercase' as const,
+    },
+    tableHeaderStatsGroup: {
+        width: 9 * 54,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'flex-end',
+    },
+    tableHeaderStatBtn: {
+        width: 54,
+        minHeight: 34,
+        alignItems: 'flex-end',
+        justifyContent: 'center',
+    },
+    tableHeaderStat: {
+        textAlign: 'right',
+        fontSize: 10,
+        fontWeight: fontWeight.extrabold,
+        color: colors.textSecondary,
+        letterSpacing: 0.7,
+        textTransform: 'uppercase' as const,
+    },
+    tableHeaderStatActive: {
+        color: colors.primaryDark,
+    },
+    searchInput: {
+        flex: 1,
+        height: 44,
+        backgroundColor: colors.bgMuted,
+        borderRadius: radii.lg,
+        borderCurve: 'continuous' as const,
+        paddingHorizontal: spacing.lg + spacing.xxs,
+        fontSize: fontSize.lg,
+        color: colors.textPrimary,
+    },
+    clearAllChip: {
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.xs,
+        borderRadius: radii.md,
+        borderCurve: 'continuous' as const,
+        backgroundColor: colors.dangerLight,
+    },
+    clearAllChipText: { fontSize: fontSize.xs, fontWeight: fontWeight.semibold, color: colors.danger },
     errorBox: {
+        marginHorizontal: spacing.xl,
         borderWidth: 1,
         borderColor: colors.dangerLight,
         backgroundColor: colors.dangerLight,
@@ -298,18 +937,5 @@ const styles = StyleSheet.create({
         borderCurve: 'continuous',
     },
     errorText: { color: colors.dangerDark, fontSize: fontSize.sm, fontWeight: fontWeight.semibold },
-    loader: { marginTop: spacing['5xl'] },
-    emptyContainer: { flexGrow: 1, justifyContent: 'center' },
-    playerHeader: {
-        flexDirection: 'row',
-        alignItems: 'flex-start',
-        gap: spacing.lg,
-    },
-    playerInfo: { flex: 1, minWidth: 0, gap: spacing.xs },
-    nameLine: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: spacing.xs },
-    name: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: colors.textPrimary, maxWidth: '100%' },
-    team: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textMuted },
-    ownership: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.textMuted },
-    ownershipMine: { color: colors.primaryDark },
-    cardSeparator: { height: spacing.md },
+    emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 })

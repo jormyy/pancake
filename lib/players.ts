@@ -49,6 +49,7 @@ export type PlayerRow = {
     projection_blocks?: number | null
     projection_three_pointers_made?: number | null
     projection_turnovers?: number | null
+    projection_games_played?: number | null
     projection_status?: string | null
 }
 
