@@ -25,6 +25,7 @@ export function PlayerSearchItem({
     adding,
     gamesLeft,
     showStats = false,
+    statMode = 'season',
     animate = true,
     onAdd,
     onPress,
@@ -36,6 +37,7 @@ export function PlayerSearchItem({
     adding: string | null
     gamesLeft: Map<string, number>
     showStats?: boolean
+    statMode?: 'season' | 'projection'
     animate?: boolean
     onAdd: (player: PlayerRow) => void
     onPress: () => void
@@ -65,17 +67,9 @@ export function PlayerSearchItem({
     })
     const projectionFreshness = projectionFreshnessLabel(item.projection_fetched_at)
     const projectionView = projectionViewLabel(item.projection_view)
-    const stats = [
-        { label: 'FP', value: item.avg_fantasy_points ?? item.avg_points, highlight: true },
-        { label: 'PTS', value: item.avg_points },
-        { label: 'REB', value: item.avg_rebounds },
-        { label: 'AST', value: item.avg_assists },
-        { label: 'STL', value: item.avg_steals },
-        { label: 'BLK', value: item.avg_blocks },
-        { label: '3PM', value: item.avg_three_pointers_made },
-        { label: 'TO', value: item.avg_turnovers },
-        { label: 'GP', value: item.games_played, integer: true },
-    ]
+    const stats = playerStats(item, statMode)
+    const compactStats = stats.slice(0, 7)
+    const showProjectionStatLine = statMode === 'season'
 
     const content = (
         <>
@@ -151,7 +145,7 @@ export function PlayerSearchItem({
                             {item.projection_minutes != null ? (
                                 <Text style={styles.projectionMeta} numberOfLines={1}>{numberOrDash(item.projection_minutes)}m</Text>
                             ) : null}
-                            {projectionStatLine ? (
+                            {showProjectionStatLine && projectionStatLine ? (
                                 <Text style={styles.projectionMetaWide} numberOfLines={1}>{projectionStatLine}</Text>
                             ) : null}
                             <Text style={styles.projectionSource} numberOfLines={1}>
@@ -161,15 +155,7 @@ export function PlayerSearchItem({
                     ) : null}
                     {!showStats ? (
                         <View style={styles.compactStats}>
-                            {[
-                                { label: 'FP', value: item.avg_fantasy_points ?? item.avg_points, highlight: true },
-                                { label: 'PTS', value: item.avg_points },
-                                { label: 'REB', value: item.avg_rebounds },
-                                { label: 'AST', value: item.avg_assists },
-                                { label: 'STL', value: item.avg_steals },
-                                { label: 'BLK', value: item.avg_blocks },
-                                { label: '3PM', value: item.avg_three_pointers_made },
-                            ].map((stat) => (
+                            {compactStats.map((stat) => (
                                 <View key={stat.label} style={styles.compactStat}>
                                     <Text style={styles.compactStatLabel}>{stat.label}</Text>
                                     <Text style={[styles.compactStatValue, stat.highlight && styles.compactStatValuePrimary]}>
@@ -230,6 +216,34 @@ export function PlayerSearchItem({
             {content}
         </View>
     )
+}
+
+function playerStats(item: PlayerRow, statMode: 'season' | 'projection') {
+    if (statMode === 'projection') {
+        return [
+            { label: 'FP', value: item.projection_fantasy_points, highlight: true },
+            { label: 'PTS', value: item.projection_points },
+            { label: 'REB', value: item.projection_rebounds },
+            { label: 'AST', value: item.projection_assists },
+            { label: 'STL', value: item.projection_steals },
+            { label: 'BLK', value: item.projection_blocks },
+            { label: '3PM', value: item.projection_three_pointers_made },
+            { label: 'TO', value: item.projection_turnovers },
+            { label: 'GP', value: item.projection_games_played, integer: true },
+        ]
+    }
+
+    return [
+        { label: 'FP', value: item.avg_fantasy_points ?? item.avg_points, highlight: true },
+        { label: 'PTS', value: item.avg_points },
+        { label: 'REB', value: item.avg_rebounds },
+        { label: 'AST', value: item.avg_assists },
+        { label: 'STL', value: item.avg_steals },
+        { label: 'BLK', value: item.avg_blocks },
+        { label: '3PM', value: item.avg_three_pointers_made },
+        { label: 'TO', value: item.avg_turnovers },
+        { label: 'GP', value: item.games_played, integer: true },
+    ]
 }
 
 function StatCell({
