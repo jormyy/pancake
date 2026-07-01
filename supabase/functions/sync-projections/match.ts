@@ -1,4 +1,5 @@
 import { normalizeName } from '../_shared/nameMatch.ts'
+import type { Database } from '../_shared/database.ts'
 import type { FantasyProsProjectionRow, FantasyProsProjectionType } from './parser.ts'
 
 export type PlayerForProjection = {
@@ -8,38 +9,8 @@ export type PlayerForProjection = {
   status: string | null
 }
 
-export type FantasyProsProjectionInsert = {
-  run_id: string
-  projection_type: FantasyProsProjectionType
-  source_url: string
-  source_row_number: number
-  season_year: number | null
-  week_number: number | null
-  projection_date: string | null
-  fetched_at: string
-  source_player_name: string
-  normalized_player_name: string
-  source_team: string | null
-  source_positions: string[]
-  source_status: string | null
-  source_opponent: string | null
-  player_id: string | null
-  match_status: 'matched' | 'unmatched' | 'ambiguous'
-  match_reason: string
-  points: number | null
-  rebounds: number | null
-  assists: number | null
-  steals: number | null
-  blocks: number | null
-  three_pointers_made: number | null
-  turnovers: number | null
-  minutes: number | null
-  games_played: number | null
-  field_goal_pct: number | null
-  free_throw_pct: number | null
-  raw_player_cell: string
-  raw_stats: Record<string, string | null>
-}
+export type FantasyProsProjectionInsert =
+  Database['public']['Tables']['fantasypros_projection_rows']['Insert']
 
 type PlayerMaps = {
   byNormName: Map<string, PlayerForProjection[]>

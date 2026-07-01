@@ -100,7 +100,13 @@ ALTER TABLE public.player_projections
   ADD COLUMN IF NOT EXISTS projected_steals numeric(8,2),
   ADD COLUMN IF NOT EXISTS projected_blocks numeric(8,2),
   ADD COLUMN IF NOT EXISTS projected_three_pointers_made numeric(8,2),
-  ADD COLUMN IF NOT EXISTS projected_turnovers numeric(8,2);
+  ADD COLUMN IF NOT EXISTS projected_turnovers numeric(8,2),
+  ADD COLUMN IF NOT EXISTS projected_field_goals_made numeric(8,2),
+  ADD COLUMN IF NOT EXISTS projected_field_goals_attempted numeric(8,2),
+  ADD COLUMN IF NOT EXISTS projected_free_throws_made numeric(8,2),
+  ADD COLUMN IF NOT EXISTS projected_free_throws_attempted numeric(8,2),
+  ADD COLUMN IF NOT EXISTS projected_double_doubles numeric(8,2),
+  ADD COLUMN IF NOT EXISTS projected_triple_doubles numeric(8,2);
 
 ALTER TABLE public.projection_sync_runs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.fantasypros_projection_rows ENABLE ROW LEVEL SECURITY;
@@ -128,6 +134,12 @@ CREATE OR REPLACE FUNCTION public.projection_stat_fantasy_points(
   p_blocks numeric,
   p_three_pointers_made numeric,
   p_turnovers numeric,
+  p_field_goals_made numeric,
+  p_field_goals_attempted numeric,
+  p_free_throws_made numeric,
+  p_free_throws_attempted numeric,
+  p_double_doubles numeric,
+  p_triple_doubles numeric,
   p_scoring_settings jsonb
 )
 RETURNS numeric
@@ -142,11 +154,17 @@ AS $$
     COALESCE(p_steals, 0)              * COALESCE((p_scoring_settings->>'steals')::numeric, 0) +
     COALESCE(p_blocks, 0)              * COALESCE((p_scoring_settings->>'blocks')::numeric, 0) +
     COALESCE(p_three_pointers_made, 0) * COALESCE((p_scoring_settings->>'three_pointers_made')::numeric, 0) +
-    COALESCE(p_turnovers, 0)           * COALESCE((p_scoring_settings->>'turnovers')::numeric, 0)
+    COALESCE(p_turnovers, 0)           * COALESCE((p_scoring_settings->>'turnovers')::numeric, 0) +
+    COALESCE(p_field_goals_made, 0)    * COALESCE((p_scoring_settings->>'field_goals_made')::numeric, 0) +
+    COALESCE(p_field_goals_attempted, 0) * COALESCE((p_scoring_settings->>'field_goals_attempted')::numeric, 0) +
+    COALESCE(p_free_throws_made, 0)    * COALESCE((p_scoring_settings->>'free_throws_made')::numeric, 0) +
+    COALESCE(p_free_throws_attempted, 0) * COALESCE((p_scoring_settings->>'free_throws_attempted')::numeric, 0) +
+    COALESCE(p_double_doubles, 0)      * COALESCE((p_scoring_settings->>'double_double')::numeric, 0) +
+    COALESCE(p_triple_doubles, 0)      * COALESCE((p_scoring_settings->>'triple_double')::numeric, 0)
   ), 2);
 $$;
 
-GRANT EXECUTE ON FUNCTION public.projection_stat_fantasy_points(numeric, numeric, numeric, numeric, numeric, numeric, numeric, jsonb)
+GRANT EXECUTE ON FUNCTION public.projection_stat_fantasy_points(numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric, jsonb)
   TO authenticated, service_role;
 
 CREATE OR REPLACE FUNCTION public.get_league_projection_rows(
@@ -203,7 +221,17 @@ WITH args AS (
     GREATEST(COALESCE(p_offset, 0), 0) AS page_offset
 ),
 league AS (
-  SELECT id, scoring_settings
+  SELECT
+    id,
+    scoring_settings,
+    (
+      COALESCE((scoring_settings->>'field_goals_made')::numeric, 0) <> 0 OR
+      COALESCE((scoring_settings->>'field_goals_attempted')::numeric, 0) <> 0 OR
+      COALESCE((scoring_settings->>'free_throws_made')::numeric, 0) <> 0 OR
+      COALESCE((scoring_settings->>'free_throws_attempted')::numeric, 0) <> 0 OR
+      COALESCE((scoring_settings->>'double_double')::numeric, 0) <> 0 OR
+      COALESCE((scoring_settings->>'triple_double')::numeric, 0) <> 0
+    ) AS uses_fantasypros_unsupported_scoring
   FROM public.leagues
   WHERE id = p_league_id
 ),
@@ -261,6 +289,7 @@ daily_candidates AS (
     'today'::text AS projection_view,
     public.projection_stat_fantasy_points(
       r.points, r.rebounds, r.assists, r.steals, r.blocks, r.three_pointers_made, r.turnovers,
+      NULL::numeric, NULL::numeric, NULL::numeric, NULL::numeric, NULL::numeric, NULL::numeric,
       l.scoring_settings
     ) AS projection_fantasy_points,
     r.minutes AS projection_minutes,
@@ -279,7 +308,7 @@ daily_candidates AS (
     r.projection_date,
     r.week_number AS projection_week_number,
     true AS projection_is_fresh,
-    1 AS priority
+    CASE WHEN l.uses_fantasypros_unsupported_scoring THEN 5 ELSE 1 END AS priority
   FROM args
   JOIN league l ON true
   JOIN public.fantasypros_projection_rows r
@@ -299,6 +328,7 @@ weekly_avg_candidates AS (
     'week_avg'::text AS projection_view,
     public.projection_stat_fantasy_points(
       r.points, r.rebounds, r.assists, r.steals, r.blocks, r.three_pointers_made, r.turnovers,
+      NULL::numeric, NULL::numeric, NULL::numeric, NULL::numeric, NULL::numeric, NULL::numeric,
       l.scoring_settings
     ) AS projection_fantasy_points,
     r.minutes AS projection_minutes,
@@ -317,7 +347,11 @@ weekly_avg_candidates AS (
     r.projection_date,
     r.week_number AS projection_week_number,
     true AS projection_is_fresh,
-    CASE WHEN args.view_name = 'week_avg' THEN 1 ELSE 2 END AS priority
+    CASE
+      WHEN l.uses_fantasypros_unsupported_scoring THEN 5
+      WHEN args.view_name = 'week_avg' THEN 1
+      ELSE 2
+    END AS priority
   FROM args
   JOIN league l ON true
   LEFT JOIN week_ctx wc ON true
@@ -339,6 +373,7 @@ weekly_total_candidates AS (
     'week_total'::text AS projection_view,
     public.projection_stat_fantasy_points(
       r.points, r.rebounds, r.assists, r.steals, r.blocks, r.three_pointers_made, r.turnovers,
+      NULL::numeric, NULL::numeric, NULL::numeric, NULL::numeric, NULL::numeric, NULL::numeric,
       l.scoring_settings
     ) AS projection_fantasy_points,
     r.minutes AS projection_minutes,
@@ -357,7 +392,7 @@ weekly_total_candidates AS (
     r.projection_date,
     r.week_number AS projection_week_number,
     true AS projection_is_fresh,
-    1 AS priority
+    CASE WHEN l.uses_fantasypros_unsupported_scoring THEN 5 ELSE 1 END AS priority
   FROM args
   JOIN league l ON true
   LEFT JOIN week_ctx wc ON true
@@ -380,6 +415,9 @@ internal_candidates AS (
     public.projection_stat_fantasy_points(
       pp.projected_stat_points, pp.projected_rebounds, pp.projected_assists, pp.projected_steals,
       pp.projected_blocks, pp.projected_three_pointers_made, pp.projected_turnovers,
+      pp.projected_field_goals_made, pp.projected_field_goals_attempted,
+      pp.projected_free_throws_made, pp.projected_free_throws_attempted,
+      pp.projected_double_doubles, pp.projected_triple_doubles,
       l.scoring_settings
     ) AS projection_fantasy_points,
     pp.projected_minutes AS projection_minutes,
@@ -413,25 +451,19 @@ season_avg_candidates AS (
     'season_avg'::text AS projection_source,
     'Season Avg'::text AS projection_source_label,
     'fallback'::text AS projection_view,
-    ROUND((
-      COALESCE(avg.avg_points, 0)                * COALESCE((l.scoring_settings->>'points')::numeric, 0) +
-      COALESCE(avg.avg_rebounds, 0)              * COALESCE((l.scoring_settings->>'rebounds')::numeric, 0) +
-      COALESCE(avg.avg_assists, 0)               * COALESCE((l.scoring_settings->>'assists')::numeric, 0) +
-      COALESCE(avg.avg_steals, 0)                * COALESCE((l.scoring_settings->>'steals')::numeric, 0) +
-      COALESCE(avg.avg_blocks, 0)                * COALESCE((l.scoring_settings->>'blocks')::numeric, 0) +
-      COALESCE(avg.avg_three_pointers_made, 0)   * COALESCE((l.scoring_settings->>'three_pointers_made')::numeric, 0) +
-      COALESCE(avg.avg_turnovers, 0)             * COALESCE((l.scoring_settings->>'turnovers')::numeric, 0) +
-      COALESCE(avg.avg_field_goals_made, 0)      * COALESCE((l.scoring_settings->>'field_goals_made')::numeric, 0) +
-      COALESCE(avg.avg_field_goals_attempted, 0) * COALESCE((l.scoring_settings->>'field_goals_attempted')::numeric, 0) +
-      COALESCE(avg.avg_free_throws_made, 0)      * COALESCE((l.scoring_settings->>'free_throws_made')::numeric, 0) +
-      COALESCE(avg.avg_free_throws_attempted, 0) * COALESCE((l.scoring_settings->>'free_throws_attempted')::numeric, 0) +
+    public.projection_stat_fantasy_points(
+      avg.avg_points, avg.avg_rebounds, avg.avg_assists, avg.avg_steals, avg.avg_blocks,
+      avg.avg_three_pointers_made, avg.avg_turnovers,
+      avg.avg_field_goals_made, avg.avg_field_goals_attempted,
+      avg.avg_free_throws_made, avg.avg_free_throws_attempted,
       CASE WHEN COALESCE(avg.games_played, 0) > 0
-        THEN (COALESCE(avg.double_doubles, 0)::numeric / avg.games_played) * COALESCE((l.scoring_settings->>'double_double')::numeric, 0)
-        ELSE 0 END +
+        THEN COALESCE(avg.double_doubles, 0)::numeric / avg.games_played
+        ELSE 0 END,
       CASE WHEN COALESCE(avg.games_played, 0) > 0
-        THEN (COALESCE(avg.triple_doubles, 0)::numeric / avg.games_played) * COALESCE((l.scoring_settings->>'triple_double')::numeric, 0)
-        ELSE 0 END
-    ), 2) AS projection_fantasy_points,
+        THEN COALESCE(avg.triple_doubles, 0)::numeric / avg.games_played
+        ELSE 0 END,
+      l.scoring_settings
+    ) AS projection_fantasy_points,
     avg.avg_minutes_played AS projection_minutes,
     avg.avg_points AS projection_points,
     avg.avg_rebounds AS projection_rebounds,

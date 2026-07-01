@@ -17,6 +17,7 @@ const autoSetSource = read('lib/lineup/autoSet.ts')
 const projectionsScreen = read('app/(tabs)/projections.tsx')
 const playerItem = read('components/PlayerSearchItem.tsx')
 const playerDetail = read('app/player/[id].tsx')
+const databaseTypes = read('types/database.ts')
 
 describe('FantasyPros projection source implementation', () => {
     it('stores auditable source runs and raw rows, including unmatched rows', () => {
@@ -28,9 +29,12 @@ describe('FantasyPros projection source implementation', () => {
         expect(migration).toContain('idx_fantasypros_projection_rows_daily_read')
         expect(migration).toContain('idx_fantasypros_projection_rows_weekly_read')
         expect(migration).toContain('idx_fantasypros_projection_rows_unmatched')
+        expect(databaseTypes).toContain('fantasypros_projection_rows: {')
+        expect(databaseTypes).toContain('projection_sync_runs: {')
 
-        expect(matchSource).toContain("match_status: 'matched' | 'unmatched' | 'ambiguous'")
+        expect(matchSource).toContain("status: 'matched' | 'unmatched' | 'ambiguous'")
         expect(matchSource).toContain("reason: 'no normalized-name match'")
+        expect(matchSource).toContain("Database['public']['Tables']['fantasypros_projection_rows']['Insert']")
     })
 
     it('locks projection write tables behind RLS and service-role mutation grants', () => {
@@ -58,6 +62,15 @@ describe('FantasyPros projection source implementation', () => {
         expect(parserSource).toContain('findProjectionTable')
     })
 
+    it('keeps sync writes on generated Supabase database types', () => {
+        expect(syncProjectionSource).toContain("type ProjectionSyncRunInsert = Database['public']['Tables']['projection_sync_runs']['Insert']")
+        expect(syncProjectionSource).toContain("type ProjectionSyncRunUpdate = Database['public']['Tables']['projection_sync_runs']['Update']")
+        expect(syncProjectionSource).toContain("type InternalProjectionUpsert = Database['public']['Tables']['player_projections']['Insert']")
+        expect(syncProjectionSource).not.toContain('type UntypedSupabase')
+        expect(syncProjectionSource).not.toContain('as unknown as UntypedSupabase')
+        expect(syncProjectionSource).not.toContain('const db = supabase')
+    })
+
     it('schedules backend cron refreshes and keeps the wrapper service-role only', () => {
         const cron = latestCronScheduleStatement('nba-sync-projections')
         const wrapper = latestFunctionDefinition('invoke_projection_sync_if_due')
@@ -79,16 +92,31 @@ describe('FantasyPros projection source implementation', () => {
 
         expect(scoringRpc).toContain("p_scoring_settings->>'points'")
         expect(scoringRpc).toContain("p_scoring_settings->>'three_pointers_made'")
+        expect(scoringRpc).toContain("p_scoring_settings->>'field_goals_made'")
+        expect(scoringRpc).toContain("p_scoring_settings->>'field_goals_attempted'")
+        expect(scoringRpc).toContain("p_scoring_settings->>'free_throws_made'")
+        expect(scoringRpc).toContain("p_scoring_settings->>'free_throws_attempted'")
+        expect(scoringRpc).toContain("p_scoring_settings->>'double_double'")
+        expect(scoringRpc).toContain("p_scoring_settings->>'triple_double'")
         expect(projectionRpc).toContain("r.projection_type = 'daily'")
         expect(projectionRpc).toContain("r.fetched_at >= now() - interval '36 hours'")
         expect(projectionRpc).toContain("r.projection_type = 'weekly_avg'")
         expect(projectionRpc).toContain("r.projection_type = 'weekly_total'")
+        expect(projectionRpc).toContain('uses_fantasypros_unsupported_scoring')
+        expect(projectionRpc).toContain('CASE WHEN l.uses_fantasypros_unsupported_scoring THEN 5 ELSE 1 END AS priority')
         expect(projectionRpc).toContain('public.player_projections pp')
         expect(projectionRpc).toContain('pp.projected_stat_points')
+        expect(projectionRpc).toContain('pp.projected_field_goals_made')
+        expect(projectionRpc).toContain('pp.projected_double_doubles')
         expect(projectionRpc).not.toContain('pp.projected_points AS projection_fantasy_points')
         expect(projectionRpc).toContain('public.mv_player_season_averages avg')
-        expect(projectionRpc).toContain("CASE WHEN args.view_name = 'week_avg' THEN 1 ELSE 2 END AS priority")
+        expect(projectionRpc).toContain('avg.avg_field_goals_made')
+        expect(projectionRpc).toContain('avg.avg_free_throws_attempted')
+        expect(projectionRpc).toContain("WHEN args.view_name = 'week_avg' THEN 1")
+        expect(projectionRpc).toContain('ELSE 2')
         expect(projectionRpc).toContain('ORDER BY cu.player_id, cu.priority ASC')
+        expect(syncProjectionSource).toContain('projected_field_goals_made')
+        expect(syncProjectionSource).toContain('projected_double_doubles')
     })
 
     it('enriches player search projections after applying player filters', () => {

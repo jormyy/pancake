@@ -579,6 +579,126 @@ export type Database = {
           },
         ]
       }
+      fantasypros_projection_rows: {
+        Row: {
+          assists: number | null
+          blocks: number | null
+          created_at: string
+          fetched_at: string
+          field_goal_pct: number | null
+          free_throw_pct: number | null
+          games_played: number | null
+          id: string
+          match_reason: string | null
+          match_status: string
+          minutes: number | null
+          normalized_player_name: string
+          player_id: string | null
+          points: number | null
+          projection_date: string | null
+          projection_type: string
+          raw_player_cell: string | null
+          raw_stats: Json
+          rebounds: number | null
+          run_id: string
+          season_year: number | null
+          source_opponent: string | null
+          source_player_name: string
+          source_positions: string[]
+          source_row_number: number
+          source_status: string | null
+          source_team: string | null
+          source_url: string
+          steals: number | null
+          three_pointers_made: number | null
+          turnovers: number | null
+          week_number: number | null
+        }
+        Insert: {
+          assists?: number | null
+          blocks?: number | null
+          created_at?: string
+          fetched_at: string
+          field_goal_pct?: number | null
+          free_throw_pct?: number | null
+          games_played?: number | null
+          id?: string
+          match_reason?: string | null
+          match_status: string
+          minutes?: number | null
+          normalized_player_name: string
+          player_id?: string | null
+          points?: number | null
+          projection_date?: string | null
+          projection_type: string
+          raw_player_cell?: string | null
+          raw_stats?: Json
+          rebounds?: number | null
+          run_id: string
+          season_year?: number | null
+          source_opponent?: string | null
+          source_player_name: string
+          source_positions?: string[]
+          source_row_number: number
+          source_status?: string | null
+          source_team?: string | null
+          source_url: string
+          steals?: number | null
+          three_pointers_made?: number | null
+          turnovers?: number | null
+          week_number?: number | null
+        }
+        Update: {
+          assists?: number | null
+          blocks?: number | null
+          created_at?: string
+          fetched_at?: string
+          field_goal_pct?: number | null
+          free_throw_pct?: number | null
+          games_played?: number | null
+          id?: string
+          match_reason?: string | null
+          match_status?: string
+          minutes?: number | null
+          normalized_player_name?: string
+          player_id?: string | null
+          points?: number | null
+          projection_date?: string | null
+          projection_type?: string
+          raw_player_cell?: string | null
+          raw_stats?: Json
+          rebounds?: number | null
+          run_id?: string
+          season_year?: number | null
+          source_opponent?: string | null
+          source_player_name?: string
+          source_positions?: string[]
+          source_row_number?: number
+          source_status?: string | null
+          source_team?: string | null
+          source_url?: string
+          steals?: number | null
+          three_pointers_made?: number | null
+          turnovers?: number | null
+          week_number?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fantasypros_projection_rows_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fantasypros_projection_rows_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "projection_sync_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       league_audit_logs: {
         Row: {
           action: string
@@ -1180,6 +1300,69 @@ export type Database = {
           },
         ]
       }
+      projection_sync_runs: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          error_message: string | null
+          http_status: number | null
+          id: string
+          matched_count: number
+          parser_version: string
+          projection_date: string | null
+          projection_type: string
+          row_count: number
+          season_year: number | null
+          source: string
+          source_metadata: Json
+          source_url: string
+          started_at: string
+          status: string
+          unmatched_count: number
+          week_number: number | null
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          http_status?: number | null
+          id?: string
+          matched_count?: number
+          parser_version?: string
+          projection_date?: string | null
+          projection_type: string
+          row_count?: number
+          season_year?: number | null
+          source?: string
+          source_metadata?: Json
+          source_url: string
+          started_at?: string
+          status?: string
+          unmatched_count?: number
+          week_number?: number | null
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          http_status?: number | null
+          id?: string
+          matched_count?: number
+          parser_version?: string
+          projection_date?: string | null
+          projection_type?: string
+          row_count?: number
+          season_year?: number | null
+          source?: string
+          source_metadata?: Json
+          source_url?: string
+          started_at?: string
+          status?: string
+          unmatched_count?: number
+          week_number?: number | null
+        }
+        Relationships: []
+      }
       player_game_stats: {
         Row: {
           assists: number | null
@@ -1295,12 +1478,18 @@ export type Database = {
           player_id: string
           projected_assists: number | null
           projected_blocks: number | null
+          projected_double_doubles: number | null
+          projected_field_goals_attempted: number | null
+          projected_field_goals_made: number | null
+          projected_free_throws_attempted: number | null
+          projected_free_throws_made: number | null
           projected_minutes: number | null
           projected_points: number | null
           projected_rebounds: number | null
           projected_stat_points: number | null
           projected_steals: number | null
           projected_three_pointers_made: number | null
+          projected_triple_doubles: number | null
           projected_turnovers: number | null
           season_year: number
           week_number: number
@@ -1311,12 +1500,18 @@ export type Database = {
           player_id: string
           projected_assists?: number | null
           projected_blocks?: number | null
+          projected_double_doubles?: number | null
+          projected_field_goals_attempted?: number | null
+          projected_field_goals_made?: number | null
+          projected_free_throws_attempted?: number | null
+          projected_free_throws_made?: number | null
           projected_minutes?: number | null
           projected_points?: number | null
           projected_rebounds?: number | null
           projected_stat_points?: number | null
           projected_steals?: number | null
           projected_three_pointers_made?: number | null
+          projected_triple_doubles?: number | null
           projected_turnovers?: number | null
           season_year: number
           week_number: number
@@ -1327,12 +1522,18 @@ export type Database = {
           player_id?: string
           projected_assists?: number | null
           projected_blocks?: number | null
+          projected_double_doubles?: number | null
+          projected_field_goals_attempted?: number | null
+          projected_field_goals_made?: number | null
+          projected_free_throws_attempted?: number | null
+          projected_free_throws_made?: number | null
           projected_minutes?: number | null
           projected_points?: number | null
           projected_rebounds?: number | null
           projected_stat_points?: number | null
           projected_steals?: number | null
           projected_three_pointers_made?: number | null
+          projected_triple_doubles?: number | null
           projected_turnovers?: number | null
           season_year?: number
           week_number?: number
@@ -2864,6 +3065,25 @@ export type Database = {
       generate_playoff_bracket_atomic: {
         Args: { p_league_id: string }
         Returns: Json
+      }
+      projection_stat_fantasy_points: {
+        Args: {
+          p_assists: number
+          p_blocks: number
+          p_double_doubles: number
+          p_field_goals_attempted: number
+          p_field_goals_made: number
+          p_free_throws_attempted: number
+          p_free_throws_made: number
+          p_points: number
+          p_rebounds: number
+          p_scoring_settings: Json
+          p_steals: number
+          p_three_pointers_made: number
+          p_triple_doubles: number
+          p_turnovers: number
+        }
+        Returns: number
       }
       get_league_projection_rows: {
         Args: {

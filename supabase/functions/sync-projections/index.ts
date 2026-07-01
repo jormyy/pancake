@@ -2,6 +2,7 @@ import { supabase } from '../_shared/supabase.ts'
 import { currentSeasonYear } from '../_shared/season.ts'
 import { requireInternalFunctionAuth } from '../_shared/auth.ts'
 import { internalServerError } from '../_shared/responses.ts'
+import type { Database, Json } from '../_shared/database.ts'
 import { parseFantasyProsProjectionHtml, type FantasyProsProjectionType } from './parser.ts'
 import {
   buildFantasyProsProjectionPayload,
@@ -40,30 +41,18 @@ type InternalFallbackStatRow = {
   blocks: number | null
   turnovers: number | null
   three_pointers_made: number | null
+  field_goals_made: number | null
+  field_goals_attempted: number | null
+  free_throws_made: number | null
+  free_throws_attempted: number | null
+  double_double: boolean | null
+  triple_double: boolean | null
   minutes_played: number | null
   did_not_play: boolean | null
 }
-type InternalProjectionUpsert = {
-  player_id: string
-  season_year: number
-  week_number: number
-  projected_stat_points: number
-  projected_rebounds: number
-  projected_assists: number
-  projected_steals: number
-  projected_blocks: number
-  projected_three_pointers_made: number
-  projected_turnovers: number
-  projected_minutes: number
-  fetched_at: string
-}
-
-type UntypedSupabase = {
-  from: (table: string) => any
-  rpc: (fn: string, args?: Record<string, unknown>) => any
-}
-
-const db = supabase as unknown as UntypedSupabase
+type ProjectionSyncRunInsert = Database['public']['Tables']['projection_sync_runs']['Insert']
+type ProjectionSyncRunUpdate = Database['public']['Tables']['projection_sync_runs']['Update']
+type InternalProjectionUpsert = Database['public']['Tables']['player_projections']['Insert']
 
 Deno.serve(async (req) => {
   const authError = requireInternalFunctionAuth(req)
@@ -222,22 +211,24 @@ async function createSyncRun({
   weekNumber: number | null
   projectionDate: string | null
 }): Promise<{ id: string }> {
-  const { data, error } = await db
+  const insertPayload: ProjectionSyncRunInsert = {
+    source: 'fantasypros',
+    projection_type: projectionType,
+    source_url: url,
+    season_year: seasonYear,
+    week_number: weekNumber,
+    projection_date: projectionDate,
+    parser_version: PARSER_VERSION,
+    status: 'running',
+    source_metadata: {
+      crawlDelaySeconds: 5,
+      disallowedPaths: ['/api/', '/json/', '/xml/', '/ajax/'],
+    },
+  }
+
+  const { data, error } = await supabase
     .from('projection_sync_runs')
-    .insert({
-      source: 'fantasypros',
-      projection_type: projectionType,
-      source_url: url,
-      season_year: seasonYear,
-      week_number: weekNumber,
-      projection_date: projectionDate,
-      parser_version: PARSER_VERSION,
-      status: 'running',
-      source_metadata: {
-        crawlDelaySeconds: 5,
-        disallowedPaths: ['/api/', '/json/', '/xml/', '/ajax/'],
-      },
-    })
+    .insert(insertPayload)
     .select('id')
     .single()
   if (error) throw error
@@ -253,28 +244,30 @@ async function finishSyncRun(
     matchedCount?: number
     unmatchedCount?: number
     errorMessage?: string
-    metadata?: Record<string, unknown>
+    metadata?: Json
   },
 ): Promise<void> {
-  const { error } = await db
+  const updatePayload: ProjectionSyncRunUpdate = {
+    completed_at: new Date().toISOString(),
+    status: update.status,
+    http_status: update.httpStatus ?? null,
+    row_count: update.rowCount ?? 0,
+    matched_count: update.matchedCount ?? 0,
+    unmatched_count: update.unmatchedCount ?? 0,
+    error_message: update.errorMessage ?? null,
+    source_metadata: update.metadata ?? {},
+  }
+
+  const { error } = await supabase
     .from('projection_sync_runs')
-    .update({
-      completed_at: new Date().toISOString(),
-      status: update.status,
-      http_status: update.httpStatus ?? null,
-      row_count: update.rowCount ?? 0,
-      matched_count: update.matchedCount ?? 0,
-      unmatched_count: update.unmatchedCount ?? 0,
-      error_message: update.errorMessage ?? null,
-      source_metadata: update.metadata ?? {},
-    })
+    .update(updatePayload)
     .eq('id', runId)
   if (error) throw error
 }
 
 async function insertProjectionRows(rows: FantasyProsProjectionInsert[]): Promise<void> {
   for (let i = 0; i < rows.length; i += CHUNK) {
-    const { error } = await db.from('fantasypros_projection_rows').insert(rows.slice(i, i + CHUNK))
+    const { error } = await supabase.from('fantasypros_projection_rows').insert(rows.slice(i, i + CHUNK))
     if (error) throw error
   }
 }
@@ -312,21 +305,23 @@ async function syncInternalFallbackProjections(
   const PAGE = 1000
   let from = 0
   while (true) {
-    const { data, error } = await db
+    const { data, error } = await supabase
       .from('player_game_stats')
       .select(
         'player_id, points, rebounds, assists, steals, blocks, turnovers, ' +
           'three_pointers_made, field_goals_made, field_goals_attempted, ' +
-          'free_throws_made, free_throws_attempted, did_not_play, nba_games!inner(nba_game_id)',
+          'free_throws_made, free_throws_attempted, double_double, triple_double, ' +
+          'minutes_played, did_not_play, nba_games!inner(nba_game_id)',
       )
       .eq('season_year', seasonYear)
       .gte('week_number', minWeek)
       .lte('week_number', weekNumber)
       .like('nba_games.nba_game_id', '002%')
       .range(from, from + PAGE - 1)
+      .returns<InternalFallbackStatRow[]>()
     if (error) throw error
     if (!data || data.length === 0) break
-    rows.push(...(data as InternalFallbackStatRow[]))
+    rows.push(...data)
     if (data.length < PAGE) break
     from += PAGE
   }
@@ -358,6 +353,12 @@ async function syncInternalFallbackProjections(
       projected_blocks: averageStat(games, 'blocks'),
       projected_three_pointers_made: averageStat(games, 'three_pointers_made'),
       projected_turnovers: averageStat(games, 'turnovers'),
+      projected_field_goals_made: averageStat(games, 'field_goals_made'),
+      projected_field_goals_attempted: averageStat(games, 'field_goals_attempted'),
+      projected_free_throws_made: averageStat(games, 'free_throws_made'),
+      projected_free_throws_attempted: averageStat(games, 'free_throws_attempted'),
+      projected_double_doubles: averageFlag(games, 'double_double'),
+      projected_triple_doubles: averageFlag(games, 'triple_double'),
       projected_minutes: averageStat(games, 'minutes_played'),
       fetched_at: fetchedAt,
     })
@@ -385,10 +386,22 @@ function averageStat(
     | 'blocks'
     | 'turnovers'
     | 'three_pointers_made'
+    | 'field_goals_made'
+    | 'field_goals_attempted'
+    | 'free_throws_made'
+    | 'free_throws_attempted'
     | 'minutes_played'
   >,
 ): number {
   const total = games.reduce((sum, game) => sum + Number(game[key] ?? 0), 0)
+  return parseFloat((total / games.length).toFixed(2))
+}
+
+function averageFlag(
+  games: InternalFallbackStatRow[],
+  key: keyof Pick<InternalFallbackStatRow, 'double_double' | 'triple_double'>,
+): number {
+  const total = games.reduce((sum, game) => sum + (game[key] ? 1 : 0), 0)
   return parseFloat((total / games.length).toFixed(2))
 }
 
