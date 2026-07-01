@@ -41,7 +41,8 @@ INSERT INTO public.players (id, first_name, last_name, nba_team, position, years
 VALUES
   ('00000000-0000-0000-0000-000000020301', 'Projection', 'Leader', 'ATL', 'PG', 3, '209901', ARRAY['PG']),
   ('00000000-0000-0000-0000-000000020302', 'Average', 'Leader', 'BOS', 'SG', 4, '209902', ARRAY['SG']),
-  ('00000000-0000-0000-0000-000000020303', 'Season', 'Fallback', 'CHI', 'SF', 5, '209903', ARRAY['SF']);
+  ('00000000-0000-0000-0000-000000020303', 'Season', 'Fallback', 'CHI', 'SF', 5, '209903', ARRAY['SF']),
+  ('00000000-0000-0000-0000-000000020304', 'FantasyPros', 'Only', 'DEN', 'SG', 2, '209904', ARRAY['SG']);
 
 INSERT INTO public.season_weeks (id, season_year, week_number, week_start, week_end)
 VALUES (
@@ -221,8 +222,8 @@ VALUES
     now() - interval '10 minutes',
     'success',
     200,
-    1,
-    1,
+    3,
+    3,
     0
   ),
   (
@@ -354,6 +355,32 @@ VALUES
     'Average Leader BOS SG'
   ),
   (
+    '00000000-0000-0000-0000-000000020801',
+    'daily',
+    'https://www.fantasypros.com/nba/projections/daily-overall.php',
+    3,
+    2099,
+    1,
+    (timezone('America/New_York', now()))::date,
+    now(),
+    'FantasyPros Only',
+    'fantasyprosonly',
+    'DEN',
+    ARRAY['SG'],
+    '00000000-0000-0000-0000-000000020304',
+    'matched',
+    12,
+    3,
+    2,
+    0,
+    0,
+    1,
+    1,
+    24,
+    NULL,
+    'FantasyPros Only DEN SG'
+  ),
+  (
     '00000000-0000-0000-0000-000000020802',
     'daily',
     'https://www.fantasypros.com/nba/projections/daily-overall.php',
@@ -435,6 +462,7 @@ VALUES
 DO $$
 DECLARE
   v_row record;
+  v_count int;
 BEGIN
   SELECT *
     INTO v_row
@@ -466,6 +494,38 @@ BEGIN
 
   IF v_row.projection_source <> 'internal' OR v_row.projection_fantasy_points <> 90 THEN
     RAISE EXCEPTION 'Unsupported scoring should fall back from FantasyPros to internal raw-stat projection, got %', row_to_json(v_row);
+  END IF;
+
+  SELECT *
+    INTO v_row
+    FROM public.get_league_projection_rows(
+      '00000000-0000-0000-0000-000000020101',
+      2099,
+      (timezone('America/New_York', now()))::date,
+      'today',
+      ARRAY['00000000-0000-0000-0000-000000020304']::uuid[],
+      10,
+      0
+    );
+
+  IF v_row.projection_source <> 'fantasypros_daily' OR v_row.projection_fantasy_points <> 17 THEN
+    RAISE EXCEPTION 'Standard scoring should use FantasyPros-only daily rows, got %', row_to_json(v_row);
+  END IF;
+
+  SELECT count(*)
+    INTO v_count
+    FROM public.get_league_projection_rows(
+      '00000000-0000-0000-0000-000000020102',
+      2099,
+      (timezone('America/New_York', now()))::date,
+      'today',
+      ARRAY['00000000-0000-0000-0000-000000020304']::uuid[],
+      10,
+      0
+    );
+
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION 'Unsupported scoring should not publish FantasyPros-only rows with missing FG/FT counting stats, got % rows', v_count;
   END IF;
 
   SELECT *

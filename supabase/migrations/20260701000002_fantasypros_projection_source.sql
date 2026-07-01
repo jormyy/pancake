@@ -372,7 +372,7 @@ daily_candidates AS (
     r.projection_date,
     r.week_number AS projection_week_number,
     true AS projection_is_fresh,
-    CASE WHEN l.uses_fantasypros_unsupported_scoring THEN 5 ELSE 1 END AS priority
+    1 AS priority
   FROM args
   JOIN league l ON true
   JOIN public.fantasypros_projection_rows r
@@ -388,6 +388,7 @@ daily_candidates AS (
    AND psr.status = 'success'
    AND psr.completed_at IS NOT NULL
   WHERE args.view_name = 'today'
+    AND NOT l.uses_fantasypros_unsupported_scoring
   ORDER BY r.player_id, r.fetched_at DESC, r.run_id DESC
 ),
 weekly_avg_candidates AS (
@@ -457,11 +458,7 @@ weekly_avg_candidates AS (
     r.projection_date,
     r.week_number AS projection_week_number,
     true AS projection_is_fresh,
-    CASE
-      WHEN l.uses_fantasypros_unsupported_scoring THEN 5
-      WHEN args.view_name = 'week_avg' THEN 1
-      ELSE 2
-    END AS priority
+    CASE WHEN args.view_name = 'week_avg' THEN 1 ELSE 2 END AS priority
   FROM args
   JOIN league l ON true
   LEFT JOIN week_ctx wc ON true
@@ -487,6 +484,7 @@ weekly_avg_candidates AS (
     END AS games_multiplier
   ) m
   WHERE args.view_name IN ('today', 'week_avg', 'week_total')
+    AND NOT l.uses_fantasypros_unsupported_scoring
   ORDER BY r.player_id, r.week_number DESC NULLS LAST, r.fetched_at DESC, r.run_id DESC
 ),
 weekly_total_candidates AS (
@@ -536,7 +534,7 @@ weekly_total_candidates AS (
     r.projection_date,
     r.week_number AS projection_week_number,
     true AS projection_is_fresh,
-    CASE WHEN l.uses_fantasypros_unsupported_scoring THEN 5 ELSE 1 END AS priority
+    1 AS priority
   FROM args
   JOIN league l ON true
   LEFT JOIN week_ctx wc ON true
@@ -554,6 +552,7 @@ weekly_total_candidates AS (
    AND psr.status = 'success'
    AND psr.completed_at IS NOT NULL
   WHERE args.view_name = 'week_total'
+    AND NOT l.uses_fantasypros_unsupported_scoring
   ORDER BY r.player_id, r.week_number DESC NULLS LAST, r.fetched_at DESC, r.run_id DESC
 ),
 internal_candidates AS (
