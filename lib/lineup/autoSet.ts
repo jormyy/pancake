@@ -238,7 +238,11 @@ async function autoSetForDate(
 
     // Any player whose game has already started is locked — they cannot be moved in any direction.
     const lockedEntries: { playerId: string; slotType: string }[] = []
-    const lockedPlayerIds = new Set<string>()
+    const lockedPlayerIds = new Set(
+        datePlayers
+            .filter((player) => player.nbaTeam != null && startedTeams.has(player.nbaTeam))
+            .map((player) => player.playerId),
+    )
     for (const entry of (existingEntries ?? []) as WeeklyLineupRow[]) {
         const team = playerTeamMap.get(entry.player_id)
         if (team && startedTeams.has(team)) {

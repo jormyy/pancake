@@ -652,6 +652,15 @@ BEGIN
     RAISE EXCEPTION 'Unsupported weekly total fallback should scale season averages by scheduled games, got %', row_to_json(v_row);
   END IF;
 
+  UPDATE public.player_projections
+     SET projected_stat_points = 8,
+         projected_rebounds = 8,
+         projected_field_goals_made = 0,
+         projected_field_goals_attempted = 0,
+         projected_double_doubles = NULL,
+         projected_triple_doubles = NULL
+   WHERE id = '00000000-0000-0000-0000-000000020701';
+
   INSERT INTO public.projection_sync_runs (
     id,
     source,
@@ -697,9 +706,21 @@ BEGIN
       0
     );
 
-  IF v_row.projection_source <> 'internal' OR v_row.projection_fantasy_points <> 80 THEN
-    RAISE EXCEPTION 'Newer skipped weekly-total run should suppress older FantasyPros weekly-total rows, got %', row_to_json(v_row);
+  IF v_row.projection_source <> 'internal'
+     OR v_row.projection_points <> 16
+     OR v_row.projection_rebounds <> 16
+     OR v_row.projection_fantasy_points <> 32 THEN
+    RAISE EXCEPTION 'Newer skipped weekly-total run should suppress older rows without deriving internal DD/TD bonuses from scaled totals, got %', row_to_json(v_row);
   END IF;
+
+  UPDATE public.player_projections
+     SET projected_stat_points = 40,
+         projected_rebounds = 0,
+         projected_field_goals_made = 5,
+         projected_field_goals_attempted = 10,
+         projected_double_doubles = 0,
+         projected_triple_doubles = 0
+   WHERE id = '00000000-0000-0000-0000-000000020701';
 
   INSERT INTO public.projection_sync_runs (
     id,

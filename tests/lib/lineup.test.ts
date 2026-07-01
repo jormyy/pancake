@@ -403,6 +403,32 @@ describe('autoSetLineup — locked lineup preservation', () => {
         expect(insertedRows.find((r: any) => r.player_id === 'pA')).toBeUndefined()
     })
 
+    it('does not auto-start an implicit bench player whose game already started', async () => {
+        const roster = [
+            rp('pA', 'PG', ['PG', 'G'], 'LAL'),
+            rp('pB', 'PG', ['PG', 'G'], 'BOS'),
+        ]
+        const avgs = [avg('pA', 40), avg('pB', 10)]
+        const games = [
+            game('LAL', 'OKC', 'InProgress'),
+            game('BOS', 'MIA'),
+        ]
+
+        const { insertSpy } = setupMocks({
+            roster,
+            avgs,
+            games,
+            templates: [{ slot_type: 'PG', slot_count: 1 }],
+            existingEntries: [],
+        })
+
+        await autoSetLineup('m1', 'lg1', 's1', 20, 2026, '2026-04-22')
+
+        const rows: any[] = insertSpy.mock.calls[0][0]
+        expect(rows.find((r: any) => r.player_id === 'pA')).toBeUndefined()
+        expect(rows.find((r: any) => r.player_id === 'pB' && r.slot_type === 'PG')).toBeDefined()
+    })
+
     it('re-optimizes remaining unlocked slots when a locked player holds a slot', async () => {
         // pA locked in PG → PG slot is consumed. pB and pC fill SG and SF.
         const roster = [

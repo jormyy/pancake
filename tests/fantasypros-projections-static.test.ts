@@ -138,6 +138,8 @@ describe('FantasyPros projection source implementation', () => {
         expect(projectionRpc).toContain('COALESCE(r.points, 0) / NULLIF(r.games_played, 0)')
         expect(projectionRpc).toContain('THEN r.games_played::numeric')
         expect(projectionRpc).toContain("WHEN args.view_name = 'week_total' THEN 0::numeric")
+        expect(projectionRpc).toContain("WHEN args.view_name = 'week_total' THEN COALESCE(pp.projected_double_doubles, 0) * m.games_multiplier")
+        expect(projectionRpc).toContain("WHEN args.view_name = 'week_total' THEN COALESCE(pp.projected_triple_doubles, 0) * m.games_multiplier")
         expect(syncProjectionSource).toMatch(
             /\.from\('player_game_stats'\)[\s\S]*\.order\('player_id', \{ ascending: true \}\)[\s\S]*\.order\('game_id', \{ ascending: true \}\)[\s\S]*\.range\(from, from \+ PAGE - 1\)/,
         )
@@ -193,6 +195,8 @@ describe('FantasyPros projection source implementation', () => {
         expect(autoSetSource).toContain('projection_fantasy_points')
         expect(lineupOptimizerSource).toContain("supabase.rpc('get_league_projection_rows'")
         expect(lineupOptimizerSource).toContain('projection_fantasy_points')
+        expect(autoSetSource).toContain('startedTeams.has(player.nbaTeam)')
+        expect(lineupOptimizerSource).toContain('startedTeams.has(player.nbaTeam)')
         expect(lineupOptimizerSource).toContain('if (team && startedTeams.has(team)) {')
         expect(lineupOptimizerSource).toContain('lockedPlayerIds.add(entry.player_id)')
         expect(lineupOptimizerSource).toContain("const isStarter = entry.slot_type !== 'BE' && entry.slot_type !== 'IR'")

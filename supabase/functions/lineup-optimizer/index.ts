@@ -289,7 +289,11 @@ async function autoSetMemberDate(
 
   const playerTeamMap = new Map(players.map((player) => [player.playerId, player.nbaTeam]))
   const lockedEntries: { playerId: string; slotType: string }[] = []
-  const lockedPlayerIds = new Set<string>()
+  const lockedPlayerIds = new Set(
+    players
+      .filter((player) => player.nbaTeam != null && startedTeams.has(player.nbaTeam))
+      .map((player) => player.playerId),
+  )
   for (const entry of (existingEntries ?? []) as WeeklyLineupRow[]) {
     const team = playerTeamMap.get(entry.player_id)
     if (team && startedTeams.has(team)) {

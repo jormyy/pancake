@@ -574,8 +574,14 @@ internal_candidates AS (
       pp.projected_field_goals_attempted * m.games_multiplier,
       pp.projected_free_throws_made * m.games_multiplier,
       pp.projected_free_throws_attempted * m.games_multiplier,
-      pp.projected_double_doubles * m.games_multiplier,
-      pp.projected_triple_doubles * m.games_multiplier,
+      CASE
+        WHEN args.view_name = 'week_total' THEN COALESCE(pp.projected_double_doubles, 0) * m.games_multiplier
+        ELSE pp.projected_double_doubles
+      END,
+      CASE
+        WHEN args.view_name = 'week_total' THEN COALESCE(pp.projected_triple_doubles, 0) * m.games_multiplier
+        ELSE pp.projected_triple_doubles
+      END,
       l.scoring_settings
     ) AS projection_fantasy_points,
     pp.projected_minutes * m.games_multiplier AS projection_minutes,
