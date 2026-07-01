@@ -3216,6 +3216,7 @@ export type Database = {
           projection_steals: number | null
           projection_three_pointers_made: number | null
           projection_turnovers: number | null
+          projection_view: string | null
           status: string | null
           years_exp: number | null
         }[]

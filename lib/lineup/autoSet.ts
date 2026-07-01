@@ -36,6 +36,9 @@ type AutoSetPlayer = {
     eligiblePositions: string[]
     nbaTeam: string | null
     projected: number
+    projectionSource: string | null
+    projectionSourceLabel: string | null
+    projectionView: string | null
     avoidInLineup: boolean
 }
 type GameRow = {
@@ -131,6 +134,9 @@ export async function autoSetLineup(
             eligiblePositions: getEligiblePositions(row.players ?? {}),
             nbaTeam: row.players?.nba_team ?? null,
             projected: 0,
+            projectionSource: null,
+            projectionSourceLabel: null,
+            projectionView: null,
             avoidInLineup,
         }
     })
@@ -214,10 +220,16 @@ async function autoSetForDate(
         gameDate,
         playerIds: players.map((player) => player.playerId),
     })
-    const datePlayers = players.map((player) => ({
-        ...player,
-        projected: Number(projectionMap.get(player.playerId)?.projection_fantasy_points ?? 0),
-    }))
+    const datePlayers = players.map((player) => {
+        const projection = projectionMap.get(player.playerId)
+        return {
+            ...player,
+            projected: Number(projection?.projection_fantasy_points ?? 0),
+            projectionSource: projection?.projection_source ?? null,
+            projectionSourceLabel: projection?.projection_source_label ?? null,
+            projectionView: projection?.projection_view ?? null,
+        }
+    })
 
     const playingTeams = new Set<string>()
     const startedTeams = new Set<string>()

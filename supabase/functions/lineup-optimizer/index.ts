@@ -39,6 +39,9 @@ type AutoSetPlayer = {
   eligiblePositions: string[]
   nbaTeam: string | null
   projected: number
+  projectionSource: string | null
+  projectionSourceLabel: string | null
+  projectionView: string | null
   avoidInLineup: boolean
 }
 type GameRow = {
@@ -66,6 +69,9 @@ type AssignmentResult = {
 type ProjectionRow = {
   player_id: string
   projection_fantasy_points: number | null
+  projection_source: string | null
+  projection_source_label: string | null
+  projection_view: string | null
 }
 
 const FILL_ORDER = ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F', 'UTIL']
@@ -261,16 +267,20 @@ async function autoSetMemberDate(
   if (gamesErr) throw gamesErr
   if (existingErr) throw existingErr
 
-  const projectionMap = new Map(
-    ((projections ?? []) as ProjectionRow[]).map((row) => [row.player_id, Number(row.projection_fantasy_points ?? 0)]),
-  )
-  const players: AutoSetPlayer[] = rosterRows.map((row) => ({
-    playerId: row.player_id,
-    eligiblePositions: eligiblePositions(row.players),
-    nbaTeam: row.players?.nba_team ?? null,
-    projected: projectionMap.get(row.player_id) ?? 0,
-    avoidInLineup: isAvoidedInjury(row.players?.injury_status ?? null),
-  }))
+  const projectionMap = new Map(((projections ?? []) as ProjectionRow[]).map((row) => [row.player_id, row]))
+  const players: AutoSetPlayer[] = rosterRows.map((row) => {
+    const projection = projectionMap.get(row.player_id)
+    return {
+      playerId: row.player_id,
+      eligiblePositions: eligiblePositions(row.players),
+      nbaTeam: row.players?.nba_team ?? null,
+      projected: Number(projection?.projection_fantasy_points ?? 0),
+      projectionSource: projection?.projection_source ?? null,
+      projectionSourceLabel: projection?.projection_source_label ?? null,
+      projectionView: projection?.projection_view ?? null,
+      avoidInLineup: isAvoidedInjury(row.players?.injury_status ?? null),
+    }
+  })
 
   const playingTeams = new Set<string>()
   const startedTeams = new Set<string>()
@@ -317,6 +327,7 @@ async function autoSetMemberDate(
     availablePlayers,
     (player) => !!(player.nbaTeam && playingTeams.has(player.nbaTeam)),
   )
+  const playerMap = new Map(players.map((player) => [player.playerId, player]))
 
   const assignments = [
     ...lockedEntries.map((entry) => ({
@@ -341,6 +352,23 @@ async function autoSetMemberDate(
     p_assignments: assignments,
   })
   if (error) throw error
+
+  console.log('[lineup-optimizer] auto-set projection sources', {
+    leagueId: setting.league_id,
+    memberId: setting.member_id,
+    date: dateContext.date,
+    assignments: newAssignments.map((entry) => {
+      const player = playerMap.get(entry.playerId)
+      return {
+        playerId: entry.playerId,
+        slotType: entry.slotType,
+        projected: player?.projected ?? 0,
+        projectionSource: player?.projectionSource ?? null,
+        projectionSourceLabel: player?.projectionSourceLabel ?? null,
+        projectionView: player?.projectionView ?? null,
+      }
+    }),
+  })
 
   const { error: updateError } = await supabase
     .from('lineup_optimizer_settings')

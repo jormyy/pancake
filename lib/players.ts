@@ -37,6 +37,7 @@ export type PlayerRow = {
     projection_fantasy_points?: number | null
     projection_source?: string | null
     projection_source_label?: string | null
+    projection_view?: string | null
     projection_fetched_at?: string | null
     projection_date?: string | null
     projection_opponent?: string | null

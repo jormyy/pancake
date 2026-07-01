@@ -14,6 +14,7 @@ import {
     formatProjectionGame,
     numberOrDash,
     projectionFreshnessLabel,
+    projectionViewLabel,
 } from '@/lib/projections'
 
 export function PlayerSearchItem({
@@ -63,6 +64,7 @@ export function PlayerSearchItem({
         next_game_opponent: item.projection_opponent ?? null,
     })
     const projectionFreshness = projectionFreshnessLabel(item.projection_fetched_at)
+    const projectionView = projectionViewLabel(item.projection_view)
     const stats = [
         { label: 'FP', value: item.avg_fantasy_points ?? item.avg_points, highlight: true },
         { label: 'PTS', value: item.avg_points },
@@ -153,7 +155,7 @@ export function PlayerSearchItem({
                                 <Text style={styles.projectionMetaWide} numberOfLines={1}>{projectionStatLine}</Text>
                             ) : null}
                             <Text style={styles.projectionSource} numberOfLines={1}>
-                                {item.projection_source_label ?? 'Projection'}{projectionFreshness ? ` ${projectionFreshness}` : ''}
+                                {[item.projection_source_label ?? 'Projection', projectionView, projectionFreshness].filter(Boolean).join(' · ')}
                             </Text>
                         </View>
                     ) : null}

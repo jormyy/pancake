@@ -119,6 +119,21 @@ export function projectionFreshnessLabel(fetchedAt: string | null | undefined): 
     return `${Math.floor(hours / 24)}d`
 }
 
+export function projectionViewLabel(view: string | null | undefined): string {
+    switch (view) {
+        case 'today':
+            return 'Today'
+        case 'week_avg':
+            return 'Week Avg'
+        case 'week_total':
+            return 'Week Total'
+        case 'fallback':
+            return 'Fallback'
+        default:
+            return ''
+    }
+}
+
 export function compactProjectionStatLine(row: Pick<
     LeagueProjectionRow,
     'projection_points' | 'projection_rebounds' | 'projection_assists' | 'projection_steals' | 'projection_blocks' | 'projection_three_pointers_made' | 'projection_turnovers'

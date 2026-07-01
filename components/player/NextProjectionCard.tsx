@@ -5,6 +5,7 @@ import {
     formatProjectionGame,
     numberOrDash,
     projectionFreshnessLabel,
+    projectionViewLabel,
     type LeagueProjectionRow,
 } from '@/lib/projections'
 
@@ -12,6 +13,7 @@ export function NextProjectionCard({ projection }: { projection: LeagueProjectio
     const statLine = compactProjectionStatLine(projection)
     const game = formatProjectionGame(projection)
     const freshness = projectionFreshnessLabel(projection.projection_fetched_at)
+    const view = projectionViewLabel(projection.projection_view)
 
     return (
         <View style={styles.card}>
@@ -19,7 +21,7 @@ export function NextProjectionCard({ projection }: { projection: LeagueProjectio
                 <View>
                     <Text style={styles.label}>Next Projection</Text>
                     <Text style={styles.meta} numberOfLines={1}>
-                        {[game, projection.projection_status, projection.projection_source_label, freshness].filter(Boolean).join(' · ')}
+                        {[game, projection.projection_status, projection.projection_source_label, view, freshness].filter(Boolean).join(' · ')}
                     </Text>
                 </View>
                 <View style={styles.scoreBox}>

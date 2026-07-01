@@ -886,7 +886,9 @@ BEGIN
       0
     );
 
-  IF v_projection_leader.avg_fantasy_points <> 10 OR v_projection_leader.projection_fantasy_points <> 124.5 THEN
+  IF v_projection_leader.avg_fantasy_points <> 10
+     OR v_projection_leader.projection_fantasy_points <> 124.5
+     OR v_projection_leader.projection_view <> 'today' THEN
     RAISE EXCEPTION 'search_players mixed average and projection fields for projection leader: %', row_to_json(v_projection_leader);
   END IF;
 
