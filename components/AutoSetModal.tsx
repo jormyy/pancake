@@ -7,12 +7,18 @@ export function AutoSetModal({
     onToday,
     onWholeWeek,
     onRestOfSeason,
+    seasonOptimizerEnabled,
+    onEnableSeasonOptimizer,
+    onDisableSeasonOptimizer,
 }: {
     visible: boolean
     onClose: () => void
     onToday: () => void
     onWholeWeek: () => void
     onRestOfSeason: () => void
+    seasonOptimizerEnabled: boolean
+    onEnableSeasonOptimizer: () => void
+    onDisableSeasonOptimizer: () => void
 }) {
     return (
         <Modal
@@ -52,6 +58,16 @@ export function AutoSetModal({
                         <Text style={styles.buttonText}>Rest of Season</Text>
                     </Pressable>
                     <Pressable
+                        style={[styles.seasonButton, seasonOptimizerEnabled && styles.secondaryButton]}
+                        onPress={seasonOptimizerEnabled ? onDisableSeasonOptimizer : onEnableSeasonOptimizer}
+                        accessibilityRole="button"
+                        accessibilityLabel={seasonOptimizerEnabled ? 'Disable season optimizer' : 'Enable season optimizer'}
+                    >
+                        <Text style={[styles.buttonText, seasonOptimizerEnabled && styles.secondaryButtonText]}>
+                            {seasonOptimizerEnabled ? 'Disable Season Optimizer' : 'Enable Season Optimizer'}
+                        </Text>
+                    </Pressable>
+                    <Pressable
                         style={styles.cancel}
                         onPress={onClose}
                         accessibilityRole="button"
@@ -73,7 +89,9 @@ const styles = StyleSheet.create({
     buttons: { flexDirection: 'row', gap: 12 },
     button: { flex: 1, height: 48, backgroundColor: colors.primary, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
     seasonButton: { height: 48, backgroundColor: colors.primary, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+    secondaryButton: { backgroundColor: colors.bgSubtle, borderWidth: 1, borderColor: colors.border },
     buttonText: { fontSize: 15, fontWeight: '700', color: colors.textWhite },
+    secondaryButtonText: { color: colors.textSecondary },
     cancel: { paddingVertical: 8, alignItems: 'center' },
     cancelText: { fontSize: 15, fontWeight: '600', color: colors.textMuted },
 })

@@ -18,11 +18,13 @@ import {
     LineupSlot,
     WeekDay,
 } from '@/lib/lineup'
+import { getLineupOptimizerEnabled, setLineupOptimizerEnabled } from '@/lib/lineup/optimizerSettings'
 import { todayET } from '@/lib/shared/dates'
 import { useRouter } from 'expo-router'
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import {
     ActivityIndicator,
+    Alert,
     ScrollView,
     StyleSheet,
     Text,
@@ -176,6 +178,7 @@ export default function LineupScreen() {
     const [starters, setStarters] = useState<LineupSlot[]>([])
     const [bench, setBench] = useState<LineupPlayer[]>([])
     const [loading, setLoading] = useState(true)
+    const [seasonOptimizerEnabled, setSeasonOptimizerEnabled] = useState(false)
 
     const { startedTeams, liveTeams, teamMatchups } = useLiveStats(selectedDate)
     // Wrap in a ref so memoized row components read the latest value without re-rendering on poll updates
@@ -204,6 +207,7 @@ export default function LineupScreen() {
             setSelectedDate(lineupCtx.today)
             const days = await getWeekDays(lineupCtx.weekNumber, lineupCtx.seasonYear)
             setWeekDays(days)
+            setSeasonOptimizerEnabled(await getLineupOptimizerEnabled(current.id, currentLeague.id, lineupCtx.seasonId))
             await loadLineup(lineupCtx, currentLeague, lineupCtx.today)
         } catch (e) {
             console.error(e)
@@ -250,6 +254,39 @@ export default function LineupScreen() {
         setSelectedDate(date)
         setSelected(null)
         await loadLineup(ctx, currentLeague, date)
+    }
+
+    async function handleEnableSeasonOptimizer() {
+        if (!actionContext) return
+        setAutoSetModalVisible(false)
+        try {
+            await setLineupOptimizerEnabled(
+                actionContext.memberId,
+                actionContext.leagueId,
+                actionContext.seasonId,
+                true,
+            )
+            setSeasonOptimizerEnabled(true)
+            await doAutoSet(null, true)
+        } catch (e) {
+            Alert.alert('Optimizer failed', e instanceof Error ? e.message : String(e))
+        }
+    }
+
+    async function handleDisableSeasonOptimizer() {
+        if (!actionContext) return
+        setAutoSetModalVisible(false)
+        try {
+            await setLineupOptimizerEnabled(
+                actionContext.memberId,
+                actionContext.leagueId,
+                actionContext.seasonId,
+                false,
+            )
+            setSeasonOptimizerEnabled(false)
+        } catch (e) {
+            Alert.alert('Optimizer failed', e instanceof Error ? e.message : String(e))
+        }
     }
 
     const selectedPlayer =
@@ -375,6 +412,9 @@ export default function LineupScreen() {
                 onToday={() => { setAutoSetModalVisible(false); doAutoSet(selectedDate) }}
                 onWholeWeek={() => { setAutoSetModalVisible(false); doAutoSet(null) }}
                 onRestOfSeason={() => { setAutoSetModalVisible(false); doAutoSet(null, true) }}
+                seasonOptimizerEnabled={seasonOptimizerEnabled}
+                onEnableSeasonOptimizer={handleEnableSeasonOptimizer}
+                onDisableSeasonOptimizer={handleDisableSeasonOptimizer}
             />
         </SafeAreaView>
     )

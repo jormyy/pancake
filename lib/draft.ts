@@ -30,6 +30,7 @@ export type Nomination = {
         displayName: string
         nbaTeam: string | null
         position: string | null
+        age: number | null
     } | null
 }
 
@@ -61,6 +62,9 @@ export type Draft = {
     currentNominationOrder: number
     nominationOrderMode: NominationOrderMode
     budgetPerTeam: number | null
+    scheduledAt: string | null
+    roomName: string | null
+    createdByMemberId: string | null
     pickTimerSeconds: number
     timerExpiryBehavior: DraftTimerExpiryBehavior
     rounds: number | null
@@ -93,10 +97,11 @@ export type DraftSearchPlayer = {
     dynasty_rank: number | null
     dynasty_rank_source: string | null
     dynasty_rank_fetched_at: string | null
+    age: number | null
 }
 
 const DRAFT_SELECT =
-    'id, league_id, status, draft_type, is_mock, current_nomination_order, nomination_order_mode, budget_per_team, pick_timer_seconds, timer_expiry_behavior, rounds, started_at, pause_reason, paused_at, timer_paused_remaining_seconds'
+    'id, league_id, status, draft_type, is_mock, current_nomination_order, nomination_order_mode, budget_per_team, scheduled_at, room_name, created_by_member_id, pick_timer_seconds, timer_expiry_behavior, rounds, started_at, pause_reason, paused_at, timer_paused_remaining_seconds'
 
 function mapDraft(data: {
     id: string
@@ -107,6 +112,9 @@ function mapDraft(data: {
     current_nomination_order: number
     nomination_order_mode: string | null
     budget_per_team: number | null
+    scheduled_at: string | null
+    room_name: string | null
+    created_by_member_id: string | null
     pick_timer_seconds: number
     timer_expiry_behavior: string | null
     rounds: number | null
@@ -124,6 +132,9 @@ function mapDraft(data: {
         currentNominationOrder: data.current_nomination_order,
         nominationOrderMode: (data.nomination_order_mode ?? 'user_nominated') as NominationOrderMode,
         budgetPerTeam: data.budget_per_team,
+        scheduledAt: data.scheduled_at,
+        roomName: data.room_name,
+        createdByMemberId: data.created_by_member_id,
         pickTimerSeconds: data.pick_timer_seconds,
         timerExpiryBehavior: (data.timer_expiry_behavior ?? 'auction_no_bid') as DraftTimerExpiryBehavior,
         rounds: data.rounds,
@@ -139,6 +150,7 @@ export async function getActiveDraft(leagueId: string): Promise<Draft | null> {
         .from('drafts')
         .select(DRAFT_SELECT)
         .eq('league_id', leagueId)
+        .eq('is_mock', false)
         .in('status', ['in_progress', 'pending', 'paused'])
         .order('created_at', { ascending: false })
         .limit(1)
@@ -183,7 +195,7 @@ export async function getDraftState(draftId: string): Promise<DraftState | null>
             supabase
                 .from('drafts')
                 .select(
-                    'id, league_id, status, draft_type, is_mock, current_nomination_order, nomination_order_mode, budget_per_team, pick_timer_seconds, timer_expiry_behavior, rounds, started_at, pause_reason, paused_at, timer_paused_remaining_seconds',
+                    'id, league_id, status, draft_type, is_mock, current_nomination_order, nomination_order_mode, budget_per_team, scheduled_at, room_name, created_by_member_id, pick_timer_seconds, timer_expiry_behavior, rounds, started_at, pause_reason, paused_at, timer_paused_remaining_seconds',
                 )
                 .eq('id', draftId)
                 .single(),
@@ -202,6 +214,7 @@ export async function getDraftState(draftId: string): Promise<DraftState | null>
                     `
         id, status, current_bid_amount, current_bidder_id, countdown_expires_at,
         winning_member_id, final_price, nominating_member_id, nominated_at, nomination_order,
+        player_id,
         players ( display_name, nba_team, position )
       `,
                 )
@@ -221,6 +234,9 @@ export async function getDraftState(draftId: string): Promise<DraftState | null>
         nominationOrderMode: ((draft as { nomination_order_mode?: string }).nomination_order_mode ??
             'user_nominated') as NominationOrderMode,
         budgetPerTeam: draft.budget_per_team,
+        scheduledAt: draft.scheduled_at,
+        roomName: draft.room_name,
+        createdByMemberId: draft.created_by_member_id,
         pickTimerSeconds: draft.pick_timer_seconds,
         timerExpiryBehavior: ((draft as { timer_expiry_behavior?: string }).timer_expiry_behavior ??
             (draft.draft_type === 'auction' ? 'auction_no_bid' : 'auto_pick')) as DraftTimerExpiryBehavior,
@@ -244,6 +260,9 @@ export async function getDraftState(draftId: string): Promise<DraftState | null>
         initialBudget: b.initial_budget,
     }))
 
+    const playerIds = [...new Set((nominations ?? []).map((n) => n.player_id).filter(Boolean))]
+    const ageByPlayerId = await getLatestDynastyAges(playerIds)
+
     type PlayerRef = { display_name: string | null; nba_team: string | null; position: string | null }
     const mappedNominations: Nomination[] = (nominations ?? []).map((n) => ({
         id: n.id,
@@ -261,6 +280,7 @@ export async function getDraftState(draftId: string): Promise<DraftState | null>
                   displayName: (n.players as PlayerRef).display_name ?? 'Unknown',
                   nbaTeam: (n.players as PlayerRef).nba_team,
                   position: (n.players as PlayerRef).position,
+                  age: ageByPlayerId.get(n.player_id) ?? null,
               }
             : null,
     }))
@@ -318,11 +338,40 @@ export async function searchPlayers(
     const { data, error } = await playerQuery
 
     if (error) console.error('[searchPlayers]', error)
-    return (data ?? []) as DraftSearchPlayer[]
+    const rows = (data ?? []) as Omit<DraftSearchPlayer, 'age'>[]
+    const ageByPlayerId = await getLatestDynastyAges(rows.map((row) => row.id))
+    return rows.map((row) => ({
+        ...row,
+        age: ageByPlayerId.get(row.id) ?? null,
+    }))
 }
 
 function postgresInList(values: string[]): string {
     return `(${values.join(',')})`
+}
+
+async function getLatestDynastyAges(playerIds: string[]): Promise<Map<string, number>> {
+    const ids = [...new Set(playerIds.filter(Boolean))]
+    if (ids.length === 0) return new Map()
+
+    const { data, error } = await supabase
+        .from('dynasty_rankings')
+        .select('player_id, age, fetched_at')
+        .in('player_id', ids)
+        .not('age', 'is', null)
+        .order('fetched_at', { ascending: false })
+
+    if (error) {
+        console.error('[getLatestDynastyAges]', error)
+        return new Map()
+    }
+
+    const ages = new Map<string, number>()
+    for (const row of (data ?? []) as { player_id: string | null; age: number | string | null }[]) {
+        if (!row.player_id || ages.has(row.player_id) || row.age == null) continue
+        ages.set(row.player_id, Number(row.age))
+    }
+    return ages
 }
 
 
@@ -347,6 +396,9 @@ export async function startDraft(
         currentNominationOrder: json.draft.current_nomination_order,
         nominationOrderMode: (json.draft.nomination_order_mode ?? 'user_nominated') as NominationOrderMode,
         budgetPerTeam: json.draft.budget_per_team,
+        scheduledAt: json.draft.scheduled_at ?? null,
+        roomName: json.draft.room_name ?? null,
+        createdByMemberId: json.draft.created_by_member_id ?? null,
         pickTimerSeconds: json.draft.pick_timer_seconds ?? 30,
         timerExpiryBehavior: (json.draft.timer_expiry_behavior ??
             (json.draft.draft_type === 'auction' ? 'auction_no_bid' : 'auto_pick')) as DraftTimerExpiryBehavior,

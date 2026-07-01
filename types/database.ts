@@ -217,6 +217,39 @@ export type Database = {
           },
         ]
       }
+      draft_room_members: {
+        Row: {
+          draft_id: string
+          joined_at: string
+          member_id: string
+        }
+        Insert: {
+          draft_id: string
+          joined_at?: string
+          member_id: string
+        }
+        Update: {
+          draft_id?: string
+          joined_at?: string
+          member_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "draft_room_members_draft_id_fkey"
+            columns: ["draft_id"]
+            isOneToOne: false
+            referencedRelation: "drafts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "draft_room_members_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "league_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       draft_picks: {
         Row: {
           created_at: string
@@ -305,6 +338,7 @@ export type Database = {
           completed_at: string | null
           created_at: string
           current_nomination_order: number
+          created_by_member_id: string | null
           nomination_order_mode: string
           draft_type: Database["public"]["Enums"]["draft_type"]
           id: string
@@ -314,6 +348,7 @@ export type Database = {
           pause_reason: string | null
           paused_at: string | null
           pick_timer_seconds: number
+          room_name: string | null
           rounds: number | null
           scheduled_at: string | null
           started_at: string | null
@@ -326,6 +361,7 @@ export type Database = {
           completed_at?: string | null
           created_at?: string
           current_nomination_order?: number
+          created_by_member_id?: string | null
           nomination_order_mode?: string
           draft_type?: Database["public"]["Enums"]["draft_type"]
           id?: string
@@ -335,6 +371,7 @@ export type Database = {
           pause_reason?: string | null
           paused_at?: string | null
           pick_timer_seconds?: number
+          room_name?: string | null
           rounds?: number | null
           scheduled_at?: string | null
           started_at?: string | null
@@ -347,6 +384,7 @@ export type Database = {
           completed_at?: string | null
           created_at?: string
           current_nomination_order?: number
+          created_by_member_id?: string | null
           nomination_order_mode?: string
           draft_type?: Database["public"]["Enums"]["draft_type"]
           id?: string
@@ -356,6 +394,7 @@ export type Database = {
           pause_reason?: string | null
           paused_at?: string | null
           pick_timer_seconds?: number
+          room_name?: string | null
           rounds?: number | null
           scheduled_at?: string | null
           started_at?: string | null
@@ -364,6 +403,13 @@ export type Database = {
           timer_paused_remaining_seconds?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "drafts_created_by_member_id_fkey"
+            columns: ["created_by_member_id"]
+            isOneToOne: false
+            referencedRelation: "league_members"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "drafts_league_id_fkey"
             columns: ["league_id"]
@@ -627,6 +673,61 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lineup_optimizer_settings: {
+        Row: {
+          created_at: string
+          enabled: boolean
+          enabled_at: string | null
+          last_optimized_at: string | null
+          league_id: string
+          league_season_id: string
+          member_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          enabled?: boolean
+          enabled_at?: string | null
+          last_optimized_at?: string | null
+          league_id: string
+          league_season_id: string
+          member_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          enabled?: boolean
+          enabled_at?: string | null
+          last_optimized_at?: string | null
+          league_id?: string
+          league_season_id?: string
+          member_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lineup_optimizer_settings_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "leagues"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lineup_optimizer_settings_league_season_id_fkey"
+            columns: ["league_season_id"]
+            isOneToOne: false
+            referencedRelation: "league_seasons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lineup_optimizer_settings_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "league_members"
             referencedColumns: ["id"]
           },
         ]
@@ -2682,6 +2783,34 @@ export type Database = {
           p_user_id: string
         }
         Returns: Database["public"]["Tables"]["nominations"]["Row"]
+      }
+      create_mock_draft_room_atomic: {
+        Args: {
+          p_budget_per_team?: number | null
+          p_draft_type?: string
+          p_league_id: string
+          p_member_id: string
+          p_nomination_order_mode?: string
+          p_pick_timer_seconds?: number
+          p_room_name?: string | null
+          p_rounds?: number
+          p_scheduled_at?: string | null
+          p_timer_expiry_behavior?: string
+          p_user_id: string
+        }
+        Returns: Database["public"]["Tables"]["drafts"]["Row"]
+      }
+      join_mock_draft_room_atomic: {
+        Args: { p_draft_id: string; p_member_id: string; p_user_id: string }
+        Returns: undefined
+      }
+      leave_mock_draft_room_atomic: {
+        Args: { p_draft_id: string; p_member_id: string; p_user_id: string }
+        Returns: undefined
+      }
+      start_mock_draft_room_atomic: {
+        Args: { p_draft_id: string; p_member_id: string; p_user_id: string }
+        Returns: Database["public"]["Tables"]["drafts"]["Row"]
       }
       clear_ineligible_taxi_players: {
         Args: never

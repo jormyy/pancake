@@ -75,6 +75,7 @@ export async function getActiveRookieDraft(leagueId: string) {
         .select('id, league_id, status, draft_type, is_mock, pick_timer_seconds, timer_expiry_behavior, rounds, started_at, pause_reason, paused_at, timer_paused_remaining_seconds')
         .eq('league_id', leagueId)
         .eq('draft_type', 'snake')
+        .eq('is_mock', false)
         .in('status', ['in_progress', 'pending', 'paused'])
         .order('created_at', { ascending: false })
         .limit(1)

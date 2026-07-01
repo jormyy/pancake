@@ -269,6 +269,9 @@ export default function HomeScreen() {
                 onToday={() => { setAutoSetModalVisible(false); doAutoSet(selectedDate) }}
                 onWholeWeek={() => { setAutoSetModalVisible(false); doAutoSet(null) }}
                 onRestOfSeason={() => { setAutoSetModalVisible(false); doAutoSet(null, true) }}
+                seasonOptimizerEnabled={false}
+                onEnableSeasonOptimizer={() => { }}
+                onDisableSeasonOptimizer={() => { }}
             />
         </SafeAreaView>
     )

@@ -53,7 +53,7 @@ export default function BracketScreen() {
                         message="No playoff bracket yet"
                         description="The bracket is generated at the end of the regular season. Check the standings to see who's in contention."
                         actionLabel="View Standings"
-                        onAction={() => router.replace('/league?tab=standings')}
+                        onAction={() => router.replace('/league?tab=results')}
                     />
                 ) : (
                     <ScrollView contentContainerStyle={styles.scroll}>

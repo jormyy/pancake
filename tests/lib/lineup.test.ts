@@ -260,6 +260,45 @@ describe('autoSetLineup — daily', () => {
         expect(rows.find((r: any) => r.player_id === 'pInjured')).toBeUndefined()
     })
 
+    it('avoids injured players when a healthy eligible starter is available', async () => {
+        const roster = [
+            rp('pHealthy', 'PG', ['PG', 'G'], 'TOR'),
+            rp('pInjured', 'PG', ['PG', 'G'], 'BOS', 'Out'),
+        ]
+        const avgs = [avg('pHealthy', 5), avg('pInjured', 60)]
+        const games = [game('BOS', 'PHI'), game('TOR', 'NYK')]
+
+        const { insertSpy } = setupMocks({ roster, avgs, games, templates: [{ slot_type: 'PG', slot_count: 1 }] })
+
+        await autoSetLineup('m1', 'lg1', 's1', 20, 2026, '2026-04-22')
+
+        const rows: any[] = insertSpy.mock.calls[0][0]
+        expect(rows.find((r: any) => r.slot_type === 'PG')?.player_id).toBe('pHealthy')
+    })
+
+    it('uses global slot assignment so flexible players do not block stronger valid lineups', async () => {
+        const roster = [
+            rp('pCombo', 'PG', ['PG', 'SG', 'G'], 'LAL'),
+            rp('pPgOnly', 'PG', ['PG'], 'LAL'),
+            rp('pSgOnly', 'SG', ['SG'], 'LAL'),
+        ]
+        const avgs = [avg('pCombo', 100), avg('pPgOnly', 90), avg('pSgOnly', 1)]
+        const games = [game('LAL', 'GSW')]
+
+        const { insertSpy } = setupMocks({
+            roster,
+            avgs,
+            games,
+            templates: [{ slot_type: 'PG', slot_count: 1 }, { slot_type: 'SG', slot_count: 1 }],
+        })
+
+        await autoSetLineup('m1', 'lg1', 's1', 20, 2026, '2026-04-22')
+
+        const rows: any[] = insertSpy.mock.calls[0][0]
+        expect(rows.find((r: any) => r.slot_type === 'PG')?.player_id).toBe('pPgOnly')
+        expect(rows.find((r: any) => r.slot_type === 'SG')?.player_id).toBe('pCombo')
+    })
+
     it('processes exactly one date when gameDate is provided', async () => {
         const roster = [rp('pPG', 'PG', ['PG', 'G'], 'LAL')]
         const avgs   = [avg('pPG', 30)]
