@@ -38,6 +38,15 @@ import { MotionPressable, MotionView } from '@/components/Motion'
 
 type DraftTab = 'budgets' | 'history'
 
+function ageLabel(age: number | null | undefined): string | null {
+    if (age == null || !Number.isFinite(age)) return null
+    return `Age ${Number(age).toFixed(1)}`
+}
+
+function playerMeta(parts: (string | null | undefined)[]): string {
+    return parts.filter(Boolean).join(' · ') || '—'
+}
+
 export default function DraftRoomScreen() {
     const { draftId } = useLocalSearchParams<{ draftId: string }>()
     const { current, isCommissioner } = useLeagueContext()
@@ -420,8 +429,11 @@ export default function DraftRoomScreen() {
                             {openNomination.player?.displayName ?? 'Unknown Player'}
                         </Text>
                         <Text style={styles.playerMeta}>
-                            {openNomination.player?.nbaTeam ?? '—'} ·{' '}
-                            {openNomination.player?.position ?? '—'}
+                            {playerMeta([
+                                openNomination.player?.nbaTeam,
+                                openNomination.player?.position,
+                                ageLabel(openNomination.player?.age),
+                            ])}
                         </Text>
 
                         <View style={styles.bidRow}>
@@ -574,10 +586,12 @@ export default function DraftRoomScreen() {
                                                                 {item.display_name}
                                                             </Text>
                                                             <Text style={styles.playerResultMeta}>
-                                                                {item.dynasty_rank != null
-                                                                    ? `#${item.dynasty_rank} · `
-                                                                    : ''}
-                                                                {item.nba_team ?? '—'} · {item.position ?? '—'}
+                                                                {playerMeta([
+                                                                    item.dynasty_rank != null ? `#${item.dynasty_rank}` : null,
+                                                                    item.nba_team,
+                                                                    item.position,
+                                                                    ageLabel(item.age),
+                                                                ])}
                                                             </Text>
                                                         </View>
                                                         {submittingNom ? (
@@ -706,7 +720,10 @@ export default function DraftRoomScreen() {
                                             {n.player?.displayName ?? 'Unknown'}
                                         </Text>
                                         <Text style={styles.historyMeta}>
-                                            {n.status === 'sold' ? (winnerTeam ?? '—') : 'No bid'}
+                                            {playerMeta([
+                                                n.status === 'sold' ? (winnerTeam ?? '—') : 'No bid',
+                                                ageLabel(n.player?.age),
+                                            ])}
                                         </Text>
                                     </View>
                                     {n.status === 'sold' && (

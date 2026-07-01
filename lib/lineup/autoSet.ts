@@ -55,6 +55,7 @@ type AutoSetPlayer = {
     eligiblePositions: string[]
     nbaTeam: string | null
     projected: number
+    avoidInLineup: boolean
 }
 type GameRow = {
     home_team: string | null
@@ -65,6 +66,16 @@ type GameRow = {
 type WeeklyLineupRow = {
     player_id: string
     slot_type: RosterSlotType
+}
+type AssignmentScore = {
+    filled: number
+    healthy: number
+    game: number
+    projected: number
+}
+type AssignmentResult = {
+    assignments: { playerId: string; slotType: string }[]
+    score: AssignmentScore
 }
 
 async function getRemainingSeasonDates(
@@ -176,12 +187,13 @@ export async function autoSetLineup(
     }
 
     const players = rosterRows.map((row) => {
-        const injured = isIREligible(row.players?.injury_status ?? null)
+        const avoidInLineup = isIREligible(row.players?.injury_status ?? null)
         return {
             playerId: row.player_id,
             eligiblePositions: getEligiblePositions(row.players ?? {}),
             nbaTeam: row.players?.nba_team ?? null,
-            projected: injured ? 0 : (avgFptsMap.get(row.player_id) ?? 0),
+            projected: avgFptsMap.get(row.player_id) ?? 0,
+            avoidInLineup,
         }
     })
 
@@ -289,24 +301,10 @@ async function autoSetForDate(
         }
     }
 
-    const byFpts = [...players]
+    const availablePlayers = [...players]
         .filter((p) => !lockedPlayerIds.has(p.playerId))
-        .sort((a, b) => b.projected - a.projected)
+        .sort((a, b) => b.projected - a.projected || a.playerId.localeCompare(b.playerId))
     const hasGame = (p: typeof players[number]) => !!(p.nbaTeam && playingTeams.has(p.nbaTeam))
-
-    const used = new Set<string>()
-    const newAssignments: { playerId: string; slotType: string }[] = []
-
-    // Pick the best available player for a slot:
-    // 1. Best avg-fpts player WITH a game today who is eligible for the slot
-    // 2. Fall back to best avg-fpts player WITHOUT a game
-    function pickBest(slotType: string): string | null {
-        const eligible = SLOT_ELIGIBLE[slotType] ?? []
-        const pick =
-            byFpts.find((p) => !used.has(p.playerId) && hasGame(p) && p.eligiblePositions.some((pos) => eligible.includes(pos))) ??
-            byFpts.find((p) => !used.has(p.playerId) && p.eligiblePositions.some((pos) => eligible.includes(pos)))
-        return pick?.playerId ?? null
-    }
 
     // Fill order: pure position slots first, then flex, then UTIL
     const FILL_ORDER = ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F', 'UTIL']
@@ -325,18 +323,16 @@ async function autoSetForDate(
         ...([...templateMap.keys()].filter((s) => !FILL_ORDER.includes(s))),
     ]
 
+    const slotsToFill: string[] = []
     for (const slotType of slotOrder) {
         const totalCount = templateMap.get(slotType) ?? 0
         const alreadyFilled = lockedSlotCounts.get(slotType) ?? 0
         const remaining = totalCount - alreadyFilled
         for (let i = 0; i < remaining; i++) {
-            const pid = pickBest(slotType)
-            if (pid) {
-                newAssignments.push({ playerId: pid, slotType })
-                used.add(pid)
-            }
+            slotsToFill.push(slotType)
         }
     }
+    const newAssignments = chooseBestAssignments(slotsToFill, availablePlayers, hasGame)
 
     // Build the full final state of the day's lineup. The RPC replaces the
     // entire day in a single transaction, so the caller MUST include any
@@ -372,4 +368,71 @@ async function autoSetForDate(
         p_assignments: finalAssignments,
     })
     if (error) throw error
+}
+
+function emptyScore(): AssignmentScore {
+    return { filled: 0, healthy: 0, game: 0, projected: 0 }
+}
+
+function addScore(score: AssignmentScore, player: AutoSetPlayer, hasGame: boolean): AssignmentScore {
+    return {
+        filled: score.filled + 1,
+        healthy: score.healthy + (player.avoidInLineup ? 0 : 1),
+        game: score.game + (hasGame ? 1 : 0),
+        projected: score.projected + player.projected,
+    }
+}
+
+function compareScore(a: AssignmentScore, b: AssignmentScore): number {
+    return (
+        a.filled - b.filled ||
+        a.healthy - b.healthy ||
+        a.game - b.game ||
+        a.projected - b.projected
+    )
+}
+
+function chooseBestAssignments(
+    slots: string[],
+    players: AutoSetPlayer[],
+    hasGame: (player: AutoSetPlayer) => boolean,
+): { playerId: string; slotType: string }[] {
+    const memo = new Map<string, AssignmentResult>()
+
+    function used(mask: number, index: number): boolean {
+        const bit = 2 ** index
+        return Math.floor(mask / bit) % 2 === 1
+    }
+
+    function search(slotIndex: number, mask: number): AssignmentResult {
+        if (slotIndex >= slots.length) return { assignments: [], score: emptyScore() }
+        const key = `${slotIndex}:${mask}`
+        const cached = memo.get(key)
+        if (cached) return cached
+
+        let best = search(slotIndex + 1, mask)
+        const slotType = slots[slotIndex]
+        const eligible = SLOT_ELIGIBLE[slotType] ?? []
+
+        for (let playerIndex = 0; playerIndex < players.length; playerIndex++) {
+            if (used(mask, playerIndex)) continue
+            const player = players[playerIndex]
+            if (!player.eligiblePositions.some((pos) => eligible.includes(pos))) continue
+
+            const next = search(slotIndex + 1, mask + 2 ** playerIndex)
+            const score = addScore(next.score, player, hasGame(player))
+            const candidate: AssignmentResult = {
+                assignments: [{ playerId: player.playerId, slotType }, ...next.assignments],
+                score,
+            }
+            if (compareScore(candidate.score, best.score) > 0) {
+                best = candidate
+            }
+        }
+
+        memo.set(key, best)
+        return best
+    }
+
+    return search(0, 0).assignments
 }

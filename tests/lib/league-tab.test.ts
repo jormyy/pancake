@@ -51,21 +51,21 @@ function shouldFetchTab(tab: string, loadedTabs: Set<string>): boolean {
 describe('shouldFetchTab', () => {
     it('returns true when tab has not been loaded', () => {
         const loaded = new Set<string>()
-        expect(shouldFetchTab('standings', loaded)).toBe(true)
+        expect(shouldFetchTab('results', loaded)).toBe(true)
     })
 
     it('returns false when tab is already in the set', () => {
-        const loaded = new Set(['standings'])
-        expect(shouldFetchTab('standings', loaded)).toBe(false)
+        const loaded = new Set(['results'])
+        expect(shouldFetchTab('results', loaded)).toBe(false)
     })
 
     it('returns true for a different tab even if one is loaded', () => {
-        const loaded = new Set(['standings'])
-        expect(shouldFetchTab('activity', loaded)).toBe(true)
+        const loaded = new Set(['results'])
+        expect(shouldFetchTab('history', loaded)).toBe(true)
     })
 
     it('returns false for all tabs once all are loaded', () => {
-        const tabs = ['standings', 'activity', 'waivers', 'picks']
+        const tabs = ['results', 'auctions', 'mockRooms', 'draftBoard', 'settings', 'history']
         const loaded = new Set(tabs)
         for (const t of tabs) {
             expect(shouldFetchTab(t, loaded)).toBe(false)

@@ -53,6 +53,16 @@ type RookieDraftStartOptions = {
   rounds: number
   timerExpiryBehavior: RookieTimerExpiryBehavior
 }
+type MockDraftRoomOptions = {
+  draftType: 'auction' | 'snake'
+  roomName: string | null
+  scheduledAt: string | null
+  nominationOrderMode: NominationOrderMode
+  timerSeconds: number
+  budgetPerTeam: number | null
+  rounds: number
+  timerExpiryBehavior: RookieTimerExpiryBehavior
+}
 
 function jsonObject(value: Json | undefined, label: string): { [key: string]: Json | undefined } {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
@@ -141,14 +151,92 @@ function rookieDraftStartOptions(body: Record<string, unknown>): RookieDraftStar
   }
 }
 
+function mockDraftRoomOptions(body: Record<string, unknown>): MockDraftRoomOptions {
+  const draftType = optionalStringField(body, 'draftType') ?? 'auction'
+  if (draftType !== 'auction' && draftType !== 'snake') {
+    throw new ValidationError(`Invalid mock draft room type: ${draftType}`)
+  }
+  const scheduledAt = optionalStringField(body, 'scheduledAt')
+  if (scheduledAt) {
+    const parsed = new Date(scheduledAt)
+    if (Number.isNaN(parsed.getTime())) throw new ValidationError('scheduledAt must be an ISO date string')
+  }
+
+  return {
+    draftType,
+    roomName: optionalStringField(body, 'roomName'),
+    scheduledAt,
+    nominationOrderMode: nominationOrderMode(body),
+    timerSeconds: optionalIntegerField(body, 'timerSeconds', { min: 5, max: 3600 }) ?? DEFAULT_DRAFT_TIMER_SECONDS,
+    budgetPerTeam: optionalIntegerField(body, 'budgetPerTeam', { min: 1, max: 1_000_000 }),
+    rounds: optionalIntegerField(body, 'rounds', { min: 1, max: 10 }) ?? ROOKIE_DRAFT_ROUNDS,
+    timerExpiryBehavior: rookieTimerExpiryBehavior(body),
+  }
+}
+
 async function startDraft(leagueId: string, mode: NominationOrderMode, options: AuctionDraftStartOptions): Promise<unknown> {
+  if (options.isMock) {
+    throw new ValidationError('Mock drafts must be created and started from a mock draft room')
+  }
+
   const { data, error } = await supabase.rpc('start_auction_draft_atomic', {
     p_league_id: leagueId,
     p_nomination_order_mode: mode,
-    p_is_mock: options.isMock,
+    p_is_mock: false,
     p_pick_timer_seconds: options.timerSeconds,
     p_budget_per_team: options.budgetPerTeam,
     p_timer_expiry_behavior: 'auction_no_bid',
+  })
+  if (error) throwDb(error)
+  return data
+}
+
+async function createMockDraftRoom(
+  leagueId: string,
+  memberId: string,
+  userId: string,
+  options: MockDraftRoomOptions,
+): Promise<unknown> {
+  const { data, error } = await supabase.rpc('create_mock_draft_room_atomic', {
+    p_league_id: leagueId,
+    p_member_id: memberId,
+    p_user_id: userId,
+    p_room_name: options.roomName,
+    p_draft_type: options.draftType,
+    p_scheduled_at: options.scheduledAt,
+    p_nomination_order_mode: options.nominationOrderMode,
+    p_rounds: options.rounds,
+    p_pick_timer_seconds: options.timerSeconds,
+    p_budget_per_team: options.budgetPerTeam,
+    p_timer_expiry_behavior: options.timerExpiryBehavior,
+  })
+  if (error) throwDb(error)
+  return data
+}
+
+async function joinMockDraftRoom(draftId: string, memberId: string, userId: string): Promise<void> {
+  const { error } = await supabase.rpc('join_mock_draft_room_atomic', {
+    p_draft_id: draftId,
+    p_member_id: memberId,
+    p_user_id: userId,
+  })
+  if (error) throwDb(error)
+}
+
+async function leaveMockDraftRoom(draftId: string, memberId: string, userId: string): Promise<void> {
+  const { error } = await supabase.rpc('leave_mock_draft_room_atomic', {
+    p_draft_id: draftId,
+    p_member_id: memberId,
+    p_user_id: userId,
+  })
+  if (error) throwDb(error)
+}
+
+async function startMockDraftRoom(draftId: string, memberId: string, userId: string): Promise<unknown> {
+  const { data, error } = await supabase.rpc('start_mock_draft_room_atomic', {
+    p_draft_id: draftId,
+    p_member_id: memberId,
+    p_user_id: userId,
   })
   if (error) throwDb(error)
   return data
@@ -249,10 +337,14 @@ export async function startRookieDraft(
     timerExpiryBehavior: 'auto_pick',
   },
 ): Promise<unknown> {
+  if (options.isMock) {
+    throw new ValidationError('Mock drafts must be created and started from a mock draft room')
+  }
+
   const { data, error } = await supabase.rpc('start_rookie_draft_atomic', {
     p_league_id: leagueId,
     p_rounds: options.rounds,
-    p_is_mock: options.isMock,
+    p_is_mock: false,
     p_pick_timer_seconds: options.timerSeconds,
     p_timer_expiry_behavior: options.timerExpiryBehavior,
   })
@@ -464,6 +556,15 @@ export async function handleDraftRoute(req: Request, path: string): Promise<Resp
     return json({ ok: true, draft: await startRookieDraft(leagueId, rookieDraftStartOptions(body)) })
   }
 
+  if (path === '/draft/mock-room/create') {
+    const body = await readJsonObject(req)
+    const userId = await requireUser(req)
+    const leagueId = uuidField(body, 'leagueId')
+    const memberId = uuidField(body, 'memberId')
+    await verifyOwnMember(userId, memberId)
+    return json({ ok: true, draft: await createMockDraftRoom(leagueId, memberId, userId, mockDraftRoomOptions(body)) })
+  }
+
   const action = splitDraftAction(path)
   if (!action) return null
 
@@ -493,6 +594,26 @@ export async function handleDraftRoute(req: Request, path: string): Promise<Resp
     await requireCommissionerForDraft(userId, draftId)
     await resumeDraft(draftId, userId)
     return json({ ok: true })
+  }
+
+  if (action.action === 'join-mock-room') {
+    const memberId = uuidField(body, 'memberId')
+    await verifyOwnMember(userId, memberId)
+    await joinMockDraftRoom(draftId, memberId, userId)
+    return json({ ok: true })
+  }
+
+  if (action.action === 'leave-mock-room') {
+    const memberId = uuidField(body, 'memberId')
+    await verifyOwnMember(userId, memberId)
+    await leaveMockDraftRoom(draftId, memberId, userId)
+    return json({ ok: true })
+  }
+
+  if (action.action === 'start-mock-room') {
+    const memberId = uuidField(body, 'memberId')
+    await verifyOwnMember(userId, memberId)
+    return json({ ok: true, draft: await startMockDraftRoom(draftId, memberId, userId) })
   }
 
   if (action.action === 'nominate') {

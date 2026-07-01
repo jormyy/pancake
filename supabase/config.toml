@@ -379,6 +379,9 @@ verify_jwt = false
 [functions.live-poll]
 verify_jwt = false
 
+[functions.lineup-optimizer]
+verify_jwt = false
+
 [functions.process-trades]
 verify_jwt = false
 

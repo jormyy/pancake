@@ -9,7 +9,7 @@ import { breakpoints, colors, WEB_THEME_VARS } from '@/constants/tokens'
 import { styles } from './webTabShellStyles'
 
 type IconName = ComponentProps<typeof MaterialIcons>['name']
-type LeagueTab = 'standings' | 'activity' | 'waivers' | 'picks'
+type LeagueTab = 'results' | 'auctions' | 'mockRooms' | 'draftBoard' | 'settings' | 'history'
 type RouteHref = '/' | '/players' | '/dynasty' | '/roster' | '/trades' | '/league' | '/profile'
 
 const PRIMARY_NAV: { label: string; href: RouteHref; icon: IconName }[] = [
@@ -21,10 +21,12 @@ const PRIMARY_NAV: { label: string; href: RouteHref; icon: IconName }[] = [
 ]
 
 const LEAGUE_NAV: { label: string; tab: LeagueTab; icon: IconName }[] = [
-    { label: 'Standings', tab: 'standings', icon: 'emoji-events' },
-    { label: 'Activity', tab: 'activity', icon: 'bolt' },
-    { label: 'Waivers', tab: 'waivers', icon: 'schedule' },
-    { label: 'Picks', tab: 'picks', icon: 'style' },
+    { label: 'Results', tab: 'results', icon: 'emoji-events' },
+    { label: 'Auctions', tab: 'auctions', icon: 'attach-money' },
+    { label: 'Mock Rooms', tab: 'mockRooms', icon: 'groups' },
+    { label: 'Draft Board', tab: 'draftBoard', icon: 'view-list' },
+    { label: 'Settings', tab: 'settings', icon: 'settings' },
+    { label: 'History', tab: 'history', icon: 'history' },
 ]
 
 const MOBILE_NAV: { label: string; href: RouteHref; icon: IconName }[] = [
