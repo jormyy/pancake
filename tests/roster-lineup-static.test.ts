@@ -58,8 +58,6 @@ describe('logic hardening source guards - lineup and roster locks', () => {
             'if (weeksErr) throw weeksErr',
             'if (rosterErr) throw rosterErr',
             'if (templatesErr) throw templatesErr',
-            'if (avgErr) throw avgErr',
-            'if (leagueErr) throw leagueErr',
             'if (gamesErr) throw gamesErr',
             'if (existingErr) throw existingErr',
         ]) {
@@ -67,6 +65,10 @@ describe('logic hardening source guards - lineup and roster locks', () => {
             expect(guardIndex).toBeGreaterThan(-1)
             expect(guardIndex).toBeLessThan(rpcIndex)
         }
+
+        const projectionReadIndex = autoSet.indexOf('const projectionMap = await getProjectionMap')
+        expect(projectionReadIndex).toBeGreaterThan(-1)
+        expect(projectionReadIndex).toBeLessThan(rpcIndex)
     })
 
     it('parses current NBA schedule tipoff fields in Edge', () => {

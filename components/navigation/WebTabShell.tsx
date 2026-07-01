@@ -10,11 +10,12 @@ import { styles } from './webTabShellStyles'
 
 type IconName = ComponentProps<typeof MaterialIcons>['name']
 type LeagueTab = 'results' | 'auctions' | 'mockRooms' | 'draftBoard' | 'settings' | 'history'
-type RouteHref = '/' | '/players' | '/dynasty' | '/roster' | '/trades' | '/league' | '/profile'
+type RouteHref = '/' | '/players' | '/projections' | '/dynasty' | '/roster' | '/trades' | '/league' | '/profile'
 
 const PRIMARY_NAV: { label: string; href: RouteHref; icon: IconName }[] = [
     { label: 'Matchup', href: '/', icon: 'home' },
     { label: 'Players', href: '/players', icon: 'groups' },
+    { label: 'Projections', href: '/projections', icon: 'stacked-line-chart' },
     { label: 'Dynasty', href: '/dynasty', icon: 'auto-awesome' },
     { label: 'Roster', href: '/roster', icon: 'assignment' },
     { label: 'Trades', href: '/trades', icon: 'swap-horiz' },
@@ -274,7 +275,7 @@ function WebSidebar() {
                             label={item.label}
                             icon={item.icon}
                             active={isRouteActive(pathname, item.href)}
-                            href={item.href}
+                            href={item.href as ComponentProps<typeof Link>['href']}
                         />
                     ))}
                 </View>
@@ -343,7 +344,7 @@ function MobileBottomNav() {
             {MOBILE_NAV.map((item) => {
                 const active = isRouteActive(pathname, item.href)
                 return (
-                    <Link key={item.href} href={item.href} asChild>
+                    <Link key={item.href} href={item.href as ComponentProps<typeof Link>['href']} asChild>
                         <Pressable
                             style={({ pressed }: PressableState) => [styles.bottomNavItem, pressed && styles.pressed]}
                             accessibilityRole="button"
@@ -458,6 +459,7 @@ export default function WebTabsLayout() {
         <Navigator router={webStackRouter} initialRouteName="index">
             <Navigator.Screen name="index" />
             <Navigator.Screen name="players" />
+            <Navigator.Screen name="projections" />
             <Navigator.Screen name="dynasty" />
             <Navigator.Screen name="roster" />
             <Navigator.Screen name="trades" />

@@ -4,6 +4,7 @@ import { canPlaySlot, SLOT_ELIGIBLE } from '@/constants/slots'
 import { todayET } from '@/lib/shared/dates'
 import { isIREligible } from '@/lib/roster'
 import { getEligiblePositions } from '@/lib/players'
+import { getProjectionMap } from '@/lib/projections'
 import { getWeekDays } from './read'
 
 type LineupAssignment = {
@@ -29,26 +30,6 @@ type RosterPlayerRow = {
 type StarterTemplate = {
     slot_type: string
     slot_count: number
-}
-type PlayerAverageRow = {
-    player_id: string
-    games_played: number | null
-    avg_points: number | null
-    avg_rebounds: number | null
-    avg_assists: number | null
-    avg_steals: number | null
-    avg_blocks: number | null
-    avg_turnovers: number | null
-    avg_three_pointers_made: number | null
-    avg_field_goals_made: number | null
-    avg_field_goals_attempted: number | null
-    avg_free_throws_made: number | null
-    avg_free_throws_attempted: number | null
-    double_doubles: number | null
-    triple_doubles: number | null
-}
-type LeagueScoringRow = {
-    scoring_settings: Record<string, unknown> | null
 }
 type AutoSetPlayer = {
     playerId: string
@@ -142,49 +123,6 @@ export async function autoSetLineup(
     if (templatesErr) throw templatesErr
 
     const rosterRows = (roster ?? []) as RosterPlayerRow[]
-    const playerIds = rosterRows.map((row) => row.player_id)
-
-    // Use mv_player_season_averages (1 row per player, already excludes did_not_play games)
-    // instead of querying raw player_game_stats. The raw query has no explicit limit and
-    // Supabase truncates at 1000 rows — with 15+ players × 70+ games each, some players'
-    // stats get silently dropped, giving them projected = 0 and leaving them on bench.
-    const [{ data: avgRows, error: avgErr }, { data: leagueRow, error: leagueErr }] = await Promise.all([
-        supabase
-            .from('mv_player_season_averages')
-            .select('player_id, games_played, avg_points, avg_rebounds, avg_assists, avg_steals, avg_blocks, avg_turnovers, avg_three_pointers_made, avg_field_goals_made, avg_field_goals_attempted, avg_free_throws_made, avg_free_throws_attempted, double_doubles, triple_doubles')
-            .eq('season_year', seasonYear)
-            .in('player_id', playerIds),
-        supabase
-            .from('leagues')
-            .select('scoring_settings')
-            .eq('id', leagueId)
-            .single(),
-    ])
-    if (avgErr) throw avgErr
-    if (leagueErr) throw leagueErr
-
-    const scoringSettings = ((leagueRow as LeagueScoringRow | null)?.scoring_settings ?? {})
-    const scoringValue = (key: string) => Number(scoringSettings[key] ?? 0)
-
-    const avgFptsMap = new Map<string, number>()
-    for (const row of (avgRows ?? []) as PlayerAverageRow[]) {
-        const gp = Number(row.games_played) || 0
-        const fpts =
-            Number(row.avg_points ?? 0)                * scoringValue('points') +
-            Number(row.avg_rebounds ?? 0)              * scoringValue('rebounds') +
-            Number(row.avg_assists ?? 0)               * scoringValue('assists') +
-            Number(row.avg_steals ?? 0)                * scoringValue('steals') +
-            Number(row.avg_blocks ?? 0)                * scoringValue('blocks') +
-            Number(row.avg_turnovers ?? 0)             * scoringValue('turnovers') +
-            Number(row.avg_three_pointers_made ?? 0)   * scoringValue('three_pointers_made') +
-            Number(row.avg_field_goals_made ?? 0)      * scoringValue('field_goals_made') +
-            Number(row.avg_field_goals_attempted ?? 0) * scoringValue('field_goals_attempted') +
-            Number(row.avg_free_throws_made ?? 0)      * scoringValue('free_throws_made') +
-            Number(row.avg_free_throws_attempted ?? 0) * scoringValue('free_throws_attempted') +
-            (gp > 0 ? (Number(row.double_doubles ?? 0) / gp) * scoringValue('double_double') : 0) +
-            (gp > 0 ? (Number(row.triple_doubles ?? 0) / gp) * scoringValue('triple_double') : 0)
-        avgFptsMap.set(row.player_id, fpts)
-    }
 
     const players = rosterRows.map((row) => {
         const avoidInLineup = isIREligible(row.players?.injury_status ?? null)
@@ -192,7 +130,7 @@ export async function autoSetLineup(
             playerId: row.player_id,
             eligiblePositions: getEligiblePositions(row.players ?? {}),
             nbaTeam: row.players?.nba_team ?? null,
-            projected: avgFptsMap.get(row.player_id) ?? 0,
+            projected: 0,
             avoidInLineup,
         }
     })
@@ -270,6 +208,17 @@ async function autoSetForDate(
     if (gamesErr) throw gamesErr
     if (existingErr) throw existingErr
 
+    const projectionMap = await getProjectionMap({
+        leagueId,
+        seasonYear,
+        gameDate,
+        playerIds: players.map((player) => player.playerId),
+    })
+    const datePlayers = players.map((player) => ({
+        ...player,
+        projected: Number(projectionMap.get(player.playerId)?.projection_fantasy_points ?? 0),
+    }))
+
     const playingTeams = new Set<string>()
     const startedTeams = new Set<string>()
     const now = new Date().toISOString()
@@ -285,7 +234,7 @@ async function autoSetForDate(
         }
     }
 
-    const playerTeamMap = new Map(players.map((p) => [p.playerId, p.nbaTeam]))
+    const playerTeamMap = new Map(datePlayers.map((p) => [p.playerId, p.nbaTeam]))
 
     // Any player whose game has already started is locked — they cannot be moved in any direction.
     const lockedEntries: { playerId: string; slotType: string }[] = []
@@ -301,10 +250,10 @@ async function autoSetForDate(
         }
     }
 
-    const availablePlayers = [...players]
+    const availablePlayers = [...datePlayers]
         .filter((p) => !lockedPlayerIds.has(p.playerId))
         .sort((a, b) => b.projected - a.projected || a.playerId.localeCompare(b.playerId))
-    const hasGame = (p: typeof players[number]) => !!(p.nbaTeam && playingTeams.has(p.nbaTeam))
+    const hasGame = (p: typeof datePlayers[number]) => !!(p.nbaTeam && playingTeams.has(p.nbaTeam))
 
     // Fill order: pure position slots first, then flex, then UTIL
     const FILL_ORDER = ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F', 'UTIL']

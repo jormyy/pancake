@@ -7,6 +7,7 @@ import { PlayerHeader } from '@/components/player/PlayerHeader'
 import { SeasonSelector } from '@/components/player/SeasonSelector'
 import { StatsOverview } from '@/components/player/StatsOverview'
 import { TransactionHistory } from '@/components/player/TransactionHistory'
+import { NextProjectionCard } from '@/components/player/NextProjectionCard'
 import { colors, fontSize, fontWeight, radii, scrim, spacing } from '@/constants/tokens'
 import { useLeagueContext } from '@/contexts/league-context'
 import { usePlayerScreenData } from '@/hooks/use-player-screen-data'
@@ -37,6 +38,7 @@ export default function PlayerDetailScreen() {
         seasonAverages, seasonLoading,
         gameLog, hasMoreGames, gameLogLoading, loadMoreGames,
         fantasyPointsMap, avgFantasyPoints,
+        nextProjection,
         transactions,
     } = usePlayerScreenData(id, leagueId)
 
@@ -266,6 +268,8 @@ export default function PlayerDetailScreen() {
                         onDrop={handleDrop}
                         onClaim={handleClaim}
                     />
+
+                    {nextProjection ? <NextProjectionCard projection={nextProjection} /> : null}
 
                     {/* Season selector */}
                     <SeasonSelector

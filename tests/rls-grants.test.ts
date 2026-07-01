@@ -62,6 +62,7 @@ const SERVICE_ROLE_ONLY_RPCS = [
     'release_live_poll_lease',
     'invoke_edge_function',
     'invoke_edge_function_at_et_time',
+    'invoke_projection_sync_if_due',
     'merge_players',
     'merge_duplicate_players',
     'count_final_games_missing_stats',

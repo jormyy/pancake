@@ -178,6 +178,18 @@ function setupMocks(opts: MockOpts) {
     // the new entries, so we filter to is_auto_set=true to preserve test
     // semantics.
     mockRpc.mockImplementation((fnName: string, args: any) => {
+        if (fnName === 'get_league_projection_rows') {
+            const requestedIds = new Set((args?.p_player_ids ?? []) as string[])
+            return Promise.resolve({
+                data: avgs
+                    .filter((row) => requestedIds.size === 0 || requestedIds.has(row.player_id))
+                    .map((row) => ({
+                        player_id: row.player_id,
+                        projection_fantasy_points: row.avg_points,
+                    })),
+                error: null,
+            }) as any
+        }
         if (fnName === 'auto_set_lineup_atomic') {
             const assignments = (args?.p_assignments ?? []) as any[]
             const newRows = assignments.filter((a) => a.is_auto_set === true)

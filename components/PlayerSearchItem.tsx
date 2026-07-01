@@ -9,6 +9,12 @@ import { Avatar } from '@/components/Avatar'
 import { Badge } from '@/components/Badge'
 import { PosTag } from '@/components/PosTag'
 import { MotionPressable, MotionView } from '@/components/Motion'
+import {
+    compactProjectionStatLine,
+    formatProjectionGame,
+    numberOrDash,
+    projectionFreshnessLabel,
+} from '@/lib/projections'
 
 export function PlayerSearchItem({
     item,
@@ -42,6 +48,21 @@ export function PlayerSearchItem({
     const isAdding = adding === item.id
     const [headshotError, setHeadshotError] = useState(false)
     const headshotUri = playerHeadshotUrl(item.nba_id)
+    const projectionStatLine = compactProjectionStatLine({
+        projection_points: item.projection_points ?? null,
+        projection_rebounds: item.projection_rebounds ?? null,
+        projection_assists: item.projection_assists ?? null,
+        projection_steals: item.projection_steals ?? null,
+        projection_blocks: item.projection_blocks ?? null,
+        projection_three_pointers_made: item.projection_three_pointers_made ?? null,
+        projection_turnovers: item.projection_turnovers ?? null,
+    })
+    const projectionGame = formatProjectionGame({
+        projection_date: item.projection_date ?? null,
+        next_game_date: item.projection_date ?? null,
+        next_game_opponent: item.projection_opponent ?? null,
+    })
+    const projectionFreshness = projectionFreshnessLabel(item.projection_fetched_at)
     const stats = [
         { label: 'FP', value: item.avg_fantasy_points ?? item.avg_points, highlight: true },
         { label: 'PTS', value: item.avg_points },
@@ -117,6 +138,25 @@ export function PlayerSearchItem({
                             />
                         ) : null}
                     </View>
+                    {item.projection_fantasy_points != null ? (
+                        <View style={styles.projectionLine}>
+                            <Text style={styles.projectionScore} numberOfLines={1}>
+                                {numberOrDash(item.projection_fantasy_points)} FP
+                            </Text>
+                            {projectionGame ? (
+                                <Text style={styles.projectionMeta} numberOfLines={1}>{projectionGame}</Text>
+                            ) : null}
+                            {item.projection_minutes != null ? (
+                                <Text style={styles.projectionMeta} numberOfLines={1}>{numberOrDash(item.projection_minutes)}m</Text>
+                            ) : null}
+                            {projectionStatLine ? (
+                                <Text style={styles.projectionMetaWide} numberOfLines={1}>{projectionStatLine}</Text>
+                            ) : null}
+                            <Text style={styles.projectionSource} numberOfLines={1}>
+                                {item.projection_source_label ?? 'Projection'}{projectionFreshness ? ` ${projectionFreshness}` : ''}
+                            </Text>
+                        </View>
+                    ) : null}
                     {!showStats ? (
                         <View style={styles.compactStats}>
                             {[
@@ -265,6 +305,37 @@ const styles = StyleSheet.create({
         fontVariant: ['tabular-nums'],
     },
     compactStatValuePrimary: { color: colors.primaryDark, fontWeight: fontWeight.extrabold },
+    projectionLine: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        columnGap: spacing.md,
+        rowGap: spacing.xxs,
+        marginTop: spacing.sm,
+    },
+    projectionScore: {
+        fontSize: fontSize.sm,
+        fontWeight: fontWeight.extrabold,
+        color: colors.primaryDark,
+        fontVariant: ['tabular-nums'],
+    },
+    projectionMeta: {
+        fontSize: fontSize.xs,
+        fontWeight: fontWeight.semibold,
+        color: colors.textSecondary,
+    },
+    projectionMetaWide: {
+        flexShrink: 1,
+        minWidth: 0,
+        fontSize: fontSize.xs,
+        fontWeight: fontWeight.semibold,
+        color: colors.textSecondary,
+    },
+    projectionSource: {
+        fontSize: fontSize.xs,
+        fontWeight: fontWeight.bold,
+        color: colors.textMuted,
+    },
     gamesLeftText: { fontSize: fontSize.xs, fontWeight: fontWeight.semibold, color: colors.textMuted },
     statsGrid: {
         width: 9 * 54,
