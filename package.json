@@ -17,6 +17,7 @@
     "test": "vitest run",
     "test:db:draft-goal": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/draft-goal-behavior.sql",
     "test:db:dynasty-ranking": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/dynasty-ranking-metadata.sql",
+    "test:db:fantasypros-projections": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/fantasypros-projections.sql",
     "test:watch": "vitest",
     "test:workspaces": "npm test && npm test --workspace core",
     "e2e:seed": "node tests/e2e/seed-league.mjs",

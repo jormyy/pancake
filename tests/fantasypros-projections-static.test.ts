@@ -18,6 +18,8 @@ const projectionsScreen = read('app/(tabs)/projections.tsx')
 const playerItem = read('components/PlayerSearchItem.tsx')
 const playerDetail = read('app/player/[id].tsx')
 const databaseTypes = read('types/database.ts')
+const packageJson = read('package.json')
+const dbProjectionTest = read('tests/db/fantasypros-projections.sql')
 
 describe('FantasyPros projection source implementation', () => {
     it('stores auditable source runs and raw rows, including unmatched rows', () => {
@@ -127,7 +129,22 @@ describe('FantasyPros projection source implementation', () => {
 
         expect(searchRpc).toContain('filtered_base AS')
         expect(searchRpc).toContain('COALESCE((SELECT array_agg(filtered_base.id ORDER BY filtered_base.id) FROM filtered_base), ARRAY[]::uuid[])')
+        expect(searchRpc).toContain('fb.avg_fantasy_points AS avg_fantasy_points')
+        expect(searchRpc).toContain('proj.projection_fantasy_points,')
+        expect(searchRpc).not.toContain('COALESCE(proj.projection_fantasy_points, fb.avg_fantasy_points) AS avg_fantasy_points')
         expect(searchRpc).not.toContain("'today',\n    NULL,\n    1000")
+    })
+
+    it('has executable DB coverage for projection source priority and player search field separation', () => {
+        expect(packageJson).toContain('"test:db:fantasypros-projections"')
+        expect(dbProjectionTest).toContain('public.get_league_projection_rows')
+        expect(dbProjectionTest).toContain('public.search_players')
+        expect(dbProjectionTest).toContain("v_row.projection_source <> 'fantasypros_daily'")
+        expect(dbProjectionTest).toContain("v_row.projection_source <> 'internal'")
+        expect(dbProjectionTest).toContain("v_row.projection_source <> 'season_avg'")
+        expect(dbProjectionTest).toContain('v_first.id <>')
+        expect(dbProjectionTest).toContain('v_projection_leader.avg_fantasy_points <> 10')
+        expect(dbProjectionTest).toContain('v_projection_leader.projection_fantasy_points <> 100')
     })
 
     it('does not record zero-row FantasyPros parses as successful sync runs', () => {

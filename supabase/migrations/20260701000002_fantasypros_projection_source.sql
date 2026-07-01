@@ -717,7 +717,7 @@ filtered AS (
     fb.headshot_url,
     fb.nba_id,
     fb.years_exp,
-    COALESCE(proj.projection_fantasy_points, fb.avg_fantasy_points) AS avg_fantasy_points,
+    fb.avg_fantasy_points AS avg_fantasy_points,
     fb.avg_points,
     fb.avg_rebounds,
     fb.avg_assists,
