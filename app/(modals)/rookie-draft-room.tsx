@@ -14,7 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useLeagueContext } from '@/contexts/league-context'
 import { type RookieProspect, type SnakePick } from '@/lib/rookieDraft'
-import { stopDraft, resetDraft } from '@/lib/draft'
+import { pauseDraft, resetDraft, resumeDraft, stopDraft } from '@/lib/draft'
 import { getPositionColor } from "@/constants/positions"
 import { colors, palette, fontSize, fontWeight, radii, scrim, spacing } from '@/constants/tokens'
 import { MotionPressable, MotionView } from '@/components/Motion'
@@ -26,6 +26,37 @@ export default function RookieDraftRoomScreen() {
     const { current, currentLeague, isCommissioner } = useLeagueContext()
     const { back } = useRouter()
     const myMemberId = current?.id
+
+    const {
+        state,
+        loading,
+        query,
+        setQuery,
+        prospects,
+        prospectsLoading,
+        picking,
+        activeTab,
+        setActiveTab,
+        secondsLeft,
+        pickError,
+        rosterOverflow,
+        rosterForDrop,
+        resolvingOverflow,
+        trimOverflow,
+        trimmingId,
+        memberId,
+        refresh,
+        handleTrimDrop,
+        handlePick,
+        handleCommissionerPick,
+        resolveByTaxi,
+        resolveByDrop,
+    } = useRookieDraftRoomController({
+        draftId,
+        memberId: myMemberId,
+        leagueId: currentLeague?.id,
+        rosterSize: currentLeague?.roster_size ?? 20,
+    })
 
     const handleStopDraft = () => {
         if (!draftId) return
@@ -55,6 +86,7 @@ export default function RookieDraftRoomScreen() {
                 void (async () => {
                     try {
                         await resetDraft(draftId)
+                        await refresh()
                         showSuccess('Draft Reset', 'The rookie draft has been reset to the first pick.')
                     } catch (e) {
                         showAlert('Could not reset draft', getErrorMessage(e))
@@ -64,34 +96,44 @@ export default function RookieDraftRoomScreen() {
             'Reset Draft',
         )
     }
-    const {
-        state,
-        loading,
-        query,
-        setQuery,
-        prospects,
-        prospectsLoading,
-        picking,
-        activeTab,
-        setActiveTab,
-        secondsLeft,
-        pickError,
-        rosterOverflow,
-        rosterForDrop,
-        resolvingOverflow,
-        trimOverflow,
-        trimmingId,
-        memberId,
-        handleTrimDrop,
-        handlePick,
-        resolveByTaxi,
-        resolveByDrop,
-    } = useRookieDraftRoomController({
-        draftId,
-        memberId: myMemberId,
-        leagueId: currentLeague?.id,
-        rosterSize: currentLeague?.roster_size ?? 20,
-    })
+
+    const handlePauseDraft = () => {
+        if (!draftId) return
+        confirmAction(
+            'Pause draft?',
+            'This freezes the pick clock until the commissioner resumes the draft.',
+            () => {
+                void (async () => {
+                    try {
+                        await pauseDraft(draftId)
+                        await refresh()
+                    } catch (e) {
+                        showAlert('Could not pause draft', getErrorMessage(e))
+                    }
+                })()
+            },
+            'Pause Draft',
+        )
+    }
+
+    const handleResumeDraft = () => {
+        if (!draftId) return
+        confirmAction(
+            'Resume draft?',
+            'This restarts the draft clock and allows picks again.',
+            () => {
+                void (async () => {
+                    try {
+                        await resumeDraft(draftId)
+                        await refresh()
+                    } catch (e) {
+                        showAlert('Could not resume draft', getErrorMessage(e))
+                    }
+                })()
+            },
+            'Resume Draft',
+        )
+    }
 
     if (loading) {
         return (
@@ -116,15 +158,22 @@ export default function RookieDraftRoomScreen() {
     const { draft, picks, nextPick } = state
     const isMyTurn = nextPick?.memberId === memberId
     const stopped = draft.status === 'cancelled'
+    const isPaused = draft.status === 'paused'
     const isDone = draft.status === 'completed' || stopped
+    const canCommissionerPick =
+        isCommissioner && isPaused && draft.pauseReason === 'timer_expired_commissioner_pick' && !!nextPick
+    const canUsePauseControl = !canCommissionerPick
+    const pickTimerExpired =
+        draft.status === 'in_progress' && !!nextPick?.timerExpiresAt && secondsLeft === 0
+    const draftTitle = draft.isMock ? 'Mock Rookie Draft' : 'Rookie Draft'
 
     const totalPicks = picks.length
-    const madePicks = picks.filter((p) => p.player).length
+    const madePicks = picks.filter((p) => p.player || p.skippedAt).length
     const currentRound = nextPick?.round ?? Math.ceil(totalPicks / state.orders.length)
 
     return (
         <>
-            <Stack.Screen options={{ title: 'Rookie Draft', presentation: 'modal' }} />
+            <Stack.Screen options={{ title: draftTitle, presentation: 'modal' }} />
 
             {/* ── Roster overflow resolution modal (non-dismissable) ── */}
             <Modal visible={!!rosterOverflow} transparent animationType="slide">
@@ -226,9 +275,22 @@ export default function RookieDraftRoomScreen() {
                     behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                 >
                     {/* ── Status banner ────────────────────────── */}
-                    <View style={[styles.banner, isDone && styles.bannerDone]}>
+                    <View style={[styles.banner, isDone && styles.bannerDone, isPaused && styles.bannerPaused]}>
                         {isDone ? (
-                            <Text style={styles.bannerTitle}>{stopped ? 'Draft Stopped' : 'Draft Complete'}</Text>
+                            <Text style={styles.bannerTitle}>
+                                {stopped ? (draft.isMock ? 'Mock Draft Stopped' : 'Draft Stopped') : draft.isMock ? 'Mock Draft Complete' : 'Draft Complete'}
+                            </Text>
+                        ) : isPaused ? (
+                            <>
+                                <Text style={styles.bannerTitle}>
+                                    {canCommissionerPick ? 'Commissioner Pick Needed' : 'Draft Paused'}
+                                </Text>
+                                <Text style={styles.bannerSub}>
+                                    {canCommissionerPick
+                                        ? `Pick for ${nextPick?.teamName ?? 'the team on the clock'} to resume the draft.`
+                                        : 'Commissioner will resume the pick clock.'}
+                                </Text>
+                            </>
                         ) : (
                             <>
                                 <View style={styles.bannerRow}>
@@ -261,6 +323,17 @@ export default function RookieDraftRoomScreen() {
                         <View style={styles.adminBar}>
                             <Text style={styles.adminBarLabel}>Commissioner</Text>
                             <View style={styles.adminBarBtns}>
+                                {canUsePauseControl ? (
+                                    <MotionPressable
+                                        style={[styles.adminBtn, styles.adminBtnPause]}
+                                        onPress={isPaused ? handleResumeDraft : handlePauseDraft}
+                                        pressedScale={0.94}
+                                        accessibilityRole="button"
+                                        accessibilityLabel={isPaused ? 'Resume draft' : 'Pause draft'}
+                                    >
+                                        <Text style={styles.adminBtnPauseText}>{isPaused ? 'Resume' : 'Pause'}</Text>
+                                    </MotionPressable>
+                                ) : null}
                                 <MotionPressable
                                     style={[styles.adminBtn, styles.adminBtnReset]}
                                     onPress={handleResetDraft}
@@ -351,9 +424,10 @@ export default function RookieDraftRoomScreen() {
                                 renderItem={({ item }) => (
                                     <ProspectRow
                                         player={item}
-                                        isDone={isDone}
+                                        isDone={isDone || pickTimerExpired || (isPaused && !canCommissionerPick)}
                                         picking={picking}
-                                        onPick={handlePick}
+                                        onPick={canCommissionerPick ? handleCommissionerPick : handlePick}
+                                        actionLabel={canCommissionerPick ? 'Commish Pick' : 'Pick'}
                                     />
                                 )}
                             />
@@ -381,11 +455,13 @@ function ProspectRow({
     isDone,
     picking,
     onPick,
+    actionLabel = 'Pick',
 }: {
     player: RookieProspect
     isDone: boolean
     picking: boolean
     onPick: (player: RookieProspect) => void
+    actionLabel?: string
 }) {
     return (
         <MotionPressable
@@ -418,7 +494,7 @@ function ProspectRow({
                 picking ? (
                     <ActivityIndicator size="small" color={colors.primary} />
                 ) : (
-                    <Text style={styles.pickBtn}>Pick</Text>
+                    <Text style={styles.pickBtn}>{actionLabel}</Text>
                 )
             )}
         </MotionPressable>
@@ -435,7 +511,8 @@ function PickRow({
     nextPick: SnakePick | null
 }) {
     const isMe = item.memberId === myMemberId
-    const isOnClock = !item.player && nextPick?.overallPick === item.overallPick
+    const isSkipped = !!item.skippedAt
+    const isOnClock = !item.player && !isSkipped && nextPick?.overallPick === item.overallPick
 
     return (
         <MotionView
@@ -472,6 +549,8 @@ function PickRow({
                         <Text style={styles.pickedTeam}>{item.player.nbaTeam ?? 'FA'}</Text>
                     </View>
                 </View>
+            ) : isSkipped ? (
+                <Text style={styles.pickSkipped}>Skipped</Text>
             ) : (
                 <Text style={[styles.pickPlayer, isOnClock && styles.onClockText]}>
                     {isOnClock ? '▶ On the clock' : '—'}
@@ -497,6 +576,7 @@ const styles = StyleSheet.create({
         gap: spacing.xs,
     },
     bannerDone: { backgroundColor: palette.green50, borderBottomColor: palette.green200 },
+    bannerPaused: { backgroundColor: colors.bgSubtle, borderBottomColor: colors.border },
     adminBar: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -522,8 +602,10 @@ const styles = StyleSheet.create({
         borderWidth: 1,
     },
     adminBtnReset: { backgroundColor: colors.bgCard, borderColor: colors.border },
+    adminBtnPause: { backgroundColor: colors.primaryLight, borderColor: colors.primaryBorder },
     adminBtnStop: { backgroundColor: colors.dangerLight, borderColor: colors.danger },
     adminBtnResetText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.textSecondary },
+    adminBtnPauseText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.primaryDark },
     adminBtnStopText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.dangerDark },
     bannerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     bannerTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.extrabold, color: colors.textPrimary },
@@ -648,6 +730,7 @@ const styles = StyleSheet.create({
     pickNum: { width: 28, fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.textMuted },
     pickTeam: { width: 100, fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textPrimary },
     pickPlayer: { flex: 1, fontSize: fontSize.sm, color: colors.textPlaceholder },
+    pickSkipped: { flex: 1, fontSize: fontSize.sm, color: colors.textMuted, fontWeight: fontWeight.semibold },
 
     pickPlayerCell: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.md },
     pickedName: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textPrimary },

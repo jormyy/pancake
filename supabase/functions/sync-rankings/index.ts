@@ -2,9 +2,11 @@ import { supabase } from '../_shared/supabase.ts'
 import { requireInternalFunctionAuth } from '../_shared/auth.ts'
 import { internalServerError } from '../_shared/responses.ts'
 import { buildDynastyRankingPayload, RANKINGS_SOURCE, type PlayerForRanking } from './match.ts'
-import { parseDynastyRankingsHtml, type RankingRow } from './parser.ts'
+import { parseDynastyRankingsHtml, selectedDynastyRankingType, type RankingRow } from './parser.ts'
+import * as cheerio from 'npm:cheerio'
 
 const RANKINGS_URL = 'https://hashtagbasketball.com/fantasy-basketball-dynasty-rankings'
+const POINTS_RANKING_TYPE = 'POINT'
 const MIN_RANKING_ROWS = 500
 
 Deno.serve(async (req) => {
@@ -21,14 +23,11 @@ Deno.serve(async (req) => {
 
 async function syncDynastyRankings() {
   console.log('[sync-rankings] Scraping dynasty rankings...')
-  const [rankings, players] = await Promise.all([
-    scrapeDynastyRankings(),
-    fetchPlayersForRanking(),
-  ])
+  const [scraped, players] = await Promise.all([scrapeDynastyRankings(), fetchPlayersForRanking()])
   const fetchedAt = new Date().toISOString()
-  console.log(`[sync-rankings] Scraped ${rankings.length} players.`)
+  console.log(`[sync-rankings] Scraped ${scraped.rankings.length} ${scraped.scoringFormat} rows.`)
 
-  const { rows: rankingRows, matched } = buildDynastyRankingPayload(rankings, players, fetchedAt)
+  const { rows: rankingRows, matched } = buildDynastyRankingPayload(scraped.rankings, players, fetchedAt)
   if (rankingRows.length < MIN_RANKING_ROWS) {
     throw new Error(`Parsed ${rankingRows.length} ranking rows, below minimum ${MIN_RANKING_ROWS}`)
   }
@@ -38,6 +37,9 @@ async function syncDynastyRankings() {
     p_fetched_at: fetchedAt,
     p_rows: rankingRows,
     p_min_rows: MIN_RANKING_ROWS,
+    p_scoring_format: scraped.scoringFormat,
+    p_source_url: RANKINGS_URL,
+    p_source_metadata: scraped.metadata,
   })
   if (error) throw error
 
@@ -63,10 +65,81 @@ async function fetchPlayersForRanking(): Promise<PlayerForRanking[]> {
   return players
 }
 
-async function scrapeDynastyRankings(): Promise<RankingRow[]> {
+type ScrapedRankings = {
+  rankings: RankingRow[]
+  scoringFormat: 'points' | 'overall'
+  metadata: Record<string, string | number | boolean | null>
+}
+
+async function scrapeDynastyRankings(): Promise<ScrapedRankings> {
+  const pointsHtml = await fetchPointsRankingsHtml()
+  const selectedType = selectedDynastyRankingType(pointsHtml)
+  if (selectedType === POINTS_RANKING_TYPE) {
+    return {
+      rankings: parseDynastyRankingsHtml(pointsHtml),
+      scoringFormat: 'points',
+      metadata: {
+        requestedRankingType: POINTS_RANKING_TYPE,
+        selectedRankingType: selectedType,
+        requestMethod: 'POST',
+        forecastSeasons: 5,
+      },
+    }
+  }
+
+  console.warn(`[sync-rankings] Points rankings unavailable; selected type was ${selectedType ?? 'unknown'}. Falling back to overall rankings.`)
+  const fallbackHtml = await fetchRankingsHtml()
+  return {
+    rankings: parseDynastyRankingsHtml(fallbackHtml),
+    scoringFormat: 'overall',
+    metadata: {
+      requestedRankingType: POINTS_RANKING_TYPE,
+      selectedRankingType: selectedType,
+      requestMethod: 'GET',
+      forecastSeasons: 5,
+      fallbackReason: 'Hashtag did not return the requested points-league ranking type.',
+    },
+  }
+}
+
+async function fetchRankingsHtml(): Promise<string> {
   const res = await fetch(RANKINGS_URL, {
     headers: { 'User-Agent': 'Mozilla/5.0 (compatible; PancakeApp/1.0)' },
   })
   if (!res.ok) throw new Error(`Rankings fetch ${res.status}`)
-  return parseDynastyRankingsHtml(await res.text())
+  return res.text()
+}
+
+async function fetchPointsRankingsHtml(): Promise<string> {
+  const html = await fetchRankingsHtml()
+  const form = buildAspNetRankingForm(html)
+  form.set('ctl00$ContentPlaceHolder1$DDTYPE', POINTS_RANKING_TYPE)
+
+  const res = await fetch(RANKINGS_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'Origin': 'https://hashtagbasketball.com',
+      'Referer': RANKINGS_URL,
+      'User-Agent': 'Mozilla/5.0 (compatible; PancakeApp/1.0)',
+    },
+    body: form,
+  })
+  if (!res.ok) throw new Error(`Points rankings fetch ${res.status}`)
+  return res.text()
+}
+
+function buildAspNetRankingForm(html: string): URLSearchParams {
+  const $ = cheerio.load(html)
+  const form = new URLSearchParams()
+  $('input[name]').each((_, input) => {
+    const name = $(input).attr('name')
+    if (name) form.set(name, $(input).attr('value') ?? '')
+  })
+  $('select[name]').each((_, select) => {
+    const name = $(select).attr('name')
+    const value = $(select).find('option[selected]').attr('value') ?? $(select).find('option').first().attr('value') ?? ''
+    if (name) form.set(name, value)
+  })
+  return form
 }

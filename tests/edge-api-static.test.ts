@@ -37,6 +37,8 @@ describe('Supabase Edge API cutover', () => {
             "action.action === 'withdraw-nomination'",
             "action.action === 'snake-pick'",
             "action.action === 'auto-pick'",
+            "action.action === 'process-expired-pick'",
+            "action.action === 'activate-rookie-league'",
             "action.action === 'reseed-picks'",
             '/playoffs/generate',
             '/playoffs/advance',
@@ -74,6 +76,7 @@ describe('Supabase Edge API cutover', () => {
         expect(processTrades).not.toContain('complete_accepted_trade_atomic')
         expect(processTrades).not.toContain('TERMINAL_COMPLETION_ERROR_FRAGMENTS')
         expect(closeNominations).toContain('close_expired_auction_nominations_atomic')
+        expect(closeNominations).toContain('process_expired_snake_picks_atomic')
         expect(closeNominations).not.toContain('close_auction_nomination_atomic')
         expect(processWaivers).toContain('process_due_waiver_claims_atomic')
         expect(processWaivers).toContain('await Promise.all')
@@ -101,6 +104,21 @@ describe('Supabase Edge API cutover', () => {
         expect(api).not.toContain('ceeytbfmwsnzalxlkalc')
     })
 
+    it('keeps DB behavior checks explicit about their target database', () => {
+        const workflow = read('.github/workflows/test.yml')
+        const rootPackage = JSON.parse(read('package.json')) as { scripts?: Record<string, string> }
+        const dbScripts = [
+            rootPackage.scripts?.['test:db:draft-goal'] ?? '',
+            rootPackage.scripts?.['test:db:dynasty-ranking'] ?? '',
+        ].join('\n')
+
+        expect(workflow).not.toContain('supabase start')
+        expect(workflow).not.toContain('supabase db reset')
+        expect(workflow).not.toContain('supabase stop')
+        expect(dbScripts).toContain('SUPABASE_DB_URL:?SUPABASE_DB_URL is required')
+        expect(dbScripts).not.toContain('127.0.0.1:54322')
+    })
+
     it('keeps schedule and playoff bracket writes inside atomic SQL RPCs', () => {
         const matchups = read('supabase/functions/api/matchups.ts')
         const playoffs = read('supabase/functions/api/playoffs.ts')
@@ -121,6 +139,7 @@ describe('Supabase Edge API cutover', () => {
         expect(read('types/database.ts')).toContain('advance_playoff_bracket_atomic')
         expect(read('types/database.ts')).toContain('process_due_accepted_trades_atomic')
         expect(read('types/database.ts')).toContain('close_expired_auction_nominations_atomic')
+        expect(read('types/database.ts')).toContain('process_expired_snake_picks_atomic')
     })
 
     it('keeps trade terminal states behind explicit SQL contracts', () => {

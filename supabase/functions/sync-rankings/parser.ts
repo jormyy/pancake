@@ -88,6 +88,11 @@ export function parseDynastyRankingsHtml(html: string): RankingRow[] {
   return dedupeRankings(rankings)
 }
 
+export function selectedDynastyRankingType(html: string): string | null {
+  const $ = cheerio.load(html)
+  return $('#ContentPlaceHolder1_DDTYPE option[selected]').attr('value') ?? null
+}
+
 function hasExpectedStatLabels($: cheerio.CheerioAPI, cell: CheerioSelection): boolean {
   const labels = cell.find('.dyn-statgrid td .lbl')
     .map((_, label) => cleanText($(label).text()).toUpperCase())

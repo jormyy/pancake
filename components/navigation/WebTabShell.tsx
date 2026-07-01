@@ -4,7 +4,7 @@ import { ComponentProps, ReactNode, useCallback, useEffect, useMemo, useState } 
 import { ActivityIndicator, Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native'
 import { Link, Navigator, usePathname, useRouter } from 'expo-router'
 import { useLeagueContext } from '@/contexts/league-context'
-import { getActiveDraft } from '@/lib/draft'
+import { getJoinableDraft } from '@/lib/draft'
 import { breakpoints, colors, WEB_THEME_VARS } from '@/constants/tokens'
 import { styles } from './webTabShellStyles'
 
@@ -228,7 +228,9 @@ function useDraftRoomLauncher() {
         }
         setDraftLoading(true)
         try {
-            const draft = await getActiveDraft(currentLeague.id)
+            const draft = await getJoinableDraft(currentLeague.id, {
+                includeCompletedRookie: true,
+            })
             if (!draft) {
                 router.push('/league')
             } else if (draft.draftType === 'snake') {

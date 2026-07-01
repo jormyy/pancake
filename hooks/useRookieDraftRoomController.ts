@@ -2,10 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Alert } from 'react-native'
 import {
     activateRookieDraftLeague,
-    autoPickBest,
+    commissionerSnakePick,
     getRookieDraftState,
     getRookiePlayers,
     makeSnakePick,
+    processExpiredSnakePick,
     subscribeToRookieDraft,
     unsubscribeFromRookieDraft,
     type RookieDraftState,
@@ -14,8 +15,6 @@ import {
 import { dropPlayer, getRoster, toggleTaxi, type RosterPlayer } from '@/lib/roster'
 import { getErrorMessage } from '@/lib/alert'
 import { getRosterStatusChangeLockMessage } from '@/lib/roster-locks'
-
-const PICK_TIMEOUT_SEC = 30
 
 type ActiveTab = 'prospects' | 'board'
 type RosterOverflow = {
@@ -58,8 +57,8 @@ export function useRookieDraftRoomController({
     const [trimOverflow, setTrimOverflow] = useState<TrimOverflow | null>(null)
     const [trimmingId, setTrimmingId] = useState<string | null>(null)
 
-    const autoPickFiredRef = useRef(false)
     const draftEndCheckedRef = useRef(false)
+    const autoPickAttemptRef = useRef<string | null>(null)
     const channelRef = useRef<ReturnType<typeof subscribeToRookieDraft> | null>(null)
     const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
     const queryRef = useRef('')
@@ -129,23 +128,17 @@ export function useRookieDraftRoomController({
         }
     }, [query, loadProspects])
 
-    const madePicksForClock = useMemo(
-        () => (state?.picks ?? []).filter((pick) => pick.player).sort((a, b) => b.overallPick - a.overallPick),
-        [state?.picks],
-    )
     const clockEnd = useMemo(() => {
         if (state?.draft.status !== 'in_progress') return null
-        const start = madePicksForClock[0]?.pickedAt ?? state.draft.startedAt
-        if (!start) return null
-        return new Date(start).getTime() + PICK_TIMEOUT_SEC * 1000
-    }, [state?.draft.status, state?.draft.startedAt, madePicksForClock])
+        if (!state.nextPick?.timerExpiresAt) return null
+        return new Date(state.nextPick.timerExpiresAt).getTime()
+    }, [state?.draft.status, state?.nextPick?.timerExpiresAt])
 
     useEffect(() => {
         if (!clockEnd) {
             setSecondsLeft(null)
             return
         }
-        autoPickFiredRef.current = false
         const tick = () => setSecondsLeft(Math.max(0, Math.ceil((clockEnd - Date.now()) / 1000)))
         tick()
         const id = setInterval(tick, 500)
@@ -153,24 +146,24 @@ export function useRookieDraftRoomController({
     }, [clockEnd])
 
     useEffect(() => {
-        const stableMemberId = memberIdRef.current
-        if (secondsLeft !== 0 || !draftId || !stableMemberId || picking) return
-        if (autoPickFiredRef.current || state?.nextPick?.memberId !== stableMemberId) return
+        if (secondsLeft !== 0 || !draftId || !state?.nextPick || picking) return
+        if (state.draft.timerExpiryBehavior !== 'auto_pick') return
+        const stableMemberId = memberIdRef.current ?? memberId
+        if (!stableMemberId || state.nextPick.memberId !== stableMemberId) return
 
-        autoPickFiredRef.current = true
+        const attemptKey = `${draftId}:${state.nextPick.overallPick}:${state.nextPick.timerExpiresAt ?? ''}`
+        if (autoPickAttemptRef.current === attemptKey) return
+        autoPickAttemptRef.current = attemptKey
+
         ;(async () => {
-            setPicking(true)
             try {
-                await autoPickBest(draftId, stableMemberId)
-                setQuery('')
-                await Promise.all([load(), loadProspects()])
+                await processExpiredSnakePick(draftId, stableMemberId)
+                await Promise.all([load(), loadProspects(queryRef.current.trim() || undefined)])
             } catch (e) {
-                Alert.alert('Auto-pick failed', getErrorMessage(e))
-            } finally {
-                setPicking(false)
+                setPickError(getErrorMessage(e) ?? 'Auto-pick failed')
             }
         })()
-    }, [secondsLeft, draftId, picking, state?.nextPick?.memberId, load, loadProspects])
+    }, [draftId, load, loadProspects, memberId, picking, secondsLeft, state?.draft.timerExpiryBehavior, state?.nextPick])
 
     const draftCompleted = state?.draft.status === 'completed'
     useEffect(() => {
@@ -265,6 +258,23 @@ export function useRookieDraftRoomController({
         }
     }
 
+    async function handleCommissionerPick(player: RookieProspect) {
+        const targetMemberId = state?.nextPick?.memberId
+        if (!draftId || !targetMemberId || picking) return
+
+        setPickError(null)
+        setPicking(true)
+        try {
+            await commissionerSnakePick(draftId, targetMemberId, player.id)
+            setQuery('')
+            await Promise.all([load(), loadProspects()])
+        } catch (e) {
+            setPickError(getErrorMessage(e) ?? 'Commissioner pick failed')
+        } finally {
+            setPicking(false)
+        }
+    }
+
     async function resolveByTaxi() {
         if (!rosterOverflow?.newRosterPlayerId || resolvingOverflow) return
         setResolvingOverflow(true)
@@ -328,8 +338,10 @@ export function useRookieDraftRoomController({
         trimOverflow,
         trimmingId,
         memberId: memberId ?? memberIdRef.current,
+        refresh: load,
         handleTrimDrop,
         handlePick,
+        handleCommissionerPick,
         resolveByTaxi,
         resolveByDrop,
     }

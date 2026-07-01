@@ -1,4 +1,4 @@
-import { isDraftPlaceholder, parseDynastyRankingsHtml } from './parser.ts'
+import { isDraftPlaceholder, parseDynastyRankingsHtml, selectedDynastyRankingType } from './parser.ts'
 
 function expect(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message)
@@ -156,6 +156,15 @@ Deno.test('dedupes repeated source ids to the best rank and identifies draft pla
 Deno.test('returns no rows when the expected ranking table shape is missing', () => {
   const rankings = parseDynastyRankingsHtml('<table><tr><td>changed markup</td></tr></table>')
   expect(rankings.length === 0, `expected no rows, got ${rankings.length}`)
+})
+
+Deno.test('detects the selected Hashtag dynasty ranking type', () => {
+  const html = `
+    <select id="ContentPlaceHolder1_DDTYPE">
+      <option value="OVERALL">Overall</option>
+      <option selected="selected" value="POINT">Points Leagues</option>
+    </select>`
+  expect(selectedDynastyRankingType(html) === 'POINT', 'expected POINT ranking type')
 })
 
 Deno.test('rejects rows missing the stats/comment column', () => {

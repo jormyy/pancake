@@ -17,6 +17,8 @@ export interface LeagueInfo {
     ir_slots: number
     taxi_slots?: number
     trade_deadline?: string | null
+    deleted_at?: string | null
+    deleted_by?: string | null
 }
 
 /**
@@ -28,4 +30,3 @@ export interface LeagueMembership {
     team_name: string | null
     leagues: LeagueInfo
 }
-

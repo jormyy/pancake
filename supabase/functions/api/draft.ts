@@ -5,8 +5,11 @@ import {
   assertUuid,
   integerField,
   json,
+  optionalBooleanField,
+  optionalIntegerField,
   optionalStringField,
   readJsonObject,
+  NotFoundError,
   requireCommissioner,
   requireCommissionerForDraft,
   requireUser,
@@ -16,13 +19,15 @@ import {
   verifyOwnMember,
 } from '../_shared/apiRuntime.ts'
 
-const NOMINATION_COUNTDOWN_SECONDS = 30
 const MIN_BID = 1
 const ROOKIE_DRAFT_ROUNDS = 3
 const DEFAULT_ROSTER_SIZE = 20
 const DEFAULT_TAXI_SLOTS = 2
+const DEFAULT_DRAFT_TIMER_SECONDS = 30
 const NOMINATION_ORDER_MODES = ['user_nominated', 'by_projection', 'alphabetical'] as const
+const ROOKIE_TIMER_EXPIRY_BEHAVIORS = ['auto_pick', 'skip_pick', 'pause_draft', 'commissioner_pick'] as const
 type NominationOrderMode = (typeof NOMINATION_ORDER_MODES)[number]
+type RookieTimerExpiryBehavior = (typeof ROOKIE_TIMER_EXPIRY_BEHAVIORS)[number]
 type SnakePickResult = {
   pick: {
     id: string
@@ -35,6 +40,18 @@ type SnakePickResult = {
   remaining: number
   league_id: string
   league_season_id: string
+  is_mock: boolean
+}
+type AuctionDraftStartOptions = {
+  isMock: boolean
+  timerSeconds: number
+  budgetPerTeam: number | null
+}
+type RookieDraftStartOptions = {
+  isMock: boolean
+  timerSeconds: number
+  rounds: number
+  timerExpiryBehavior: RookieTimerExpiryBehavior
 }
 
 function jsonObject(value: Json | undefined, label: string): { [key: string]: Json | undefined } {
@@ -51,6 +68,11 @@ function jsonString(value: Json | undefined, label: string): string {
 
 function jsonNumber(value: Json | undefined, label: string): number {
   if (typeof value !== 'number') throw new Error(`${label} must be a number.`)
+  return value
+}
+
+function jsonBoolean(value: Json | undefined, label: string): boolean {
+  if (typeof value !== 'boolean') throw new Error(`${label} must be a boolean.`)
   return value
 }
 
@@ -75,6 +97,7 @@ function parseSnakePickResult(value: Json | null): SnakePickResult {
     remaining: jsonNumber(root.remaining, 'remaining'),
     league_id: jsonString(root.league_id, 'league_id'),
     league_season_id: jsonString(root.league_season_id, 'league_season_id'),
+    is_mock: jsonBoolean(root.is_mock, 'is_mock'),
   }
 }
 
@@ -93,22 +116,61 @@ function nominationOrderMode(body: Record<string, unknown>): NominationOrderMode
   return value as NominationOrderMode
 }
 
-async function startDraft(leagueId: string, mode: NominationOrderMode): Promise<unknown> {
+function rookieTimerExpiryBehavior(body: Record<string, unknown>): RookieTimerExpiryBehavior {
+  const value = optionalStringField(body, 'timerExpiryBehavior') ?? 'auto_pick'
+  if (!ROOKIE_TIMER_EXPIRY_BEHAVIORS.includes(value as RookieTimerExpiryBehavior)) {
+    throw new ValidationError(`Invalid rookie draft timeout behavior: ${value}`)
+  }
+  return value as RookieTimerExpiryBehavior
+}
+
+function auctionDraftStartOptions(body: Record<string, unknown>): AuctionDraftStartOptions {
+  return {
+    isMock: optionalBooleanField(body, 'isMock') ?? false,
+    timerSeconds: optionalIntegerField(body, 'timerSeconds', { min: 5, max: 3600 }) ?? DEFAULT_DRAFT_TIMER_SECONDS,
+    budgetPerTeam: optionalIntegerField(body, 'budgetPerTeam', { min: 1, max: 1_000_000 }),
+  }
+}
+
+function rookieDraftStartOptions(body: Record<string, unknown>): RookieDraftStartOptions {
+  return {
+    isMock: optionalBooleanField(body, 'isMock') ?? false,
+    timerSeconds: optionalIntegerField(body, 'timerSeconds', { min: 5, max: 3600 }) ?? DEFAULT_DRAFT_TIMER_SECONDS,
+    rounds: optionalIntegerField(body, 'rounds', { min: 1, max: 10 }) ?? ROOKIE_DRAFT_ROUNDS,
+    timerExpiryBehavior: rookieTimerExpiryBehavior(body),
+  }
+}
+
+async function startDraft(leagueId: string, mode: NominationOrderMode, options: AuctionDraftStartOptions): Promise<unknown> {
   const { data, error } = await supabase.rpc('start_auction_draft_atomic', {
     p_league_id: leagueId,
     p_nomination_order_mode: mode,
+    p_is_mock: options.isMock,
+    p_pick_timer_seconds: options.timerSeconds,
+    p_budget_per_team: options.budgetPerTeam,
+    p_timer_expiry_behavior: 'auction_no_bid',
   })
   if (error) throwDb(error)
   return data
 }
 
-async function stopDraft(draftId: string): Promise<void> {
-  const { error } = await supabase.rpc('stop_draft_atomic', { p_draft_id: draftId })
+async function stopDraft(draftId: string, actorUserId: string): Promise<void> {
+  const { error } = await supabase.rpc('stop_draft_atomic', { p_draft_id: draftId, p_actor_user_id: actorUserId })
   if (error) throwDb(error)
 }
 
-async function resetDraft(draftId: string): Promise<void> {
-  const { error } = await supabase.rpc('reset_draft_atomic', { p_draft_id: draftId })
+async function resetDraft(draftId: string, actorUserId: string): Promise<void> {
+  const { error } = await supabase.rpc('reset_draft_atomic', { p_draft_id: draftId, p_actor_user_id: actorUserId })
+  if (error) throwDb(error)
+}
+
+async function pauseDraft(draftId: string, actorUserId: string): Promise<void> {
+  const { error } = await supabase.rpc('pause_draft_atomic', { p_draft_id: draftId, p_actor_user_id: actorUserId })
+  if (error) throwDb(error)
+}
+
+async function resumeDraft(draftId: string, actorUserId: string): Promise<void> {
+  const { error } = await supabase.rpc('resume_draft_atomic', { p_draft_id: draftId, p_actor_user_id: actorUserId })
   if (error) throwDb(error)
 }
 
@@ -118,7 +180,6 @@ async function nominatePlayer(draftId: string, memberId: string, playerId: strin
     p_member_id: memberId,
     p_player_id: playerId,
     p_user_id: userId,
-    p_countdown_seconds: NOMINATION_COUNTDOWN_SECONDS,
   })
   if (error) {
     if (error.code === '23505') {
@@ -179,10 +240,21 @@ async function withdrawNomination(
   return { withdrawn: Boolean(data) }
 }
 
-export async function startRookieDraft(leagueId: string): Promise<unknown> {
+export async function startRookieDraft(
+  leagueId: string,
+  options: RookieDraftStartOptions = {
+    isMock: false,
+    timerSeconds: DEFAULT_DRAFT_TIMER_SECONDS,
+    rounds: ROOKIE_DRAFT_ROUNDS,
+    timerExpiryBehavior: 'auto_pick',
+  },
+): Promise<unknown> {
   const { data, error } = await supabase.rpc('start_rookie_draft_atomic', {
     p_league_id: leagueId,
-    p_rounds: ROOKIE_DRAFT_ROUNDS,
+    p_rounds: options.rounds,
+    p_is_mock: options.isMock,
+    p_pick_timer_seconds: options.timerSeconds,
+    p_timer_expiry_behavior: options.timerExpiryBehavior,
   })
   if (error) throwDb(error)
   return data
@@ -196,7 +268,44 @@ async function makeSnakePick(draftId: string, memberId: string, playerId: string
   })
   if (rpcError) throwDb(rpcError)
 
+  return snakePickResponse(draftId, memberId, playerId, rpcData)
+}
+
+async function commissionerSnakePick(
+  draftId: string,
+  memberId: string,
+  playerId: string,
+  actorUserId: string,
+): Promise<Record<string, unknown>> {
+  const { data: rpcData, error: rpcError } = await supabase.rpc('commissioner_snake_pick_atomic', {
+    p_draft_id: draftId,
+    p_member_id: memberId,
+    p_player_id: playerId,
+    p_actor_user_id: actorUserId,
+  })
+  if (rpcError) throwDb(rpcError)
+
+  return snakePickResponse(draftId, memberId, playerId, rpcData)
+}
+
+async function snakePickResponse(
+  draftId: string,
+  memberId: string,
+  playerId: string,
+  rpcData: Json | null,
+): Promise<Record<string, unknown>> {
   const result = parseSnakePickResult(rpcData)
+
+  if (result.is_mock) {
+    return {
+      pick: result.pick,
+      remaining: result.remaining,
+      rosterOverflow: false,
+      taxiSlotsAvailable: false,
+      newPlayerId: playerId,
+      isMock: true,
+    }
+  }
 
   const { data: leagueRow, error: leagueError } = await supabase
     .from('leagues')
@@ -247,31 +356,84 @@ async function makeSnakePick(draftId: string, memberId: string, playerId: string
     rosterOverflow: (activeCount ?? 0) > (leagueRow?.roster_size ?? DEFAULT_ROSTER_SIZE),
     taxiSlotsAvailable: (taxiCount ?? 0) < (leagueRow?.taxi_slots ?? DEFAULT_TAXI_SLOTS),
     newPlayerId: playerId,
+    isMock: false,
   }
 }
 
 export async function autoPickBest(draftId: string, memberId: string): Promise<Record<string, unknown>> {
-  const { data: pickedRows, error: pickedError } = await supabase
+  const { data: rpcData, error: rpcError } = await supabase.rpc('auto_pick_snake_pick_atomic', {
+    p_draft_id: draftId,
+    p_member_id: memberId,
+    p_reason: 'manual',
+  })
+  if (rpcError) throwDb(rpcError)
+
+  const playerId = jsonString(jsonObject(rpcData ?? undefined, 'Auto-pick result').player_id, 'player_id')
+  return snakePickResponse(draftId, memberId, playerId, rpcData)
+}
+
+async function processExpiredSnakePick(draftId: string, memberId: string): Promise<Record<string, unknown>> {
+  const { data: nextPick, error: nextPickError } = await supabase
     .from('snake_draft_picks')
-    .select('player_id')
+    .select('id, member_id')
     .eq('draft_id', draftId)
-    .not('player_id', 'is', null)
-  if (pickedError) throwDb(pickedError)
+    .is('player_id', null)
+    .is('skipped_at', null)
+    .order('overall_pick', { ascending: true })
+    .limit(1)
+    .maybeSingle()
+  if (nextPickError) throwDb(nextPickError)
+  if (!nextPick) return { processed: false, picked: false }
+  if (nextPick.member_id !== memberId) {
+    throw new ValidationError("It's not your pick")
+  }
 
-  const pickedIds = new Set((pickedRows ?? []).map((row) => row.player_id))
-  const { data: players, error: playerError } = await supabase
-    .from('players')
+  const { data, error } = await supabase.rpc('process_expired_snake_pick_atomic', {
+    p_draft_id: draftId,
+  })
+  if (error) throwDb(error)
+
+  const row = (data ?? [])[0]
+  if (!row) return { processed: false, picked: false }
+  if (row.error_code || row.error_message) {
+    throw new ValidationError(row.error_message ?? row.error_code ?? 'Expired pick processing failed')
+  }
+
+  return {
+    processed: true,
+    pickId: row.pick_id,
+    memberId: row.member_id,
+    playerId: row.player_id,
+    picked: row.picked,
+  }
+}
+
+async function requireDraftLeagueMember(userId: string, draftId: string): Promise<void> {
+  const { data: draft, error: draftError } = await supabase
+    .from('drafts')
+    .select('league_id')
+    .eq('id', draftId)
+    .maybeSingle()
+  if (draftError) throwDb(draftError)
+  if (!draft) throw new NotFoundError('Draft not found')
+
+  const { data: membership, error: membershipError } = await supabase
+    .from('league_members')
     .select('id')
-    .not('nba_draft_number', 'is', null)
-    .eq('years_exp', 0)
-    .order('nba_draft_number', { ascending: true })
-    .order('id', { ascending: true })
-    .limit(100)
-  if (playerError) throwDb(playerError)
+    .eq('league_id', draft.league_id)
+    .eq('user_id', userId)
+    .maybeSingle()
+  if (membershipError) throwDb(membershipError)
+  if (!membership) throw new NotFoundError('Draft not found')
+}
 
-  const best = (players ?? []).find((player) => !pickedIds.has(player.id))
-  if (!best) throw new ValidationError('No available players for auto-pick')
-  return makeSnakePick(draftId, memberId, best.id)
+async function activateRookieDraftLeague(draftId: string, userId: string): Promise<{ activated: boolean }> {
+  await requireDraftLeagueMember(userId, draftId)
+  const { data, error } = await supabase.rpc('activate_rookie_draft_league_atomic', {
+    p_draft_id: draftId,
+  })
+  if (error) throwDb(error)
+  return { activated: Boolean(data) }
 }
 
 async function reseedRookieDraftPicks(draftId: string): Promise<{ reseeded: number }> {
@@ -291,7 +453,7 @@ export async function handleDraftRoute(req: Request, path: string): Promise<Resp
     const userId = await requireUser(req)
     const leagueId = uuidField(body, 'leagueId')
     await requireCommissioner(userId, leagueId)
-    return json({ ok: true, draft: await startDraft(leagueId, nominationOrderMode(body)) })
+    return json({ ok: true, draft: await startDraft(leagueId, nominationOrderMode(body), auctionDraftStartOptions(body)) })
   }
 
   if (path === '/draft/start-rookie') {
@@ -299,7 +461,7 @@ export async function handleDraftRoute(req: Request, path: string): Promise<Resp
     const userId = await requireUser(req)
     const leagueId = uuidField(body, 'leagueId')
     await requireCommissioner(userId, leagueId)
-    return json({ ok: true, draft: await startRookieDraft(leagueId) })
+    return json({ ok: true, draft: await startRookieDraft(leagueId, rookieDraftStartOptions(body)) })
   }
 
   const action = splitDraftAction(path)
@@ -311,13 +473,25 @@ export async function handleDraftRoute(req: Request, path: string): Promise<Resp
 
   if (action.action === 'stop') {
     await requireCommissionerForDraft(userId, draftId)
-    await stopDraft(draftId)
+    await stopDraft(draftId, userId)
     return json({ ok: true })
   }
 
   if (action.action === 'reset') {
     await requireCommissionerForDraft(userId, draftId)
-    await resetDraft(draftId)
+    await resetDraft(draftId, userId)
+    return json({ ok: true })
+  }
+
+  if (action.action === 'pause') {
+    await requireCommissionerForDraft(userId, draftId)
+    await pauseDraft(draftId, userId)
+    return json({ ok: true })
+  }
+
+  if (action.action === 'resume') {
+    await requireCommissionerForDraft(userId, draftId)
+    await resumeDraft(draftId, userId)
     return json({ ok: true })
   }
 
@@ -346,10 +520,28 @@ export async function handleDraftRoute(req: Request, path: string): Promise<Resp
     return json({ ok: true, ...await makeSnakePick(draftId, memberId, uuidField(body, 'playerId')) })
   }
 
+  if (action.action === 'commissioner-pick') {
+    await requireCommissionerForDraft(userId, draftId)
+    return json({
+      ok: true,
+      ...await commissionerSnakePick(draftId, uuidField(body, 'memberId'), uuidField(body, 'playerId'), userId),
+    })
+  }
+
   if (action.action === 'auto-pick') {
     const memberId = uuidField(body, 'memberId')
     await verifyOwnMember(userId, memberId)
     return json({ ok: true, ...await autoPickBest(draftId, memberId) })
+  }
+
+  if (action.action === 'process-expired-pick') {
+    const memberId = uuidField(body, 'memberId')
+    await verifyOwnMember(userId, memberId)
+    return json({ ok: true, ...await processExpiredSnakePick(draftId, memberId) })
+  }
+
+  if (action.action === 'activate-rookie-league') {
+    return json({ ok: true, ...await activateRookieDraftLeague(draftId, userId) })
   }
 
   if (action.action === 'reseed-picks') {

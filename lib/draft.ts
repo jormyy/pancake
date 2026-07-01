@@ -35,6 +35,9 @@ export type Nomination = {
 
 export const NOMINATION_ORDER_MODES = ['user_nominated', 'by_projection', 'alphabetical'] as const
 export type NominationOrderMode = (typeof NOMINATION_ORDER_MODES)[number]
+export const ROOKIE_TIMER_EXPIRY_BEHAVIORS = ['auto_pick', 'skip_pick', 'pause_draft', 'commissioner_pick'] as const
+export type RookieTimerExpiryBehavior = (typeof ROOKIE_TIMER_EXPIRY_BEHAVIORS)[number]
+export type DraftTimerExpiryBehavior = RookieTimerExpiryBehavior | 'auction_no_bid'
 
 export const NOMINATION_ORDER_MODE_LABELS: Record<NominationOrderMode, string> = {
     user_nominated: "Manager's choice",
@@ -42,15 +45,35 @@ export const NOMINATION_ORDER_MODE_LABELS: Record<NominationOrderMode, string> =
     alphabetical: 'Alphabetical',
 }
 
+export const ROOKIE_TIMER_EXPIRY_BEHAVIOR_LABELS: Record<RookieTimerExpiryBehavior, string> = {
+    auto_pick: 'Auto-pick',
+    skip_pick: 'Skip',
+    pause_draft: 'Pause',
+    commissioner_pick: 'Commish pick',
+}
+
 export type Draft = {
     id: string
     leagueId: string
     status: string
     draftType: string
+    isMock: boolean
     currentNominationOrder: number
     nominationOrderMode: NominationOrderMode
     budgetPerTeam: number | null
+    pickTimerSeconds: number
+    timerExpiryBehavior: DraftTimerExpiryBehavior
+    rounds: number | null
     startedAt: string | null
+    pauseReason: string | null
+    pausedAt: string | null
+    pausedRemainingSeconds: number | null
+}
+
+export type AuctionDraftStartOptions = {
+    isMock?: boolean
+    timerSeconds?: number
+    budgetPerTeam?: number | null
 }
 
 export type DraftState = {
@@ -72,29 +95,86 @@ export type DraftSearchPlayer = {
     dynasty_rank_fetched_at: string | null
 }
 
+const DRAFT_SELECT =
+    'id, league_id, status, draft_type, is_mock, current_nomination_order, nomination_order_mode, budget_per_team, pick_timer_seconds, timer_expiry_behavior, rounds, started_at, pause_reason, paused_at, timer_paused_remaining_seconds'
+
+function mapDraft(data: {
+    id: string
+    league_id: string
+    status: string
+    draft_type: string
+    is_mock: boolean
+    current_nomination_order: number
+    nomination_order_mode: string | null
+    budget_per_team: number | null
+    pick_timer_seconds: number
+    timer_expiry_behavior: string | null
+    rounds: number | null
+    started_at: string | null
+    pause_reason: string | null
+    paused_at: string | null
+    timer_paused_remaining_seconds: number | null
+}): Draft {
+    return {
+        id: data.id,
+        leagueId: data.league_id,
+        status: data.status,
+        draftType: data.draft_type,
+        isMock: data.is_mock,
+        currentNominationOrder: data.current_nomination_order,
+        nominationOrderMode: (data.nomination_order_mode ?? 'user_nominated') as NominationOrderMode,
+        budgetPerTeam: data.budget_per_team,
+        pickTimerSeconds: data.pick_timer_seconds,
+        timerExpiryBehavior: (data.timer_expiry_behavior ?? 'auction_no_bid') as DraftTimerExpiryBehavior,
+        rounds: data.rounds,
+        startedAt: data.started_at,
+        pauseReason: data.pause_reason,
+        pausedAt: data.paused_at,
+        pausedRemainingSeconds: data.timer_paused_remaining_seconds,
+    }
+}
 
 export async function getActiveDraft(leagueId: string): Promise<Draft | null> {
     const { data } = await supabase
         .from('drafts')
-        .select('id, league_id, status, draft_type, current_nomination_order, nomination_order_mode, budget_per_team, started_at')
+        .select(DRAFT_SELECT)
         .eq('league_id', leagueId)
-        .in('status', ['in_progress', 'pending', 'completed'])
+        .in('status', ['in_progress', 'pending', 'paused'])
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle()
 
     if (!data) return null
 
-    return {
-        id: data.id,
-        leagueId: data.league_id,
-        status: data.status,
-        draftType: data.draft_type,
-        currentNominationOrder: data.current_nomination_order,
-        nominationOrderMode: (data.nomination_order_mode ?? 'user_nominated') as NominationOrderMode,
-        budgetPerTeam: data.budget_per_team,
-        startedAt: data.started_at,
-    }
+    return mapDraft(data)
+}
+
+export async function getJoinableDraft(
+    leagueId: string,
+    options: { includeCompletedRookie?: boolean } = {},
+): Promise<Draft | null> {
+    const activeDraft = await getActiveDraft(leagueId)
+    if (activeDraft || !options.includeCompletedRookie) return activeDraft
+
+    const { data: league } = await supabase
+        .from('leagues')
+        .select('status')
+        .eq('id', leagueId)
+        .maybeSingle()
+    if (league?.status !== 'drafting') return null
+
+    const { data } = await supabase
+        .from('drafts')
+        .select(DRAFT_SELECT)
+        .eq('league_id', leagueId)
+        .eq('draft_type', 'snake')
+        .eq('status', 'completed')
+        .eq('is_mock', false)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+    return data ? mapDraft(data) : null
 }
 
 export async function getDraftState(draftId: string): Promise<DraftState | null> {
@@ -103,7 +183,7 @@ export async function getDraftState(draftId: string): Promise<DraftState | null>
             supabase
                 .from('drafts')
                 .select(
-                    'id, league_id, status, draft_type, current_nomination_order, nomination_order_mode, budget_per_team, started_at',
+                    'id, league_id, status, draft_type, is_mock, current_nomination_order, nomination_order_mode, budget_per_team, pick_timer_seconds, timer_expiry_behavior, rounds, started_at, pause_reason, paused_at, timer_paused_remaining_seconds',
                 )
                 .eq('id', draftId)
                 .single(),
@@ -136,11 +216,19 @@ export async function getDraftState(draftId: string): Promise<DraftState | null>
         leagueId: draft.league_id,
         status: draft.status,
         draftType: draft.draft_type,
+        isMock: draft.is_mock,
         currentNominationOrder: draft.current_nomination_order,
         nominationOrderMode: ((draft as { nomination_order_mode?: string }).nomination_order_mode ??
             'user_nominated') as NominationOrderMode,
         budgetPerTeam: draft.budget_per_team,
+        pickTimerSeconds: draft.pick_timer_seconds,
+        timerExpiryBehavior: ((draft as { timer_expiry_behavior?: string }).timer_expiry_behavior ??
+            (draft.draft_type === 'auction' ? 'auction_no_bid' : 'auto_pick')) as DraftTimerExpiryBehavior,
+        rounds: draft.rounds,
         startedAt: draft.started_at,
+        pauseReason: draft.pause_reason,
+        pausedAt: draft.paused_at,
+        pausedRemainingSeconds: draft.timer_paused_remaining_seconds,
     }
 
     const mappedOrder: DraftOrderEntry[] = (orders ?? []).map((o) => ({
@@ -241,17 +329,32 @@ function postgresInList(values: string[]): string {
 export async function startDraft(
     leagueId: string,
     nominationOrderMode: NominationOrderMode = 'user_nominated',
+    options: AuctionDraftStartOptions = {},
 ): Promise<Draft> {
-    const json = await sharedApiPost<any>('/draft/start', { leagueId, nominationOrderMode })
+    const json = await sharedApiPost<any>('/draft/start', {
+        leagueId,
+        nominationOrderMode,
+        isMock: options.isMock === true,
+        ...(options.timerSeconds != null ? { timerSeconds: options.timerSeconds } : {}),
+        ...(options.budgetPerTeam != null ? { budgetPerTeam: options.budgetPerTeam } : {}),
+    })
     return {
         id: json.draft.id,
         leagueId: json.draft.league_id,
         status: json.draft.status,
         draftType: json.draft.draft_type ?? 'auction',
+        isMock: json.draft.is_mock ?? false,
         currentNominationOrder: json.draft.current_nomination_order,
         nominationOrderMode: (json.draft.nomination_order_mode ?? 'user_nominated') as NominationOrderMode,
         budgetPerTeam: json.draft.budget_per_team,
+        pickTimerSeconds: json.draft.pick_timer_seconds ?? 30,
+        timerExpiryBehavior: (json.draft.timer_expiry_behavior ??
+            (json.draft.draft_type === 'auction' ? 'auction_no_bid' : 'auto_pick')) as DraftTimerExpiryBehavior,
+        rounds: json.draft.rounds ?? null,
         startedAt: json.draft.started_at,
+        pauseReason: json.draft.pause_reason ?? null,
+        pausedAt: json.draft.paused_at ?? null,
+        pausedRemainingSeconds: json.draft.timer_paused_remaining_seconds ?? null,
     }
 }
 
@@ -261,6 +364,14 @@ export async function stopDraft(draftId: string): Promise<void> {
 
 export async function resetDraft(draftId: string): Promise<void> {
     await sharedApiPost(`/draft/${draftId}/reset`, {})
+}
+
+export async function pauseDraft(draftId: string): Promise<void> {
+    await sharedApiPost(`/draft/${draftId}/pause`, {})
+}
+
+export async function resumeDraft(draftId: string): Promise<void> {
+    await sharedApiPost(`/draft/${draftId}/resume`, {})
 }
 
 export async function nominatePlayer(

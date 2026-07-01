@@ -96,6 +96,13 @@ function formatStat(value: number | null, format?: 'integer' | 'pct'): string {
     return Number(value).toFixed(1)
 }
 
+function formatScoringFormat(value: string | null | undefined): string {
+    if (value === 'points') return 'points-league'
+    if (value === 'category') return 'category'
+    if (value === 'custom') return 'custom'
+    return 'overall'
+}
+
 function sourceMeta(player: DynastyRankPlayer): string[] {
     const parts: string[] = []
     const team = player.sourceTeam ?? player.nbaTeam
@@ -290,6 +297,7 @@ export default function DynastyScreen() {
     const activeNews = tab === 'my-news' ? myNews : news
     const emptyNewsMessage = tab === 'my-news' ? 'No news for your players.' : 'No dynasty news yet.'
     const latestSync = rankings.players.find((player) => player.rankFetchedAt)?.rankFetchedAt ?? null
+    const scoringFormat = rankings.players.find((player) => player.scoringFormat)?.scoringFormat ?? null
     const rankingFooter = rankings.loadingMore ? (
         <ActivityIndicator style={styles.loadMoreSpinner} color={colors.primary} />
     ) : rankings.loadMoreError ? (
@@ -305,7 +313,9 @@ export default function DynastyScreen() {
                 <View style={styles.header}>
                     <View style={styles.headerText}>
                         <Text style={styles.title}>Dynasty Hub</Text>
-                        <Text style={styles.subtitle}>Hashtag rankings and player movement</Text>
+                        <Text style={styles.subtitle}>
+                            Hashtag {formatScoringFormat(scoringFormat)} rankings and player movement
+                        </Text>
                     </View>
                     {rankings.loading && rankings.players.length === 0 ? <ActivityIndicator color={colors.primary} /> : (
                         <View style={styles.syncPill}>

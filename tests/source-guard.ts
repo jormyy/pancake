@@ -212,4 +212,6 @@ export const sources = {
     rpcArrayCapsMigration: read('supabase/migrations/20260627000017_rpc_json_array_caps.sql'),
     internalEdgeTokenMigration: read('supabase/migrations/20260627000024_internal_edge_token_rookie_commissioner.sql'),
     waiverMigration: read('supabase/migrations/20260606000020_waiver_clears_live_poll_cdn_ledger.sql'),
+    rookieDraftTimerMigration: read('supabase/migrations/20260630000005_rookie_draft_server_timers.sql'),
+    draftConfigMockMigration: read('supabase/migrations/20260630000006_draft_config_mock_drafts.sql'),
 }

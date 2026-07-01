@@ -78,7 +78,7 @@ export async function fetchUserLeagues(userId: string) {
       id,
       role,
       team_name,
-      leagues (
+      leagues!inner (
         id,
         name,
         invite_code,
@@ -90,11 +90,14 @@ export async function fetchUserLeagues(userId: string) {
         roster_size,
         ir_slots,
         taxi_slots,
-        trade_deadline
+        trade_deadline,
+        deleted_at,
+        deleted_by
       )
     `,
         )
         .eq('user_id', userId)
+        .is('leagues.deleted_at', null)
 
     if (error) throw error
     return data ?? []
@@ -165,4 +168,19 @@ export async function updateLineupSlots(
         p_slots: lineupSlotsPayload(slots),
     })
     if (error) throw error
+}
+
+export async function deleteLeague(leagueId: string) {
+    const { data, error } = await supabase.rpc('delete_league_atomic', {
+        p_league_id: leagueId,
+    })
+    if (error) throw error
+    return data as {
+        deleted: boolean
+        alreadyDeleted: boolean
+        leagueId: string
+        deletedAt: string
+        cancelledDrafts?: number
+        closedNominations?: number
+    }
 }

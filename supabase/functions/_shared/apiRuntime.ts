@@ -165,6 +165,12 @@ export function booleanField(body: Record<string, unknown>, key: string): boolea
   return value
 }
 
+export function optionalBooleanField(body: Record<string, unknown>, key: string): boolean | null {
+  const value = body[key]
+  if (value == null) return null
+  return booleanField(body, key)
+}
+
 export function integerField(
   body: Record<string, unknown>,
   key: string,

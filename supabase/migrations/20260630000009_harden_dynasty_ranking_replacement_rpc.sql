@@ -1,0 +1,4 @@
+-- Intentionally retained as a no-op because the linked project recorded this
+-- migration while the branch was under review. The corrected active
+-- replace_dynasty_rankings body is folded into
+-- 20260630000003_dynasty_rankings_points_metadata.sql for fresh rebuilds.

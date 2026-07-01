@@ -1,0 +1,4 @@
+-- Intentionally retained as a no-op because the linked project recorded this
+-- version while the branch was under review. The draft timer-expiry SQL
+-- was recomposed into focused migrations 20260630000011 through
+-- 20260630000015 for fresh rebuilds.

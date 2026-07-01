@@ -22,6 +22,8 @@ import {
     withdrawNomination,
     stopDraft,
     resetDraft,
+    pauseDraft,
+    resumeDraft,
     searchPlayers,
     DraftState,
     DraftSearchPlayer,
@@ -151,6 +153,44 @@ export default function DraftRoomScreen() {
         )
     }, [draftId, load])
 
+    const handlePauseDraft = useCallback(() => {
+        if (!draftId) return
+        confirmAction(
+            'Pause draft?',
+            'This freezes nominations and bidding until the commissioner resumes the draft.',
+            () => {
+                void (async () => {
+                    try {
+                        await pauseDraft(draftId)
+                        await load()
+                    } catch (e) {
+                        showAlert('Could not pause draft', getErrorMessage(e))
+                    }
+                })()
+            },
+            'Pause Draft',
+        )
+    }, [draftId, load])
+
+    const handleResumeDraft = useCallback(() => {
+        if (!draftId) return
+        confirmAction(
+            'Resume draft?',
+            'This reopens the draft clock and lets managers nominate and bid again.',
+            () => {
+                void (async () => {
+                    try {
+                        await resumeDraft(draftId)
+                        await load()
+                    } catch (e) {
+                        showAlert('Could not resume draft', getErrorMessage(e))
+                    }
+                })()
+            },
+            'Resume Draft',
+        )
+    }, [draftId, load])
+
     // Load + subscribe + poll fallback
     useEffect(() => {
         if (!draftId) return
@@ -274,6 +314,7 @@ export default function DraftRoomScreen() {
 
     const { draft, order, budgets, openNomination, currentNominatorMemberId } = state
     const isMyTurn = currentNominatorMemberId === myMemberId
+    const isPaused = draft.status === 'paused'
     const currentNominatorTeam =
         order.find((o) => o.memberId === currentNominatorMemberId)?.teamName ?? 'Unknown'
 
@@ -289,13 +330,14 @@ export default function DraftRoomScreen() {
     const remainingBudget = myBudget?.remaining ?? Infinity
     const bidValue = parseInt(bidText, 10) // NaN while the field is empty/partial
     const bidValid = !isNaN(bidValue) && bidValue >= minBid && bidValue <= remainingBudget
+    const draftTitle = draft.isMock ? 'Mock Auction Draft' : 'Auction Draft'
 
     if (draft.status === 'completed' || draft.status === 'cancelled') {
         const stopped = draft.status === 'cancelled'
         return (
             <SafeAreaView style={styles.container} edges={['bottom']}>
                 <View style={styles.header}>
-                    <Text style={styles.headerTitle}>Auction Draft</Text>
+                    <Text style={styles.headerTitle}>{draftTitle}</Text>
                 </View>
                 <View style={styles.draftEndedContainer}>
                     <Text style={styles.draftEndedTitle}>{stopped ? 'Draft Stopped' : 'Draft Complete'}</Text>
@@ -317,7 +359,7 @@ export default function DraftRoomScreen() {
             {/* Header */}
             <View style={styles.header}>
                 <View style={styles.headerInner}>
-                    <Text style={styles.headerTitle}>Auction Draft</Text>
+                    <Text style={styles.headerTitle}>{draftTitle}</Text>
                     {myBudget && (
                         <View style={styles.budgetChip}>
                             <Text style={styles.budgetChipText}>${myBudget.remaining} left</Text>
@@ -330,6 +372,15 @@ export default function DraftRoomScreen() {
                 <View style={styles.adminBar}>
                     <Text style={styles.adminBarLabel}>Commissioner</Text>
                     <View style={styles.adminBarBtns}>
+                        <MotionPressable
+                            style={[styles.adminBtn, styles.adminBtnPause]}
+                            onPress={isPaused ? handleResumeDraft : handlePauseDraft}
+                            pressedScale={0.94}
+                            accessibilityRole="button"
+                            accessibilityLabel={isPaused ? 'Resume draft' : 'Pause draft'}
+                        >
+                            <Text style={styles.adminBtnPauseText}>{isPaused ? 'Resume' : 'Pause'}</Text>
+                        </MotionPressable>
                         <MotionPressable
                             style={[styles.adminBtn, styles.adminBtnReset]}
                             onPress={handleResetDraft}
@@ -389,20 +440,20 @@ export default function DraftRoomScreen() {
                                 </Text>
                             </View>
                             <View
-                                style={[styles.countdown, timeLeft <= 10 && styles.countdownUrgent]}
+                                style={[styles.countdown, !isPaused && timeLeft <= 10 && styles.countdownUrgent]}
                             >
                                 <Text
                                     style={[
                                         styles.countdownText,
-                                        timeLeft <= 10 && styles.countdownTextUrgent,
+                                        !isPaused && timeLeft <= 10 && styles.countdownTextUrgent,
                                     ]}
                                 >
-                                    0:{String(timeLeft).padStart(2, '0')}
+                                    {isPaused ? 'Paused' : `0:${String(timeLeft).padStart(2, '0')}`}
                                 </Text>
                             </View>
                         </View>
 
-                        {!iAmLeading && !iAmBankrupt && (
+                        {!iAmLeading && !iAmBankrupt && !isPaused && (
                             <View style={styles.bidInputRow}>
                                 <MotionPressable
                                     style={styles.bidStep}
@@ -458,6 +509,7 @@ export default function DraftRoomScreen() {
                         )}
 
                         {openNomination.nominatingMemberId === myMemberId &&
+                            !isPaused &&
                             openNomination.currentBidderId == null && (
                                 <MotionPressable
                                     style={styles.withdrawButton}
@@ -478,7 +530,12 @@ export default function DraftRoomScreen() {
                 ) : (
                     /* No open nomination — show whose turn it is */
                     <MotionView style={styles.card} preset="pop">
-                        {isMyTurn ? (
+                        {isPaused ? (
+                            <View style={styles.waitingRow}>
+                                <Text style={styles.waitingTeam}>Draft paused</Text>
+                                <Text style={styles.waitingText}>Commissioner will resume the clock.</Text>
+                            </View>
+                        ) : isMyTurn ? (
                             <>
                                 <Text style={styles.yourTurnBanner}>Your turn to nominate!</Text>
                                 <Text style={styles.nominationModeHint}>
@@ -727,8 +784,10 @@ const styles = StyleSheet.create({
         borderWidth: 1,
     },
     adminBtnReset: { backgroundColor: colors.bgCard, borderColor: colors.border },
+    adminBtnPause: { backgroundColor: colors.primaryLight, borderColor: colors.primaryBorder },
     adminBtnStop: { backgroundColor: colors.dangerLight, borderColor: colors.danger },
     adminBtnResetText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.textSecondary },
+    adminBtnPauseText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.primaryDark },
     adminBtnStopText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.dangerDark },
 
     card: {

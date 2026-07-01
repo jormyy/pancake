@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase'
 import { RealtimeChannel } from '@supabase/supabase-js'
 import { apiPost as sharedApiPost } from '@/lib/shared/api'
+import type { RookieTimerExpiryBehavior } from '@/lib/draft'
 
 
 export type SnakePick = {
@@ -10,6 +11,9 @@ export type SnakePick = {
     memberId: string
     teamName: string
     pickedAt: string | null
+    skippedAt: string | null
+    skipReason: string | null
+    timerExpiresAt: string | null
     player: {
         id: string
         displayName: string
@@ -23,8 +27,15 @@ export type RookieDraftState = {
         id: string
         leagueId: string
         status: string
+        isMock: boolean
+        pickTimerSeconds: number
+        timerExpiryBehavior: RookieTimerExpiryBehavior
+        rounds: number | null
         startedAt: string | null
         completedAt: string | null
+        pauseReason: string | null
+        pausedAt: string | null
+        pausedRemainingSeconds: number | null
     }
     picks: SnakePick[]
     orders: { position: number; memberId: string; teamName: string }[]
@@ -50,14 +61,21 @@ export type LeaguePickItem = {
     currentTeamName: string
 }
 
+export type RookieDraftStartOptions = {
+    isMock?: boolean
+    timerSeconds?: number
+    rounds?: number
+    timerExpiryBehavior?: RookieTimerExpiryBehavior
+}
+
 
 export async function getActiveRookieDraft(leagueId: string) {
     const { data } = await supabase
         .from('drafts')
-        .select('id, league_id, status, draft_type, started_at')
+        .select('id, league_id, status, draft_type, is_mock, pick_timer_seconds, timer_expiry_behavior, rounds, started_at, pause_reason, paused_at, timer_paused_remaining_seconds')
         .eq('league_id', leagueId)
         .eq('draft_type', 'snake')
-        .in('status', ['in_progress', 'pending', 'completed'])
+        .in('status', ['in_progress', 'pending', 'paused'])
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle()
@@ -65,24 +83,21 @@ export async function getActiveRookieDraft(leagueId: string) {
 }
 
 export async function activateRookieDraftLeague(draftId: string): Promise<boolean> {
-    const { data, error } = await supabase.rpc('activate_rookie_draft_league_atomic', {
-        p_draft_id: draftId,
-    })
-    if (error) throw error
-    return Boolean(data)
+    const result = await sharedApiPost<{ activated?: boolean }>(`/draft/${draftId}/activate-rookie-league`, {})
+    return Boolean(result?.activated)
 }
 
 export async function getRookieDraftState(draftId: string): Promise<RookieDraftState | null> {
     const [draftResult, { data: picks }, { data: orders }] = await Promise.all([
         supabase
             .from('drafts')
-            .select('id, league_id, status, started_at, completed_at')
+            .select('id, league_id, status, is_mock, pick_timer_seconds, timer_expiry_behavior, rounds, started_at, completed_at, pause_reason, paused_at, timer_paused_remaining_seconds')
             .eq('id', draftId)
             .single(),
         supabase
             .from('snake_draft_picks')
             .select(
-                `overall_pick, round, pick_in_round, member_id, picked_at,
+                `overall_pick, round, pick_in_round, member_id, picked_at, skipped_at, skip_reason, timer_expires_at,
                  players ( id, display_name, nba_team, position ),
                  league_members ( team_name )`,
             )
@@ -105,6 +120,9 @@ export async function getRookieDraftState(draftId: string): Promise<RookieDraftS
         memberId: p.member_id,
         teamName: (p.league_members as { team_name: string } | null)?.team_name ?? 'Unknown',
         pickedAt: p.picked_at,
+        skippedAt: p.skipped_at,
+        skipReason: p.skip_reason,
+        timerExpiresAt: p.timer_expires_at,
         player: p.players
             ? {
                   id: (p.players as { id: string }).id,
@@ -120,8 +138,15 @@ export async function getRookieDraftState(draftId: string): Promise<RookieDraftS
             id: draft.id,
             leagueId: draft.league_id,
             status: draft.status,
+            isMock: draft.is_mock,
+            pickTimerSeconds: draft.pick_timer_seconds,
+            timerExpiryBehavior: (draft.timer_expiry_behavior ?? 'auto_pick') as RookieTimerExpiryBehavior,
+            rounds: draft.rounds,
             startedAt: draft.started_at,
             completedAt: draft.completed_at,
+            pauseReason: draft.pause_reason,
+            pausedAt: draft.paused_at,
+            pausedRemainingSeconds: draft.timer_paused_remaining_seconds,
         },
         picks: mappedPicks,
         orders: (orders ?? []).map((o) => ({
@@ -129,7 +154,7 @@ export async function getRookieDraftState(draftId: string): Promise<RookieDraftS
             memberId: o.member_id,
             teamName: (o.league_members as { team_name: string } | null)?.team_name ?? 'Unknown',
         })),
-        nextPick: mappedPicks.find((p) => !p.player) ?? null,
+        nextPick: mappedPicks.find((p) => !p.player && !p.skippedAt) ?? null,
     }
 }
 
@@ -226,12 +251,22 @@ export async function getRookiePlayers(draftId: string, query?: string): Promise
 }
 
 
-export async function startRookieDraft(leagueId: string) {
-    return sharedApiPost<any>('/draft/start-rookie', { leagueId })
+export async function startRookieDraft(leagueId: string, options: RookieDraftStartOptions = {}) {
+    return sharedApiPost<any>('/draft/start-rookie', {
+        leagueId,
+        isMock: options.isMock === true,
+        ...(options.timerSeconds != null ? { timerSeconds: options.timerSeconds } : {}),
+        ...(options.rounds != null ? { rounds: options.rounds } : {}),
+        ...(options.timerExpiryBehavior ? { timerExpiryBehavior: options.timerExpiryBehavior } : {}),
+    })
 }
 
 export async function makeSnakePick(draftId: string, memberId: string, playerId: string) {
     return sharedApiPost<any>(`/draft/${draftId}/snake-pick`, { memberId, playerId })
+}
+
+export async function commissionerSnakePick(draftId: string, memberId: string, playerId: string) {
+    return sharedApiPost<any>(`/draft/${draftId}/commissioner-pick`, { memberId, playerId })
 }
 
 export async function autoPickBest(draftId: string, memberId: string) {
@@ -239,6 +274,10 @@ export async function autoPickBest(draftId: string, memberId: string) {
     // Sending playerId: '' here would fail the UUID-format check in the schema
     // and 400 before the handler runs (breaks the pick-clock auto-pick path).
     return sharedApiPost<any>(`/draft/${draftId}/auto-pick`, { memberId })
+}
+
+export async function processExpiredSnakePick(draftId: string, memberId: string) {
+    return sharedApiPost<any>(`/draft/${draftId}/process-expired-pick`, { memberId })
 }
 
 export async function reseedRookieDraftPicks(draftId: string) {

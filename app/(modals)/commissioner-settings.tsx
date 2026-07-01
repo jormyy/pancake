@@ -11,7 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { Stack, useRouter } from 'expo-router'
 import { useEffect, useRef, useState } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
-import { getLineupSlots, updateLeague, updateLineupSlots } from '@/lib/league'
+import { deleteLeague, getLineupSlots, updateLeague, updateLineupSlots } from '@/lib/league'
 import { advanceSeason } from '@/lib/rookieDraft'
 import { apiPost } from '@/lib/shared/api'
 import { LoadingScreen } from '@/components/LoadingScreen'
@@ -67,6 +67,7 @@ type CommissionerActionId =
     | 'generate-schedule'
     | 'reset-schedule'
     | 'advance-season'
+    | 'delete-league'
 type CommissionerAction = {
     id: CommissionerActionId
     label: string
@@ -75,7 +76,7 @@ type CommissionerAction = {
 }
 
 export default function CommissionerSettingsScreen() {
-    const { currentLeague, refresh } = useLeagueContext()
+    const { currentLeague, isCommissioner, refresh } = useLeagueContext()
     const { back } = useRouter()
     const league = currentLeague
     const hydratedLeagueId = useRef<string | null>(null)
@@ -319,6 +320,29 @@ export default function CommissionerSettingsScreen() {
         )
     }
 
+    async function handleDeleteLeague() {
+        if (!league?.id) return
+        confirmAction(
+            'Delete League',
+            `This will archive ${league.name}, cancel any active drafts, and remove it from normal navigation. Global player and ranking data will not be deleted.`,
+            async () => {
+                setBusyAction('delete-league')
+                try {
+                    await deleteLeague(league.id)
+                    await refresh()
+                    showSuccess('League deleted', 'The league has been archived and hidden from your league list.')
+                    back()
+                } catch (e) {
+                    showAlert('Error', getErrorMessage(e))
+                } finally {
+                    setBusyAction(null)
+                }
+            },
+            'Delete League',
+            true,
+        )
+    }
+
     async function generateSchedule(force = false) {
         await adminCall(
             '/sync/matchups',
@@ -506,6 +530,18 @@ export default function CommissionerSettingsScreen() {
 
                     <Text style={styles.sectionTitle}>ANNUAL CYCLE</Text>
                     {actionGroups[1].map(renderAction)}
+
+                    {isCommissioner ? (
+                        <>
+                            <Text style={styles.sectionTitle}>DANGER ZONE</Text>
+                            {renderAction({
+                                id: 'delete-league',
+                                label: 'Delete League',
+                                color: colors.danger,
+                                onPress: handleDeleteLeague,
+                            })}
+                        </>
+                    ) : null}
                 </ScrollView>
             </SafeAreaView>
         </>

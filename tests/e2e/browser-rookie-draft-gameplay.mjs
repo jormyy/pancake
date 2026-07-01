@@ -315,13 +315,12 @@ export async function runBrowserRookieDraftAutoPickScenario({
   try {
     await signInBrowser(session, env, fixture.activeUser, fixture.password)
     await browser(session, ['set', 'viewport', '390', '844']).catch(() => {})
-    const fastClockStartedAt = new Date(Date.now() - 24_000).toISOString()
+    const fastTimerExpiresAt = new Date(Date.now() + 3_000).toISOString()
     const { error: draftClockError } = await fixture.admin
-      .from('drafts')
-      .update({ started_at: fastClockStartedAt })
-      .eq('id', fixture.draft.id)
+      .from('snake_draft_picks')
+      .update({ timer_expires_at: fastTimerExpiresAt })
+      .eq('id', fixture.firstSlot.id)
     if (draftClockError) throw new Error(`draft clock update: ${draftClockError.message}`)
-    fixture.draft.started_at = fastClockStartedAt
     await browser(session, ['open', joinUrl(env.frontendUrl, `/rookie-draft-room?draftId=${fixture.draft.id}`)])
     await browser(session, ['wait', '1000'])
     await assertPageText(

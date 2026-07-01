@@ -14,11 +14,15 @@ import { useFocusEffect } from '@react-navigation/native'
 import { useLeagueContext } from '@/contexts/league-context'
 import { getLeagueStandings, StandingRow } from '@/lib/scoring'
 import {
-    getActiveDraft,
+    getJoinableDraft,
     startDraft,
     NOMINATION_ORDER_MODES,
     NOMINATION_ORDER_MODE_LABELS,
+    ROOKIE_TIMER_EXPIRY_BEHAVIORS,
+    ROOKIE_TIMER_EXPIRY_BEHAVIOR_LABELS,
+    type Draft,
     type NominationOrderMode,
+    type RookieTimerExpiryBehavior,
 } from '@/lib/draft'
 import { getWaiverPriorityOrder, WaiverPriorityRow } from '@/lib/waivers'
 import { getLeagueTransactions, TransactionRow } from '@/lib/transactions'
@@ -30,8 +34,29 @@ import { StandingsTable, ActivityFeed, WaiverPriorityList, PicksBankList } from 
 import { confirmAction, showAlert } from '@/lib/alert'
 
 type Tab = 'standings' | 'activity' | 'waivers' | 'picks'
+type DraftMode = 'real' | 'mock'
+type ChipValue = string | number
+type ChipOption<T extends ChipValue> = {
+    value: T
+    label: string
+}
 
 const ACTIVITY_LIMIT = 50
+const DRAFT_TIMER_OPTIONS = [30, 60, 120] as const
+const ROOKIE_ROUND_OPTIONS = [2, 3, 4] as const
+const DRAFT_MODE_CHIPS: readonly ChipOption<DraftMode>[] = [
+    { value: 'real', label: 'Real' },
+    { value: 'mock', label: 'Mock' },
+]
+const DRAFT_TIMER_CHIPS: readonly ChipOption<(typeof DRAFT_TIMER_OPTIONS)[number]>[] =
+    DRAFT_TIMER_OPTIONS.map((value) => ({ value, label: `${value}s` }))
+const ROOKIE_ROUND_CHIPS: readonly ChipOption<(typeof ROOKIE_ROUND_OPTIONS)[number]>[] =
+    ROOKIE_ROUND_OPTIONS.map((value) => ({ value, label: String(value) }))
+const NOMINATION_ORDER_CHIPS: readonly ChipOption<NominationOrderMode>[] =
+    NOMINATION_ORDER_MODES.map((value) => ({ value, label: NOMINATION_ORDER_MODE_LABELS[value] }))
+const ROOKIE_TIMER_EXPIRY_CHIPS: readonly ChipOption<RookieTimerExpiryBehavior>[] =
+    ROOKIE_TIMER_EXPIRY_BEHAVIORS.map((value) => ({ value, label: ROOKIE_TIMER_EXPIRY_BEHAVIOR_LABELS[value] }))
+const OPEN_DRAFT_STATUSES = new Set(['pending', 'in_progress', 'paused'])
 
 function parseLeagueTab(tab: unknown): Tab {
     return tab === 'activity' || tab === 'waivers' || tab === 'picks' ? tab : 'standings'
@@ -45,6 +70,13 @@ export default function LeagueScreen() {
     const [tab, setTab] = useState<Tab>(() => parseLeagueTab(params.tab))
     const [draftLoading, setDraftLoading] = useState(false)
     const [nominationMode, setNominationMode] = useState<NominationOrderMode>('user_nominated')
+    const [draftMode, setDraftMode] = useState<DraftMode>('real')
+    const [draftTimerSeconds, setDraftTimerSeconds] = useState<(typeof DRAFT_TIMER_OPTIONS)[number]>(30)
+    const [rookieRounds, setRookieRounds] = useState<(typeof ROOKIE_ROUND_OPTIONS)[number]>(3)
+    const [rookieTimerExpiryBehavior, setRookieTimerExpiryBehavior] =
+        useState<RookieTimerExpiryBehavior>('auto_pick')
+    const [activeDraft, setActiveDraft] = useState<Draft | null>(null)
+    const [activeDraftLoading, setActiveDraftLoading] = useState(false)
 
     // Per-tab data
     const [standings, setStandings] = useState<StandingRow[]>([])
@@ -75,12 +107,26 @@ export default function LeagueScreen() {
         setTransactions([])
         setWaiverOrder([])
         setCurrentLeaguePicks([])
+        setActiveDraft(null)
         setActivityOffset(0)
         setActivityHasMore(false)
         setActivityLoadingMore(false)
         setTabError({})
         setTabLoading({ standings: true })
     }, [currentLeague?.id])
+
+    const fetchActiveDraft = useCallback(async (lid: string) => {
+        setActiveDraftLoading(true)
+        try {
+            const draft = await getJoinableDraft(lid, { includeCompletedRookie: true })
+            if (activeLeagueIdRef.current !== lid) return
+            setActiveDraft(draft)
+        } catch {
+            if (activeLeagueIdRef.current === lid) setActiveDraft(null)
+        } finally {
+            if (activeLeagueIdRef.current === lid) setActiveDraftLoading(false)
+        }
+    }, [])
 
     const fetchTab = useCallback(async (t: Tab, lid: string) => {
         setTabLoading((prev) => ({ ...prev, [t]: true }))
@@ -136,7 +182,8 @@ export default function LeagueScreen() {
             if (tab !== 'standings' && !loadedTabs.current.has(tab)) {
                 fetchTab(tab, lid)
             }
-        }, [currentLeague?.id, tab, fetchTab]),
+            fetchActiveDraft(lid)
+        }, [currentLeague?.id, tab, fetchTab, fetchActiveDraft]),
     )
 
     // When switching tabs, fetch if not yet loaded
@@ -156,7 +203,7 @@ export default function LeagueScreen() {
         if (!lid) return
         setRefreshing(true)
         loadedTabs.current.clear()
-        await fetchTab(tab, lid)
+        await Promise.all([fetchTab(tab, lid), fetchActiveDraft(lid)])
         setRefreshing(false)
     }
 
@@ -180,13 +227,19 @@ export default function LeagueScreen() {
 
     async function handleStartDraft() {
         if (!currentLeague?.id) return
+        const isMock = draftMode === 'mock'
         confirmAction(
-            'Start Auction Draft?',
-            'This will begin the auction draft for all teams. This cannot be undone.',
+            isMock ? 'Start Mock Auction?' : 'Start Auction Draft?',
+            isMock
+                ? 'This starts a practice auction with no league, roster, or transaction side effects.'
+                : 'This will begin the auction draft for all teams. This cannot be undone.',
             async () => {
                 setDraftLoading(true)
                 try {
-                    const draft = await startDraft(currentLeague.id, nominationMode)
+                    const draft = await startDraft(currentLeague.id, nominationMode, {
+                        isMock,
+                        timerSeconds: draftTimerSeconds,
+                    })
                     push({ pathname: '/(modals)/draft-room', params: { draftId: draft.id } })
                 } catch (e: unknown) {
                     showAlert('Could not start draft', e instanceof Error ? e.message : undefined)
@@ -194,7 +247,7 @@ export default function LeagueScreen() {
                     setDraftLoading(false)
                 }
             },
-            'Start Draft',
+            isMock ? 'Start Mock' : 'Start Draft',
         )
     }
 
@@ -202,8 +255,15 @@ export default function LeagueScreen() {
         if (!currentLeague?.id) return
         setDraftLoading(true)
         try {
-            const draft = await getActiveDraft(currentLeague.id)
+            const draft = activeDraft ?? await getJoinableDraft(currentLeague.id, {
+                includeCompletedRookie: true,
+            })
             if (!draft) {
+                showAlert('No active draft found')
+                return
+            }
+            if (!OPEN_DRAFT_STATUSES.has(draft.status) && draft.status !== 'completed') {
+                setActiveDraft(null)
                 showAlert('No active draft found')
                 return
             }
@@ -221,13 +281,21 @@ export default function LeagueScreen() {
 
     async function handleStartRookieDraft() {
         if (!currentLeague?.id) return
+        const isMock = draftMode === 'mock'
         confirmAction(
-            'Start Rookie Draft?',
-            'This will begin the rookie snake draft. This cannot be undone.',
+            isMock ? 'Start Mock Rookie Draft?' : 'Start Rookie Draft?',
+            isMock
+                ? 'This starts a practice rookie draft with no roster, pick-asset, or league-status side effects.'
+                : 'This will begin the rookie snake draft. This cannot be undone.',
             async () => {
                 setDraftLoading(true)
                 try {
-                    const result = await startRookieDraft(currentLeague.id)
+                    const result = await startRookieDraft(currentLeague.id, {
+                        isMock,
+                        timerSeconds: draftTimerSeconds,
+                        rounds: rookieRounds,
+                        timerExpiryBehavior: rookieTimerExpiryBehavior,
+                    })
                     push({ pathname: '/(modals)/rookie-draft-room', params: { draftId: result.draft.id } })
                 } catch (e: unknown) {
                     showAlert('Could not start rookie draft', e instanceof Error ? e.message : undefined)
@@ -235,7 +303,7 @@ export default function LeagueScreen() {
                     setDraftLoading(false)
                 }
             },
-            'Start Draft',
+            isMock ? 'Start Mock' : 'Start Draft',
         )
     }
 
@@ -247,23 +315,6 @@ export default function LeagueScreen() {
             if (!draft) { showAlert('No active rookie draft found'); return }
             await reseedRookieDraftPicks(draft.id)
             showAlert('Done', 'Pick slots updated to reflect traded picks.')
-        } catch (e: unknown) {
-            showAlert('Error', e instanceof Error ? e.message : undefined)
-        } finally {
-            setDraftLoading(false)
-        }
-    }
-
-    async function handleJoinRookieDraft() {
-        if (!currentLeague?.id) return
-        setDraftLoading(true)
-        try {
-            const draft = await getActiveRookieDraft(currentLeague.id)
-            if (!draft) {
-                showAlert('No active rookie draft found')
-                return
-            }
-            push({ pathname: '/(modals)/rookie-draft-room', params: { draftId: draft.id } })
         } catch (e: unknown) {
             showAlert('Error', e instanceof Error ? e.message : undefined)
         } finally {
@@ -294,6 +345,104 @@ export default function LeagueScreen() {
 
     const isTabLoading = tabLoading[tab] === true
     const tabErr = tabError[tab]
+
+    function renderDraftChips<T extends ChipValue>(
+        options: readonly ChipOption<T>[],
+        selectedValue: T,
+        onSelect: (value: T) => void,
+    ) {
+        return (
+            <View style={styles.nominationModeRow}>
+                {options.map((option) => {
+                    const selected = selectedValue === option.value
+                    return (
+                        <Pressable
+                            key={String(option.value)}
+                            style={[styles.nominationModeChip, selected && styles.nominationModeChipOn]}
+                            onPress={() => onSelect(option.value)}
+                            accessibilityRole="button"
+                            accessibilityState={{ selected }}
+                        >
+                            <Text style={[styles.nominationModeChipText, selected && styles.nominationModeChipTextOn]}>
+                                {option.label}
+                            </Text>
+                        </Pressable>
+                    )
+                })}
+            </View>
+        )
+    }
+
+    function activeDraftButtonLabel(draft: Draft) {
+        const mock = draft.isMock ? 'Mock ' : ''
+        const kind = draft.draftType === 'snake' ? 'Rookie Draft' : 'Auction Draft'
+        if (draft.status === 'completed' && draft.draftType === 'snake') return 'Resolve Rookie Draft'
+        return `${draft.status === 'paused' ? 'Resume' : 'Join'} ${mock}${kind}`
+    }
+
+    function renderDraftActions() {
+        if (activeDraftLoading) {
+            return <ActivityIndicator color={colors.primary} />
+        }
+
+        if (activeDraft) {
+            return (
+                <>
+                    <Pressable style={styles.draftButton} onPress={handleJoinDraftRoom} disabled={draftLoading}>
+                        {draftLoading ? (
+                            <ActivityIndicator size="small" color={colors.textWhite} />
+                        ) : (
+                            <Text style={styles.draftButtonText}>{activeDraftButtonLabel(activeDraft)}</Text>
+                        )}
+                    </Pressable>
+                    {OPEN_DRAFT_STATUSES.has(activeDraft.status) && activeDraft.draftType === 'snake' && !activeDraft.isMock && isCommissioner ? (
+                        <View style={styles.syncWrap}>
+                            <Pressable style={styles.secondaryDraftButton} onPress={handleReseedRookiePicks} disabled={draftLoading}>
+                                <Text style={styles.secondaryDraftButtonText}>Sync Traded Picks</Text>
+                            </Pressable>
+                            <Text style={styles.syncHint}>Commissioner only — pull in picks acquired via trade so the draft board is current.</Text>
+                        </View>
+                    ) : null}
+                </>
+            )
+        }
+
+        if (currentLeague?.status === 'setup' && isCommissioner) {
+            return (
+                <>
+                    <Text style={styles.nominationModeLabel}>Draft mode</Text>
+                    {renderDraftChips(DRAFT_MODE_CHIPS, draftMode, setDraftMode)}
+                    <Text style={styles.nominationModeLabel}>Timer</Text>
+                    {renderDraftChips(DRAFT_TIMER_CHIPS, draftTimerSeconds, setDraftTimerSeconds)}
+                    <Text style={styles.nominationModeLabel}>Nomination order</Text>
+                    {renderDraftChips(NOMINATION_ORDER_CHIPS, nominationMode, setNominationMode)}
+                    <Pressable style={styles.draftButton} onPress={handleStartDraft} disabled={draftLoading}>
+                        {draftLoading ? <ActivityIndicator size="small" color={colors.textWhite} /> : <Text style={styles.draftButtonText}>{draftMode === 'mock' ? 'Start Mock Auction' : 'Start Auction Draft'}</Text>}
+                    </Pressable>
+                </>
+            )
+        }
+
+        if (currentLeague?.status === 'offseason' && isCommissioner) {
+            return (
+                <>
+                    <Text style={styles.nominationModeLabel}>Draft mode</Text>
+                    {renderDraftChips(DRAFT_MODE_CHIPS, draftMode, setDraftMode)}
+                    <Text style={styles.nominationModeLabel}>Timer</Text>
+                    {renderDraftChips(DRAFT_TIMER_CHIPS, draftTimerSeconds, setDraftTimerSeconds)}
+                    <Text style={styles.nominationModeLabel}>Rookie rounds</Text>
+                    {renderDraftChips(ROOKIE_ROUND_CHIPS, rookieRounds, setRookieRounds)}
+                    <Text style={styles.nominationModeLabel}>Timeout behavior</Text>
+                    {renderDraftChips(ROOKIE_TIMER_EXPIRY_CHIPS, rookieTimerExpiryBehavior, setRookieTimerExpiryBehavior)}
+                    <Pressable style={styles.draftButton} onPress={handleStartRookieDraft} disabled={draftLoading}>
+                        {draftLoading ? <ActivityIndicator size="small" color={colors.textWhite} /> : <Text style={styles.draftButtonText}>{draftMode === 'mock' ? 'Start Mock Rookie Draft' : 'Start Rookie Draft'}</Text>}
+                    </Pressable>
+                </>
+            )
+        }
+
+        return null
+    }
 
     function renderTabContent() {
         if (isTabLoading) {
@@ -382,55 +531,7 @@ export default function LeagueScreen() {
                 </Pressable>
 
                 {/* Draft actions */}
-                {currentLeague?.status === 'setup' && isCommissioner ? (
-                    <>
-                        <Text style={styles.nominationModeLabel}>Nomination order</Text>
-                        <View style={styles.nominationModeRow}>
-                            {NOMINATION_ORDER_MODES.map((mode) => {
-                                const selected = nominationMode === mode
-                                return (
-                                    <Pressable
-                                        key={mode}
-                                        style={[styles.nominationModeChip, selected && styles.nominationModeChipOn]}
-                                        onPress={() => setNominationMode(mode)}
-                                        accessibilityRole="button"
-                                        accessibilityState={{ selected }}
-                                    >
-                                        <Text style={[styles.nominationModeChipText, selected && styles.nominationModeChipTextOn]}>
-                                            {NOMINATION_ORDER_MODE_LABELS[mode]}
-                                        </Text>
-                                    </Pressable>
-                                )
-                            })}
-                        </View>
-                        <Pressable style={styles.draftButton} onPress={handleStartDraft} disabled={draftLoading}>
-                            {draftLoading ? <ActivityIndicator size="small" color={colors.textWhite} /> : <Text style={styles.draftButtonText}>Start Auction Draft</Text>}
-                        </Pressable>
-                    </>
-                ) : null}
-                {currentLeague?.status === 'drafting' ? (
-                    <Pressable style={styles.draftButton} onPress={handleJoinDraftRoom} disabled={draftLoading}>
-                        {draftLoading ? <ActivityIndicator size="small" color={colors.textWhite} /> : <Text style={styles.draftButtonText}>Join Draft Room</Text>}
-                    </Pressable>
-                ) : null}
-                {currentLeague?.status === 'drafting' && isCommissioner ? (
-                    <View style={styles.syncWrap}>
-                        <Pressable style={[styles.draftButton, { backgroundColor: colors.bgSubtle, borderWidth: 1, borderColor: colors.border }]} onPress={handleReseedRookiePicks} disabled={draftLoading}>
-                            <Text style={[styles.draftButtonText, { color: colors.textSecondary }]}>Sync Traded Picks</Text>
-                        </Pressable>
-                        <Text style={styles.syncHint}>Commissioner only — pull in picks acquired via trade so the draft board is current.</Text>
-                    </View>
-                ) : null}
-                {currentLeague?.status === 'offseason' && isCommissioner ? (
-                    <Pressable style={styles.draftButton} onPress={handleStartRookieDraft} disabled={draftLoading}>
-                        {draftLoading ? <ActivityIndicator size="small" color={colors.textWhite} /> : <Text style={styles.draftButtonText}>Start Rookie Draft</Text>}
-                    </Pressable>
-                ) : null}
-                {currentLeague?.status === 'offseason' && !isCommissioner ? (
-                    <Pressable style={styles.draftButton} onPress={handleJoinRookieDraft} disabled={draftLoading}>
-                        {draftLoading ? <ActivityIndicator size="small" color={colors.textWhite} /> : <Text style={styles.draftButtonText}>Join Rookie Draft</Text>}
-                    </Pressable>
-                ) : null}
+                {renderDraftActions()}
             </View>
 
             {/* Tab switcher — wraps to a second row on narrow widths so every pill
@@ -492,6 +593,17 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     draftButtonText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: 15 },
+    secondaryDraftButton: {
+        backgroundColor: colors.bgSubtle,
+        borderRadius: radii.lg,
+        borderCurve: 'continuous' as const,
+        borderWidth: 1,
+        borderColor: colors.border,
+        height: 44,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    secondaryDraftButtonText: { color: colors.textSecondary, fontWeight: fontWeight.bold, fontSize: 15 },
     syncWrap: { gap: spacing.xs, marginTop: spacing.md },
     syncHint: { fontSize: fontSize.xs, color: colors.textMuted, paddingHorizontal: spacing.xs, lineHeight: 15 },
     nominationModeLabel: {
@@ -502,9 +614,10 @@ const styles = StyleSheet.create({
         letterSpacing: 0.5,
         marginBottom: spacing.xs,
     },
-    nominationModeRow: { flexDirection: 'row', gap: spacing.xs, marginBottom: spacing.sm },
+    nominationModeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, marginBottom: spacing.sm },
     nominationModeChip: {
-        flex: 1,
+        flexGrow: 1,
+        flexBasis: 78,
         paddingVertical: spacing.sm,
         borderRadius: radii.md,
         borderWidth: 1,

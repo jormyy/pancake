@@ -13,6 +13,13 @@ const runId = `e2e-dynasty-rpc-${Date.now()}`
 const source = runId
 const sportsdataPrefix = `${runId}-player`
 const fetchedAt = new Date().toISOString()
+const scoringFormat = 'points'
+const sourceUrl = 'https://example.test/e2e-dynasty-points'
+const sourceMetadata = {
+  requestedRankingType: 'POINT',
+  selectedRankingType: 'POINT',
+  requestMethod: 'POST',
+}
 let playerA
 let playerB
 
@@ -53,6 +60,9 @@ const replaceRankings = (rows) => supabase.rpc('replace_dynasty_rankings', {
   p_fetched_at: fetchedAt,
   p_rows: rows,
   p_min_rows: 1,
+  p_scoring_format: scoringFormat,
+  p_source_url: sourceUrl,
+  p_source_metadata: sourceMetadata,
 })
 
 const cleanup = async () => {
@@ -92,6 +102,8 @@ try {
   ]))
 
   expect(first.rows === 3, `initial rows=${first.rows}; expected 3`)
+  expect(first.scoringFormat === scoringFormat, `initial scoringFormat=${first.scoringFormat}; expected ${scoringFormat}`)
+  expect(first.sourceUrl === sourceUrl, `initial sourceUrl=${first.sourceUrl}; expected ${sourceUrl}`)
   expect(first.playersUpdated === 2, `initial playersUpdated=${first.playersUpdated}; expected 2`)
 
   const initialPlayers = await must('initial player ranks', supabase
@@ -115,7 +127,7 @@ try {
 
   const currentRows = await must('current ranking rows', supabase
     .from('dynasty_rankings')
-    .select('source_rank, source_player_name, points')
+    .select('source_rank, source_player_name, points, scoring_format, source_url, source_metadata')
     .eq('source', source)
     .order('source_rank', { ascending: true }))
 
@@ -123,6 +135,15 @@ try {
   expect(currentRows.map((row) => row.source_rank).join(',') === '1,4', 'stale ranking rows were not deleted')
   expect(currentRows[0].source_player_name === 'Dynasty RpcA Updated', 'rank 1 row was not updated')
   expect(Number(currentRows[0].points) === 32.4, 'rank 1 stats were not updated')
+  expect(currentRows.every((row) => row.scoring_format === scoringFormat), 'scoring format metadata was not stored')
+  expect(currentRows.every((row) => row.source_url === sourceUrl), 'source URL metadata was not stored')
+  expect(
+    currentRows.every((row) =>
+      row.source_metadata?.requestedRankingType === sourceMetadata.requestedRankingType &&
+      row.source_metadata?.selectedRankingType === sourceMetadata.selectedRankingType &&
+      row.source_metadata?.requestMethod === sourceMetadata.requestMethod),
+    'source JSON metadata was not stored',
+  )
 
   const replacementPlayers = await must('replacement player ranks', supabase
     .from('players')
@@ -140,6 +161,17 @@ try {
     rankingRow(1, 'Duplicate Two', null),
   ])
   expect(duplicate.error, 'duplicate rank payload unexpectedly succeeded')
+
+  const invalidMetadata = await supabase.rpc('replace_dynasty_rankings', {
+    p_source: `${source}-invalid-metadata`,
+    p_fetched_at: fetchedAt,
+    p_rows: [rankingRow(1, 'Invalid Metadata', null)],
+    p_min_rows: 1,
+    p_scoring_format: scoringFormat,
+    p_source_url: sourceUrl,
+    p_source_metadata: ['not', 'an', 'object'],
+  })
+  expect(invalidMetadata.error, 'invalid source metadata payload unexpectedly succeeded')
 
   const afterRejectedRows = await must('rows after rejected duplicate payload', supabase
     .from('dynasty_rankings')

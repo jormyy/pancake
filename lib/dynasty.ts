@@ -33,6 +33,9 @@ export type DynastyRankPlayer = {
     turnovers: number | null
     comment: string | null
     rankSource: string
+    scoringFormat: string
+    sourceUrl: string | null
+    sourceMetadata: Database['public']['Tables']['dynasty_rankings']['Row']['source_metadata']
     rankFetchedAt: string
     isDraftPick: boolean
 }
@@ -73,6 +76,9 @@ type DynastyRankingRow = Pick<
     Database['public']['Tables']['dynasty_rankings']['Row'],
     | 'id'
     | 'source'
+    | 'scoring_format'
+    | 'source_url'
+    | 'source_metadata'
     | 'source_rank'
     | 'source_player_name'
     | 'source_team'
@@ -106,7 +112,7 @@ export async function getDynastyRankingsPage({
     let request = supabase
         .from('dynasty_rankings')
         .select(
-            'id, source, source_rank, source_player_name, source_team, source_positions, age, rank_change, games_played, field_goal_pct, free_throw_pct, three_pointers_made, points, rebounds, assists, steals, blocks, turnovers, comment, fetched_at, player:players!dynasty_rankings_player_id_fkey(id, display_name, nba_team, position, eligible_positions, injury_status, years_exp, headshot_url, nba_id)',
+            'id, source, scoring_format, source_url, source_metadata, source_rank, source_player_name, source_team, source_positions, age, rank_change, games_played, field_goal_pct, free_throw_pct, three_pointers_made, points, rebounds, assists, steals, blocks, turnovers, comment, fetched_at, player:players!dynasty_rankings_player_id_fkey(id, display_name, nba_team, position, eligible_positions, injury_status, years_exp, headshot_url, nba_id)',
         )
         .eq('source', 'hashtagbasketball.com')
         .order('source_rank', { ascending: true })
@@ -154,6 +160,9 @@ export async function getDynastyRankingsPage({
                 turnovers: row.turnovers,
                 comment: row.comment,
                 rankSource: row.source,
+                scoringFormat: row.scoring_format,
+                sourceUrl: row.source_url,
+                sourceMetadata: row.source_metadata,
                 rankFetchedAt: row.fetched_at,
                 isDraftPick: isDraftPickRow(row.source_player_name, row.source_team),
             }
