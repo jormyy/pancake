@@ -126,6 +126,11 @@ describe('FantasyPros projection source implementation', () => {
         expect(projectionRpc).toContain('ORDER BY cu.player_id, cu.priority ASC')
         expect(syncProjectionSource).toContain('projected_field_goals_made')
         expect(syncProjectionSource).toContain('projected_double_doubles')
+        expect(projectionRpc).toContain('COALESCE(r.points, 0) / NULLIF(r.games_played, 0)')
+        expect(projectionRpc).toContain('THEN r.games_played::numeric')
+        expect(syncProjectionSource).toMatch(
+            /\.from\('player_game_stats'\)[\s\S]*\.order\('player_id', \{ ascending: true \}\)[\s\S]*\.order\('game_id', \{ ascending: true \}\)[\s\S]*\.range\(from, from \+ PAGE - 1\)/,
+        )
     })
 
     it('enriches player search projections after applying player filters', () => {

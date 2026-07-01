@@ -328,6 +328,8 @@ async function syncInternalFallbackProjections(
       .gte('week_number', minWeek)
       .lte('week_number', weekNumber)
       .like('nba_games.nba_game_id', '002%')
+      .order('player_id', { ascending: true })
+      .order('game_id', { ascending: true })
       .range(from, from + PAGE - 1)
       .returns<InternalFallbackStatRow[]>()
     if (error) throw error

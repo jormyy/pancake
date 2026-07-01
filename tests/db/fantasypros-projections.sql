@@ -235,6 +235,21 @@ VALUES
     1,
     1,
     0
+  ),
+  (
+    '00000000-0000-0000-0000-000000020803',
+    'fantasypros',
+    'weekly_total',
+    'https://www.fantasypros.com/nba/projections/weekly-overall.php',
+    2099,
+    1,
+    NULL,
+    now(),
+    'success',
+    200,
+    1,
+    1,
+    0
   );
 
 INSERT INTO public.fantasypros_projection_rows (
@@ -260,6 +275,7 @@ INSERT INTO public.fantasypros_projection_rows (
   three_pointers_made,
   turnovers,
   minutes,
+  games_played,
   raw_player_cell
 )
 VALUES
@@ -286,6 +302,7 @@ VALUES
     0,
     0,
     30,
+    NULL,
     'Projection Leader ATL PG'
   ),
   (
@@ -311,6 +328,7 @@ VALUES
     0,
     0,
     30,
+    NULL,
     'Average Leader BOS SG'
   ),
   (
@@ -336,7 +354,34 @@ VALUES
     0,
     0,
     30,
+    NULL,
     'Average Leader BOS SG'
+  ),
+  (
+    '00000000-0000-0000-0000-000000020803',
+    'weekly_total',
+    'https://www.fantasypros.com/nba/projections/weekly-overall.php',
+    1,
+    2099,
+    1,
+    NULL,
+    now(),
+    'Projection Leader',
+    'projectionleader',
+    'ATL',
+    ARRAY['PG'],
+    '00000000-0000-0000-0000-000000020301',
+    'matched',
+    40,
+    20,
+    0,
+    0,
+    0,
+    0,
+    0,
+    120,
+    4,
+    'Projection Leader ATL PG'
   );
 
 DO $$
@@ -405,6 +450,22 @@ BEGIN
 
   IF v_row.projection_fantasy_points = 999 THEN
     RAISE EXCEPTION 'Failed FantasyPros sync run row leaked into projection RPC: %', row_to_json(v_row);
+  END IF;
+
+  SELECT *
+    INTO v_row
+    FROM public.get_league_projection_rows(
+      '00000000-0000-0000-0000-000000020101',
+      2099,
+      (timezone('America/New_York', now()))::date,
+      'week_total',
+      ARRAY['00000000-0000-0000-0000-000000020301']::uuid[],
+      10,
+      0
+    );
+
+  IF v_row.projection_source <> 'fantasypros_weekly_total' OR v_row.projection_fantasy_points <> 60 THEN
+    RAISE EXCEPTION 'Weekly total bonus scoring should infer DD/TD from per-game stat rates, got %', row_to_json(v_row);
   END IF;
 END $$;
 

@@ -391,7 +391,27 @@ weekly_total_candidates AS (
     'week_total'::text AS projection_view,
     public.projection_stat_fantasy_points(
       r.points, r.rebounds, r.assists, r.steals, r.blocks, r.three_pointers_made, r.turnovers,
-      NULL::numeric, NULL::numeric, NULL::numeric, NULL::numeric, NULL::numeric, NULL::numeric,
+      NULL::numeric, NULL::numeric, NULL::numeric, NULL::numeric,
+      CASE
+        WHEN COALESCE(r.games_played, 0) > 0 AND (
+          (COALESCE(r.points, 0) / NULLIF(r.games_played, 0) >= 10)::int +
+          (COALESCE(r.rebounds, 0) / NULLIF(r.games_played, 0) >= 10)::int +
+          (COALESCE(r.assists, 0) / NULLIF(r.games_played, 0) >= 10)::int +
+          (COALESCE(r.steals, 0) / NULLIF(r.games_played, 0) >= 10)::int +
+          (COALESCE(r.blocks, 0) / NULLIF(r.games_played, 0) >= 10)::int
+        ) >= 2 THEN r.games_played::numeric
+        ELSE 0
+      END,
+      CASE
+        WHEN COALESCE(r.games_played, 0) > 0 AND (
+          (COALESCE(r.points, 0) / NULLIF(r.games_played, 0) >= 10)::int +
+          (COALESCE(r.rebounds, 0) / NULLIF(r.games_played, 0) >= 10)::int +
+          (COALESCE(r.assists, 0) / NULLIF(r.games_played, 0) >= 10)::int +
+          (COALESCE(r.steals, 0) / NULLIF(r.games_played, 0) >= 10)::int +
+          (COALESCE(r.blocks, 0) / NULLIF(r.games_played, 0) >= 10)::int
+        ) >= 3 THEN r.games_played::numeric
+        ELSE 0
+      END,
       l.scoring_settings
     ) AS projection_fantasy_points,
     r.minutes AS projection_minutes,
