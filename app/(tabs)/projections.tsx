@@ -12,24 +12,21 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { EmptyState } from '@/components/EmptyState'
-import { ItemSeparator } from '@/components/ItemSeparator'
 import { Avatar } from '@/components/Avatar'
 import { Badge } from '@/components/Badge'
 import { PosTag } from '@/components/PosTag'
+import { ProjectionCard } from '@/components/projections/ProjectionCard'
 import { Chip } from '@/components/ui/Chip'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { INJURY_COLORS, colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 import { getPositionColor } from '@/constants/positions'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
+import { playerHeadshotUrl } from '@/lib/format'
 import { getOwnedPlayerMap, type OwnedEntry } from '@/lib/roster'
 import { getWaiverPlayerIds } from '@/lib/waivers'
 import {
-    compactProjectionStatLine,
-    formatProjectionGame,
     getLeagueProjections,
-    numberOrDash,
-    projectionFreshnessLabel,
     type LeagueProjectionRow,
     type ProjectionView,
 } from '@/lib/projections'
@@ -194,7 +191,7 @@ export default function ProjectionsScreen() {
                     <FlashList
                         data={filteredRows}
                         keyExtractor={(row) => row.player_id}
-                        ItemSeparatorComponent={ItemSeparator}
+                        ItemSeparatorComponent={ProjectionCardSeparator}
                         contentContainerStyle={filteredRows.length === 0 ? styles.emptyContainer : undefined}
                         renderItem={({ item }) => (
                             <ProjectionRow
@@ -227,47 +224,50 @@ function ProjectionRow({
     onPress: () => void
 }) {
     const positions = row.eligible_positions?.length ? row.eligible_positions : row.position ? [row.position] : []
-    const statLine = compactProjectionStatLine(row)
-    const game = formatProjectionGame(row)
-    const freshness = projectionFreshnessLabel(row.projection_fetched_at)
+    const headshotUri = playerHeadshotUrl(row.nba_id) ?? row.headshot_url
+    const ownershipLabel = owned ? (isMine ? 'Mine' : owned.teamName) : null
 
     return (
-        <Pressable
-            style={[styles.row, compact && styles.rowCompact]}
+        <ProjectionCard
+            projection={row}
+            compact={compact}
             onPress={onPress}
-            accessibilityRole="button"
             accessibilityLabel={`Open ${row.display_name}`}
-        >
-            <Avatar name={row.display_name} color={getPositionColor(positions[0] ?? row.position)} size={compact ? 38 : 44} />
-            <View style={styles.rowMain}>
-                <View style={styles.nameLine}>
-                    <Text style={styles.name} numberOfLines={1}>{row.display_name}</Text>
-                    {row.nba_team ? <Text style={styles.team}>{row.nba_team}</Text> : null}
-                    {positions.map((pos) => <PosTag key={pos} position={pos} />)}
-                    {row.injury_status ? (
-                        <Badge
-                            label={row.injury_status}
-                            color={INJURY_COLORS[row.injury_status] ?? colors.textMuted}
-                            variant="solid"
-                        />
-                    ) : null}
+            header={(
+                <View style={styles.playerHeader}>
+                    <Avatar
+                        name={row.display_name}
+                        color={getPositionColor(positions[0] ?? row.position)}
+                        size={compact ? 44 : 52}
+                        uri={headshotUri}
+                    />
+                    <View style={styles.playerInfo}>
+                        <View style={styles.nameLine}>
+                            <Text style={styles.name} numberOfLines={1}>{row.display_name}</Text>
+                            {row.nba_team ? <Text style={styles.team}>{row.nba_team}</Text> : null}
+                            {positions.map((pos) => <PosTag key={pos} position={pos} />)}
+                            {row.injury_status ? (
+                                <Badge
+                                    label={row.injury_status}
+                                    color={INJURY_COLORS[row.injury_status] ?? colors.textMuted}
+                                    variant="solid"
+                                />
+                            ) : null}
+                        </View>
+                        {ownershipLabel ? (
+                            <Text style={[styles.ownership, isMine && styles.ownershipMine]} numberOfLines={1}>
+                                {ownershipLabel}
+                            </Text>
+                        ) : null}
+                    </View>
                 </View>
-                <View style={styles.metaLine}>
-                    {game ? <Text style={styles.metaText} numberOfLines={1}>{game}</Text> : null}
-                    {row.projection_minutes != null ? <Text style={styles.metaText}>{numberOrDash(row.projection_minutes)}m</Text> : null}
-                    <Text style={styles.sourceText} numberOfLines={1}>
-                        {row.projection_source_label}{freshness ? ` ${freshness}` : ''}
-                    </Text>
-                    {owned ? <Text style={styles.ownedText} numberOfLines={1}>{isMine ? 'Mine' : owned.teamName}</Text> : null}
-                </View>
-                {statLine ? <Text style={styles.statLine} numberOfLines={compact ? 2 : 1}>{statLine}</Text> : null}
-            </View>
-            <View style={styles.pointsBox}>
-                <Text style={styles.points}>{numberOrDash(row.projection_fantasy_points)}</Text>
-                <Text style={styles.pointsLabel}>FP</Text>
-            </View>
-        </Pressable>
+            )}
+        />
     )
+}
+
+function ProjectionCardSeparator() {
+    return <View style={styles.cardSeparator} />
 }
 
 const styles = StyleSheet.create({
@@ -300,29 +300,16 @@ const styles = StyleSheet.create({
     errorText: { color: colors.dangerDark, fontSize: fontSize.sm, fontWeight: fontWeight.semibold },
     loader: { marginTop: spacing['5xl'] },
     emptyContainer: { flexGrow: 1, justifyContent: 'center' },
-    row: {
+    playerHeader: {
         flexDirection: 'row',
-        alignItems: 'center',
+        alignItems: 'flex-start',
         gap: spacing.lg,
-        paddingVertical: spacing.lg,
-        paddingHorizontal: spacing.md,
     },
-    rowCompact: { alignItems: 'flex-start' },
-    rowMain: { flex: 1, minWidth: 0, gap: spacing.xs },
+    playerInfo: { flex: 1, minWidth: 0, gap: spacing.xs },
     nameLine: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: spacing.xs },
     name: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: colors.textPrimary, maxWidth: '100%' },
     team: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textMuted },
-    metaLine: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: spacing.md },
-    metaText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textSecondary },
-    sourceText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.textMuted },
-    ownedText: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.primaryDark },
-    statLine: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textSecondary },
-    pointsBox: { minWidth: 74, alignItems: 'flex-end' },
-    points: {
-        fontSize: fontSize['2xl'],
-        fontWeight: fontWeight.extrabold,
-        color: colors.primaryDark,
-        fontVariant: ['tabular-nums'],
-    },
-    pointsLabel: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.textMuted },
+    ownership: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.textMuted },
+    ownershipMine: { color: colors.primaryDark },
+    cardSeparator: { height: spacing.md },
 })
