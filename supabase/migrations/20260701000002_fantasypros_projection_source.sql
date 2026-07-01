@@ -351,23 +351,61 @@ daily_candidates AS (
 weekly_avg_candidates AS (
   SELECT DISTINCT ON (r.player_id)
     r.player_id,
-    'fantasypros_weekly_avg'::text AS projection_source,
-    'FantasyPros Week Avg'::text AS projection_source_label,
-    'week_avg'::text AS projection_view,
+    CASE
+      WHEN args.view_name = 'week_total' THEN 'fantasypros_weekly_avg_total'
+      ELSE 'fantasypros_weekly_avg'
+    END::text AS projection_source,
+    CASE
+      WHEN args.view_name = 'week_total' THEN 'FantasyPros Week Avg x GP'
+      ELSE 'FantasyPros Week Avg'
+    END::text AS projection_source_label,
+    CASE
+      WHEN args.view_name = 'week_total' THEN 'week_total'
+      ELSE 'week_avg'
+    END::text AS projection_view,
     public.projection_stat_fantasy_points(
-      r.points, r.rebounds, r.assists, r.steals, r.blocks, r.three_pointers_made, r.turnovers,
-      NULL::numeric, NULL::numeric, NULL::numeric, NULL::numeric, NULL::numeric, NULL::numeric,
+      r.points * m.games_multiplier,
+      r.rebounds * m.games_multiplier,
+      r.assists * m.games_multiplier,
+      r.steals * m.games_multiplier,
+      r.blocks * m.games_multiplier,
+      r.three_pointers_made * m.games_multiplier,
+      r.turnovers * m.games_multiplier,
+      NULL::numeric,
+      NULL::numeric,
+      NULL::numeric,
+      NULL::numeric,
+      CASE
+        WHEN args.view_name = 'week_total' AND m.games_multiplier > 0 AND (
+          (COALESCE(r.points, 0) >= 10)::int +
+          (COALESCE(r.rebounds, 0) >= 10)::int +
+          (COALESCE(r.assists, 0) >= 10)::int +
+          (COALESCE(r.steals, 0) >= 10)::int +
+          (COALESCE(r.blocks, 0) >= 10)::int
+        ) >= 2 THEN m.games_multiplier
+        ELSE NULL::numeric
+      END,
+      CASE
+        WHEN args.view_name = 'week_total' AND m.games_multiplier > 0 AND (
+          (COALESCE(r.points, 0) >= 10)::int +
+          (COALESCE(r.rebounds, 0) >= 10)::int +
+          (COALESCE(r.assists, 0) >= 10)::int +
+          (COALESCE(r.steals, 0) >= 10)::int +
+          (COALESCE(r.blocks, 0) >= 10)::int
+        ) >= 3 THEN m.games_multiplier
+        ELSE NULL::numeric
+      END,
       l.scoring_settings
     ) AS projection_fantasy_points,
-    r.minutes AS projection_minutes,
-    r.points AS projection_points,
-    r.rebounds AS projection_rebounds,
-    r.assists AS projection_assists,
-    r.steals AS projection_steals,
-    r.blocks AS projection_blocks,
-    r.three_pointers_made AS projection_three_pointers_made,
-    r.turnovers AS projection_turnovers,
-    r.games_played AS projection_games_played,
+    r.minutes * m.games_multiplier AS projection_minutes,
+    r.points * m.games_multiplier AS projection_points,
+    r.rebounds * m.games_multiplier AS projection_rebounds,
+    r.assists * m.games_multiplier AS projection_assists,
+    r.steals * m.games_multiplier AS projection_steals,
+    r.blocks * m.games_multiplier AS projection_blocks,
+    r.three_pointers_made * m.games_multiplier AS projection_three_pointers_made,
+    r.turnovers * m.games_multiplier AS projection_turnovers,
+    CASE WHEN args.view_name = 'week_total' THEN m.games_multiplier::int ELSE r.games_played END AS projection_games_played,
     r.field_goal_pct AS projection_field_goal_pct,
     r.free_throw_pct AS projection_free_throw_pct,
     r.source_status AS projection_status,
@@ -394,6 +432,14 @@ weekly_avg_candidates AS (
     ON psr.id = r.run_id
    AND psr.status = 'success'
    AND psr.completed_at IS NOT NULL
+  LEFT JOIN week_game_counts wgc
+    ON wgc.player_id = r.player_id
+  CROSS JOIN LATERAL (
+    SELECT CASE
+      WHEN args.view_name = 'week_total' THEN COALESCE(NULLIF(r.games_played, 0), wgc.scheduled_games, 0)::numeric
+      ELSE 1::numeric
+    END AS games_multiplier
+  ) m
   WHERE args.view_name IN ('today', 'week_avg', 'week_total')
   ORDER BY r.player_id, r.week_number DESC NULLS LAST, r.fetched_at DESC, r.run_id DESC
 ),

@@ -252,6 +252,21 @@ VALUES
     1,
     1,
     0
+  ),
+  (
+    '00000000-0000-0000-0000-000000020804',
+    'fantasypros',
+    'weekly_avg',
+    'https://www.fantasypros.com/nba/projections/avg-weekly-overall.php',
+    2099,
+    1,
+    NULL,
+    now(),
+    'success',
+    200,
+    1,
+    1,
+    0
   );
 
 INSERT INTO public.fantasypros_projection_rows (
@@ -384,6 +399,32 @@ VALUES
     120,
     4,
     'Projection Leader ATL PG'
+  ),
+  (
+    '00000000-0000-0000-0000-000000020804',
+    'weekly_avg',
+    'https://www.fantasypros.com/nba/projections/avg-weekly-overall.php',
+    1,
+    2099,
+    1,
+    NULL,
+    now(),
+    'Average Leader',
+    'averageleader',
+    'BOS',
+    ARRAY['SG'],
+    '00000000-0000-0000-0000-000000020302',
+    'matched',
+    20,
+    2,
+    0,
+    0,
+    0,
+    0,
+    0,
+    30,
+    2,
+    'Average Leader BOS SG'
   );
 
 DO $$
@@ -468,6 +509,27 @@ BEGIN
 
   IF v_row.projection_source <> 'fantasypros_weekly_total' OR v_row.projection_fantasy_points <> 60 THEN
     RAISE EXCEPTION 'Weekly total bonus scoring should infer DD/TD from per-game stat rates, got %', row_to_json(v_row);
+  END IF;
+
+  SELECT *
+    INTO v_row
+    FROM public.get_league_projection_rows(
+      '00000000-0000-0000-0000-000000020101',
+      2099,
+      (timezone('America/New_York', now()))::date,
+      'week_total',
+      ARRAY['00000000-0000-0000-0000-000000020302']::uuid[],
+      10,
+      0
+    );
+
+  IF v_row.projection_source <> 'fantasypros_weekly_avg_total'
+     OR v_row.projection_view <> 'week_total'
+     OR v_row.projection_games_played <> 2
+     OR v_row.projection_points <> 40
+     OR v_row.projection_rebounds <> 4
+     OR v_row.projection_fantasy_points <> 44 THEN
+    RAISE EXCEPTION 'Week-total view should scale FantasyPros weekly-average fallback rows by GP, got %', row_to_json(v_row);
   END IF;
 
   SELECT *
