@@ -317,6 +317,10 @@ daily_candidates AS (
    AND r.player_id IS NOT NULL
    AND r.projection_date = args.game_date
    AND r.fetched_at >= now() - interval '36 hours'
+  JOIN public.projection_sync_runs psr
+    ON psr.id = r.run_id
+   AND psr.status = 'success'
+   AND psr.completed_at IS NOT NULL
   WHERE args.view_name = 'today'
   ORDER BY r.player_id, r.fetched_at DESC, r.run_id DESC
 ),
@@ -362,6 +366,10 @@ weekly_avg_candidates AS (
    AND r.season_year = p_season_year
    AND (wc.week_number IS NULL OR r.week_number IS NULL OR r.week_number = wc.week_number)
    AND r.fetched_at >= now() - interval '8 days'
+  JOIN public.projection_sync_runs psr
+    ON psr.id = r.run_id
+   AND psr.status = 'success'
+   AND psr.completed_at IS NOT NULL
   WHERE args.view_name IN ('today', 'week_avg', 'week_total')
   ORDER BY r.player_id, r.week_number DESC NULLS LAST, r.fetched_at DESC, r.run_id DESC
 ),
@@ -403,6 +411,10 @@ weekly_total_candidates AS (
    AND r.season_year = p_season_year
    AND (wc.week_number IS NULL OR r.week_number IS NULL OR r.week_number = wc.week_number)
    AND r.fetched_at >= now() - interval '8 days'
+  JOIN public.projection_sync_runs psr
+    ON psr.id = r.run_id
+   AND psr.status = 'success'
+   AND psr.completed_at IS NOT NULL
   WHERE args.view_name = 'week_total'
   ORDER BY r.player_id, r.week_number DESC NULLS LAST, r.fetched_at DESC, r.run_id DESC
 ),

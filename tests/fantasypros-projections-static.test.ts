@@ -102,6 +102,9 @@ describe('FantasyPros projection source implementation', () => {
         expect(projectionRpc).toContain("r.fetched_at >= now() - interval '36 hours'")
         expect(projectionRpc).toContain("r.projection_type = 'weekly_avg'")
         expect(projectionRpc).toContain("r.projection_type = 'weekly_total'")
+        expect(projectionRpc.match(/JOIN public\.projection_sync_runs psr/g)?.length).toBe(3)
+        expect(projectionRpc).toContain("psr.status = 'success'")
+        expect(projectionRpc).toContain('psr.completed_at IS NOT NULL')
         expect(projectionRpc).toContain('uses_fantasypros_unsupported_scoring')
         expect(projectionRpc).toContain('CASE WHEN l.uses_fantasypros_unsupported_scoring THEN 5 ELSE 1 END AS priority')
         expect(projectionRpc).toContain('public.player_projections pp')
@@ -131,6 +134,8 @@ describe('FantasyPros projection source implementation', () => {
         expect(syncProjectionSource).toContain('if (parsedRows.length === 0)')
         expect(syncProjectionSource).toContain("status: 'skipped'")
         expect(syncProjectionSource).toContain('No FantasyPros ${projectionType} projection rows parsed from public HTML')
+        expect(syncProjectionSource).toContain('class ProjectionFetchError extends Error')
+        expect(syncProjectionSource).toContain('error instanceof ProjectionFetchError ? error.httpStatus : undefined')
     })
 
     it('wires player, projections, manual Auto-Set, and season optimizer surfaces to the shared projection source', () => {

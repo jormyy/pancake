@@ -24,6 +24,13 @@ const FANTASYPROS_SOURCES: {
   { projectionType: 'weekly_total', url: 'https://www.fantasypros.com/nba/projections/weekly-overall.php' },
 ]
 
+class ProjectionFetchError extends Error {
+  constructor(message: string, readonly httpStatus: number) {
+    super(message)
+    this.name = 'ProjectionFetchError'
+  }
+}
+
 type SourceResult = {
   projectionType: FantasyProsProjectionType
   status: 'success' | 'failed' | 'skipped'
@@ -124,7 +131,9 @@ async function syncFantasyProsSource({
       },
     })
     const html = await response.text()
-    if (!response.ok) throw new Error(`FantasyPros ${projectionType} fetch failed with HTTP ${response.status}`)
+    if (!response.ok) {
+      throw new ProjectionFetchError(`FantasyPros ${projectionType} fetch failed with HTTP ${response.status}`, response.status)
+    }
 
     const parsedRows = parseFantasyProsProjectionHtml(html)
     if (parsedRows.length === 0) {
@@ -184,9 +193,11 @@ async function syncFantasyProsSource({
     }
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error)
+    const httpStatus = error instanceof ProjectionFetchError ? error.httpStatus : undefined
     console.warn(`[sync-projections] FantasyPros ${projectionType} failed: ${message}`)
     await finishSyncRun(run.id, {
       status: 'failed',
+      httpStatus,
       errorMessage: message,
       metadata: {
         parserVersion: PARSER_VERSION,
