@@ -25,6 +25,7 @@ export function PlayerSearchItem({
     adding,
     gamesLeft,
     showStats = false,
+    showCompactStats = true,
     statMode = 'season',
     animate = true,
     onAdd,
@@ -37,6 +38,7 @@ export function PlayerSearchItem({
     adding: string | null
     gamesLeft: Map<string, number>
     showStats?: boolean
+    showCompactStats?: boolean
     statMode?: 'season' | 'projection'
     animate?: boolean
     onAdd: (player: PlayerRow) => void
@@ -153,7 +155,7 @@ export function PlayerSearchItem({
                             </Text>
                         </View>
                     ) : null}
-                    {!showStats ? (
+                    {!showStats && showCompactStats ? (
                         <View style={styles.compactStats}>
                             {compactStats.map((stat) => (
                                 <View key={stat.label} style={styles.compactStat}>
