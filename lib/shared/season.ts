@@ -25,13 +25,7 @@ export async function getCurrentSeasonId(leagueId: string): Promise<string | nul
     return season?.id ?? null
 }
 
-/**
- * Like getCurrentSeasonId but falls back to the most recent season when
- * no season is marked is_current (e.g. during the offseason).
- */
-export async function getActiveSeasonId(leagueId: string): Promise<string | null> {
-    const current = await getCurrentSeasonId(leagueId)
-    if (current) return current
+export async function getLatestSeasonId(leagueId: string): Promise<string | null> {
     const { data, error } = await supabase
         .from('league_seasons')
         .select('id')
@@ -41,4 +35,14 @@ export async function getActiveSeasonId(leagueId: string): Promise<string | null
         .maybeSingle()
     if (error) throw error
     return data?.id ?? null
+}
+
+/**
+ * Like getCurrentSeasonId but falls back to the most recent season when
+ * no season is marked is_current (e.g. during the offseason).
+ */
+export async function getActiveSeasonId(leagueId: string): Promise<string | null> {
+    const current = await getCurrentSeasonId(leagueId)
+    if (current) return current
+    return getLatestSeasonId(leagueId)
 }

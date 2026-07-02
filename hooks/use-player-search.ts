@@ -38,12 +38,18 @@ type CachedPage = {
     offset: number
 }
 const ROOKIE_SEARCH_MAX_PAGES = 20
+const EMPTY_TEAMS: string[] = []
 
-function useWeeklyAvailability() {
+function useWeeklyAvailability(enabled: boolean) {
     const [weekDays, setWeekDays] = useState<WeekDay[]>([])
     const [startedTeams, setStartedTeams] = useState<Set<string>>(new Set())
 
     useEffect(() => {
+        if (!enabled) {
+            setWeekDays([])
+            setStartedTeams(new Set())
+            return
+        }
         let cancelled = false
         const seasonYear = currentSeasonYear()
         const today = todayET()
@@ -57,7 +63,7 @@ function useWeeklyAvailability() {
             if (!cancelled) setStartedTeams(teams)
         }).catch(console.error)
         return () => { cancelled = true }
-    }, [])
+    }, [enabled])
 
     const gamesLeft = useMemo(() => {
         const today = todayET()
@@ -80,7 +86,9 @@ export function usePlayerSearch(
     ownedMap: Map<string, OwnedEntry>,
     waiverIds: Set<string>,
     currentMemberId?: string,
+    options: { enabled?: boolean } = {},
 ) {
+    const enabled = options.enabled ?? true
     const [query, setQuery] = useState('')
     const [position, setPosition] = useState('ALL')
     const [selectedTeams, setSelectedTeams] = useState<string[]>([])
@@ -107,7 +115,7 @@ export function usePlayerSearch(
     const pageCacheRef = useRef(new Map<string, CachedPage>())
     const debouncedQuery = useDebouncedValue(query, 300)
 
-    const weeklyAvailability = useWeeklyAvailability()
+    const weeklyAvailability = useWeeklyAvailability(enabled)
     const todayTeams = useMemo(() => {
         const today = todayET()
         const todayRow = weeklyAvailability.weekDays.find((day) => day.date === today)
@@ -119,7 +127,7 @@ export function usePlayerSearch(
         [playingFilter, todayTeamList],
     )
     const excludedTeams = useMemo(
-        () => playingFilter === 'not_today' ? todayTeamList : [],
+        () => playingFilter === 'not_today' ? todayTeamList : EMPTY_TEAMS,
         [playingFilter, todayTeamList],
     )
     const scopedPlayerIds = useMemo(
@@ -209,6 +217,22 @@ export function usePlayerSearch(
     }, [players])
 
     useEffect(() => {
+        if (!enabled) {
+            requestSeqRef.current += 1
+            loadMoreSeqRef.current += 1
+            searchParamsRef.current = searchParams
+            currentKeyRef.current = searchParamsKey
+            offsetRef.current = 0
+            pendingScrollTopRef.current = false
+            playersRef.current = []
+            setPlayers([])
+            setHasMore(false)
+            setLoading(false)
+            setRefreshing(false)
+            setLoadingMore(false)
+            return
+        }
+
         searchParamsRef.current = searchParams
         currentKeyRef.current = searchParamsKey
         offsetRef.current = 0
@@ -253,10 +277,10 @@ export function usePlayerSearch(
                 setLoading(false)
                 setRefreshing(false)
             })
-    }, [searchParams, searchParamsKey, fetchCompleteResults])
+    }, [enabled, searchParams, searchParamsKey, fetchCompleteResults])
 
     const loadMore = useCallback(async () => {
-        if (loadingMore || !hasMore) return
+        if (!enabled || loadingMore || !hasMore) return
         const params = searchParamsRef.current
         const paramsKey = currentKeyRef.current
         const nextOffset = offsetRef.current + PLAYER_SEARCH_PAGE_SIZE
@@ -286,7 +310,7 @@ export function usePlayerSearch(
                 setLoadingMore(false)
             }
         }
-    }, [loadingMore, hasMore, fetchPage])
+    }, [enabled, loadingMore, hasMore, fetchPage])
 
     useEffect(() => {
         if (isFirstLeagueRunRef.current) {

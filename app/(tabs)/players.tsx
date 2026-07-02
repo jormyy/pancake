@@ -13,7 +13,7 @@ import {
 import { FlashList } from '@shopify/flash-list'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
-import { getOwnedPlayerMap, OwnedEntry } from '@/lib/roster'
+import { type OwnedEntry } from '@/lib/roster'
 import { useLeagueContext } from '@/contexts/league-context'
 import { colors, fontSize, fontWeight, radii, spacing, layout } from '@/constants/tokens'
 import { ItemSeparator } from '@/components/ItemSeparator'
@@ -21,14 +21,18 @@ import { EmptyState } from '@/components/EmptyState'
 import { IRResolutionModal } from '@/components/IRResolutionModal'
 import { DropPlayerPickerModal } from '@/components/DropPlayerPickerModal'
 import { PlayerSearchItem } from '@/components/PlayerSearchItem'
+import { LoadingScreen } from '@/components/LoadingScreen'
+import { NoLeagueState } from '@/components/NoLeagueState'
 import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
 import { usePlayerSearch, SORT_OPTIONS } from '@/hooks/use-player-search'
+import { useAuth } from '@/hooks/use-auth'
 import { STAT_COLUMN_SORT, type PlayerSearchSortMode } from '@/lib/player-search-sort'
 import { useQuickAdd } from '@/hooks/use-quick-add'
-import { getWaiverPlayerIds } from '@/lib/waivers'
 import { getMemberTransactionState } from '@/lib/league'
 import { PlayerRow } from '@/lib/players'
 import { useState } from 'react'
+import { SkeletonRows } from '@/components/ui/Skeleton'
+import { getPlayerAvailabilitySnapshot } from '@/lib/player-availability'
 
 const POSITIONS = [
     { key: 'ALL', label: 'All' },
@@ -199,9 +203,11 @@ function MultiTeamSelect({
 
 export default function PlayersScreen() {
     const { push } = useRouter()
-    const { current, currentLeague } = useLeagueContext()
+    const { user, loading: authLoading } = useAuth()
+    const { memberships, current, currentLeague, loading: leagueLoading } = useLeagueContext()
     const { width } = useWindowDimensions()
     const leagueId = currentLeague?.id ?? null
+    const searchEnabled = !!user && !!current?.id && !!leagueId
     const showStatTable = width >= 1180
     // On phones the full filter grid buries the results below the fold, so it
     // collapses behind a toggle; on wider screens it's always shown.
@@ -211,18 +217,19 @@ export default function PlayersScreen() {
 
     const {
         data: ownedData,
+        loading: ownedLoading,
+        error: ownedError,
         refresh: refreshOwned,
     } = useFocusAsyncData(async () => {
-        if (!leagueId) return { ownedMap: new Map<string, OwnedEntry>(), waiverIds: new Set<string>() }
-        const [om, wIds] = await Promise.all([
-            getOwnedPlayerMap(leagueId),
-            getWaiverPlayerIds(leagueId),
-        ])
-        return { ownedMap: om, waiverIds: wIds }
+        if (!leagueId) return { leagueId: null, ownedMap: new Map<string, OwnedEntry>(), waiverIds: new Set<string>() }
+        return getPlayerAvailabilitySnapshot(leagueId)
     }, [leagueId])
 
-    const ownedMap = ownedData?.ownedMap ?? EMPTY_OWNED_MAP
-    const waiverIds = ownedData?.waiverIds ?? EMPTY_WAIVER_IDS
+    const ownedDataForLeague = ownedData?.leagueId === leagueId ? ownedData : null
+    const ownedMap = ownedDataForLeague?.ownedMap ?? EMPTY_OWNED_MAP
+    const waiverIds = ownedDataForLeague?.waiverIds ?? EMPTY_WAIVER_IDS
+    const playerSupportLoading = !!leagueId && ownedLoading && ownedDataForLeague == null
+    const playerSupportReady = !leagueId || ownedDataForLeague != null
 
     const {
         data: transactionState,
@@ -232,7 +239,7 @@ export default function PlayersScreen() {
         return getMemberTransactionState(current.id, leagueId)
     }, [current?.id, leagueId])
 
-    const search = usePlayerSearch(leagueId, ownedMap, waiverIds, current?.id)
+    const search = usePlayerSearch(leagueId, ownedMap, waiverIds, current?.id, { enabled: searchEnabled && playerSupportReady })
     // ESPN-style column sort: click a stat header to sort the whole pool by it;
     // click the active one again to flip direction. All stats default to
     // descending (best first).
@@ -266,6 +273,10 @@ export default function PlayersScreen() {
         gamesLeftVersion,
     ].join('|')
 
+    if (!authLoading && !user) return null
+    if (authLoading || leagueLoading) return <LoadingScreen />
+    if (memberships.length === 0 || !current || !leagueId) return <NoLeagueState />
+
     return (
         <SafeAreaView style={styles.container}>
           <View style={styles.contentWrap}>
@@ -283,6 +294,8 @@ export default function PlayersScreen() {
                     <Text style={styles.resultCountText}>
                         {search.results.loading && search.results.players.length === 0
                             ? 'Searching...'
+                            : playerSupportLoading
+                              ? 'Loading players...'
                             : search.results.refreshing
                               ? `Updating ${search.results.players.length} player${search.results.players.length === 1 ? '' : 's'}`
                             : `${search.results.players.length}${search.activeFilterCount > 0 ? ' filtered' : ''} player${search.results.players.length === 1 ? '' : 's'}`}
@@ -382,10 +395,7 @@ export default function PlayersScreen() {
                 ) : null}
             </View>
 
-            {search.results.loading && search.results.players.length === 0 ? (
-                <ActivityIndicator style={styles.flex1} color={colors.primary} />
-            ) : (
-                <FlashList
+            <FlashList
                     ref={search.results.listRef}
                     data={search.results.players}
                     extraData={playerListExtraData}
@@ -443,12 +453,17 @@ export default function PlayersScreen() {
                             onPress={() => push(`/player/${item.id}`)}
                         />
                     )}
-                    ListEmptyComponent={<EmptyState message="No players found." fullScreen={false} />}
+                    ListEmptyComponent={
+                        playerSupportLoading || search.results.loading
+                            ? <View style={styles.skeletonRows}><SkeletonRows count={8} height={74} gap={10} /></View>
+                            : ownedError && ownedDataForLeague == null
+                              ? <EmptyState message="Players could not load." description="Tap retry to reload roster and waiver state." actionLabel="Retry" onAction={() => void refreshOwned()} fullScreen={false} />
+                            : <EmptyState message="No players found." fullScreen={false} />
+                    }
                     onEndReached={search.results.loadMore}
                     onEndReachedThreshold={0.3}
                     ListFooterComponent={search.results.loadingMore ? <ActivityIndicator style={styles.loadMoreSpinner} color={colors.primary} /> : null}
                 />
-            )}
           </View>
 
             <DropPlayerPickerModal
@@ -480,6 +495,12 @@ const styles = StyleSheet.create({
     contentWrap: { flex: 1, width: '100%', maxWidth: layout.contentMaxWidth, alignSelf: 'center' },
     flex1: { flex: 1 },
     loadMoreSpinner: { paddingVertical: 16 },
+    skeletonRows: {
+        alignSelf: 'stretch',
+        width: '100%',
+        paddingHorizontal: spacing.xl,
+        paddingVertical: spacing.md,
+    },
     filterCard: {
         margin: spacing.xl,
         marginBottom: spacing.md,

@@ -25,11 +25,26 @@ describe('player search database contract', () => {
 
     it('adds high-load indexes for name search and stat sorting', () => {
         const migration = read('supabase/migrations/20260629000001_player_search_dynasty_news.sql')
+        const perfMigration = read('supabase/migrations/20260702000001_player_search_performance_cache.sql')
 
         expect(migration).toContain('CREATE EXTENSION IF NOT EXISTS pg_trgm')
         expect(migration).toContain('idx_players_display_name_trgm')
         expect(migration).toContain('idx_mv_player_search_points')
         expect(migration).toContain('idx_mv_player_search_misc')
+        expect(perfMigration).toContain('CREATE MATERIALIZED VIEW IF NOT EXISTS analytics.mv_player_avg_fantasy_points')
+        expect(perfMigration).toContain('idx_mv_player_avg_fantasy_points_sort')
+        expect(perfMigration).toContain('refresh-player-search-caches')
+    })
+
+    it('paginates before projection enrichment so player search stays bounded', () => {
+        const body = latestFunctionDefinition('search_players')
+
+        expect(body).toContain('paged_base AS')
+        expect(body).toContain('FROM paged_base pb')
+        expect(body).toContain('row_number() OVER')
+        expect(body).toContain('ORDER BY pb.page_rank')
+        expect(body).toContain('COALESCE((SELECT array_agg(paged_base.id ORDER BY paged_base.id) FROM paged_base), ARRAY[]::uuid[])')
+        expect(body).not.toContain('COALESCE((SELECT array_agg(filtered_base.id ORDER BY filtered_base.id) FROM filtered_base), ARRAY[]::uuid[])')
     })
 
     it('backs Dynasty Hub news with a read-only client table', () => {

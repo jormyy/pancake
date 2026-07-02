@@ -101,10 +101,7 @@ export async function getWaiverEntries(leagueId: string): Promise<WaiverEntry[]>
     }))
 }
 
-export async function getWaiverPlayerIds(leagueId: string): Promise<Set<string>> {
-    const seasonId = await getCurrentSeasonId(leagueId)
-    if (!seasonId) return new Set()
-
+export async function getWaiverPlayerIdsForSeason(leagueId: string, seasonId: string): Promise<Set<string>> {
     const now = new Date().toISOString()
     const { data: activeLogs, error } = await supabase
         .from('waiver_wire_log')
@@ -119,6 +116,12 @@ export async function getWaiverPlayerIds(leagueId: string): Promise<Set<string>>
     const playerIds = new Set(((activeLogs ?? []) as WaiverPlayerIdRow[]).map((row) => row.player_id))
 
     return playerIds
+}
+
+export async function getWaiverPlayerIds(leagueId: string): Promise<Set<string>> {
+    const seasonId = await getCurrentSeasonId(leagueId)
+    if (!seasonId) return new Set()
+    return getWaiverPlayerIdsForSeason(leagueId, seasonId)
 }
 
 export async function submitWaiverClaim(

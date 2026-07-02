@@ -63,12 +63,13 @@ export async function toggleTaxi(rosterPlayerId: string, isOnTaxi: boolean): Pro
 }
 
 export type OwnedEntry = { teamName: string; memberId: string }
+type OwnedPlayerRow = {
+    player_id: string
+    member_id: string
+    league_members: { team_name: string | null } | null
+}
 
-// Returns a map of player_id → { teamName, memberId } for all owned players in the league
-export async function getOwnedPlayerMap(leagueId: string): Promise<Map<string, OwnedEntry>> {
-    const seasonId = await getActiveSeasonId(leagueId)
-    if (!seasonId) return new Map()
-
+export async function getOwnedPlayerMapForSeason(leagueId: string, seasonId: string): Promise<Map<string, OwnedEntry>> {
     const { data, error } = await supabase
         .from('roster_players')
         .select('player_id, member_id, league_members(team_name)')
@@ -77,13 +78,20 @@ export async function getOwnedPlayerMap(leagueId: string): Promise<Map<string, O
 
     if (error) throw error
     const map = new Map<string, OwnedEntry>()
-    for (const r of data ?? []) {
+    for (const r of (data ?? []) as OwnedPlayerRow[]) {
         map.set(r.player_id, {
             teamName: r.league_members?.team_name ?? 'Team',
             memberId: r.member_id,
         })
     }
     return map
+}
+
+// Returns a map of player_id → { teamName, memberId } for all owned players in the league
+export async function getOwnedPlayerMap(leagueId: string): Promise<Map<string, OwnedEntry>> {
+    const seasonId = await getActiveSeasonId(leagueId)
+    if (!seasonId) return new Map()
+    return getOwnedPlayerMapForSeason(leagueId, seasonId)
 }
 
 // Returns a set of player_id values currently owned in the league/season

@@ -24,8 +24,8 @@ import { useLeagueContext } from '@/contexts/league-context'
 import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
 import { useQuickAdd } from '@/hooks/use-quick-add'
 import { todayET } from '@/lib/shared/dates'
-import { getOwnedPlayerMap, type OwnedEntry } from '@/lib/roster'
-import { getWaiverPlayerIds } from '@/lib/waivers'
+import { type OwnedEntry } from '@/lib/roster'
+import { getPlayerAvailabilitySnapshot } from '@/lib/player-availability'
 import {
     getLeagueProjections,
     projectionViewLabel,
@@ -251,16 +251,13 @@ export default function ProjectionsScreen() {
         data: ownedData,
         refresh: refreshOwned,
     } = useFocusAsyncData(async () => {
-        if (!leagueId) return { ownedMap: EMPTY_OWNED_MAP, waiverIds: EMPTY_WAIVER_IDS }
-        const [ownedMap, waiverIds] = await Promise.all([
-            getOwnedPlayerMap(leagueId),
-            getWaiverPlayerIds(leagueId),
-        ])
-        return { ownedMap, waiverIds }
+        if (!leagueId) return { leagueId: null, ownedMap: EMPTY_OWNED_MAP, waiverIds: EMPTY_WAIVER_IDS }
+        return getPlayerAvailabilitySnapshot(leagueId)
     }, [leagueId])
 
-    const ownedMap = ownedData?.ownedMap ?? EMPTY_OWNED_MAP
-    const waiverIds = ownedData?.waiverIds ?? EMPTY_WAIVER_IDS
+    const ownedDataForLeague = ownedData?.leagueId === leagueId ? ownedData : null
+    const ownedMap = ownedDataForLeague?.ownedMap ?? EMPTY_OWNED_MAP
+    const waiverIds = ownedDataForLeague?.waiverIds ?? EMPTY_WAIVER_IDS
     const quickAdd = useQuickAdd(
         current?.id,
         leagueId,
