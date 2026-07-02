@@ -13,12 +13,17 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
 import { isTradingClosed } from '@/lib/league'
 import {
+    addTradeBlockItem,
     getMyTrades,
+    getTradeBlockItems,
     getVetoableTrades,
+    removeTradeBlockItem,
     Trade,
+    TradeBlockItem,
     TradePickItem,
     getPicksForMember,
 } from '@/lib/trades'
+import { getRoster, RosterPlayer } from '@/lib/roster'
 import { colors, palette, fontSize, fontWeight, radii, spacing, layout } from '@/constants/tokens'
 import { ItemSeparator } from '@/components/ItemSeparator'
 import { SectionHeader } from '@/components/SectionHeader'
@@ -31,11 +36,17 @@ type ListItem =
     | { _type: 'trade'; trade: Trade }
     | { _type: 'header'; label: string }
     | { _type: 'pick'; pick: TradePickItem }
+    | { _type: 'blockItem'; item: TradeBlockItem }
+    | { _type: 'blockPlayer'; player: RosterPlayer }
+    | { _type: 'blockPick'; pick: TradePickItem }
 
 // Module-level: these are pure functions of the row, no closures needed.
 const listKeyExtractor = (item: ListItem, index: number) => {
     if (item._type === 'header') return `header-${index}`
     if (item._type === 'trade') return `trade-${item.trade.id}`
+    if (item._type === 'blockItem') return `block-${item.item.id}`
+    if (item._type === 'blockPlayer') return `block-player-${item.player.players.id}`
+    if (item._type === 'blockPick') return `block-pick-${item.pick.pickId}`
     return `pick-${item.pick.pickId}`
 }
 
@@ -56,6 +67,11 @@ export default function TradesScreen() {
     const [loading, setLoading] = useState(true)
     const [refreshing, setRefreshing] = useState(false)
     const [tradesError, setTradesError] = useState<string | null>(null)
+    const [blockItems, setBlockItems] = useState<TradeBlockItem[]>([])
+    const [blockRoster, setBlockRoster] = useState<RosterPlayer[]>([])
+    const [blockLoading, setBlockLoading] = useState(false)
+    const [blockError, setBlockError] = useState<string | null>(null)
+    const [blockBusyId, setBlockBusyId] = useState<string | null>(null)
 
     const { data: picks, loading: picksLoading, error: picksError, refresh: loadDraft } = useFocusAsyncData(async () => {
         if (!current || !leagueId) return [] as TradePickItem[]
@@ -80,6 +96,25 @@ export default function TradesScreen() {
         }
     }, [myMemberId, leagueId])
 
+    const loadBlock = useCallback(async () => {
+        if (!myMemberId || !leagueId) return
+        setBlockLoading(true)
+        setBlockError(null)
+        try {
+            const [items, roster] = await Promise.all([
+                getTradeBlockItems(leagueId),
+                getRoster(myMemberId, leagueId),
+            ])
+            setBlockItems(items)
+            setBlockRoster(roster.filter((player) => !player.is_on_ir && !player.is_on_taxi))
+        } catch (e) {
+            console.error(e)
+            setBlockError(getErrorMessage(e) ?? 'Unknown error')
+        } finally {
+            setBlockLoading(false)
+        }
+    }, [myMemberId, leagueId])
+
     // Clear stale trades + show loading immediately when league/member changes,
     // so the previous league's accepted trades don't flash in the Veto Window
     // section while the new fetch is in-flight.
@@ -92,12 +127,55 @@ export default function TradesScreen() {
         load()
     }, [load])
 
+    useEffect(() => {
+        if (tab === 'block') void loadBlock()
+    }, [tab, loadBlock])
+
     async function onRefresh() {
         setRefreshing(true)
         try {
-            await Promise.all([load(), loadDraft()])
+            await Promise.all([load(), loadDraft(), tab === 'block' ? loadBlock() : Promise.resolve()])
         } finally {
             setRefreshing(false)
+        }
+    }
+
+    async function handleListPlayer(player: RosterPlayer) {
+        if (!myMemberId || !leagueId) return
+        setBlockBusyId(player.players.id)
+        try {
+            await addTradeBlockItem({ memberId: myMemberId, leagueId, playerId: player.players.id })
+            await loadBlock()
+        } catch (e) {
+            setBlockError(getErrorMessage(e) ?? 'Could not update trade block.')
+        } finally {
+            setBlockBusyId(null)
+        }
+    }
+
+    async function handleListPick(pick: TradePickItem) {
+        if (!myMemberId || !leagueId) return
+        setBlockBusyId(pick.pickId)
+        try {
+            await addTradeBlockItem({ memberId: myMemberId, leagueId, pickId: pick.pickId })
+            await loadBlock()
+        } catch (e) {
+            setBlockError(getErrorMessage(e) ?? 'Could not update trade block.')
+        } finally {
+            setBlockBusyId(null)
+        }
+    }
+
+    async function handleRemoveBlockItem(item: TradeBlockItem) {
+        if (!myMemberId) return
+        setBlockBusyId(item.id)
+        try {
+            await removeTradeBlockItem(item.id, myMemberId)
+            await loadBlock()
+        } catch (e) {
+            setBlockError(getErrorMessage(e) ?? 'Could not update trade block.')
+        } finally {
+            setBlockBusyId(null)
         }
     }
 
@@ -138,6 +216,83 @@ export default function TradesScreen() {
                             {isOwn ? 'Own pick' : `From ${item.pick.originalTeamName}`}
                         </Text>
                     </View>
+                </View>
+            )
+        }
+        if (item._type === 'blockItem') {
+            const block = item.item
+            const mine = block.memberId === myMemberId
+            const label = block.asset.kind === 'player'
+                ? block.asset.playerName
+                : `${block.asset.seasonYear} Round ${block.asset.round} pick`
+            return (
+                <View style={styles.blockRow}>
+                    <View style={styles.blockInfo}>
+                        <Text style={styles.blockTitle}>{label}</Text>
+                        <Text style={styles.blockMeta}>
+                            {block.teamName}{block.asset.kind === 'player' && block.asset.position ? ` · ${block.asset.position}` : ''}
+                        </Text>
+                        {block.note ? <Text style={styles.blockNote}>{block.note}</Text> : null}
+                    </View>
+                    {mine ? (
+                        <Pressable
+                            style={styles.blockAction}
+                            onPress={() => handleRemoveBlockItem(block)}
+                            disabled={blockBusyId === block.id}
+                        >
+                            <Text style={styles.blockActionText}>Remove</Text>
+                        </Pressable>
+                    ) : (
+                        <Pressable
+                            style={styles.blockAction}
+                            onPress={() => push({
+                                pathname: '/(modals)/propose-trade',
+                                params: {
+                                    recipientMemberId: block.memberId,
+                                    requestPlayerId: block.asset.kind === 'player' ? block.asset.playerId : undefined,
+                                    requestPickId: block.asset.kind === 'pick' ? block.asset.pickId : undefined,
+                                },
+                            })}
+                        >
+                            <Text style={styles.blockActionText}>Offer</Text>
+                        </Pressable>
+                    )}
+                </View>
+            )
+        }
+        if (item._type === 'blockPlayer') {
+            const listed = blockItems.some((block) => block.memberId === myMemberId && block.asset.kind === 'player' && block.asset.playerId === item.player.players.id)
+            return (
+                <View style={styles.blockRow}>
+                    <View style={styles.blockInfo}>
+                        <Text style={styles.blockTitle}>{item.player.players.display_name}</Text>
+                        <Text style={styles.blockMeta}>{[item.player.players.nba_team, item.player.players.position].filter(Boolean).join(' · ')}</Text>
+                    </View>
+                    <Pressable
+                        style={[styles.blockAction, listed && styles.blockActionDisabled]}
+                        onPress={() => handleListPlayer(item.player)}
+                        disabled={listed || blockBusyId === item.player.players.id}
+                    >
+                        <Text style={styles.blockActionText}>{listed ? 'Listed' : 'List'}</Text>
+                    </Pressable>
+                </View>
+            )
+        }
+        if (item._type === 'blockPick') {
+            const listed = blockItems.some((block) => block.memberId === myMemberId && block.asset.kind === 'pick' && block.asset.pickId === item.pick.pickId)
+            return (
+                <View style={styles.blockRow}>
+                    <View style={styles.blockInfo}>
+                        <Text style={styles.blockTitle}>{item.pick.seasonYear} Round {item.pick.round}</Text>
+                        <Text style={styles.blockMeta}>via {item.pick.originalTeamName}</Text>
+                    </View>
+                    <Pressable
+                        style={[styles.blockAction, listed && styles.blockActionDisabled]}
+                        onPress={() => handleListPick(item.pick)}
+                        disabled={listed || blockBusyId === item.pick.pickId}
+                    >
+                        <Text style={styles.blockActionText}>{listed ? 'Listed' : 'List'}</Text>
+                    </Pressable>
                 </View>
             )
         }
@@ -183,6 +338,16 @@ export default function TradesScreen() {
             if (outgoingTrades.length === 0 && !loading) {
                 result.push({ _type: 'header', label: '' })
             }
+        } else if (tab === 'block') {
+            result.push({ _type: 'header', label: 'League Trade Block' })
+            blockItems.forEach((item) => result.push({ _type: 'blockItem', item }))
+            if (blockItems.length === 0 && !blockLoading) {
+                result.push({ _type: 'header', label: '' })
+            }
+            result.push({ _type: 'header', label: 'List Your Players' })
+            blockRoster.forEach((player) => result.push({ _type: 'blockPlayer', player }))
+            result.push({ _type: 'header', label: 'List Your Picks' })
+            picksList.forEach((pick) => result.push({ _type: 'blockPick', pick }))
         } else {
             result.push({ _type: 'header', label: 'Trade History' })
             historyTrades.forEach((t) => result.push({ _type: 'trade', trade: t }))
@@ -192,11 +357,12 @@ export default function TradesScreen() {
         }
 
         return result
-    }, [tab, vetoableTrades, incomingTrades, outgoingTrades, historyTrades, picksList, loading])
+    }, [tab, vetoableTrades, incomingTrades, outgoingTrades, historyTrades, picksList, loading, blockItems, blockLoading, blockRoster])
 
     const TABS: { key: TabKey; label: string }[] = [
         { key: 'picks', label: 'Picks' },
         { key: 'offers', label: 'Offers' },
+        { key: 'block', label: 'Block' },
         { key: 'history', label: 'History' },
     ]
 
@@ -212,7 +378,7 @@ export default function TradesScreen() {
                     onPress={() => push('/(modals)/propose-trade')}
                     disabled={tradingClosed}
                     accessibilityRole="button"
-                    accessibilityLabel={tradingClosed ? 'Trades locked — deadline passed' : 'Propose trade'}
+                    accessibilityLabel={tradingClosed ? 'Trades unavailable' : 'Propose trade'}
                     accessibilityState={{ disabled: tradingClosed }}
                 >
                     <Text style={[styles.proposeBtnText, tradingClosed && styles.proposeBtnTextDisabled]}>
@@ -246,10 +412,10 @@ export default function TradesScreen() {
                 })}
             </View>
 
-            {(tradesError || picksError) ? (
+            {(tradesError || picksError || blockError) ? (
                 <Pressable
                     style={styles.errorBanner}
-                    onPress={() => void load()}
+                    onPress={() => { void load(); if (tab === 'block') void loadBlock() }}
                     accessibilityRole="button"
                     accessibilityLabel="Failed to load trades. Tap to retry."
                 >
@@ -267,6 +433,8 @@ export default function TradesScreen() {
                 <View style={styles.emptyState}>
                     <Text style={styles.emptyStateText}>No draft picks</Text>
                 </View>
+            ) : tab === 'block' && blockLoading ? (
+                <ActivityIndicator color={colors.primary} style={{ marginTop: spacing['4xl'] }} />
             ) : loading ? (
                 <ActivityIndicator color={colors.primary} style={{ marginTop: spacing['4xl'] }} />
             ) : (
@@ -365,6 +533,34 @@ const styles = StyleSheet.create({
     pickChipTraded: { backgroundColor: colors.primaryLight },
     pickChipText: { fontSize: fontSize.xs, fontWeight: fontWeight.semibold, color: colors.textSecondary },
     pickHint: { fontSize: 12, color: colors.primaryDark, fontWeight: fontWeight.bold },
+    blockRow: {
+        minHeight: 64,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.lg,
+        paddingHorizontal: spacing.xl,
+        paddingVertical: spacing.md,
+    },
+    blockInfo: { flex: 1, minWidth: 0, gap: spacing.xxs },
+    blockTitle: { fontSize: fontSize.md, fontWeight: fontWeight.bold, color: colors.textPrimary },
+    blockMeta: { fontSize: fontSize.sm, color: colors.textMuted },
+    blockNote: { fontSize: fontSize.sm, color: colors.textSecondary },
+    blockAction: {
+        minWidth: 72,
+        minHeight: 36,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: radii.md,
+        borderCurve: 'continuous' as const,
+        borderWidth: 1,
+        borderColor: colors.primary,
+        paddingHorizontal: spacing.md,
+    },
+    blockActionDisabled: {
+        borderColor: colors.borderLight,
+        backgroundColor: colors.bgMuted,
+    },
+    blockActionText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.primaryDark },
 
     emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', marginTop: spacing['4xl'] },
     emptyStateText: { fontSize: fontSize.md, color: colors.textPlaceholder },

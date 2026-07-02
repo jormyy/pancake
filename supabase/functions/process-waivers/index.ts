@@ -49,7 +49,7 @@ function notificationJob(row: WaiverProcessRow, names: Map<string, string>): Not
   const name = names.get(playerId) ?? 'Unknown'
 
   if (row.status === 'succeeded') {
-    return () => notifyMember(memberId, 'Waiver Claim Succeeded', `${name} has been added to your roster.`)
+    return () => notifyMember(memberId, 'Waiver Claim Succeeded', `${name} has been added to your roster.`, undefined, 'waiver')
   }
 
   if (row.status !== 'failed_priority' && row.status !== 'failed_roster') {
@@ -57,7 +57,7 @@ function notificationJob(row: WaiverProcessRow, names: Map<string, string>): Not
   }
 
   const reason = row.failure_reason ?? 'The claim could not be completed.'
-  return () => notifyMember(memberId, 'Waiver Claim Failed', `Your claim for ${name} failed: ${reason}`)
+  return () => notifyMember(memberId, 'Waiver Claim Failed', `Your claim for ${name} failed: ${reason}`, undefined, 'waiver')
 }
 
 async function runBounded(jobs: NotificationJob[], concurrency: number): Promise<void> {

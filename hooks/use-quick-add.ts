@@ -21,6 +21,7 @@ export function useQuickAdd(
     rosterSize: number,
     waiverIds: Set<string>,
     refreshOwned: () => void,
+    refreshTransactionState?: () => void,
 ) {
     const [adding, setAdding] = useState<string | null>(null)
     const [dropPickerPlayer, setDropPickerPlayer] = useState<PlayerRow | null>(null)
@@ -56,6 +57,7 @@ export function useQuickAdd(
                             try {
                                 await submitWaiverClaim(memberId, lid, player.id)
                                 onAfterClaim?.()
+                                refreshTransactionState?.()
                             } catch (e) {
                                 Alert.alert('Error', getErrorMessage(e))
                             } finally {
@@ -67,7 +69,7 @@ export function useQuickAdd(
                 ],
             )
         },
-        [memberId, refreshOwned]
+        [memberId, refreshOwned, refreshTransactionState]
     )
 
     async function addFreeAgentWithFallback(player: PlayerRow, lid: string) {
@@ -81,6 +83,7 @@ export function useQuickAdd(
                 return
             }
             await refreshOwned()
+            refreshTransactionState?.()
         } catch (e) {
             Alert.alert('Error', getErrorMessage(e))
         } finally {
@@ -141,6 +144,7 @@ export function useQuickAdd(
         } finally {
             setAdding(null)
             refreshOwned()
+            refreshTransactionState?.()
         }
     }
 
@@ -155,6 +159,7 @@ export function useQuickAdd(
             await dropAndAddFreeAgent(rosterPlayer.id, memberId, leagueId, dropPickerPlayer.id)
             setDropPickerPlayer(null)
             await refreshOwned()
+            refreshTransactionState?.()
         } catch (e) {
             Alert.alert('Error', getErrorMessage(e))
         } finally {

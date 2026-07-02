@@ -138,14 +138,14 @@ export async function searchPlayers(
     const sortBy = hasSearchOptions ? (sortByOrOptions.sortMode ?? 'fpts') : sortByOrOptions
     const sortDir = hasSearchOptions ? (sortByOrOptions.sortDir ?? 'desc') : sortDirArg
     const pageSize = hasSearchOptions ? (sortByOrOptions.pageSize ?? 60) : 60
-    const includePlayerIds = constraints.includePlayerIds == null ? null : uniqueNonEmpty(constraints.includePlayerIds)
+    const includePlayerIds = constraints.includePlayerIds == null ? undefined : uniqueNonEmpty(constraints.includePlayerIds)
 
     const { data, error } = await supabase.rpc('search_players', {
         p_query: query,
         p_position: position,
         p_teams: uniqueNonEmpty(teams),
-        p_league_id: leagueId ?? null,
-        p_playing_teams: playingTeams == null ? null : uniqueNonEmpty(playingTeams),
+        p_league_id: leagueId ?? undefined,
+        p_playing_teams: playingTeams == null ? undefined : uniqueNonEmpty(playingTeams),
         p_excluded_teams: uniqueNonEmpty(constraints.excludedTeams),
         p_include_player_ids: includePlayerIds,
         p_exclude_player_ids: uniqueNonEmpty(constraints.excludePlayerIds),

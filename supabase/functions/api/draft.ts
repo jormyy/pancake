@@ -184,7 +184,7 @@ async function startDraft(leagueId: string, mode: NominationOrderMode, options: 
     p_nomination_order_mode: mode,
     p_is_mock: false,
     p_pick_timer_seconds: options.timerSeconds,
-    p_budget_per_team: options.budgetPerTeam,
+    p_budget_per_team: options.budgetPerTeam ?? undefined,
     p_timer_expiry_behavior: 'auction_no_bid',
   })
   if (error) throwDb(error)
@@ -201,13 +201,13 @@ async function createMockDraftRoom(
     p_league_id: leagueId,
     p_member_id: memberId,
     p_user_id: userId,
-    p_room_name: options.roomName,
+    p_room_name: options.roomName ?? undefined,
     p_draft_type: options.draftType,
-    p_scheduled_at: options.scheduledAt,
+    p_scheduled_at: options.scheduledAt ?? undefined,
     p_nomination_order_mode: options.nominationOrderMode,
     p_rounds: options.rounds,
     p_pick_timer_seconds: options.timerSeconds,
-    p_budget_per_team: options.budgetPerTeam,
+    p_budget_per_team: options.budgetPerTeam ?? undefined,
     p_timer_expiry_behavior: options.timerExpiryBehavior,
   })
   if (error) throwDb(error)
@@ -440,6 +440,7 @@ async function snakePickResponse(
       overallPick: result.pick.overall_pick,
       round: result.pick.round,
     },
+    'draft',
   ).catch(console.error)
 
   return {

@@ -51,6 +51,7 @@ Deno.env.set('PANCAKE_SUPABASE_SECRET_KEY', 'sb_secret_test')
 Deno.env.set('E2E_ADMIN_SECRET', 'e2e-test-secret')
 
 const { handleApiRoute } = await import('./router.ts')
+const { assertUuid } = await import('../_shared/apiRuntime.ts')
 
 const API = 'http://localhost/functions/v1/api'
 const UUID = '11111111-1111-4111-8111-111111111111'
@@ -80,6 +81,24 @@ Deno.test({
     if (res.status !== 200 || body.runtime !== 'supabase-edge') {
       throw new Error(`expected health 200, got ${res.status}: ${JSON.stringify(body)}`)
     }
+  },
+})
+
+Deno.test({
+  name: 'UUID validation accepts canonical Postgres UUIDs',
+  sanitizeOps: false,
+  sanitizeResources: false,
+  fn: () => {
+    assertUuid('00000000-0000-0000-0000-000000000000')
+    assertUuid('018f784c-7f57-7000-9000-0123456789ab')
+
+    let rejected = false
+    try {
+      assertUuid('not-a-uuid')
+    } catch {
+      rejected = true
+    }
+    if (!rejected) throw new Error('expected non-canonical UUID to be rejected')
   },
 })
 

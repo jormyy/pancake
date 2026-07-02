@@ -5,15 +5,20 @@ export { TRANSACTION_LABELS } from '@/lib/shared/transaction-labels'
 
 export type TransactionRow = {
     id: string
-    memberId: string
+    memberId: string | null
+    targetMemberId?: string | null
     teamName: string
-    playerId: string
+    targetTeamName?: string | null
+    playerId: string | null
     playerName: string
     position: string | null
     eligiblePositions: string[]
     nbaId: string | null
     transactionType: string
     occurredAt: string
+    isSystem?: boolean
+    title?: string
+    body?: string | null
 }
 
 export async function logTransaction(params: {
@@ -25,7 +30,7 @@ export async function logTransaction(params: {
     relatedTradeId?: string | null
     relatedClaimId?: string | null
 }): Promise<void> {
-    const { error } = await (supabase as any).from('roster_transactions').insert({
+    const { error } = await supabase.from('roster_transactions').insert({
         league_id: params.leagueId,
         league_season_id: params.leagueSeasonId,
         member_id: params.memberId,
@@ -42,54 +47,46 @@ export async function getLeagueTransactions(
     limit = 50,
     offset = 0,
 ): Promise<TransactionRow[]> {
-    const { data: season } = await supabase
-        .from('league_seasons')
-        .select('id')
-        .eq('league_id', leagueId)
-        .eq('is_current', true)
-        .single()
-
-    if (!season) return []
-
-    const { data, error } = await (supabase as any)
-        .from('roster_transactions')
-        .select(`
-            id,
-            member_id,
-            player_id,
-            transaction_type,
-            occurred_at,
-            league_members!roster_transactions_member_id_fkey ( team_name ),
-            players!roster_transactions_player_id_fkey ( display_name, position, eligible_positions, nba_id )
-        `)
-        .eq('league_id', leagueId)
-        .eq('league_season_id', season.id)
-        .in('transaction_type', ['fa_add', 'fa_drop', 'waiver_add', 'waiver_drop', 'trade_in', 'trade_out', 'draft_won', 'carry_over'])
-        .order('occurred_at', { ascending: false })
-        .range(offset, offset + limit - 1)
-
-    if (error) throw error
-
-    type TxRow = {
+    type FeedRow = {
         id: string
-        member_id: string
-        player_id: string
+        member_id: string | null
+        target_member_id: string | null
+        team_name: string | null
+        target_team_name: string | null
+        player_id: string | null
+        player_name: string | null
+        player_position: string | null
+        eligible_positions: string[] | null
+        nba_id: string | null
         transaction_type: string
         occurred_at: string
-        league_members: { team_name: string } | null
-        players: { display_name: string; position: string | null; eligible_positions: string[]; nba_id: string | null } | null
+        is_system: boolean
+        title: string | null
+        body: string | null
     }
 
-    return ((data ?? []) as TxRow[]).map((row) => ({
+    const { data, error } = await supabase.rpc('get_league_activity_feed', {
+        p_league_id: leagueId,
+        p_limit: limit,
+        p_offset: offset,
+    })
+    if (error) throw error
+
+    return ((data ?? []) as FeedRow[]).map((row) => ({
         id: row.id,
         memberId: row.member_id,
-        teamName: row.league_members?.team_name ?? 'Unknown',
+        targetMemberId: row.target_member_id,
+        teamName: row.team_name ?? (row.is_system ? 'League' : 'Unknown'),
+        targetTeamName: row.target_team_name,
         playerId: row.player_id,
-        playerName: row.players?.display_name ?? 'Unknown',
-        position: row.players?.position ?? null,
-        eligiblePositions: getEligiblePositions(row.players ?? {}),
-        nbaId: row.players?.nba_id ?? null,
+        playerName: row.player_name ?? row.title ?? 'Unknown',
+        position: row.player_position ?? null,
+        eligiblePositions: getEligiblePositions(row),
+        nbaId: row.nba_id ?? null,
         transactionType: row.transaction_type,
         occurredAt: row.occurred_at,
+        isSystem: row.is_system,
+        title: row.title ?? undefined,
+        body: row.body ?? null,
     }))
 }

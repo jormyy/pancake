@@ -555,7 +555,13 @@ export default function ProjectionsScreen() {
                             showStats={showStatTable}
                             statMode="projection"
                             animate={false}
-                            onAdd={quickAdd.handleAdd}
+                            onAdd={(player) => {
+                                if (waiverIds.has(player.id)) {
+                                    push(`/(modals)/claim-player?playerId=${player.id}`)
+                                } else {
+                                    void quickAdd.handleAdd(player)
+                                }
+                            }}
                             onPress={() => push(`/player/${item.id}`)}
                         />
                     )}

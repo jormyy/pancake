@@ -543,6 +543,32 @@ const clickButton = async (session, name, label) => {
   }
 }
 
+const readButtonState = async (session, name, label) => {
+  const output = await browser(session, [
+    'eval',
+    `(() => {
+      const named = [...document.querySelectorAll('[aria-label], [role="button"], button')]
+        .find((element) => element.getAttribute('aria-label') === ${JSON.stringify(name)} || (element.textContent || '').trim() === ${JSON.stringify(name)});
+      const target = named?.closest?.('[role="button"], button, [tabindex]') || named;
+      if (!target) return JSON.stringify({ ok: false, body: (document.body?.innerText || '').slice(0, 1400) });
+      const style = window.getComputedStyle(target);
+      return JSON.stringify({
+        ok: true,
+        disabled: Boolean(target.disabled),
+        ariaDisabled: target.getAttribute('aria-disabled'),
+        pointerEvents: style.pointerEvents,
+        opacity: style.opacity,
+        role: target.getAttribute('role'),
+        ariaLabel: target.getAttribute('aria-label'),
+        text: target.textContent,
+      });
+    })()`,
+  ])
+  const parsed = parseEvalJson(output)
+  if (!parsed.ok) throw new Error(`${label}: button not found: ${name}. Body: ${parsed.body}`)
+  return parsed
+}
+
 const verifyTradeProposal = async (fixture) => {
   const { data: trades, error: tradesError } = await fixture.admin
     .from('trades')
@@ -1240,6 +1266,7 @@ export async function runBrowserTradePostDeadlineScenario({
         'YOU GIVE',
         fixture.recipientPlayer.display_name,
         fixture.proposerPlayer.display_name,
+        'Trades are available during active and playoff seasons before the trade deadline.',
       ],
       'post-deadline trade proposal before submit',
     )
@@ -1257,18 +1284,16 @@ export async function runBrowserTradePostDeadlineScenario({
     )
     await browser(session, ['wait', '500'])
     await browser(session, ['screenshot', path.join(artifactDir, 'post-deadline-selected.png')], { timeout: 60_000 })
-    const submitClick = await clickButton(session, 'Send trade proposal', 'post-deadline trade proposal submit')
-    await browser(session, ['wait', '1500'])
+    const submitState = await readButtonState(session, 'Send trade proposal', 'post-deadline trade proposal submit')
 
     const alerts = await readBrowserAlerts(session)
     const rejected = await verifyPostDeadlineTradeRejected(fixture)
-    debug = { ...debug, requestClick, offerClick, submitClick, alerts, rejected }
-    const alertText = alerts.join('\n')
+    debug = { ...debug, requestClick, offerClick, submitState, alerts, rejected }
     const failures = [...rejected.failures]
-    if (!/trade deadline has passed/i.test(alertText)) {
-      failures.push(`deadline alert missing; alerts=${JSON.stringify(alerts)}`)
+    if (submitState.disabled !== true && submitState.ariaDisabled !== 'true') {
+      failures.push(`send button was not disabled after deadline; state=${JSON.stringify(submitState)}`)
     }
-    await browser(session, ['screenshot', path.join(artifactDir, 'post-deadline-after-submit.png')], { timeout: 60_000 })
+    await browser(session, ['screenshot', path.join(artifactDir, 'post-deadline-disabled-submit.png')], { timeout: 60_000 })
 
     const consoleOutput = await browser(session, ['console']).catch((error) => `console unavailable: ${error.message}`)
     const errorOutput = await browser(session, ['errors']).catch((error) => `errors unavailable: ${error.message}`)
@@ -1291,6 +1316,7 @@ export async function runBrowserTradePostDeadlineScenario({
         tradeDeadline: fixture.tradeDeadline,
       },
       alerts,
+      submitState,
       rejected,
       notes,
       failures,
