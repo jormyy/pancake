@@ -431,6 +431,7 @@ export default function PlayersScreen() {
                             adding={quickAdd.adding}
                             gamesLeft={search.availability.gamesLeft}
                             showStats={showStatTable}
+                            showCompactStats={false}
                             animate={false}
                             onAdd={(player) => {
                                 if (waiverIds.has(player.id)) {

@@ -282,6 +282,14 @@ describe('Players tab jitter guards', () => {
         expect(source).toContain('animate={false}')
     })
 
+    it('keeps compact player rows from repeating the stat strip under names', () => {
+        const source = read('app/(tabs)/players.tsx')
+        const playerItem = read('components/PlayerSearchItem.tsx')
+
+        expect(source).toContain('showCompactStats={false}')
+        expect(playerItem).toContain('!showStats && showCompactStats')
+    })
+
     it('keeps rookies-only search as a complete internally paged result set', () => {
         const source = read('hooks/use-player-search.ts')
 
