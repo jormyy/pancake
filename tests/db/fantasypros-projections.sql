@@ -857,13 +857,13 @@ BEGIN
       'fpts',
       'desc',
       2099,
-      10,
+      1,
       0
-    )
-   LIMIT 1;
+    );
 
-  IF v_first.id <> '00000000-0000-0000-0000-000000020302' THEN
-    RAISE EXCEPTION 'fpts sort should use season-average fantasy points, not projection points, got %', row_to_json(v_first);
+  IF v_first.id <> '00000000-0000-0000-0000-000000020302'
+     OR v_first.projection_fantasy_points <> 20 THEN
+    RAISE EXCEPTION 'search_players should page by season average before projection enrichment, got %', row_to_json(v_first);
   END IF;
 
   SELECT *

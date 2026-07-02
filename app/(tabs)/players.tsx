@@ -218,15 +218,18 @@ export default function PlayersScreen() {
     const {
         data: ownedData,
         loading: ownedLoading,
+        error: ownedError,
         refresh: refreshOwned,
     } = useFocusAsyncData(async () => {
-        if (!leagueId) return { ownedMap: new Map<string, OwnedEntry>(), waiverIds: new Set<string>() }
+        if (!leagueId) return { leagueId: null, ownedMap: new Map<string, OwnedEntry>(), waiverIds: new Set<string>() }
         return getPlayerAvailabilitySnapshot(leagueId)
     }, [leagueId])
 
-    const ownedMap = ownedData?.ownedMap ?? EMPTY_OWNED_MAP
-    const waiverIds = ownedData?.waiverIds ?? EMPTY_WAIVER_IDS
-    const playerSupportReady = !leagueId || (!ownedLoading && ownedData != null)
+    const ownedDataForLeague = ownedData?.leagueId === leagueId ? ownedData : null
+    const ownedMap = ownedDataForLeague?.ownedMap ?? EMPTY_OWNED_MAP
+    const waiverIds = ownedDataForLeague?.waiverIds ?? EMPTY_WAIVER_IDS
+    const playerSupportLoading = !!leagueId && ownedLoading && ownedDataForLeague == null
+    const playerSupportReady = !leagueId || ownedDataForLeague != null
 
     const {
         data: transactionState,
@@ -291,6 +294,8 @@ export default function PlayersScreen() {
                     <Text style={styles.resultCountText}>
                         {search.results.loading && search.results.players.length === 0
                             ? 'Searching...'
+                            : playerSupportLoading
+                              ? 'Loading players...'
                             : search.results.refreshing
                               ? `Updating ${search.results.players.length} player${search.results.players.length === 1 ? '' : 's'}`
                             : `${search.results.players.length}${search.activeFilterCount > 0 ? ' filtered' : ''} player${search.results.players.length === 1 ? '' : 's'}`}
@@ -449,8 +454,10 @@ export default function PlayersScreen() {
                         />
                     )}
                     ListEmptyComponent={
-                        search.results.loading
+                        playerSupportLoading || search.results.loading
                             ? <View style={styles.skeletonRows}><SkeletonRows count={8} height={74} gap={10} /></View>
+                            : ownedError && ownedDataForLeague == null
+                              ? <EmptyState message="Players could not load." description="Tap retry to reload roster and waiver state." actionLabel="Retry" onAction={() => void refreshOwned()} fullScreen={false} />
                             : <EmptyState message="No players found." fullScreen={false} />
                     }
                     onEndReached={search.results.loadMore}

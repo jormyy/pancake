@@ -214,28 +214,35 @@ filtered_base AS (
 ),
 paged_base AS (
   SELECT *
-  FROM filtered_base
-  ORDER BY
-    CASE WHEN p_sort_by = 'fpts' AND p_sort_dir = 'asc' THEN COALESCE(filtered_base.avg_fantasy_points, 0) END ASC,
-    CASE WHEN p_sort_by = 'fpts' AND p_sort_dir <> 'asc' THEN COALESCE(filtered_base.avg_fantasy_points, 0) END DESC,
-    CASE WHEN p_sort_by = 'pts' AND p_sort_dir = 'asc' THEN COALESCE(filtered_base.avg_points, 0) END ASC,
-    CASE WHEN p_sort_by = 'pts' AND p_sort_dir <> 'asc' THEN COALESCE(filtered_base.avg_points, 0) END DESC,
-    CASE WHEN p_sort_by = 'reb' AND p_sort_dir = 'asc' THEN COALESCE(filtered_base.avg_rebounds, 0) END ASC,
-    CASE WHEN p_sort_by = 'reb' AND p_sort_dir <> 'asc' THEN COALESCE(filtered_base.avg_rebounds, 0) END DESC,
-    CASE WHEN p_sort_by = 'ast' AND p_sort_dir = 'asc' THEN COALESCE(filtered_base.avg_assists, 0) END ASC,
-    CASE WHEN p_sort_by = 'ast' AND p_sort_dir <> 'asc' THEN COALESCE(filtered_base.avg_assists, 0) END DESC,
-    CASE WHEN p_sort_by = 'stl' AND p_sort_dir = 'asc' THEN COALESCE(filtered_base.avg_steals, 0) END ASC,
-    CASE WHEN p_sort_by = 'stl' AND p_sort_dir <> 'asc' THEN COALESCE(filtered_base.avg_steals, 0) END DESC,
-    CASE WHEN p_sort_by = 'blk' AND p_sort_dir = 'asc' THEN COALESCE(filtered_base.avg_blocks, 0) END ASC,
-    CASE WHEN p_sort_by = 'blk' AND p_sort_dir <> 'asc' THEN COALESCE(filtered_base.avg_blocks, 0) END DESC,
-    CASE WHEN p_sort_by = 'tpm' AND p_sort_dir = 'asc' THEN COALESCE(filtered_base.avg_three_pointers_made, 0) END ASC,
-    CASE WHEN p_sort_by = 'tpm' AND p_sort_dir <> 'asc' THEN COALESCE(filtered_base.avg_three_pointers_made, 0) END DESC,
-    CASE WHEN p_sort_by = 'to' AND p_sort_dir = 'asc' THEN COALESCE(filtered_base.avg_turnovers, 0) END ASC,
-    CASE WHEN p_sort_by = 'to' AND p_sort_dir <> 'asc' THEN COALESCE(filtered_base.avg_turnovers, 0) END DESC,
-    CASE WHEN p_sort_by = 'gp' AND p_sort_dir = 'asc' THEN COALESCE(filtered_base.games_played, 0) END ASC,
-    CASE WHEN p_sort_by = 'gp' AND p_sort_dir <> 'asc' THEN COALESCE(filtered_base.games_played, 0) END DESC,
-    filtered_base.display_name ASC,
-    filtered_base.id ASC
+  FROM (
+    SELECT
+      filtered_base.*,
+      row_number() OVER (
+        ORDER BY
+          CASE WHEN p_sort_by = 'fpts' AND p_sort_dir = 'asc' THEN COALESCE(filtered_base.avg_fantasy_points, 0) END ASC,
+          CASE WHEN p_sort_by = 'fpts' AND p_sort_dir <> 'asc' THEN COALESCE(filtered_base.avg_fantasy_points, 0) END DESC,
+          CASE WHEN p_sort_by = 'pts' AND p_sort_dir = 'asc' THEN COALESCE(filtered_base.avg_points, 0) END ASC,
+          CASE WHEN p_sort_by = 'pts' AND p_sort_dir <> 'asc' THEN COALESCE(filtered_base.avg_points, 0) END DESC,
+          CASE WHEN p_sort_by = 'reb' AND p_sort_dir = 'asc' THEN COALESCE(filtered_base.avg_rebounds, 0) END ASC,
+          CASE WHEN p_sort_by = 'reb' AND p_sort_dir <> 'asc' THEN COALESCE(filtered_base.avg_rebounds, 0) END DESC,
+          CASE WHEN p_sort_by = 'ast' AND p_sort_dir = 'asc' THEN COALESCE(filtered_base.avg_assists, 0) END ASC,
+          CASE WHEN p_sort_by = 'ast' AND p_sort_dir <> 'asc' THEN COALESCE(filtered_base.avg_assists, 0) END DESC,
+          CASE WHEN p_sort_by = 'stl' AND p_sort_dir = 'asc' THEN COALESCE(filtered_base.avg_steals, 0) END ASC,
+          CASE WHEN p_sort_by = 'stl' AND p_sort_dir <> 'asc' THEN COALESCE(filtered_base.avg_steals, 0) END DESC,
+          CASE WHEN p_sort_by = 'blk' AND p_sort_dir = 'asc' THEN COALESCE(filtered_base.avg_blocks, 0) END ASC,
+          CASE WHEN p_sort_by = 'blk' AND p_sort_dir <> 'asc' THEN COALESCE(filtered_base.avg_blocks, 0) END DESC,
+          CASE WHEN p_sort_by = 'tpm' AND p_sort_dir = 'asc' THEN COALESCE(filtered_base.avg_three_pointers_made, 0) END ASC,
+          CASE WHEN p_sort_by = 'tpm' AND p_sort_dir <> 'asc' THEN COALESCE(filtered_base.avg_three_pointers_made, 0) END DESC,
+          CASE WHEN p_sort_by = 'to' AND p_sort_dir = 'asc' THEN COALESCE(filtered_base.avg_turnovers, 0) END ASC,
+          CASE WHEN p_sort_by = 'to' AND p_sort_dir <> 'asc' THEN COALESCE(filtered_base.avg_turnovers, 0) END DESC,
+          CASE WHEN p_sort_by = 'gp' AND p_sort_dir = 'asc' THEN COALESCE(filtered_base.games_played, 0) END ASC,
+          CASE WHEN p_sort_by = 'gp' AND p_sort_dir <> 'asc' THEN COALESCE(filtered_base.games_played, 0) END DESC,
+          filtered_base.display_name ASC,
+          filtered_base.id ASC
+      ) AS page_rank
+    FROM filtered_base
+  ) ranked_base
+  ORDER BY page_rank
   LIMIT (SELECT page_limit FROM args)
   OFFSET (SELECT page_offset FROM args)
 ),
@@ -292,27 +299,7 @@ SELECT
 FROM paged_base pb
 LEFT JOIN projection AS proj
   ON proj.player_id = pb.id
-ORDER BY
-  CASE WHEN p_sort_by = 'fpts' AND p_sort_dir = 'asc' THEN COALESCE(pb.avg_fantasy_points, 0) END ASC,
-  CASE WHEN p_sort_by = 'fpts' AND p_sort_dir <> 'asc' THEN COALESCE(pb.avg_fantasy_points, 0) END DESC,
-  CASE WHEN p_sort_by = 'pts' AND p_sort_dir = 'asc' THEN COALESCE(pb.avg_points, 0) END ASC,
-  CASE WHEN p_sort_by = 'pts' AND p_sort_dir <> 'asc' THEN COALESCE(pb.avg_points, 0) END DESC,
-  CASE WHEN p_sort_by = 'reb' AND p_sort_dir = 'asc' THEN COALESCE(pb.avg_rebounds, 0) END ASC,
-  CASE WHEN p_sort_by = 'reb' AND p_sort_dir <> 'asc' THEN COALESCE(pb.avg_rebounds, 0) END DESC,
-  CASE WHEN p_sort_by = 'ast' AND p_sort_dir = 'asc' THEN COALESCE(pb.avg_assists, 0) END ASC,
-  CASE WHEN p_sort_by = 'ast' AND p_sort_dir <> 'asc' THEN COALESCE(pb.avg_assists, 0) END DESC,
-  CASE WHEN p_sort_by = 'stl' AND p_sort_dir = 'asc' THEN COALESCE(pb.avg_steals, 0) END ASC,
-  CASE WHEN p_sort_by = 'stl' AND p_sort_dir <> 'asc' THEN COALESCE(pb.avg_steals, 0) END DESC,
-  CASE WHEN p_sort_by = 'blk' AND p_sort_dir = 'asc' THEN COALESCE(pb.avg_blocks, 0) END ASC,
-  CASE WHEN p_sort_by = 'blk' AND p_sort_dir <> 'asc' THEN COALESCE(pb.avg_blocks, 0) END DESC,
-  CASE WHEN p_sort_by = 'tpm' AND p_sort_dir = 'asc' THEN COALESCE(pb.avg_three_pointers_made, 0) END ASC,
-  CASE WHEN p_sort_by = 'tpm' AND p_sort_dir <> 'asc' THEN COALESCE(pb.avg_three_pointers_made, 0) END DESC,
-  CASE WHEN p_sort_by = 'to' AND p_sort_dir = 'asc' THEN COALESCE(pb.avg_turnovers, 0) END ASC,
-  CASE WHEN p_sort_by = 'to' AND p_sort_dir <> 'asc' THEN COALESCE(pb.avg_turnovers, 0) END DESC,
-  CASE WHEN p_sort_by = 'gp' AND p_sort_dir = 'asc' THEN COALESCE(pb.games_played, 0) END ASC,
-  CASE WHEN p_sort_by = 'gp' AND p_sort_dir <> 'asc' THEN COALESCE(pb.games_played, 0) END DESC,
-  pb.display_name ASC,
-  pb.id ASC;
+ORDER BY pb.page_rank;
 $$;
 
 REVOKE ALL ON FUNCTION public.search_players(text, text, text[], uuid, text[], text[], uuid[], uuid[], boolean, text, text, text, int, int, int) FROM PUBLIC;

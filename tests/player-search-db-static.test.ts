@@ -41,6 +41,8 @@ describe('player search database contract', () => {
 
         expect(body).toContain('paged_base AS')
         expect(body).toContain('FROM paged_base pb')
+        expect(body).toContain('row_number() OVER')
+        expect(body).toContain('ORDER BY pb.page_rank')
         expect(body).toContain('COALESCE((SELECT array_agg(paged_base.id ORDER BY paged_base.id) FROM paged_base), ARRAY[]::uuid[])')
         expect(body).not.toContain('COALESCE((SELECT array_agg(filtered_base.id ORDER BY filtered_base.id) FROM filtered_base), ARRAY[]::uuid[])')
     })
