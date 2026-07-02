@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { View, Text, StyleSheet, ActivityIndicator, TextInput } from 'react-native'
+import { View, Text, StyleSheet, TextInput } from 'react-native'
 import { INJURY_COLORS, colors, fontSize, fontWeight, radii, spacing, palette } from '@/constants/tokens'
 import { isIREligible, isTaxiEligible, RosterPlayer } from '@/lib/roster'
 import { getEligiblePositions } from '@/lib/players'
@@ -103,11 +103,7 @@ export function RosterClaimItem({
                     disabled={cancellingId === claim.id}
                     pressedScale={0.92}
                 >
-                    {cancellingId === claim.id ? (
-                        <ActivityIndicator size="small" color={colors.textMuted} />
-                    ) : (
-                        <Text style={styles.actionButtonText}>Cancel</Text>
-                    )}
+                    <Text style={styles.actionButtonText}>Cancel</Text>
                 </MotionPressable>
             ) : null}
         </MotionView>
@@ -204,13 +200,9 @@ export function RosterPlayerItem({
                         disabled={isBusy}
                         pressedScale={0.92}
                     >
-                        {togglingId === item.id ? (
-                            <ActivityIndicator size="small" color={item.is_on_ir ? colors.textWhite : colors.textMuted} />
-                        ) : (
-                            <Text style={[styles.actionButtonText, item.is_on_ir && styles.actionButtonTextActive]}>
-                                {item.is_on_ir ? 'Active' : 'IR'}
-                            </Text>
-                        )}
+                        <Text style={[styles.actionButtonText, item.is_on_ir && styles.actionButtonTextActive]}>
+                            {item.is_on_ir ? 'Active' : 'IR'}
+                        </Text>
                     </MotionPressable>
                 ) : null}
                 {!item.is_on_ir && taxiSlotsAvailable && isTaxiEligible(player) ? (
@@ -220,11 +212,7 @@ export function RosterPlayerItem({
                         disabled={isBusy}
                         pressedScale={0.92}
                     >
-                        {taxiingId === item.id ? (
-                            <ActivityIndicator size="small" color={colors.info} />
-                        ) : (
-                            <Text style={styles.taxiButtonOutlineText}>Taxi</Text>
-                        )}
+                        <Text style={styles.taxiButtonOutlineText}>Taxi</Text>
                     </MotionPressable>
                 ) : null}
             </View>
@@ -273,11 +261,7 @@ export function TaxiPlayerItem({
                 disabled={taxiingId === item.id}
                 pressedScale={0.92}
             >
-                {taxiingId === item.id ? (
-                    <ActivityIndicator size="small" color={colors.textWhite} />
-                ) : (
-                    <Text style={[styles.actionButtonText, styles.actionButtonTextActive]}>Activate</Text>
-                )}
+                <Text style={[styles.actionButtonText, styles.actionButtonTextActive]}>Activate</Text>
             </MotionPressable>
         </MotionPressable>
     )

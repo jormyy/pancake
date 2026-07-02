@@ -9,7 +9,6 @@ import { Stack, useRouter } from 'expo-router'
 import { useEffect, useState } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
 import { getPlayoffBracket, PlayoffBracket, BracketMatchup } from '@/lib/bracket'
-import { LoadingScreen } from '@/components/LoadingScreen'
 import { EmptyState } from '@/components/EmptyState'
 import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 
@@ -17,7 +16,6 @@ export default function BracketScreen() {
     const { current, currentLeague } = useLeagueContext()
     const router = useRouter()
     const [bracket, setBracket] = useState<PlayoffBracket | null>(null)
-    const [loading, setLoading] = useState(true)
 
     const myMemberId = current?.id
     const currentId = current?.id
@@ -31,8 +29,6 @@ export default function BracketScreen() {
                 setBracket(data)
             } catch (e) {
                 console.error(e)
-            } finally {
-                setLoading(false)
             }
         }
         load()
@@ -42,9 +38,7 @@ export default function BracketScreen() {
         <>
             <Stack.Screen options={{ title: 'Playoff Bracket', presentation: 'modal' }} />
             <SafeAreaView style={styles.container} edges={['bottom']}>
-                {loading ? (
-                    <LoadingScreen />
-                ) : !bracket ||
+                {!bracket ||
                   (bracket.quarterfinals.length === 0 &&
                       bracket.semifinals.length === 0 &&
                       !bracket.final) ? (

@@ -3,7 +3,6 @@ import {
     Text,
     Pressable,
     StyleSheet,
-    ActivityIndicator,
     ScrollView,
     useWindowDimensions,
 } from 'react-native'
@@ -18,7 +17,6 @@ import { LineupSlot, LineupPlayer } from '@/lib/lineup'
 import type { LeagueWeekMatchup } from '@/lib/scoring'
 import { LiveStatLine } from '@/lib/games'
 import { colors, fontSize, fontWeight, palette, radii, spacing } from '@/constants/tokens'
-import { LoadingScreen } from '@/components/LoadingScreen'
 import { DaySelector } from '@/components/DaySelector'
 import { ScoreCard } from '@/components/ScoreCard'
 import { NoLeagueState } from '@/components/NoLeagueState'
@@ -41,8 +39,8 @@ type LineupData = { starters: LineupSlot[]; bench: LineupPlayer[]; ir: LineupPla
 type Sel = { kind: 'starter'; index: number } | { kind: 'bench'; index: number } | { kind: 'ir'; index: number } | { kind: 'taxi'; index: number }
 
 export default function HomeScreen() {
-    const { memberships, current, currentLeague: league, setCurrent, loading } = useLeagueContext()
-    const { user } = useAuth()
+    const { memberships, current, currentLeague: league, setCurrent } = useLeagueContext()
+    const { user, loading: authLoading } = useAuth()
     const router = useRouter()
     const { width, height } = useWindowDimensions()
     const compact = width < 560 || height < 840
@@ -50,7 +48,7 @@ export default function HomeScreen() {
 
     const {
         matchup, leagueMatchups, weekDays, selectedDate, setSelectedDate,
-        myLineup, oppLineup, matchupLoading, lineupLoading,
+        myLineup, oppLineup, matchupLoading,
         loadMyLineup, loadLineups, refreshSilently, matchupRef,
         error, refresh,
     } = useMatchupData(current, user, league)
@@ -134,7 +132,7 @@ export default function HomeScreen() {
 
     const today = todayET()
 
-    if (loading) return <LoadingScreen />
+    if (authLoading || !user) return <NoLeagueState />
     if (memberships.length === 0) return <NoLeagueState />
 
     return (
@@ -155,9 +153,7 @@ export default function HomeScreen() {
                 </Pressable>
             )}
 
-            {matchupLoading ? (
-                <ActivityIndicator color={colors.primary} style={{ marginTop: 48 }} />
-            ) : matchup ? (
+            {matchup ? (
                 <View style={styles.playSurface}>
                     {shouldShowScoreboard(selectedDate, today) && !dense
                         ? <Scoreboard games={todaysGames} myTeamSet={myTeamSet} compact={compact} />
@@ -177,9 +173,7 @@ export default function HomeScreen() {
                             disabled={autoSetting || saving}
                             pressedScale={0.92}
                         >
-                            {autoSetting
-                                ? <ActivityIndicator size="small" color={colors.primary} />
-                                : <Text style={styles.autoSetText}>AUTO</Text>}
+                            <Text style={styles.autoSetText}>AUTO</Text>
                         </MotionPressable>
 
                         {selected && (
@@ -196,9 +190,7 @@ export default function HomeScreen() {
                         )}
                     </View>
 
-                    {lineupLoading ? (
-                        <ActivityIndicator color={colors.primary} style={{ marginTop: 24 }} />
-                    ) : myLineup && oppLineup ? (
+                    {myLineup && oppLineup ? (
                         <MatchupLineupView
                             myLineup={myLineup}
                             oppLineup={oppLineup}

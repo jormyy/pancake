@@ -1,7 +1,7 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { StackRouter } from '@react-navigation/native'
 import { ComponentProps, ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
-import { ActivityIndicator, Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native'
+import { Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native'
 import { Link, Navigator, usePathname, useRouter } from 'expo-router'
 import { useLeagueContext } from '@/contexts/league-context'
 import { getJoinableDraft } from '@/lib/draft'
@@ -212,7 +212,7 @@ function SidebarNavButton({
             accessibilityLabel={label}
             accessibilityState={{ selected: active, disabled: disabled || loading }}
         >
-            {loading ? <ActivityIndicator size="small" color="rgba(255, 246, 232, 0.82)" /> : <NavIcon name={icon} active={active} />}
+            <NavIcon name={icon} active={active} />
             <Text style={[styles.sideNavText, active && styles.sideNavTextActive]} numberOfLines={1}>{label}</Text>
         </Pressable>
     )
@@ -405,11 +405,7 @@ function MobileMenuSheet({ visible, onClose }: { visible: boolean; onClose: () =
                     >
                         <MaterialIcons name={item.icon} size={21} color={colors.textSecondary} />
                         <Text style={styles.sheetItemText}>{item.label}</Text>
-                        {item.loading ? (
-                            <ActivityIndicator size="small" color={colors.primary} />
-                        ) : (
-                            <MaterialIcons name="chevron-right" size={20} color={colors.textPlaceholder} />
-                        )}
+                        <MaterialIcons name="chevron-right" size={20} color={colors.textPlaceholder} />
                     </Pressable>
                 ))}
             </View>

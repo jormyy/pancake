@@ -3,8 +3,6 @@ import {
     Text,
     Pressable,
     StyleSheet,
-    ActivityIndicator,
-    RefreshControl,
 } from 'react-native'
 import { FlashList } from '@shopify/flash-list'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -31,6 +29,7 @@ import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
 import { yearShort } from '@/lib/format'
 import { TradeCard, TabKey } from '@/components/trades/TradeCard'
 import { getErrorMessage } from '@/lib/alert'
+import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 
 type ListItem =
     | { _type: 'trade'; trade: Trade }
@@ -39,6 +38,18 @@ type ListItem =
     | { _type: 'blockItem'; item: TradeBlockItem }
     | { _type: 'blockPlayer'; player: RosterPlayer }
     | { _type: 'blockPick'; pick: TradePickItem }
+
+type TradeBlockCache = {
+    items: TradeBlockItem[]
+    roster: RosterPlayer[]
+}
+const TRADES_CACHE_PREFIX = 'pancake:trades:v1:'
+const PICKS_CACHE_PREFIX = 'pancake:trade-picks:v1:'
+const TRADE_BLOCK_CACHE_PREFIX = 'pancake:trade-block:v1:'
+
+const tradesCacheKey = (memberId: string, leagueId: string) => `${TRADES_CACHE_PREFIX}${leagueId}:${memberId}`
+const picksCacheKey = (memberId: string, leagueId: string) => `${PICKS_CACHE_PREFIX}${leagueId}:${memberId}`
+const tradeBlockCacheKey = (memberId: string, leagueId: string) => `${TRADE_BLOCK_CACHE_PREFIX}${leagueId}:${memberId}`
 
 // Module-level: these are pure functions of the row, no closures needed.
 const listKeyExtractor = (item: ListItem, index: number) => {
@@ -61,22 +72,35 @@ export default function TradesScreen() {
     const rosterSize: number = currentLeague?.roster_size ?? 20
     const myTeamName = current?.team_name ?? ''
     const tradingClosed = isTradingClosed(currentLeague)
+    const cachedTrades = useMemo(
+        () => myMemberId && leagueId ? readPersistentCache<Trade[]>(tradesCacheKey(myMemberId, leagueId)) : null,
+        [myMemberId, leagueId],
+    )
+    const cachedPicks = useMemo(
+        () => myMemberId && leagueId ? readPersistentCache<TradePickItem[]>(picksCacheKey(myMemberId, leagueId)) : null,
+        [myMemberId, leagueId],
+    )
+    const cachedBlock = useMemo(
+        () => myMemberId && leagueId ? readPersistentCache<TradeBlockCache>(tradeBlockCacheKey(myMemberId, leagueId)) : null,
+        [myMemberId, leagueId],
+    )
 
     const [tab, setTab] = useState<TabKey>('picks')
-    const [trades, setTrades] = useState<Trade[]>([])
-    const [loading, setLoading] = useState(true)
-    const [refreshing, setRefreshing] = useState(false)
+    const [trades, setTrades] = useState<Trade[]>(cachedTrades ?? [])
+    const [loading, setLoading] = useState(!cachedTrades)
     const [tradesError, setTradesError] = useState<string | null>(null)
-    const [blockItems, setBlockItems] = useState<TradeBlockItem[]>([])
-    const [blockRoster, setBlockRoster] = useState<RosterPlayer[]>([])
+    const [blockItems, setBlockItems] = useState<TradeBlockItem[]>(cachedBlock?.items ?? [])
+    const [blockRoster, setBlockRoster] = useState<RosterPlayer[]>(cachedBlock?.roster ?? [])
     const [blockLoading, setBlockLoading] = useState(false)
     const [blockError, setBlockError] = useState<string | null>(null)
     const [blockBusyId, setBlockBusyId] = useState<string | null>(null)
 
-    const { data: picks, loading: picksLoading, error: picksError, refresh: loadDraft } = useFocusAsyncData(async () => {
+    const { data: picks, error: picksError } = useFocusAsyncData(async () => {
         if (!current || !leagueId) return [] as TradePickItem[]
-        return getPicksForMember(current.id, leagueId)
-    }, [current, leagueId])
+        const result = await getPicksForMember(current.id, leagueId)
+        writePersistentCache(picksCacheKey(current.id, leagueId), result)
+        return result
+    }, [current?.id, leagueId], { initialData: cachedPicks ?? undefined })
 
     const load = useCallback(async () => {
         if (!myMemberId || !leagueId) return
@@ -86,13 +110,14 @@ export default function TradesScreen() {
                 getMyTrades(myMemberId, leagueId),
                 getVetoableTrades(myMemberId, leagueId),
             ])
-            setTrades([...vetoableTradeData, ...myTradeData])
+            const result = [...vetoableTradeData, ...myTradeData]
+            setTrades(result)
+            writePersistentCache(tradesCacheKey(myMemberId, leagueId), result)
         } catch (e) {
             console.error(e)
             setTradesError(getErrorMessage(e) ?? 'Unknown error')
         } finally {
             setLoading(false)
-            setRefreshing(false)
         }
     }, [myMemberId, leagueId])
 
@@ -105,8 +130,13 @@ export default function TradesScreen() {
                 getTradeBlockItems(leagueId),
                 getRoster(myMemberId, leagueId),
             ])
+            const activeRoster = roster.filter((player) => !player.is_on_ir && !player.is_on_taxi)
             setBlockItems(items)
-            setBlockRoster(roster.filter((player) => !player.is_on_ir && !player.is_on_taxi))
+            setBlockRoster(activeRoster)
+            writePersistentCache(tradeBlockCacheKey(myMemberId, leagueId), {
+                items,
+                roster: activeRoster,
+            })
         } catch (e) {
             console.error(e)
             setBlockError(getErrorMessage(e) ?? 'Unknown error')
@@ -119,8 +149,16 @@ export default function TradesScreen() {
     // so the previous league's accepted trades don't flash in the Veto Window
     // section while the new fetch is in-flight.
     useEffect(() => {
-        setTrades([])
-        setLoading(true)
+        const nextCachedTrades = myMemberId && leagueId
+            ? readPersistentCache<Trade[]>(tradesCacheKey(myMemberId, leagueId))
+            : null
+        setTrades(nextCachedTrades ?? [])
+        setLoading(!nextCachedTrades)
+        const nextCachedBlock = myMemberId && leagueId
+            ? readPersistentCache<TradeBlockCache>(tradeBlockCacheKey(myMemberId, leagueId))
+            : null
+        setBlockItems(nextCachedBlock?.items ?? [])
+        setBlockRoster(nextCachedBlock?.roster ?? [])
     }, [myMemberId, leagueId])
 
     useEffect(() => {
@@ -131,16 +169,7 @@ export default function TradesScreen() {
         if (tab === 'block') void loadBlock()
     }, [tab, loadBlock])
 
-    async function onRefresh() {
-        setRefreshing(true)
-        try {
-            await Promise.all([load(), loadDraft(), tab === 'block' ? loadBlock() : Promise.resolve()])
-        } finally {
-            setRefreshing(false)
-        }
-    }
-
-    async function handleListPlayer(player: RosterPlayer) {
+    const handleListPlayer = useCallback(async (player: RosterPlayer) => {
         if (!myMemberId || !leagueId) return
         setBlockBusyId(player.players.id)
         try {
@@ -151,9 +180,9 @@ export default function TradesScreen() {
         } finally {
             setBlockBusyId(null)
         }
-    }
+    }, [myMemberId, leagueId, loadBlock])
 
-    async function handleListPick(pick: TradePickItem) {
+    const handleListPick = useCallback(async (pick: TradePickItem) => {
         if (!myMemberId || !leagueId) return
         setBlockBusyId(pick.pickId)
         try {
@@ -164,9 +193,9 @@ export default function TradesScreen() {
         } finally {
             setBlockBusyId(null)
         }
-    }
+    }, [myMemberId, leagueId, loadBlock])
 
-    async function handleRemoveBlockItem(item: TradeBlockItem) {
+    const handleRemoveBlockItem = useCallback(async (item: TradeBlockItem) => {
         if (!myMemberId) return
         setBlockBusyId(item.id)
         try {
@@ -177,7 +206,7 @@ export default function TradesScreen() {
         } finally {
             setBlockBusyId(null)
         }
-    }
+    }, [myMemberId, loadBlock])
 
     const incomingTrades = useMemo(() => trades.filter(
         (t) => t.recipientMemberId === myMemberId && t.status === 'pending',
@@ -306,7 +335,20 @@ export default function TradesScreen() {
                 onAction={load}
             />
         )
-    }, [myTeamName, myMemberId, leagueId, rosterSize, tab, load])
+    }, [
+        myTeamName,
+        myMemberId,
+        leagueId,
+        rosterSize,
+        tab,
+        load,
+        blockItems,
+        blockBusyId,
+        handleListPlayer,
+        handleListPick,
+        handleRemoveBlockItem,
+        push,
+    ])
 
     const listData = useMemo<ListItem[]>(() => {
         const result: ListItem[] = []
@@ -423,33 +465,20 @@ export default function TradesScreen() {
                 </Pressable>
             ) : null}
 
-            {tab === 'picks' && picksLoading ? (
-                <ActivityIndicator color={colors.primary} style={{ marginTop: spacing['4xl'] }} />
-            ) : tab === 'picks' && picksError ? (
+            {tab === 'picks' && picksError ? (
                 <View style={styles.emptyState}>
                     <Text style={styles.emptyStateText}>Error: {picksError.message}</Text>
                 </View>
-            ) : tab === 'picks' && picksList.length === 0 && !picksLoading ? (
+            ) : tab === 'picks' && picksList.length === 0 ? (
                 <View style={styles.emptyState}>
                     <Text style={styles.emptyStateText}>No draft picks</Text>
                 </View>
-            ) : tab === 'block' && blockLoading ? (
-                <ActivityIndicator color={colors.primary} style={{ marginTop: spacing['4xl'] }} />
-            ) : loading ? (
-                <ActivityIndicator color={colors.primary} style={{ marginTop: spacing['4xl'] }} />
             ) : (
                 <FlashList
                     data={listData}
                     keyExtractor={listKeyExtractor}
                     getItemType={listGetItemType}
                     ItemSeparatorComponent={ItemSeparator}
-                    refreshControl={
-                        <RefreshControl
-                            refreshing={refreshing}
-                            onRefresh={onRefresh}
-                            tintColor={colors.primary}
-                        />
-                    }
                     renderItem={renderItem}
                 />
             )}

@@ -3,7 +3,6 @@ import {
     Text,
     Pressable,
     StyleSheet,
-    ActivityIndicator,
     ScrollView,
     TextInput,
     useWindowDimensions,
@@ -204,6 +203,8 @@ export default function ProposeTradeScreen() {
 
     const myMemberId = current?.id ?? ''
     const leagueId = currentLeague?.id ?? ''
+    const routeRequestPlayerId = params.requestPlayerId ?? null
+    const routeRequestPickId = params.requestPickId ?? null
     const { width } = useWindowDimensions()
     const twoColumn = width >= breakpoints.roster
     const myTeamName = current?.team_name ?? 'Your team'
@@ -302,7 +303,10 @@ export default function ProposeTradeScreen() {
                 setRequestFaabInput(prefill.requestFaabInput)
                 prefillAppliedToRef.current = prefillTrade.id
             } else if (!prefillTrade) {
-                const routePrefill = prefillTradeComposerFromRoute(selectedRecipientId, params)
+                const routePrefill = prefillTradeComposerFromRoute(selectedRecipientId, {
+                    requestPlayerId: routeRequestPlayerId,
+                    requestPickId: routeRequestPickId,
+                })
                 if (prefillAppliedToRef.current !== routePrefill.key) {
                     const activeRequestPlayerIds = routePrefill.requestPlayerIds.filter((id) => theirActiveIds.has(id))
                     if (activeRequestPlayerIds.length > 0) setRequestIds(new Set(activeRequestPlayerIds))
@@ -316,7 +320,7 @@ export default function ProposeTradeScreen() {
         } finally {
             setRosterLoading(false)
         }
-    }, [selectedRecipientId, leagueId, myMemberId, prefillTrade, mode, params.requestPlayerId, params.requestPickId])
+    }, [selectedRecipientId, leagueId, myMemberId, prefillTrade, mode, routeRequestPlayerId, routeRequestPickId])
 
     useEffect(() => {
         loadRosters()
@@ -421,7 +425,13 @@ export default function ProposeTradeScreen() {
         tradeDeadline: currentLeague?.trade_deadline,
     })
     const tradingClosed = isTradingClosed(currentLeague)
-    const canSubmit = selectedRecipientId !== null && draft.hasOffer && draft.hasRequest && !tradingClosed && !submitting
+    const canSubmit =
+        selectedRecipientId !== null &&
+        draft.hasOffer &&
+        draft.hasRequest &&
+        !tradingClosed &&
+        !submitting &&
+        !rosterLoading
 
     if (!current) {
         return (
@@ -456,11 +466,7 @@ export default function ProposeTradeScreen() {
                     accessibilityRole="button"
                     accessibilityLabel="Send trade proposal"
                 >
-                    {submitting ? (
-                        <ActivityIndicator size="small" color={colors.textWhite} />
-                    ) : (
-                        <Text style={[styles.submitBtnText, !canSubmit && styles.submitBtnTextDisabled]}>Send</Text>
-                    )}
+                    <Text style={[styles.submitBtnText, !canSubmit && styles.submitBtnTextDisabled]}>Send</Text>
                 </Pressable>
               </View>
             </View>
@@ -476,38 +482,32 @@ export default function ProposeTradeScreen() {
 
                 {/* Team picker */}
                 <Text style={styles.sectionLabel}>TRADE WITH</Text>
-                {loading ? (
-                    <ActivityIndicator color={colors.primary} style={{ margin: spacing.xl }} />
-                ) : (
-                    <View style={styles.teamChips}>
-                        {members.map((m) => {
-                            const active = selectedRecipientId === m.id
-                            return (
-                                <Pressable
-                                    key={m.id}
-                                    style={[styles.teamChip, active && styles.teamChipActive]}
-                                    onPress={() => setSelectedRecipientId(m.id)}
-                                    accessibilityRole="button"
-                                    accessibilityLabel={`Trade with ${m.team_name ?? 'Unnamed team'}`}
+                <View style={styles.teamChips}>
+                    {members.map((m) => {
+                        const active = selectedRecipientId === m.id
+                        return (
+                            <Pressable
+                                key={m.id}
+                                style={[styles.teamChip, active && styles.teamChipActive]}
+                                onPress={() => setSelectedRecipientId(m.id)}
+                                accessibilityRole="button"
+                                accessibilityLabel={`Trade with ${m.team_name ?? 'Unnamed team'}`}
+                            >
+                                <Text
+                                    style={[
+                                        styles.teamChipText,
+                                        active && styles.teamChipTextActive,
+                                    ]}
                                 >
-                                    <Text
-                                        style={[
-                                            styles.teamChipText,
-                                            active && styles.teamChipTextActive,
-                                        ]}
-                                    >
-                                        {m.team_name ?? 'Unnamed'}
-                                    </Text>
-                                </Pressable>
-                            )
-                        })}
-                    </View>
-                )}
+                                    {m.team_name ?? 'Unnamed'}
+                                </Text>
+                            </Pressable>
+                        )
+                    })}
+                </View>
 
                 {selectedRecipientId && (
-                    rosterLoading ? (
-                        <ActivityIndicator color={colors.primary} style={{ margin: spacing['3xl'] }} />
-                    ) : rosterError ? (
+                    rosterError ? (
                         <Pressable
                             style={styles.rosterErrorRow}
                             onPress={loadRosters}

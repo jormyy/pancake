@@ -12,15 +12,16 @@ import { useFocusEffect } from '@react-navigation/native'
 export function useFocusAsyncData<T>(
     fetcher: () => Promise<T>,
     deps: React.DependencyList = [],
-    options: { staleMs?: number } = {},
+    options: { staleMs?: number; initialData?: T } = {},
 ) {
-    const [data, setData] = useState<T | null>(null)
-    const [loading, setLoading] = useState(true)
+    const hasInitialData = options.initialData !== undefined
+    const [data, setData] = useState<T | null>(hasInitialData ? options.initialData as T : null)
+    const [loading, setLoading] = useState(!hasInitialData)
     const [refreshing, setRefreshing] = useState(false)
     const [error, setError] = useState<Error | null>(null)
     const lastLoadedAtRef = useRef(0)
     const inFlightRef = useRef<Promise<void> | null>(null)
-    const hasDataRef = useRef(false)
+    const hasDataRef = useRef(hasInitialData)
     const isFirstRunRef = useRef(true)
     // Bumped on every deps change so a fetch started for the previous identity
     // (e.g. the old league) can never commit its result over the new one.
@@ -40,10 +41,11 @@ export function useFocusAsyncData<T>(
         // commit the old league's data).
         genRef.current += 1
         inFlightRef.current = null
-        hasDataRef.current = false
+        const hasNextInitialData = options.initialData !== undefined
+        hasDataRef.current = hasNextInitialData
         lastLoadedAtRef.current = 0
-        setData(null)
-        setLoading(true)
+        setData(hasNextInitialData ? options.initialData as T : null)
+        setLoading(!hasNextInitialData)
         setRefreshing(false)
         setError(null)
         // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -1,7 +1,6 @@
 import { AutoSetModal } from '@/components/AutoSetModal'
 import { Avatar } from '@/components/Avatar'
 import { DaySelector } from '@/components/DaySelector'
-import { LoadingScreen } from '@/components/LoadingScreen'
 import { PosTag } from '@/components/PosTag'
 import { getPositionColor } from "@/constants/positions"
 import { colors, fontSize, fontWeight, palette, radii, scrim, spacing } from '@/constants/tokens'
@@ -23,7 +22,6 @@ import { todayET } from '@/lib/shared/dates'
 import { useRouter } from 'expo-router'
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import {
-    ActivityIndicator,
     Alert,
     ScrollView,
     StyleSheet,
@@ -177,7 +175,6 @@ export default function LineupScreen() {
     )
     const [starters, setStarters] = useState<LineupSlot[]>([])
     const [bench, setBench] = useState<LineupPlayer[]>([])
-    const [loading, setLoading] = useState(true)
     const [seasonOptimizerEnabled, setSeasonOptimizerEnabled] = useState(false)
 
     const { startedTeams, liveTeams, teamMatchups } = useLiveStats(selectedDate)
@@ -199,10 +196,9 @@ export default function LineupScreen() {
 
     const load = useCallback(async () => {
         if (!current || !user || !currentLeague) return
-        setLoading(true)
         try {
             const lineupCtx = await getLineupContext(currentLeague.id)
-            if (!lineupCtx) { setLoading(false); return }
+            if (!lineupCtx) return
             setCtx(lineupCtx)
             setSelectedDate(lineupCtx.today)
             const days = await getWeekDays(lineupCtx.weekNumber, lineupCtx.seasonYear)
@@ -211,8 +207,6 @@ export default function LineupScreen() {
             await loadLineup(lineupCtx, currentLeague, lineupCtx.today)
         } catch (e) {
             console.error(e)
-        } finally {
-            setLoading(false)
         }
     }, [current, currentLeague, user, loadLineup])
 
@@ -296,15 +290,11 @@ export default function LineupScreen() {
               ? bench[selected.index]
               : null
 
-    if (loading) {
-        return <LoadingScreen />
-    }
-
     if (!ctx) {
         return (
             <SafeAreaView style={styles.container}>
                 <View style={styles.empty}>
-                    <Text style={styles.emptyText}>No active season found.</Text>
+                    <Text style={styles.emptyText}>No active lineup yet.</Text>
                 </View>
             </SafeAreaView>
         )
@@ -329,11 +319,7 @@ export default function LineupScreen() {
                     accessibilityState={{ disabled: autoSetting || saving || rosterEmpty }}
                     pressedScale={0.92}
                 >
-                    {autoSetting ? (
-                        <ActivityIndicator size="small" color={colors.primary} />
-                    ) : (
-                        <Text style={[styles.autoSetText, rosterEmpty && styles.autoSetTextDisabled]}>Auto-Set</Text>
-                    )}
+                    <Text style={[styles.autoSetText, rosterEmpty && styles.autoSetTextDisabled]}>Auto-Set</Text>
                 </MotionPressable>
             </View>
 
@@ -399,12 +385,6 @@ export default function LineupScreen() {
                     )}
                 </MotionView>
             </ScrollView>
-
-            {saving && (
-                <View style={styles.savingOverlay}>
-                    <ActivityIndicator color={colors.primary} />
-                </View>
-            )}
 
             <AutoSetModal
                 visible={autoSetModalVisible}

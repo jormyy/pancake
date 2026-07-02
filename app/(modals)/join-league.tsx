@@ -6,7 +6,6 @@ import {
     StyleSheet,
     KeyboardAvoidingView,
     Platform,
-    ActivityIndicator,
 } from 'react-native'
 import { useRouter } from 'expo-router'
 import { useState } from 'react'
@@ -72,11 +71,7 @@ export default function JoinLeagueScreen() {
                 {error && <Text style={styles.error}>{error}</Text>}
 
                 <Pressable style={styles.button} onPress={handleJoin} disabled={loading}>
-                    {loading ? (
-                        <ActivityIndicator color={colors.textWhite} />
-                    ) : (
-                        <Text style={styles.buttonText}>Join League</Text>
-                    )}
+                    <Text style={styles.buttonText}>Join League</Text>
                 </Pressable>
             </View>
         </KeyboardAvoidingView>

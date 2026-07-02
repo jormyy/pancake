@@ -1,4 +1,4 @@
-import { View, Text, Pressable, ActivityIndicator, StyleSheet } from 'react-native'
+import { View, Text, Pressable, StyleSheet } from 'react-native'
 import { useState } from 'react'
 import { getPlayerTransactionHistory } from '@/lib/players'
 import type { TransactionHistoryEntry } from '@/lib/players'
@@ -59,9 +59,7 @@ export function TransactionHistory({ playerId, leagueId, transactions: initial }
             ))}
             {hasMore && (
                 <Pressable style={styles.loadMore} onPress={loadMore} disabled={loading}>
-                    {loading
-                        ? <ActivityIndicator size="small" color={colors.primary} />
-                        : <Text style={styles.loadMoreText}>Load More</Text>}
+                    <Text style={styles.loadMoreText}>Load More</Text>
                 </Pressable>
             )}
         </View>

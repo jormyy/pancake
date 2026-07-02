@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ActivityIndicator, Image, Pressable } from 'react-native'
+import { View, Text, StyleSheet, Image, Pressable } from 'react-native'
 import { useState } from 'react'
 import { PlayerRow, getEligiblePositions } from '@/lib/players'
 import { playerHeadshotUrl } from '@/lib/format'
@@ -83,13 +83,11 @@ export function PlayerSearchItem({
                         disabled={isAdding}
                         accessibilityRole="button"
                         accessibilityLabel={`Add ${item.display_name}`}
-                        accessibilityState={{ disabled: isAdding, busy: isAdding }}
+                        accessibilityState={{ disabled: isAdding }}
                         hitSlop={8}
                         pressedScale={0.88}
                     >
-                        {isAdding
-                            ? <ActivityIndicator size="small" color={colors.primary} />
-                            : <Text style={styles.addBtnText}>+</Text>}
+                        <Text style={styles.addBtnText}>+</Text>
                     </MotionPressable>
                 ) : null}
             </View>

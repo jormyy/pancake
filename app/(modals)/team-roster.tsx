@@ -3,7 +3,6 @@ import {
     Text,
     Pressable,
     StyleSheet,
-    ActivityIndicator,
 } from 'react-native'
 import { FlashList } from '@shopify/flash-list'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -26,15 +25,13 @@ export default function TeamRosterScreen() {
     const { memberId, teamName } = useLocalSearchParams<{ memberId: string; teamName: string }>()
     const { current, currentLeague } = useLeagueContext()
     const [roster, setRoster] = useState<RosterPlayer[]>([])
-    const [loading, setLoading] = useState(true)
 
     useEffect(() => {
         if (!memberId || !current || !currentLeague) return
-        setLoading(true)
+        setRoster([])
         getRoster(memberId, currentLeague.id)
             .then(setRoster)
             .catch(console.error)
-            .finally(() => setLoading(false))
     }, [memberId, current, currentLeague])
 
     const active = roster.filter((r) => !r.is_on_ir && !r.is_on_taxi)
@@ -51,75 +48,71 @@ export default function TeamRosterScreen() {
                 <View style={styles.closeButton} />
             </View>
 
-            {loading ? (
-                <ActivityIndicator style={styles.loading} color={colors.primary} />
-            ) : (
-                <FlashList
-                    contentContainerStyle={styles.listContent}
-                    data={[...active, ...ir, ...taxi]}
-                    keyExtractor={(r) => r.id}
-                    ItemSeparatorComponent={ItemSeparator}
-                    ListHeaderComponent={
-                        roster.length === 0 ? null : (
-                            <View style={styles.countRow}>
-                                <Text style={styles.countText}>
-                                    {active.length} active
-                                    {ir.length > 0 ? ` · ${ir.length} IR` : ''}
-                                    {taxi.length > 0 ? ` · ${taxi.length} Taxi` : ''}
-                                </Text>
+            <FlashList
+                contentContainerStyle={styles.listContent}
+                data={[...active, ...ir, ...taxi]}
+                keyExtractor={(r) => r.id}
+                ItemSeparatorComponent={ItemSeparator}
+                ListHeaderComponent={
+                    roster.length === 0 ? null : (
+                        <View style={styles.countRow}>
+                            <Text style={styles.countText}>
+                                {active.length} active
+                                {ir.length > 0 ? ` · ${ir.length} IR` : ''}
+                                {taxi.length > 0 ? ` · ${taxi.length} Taxi` : ''}
+                            </Text>
+                        </View>
+                    )
+                }
+                ListEmptyComponent={
+                    <EmptyState
+                        icon="sports-basketball"
+                        message="No players yet"
+                        description="This team's roster fills as the draft and season unfold. Check back once the draft is underway."
+                        fullScreen={false}
+                        framed
+                    />
+                }
+                renderItem={({ item }) => {
+                    const p = item.players
+                    const eligiblePositions = getEligiblePositions(p)
+                    return (
+                        <Pressable
+                            style={styles.playerRow}
+                            onPress={() => push({ pathname: '/player/[id]', params: { id: p.id } })}
+                        >
+                            <Avatar
+                                name={p.display_name}
+                                color={getPositionColor(eligiblePositions[0])}
+                                size={44}
+                                uri={playerHeadshotUrl(p.nba_id)}
+                            />
+                            <View style={styles.playerInfo}>
+                                <Text style={styles.playerName}>{p.display_name}</Text>
+                                <View style={styles.playerMetaRow}>
+                                    {p.nba_team && <Text style={styles.playerMeta}>{p.nba_team}</Text>}
+                                    {eligiblePositions.map((pos) => <PosTag key={pos} position={pos} />)}
+                                </View>
                             </View>
-                        )
-                    }
-                    ListEmptyComponent={
-                        <EmptyState
-                            icon="sports-basketball"
-                            message="No players yet"
-                            description="This team's roster fills as the draft and season unfold. Check back once the draft is underway."
-                            fullScreen={false}
-                            framed
-                        />
-                    }
-                    renderItem={({ item }) => {
-                        const p = item.players
-                        const eligiblePositions = getEligiblePositions(p)
-                        return (
-                            <Pressable
-                                style={styles.playerRow}
-                                onPress={() => push({ pathname: '/player/[id]', params: { id: p.id } })}
-                            >
-                                <Avatar
-                                    name={p.display_name}
-                                    color={getPositionColor(eligiblePositions[0])}
-                                    size={44}
-                                    uri={playerHeadshotUrl(p.nba_id)}
-                                />
-                                <View style={styles.playerInfo}>
-                                    <Text style={styles.playerName}>{p.display_name}</Text>
-                                    <View style={styles.playerMetaRow}>
-                                        {p.nba_team && <Text style={styles.playerMeta}>{p.nba_team}</Text>}
-                                        {eligiblePositions.map((pos) => <PosTag key={pos} position={pos} />)}
-                                    </View>
-                                </View>
-                                <View style={styles.badges}>
-                                    {p.injury_status ? (
-                                        <Badge
-                                            label={p.injury_status}
-                                            color={colors.danger}
-                                            variant="soft"
-                                        />
-                                    ) : null}
-                                    {item.is_on_ir ? (
-                                        <Badge label="IR" color={palette.gray500} variant="soft" />
-                                    ) : null}
-                                    {item.is_on_taxi ? (
-                                        <Badge label="TX" color={palette.gray500} variant="soft" />
-                                    ) : null}
-                                </View>
-                            </Pressable>
-                        )
-                    }}
-                />
-            )}
+                            <View style={styles.badges}>
+                                {p.injury_status ? (
+                                    <Badge
+                                        label={p.injury_status}
+                                        color={colors.danger}
+                                        variant="soft"
+                                    />
+                                ) : null}
+                                {item.is_on_ir ? (
+                                    <Badge label="IR" color={palette.gray500} variant="soft" />
+                                ) : null}
+                                {item.is_on_taxi ? (
+                                    <Badge label="TX" color={palette.gray500} variant="soft" />
+                                ) : null}
+                            </View>
+                        </Pressable>
+                    )
+                }}
+            />
         </SafeAreaView>
     )
 }
@@ -139,7 +132,6 @@ const styles = StyleSheet.create({
     closeText: { fontSize: 15, fontWeight: fontWeight.semibold, color: colors.primaryDark },
     headerTitle: { flex: 1, fontSize: 18, fontWeight: fontWeight.extrabold, textAlign: 'center' },
 
-    loading: { marginTop: 40 },
     listContent: { width: '100%', maxWidth: 680, alignSelf: 'center' },
 
     countRow: {

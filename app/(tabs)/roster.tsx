@@ -3,7 +3,6 @@ import {
     Text,
     Pressable,
     StyleSheet,
-    ActivityIndicator,
     useWindowDimensions,
 } from 'react-native'
 import { showAlert, confirmAction, getErrorMessage } from '@/lib/alert'
@@ -21,12 +20,12 @@ import { supabase } from '@/lib/supabase'
 import { currentSeasonYear } from '@/lib/shared/season'
 import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 import { ItemSeparator } from '@/components/ItemSeparator'
-import { LoadingScreen } from '@/components/LoadingScreen'
 import { EmptyState } from '@/components/EmptyState'
 import { SectionHeader } from '@/components/SectionHeader'
 import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
 import { RosterClaimItem, RosterPickItem, RosterPlayerItem, TaxiPlayerItem } from '@/components/roster/RosterItems'
 import { getRosterStatusChangeLockMessage } from '@/lib/roster-locks'
+import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 
 type RosterListItem =
     | { _isHeader: true; _section: string }
@@ -50,6 +49,23 @@ type RosterAverage = {
     games_played: number | null
 }
 const EMPTY_STATS_MAP = new Map<string, RosterAverage>()
+type RosterScreenData = {
+    roster: RosterPlayer[]
+    picks: TradePickItem[]
+    claims: WaiverClaim[]
+    avgMap: Map<string, number>
+    avgStatsMap: Map<string, RosterAverage>
+    waiverPriority: number | null
+}
+type RosterScreenCache = {
+    roster: RosterPlayer[]
+    picks: TradePickItem[]
+    claims: WaiverClaim[]
+    avgEntries: [string, number][]
+    avgStatsEntries: [string, RosterAverage][]
+    waiverPriority: number | null
+}
+const ROSTER_CACHE_PREFIX = 'pancake:roster-screen:v1:'
 
 const LINEUP_SLOT_ORDER = ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F', 'UTIL', 'BE'] as const
 
@@ -67,6 +83,35 @@ function compareRosterBySlot(a: RosterPlayer, b: RosterPlayer): number {
     const slotCmp = rosterSlotRank(a) - rosterSlotRank(b)
     if (slotCmp !== 0) return slotCmp
     return (a.players.display_name ?? '').localeCompare(b.players.display_name ?? '')
+}
+
+function rosterCacheKey(memberId: string, leagueId: string) {
+    return `${ROSTER_CACHE_PREFIX}${leagueId}:${memberId}`
+}
+
+function readRosterCache(memberId: string | undefined, leagueId: string | undefined): RosterScreenData | undefined {
+    if (!memberId || !leagueId) return undefined
+    const cached = readPersistentCache<RosterScreenCache>(rosterCacheKey(memberId, leagueId))
+    if (!cached) return undefined
+    return {
+        roster: cached.roster,
+        picks: cached.picks,
+        claims: cached.claims,
+        avgMap: new Map(cached.avgEntries),
+        avgStatsMap: new Map(cached.avgStatsEntries),
+        waiverPriority: cached.waiverPriority,
+    }
+}
+
+function writeRosterCache(memberId: string, leagueId: string, data: RosterScreenData) {
+    writePersistentCache<RosterScreenCache>(rosterCacheKey(memberId, leagueId), {
+        roster: data.roster,
+        picks: data.picks,
+        claims: data.claims,
+        avgEntries: Array.from(data.avgMap.entries()),
+        avgStatsEntries: Array.from(data.avgStatsMap.entries()),
+        waiverPriority: data.waiverPriority,
+    })
 }
 
 function fmtStat(value?: number | null, integer = false): string {
@@ -166,15 +211,19 @@ export default function RosterScreen() {
     const { push } = useRouter()
     const { width } = useWindowDimensions()
     const { user } = useAuth()
-    const { current, currentLeague, loading: leagueLoading } = useLeagueContext()
+    const { current, currentLeague } = useLeagueContext()
+    const leagueId = currentLeague?.id
+    const cachedRosterData = useMemo(
+        () => readRosterCache(current?.id, leagueId),
+        [current?.id, leagueId],
+    )
     const [togglingId, setTogglingId] = useState<string | null>(null)
     const [taxiingId, setTaxiingId] = useState<string | null>(null)
     const [cancellingId, setCancellingId] = useState<string | null>(null)
     const [droppingId, setDroppingId] = useState<string | null>(null)
 
-    const { data, loading, error, refresh } = useFocusAsyncData(async () => {
+    const { data, error, refresh } = useFocusAsyncData<RosterScreenData | null>(async () => {
         if (!current || !user) return null
-        const leagueId = currentLeague?.id
         if (!leagueId) return null
         const [roster, picks, claims, waiverPriority] = await Promise.all([
             getRoster(current.id, leagueId),
@@ -202,8 +251,10 @@ export default function RosterScreen() {
         for (const row of (statsData ?? []) as (RosterAverage & { player_id: string | null })[]) {
             if (row.player_id) avgStatsMap.set(row.player_id, row)
         }
-        return { roster, picks, claims, avgMap, avgStatsMap, waiverPriority }
-    }, [current, user])
+        const result = { roster, picks, claims, avgMap, avgStatsMap, waiverPriority }
+        writeRosterCache(current.id, leagueId, result)
+        return result
+    }, [current?.id, user?.id, leagueId], { initialData: cachedRosterData ?? undefined })
 
     const roster = useMemo(() => data?.roster ?? EMPTY_ROSTER, [data?.roster])
     const picks = useMemo(() => data?.picks ?? EMPTY_PICKS, [data?.picks])
@@ -396,7 +447,6 @@ export default function RosterScreen() {
         }
     }
 
-    if (leagueLoading || (!current && loading)) return <LoadingScreen />
     if (!current) return <EmptyState message="Join or create a league first." />
 
     const league = currentLeague
@@ -430,9 +480,7 @@ export default function RosterScreen() {
                 </Pressable>
             ) : null}
 
-            {loading ? (
-                <ActivityIndicator style={styles.flex1} color={colors.primary} />
-            ) : roster.length === 0 ? (
+            {roster.length === 0 ? (
                 <EmptyState
                     fullScreen={false}
                     framed

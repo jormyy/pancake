@@ -6,25 +6,37 @@ import {
     type DynastyRankPlayer,
 } from '@/lib/dynasty'
 import { useDebouncedValue } from '@/hooks/use-debounced-value'
+import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 
 const STALE_MS = 5 * 60_000
+const DYNASTY_CACHE_PREFIX = 'pancake:dynasty-rankings:v1:'
+
+type DynastyRankingsCache = {
+    players: DynastyRankPlayer[]
+    hasMore: boolean
+    offset: number
+    savedAt: number
+}
+
+const dynastyCacheKey = (query: string) => `${DYNASTY_CACHE_PREFIX}${query.trim().toLocaleLowerCase()}`
 
 export function useDynastyRankings() {
     const [query, setQuery] = useState('')
-    const [players, setPlayers] = useState<DynastyRankPlayer[]>([])
-    const [loading, setLoading] = useState(true)
+    const initialCache = readPersistentCache<DynastyRankingsCache>(dynastyCacheKey(''))
+    const [players, setPlayers] = useState<DynastyRankPlayer[]>(initialCache?.players ?? [])
+    const [loading, setLoading] = useState(!initialCache)
     const [refreshing, setRefreshing] = useState(false)
     const [loadingMore, setLoadingMore] = useState(false)
-    const [hasMore, setHasMore] = useState(false)
+    const [hasMore, setHasMore] = useState(initialCache?.hasMore ?? false)
     const [error, setError] = useState<Error | null>(null)
     const [loadMoreError, setLoadMoreError] = useState<Error | null>(null)
     const debouncedQuery = useDebouncedValue(query, 250)
     const requestSeqRef = useRef(0)
     const loadMoreSeqRef = useRef(0)
-    const offsetRef = useRef(0)
+    const offsetRef = useRef(initialCache?.offset ?? 0)
     const queryRef = useRef('')
-    const lastLoadedAtRef = useRef(0)
-    const playersRef = useRef<DynastyRankPlayer[]>([])
+    const lastLoadedAtRef = useRef(initialCache?.savedAt ?? 0)
+    const playersRef = useRef<DynastyRankPlayer[]>(initialCache?.players ?? [])
     const firstPageInFlightRef = useRef<string | null>(null)
 
     useEffect(() => {
@@ -60,6 +72,12 @@ export function useDynastyRankings() {
             setPlayers(page.players)
             setHasMore(page.hasMore)
             lastLoadedAtRef.current = Date.now()
+            writePersistentCache<DynastyRankingsCache>(dynastyCacheKey(loadQuery), {
+                players: page.players,
+                hasMore: page.hasMore,
+                offset: 0,
+                savedAt: lastLoadedAtRef.current,
+            })
         } catch (e) {
             if (requestSeqRef.current !== requestId) return
             const nextError = e instanceof Error ? e : new Error(String(e))
@@ -75,9 +93,22 @@ export function useDynastyRankings() {
     }, [invalidateLoadMore])
 
     useEffect(() => {
-        playersRef.current = []
-        setPlayers([])
-        setLoading(true)
+        const cached = readPersistentCache<DynastyRankingsCache>(dynastyCacheKey(debouncedQuery))
+        if (cached) {
+            playersRef.current = cached.players
+            offsetRef.current = cached.offset
+            lastLoadedAtRef.current = cached.savedAt
+            setPlayers(cached.players)
+            setHasMore(cached.hasMore)
+            setLoading(false)
+        } else {
+            playersRef.current = []
+            offsetRef.current = 0
+            lastLoadedAtRef.current = 0
+            setPlayers([])
+            setHasMore(false)
+            setLoading(true)
+        }
         void loadFirstPage(debouncedQuery, true)
     }, [debouncedQuery, loadFirstPage])
 
@@ -104,6 +135,12 @@ export function useDynastyRankings() {
             setPlayers((prev) => {
                 const merged = [...prev, ...page.players]
                 playersRef.current = merged
+                writePersistentCache<DynastyRankingsCache>(dynastyCacheKey(loadQuery), {
+                    players: merged,
+                    hasMore: page.hasMore,
+                    offset: nextOffset,
+                    savedAt: Date.now(),
+                })
                 return merged
             })
             setHasMore(page.hasMore)

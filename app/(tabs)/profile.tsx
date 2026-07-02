@@ -16,7 +16,6 @@ import { updateTeamName } from '@/lib/league'
 import { getNotificationPreferences, updateNotificationPreferences, type NotificationPreferences } from '@/lib/notification-preferences'
 import { useLeagueContext } from '@/contexts/league-context'
 import { colors, fontSize, fontWeight, spacing, layout } from '@/constants/tokens'
-import { LoadingScreen } from '@/components/LoadingScreen'
 import { Avatar } from '@/components/Avatar'
 import { Button } from '@/components/ui'
 import { showAlert, confirmAction, getErrorMessage } from '@/lib/alert'
@@ -32,7 +31,6 @@ export default function ProfileScreen() {
     const rowStyle = [styles.row, narrow && styles.rowNarrow]
     const valueStyle = [styles.rowValue, narrow && styles.rowValueNarrow]
     const [profile, setProfile] = useState<Profile | null>(null)
-    const [loading, setLoading] = useState(true)
     const [editing, setEditing] = useState(false)
     const [displayName, setDisplayName] = useState('')
     const [teamName, setTeamName] = useState('')
@@ -55,8 +53,6 @@ export default function ProfileScreen() {
                 setDisplayName(p.display_name ?? '')
             } catch (e) {
                 console.error(e)
-            } finally {
-                setLoading(false)
             }
         }
         load()
@@ -125,8 +121,6 @@ export default function ProfileScreen() {
             showAlert('Error', getErrorMessage(e))
         }
     }
-
-    if (loading) return <LoadingScreen />
 
     return (
         <SafeAreaView style={styles.container}>

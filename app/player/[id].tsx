@@ -1,6 +1,5 @@
 import { IRResolutionModal } from '@/components/IRResolutionModal'
 import { DropPlayerPickerModal } from '@/components/DropPlayerPickerModal'
-import { LoadingScreen } from '@/components/LoadingScreen'
 import { FantasyCard } from '@/components/player/FantasyCard'
 import { GameLogTable } from '@/components/player/GameLogTable'
 import { PlayerHeader } from '@/components/player/PlayerHeader'
@@ -17,7 +16,6 @@ import { showAlert, confirmAction, getErrorMessage } from '@/lib/alert'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useCallback, useEffect, useState } from 'react'
 import {
-    ActivityIndicator,
     ScrollView,
     StyleSheet,
     Text,
@@ -35,7 +33,7 @@ export default function PlayerDetailScreen() {
     const {
         player, loading, playedToday,
         availableSeasons, selectedSeason, handleSeasonSelect,
-        seasonAverages, seasonLoading,
+        seasonAverages,
         gameLog, hasMoreGames, gameLogLoading, loadMoreGames,
         fantasyPointsMap, avgFantasyPoints,
         nextProjection,
@@ -235,21 +233,17 @@ export default function PlayerDetailScreen() {
         push(`/(modals)/claim-player?playerId=${id}`)
     }
 
-    if (loading) {
-        return <LoadingScreen />
-    }
-
     if (!player) {
         return (
             <SafeAreaView style={styles.container}>
-                <Text style={styles.errorText}>Player not found.</Text>
+                <Stack.Screen options={{ title: 'Player', headerBackTitle: 'Back' }} />
+                {!loading ? <Text style={styles.errorText}>Player not found.</Text> : null}
             </SafeAreaView>
         )
     }
 
     const showFantasy = leagueId != null && fantasyPointsMap !== null && fantasyPointsMap.size > 0
     const showTransactions = leagueId != null && transactions.length > 0
-    const showSeasonFallback = seasonLoading && seasonAverages == null && gameLog.length === 0
 
     return (
         <>
@@ -277,50 +271,37 @@ export default function PlayerDetailScreen() {
                         selectedSeason={selectedSeason}
                         onSelect={handleSeasonSelect}
                     />
-                    {seasonLoading && !showSeasonFallback ? (
-                        <View style={styles.inlineLoading}>
-                            <ActivityIndicator size="small" color={colors.primary} />
-                            <Text style={styles.inlineLoadingText}>Updating season stats</Text>
-                        </View>
-                    ) : null}
-
-                    {showSeasonFallback ? (
-                        <ActivityIndicator color={colors.primary} style={styles.seasonLoader} />
+                    {/* Season averages */}
+                    {seasonAverages ? (
+                        <StatsOverview
+                            averages={seasonAverages}
+                            seasonYear={selectedSeason}
+                        />
                     ) : (
-                        <>
-                            {/* Season averages */}
-                            {seasonAverages ? (
-                                <StatsOverview
-                                    averages={seasonAverages}
-                                    seasonYear={selectedSeason}
-                                />
-                            ) : (
-                                <View style={styles.section}>
-                                    <Text style={styles.sectionTitle}>
-                                        {selectedSeason - 1}–{String(selectedSeason).slice(2)} Averages
-                                    </Text>
-                                    <Text style={styles.noData}>No stats available.</Text>
-                                </View>
-                            )}
-
-                            {/* Fantasy context */}
-                            {showFantasy && (
-                                <FantasyCard
-                                    avgFantasyPoints={avgFantasyPoints}
-                                    gamesCount={fantasyPointsMap!.size}
-                                />
-                            )}
-
-                            {/* Game log */}
-                            <GameLogTable
-                                games={gameLog}
-                                fantasyPointsMap={showFantasy ? fantasyPointsMap : null}
-                                hasMore={hasMoreGames}
-                                loadingMore={gameLogLoading}
-                                onLoadMore={loadMoreGames}
-                            />
-                        </>
+                        <View style={styles.section}>
+                            <Text style={styles.sectionTitle}>
+                                {selectedSeason - 1}–{String(selectedSeason).slice(2)} Averages
+                            </Text>
+                            <Text style={styles.noData}>No stats available.</Text>
+                        </View>
                     )}
+
+                    {/* Fantasy context */}
+                    {showFantasy && (
+                        <FantasyCard
+                            avgFantasyPoints={avgFantasyPoints}
+                            gamesCount={fantasyPointsMap!.size}
+                        />
+                    )}
+
+                    {/* Game log */}
+                    <GameLogTable
+                        games={gameLog}
+                        fantasyPointsMap={showFantasy ? fantasyPointsMap : null}
+                        hasMore={hasMoreGames}
+                        loadingMore={gameLogLoading}
+                        onLoadMore={loadMoreGames}
+                    />
 
                     {/* Transaction history — always shown regardless of season */}
                     {showTransactions && (
@@ -362,9 +343,6 @@ export default function PlayerDetailScreen() {
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgScreen },
     scroll: { padding: spacing['2xl'], gap: spacing['3xl'], width: '100%', maxWidth: 900, alignSelf: 'center' },
-    seasonLoader: { marginVertical: spacing['4xl'] },
-    inlineLoading: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 24 },
-    inlineLoadingText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textMuted },
     section: { gap: spacing.lg },
     sectionTitle: { fontSize: 17, fontWeight: fontWeight.bold, color: colors.textPrimary },
     noData: { color: colors.textPlaceholder, fontSize: fontSize.md },

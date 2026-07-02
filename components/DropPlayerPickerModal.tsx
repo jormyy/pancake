@@ -4,7 +4,6 @@ import {
     Pressable,
     ScrollView,
     Modal,
-    ActivityIndicator,
     StyleSheet,
 } from 'react-native'
 import type { RosterPlayer } from '@/lib/roster'
@@ -52,9 +51,7 @@ export function DropPlayerPickerModal({ visible, title, subtitle, roster, droppi
                                         accessibilityRole="button"
                                         accessibilityLabel={`Drop ${p.display_name}`}
                                     >
-                                        {dropping === rp.id
-                                            ? <ActivityIndicator size="small" color={colors.textWhite} />
-                                            : <Text style={styles.dropBtnText}>Drop</Text>}
+                                        <Text style={styles.dropBtnText}>Drop</Text>
                                     </Pressable>
                                 </View>
                             )

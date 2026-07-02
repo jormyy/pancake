@@ -5,7 +5,6 @@ import {
     Pressable,
     ScrollView,
     StyleSheet,
-    ActivityIndicator,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Stack, useRouter } from 'expo-router'
@@ -24,7 +23,6 @@ import {
 } from '@/lib/league'
 import { advanceSeason } from '@/lib/rookieDraft'
 import { apiPost } from '@/lib/shared/api'
-import { LoadingScreen } from '@/components/LoadingScreen'
 import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 import { showAlert, showSuccess, confirmAction, getErrorMessage } from '@/lib/alert'
 
@@ -469,7 +467,6 @@ export default function CommissionerSettingsScreen() {
     ]
 
     function renderAction(action: CommissionerAction) {
-        const busy = busyAction === action.id
         const color = action.color ?? colors.primary
         return (
             <Pressable
@@ -478,17 +475,9 @@ export default function CommissionerSettingsScreen() {
                 onPress={action.onPress}
                 disabled={busyAction !== null}
             >
-                {busy ? (
-                    <ActivityIndicator color={color} />
-                ) : (
-                    <Text style={[styles.actionButtonText, { color }]}>{action.label}</Text>
-                )}
+                <Text style={[styles.actionButtonText, { color }]}>{action.label}</Text>
             </Pressable>
         )
-    }
-
-    if (loading) {
-        return <LoadingScreen />
     }
 
     return (
@@ -671,12 +660,12 @@ export default function CommissionerSettingsScreen() {
                     </View>
 
                     {/* ── Save ──────────────────────────────────────── */}
-                    <Pressable style={styles.saveButton} onPress={save} disabled={saving}>
-                        {saving ? (
-                            <ActivityIndicator color={colors.textWhite} />
-                        ) : (
-                            <Text style={styles.saveButtonText}>Save Settings</Text>
-                        )}
+                    <Pressable
+                        style={[styles.saveButton, loading && styles.saveButtonDisabled]}
+                        onPress={save}
+                        disabled={saving || loading}
+                    >
+                        <Text style={styles.saveButtonText}>Save Settings</Text>
                     </Pressable>
 
                     <Text style={styles.sectionTitle}>COMMISSIONER ACTIONS</Text>
@@ -834,6 +823,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
+    saveButtonDisabled: { opacity: 0.55 },
     saveButtonText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.lg },
 
     actionButton: {

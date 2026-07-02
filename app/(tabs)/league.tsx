@@ -3,16 +3,13 @@ import {
     Text,
     Pressable,
     StyleSheet,
-    ActivityIndicator,
     Share,
-    RefreshControl,
     ScrollView,
     TextInput,
-    type RefreshControlProps,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLocalSearchParams, useRouter } from 'expo-router'
-import { useState, useRef, useCallback, useEffect, type ReactElement } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { useFocusEffect } from '@react-navigation/native'
 import { useLeagueContext } from '@/contexts/league-context'
 import { getLeagueStandings, StandingRow } from '@/lib/scoring'
@@ -41,7 +38,6 @@ import {
     type MockDraftRoomStatus,
 } from '@/lib/mockDraftRooms'
 import { colors, fontSize, fontWeight, radii, spacing, layout } from '@/constants/tokens'
-import { LoadingScreen } from '@/components/LoadingScreen'
 import { EmptyState } from '@/components/EmptyState'
 import { StandingsTable, ActivityFeed, PicksBankList } from '@/components/league/LeagueSections'
 import { confirmAction, showAlert } from '@/lib/alert'
@@ -113,7 +109,7 @@ export default function LeagueScreen() {
     const router = useRouter()
     const { push } = router
     const params = useLocalSearchParams<{ tab?: string }>()
-    const { current, currentLeague, isCommissioner, loading: currentLeagueLoading } = useLeagueContext()
+    const { current, currentLeague, isCommissioner } = useLeagueContext()
     const [tab, setTab] = useState<Tab>(() => parseLeagueTab(params.tab))
     const [draftLoading, setDraftLoading] = useState(false)
     const [nominationMode, setNominationMode] = useState<NominationOrderMode>('user_nominated')
@@ -146,7 +142,6 @@ export default function LeagueScreen() {
     const loadedTabs = useRef<Set<Tab>>(new Set())
     const activeLeagueIdRef = useRef<string | undefined>(undefined)
     activeLeagueIdRef.current = currentLeague?.id
-    const [refreshing, setRefreshing] = useState(false)
 
     useEffect(() => {
         setTab(parseLeagueTab(params.tab))
@@ -256,16 +251,6 @@ export default function LeagueScreen() {
         if (!loadedTabs.current.has(t)) {
             fetchTab(t, lid)
         }
-    }
-
-    // Pull-to-refresh: clear loaded set, re-fetch current tab
-    async function handleRefresh() {
-        const lid = currentLeague?.id
-        if (!lid) return
-        setRefreshing(true)
-        loadedTabs.current.clear()
-        await Promise.all([fetchTab(tab, lid), fetchActiveDraft(lid)])
-        setRefreshing(false)
     }
 
     // Activity pagination
@@ -474,10 +459,6 @@ export default function LeagueScreen() {
         }
     }
 
-    if (currentLeagueLoading || (!current && tabLoading.results)) {
-        return <LoadingScreen />
-    }
-
     if (!current) {
         return <EmptyState message="Join or create a league first." />
     }
@@ -521,7 +502,7 @@ export default function LeagueScreen() {
 
     function renderActiveDraftEntry(filterType?: 'auction' | 'snake') {
         if (activeDraftLoading) {
-            return <ActivityIndicator color={colors.primary} />
+            return null
         }
 
         if (activeDraft && (!filterType || activeDraft.draftType === filterType)) {
@@ -529,11 +510,7 @@ export default function LeagueScreen() {
                 <View style={styles.panelCard}>
                     <Text style={styles.panelTitle}>Live Draft</Text>
                     <Pressable style={styles.draftButton} onPress={handleJoinDraftRoom} disabled={draftLoading}>
-                        {draftLoading ? (
-                            <ActivityIndicator size="small" color={colors.textWhite} />
-                        ) : (
-                            <Text style={styles.draftButtonText}>{activeDraftButtonLabel(activeDraft)}</Text>
-                        )}
+                        <Text style={styles.draftButtonText}>{activeDraftButtonLabel(activeDraft)}</Text>
                     </Pressable>
                     {OPEN_DRAFT_STATUSES.has(activeDraft.status) && activeDraft.draftType === 'snake' && !activeDraft.isMock && isCommissioner ? (
                         <View style={styles.syncWrap}>
@@ -549,12 +526,11 @@ export default function LeagueScreen() {
         return null
     }
 
-    function renderAuctionTab(refresh: ReactElement<RefreshControlProps>) {
+    function renderAuctionTab() {
         const activeAuction = renderActiveDraftEntry('auction')
         return (
             <ScrollView
                 contentContainerStyle={styles.panelScroll}
-                refreshControl={refresh}
             >
                 {activeAuction}
                 {currentLeague?.status === 'setup' && isCommissioner ? (
@@ -565,11 +541,7 @@ export default function LeagueScreen() {
                         <Text style={styles.nominationModeLabel}>Nomination order</Text>
                         {renderDraftChips(NOMINATION_ORDER_CHIPS, nominationMode, setNominationMode)}
                         <Pressable style={styles.draftButton} onPress={handleStartDraft} disabled={draftLoading}>
-                            {draftLoading ? (
-                                <ActivityIndicator size="small" color={colors.textWhite} />
-                            ) : (
-                                <Text style={styles.draftButtonText}>Start Auction Draft</Text>
-                            )}
+                            <Text style={styles.draftButtonText}>Start Auction Draft</Text>
                         </Pressable>
                     </View>
                 ) : null}
@@ -580,7 +552,7 @@ export default function LeagueScreen() {
         )
     }
 
-    function renderDraftBoardTab(refresh: ReactElement<RefreshControlProps>) {
+    function renderDraftBoardTab() {
         return (
             <View style={styles.boardWrap}>
                 <View style={styles.boardTop}>
@@ -595,17 +567,13 @@ export default function LeagueScreen() {
                             <Text style={styles.nominationModeLabel}>Timeout behavior</Text>
                             {renderDraftChips(ROOKIE_TIMER_EXPIRY_CHIPS, rookieTimerExpiryBehavior, setRookieTimerExpiryBehavior)}
                             <Pressable style={styles.draftButton} onPress={handleStartRookieDraft} disabled={draftLoading}>
-                                {draftLoading ? (
-                                    <ActivityIndicator size="small" color={colors.textWhite} />
-                                ) : (
-                                    <Text style={styles.draftButtonText}>Start Rookie Draft</Text>
-                                )}
+                                <Text style={styles.draftButtonText}>Start Rookie Draft</Text>
                             </Pressable>
                         </View>
                     ) : null}
                 </View>
                 <View style={styles.boardList}>
-                    <PicksBankList picks={currentLeaguePicks} myMemberId={current?.id} refreshControl={refresh} />
+                    <PicksBankList picks={currentLeaguePicks} myMemberId={current?.id} />
                 </View>
             </View>
         )
@@ -684,12 +652,11 @@ export default function LeagueScreen() {
         )
     }
 
-    function renderMockRoomsTab(refresh: ReactElement<RefreshControlProps>) {
+    function renderMockRoomsTab() {
         const statuses: MockDraftRoomStatus[] = ['active', 'scheduled', 'live', 'completed']
         return (
             <ScrollView
                 contentContainerStyle={styles.panelScroll}
-                refreshControl={refresh}
             >
                 <View style={styles.panelCard}>
                     <Text style={styles.panelTitle}>Mock Draft Room</Text>
@@ -725,11 +692,7 @@ export default function LeagueScreen() {
                         </>
                     )}
                     <Pressable style={styles.draftButton} onPress={handleCreateMockRoom} disabled={roomSubmitting}>
-                        {roomSubmitting ? (
-                            <ActivityIndicator size="small" color={colors.textWhite} />
-                        ) : (
-                            <Text style={styles.draftButtonText}>Create Room</Text>
-                        )}
+                        <Text style={styles.draftButtonText}>Create Room</Text>
                     </Pressable>
                 </View>
 
@@ -748,9 +711,9 @@ export default function LeagueScreen() {
         )
     }
 
-    function renderSettingsTab(refresh: ReactElement<RefreshControlProps>) {
+    function renderSettingsTab() {
         return (
-            <ScrollView contentContainerStyle={styles.panelScroll} refreshControl={refresh}>
+            <ScrollView contentContainerStyle={styles.panelScroll}>
                 <Pressable style={styles.inviteRow} onPress={shareInviteCode}>
                     <Text style={styles.inviteLabel}>Invite Code</Text>
                     <Text style={styles.inviteCode}>{currentLeague?.invite_code}</Text>
@@ -783,10 +746,7 @@ export default function LeagueScreen() {
     }
 
     function renderTabContent() {
-        if (isTabLoading) {
-            return <ActivityIndicator style={styles.loadingMargin} color={colors.primary} />
-        }
-        if (tabErr) {
+        if (tabErr && !isTabLoading) {
             return (
                 <Pressable
                     style={styles.errorBanner}
@@ -796,30 +756,25 @@ export default function LeagueScreen() {
                 </Pressable>
             )
         }
-        const refresh: ReactElement<RefreshControlProps> = (
-            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.primary} />
-        )
         if (tab === 'results') {
             return (
                 <StandingsTable
                     standings={standings}
                     myMemberId={current?.id}
-                    refreshControl={refresh}
                     onSelectTeam={(memberId, teamName) =>
                         push({ pathname: '/(modals)/team-roster', params: { memberId, teamName } })
                     }
                 />
             )
         }
-        if (tab === 'auctions') return renderAuctionTab(refresh)
-        if (tab === 'mockRooms') return renderMockRoomsTab(refresh)
-        if (tab === 'draftBoard') return renderDraftBoardTab(refresh)
-        if (tab === 'settings') return renderSettingsTab(refresh)
+        if (tab === 'auctions') return renderAuctionTab()
+        if (tab === 'mockRooms') return renderMockRoomsTab()
+        if (tab === 'draftBoard') return renderDraftBoardTab()
+        if (tab === 'settings') return renderSettingsTab()
         return (
             <ActivityFeed
                 transactions={transactions}
                 myMemberId={current?.id}
-                refreshControl={refresh}
                 onLoadMore={handleLoadMoreActivity}
                 hasMore={activityHasMore && !activityLoadingMore}
             />
@@ -872,7 +827,6 @@ export default function LeagueScreen() {
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgScreen },
     contentWrap: { flex: 1, width: '100%', maxWidth: layout.contentMaxWidth, alignSelf: 'center' },
-    loadingMargin: { marginTop: spacing['3xl'] },
 
     header: { padding: spacing['2xl'], borderBottomWidth: 1, borderBottomColor: colors.borderLight, gap: spacing.lg },
     headerTop: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.lg },
