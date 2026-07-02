@@ -789,7 +789,7 @@ export async function syncScores(leagueId?: string, referenceDate = new Date()) 
     }>((from, to) => {
         let query = supabase
             .from('league_seasons')
-            .select('id, league_id, season_year, leagues ( scoring_settings )')
+            .select('id, league_id, season_year, leagues!league_seasons_league_id_fkey ( scoring_settings )')
             .eq('is_current', true)
             .order('id')
 

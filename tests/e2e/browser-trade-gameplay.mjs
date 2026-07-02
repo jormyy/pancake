@@ -543,6 +543,54 @@ const clickButton = async (session, name, label) => {
   }
 }
 
+const clickLastButton = async (session, name, label) => {
+  const output = await browser(session, [
+    'eval',
+    `(() => {
+      const candidates = [...document.querySelectorAll('[role="button"], button, [tabindex]')]
+        .filter((element) => element.getAttribute('aria-label') === ${JSON.stringify(name)} || (element.textContent || '').trim() === ${JSON.stringify(name)});
+      const visibleCandidates = candidates.filter((element) => {
+        element.scrollIntoView({ block: 'center', inline: 'center' });
+        const rect = element.getBoundingClientRect();
+        const style = window.getComputedStyle(element);
+        const disabled = Boolean(element.disabled) || element.getAttribute('aria-disabled') === 'true';
+        if (disabled || style.visibility === 'hidden' || style.display === 'none' || style.pointerEvents === 'none') return false;
+        if (rect.width <= 0 || rect.height <= 0) return false;
+        const x = rect.left + rect.width / 2;
+        const y = rect.top + rect.height / 2;
+        const hit = document.elementFromPoint(x, y);
+        return hit === element || element.contains(hit);
+      });
+      const target = visibleCandidates.at(-1);
+      if (!target) return JSON.stringify({ ok: false, body: (document.body?.innerText || '').slice(0, 1400), count: candidates.length, visibleCount: visibleCandidates.length });
+      const rect = target.getBoundingClientRect();
+      const init = {
+        bubbles: true,
+        cancelable: true,
+        view: window,
+        clientX: rect.left + rect.width / 2,
+        clientY: rect.top + rect.height / 2,
+      };
+      const Pointer = window.PointerEvent || window.MouseEvent;
+      target.dispatchEvent(new Pointer('pointerdown', { ...init, pointerId: 1, pointerType: 'mouse', isPrimary: true }));
+      target.dispatchEvent(new MouseEvent('mousedown', init));
+      target.dispatchEvent(new Pointer('pointerup', { ...init, pointerId: 1, pointerType: 'mouse', isPrimary: true }));
+      target.dispatchEvent(new MouseEvent('mouseup', init));
+      target.dispatchEvent(new MouseEvent('click', init));
+      return JSON.stringify({
+        ok: true,
+        tagName: target.tagName,
+        role: target.getAttribute('role'),
+        ariaLabel: target.getAttribute('aria-label'),
+        text: target.textContent,
+      });
+    })()`,
+  ])
+  const parsed = parseEvalJson(output)
+  if (!parsed.ok) throw new Error(`${label}: visible enabled button not found: ${name}. Body: ${parsed.body}`)
+  return parsed
+}
+
 const readButtonState = async (session, name, label) => {
   const output = await browser(session, [
     'eval',
@@ -1781,7 +1829,7 @@ export async function runBrowserTradeOverflowAcceptScenario({
       session,
       [
         'Drop 1 player to make room',
-        `Trade accepted. You must drop 1 player before the veto window closes to stay under your ${fixture.rosterSize}-player roster limit.`,
+        'Select 1 player to drop, then the trade will be accepted atomically.',
         fixture.recipientPlayer.display_name,
       ],
       'overflow drop picker',
@@ -1918,8 +1966,10 @@ export async function runBrowserTradeVetoScenario({
       `Veto trade between ${fixture.proposer.team_name} and ${fixture.recipient.team_name}`,
       'trade veto button',
     )
+    await browser(session, ['wait', '300'])
+    const vetoConfirmClick = await clickLastButton(session, 'Veto', 'trade veto confirmation')
     const vetoed = await waitForTradeVetoed(fixture)
-    debug = { ...debug, vetoClick, vetoed }
+    debug = { ...debug, vetoClick, vetoConfirmClick, vetoed }
     if (vetoed.failures.length > 0) {
       throw new Error(`trade veto did not persist: ${vetoed.failures.join('; ')}`)
     }
@@ -2038,6 +2088,9 @@ export async function runBrowserTradeTerminalScenario({
       `Reject trade with ${rejectFixture.proposer.team_name}`,
       'trade reject button',
     )
+    await browser(rejectSession, ['wait', '300'])
+    const rejectConfirmClick = await clickLastButton(rejectSession, 'Reject', 'trade reject confirmation')
+    debug = { ...debug, rejectClick, rejectConfirmClick }
     const rejected = await waitForTradeTerminalStatus(rejectFixture, 'rejected')
     if (rejected.failures.length > 0) {
       throw new Error(`trade reject did not persist: ${rejected.failures.join('; ')}`)
@@ -2066,6 +2119,9 @@ export async function runBrowserTradeTerminalScenario({
       `Withdraw trade with ${withdrawFixture.recipient.team_name}`,
       'trade withdraw button',
     )
+    await browser(withdrawSession, ['wait', '300'])
+    const withdrawConfirmClick = await clickLastButton(withdrawSession, 'Withdraw', 'trade withdraw confirmation')
+    debug = { ...debug, withdrawClick, withdrawConfirmClick }
     const withdrawn = await waitForTradeTerminalStatus(withdrawFixture, 'withdrawn')
     if (withdrawn.failures.length > 0) {
       throw new Error(`trade withdraw did not persist: ${withdrawn.failures.join('; ')}`)

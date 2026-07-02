@@ -14,6 +14,7 @@ const E2E_EMAIL_PATTERNS = [
   /^pancake-rookie-.+@example\.com$/i,
   /^pancake-playoff-.+@example\.com$/i,
   /^pancake-trade-.+@example\.com$/i,
+  /^pancake-browser-league-.+@example\.com$/i,
 ]
 
 const E2E_USERNAME_PREFIXES = [
@@ -35,6 +36,7 @@ const E2E_LEAGUE_NAME_PREFIXES = [
   'Pancake Browser Rookie',
   'Pancake Browser Playoff',
   'Pancake Browser Trade',
+  'Pancake Browser League Lifecycle',
 ]
 
 const loadEnvFile = (filePath) => {
@@ -90,6 +92,55 @@ const countRows = async (table, filters) => {
   return count ?? 0
 }
 
+const chunk = (values, size = 100) => {
+  const chunks = []
+  for (let index = 0; index < values.length; index += size) chunks.push(values.slice(index, index + size))
+  return chunks
+}
+
+const deleteIn = async (table, column, values, deleted) => {
+  const uniqueValues = [...new Set(values.filter(Boolean))]
+  if (uniqueValues.length === 0) return 0
+
+  let total = 0
+  for (const valuesChunk of chunk(uniqueValues)) {
+    const { count, error } = await supabase
+      .from(table)
+      .delete({ count: 'exact' })
+      .in(column, valuesChunk)
+    if (error) throw new Error(`delete ${table}.${column}: ${error.message}`)
+    total += count ?? 0
+  }
+  deleted.rows[table] = (deleted.rows[table] ?? 0) + total
+  return total
+}
+
+const deleteLike = async (table, column, pattern, deleted) => {
+  const { count, error } = await supabase
+    .from(table)
+    .delete({ count: 'exact' })
+    .like(column, pattern)
+  if (error) throw new Error(`delete ${table}.${column} LIKE ${pattern}: ${error.message}`)
+  deleted.rows[table] = (deleted.rows[table] ?? 0) + (count ?? 0)
+  return count ?? 0
+}
+
+const fetchIds = async (table, select, column, values) => {
+  const uniqueValues = [...new Set(values.filter(Boolean))]
+  if (uniqueValues.length === 0) return []
+
+  const rows = []
+  for (const valuesChunk of chunk(uniqueValues)) {
+    const { data, error } = await supabase
+      .from(table)
+      .select(select)
+      .in(column, valuesChunk)
+    if (error) throw new Error(`${table} ids: ${error.message}`)
+    rows.push(...(data ?? []))
+  }
+  return rows
+}
+
 const listAllAuthUsers = async () => {
   const users = []
   for (let page = 1; ; page += 1) {
@@ -120,6 +171,7 @@ const profileUserIds = new Set(e2eProfiles.map((profile) => profile.id))
 const e2eAuthUsers = authUsers.filter((user) => profileUserIds.has(user.id) || isE2EEmail(user.email))
 const e2eUserIds = new Set([...profileUserIds, ...e2eAuthUsers.map((user) => user.id)])
 const e2eLeagues = leagues.filter(isE2ELeague)
+const leaguesById = new Map(leagues.map((league) => [league.id, league]))
 
 const memberLeagues = e2eUserIds.size === 0
   ? []
@@ -127,18 +179,22 @@ const memberLeagues = e2eUserIds.size === 0
     'league_members',
     supabase
       .from('league_members')
-      .select('league_id, user_id, leagues(id, name, slug, status, created_at)')
+      .select('league_id, user_id')
       .in('user_id', [...e2eUserIds]),
   )
 
 const leagueById = new Map(e2eLeagues.map((league) => [league.id, league]))
 for (const member of memberLeagues) {
-  if (member.leagues && isE2ELeague(member.leagues)) {
-    leagueById.set(member.league_id, member.leagues)
+  const league = leaguesById.get(member.league_id)
+  if (league && isE2ELeague(league)) {
+    leagueById.set(member.league_id, league)
   }
 }
 
 const leagueIds = [...leagueById.keys()]
+const e2eLeagueSeasons = await fetchIds('league_seasons', 'id, league_id, season_year', 'league_id', leagueIds)
+const e2eSeasonYears = [...new Set(e2eLeagueSeasons.map((row) => row.season_year))]
+const syntheticSeasonYears = e2eSeasonYears.filter((year) => Number(year) >= 3000)
 const leagueActivity = []
 for (const leagueId of leagueIds) {
   leagueActivity.push({
@@ -159,21 +215,81 @@ const actions = {
     .filter((profile) => !e2eAuthUsers.some((user) => user.id === profile.id))
     .map((profile) => ({ id: profile.id, username: profile.username, created_at: profile.created_at })),
   players: e2ePlayers.map((player) => ({ id: player.id, sportsdata_id: player.sportsdata_id })),
+  syntheticSeasonYears,
   leagueActivity,
   deleted: {
     leagues: 0,
     users: 0,
     profiles: 0,
     players: 0,
+    rows: {},
   },
 }
 
 if (apply) {
-  for (const leagueId of leagueIds) {
-    const { error } = await supabase.from('leagues').delete().eq('id', leagueId)
-    if (error) throw new Error(`delete league ${leagueId}: ${error.message}`)
-    actions.deleted.leagues += 1
+  const draftRows = await fetchIds('drafts', 'id', 'league_id', leagueIds)
+  const draftIds = draftRows.map((row) => row.id)
+  const nominationRows = await fetchIds('nominations', 'id', 'draft_id', draftIds)
+  const nominationIds = nominationRows.map((row) => row.id)
+  const tradeRows = await fetchIds('trades', 'id', 'league_id', leagueIds)
+  const tradeIds = tradeRows.map((row) => row.id)
+  const rosterRows = await fetchIds('roster_players', 'id', 'league_id', leagueIds)
+  const rosterIds = rosterRows.map((row) => row.id)
+  const e2eGameRows = await must(
+    'e2e nba games',
+    supabase
+      .from('nba_games')
+      .select('id')
+      .like('sportsdata_game_id', 'e2e-%'),
+  )
+  const e2eGameIds = e2eGameRows.map((row) => row.id)
+  const e2ePlayerIds = e2ePlayers.map((player) => player.id)
+
+  await deleteIn('trade_vetos', 'trade_id', tradeIds, actions.deleted)
+  await deleteIn('trade_items', 'trade_id', tradeIds, actions.deleted)
+  await deleteIn('bids', 'nomination_id', nominationIds, actions.deleted)
+  await deleteIn('trade_drop_reservations', 'roster_player_id', rosterIds, actions.deleted)
+  await deleteIn('draft_room_members', 'draft_id', draftIds, actions.deleted)
+  await deleteIn('draft_orders', 'draft_id', draftIds, actions.deleted)
+  await deleteIn('draft_budgets', 'draft_id', draftIds, actions.deleted)
+  await deleteIn('snake_draft_picks', 'draft_id', draftIds, actions.deleted)
+
+  for (const table of [
+    'league_activity',
+    'league_audit_logs',
+    'draft_audit_logs',
+    'roster_transactions',
+    'waiver_wire_log',
+    'waiver_claims',
+    'trade_block_items',
+    'weekly_add_counts',
+    'faab_balances',
+    'lineup_optimizer_settings',
+    'weekly_lineups',
+    'standings',
+    'rps_challenges',
+    'matchups',
+    'waiver_priorities',
+    'draft_picks',
+  ]) {
+    await deleteIn(table, 'league_id', leagueIds, actions.deleted)
   }
+
+  await deleteIn('nominations', 'draft_id', draftIds, actions.deleted)
+  await deleteIn('trades', 'league_id', leagueIds, actions.deleted)
+  await deleteIn('drafts', 'league_id', leagueIds, actions.deleted)
+  await deleteIn('roster_players', 'league_id', leagueIds, actions.deleted)
+  await deleteIn('lineup_slot_templates', 'league_id', leagueIds, actions.deleted)
+  await deleteIn('league_seasons', 'league_id', leagueIds, actions.deleted)
+  await deleteIn('league_members', 'league_id', leagueIds, actions.deleted)
+  actions.deleted.leagues = await deleteIn('leagues', 'id', leagueIds, actions.deleted)
+
+  await deleteIn('player_game_stats', 'player_id', e2ePlayerIds, actions.deleted)
+  await deleteIn('player_game_stats', 'game_id', e2eGameIds, actions.deleted)
+  await deleteIn('player_projections', 'player_id', e2ePlayerIds, actions.deleted)
+  actions.deleted.players = await deleteLike('players', 'sportsdata_id', 'e2e-player-%', actions.deleted)
+  await deleteLike('nba_games', 'sportsdata_game_id', 'e2e-%', actions.deleted)
+  await deleteIn('season_weeks', 'season_year', syntheticSeasonYears, actions.deleted)
 
   for (const user of e2eAuthUsers) {
     const { error } = await supabase.auth.admin.deleteUser(user.id)

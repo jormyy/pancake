@@ -66,22 +66,33 @@ const profiles = await must(
     .in('username', [...SYNTHETIC_USERNAMES]),
 )
 
+const syntheticLeagueRows = await must(
+  'leagues',
+  supabase
+    .from('leagues')
+    .select('id, slug, status, created_at')
+    .in('slug', [...SYNTHETIC_LEAGUE_SLUGS]),
+)
+
 const members = await must(
   'league_members',
   supabase
     .from('league_members')
-    .select('id, league_id, user_id, profiles(username), leagues(id, slug, status, created_at)')
+    .select('id, league_id, user_id')
     .in('user_id', profiles.map((profile) => profile.id)),
 )
 
+const profileById = new Map(profiles.map((profile) => [profile.id, profile]))
+const syntheticLeagueById = new Map(syntheticLeagueRows.map((league) => [league.id, league]))
 const leagueIds = new Set()
 for (const member of members) {
-  const league = member.leagues
+  const league = syntheticLeagueById.get(member.league_id)
+  const profile = profileById.get(member.user_id)
   if (
     league &&
     league.status === 'setup' &&
     SYNTHETIC_LEAGUE_SLUGS.has(league.slug) &&
-    SYNTHETIC_USERNAMES.has(member.profiles?.username)
+    SYNTHETIC_USERNAMES.has(profile?.username)
   ) {
     leagueIds.add(league.id)
   }
