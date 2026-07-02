@@ -220,6 +220,29 @@ export function StandingsTable({ standings, myMemberId, onSelectTeam, refreshCon
 function ActivityRow({ item, isMe }: { item: TransactionRow; isMe: boolean }) {
     const color = TX_COLORS[item.transactionType] ?? colors.textMuted
     const label = TRANSACTION_LABELS[item.transactionType] ?? item.transactionType
+    if (item.isSystem) {
+        return (
+            <View style={[styles.txRow, isMe && styles.txRowMe]}>
+                <Avatar
+                    name={item.title ?? item.playerName}
+                    color={color}
+                    size={40}
+                />
+                <View style={styles.txInfo}>
+                    <Text style={styles.txPlayer} numberOfLines={1}>{item.title ?? item.playerName}</Text>
+                    <Text style={styles.txTeam} numberOfLines={2}>
+                        {item.body ?? item.teamName}
+                        {isMe ? <Text style={styles.meTag}> (you)</Text> : null}
+                    </Text>
+                </View>
+                <View style={styles.txRight}>
+                    <Badge label={label} color={color} variant="soft" />
+                    <Text style={styles.txTime}>{timeAgo(item.occurredAt)}</Text>
+                </View>
+            </View>
+        )
+    }
+
     return (
         <View style={[styles.txRow, isMe && styles.txRowMe]}>
             <Avatar

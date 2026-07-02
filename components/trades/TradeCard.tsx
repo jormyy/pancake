@@ -1,5 +1,6 @@
 import { View, Text, StyleSheet, ActivityIndicator } from 'react-native'
 import { useState } from 'react'
+import { useRouter } from 'expo-router'
 import { TRADE_STATUS_COLORS, colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 import { Trade, TradeItem, acceptTrade, rejectTrade, vetoTrade, withdrawTrade } from '@/lib/trades'
 import { getRoster, RosterPlayer } from '@/lib/roster'
@@ -7,7 +8,7 @@ import { DropPlayerPickerModal } from '@/components/DropPlayerPickerModal'
 import { showAlert, confirmAction, getErrorMessage } from '@/lib/alert'
 import { MotionPressable, MotionView } from '@/components/Motion'
 
-export type TabKey = 'picks' | 'offers' | 'history'
+export type TabKey = 'picks' | 'offers' | 'history' | 'block'
 
 const STATUS_LABELS: Record<string, string> = {
     pending: 'Pending',
@@ -17,6 +18,8 @@ const STATUS_LABELS: Record<string, string> = {
     completed: 'Completed',
     expired: 'Expired',
     vetoed: 'Vetoed',
+    countered: 'Countered',
+    edited: 'Edited',
 }
 
 const STATUS_COLORS = TRADE_STATUS_COLORS
@@ -66,6 +69,7 @@ export function TradeCard({
     tab: TabKey
     onAction: () => void
 }) {
+    const { push } = useRouter()
     const isProposer = trade.proposerMemberId === myMemberId
     const isRecipient = trade.recipientMemberId === myMemberId
     const isTradeParty = isProposer || isRecipient
@@ -77,6 +81,8 @@ export function TradeCard({
 
     const iReceive = isProposer ? trade.recipientGives : trade.proposerGives
     const iGive = isProposer ? trade.proposerGives : trade.recipientGives
+    const iReceiveFaab = isProposer ? trade.recipientFaabAmount : trade.proposerFaabAmount
+    const iGiveFaab = isProposer ? trade.proposerFaabAmount : trade.recipientFaabAmount
     const receiveLabel = isTradeParty
         ? 'You receive:'
         : `${trade.recipientTeamName} receives:`
@@ -89,6 +95,14 @@ export function TradeCard({
     const alreadyVetoed = tab === 'offers' && !isTradeParty && trade.status === 'accepted' && trade.myVetoed
     const vetoWindowText = trade.status === 'accepted' && trade.vetoWindowExpiresAt
         ? `Veto window closes ${new Date(trade.vetoWindowExpiresAt).toLocaleString([], {
+            month: 'short',
+            day: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit',
+        })}`
+        : null
+    const expiresText = trade.status === 'pending' && trade.expiresAt
+        ? `Expires ${new Date(trade.expiresAt).toLocaleString([], {
             month: 'short',
             day: 'numeric',
             hour: 'numeric',
@@ -228,10 +242,14 @@ export function TradeCard({
             </View>
 
             {vetoWindowText ? <Text style={styles.vetoWindowText}>{vetoWindowText}</Text> : null}
+            {expiresText ? <Text style={styles.vetoWindowText}>{expiresText}</Text> : null}
+            {trade.version > 1 ? <Text style={styles.vetoWindowText}>Version {trade.version}</Text> : null}
             {alreadyVetoed ? <Text style={styles.vetoWindowText}>Your veto has been recorded.</Text> : null}
 
             <AssetList items={iReceive} label={receiveLabel} />
+            {iReceiveFaab > 0 ? <Text style={styles.assetPlayer}>FAAB ${iReceiveFaab}</Text> : null}
             <AssetList items={iGive} label={giveLabel} />
+            {iGiveFaab > 0 ? <Text style={styles.assetPlayer}>FAAB ${iGiveFaab}</Text> : null}
 
             {trade.notes ? <Text style={styles.cardNotes}>{trade.notes}</Text> : null}
 
@@ -259,10 +277,28 @@ export function TradeCard({
                             >
                                 <Text style={styles.actionBtnRejectText}>Reject</Text>
                             </MotionPressable>
+                            <MotionPressable
+                                style={[styles.actionBtn, styles.actionBtnReject]}
+                                onPress={() => push({ pathname: '/(modals)/propose-trade', params: { counterTradeId: trade.id } })}
+                                accessibilityRole="button"
+                                accessibilityLabel={`Counter trade with ${opponentName}`}
+                                pressedScale={0.94}
+                            >
+                                <Text style={styles.actionBtnRejectText}>Counter</Text>
+                            </MotionPressable>
                         </View>
                     )}
                     {tab === 'offers' && isProposer && trade.status === 'pending' && (
                         <View style={styles.cardActions}>
+                            <MotionPressable
+                                style={[styles.actionBtn, styles.actionBtnAccept]}
+                                onPress={() => push({ pathname: '/(modals)/propose-trade', params: { editTradeId: trade.id } })}
+                                accessibilityRole="button"
+                                accessibilityLabel={`Edit trade with ${opponentName}`}
+                                pressedScale={0.94}
+                            >
+                                <Text style={styles.actionBtnAcceptText}>Edit</Text>
+                            </MotionPressable>
                             <MotionPressable
                                 style={[styles.actionBtn, styles.actionBtnReject]}
                                 onPress={handleWithdraw}

@@ -1,12 +1,22 @@
 import { supabase } from './supabase.ts'
 
 const EXPO_PUSH_URL = Deno.env.get('EXPO_PUSH_URL') ?? 'https://exp.host/--/api/v2/push/send'
+export type NotificationCategory = 'trade' | 'waiver' | 'draft' | 'activity'
+type ExpoPushResponse = { data?: { status?: string; message?: string } }
+type NotificationPreferenceColumn = 'trade_enabled' | 'waiver_enabled' | 'draft_enabled' | 'activity_enabled'
+const preferenceColumns: Record<NotificationCategory, NotificationPreferenceColumn> = {
+  trade: 'trade_enabled',
+  waiver: 'waiver_enabled',
+  draft: 'draft_enabled',
+  activity: 'activity_enabled',
+}
 
 export async function notifyMember(
   memberId: string,
   title: string,
   body: string,
   data?: Record<string, unknown>,
+  category: NotificationCategory = 'activity',
 ): Promise<void> {
   const { data: member } = await supabase
     .from('league_members')
@@ -14,7 +24,7 @@ export async function notifyMember(
     .eq('id', memberId)
     .single()
   if (!member) return
-  await notifyUser(member.user_id, title, body, data)
+  await notifyUser(member.user_id, title, body, data, category)
 }
 
 export async function notifyUser(
@@ -22,7 +32,16 @@ export async function notifyUser(
   title: string,
   body: string,
   data?: Record<string, unknown>,
+  category: NotificationCategory = 'activity',
 ): Promise<void> {
+  const preferenceColumn = preferenceColumns[category]
+  const { data: preferences } = await supabase
+    .from('notification_preferences')
+    .select('trade_enabled, waiver_enabled, draft_enabled, activity_enabled')
+    .eq('user_id', userId)
+    .maybeSingle()
+  if (preferences?.[preferenceColumn] === false) return
+
   const { data: profile } = await supabase
     .from('profiles')
     .select('push_token')
@@ -45,7 +64,7 @@ export async function notifyUser(
       body: JSON.stringify({ to: token, title, body, data: data ?? {}, sound: 'default' }),
       signal: AbortSignal.timeout(PUSH_TIMEOUT_MS),
     })
-    const json = await res.json() as any
+    const json = await res.json() as ExpoPushResponse
     if (json?.data?.status === 'error') {
       console.error('[push]', json?.data?.message)
     }

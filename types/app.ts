@@ -1,5 +1,7 @@
 import type { LeagueStatus, LeagueMemberRole, Json } from './database'
 
+type WaiverMode = 'rolling' | 'faab'
+
 /**
  * League data as returned from Supabase nested select.
  * This is the shape of `leagues` inside a `league_members` row.
@@ -17,6 +19,9 @@ export interface LeagueInfo {
     ir_slots: number
     taxi_slots?: number
     trade_deadline?: string | null
+    weekly_add_limit?: number | null
+    waiver_mode?: WaiverMode
+    faab_starting_budget?: number
     deleted_at?: string | null
     deleted_by?: string | null
 }

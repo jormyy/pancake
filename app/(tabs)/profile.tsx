@@ -2,6 +2,7 @@ import {
     View,
     Text,
     TextInput,
+    Pressable,
     ScrollView,
     StyleSheet,
     useWindowDimensions,
@@ -12,6 +13,7 @@ import { useRouter } from 'expo-router'
 import { useAuth } from '@/hooks/use-auth'
 import { getProfile, updateProfile, signOut } from '@/lib/auth'
 import { updateTeamName } from '@/lib/league'
+import { getNotificationPreferences, updateNotificationPreferences, type NotificationPreferences } from '@/lib/notification-preferences'
 import { useLeagueContext } from '@/contexts/league-context'
 import { colors, fontSize, fontWeight, spacing, layout } from '@/constants/tokens'
 import { LoadingScreen } from '@/components/LoadingScreen'
@@ -35,13 +37,21 @@ export default function ProfileScreen() {
     const [displayName, setDisplayName] = useState('')
     const [teamName, setTeamName] = useState('')
     const [saving, setSaving] = useState(false)
+    const [preferences, setPreferences] = useState<NotificationPreferences>({
+        tradeEnabled: true,
+        waiverEnabled: true,
+        draftEnabled: true,
+        activityEnabled: true,
+    })
 
     useEffect(() => {
         async function load() {
             if (!user) return
             try {
                 const p = await getProfile(user.id)
+                const prefs = await getNotificationPreferences(user.id)
                 setProfile(p)
+                setPreferences(prefs)
                 setDisplayName(p.display_name ?? '')
             } catch (e) {
                 console.error(e)
@@ -102,6 +112,18 @@ export default function ProfileScreen() {
                 showAlert('Error', 'Sign out failed. Please try again.')
             }
         }, 'Sign Out')
+    }
+
+    async function togglePreference(key: keyof NotificationPreferences) {
+        if (!user) return
+        const next = { ...preferences, [key]: !preferences[key] }
+        setPreferences(next)
+        try {
+            await updateNotificationPreferences(user.id, next)
+        } catch (e) {
+            setPreferences(preferences)
+            showAlert('Error', getErrorMessage(e))
+        }
     }
 
     if (loading) return <LoadingScreen />
@@ -177,6 +199,34 @@ export default function ProfileScreen() {
                         </View>
                     </>
                 )}
+
+                <Text style={styles.sectionLabel}>NOTIFICATIONS</Text>
+                <View style={styles.card}>
+                    {([
+                        ['tradeEnabled', 'Trades'],
+                        ['waiverEnabled', 'Waivers'],
+                        ['draftEnabled', 'Drafts'],
+                        ['activityEnabled', 'League Activity'],
+                    ] as [keyof NotificationPreferences, string][]).map(([key, label], index, all) => {
+                        const enabled = preferences[key]
+                        return (
+                            <View key={key}>
+                                <Pressable
+                                    style={rowStyle}
+                                    onPress={() => togglePreference(key)}
+                                    accessibilityRole="switch"
+                                    accessibilityState={{ checked: enabled }}
+                                >
+                                    <Text style={styles.rowLabel}>{label}</Text>
+                                    <View style={[styles.toggle, enabled && styles.toggleOn]}>
+                                        <View style={[styles.toggleKnob, enabled && styles.toggleKnobOn]} />
+                                    </View>
+                                </Pressable>
+                                {index < all.length - 1 ? <View style={styles.divider} /> : null}
+                            </View>
+                        )
+                    })}
+                </View>
 
                 {/* Edit / Save / Cancel buttons */}
                 {editing ? (
@@ -254,6 +304,29 @@ const styles = StyleSheet.create({
         borderBottomWidth: 1.5,
         borderBottomColor: colors.primary,
         padding: 0,
+    },
+    toggle: {
+        width: 48,
+        height: 28,
+        borderRadius: 14,
+        backgroundColor: colors.bgMuted,
+        borderWidth: 1,
+        borderColor: colors.borderLight,
+        justifyContent: 'center',
+        paddingHorizontal: 3,
+    },
+    toggleOn: {
+        backgroundColor: colors.primary,
+        borderColor: colors.primary,
+    },
+    toggleKnob: {
+        width: 20,
+        height: 20,
+        borderRadius: 10,
+        backgroundColor: colors.bgCard,
+    },
+    toggleKnobOn: {
+        alignSelf: 'flex-end',
     },
 
     actionRow: { flexDirection: 'row', gap: spacing.lg },

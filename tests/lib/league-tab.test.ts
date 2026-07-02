@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // Mock supabase before importing anything that uses it
 vi.mock('@/lib/supabase', () => ({
-    supabase: { from: vi.fn() },
+    supabase: { from: vi.fn(), rpc: vi.fn() },
 }))
 
 vi.mock('@/lib/players', () => ({
@@ -17,22 +17,6 @@ vi.mock('@/lib/alert', () => ({
 import { supabase } from '@/lib/supabase'
 import { getLeagueTransactions } from '@/lib/transactions'
 import { confirmAction } from '@/lib/alert'
-
-// ── Chainable Supabase query builder ─────────────────────────────
-
-function q(data: unknown, error: unknown = null) {
-    const result = { data, error }
-    const chain: Record<string, unknown> = {}
-    const methods = ['select', 'eq', 'in', 'order', 'limit', 'range']
-    for (const m of methods) {
-        chain[m] = vi.fn(() => chain)
-    }
-    chain.single = vi.fn(() => Promise.resolve(result))
-    chain.maybeSingle = vi.fn(() => Promise.resolve(result))
-    chain.then = (res: (v: unknown) => unknown, rej: (v: unknown) => unknown) =>
-        Promise.resolve(result).then(res, rej)
-    return chain as any
-}
 
 beforeEach(() => {
     vi.clearAllMocks()
@@ -76,34 +60,33 @@ describe('shouldFetchTab', () => {
 // ── Fix 3: getLeagueTransactions with limit/offset ───────────────
 
 describe('getLeagueTransactions', () => {
-    it('returns empty array when no active season', async () => {
-        vi.mocked(supabase.from).mockReturnValue(q(null) as any)
+    it('returns empty array when the feed RPC has no rows', async () => {
+        vi.mocked(supabase.rpc).mockResolvedValue({ data: [], error: null } as any)
         const result = await getLeagueTransactions('league-1')
         expect(result).toEqual([])
     })
 
-    it('calls .range(offset, offset + limit - 1) with defaults (limit=50, offset=0)', async () => {
-        const txChain = q([])
-        vi.mocked(supabase.from).mockImplementation((table: string) => {
-            if (table === 'league_seasons') return q({ id: 'season-1' }) as any
-            return txChain as any
-        })
-
+    it('delegates pagination to the canonical activity feed RPC', async () => {
+        vi.mocked(supabase.rpc).mockResolvedValue({ data: [], error: null } as any)
         await getLeagueTransactions('league-1')
 
-        expect(txChain.range).toHaveBeenCalledWith(0, 49)
+        expect(supabase.rpc).toHaveBeenCalledWith('get_league_activity_feed', {
+            p_league_id: 'league-1',
+            p_limit: 50,
+            p_offset: 0,
+        })
+        expect(supabase.from).not.toHaveBeenCalled()
     })
 
-    it('calls .range with custom limit and offset', async () => {
-        const txChain = q([])
-        vi.mocked(supabase.from).mockImplementation((table: string) => {
-            if (table === 'league_seasons') return q({ id: 'season-1' }) as any
-            return txChain as any
-        })
-
+    it('passes custom limit and offset to the feed RPC', async () => {
+        vi.mocked(supabase.rpc).mockResolvedValue({ data: [], error: null } as any)
         await getLeagueTransactions('league-1', 25, 50)
 
-        expect(txChain.range).toHaveBeenCalledWith(50, 74)
+        expect(supabase.rpc).toHaveBeenCalledWith('get_league_activity_feed', {
+            p_league_id: 'league-1',
+            p_limit: 25,
+            p_offset: 50,
+        })
     })
 
     it('maps returned rows to TransactionRow shape', async () => {
@@ -111,18 +94,22 @@ describe('getLeagueTransactions', () => {
             {
                 id: 'tx-1',
                 member_id: 'm1',
+                target_member_id: null,
+                team_name: 'Alpha',
+                target_team_name: null,
                 player_id: 'p1',
+                player_name: 'LeBron James',
+                player_position: 'SF',
+                eligible_positions: ['SF', 'F'],
+                nba_id: '2544',
                 transaction_type: 'fa_add',
                 occurred_at: '2026-01-01T00:00:00Z',
-                league_members: { team_name: 'Alpha' },
-                players: { display_name: 'LeBron James', position: 'SF', eligible_positions: ['SF', 'F'], nba_id: '2544' },
+                is_system: false,
+                title: null,
+                body: null,
             },
         ]
-        const txChain = q(rows)
-        vi.mocked(supabase.from).mockImplementation((table: string) => {
-            if (table === 'league_seasons') return q({ id: 'season-1' }) as any
-            return txChain as any
-        })
+        vi.mocked(supabase.rpc).mockResolvedValue({ data: rows, error: null } as any)
 
         const result = await getLeagueTransactions('league-1')
 
@@ -131,6 +118,40 @@ describe('getLeagueTransactions', () => {
         expect(result[0].teamName).toBe('Alpha')
         expect(result[0].playerName).toBe('LeBron James')
         expect(result[0].transactionType).toBe('fa_add')
+    })
+
+    it('maps league activity rows from the feed RPC', async () => {
+        vi.mocked(supabase.rpc).mockResolvedValue({
+            data: [
+                {
+                    id: 'activity-1',
+                    member_id: 'm1',
+                    target_member_id: 'm2',
+                    team_name: 'Alpha',
+                    target_team_name: 'Beta',
+                    player_id: null,
+                    player_name: 'Trade countered',
+                    player_position: null,
+                    eligible_positions: null,
+                    nba_id: null,
+                    transaction_type: 'trade_countered',
+                    occurred_at: '2026-01-02T00:00:00Z',
+                    is_system: true,
+                    title: 'Trade countered',
+                    body: 'A manager countered an offer.',
+                },
+            ],
+            error: null,
+        } as any)
+
+        const result = await getLeagueTransactions('league-1')
+
+        expect(result).toHaveLength(1)
+        expect(result[0].id).toBe('activity-1')
+        expect(result[0].isSystem).toBe(true)
+        expect(result[0].title).toBe('Trade countered')
+        expect(result[0].targetMemberId).toBe('m2')
+        expect(result[0].targetTeamName).toBe('Beta')
     })
 })
 

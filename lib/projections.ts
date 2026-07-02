@@ -60,7 +60,7 @@ export async function getLeagueProjections({
         p_season_year: seasonYear,
         p_game_date: gameDate,
         p_view: view,
-        p_player_ids: playerIds,
+        p_player_ids: playerIds ?? undefined,
         p_limit: limit,
         p_offset: offset,
     })

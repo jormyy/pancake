@@ -248,7 +248,7 @@ describe('searchPlayers', () => {
             p_league_id: 'league-1',
             p_playing_teams: ['NYK', 'BOS'],
             p_excluded_teams: ['BOS'],
-            p_include_player_ids: null,
+            p_include_player_ids: undefined,
             p_exclude_player_ids: ['drop-me'],
             p_rookies_only: false,
             p_health: 'healthy',

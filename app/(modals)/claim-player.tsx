@@ -4,6 +4,7 @@ import {
     Pressable,
     StyleSheet,
     ActivityIndicator,
+    TextInput,
 } from 'react-native'
 import { FlashList } from '@shopify/flash-list'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -15,6 +16,7 @@ import { getRoster, RosterPlayer } from '@/lib/roster'
 import { isIneligibleIR } from '@/lib/format'
 import { getPlayer } from '@/lib/players'
 import { submitWaiverClaim, getMyWaiverPriority } from '@/lib/waivers'
+import { getMemberTransactionState, type MemberTransactionState } from '@/lib/league'
 import { LoadingScreen } from '@/components/LoadingScreen'
 import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 import { showAlert, showSuccess, getErrorMessage } from '@/lib/alert'
@@ -28,6 +30,8 @@ export default function ClaimPlayerScreen() {
     const [player, setPlayer] = useState<any>(null)
     const [myRoster, setMyRoster] = useState<RosterPlayer[]>([])
     const [priority, setPriority] = useState<number | null>(null)
+    const [transactionState, setTransactionState] = useState<MemberTransactionState | null>(null)
+    const [bidInput, setBidInput] = useState('0')
     const [loading, setLoading] = useState(true)
     const [selectedDrop, setSelectedDrop] = useState<RosterPlayer | null>(null)
     const [submitting, setSubmitting] = useState(false)
@@ -39,14 +43,16 @@ export default function ClaimPlayerScreen() {
         async function load() {
             if (!current || !user || !playerId || !leagueId) return
             try {
-                const [p, roster, prio] = await Promise.all([
+                const [p, roster, prio, txState] = await Promise.all([
                     getPlayer(playerId),
                     getRoster(current.id, leagueId),
                     getMyWaiverPriority(current.id, leagueId),
+                    getMemberTransactionState(current.id, leagueId),
                 ])
                 setPlayer(p)
                 setMyRoster(roster)
                 setPriority(prio)
+                setTransactionState(txState)
             } catch (e) {
                 console.error(e)
             } finally {
@@ -67,6 +73,11 @@ export default function ClaimPlayerScreen() {
             showAlert('Select Drop', 'Your roster is full. Select a player to drop.')
             return
         }
+        const bidAmount = Math.max(0, parseInt(bidInput || '0', 10) || 0)
+        if (transactionState?.waiverMode === 'faab' && bidAmount > transactionState.faabBalance) {
+            showAlert('Invalid Bid', 'Your bid cannot exceed your available FAAB balance.')
+            return
+        }
 
         setSubmitting(true)
         try {
@@ -75,6 +86,7 @@ export default function ClaimPlayerScreen() {
                 currentLeague.id,
                 playerId,
                 selectedDrop?.players.id,
+                { bidAmount },
             )
             showSuccess(
                 'Claim Submitted',
@@ -146,14 +158,42 @@ export default function ClaimPlayerScreen() {
 
                         <View style={styles.infoRow}>
                             <View style={styles.infoCell}>
-                                <Text style={styles.infoLabel}>Your Priority</Text>
-                                <Text style={styles.infoValue}>#{priority ?? '—'}</Text>
+                                <Text style={styles.infoLabel}>
+                                    {transactionState?.waiverMode === 'faab' ? 'FAAB Balance' : 'Your Priority'}
+                                </Text>
+                                <Text style={styles.infoValue}>
+                                    {transactionState?.waiverMode === 'faab' ? `$${transactionState.faabBalance}` : `#${priority ?? '—'}`}
+                                </Text>
                             </View>
                             <View style={styles.infoCell}>
                                 <Text style={styles.infoLabel}>Process Date</Text>
                                 <Text style={styles.infoValue}>{processDateStr}</Text>
                             </View>
+                            <View style={styles.infoCell}>
+                                <Text style={styles.infoLabel}>Weekly Adds</Text>
+                                <Text style={styles.infoValue}>
+                                    {transactionState
+                                        ? `${transactionState.weeklyAddCount}/${transactionState.weeklyAddLimit ?? '∞'}`
+                                        : '—'}
+                                </Text>
+                            </View>
                         </View>
+
+                        {transactionState?.waiverMode === 'faab' ? (
+                            <View style={styles.bidCard}>
+                                <Text style={styles.bidLabel}>FAAB BID</Text>
+                                <TextInput
+                                    style={styles.bidInput}
+                                    value={bidInput}
+                                    onChangeText={(value) => {
+                                        if (/^\d*$/.test(value)) setBidInput(value)
+                                    }}
+                                    keyboardType="numeric"
+                                    selectTextOnFocus
+                                    accessibilityLabel="FAAB bid amount"
+                                />
+                            </View>
+                        ) : null}
 
                         {needsDrop ? (
                             <>
@@ -239,12 +279,14 @@ const styles = StyleSheet.create({
 
     infoRow: {
         flexDirection: 'row',
+        flexWrap: 'wrap',
         marginHorizontal: spacing.xl,
         marginBottom: spacing.xl,
         gap: spacing.lg,
     },
     infoCell: {
         flex: 1,
+        minWidth: 104,
         backgroundColor: colors.bgScreen,
         borderRadius: radii.xl,
         borderCurve: 'continuous' as const,
@@ -256,6 +298,30 @@ const styles = StyleSheet.create({
     },
     infoLabel: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.textPlaceholder, letterSpacing: 0.5 },
     infoValue: { fontSize: 18, fontWeight: fontWeight.extrabold, color: colors.textPrimary },
+
+    bidCard: {
+        marginHorizontal: spacing.xl,
+        marginBottom: spacing.xl,
+        gap: spacing.sm,
+    },
+    bidLabel: {
+        fontSize: fontSize.xs,
+        fontWeight: fontWeight.bold,
+        color: colors.textPlaceholder,
+        letterSpacing: 0.8,
+    },
+    bidInput: {
+        height: 48,
+        borderWidth: 1,
+        borderColor: colors.borderLight,
+        borderRadius: radii.lg,
+        borderCurve: 'continuous' as const,
+        backgroundColor: colors.bgScreen,
+        paddingHorizontal: spacing.lg,
+        fontSize: fontSize.lg,
+        fontWeight: fontWeight.bold,
+        color: colors.textPrimary,
+    },
 
     sectionTitle: {
         fontSize: fontSize.xs,

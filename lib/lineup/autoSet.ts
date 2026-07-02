@@ -390,7 +390,8 @@ function chooseBestAssignments(
                 assignments: [{ playerId: player.playerId, slotType }, ...next.assignments],
                 score,
             }
-            if (compareScore(candidate.score, best.score) > 0) {
+            const comparison = compareScore(candidate.score, best.score)
+            if (comparison > 0 || (comparison === 0 && best.assignments[0]?.slotType !== slotType)) {
                 best = candidate
             }
         }

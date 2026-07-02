@@ -96,17 +96,15 @@ describe('logic hardening source guards - draft, auction, roster history', () =>
 
     it('preserves already-started lineup rows when completing accepted trades', () => {
         const completeBody = latestFunctionDefinition('complete_accepted_trade_atomic')
-        const deleteBlocks = [...completeBody.matchAll(/DELETE FROM weekly_lineups AS wl[\s\S]*?;\n/g)]
-            .map((match) => match[0])
+        const clearLineupsBody = latestFunctionDefinition('clear_future_unlocked_lineups', 'private')
 
-        expect(deleteBlocks).toHaveLength(2)
-        for (const block of deleteBlocks) {
-            expect(block).toContain("wl.game_date >= (now() AT TIME ZONE 'America/New_York')::date")
-            expect(block).toContain('AND NOT EXISTS')
-            expect(block).toContain("g.status IN ('InProgress', 'Final')")
-            expect(block).toContain('g.game_time IS NOT NULL AND g.game_time <= now()')
-            expect(block).toContain('g.started_at IS NOT NULL AND g.started_at <= now()')
-        }
+        expect(completeBody).toContain('private.release_roster_player_to_waivers')
+        expect(completeBody).toContain('private.clear_future_unlocked_lineups')
+        expect(clearLineupsBody).toContain("wl.game_date >= (now() AT TIME ZONE 'America/New_York')::date")
+        expect(clearLineupsBody).toContain('AND NOT EXISTS')
+        expect(clearLineupsBody).toContain("g.status IN ('InProgress', 'Final')")
+        expect(clearLineupsBody).toContain('g.game_time IS NOT NULL AND g.game_time <= now()')
+        expect(clearLineupsBody).toContain('g.started_at IS NOT NULL AND g.started_at <= now()')
     })
 
     it('records ownership-add history for carried-over and rookie-drafted roster rows', () => {
@@ -135,7 +133,8 @@ describe('logic hardening source guards - draft, auction, roster history', () =>
 
     it('treats carry-over rows as ownership-add transactions in read paths', () => {
         expect(read('lib/lineup/read.ts')).toContain("['fa_add', 'waiver_add', 'trade_in', 'draft_won', 'carry_over']")
-        expect(read('lib/transactions.ts')).toContain("'carry_over'")
+        expect(read('lib/transactions.ts')).toContain('get_league_activity_feed')
+        expect(read('supabase/migrations/20260701000003_dynasty_transactions_schema.sql')).toContain("'carry_over'")
         expect(read('lib/shared/transaction-labels.ts')).toContain("carry_over: 'Carried Over'")
     })
 

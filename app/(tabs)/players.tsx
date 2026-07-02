@@ -26,6 +26,7 @@ import { usePlayerSearch, SORT_OPTIONS } from '@/hooks/use-player-search'
 import { STAT_COLUMN_SORT, type PlayerSearchSortMode } from '@/lib/player-search-sort'
 import { useQuickAdd } from '@/hooks/use-quick-add'
 import { getWaiverPlayerIds } from '@/lib/waivers'
+import { getMemberTransactionState } from '@/lib/league'
 import { PlayerRow } from '@/lib/players'
 import { useState } from 'react'
 
@@ -223,6 +224,14 @@ export default function PlayersScreen() {
     const ownedMap = ownedData?.ownedMap ?? EMPTY_OWNED_MAP
     const waiverIds = ownedData?.waiverIds ?? EMPTY_WAIVER_IDS
 
+    const {
+        data: transactionState,
+        refresh: refreshTransactionState,
+    } = useFocusAsyncData(async () => {
+        if (!current?.id || !leagueId) return null
+        return getMemberTransactionState(current.id, leagueId)
+    }, [current?.id, leagueId])
+
     const search = usePlayerSearch(leagueId, ownedMap, waiverIds, current?.id)
     // ESPN-style column sort: click a stat header to sort the whole pool by it;
     // click the active one again to flip direction. All stats default to
@@ -241,6 +250,7 @@ export default function PlayersScreen() {
         currentLeague?.roster_size ?? 20,
         waiverIds,
         refreshOwned,
+        refreshTransactionState,
     )
     const gamesLeftVersion = Array.from(search.availability.gamesLeft.entries())
         .sort(([a], [b]) => a.localeCompare(b))
@@ -358,6 +368,18 @@ export default function PlayersScreen() {
                     </Pressable>
                 </View>
                 ) : null}
+                {transactionState ? (
+                    <View style={styles.transactionBar}>
+                        <Text style={styles.transactionBarText}>
+                            Adds: {transactionState.weeklyAddCount}/{transactionState.weeklyAddLimit ?? 'Unlimited'} this week
+                        </Text>
+                        <Text style={styles.transactionBarText}>
+                            {transactionState.waiverMode === 'faab'
+                                ? `FAAB: $${transactionState.faabBalance}`
+                                : 'Waivers: rolling priority'}
+                        </Text>
+                    </View>
+                ) : null}
             </View>
 
             {search.results.loading && search.results.players.length === 0 ? (
@@ -410,7 +432,13 @@ export default function PlayersScreen() {
                             gamesLeft={search.availability.gamesLeft}
                             showStats={showStatTable}
                             animate={false}
-                            onAdd={quickAdd.handleAdd}
+                            onAdd={(player) => {
+                                if (waiverIds.has(player.id)) {
+                                    push(`/(modals)/claim-player?playerId=${player.id}`)
+                                } else {
+                                    void quickAdd.handleAdd(player)
+                                }
+                            }}
                             onPress={() => push(`/player/${item.id}`)}
                         />
                     )}
@@ -637,6 +665,21 @@ const styles = StyleSheet.create({
         paddingHorizontal: spacing.lg,
     },
     sortDirText: {
+        fontSize: fontSize.sm,
+        fontWeight: fontWeight.bold,
+        color: colors.textSecondary,
+    },
+    transactionBar: {
+        minHeight: 36,
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        gap: spacing.md,
+        borderTopWidth: 1,
+        borderTopColor: colors.borderLight,
+        paddingTop: spacing.md,
+    },
+    transactionBarText: {
         fontSize: fontSize.sm,
         fontWeight: fontWeight.bold,
         color: colors.textSecondary,

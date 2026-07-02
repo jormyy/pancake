@@ -595,6 +595,29 @@ describe('autoSetLineup — position eligibility', () => {
         expect(rows.find((r: any) => r.player_id === 'pB' && r.slot_type === 'G')).toBeDefined()
     })
 
+    it('does not push a single pure-position player into UTIL on equal score ties', async () => {
+        const roster = [rp('pPG', 'PG', ['PG', 'G'], 'LAL')]
+        const avgs = [avg('pPG', 30)]
+        const games = [game('LAL', 'GSW')]
+
+        const { insertSpy } = setupMocks({
+            roster,
+            avgs,
+            games,
+            templates: [
+                { slot_type: 'PG', slot_count: 1 },
+                { slot_type: 'G', slot_count: 1 },
+                { slot_type: 'UTIL', slot_count: 1 },
+            ],
+        })
+
+        await autoSetLineup('m1', 'lg1', 's1', 20, 2026, '2026-04-22')
+
+        const rows: any[] = insertSpy.mock.calls[0][0]
+        expect(rows).toHaveLength(1)
+        expect(rows[0]).toMatchObject({ player_id: 'pPG', slot_type: 'PG' })
+    })
+
     it('pure-C player (no PF eligibility) cannot fill PG, SG, SF, or F slots', async () => {
         // eligiblePositions: ['C'] only — F slot requires SF or PF, so no match
         const roster = [rp('pC', 'C', ['C'], 'DEN')]

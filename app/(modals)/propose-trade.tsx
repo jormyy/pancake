@@ -14,13 +14,33 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
 import { getLeagueMembers, isTradingClosed } from '@/lib/league'
 import { getRoster, RosterPlayer } from '@/lib/roster'
-import { proposeTrade, getCurrentSeasonId, getPicksForMember, TradePickItem } from '@/lib/trades'
+import {
+    counterTrade,
+    editTrade,
+    getTradeById,
+    proposeTrade,
+    getCurrentSeasonId,
+    getPicksForMember,
+    Trade,
+    TradePickItem,
+} from '@/lib/trades'
+import {
+    buildTradeComposerPayload,
+    getTradeComposerMode,
+    prefillTradeComposerFromRoute,
+    prefillTradeComposerFromTrade,
+    submitTradeComposer,
+    tradeComposerSuccessCopy,
+    tradeComposerTitle,
+} from '@/lib/trade-composer'
 import { showAlert, showSuccess, getErrorMessage } from '@/lib/alert'
 
 import { yearShort } from '@/lib/format'
 import { Avatar } from '@/components/Avatar'
 import { EmptyState } from '@/components/EmptyState'
 import { colors, palette, fontSize, fontWeight, radii, spacing, breakpoints } from '@/constants/tokens'
+
+const isTradeableRosterPlayer = (player: RosterPlayer) => !player.is_on_ir && !player.is_on_taxi
 
 function PlayerRow({
     player,
@@ -173,7 +193,13 @@ function TeamColumn({
 
 export default function ProposeTradeScreen() {
     const { current, currentLeague } = useLeagueContext()
-    const params = useLocalSearchParams<{ recipientMemberId?: string }>()
+    const params = useLocalSearchParams<{
+        recipientMemberId?: string
+        editTradeId?: string
+        counterTradeId?: string
+        requestPlayerId?: string
+        requestPickId?: string
+    }>()
     const { back } = useRouter()
 
     const myMemberId = current?.id ?? ''
@@ -195,11 +221,23 @@ export default function ProposeTradeScreen() {
     const [offerPickIds, setOfferPickIds] = useState<Set<string>>(new Set())
     const [requestPickIds, setRequestPickIds] = useState<Set<string>>(new Set())
     const [notes, setNotes] = useState('')
+    const [offerFaabInput, setOfferFaabInput] = useState('0')
+    const [requestFaabInput, setRequestFaabInput] = useState('0')
+    const [expirationDays, setExpirationDays] = useState('3')
+    const [prefillTrade, setPrefillTrade] = useState<Trade | null>(null)
     const [loading, setLoading] = useState(true)
     const [rosterLoading, setRosterLoading] = useState(false)
     const [rosterError, setRosterError] = useState<string | null>(null)
     const [submitting, setSubmitting] = useState(false)
     const submittingRef = useRef(false)
+    const prefillAppliedToRef = useRef<string | null>(null)
+    const {
+        mode,
+        editTradeId,
+        counterTradeId,
+        sourceTradeId,
+    } = getTradeComposerMode(params)
+    const faabEnabled = currentLeague?.waiver_mode === 'faab'
 
     // Load league members (excluding self)
     useEffect(() => {
@@ -211,6 +249,24 @@ export default function ProposeTradeScreen() {
             .catch(console.error)
             .finally(() => setLoading(false))
     }, [leagueId, myMemberId])
+
+    useEffect(() => {
+        if (!sourceTradeId || !myMemberId) return
+        let cancelled = false
+        getTradeById(sourceTradeId, myMemberId)
+            .then((trade) => {
+                if (cancelled || !trade) return
+                const prefill = prefillTradeComposerFromTrade(mode, trade)
+                setPrefillTrade(trade)
+                setSelectedRecipientId(prefill.selectedRecipientId)
+                setNotes(prefill.notes)
+                setExpirationDays(prefill.expirationDays)
+            })
+            .catch((error) => showAlert('Error', getErrorMessage(error) ?? 'Could not load trade.'))
+        return () => {
+            cancelled = true
+        }
+    }, [sourceTradeId, myMemberId, mode])
 
     // Load rosters and picks when recipient changes
     const loadRosters = useCallback(async () => {
@@ -228,17 +284,39 @@ export default function ProposeTradeScreen() {
                 getPicksForMember(selectedRecipientId, leagueId),
                 getPicksForMember(myMemberId, leagueId),
             ])
-            setTheirRoster(theirData)
-            setMyRoster(myData)
+            const theirActiveRoster = theirData.filter(isTradeableRosterPlayer)
+            const myActiveRoster = myData.filter(isTradeableRosterPlayer)
+            const theirActiveIds = new Set(theirActiveRoster.map((player) => player.players.id))
+            const myActiveIds = new Set(myActiveRoster.map((player) => player.players.id))
+            setTheirRoster(theirActiveRoster)
+            setMyRoster(myActiveRoster)
             setTheirPicks(theirPicksData)
             setMyPicks(myPicksData)
+            if (prefillTrade && prefillAppliedToRef.current !== prefillTrade.id) {
+                const prefill = prefillTradeComposerFromTrade(mode, prefillTrade)
+                setOfferIds(new Set(prefill.offerPlayerIds.filter((id) => myActiveIds.has(id))))
+                setOfferPickIds(new Set(prefill.offerPickIds))
+                setRequestIds(new Set(prefill.requestPlayerIds.filter((id) => theirActiveIds.has(id))))
+                setRequestPickIds(new Set(prefill.requestPickIds))
+                setOfferFaabInput(prefill.offerFaabInput)
+                setRequestFaabInput(prefill.requestFaabInput)
+                prefillAppliedToRef.current = prefillTrade.id
+            } else if (!prefillTrade) {
+                const routePrefill = prefillTradeComposerFromRoute(selectedRecipientId, params)
+                if (prefillAppliedToRef.current !== routePrefill.key) {
+                    const activeRequestPlayerIds = routePrefill.requestPlayerIds.filter((id) => theirActiveIds.has(id))
+                    if (activeRequestPlayerIds.length > 0) setRequestIds(new Set(activeRequestPlayerIds))
+                    if (routePrefill.requestPickIds.length > 0) setRequestPickIds(new Set(routePrefill.requestPickIds))
+                    prefillAppliedToRef.current = routePrefill.key
+                }
+            }
         } catch (e) {
             console.error(e)
             setRosterError(getErrorMessage(e) ?? 'Unknown error')
         } finally {
             setRosterLoading(false)
         }
-    }, [selectedRecipientId, leagueId, myMemberId])
+    }, [selectedRecipientId, leagueId, myMemberId, prefillTrade, mode, params.requestPlayerId, params.requestPickId])
 
     useEffect(() => {
         loadRosters()
@@ -283,28 +361,41 @@ export default function ProposeTradeScreen() {
     async function handleSubmit() {
         if (submittingRef.current) return
         if (!selectedRecipientId) return
-        const hasOffer = offerIds.size > 0 || offerPickIds.size > 0
-        const hasRequest = requestIds.size > 0 || requestPickIds.size > 0
-        if (!hasOffer || !hasRequest) return
+        if (isTradingClosed(currentLeague)) {
+            showAlert('Trades Unavailable', 'Trades are available during active and playoff seasons before the trade deadline.')
+            return
+        }
+        const draft = buildTradeComposerPayload({
+            offerPlayerIds: offerIds,
+            requestPlayerIds: requestIds,
+            offerPickIds,
+            requestPickIds,
+            notes,
+            offerFaabInput,
+            requestFaabInput,
+            expirationDaysInput: expirationDays,
+            leagueStatus: currentLeague?.status,
+            tradeDeadline: currentLeague?.trade_deadline,
+        })
+        if (!draft.hasOffer || !draft.hasRequest) return
         submittingRef.current = true
         setSubmitting(true)
         try {
-            const seasonId = await getCurrentSeasonId(leagueId)
-            if (!seasonId) throw new Error('No active season found.')
-
-            await proposeTrade(
-                myMemberId,
-                leagueId,
-                seasonId,
-                selectedRecipientId,
-                Array.from(offerIds),
-                Array.from(requestIds),
-                Array.from(offerPickIds),
-                Array.from(requestPickIds),
-                notes.trim() || undefined,
+            await submitTradeComposer(
+                {
+                    mode,
+                    editTradeId,
+                    counterTradeId,
+                    myMemberId,
+                    leagueId,
+                    selectedRecipientId,
+                    payload: draft.payload,
+                },
+                { getCurrentSeasonId, proposeTrade, counterTrade, editTrade },
             )
 
-            showSuccess('Trade Proposed', 'Your trade offer has been sent.')
+            const successCopy = tradeComposerSuccessCopy(mode)
+            showSuccess(successCopy.title, successCopy.message)
             back()
         } catch (e) {
             showAlert('Error', getErrorMessage(e) ?? 'Could not propose trade.')
@@ -317,10 +408,20 @@ export default function ProposeTradeScreen() {
     const recipientTeamName =
         members.find((m) => m.id === selectedRecipientId)?.team_name ?? 'Opponent'
 
-    const hasOffer = offerIds.size > 0 || offerPickIds.size > 0
-    const hasRequest = requestIds.size > 0 || requestPickIds.size > 0
+    const draft = buildTradeComposerPayload({
+        offerPlayerIds: offerIds,
+        requestPlayerIds: requestIds,
+        offerPickIds,
+        requestPickIds,
+        notes,
+        offerFaabInput,
+        requestFaabInput,
+        expirationDaysInput: expirationDays,
+        leagueStatus: currentLeague?.status,
+        tradeDeadline: currentLeague?.trade_deadline,
+    })
     const tradingClosed = isTradingClosed(currentLeague)
-    const canSubmit = selectedRecipientId !== null && hasOffer && hasRequest && !submitting && !tradingClosed
+    const canSubmit = selectedRecipientId !== null && draft.hasOffer && draft.hasRequest && !tradingClosed && !submitting
 
     if (!current) {
         return (
@@ -345,7 +446,9 @@ export default function ProposeTradeScreen() {
                 >
                     <Text style={styles.cancelBtnText}>Cancel</Text>
                 </Pressable>
-                <Text style={styles.headerTitle}>Propose Trade</Text>
+                <Text style={styles.headerTitle}>
+                    {tradeComposerTitle(mode)}
+                </Text>
                 <Pressable
                     onPress={handleSubmit}
                     style={[styles.submitBtn, !canSubmit && styles.submitBtnDisabled]}
@@ -366,7 +469,7 @@ export default function ProposeTradeScreen() {
                 {tradingClosed ? (
                     <View style={styles.lockBanner}>
                         <Text style={styles.lockBannerText}>
-                            The trade deadline has passed. Trades reopen after the season finals.
+                            Trades are available during active and playoff seasons before the trade deadline.
                         </Text>
                     </View>
                 ) : null}
@@ -458,6 +561,46 @@ export default function ProposeTradeScreen() {
                                 multiline
                                 numberOfLines={3}
                             />
+                            <Text style={styles.sectionLabel}>TERMS</Text>
+                            <View style={styles.termsRow}>
+                                {faabEnabled ? (
+                                    <>
+                                        <View style={styles.termField}>
+                                            <Text style={styles.termLabel}>You give FAAB</Text>
+                                            <TextInput
+                                                style={styles.termInput}
+                                                value={offerFaabInput}
+                                                onChangeText={(value) => {
+                                                    if (/^\d*$/.test(value)) setOfferFaabInput(value)
+                                                }}
+                                                keyboardType="numeric"
+                                            />
+                                        </View>
+                                        <View style={styles.termField}>
+                                            <Text style={styles.termLabel}>You receive FAAB</Text>
+                                            <TextInput
+                                                style={styles.termInput}
+                                                value={requestFaabInput}
+                                                onChangeText={(value) => {
+                                                    if (/^\d*$/.test(value)) setRequestFaabInput(value)
+                                                }}
+                                                keyboardType="numeric"
+                                            />
+                                        </View>
+                                    </>
+                                ) : null}
+                                <View style={styles.termField}>
+                                    <Text style={styles.termLabel}>Expires in days</Text>
+                                    <TextInput
+                                        style={styles.termInput}
+                                        value={expirationDays}
+                                        onChangeText={(value) => {
+                                            if (/^\d*$/.test(value)) setExpirationDays(value)
+                                        }}
+                                        keyboardType="numeric"
+                                    />
+                                </View>
+                            </View>
                         </>
                     )
                 )}
@@ -631,6 +774,35 @@ const styles = StyleSheet.create({
         color: colors.textPrimary,
         minHeight: 80,
         textAlignVertical: 'top',
+    },
+    termsRow: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: spacing.md,
+        marginHorizontal: spacing.xl,
+    },
+    termField: {
+        flexGrow: 1,
+        flexBasis: 150,
+        minWidth: 150,
+        gap: spacing.xs,
+    },
+    termLabel: {
+        fontSize: 10,
+        fontWeight: fontWeight.bold,
+        color: colors.textMuted,
+        letterSpacing: 0.5,
+    },
+    termInput: {
+        minHeight: 42,
+        borderWidth: 1,
+        borderColor: palette.gray300,
+        borderRadius: radii.md,
+        borderCurve: 'continuous' as const,
+        paddingHorizontal: spacing.md,
+        fontSize: fontSize.md,
+        fontWeight: fontWeight.bold,
+        color: colors.textPrimary,
     },
 
     emptyRowText: {

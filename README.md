@@ -57,8 +57,10 @@ supabase/     # Database migrations and Edge Functions
 - **Daily lineups** with manual and auto-set options, tip-off locks (ET)
 - **Player discovery** with indexed search, sort, availability, health, team, playing-day, and rookie filters
 - **Dynasty Hub** with Hashtag Basketball dynasty rankings, full source stat strips, player headshots, curated news, and roster-filtered My News
-- **Waiver wire** with priority-based claiming and a 48h clearance window
-- **Trades** with players and future draft picks, 24-hour veto window
+- **Waiver wire** with weekly add limits, rolling or FAAB claim modes, blind bids,
+  pending-claim edit/reorder/cancel, and a 48h clearance window
+- **Trades** with active-roster players, future draft picks, tradeable FAAB, optional
+  expiration, counteroffers, outgoing edits, trade block, and a 24-hour veto window
 - **H2H matchups** with cumulative weekly scoring (regular-season only)
 - **Playoff bracket** generation and results
 - **Push notifications** via Expo (server-emitted only)
@@ -109,6 +111,14 @@ Cross-cutting guard tests: `tests/scoring-parity.test.ts` (scoring drift),
 PUBLIC EXECUTE revoked, service-role read grants preserved), and Edge/API static guards.
 Browser E2E flows live in `tests/e2e/` (see [tests/e2e/README.md](./tests/e2e/README.md));
 the multi-season soak is `npm run e2e:soak`.
+
+Dynasty transaction release gates:
+
+```bash
+npm run e2e:dynasty-release-final-gate
+npm run e2e:browser-waiver
+npm run e2e:browser-trade-post-deadline
+```
 
 ## Security posture (summary)
 

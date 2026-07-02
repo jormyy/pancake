@@ -1,6 +1,6 @@
 # Supabase Backend Route Inventory
 
-Date: 2026-06-28
+Date: 2026-07-02
 
 Pancake runtime backend traffic now targets:
 
@@ -19,12 +19,18 @@ The former standalone backend implementation has been removed from the repo.
 | `POST /league/advance-season` | `api/league.ts` | Supabase JWT + commissioner | `advance_season_atomic` RPC | commissioner lifecycle |
 | `POST /waivers/claims` | `api/waivers.ts` | Supabase JWT + member ownership | `create_waiver_claim_atomic` RPC | claim-player modal |
 | `POST /waivers/claims/:claimId/cancel` | `api/waivers.ts` | Supabase JWT + member ownership | `cancel_waiver_claim_atomic` RPC | waiver claims UI |
+| `POST /waivers/claims/:claimId/edit` | `api/waivers.ts` | Supabase JWT + member ownership | `edit_waiver_claim_atomic` RPC | roster waiver claims UI |
+| `POST /waivers/claims/:claimId/reorder` | `api/waivers.ts` | Supabase JWT + member ownership | `reorder_waiver_claim_atomic` RPC | roster waiver claims UI |
 | `POST /waivers/process` | `api/waivers.ts` | Supabase JWT + commissioner | internal `process-waivers` Edge Function | commissioner/admin tools |
 | `POST /trades/propose` | `api/trades.ts` | Supabase JWT + proposer ownership | `propose_trade_atomic` RPC | propose-trade modal |
 | `POST /trades/:tradeId/accept` | `api/trades.ts` | Supabase JWT + trade recipient | `accept_trade_atomic` RPC | offers tab |
 | `POST /trades/:tradeId/reject` | `api/trades.ts` | Supabase JWT + trade recipient | `reject_trade_atomic` RPC | offers tab |
 | `POST /trades/:tradeId/withdraw` | `api/trades.ts` | Supabase JWT + trade proposer | `withdraw_trade_atomic` RPC | offers tab |
+| `POST /trades/:tradeId/counter` | `api/trades.ts` | Supabase JWT + trade recipient | `counter_trade_atomic` RPC | propose-trade modal |
+| `POST /trades/:tradeId/edit` | `api/trades.ts` | Supabase JWT + trade proposer | `edit_trade_atomic` RPC | propose-trade modal |
 | `POST /trades/:tradeId/veto` | `api/trades.ts` | Supabase JWT + league member/commissioner | `veto_trade_atomic` RPC | offers tab |
+| `POST /trades/block` | `api/trades.ts` | Supabase JWT + member ownership | `add_trade_block_item_atomic` RPC | trades tab |
+| `POST /trades/block/:itemId/remove` | `api/trades.ts` | Supabase JWT + member ownership | `remove_trade_block_item_atomic` RPC | trades tab |
 | `POST /draft/start` | `api/draft.ts` | Supabase JWT + commissioner | `start_auction_draft_atomic` RPC | auction draft room |
 | `POST /draft/:draftId/stop` | `api/draft.ts` | Supabase JWT + commissioner | `stop_draft_atomic` RPC | auction draft room |
 | `POST /draft/:draftId/reset` | `api/draft.ts` | Supabase JWT + commissioner | `reset_draft_atomic` RPC | auction draft room |
@@ -67,6 +73,9 @@ The former standalone backend implementation has been removed from the repo.
 | `replace_dynasty_rankings` RPC | Postgres migration `20260630000002_replace_dynasty_rankings_rpc.sql` | service-role only | Atomic replacement path for Hashtag dynasty rankings; validates rank payloads, deletes stale source rows, and refreshes `players.dynasty_rank` |
 | `players.dynasty_rank` | Hashtag Basketball via `replace_dynasty_rankings` | authenticated read | Denormalized current dynasty rank for player detail context and legacy surfaces |
 | `dynasty_news` table | service-role sync/admin paths | authenticated read, service-role write | Curated Dynasty Hub player-movement news |
+| `get_member_transaction_state` RPC | Postgres migration `20260701000003_dynasty_transactions_schema.sql` | authenticated league member | Weekly add count, add limit, waiver mode, FAAB balance, and roster-size state for transaction UI |
+| `get_league_activity_feed` RPC | Postgres migration `20260701000003_dynasty_transactions_schema.sql` | authenticated league member | Normalized paginated feed combining release transaction and league activity rows |
+| `notification_preferences` table | app profile/settings surfaces | authenticated own-row read/write | Per-user notification toggles for trade, waiver, draft, and activity events |
 
 ## Scheduled Work
 

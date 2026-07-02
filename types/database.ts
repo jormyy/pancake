@@ -34,6 +34,63 @@ export type Database = {
   }
   public: {
     Tables: {
+      backfill_game_attempts: {
+        Row: {
+          attempts: number
+          created_at: string
+          game_db_id: string | null
+          game_key: string
+          id: string
+          job_id: string
+          last_error: string | null
+          season_year: number
+          source: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          game_db_id?: string | null
+          game_key: string
+          id?: string
+          job_id: string
+          last_error?: string | null
+          season_year: number
+          source: string
+          status: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          game_db_id?: string | null
+          game_key?: string
+          id?: string
+          job_id?: string
+          last_error?: string | null
+          season_year?: number
+          source?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "backfill_game_attempts_game_db_id_fkey"
+            columns: ["game_db_id"]
+            isOneToOne: false
+            referencedRelation: "nba_games"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "backfill_game_attempts_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "sync_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bids: {
         Row: {
           amount: number
@@ -97,45 +154,6 @@ export type Database = {
           },
         ]
       }
-      draft_budgets: {
-        Row: {
-          draft_id: string
-          id: string
-          initial_budget: number
-          member_id: string
-          remaining: number
-        }
-        Insert: {
-          draft_id: string
-          id?: string
-          initial_budget: number
-          member_id: string
-          remaining: number
-        }
-        Update: {
-          draft_id?: string
-          id?: string
-          initial_budget?: number
-          member_id?: string
-          remaining?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "draft_budgets_draft_id_fkey"
-            columns: ["draft_id"]
-            isOneToOne: false
-            referencedRelation: "drafts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "draft_budgets_member_id_fkey"
-            columns: ["member_id"]
-            isOneToOne: false
-            referencedRelation: "league_members"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       draft_audit_logs: {
         Row: {
           action: string
@@ -179,6 +197,59 @@ export type Database = {
             referencedRelation: "leagues"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "draft_audit_logs_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "v_fantasy_points"
+            referencedColumns: ["league_id"]
+          },
+          {
+            foreignKeyName: "draft_audit_logs_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_avg_fantasy_points"
+            referencedColumns: ["league_id"]
+          },
+        ]
+      }
+      draft_budgets: {
+        Row: {
+          draft_id: string
+          id: string
+          initial_budget: number
+          member_id: string
+          remaining: number
+        }
+        Insert: {
+          draft_id: string
+          id?: string
+          initial_budget: number
+          member_id: string
+          remaining: number
+        }
+        Update: {
+          draft_id?: string
+          id?: string
+          initial_budget?: number
+          member_id?: string
+          remaining?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "draft_budgets_draft_id_fkey"
+            columns: ["draft_id"]
+            isOneToOne: false
+            referencedRelation: "drafts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "draft_budgets_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "league_members"
+            referencedColumns: ["id"]
+          },
         ]
       }
       draft_orders: {
@@ -210,39 +281,6 @@ export type Database = {
           },
           {
             foreignKeyName: "draft_orders_member_id_fkey"
-            columns: ["member_id"]
-            isOneToOne: false
-            referencedRelation: "league_members"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      draft_room_members: {
-        Row: {
-          draft_id: string
-          joined_at: string
-          member_id: string
-        }
-        Insert: {
-          draft_id: string
-          joined_at?: string
-          member_id: string
-        }
-        Update: {
-          draft_id?: string
-          joined_at?: string
-          member_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "draft_room_members_draft_id_fkey"
-            columns: ["draft_id"]
-            isOneToOne: false
-            referencedRelation: "drafts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "draft_room_members_member_id_fkey"
             columns: ["member_id"]
             isOneToOne: false
             referencedRelation: "league_members"
@@ -332,19 +370,52 @@ export type Database = {
           },
         ]
       }
+      draft_room_members: {
+        Row: {
+          draft_id: string
+          joined_at: string
+          member_id: string
+        }
+        Insert: {
+          draft_id: string
+          joined_at?: string
+          member_id: string
+        }
+        Update: {
+          draft_id?: string
+          joined_at?: string
+          member_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "draft_room_members_draft_id_fkey"
+            columns: ["draft_id"]
+            isOneToOne: false
+            referencedRelation: "drafts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "draft_room_members_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "league_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       drafts: {
         Row: {
           budget_per_team: number | null
           completed_at: string | null
           created_at: string
-          current_nomination_order: number
           created_by_member_id: string | null
-          nomination_order_mode: string
+          current_nomination_order: number
           draft_type: Database["public"]["Enums"]["draft_type"]
           id: string
           is_mock: boolean
           league_id: string
           league_season_id: string
+          nomination_order_mode: string
           pause_reason: string | null
           paused_at: string | null
           pick_timer_seconds: number
@@ -360,14 +431,14 @@ export type Database = {
           budget_per_team?: number | null
           completed_at?: string | null
           created_at?: string
-          current_nomination_order?: number
           created_by_member_id?: string | null
-          nomination_order_mode?: string
+          current_nomination_order?: number
           draft_type?: Database["public"]["Enums"]["draft_type"]
           id?: string
           is_mock?: boolean
           league_id: string
           league_season_id: string
+          nomination_order_mode?: string
           pause_reason?: string | null
           paused_at?: string | null
           pick_timer_seconds?: number
@@ -383,14 +454,14 @@ export type Database = {
           budget_per_team?: number | null
           completed_at?: string | null
           created_at?: string
-          current_nomination_order?: number
           created_by_member_id?: string | null
-          nomination_order_mode?: string
+          current_nomination_order?: number
           draft_type?: Database["public"]["Enums"]["draft_type"]
           id?: string
           is_mock?: boolean
           league_id?: string
           league_season_id?: string
+          nomination_order_mode?: string
           pause_reason?: string | null
           paused_at?: string | null
           pick_timer_seconds?: number
@@ -496,8 +567,8 @@ export type Database = {
           player_id: string | null
           points: number | null
           rank_change: number
-          scoring_format: string
           rebounds: number | null
+          scoring_format: string
           source: string
           source_metadata: Json
           source_player_id: string | null
@@ -525,8 +596,8 @@ export type Database = {
           player_id?: string | null
           points?: number | null
           rank_change?: number
-          scoring_format?: string
           rebounds?: number | null
+          scoring_format?: string
           source: string
           source_metadata?: Json
           source_player_id?: string | null
@@ -554,8 +625,8 @@ export type Database = {
           player_id?: string | null
           points?: number | null
           rank_change?: number
-          scoring_format?: string
           rebounds?: number | null
+          scoring_format?: string
           source?: string
           source_metadata?: Json
           source_player_id?: string | null
@@ -575,6 +646,69 @@ export type Database = {
             columns: ["player_id"]
             isOneToOne: false
             referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      faab_balances: {
+        Row: {
+          balance: number
+          id: string
+          league_id: string
+          league_season_id: string
+          member_id: string
+          updated_at: string
+        }
+        Insert: {
+          balance: number
+          id?: string
+          league_id: string
+          league_season_id: string
+          member_id: string
+          updated_at?: string
+        }
+        Update: {
+          balance?: number
+          id?: string
+          league_id?: string
+          league_season_id?: string
+          member_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "faab_balances_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "leagues"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "faab_balances_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "v_fantasy_points"
+            referencedColumns: ["league_id"]
+          },
+          {
+            foreignKeyName: "faab_balances_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_avg_fantasy_points"
+            referencedColumns: ["league_id"]
+          },
+          {
+            foreignKeyName: "faab_balances_league_season_id_fkey"
+            columns: ["league_season_id"]
+            isOneToOne: false
+            referencedRelation: "league_seasons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "faab_balances_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "league_members"
             referencedColumns: ["id"]
           },
         ]
@@ -699,6 +833,118 @@ export type Database = {
           },
         ]
       }
+      league_activity: {
+        Row: {
+          actor_member_id: string | null
+          body: string | null
+          created_at: string
+          event_type: string
+          id: string
+          league_id: string
+          league_season_id: string | null
+          metadata: Json
+          related_claim_id: string | null
+          related_player_id: string | null
+          related_trade_id: string | null
+          target_member_id: string | null
+          title: string
+        }
+        Insert: {
+          actor_member_id?: string | null
+          body?: string | null
+          created_at?: string
+          event_type: string
+          id?: string
+          league_id: string
+          league_season_id?: string | null
+          metadata?: Json
+          related_claim_id?: string | null
+          related_player_id?: string | null
+          related_trade_id?: string | null
+          target_member_id?: string | null
+          title: string
+        }
+        Update: {
+          actor_member_id?: string | null
+          body?: string | null
+          created_at?: string
+          event_type?: string
+          id?: string
+          league_id?: string
+          league_season_id?: string | null
+          metadata?: Json
+          related_claim_id?: string | null
+          related_player_id?: string | null
+          related_trade_id?: string | null
+          target_member_id?: string | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "league_activity_actor_member_id_fkey"
+            columns: ["actor_member_id"]
+            isOneToOne: false
+            referencedRelation: "league_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "league_activity_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "leagues"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "league_activity_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "v_fantasy_points"
+            referencedColumns: ["league_id"]
+          },
+          {
+            foreignKeyName: "league_activity_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_avg_fantasy_points"
+            referencedColumns: ["league_id"]
+          },
+          {
+            foreignKeyName: "league_activity_league_season_id_fkey"
+            columns: ["league_season_id"]
+            isOneToOne: false
+            referencedRelation: "league_seasons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "league_activity_related_claim_id_fkey"
+            columns: ["related_claim_id"]
+            isOneToOne: false
+            referencedRelation: "waiver_claims"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "league_activity_related_player_id_fkey"
+            columns: ["related_player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "league_activity_related_trade_id_fkey"
+            columns: ["related_trade_id"]
+            isOneToOne: false
+            referencedRelation: "trades"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "league_activity_target_member_id_fkey"
+            columns: ["target_member_id"]
+            isOneToOne: false
+            referencedRelation: "league_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       league_audit_logs: {
         Row: {
           action: string
@@ -738,6 +984,20 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "leagues"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "league_audit_logs_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "v_fantasy_points"
+            referencedColumns: ["league_id"]
+          },
+          {
+            foreignKeyName: "league_audit_logs_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_avg_fantasy_points"
+            referencedColumns: ["league_id"]
           },
         ]
       }
@@ -793,61 +1053,6 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      lineup_optimizer_settings: {
-        Row: {
-          created_at: string
-          enabled: boolean
-          enabled_at: string | null
-          last_optimized_at: string | null
-          league_id: string
-          league_season_id: string
-          member_id: string
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          enabled?: boolean
-          enabled_at?: string | null
-          last_optimized_at?: string | null
-          league_id: string
-          league_season_id: string
-          member_id: string
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          enabled?: boolean
-          enabled_at?: string | null
-          last_optimized_at?: string | null
-          league_id?: string
-          league_season_id?: string
-          member_id?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "lineup_optimizer_settings_league_id_fkey"
-            columns: ["league_id"]
-            isOneToOne: false
-            referencedRelation: "leagues"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "lineup_optimizer_settings_league_season_id_fkey"
-            columns: ["league_season_id"]
-            isOneToOne: false
-            referencedRelation: "league_seasons"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "lineup_optimizer_settings_member_id_fkey"
-            columns: ["member_id"]
-            isOneToOne: false
-            referencedRelation: "league_members"
             referencedColumns: ["id"]
           },
         ]
@@ -914,6 +1119,7 @@ export type Database = {
           created_at: string
           deleted_at: string | null
           deleted_by: string | null
+          faab_starting_budget: number
           id: string
           invite_code: string | null
           ir_slots: number
@@ -926,6 +1132,8 @@ export type Database = {
           taxi_slots: number
           trade_deadline: string | null
           updated_at: string
+          waiver_mode: string
+          weekly_add_limit: number | null
         }
         Insert: {
           auction_budget?: number
@@ -933,6 +1141,7 @@ export type Database = {
           created_at?: string
           deleted_at?: string | null
           deleted_by?: string | null
+          faab_starting_budget?: number
           id?: string
           invite_code?: string | null
           ir_slots?: number
@@ -945,6 +1154,8 @@ export type Database = {
           taxi_slots?: number
           trade_deadline?: string | null
           updated_at?: string
+          waiver_mode?: string
+          weekly_add_limit?: number | null
         }
         Update: {
           auction_budget?: number
@@ -952,6 +1163,7 @@ export type Database = {
           created_at?: string
           deleted_at?: string | null
           deleted_by?: string | null
+          faab_starting_budget?: number
           id?: string
           invite_code?: string | null
           ir_slots?: number
@@ -964,6 +1176,8 @@ export type Database = {
           taxi_slots?: number
           trade_deadline?: string | null
           updated_at?: string
+          waiver_mode?: string
+          weekly_add_limit?: number | null
         }
         Relationships: [
           {
@@ -978,6 +1192,75 @@ export type Database = {
             columns: ["deleted_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lineup_optimizer_settings: {
+        Row: {
+          created_at: string
+          enabled: boolean
+          enabled_at: string | null
+          last_optimized_at: string | null
+          league_id: string
+          league_season_id: string
+          member_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          enabled?: boolean
+          enabled_at?: string | null
+          last_optimized_at?: string | null
+          league_id: string
+          league_season_id: string
+          member_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          enabled?: boolean
+          enabled_at?: string | null
+          last_optimized_at?: string | null
+          league_id?: string
+          league_season_id?: string
+          member_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lineup_optimizer_settings_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "leagues"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lineup_optimizer_settings_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "v_fantasy_points"
+            referencedColumns: ["league_id"]
+          },
+          {
+            foreignKeyName: "lineup_optimizer_settings_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_avg_fantasy_points"
+            referencedColumns: ["league_id"]
+          },
+          {
+            foreignKeyName: "lineup_optimizer_settings_league_season_id_fkey"
+            columns: ["league_season_id"]
+            isOneToOne: false
+            referencedRelation: "league_seasons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lineup_optimizer_settings_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "league_members"
             referencedColumns: ["id"]
           },
         ]
@@ -1153,9 +1436,9 @@ export type Database = {
       nba_games: {
         Row: {
           away_score: number
+          away_team: string
           bbref_away_team: string | null
           bbref_home_team: string | null
-          away_team: string
           created_at: string
           ended_at: string | null
           game_date: string
@@ -1174,9 +1457,9 @@ export type Database = {
         }
         Insert: {
           away_score?: number
+          away_team: string
           bbref_away_team?: string | null
           bbref_home_team?: string | null
-          away_team: string
           created_at?: string
           ended_at?: string | null
           game_date: string
@@ -1195,9 +1478,9 @@ export type Database = {
         }
         Update: {
           away_score?: number
+          away_team?: string
           bbref_away_team?: string | null
           bbref_home_team?: string | null
-          away_team?: string
           created_at?: string
           ended_at?: string | null
           game_date?: string
@@ -1300,68 +1583,40 @@ export type Database = {
           },
         ]
       }
-      projection_sync_runs: {
+      notification_preferences: {
         Row: {
-          completed_at: string | null
-          created_at: string
-          error_message: string | null
-          http_status: number | null
-          id: string
-          matched_count: number
-          parser_version: string
-          projection_date: string | null
-          projection_type: string
-          row_count: number
-          season_year: number | null
-          source: string
-          source_metadata: Json
-          source_url: string
-          started_at: string
-          status: string
-          unmatched_count: number
-          week_number: number | null
+          activity_enabled: boolean
+          draft_enabled: boolean
+          trade_enabled: boolean
+          updated_at: string
+          user_id: string
+          waiver_enabled: boolean
         }
         Insert: {
-          completed_at?: string | null
-          created_at?: string
-          error_message?: string | null
-          http_status?: number | null
-          id?: string
-          matched_count?: number
-          parser_version?: string
-          projection_date?: string | null
-          projection_type: string
-          row_count?: number
-          season_year?: number | null
-          source?: string
-          source_metadata?: Json
-          source_url: string
-          started_at?: string
-          status?: string
-          unmatched_count?: number
-          week_number?: number | null
+          activity_enabled?: boolean
+          draft_enabled?: boolean
+          trade_enabled?: boolean
+          updated_at?: string
+          user_id: string
+          waiver_enabled?: boolean
         }
         Update: {
-          completed_at?: string | null
-          created_at?: string
-          error_message?: string | null
-          http_status?: number | null
-          id?: string
-          matched_count?: number
-          parser_version?: string
-          projection_date?: string | null
-          projection_type?: string
-          row_count?: number
-          season_year?: number | null
-          source?: string
-          source_metadata?: Json
-          source_url?: string
-          started_at?: string
-          status?: string
-          unmatched_count?: number
-          week_number?: number | null
+          activity_enabled?: boolean
+          draft_enabled?: boolean
+          trade_enabled?: boolean
+          updated_at?: string
+          user_id?: string
+          waiver_enabled?: boolean
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "notification_preferences_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       player_game_stats: {
         Row: {
@@ -1650,6 +1905,69 @@ export type Database = {
           timezone?: string
           updated_at?: string
           username?: string
+        }
+        Relationships: []
+      }
+      projection_sync_runs: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          error_message: string | null
+          http_status: number | null
+          id: string
+          matched_count: number
+          parser_version: string
+          projection_date: string | null
+          projection_type: string
+          row_count: number
+          season_year: number | null
+          source: string
+          source_metadata: Json
+          source_url: string
+          started_at: string
+          status: string
+          unmatched_count: number
+          week_number: number | null
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          http_status?: number | null
+          id?: string
+          matched_count?: number
+          parser_version?: string
+          projection_date?: string | null
+          projection_type: string
+          row_count?: number
+          season_year?: number | null
+          source?: string
+          source_metadata?: Json
+          source_url: string
+          started_at?: string
+          status?: string
+          unmatched_count?: number
+          week_number?: number | null
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          http_status?: number | null
+          id?: string
+          matched_count?: number
+          parser_version?: string
+          projection_date?: string | null
+          projection_type?: string
+          row_count?: number
+          season_year?: number | null
+          source?: string
+          source_metadata?: Json
+          source_url?: string
+          started_at?: string
+          status?: string
+          unmatched_count?: number
+          week_number?: number | null
         }
         Relationships: []
       }
@@ -2115,63 +2433,6 @@ export type Database = {
           },
         ]
       }
-      backfill_game_attempts: {
-        Row: {
-          attempts: number
-          created_at: string
-          game_db_id: string | null
-          game_key: string
-          id: string
-          job_id: string
-          last_error: string | null
-          season_year: number
-          source: string
-          status: string
-          updated_at: string
-        }
-        Insert: {
-          attempts?: number
-          created_at?: string
-          game_db_id?: string | null
-          game_key: string
-          id?: string
-          job_id: string
-          last_error?: string | null
-          season_year: number
-          source: string
-          status: string
-          updated_at?: string
-        }
-        Update: {
-          attempts?: number
-          created_at?: string
-          game_db_id?: string | null
-          game_key?: string
-          id?: string
-          job_id?: string
-          last_error?: string | null
-          season_year?: number
-          source?: string
-          status?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "backfill_game_attempts_game_db_id_fkey"
-            columns: ["game_db_id"]
-            isOneToOne: false
-            referencedRelation: "nba_games"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "backfill_game_attempts_job_id_fkey"
-            columns: ["job_id"]
-            isOneToOne: false
-            referencedRelation: "sync_jobs"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       sync_jobs: {
         Row: {
           completed_at: string | null
@@ -2214,51 +2475,78 @@ export type Database = {
         }
         Relationships: []
       }
-      trade_items: {
+      trade_block_items: {
         Row: {
           created_at: string
           id: string
+          league_id: string
+          member_id: string
+          note: string | null
           pick_id: string | null
           player_id: string | null
-          side: Database["public"]["Enums"]["trade_side"]
-          trade_id: string
+          updated_at: string
         }
         Insert: {
           created_at?: string
           id?: string
+          league_id: string
+          member_id: string
+          note?: string | null
           pick_id?: string | null
           player_id?: string | null
-          side: Database["public"]["Enums"]["trade_side"]
-          trade_id: string
+          updated_at?: string
         }
         Update: {
           created_at?: string
           id?: string
+          league_id?: string
+          member_id?: string
+          note?: string | null
           pick_id?: string | null
           player_id?: string | null
-          side?: Database["public"]["Enums"]["trade_side"]
-          trade_id?: string
+          updated_at?: string
         }
         Relationships: [
           {
-            foreignKeyName: "trade_items_pick_id_fkey"
+            foreignKeyName: "trade_block_items_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "leagues"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trade_block_items_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "v_fantasy_points"
+            referencedColumns: ["league_id"]
+          },
+          {
+            foreignKeyName: "trade_block_items_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_avg_fantasy_points"
+            referencedColumns: ["league_id"]
+          },
+          {
+            foreignKeyName: "trade_block_items_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "league_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trade_block_items_pick_id_fkey"
             columns: ["pick_id"]
             isOneToOne: false
             referencedRelation: "draft_picks"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "trade_items_player_id_fkey"
+            foreignKeyName: "trade_block_items_player_id_fkey"
             columns: ["player_id"]
             isOneToOne: false
             referencedRelation: "players"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "trade_items_trade_id_fkey"
-            columns: ["trade_id"]
-            isOneToOne: false
-            referencedRelation: "trades"
             referencedColumns: ["id"]
           },
         ]
@@ -2319,6 +2607,55 @@ export type Database = {
           },
         ]
       }
+      trade_items: {
+        Row: {
+          created_at: string
+          id: string
+          pick_id: string | null
+          player_id: string | null
+          side: Database["public"]["Enums"]["trade_side"]
+          trade_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          pick_id?: string | null
+          player_id?: string | null
+          side: Database["public"]["Enums"]["trade_side"]
+          trade_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          pick_id?: string | null
+          player_id?: string | null
+          side?: Database["public"]["Enums"]["trade_side"]
+          trade_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trade_items_pick_id_fkey"
+            columns: ["pick_id"]
+            isOneToOne: false
+            referencedRelation: "draft_picks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trade_items_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trade_items_trade_id_fkey"
+            columns: ["trade_id"]
+            isOneToOne: false
+            referencedRelation: "trades"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       trade_vetos: {
         Row: {
           id: string
@@ -2361,50 +2698,88 @@ export type Database = {
       trades: {
         Row: {
           accepted_at: string | null
-          completion_failure_reason: string | null
           completed_at: string | null
+          completion_failure_reason: string | null
+          countered_from_trade_id: string | null
+          edited_from_trade_id: string | null
+          expires_at: string | null
           id: string
           league_id: string
           league_season_id: string
           notes: string | null
+          parent_trade_id: string | null
           proposed_at: string
+          proposer_faab_amount: number
           proposer_member_id: string
+          recipient_faab_amount: number
           recipient_member_id: string
+          replaced_by_trade_id: string | null
           status: Database["public"]["Enums"]["trade_status"]
+          version: number
           veto_window_expires_at: string | null
           vetoed_at: string | null
         }
         Insert: {
           accepted_at?: string | null
-          completion_failure_reason?: string | null
           completed_at?: string | null
+          completion_failure_reason?: string | null
+          countered_from_trade_id?: string | null
+          edited_from_trade_id?: string | null
+          expires_at?: string | null
           id?: string
           league_id: string
           league_season_id: string
           notes?: string | null
+          parent_trade_id?: string | null
           proposed_at?: string
+          proposer_faab_amount?: number
           proposer_member_id: string
+          recipient_faab_amount?: number
           recipient_member_id: string
+          replaced_by_trade_id?: string | null
           status?: Database["public"]["Enums"]["trade_status"]
+          version?: number
           veto_window_expires_at?: string | null
           vetoed_at?: string | null
         }
         Update: {
           accepted_at?: string | null
-          completion_failure_reason?: string | null
           completed_at?: string | null
+          completion_failure_reason?: string | null
+          countered_from_trade_id?: string | null
+          edited_from_trade_id?: string | null
+          expires_at?: string | null
           id?: string
           league_id?: string
           league_season_id?: string
           notes?: string | null
+          parent_trade_id?: string | null
           proposed_at?: string
+          proposer_faab_amount?: number
           proposer_member_id?: string
+          recipient_faab_amount?: number
           recipient_member_id?: string
+          replaced_by_trade_id?: string | null
           status?: Database["public"]["Enums"]["trade_status"]
+          version?: number
           veto_window_expires_at?: string | null
           vetoed_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "trades_countered_from_trade_id_fkey"
+            columns: ["countered_from_trade_id"]
+            isOneToOne: false
+            referencedRelation: "trades"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trades_edited_from_trade_id_fkey"
+            columns: ["edited_from_trade_id"]
+            isOneToOne: false
+            referencedRelation: "trades"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "trades_league_id_fkey"
             columns: ["league_id"]
@@ -2434,6 +2809,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "trades_parent_trade_id_fkey"
+            columns: ["parent_trade_id"]
+            isOneToOne: false
+            referencedRelation: "trades"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "trades_proposer_member_id_fkey"
             columns: ["proposer_member_id"]
             isOneToOne: false
@@ -2447,10 +2829,19 @@ export type Database = {
             referencedRelation: "league_members"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "trades_replaced_by_trade_id_fkey"
+            columns: ["replaced_by_trade_id"]
+            isOneToOne: false
+            referencedRelation: "trades"
+            referencedColumns: ["id"]
+          },
         ]
       }
       waiver_claims: {
         Row: {
+          bid_amount: number
+          claim_order: number
           drop_player_id: string | null
           failure_reason: string | null
           id: string
@@ -2465,6 +2856,8 @@ export type Database = {
           submitted_at: string
         }
         Insert: {
+          bid_amount?: number
+          claim_order?: number
           drop_player_id?: string | null
           failure_reason?: string | null
           id?: string
@@ -2479,6 +2872,8 @@ export type Database = {
           submitted_at?: string
         }
         Update: {
+          bid_amount?: number
+          claim_order?: number
           drop_player_id?: string | null
           failure_reason?: string | null
           id?: string
@@ -2686,6 +3081,72 @@ export type Database = {
             columns: ["player_id"]
             isOneToOne: false
             referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      weekly_add_counts: {
+        Row: {
+          add_count: number
+          id: string
+          league_id: string
+          league_season_id: string
+          member_id: string
+          updated_at: string
+          week_number: number
+        }
+        Insert: {
+          add_count?: number
+          id?: string
+          league_id: string
+          league_season_id: string
+          member_id: string
+          updated_at?: string
+          week_number: number
+        }
+        Update: {
+          add_count?: number
+          id?: string
+          league_id?: string
+          league_season_id?: string
+          member_id?: string
+          updated_at?: string
+          week_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "weekly_add_counts_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "leagues"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "weekly_add_counts_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "v_fantasy_points"
+            referencedColumns: ["league_id"]
+          },
+          {
+            foreignKeyName: "weekly_add_counts_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_avg_fantasy_points"
+            referencedColumns: ["league_id"]
+          },
+          {
+            foreignKeyName: "weekly_add_counts_league_season_id_fkey"
+            columns: ["league_season_id"]
+            isOneToOne: false
+            referencedRelation: "league_seasons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "weekly_add_counts_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "league_members"
             referencedColumns: ["id"]
           },
         ]
@@ -2923,16 +3384,44 @@ export type Database = {
     }
     Functions: {
       accept_trade_atomic: {
-        Args: { p_accepting_member_id: string; p_drop_roster_player_ids?: string[]; p_trade_id: string }
+        Args: {
+          p_accepting_member_id: string
+          p_drop_roster_player_ids?: string[]
+          p_trade_id: string
+        }
+        Returns: undefined
+      }
+      activate_rookie_draft_league_atomic: {
+        Args: { p_draft_id: string }
+        Returns: boolean
+      }
+      activate_roster_player_with_overflow_atomic: {
+        Args: {
+          p_activate_roster_player_id: string
+          p_activate_source: string
+          p_free_action: string
+          p_free_roster_player_id: string
+        }
         Returns: undefined
       }
       add_free_agent_atomic: {
         Args: { p_league_id: string; p_member_id: string; p_player_id: string }
         Returns: undefined
       }
-      drop_and_add_free_agent_atomic: {
-        Args: { p_league_id: string; p_member_id: string; p_player_id: string; p_roster_player_id: string }
-        Returns: undefined
+      add_trade_block_item_atomic: {
+        Args: {
+          p_league_id: string
+          p_member_id: string
+          p_note?: string
+          p_pick_id?: string
+          p_player_id?: string
+          p_user_id?: string
+        }
+        Returns: string
+      }
+      advance_playoff_bracket_atomic: {
+        Args: { p_league_id: string }
+        Returns: Json
       }
       advance_season_atomic: {
         Args: { p_league_id: string }
@@ -2941,13 +3430,13 @@ export type Database = {
           new_year: number
         }[]
       }
-      activate_rookie_draft_league_atomic: {
-        Args: { p_draft_id: string }
-        Returns: boolean
-      }
-      activate_roster_player_with_overflow_atomic: {
-        Args: { p_activate_roster_player_id: string; p_activate_source: string; p_free_action: string; p_free_roster_player_id: string }
+      assert_current_league_season_for_lineup: {
+        Args: { p_league_id: string; p_league_season_id: string }
         Returns: undefined
+      }
+      auto_pick_snake_pick_atomic: {
+        Args: { p_draft_id: string; p_member_id: string; p_reason?: string }
+        Returns: Json
       }
       auto_set_lineup_atomic: {
         Args: {
@@ -2959,6 +3448,21 @@ export type Database = {
         }
         Returns: undefined
       }
+      auto_set_lineup_atomic_unchecked: {
+        Args: {
+          p_assignments: Json
+          p_game_date: string
+          p_league_id: string
+          p_league_season_id: string
+          p_member_id: string
+        }
+        Returns: undefined
+      }
+      cancel_waiver_claim_atomic: {
+        Args: { p_claim_id: string; p_member_id: string; p_user_id?: string }
+        Returns: undefined
+      }
+      clear_ineligible_taxi_players: { Args: never; Returns: number }
       close_auction_nomination_atomic: {
         Args: { p_nomination_id: string }
         Returns: boolean
@@ -2967,81 +3471,201 @@ export type Database = {
         Args: { p_limit?: number }
         Returns: {
           closed: boolean
-          error_code: string | null
-          error_message: string | null
+          error_code: string
+          error_message: string
           nomination_id: string
         }[]
       }
-      process_expired_snake_picks_atomic: {
-        Args: { p_limit?: number }
-        Returns: {
-          draft_id: string
-          error_code: string | null
-          error_message: string | null
-          member_id: string
-          pick_id: string
-          picked: boolean
-          player_id: string | null
-        }[]
+      commissioner_adjust_faab_balance_atomic: {
+        Args: { p_balance: number; p_league_id: string; p_member_id: string }
+        Returns: number
       }
-      process_expired_snake_pick_atomic: {
-        Args: { p_draft_id: string }
-        Returns: {
-          draft_id: string
-          error_code: string | null
-          error_message: string | null
-          member_id: string
-          pick_id: string
-          picked: boolean
-          player_id: string | null
-        }[]
+      commissioner_override_weekly_add_count_atomic: {
+        Args: { p_add_count: number; p_league_id: string; p_member_id: string }
+        Returns: number
       }
-      create_auction_nomination_atomic: {
+      commissioner_snake_pick_atomic: {
         Args: {
-          p_countdown_seconds?: number | null
+          p_actor_user_id?: string
           p_draft_id: string
           p_member_id: string
           p_player_id: string
-          p_user_id: string
         }
-        Returns: Database["public"]["Tables"]["nominations"]["Row"]
-      }
-      create_mock_draft_room_atomic: {
-        Args: {
-          p_budget_per_team?: number | null
-          p_draft_type?: string
-          p_league_id: string
-          p_member_id: string
-          p_nomination_order_mode?: string
-          p_pick_timer_seconds?: number
-          p_room_name?: string | null
-          p_rounds?: number
-          p_scheduled_at?: string | null
-          p_timer_expiry_behavior?: string
-          p_user_id: string
-        }
-        Returns: Database["public"]["Tables"]["drafts"]["Row"]
-      }
-      join_mock_draft_room_atomic: {
-        Args: { p_draft_id: string; p_member_id: string; p_user_id: string }
-        Returns: undefined
-      }
-      leave_mock_draft_room_atomic: {
-        Args: { p_draft_id: string; p_member_id: string; p_user_id: string }
-        Returns: undefined
-      }
-      start_mock_draft_room_atomic: {
-        Args: { p_draft_id: string; p_member_id: string; p_user_id: string }
-        Returns: Database["public"]["Tables"]["drafts"]["Row"]
-      }
-      clear_ineligible_taxi_players: {
-        Args: never
-        Returns: number
+        Returns: Json
       }
       complete_accepted_trade_atomic: {
         Args: { p_trade_id: string }
         Returns: undefined
       }
+      compute_fantasy_points: {
+        Args: { p_league_id: string; p_stat_id: string }
+        Returns: number
+      }
+      count_final_games_missing_stats: {
+        Args: { season_year_param: number }
+        Returns: number
+      }
+      counter_trade_atomic: {
+        Args: {
+          p_expires_at?: string
+          p_member_id: string
+          p_notes?: string
+          p_offer_faab_amount?: number
+          p_offer_pick_ids: string[]
+          p_offer_player_ids: string[]
+          p_request_faab_amount?: number
+          p_request_pick_ids: string[]
+          p_request_player_ids: string[]
+          p_trade_id: string
+          p_user_id: string
+        }
+        Returns: string
+      }
+      create_auction_nomination_atomic: {
+        Args: {
+          p_countdown_seconds?: number
+          p_draft_id: string
+          p_member_id: string
+          p_player_id: string
+          p_user_id: string
+        }
+        Returns: {
+          closed_at: string | null
+          countdown_expires_at: string | null
+          current_bid_amount: number
+          current_bidder_id: string | null
+          draft_id: string
+          final_price: number | null
+          id: string
+          nominated_at: string
+          nominating_member_id: string
+          nomination_order: number
+          player_id: string
+          status: Database["public"]["Enums"]["nomination_status"]
+          winning_member_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "nominations"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      create_league: {
+        Args: { p_auction_budget?: number; p_name: string; p_team_name: string }
+        Returns: Json
+      }
+      create_mock_draft_room_atomic: {
+        Args: {
+          p_budget_per_team?: number
+          p_draft_type?: string
+          p_league_id: string
+          p_member_id: string
+          p_nomination_order_mode?: string
+          p_pick_timer_seconds?: number
+          p_room_name?: string
+          p_rounds?: number
+          p_scheduled_at?: string
+          p_timer_expiry_behavior?: string
+          p_user_id: string
+        }
+        Returns: {
+          budget_per_team: number | null
+          completed_at: string | null
+          created_at: string
+          created_by_member_id: string | null
+          current_nomination_order: number
+          draft_type: Database["public"]["Enums"]["draft_type"]
+          id: string
+          is_mock: boolean
+          league_id: string
+          league_season_id: string
+          nomination_order_mode: string
+          pause_reason: string | null
+          paused_at: string | null
+          pick_timer_seconds: number
+          room_name: string | null
+          rounds: number | null
+          scheduled_at: string | null
+          started_at: string | null
+          status: Database["public"]["Enums"]["draft_status"]
+          timer_expiry_behavior: string
+          timer_paused_remaining_seconds: number | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "drafts"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      create_waiver_claim_atomic: {
+        Args: {
+          p_bid_amount?: number
+          p_claim_order?: number
+          p_drop_player_id?: string
+          p_league_id: string
+          p_member_id: string
+          p_player_id: string
+          p_user_id?: string
+        }
+        Returns: string
+      }
+      current_season_year_et: { Args: { p_now?: string }; Returns: number }
+      delete_league_atomic: { Args: { p_league_id: string }; Returns: Json }
+      drop_and_add_free_agent_atomic: {
+        Args: {
+          p_league_id: string
+          p_member_id: string
+          p_player_id: string
+          p_roster_player_id: string
+        }
+        Returns: undefined
+      }
+      drop_player_atomic: {
+        Args: { p_roster_player_id: string }
+        Returns: undefined
+      }
+      edit_trade_atomic: {
+        Args: {
+          p_expires_at?: string
+          p_member_id: string
+          p_notes?: string
+          p_offer_faab_amount?: number
+          p_offer_pick_ids: string[]
+          p_offer_player_ids: string[]
+          p_request_faab_amount?: number
+          p_request_pick_ids: string[]
+          p_request_player_ids: string[]
+          p_trade_id: string
+          p_user_id: string
+        }
+        Returns: string
+      }
+      edit_waiver_claim_atomic: {
+        Args: {
+          p_bid_amount?: number
+          p_claim_id: string
+          p_claim_order?: number
+          p_drop_player_id?: string
+          p_member_id: string
+          p_user_id: string
+        }
+        Returns: undefined
+      }
+      expire_pending_trades_atomic: {
+        Args: { p_limit?: number }
+        Returns: {
+          proposer_member_id: string
+          recipient_member_id: string
+          trade_id: string
+        }[]
+      }
+      expire_trade_completion_failure_atomic: {
+        Args: { p_reason?: string; p_trade_id: string }
+        Returns: undefined
+      }
+      expire_waiver_wire_logs: { Args: never; Returns: number }
       finalize_score_week_atomic: {
         Args: {
           p_finalized_at?: string
@@ -3054,17 +3678,196 @@ export type Database = {
         }
         Returns: Json
       }
-      expire_trade_completion_failure_atomic: {
-        Args: { p_reason?: string | null; p_trade_id: string }
-        Returns: undefined
-      }
-      expire_waiver_wire_logs: {
-        Args: never
-        Returns: number
-      }
+      generate_invite_code: { Args: never; Returns: string }
       generate_playoff_bracket_atomic: {
         Args: { p_league_id: string }
         Returns: Json
+      }
+      get_league_projection_rows: {
+        Args: {
+          p_game_date?: string
+          p_league_id: string
+          p_limit?: number
+          p_offset?: number
+          p_player_ids?: string[]
+          p_season_year?: number
+          p_view?: string
+        }
+        Returns: {
+          display_name: string
+          eligible_positions: string[]
+          headshot_url: string
+          injury_status: string
+          nba_id: string
+          nba_team: string
+          next_game_date: string
+          next_game_opponent: string
+          next_game_time: string
+          player_id: string
+          position: string
+          projection_assists: number
+          projection_blocks: number
+          projection_date: string
+          projection_fantasy_points: number
+          projection_fetched_at: string
+          projection_field_goal_pct: number
+          projection_free_throw_pct: number
+          projection_games_played: number
+          projection_is_fresh: boolean
+          projection_minutes: number
+          projection_points: number
+          projection_rebounds: number
+          projection_source: string
+          projection_source_label: string
+          projection_status: string
+          projection_steals: number
+          projection_three_pointers_made: number
+          projection_turnovers: number
+          projection_view: string
+          projection_week_number: number
+        }[]
+      }
+      get_league_activity_feed: {
+        Args: { p_league_id: string; p_limit?: number; p_offset?: number }
+        Returns: {
+          body: string | null
+          eligible_positions: string[] | null
+          id: string
+          is_system: boolean
+          member_id: string | null
+          nba_id: string | null
+          occurred_at: string
+          player_id: string | null
+          player_name: string | null
+          player_position: string | null
+          target_member_id: string | null
+          target_team_name: string | null
+          team_name: string | null
+          title: string | null
+          transaction_type: string
+        }[]
+      }
+      get_member_transaction_state: {
+        Args: { p_league_id: string; p_member_id: string }
+        Returns: {
+          faab_balance: number
+          faab_starting_budget: number
+          league_season_id: string
+          waiver_mode: string
+          week_number: number
+          weekly_add_count: number
+          weekly_add_limit: number
+        }[]
+      }
+      invoke_edge_function: {
+        Args: { body?: Json; function_name: string }
+        Returns: undefined
+      }
+      invoke_edge_function_at_et_time: {
+        Args: { p_function_name: string; p_hour: number; p_minute?: number }
+        Returns: undefined
+      }
+      invoke_projection_sync_if_due: { Args: never; Returns: undefined }
+      is_regular_season_game_id: {
+        Args: { p_game_id: string }
+        Returns: boolean
+      }
+      join_league_by_invite_code: {
+        Args: { p_invite_code: string; p_team_name: string }
+        Returns: Json
+      }
+      join_mock_draft_room_atomic: {
+        Args: { p_draft_id: string; p_member_id: string; p_user_id: string }
+        Returns: undefined
+      }
+      leave_mock_draft_room_atomic: {
+        Args: { p_draft_id: string; p_member_id: string; p_user_id: string }
+        Returns: undefined
+      }
+      lineup_slot_allowed_positions: {
+        Args: { p_slot_type: Database["public"]["Enums"]["roster_slot_type"] }
+        Returns: string[]
+      }
+      make_snake_pick_atomic: {
+        Args: { p_draft_id: string; p_member_id: string; p_player_id: string }
+        Returns: Json
+      }
+      merge_duplicate_players: { Args: never; Returns: undefined }
+      merge_players: {
+        Args: { loser_id: string; winner_id: string }
+        Returns: undefined
+      }
+      name_key: { Args: { n: string }; Returns: string }
+      pause_draft_atomic: {
+        Args: { p_actor_user_id?: string; p_draft_id: string }
+        Returns: undefined
+      }
+      place_auction_bid_atomic: {
+        Args: {
+          p_amount: number
+          p_draft_id: string
+          p_member_id: string
+          p_nomination_id: string
+          p_user_id: string
+        }
+        Returns: undefined
+      }
+      process_due_accepted_trades_atomic: {
+        Args: { p_limit?: number }
+        Returns: {
+          error_code: string
+          error_message: string
+          proposer_member_id: string
+          recipient_member_id: string
+          status: string
+          trade_id: string
+        }[]
+      }
+      process_due_waiver_claims_atomic: {
+        Args: { p_limit?: number; p_process_date: string }
+        Returns: {
+          claim_id: string
+          failure_reason: string
+          member_id: string
+          player_id: string
+          processed: boolean
+          status: Database["public"]["Enums"]["waiver_claim_status"]
+        }[]
+      }
+      process_expired_snake_pick_atomic: {
+        Args: { p_draft_id: string }
+        Returns: {
+          draft_id: string
+          error_code: string
+          error_message: string
+          member_id: string
+          pick_id: string
+          picked: boolean
+          player_id: string
+        }[]
+      }
+      process_expired_snake_picks_atomic: {
+        Args: { p_limit?: number }
+        Returns: {
+          draft_id: string
+          error_code: string
+          error_message: string
+          member_id: string
+          pick_id: string
+          picked: boolean
+          player_id: string
+        }[]
+      }
+      process_next_waiver_claim_atomic: {
+        Args: { p_process_date: string }
+        Returns: {
+          claim_id: string
+          failure_reason: string
+          member_id: string
+          player_id: string
+          processed: boolean
+          status: Database["public"]["Enums"]["waiver_claim_status"]
+        }[]
       }
       projection_stat_fantasy_points: {
         Args: {
@@ -3085,141 +3888,44 @@ export type Database = {
         }
         Returns: number
       }
-      get_league_projection_rows: {
+      propose_trade_atomic: {
         Args: {
-          p_game_date?: string
-          p_league_id: string
-          p_limit?: number
-          p_offset?: number
-          p_player_ids?: string[] | null
-          p_season_year?: number
-          p_view?: string
-        }
-        Returns: {
-          display_name: string
-          eligible_positions: string[]
-          headshot_url: string | null
-          injury_status: string | null
-          nba_id: string | null
-          nba_team: string | null
-          next_game_date: string | null
-          next_game_opponent: string | null
-          next_game_time: string | null
-          player_id: string
-          position: string | null
-          projection_assists: number | null
-          projection_blocks: number | null
-          projection_date: string | null
-          projection_fantasy_points: number | null
-          projection_fetched_at: string | null
-          projection_field_goal_pct: number | null
-          projection_free_throw_pct: number | null
-          projection_games_played: number | null
-          projection_is_fresh: boolean | null
-          projection_minutes: number | null
-          projection_points: number | null
-          projection_rebounds: number | null
-          projection_source: string
-          projection_source_label: string
-          projection_status: string | null
-          projection_steals: number | null
-          projection_three_pointers_made: number | null
-          projection_turnovers: number | null
-          projection_view: string
-          projection_week_number: number | null
-        }[]
-      }
-      advance_playoff_bracket_atomic: {
-        Args: { p_league_id: string }
-        Returns: Json
-      }
-      process_due_accepted_trades_atomic: {
-        Args: { p_limit?: number }
-        Returns: {
-          error_code: string | null
-          error_message: string | null
-          proposer_member_id: string
-          recipient_member_id: string
-          status: string
-          trade_id: string
-        }[]
-      }
-      process_due_waiver_claims_atomic: {
-        Args: { p_limit?: number; p_process_date: string }
-        Returns: {
-          claim_id: string | null
-          failure_reason: string | null
-          member_id: string | null
-          player_id: string | null
-          processed: boolean
-          status: Database["public"]["Enums"]["waiver_claim_status"] | null
-        }[]
-      }
-      replace_regular_season_matchups_atomic: {
-        Args: {
-          p_force?: boolean
+          p_expires_at?: string
           p_league_id: string
           p_league_season_id: string
-          p_matchups?: Json
+          p_notes?: string
+          p_offer_faab_amount?: number
+          p_offer_pick_ids: string[]
+          p_offer_player_ids: string[]
+          p_proposer_member_id: string
+          p_recipient_member_id: string
+          p_request_faab_amount?: number
+          p_request_pick_ids: string[]
+          p_request_player_ids: string[]
         }
+        Returns: string
+      }
+      reject_trade_atomic: {
+        Args: { p_member_id: string; p_trade_id: string; p_user_id: string }
         Returns: Json
       }
-      search_players: {
+      release_live_poll_lease: {
+        Args: { p_holder_id: string; p_lock_key: number }
+        Returns: boolean
+      }
+      release_live_poll_lock: { Args: never; Returns: boolean }
+      remove_trade_block_item_atomic: {
+        Args: { p_item_id: string; p_member_id: string; p_user_id?: string }
+        Returns: undefined
+      }
+      reorder_waiver_claim_atomic: {
         Args: {
-          p_exclude_player_ids?: string[] | null
-          p_excluded_teams?: string[] | null
-          p_health?: string
-          p_include_player_ids?: string[] | null
-          p_league_id?: string | null
-          p_limit?: number
-          p_offset?: number
-          p_playing_teams?: string[] | null
-          p_position?: string
-          p_query?: string
-          p_rookies_only?: boolean
-          p_season_year?: number
-          p_sort_by?: string
-          p_sort_dir?: string
-          p_teams?: string[] | null
+          p_claim_id: string
+          p_direction: string
+          p_member_id: string
+          p_user_id: string
         }
-        Returns: {
-          avg_assists: number | null
-          avg_blocks: number | null
-          avg_fantasy_points: number | null
-          avg_minutes_played: number | null
-          avg_points: number | null
-          avg_rebounds: number | null
-          avg_steals: number | null
-          avg_three_pointers_made: number | null
-          avg_turnovers: number | null
-          display_name: string
-          eligible_positions: string[]
-          games_played: number | null
-          headshot_url: string | null
-          id: string
-          injury_status: string | null
-          nba_id: string | null
-          nba_team: string | null
-          position: string | null
-          projection_assists: number | null
-          projection_blocks: number | null
-          projection_date: string | null
-          projection_fantasy_points: number | null
-          projection_fetched_at: string | null
-          projection_minutes: number | null
-          projection_opponent: string | null
-          projection_points: number | null
-          projection_rebounds: number | null
-          projection_source: string | null
-          projection_source_label: string | null
-          projection_status: string | null
-          projection_steals: number | null
-          projection_three_pointers_made: number | null
-          projection_turnovers: number | null
-          projection_view: string | null
-          status: string | null
-          years_exp: number | null
-        }[]
+        Returns: number
       }
       replace_dynasty_rankings: {
         Args: {
@@ -3233,162 +3939,84 @@ export type Database = {
         }
         Returns: Json
       }
-      reject_trade_atomic: {
-        Args: { p_member_id: string; p_trade_id: string; p_user_id: string }
-        Returns: Json
-      }
-      withdraw_trade_atomic: {
-        Args: { p_member_id: string; p_trade_id: string; p_user_id: string }
-        Returns: Json
-      }
-      veto_trade_atomic: {
-        Args: { p_member_id: string; p_trade_id: string }
-        Returns: Json
-      }
-      propose_trade_atomic: {
+      replace_regular_season_matchups_atomic: {
         Args: {
+          p_force?: boolean
           p_league_id: string
           p_league_season_id: string
-          p_notes?: string | null
-          p_offer_pick_ids: string[]
-          p_offer_player_ids: string[]
-          p_proposer_member_id: string
-          p_recipient_member_id: string
-          p_request_pick_ids: string[]
-          p_request_player_ids: string[]
-        }
-        Returns: string
-      }
-      start_rookie_draft_atomic: {
-        Args: {
-          p_is_mock?: boolean
-          p_league_id: string
-          p_pick_timer_seconds?: number
-          p_rounds?: number
-          p_timer_expiry_behavior?: string
+          p_matchups?: Json
         }
         Returns: Json
-      }
-      start_auction_draft_atomic: {
-        Args: {
-          p_budget_per_team?: number | null
-          p_is_mock?: boolean
-          p_league_id: string
-          p_nomination_order_mode?: string
-          p_pick_timer_seconds?: number
-          p_timer_expiry_behavior?: string
-        }
-        Returns: Database["public"]["Tables"]["drafts"]["Row"]
       }
       reseed_rookie_draft_picks_atomic: {
         Args: { p_draft_id: string; p_rounds?: number }
         Returns: number
       }
       reset_draft_atomic: {
-        Args: { p_actor_user_id?: string | null; p_draft_id: string }
-        Returns: undefined
-      }
-      pause_draft_atomic: {
-        Args: { p_actor_user_id?: string | null; p_draft_id: string }
+        Args: { p_actor_user_id?: string; p_draft_id: string }
         Returns: undefined
       }
       resume_draft_atomic: {
-        Args: { p_actor_user_id?: string | null; p_draft_id: string }
+        Args: { p_actor_user_id?: string; p_draft_id: string }
         Returns: undefined
       }
-      stop_draft_atomic: {
-        Args: { p_actor_user_id?: string | null; p_draft_id: string }
-        Returns: undefined
-      }
-      compute_fantasy_points: {
-        Args: { p_league_id: string; p_stat_id: string }
-        Returns: number
-      }
-      count_final_games_missing_stats: {
-        Args: { season_year_param: number }
-        Returns: number
-      }
-      create_waiver_claim_atomic: {
-        Args: { p_drop_player_id?: string | null; p_league_id: string; p_member_id: string; p_player_id: string; p_user_id?: string | null }
-        Returns: string
-      }
-      cancel_waiver_claim_atomic: {
-        Args: { p_claim_id: string; p_member_id: string; p_user_id?: string | null }
-        Returns: undefined
-      }
-      create_league: {
-        Args: { p_auction_budget?: number; p_name: string; p_team_name: string }
-        Returns: Json
-      }
-      delete_league_atomic: {
-        Args: { p_league_id: string }
-        Returns: Json
-      }
-      drop_player_atomic: {
-        Args: { p_roster_player_id: string }
-        Returns: undefined
-      }
-      invoke_edge_function: {
-        Args: { body?: Json; function_name: string }
-        Returns: undefined
-      }
-      join_league_by_invite_code: {
-        Args: { p_invite_code: string; p_team_name: string }
-        Returns: Json
-      }
-      make_snake_pick_atomic: {
-        Args: { p_draft_id: string; p_member_id: string; p_player_id: string }
-        Returns: Json
-      }
-      auto_pick_snake_pick_atomic: {
-        Args: { p_draft_id: string; p_member_id: string; p_reason?: string }
-        Returns: Json
-      }
-      commissioner_snake_pick_atomic: {
+      search_players: {
         Args: {
-          p_actor_user_id?: string | null
-          p_draft_id: string
-          p_member_id: string
-          p_player_id: string
+          p_exclude_player_ids?: string[]
+          p_excluded_teams?: string[]
+          p_health?: string
+          p_include_player_ids?: string[]
+          p_league_id?: string
+          p_limit?: number
+          p_offset?: number
+          p_playing_teams?: string[]
+          p_position?: string
+          p_query?: string
+          p_rookies_only?: boolean
+          p_season_year?: number
+          p_sort_by?: string
+          p_sort_dir?: string
+          p_teams?: string[]
         }
-        Returns: Json
-      }
-      merge_duplicate_players: { Args: never; Returns: undefined }
-      merge_players: {
-        Args: { loser_id: string; winner_id: string }
-        Returns: undefined
-      }
-      name_key: { Args: { n: string }; Returns: string }
-      place_auction_bid_atomic: {
-        Args: {
-          p_amount: number
-          p_draft_id: string
-          p_member_id: string
-          p_nomination_id: string
-          p_user_id: string
-        }
-        Returns: undefined
-      }
-      withdraw_auction_nomination_atomic: {
-        Args: { p_nomination_id: string; p_member_id: string; p_user_id: string }
-        Returns: boolean
-      }
-      process_next_waiver_claim_atomic: {
-        Args: { p_process_date: string }
         Returns: {
-          claim_id: string | null
-          failure_reason: string | null
-          member_id: string | null
-          player_id: string | null
-          processed: boolean
-          status: Database["public"]["Enums"]["waiver_claim_status"] | null
+          avg_assists: number
+          avg_blocks: number
+          avg_fantasy_points: number
+          avg_minutes_played: number
+          avg_points: number
+          avg_rebounds: number
+          avg_steals: number
+          avg_three_pointers_made: number
+          avg_turnovers: number
+          display_name: string
+          eligible_positions: string[]
+          games_played: number
+          headshot_url: string
+          id: string
+          injury_status: string
+          nba_id: string
+          nba_team: string
+          position: string
+          projection_assists: number
+          projection_blocks: number
+          projection_date: string
+          projection_fantasy_points: number
+          projection_fetched_at: string
+          projection_minutes: number
+          projection_opponent: string
+          projection_points: number
+          projection_rebounds: number
+          projection_source: string
+          projection_source_label: string
+          projection_status: string
+          projection_steals: number
+          projection_three_pointers_made: number
+          projection_turnovers: number
+          projection_view: string
+          status: string
+          years_exp: number
         }[]
       }
-      release_live_poll_lease: {
-        Args: { p_holder_id: string; p_lock_key: number }
-        Returns: boolean
-      }
-      release_live_poll_lock: { Args: never; Returns: boolean }
       set_player_slot_atomic: {
         Args: {
           p_game_date: string
@@ -3412,17 +4040,121 @@ export type Database = {
         }
         Returns: undefined
       }
+      set_player_slot_moves_atomic_unchecked: {
+        Args: {
+          p_game_date: string
+          p_league_id: string
+          p_league_season_id: string
+          p_member_id: string
+          p_moves: Json
+          p_week_number: number
+        }
+        Returns: undefined
+      }
+      start_auction_draft_atomic: {
+        Args: {
+          p_budget_per_team?: number
+          p_is_mock?: boolean
+          p_league_id: string
+          p_nomination_order_mode?: string
+          p_pick_timer_seconds?: number
+          p_timer_expiry_behavior?: string
+        }
+        Returns: {
+          budget_per_team: number | null
+          completed_at: string | null
+          created_at: string
+          created_by_member_id: string | null
+          current_nomination_order: number
+          draft_type: Database["public"]["Enums"]["draft_type"]
+          id: string
+          is_mock: boolean
+          league_id: string
+          league_season_id: string
+          nomination_order_mode: string
+          pause_reason: string | null
+          paused_at: string | null
+          pick_timer_seconds: number
+          room_name: string | null
+          rounds: number | null
+          scheduled_at: string | null
+          started_at: string | null
+          status: Database["public"]["Enums"]["draft_status"]
+          timer_expiry_behavior: string
+          timer_paused_remaining_seconds: number | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "drafts"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      start_mock_draft_room_atomic: {
+        Args: { p_draft_id: string; p_member_id: string; p_user_id: string }
+        Returns: {
+          budget_per_team: number | null
+          completed_at: string | null
+          created_at: string
+          created_by_member_id: string | null
+          current_nomination_order: number
+          draft_type: Database["public"]["Enums"]["draft_type"]
+          id: string
+          is_mock: boolean
+          league_id: string
+          league_season_id: string
+          nomination_order_mode: string
+          pause_reason: string | null
+          paused_at: string | null
+          pick_timer_seconds: number
+          room_name: string | null
+          rounds: number | null
+          scheduled_at: string | null
+          started_at: string | null
+          status: Database["public"]["Enums"]["draft_status"]
+          timer_expiry_behavior: string
+          timer_paused_remaining_seconds: number | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "drafts"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      start_rookie_draft_atomic: {
+        Args: {
+          p_is_mock?: boolean
+          p_league_id: string
+          p_pick_timer_seconds?: number
+          p_rounds?: number
+          p_timer_expiry_behavior?: string
+        }
+        Returns: Json
+      }
+      stop_draft_atomic: {
+        Args: { p_actor_user_id?: string; p_draft_id: string }
+        Returns: undefined
+      }
       toggle_ir_atomic: {
-        Args: { p_roster_player_id: string; p_to_ir: boolean; p_user_id: string }
+        Args: {
+          p_roster_player_id: string
+          p_to_ir: boolean
+          p_user_id: string
+        }
         Returns: undefined
       }
       toggle_taxi_atomic: {
-        Args: { p_roster_player_id: string; p_to_taxi: boolean; p_user_id: string }
+        Args: {
+          p_roster_player_id: string
+          p_to_taxi: boolean
+          p_user_id: string
+        }
         Returns: undefined
       }
       try_live_poll_lease: {
         Args: { p_lock_key: number; p_ttl_seconds?: number }
-        Returns: string | null
+        Returns: string
       }
       try_live_poll_lock: { Args: never; Returns: boolean }
       update_league_settings_atomic: {
@@ -3432,6 +4164,26 @@ export type Database = {
       update_lineup_slots_atomic: {
         Args: { p_league_id: string; p_slots: Json }
         Returns: undefined
+      }
+      update_lineup_slots_atomic_unchecked: {
+        Args: { p_league_id: string; p_slots: Json }
+        Returns: undefined
+      }
+      veto_trade_atomic: {
+        Args: { p_member_id: string; p_trade_id: string }
+        Returns: Json
+      }
+      withdraw_auction_nomination_atomic: {
+        Args: {
+          p_member_id: string
+          p_nomination_id: string
+          p_user_id: string
+        }
+        Returns: boolean
+      }
+      withdraw_trade_atomic: {
+        Args: { p_member_id: string; p_trade_id: string; p_user_id: string }
+        Returns: Json
       }
     }
     Enums: {
@@ -3479,6 +4231,8 @@ export type Database = {
         | "vetoed"
         | "completed"
         | "expired"
+        | "countered"
+        | "edited"
       veto_type: "commissioner" | "member"
       waiver_claim_status:
         | "pending"
@@ -3664,6 +4418,8 @@ export const Constants = {
         "vetoed",
         "completed",
         "expired",
+        "countered",
+        "edited",
       ],
       veto_type: ["commissioner", "member"],
       waiver_claim_status: [
@@ -3676,7 +4432,6 @@ export const Constants = {
     },
   },
 } as const
-
 
 export type LeagueStatus = Database["public"]["Enums"]["league_status"]
 export type LeagueMemberRole = Database["public"]["Enums"]["league_member_role"]

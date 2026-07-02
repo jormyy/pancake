@@ -11,7 +11,17 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { Stack, useRouter } from 'expo-router'
 import { useEffect, useRef, useState } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
-import { deleteLeague, getLineupSlots, updateLeague, updateLineupSlots } from '@/lib/league'
+import {
+    adjustFaabBalance,
+    deleteLeague,
+    getLeagueMembers,
+    getLineupSlots,
+    overrideWeeklyAddCount,
+    updateLeague,
+    updateLineupSlots,
+    type LeagueSettingsUpdate,
+    type WaiverMode,
+} from '@/lib/league'
 import { advanceSeason } from '@/lib/rookieDraft'
 import { apiPost } from '@/lib/shared/api'
 import { LoadingScreen } from '@/components/LoadingScreen'
@@ -89,6 +99,14 @@ export default function CommissionerSettingsScreen() {
     const [taxiSlots, setTaxiSlots] = useState('')
     const [auctionBudget, setAuctionBudget] = useState('')
     const [playoffWeek, setPlayoffWeek] = useState('')
+    const [weeklyAddLimit, setWeeklyAddLimit] = useState('')
+    const [waiverMode, setWaiverMode] = useState<WaiverMode>('faab')
+    const [faabBudget, setFaabBudget] = useState('')
+    const [members, setMembers] = useState<{ id: string; team_name: string | null }[]>([])
+    const [overrideMemberId, setOverrideMemberId] = useState<string | null>(null)
+    const [overrideFaab, setOverrideFaab] = useState('')
+    const [overrideAdds, setOverrideAdds] = useState('')
+    const [overrideSaving, setOverrideSaving] = useState(false)
     const [initialScoring, setInitialScoring] = useState<ScoringMap>({})
     const [initialGeneral, setInitialGeneral] = useState({
         rosterSize: '',
@@ -96,6 +114,9 @@ export default function CommissionerSettingsScreen() {
         taxiSlots: '',
         auctionBudget: '',
         playoffWeek: '',
+        weeklyAddLimit: '',
+        waiverMode: 'faab' as WaiverMode,
+        faabBudget: '',
     })
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
@@ -116,12 +137,17 @@ export default function CommissionerSettingsScreen() {
 
             setLoading(true)
             try {
-                const slotData = await getLineupSlots(league.id)
+                const [slotData, memberData] = await Promise.all([
+                    getLineupSlots(league.id),
+                    getLeagueMembers(league.id),
+                ])
                 if (cancelled) return
                 const slotMap: SlotMap = {}
                 for (const s of slotData) slotMap[s.slot_type] = s.slot_count
                 setSlots(slotMap)
                 setInitialSlots(slotMap)
+                setMembers(memberData)
+                setOverrideMemberId((prev) => prev ?? memberData[0]?.id ?? null)
 
                 const s =
                     league.scoring_settings &&
@@ -142,12 +168,18 @@ export default function CommissionerSettingsScreen() {
                     taxiSlots: String(league.taxi_slots ?? 0),
                     auctionBudget: String(league.auction_budget ?? 200),
                     playoffWeek: String(league.playoff_start_week ?? 20),
+                    weeklyAddLimit: String(league.weekly_add_limit ?? 0),
+                    waiverMode: (league.waiver_mode ?? 'faab') as WaiverMode,
+                    faabBudget: String(league.faab_starting_budget ?? 100),
                 }
                 setRosterSize(general.rosterSize)
                 setIrSlots(general.irSlots)
                 setTaxiSlots(general.taxiSlots)
                 setAuctionBudget(general.auctionBudget)
                 setPlayoffWeek(general.playoffWeek)
+                setWeeklyAddLimit(general.weeklyAddLimit)
+                setWaiverMode(general.waiverMode)
+                setFaabBudget(general.faabBudget)
                 setInitialGeneral(general)
                 hydratedLeagueId.current = league.id
             } catch (e) {
@@ -178,6 +210,8 @@ export default function CommissionerSettingsScreen() {
         const parsedTaxi = parseInt(taxiSlots)
         const parsedBudget = parseInt(auctionBudget)
         const parsedPlayoff = parseInt(playoffWeek)
+        const parsedWeeklyAddLimit = parseInt(weeklyAddLimit)
+        const parsedFaabBudget = parseInt(faabBudget)
 
         if (isNaN(parsedRoster) || parsedRoster < 1) {
             showAlert('Invalid', 'Roster size must be at least 1.')
@@ -199,6 +233,14 @@ export default function CommissionerSettingsScreen() {
             showAlert('Invalid', 'Playoff start week must be between 18 and 24.')
             return
         }
+        if (isNaN(parsedWeeklyAddLimit) || parsedWeeklyAddLimit < 0) {
+            showAlert('Invalid', 'Weekly add limit must be 0 or more.')
+            return
+        }
+        if (isNaN(parsedFaabBudget) || parsedFaabBudget < 0) {
+            showAlert('Invalid', 'FAAB starting budget must be 0 or more.')
+            return
+        }
 
         const scoringSettings: Record<string, number> = {}
         for (const { key } of SCORING_FIELDS) {
@@ -214,27 +256,26 @@ export default function CommissionerSettingsScreen() {
         }
 
         const scoringChanged = SCORING_FIELDS.some(({ key }) => scoring[key] !== initialScoring[key])
-        const updates: {
-            scoring_settings?: Record<string, number>
-            roster_size?: number
-            ir_slots?: number
-            taxi_slots?: number
-            auction_budget?: number
-            playoff_start_week?: number
-        } = {}
+        const updates: LeagueSettingsUpdate = {}
         if (scoringChanged) updates.scoring_settings = scoringSettings
         if (rosterSize !== initialGeneral.rosterSize) updates.roster_size = parsedRoster
         if (irSlots !== initialGeneral.irSlots) updates.ir_slots = parsedIR
         if (taxiSlots !== initialGeneral.taxiSlots) updates.taxi_slots = parsedTaxi
         if (auctionBudget !== initialGeneral.auctionBudget) updates.auction_budget = parsedBudget
         if (playoffWeek !== initialGeneral.playoffWeek) updates.playoff_start_week = parsedPlayoff
+        if (weeklyAddLimit !== initialGeneral.weeklyAddLimit) {
+            updates.weekly_add_unlimited = parsedWeeklyAddLimit === 0
+            if (parsedWeeklyAddLimit > 0) updates.weekly_add_limit = parsedWeeklyAddLimit
+        }
+        if (waiverMode !== initialGeneral.waiverMode) updates.waiver_mode = waiverMode
+        if (faabBudget !== initialGeneral.faabBudget) updates.faab_starting_budget = parsedFaabBudget
 
         setSaving(true)
         try {
             if (Object.keys(updates).length > 0) {
                 await updateLeague(league.id, updates)
                 setInitialScoring(scoring)
-                setInitialGeneral({ rosterSize, irSlots, taxiSlots, auctionBudget, playoffWeek })
+                setInitialGeneral({ rosterSize, irSlots, taxiSlots, auctionBudget, playoffWeek, weeklyAddLimit, waiverMode, faabBudget })
             }
             if (slotsChanged) {
                 await updateLineupSlots(
@@ -352,6 +393,44 @@ export default function CommissionerSettingsScreen() {
             setBusyAction,
             { force },
         )
+    }
+
+    async function handleFaabOverride() {
+        if (!league?.id || !overrideMemberId) return
+        const balance = parseInt(overrideFaab)
+        if (isNaN(balance) || balance < 0) {
+            showAlert('Invalid', 'FAAB balance must be 0 or more.')
+            return
+        }
+        setOverrideSaving(true)
+        try {
+            await adjustFaabBalance(league.id, overrideMemberId, balance)
+            showSuccess('Done', 'FAAB balance updated.')
+            setOverrideFaab('')
+        } catch (e) {
+            showAlert('Error', getErrorMessage(e))
+        } finally {
+            setOverrideSaving(false)
+        }
+    }
+
+    async function handleAddCountOverride() {
+        if (!league?.id || !overrideMemberId) return
+        const addCount = parseInt(overrideAdds)
+        if (isNaN(addCount) || addCount < 0) {
+            showAlert('Invalid', 'Weekly add count must be 0 or more.')
+            return
+        }
+        setOverrideSaving(true)
+        try {
+            await overrideWeeklyAddCount(league.id, overrideMemberId, addCount)
+            showSuccess('Done', 'Weekly add count updated.')
+            setOverrideAdds('')
+        } catch (e) {
+            showAlert('Error', getErrorMessage(e))
+        } finally {
+            setOverrideSaving(false)
+        }
     }
 
     const actionGroups: CommissionerAction[][] = [
@@ -499,6 +578,16 @@ export default function CommissionerSettingsScreen() {
                                 value: playoffWeek,
                                 set: setPlayoffWeek,
                             },
+                            {
+                                label: 'Weekly Add Limit (0 = unlimited)',
+                                value: weeklyAddLimit,
+                                set: setWeeklyAddLimit,
+                            },
+                            {
+                                label: 'FAAB Starting Budget',
+                                value: faabBudget,
+                                set: setFaabBudget,
+                            },
                         ].map(({ label, value, set }, i, arr) => (
                             <View
                                 key={label}
@@ -514,6 +603,71 @@ export default function CommissionerSettingsScreen() {
                                 />
                             </View>
                         ))}
+                        <View style={[styles.row, styles.rowBorder]}>
+                            <Text style={styles.rowLabel}>Waiver Mode</Text>
+                            <View style={styles.segmentRow}>
+                                {(['faab', 'rolling'] as WaiverMode[]).map((mode) => {
+                                    const active = waiverMode === mode
+                                    return (
+                                        <Pressable
+                                            key={mode}
+                                            style={[styles.segmentButton, active && styles.segmentButtonActive]}
+                                            onPress={() => setWaiverMode(mode)}
+                                        >
+                                            <Text style={[styles.segmentButtonText, active && styles.segmentButtonTextActive]}>
+                                                {mode === 'faab' ? 'FAAB' : 'Rolling'}
+                                            </Text>
+                                        </Pressable>
+                                    )
+                                })}
+                            </View>
+                        </View>
+                    </View>
+
+                    <Text style={styles.sectionTitle}>TRANSACTION OVERRIDES</Text>
+                    <View style={styles.card}>
+                        <View style={styles.memberChipRow}>
+                            {members.map((member) => {
+                                const active = overrideMemberId === member.id
+                                return (
+                                    <Pressable
+                                        key={member.id}
+                                        style={[styles.memberChip, active && styles.memberChipActive]}
+                                        onPress={() => setOverrideMemberId(member.id)}
+                                    >
+                                        <Text style={[styles.memberChipText, active && styles.memberChipTextActive]}>
+                                            {member.team_name ?? 'Unnamed'}
+                                        </Text>
+                                    </Pressable>
+                                )
+                            })}
+                        </View>
+                        <View style={styles.overrideRow}>
+                            <TextInput
+                                style={styles.overrideInput}
+                                value={overrideFaab}
+                                onChangeText={setOverrideFaab}
+                                keyboardType="numeric"
+                                placeholder="FAAB balance"
+                                placeholderTextColor={colors.textPlaceholder}
+                            />
+                            <Pressable style={styles.overrideButton} onPress={handleFaabOverride} disabled={overrideSaving}>
+                                <Text style={styles.overrideButtonText}>Set FAAB</Text>
+                            </Pressable>
+                        </View>
+                        <View style={styles.overrideRow}>
+                            <TextInput
+                                style={styles.overrideInput}
+                                value={overrideAdds}
+                                onChangeText={setOverrideAdds}
+                                keyboardType="numeric"
+                                placeholder="Weekly adds used"
+                                placeholderTextColor={colors.textPlaceholder}
+                            />
+                            <Pressable style={styles.overrideButton} onPress={handleAddCountOverride} disabled={overrideSaving}>
+                                <Text style={styles.overrideButtonText}>Set Adds</Text>
+                            </Pressable>
+                        </View>
                     </View>
 
                     {/* ── Save ──────────────────────────────────────── */}
@@ -582,6 +736,75 @@ const styles = StyleSheet.create({
         color: colors.primaryDark,
         padding: 0,
     },
+    segmentRow: {
+        flexDirection: 'row',
+        gap: spacing.sm,
+    },
+    segmentButton: {
+        minWidth: 76,
+        minHeight: 34,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: colors.borderLight,
+        borderRadius: radii.md,
+        borderCurve: 'continuous' as const,
+        paddingHorizontal: spacing.md,
+        backgroundColor: colors.bgMuted,
+    },
+    segmentButtonActive: {
+        borderColor: colors.primary,
+        backgroundColor: colors.primary,
+    },
+    segmentButtonText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.textSecondary },
+    segmentButtonTextActive: { color: colors.textWhite },
+    memberChipRow: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: spacing.sm,
+        padding: spacing.lg,
+        paddingBottom: spacing.sm,
+    },
+    memberChip: {
+        minHeight: 34,
+        justifyContent: 'center',
+        borderRadius: radii.md,
+        borderCurve: 'continuous' as const,
+        backgroundColor: colors.bgMuted,
+        paddingHorizontal: spacing.md,
+    },
+    memberChipActive: { backgroundColor: colors.primary },
+    memberChipText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.textSecondary },
+    memberChipTextActive: { color: colors.textWhite },
+    overrideRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.md,
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.sm,
+    },
+    overrideInput: {
+        flex: 1,
+        minHeight: 42,
+        borderWidth: 1,
+        borderColor: colors.borderLight,
+        borderRadius: radii.md,
+        borderCurve: 'continuous' as const,
+        paddingHorizontal: spacing.md,
+        fontSize: fontSize.md,
+        color: colors.textPrimary,
+    },
+    overrideButton: {
+        minWidth: 92,
+        minHeight: 42,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: radii.md,
+        borderCurve: 'continuous' as const,
+        backgroundColor: colors.primary,
+        paddingHorizontal: spacing.md,
+    },
+    overrideButtonText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.textWhite },
 
     stepper: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg },
     stepBtn: {

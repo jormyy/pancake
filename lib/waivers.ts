@@ -23,6 +23,9 @@ export type WaiverClaim = {
     submittedAt: string
     processDate: string
     priorityAtSubmission: number
+    bidAmount: number
+    claimOrder: number
+    failureReason: string | null
 }
 
 type PlayerSummaryRow = {
@@ -48,6 +51,9 @@ type WaiverClaimQueryRow = {
     submitted_at: string
     process_date: string
     priority_at_submission: number
+    bid_amount: number
+    claim_order: number
+    failure_reason: string | null
     claim_player: PlayerSummaryRow
     drop_player: PlayerSummaryRow
 }
@@ -120,17 +126,45 @@ export async function submitWaiverClaim(
     leagueId: string,
     playerId: string,
     dropPlayerId?: string,
+    options: { bidAmount?: number; claimOrder?: number | null } = {},
 ): Promise<void> {
     await apiPost('/waivers/claims', {
         memberId,
         leagueId,
         playerId,
         dropPlayerId: dropPlayerId ?? null,
+        bidAmount: options.bidAmount ?? 0,
+        claimOrder: options.claimOrder ?? null,
     })
 }
 
 export async function cancelWaiverClaim(claimId: string, memberId: string): Promise<void> {
     await apiPost(`/waivers/claims/${claimId}/cancel`, { memberId })
+}
+
+export async function editWaiverClaim(
+    claimId: string,
+    memberId: string,
+    updates: { dropPlayerId?: string | null; bidAmount?: number; claimOrder?: number | null },
+): Promise<void> {
+    await apiPost(`/waivers/claims/${claimId}/edit`, {
+        memberId,
+        dropPlayerId: updates.dropPlayerId ?? null,
+        bidAmount: updates.bidAmount ?? 0,
+        claimOrder: updates.claimOrder ?? null,
+    })
+}
+
+export async function reorderWaiverClaim(
+    claimId: string,
+    memberId: string,
+    direction: 'up' | 'down',
+): Promise<number> {
+    const result = await apiPost<{ claimOrder: number }>(`/waivers/claims/${claimId}/reorder`, {
+        memberId,
+        direction,
+    })
+    return result.claimOrder
 }
 
 export async function getMyWaiverClaims(
@@ -150,12 +184,16 @@ export async function getMyWaiverClaims(
             submitted_at,
             process_date,
             priority_at_submission,
+            bid_amount,
+            claim_order,
+            failure_reason,
             claim_player:players!waiver_claims_player_id_fkey ( display_name ),
             drop_player:players!waiver_claims_drop_player_id_fkey ( display_name )
         `)
         .eq('member_id', memberId)
         .eq('league_season_id', seasonId)
         .in('status', ['pending', 'succeeded', 'failed_priority', 'failed_roster'])
+        .order('claim_order', { ascending: true })
         .order('submitted_at', { ascending: false })
         .limit(20)
 
@@ -171,6 +209,9 @@ export async function getMyWaiverClaims(
         submittedAt: row.submitted_at,
         processDate: row.process_date,
         priorityAtSubmission: row.priority_at_submission,
+        bidAmount: row.bid_amount ?? 0,
+        claimOrder: row.claim_order ?? 1,
+        failureReason: row.failure_reason ?? null,
     }))
 }
 

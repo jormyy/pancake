@@ -16,7 +16,7 @@ import { useAuth } from '@/hooks/use-auth'
 import { useLeagueContext } from '@/contexts/league-context'
 import { getRoster, toggleIR, toggleTaxi, dropPlayer, isIREligible, isTaxiEligible, RosterPlayer } from '@/lib/roster'
 import { getPicksForMember, TradePickItem } from '@/lib/trades'
-import { getMyWaiverClaims, cancelWaiverClaim, getMyWaiverPriority, WaiverClaim } from '@/lib/waivers'
+import { getMyWaiverClaims, cancelWaiverClaim, editWaiverClaim, reorderWaiverClaim, getMyWaiverPriority, WaiverClaim } from '@/lib/waivers'
 import { supabase } from '@/lib/supabase'
 import { currentSeasonYear } from '@/lib/shared/season'
 import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
@@ -360,15 +360,39 @@ export default function RosterScreen() {
     }
 
     async function handleCancelClaim(claimId: string) {
-        if (!user) return
+        if (!current) return
         setCancellingId(claimId)
         try {
-            await cancelWaiverClaim(claimId, user.id)
+            await cancelWaiverClaim(claimId, current.id)
             await load()
         } catch (e) {
             showAlert('Error', getErrorMessage(e))
         } finally {
             setCancellingId(null)
+        }
+    }
+
+    async function handleEditClaimBid(claim: WaiverClaim, bidAmount: number) {
+        if (!current) return
+        try {
+            await editWaiverClaim(claim.id, current.id, {
+                dropPlayerId: claim.dropPlayerId,
+                bidAmount,
+                claimOrder: claim.claimOrder,
+            })
+            await load()
+        } catch (e) {
+            showAlert('Error', getErrorMessage(e))
+        }
+    }
+
+    async function handleReorderClaim(claimId: string, direction: 'up' | 'down') {
+        if (!current) return
+        try {
+            await reorderWaiverClaim(claimId, current.id, direction)
+            await load()
+        } catch (e) {
+            showAlert('Error', getErrorMessage(e))
         }
     }
 
@@ -456,7 +480,10 @@ export default function RosterScreen() {
                                     claim={item as WaiverClaim}
                                     cancellingId={cancellingId}
                                     waiverPriority={waiverPriority}
+                                    waiverMode={currentLeague?.waiver_mode ?? 'rolling'}
                                     onCancel={handleCancelClaim}
+                                    onEditBid={handleEditClaimBid}
+                                    onReorder={handleReorderClaim}
                                 />
                             )
                         }

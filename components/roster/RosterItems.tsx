@@ -1,4 +1,5 @@
-import { View, Text, StyleSheet, ActivityIndicator } from 'react-native'
+import { useEffect, useState } from 'react'
+import { View, Text, StyleSheet, ActivityIndicator, TextInput } from 'react-native'
 import { INJURY_COLORS, colors, fontSize, fontWeight, radii, spacing, palette } from '@/constants/tokens'
 import { isIREligible, isTaxiEligible, RosterPlayer } from '@/lib/roster'
 import { getEligiblePositions } from '@/lib/players'
@@ -14,14 +15,25 @@ export function RosterClaimItem({
     claim,
     cancellingId,
     waiverPriority,
+    waiverMode = 'rolling',
     onCancel,
+    onEditBid,
+    onReorder,
 }: {
     claim: WaiverClaim
     cancellingId: string | null
     waiverPriority: number | null
+    waiverMode?: 'rolling' | 'faab'
     onCancel: (id: string) => void
+    onEditBid: (claim: WaiverClaim, bidAmount: number) => void
+    onReorder: (id: string, direction: 'up' | 'down') => void
 }) {
     const isPending = claim.status === 'pending'
+    const usesFaab = waiverMode === 'faab'
+    const [bidText, setBidText] = useState(String(claim.bidAmount ?? 0))
+    useEffect(() => {
+        setBidText(String(claim.bidAmount ?? 0))
+    }, [claim.bidAmount])
     const statusColor =
         claim.status === 'succeeded' ? colors.success
         : claim.status === 'pending' ? colors.info
@@ -38,15 +50,51 @@ export function RosterClaimItem({
                 {claim.dropPlayerName ? (
                     <Text style={styles.playerMeta}>Drop: {claim.dropPlayerName}</Text>
                 ) : null}
+                <Text style={styles.playerMeta}>
+                    Order {claim.claimOrder}{usesFaab ? ` · Bid $${claim.bidAmount}` : ''}
+                </Text>
                 <Text style={[styles.playerMeta, { color: statusColor }]}>
                     {claim.status === 'pending'
                         ? `Processes ${shortDateFmt.format(new Date(claim.processDate + 'T12:00:00Z'))}`
                         : claim.status === 'succeeded'
                           ? 'Succeeded'
                           : claim.status === 'failed_roster'
-                            ? 'Failed: roster full'
+                          ? 'Failed: roster full'
                             : 'Failed: outbid'}
                 </Text>
+                {claim.failureReason ? (
+                    <Text style={[styles.playerMeta, { color: colors.danger }]}>{claim.failureReason}</Text>
+                ) : null}
+                {isPending ? (
+                    <View style={styles.claimEditRow}>
+                        {usesFaab ? (
+                            <TextInput
+                                style={styles.claimBidInput}
+                                value={bidText}
+                                onChangeText={(value) => {
+                                    if (/^\d*$/.test(value)) setBidText(value)
+                                }}
+                                keyboardType="numeric"
+                                accessibilityLabel={`Bid for ${claim.playerName}`}
+                            />
+                        ) : null}
+                        <MotionPressable style={styles.miniButton} onPress={() => onReorder(claim.id, 'up')} pressedScale={0.92}>
+                            <Text style={styles.miniButtonText}>Up</Text>
+                        </MotionPressable>
+                        <MotionPressable style={styles.miniButton} onPress={() => onReorder(claim.id, 'down')} pressedScale={0.92}>
+                            <Text style={styles.miniButtonText}>Down</Text>
+                        </MotionPressable>
+                        {usesFaab ? (
+                            <MotionPressable
+                                style={styles.miniButton}
+                                onPress={() => onEditBid(claim, Math.max(0, parseInt(bidText || '0', 10) || 0))}
+                                pressedScale={0.92}
+                            >
+                                <Text style={styles.miniButtonText}>Save</Text>
+                            </MotionPressable>
+                        ) : null}
+                    </View>
+                ) : null}
             </View>
             {isPending ? (
                 <MotionPressable
@@ -305,4 +353,35 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     priorityBadgeText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.xs },
+    claimEditRow: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        gap: spacing.sm,
+        marginTop: spacing.sm,
+    },
+    claimBidInput: {
+        minWidth: 56,
+        height: 32,
+        borderWidth: 1,
+        borderColor: colors.borderLight,
+        borderRadius: radii.md,
+        borderCurve: 'continuous' as const,
+        paddingHorizontal: spacing.sm,
+        fontSize: fontSize.sm,
+        fontWeight: fontWeight.bold,
+        color: colors.textPrimary,
+    },
+    miniButton: {
+        minHeight: 32,
+        minWidth: 48,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: colors.border,
+        borderRadius: radii.md,
+        borderCurve: 'continuous' as const,
+        paddingHorizontal: spacing.sm,
+    },
+    miniButtonText: { fontSize: 11, fontWeight: fontWeight.bold, color: colors.textSecondary },
 })
