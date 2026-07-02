@@ -21,6 +21,65 @@ const safeName = (value) => value.replace(/[^a-zA-Z0-9._-]/g, '-')
 
 const joinUrl = (base, pathname) => new URL(pathname, base.endsWith('/') ? base : `${base}/`).toString()
 
+const routeWorkflowIds = new Map([
+  ['home', 'home-live-lineup'],
+  ['players', 'player-search-filter'],
+  ['roster', 'roster-review-manage'],
+  ['trades', 'trade-review-act'],
+  ['dynasty', 'dynasty-hub'],
+  ['lineup', 'lineup-day-change'],
+  ['claim-player', 'waiver-add-claim'],
+  ['player-detail', 'player-detail-open'],
+  ['propose-trade', 'trade-review-act'],
+  ['draft-room', 'auction-draft-room'],
+  ['rookie-draft-room', 'rookie-draft-room'],
+])
+
+const parseEvalJson = (output) => {
+  const line = output.split('\n').filter(Boolean).at(-1)
+  const value = JSON.parse(line)
+  return typeof value === 'string' ? JSON.parse(value) : value
+}
+
+const browserNavigationTiming = async (session) => {
+  const output = await browser(session, [
+    'eval',
+    `(() => {
+      const nav = performance.getEntriesByType('navigation')[0];
+      if (!nav) return JSON.stringify(null);
+      return JSON.stringify({
+        fullLoadMs: Math.round(nav.loadEventEnd || nav.domContentLoadedEventEnd || nav.responseEnd || 0),
+        domContentLoadedMs: Math.round(nav.domContentLoadedEventEnd || 0),
+        responseEndMs: Math.round(nav.responseEnd || 0),
+        transferSize: Math.round(nav.transferSize || 0),
+        encodedBodySize: Math.round(nav.encodedBodySize || 0)
+      });
+    })()`,
+  ])
+  return parseEvalJson(output)
+}
+
+const playerSearchFeedbackTiming = async (session) => {
+  const output = await browser(session, [
+    'eval',
+    `(async () => {
+      const input = document.querySelector('input[placeholder="Search players..."], input');
+      if (!input) return JSON.stringify(null);
+      const descriptor = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value');
+      const previousValue = input.value;
+      const started = performance.now();
+      descriptor?.set?.call(input, 'e2e');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+      const feedbackMs = Math.round((performance.now() - started) * 10) / 10;
+      descriptor?.set?.call(input, previousValue);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      return JSON.stringify({ feedbackMs });
+    })()`,
+  ])
+  return parseEvalJson(output)
+}
+
 const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 const refForAccessibleNode = (snapshot, role, name) => {
@@ -307,6 +366,7 @@ export async function runBrowserSmoke({
   const sessionList = await listSessions().catch((error) => `session list unavailable: ${error.message}`)
 
   const visited = []
+  const workflowMeasurements = []
   const notes = [
     `Frontend: ${describeEndpoint(env.frontendUrl)}`,
     `Session: ${session}`,
@@ -343,6 +403,7 @@ export async function runBrowserSmoke({
       ['roster', '/roster'],
       ['trades', '/trades'],
       ['league', '/league'],
+      ['dynasty', '/dynasty'],
     ]
 
     if (fullSweep) {
@@ -354,6 +415,22 @@ export async function runBrowserSmoke({
     for (const [label, route] of routes) {
       await browser(session, ['open', joinUrl(env.frontendUrl, route)])
       await browser(session, ['wait', '1500'])
+      const workflowId = routeWorkflowIds.get(label)
+      if (workflowId) {
+        const timing = await browserNavigationTiming(session).catch(() => null)
+        const feedback = label === 'players'
+          ? await playerSearchFeedbackTiming(session).catch(() => null)
+          : null
+        if (timing) {
+          workflowMeasurements.push({
+            id: workflowId,
+            label,
+            route,
+            ...timing,
+            ...(feedback?.feedbackMs != null ? { feedbackMs: feedback.feedbackMs } : {}),
+          })
+        }
+      }
       await captureBrowserScreenshot(browser, session, artifactDir, `${label}.png`)
       visited.push(label)
     }
@@ -375,6 +452,7 @@ export async function runBrowserSmoke({
       session,
       user: user.email,
       visited,
+      workflowMeasurements,
       artifactDir,
       notes,
     }

@@ -1,0 +1,287 @@
+{
+  "version": 1,
+  "generatedFrom": "instant-loading-goal",
+  "globalBudgets": {
+    "instantFeedbackMs": 100,
+    "cachedRequestMs": 300,
+    "fullWorkflowMs": 1000,
+    "longTaskMs": 50,
+    "maxHeartbeatLagMs": 600,
+    "maxMutationLoopMs": 30000,
+    "maxInitialWebJsKb": 350,
+    "maxRouteWebJsKb": 220,
+    "maxDbQueryMs": 100
+  },
+  "workflows": [
+    {
+      "rank": 1,
+      "id": "home-live-lineup",
+      "name": "Open Home and review live matchup/lineup",
+      "route": "/",
+      "frequency": "multiple times per game day",
+      "pain": "highest",
+      "owner": "frontend, API, database, realtime",
+      "criticalPath": [
+        "cached league membership",
+        "current matchup summary",
+        "my lineup and opponent lineup",
+        "today scoreboard/live stats"
+      ],
+      "budgets": {
+        "feedbackMs": 100,
+        "cachedRequestMs": 300,
+        "fullLoadMs": 1000
+      },
+      "measurement": {
+        "primary": "npm run e2e:browser-perf",
+        "report": "tests/e2e-browser-perf-report.md",
+        "reportKeys": [
+          "homePerf.maxLagMs",
+          "workflowMeasurements.home-live-lineup.fullLoadMs"
+        ]
+      }
+    },
+    {
+      "rank": 2,
+      "id": "lineup-day-change",
+      "name": "Change lineup day and move a player",
+      "route": "/",
+      "frequency": "daily during season",
+      "pain": "highest",
+      "owner": "frontend, RPC, database",
+      "criticalPath": [
+        "day selector feedback",
+        "lineup read for selected date",
+        "atomic lineup move RPC",
+        "visible slot confirmation"
+      ],
+      "budgets": {
+        "feedbackMs": 100,
+        "cachedRequestMs": 300,
+        "fullLoadMs": 1000
+      },
+      "measurement": {
+        "primary": "npm run e2e:browser-lineup",
+        "report": "tests/e2e-browser-lineup-report.md"
+      }
+    },
+    {
+      "rank": 3,
+      "id": "player-search-filter",
+      "name": "Search/filter/sort the player pool",
+      "route": "/players",
+      "frequency": "multiple times per roster session",
+      "pain": "highest",
+      "owner": "frontend, Postgres RPC, materialized views",
+      "criticalPath": [
+        "search input feedback",
+        "availability snapshot cache",
+        "search_players RPC",
+        "bounded projection enrichment"
+      ],
+      "budgets": {
+        "feedbackMs": 100,
+        "cachedRequestMs": 300,
+        "fullLoadMs": 1000
+      },
+      "measurement": {
+        "primary": "E2E_BROWSER_FULL_SWEEP=1 npm run e2e:browser-smoke",
+        "report": "tests/e2e-browser-report.md",
+        "reportKeys": [
+          "visited.players",
+          "workflowMeasurements.player-search-filter.feedbackMs"
+        ]
+      }
+    },
+    {
+      "rank": 4,
+      "id": "player-detail-open",
+      "name": "Open a player detail screen",
+      "route": "/player/[id]",
+      "frequency": "multiple times per scouting session",
+      "pain": "high",
+      "owner": "frontend, database",
+      "criticalPath": [
+        "player row",
+        "season averages",
+        "game log page",
+        "fantasy points for selected league"
+      ],
+      "budgets": {
+        "feedbackMs": 100,
+        "cachedRequestMs": 300,
+        "fullLoadMs": 1000
+      },
+      "measurement": {
+        "primary": "E2E_BROWSER_FULL_SWEEP=1 npm run e2e:browser-smoke",
+        "report": "tests/e2e-browser-report.md",
+        "reportKeys": [
+          "visited.player-detail"
+        ]
+      }
+    },
+    {
+      "rank": 5,
+      "id": "roster-review-manage",
+      "name": "Open roster and manage IR/taxi/picks/claims",
+      "route": "/roster",
+      "frequency": "daily or weekly",
+      "pain": "high",
+      "owner": "frontend, database",
+      "criticalPath": [
+        "cached roster screen",
+        "roster players",
+        "draft picks",
+        "waiver claims",
+        "league-scored averages"
+      ],
+      "budgets": {
+        "feedbackMs": 100,
+        "cachedRequestMs": 300,
+        "fullLoadMs": 1000
+      },
+      "measurement": {
+        "primary": "npm run e2e:browser-smoke",
+        "report": "tests/e2e-browser-report.md",
+        "reportKeys": [
+          "visited.roster"
+        ]
+      }
+    },
+    {
+      "rank": 6,
+      "id": "waiver-add-claim",
+      "name": "Add a free agent or submit a waiver claim",
+      "route": "/players, /claim-player",
+      "frequency": "weekly",
+      "pain": "high",
+      "owner": "frontend, Edge API, RPC, database",
+      "criticalPath": [
+        "add/claim button feedback",
+        "transaction state",
+        "waiver claim modal",
+        "atomic claim/add RPC"
+      ],
+      "budgets": {
+        "feedbackMs": 100,
+        "cachedRequestMs": 300,
+        "fullLoadMs": 1000
+      },
+      "measurement": {
+        "primary": "npm run e2e:browser-waiver",
+        "report": "tests/e2e-browser-waiver-report.md"
+      }
+    },
+    {
+      "rank": 7,
+      "id": "trade-review-act",
+      "name": "Review, propose, accept, reject, withdraw, or veto a trade",
+      "route": "/trades, /propose-trade",
+      "frequency": "weekly for active leagues",
+      "pain": "high",
+      "owner": "frontend, Edge API, RPC, database",
+      "criticalPath": [
+        "trade list read",
+        "roster/pick candidate reads",
+        "optimistic button feedback",
+        "atomic trade action RPC"
+      ],
+      "budgets": {
+        "feedbackMs": 100,
+        "cachedRequestMs": 300,
+        "fullLoadMs": 1000
+      },
+      "measurement": {
+        "primary": "npm run e2e:browser-trade",
+        "report": "tests/e2e-browser-trade-report.md"
+      }
+    },
+    {
+      "rank": 8,
+      "id": "auction-draft-room",
+      "name": "Join auction draft room and place a bid",
+      "route": "/draft-room",
+      "frequency": "draft night",
+      "pain": "highest during startup draft",
+      "owner": "frontend, realtime, RPC, database",
+      "criticalPath": [
+        "draft state read",
+        "open nomination",
+        "bid history",
+        "budget rows",
+        "realtime updates"
+      ],
+      "budgets": {
+        "feedbackMs": 100,
+        "cachedRequestMs": 300,
+        "fullLoadMs": 1000
+      },
+      "measurement": {
+        "primary": "npm run e2e:browser-perf",
+        "report": "tests/e2e-browser-perf-report.md",
+        "reportKeys": [
+          "draftPerf.maxLagMs",
+          "workflowMeasurements.auction-draft-room.fullLoadMs",
+          "workflowMeasurements.auction-draft-room.feedbackMs"
+        ]
+      }
+    },
+    {
+      "rank": 9,
+      "id": "rookie-draft-room",
+      "name": "Open rookie draft room and make/observe a pick",
+      "route": "/rookie-draft-room",
+      "frequency": "annual draft",
+      "pain": "high during offseason draft",
+      "owner": "frontend, Edge API, RPC, database",
+      "criticalPath": [
+        "draft board read",
+        "rookie player board",
+        "timer state",
+        "pick RPC",
+        "roster insertion"
+      ],
+      "budgets": {
+        "feedbackMs": 100,
+        "cachedRequestMs": 300,
+        "fullLoadMs": 1000
+      },
+      "measurement": {
+        "primary": "npm run e2e:browser-rookie-draft",
+        "report": "tests/e2e-browser-rookie-draft-report.md"
+      }
+    },
+    {
+      "rank": 10,
+      "id": "dynasty-hub",
+      "name": "Open Dynasty Hub rankings/news",
+      "route": "/dynasty",
+      "frequency": "weekly scouting",
+      "pain": "medium-high",
+      "owner": "frontend, database, cached read models",
+      "criticalPath": [
+        "cached news",
+        "rankings first page",
+        "roster-filtered news",
+        "incremental ranking pages"
+      ],
+      "budgets": {
+        "feedbackMs": 100,
+        "cachedRequestMs": 300,
+        "fullLoadMs": 1000
+      },
+      "measurement": {
+        "primary": "npm run e2e:browser-smoke",
+        "report": "tests/e2e-browser-report.md",
+        "reportKeys": [
+          "visited.dynasty"
+        ]
+      }
+    }
+  ],
+  "releaseGate": {
+    "static": "npm run perf:budget",
+    "browser": "npm run e2e:browser-perf && npm run perf:budget -- --require-report",
+    "full": "npm run lint && npm run typecheck && npm test && npm run perf:budget"
+  }
+}

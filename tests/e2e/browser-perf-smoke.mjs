@@ -15,6 +15,7 @@ const BROWSER_SETTLE_MS = Number(process.env.E2E_BROWSER_PERF_SETTLE_MS ?? 2000)
 const MUTATION_COUNT = Number(process.env.E2E_BROWSER_PERF_MUTATIONS ?? 24)
 const MAX_HEARTBEAT_LAG_MS = Number(process.env.E2E_BROWSER_PERF_MAX_LAG_MS ?? 600)
 const MAX_SCRIPT_MS = Number(process.env.E2E_BROWSER_PERF_MAX_SCRIPT_MS ?? 30000)
+const MAX_FEEDBACK_MS = Number(process.env.E2E_BROWSER_PERF_MAX_FEEDBACK_MS ?? 100)
 const BROWSER_COMMAND_TIMEOUT_MS = Number(process.env.E2E_BROWSER_PERF_COMMAND_TIMEOUT_MS ?? 90_000)
 
 const readState = async () => JSON.parse(await readFile(STATE_PATH, 'utf8'))
@@ -26,10 +27,66 @@ const listSessions = () => listBrowserSessions({ cwd: ROOT })
 const safeName = (value) => value.replace(/[^a-zA-Z0-9._-]/g, '-')
 const joinUrl = (base, pathname) => new URL(pathname, base.endsWith('/') ? base : `${base}/`).toString()
 
+const parseOptionalEvalJson = (output) => {
+  try {
+    return parseEvalJson(output)
+  } catch {
+    return null
+  }
+}
+
 const parseEvalJson = (output) => {
   const line = output.split('\n').filter(Boolean).at(-1)
   const value = JSON.parse(line)
   return typeof value === 'string' ? JSON.parse(value) : value
+}
+
+const browserNavigationTiming = async (session) => {
+  const output = await browser(session, [
+    'eval',
+    `(() => {
+      const nav = performance.getEntriesByType('navigation')[0];
+      if (!nav) return JSON.stringify(null);
+      const fullLoadMs = Math.round(nav.loadEventEnd || nav.domContentLoadedEventEnd || nav.responseEnd || 0);
+      return JSON.stringify({
+        fullLoadMs,
+        domContentLoadedMs: Math.round(nav.domContentLoadedEventEnd || 0),
+        responseEndMs: Math.round(nav.responseEnd || 0),
+        transferSize: Math.round(nav.transferSize || 0),
+        encodedBodySize: Math.round(nav.encodedBodySize || 0)
+      });
+    })()`,
+  ])
+  return parseOptionalEvalJson(output)
+}
+
+const bidPressFeedbackTiming = async (session) => {
+  const output = await browser(session, [
+    'eval',
+    `(async () => {
+      const candidates = Array.from(document.querySelectorAll('*'))
+        .map((node) => ({ node, text: (node.innerText || node.textContent || '').replace(/\\s+/g, ' ').trim() }))
+        .filter((entry) => /^Bid \\$\\d+/.test(entry.text))
+        .sort((a, b) => a.text.length - b.text.length);
+      const labelNode = candidates[0]?.node ?? null;
+      const button = labelNode?.closest?.('[role="button"], button, [tabindex]') ?? labelNode?.parentElement ?? null;
+      if (!button) return JSON.stringify(null);
+      const started = performance.now();
+      const eventInit = { bubbles: true, cancelable: true, pointerId: 1, pointerType: 'mouse' };
+      const down = typeof PointerEvent === 'function'
+        ? new PointerEvent('pointerdown', eventInit)
+        : new MouseEvent('mousedown', { bubbles: true, cancelable: true });
+      button.dispatchEvent(down);
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+      const feedbackMs = Math.round((performance.now() - started) * 10) / 10;
+      const up = typeof PointerEvent === 'function'
+        ? new PointerEvent('pointerup', eventInit)
+        : new MouseEvent('mouseup', { bubbles: true, cancelable: true });
+      button.dispatchEvent(up);
+      return JSON.stringify({ feedbackMs, target: (button.innerText || button.textContent || '').trim() });
+    })()`,
+  ])
+  return parseOptionalEvalJson(output)
 }
 
 const fetchSingle = async (supabase, table, select, filters) => {
@@ -364,6 +421,8 @@ export async function runBrowserPerfSmoke({
 
     await browser(session, ['open', joinUrl(env.frontendUrl, `/draft-room?draftId=${auction.draftId}`)])
     await browser(session, ['wait', String(BROWSER_SETTLE_MS)])
+    const draftLoadTiming = await browserNavigationTiming(session).catch(() => null)
+    const draftFeedback = await bidPressFeedbackTiming(session).catch((error) => ({ error: error.message }))
     await installHeartbeat(session)
     await browser(session, ['screenshot', path.join(artifactDir, 'draft-before-load.png')], { timeout: 60_000 })
 
@@ -374,6 +433,7 @@ export async function runBrowserPerfSmoke({
 
     await browser(session, ['open', joinUrl(env.frontendUrl, '/')])
     await browser(session, ['wait', String(BROWSER_SETTLE_MS)])
+    const homeLoadTiming = await browserNavigationTiming(session).catch(() => null)
     await installHeartbeat(session)
     await runLoadMutations({ supabase, auction: null, matchup })
     await browser(session, ['wait', '2500'])
@@ -390,6 +450,8 @@ export async function runBrowserPerfSmoke({
     if (draftPerf.maxLagMs > MAX_HEARTBEAT_LAG_MS) failures.push(`draft heartbeat lag ${draftPerf.maxLagMs}ms exceeded ${MAX_HEARTBEAT_LAG_MS}ms`)
     if (homePerf.maxLagMs > MAX_HEARTBEAT_LAG_MS) failures.push(`home heartbeat lag ${homePerf.maxLagMs}ms exceeded ${MAX_HEARTBEAT_LAG_MS}ms`)
     if (load.durationMs > MAX_SCRIPT_MS) failures.push(`mutation loop took ${load.durationMs}ms exceeded ${MAX_SCRIPT_MS}ms`)
+    if (draftFeedback?.feedbackMs == null) failures.push(`draft bid feedback measurement missing${draftFeedback?.error ? `: ${draftFeedback.error}` : ''}`)
+    if (draftFeedback?.feedbackMs > MAX_FEEDBACK_MS) failures.push(`draft bid feedback ${draftFeedback.feedbackMs}ms exceeded ${MAX_FEEDBACK_MS}ms`)
     if (draftPerf.ticks < 10 || homePerf.ticks < 10) failures.push('browser heartbeat did not collect enough samples')
     await closePerfNomination(supabase, auction)
 
@@ -404,11 +466,26 @@ export async function runBrowserPerfSmoke({
       },
       matchupId: matchup?.id ?? null,
       load,
+      draftFeedback,
       draftPerf,
       homePerf,
+      workflowMeasurements: [
+        {
+          id: 'auction-draft-room',
+          route: `/draft-room?draftId=${auction.draftId}`,
+          ...(draftFeedback?.feedbackMs != null ? { feedbackMs: draftFeedback.feedbackMs } : {}),
+          ...draftLoadTiming,
+        },
+        {
+          id: 'home-live-lineup',
+          route: '/',
+          ...homeLoadTiming,
+        },
+      ],
       thresholds: {
         maxHeartbeatLagMs: MAX_HEARTBEAT_LAG_MS,
         maxScriptMs: MAX_SCRIPT_MS,
+        maxFeedbackMs: MAX_FEEDBACK_MS,
       },
       notes,
       failures,
