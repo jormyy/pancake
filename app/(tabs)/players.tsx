@@ -4,7 +4,6 @@ import {
     TextInput,
     Pressable,
     StyleSheet,
-    ActivityIndicator,
     Modal,
     ScrollView,
     Platform,
@@ -21,7 +20,6 @@ import { EmptyState } from '@/components/EmptyState'
 import { IRResolutionModal } from '@/components/IRResolutionModal'
 import { DropPlayerPickerModal } from '@/components/DropPlayerPickerModal'
 import { PlayerSearchItem } from '@/components/PlayerSearchItem'
-import { LoadingScreen } from '@/components/LoadingScreen'
 import { NoLeagueState } from '@/components/NoLeagueState'
 import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
 import { usePlayerSearch, SORT_OPTIONS } from '@/hooks/use-player-search'
@@ -31,7 +29,6 @@ import { useQuickAdd } from '@/hooks/use-quick-add'
 import { getMemberTransactionState } from '@/lib/league'
 import { PlayerRow } from '@/lib/players'
 import { useState } from 'react'
-import { SkeletonRows } from '@/components/ui/Skeleton'
 import { getPlayerAvailabilitySnapshot } from '@/lib/player-availability'
 
 const POSITIONS = [
@@ -273,8 +270,8 @@ export default function PlayersScreen() {
         gamesLeftVersion,
     ].join('|')
 
-    if (!authLoading && !user) return null
-    if (authLoading || leagueLoading) return <LoadingScreen />
+    if (authLoading || !user) return <NoLeagueState />
+    if (leagueLoading && memberships.length === 0) return <NoLeagueState />
     if (memberships.length === 0 || !current || !leagueId) return <NoLeagueState />
 
     return (
@@ -293,11 +290,7 @@ export default function PlayersScreen() {
                     />
                     <Text style={styles.resultCountText}>
                         {search.results.loading && search.results.players.length === 0
-                            ? 'Searching...'
-                            : playerSupportLoading
-                              ? 'Loading players...'
-                            : search.results.refreshing
-                              ? `Updating ${search.results.players.length} player${search.results.players.length === 1 ? '' : 's'}`
+                            ? 'Players'
                             : `${search.results.players.length}${search.activeFilterCount > 0 ? ' filtered' : ''} player${search.results.players.length === 1 ? '' : 's'}`}
                     </Text>
                 </View>
@@ -455,14 +448,14 @@ export default function PlayersScreen() {
                     )}
                     ListEmptyComponent={
                         playerSupportLoading || search.results.loading
-                            ? <View style={styles.skeletonRows}><SkeletonRows count={8} height={74} gap={10} /></View>
+                            ? null
                             : ownedError && ownedDataForLeague == null
                               ? <EmptyState message="Players could not load." description="Tap retry to reload roster and waiver state." actionLabel="Retry" onAction={() => void refreshOwned()} fullScreen={false} />
                             : <EmptyState message="No players found." fullScreen={false} />
                     }
                     onEndReached={search.results.loadMore}
                     onEndReachedThreshold={0.3}
-                    ListFooterComponent={search.results.loadingMore ? <ActivityIndicator style={styles.loadMoreSpinner} color={colors.primary} /> : null}
+                    ListFooterComponent={null}
                 />
           </View>
 
@@ -495,12 +488,6 @@ const styles = StyleSheet.create({
     contentWrap: { flex: 1, width: '100%', maxWidth: layout.contentMaxWidth, alignSelf: 'center' },
     flex1: { flex: 1 },
     loadMoreSpinner: { paddingVertical: 16 },
-    skeletonRows: {
-        alignSelf: 'stretch',
-        width: '100%',
-        paddingHorizontal: spacing.xl,
-        paddingVertical: spacing.md,
-    },
     filterCard: {
         margin: spacing.xl,
         marginBottom: spacing.md,

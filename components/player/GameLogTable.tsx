@@ -1,4 +1,4 @@
-import { View, Text, ScrollView, Pressable, ActivityIndicator, StyleSheet } from 'react-native'
+import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native'
 import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 import type { GameLogEntry } from '@/lib/players'
 
@@ -119,11 +119,7 @@ export function GameLogTable({
                     onPress={onLoadMore}
                     disabled={loadingMore}
                 >
-                    {loadingMore ? (
-                        <ActivityIndicator size="small" color={colors.primary} />
-                    ) : (
-                        <Text style={styles.loadMoreText}>Load More</Text>
-                    )}
+                    <Text style={styles.loadMoreText}>Load More</Text>
                 </Pressable>
             )}
         </View>

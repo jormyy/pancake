@@ -3,7 +3,6 @@ import {
     Text,
     TextInput,
     StyleSheet,
-    ActivityIndicator,
     KeyboardAvoidingView,
     Modal,
     Platform,
@@ -29,7 +28,6 @@ export default function RookieDraftRoomScreen() {
 
     const {
         state,
-        loading,
         query,
         setQuery,
         prospects,
@@ -135,15 +133,6 @@ export default function RookieDraftRoomScreen() {
         )
     }
 
-    if (loading) {
-        return (
-            <SafeAreaView style={styles.container}>
-                <Stack.Screen options={{ title: 'Rookie Draft', presentation: 'modal' }} />
-                <ActivityIndicator style={{ flex: 1 }} color={colors.primary} />
-            </SafeAreaView>
-        )
-    }
-
     if (!state) {
         return (
             <SafeAreaView style={styles.container}>
@@ -193,13 +182,9 @@ export default function RookieDraftRoomScreen() {
                                 disabled={resolvingOverflow}
                                 pressedScale={0.965}
                             >
-                                {resolvingOverflow ? (
-                                    <ActivityIndicator color={colors.textWhite} />
-                                ) : (
-                                    <Text style={styles.overflowBtnPrimaryText}>
-                                        Move {rosterOverflow?.newPlayerName} to Taxi Squad
-                                    </Text>
-                                )}
+                                <Text style={styles.overflowBtnPrimaryText}>
+                                    Move {rosterOverflow?.newPlayerName} to Taxi Squad
+                                </Text>
                             </MotionPressable>
                         )}
 
@@ -250,18 +235,12 @@ export default function RookieDraftRoomScreen() {
                                     disabled={!!trimmingId}
                                     pressedScale={0.975}
                                 >
-                                    {trimmingId === rp.id ? (
-                                        <ActivityIndicator size="small" color={colors.danger} />
-                                    ) : (
-                                        <>
-                                            <Text style={styles.overflowDropName}>
-                                                {rp.players?.display_name ?? 'Player'}
-                                            </Text>
-                                            <Text style={styles.overflowDropPos}>
-                                                {rp.players?.position ?? ''} · {rp.players?.nba_team ?? ''}
-                                            </Text>
-                                        </>
-                                    )}
+                                    <Text style={styles.overflowDropName}>
+                                        {rp.players?.display_name ?? 'Player'}
+                                    </Text>
+                                    <Text style={styles.overflowDropPos}>
+                                        {rp.players?.position ?? ''} · {rp.players?.nba_team ?? ''}
+                                    </Text>
                                 </MotionPressable>
                             ))}
                         </ScrollView>
@@ -391,13 +370,6 @@ export default function RookieDraftRoomScreen() {
                                     autoCorrect={false}
                                     returnKeyType="search"
                                 />
-                                {prospectsLoading && (
-                                    <ActivityIndicator
-                                        size="small"
-                                        color={colors.primary}
-                                        style={styles.searchSpinner}
-                                    />
-                                )}
                             </View>
 
                             {/* ── Pick error ───────────────────────── */}
@@ -491,11 +463,7 @@ function ProspectRow({
                 <Text style={styles.resultTeam}>{player.nba_team ?? 'FA'}</Text>
             </View>
             {!isDone && (
-                picking ? (
-                    <ActivityIndicator size="small" color={colors.primary} />
-                ) : (
-                    <Text style={styles.pickBtn}>{actionLabel}</Text>
-                )
+                <Text style={styles.pickBtn}>{actionLabel}</Text>
             )}
         </MotionPressable>
     )

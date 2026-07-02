@@ -7,7 +7,6 @@ import {
     KeyboardAvoidingView,
     Platform,
     ScrollView,
-    ActivityIndicator,
     Share,
 } from 'react-native'
 import { useRouter } from 'expo-router'
@@ -125,11 +124,7 @@ export default function CreateLeagueScreen() {
                 {error && <Text style={styles.error}>{error}</Text>}
 
                 <Pressable style={styles.button} onPress={handleCreate} disabled={loading}>
-                    {loading ? (
-                        <ActivityIndicator color={colors.textWhite} />
-                    ) : (
-                        <Text style={styles.buttonText}>Create League</Text>
-                    )}
+                    <Text style={styles.buttonText}>Create League</Text>
                 </Pressable>
             </ScrollView>
         </KeyboardAvoidingView>

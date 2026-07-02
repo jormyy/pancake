@@ -3,7 +3,6 @@ import {
     Text,
     Pressable,
     StyleSheet,
-    ActivityIndicator,
     TextInput,
 } from 'react-native'
 import { FlashList } from '@shopify/flash-list'
@@ -17,7 +16,6 @@ import { isIneligibleIR } from '@/lib/format'
 import { getPlayer } from '@/lib/players'
 import { submitWaiverClaim, getMyWaiverPriority } from '@/lib/waivers'
 import { getMemberTransactionState, type MemberTransactionState } from '@/lib/league'
-import { LoadingScreen } from '@/components/LoadingScreen'
 import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 import { showAlert, showSuccess, getErrorMessage } from '@/lib/alert'
 
@@ -100,10 +98,6 @@ export default function ClaimPlayerScreen() {
         }
     }
 
-    if (loading) {
-        return <LoadingScreen />
-    }
-
     const tomorrow = new Date()
     tomorrow.setDate(tomorrow.getDate() + 1)
     const processDateStr = tomorrow.toLocaleDateString('en-US', {
@@ -112,6 +106,8 @@ export default function ClaimPlayerScreen() {
         day: 'numeric',
         timeZone: 'America/New_York',
     })
+    const claimReady = !loading && !!player
+    const submitDisabled = submitting || !claimReady || (needsDrop && !selectedDrop)
 
     return (
         <>
@@ -239,17 +235,13 @@ export default function ClaimPlayerScreen() {
 
                         <View style={styles.footer}>
                             <Pressable
-                                style={[styles.submitButton, (needsDrop && !selectedDrop) && styles.submitButtonDisabled]}
+                                style={[styles.submitButton, submitDisabled && styles.submitButtonDisabled]}
                                 onPress={handleSubmit}
                                 accessibilityRole="button"
                                 accessibilityLabel="Submit waiver claim"
-                                disabled={submitting || (needsDrop && !selectedDrop)}
+                                disabled={submitDisabled}
                             >
-                                {submitting ? (
-                                    <ActivityIndicator color={colors.textWhite} />
-                                ) : (
-                                    <Text style={styles.submitButtonText}>Submit Claim</Text>
-                                )}
+                                <Text style={styles.submitButtonText}>Submit Claim</Text>
                             </Pressable>
                         </View>
                     </>

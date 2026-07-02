@@ -1,5 +1,4 @@
 import {
-    ActivityIndicator,
     Modal,
     Platform,
     Pressable,
@@ -32,6 +31,7 @@ import {
     type LeagueProjectionRow,
     type ProjectionView,
 } from '@/lib/projections'
+import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 import type { PlayerRow } from '@/lib/players'
 import {
     STAT_COLUMN_SORT,
@@ -99,6 +99,9 @@ const STAT_LABELS: Record<string, string> = {
 const EMPTY_OWNED_MAP = new Map<string, OwnedEntry>()
 const EMPTY_WAIVER_IDS = new Set<string>()
 const EMPTY_GAMES_LEFT = new Map<string, number>()
+const PROJECTION_CACHE_PREFIX = 'pancake:league-projections:v1:'
+
+const projectionCacheKey = (leagueId: string, view: ProjectionView) => `${PROJECTION_CACHE_PREFIX}${leagueId}:${view}`
 
 type FilterOption<T extends string> = { key: T; label: string }
 
@@ -243,8 +246,7 @@ export default function ProjectionsScreen() {
     const [sortMode, setSortMode] = useState<PlayerSearchSortMode>('fpts')
     const [sortDir, setSortDir] = useState<PlayerSearchSortDir>('desc')
     const [rows, setRows] = useState<LeagueProjectionRow[]>([])
-    const [loading, setLoading] = useState(true)
-    const [refreshing, setRefreshing] = useState(false)
+    const [hydrated, setHydrated] = useState(false)
     const [error, setError] = useState<string | null>(null)
 
     const {
@@ -269,24 +271,30 @@ export default function ProjectionsScreen() {
     async function load(nextView = view) {
         if (!leagueId) {
             setRows([])
-            setLoading(false)
+            setHydrated(true)
             return
         }
         setError(null)
-        setRefreshing(true)
+        const cacheKey = projectionCacheKey(leagueId, nextView)
+        const cached = readPersistentCache<LeagueProjectionRow[]>(cacheKey)
+        if (cached) {
+            setRows(cached)
+            setHydrated(true)
+        } else if (rows.length === 0) {
+            setHydrated(false)
+        }
         try {
             const projections = await getLeagueProjections({ leagueId, view: nextView, limit: 1000 })
             setRows(projections)
+            setHydrated(true)
+            writePersistentCache(cacheKey, projections)
         } catch (e) {
             setError(e instanceof Error ? e.message : String(e))
-        } finally {
-            setLoading(false)
-            setRefreshing(false)
+            setHydrated(true)
         }
     }
 
     useEffect(() => {
-        setLoading(true)
         load(view)
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [leagueId, view])
@@ -407,10 +415,8 @@ export default function ProjectionsScreen() {
                         clearButtonMode="while-editing"
                     />
                     <Text style={styles.resultCountText}>
-                        {loading && playerRows.length === 0
-                            ? 'Searching...'
-                            : refreshing
-                              ? `Updating ${playerRows.length} player${playerRows.length === 1 ? '' : 's'}`
+                        {!hydrated && playerRows.length === 0
+                            ? 'Players'
                             : `${playerRows.length}${activeFilterCount > 0 ? ' filtered' : ''} player${playerRows.length === 1 ? '' : 's'}`}
                     </Text>
                 </View>
@@ -502,69 +508,65 @@ export default function ProjectionsScreen() {
                 </View>
             ) : null}
 
-            {loading && playerRows.length === 0 ? (
-                <ActivityIndicator style={styles.flex1} color={colors.primary} />
-            ) : (
-                <FlashList
-                    data={playerRows}
-                    extraData={playerListExtraData}
-                    keyExtractor={(player) => player.id}
-                    contentContainerStyle={playerRows.length === 0 ? styles.emptyContainer : undefined}
-                    ItemSeparatorComponent={ItemSeparator}
-                    ListHeaderComponent={showStatTable ? (
-                        <View style={styles.tableHeader}>
-                            <View style={styles.tableHeaderAddSpacer} />
-                            <View style={styles.tableHeaderCardRow}>
-                                <View style={styles.tableHeaderHeadshotSpacer} />
-                                <Text style={styles.tableHeaderPlayer}>Player</Text>
-                                <Text style={styles.tableHeaderOwnership}>Ownership</Text>
-                                <View style={styles.tableHeaderStatsGroup}>
-                                    {TABLE_COLUMNS.map((column) => {
-                                        const mode = STAT_COLUMN_SORT[column]
-                                        const active = mode != null && sortMode === mode
-                                        return (
-                                            <Pressable
-                                                key={column}
-                                                style={styles.tableHeaderStatBtn}
-                                                onPress={() => mode && handleColumnSort(mode)}
-                                                accessibilityRole="button"
-                                                accessibilityState={{ selected: active }}
-                                                accessibilityLabel={`Sort by ${STAT_LABELS[column] ?? column}${active ? (sortDir === 'asc' ? ', ascending' : ', descending') : ''}`}
-                                            >
-                                                <Text style={[styles.tableHeaderStat, active && styles.tableHeaderStatActive]} numberOfLines={1}>
-                                                    {column}{active ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
-                                                </Text>
-                                            </Pressable>
-                                        )
-                                    })}
-                                </View>
+            <FlashList
+                data={playerRows}
+                extraData={playerListExtraData}
+                keyExtractor={(player) => player.id}
+                contentContainerStyle={playerRows.length === 0 ? styles.emptyContainer : undefined}
+                ItemSeparatorComponent={ItemSeparator}
+                ListHeaderComponent={showStatTable ? (
+                    <View style={styles.tableHeader}>
+                        <View style={styles.tableHeaderAddSpacer} />
+                        <View style={styles.tableHeaderCardRow}>
+                            <View style={styles.tableHeaderHeadshotSpacer} />
+                            <Text style={styles.tableHeaderPlayer}>Player</Text>
+                            <Text style={styles.tableHeaderOwnership}>Ownership</Text>
+                            <View style={styles.tableHeaderStatsGroup}>
+                                {TABLE_COLUMNS.map((column) => {
+                                    const mode = STAT_COLUMN_SORT[column]
+                                    const active = mode != null && sortMode === mode
+                                    return (
+                                        <Pressable
+                                            key={column}
+                                            style={styles.tableHeaderStatBtn}
+                                            onPress={() => mode && handleColumnSort(mode)}
+                                            accessibilityRole="button"
+                                            accessibilityState={{ selected: active }}
+                                            accessibilityLabel={`Sort by ${STAT_LABELS[column] ?? column}${active ? (sortDir === 'asc' ? ', ascending' : ', descending') : ''}`}
+                                        >
+                                            <Text style={[styles.tableHeaderStat, active && styles.tableHeaderStatActive]} numberOfLines={1}>
+                                                {column}{active ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
+                                            </Text>
+                                        </Pressable>
+                                    )
+                                })}
                             </View>
                         </View>
-                    ) : null}
-                    renderItem={({ item }: { item: PlayerRow }) => (
-                        <PlayerSearchItem
-                            item={item}
-                            currentMemberId={current?.id}
-                            ownedMap={ownedMap}
-                            waiverIds={waiverIds}
-                            adding={quickAdd.adding}
-                            gamesLeft={EMPTY_GAMES_LEFT}
-                            showStats={showStatTable}
-                            statMode="projection"
-                            animate={false}
-                            onAdd={(player) => {
-                                if (waiverIds.has(player.id)) {
-                                    push(`/(modals)/claim-player?playerId=${player.id}`)
-                                } else {
-                                    void quickAdd.handleAdd(player)
-                                }
-                            }}
-                            onPress={() => push(`/player/${item.id}`)}
-                        />
-                    )}
-                    ListEmptyComponent={<EmptyState message="No projections found." fullScreen={false} />}
-                />
-            )}
+                    </View>
+                ) : null}
+                renderItem={({ item }: { item: PlayerRow }) => (
+                    <PlayerSearchItem
+                        item={item}
+                        currentMemberId={current?.id}
+                        ownedMap={ownedMap}
+                        waiverIds={waiverIds}
+                        adding={quickAdd.adding}
+                        gamesLeft={EMPTY_GAMES_LEFT}
+                        showStats={showStatTable}
+                        statMode="projection"
+                        animate={false}
+                        onAdd={(player) => {
+                            if (waiverIds.has(player.id)) {
+                                push(`/(modals)/claim-player?playerId=${player.id}`)
+                            } else {
+                                void quickAdd.handleAdd(player)
+                            }
+                        }}
+                        onPress={() => push(`/player/${item.id}`)}
+                    />
+                )}
+                ListEmptyComponent={hydrated ? <EmptyState message="No projections found." fullScreen={false} /> : null}
+            />
           </View>
 
             <DropPlayerPickerModal

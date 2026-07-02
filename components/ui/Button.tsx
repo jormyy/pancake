@@ -1,5 +1,5 @@
 import { ComponentProps, ReactNode } from 'react'
-import { ActivityIndicator, Pressable, StyleSheet, Text, type StyleProp, type ViewStyle } from 'react-native'
+import { Pressable, StyleSheet, Text, type StyleProp, type ViewStyle } from 'react-native'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { colors, elevation, fontSize, fontWeight, motion, radii, spacing } from '@/constants/tokens'
 
@@ -72,7 +72,7 @@ export function Button({
             disabled={isDisabled}
             accessibilityRole="button"
             accessibilityLabel={accessibilityLabel ?? title}
-            accessibilityState={{ disabled: isDisabled, busy: loading }}
+            accessibilityState={{ disabled: isDisabled }}
             style={({ hovered, pressed }: PressableState) => [
                 styles.base,
                 {
@@ -90,21 +90,15 @@ export function Button({
                 style,
             ]}
         >
-            {loading ? (
-                <ActivityIndicator size="small" color={c.fg} />
+            {icon ? <MaterialIcons name={icon} size={s.icon} color={c.fg} /> : null}
+            {title ? (
+                <Text style={[styles.label, { color: c.fg, fontSize: s.font }]} numberOfLines={1}>
+                    {title}
+                </Text>
             ) : (
-                <>
-                    {icon ? <MaterialIcons name={icon} size={s.icon} color={c.fg} /> : null}
-                    {title ? (
-                        <Text style={[styles.label, { color: c.fg, fontSize: s.font }]} numberOfLines={1}>
-                            {title}
-                        </Text>
-                    ) : (
-                        children
-                    )}
-                    {iconRight ? <MaterialIcons name={iconRight} size={s.icon} color={c.fg} /> : null}
-                </>
+                children
             )}
+            {iconRight ? <MaterialIcons name={iconRight} size={s.icon} color={c.fg} /> : null}
         </Pressable>
     )
 }

@@ -3,7 +3,6 @@ import {
     Text,
     Image,
     StyleSheet,
-    ActivityIndicator,
     Pressable,
 } from 'react-native'
 import { useState } from 'react'
@@ -118,11 +117,7 @@ export function PlayerHeader({
                             onPress={onAdd}
                             disabled={actionLoading}
                         >
-                            {actionLoading ? (
-                                <ActivityIndicator size="small" color={colors.textWhite} />
-                            ) : (
-                                <Text style={styles.addButtonText}>+ Add</Text>
-                            )}
+                            <Text style={styles.addButtonText}>+ Add</Text>
                         </Pressable>
                     ) : rosterStatus.status === 'on_waivers' ? (
                         <Pressable
@@ -130,11 +125,7 @@ export function PlayerHeader({
                             onPress={onClaim}
                             disabled={actionLoading}
                         >
-                            {actionLoading ? (
-                                <ActivityIndicator size="small" color={colors.textWhite} />
-                            ) : (
-                                <Text style={styles.claimButtonText}>Claim</Text>
-                            )}
+                            <Text style={styles.claimButtonText}>Claim</Text>
                         </Pressable>
                     ) : rosterStatus.status === 'mine' ? (
                         <Pressable
@@ -142,11 +133,7 @@ export function PlayerHeader({
                             onPress={onDrop}
                             disabled={actionLoading}
                         >
-                            {actionLoading ? (
-                                <ActivityIndicator size="small" color={colors.danger} />
-                            ) : (
-                                <Text style={styles.dropButtonText}>Drop</Text>
-                            )}
+                            <Text style={styles.dropButtonText}>Drop</Text>
                         </Pressable>
                     ) : (
                         <View style={styles.takenBadge}>

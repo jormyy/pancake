@@ -2,10 +2,8 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { FlashList } from '@shopify/flash-list'
 import { useState } from 'react'
 import {
-    ActivityIndicator,
     Linking,
     Pressable,
-    RefreshControl,
     ScrollView,
     StyleSheet,
     Text,
@@ -27,6 +25,7 @@ import { playerHeadshotUrl } from '@/lib/format'
 import { getEligiblePositions } from '@/lib/players'
 import { API_URL } from '@/lib/shared/api'
 import { colors, fontSize, fontWeight, layout, radii, spacing } from '@/constants/tokens'
+import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 
 type DynastyTab = 'rankings' | 'news' | 'my-news'
 type StatKey = keyof Pick<
@@ -44,7 +43,12 @@ type StatKey = keyof Pick<
 >
 
 const EMPTY_NEWS: DynastyNewsItem[] = []
+type DynastyNewsCache = { news: DynastyNewsItem[]; myNews: DynastyNewsItem[] }
 type StatColumn = { key: StatKey; label: string; format?: 'integer' | 'pct' }
+const DYNASTY_NEWS_CACHE_PREFIX = 'pancake:dynasty-news:v1:'
+
+const dynastyNewsCacheKey = (memberId?: string, leagueId?: string) =>
+    `${DYNASTY_NEWS_CACHE_PREFIX}${leagueId ?? 'none'}:${memberId ?? 'anon'}`
 // Full table shown on wide screens; column labels live in the table header row.
 const STAT_COLUMNS: StatColumn[] = [
     { key: 'gamesPlayed', label: 'GP', format: 'integer' },
@@ -276,21 +280,19 @@ export default function DynastyScreen() {
     const showStats = width >= WIDE_BREAKPOINT
     const [tab, setTab] = useState<DynastyTab>('rankings')
     const rankings = useDynastyRankings()
-    const {
-        data: newsData,
-        loading: newsLoading,
-        refreshing: newsRefreshing,
-        refresh: refreshNews,
-    } = useFocusAsyncData(
+    const cachedNews = readPersistentCache<DynastyNewsCache>(dynastyNewsCacheKey(current?.id, currentLeague?.id)) ?? undefined
+    const { data: newsData } = useFocusAsyncData(
         async () => {
             const [news, myNews] = await Promise.all([
                 getDynastyNews(30),
                 current && currentLeague ? getMyDynastyNews(current.id, currentLeague.id, 30) : Promise.resolve(EMPTY_NEWS),
             ])
-            return { news, myNews }
+            const result = { news, myNews }
+            writePersistentCache(dynastyNewsCacheKey(current?.id, currentLeague?.id), result)
+            return result
         },
         [current?.id, currentLeague?.id],
-        { staleMs: 5 * 60_000 },
+        { staleMs: 5 * 60_000, initialData: cachedNews },
     )
     const news = newsData?.news ?? EMPTY_NEWS
     const myNews = newsData?.myNews ?? EMPTY_NEWS
@@ -298,12 +300,10 @@ export default function DynastyScreen() {
     const emptyNewsMessage = tab === 'my-news' ? 'No news for your players.' : 'No dynasty news yet.'
     const latestSync = rankings.players.find((player) => player.rankFetchedAt)?.rankFetchedAt ?? null
     const scoringFormat = rankings.players.find((player) => player.scoringFormat)?.scoringFormat ?? null
-    const rankingFooter = rankings.loadingMore ? (
-        <ActivityIndicator style={styles.loadMoreSpinner} color={colors.primary} />
-    ) : rankings.loadMoreError ? (
-        <Pressable style={styles.footerRetry} onPress={() => void rankings.retryLoadMore()} accessibilityRole="button" accessibilityLabel="Retry loading rankings">
+    const rankingFooter = rankings.loadingMore ? null : rankings.loadMoreError ? (
+        <Pressable style={styles.footerRetry} onPress={() => void rankings.retryLoadMore()} accessibilityRole="button" accessibilityLabel="Retry rankings">
             <MaterialIcons name="refresh" size={16} color={colors.primaryDark} />
-            <Text style={styles.footerRetryText}>Retry loading rankings</Text>
+            <Text style={styles.footerRetryText}>Retry rankings</Text>
         </Pressable>
     ) : null
 
@@ -317,12 +317,10 @@ export default function DynastyScreen() {
                             Hashtag {formatScoringFormat(scoringFormat)} rankings and player movement
                         </Text>
                     </View>
-                    {rankings.loading && rankings.players.length === 0 ? <ActivityIndicator color={colors.primary} /> : (
-                        <View style={styles.syncPill}>
-                            <MaterialIcons name="sync" size={14} color={colors.primaryDark} />
-                            <Text style={styles.syncText}>{formatDate(latestSync)}</Text>
-                        </View>
-                    )}
+                    <View style={styles.syncPill}>
+                        <MaterialIcons name="sync" size={14} color={colors.primaryDark} />
+                        <Text style={styles.syncText}>{formatDate(latestSync)}</Text>
+                    </View>
                 </View>
 
                 <View style={styles.tabBar}>
@@ -350,11 +348,7 @@ export default function DynastyScreen() {
                                 autoCorrect={false}
                             />
                             <Text style={styles.resultCountText}>
-                                {rankings.loading && rankings.players.length === 0
-                                    ? 'Loading...'
-                                    : rankings.refreshing
-                                      ? `Updating ${rankings.players.length} rows`
-                                      : `${rankings.players.length} row${rankings.players.length === 1 ? '' : 's'} loaded`}
+                                {`${rankings.players.length} row${rankings.players.length === 1 ? '' : 's'} loaded`}
                             </Text>
                         </View>
                         {rankings.error && rankings.players.length === 0 ? (
@@ -367,8 +361,6 @@ export default function DynastyScreen() {
                                     <Text style={styles.retryButtonText}>Retry</Text>
                                 </Pressable>
                             </View>
-                        ) : rankings.loading && rankings.players.length === 0 ? (
-                            <ActivityIndicator style={styles.flex1} color={colors.primary} />
                         ) : (
                             <FlashList
                                 data={rankings.players}
@@ -388,19 +380,15 @@ export default function DynastyScreen() {
                                 ListFooterComponent={rankingFooter}
                                 onEndReached={rankings.loadMore}
                                 onEndReachedThreshold={0.4}
-                                refreshControl={<RefreshControl refreshing={rankings.refreshing} onRefresh={rankings.refresh} tintColor={colors.primary} />}
                             />
                         )}
                     </>
                 ) : (
                     <ScrollView
                         contentContainerStyle={styles.newsContent}
-                        refreshControl={<RefreshControl refreshing={newsRefreshing} onRefresh={refreshNews} tintColor={colors.primary} />}
                     >
                         <Card padding="md" radius="md" elevated="none" style={styles.listCard}>
-                            {newsLoading && activeNews.length === 0 ? (
-                                <ActivityIndicator color={colors.primary} style={styles.loadingBlock} />
-                            ) : activeNews.length === 0 ? (
+                            {activeNews.length === 0 ? (
                                 <EmptyState message={emptyNewsMessage} fullScreen={false} />
                             ) : (
                                 activeNews.map((item, index) => (
@@ -600,7 +588,6 @@ const styles = StyleSheet.create({
     newsSummary: { fontSize: fontSize.md, lineHeight: 20, color: colors.textSecondary },
     newsPlayer: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.textMuted },
     separator: { height: 1, backgroundColor: colors.borderLight },
-    loadingBlock: { paddingVertical: spacing['5xl'] },
     loadMoreSpinner: { paddingVertical: spacing.xl },
     emptyContainer: { flexGrow: 1, justifyContent: 'center' },
     errorState: {

@@ -3,7 +3,6 @@ import {
     Text,
     Pressable,
     StyleSheet,
-    ActivityIndicator,
     Modal,
     ScrollView,
 } from 'react-native'
@@ -108,7 +107,6 @@ export function IRResolutionModal({
                             <ScrollView style={styles.list} showsVerticalScrollIndicator={false}>
                                 {ineligibleIR.map((rp) => {
                                     const p = rp.players
-                                    const isLoading = loadingId === rp.id
                                     return (
                                         <View key={rp.id} style={styles.row}>
                                             <Avatar
@@ -129,11 +127,7 @@ export function IRResolutionModal({
                                                 onPress={() => handleActivate(rp)}
                                                 disabled={loadingId !== null}
                                             >
-                                                {isLoading ? (
-                                                    <ActivityIndicator size="small" color={colors.textWhite} />
-                                                ) : (
-                                                    <Text style={styles.activateBtnText}>Activate</Text>
-                                                )}
+                                                <Text style={styles.activateBtnText}>Activate</Text>
                                             </Pressable>
                                         </View>
                                     )
@@ -154,7 +148,6 @@ export function IRResolutionModal({
                             <ScrollView style={styles.list} showsVerticalScrollIndicator={false}>
                                 {activeRoster.map((rp) => {
                                     const p = rp.players
-                                    const isLoading = loadingId === rp.id
                                     return (
                                         <View key={rp.id} style={styles.row}>
                                             <Avatar
@@ -175,11 +168,7 @@ export function IRResolutionModal({
                                                 onPress={() => handleDropAndActivate(rp)}
                                                 disabled={loadingId !== null}
                                             >
-                                                {isLoading ? (
-                                                    <ActivityIndicator size="small" color={colors.textWhite} />
-                                                ) : (
-                                                    <Text style={styles.dropBtnText}>Drop</Text>
-                                                )}
+                                                <Text style={styles.dropBtnText}>Drop</Text>
                                             </Pressable>
                                         </View>
                                     )

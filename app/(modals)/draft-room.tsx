@@ -3,7 +3,6 @@ import {
     Text,
     TextInput,
     StyleSheet,
-    ActivityIndicator,
     ScrollView,
     KeyboardAvoidingView,
     Platform,
@@ -31,7 +30,6 @@ import {
     NOMINATION_ORDER_MODE_LABELS,
 } from '@/lib/draft'
 import { RealtimeChannel } from '@supabase/supabase-js'
-import { LoadingScreen } from '@/components/LoadingScreen'
 import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 import { showAlert, confirmAction, getErrorMessage } from '@/lib/alert'
 import { MotionPressable, MotionView } from '@/components/Motion'
@@ -53,7 +51,6 @@ export default function DraftRoomScreen() {
     const { back } = useRouter()
 
     const [state, setState] = useState<DraftState | null>(null)
-    const [loading, setLoading] = useState(true)
     const [tab, setTab] = useState<DraftTab>('budgets')
 
     // Bidding — held as raw text so the field can be cleared/typed freely;
@@ -95,7 +92,7 @@ export default function DraftRoomScreen() {
             if (seq !== loadSeqRef.current) return
             // Only commit a DEFINITE state. getDraftState() returns null (not a
             // throw) on a transient fetch failure; committing null would blank the
-            // whole live auction room (LoadingScreen) for seconds during bidding,
+            // whole live auction room for seconds during bidding,
             // and would also reseed the bid field on the next good poll.
             if (s) {
                 setState(s)
@@ -119,8 +116,6 @@ export default function DraftRoomScreen() {
             }
         } catch (e) {
             console.error(e)
-        } finally {
-            setLoading(false)
         }
     }, [draftId])
 
@@ -317,8 +312,25 @@ export default function DraftRoomScreen() {
         [state],
     )
 
-    if (loading || !state) {
-        return <LoadingScreen />
+    if (!state) {
+        return (
+            <SafeAreaView style={styles.container} edges={['bottom']}>
+                <View style={styles.header}>
+                    <View style={styles.headerInner}>
+                        <Text style={styles.headerTitle}>Auction Draft</Text>
+                    </View>
+                </View>
+                <View style={styles.draftEndedContainer}>
+                    <Text style={styles.draftEndedTitle}>Draft not found</Text>
+                    <Text style={styles.draftEndedSub}>
+                        This draft may have ended or no longer exists.
+                    </Text>
+                    <MotionPressable style={styles.nominateButton} onPress={() => back()} pressedScale={0.96}>
+                        <Text style={styles.nominateButtonText}>Back to League</Text>
+                    </MotionPressable>
+                </View>
+            </SafeAreaView>
+        )
     }
 
     const { draft, order, budgets, openNomination, currentNominatorMemberId } = state
@@ -509,13 +521,9 @@ export default function DraftRoomScreen() {
                                     disabled={bidding || !bidValid || iAmLeading || timeLeft === 0}
                                     pressedScale={0.965}
                                 >
-                                    {bidding ? (
-                                        <ActivityIndicator size="small" color={colors.textWhite} />
-                                    ) : (
-                                        <Text style={styles.bidButtonText}>
-                                            Bid ${(bidValid ? bidValue : minBid).toLocaleString()}
-                                        </Text>
-                                    )}
+                                    <Text style={styles.bidButtonText}>
+                                        Bid ${(bidValid ? bidValue : minBid).toLocaleString()}
+                                    </Text>
                                 </MotionPressable>
                             </View>
                         )}
@@ -531,11 +539,7 @@ export default function DraftRoomScreen() {
                                     accessibilityLabel="Withdraw nomination"
                                     pressedScale={0.96}
                                 >
-                                    {withdrawing ? (
-                                        <ActivityIndicator size="small" color={colors.primary} />
-                                    ) : (
-                                        <Text style={styles.withdrawButtonText}>Withdraw nomination</Text>
-                                    )}
+                                    <Text style={styles.withdrawButtonText}>Withdraw nomination</Text>
                                 </MotionPressable>
                             )}
                     </MotionView>
@@ -562,59 +566,45 @@ export default function DraftRoomScreen() {
                                             placeholder="Search player name..."
                                             autoFocus
                                         />
-                                        {searchLoading ? (
-                                            <ActivityIndicator
-                                                style={{ marginTop: 12 }}
-                                                color={colors.primary}
-                                            />
-                                        ) : (
-                                            <FlashList
-                                                data={searchResults}
-                                                keyExtractor={(p) => p.id}
-                                                scrollEnabled={false}
-                                                renderItem={({ item }) => (
-                                                    <MotionPressable
-                                                        style={styles.playerResult}
-                                                        onPress={() =>
-                                                            handleNominate(item.id)
-                                                        }
-                                                        disabled={submittingNom}
-                                                        pressedScale={0.975}
-                                                    >
-                                                        <View style={styles.flex1}>
-                                                            <Text style={styles.playerResultName}>
-                                                                {item.display_name}
-                                                            </Text>
-                                                            <Text style={styles.playerResultMeta}>
-                                                                {playerMeta([
-                                                                    item.dynasty_rank != null ? `#${item.dynasty_rank}` : null,
-                                                                    item.nba_team,
-                                                                    item.position,
-                                                                    ageLabel(item.age),
-                                                                ])}
-                                                            </Text>
-                                                        </View>
-                                                        {submittingNom ? (
-                                                            <ActivityIndicator
-                                                                size="small"
-                                                                color={colors.primary}
-                                                            />
-                                                        ) : (
-                                                            <Text style={styles.nominateLabel}>
-                                                                Nominate
-                                                            </Text>
-                                                        )}
-                                                    </MotionPressable>
-                                                )}
-                                                ListEmptyComponent={
-                                                    searchQuery.length > 0 && !searchLoading ? (
-                                                        <Text style={styles.emptySearch}>
-                                                            No players found
+                                        <FlashList
+                                            data={searchResults}
+                                            keyExtractor={(p) => p.id}
+                                            scrollEnabled={false}
+                                            renderItem={({ item }) => (
+                                                <MotionPressable
+                                                    style={styles.playerResult}
+                                                    onPress={() =>
+                                                        handleNominate(item.id)
+                                                    }
+                                                    disabled={submittingNom}
+                                                    pressedScale={0.975}
+                                                >
+                                                    <View style={styles.flex1}>
+                                                        <Text style={styles.playerResultName}>
+                                                            {item.display_name}
                                                         </Text>
-                                                    ) : null
-                                                }
-                                            />
-                                        )}
+                                                        <Text style={styles.playerResultMeta}>
+                                                            {playerMeta([
+                                                                item.dynasty_rank != null ? `#${item.dynasty_rank}` : null,
+                                                                item.nba_team,
+                                                                item.position,
+                                                                ageLabel(item.age),
+                                                            ])}
+                                                        </Text>
+                                                    </View>
+                                                    <Text style={styles.nominateLabel}>
+                                                        Nominate
+                                                    </Text>
+                                                </MotionPressable>
+                                            )}
+                                            ListEmptyComponent={
+                                                searchQuery.length > 0 && !searchLoading ? (
+                                                    <Text style={styles.emptySearch}>
+                                                        No players found
+                                                    </Text>
+                                                ) : null
+                                            }
+                                        />
                                         <MotionPressable
                                             style={styles.cancelNomButton}
                                             onPress={() => {

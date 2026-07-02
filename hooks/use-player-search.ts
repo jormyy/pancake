@@ -23,6 +23,7 @@ import {
     type PlayerSearchHealthFilter,
     type PlayerSearchParams,
 } from '@/lib/player-search-state'
+import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 
 export type SortMode = PlayerSearchSortMode
 type SortDir = PlayerSearchSortDir
@@ -37,8 +38,11 @@ type CachedPage = {
     hasMore: boolean
     offset: number
 }
+const PLAYER_SEARCH_CACHE_PREFIX = 'pancake:player-search:v1:'
 const ROOKIE_SEARCH_MAX_PAGES = 20
 const EMPTY_TEAMS: string[] = []
+
+const playerSearchCacheKey = (key: string) => `${PLAYER_SEARCH_CACHE_PREFIX}${key}`
 
 function useWeeklyAvailability(enabled: boolean) {
     const [weekDays, setWeekDays] = useState<WeekDay[]>([])
@@ -258,15 +262,27 @@ export function usePlayerSearch(
             return
         }
 
+        const persisted = readPersistentCache<CachedPage>(playerSearchCacheKey(searchParamsKey))
+        if (persisted) {
+            pageCacheRef.current.set(searchParamsKey, persisted)
+            setPlayers(persisted.players)
+            playersRef.current = persisted.players
+            setHasMore(persisted.hasMore)
+            offsetRef.current = persisted.offset
+            setLoading(false)
+        }
+
         const requestId = ++requestSeqRef.current
         setRefreshing(true)
-        setLoading(playersRef.current.length === 0)
+        setLoading(!persisted && playersRef.current.length === 0)
 
         fetchCompleteResults(searchParams)
             .then((results) => {
                 if (requestSeqRef.current !== requestId || currentKeyRef.current !== searchParamsKey) return
                 const hasNext = !searchParams.rookiesOnly && results.length === PLAYER_SEARCH_PAGE_SIZE
-                pageCacheRef.current.set(searchParamsKey, { players: results, hasMore: hasNext, offset: 0 })
+                const page = { players: results, hasMore: hasNext, offset: 0 }
+                pageCacheRef.current.set(searchParamsKey, page)
+                writePersistentCache(playerSearchCacheKey(searchParamsKey), page)
                 playersRef.current = results
                 setPlayers(results)
                 setHasMore(hasNext)
@@ -294,11 +310,13 @@ export function usePlayerSearch(
                 setPlayers((prev) => {
                     const merged = [...prev, ...results]
                     playersRef.current = merged
-                    pageCacheRef.current.set(paramsKey, {
+                    const page = {
                         players: merged,
                         hasMore: results.length === PLAYER_SEARCH_PAGE_SIZE,
                         offset: nextOffset,
-                    })
+                    }
+                    pageCacheRef.current.set(paramsKey, page)
+                    writePersistentCache(playerSearchCacheKey(paramsKey), page)
                     return merged
                 })
             }
