@@ -24,8 +24,8 @@ import { useLeagueContext } from '@/contexts/league-context'
 import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
 import { useQuickAdd } from '@/hooks/use-quick-add'
 import { todayET } from '@/lib/shared/dates'
-import { getOwnedPlayerMap, type OwnedEntry } from '@/lib/roster'
-import { getWaiverPlayerIds } from '@/lib/waivers'
+import { type OwnedEntry } from '@/lib/roster'
+import { getPlayerAvailabilitySnapshot } from '@/lib/player-availability'
 import {
     getLeagueProjections,
     projectionViewLabel,
@@ -252,11 +252,7 @@ export default function ProjectionsScreen() {
         refresh: refreshOwned,
     } = useFocusAsyncData(async () => {
         if (!leagueId) return { ownedMap: EMPTY_OWNED_MAP, waiverIds: EMPTY_WAIVER_IDS }
-        const [ownedMap, waiverIds] = await Promise.all([
-            getOwnedPlayerMap(leagueId),
-            getWaiverPlayerIds(leagueId),
-        ])
-        return { ownedMap, waiverIds }
+        return getPlayerAvailabilitySnapshot(leagueId)
     }, [leagueId])
 
     const ownedMap = ownedData?.ownedMap ?? EMPTY_OWNED_MAP
