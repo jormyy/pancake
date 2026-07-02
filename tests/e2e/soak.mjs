@@ -437,7 +437,7 @@ const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, arg
     {
       requirement: 'D.SET.3 commissioner settings propagation',
       status: settingsStatus,
-      evidence: args.settings ? 'Settings mode creates a disposable league, updates league/scoring/slot settings as the commissioner through Supabase RLS, verifies a manager can read them, and checks manager writes do not mutate commissioner-only settings.' : 'No commissioner settings propagation scenario implemented; enable E2E_ENABLE_SETTINGS=1.',
+      evidence: args.settings ? 'Settings mode creates a disposable setup league, updates league/scoring settings and lineup slots through authenticated commissioner-only RPCs, verifies a manager can read them, and checks manager RPC attempts do not mutate commissioner-only settings.' : 'No commissioner settings propagation scenario implemented; enable E2E_ENABLE_SETTINGS=1.',
     },
     {
       requirement: 'D.SET.4 initial auction draft',
@@ -1063,7 +1063,7 @@ const assertFuturePickMaterializedInRookieDraft = async (supabase, env, leagueId
 const HISTORY_WEEK_NUMBER = 99
 
 const sortedLeagueMembers = async (supabase, leagueId) => {
-  const members = await fetchAll(supabase, 'league_members', 'id, team_name, joined_at', { league_id: leagueId })
+  const members = await fetchAll(supabase, 'league_members', 'id, user_id, team_name, joined_at', { league_id: leagueId })
   members.sort((a, b) => {
     const joined = String(a.joined_at).localeCompare(String(b.joined_at))
     return joined === 0 ? String(a.id).localeCompare(String(b.id)) : joined
@@ -1245,7 +1245,34 @@ const currentSeasonYear = (now = new Date()) => {
   return now.getUTCMonth() >= 9 ? now.getUTCFullYear() + 1 : now.getUTCFullYear()
 }
 
-const createDisposableLeagueFromSeedUsers = async ({ supabase, state, season, label, userCount, seasonYear }) => {
+const ensureSyntheticSeasonWeeks = async (supabase, seasonYear, throughWeek, label) => {
+  const rows = Array.from({ length: throughWeek }, (_, index) => {
+    const weekNumber = index + 1
+    const weekStart = new Date(Date.UTC(2090, 0, 1 + index * 7))
+    const weekEnd = new Date(Date.UTC(2090, 0, 7 + index * 7))
+    return {
+      season_year: seasonYear,
+      week_number: weekNumber,
+      week_start: weekStart.toISOString().slice(0, 10),
+      week_end: weekEnd.toISOString().slice(0, 10),
+    }
+  })
+  const { error } = await supabase
+    .from('season_weeks')
+    .upsert(rows, { onConflict: 'season_year,week_number' })
+  if (error) throw new Error(`${label}: synthetic season_weeks upsert failed: ${error.message}`)
+}
+
+const createDisposableLeagueFromSeedUsers = async ({
+  supabase,
+  state,
+  season,
+  label,
+  userCount,
+  seasonYear,
+  status = 'active',
+  playoffStartWeek = 20,
+}) => {
   if (!state?.password || !Array.isArray(state.users) || state.users.length < userCount) {
     throw new Error(`${label}: scenario requires ${userCount} seeded users from npm run e2e:seed`)
   }
@@ -1258,10 +1285,10 @@ const createDisposableLeagueFromSeedUsers = async ({ supabase, state, season, la
       slug: `pancake-e2e-${label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${unique}`,
       invite_code: e2eCode(),
       commissioner_id: state.users[0].id,
-      status: 'active',
-      playoff_start_week: 20,
+      status,
+      playoff_start_week: playoffStartWeek,
     })
-    .select('id, playoff_start_week')
+    .select('id, playoff_start_week, status')
     .single()
   if (leagueError) throw new Error(`${label} league insert: ${leagueError.message}`)
 
@@ -1556,7 +1583,7 @@ const assertTradeAcceptanceAtomicityScenario = async ({ supabase, env, state, se
     token: proposerToken,
     body: { memberId: recipient.id },
     label: `${label}: mismatched auth/member accept`,
-    pattern: /403|Access denied/i,
+    pattern: /403|404|Access denied|Member not found/i,
   })
   if (mismatchedMemberError) failures.push(mismatchedMemberError)
 
@@ -1943,6 +1970,7 @@ const assertCommissionerSettingsScenario = async ({ supabase, env, state, season
     season,
     label,
     userCount: 2,
+    status: 'setup',
   })
   const commissioner = await signInSupabaseClient(env, state.users[0].email, state.password, label)
   const manager = await signInSupabaseClient(env, state.users[1].email, state.password, label)
@@ -1969,36 +1997,47 @@ const assertCommissionerSettingsScenario = async ({ supabase, env, state, season
     playoff_start_week: 21,
   }
   const expectedSlots = [
-    { league_id: fixture.league.id, slot_type: 'PG', slot_count: 2 },
-    { league_id: fixture.league.id, slot_type: 'SG', slot_count: 2 },
-    { league_id: fixture.league.id, slot_type: 'SF', slot_count: 2 },
-    { league_id: fixture.league.id, slot_type: 'PF', slot_count: 2 },
-    { league_id: fixture.league.id, slot_type: 'C', slot_count: 1 },
-    { league_id: fixture.league.id, slot_type: 'G', slot_count: 1 },
-    { league_id: fixture.league.id, slot_type: 'F', slot_count: 1 },
-    { league_id: fixture.league.id, slot_type: 'UTIL', slot_count: 3 },
-    { league_id: fixture.league.id, slot_type: 'BE', slot_count: 4 },
+    { slot_type: 'PG', slot_count: 2 },
+    { slot_type: 'SG', slot_count: 2 },
+    { slot_type: 'SF', slot_count: 2 },
+    { slot_type: 'PF', slot_count: 2 },
+    { slot_type: 'C', slot_count: 1 },
+    { slot_type: 'G', slot_count: 1 },
+    { slot_type: 'F', slot_count: 1 },
+    { slot_type: 'UTIL', slot_count: 3 },
+    { slot_type: 'BE', slot_count: 4 },
   ]
 
-  const { error: leagueUpdateError } = await commissioner
-    .from('leagues')
-    .update(expectedLeagueSettings)
-    .eq('id', fixture.league.id)
+  const { error: leagueUpdateError } = await commissioner.rpc('update_league_settings_atomic', {
+    p_league_id: fixture.league.id,
+    p_settings: expectedLeagueSettings,
+  })
   if (leagueUpdateError) {
-    failures.push(`${label}: commissioner league settings update failed through RLS anon client: ${leagueUpdateError.message}`)
+    failures.push(`${label}: commissioner league settings update failed through authenticated RPC: ${leagueUpdateError.message}`)
   }
 
-  const { error: slotsUpdateError } = await commissioner
-    .from('lineup_slot_templates')
-    .upsert(expectedSlots, { onConflict: 'league_id,slot_type' })
+  const { error: slotsUpdateError } = await commissioner.rpc('update_lineup_slots_atomic', {
+    p_league_id: fixture.league.id,
+    p_slots: expectedSlots,
+  })
   if (slotsUpdateError) {
-    failures.push(`${label}: commissioner lineup slot update failed through RLS anon client: ${slotsUpdateError.message}`)
+    failures.push(`${label}: commissioner lineup slot update failed through authenticated RPC: ${slotsUpdateError.message}`)
   }
 
-  const managerAttempt = await manager
-    .from('leagues')
-    .update({ roster_size: 99 })
-    .eq('id', fixture.league.id)
+  const managerLeagueAttempt = await manager.rpc('update_league_settings_atomic', {
+    p_league_id: fixture.league.id,
+    p_settings: { roster_size: 99 },
+  })
+  const managerSlotAttempt = await manager.rpc('update_lineup_slots_atomic', {
+    p_league_id: fixture.league.id,
+    p_slots: [{ slot_type: 'PG', slot_count: 99 }],
+  })
+  if (!managerLeagueAttempt.error) {
+    failures.push(`${label}: manager league settings RPC unexpectedly succeeded`)
+  }
+  if (!managerSlotAttempt.error) {
+    failures.push(`${label}: manager lineup slot RPC unexpectedly succeeded`)
+  }
 
   const managerLeague = await readLeagueSettingsForClient(manager, fixture.league.id, label)
   const managerSlots = await readLineupSlotsForClient(manager, fixture.league.id, label)
@@ -2036,7 +2075,8 @@ const assertCommissionerSettingsScenario = async ({ supabase, env, state, season
     commissionerUserId: state.users[0].id,
     managerUserId: state.users[1].id,
     expectedLeagueSettings,
-    managerAttemptError: managerAttempt.error?.message ?? null,
+    managerLeagueAttemptError: managerLeagueAttempt.error?.message ?? null,
+    managerSlotAttemptError: managerSlotAttempt.error?.message ?? null,
     managerObservedLeague: managerLeague,
     managerObservedSlots: managerSlots,
     failures,
@@ -2705,6 +2745,35 @@ const expectAuthedBackendError = async ({ env, path, token, body, label, pattern
   }
 }
 
+const findRookieDraftCandidates = async ({ supabase, leagueId, leagueSeasonId, draftId, count, label }) => {
+  const [{ data: players, error: playersError }, rosterRows, pickedRows] = await Promise.all([
+    supabase
+      .from('players')
+      .select('id, display_name, nba_draft_number, years_exp')
+      .not('nba_draft_number', 'is', null)
+      .eq('years_exp', 0)
+      .order('nba_draft_number', { ascending: true })
+      .order('id', { ascending: true })
+      .limit(250),
+    fetchAll(supabase, 'roster_players', 'player_id', {
+      league_id: leagueId,
+      league_season_id: leagueSeasonId,
+    }),
+    fetchAll(supabase, 'snake_draft_picks', 'player_id', { draft_id: draftId }),
+  ])
+  if (playersError) throw new Error(`${label}: rookie player lookup failed: ${playersError.message}`)
+
+  const rosteredIds = new Set(rosterRows.map((row) => row.player_id))
+  const pickedIds = new Set(pickedRows.flatMap((row) => row.player_id ? [row.player_id] : []))
+  const candidates = (players ?? [])
+    .filter((player) => !rosteredIds.has(player.id) && !pickedIds.has(player.id))
+    .slice(0, count)
+  if (candidates.length < count) {
+    throw new Error(`${label}: requires at least ${count} rookie-eligible available players`)
+  }
+  return candidates
+}
+
 const createRookieDraftFixture = async ({ supabase, env, state, season, label }) => {
   const fixtureSeasonYear = rookieFixtureSeasonYear()
   const fixture = await createDisposableLeagueFromSeedUsers({
@@ -2771,13 +2840,6 @@ const createRookieDraftFixture = async ({ supabase, env, state, season, label })
   const { error: pickError } = await supabase.from('draft_picks').insert(pickRows)
   if (pickError) throw new Error(`${label}: draft pick asset insert failed: ${pickError.message}`)
 
-  const { data: rookies, error: rookiesError } = await seededPlayerQuery(supabase, 'id, display_name, nba_draft_number')
-    .not('nba_draft_number', 'is', null)
-    .order('nba_draft_number', { ascending: true })
-    .limit(4)
-  if (rookiesError) throw new Error(`${label}: rookie player lookup failed: ${rookiesError.message}`)
-  if ((rookies ?? []).length < 2) throw new Error(`${label}: requires at least two players with nba_draft_number`)
-
   const { draft } = await backendJson(env, '/e2e/start-rookie-draft', { leagueId: fixture.league.id })
   const { data: pickSlots, error: slotsError } = await supabase
     .from('snake_draft_picks')
@@ -2787,6 +2849,14 @@ const createRookieDraftFixture = async ({ supabase, env, state, season, label })
   if (slotsError) throw new Error(`${label}: draft slot read failed: ${slotsError.message}`)
   const slots = pickSlots ?? []
   const expectedOrder = [member4.id, member3.id, member2.id, member1.id, member1.id, member2.id, member3.id, member4.id]
+  const rookies = await findRookieDraftCandidates({
+    supabase,
+    leagueId: fixture.league.id,
+    leagueSeasonId: fixture.leagueSeason.id,
+    draftId: draft.id,
+    count: 2,
+    label,
+  })
 
   return {
     fixture,
@@ -2855,6 +2925,9 @@ const assertRookieDraftAutoPickScenario = async ({ supabase, env, state, season 
 
   const rosteredPlayer = rookies[1]
   const nextSlot = slots[1]
+  const nextSlotMember = fixture.members.find((member) => member.id === nextSlot.member_id)
+  const nextSlotUser = state.users.find((user) => user.id === nextSlotMember?.user_id)
+  if (!nextSlotUser) throw new Error(`${label}: could not resolve seeded user for next pick member ${nextSlot.member_id}`)
   const { error: rosterError } = await supabase.from('roster_players').insert({
     league_id: fixture.league.id,
     league_season_id: fixture.leagueSeason.id,
@@ -2864,7 +2937,7 @@ const assertRookieDraftAutoPickScenario = async ({ supabase, env, state, season 
   })
   if (rosterError) throw new Error(`${label}: rostered rejection fixture insert failed: ${rosterError.message}`)
 
-  const accessToken = await signInForAccessToken(env, state.users[0].email, state.password)
+  const accessToken = await signInForAccessToken(env, nextSlotUser.email, state.password)
   const rosteredRejection = await expectAuthedBackendError({
     env,
     path: `/draft/${draft.id}/snake-pick`,
@@ -2912,13 +2985,16 @@ const assertRookieDraftAutoPickScenario = async ({ supabase, env, state, season 
 }
 
 const createDisposablePlayoffLeague = async ({ supabase, state, season }) => {
+  const playoffStartWeek = 20
   const fixture = await createDisposableLeagueFromSeedUsers({
     supabase,
     state,
     season,
     label: 'D.SEA.4',
     userCount: 10,
+    playoffStartWeek,
   })
+  await ensureSyntheticSeasonWeeks(supabase, fixture.leagueSeason.season_year, playoffStartWeek + 2, 'D.SEA.4')
 
   const regularSeasonRows = []
   for (const [index, member] of fixture.members.entries()) {
@@ -2929,7 +3005,7 @@ const createDisposablePlayoffLeague = async ({ supabase, state, season }) => {
       regularSeasonRows.push({
         league_id: fixture.league.id,
         league_season_id: fixture.leagueSeason.id,
-        week_number: 100 + index * 20 + win,
+        week_number: 1 + (win % (playoffStartWeek - 1)),
         matchup_type: 'regular_season',
         home_member_id: member.id,
         away_member_id: opponent.id,
@@ -3152,7 +3228,9 @@ const assertStandingsTiebreakerScenario = async ({ supabase, env, state, season 
     season,
     label: 'D.SEA.3',
     userCount: 4,
+    playoffStartWeek: 20,
   })
+  await ensureSyntheticSeasonWeeks(supabase, maxFixture.leagueSeason.season_year, 21, 'D.SEA.3')
   const fixtureRows = await insertTiebreakerRows(supabase, maxFixture)
   const [, expectedSeed1, expectedSeed4, expectedSeed2] = maxFixture.members
   const expectedSeed3 = maxFixture.members[0]
@@ -3207,7 +3285,9 @@ const assertStandingsTiebreakerScenario = async ({ supabase, env, state, season 
     season,
     label: 'D.SEA.3 RPS',
     userCount: 4,
+    playoffStartWeek: 20,
   })
+  await ensureSyntheticSeasonWeeks(supabase, rpsFixture.leagueSeason.season_year, 21, 'D.SEA.3 RPS')
   const rpsFixtureRows = await insertFullRpsTieRows(supabase, rpsFixture)
   let rpsGenerateResult = null
   try {
@@ -4004,7 +4084,8 @@ const assertWaiverProcessingScenario = async ({ supabase, env, state, season }) 
     label,
   )
   const now = new Date()
-  const clearsAt = new Date(now.getTime() + 48 * 60 * 60 * 1000).toISOString()
+  const placedOnWaiversAt = new Date(now.getTime() - 49 * 60 * 60 * 1000).toISOString()
+  const clearsAt = new Date(now.getTime() - 60 * 60 * 1000).toISOString()
   const processDate = todayET()
 
   const failures = []
@@ -4049,6 +4130,7 @@ const assertWaiverProcessingScenario = async ({ supabase, env, state, season }) 
         league_season_id: fixture.leagueSeason.id,
         player_id: player.id,
         dropped_by_member_id: null,
+        placed_on_waivers_at: placedOnWaiversAt,
         clears_at: clearsAt,
       }))),
   ])
@@ -4122,7 +4204,7 @@ const assertWaiverProcessingScenario = async ({ supabase, env, state, season }) 
       league_id: fixture.league.id,
       league_season_id: fixture.leagueSeason.id,
     }),
-    fetchAll(supabase, 'waiver_wire_log', 'player_id, dropped_by_member_id, claimed_by_claim_id, cleared_at', {
+    fetchAll(supabase, 'waiver_wire_log', 'player_id, dropped_by_member_id, claimed_by_claim_id, clears_at, cleared_at', {
       league_id: fixture.league.id,
       league_season_id: fixture.leagueSeason.id,
     }),

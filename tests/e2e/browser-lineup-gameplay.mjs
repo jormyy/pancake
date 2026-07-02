@@ -23,6 +23,19 @@ const offsetDateString = (offsetDays) => {
   const d = new Date(Date.UTC(year, month - 1, day + offsetDays, 12, 0, 0))
   return d.toISOString().slice(0, 10)
 }
+const currentWeekWindow = () => {
+  const today = todayDateString()
+  const [year, month, day] = today.split('-').map(Number)
+  const start = new Date(Date.UTC(year, month - 1, day, 12, 0, 0))
+  const dow = start.getUTCDay()
+  start.setUTCDate(start.getUTCDate() + (dow === 0 ? -6 : 1 - dow))
+  const end = new Date(start)
+  end.setUTCDate(end.getUTCDate() + 6)
+  return {
+    week_start: start.toISOString().slice(0, 10),
+    week_end: end.toISOString().slice(0, 10),
+  }
+}
 
 const parseEvalJson = (output) => {
   const line = output.split('\n').filter(Boolean).at(-1)
@@ -137,26 +150,16 @@ const ensureCurrentWeek = async (admin, seasonYear) => {
   if (existingError) throw new Error(`season week lookup: ${existingError.message}`)
   if (existing) return existing
 
-  const { data: fixtureWeek, error: fixtureWeekError } = await admin
-    .from('season_weeks')
-    .select('week_number, week_start, week_end')
-    .eq('season_year', seasonYear)
-    .eq('week_number', 99)
-    .maybeSingle()
-  if (fixtureWeekError) throw new Error(`season week fixture lookup: ${fixtureWeekError.message}`)
-  if (fixtureWeek) return fixtureWeek
-
   const { data, error } = await admin
     .from('season_weeks')
-    .insert({
+    .upsert({
       season_year: seasonYear,
-      week_number: 99,
-      week_start: today,
-      week_end: today,
-    })
+      week_number: 1,
+      ...currentWeekWindow(),
+    }, { onConflict: 'season_year,week_number' })
     .select('week_number, week_start, week_end')
     .single()
-  if (error) throw new Error(`season week insert: ${error.message}`)
+  if (error) throw new Error(`season week upsert: ${error.message}`)
   return data
 }
 
@@ -195,6 +198,14 @@ const setupLineupFixture = async (env, season) => {
     .eq('is_current', true)
     .single()
   if (seasonError) throw new Error(`current season lookup: ${seasonError.message}`)
+  const fixtureSeasonYear = 8000 + Number(runId.replace(/\D/g, '').slice(-6))
+  const { data: syntheticSeason, error: seasonUpdateError } = await admin
+    .from('league_seasons')
+    .update({ season_year: fixtureSeasonYear })
+    .eq('id', currentSeason.id)
+    .select('id, season_year')
+    .single()
+  if (seasonUpdateError) throw new Error(`lineup fixture season-year update: ${seasonUpdateError.message}`)
 
   const { data: member, error: memberError } = await admin
     .from('league_members')
@@ -204,13 +215,13 @@ const setupLineupFixture = async (env, season) => {
     .single()
   if (memberError || !member) throw new Error(`league member lookup: ${memberError?.message ?? 'missing row'}`)
 
-  const week = await ensureCurrentWeek(admin, currentSeason.season_year)
-  const player = await findPgPlayer(admin, league.id, currentSeason.id)
+  const week = await ensureCurrentWeek(admin, syntheticSeason.season_year)
+  const player = await findPgPlayer(admin, league.id, syntheticSeason.id)
   const { data: rosterRow, error: rosterError } = await admin
     .from('roster_players')
     .insert({
       league_id: league.id,
-      league_season_id: currentSeason.id,
+      league_season_id: syntheticSeason.id,
       member_id: member.id,
       player_id: player.id,
       acquired_via: 'e2e_lineup_fixture',
@@ -231,7 +242,7 @@ const setupLineupFixture = async (env, season) => {
     password,
     user: createdUser,
     league,
-    currentSeason,
+    currentSeason: syntheticSeason,
     member,
     week,
     player,

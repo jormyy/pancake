@@ -108,6 +108,63 @@ const clickExactText = async (session, text, label) => {
   if (!parsed.ok) throw new Error(`${label}: text not found: ${text}`)
 }
 
+const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+const clickLastButtonByName = async (session, name, label) => {
+  const snapshot = await browser(session, ['snapshot'])
+  const matches = [...snapshot.matchAll(new RegExp(`button "${escapeRegExp(name)}" \\[ref=([^\\]]+)\\]`, 'g'))]
+  const ref = matches.at(-1)?.[1]
+  if (!ref) throw new Error(`${label}: button not found: ${name}`)
+  await browser(session, ['click', ref])
+}
+
+const pressLastDomButtonByName = async (session, name, label) => {
+  const result = await browser(session, [
+    'eval',
+    `(() => {
+      const name = ${JSON.stringify(name)};
+      const candidates = [...document.querySelectorAll('[role="button"], button, [tabindex]')]
+        .filter((element) => {
+          const aria = (element.getAttribute('aria-label') || '').trim();
+          const text = (element.textContent || '').trim();
+          return aria === name || text === name || text.endsWith(name);
+        });
+      const visibleCandidates = candidates.filter((element) => {
+        element.scrollIntoView({ block: 'center', inline: 'center' });
+        const rect = element.getBoundingClientRect();
+        const style = window.getComputedStyle(element);
+        const disabled = Boolean(element.disabled) || element.getAttribute('aria-disabled') === 'true';
+        if (disabled || style.visibility === 'hidden' || style.display === 'none' || style.pointerEvents === 'none') return false;
+        if (rect.width <= 0 || rect.height <= 0) return false;
+        const x = rect.left + rect.width / 2;
+        const y = rect.top + rect.height / 2;
+        const hit = document.elementFromPoint(x, y);
+        return hit === element || element.contains(hit);
+      });
+      const element = visibleCandidates.at(-1);
+      if (!element) return JSON.stringify({ ok: false, count: candidates.length, visibleCount: visibleCandidates.length, body: (document.body?.innerText || '').slice(0, 1400) });
+      const rect = element.getBoundingClientRect();
+      const init = {
+        bubbles: true,
+        cancelable: true,
+        view: window,
+        clientX: rect.left + rect.width / 2,
+        clientY: rect.top + rect.height / 2
+      };
+      const Pointer = window.PointerEvent || window.MouseEvent;
+      element.dispatchEvent(new Pointer('pointerdown', { ...init, pointerType: 'mouse', pointerId: 1, isPrimary: true }));
+      element.dispatchEvent(new MouseEvent('mousedown', init));
+      element.dispatchEvent(new Pointer('pointerup', { ...init, pointerType: 'mouse', pointerId: 1, isPrimary: true }));
+      element.dispatchEvent(new MouseEvent('mouseup', init));
+      element.dispatchEvent(new MouseEvent('click', init));
+      return JSON.stringify({ ok: true, count: candidates.length, text: element.textContent, aria: element.getAttribute('aria-label') });
+    })()`,
+  ])
+  const parsed = parseEvalJson(result)
+  if (!parsed.ok) throw new Error(`${label}: visible enabled DOM button not found: ${name}. Body: ${parsed.body ?? ''}`)
+  return parsed
+}
+
 const assertSignedInSurface = async (session, user) => {
   await openPage(session, joinUrl(resolvedEnv().frontendUrl, '/profile'), 'signed-in profile open')
   await browser(session, ['wait', '2000'])
@@ -156,7 +213,9 @@ const runOneAuthUser = async ({ state, env, season, userIndex, sessionList }) =>
     await browser(session, ['eval', 'window.confirm = () => true'])
     await browser(session, ['eval', 'document.scrollingElement.scrollTop = document.scrollingElement.scrollHeight'])
     await browser(session, ['wait', '500'])
-    await clickExactText(session, 'Sign Out', 'sign out')
+    await pressLastDomButtonByName(session, 'Sign Out', 'sign out')
+    await browser(session, ['wait', '500'])
+    await pressLastDomButtonByName(session, 'Sign Out', 'confirm sign out')
     await browser(session, ['wait', '4000'])
     await openPage(session, joinUrl(env.frontendUrl, '/players'), 'signed-out guard open')
     await browser(session, ['wait', '2000'])
@@ -198,7 +257,7 @@ const runOneAuthUser = async ({ state, env, season, userIndex, sessionList }) =>
       notes,
     }
   } finally {
-    await browser(session, ['close']).catch(() => {})
+    await browser(session, ['close'], { timeout: 10_000 }).catch(() => {})
   }
 }
 

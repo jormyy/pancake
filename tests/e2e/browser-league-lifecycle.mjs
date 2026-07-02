@@ -199,7 +199,7 @@ export async function runBrowserLeagueLifecycleScenario({ season = 0 } = {}) {
     await signIn(session, env, commissioner)
     await browser(session, ['open', joinUrl(env.frontendUrl, '/create-league')])
     await browser(session, ['wait', '1500'])
-    await browser(session, ['find', 'placeholder', 'e.g. Hoops Dynasty', 'fill', `Browser Dynasty ${runId}`])
+    await browser(session, ['find', 'placeholder', 'e.g. Hoops Dynasty', 'fill', `Pancake Browser League Lifecycle ${runId}`])
     await browser(session, ['find', 'placeholder', 'e.g. Buckets BC', 'fill', commissioner.teamName])
     await browser(session, ['find', 'placeholder', '200', 'fill', '200'])
     await clickExactText(session, 'Create League', 'create league button')
