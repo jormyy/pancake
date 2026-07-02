@@ -116,6 +116,8 @@ export type PlayerSearchOptions = {
     pageSize?: number
 }
 
+export const DEFAULT_PLAYER_SEARCH_PAGE_SIZE = 20
+
 function uniqueNonEmpty(values?: string[]): string[] {
     return Array.from(new Set((values ?? []).filter(Boolean)))
 }
@@ -137,7 +139,7 @@ export async function searchPlayers(
     const hasSearchOptions = typeof sortByOrOptions === 'object' && sortByOrOptions !== null
     const sortBy = hasSearchOptions ? (sortByOrOptions.sortMode ?? 'fpts') : sortByOrOptions
     const sortDir = hasSearchOptions ? (sortByOrOptions.sortDir ?? 'desc') : sortDirArg
-    const pageSize = hasSearchOptions ? (sortByOrOptions.pageSize ?? 60) : 60
+    const pageSize = hasSearchOptions ? (sortByOrOptions.pageSize ?? DEFAULT_PLAYER_SEARCH_PAGE_SIZE) : DEFAULT_PLAYER_SEARCH_PAGE_SIZE
     const includePlayerIds = constraints.includePlayerIds == null ? undefined : uniqueNonEmpty(constraints.includePlayerIds)
 
     const { data, error } = await supabase.rpc('search_players', {

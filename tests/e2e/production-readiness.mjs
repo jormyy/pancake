@@ -341,6 +341,15 @@ SELECT
       : cleanMessage(dbPush.stderr || dbPush.stdout || String(dbPush.error), { maxLines: 6 }),
   })
 
+  const performanceBudget = run('npm', ['run', 'perf:budget'], { timeout: 45000 })
+  rows.push({
+    requirement: 'Instant-loading performance budgets pass',
+    status: statusFrom(performanceBudget.status === 0),
+    evidence: performanceBudget.status === 0
+      ? cleanMessage(performanceBudget.stdout, { maxLines: 4 })
+      : cleanMessage(performanceBudget.stderr || performanceBudget.stdout || String(performanceBudget.error), { maxLines: 8 }),
+  })
+
   const dbPasswordPresent = Boolean(envValue('SUPABASE_DB_PASSWORD'))
   const linkedDbAccessVerified = dbPasswordPresent || (dbQuery.status === 0 && dbPush.status === 0)
   rows.push({

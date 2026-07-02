@@ -14,6 +14,7 @@ import { currentSeasonYear } from '@/lib/shared/season'
 import { todayET } from '@/lib/shared/dates'
 import { supabase } from '@/lib/supabase'
 import { getPlayerProjection, type LeagueProjectionRow } from '@/lib/projections'
+import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 
 const GAME_LOG_PAGE = 15
 type SeasonCacheEntry = {
@@ -24,39 +25,147 @@ type SeasonCacheEntry = {
     fantasyPointsMap: Map<string, number> | null
     avgFantasyPoints: number
 }
+type PersistedSeasonCacheEntry = Omit<SeasonCacheEntry, 'fantasyPointsMap'> & {
+    fantasyPointEntries: [string, number][] | null
+}
+type PlayerScreenCache = {
+    today: string
+    player: any | null
+    playedToday: boolean
+    availableSeasons: number[]
+    selectedSeason: number
+    seasons: [string, PersistedSeasonCacheEntry][]
+    nextProjection: LeagueProjectionRow | null
+    transactions: TransactionHistoryEntry[]
+}
+type PlayerScreenCacheState = Omit<PlayerScreenCache, 'today' | 'seasons'>
+
+const PLAYER_SCREEN_CACHE_PREFIX = 'pancake:player-screen:v1:'
 
 function seasonCacheKey(playerId: string, leagueId: string | null, season: number): string {
     return `${playerId}:${leagueId ?? 'no-league'}:${season}`
 }
 
+function playerScreenCacheKey(playerId: string, leagueId: string | null) {
+    return `${PLAYER_SCREEN_CACHE_PREFIX}${leagueId ?? 'no-league'}:${playerId}`
+}
+
+function toPersistedSeasonEntry(entry: SeasonCacheEntry): PersistedSeasonCacheEntry {
+    return {
+        ...entry,
+        fantasyPointEntries: entry.fantasyPointsMap ? Array.from(entry.fantasyPointsMap.entries()) : null,
+    }
+}
+
+function fromPersistedSeasonEntry(entry: PersistedSeasonCacheEntry): SeasonCacheEntry {
+    return {
+        seasonAverages: entry.seasonAverages,
+        gameLog: entry.gameLog,
+        gameLogOffset: entry.gameLogOffset,
+        hasMoreGames: entry.hasMoreGames,
+        fantasyPointsMap: entry.fantasyPointEntries ? new Map(entry.fantasyPointEntries) : null,
+        avgFantasyPoints: entry.avgFantasyPoints,
+    }
+}
+
+function seasonCacheEntries(cache: PlayerScreenCache | undefined): [string, SeasonCacheEntry][] {
+    return (cache?.seasons ?? []).map(([key, entry]) => [key, fromPersistedSeasonEntry(entry)])
+}
+
+function readPlayerScreenCache(playerId: string, leagueId: string | null): PlayerScreenCache | undefined {
+    const cached = readPersistentCache<PlayerScreenCache>(playerScreenCacheKey(playerId, leagueId))
+    if (!cached || cached.today !== todayET()) return undefined
+    return cached
+}
+
 export function usePlayerScreenData(playerId: string, leagueId: string | null) {
-    const [player, setPlayer] = useState<any>(null)
-    const [loading, setLoading] = useState(true)
-    const [playedToday, setPlayedToday] = useState(false)
+    const initialCacheRef = useRef<{ loaded: boolean; value?: PlayerScreenCache }>({ loaded: false })
+    if (!initialCacheRef.current.loaded) {
+        initialCacheRef.current = { loaded: true, value: readPlayerScreenCache(playerId, leagueId) }
+    }
+    const initialCache = initialCacheRef.current.value
+    const initialSelectedSeason = initialCache?.selectedSeason ?? currentSeasonYear()
+    const initialSeason = initialCache
+        ? new Map(seasonCacheEntries(initialCache)).get(seasonCacheKey(playerId, leagueId, initialSelectedSeason))
+        : undefined
 
-    const [availableSeasons, setAvailableSeasons] = useState<number[]>([])
-    const [selectedSeason, setSelectedSeason] = useState<number>(currentSeasonYear())
+    const [player, setPlayer] = useState<any>(initialCache?.player ?? null)
+    const [loading, setLoading] = useState(!initialCache?.player)
+    const [playedToday, setPlayedToday] = useState(initialCache?.playedToday ?? false)
 
-    const [seasonAverages, setSeasonAverages] = useState<PlayerSeasonAverages | null>(null)
+    const [availableSeasons, setAvailableSeasons] = useState<number[]>(initialCache?.availableSeasons ?? [])
+    const [selectedSeason, setSelectedSeason] = useState<number>(initialSelectedSeason)
+
+    const [seasonAverages, setSeasonAverages] = useState<PlayerSeasonAverages | null>(initialSeason?.seasonAverages ?? null)
     const [seasonLoading, setSeasonLoading] = useState(false)
 
-    const [gameLog, setGameLog] = useState<GameLogEntry[]>([])
-    const [gameLogOffset, setGameLogOffset] = useState(0)
-    const [hasMoreGames, setHasMoreGames] = useState(false)
+    const [gameLog, setGameLog] = useState<GameLogEntry[]>(initialSeason?.gameLog ?? [])
+    const [gameLogOffset, setGameLogOffset] = useState(initialSeason?.gameLogOffset ?? 0)
+    const [hasMoreGames, setHasMoreGames] = useState(initialSeason?.hasMoreGames ?? false)
     const [gameLogLoading, setGameLogLoading] = useState(false)
 
-    const [fantasyPointsMap, setFantasyPointsMap] = useState<Map<string, number> | null>(null)
-    const [avgFantasyPoints, setAvgFantasyPoints] = useState(0)
-    const [nextProjection, setNextProjection] = useState<LeagueProjectionRow | null>(null)
+    const [fantasyPointsMap, setFantasyPointsMap] = useState<Map<string, number> | null>(initialSeason?.fantasyPointsMap ?? null)
+    const [avgFantasyPoints, setAvgFantasyPoints] = useState(initialSeason?.avgFantasyPoints ?? 0)
+    const [nextProjection, setNextProjection] = useState<LeagueProjectionRow | null>(initialCache?.nextProjection ?? null)
 
-    const [transactions, setTransactions] = useState<TransactionHistoryEntry[]>([])
-    const seasonCacheRef = useRef(new Map<string, SeasonCacheEntry>())
+    const [transactions, setTransactions] = useState<TransactionHistoryEntry[]>(initialCache?.transactions ?? [])
+    const cacheStateRef = useRef<PlayerScreenCacheState>({
+        player: initialCache?.player ?? null,
+        playedToday: initialCache?.playedToday ?? false,
+        availableSeasons: initialCache?.availableSeasons ?? [],
+        selectedSeason: initialSelectedSeason,
+        nextProjection: initialCache?.nextProjection ?? null,
+        transactions: initialCache?.transactions ?? [],
+    })
+    const seasonCacheRef = useRef(new Map<string, SeasonCacheEntry>(seasonCacheEntries(initialCache)))
     const seasonRequestRef = useRef(0)
+
+    const persistScreenCache = useCallback(() => {
+        writePersistentCache<PlayerScreenCache>(playerScreenCacheKey(playerId, leagueId), {
+            today: todayET(),
+            ...cacheStateRef.current,
+            seasons: Array.from(seasonCacheRef.current.entries()).map(([key, entry]) => [
+                key,
+                toPersistedSeasonEntry(entry),
+            ]),
+        })
+    }, [playerId, leagueId])
+
+    const applyScreenCache = useCallback((cache: PlayerScreenCache | undefined) => {
+        seasonCacheRef.current = new Map(seasonCacheEntries(cache))
+        const nextSelectedSeason = cache?.selectedSeason ?? currentSeasonYear()
+        const nextSeason = seasonCacheRef.current.get(seasonCacheKey(playerId, leagueId, nextSelectedSeason))
+        cacheStateRef.current = {
+            player: cache?.player ?? null,
+            playedToday: cache?.playedToday ?? false,
+            availableSeasons: cache?.availableSeasons ?? [],
+            selectedSeason: nextSelectedSeason,
+            nextProjection: cache?.nextProjection ?? null,
+            transactions: cache?.transactions ?? [],
+        }
+        setPlayer(cache?.player ?? null)
+        setLoading(!cache?.player)
+        setPlayedToday(cache?.playedToday ?? false)
+        setAvailableSeasons(cache?.availableSeasons ?? [])
+        setSelectedSeason(nextSelectedSeason)
+        setSeasonAverages(nextSeason?.seasonAverages ?? null)
+        setSeasonLoading(false)
+        setGameLog(nextSeason?.gameLog ?? [])
+        setGameLogOffset(nextSeason?.gameLogOffset ?? 0)
+        setHasMoreGames(nextSeason?.hasMoreGames ?? false)
+        setGameLogLoading(false)
+        setFantasyPointsMap(nextSeason?.fantasyPointsMap ?? null)
+        setAvgFantasyPoints(nextSeason?.avgFantasyPoints ?? 0)
+        setNextProjection(cache?.nextProjection ?? null)
+        setTransactions(cache?.transactions ?? [])
+    }, [playerId, leagueId])
 
     useEffect(() => {
         seasonRequestRef.current += 1
-        setLoading(true)
-        setPlayer(null)
+        const cached = readPlayerScreenCache(playerId, leagueId)
+        applyScreenCache(cached)
+        const hasVisiblePlayer = cached?.player != null
+        setLoading(!hasVisiblePlayer)
         async function load() {
             try {
                 const [p, seasons, todayStats] = await Promise.all([
@@ -71,12 +180,26 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null) {
                         .eq('game_date', todayET())
                         .maybeSingle(),
                 ])
-                setPlayedToday(todayStats.data != null && todayStats.data.did_not_play === false)
+                const didPlayToday = todayStats.data != null && todayStats.data.did_not_play === false
+                setPlayedToday(didPlayToday)
                 setPlayer(p)
                 setAvailableSeasons(seasons)
-                if (seasons.length > 0 && !seasons.includes(currentSeasonYear())) {
-                    setSelectedSeason(seasons[0])
+                const currentYear = currentSeasonYear()
+                const currentSelectedSeason = cacheStateRef.current.selectedSeason
+                const nextSelectedSeason = seasons.includes(currentSelectedSeason)
+                    ? currentSelectedSeason
+                    : seasons.length > 0 && !seasons.includes(currentYear)
+                    ? seasons[0]
+                    : currentYear
+                setSelectedSeason(nextSelectedSeason)
+                cacheStateRef.current = {
+                    ...cacheStateRef.current,
+                    player: p,
+                    playedToday: didPlayToday,
+                    availableSeasons: seasons,
+                    selectedSeason: nextSelectedSeason,
                 }
+                persistScreenCache()
             } catch (e) {
                 console.error(e)
             } finally {
@@ -84,7 +207,7 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null) {
             }
         }
         load()
-    }, [playerId])
+    }, [playerId, leagueId, applyScreenCache, persistScreenCache])
 
     useEffect(() => {
         if (!player || player.id !== playerId) return
@@ -99,16 +222,15 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null) {
             setFantasyPointsMap(cached.fantasyPointsMap)
             setAvgFantasyPoints(cached.avgFantasyPoints)
             setSeasonLoading(false)
-            return
+        } else {
+            setSeasonAverages(null)
+            setGameLog([])
+            setGameLogOffset(0)
+            setHasMoreGames(false)
+            setFantasyPointsMap(null)
+            setAvgFantasyPoints(0)
+            setSeasonLoading(true)
         }
-
-        setSeasonAverages(null)
-        setGameLog([])
-        setGameLogOffset(0)
-        setHasMoreGames(false)
-        setFantasyPointsMap(null)
-        setAvgFantasyPoints(0)
-        setSeasonLoading(true)
         async function loadSeasonData() {
             try {
                 const [avgs, gameLogResult, fantasyPoints] = await Promise.all([
@@ -130,6 +252,7 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null) {
                     avgFantasyPoints: avgFantasy,
                 }
                 seasonCacheRef.current.set(key, entry)
+                persistScreenCache()
                 setSeasonAverages(avgs)
                 setGameLog(gameLogResult.games)
                 setGameLogOffset(gameLogResult.games.length)
@@ -143,7 +266,7 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null) {
             }
         }
         loadSeasonData()
-    }, [playerId, leagueId, selectedSeason, player?.nba_team])
+    }, [playerId, leagueId, selectedSeason, player?.nba_team, persistScreenCache])
 
     // Load transaction history
     useEffect(() => {
@@ -152,6 +275,8 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null) {
             try {
                 const tx = await getPlayerTransactionHistory(playerId, leagueId!)
                 setTransactions(tx)
+                cacheStateRef.current = { ...cacheStateRef.current, transactions: tx }
+                persistScreenCache()
             } catch (e) {
                 console.error(e)
             }
@@ -161,17 +286,26 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null) {
 
     useEffect(() => {
         let cancelled = false
-        setNextProjection(null)
-        if (!leagueId) return
+        if (!cacheStateRef.current.nextProjection || cacheStateRef.current.nextProjection.player_id !== playerId) {
+            setNextProjection(null)
+        }
+        if (!leagueId) {
+            cacheStateRef.current = { ...cacheStateRef.current, nextProjection: null }
+            return
+        }
 
         getPlayerProjection(playerId, leagueId)
             .then((projection) => {
-                if (!cancelled) setNextProjection(projection)
+                if (!cancelled) {
+                    setNextProjection(projection)
+                    cacheStateRef.current = { ...cacheStateRef.current, nextProjection: projection }
+                    persistScreenCache()
+                }
             })
             .catch(console.error)
 
         return () => { cancelled = true }
-    }, [playerId, leagueId])
+    }, [playerId, leagueId, persistScreenCache])
 
     const loadMoreGames = useCallback(async () => {
         if (gameLogLoading || !hasMoreGames || !player) return
@@ -195,6 +329,7 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null) {
                         gameLogOffset: gameLogOffset + result.games.length,
                         hasMoreGames: result.hasMore,
                     })
+                    persistScreenCache()
                 }
                 return merged
             })
@@ -205,10 +340,14 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null) {
         } finally {
             setGameLogLoading(false)
         }
-    }, [playerId, leagueId, player, selectedSeason, gameLogOffset, gameLogLoading, hasMoreGames])
+    }, [playerId, leagueId, player, selectedSeason, gameLogOffset, gameLogLoading, hasMoreGames, persistScreenCache])
 
     function handleSeasonSelect(year: number) {
-        if (year !== selectedSeason) setSelectedSeason(year)
+        if (year !== selectedSeason) {
+            setSelectedSeason(year)
+            cacheStateRef.current = { ...cacheStateRef.current, selectedSeason: year }
+            persistScreenCache()
+        }
     }
 
     return {

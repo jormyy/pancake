@@ -102,13 +102,16 @@ npm run typecheck                  # app
 npm run check:edge-shared          # generated Edge scoring/sync parity
 deno check supabase/functions/api/index.ts
 npm test                           # root + frontend lib + cross-cutting guards
+npm run perf:budget                # top workflow performance budget contract
 npx expo export --platform web     # web/PWA build
 npm audit --audit-level=high       # dependency audit
 ```
 
 Cross-cutting guard tests: `tests/scoring-parity.test.ts` (scoring drift),
 `tests/rls-grants.test.ts` (service-role-only RPCs never granted to client roles, default
-PUBLIC EXECUTE revoked, service-role read grants preserved), and Edge/API static guards.
+PUBLIC EXECUTE revoked, service-role read grants preserved),
+`tests/performance-budget-static.test.ts` (instant-loading workflow and budget
+contract), and Edge/API static guards.
 Browser E2E flows live in `tests/e2e/` (see [tests/e2e/README.md](./tests/e2e/README.md));
 the multi-season soak is `npm run e2e:soak`.
 

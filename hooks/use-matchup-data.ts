@@ -4,48 +4,86 @@ import { getLeagueWeekMatchups, getMyMatchup, LeagueWeekMatchup, Matchup } from 
 import { getWeekDays, getWeeklyLineup, LineupSlot, LineupPlayer, WeekDay } from '@/lib/lineup'
 import { todayET } from '@/lib/shared/dates'
 import { supabase } from '@/lib/supabase'
+import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 
 type LineupData = { starters: LineupSlot[]; bench: LineupPlayer[]; ir: LineupPlayer[]; taxi: LineupPlayer[] }
+type LineupPair = { mine: LineupData; opp: LineupData }
+type MatchupScreenCache = {
+    today: string
+    selectedDate: string
+    matchup: Matchup | null
+    weekDays: WeekDay[]
+    leagueMatchups: LeagueWeekMatchup[]
+    myLineup: LineupData | null
+    oppLineup: LineupData | null
+}
+
+const MATCHUP_CACHE_PREFIX = 'pancake:home-matchup:v1:'
+
+function matchupCacheKey(memberId: string, leagueId: string) {
+    return `${MATCHUP_CACHE_PREFIX}${leagueId}:${memberId}`
+}
+
+function readMatchupCache(memberId: string | undefined, leagueId: string | undefined): MatchupScreenCache | undefined {
+    if (!memberId || !leagueId) return undefined
+    const cached = readPersistentCache<MatchupScreenCache>(matchupCacheKey(memberId, leagueId))
+    if (!cached || cached.today !== todayET()) return undefined
+    return cached
+}
+
+function writeMatchupCache(memberId: string, leagueId: string, value: Omit<MatchupScreenCache, 'today'>) {
+    writePersistentCache<MatchupScreenCache>(matchupCacheKey(memberId, leagueId), {
+        today: todayET(),
+        ...value,
+    })
+}
 
 export function useMatchupData(
     current: { id: string } | null,
     user: { id: string } | null,
     league: { id: string } | null,
 ) {
-    const [matchup, setMatchup] = useState<Matchup | null | undefined>(undefined)
-    const [weekDays, setWeekDays] = useState<WeekDay[]>([])
+    const leagueId = league?.id
+    const initialCacheRef = useRef<{ loaded: boolean; value?: MatchupScreenCache }>({ loaded: false })
+    if (!initialCacheRef.current.loaded) {
+        initialCacheRef.current = { loaded: true, value: readMatchupCache(current?.id, leagueId) }
+    }
+    const initialCache = initialCacheRef.current.value
+    const [matchup, setMatchup] = useState<Matchup | null | undefined>(initialCache?.matchup ?? undefined)
+    const [weekDays, setWeekDays] = useState<WeekDay[]>(initialCache?.weekDays ?? [])
     // selectedDate flows into getWeeklyLineup queries that compare against
     // weekly_lineups.game_date (ET-keyed). Use todayET so non-ET clients
     // don't query against the wrong date.
-    const [selectedDate, setSelectedDate] = useState<string>(() => todayET())
-    const [leagueMatchups, setLeagueMatchups] = useState<LeagueWeekMatchup[]>([])
-    const [myLineup, setMyLineup] = useState<LineupData | null>(null)
-    const [oppLineup, setOppLineup] = useState<LineupData | null>(null)
-    const [matchupLoading, setMatchupLoading] = useState(true)
+    const [selectedDate, setSelectedDate] = useState<string>(() => initialCache?.selectedDate ?? todayET())
+    const [leagueMatchups, setLeagueMatchups] = useState<LeagueWeekMatchup[]>(initialCache?.leagueMatchups ?? [])
+    const [myLineup, setMyLineup] = useState<LineupData | null>(initialCache?.myLineup ?? null)
+    const [oppLineup, setOppLineup] = useState<LineupData | null>(initialCache?.oppLineup ?? null)
+    const [matchupLoading, setMatchupLoading] = useState(!initialCache)
     const [lineupLoading, setLineupLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
-    const matchupRef = useRef<Matchup | null>(null)
+    const matchupRef = useRef<Matchup | null>(initialCache?.matchup ?? null)
     const isFirstRunRef = useRef(true)
     const loadSeqRef = useRef(0)
-
-    const leagueId = league?.id
 
     useEffect(() => {
         if (isFirstRunRef.current) {
             isFirstRunRef.current = false
             return
         }
-        setMatchup(undefined)
-        setLeagueMatchups([])
-        setMyLineup(null)
-        setOppLineup(null)
-        setMatchupLoading(true)
-        matchupRef.current = null
+        const cached = readMatchupCache(current?.id, leagueId)
+        setMatchup(cached?.matchup ?? undefined)
+        setWeekDays(cached?.weekDays ?? [])
+        setLeagueMatchups(cached?.leagueMatchups ?? [])
+        setMyLineup(cached?.myLineup ?? null)
+        setOppLineup(cached?.oppLineup ?? null)
+        setSelectedDate(cached?.selectedDate ?? todayET())
+        setMatchupLoading(!cached)
+        matchupRef.current = cached?.matchup ?? null
     }, [current?.id, leagueId])
 
     const loadLineups = useCallback(
-        async (m: Matchup, date: string) => {
-            if (!leagueId) return
+        async (m: Matchup, date: string): Promise<LineupPair | null> => {
+            if (!leagueId) return null
             // Inherit the in-flight load token so a league switch mid-fetch can't
             // commit the previous league's starters/bench (last-writer-wins).
             const seq = loadSeqRef.current
@@ -55,9 +93,10 @@ export function useMatchupData(
                     getWeeklyLineup(m.myMemberId, leagueId, m.seasonId, m.weekNumber, date),
                     getWeeklyLineup(m.opponentMemberId, leagueId, m.seasonId, m.weekNumber, date),
                 ])
-                if (seq !== loadSeqRef.current) return
+                if (seq !== loadSeqRef.current) return null
                 setMyLineup(mine)
                 setOppLineup(opp)
+                return { mine, opp }
             } finally {
                 if (seq === loadSeqRef.current) setLineupLoading(false)
             }
@@ -97,9 +136,12 @@ export function useMatchupData(
         // Sequence concurrent loads (league switch / focus) so a slower fetch for
         // a previous league can never overwrite the current league's matchup.
         const seq = ++loadSeqRef.current
-        setMatchupLoading(true)
-        setMyLineup(null)
-        setOppLineup(null)
+        const hasVisibleMatchup = matchupRef.current != null
+        setMatchupLoading(!hasVisibleMatchup)
+        if (!hasVisibleMatchup) {
+            setMyLineup(null)
+            setOppLineup(null)
+        }
         try {
             setError(null)
             const m = await getMyMatchup(current.id, leagueId)
@@ -117,7 +159,30 @@ export function useMatchupData(
                 setWeekDays(days)
                 setLeagueMatchups(weekMatchups)
                 setSelectedDate(today)
-                await loadLineups(m, today)
+                const lineups = await loadLineups(m, today)
+                if (seq !== loadSeqRef.current) return
+                writeMatchupCache(current.id, leagueId, {
+                    selectedDate: today,
+                    matchup: m,
+                    weekDays: days,
+                    leagueMatchups: weekMatchups,
+                    myLineup: lineups?.mine ?? null,
+                    oppLineup: lineups?.opp ?? null,
+                })
+            } else {
+                setWeekDays([])
+                setLeagueMatchups([])
+                setMyLineup(null)
+                setOppLineup(null)
+                setSelectedDate(todayET())
+                writeMatchupCache(current.id, leagueId, {
+                    selectedDate: todayET(),
+                    matchup: null,
+                    weekDays: [],
+                    leagueMatchups: [],
+                    myLineup: null,
+                    oppLineup: null,
+                })
             }
         } catch (e) {
             if (seq !== loadSeqRef.current) return

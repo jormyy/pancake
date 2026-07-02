@@ -67,6 +67,17 @@ Snapshots are written under `tests/snapshots/season-<N>/` after the season bound
 
 Performance metrics are written to `tests/artifacts/perf-metrics.json`. Runs shorter than 10 seasons record timings and harness memory only. Runs of 10+ seasons fail D.LONG.6 if the latest season runtime is more than `E2E_PERF_DRIFT_LIMIT` above season 1; the default is `1.2` for the requested 20% drift ceiling. Runs of 10+ seasons also fail D.LONG.7 if harness RSS or heap memory exceeds `E2E_MEMORY_DRIFT_LIMIT` above season 1; the default is also `1.2`. The RSS gate has an `E2E_MEMORY_DRIFT_MIN_BYTES` absolute floor, defaulting to 48 MiB, to avoid failing on Node allocator high-water noise while still catching material native growth. The heap gate has a separate `E2E_MEMORY_HEAP_DRIFT_MIN_BYTES` floor, defaulting to 24 MiB, so retained JS object growth remains a stricter leak signal.
 
+Instant-loading budgets live in `tests/e2e/performance-budgets.json`.
+`npm run perf:budget` validates the ranked top-10 workflow contract and writes
+`tests/performance-budget-report.md`. After a browser perf run, use
+`npm run e2e:browser-perf && npm run perf:budget -- --require-report` to fail
+closed on the structured responsiveness measurements in
+`tests/e2e-browser-perf-report.md`. `npm run e2e:data-latency` signs in as the
+seeded browser user and records read-only Supabase/PostgREST/RPC request
+latency for the same workflow ids in `tests/e2e-data-latency-report.md`; when
+that report exists, `npm run perf:budget` also enforces its request and
+workflow-total budgets.
+
 League lifecycle checks are available with `E2E_ENABLE_LEAGUE_LIFECYCLE=1` or `--league-lifecycle=true`. The runner signs in as the seeded users through Supabase Auth, calls the real authenticated `create_league` RPC for user 1, joins users 2-10 through the real `join_league_by_invite_code` RPC, and verifies the invite code, 10 league members with roles, one current season, default lineup slot templates, and five years of three-round draft picks for every member. Artifacts are written to `tests/artifacts/season-<N>/league-lifecycle.json`. This covers the D.SET.2 create/join/pick-bank slice through real anon clients; browser form entry remains separate.
 
 Future-pick chain checks are available with `E2E_ENABLE_PICK_CHAIN=1` or `--pick-chain=true`. The runner creates three accepted pick-only trades for one five-years-out round-one pick, persists the scenario metadata to `tests/artifacts/future-pick-chain.json`, and checks at every season boundary that the exact `draft_picks.current_owner_id` remains the final multi-hop owner. Once the target pick reaches its draft year during a backend-tick run, the runner starts the real rookie draft and verifies the linked `snake_draft_picks.draft_pick_id` slot belongs to the final traded owner; the slot artifact is written to `tests/artifacts/season-<N>/rookie-draft-pick-chain.json`. This covers D.LONG.1/D.LONG.2 ownership-drift invariants through the real `accept_trade_atomic` and rookie-draft seeding paths; it is not a replacement for the full browser trade or rookie-draft workflow.
@@ -140,6 +151,9 @@ Outputs:
 - `tests/e2e-seed-report.md`
 - `tests/e2e-state.json`
 - `tests/e2e-browser-report.md`
+- `tests/e2e-browser-perf-report.md`
+- `tests/e2e-data-latency-report.md`
+- `tests/performance-budget-report.md`
 - `tests/e2e-browser-auth-report.md`
 - `tests/e2e-browser-gameplay-report.md`
 - `tests/e2e-browser-playoff-report.md`
