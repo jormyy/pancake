@@ -7,6 +7,7 @@ import {
     getPlayerFantasyPoints,
     getPlayerTransactionHistory,
     type GameLogEntry,
+    type PlayerDetailRow,
     type PlayerSeasonAverages,
     type TransactionHistoryEntry,
 } from '@/lib/players'
@@ -30,7 +31,7 @@ type PersistedSeasonCacheEntry = Omit<SeasonCacheEntry, 'fantasyPointsMap'> & {
 }
 type PlayerScreenCache = {
     today: string
-    player: any | null
+    player: PlayerDetailRow | null
     playedToday: boolean
     availableSeasons: number[]
     selectedSeason: number
@@ -41,6 +42,12 @@ type PlayerScreenCache = {
 type PlayerScreenCacheState = Omit<PlayerScreenCache, 'today' | 'seasons'>
 
 const PLAYER_SCREEN_CACHE_PREFIX = 'pancake:player-screen:v1:'
+
+function errorMessage(error: unknown): string {
+    if (error instanceof Error) return error.message
+    if (typeof error === 'string') return error
+    return 'Unknown error'
+}
 
 function seasonCacheKey(playerId: string, leagueId: string | null, season: number): string {
     return `${playerId}:${leagueId ?? 'no-league'}:${season}`
@@ -89,8 +96,9 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null) {
         ? new Map(seasonCacheEntries(initialCache)).get(seasonCacheKey(playerId, leagueId, initialSelectedSeason))
         : undefined
 
-    const [player, setPlayer] = useState<any>(initialCache?.player ?? null)
+    const [player, setPlayer] = useState<PlayerDetailRow | null>(initialCache?.player ?? null)
     const [loading, setLoading] = useState(!initialCache?.player)
+    const [playerError, setPlayerError] = useState<string | null>(null)
     const [playedToday, setPlayedToday] = useState(initialCache?.playedToday ?? false)
 
     const [availableSeasons, setAvailableSeasons] = useState<number[]>(initialCache?.availableSeasons ?? [])
@@ -98,17 +106,21 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null) {
 
     const [seasonAverages, setSeasonAverages] = useState<PlayerSeasonAverages | null>(initialSeason?.seasonAverages ?? null)
     const [seasonLoading, setSeasonLoading] = useState(false)
+    const [seasonError, setSeasonError] = useState<string | null>(null)
 
     const [gameLog, setGameLog] = useState<GameLogEntry[]>(initialSeason?.gameLog ?? [])
     const [gameLogOffset, setGameLogOffset] = useState(initialSeason?.gameLogOffset ?? 0)
     const [hasMoreGames, setHasMoreGames] = useState(initialSeason?.hasMoreGames ?? false)
     const [gameLogLoading, setGameLogLoading] = useState(false)
+    const [gameLogError, setGameLogError] = useState<string | null>(null)
 
     const [fantasyPointsMap, setFantasyPointsMap] = useState<Map<string, number> | null>(initialSeason?.fantasyPointsMap ?? null)
     const [avgFantasyPoints, setAvgFantasyPoints] = useState(initialSeason?.avgFantasyPoints ?? 0)
     const [nextProjection, setNextProjection] = useState<LeagueProjectionRow | null>(initialCache?.nextProjection ?? null)
+    const [projectionError, setProjectionError] = useState<string | null>(null)
 
     const [transactions, setTransactions] = useState<TransactionHistoryEntry[]>(initialCache?.transactions ?? [])
+    const [transactionsError, setTransactionsError] = useState<string | null>(null)
     const cacheStateRef = useRef<PlayerScreenCacheState>({
         player: initialCache?.player ?? null,
         playedToday: initialCache?.playedToday ?? false,
@@ -145,19 +157,24 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null) {
         }
         setPlayer(cache?.player ?? null)
         setLoading(!cache?.player)
+        setPlayerError(null)
         setPlayedToday(cache?.playedToday ?? false)
         setAvailableSeasons(cache?.availableSeasons ?? [])
         setSelectedSeason(nextSelectedSeason)
         setSeasonAverages(nextSeason?.seasonAverages ?? null)
         setSeasonLoading(false)
+        setSeasonError(null)
         setGameLog(nextSeason?.gameLog ?? [])
         setGameLogOffset(nextSeason?.gameLogOffset ?? 0)
         setHasMoreGames(nextSeason?.hasMoreGames ?? false)
         setGameLogLoading(false)
+        setGameLogError(null)
         setFantasyPointsMap(nextSeason?.fantasyPointsMap ?? null)
         setAvgFantasyPoints(nextSeason?.avgFantasyPoints ?? 0)
         setNextProjection(cache?.nextProjection ?? null)
+        setProjectionError(null)
         setTransactions(cache?.transactions ?? [])
+        setTransactionsError(null)
     }, [playerId, leagueId])
 
     useEffect(() => {
@@ -200,8 +217,9 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null) {
                     selectedSeason: nextSelectedSeason,
                 }
                 persistScreenCache()
+                setPlayerError(null)
             } catch (e) {
-                console.error(e)
+                setPlayerError(errorMessage(e))
             } finally {
                 setLoading(false)
             }
@@ -211,6 +229,7 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null) {
 
     useEffect(() => {
         if (!player || player.id !== playerId) return
+        const playerTeam = player.nba_team
         const key = seasonCacheKey(playerId, leagueId, selectedSeason)
         const requestId = ++seasonRequestRef.current
         const cached = seasonCacheRef.current.get(key)
@@ -235,7 +254,7 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null) {
             try {
                 const [avgs, gameLogResult, fantasyPoints] = await Promise.all([
                     getPlayerSeasonAveragesFromView(playerId, selectedSeason),
-                    getPlayerGameLog(playerId, player.nba_team, selectedSeason, GAME_LOG_PAGE, 0),
+                    getPlayerGameLog(playerId, playerTeam, selectedSeason, GAME_LOG_PAGE, 0),
                     leagueId ? getPlayerFantasyPoints(playerId, leagueId, selectedSeason) : Promise.resolve(null),
                 ])
                 if (seasonRequestRef.current !== requestId) return
@@ -259,8 +278,9 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null) {
                 setHasMoreGames(gameLogResult.hasMore)
                 setFantasyPointsMap(fpMap)
                 setAvgFantasyPoints(avgFantasy)
+                setSeasonError(null)
             } catch (e) {
-                console.error(e)
+                setSeasonError(errorMessage(e))
             } finally {
                 if (seasonRequestRef.current === requestId) setSeasonLoading(false)
             }
@@ -277,8 +297,9 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null) {
                 setTransactions(tx)
                 cacheStateRef.current = { ...cacheStateRef.current, transactions: tx }
                 persistScreenCache()
+                setTransactionsError(null)
             } catch (e) {
-                console.error(e)
+                setTransactionsError(errorMessage(e))
             }
         }
         loadTransactions()
@@ -300,9 +321,12 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null) {
                     setNextProjection(projection)
                     cacheStateRef.current = { ...cacheStateRef.current, nextProjection: projection }
                     persistScreenCache()
+                    setProjectionError(null)
                 }
             })
-            .catch(console.error)
+            .catch((error) => {
+                if (!cancelled) setProjectionError(errorMessage(error))
+            })
 
         return () => { cancelled = true }
     }, [playerId, leagueId, persistScreenCache])
@@ -335,8 +359,9 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null) {
             })
             setGameLogOffset(gameLogOffset + result.games.length)
             setHasMoreGames(result.hasMore)
+            setGameLogError(null)
         } catch (e) {
-            console.error(e)
+            setGameLogError(errorMessage(e))
         } finally {
             setGameLogLoading(false)
         }
@@ -352,11 +377,14 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null) {
 
     return {
         player, loading, playedToday,
+        playerError,
         availableSeasons, selectedSeason, handleSeasonSelect,
         seasonAverages, seasonLoading,
+        seasonError,
         gameLog, hasMoreGames, gameLogLoading, loadMoreGames,
+        gameLogError,
         fantasyPointsMap, avgFantasyPoints,
-        nextProjection,
-        transactions,
+        nextProjection, projectionError,
+        transactions, transactionsError,
     }
 }

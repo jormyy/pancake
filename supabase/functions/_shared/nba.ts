@@ -11,15 +11,55 @@ const NBA_HEADERS = {
   'Referer': 'https://www.nba.com/',
 }
 
+class CdnHttpError extends Error {
+  status: number
+
+  constructor(status: number, path: string) {
+    super(`CDN ${status} for ${path}`)
+    this.status = status
+  }
+}
+
+type ScoreboardPayload = {
+  scoreboard?: {
+    games?: NBAGame[]
+  }
+}
+
+type BoxScorePayload = {
+  game?: NBABoxScore
+}
+
+type SchedulePayload = {
+  leagueSchedule?: {
+    seasonYear?: unknown
+    gameDates?: NBAScheduleDayPayload[]
+  }
+}
+
+type NBAScheduleDayPayload = {
+  games?: NBAScheduleGamePayload[]
+}
+
+type NBAScheduleGamePayload = {
+  gameId?: unknown
+  gameDateEst?: unknown
+  gameDateTimeEst?: unknown
+  gameEt?: unknown
+  gameDateTimeUTC?: unknown
+  gameStatus?: unknown
+  weekNumber?: unknown
+  homeTeam?: { teamTricode?: unknown }
+  awayTeam?: { teamTricode?: unknown }
+}
+
 async function cdnGet(path: string): Promise<unknown> {
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 20_000)
   try {
     const res = await fetch(`${NBA_CDN}${path}`, { headers: NBA_HEADERS, signal: controller.signal })
     if (!res.ok) {
-      const err = new Error(`CDN ${res.status} for ${path}`) as any
-      err.status = res.status
-      throw err
+      throw new CdnHttpError(res.status, path)
     }
     return await res.json()
   } finally {
@@ -38,22 +78,23 @@ export function parseNBAMinutes(iso: string | null | undefined): number | null {
 }
 
 export async function fetchTodaysGames(): Promise<NBAGame[]> {
-  const data = await cdnGet('/liveData/scoreboard/todaysScoreboard_00.json') as any
-  return ((data?.scoreboard?.games ?? []) as NBAGame[]).filter((game) => isRegularSeasonGameId(game.gameId))
+  const data = await cdnGet('/liveData/scoreboard/todaysScoreboard_00.json') as ScoreboardPayload
+  return (data?.scoreboard?.games ?? []).filter((game) => isRegularSeasonGameId(game.gameId))
 }
 
 export async function fetchBoxScore(gameId: string): Promise<NBABoxScore> {
-  const data = await cdnGet(`/liveData/boxscore/boxscore_${gameId}.json`) as any
-  return data.game as NBABoxScore
+  const data = await cdnGet(`/liveData/boxscore/boxscore_${gameId}.json`) as BoxScorePayload
+  if (!data.game) throw new Error(`NBA box score missing game payload for ${gameId}`)
+  return data.game
 }
 
 export async function fetchSeasonSchedule(): Promise<NBAScheduledGame[]> {
-  const data = await cdnGet('/staticData/scheduleLeagueV2_1.json') as any
+  const data = await cdnGet('/staticData/scheduleLeagueV2_1.json') as SchedulePayload
   const scheduleSeasonYear = firstString(data?.leagueSchedule?.seasonYear)
-  const gameDates: unknown[] = data?.leagueSchedule?.gameDates ?? []
+  const gameDates = data?.leagueSchedule?.gameDates ?? []
 
   const games: NBAScheduledGame[] = []
-  for (const day of gameDates as any[]) {
+  for (const day of gameDates) {
     for (const g of day.games ?? []) {
       const game = parseNBAScheduleGame(g, scheduleSeasonYear)
       if (game) games.push(game)
@@ -69,19 +110,20 @@ function firstString(...values: unknown[]): string | null {
   return null
 }
 
-export function parseNBAScheduleGame(g: any, scheduleSeasonYear: string | null = null): NBAScheduledGame | null {
+export function parseNBAScheduleGame(g: NBAScheduleGamePayload, scheduleSeasonYear: string | null = null): NBAScheduledGame | null {
+  const gameId = firstString(g.gameId)
   const gameDateSource = firstString(g.gameDateEst, g.gameDateTimeEst, g.gameEt, g.gameDateTimeUTC)
   const gameDate = gameDateSource?.split('T')[0] ?? null
-  if (!gameDate) return null
+  if (!gameId || !gameDate) return null
 
   return {
-    gameId: g.gameId,
+    gameId,
     gameDate,
-    homeTeam: g.homeTeam?.teamTricode ?? '',
-    awayTeam: g.awayTeam?.teamTricode ?? '',
-    status: mapGameStatus(g.gameStatus),
+    homeTeam: firstString(g.homeTeam?.teamTricode) ?? '',
+    awayTeam: firstString(g.awayTeam?.teamTricode) ?? '',
+    status: typeof g.gameStatus === 'number' ? mapGameStatus(g.gameStatus) : 'Scheduled',
     startedAt: firstString(g.gameDateTimeUTC, g.gameDateTimeEst, g.gameEt),
-    weekNumber: g.weekNumber ?? null,
+    weekNumber: typeof g.weekNumber === 'number' ? g.weekNumber : null,
     scheduleSeasonYear,
   }
 }

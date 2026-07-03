@@ -17,20 +17,25 @@ vi.mock('@/lib/alert', () => ({
 import { supabase } from '@/lib/supabase'
 import { getLeagueTransactions } from '@/lib/transactions'
 import { confirmAction } from '@/lib/alert'
+import { LEAGUE_TABS, parseLeagueTab } from '@/lib/league/tabs'
 
 beforeEach(() => {
     vi.clearAllMocks()
 })
 
-// ── Fix 1: shouldFetchTab helper ─────────────────────────────────
-
-/**
- * Pure helper that mirrors the lazy-load logic in league.tsx:
- * return true when the tab is NOT yet in loadedTabs.
- */
 function shouldFetchTab(tab: string, loadedTabs: Set<string>): boolean {
     return !loadedTabs.has(tab)
 }
+
+describe('parseLeagueTab', () => {
+    it('accepts known league tabs and falls back to results', () => {
+        for (const { key } of LEAGUE_TABS) {
+            expect(parseLeagueTab(key)).toBe(key)
+        }
+        expect(parseLeagueTab('not-a-tab')).toBe('results')
+        expect(parseLeagueTab(undefined)).toBe('results')
+    })
+})
 
 describe('shouldFetchTab', () => {
     it('returns true when tab has not been loaded', () => {
@@ -49,15 +54,13 @@ describe('shouldFetchTab', () => {
     })
 
     it('returns false for all tabs once all are loaded', () => {
-        const tabs = ['results', 'auctions', 'mockRooms', 'draftBoard', 'settings', 'history']
+        const tabs = LEAGUE_TABS.map((tab) => tab.key)
         const loaded = new Set(tabs)
         for (const t of tabs) {
             expect(shouldFetchTab(t, loaded)).toBe(false)
         }
     })
 })
-
-// ── Fix 3: getLeagueTransactions with limit/offset ───────────────
 
 describe('getLeagueTransactions', () => {
     it('returns empty array when the feed RPC has no rows', async () => {

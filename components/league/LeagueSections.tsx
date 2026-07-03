@@ -273,23 +273,37 @@ export function ActivityFeed({
     myMemberId,
     onLoadMore,
     hasMore,
+    loadingMore,
+    loadMoreError,
 }: {
     transactions: TransactionRow[]
     myMemberId?: string
     onLoadMore?: () => void
     hasMore?: boolean
+    loadingMore?: boolean
+    loadMoreError?: string | null
 }) {
     const renderItem = useCallback<ListRenderItem<TransactionRow>>(({ item }) => (
         <ActivityRow item={item} isMe={item.memberId === myMemberId} />
     ), [myMemberId])
 
-    const ListFooter = hasMore ? (
+    const ListFooter = loadMoreError ? (
         <Pressable
             onPress={onLoadMore}
             style={{ padding: spacing['2xl'], alignItems: 'center' }}
         >
+            <Text style={{ fontSize: fontSize.sm, color: colors.dangerDark, fontWeight: fontWeight.semibold }}>
+                Could not load more. Tap to retry.
+            </Text>
+        </Pressable>
+    ) : hasMore || loadingMore ? (
+        <Pressable
+            onPress={onLoadMore}
+            disabled={loadingMore}
+            style={{ padding: spacing['2xl'], alignItems: 'center' }}
+        >
             <Text style={{ fontSize: fontSize.sm, color: colors.primaryDark, fontWeight: fontWeight.semibold }}>
-                Load More
+                {loadingMore ? 'Loading...' : 'Load More'}
             </Text>
         </Pressable>
     ) : null

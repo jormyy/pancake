@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase'
-import type { NBAPosition } from '@/types/database'
+import type { Database } from '@/types/database'
 import { currentSeasonYear } from '@/lib/shared/season'
 import { TRANSACTION_LABELS } from '@/lib/shared/transaction-labels'
 import {
@@ -51,6 +51,52 @@ export type PlayerRow = {
     projection_turnovers?: number | null
     projection_games_played?: number | null
     projection_status?: string | null
+}
+
+type PlayerTableRow = Database['public']['Tables']['players']['Row']
+type PlayerGameStatsRow = Database['public']['Tables']['player_game_stats']['Row']
+type NbaGameRow = Database['public']['Tables']['nba_games']['Row']
+type FantasyPointsRow = Database['public']['Views']['v_fantasy_points']['Row']
+type FantasyPointValueRow = Pick<FantasyPointsRow, 'stat_id' | 'fantasy_points'>
+type RosterTransactionRow = Database['public']['Tables']['roster_transactions']['Row']
+type SearchPlayersRow = Database['public']['Functions']['search_players']['Returns'][number]
+
+export type PlayerDetailRow = PlayerTableRow & {
+    display_name: string
+}
+
+type PlayerGameLogRow = Pick<
+    PlayerGameStatsRow,
+    | 'id'
+    | 'points'
+    | 'rebounds'
+    | 'offensive_rebounds'
+    | 'defensive_rebounds'
+    | 'assists'
+    | 'steals'
+    | 'blocks'
+    | 'turnovers'
+    | 'personal_fouls'
+    | 'field_goals_made'
+    | 'field_goals_attempted'
+    | 'three_pointers_made'
+    | 'three_pointers_attempted'
+    | 'free_throws_made'
+    | 'free_throws_attempted'
+    | 'plus_minus'
+    | 'double_double'
+    | 'triple_double'
+    | 'did_not_play'
+    | 'minutes_played'
+> & {
+    nba_games: Pick<NbaGameRow, 'id' | 'nba_game_id' | 'game_date' | 'home_team' | 'away_team'> | null
+}
+
+type TransactionHistoryRow = Pick<
+    RosterTransactionRow,
+    'id' | 'transaction_type' | 'occurred_at'
+> & {
+    league_members: { team_name: string | null } | null
 }
 
 export type PlayerSeasonAverages = {
@@ -122,6 +168,22 @@ function uniqueNonEmpty(values?: string[]): string[] {
     return Array.from(new Set((values ?? []).filter(Boolean)))
 }
 
+function mapSearchPlayer(row: SearchPlayersRow): PlayerRow {
+    return { ...row }
+}
+
+function mapPlayerDetail(row: PlayerTableRow): PlayerDetailRow {
+    const fallbackName = `${row.first_name} ${row.last_name}`.trim() || 'Unknown Player'
+    return {
+        ...row,
+        display_name: row.display_name ?? fallbackName,
+    }
+}
+
+function hasFantasyStatId(row: FantasyPointValueRow): row is FantasyPointValueRow & { stat_id: string } {
+    return row.stat_id != null
+}
+
 export async function searchPlayers(
     query: string,
     position: string,
@@ -160,14 +222,14 @@ export async function searchPlayers(
         p_offset: offset,
     })
     if (error) throw error
-    return (data ?? []) as PlayerRow[]
+    return (data ?? []).map(mapSearchPlayer)
 }
 
 
-export async function getPlayer(id: string) {
+export async function getPlayer(id: string): Promise<PlayerDetailRow> {
     const { data, error } = await supabase.from('players').select('*').eq('id', id).single()
     if (error) throw error
-    return data
+    return mapPlayerDetail(data)
 }
 
 export async function getAvailableSeasons(playerId: string): Promise<number[]> {
@@ -246,18 +308,18 @@ export async function getPlayerGameLog(
 
     if (error) throw error
 
-    const rows = data ?? []
+    const rows = (data ?? []) as PlayerGameLogRow[]
     const hasMore = rows.length > limit
-    const games = rows.slice(0, limit).map((g: any): GameLogEntry => {
-        const game = g.nba_games ?? {}
-        const isHome = playerTeam ? game.home_team === playerTeam : false
+    const games = rows.slice(0, limit).map((g): GameLogEntry => {
+        const game = g.nba_games
+        const isHome = playerTeam ? game?.home_team === playerTeam : false
         const opponent = isHome
-            ? `vs ${game.away_team ?? '?'}`
-            : `@ ${game.home_team ?? '?'}`
+            ? `vs ${game?.away_team ?? '?'}`
+            : `@ ${game?.home_team ?? '?'}`
 
         return {
             gameId: g.id,
-            gameDate: game.game_date ?? '',
+            gameDate: game?.game_date ?? '',
             opponent,
             isHome,
             didNotPlay: g.did_not_play ?? false,
@@ -315,10 +377,10 @@ export async function getPlayerFantasyPoints(
 
     const dnpIds = new Set((dnpRes.data ?? []).map((r) => r.id))
     return (fantasyRes.data ?? [])
-        .filter((r: any) => r.stat_id != null && !dnpIds.has(r.stat_id))
-        .map((r: any) => ({
-            gameId: r.stat_id,
-            fantasyPoints: Number(r.fantasy_points) || 0,
+        .filter((row): row is FantasyPointValueRow & { stat_id: string } => hasFantasyStatId(row) && !dnpIds.has(row.stat_id))
+        .map((row) => ({
+            gameId: row.stat_id,
+            fantasyPoints: Number(row.fantasy_points) || 0,
         }))
 }
 
@@ -343,7 +405,8 @@ export async function getPlayerTransactionHistory(
 
     if (error) throw error
 
-    return (data ?? []).map((row: any) => ({
+    const rows = (data ?? []) as TransactionHistoryRow[]
+    return rows.map((row) => ({
         id: row.id,
         transactionType: row.transaction_type,
         label: TRANSACTION_LABELS[row.transaction_type] ?? row.transaction_type,

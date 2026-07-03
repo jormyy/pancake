@@ -78,7 +78,8 @@ describe('logic hardening source guards - lineup and roster locks', () => {
         expect(src).toContain('gameDateTimeEst')
         expect(src).toContain('gameEt')
         expect(src).toContain('startedAt: firstString(g.gameDateTimeUTC, g.gameDateTimeEst, g.gameEt)')
-        expect(src).toContain('weekNumber: g.weekNumber ?? null')
+        expect(src).toContain('weekNumber?: unknown')
+        expect(src).toContain("weekNumber: typeof g.weekNumber === 'number' ? g.weekNumber : null")
         expect(src).toContain('scheduleSeasonYear')
     })
 

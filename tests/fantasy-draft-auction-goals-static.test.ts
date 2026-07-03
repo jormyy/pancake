@@ -3,6 +3,8 @@ import { latestFunctionDefinition, read } from './source-guard'
 
 const goalMigration = read('supabase/migrations/20260701000001_mock_draft_rooms_lineup_optimizer.sql')
 const leagueScreen = read('app/(tabs)/league.tsx')
+const leagueDraftPanels = read('components/league/LeagueDraftPanels.tsx')
+const leagueTabs = read('lib/league/tabs.ts')
 const draftLib = read('lib/draft.ts')
 const mockRoomsLib = read('lib/mockDraftRooms.ts')
 const lineupOptimizer = read('supabase/functions/lineup-optimizer/index.ts')
@@ -34,14 +36,15 @@ describe('fantasy draft and auction experience goals', () => {
 
     it('keeps draft navigation focused by tab purpose', () => {
         for (const label of ['Results', 'Auctions', 'Mock Rooms', 'Draft Board', 'Settings', 'History']) {
-            expect(leagueScreen).toContain(label)
+            expect(leagueTabs).toContain(label)
         }
-        expect(leagueScreen).toContain('renderMockRoomsTab')
-        expect(leagueScreen).toContain('renderAuctionTab')
-        expect(leagueScreen).toContain('renderDraftBoardTab')
-        expect(leagueScreen).toContain("renderActiveDraftEntry('snake')")
-        expect(leagueScreen).not.toContain('Start Mock Auction')
-        expect(leagueScreen).not.toContain('Start Mock Rookie Draft')
+        expect(leagueScreen).toContain('<MockRoomsPanel')
+        expect(leagueScreen).toContain('<AuctionPanel')
+        expect(leagueScreen).toContain('<DraftBoardPanel')
+        expect(leagueDraftPanels).toContain('function ActiveDraftEntry')
+        expect(leagueDraftPanels).toContain('filterType="snake"')
+        expect(leagueDraftPanels).not.toContain('Start Mock Auction')
+        expect(leagueDraftPanels).not.toContain('Start Mock Rookie Draft')
     })
 
     it('adds a persistent season-long lineup optimizer processor', () => {

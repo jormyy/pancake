@@ -114,7 +114,7 @@ export async function getMockDraftRooms(
     leagueId: string,
     currentMemberId: string,
 ): Promise<MockDraftRoom[]> {
-    const { data, error } = await (supabase as any)
+    const { data, error } = await supabase
         .from('drafts')
         .select(`
             id, league_id, draft_type, status, room_name, scheduled_at, started_at, completed_at,
@@ -133,7 +133,8 @@ export async function getMockDraftRooms(
 
     if (error) throw error
     const nowIso = new Date().toISOString()
-    return ((data ?? []) as RoomDraftRow[]).map((row) => mapRoom(row, currentMemberId, nowIso))
+    const rows = (data ?? []) as RoomDraftRow[]
+    return rows.map((row) => mapRoom(row, currentMemberId, nowIso))
 }
 
 export async function createMockDraftRoom(options: CreateMockDraftRoomOptions): Promise<Draft> {

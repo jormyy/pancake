@@ -32,16 +32,18 @@ export default function PlayerDetailScreen() {
 
     const {
         player, loading, playedToday,
+        playerError,
         availableSeasons, selectedSeason, handleSeasonSelect,
-        seasonAverages,
-        gameLog, hasMoreGames, gameLogLoading, loadMoreGames,
+        seasonAverages, seasonError,
+        gameLog, hasMoreGames, gameLogLoading, loadMoreGames, gameLogError,
         fantasyPointsMap, avgFantasyPoints,
-        nextProjection,
-        transactions,
+        nextProjection, projectionError,
+        transactions, transactionsError,
     } = usePlayerScreenData(id, leagueId)
 
     // Roster status
     const [rosterStatus, setRosterStatus] = useState<PlayerRosterStatus | null>(null)
+    const [rosterStatusError, setRosterStatusError] = useState<string | null>(null)
     const [actionLoading, setActionLoading] = useState(false)
 
     // Drop picker + IR resolution state
@@ -72,8 +74,9 @@ export default function PlayerDetailScreen() {
         try {
             const status = await getPlayerRosterStatus(id, current.id, leagueId)
             setRosterStatus(status)
+            setRosterStatusError(null)
         } catch (e) {
-            console.error(e)
+            setRosterStatusError(getErrorMessage(e))
         }
     }, [current, id, leagueId])
 
@@ -160,8 +163,8 @@ export default function PlayerDetailScreen() {
             try {
                 const { roster, ineligible } = await loadRosterAddGate(current.id, leagueId)
                 setIrModal((prev) => prev ? { ...prev, ineligible, roster } : null)
-            } catch {
-                // best-effort refresh; swallow secondary failures
+            } catch (refreshError) {
+                setRosterStatusError(getErrorMessage(refreshError))
             }
         }
     }
@@ -194,8 +197,8 @@ export default function PlayerDetailScreen() {
             try {
                 const { roster, ineligible } = await loadRosterAddGate(current.id, leagueId)
                 setIrModal((prev) => prev ? { ...prev, ineligible, roster } : null)
-            } catch {
-                // best-effort refresh; swallow secondary failures
+            } catch (refreshError) {
+                setRosterStatusError(getErrorMessage(refreshError))
             }
         }
     }
@@ -237,13 +240,21 @@ export default function PlayerDetailScreen() {
         return (
             <SafeAreaView style={styles.container}>
                 <Stack.Screen options={{ title: 'Player', headerBackTitle: 'Back' }} />
-                {!loading ? <Text style={styles.errorText}>Player not found.</Text> : null}
+                {!loading ? <Text style={styles.errorText}>{playerError ?? 'Player not found.'}</Text> : null}
             </SafeAreaView>
         )
     }
 
     const showFantasy = leagueId != null && fantasyPointsMap !== null && fantasyPointsMap.size > 0
     const showTransactions = leagueId != null && transactions.length > 0
+    const dataWarnings = [
+        playerError ? 'Player details could not refresh.' : null,
+        rosterStatusError ? 'Roster status could not refresh.' : null,
+        seasonError ? 'Season stats could not refresh.' : null,
+        gameLogError ? 'Game log could not load more games.' : null,
+        projectionError ? 'Projection could not refresh.' : null,
+        transactionsError ? 'Transaction history could not refresh.' : null,
+    ].filter((message): message is string => message != null)
 
     return (
         <>
@@ -262,6 +273,12 @@ export default function PlayerDetailScreen() {
                         onDrop={handleDrop}
                         onClaim={handleClaim}
                     />
+
+                    {dataWarnings.map((message) => (
+                        <View key={message} style={styles.warningBanner}>
+                            <Text style={styles.warningText}>{message}</Text>
+                        </View>
+                    ))}
 
                     {nextProjection ? <NextProjectionCard projection={nextProjection} /> : null}
 
@@ -347,6 +364,15 @@ const styles = StyleSheet.create({
     sectionTitle: { fontSize: 17, fontWeight: fontWeight.bold, color: colors.textPrimary },
     noData: { color: colors.textPlaceholder, fontSize: fontSize.md },
     errorText: { textAlign: 'center', marginTop: spacing['5xl'], color: colors.textMuted },
+    warningBanner: {
+        backgroundColor: colors.dangerLight,
+        borderWidth: 1,
+        borderColor: colors.danger,
+        borderRadius: radii.md,
+        borderCurve: 'continuous' as const,
+        padding: spacing.lg,
+    },
+    warningText: { color: colors.dangerDark, fontSize: fontSize.sm, fontWeight: fontWeight.semibold },
 
     // Drop picker modal
     modalOverlay: {

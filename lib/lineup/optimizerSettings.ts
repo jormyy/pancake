@@ -5,7 +5,7 @@ export async function getLineupOptimizerEnabled(
     leagueId: string,
     seasonId: string,
 ): Promise<boolean> {
-    const { data, error } = await (supabase as any)
+    const { data, error } = await supabase
         .from('lineup_optimizer_settings')
         .select('enabled')
         .eq('member_id', memberId)
@@ -23,7 +23,7 @@ export async function setLineupOptimizerEnabled(
     seasonId: string,
     enabled: boolean,
 ): Promise<void> {
-    const { error } = await (supabase as any)
+    const { error } = await supabase
         .from('lineup_optimizer_settings')
         .upsert({
             member_id: memberId,

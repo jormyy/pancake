@@ -6,6 +6,7 @@ import {
     ScrollView,
     KeyboardAvoidingView,
     Platform,
+    Pressable,
 } from 'react-native'
 import { FlashList } from '@shopify/flash-list'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -52,6 +53,7 @@ export default function DraftRoomScreen() {
 
     const [state, setState] = useState<DraftState | null>(null)
     const [tab, setTab] = useState<DraftTab>('budgets')
+    const [loadError, setLoadError] = useState<string | null>(null)
 
     // Bidding — held as raw text so the field can be cleared/typed freely;
     // the value is validated and clamped only on submit (handleBid).
@@ -64,6 +66,7 @@ export default function DraftRoomScreen() {
     const [searchQuery, setSearchQuery] = useState('')
     const [searchResults, setSearchResults] = useState<DraftSearchPlayer[]>([])
     const [searchLoading, setSearchLoading] = useState(false)
+    const [searchError, setSearchError] = useState<string | null>(null)
     const [submittingNom, setSubmittingNom] = useState(false)
 
     // Countdown timer
@@ -90,6 +93,7 @@ export default function DraftRoomScreen() {
             const s = await getDraftState(draftId)
             // Ignore a stale, out-of-order result once a newer load has started.
             if (seq !== loadSeqRef.current) return
+            setLoadError(null)
             // Only commit a DEFINITE state. getDraftState() returns null (not a
             // throw) on a transient fetch failure; committing null would blank the
             // whole live auction room for seconds during bidding,
@@ -115,7 +119,7 @@ export default function DraftRoomScreen() {
                 }
             }
         } catch (e) {
-            console.error(e)
+            if (seq === loadSeqRef.current) setLoadError(getErrorMessage(e))
         }
     }, [draftId])
 
@@ -232,9 +236,13 @@ export default function DraftRoomScreen() {
         }
         const timeout = setTimeout(async () => {
             setSearchLoading(true)
+            setSearchError(null)
             try {
                 const results = await searchPlayers(searchQuery, draftId, nominationModeRef.current)
                 setSearchResults(results)
+            } catch (e) {
+                setSearchResults([])
+                setSearchError(getErrorMessage(e))
             } finally {
                 setSearchLoading(false)
             }
@@ -313,6 +321,7 @@ export default function DraftRoomScreen() {
     )
 
     if (!state) {
+        const hasLoadError = loadError != null
         return (
             <SafeAreaView style={styles.container} edges={['bottom']}>
                 <View style={styles.header}>
@@ -321,12 +330,12 @@ export default function DraftRoomScreen() {
                     </View>
                 </View>
                 <View style={styles.draftEndedContainer}>
-                    <Text style={styles.draftEndedTitle}>Draft not found</Text>
+                    <Text style={styles.draftEndedTitle}>{hasLoadError ? 'Could not load draft' : 'Draft not found'}</Text>
                     <Text style={styles.draftEndedSub}>
-                        This draft may have ended or no longer exists.
+                        {hasLoadError ? loadError : 'This draft may have ended or no longer exists.'}
                     </Text>
-                    <MotionPressable style={styles.nominateButton} onPress={() => back()} pressedScale={0.96}>
-                        <Text style={styles.nominateButtonText}>Back to League</Text>
+                    <MotionPressable style={styles.nominateButton} onPress={hasLoadError ? load : () => back()} pressedScale={0.96}>
+                        <Text style={styles.nominateButtonText}>{hasLoadError ? 'Try Again' : 'Back to League'}</Text>
                     </MotionPressable>
                 </View>
             </SafeAreaView>
@@ -422,6 +431,12 @@ export default function DraftRoomScreen() {
                         </MotionPressable>
                     </View>
                 </View>
+            ) : null}
+
+            {loadError ? (
+                <Pressable style={styles.refreshWarning} onPress={load}>
+                    <Text style={styles.refreshWarningText}>Live draft refresh failed. Tap to retry.</Text>
+                </Pressable>
             ) : null}
 
             <KeyboardAvoidingView
@@ -598,7 +613,11 @@ export default function DraftRoomScreen() {
                                                 </MotionPressable>
                                             )}
                                             ListEmptyComponent={
-                                                searchQuery.length > 0 && !searchLoading ? (
+                                                searchError ? (
+                                                    <Text style={styles.emptySearch}>
+                                                        Search failed. Keep typing or try again.
+                                                    </Text>
+                                                ) : searchQuery.length > 0 && !searchLoading ? (
                                                     <Text style={styles.emptySearch}>
                                                         No players found
                                                     </Text>
@@ -796,6 +815,15 @@ const styles = StyleSheet.create({
     adminBtnResetText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.textSecondary },
     adminBtnPauseText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.primaryDark },
     adminBtnStopText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.dangerDark },
+    refreshWarning: {
+        paddingHorizontal: spacing.xl,
+        paddingVertical: spacing.sm,
+        backgroundColor: colors.dangerLight,
+        borderBottomWidth: 1,
+        borderBottomColor: colors.danger,
+        alignItems: 'center',
+    },
+    refreshWarningText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.dangerDark },
 
     card: {
         backgroundColor: colors.bgScreen,
