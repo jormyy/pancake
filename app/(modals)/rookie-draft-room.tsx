@@ -188,9 +188,11 @@ export default function RookieDraftRoomScreen() {
         draft.status === 'in_progress' && !!nextPick?.timerExpiresAt && secondsLeft === 0
     const draftTitle = draft.isMock ? 'Mock Rookie Draft' : 'Rookie Draft'
 
+    const isPending = draft.status === 'pending'
     const totalPicks = picks.length
     const madePicks = picks.filter((p) => p.player || p.skippedAt).length
-    const currentRound = nextPick?.round ?? Math.ceil(totalPicks / state.orders.length)
+    const currentRound = nextPick?.round
+        ?? (state.orders.length > 0 ? Math.ceil(totalPicks / state.orders.length) : 1)
 
     return (
         <>
@@ -300,6 +302,17 @@ export default function RookieDraftRoomScreen() {
                                 <Text style={styles.bannerTitle} numberOfLines={compactLandscape ? 1 : undefined}>
                                     {stopped ? (draft.isMock ? 'Mock Draft Stopped' : 'Draft Stopped') : draft.isMock ? 'Mock Draft Complete' : 'Draft Complete'}
                                 </Text>
+                            ) : isPending ? (
+                                <>
+                                    <Text style={styles.bannerTitle} numberOfLines={compactLandscape ? 1 : undefined}>
+                                        Waiting to Start
+                                    </Text>
+                                    <Text style={styles.bannerSub} numberOfLines={compactLandscape ? 1 : undefined}>
+                                        {draft.isMock
+                                            ? 'Picks unlock when the room creator starts the draft.'
+                                            : 'Picks unlock when the commissioner starts the draft.'}
+                                    </Text>
+                                </>
                             ) : isPaused ? (
                                 <>
                                     <Text style={styles.bannerTitle} numberOfLines={compactLandscape ? 1 : undefined}>
@@ -445,7 +458,7 @@ export default function RookieDraftRoomScreen() {
                                 renderItem={({ item }) => (
                                     <ProspectRow
                                         player={item}
-                                        isDone={isDone || pickTimerExpired || (isPaused && !canCommissionerPick)}
+                                        isDone={isDone || isPending || pickTimerExpired || (isPaused && !canCommissionerPick)}
                                         picking={picking}
                                         onPick={canCommissionerPick ? handleCommissionerPick : handlePick}
                                         actionLabel={canCommissionerPick ? 'Commish Pick' : 'Pick'}
