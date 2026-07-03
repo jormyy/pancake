@@ -169,6 +169,7 @@ export function RosterPlayerItem({
             <Avatar
                 name={player.display_name}
                 color={colors.bgMuted}
+                textColor={colors.textSecondary}
                 uri={headshotUri ?? undefined}
             />
 
@@ -241,6 +242,7 @@ export function TaxiPlayerItem({
             <Avatar
                 name={player.display_name}
                 color={colors.bgMuted}
+                textColor={colors.textSecondary}
                 uri={headshotUri ?? undefined}
             />
 

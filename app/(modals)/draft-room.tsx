@@ -531,40 +531,44 @@ export default function DraftRoomScreen() {
 
                                 {!iAmLeading && !iAmBankrupt && !isPaused && (
                                     <View style={[styles.bidInputRow, compactLandscape && styles.bidInputRowCompact]}>
-                                        <MotionPressable
-                                            style={styles.bidStep}
-                                            onPress={() =>
-                                                setBidText((t) => String(Math.max(minBid, (parseInt(t, 10) || minBid) - 1)))
-                                            }
-                                            accessibilityRole="button"
-                                            accessibilityLabel="Decrease bid"
-                                            hitSlop={8}
-                                            pressedScale={0.88}
-                                        >
-                                            <Text style={styles.bidStepText}>−</Text>
-                                        </MotionPressable>
-                                        <TextInput
-                                            style={[styles.bidAmountInput, compactLandscape && styles.bidAmountInputCompact]}
-                                            value={bidText}
-                                            onChangeText={(v) => setBidText(v.replace(/[^0-9]/g, ''))}
-                                            keyboardType="number-pad"
-                                            selectTextOnFocus
-                                            accessibilityLabel="Bid amount"
-                                        />
-                                        <MotionPressable
-                                            style={styles.bidStep}
-                                            onPress={() =>
-                                                setBidText((t) =>
-                                                    String(Math.min(remainingBudget, (parseInt(t, 10) || minBid - 1) + 1)),
-                                                )
-                                            }
-                                            accessibilityRole="button"
-                                            accessibilityLabel="Increase bid"
-                                            hitSlop={8}
-                                            pressedScale={0.88}
-                                        >
-                                            <Text style={styles.bidStepText}>+</Text>
-                                        </MotionPressable>
+                                        {/* Non-wrapping group: the row may wrap between this
+                                            group and the Bid button, never inside −/amount/+. */}
+                                        <View style={styles.bidStepGroup}>
+                                            <MotionPressable
+                                                style={styles.bidStep}
+                                                onPress={() =>
+                                                    setBidText((t) => String(Math.max(minBid, (parseInt(t, 10) || minBid) - 1)))
+                                                }
+                                                accessibilityRole="button"
+                                                accessibilityLabel="Decrease bid"
+                                                hitSlop={8}
+                                                pressedScale={0.88}
+                                            >
+                                                <Text style={styles.bidStepText}>−</Text>
+                                            </MotionPressable>
+                                            <TextInput
+                                                style={[styles.bidAmountInput, compactLandscape && styles.bidAmountInputCompact]}
+                                                value={bidText}
+                                                onChangeText={(v) => setBidText(v.replace(/[^0-9]/g, ''))}
+                                                keyboardType="number-pad"
+                                                selectTextOnFocus
+                                                accessibilityLabel="Bid amount"
+                                            />
+                                            <MotionPressable
+                                                style={styles.bidStep}
+                                                onPress={() =>
+                                                    setBidText((t) =>
+                                                        String(Math.min(remainingBudget, (parseInt(t, 10) || minBid - 1) + 1)),
+                                                    )
+                                                }
+                                                accessibilityRole="button"
+                                                accessibilityLabel="Increase bid"
+                                                hitSlop={8}
+                                                pressedScale={0.88}
+                                            >
+                                                <Text style={styles.bidStepText}>+</Text>
+                                            </MotionPressable>
+                                        </View>
                                         <MotionPressable
                                             style={[
                                                 styles.bidButton,
@@ -949,6 +953,7 @@ const styles = StyleSheet.create({
     countdownTextUrgent: { color: colors.danger },
 
     bidInputRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.md, marginTop: spacing.xs },
+    bidStepGroup: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
     bidInputRowCompact: { gap: spacing.sm, marginTop: 0 },
     bidStep: {
         width: 44,

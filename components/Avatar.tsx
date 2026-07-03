@@ -6,6 +6,8 @@ import { getInitials } from '@/lib/format'
 type Props = {
     name: string
     color?: string
+    /** Initials color — pass a dark tone when `color` is a light fill (default white). */
+    textColor?: string
     /** Diameter in px (default 44) */
     size?: number
     /** Optional headshot image URI — shown instead of initials when provided */
@@ -13,7 +15,7 @@ type Props = {
 }
 
 /** Circular avatar — shows headshot image when uri is provided, falls back to initials */
-export function Avatar({ name, color = colors.primary, size = 44, uri }: Props) {
+export function Avatar({ name, color = colors.primary, textColor = colors.textWhite, size = 44, uri }: Props) {
     const [imageFailed, setImageFailed] = useState(false)
     const half = size / 2
     const fs = size <= 38 ? 12 : size <= 44 ? 14 : 18
@@ -37,7 +39,7 @@ export function Avatar({ name, color = colors.primary, size = 44, uri }: Props) 
                     onError={() => setImageFailed(true)}
                 />
             ) : (
-                <Text style={[styles.text, { fontSize: fs }]}>{getInitials(name)}</Text>
+                <Text style={[styles.text, { fontSize: fs, color: textColor }]}>{getInitials(name)}</Text>
             )}
         </View>
     )

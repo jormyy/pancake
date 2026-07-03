@@ -19,6 +19,7 @@ import {
     WeekDay,
 } from '@/lib/lineup'
 import { getLineupOptimizerEnabled, setLineupOptimizerEnabled } from '@/lib/lineup/optimizerSettings'
+import { playerHeadshotUrl } from '@/lib/format'
 import { todayET } from '@/lib/shared/dates'
 import { useRouter } from 'expo-router'
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
@@ -79,6 +80,7 @@ const StarterRow = memo(function StarterRow({
                         name={p.displayName}
                         color={getPositionColor(p.position)}
                         size={36}
+                        uri={playerHeadshotUrl(p.nbaId)}
                     />
                     <View style={styles.playerInfo}>
                         <Text style={styles.playerName}>{p.displayName}</Text>
@@ -143,6 +145,7 @@ const BenchRow = memo(function BenchRow({
                 name={player.displayName}
                 color={getPositionColor(player.position)}
                 size={36}
+                uri={playerHeadshotUrl(player.nbaId)}
             />
             <View style={styles.playerInfo}>
                 <Text style={styles.playerName}>{player.displayName}</Text>

@@ -182,7 +182,7 @@ function MatchupRowImpl({
                 onPress={myPlayer || oppPlayer ? () => setExpanded((value) => !value) : undefined}
                 disabled={!myPlayer}
                 accessibilityRole="button"
-                accessibilityLabel="Toggle matchup stat details"
+                accessibilityLabel={myPlayer ? `Stat details for ${myPlayer.displayName}` : 'Toggle matchup stat details'}
                 accessibilityState={{ expanded }}
                 pressedScale={0.985}
             >
@@ -235,7 +235,9 @@ function MatchupRowImpl({
                 onPress={isExtraOppRow ? undefined : () => onTap({ kind: selKind, index: selIndex })}
                 disabled={saving || isExtraOppRow}
                 accessibilityRole="button"
-                accessibilityLabel={`Select ${slotType}`}
+                accessibilityLabel={myPlayer
+                    ? `Select ${slotType} slot, ${myPlayer.displayName}`
+                    : `Select empty ${slotType} slot ${selIndex + 1}`}
                 accessibilityState={{ disabled: saving || isExtraOppRow, selected: isSel }}
                 hitSlop={7}
                 pressedScale={0.88}
@@ -251,7 +253,7 @@ function MatchupRowImpl({
                 onPress={myPlayer || oppPlayer ? () => setExpanded((value) => !value) : undefined}
                 disabled={!oppPlayer}
                 accessibilityRole="button"
-                accessibilityLabel="Toggle matchup stat details"
+                accessibilityLabel={oppPlayer ? `Stat details for ${oppPlayer.displayName}` : 'Toggle matchup stat details'}
                 accessibilityState={{ expanded }}
                 pressedScale={0.985}
             >
