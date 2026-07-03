@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useFocusEffect } from '@react-navigation/native'
 import { getLeagueWeekMatchups, getMyMatchup, LeagueWeekMatchup, Matchup } from '@/lib/scoring'
-import { getWeekDays, getWeeklyLineup, LineupSlot, LineupPlayer, WeekDay } from '@/lib/lineup'
+import { clampDateToWeek, getWeekDays, getWeeklyLineup, LineupSlot, LineupPlayer, WeekDay } from '@/lib/lineup'
 import { todayET } from '@/lib/shared/dates'
 import { supabase } from '@/lib/supabase'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
@@ -156,13 +156,14 @@ export function useMatchupData(
                     getLeagueWeekMatchups(leagueId, m.seasonId, m.weekNumber, m.myMemberId),
                 ])
                 if (seq !== loadSeqRef.current) return
+                const selected = clampDateToWeek(today, days)
                 setWeekDays(days)
                 setLeagueMatchups(weekMatchups)
-                setSelectedDate(today)
-                const lineups = await loadLineups(m, today)
+                setSelectedDate(selected)
+                const lineups = await loadLineups(m, selected)
                 if (seq !== loadSeqRef.current) return
                 writeMatchupCache(current.id, leagueId, {
-                    selectedDate: today,
+                    selectedDate: selected,
                     matchup: m,
                     weekDays: days,
                     leagueMatchups: weekMatchups,

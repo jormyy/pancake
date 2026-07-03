@@ -9,6 +9,7 @@ import { useAuth } from '@/hooks/use-auth'
 import { useLineupActions } from '@/hooks/use-lineup-actions'
 import { useLiveStats } from '@/hooks/use-live-stats'
 import {
+    clampDateToWeek,
     getLineupContext,
     getWeekDays,
     getWeeklyLineup,
@@ -200,11 +201,12 @@ export default function LineupScreen() {
             const lineupCtx = await getLineupContext(currentLeague.id)
             if (!lineupCtx) return
             setCtx(lineupCtx)
-            setSelectedDate(lineupCtx.today)
             const days = await getWeekDays(lineupCtx.weekNumber, lineupCtx.seasonYear)
+            const selected = clampDateToWeek(lineupCtx.today, days)
+            setSelectedDate(selected)
             setWeekDays(days)
             setSeasonOptimizerEnabled(await getLineupOptimizerEnabled(current.id, currentLeague.id, lineupCtx.seasonId))
-            await loadLineup(lineupCtx, currentLeague, lineupCtx.today)
+            await loadLineup(lineupCtx, currentLeague, selected)
         } catch (e) {
             console.error(e)
         }
