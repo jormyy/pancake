@@ -127,8 +127,8 @@ export function projectionViewLabel(view: string | null | undefined): string {
             return 'Week Avg'
         case 'week_total':
             return 'Week Total'
-        case 'fallback':
-            return 'Fallback'
+        // 'fallback' adds nothing for users beyond the source label ("Season
+        // Avg") and reads as developer jargon, so it renders as no label.
         default:
             return ''
     }

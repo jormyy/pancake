@@ -348,6 +348,10 @@ export default function ProjectionsScreen() {
     ])
 
     const playerRows = useMemo(() => filteredRows.map(toPlayerRow), [filteredRows])
+    const weekTotalsEmpty = useMemo(
+        () => view === 'week_total' && rows.length > 0 && rows.every((row) => !row.projection_games_played),
+        [rows, view],
+    )
     const activeFilterCount = useMemo(() => {
         let count = 0
         if (query.trim()) count++
@@ -505,6 +509,15 @@ export default function ProjectionsScreen() {
             {error ? (
                 <View style={styles.errorBox}>
                     <Text style={styles.errorText}>{error}</Text>
+                </View>
+            ) : null}
+
+            {weekTotalsEmpty ? (
+                <View style={styles.noticeBox}>
+                    <Text style={styles.noticeText}>
+                        No NBA games are scheduled in this week&apos;s range, so weekly totals are 0.
+                        Switch to Today or Week Avg for per-game projections.
+                    </Text>
                 </View>
             ) : null}
 
@@ -942,5 +955,16 @@ const styles = StyleSheet.create({
         borderCurve: 'continuous',
     },
     errorText: { color: colors.dangerDark, fontSize: fontSize.sm, fontWeight: fontWeight.semibold },
+    noticeBox: {
+        marginHorizontal: spacing.xl,
+        marginBottom: spacing.md,
+        borderWidth: 1,
+        borderColor: colors.warningLight,
+        backgroundColor: colors.bgMuted,
+        padding: spacing.lg,
+        borderRadius: radii.md,
+        borderCurve: 'continuous',
+    },
+    noticeText: { color: colors.textSecondary, fontSize: fontSize.sm, fontWeight: fontWeight.medium },
     emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 })

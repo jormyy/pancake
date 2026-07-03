@@ -42,7 +42,10 @@ Every in-scope finding ends: fixed+verified | not-reproducible (evidence) | exte
 
 | ID | Stage | Finding | Status | Evidence |
 | --- | --- | --- | --- | --- |
-| PEND-1 | 0 | ~5.9k-line uncommitted working-tree diff from prior session must be reviewed, verified, committed or reverted | open | baseline green with diff applied; diff review in flight |
+| PEND-1 | 0 | ~5.9k-line uncommitted working-tree diff from prior session must be reviewed, verified, committed or reverted | fixed+verified | Fresh-context diff review: coherent a11y/UX + swallow→throw hardening, tests match source; full baseline green with diff applied; committed as 9ed1b12 |
+| UI-1 | 1 | New leagues show "—" fantasy averages: `v_player_avg_fantasy_points` was MV-only and the MV refreshes on a daily cron, so leagues created after the refresh get NULL FP (roster FP column, search_players fpts sort) for up to 24h | fixed+verified | Reproduced on hosted (view returned 0 rows for fresh demo league, FP "—" in roster UI); migration 20260703000001 adds live fallback for uncached leagues; hosted push applied; REST probe returns rows (0.63s fallback path, 0.10s cached path); roster UI shows FP 39.0; static guard added (tests/performance-budget-static.test.ts, 4/4 pass); commit c1e04e5 |
+| S0-2 | 0 | `refresh_player_search_caches()` RPC exceeds the 8s PostgREST statement timeout when invoked over REST (57014) | not-a-defect (evidence) | Its only production caller is pg_cron in-database (no PostgREST timeout); REST invocation is not a supported path. Noted for ops docs. |
+| S0-1 | 0→1 | No `+not-found` route on web — unknown URLs showed Expo's default dev "Unmatched Route" screen | fixed+verified | Reproduced via agent-browser at /this-route-does-not-exist; added app/+not-found.tsx (EmptyState-based, in-shell); re-probed: branded screen + Back to Home renders; typecheck clean |
 
 ## Cycle ledgers
 

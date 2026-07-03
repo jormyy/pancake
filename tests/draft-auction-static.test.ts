@@ -337,7 +337,7 @@ describe('logic hardening source guards - draft, auction, roster history', () =>
         expect(rookieRoom).toContain("draft.pauseReason === 'timer_expired_commissioner_pick'")
         expect(rookieRoom).toContain('const canUsePauseControl = !canCommissionerPick')
         expect(rookieRoom).toContain('const pickTimerExpired')
-        expect(rookieRoom).toContain('isDone || pickTimerExpired')
+        expect(rookieRoom).toContain('isDone || isPending || pickTimerExpired')
         expect(rookieRoom).toContain('Commissioner Pick Needed')
         expect(databaseTypes).toContain('timer_expiry_behavior')
         expect(databaseTypes).toContain('pause_reason')
