@@ -323,6 +323,14 @@ export default function DraftRoomScreen() {
         () => new Map((state?.budgets ?? []).map((b) => [b.memberId, b])),
         [state],
     )
+    const wonCountByMember = useMemo(() => {
+        const counts = new Map<string, number>()
+        for (const n of closedNominations) {
+            if (n.status !== 'sold' || !n.winningMemberId) continue
+            counts.set(n.winningMemberId, (counts.get(n.winningMemberId) ?? 0) + 1)
+        }
+        return counts
+    }, [closedNominations])
 
     function navigateBackToDraftList(isMock = false) {
         router.replace(isMock ? '/league?tab=mockRooms' : '/league?tab=auctions')
@@ -752,6 +760,9 @@ export default function DraftRoomScreen() {
                                         {b.teamName}
                                         {b.memberId === myMemberId ? ' (you)' : ''}
                                     </Text>
+                                    <Text style={styles.budgetWon}>
+                                        {wonCountByMember.get(b.memberId) ?? 0} won
+                                    </Text>
                                     <Text
                                         style={[
                                             styles.budgetAmount,
@@ -1065,6 +1076,7 @@ const styles = StyleSheet.create({
     budgetDivider: { borderTopWidth: 1, borderTopColor: colors.separator },
     budgetTeam: { flex: 1, fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textPrimary },
     budgetAmount: { fontSize: fontSize.lg, fontWeight: fontWeight.extrabold, color: colors.textPrimary },
+    budgetWon: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textMuted, marginRight: spacing.lg },
     meAccent: { color: colors.primaryDark },
 
     historyRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10 },
