@@ -9,7 +9,7 @@ export const palette = {
     maple50:  '#FEF6E4',
     maple100: '#FDEAC0',
     maple200: '#FAD490',
-    maple500: '#C9660F',   // deep amber maple — the primary brand color
+    maple500: '#B25A0D',   // deep amber maple — the primary brand color (4.8:1 under white fills, AA for the 13-16px white-on-primary text app-wide; was #C9660F @ 3.9:1)
     maple600: '#8F4A10', // maple TEXT variant (links/FP/active-nav/Share) — ~6.3:1 on cream (was #A05212 @ 5.35, judges read borderline)
     maple900: '#6B3410',
 

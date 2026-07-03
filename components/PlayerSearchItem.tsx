@@ -70,7 +70,12 @@ export function PlayerSearchItem({
     const projectionFreshness = projectionFreshnessLabel(item.projection_fetched_at)
     const projectionView = projectionViewLabel(item.projection_view)
     const stats = playerStats(item, statMode)
-    const compactStats = stats.slice(0, 7)
+    // The projection header line already leads with "<n> FP"; repeating FP in
+    // the compact stat stack read as a duplicate to reviewers.
+    const compactStats = (statMode === 'projection' && item.projection_fantasy_points != null
+        ? stats.slice(1)
+        : stats
+    ).slice(0, 7)
     const showProjectionStatLine = statMode === 'season'
 
     const content = (
@@ -234,7 +239,9 @@ function playerStats(item: PlayerRow, statMode: 'season' | 'projection') {
     }
 
     return [
-        { label: 'FP', value: item.avg_fantasy_points ?? item.avg_points, highlight: true },
+        // No fallback to avg_points: rendering plain points as "FP" showed a
+        // wrong number that exactly duplicated the PTS column. Null renders "—".
+        { label: 'FP', value: item.avg_fantasy_points, highlight: true },
         { label: 'PTS', value: item.avg_points },
         { label: 'REB', value: item.avg_rebounds },
         { label: 'AST', value: item.avg_assists },
