@@ -58,6 +58,16 @@ describe('instant-loading performance budget contract', () => {
         expect(secondaryIndexMigration).toContain('idx_players_rookie_board_instant')
     })
 
+    it('serves fantasy averages to leagues created after the last cache refresh', () => {
+        const fallbackMigration = read('supabase/migrations/20260703000001_fresh_league_fantasy_avg_fallback.sql')
+
+        expect(fallbackMigration).toContain('CREATE OR REPLACE VIEW public.v_player_avg_fantasy_points')
+        expect(fallbackMigration).toContain('FROM analytics.mv_player_avg_fantasy_points fp')
+        expect(fallbackMigration).toContain('UNION ALL')
+        expect(fallbackMigration).toContain('WHERE NOT EXISTS (')
+        expect(fallbackMigration).toContain('WHERE cached.league_id = fp.league_id')
+    })
+
     it('wires performance budgets into the normal release surface', () => {
         const packageJson = JSON.parse(read('package.json'))
         const readme = read('README.md')
