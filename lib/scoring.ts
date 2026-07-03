@@ -68,7 +68,30 @@ export function compareStandingsRows(a: StandingRow, b: StandingRow): number {
         b.pointsFor - a.pointsFor ||
         b.maxPointsFor - a.maxPointsFor ||
         a.pointsAgainst - b.pointsAgainst ||
+        a.teamName.localeCompare(b.teamName) ||
         a.memberId.localeCompare(b.memberId)
+}
+
+type LeagueStandingsMember = {
+    id: string
+    team_name: string | null
+}
+
+function createInitialStandingsRows(members: LeagueStandingsMember[] | null | undefined): Record<string, StandingRow> {
+    const map: Record<string, StandingRow> = {}
+    for (const m of members ?? []) {
+        map[m.id] = {
+            memberId: m.id,
+            teamName: m.team_name ?? 'Team',
+            wins: 0,
+            losses: 0,
+            ties: 0,
+            pointsFor: 0,
+            pointsAgainst: 0,
+            maxPointsFor: 0,
+        }
+    }
+    return map
 }
 
 export type LeagueWeekMatchup = {
@@ -214,9 +237,17 @@ export async function getLeagueWeekMatchups(
 
 export async function getLeagueStandings(leagueId: string): Promise<StandingRow[]> {
     const season = await getCurrentSeason(leagueId)
-    if (!season) return []
+    if (!season) {
+        const { data: members, error } = await supabase
+            .from('league_members')
+            .select('id, team_name')
+            .eq('league_id', leagueId)
 
-    const [{ data: members }, { data: matchups }] = await Promise.all([
+        if (error) throw error
+        return Object.values(createInitialStandingsRows(members)).sort(compareStandingsRows)
+    }
+
+    const [{ data: members, error: membersError }, { data: matchups, error: matchupsError }] = await Promise.all([
         supabase.from('league_members').select('id, team_name').eq('league_id', leagueId),
         supabase
             .from('matchups')
@@ -231,19 +262,10 @@ export async function getLeagueStandings(leagueId: string): Promise<StandingRow[
             .eq('matchup_type', 'regular_season'),
     ])
 
-    const map: Record<string, StandingRow> = {}
-    for (const m of members ?? []) {
-        map[m.id] = {
-            memberId: m.id,
-            teamName: m.team_name ?? 'Team',
-            wins: 0,
-            losses: 0,
-            ties: 0,
-            pointsFor: 0,
-            pointsAgainst: 0,
-            maxPointsFor: 0,
-        }
-    }
+    if (membersError) throw membersError
+    if (matchupsError) throw matchupsError
+
+    const map = createInitialStandingsRows(members)
 
     for (const m of matchups ?? []) {
         if (m.is_finalized) {

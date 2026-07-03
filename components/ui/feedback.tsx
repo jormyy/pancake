@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import Animated, { FadeIn, FadeOut, SlideInUp, SlideOutUp } from 'react-native-reanimated'
@@ -17,6 +17,14 @@ type ConfirmInput = {
     confirmText?: string
     cancelText?: string
     destructive?: boolean
+}
+type WebKeyboardEvent = {
+    key: string
+    shiftKey?: boolean
+    preventDefault?: () => void
+}
+type WebKeyDownProps = {
+    onKeyDown?: (event: WebKeyboardEvent) => void
 }
 
 type FeedbackApi = {
@@ -42,12 +50,59 @@ const VARIANT_META: Record<ToastVariant, { icon: ComponentIcon; color: string; b
 type ComponentIcon = 'info' | 'check-circle' | 'warning' | 'error'
 
 let toastSeq = 1
+const DIALOG_FOCUS_DELAYS = [0, 50, 150, 350, 700, 1200, 2000, 3000] as const
+const DIALOG_FOCUSABLE_SELECTOR = [
+    'button:not([disabled])',
+    '[href]',
+    'input:not([disabled])',
+    'select:not([disabled])',
+    'textarea:not([disabled])',
+    '[role="button"]:not([aria-disabled="true"])',
+    '[tabindex]:not([tabindex="-1"])',
+].join(',')
+
+function focusableDialogElements(dialog: HTMLElement) {
+    return Array.from(dialog.querySelectorAll<HTMLElement>(DIALOG_FOCUSABLE_SELECTOR))
+        .filter((element) => element.offsetParent !== null || element.getClientRects().length > 0)
+}
+
+function trapDialogTabFocus(dialogContainerId: string, event: WebKeyboardEvent) {
+    if (event.key !== 'Tab' || Platform.OS !== 'web' || typeof document === 'undefined') return
+
+    const dialog = document.getElementById(dialogContainerId)
+    if (!(dialog instanceof HTMLElement)) return
+
+    const focusableElements = focusableDialogElements(dialog)
+    event.preventDefault?.()
+
+    if (!focusableElements.length) {
+        dialog.focus()
+        return
+    }
+
+    const active = document.activeElement
+    const first = focusableElements[0]
+    const last = focusableElements[focusableElements.length - 1]
+
+    if (event.shiftKey) {
+        if (active === first || active === dialog || !dialog.contains(active)) last.focus()
+        else focusableElements[Math.max(0, focusableElements.indexOf(active as HTMLElement) - 1)]?.focus()
+        return
+    }
+
+    if (active === last || active === dialog || !dialog.contains(active)) first.focus()
+    else focusableElements[Math.min(focusableElements.length - 1, focusableElements.indexOf(active as HTMLElement) + 1)]?.focus()
+}
 
 export function FeedbackProvider({ children }: { children: ReactNode }) {
     const insets = useSafeAreaInsets()
     const [toasts, setToasts] = useState<Toast[]>([])
     const [confirmState, setConfirmState] = useState<(ConfirmInput & { resolve: (v: boolean) => void }) | null>(null)
     const timers = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map())
+    const dialogId = useId().replace(/[^a-zA-Z0-9_-]/g, '')
+    const dialogContainerId = `${dialogId}-confirm-dialog`
+    const dialogTitleId = `${dialogId}-confirm-title`
+    const dialogMessageId = `${dialogId}-confirm-message`
 
     const dismiss = useCallback((id: number) => {
         setToasts((prev) => prev.filter((t) => t.id !== id))
@@ -95,10 +150,31 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
         }
     }, [api])
 
+    useEffect(() => {
+        if (!confirmState || Platform.OS !== 'web' || typeof document === 'undefined' || typeof window === 'undefined') return
+        const timeoutIds: number[] = []
+        let frame: number | null = null
+        const focusDialog = () => {
+            const dialog = document.getElementById(dialogContainerId)
+            if (dialog instanceof HTMLElement) dialog.focus()
+        }
+        for (const delay of DIALOG_FOCUS_DELAYS) {
+            if (delay === 0) frame = window.requestAnimationFrame(focusDialog)
+            else timeoutIds.push(window.setTimeout(focusDialog, delay))
+        }
+        return () => {
+            if (frame != null) window.cancelAnimationFrame(frame)
+            for (const timeoutId of timeoutIds) window.clearTimeout(timeoutId)
+        }
+    }, [confirmState, dialogContainerId])
+
     const closeConfirm = (result: boolean) => {
         confirmState?.resolve(result)
         setConfirmState(null)
     }
+    const dialogKeyProps: WebKeyDownProps = Platform.OS === 'web'
+        ? { onKeyDown: (event) => trapDialogTabFocus(dialogContainerId, event) }
+        : {}
 
     return (
         <FeedbackContext.Provider value={api}>
@@ -128,9 +204,22 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
 
             <Modal visible={!!confirmState} transparent animationType="fade" onRequestClose={() => closeConfirm(false)}>
                 <Pressable style={styles.dialogScrim} onPress={() => closeConfirm(false)}>
-                    <Pressable style={styles.dialog} onPress={() => {}}>
-                        <Text style={styles.dialogTitle}>{confirmState?.title}</Text>
-                        {confirmState?.message ? <Text style={styles.dialogMessage}>{confirmState.message}</Text> : null}
+                    <Pressable
+                        nativeID={dialogContainerId}
+                        style={styles.dialog}
+                        onPress={() => {}}
+                        role="dialog"
+                        aria-modal
+                        aria-labelledby={dialogTitleId}
+                        aria-describedby={confirmState?.message ? dialogMessageId : undefined}
+                        tabIndex={-1}
+                        accessibilityViewIsModal
+                        {...dialogKeyProps}
+                    >
+                        <Text nativeID={dialogTitleId} style={styles.dialogTitle}>{confirmState?.title}</Text>
+                        {confirmState?.message ? (
+                            <Text nativeID={dialogMessageId} style={styles.dialogMessage}>{confirmState.message}</Text>
+                        ) : null}
                         <View style={styles.dialogActions}>
                             <Button
                                 title={confirmState?.cancelText ?? 'Cancel'}

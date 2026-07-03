@@ -142,11 +142,10 @@ export const styles = StyleSheet.create({
         color: '#A9876B',
         fontSize: fontSize.xs,
     },
-    // Light variant for the mobile top bar (web is light-themed). Sized to sit
-    // at ~40px so it lines up with the 38px hamburger and 34px brand mark in the
-    // 56px top bar — the default 52px height made it look too tall / detached.
+    // Light variant for the mobile top bar (web is light-themed). Kept at the
+    // touch-target floor while staying visually aligned with the compact brand mark.
     leagueSwitchLight: {
-        minHeight: 40,
+        minHeight: 44,
         paddingVertical: spacing.xs,
         paddingHorizontal: spacing.md,
         gap: spacing.md,
@@ -330,8 +329,8 @@ export const styles = StyleSheet.create({
         minWidth: 0,
     },
     mobileMenuButton: {
-        width: 38,
-        height: 38,
+        width: 44,
+        height: 44,
         borderRadius: radii.md,
         alignItems: 'center',
         justifyContent: 'center',
@@ -354,12 +353,16 @@ export const styles = StyleSheet.create({
         boxShadow: '0 -6px 24px rgba(74, 37, 9, 0.10)',
     } as unknown as WebOnlyViewStyle,
     bottomNavItem: {
+        display: 'flex',
         flex: 1,
+        minHeight: 44,
         height: 54,
+        flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
         gap: spacing.xs,
-    },
+        textDecorationLine: 'none',
+    } as WebOnlyViewStyle,
     bottomNavText: {
         fontSize: 10,
         fontWeight: fontWeight.bold,
@@ -400,8 +403,8 @@ export const styles = StyleSheet.create({
         fontWeight: fontWeight.extrabold,
     },
     sheetClose: {
-        width: 36,
-        height: 36,
+        width: 44,
+        height: 44,
         alignItems: 'center',
         justifyContent: 'center',
         borderRadius: radii.md,

@@ -306,7 +306,13 @@ export default function LineupScreen() {
         <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
             {/* Header */}
             <View style={styles.header}>
-                <MotionPressable onPress={() => back()} style={styles.closeButton} pressedScale={0.92}>
+                <MotionPressable
+                    onPress={() => back()}
+                    style={styles.closeButton}
+                    accessibilityRole="button"
+                    accessibilityLabel="Close lineup"
+                    pressedScale={0.92}
+                >
                     <Text style={styles.closeText}>Done</Text>
                 </MotionPressable>
                 <Text style={styles.headerTitle}>Week {ctx.weekNumber} Lineup</Text>
@@ -339,7 +345,7 @@ export default function LineupScreen() {
                 </MotionView>
             )}
 
-            <ScrollView contentContainerStyle={styles.scroll}>
+            <ScrollView style={styles.scroller} contentContainerStyle={styles.scroll}>
                 {rosterEmpty ? (
                     <View style={styles.preDraftHint}>
                         <Text style={styles.preDraftHintText}>
@@ -412,7 +418,7 @@ const styles = StyleSheet.create({
         borderBottomWidth: 1,
         borderBottomColor: colors.borderLight,
     },
-    closeButton: { minWidth: 48 },
+    closeButton: { minWidth: 64, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
     closeText: { fontSize: 15, fontWeight: fontWeight.semibold, color: colors.primaryDark },
     headerTitle: { flex: 1, fontSize: 18, fontWeight: fontWeight.extrabold, textAlign: 'center' },
     autoSetButton: {
@@ -423,7 +429,9 @@ const styles = StyleSheet.create({
         borderWidth: 1.5,
         borderColor: colors.primary,
         minWidth: 80,
+        minHeight: 48,
         alignItems: 'center',
+        justifyContent: 'center',
     },
     autoSetText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.primaryDark },
     autoSetButtonDisabled: { borderColor: colors.borderLight, backgroundColor: colors.bgMuted, opacity: 0.55 },
@@ -447,13 +455,14 @@ const styles = StyleSheet.create({
     },
     hintText: { fontSize: fontSize.sm, color: colors.primaryDark, fontWeight: fontWeight.medium },
 
+    scroller: { flex: 1, minHeight: 0 },
     scroll: { padding: spacing.xl, gap: spacing.md, width: '100%', maxWidth: 640, alignSelf: 'center' },
 
     sectionLabel: {
         fontSize: fontSize.xs,
         fontWeight: fontWeight.bold,
         color: colors.textPlaceholder,
-        letterSpacing: 0.5,
+        letterSpacing: 0,
         marginBottom: spacing.xs,
         marginLeft: spacing.xs,
     },
@@ -492,7 +501,7 @@ const styles = StyleSheet.create({
         fontSize: fontSize.xs,
         fontWeight: fontWeight.extrabold,
         color: colors.textPlaceholder,
-        letterSpacing: 0.3,
+        letterSpacing: 0,
     },
 
     playerInfo: { flex: 1, gap: 1 },
@@ -505,7 +514,7 @@ const styles = StyleSheet.create({
         fontSize: 10,
         fontWeight: fontWeight.bold,
         color: palette.green600,
-        letterSpacing: 0.4,
+        letterSpacing: 0,
     },
     benchEmpty: { padding: spacing.xl, fontSize: fontSize.sm, color: colors.textPlaceholder, textAlign: 'center' },
 

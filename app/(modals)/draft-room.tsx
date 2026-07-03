@@ -7,10 +7,12 @@ import {
     KeyboardAvoidingView,
     Platform,
     Pressable,
+    useWindowDimensions,
 } from 'react-native'
 import { FlashList } from '@shopify/flash-list'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { useLocalSearchParams, useRouter } from 'expo-router'
+import MaterialIcons from '@expo/vector-icons/MaterialIcons'
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
 import {
@@ -49,7 +51,9 @@ function playerMeta(parts: (string | null | undefined)[]): string {
 export default function DraftRoomScreen() {
     const { draftId } = useLocalSearchParams<{ draftId: string }>()
     const { current, isCommissioner } = useLeagueContext()
-    const { back } = useRouter()
+    const router = useRouter()
+    const { width, height } = useWindowDimensions()
+    const compactLandscape = width >= 600 && height < 500
 
     const [state, setState] = useState<DraftState | null>(null)
     const [tab, setTab] = useState<DraftTab>('budgets')
@@ -132,7 +136,7 @@ export default function DraftRoomScreen() {
                 void (async () => {
                     try {
                         await stopDraft(draftId)
-                        back()
+                        router.replace(state?.draft.isMock ? '/league?tab=mockRooms' : '/league?tab=auctions')
                     } catch (e) {
                         showAlert('Could not stop draft', getErrorMessage(e))
                     }
@@ -140,7 +144,7 @@ export default function DraftRoomScreen() {
             },
             'Stop Draft',
         )
-    }, [draftId, back])
+    }, [draftId, router, state?.draft.isMock])
 
     const handleResetDraft = useCallback(() => {
         if (!draftId) return
@@ -320,25 +324,57 @@ export default function DraftRoomScreen() {
         [state],
     )
 
+    function navigateBackToDraftList(isMock = false) {
+        router.replace(isMock ? '/league?tab=mockRooms' : '/league?tab=auctions')
+    }
+
+    function renderScreenHeader(title: string, isMock = false, budgetRemaining?: number) {
+        return (
+            <View style={styles.screenHeader}>
+                <Pressable
+                    onPress={() => navigateBackToDraftList(isMock)}
+                    style={styles.headerBack}
+                    role="link"
+                    aria-label="Back to league drafts"
+                    accessibilityRole="link"
+                    accessibilityLabel="Back to league drafts"
+                >
+                    <MaterialIcons name="arrow-back" size={22} color={colors.textPrimary} />
+                </Pressable>
+                <Text style={styles.screenTitle} numberOfLines={1}>
+                    {title}
+                </Text>
+                {budgetRemaining != null ? (
+                    <View style={styles.budgetChip}>
+                        <Text style={styles.budgetChipText}>${budgetRemaining} left</Text>
+                    </View>
+                ) : null}
+            </View>
+        )
+    }
+
     if (!state) {
         const hasLoadError = loadError != null
         return (
-            <SafeAreaView style={styles.container} edges={['bottom']}>
-                <View style={styles.header}>
-                    <View style={styles.headerInner}>
-                        <Text style={styles.headerTitle}>Auction Draft</Text>
+            <>
+                <Stack.Screen options={{ title: 'Draft Room', headerShown: false }} />
+                <SafeAreaView style={styles.container} edges={['bottom']}>
+                    {renderScreenHeader('Auction Draft')}
+                    <View style={styles.draftEndedContainer}>
+                        <Text style={styles.draftEndedTitle}>{hasLoadError ? 'Could not load draft' : 'Draft not found'}</Text>
+                        <Text style={styles.draftEndedSub}>
+                            {hasLoadError ? loadError : 'This draft may have ended or no longer exists.'}
+                        </Text>
+                        <MotionPressable
+                            style={styles.nominateButton}
+                            onPress={hasLoadError ? load : () => navigateBackToDraftList()}
+                            pressedScale={0.96}
+                        >
+                            <Text style={styles.nominateButtonText}>{hasLoadError ? 'Try Again' : 'Back to League'}</Text>
+                        </MotionPressable>
                     </View>
-                </View>
-                <View style={styles.draftEndedContainer}>
-                    <Text style={styles.draftEndedTitle}>{hasLoadError ? 'Could not load draft' : 'Draft not found'}</Text>
-                    <Text style={styles.draftEndedSub}>
-                        {hasLoadError ? loadError : 'This draft may have ended or no longer exists.'}
-                    </Text>
-                    <MotionPressable style={styles.nominateButton} onPress={hasLoadError ? load : () => back()} pressedScale={0.96}>
-                        <Text style={styles.nominateButtonText}>{hasLoadError ? 'Try Again' : 'Back to League'}</Text>
-                    </MotionPressable>
-                </View>
-            </SafeAreaView>
+                </SafeAreaView>
+            </>
         )
     }
 
@@ -365,38 +401,35 @@ export default function DraftRoomScreen() {
     if (draft.status === 'completed' || draft.status === 'cancelled') {
         const stopped = draft.status === 'cancelled'
         return (
-            <SafeAreaView style={styles.container} edges={['bottom']}>
-                <View style={styles.header}>
-                    <Text style={styles.headerTitle}>{draftTitle}</Text>
-                </View>
-                <View style={styles.draftEndedContainer}>
-                    <Text style={styles.draftEndedTitle}>{stopped ? 'Draft Stopped' : 'Draft Complete'}</Text>
-                    <Text style={styles.draftEndedSub}>
-                        {stopped
-                            ? 'The commissioner ended the draft. Players already drafted are on their rosters; everyone else is a free agent.'
-                            : 'All teams are out of budget. Remaining players are free agents.'}
-                    </Text>
-                    <MotionPressable style={styles.nominateButton} onPress={() => back()} pressedScale={0.96}>
-                        <Text style={styles.nominateButtonText}>Back to League</Text>
-                    </MotionPressable>
-                </View>
-            </SafeAreaView>
+            <>
+                <Stack.Screen options={{ title: 'Draft Room', headerShown: false }} />
+                <SafeAreaView style={styles.container} edges={['bottom']}>
+                    {renderScreenHeader(draftTitle, draft.isMock)}
+                    <View style={styles.draftEndedContainer}>
+                        <Text style={styles.draftEndedTitle}>{stopped ? 'Draft Stopped' : 'Draft Complete'}</Text>
+                        <Text style={styles.draftEndedSub}>
+                            {stopped
+                                ? 'The commissioner ended the draft. Players already drafted are on their rosters; everyone else is a free agent.'
+                                : 'All teams are out of budget. Remaining players are free agents.'}
+                        </Text>
+                        <MotionPressable
+                            style={styles.nominateButton}
+                            onPress={() => navigateBackToDraftList(draft.isMock)}
+                            pressedScale={0.96}
+                        >
+                            <Text style={styles.nominateButtonText}>Back to League</Text>
+                        </MotionPressable>
+                    </View>
+                </SafeAreaView>
+            </>
         )
     }
 
     return (
-        <SafeAreaView style={styles.container} edges={['bottom']}>
-            {/* Header */}
-            <View style={styles.header}>
-                <View style={styles.headerInner}>
-                    <Text style={styles.headerTitle}>{draftTitle}</Text>
-                    {myBudget && (
-                        <View style={styles.budgetChip}>
-                            <Text style={styles.budgetChipText}>${myBudget.remaining} left</Text>
-                        </View>
-                    )}
-                </View>
-            </View>
+        <>
+            <Stack.Screen options={{ title: 'Draft Room', headerShown: false }} />
+            <SafeAreaView style={styles.container} edges={['bottom']}>
+            {renderScreenHeader(draftTitle, draft.isMock, myBudget?.remaining)}
 
             {isCommissioner ? (
                 <View style={styles.adminBar}>
@@ -445,103 +478,113 @@ export default function DraftRoomScreen() {
             >
             <ScrollView
                 style={styles.scroll}
-                contentContainerStyle={styles.scrollContent}
+                contentContainerStyle={[styles.scrollContent, compactLandscape && styles.scrollContentCompact]}
                 keyboardShouldPersistTaps="handled"
             >
                 {/* Nomination on the clock */}
                 {openNomination ? (
-                    <MotionView style={styles.card} preset="pop">
-                        <Text style={styles.cardLabel}>ON THE BLOCK</Text>
-                        <Text style={styles.playerName}>
-                            {openNomination.player?.displayName ?? 'Unknown Player'}
-                        </Text>
-                        <Text style={styles.playerMeta}>
-                            {playerMeta([
-                                openNomination.player?.nbaTeam,
-                                openNomination.player?.position,
-                                ageLabel(openNomination.player?.age),
-                            ])}
-                        </Text>
-
-                        <View style={styles.bidRow}>
-                            <View style={styles.bidInfo}>
-                                <Text style={styles.bidAmount}>
-                                    {openNomination.currentBidAmount > 0
-                                        ? `$${openNomination.currentBidAmount}`
-                                        : '—'}
+                    <View style={[styles.card, compactLandscape && styles.cardCompact]}>
+                        <View style={[styles.liveAuctionLayout, compactLandscape && styles.liveAuctionLayoutCompact]}>
+                            <View style={styles.livePlayerInfo}>
+                                <Text style={styles.cardLabel}>ON THE BLOCK</Text>
+                                <Text style={styles.playerName} numberOfLines={compactLandscape ? 2 : undefined}>
+                                    {openNomination.player?.displayName ?? 'Unknown Player'}
                                 </Text>
-                                <Text style={styles.bidLeader}>
-                                    {openNomination.currentBidderId == null
-                                        ? 'No bids yet'
-                                        : iAmLeading
-                                          ? "You're leading"
-                                          : `${leadingTeam} leads`}
+                                <Text style={styles.playerMeta} numberOfLines={compactLandscape ? 1 : undefined}>
+                                    {playerMeta([
+                                        openNomination.player?.nbaTeam,
+                                        openNomination.player?.position,
+                                        ageLabel(openNomination.player?.age),
+                                    ])}
                                 </Text>
                             </View>
-                            <View
-                                style={[styles.countdown, !isPaused && timeLeft <= 10 && styles.countdownUrgent]}
-                            >
-                                <Text
-                                    style={[
-                                        styles.countdownText,
-                                        !isPaused && timeLeft <= 10 && styles.countdownTextUrgent,
-                                    ]}
-                                >
-                                    {isPaused ? 'Paused' : `0:${String(timeLeft).padStart(2, '0')}`}
-                                </Text>
+
+                            <View style={[styles.liveBidPanel, compactLandscape && styles.liveBidPanelCompact]}>
+                                <View style={[styles.bidRow, compactLandscape && styles.bidRowCompact]}>
+                                    <View style={styles.bidInfo}>
+                                        <Text style={styles.bidAmount}>
+                                            {openNomination.currentBidAmount > 0
+                                                ? `$${openNomination.currentBidAmount}`
+                                                : '—'}
+                                        </Text>
+                                        <Text style={styles.bidLeader}>
+                                            {openNomination.currentBidderId == null
+                                                ? 'No bids yet'
+                                                : iAmLeading
+                                                  ? "You're leading"
+                                                  : `${leadingTeam} leads`}
+                                        </Text>
+                                    </View>
+                                    <View
+                                        style={[styles.countdown, !isPaused && timeLeft <= 10 && styles.countdownUrgent]}
+                                    >
+                                        <Text
+                                            style={[
+                                                styles.countdownText,
+                                                !isPaused && timeLeft <= 10 && styles.countdownTextUrgent,
+                                            ]}
+                                        >
+                                            {isPaused ? 'Paused' : `0:${String(timeLeft).padStart(2, '0')}`}
+                                        </Text>
+                                    </View>
+                                </View>
+
+                                {!iAmLeading && !iAmBankrupt && !isPaused && (
+                                    <View style={[styles.bidInputRow, compactLandscape && styles.bidInputRowCompact]}>
+                                        <MotionPressable
+                                            style={styles.bidStep}
+                                            onPress={() =>
+                                                setBidText((t) => String(Math.max(minBid, (parseInt(t, 10) || minBid) - 1)))
+                                            }
+                                            accessibilityRole="button"
+                                            accessibilityLabel="Decrease bid"
+                                            hitSlop={8}
+                                            pressedScale={0.88}
+                                        >
+                                            <Text style={styles.bidStepText}>−</Text>
+                                        </MotionPressable>
+                                        <TextInput
+                                            style={[styles.bidAmountInput, compactLandscape && styles.bidAmountInputCompact]}
+                                            value={bidText}
+                                            onChangeText={(v) => setBidText(v.replace(/[^0-9]/g, ''))}
+                                            keyboardType="number-pad"
+                                            selectTextOnFocus
+                                            accessibilityLabel="Bid amount"
+                                        />
+                                        <MotionPressable
+                                            style={styles.bidStep}
+                                            onPress={() =>
+                                                setBidText((t) =>
+                                                    String(Math.min(remainingBudget, (parseInt(t, 10) || minBid - 1) + 1)),
+                                                )
+                                            }
+                                            accessibilityRole="button"
+                                            accessibilityLabel="Increase bid"
+                                            hitSlop={8}
+                                            pressedScale={0.88}
+                                        >
+                                            <Text style={styles.bidStepText}>+</Text>
+                                        </MotionPressable>
+                                        <MotionPressable
+                                            style={[
+                                                styles.bidButton,
+                                                compactLandscape && styles.bidButtonCompact,
+                                                (bidding || !bidValid) && styles.bidButtonDisabled,
+                                            ]}
+                                            onPress={handleBid}
+                                            accessibilityRole="button"
+                                            accessibilityLabel={`Bid $${(bidValid ? bidValue : minBid).toLocaleString()}`}
+                                            disabled={bidding || !bidValid || iAmLeading || timeLeft === 0}
+                                            pressedScale={0.965}
+                                        >
+                                            <Text style={styles.bidButtonText}>
+                                                Bid ${(bidValid ? bidValue : minBid).toLocaleString()}
+                                            </Text>
+                                        </MotionPressable>
+                                    </View>
+                                )}
                             </View>
                         </View>
-
-                        {!iAmLeading && !iAmBankrupt && !isPaused && (
-                            <View style={styles.bidInputRow}>
-                                <MotionPressable
-                                    style={styles.bidStep}
-                                    onPress={() =>
-                                        setBidText((t) => String(Math.max(minBid, (parseInt(t, 10) || minBid) - 1)))
-                                    }
-                                    accessibilityRole="button"
-                                    accessibilityLabel="Decrease bid"
-                                    hitSlop={8}
-                                    pressedScale={0.88}
-                                >
-                                    <Text style={styles.bidStepText}>−</Text>
-                                </MotionPressable>
-                                <TextInput
-                                    style={styles.bidAmountInput}
-                                    value={bidText}
-                                    onChangeText={(v) => setBidText(v.replace(/[^0-9]/g, ''))}
-                                    keyboardType="number-pad"
-                                    selectTextOnFocus
-                                    accessibilityLabel="Bid amount"
-                                />
-                                <MotionPressable
-                                    style={styles.bidStep}
-                                    onPress={() =>
-                                        setBidText((t) =>
-                                            String(Math.min(remainingBudget, (parseInt(t, 10) || minBid - 1) + 1)),
-                                        )
-                                    }
-                                    accessibilityRole="button"
-                                    accessibilityLabel="Increase bid"
-                                    hitSlop={8}
-                                    pressedScale={0.88}
-                                >
-                                    <Text style={styles.bidStepText}>+</Text>
-                                </MotionPressable>
-                                <MotionPressable
-                                    style={[styles.bidButton, (bidding || !bidValid) && styles.bidButtonDisabled]}
-                                    onPress={handleBid}
-                                    accessibilityRole="button"
-                                    accessibilityLabel={`Bid $${(bidValid ? bidValue : minBid).toLocaleString()}`}
-                                    disabled={bidding || !bidValid || iAmLeading || timeLeft === 0}
-                                    pressedScale={0.965}
-                                >
-                                    <Text style={styles.bidButtonText}>
-                                        Bid ${(bidValid ? bidValue : minBid).toLocaleString()}
-                                    </Text>
-                                </MotionPressable>
-                            </View>
-                        )}
 
                         {openNomination.nominatingMemberId === myMemberId &&
                             !isPaused &&
@@ -557,10 +600,10 @@ export default function DraftRoomScreen() {
                                     <Text style={styles.withdrawButtonText}>Withdraw nomination</Text>
                                 </MotionPressable>
                             )}
-                    </MotionView>
+                    </View>
                 ) : (
                     /* No open nomination — show whose turn it is */
-                    <MotionView style={styles.card} preset="pop">
+                    <View style={[styles.card, compactLandscape && styles.cardCompact]}>
                         {isPaused ? (
                             <View style={styles.waitingRow}>
                                 <Text style={styles.waitingTeam}>Draft paused</Text>
@@ -580,6 +623,7 @@ export default function DraftRoomScreen() {
                                             onChangeText={setSearchQuery}
                                             placeholder="Search player name..."
                                             autoFocus
+                                            accessibilityLabel="Search player name"
                                         />
                                         <FlashList
                                             data={searchResults}
@@ -593,6 +637,8 @@ export default function DraftRoomScreen() {
                                                     }
                                                     disabled={submittingNom}
                                                     pressedScale={0.975}
+                                                    accessibilityRole="button"
+                                                    accessibilityLabel={`Nominate ${item.display_name ?? 'player'}`}
                                                 >
                                                     <View style={styles.flex1}>
                                                         <Text style={styles.playerResultName}>
@@ -632,6 +678,8 @@ export default function DraftRoomScreen() {
                                                 setSearchResults([])
                                             }}
                                             pressedScale={0.94}
+                                            accessibilityRole="button"
+                                            accessibilityLabel="Cancel nomination search"
                                         >
                                             <Text style={styles.cancelNomText}>Cancel</Text>
                                         </MotionPressable>
@@ -641,6 +689,8 @@ export default function DraftRoomScreen() {
                                         style={styles.nominateButton}
                                         onPress={() => setNominating(true)}
                                         pressedScale={0.965}
+                                        accessibilityRole="button"
+                                        accessibilityLabel="Search and nominate a player"
                                     >
                                         <Text style={styles.nominateButtonText}>
                                             Search & Nominate a Player
@@ -655,7 +705,7 @@ export default function DraftRoomScreen() {
                                 <Text style={styles.waitingText}>to nominate...</Text>
                             </View>
                         )}
-                    </MotionView>
+                    </View>
                 )}
 
                 {/* Tab switcher */}
@@ -679,7 +729,7 @@ export default function DraftRoomScreen() {
                 </View>
 
                 {tab === 'budgets' ? (
-                    <MotionView style={styles.card} preset="rise" delay={80}>
+                    <MotionView style={[styles.card, compactLandscape && styles.cardCompact]} preset="rise" delay={80}>
                         {budgets
                             .slice()
                             .sort((a, b) => b.remaining - a.remaining)
@@ -714,7 +764,7 @@ export default function DraftRoomScreen() {
                         <Text style={styles.emptyText}>No players sold yet.</Text>
                     </View>
                 ) : (
-                    <MotionView style={styles.card} preset="rise" delay={80}>
+                    <MotionView style={[styles.card, compactLandscape && styles.cardCompact]} preset="rise" delay={80}>
                         {closedNominations.map((n, i) => {
                             const winnerTeam = n.winningMemberId
                                 ? budgetByMember.get(n.winningMemberId)?.teamName
@@ -748,7 +798,8 @@ export default function DraftRoomScreen() {
                 )}
             </ScrollView>
             </KeyboardAvoidingView>
-        </SafeAreaView>
+            </SafeAreaView>
+        </>
     )
 }
 
@@ -758,28 +809,44 @@ const styles = StyleSheet.create({
     keyboard: { flex: 1 },
     scroll: { flex: 1 },
     scrollContent: { padding: spacing.xl, paddingBottom: spacing['3xl'], gap: spacing.lg, width: '100%', maxWidth: 760, alignSelf: 'center' },
-
-    header: {
-        paddingVertical: 14,
-        backgroundColor: colors.bgScreen,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.borderLight,
+    scrollContentCompact: {
+        paddingHorizontal: spacing.md,
+        paddingTop: spacing.md,
+        paddingBottom: spacing['4xl'],
+        gap: spacing.sm,
     },
-    headerInner: {
+
+    screenHeader: {
+        minHeight: 56,
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: spacing.xl,
-        width: '100%',
-        maxWidth: 760,
-        alignSelf: 'center',
+        gap: spacing.md,
+        paddingHorizontal: spacing.md,
+        borderBottomWidth: 1,
+        borderBottomColor: colors.borderLight,
+        backgroundColor: colors.bgCard,
     },
-    headerTitle: { fontSize: 18, fontWeight: fontWeight.extrabold },
+    headerBack: {
+        width: 44,
+        height: 44,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: radii.md,
+        borderCurve: 'continuous' as const,
+        backgroundColor: colors.bgMuted,
+    },
+    screenTitle: {
+        flex: 1,
+        color: colors.textPrimary,
+        fontSize: fontSize.lg,
+        fontWeight: fontWeight.extrabold,
+    },
     budgetChip: {
         backgroundColor: colors.primaryLight,
-        paddingHorizontal: spacing.lg,
-        paddingVertical: 5,
-        borderRadius: radii['3xl'],
+        minHeight: 36,
+        justifyContent: 'center',
+        paddingHorizontal: spacing.md,
+        borderRadius: radii.md,
         borderCurve: 'continuous' as const,
         borderWidth: 1,
         borderColor: colors.primaryBorder,
@@ -787,8 +854,10 @@ const styles = StyleSheet.create({
     budgetChipText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.primaryDark },
     adminBar: {
         flexDirection: 'row',
+        flexWrap: 'wrap',
         alignItems: 'center',
         justifyContent: 'space-between',
+        gap: spacing.sm,
         paddingHorizontal: spacing.xl,
         paddingVertical: spacing.sm,
         backgroundColor: colors.bgSubtle,
@@ -798,14 +867,16 @@ const styles = StyleSheet.create({
     adminBarLabel: {
         fontSize: 10,
         fontWeight: fontWeight.extrabold,
-        letterSpacing: 0.8,
+        letterSpacing: 0,
         textTransform: 'uppercase' as const,
         color: colors.textMuted,
     },
-    adminBarBtns: { flexDirection: 'row', gap: spacing.md },
+    adminBarBtns: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
     adminBtn: {
+        minHeight: 46,
+        justifyContent: 'center',
+        alignItems: 'center',
         paddingHorizontal: spacing.lg,
-        paddingVertical: 6,
         borderRadius: radii.md,
         borderWidth: 1,
     },
@@ -827,17 +898,31 @@ const styles = StyleSheet.create({
 
     card: {
         backgroundColor: colors.bgScreen,
-        borderRadius: 14,
+        borderRadius: radii.md,
         borderCurve: 'continuous' as const,
         borderWidth: 1,
         borderColor: colors.borderLight,
         padding: spacing.xl,
         gap: spacing.md,
     },
-    cardLabel: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.textPlaceholder, letterSpacing: 0.5 },
+    cardCompact: {
+        padding: spacing.md,
+        gap: spacing.sm,
+    },
+    cardLabel: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.textPlaceholder, letterSpacing: 0 },
 
     playerName: { fontSize: 22, fontWeight: fontWeight.extrabold, color: colors.textPrimary },
     playerMeta: { fontSize: fontSize.sm, color: colors.textMuted },
+
+    liveAuctionLayout: { gap: spacing.md },
+    liveAuctionLayoutCompact: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        gap: spacing.md,
+    },
+    livePlayerInfo: { flex: 1, minWidth: 0, gap: spacing.xs },
+    liveBidPanel: { gap: spacing.md },
+    liveBidPanelCompact: { width: 318, maxWidth: '100%', gap: spacing.sm },
 
     bidRow: {
         flexDirection: 'row',
@@ -845,6 +930,7 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         marginTop: spacing.xs,
     },
+    bidRowCompact: { marginTop: 0 },
     bidInfo: { gap: spacing.xxs },
     bidAmount: { fontSize: fontSize['3xl'], fontWeight: fontWeight.extrabold, color: colors.primaryDark },
     bidLeader: { fontSize: fontSize.sm, color: colors.textMuted },
@@ -862,11 +948,12 @@ const styles = StyleSheet.create({
     countdownText: { fontSize: 18, fontWeight: fontWeight.extrabold, color: colors.textSecondary },
     countdownTextUrgent: { color: colors.danger },
 
-    bidInputRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginTop: spacing.xs },
+    bidInputRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.md, marginTop: spacing.xs },
+    bidInputRowCompact: { gap: spacing.sm, marginTop: 0 },
     bidStep: {
-        width: 36,
-        height: 36,
-        borderRadius: 18,
+        width: 44,
+        height: 44,
+        borderRadius: 22,
         borderCurve: 'continuous' as const,
         backgroundColor: colors.bgMuted,
         justifyContent: 'center',
@@ -876,7 +963,8 @@ const styles = StyleSheet.create({
     bidAmountInput: {
         fontSize: 18,
         fontWeight: fontWeight.extrabold,
-        minWidth: 56,
+        minWidth: 64,
+        height: 44,
         textAlign: 'center',
         backgroundColor: colors.bgMuted,
         borderRadius: radii.md,
@@ -884,15 +972,18 @@ const styles = StyleSheet.create({
         paddingHorizontal: 10,
         paddingVertical: spacing.sm,
     },
+    bidAmountInputCompact: { width: 70, minWidth: 70 },
     bidButton: {
         flex: 1,
+        minWidth: 112,
         height: 44,
         backgroundColor: colors.primary,
-        borderRadius: radii.lg,
+        borderRadius: radii.md,
         borderCurve: 'continuous' as const,
         justifyContent: 'center',
         alignItems: 'center',
     },
+    bidButtonCompact: { minWidth: 96 },
     bidButtonDisabled: { opacity: 0.5 },
     bidButtonText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: 15 },
 
@@ -902,7 +993,7 @@ const styles = StyleSheet.create({
         marginTop: spacing.xs,
         height: 48,
         backgroundColor: colors.primary,
-        borderRadius: radii.lg,
+        borderRadius: radii.md,
         borderCurve: 'continuous' as const,
         justifyContent: 'center',
         alignItems: 'center',
@@ -912,7 +1003,7 @@ const styles = StyleSheet.create({
     searchInput: {
         height: 44,
         backgroundColor: colors.bgMuted,
-        borderRadius: radii.lg,
+        borderRadius: radii.md,
         borderCurve: 'continuous' as const,
         paddingHorizontal: 14,
         fontSize: 15,
@@ -920,9 +1011,10 @@ const styles = StyleSheet.create({
     },
 
     playerResult: {
+        minHeight: 52,
         flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: 10,
+        paddingVertical: spacing.sm,
         borderTopWidth: 1,
         borderTopColor: colors.separator,
         gap: spacing.md,
@@ -931,13 +1023,15 @@ const styles = StyleSheet.create({
     playerResultMeta: { fontSize: 12, color: colors.textMuted, marginTop: 1 },
     nominateLabel: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.primaryDark },
     emptySearch: { fontSize: fontSize.sm, color: colors.textPlaceholder, textAlign: 'center', marginTop: spacing.md },
-    cancelNomButton: { marginTop: spacing.md, alignItems: 'center' },
+    cancelNomButton: { minHeight: 44, marginTop: spacing.sm, alignItems: 'center', justifyContent: 'center' },
     cancelNomText: { fontSize: fontSize.md, color: colors.textMuted, fontWeight: fontWeight.semibold },
     withdrawButton: {
+        minHeight: 46,
         marginTop: spacing.md,
         alignItems: 'center',
+        justifyContent: 'center',
         paddingVertical: spacing.sm,
-        borderRadius: radii.lg,
+        borderRadius: radii.md,
         borderWidth: 1,
         borderColor: colors.border,
     },
@@ -949,9 +1043,12 @@ const styles = StyleSheet.create({
 
     tabRow: { flexDirection: 'row', gap: spacing.md },
     tabChip: {
+        flex: 1,
+        minHeight: 44,
+        justifyContent: 'center',
+        alignItems: 'center',
         paddingHorizontal: 14,
-        paddingVertical: spacing.md,
-        borderRadius: radii['3xl'],
+        borderRadius: radii.md,
         borderCurve: 'continuous' as const,
         backgroundColor: colors.bgMuted,
     },

@@ -268,6 +268,8 @@ export default function TradesScreen() {
                             style={styles.blockAction}
                             onPress={() => handleRemoveBlockItem(block)}
                             disabled={blockBusyId === block.id}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Remove ${label} from trade block`}
                         >
                             <Text style={styles.blockActionText}>Remove</Text>
                         </Pressable>
@@ -282,6 +284,8 @@ export default function TradesScreen() {
                                     requestPickId: block.asset.kind === 'pick' ? block.asset.pickId : undefined,
                                 },
                             })}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Offer for ${label}`}
                         >
                             <Text style={styles.blockActionText}>Offer</Text>
                         </Pressable>
@@ -301,6 +305,9 @@ export default function TradesScreen() {
                         style={[styles.blockAction, listed && styles.blockActionDisabled]}
                         onPress={() => handleListPlayer(item.player)}
                         disabled={listed || blockBusyId === item.player.players.id}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${listed ? 'Listed' : 'List'} ${item.player.players.display_name} on trade block`}
+                        accessibilityState={{ disabled: listed || blockBusyId === item.player.players.id }}
                     >
                         <Text style={styles.blockActionText}>{listed ? 'Listed' : 'List'}</Text>
                     </Pressable>
@@ -319,6 +326,9 @@ export default function TradesScreen() {
                         style={[styles.blockAction, listed && styles.blockActionDisabled]}
                         onPress={() => handleListPick(item.pick)}
                         disabled={listed || blockBusyId === item.pick.pickId}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${listed ? 'Listed' : 'List'} ${item.pick.seasonYear} round ${item.pick.round} pick on trade block`}
+                        accessibilityState={{ disabled: listed || blockBusyId === item.pick.pickId }}
                     >
                         <Text style={styles.blockActionText}>{listed ? 'Listed' : 'List'}</Text>
                     </Pressable>
@@ -508,7 +518,9 @@ const styles = StyleSheet.create({
         borderRadius: radii.md,
         borderCurve: 'continuous' as const,
         minWidth: 90,
+        minHeight: 44,
         alignItems: 'center',
+        justifyContent: 'center',
     },
     proposeBtnText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.md },
     proposeBtnDisabled: { backgroundColor: colors.bgMuted, borderWidth: 1, borderColor: colors.borderLight },
@@ -528,6 +540,9 @@ const styles = StyleSheet.create({
         borderRadius: radii['3xl'],
         borderCurve: 'continuous' as const,
         backgroundColor: colors.bgMuted,
+        minHeight: 44,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     tabChipActive: { backgroundColor: colors.primary },
     tabChipText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textSecondary },
@@ -576,7 +591,7 @@ const styles = StyleSheet.create({
     blockNote: { fontSize: fontSize.sm, color: colors.textSecondary },
     blockAction: {
         minWidth: 72,
-        minHeight: 36,
+        minHeight: 44,
         alignItems: 'center',
         justifyContent: 'center',
         borderRadius: radii.md,
@@ -598,7 +613,9 @@ const styles = StyleSheet.create({
         backgroundColor: colors.dangerLight,
         paddingHorizontal: spacing.xl,
         paddingVertical: spacing.md,
+        minHeight: 44,
         alignItems: 'center',
+        justifyContent: 'center',
     },
     errorBannerText: { fontSize: fontSize.sm, color: colors.dangerDark, fontWeight: fontWeight.semibold },
 })

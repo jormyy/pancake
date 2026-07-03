@@ -1,4 +1,5 @@
-import { ScrollView, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native'
+import { useCallback, useEffect, useId, useRef } from 'react'
+import { Platform, ScrollView, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native'
 import { Pressable } from 'react-native'
 import { colors, fontSize, fontWeight, motion, radii, spacing } from '@/constants/tokens'
 
@@ -6,29 +7,130 @@ export type SegmentOption<T extends string> = {
     label: string
     value: T
     badge?: number
+    accessibilityLabel?: string
 }
 
 type Props<T extends string> = {
     options: SegmentOption<T>[]
     value: T
     onChange: (value: T) => void
+    accessibilityLabel?: string
+    idBase?: string
+    controlledPanelId?: string
     scrollable?: boolean
     style?: StyleProp<ViewStyle>
 }
 
 type PressableState = { hovered?: boolean; pressed?: boolean }
+type WebKeyboardEvent = {
+    key: string
+    preventDefault?: () => void
+}
+type WebKeyDownProps = {
+    onKeyDown?: (event: WebKeyboardEvent) => void
+}
+
+const FOCUS_RECOVERY_DELAYS = [0, 50, 150, 350, 700, 1200, 2000, 3000] as const
+const INTERACTIVE_ROLES = new Set(['button', 'checkbox', 'combobox', 'link', 'menuitem', 'radio', 'switch', 'textbox'])
+
+function nextSegmentIndex(currentIndex: number, key: string, count: number): number | null {
+    if (key === 'ArrowRight' || key === 'ArrowDown') return (currentIndex + 1) % count
+    if (key === 'ArrowLeft' || key === 'ArrowUp') return (currentIndex - 1 + count) % count
+    if (key === 'Home') return 0
+    if (key === 'End') return count - 1
+    return null
+}
+
+function shouldRecoverFocus(target: HTMLElement) {
+    const active = document.activeElement
+    if (!active || active === target || active === document.body) return true
+    if (!(active instanceof HTMLElement)) return false
+
+    const role = active.getAttribute('role')
+    if (role === 'tab') return true
+    if (role && INTERACTIVE_ROLES.has(role)) return false
+    if (['A', 'BUTTON', 'INPUT', 'SELECT', 'TEXTAREA'].includes(active.tagName)) return false
+    return !active.isContentEditable
+}
+
+function focusSegment(idBase: string | undefined, value: string, shouldFocus: () => boolean) {
+    if (!idBase || Platform.OS !== 'web' || typeof document === 'undefined') return
+    const focus = () => {
+        if (!shouldFocus()) return
+        const target = document.getElementById(`${idBase}-${value}`)
+        if (target instanceof HTMLElement && shouldRecoverFocus(target)) target.focus()
+    }
+    for (const delay of FOCUS_RECOVERY_DELAYS) {
+        if (delay === 0) requestAnimationFrame(focus)
+        else setTimeout(focus, delay)
+    }
+}
 
 /** The single tab-switcher / segmented-control primitive (Standings/Activity/…). */
-export function SegmentedControl<T extends string>({ options, value, onChange, scrollable = false, style }: Props<T>) {
-    const segments = options.map((opt) => {
+export function SegmentedControl<T extends string>({
+    options,
+    value,
+    onChange,
+    accessibilityLabel = 'Filter options',
+    idBase,
+    controlledPanelId,
+    scrollable = false,
+    style,
+}: Props<T>) {
+    const generatedId = useId().replace(/[^a-zA-Z0-9_-]/g, '')
+    const effectiveIdBase = idBase ?? `segmented-${generatedId}`
+    const pendingFocusValue = useRef<T | null>(null)
+    const focusRequestId = useRef(0)
+
+    const scheduleSegmentFocus = useCallback((nextValue: T) => {
+        const requestId = ++focusRequestId.current
+        focusSegment(effectiveIdBase, nextValue, () => focusRequestId.current === requestId)
+    }, [effectiveIdBase])
+
+    useEffect(() => {
+        if (pendingFocusValue.current !== value) return
+        pendingFocusValue.current = null
+        scheduleSegmentFocus(value)
+    }, [scheduleSegmentFocus, value])
+
+    function selectValue(nextValue: T) {
+        pendingFocusValue.current = nextValue
+        onChange(nextValue)
+        scheduleSegmentFocus(nextValue)
+    }
+
+    function handleKeyDown(event: WebKeyboardEvent, index: number) {
+        const nextIndex = nextSegmentIndex(index, event.key, options.length)
+        if (nextIndex == null) return
+
+        event.preventDefault?.()
+        selectValue(options[nextIndex].value)
+    }
+
+    const segments = options.map((opt, index) => {
         const active = opt.value === value
+        const segmentLabel = opt.accessibilityLabel ?? (
+            typeof opt.badge === 'number'
+                ? `${opt.label}, ${opt.badge}`
+                : opt.label
+        )
+        const webKeyProps: WebKeyDownProps = Platform.OS === 'web'
+            ? { onKeyDown: (event) => handleKeyDown(event, index) }
+            : {}
         return (
             <Pressable
                 key={opt.value}
-                onPress={() => onChange(opt.value)}
+                nativeID={`${effectiveIdBase}-${opt.value}`}
+                onPress={() => selectValue(opt.value)}
+                role="tab"
+                aria-label={segmentLabel}
+                aria-selected={active}
+                aria-controls={controlledPanelId}
+                tabIndex={active ? 0 : -1}
                 accessibilityRole="tab"
-                accessibilityLabel={opt.label}
+                accessibilityLabel={segmentLabel}
                 accessibilityState={{ selected: active }}
+                {...webKeyProps}
                 style={({ hovered, pressed }: PressableState) => [
                     styles.segment,
                     active && styles.segmentActive,
@@ -53,6 +155,11 @@ export function SegmentedControl<T extends string>({ options, value, onChange, s
             <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
+                role="tablist"
+                aria-label={accessibilityLabel}
+                aria-orientation="horizontal"
+                accessibilityRole="tablist"
+                accessibilityLabel={accessibilityLabel}
                 contentContainerStyle={[styles.track, style]}
             >
                 {segments}
@@ -61,7 +168,14 @@ export function SegmentedControl<T extends string>({ options, value, onChange, s
     }
 
     return (
-        <View style={[styles.track, style]} accessibilityRole="tablist">
+        <View
+            style={[styles.track, style]}
+            role="tablist"
+            aria-label={accessibilityLabel}
+            aria-orientation="horizontal"
+            accessibilityRole="tablist"
+            accessibilityLabel={accessibilityLabel}
+        >
             {segments}
         </View>
     )
@@ -76,8 +190,9 @@ const styles = StyleSheet.create({
     segment: {
         flexDirection: 'row',
         alignItems: 'center',
+        justifyContent: 'center',
         gap: spacing.sm,
-        minHeight: 36,
+        minHeight: 44,
         paddingHorizontal: spacing.xl,
         borderRadius: radii.full,
         borderWidth: 1,

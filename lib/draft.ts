@@ -146,7 +146,7 @@ function mapDraft(data: {
 }
 
 export async function getActiveDraft(leagueId: string): Promise<Draft | null> {
-    const { data } = await supabase
+    const { data, error } = await supabase
         .from('drafts')
         .select(DRAFT_SELECT)
         .eq('league_id', leagueId)
@@ -156,6 +156,7 @@ export async function getActiveDraft(leagueId: string): Promise<Draft | null> {
         .limit(1)
         .maybeSingle()
 
+    if (error) throw error
     if (!data) return null
 
     return mapDraft(data)
@@ -168,14 +169,15 @@ export async function getJoinableDraft(
     const activeDraft = await getActiveDraft(leagueId)
     if (activeDraft || !options.includeCompletedRookie) return activeDraft
 
-    const { data: league } = await supabase
+    const { data: league, error: leagueError } = await supabase
         .from('leagues')
         .select('status')
         .eq('id', leagueId)
         .maybeSingle()
+    if (leagueError) throw leagueError
     if (league?.status !== 'drafting') return null
 
-    const { data } = await supabase
+    const { data, error } = await supabase
         .from('drafts')
         .select(DRAFT_SELECT)
         .eq('league_id', leagueId)
@@ -186,6 +188,7 @@ export async function getJoinableDraft(
         .limit(1)
         .maybeSingle()
 
+    if (error) throw error
     return data ? mapDraft(data) : null
 }
 

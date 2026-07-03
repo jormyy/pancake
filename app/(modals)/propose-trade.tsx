@@ -456,7 +456,7 @@ export default function ProposeTradeScreen() {
                 >
                     <Text style={styles.cancelBtnText}>Cancel</Text>
                 </Pressable>
-                <Text style={styles.headerTitle}>
+                <Text style={styles.headerTitle} numberOfLines={1}>
                     {tradeComposerTitle(mode)}
                 </Text>
                 <Pressable
@@ -640,17 +640,34 @@ const styles = StyleSheet.create({
         maxWidth: 900,
         alignSelf: 'center',
     },
-    headerTitle: { fontSize: 17, fontWeight: fontWeight.bold },
-    cancelBtn: { paddingVertical: spacing.sm, paddingHorizontal: spacing.xs },
+    headerTitle: {
+        flex: 1,
+        marginHorizontal: spacing.md,
+        fontSize: 17,
+        fontWeight: fontWeight.bold,
+        color: colors.textPrimary,
+        textAlign: 'center',
+    },
+    cancelBtn: {
+        minWidth: 72,
+        minHeight: 44,
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingHorizontal: spacing.lg,
+        borderRadius: radii.md,
+        borderCurve: 'continuous' as const,
+        backgroundColor: colors.bgMuted,
+    },
     cancelBtnText: { fontSize: fontSize.lg, color: colors.textSecondary },
     submitBtn: {
         backgroundColor: colors.primary,
         paddingHorizontal: spacing.xl,
-        paddingVertical: 7,
+        minHeight: 44,
         borderRadius: radii.md,
         borderCurve: 'continuous' as const,
-        minWidth: 52,
+        minWidth: 72,
         alignItems: 'center',
+        justifyContent: 'center',
     },
     submitBtnDisabled: { backgroundColor: colors.bgMuted, borderWidth: 1, borderColor: colors.borderLight, opacity: 0.55 },
     submitBtnText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: 15 },
@@ -660,7 +677,7 @@ const styles = StyleSheet.create({
         fontSize: fontSize.xs,
         fontWeight: fontWeight.bold,
         color: colors.textPlaceholder,
-        letterSpacing: 0.5,
+        letterSpacing: 0,
         paddingHorizontal: spacing.xl,
         paddingTop: spacing['2xl'],
         paddingBottom: spacing.md,
@@ -669,7 +686,7 @@ const styles = StyleSheet.create({
         fontSize: 10,
         fontWeight: fontWeight.bold,
         color: colors.textSecondary,
-        letterSpacing: 0.5,
+        letterSpacing: 0,
         paddingHorizontal: spacing.xl,
         paddingTop: spacing.lg,
         paddingBottom: spacing.sm,
@@ -691,7 +708,7 @@ const styles = StyleSheet.create({
         paddingBottom: spacing.md,
     },
     flex1: { flex: 1, minWidth: 0 },
-    columnTitle: { fontSize: fontSize.sm, fontWeight: fontWeight.extrabold, color: colors.textPrimary, letterSpacing: 0.5 },
+    columnTitle: { fontSize: fontSize.sm, fontWeight: fontWeight.extrabold, color: colors.textPrimary, letterSpacing: 0 },
     columnTitleReceive: { color: colors.primaryDark },
     columnSubtitle: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: spacing.xxs, fontWeight: fontWeight.semibold },
     columnCount: {
@@ -715,10 +732,12 @@ const styles = StyleSheet.create({
     },
     teamChip: {
         paddingHorizontal: 14,
-        paddingVertical: spacing.md,
+        minHeight: 44,
         borderRadius: radii['3xl'],
         borderCurve: 'continuous' as const,
         backgroundColor: colors.bgMuted,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     teamChipActive: { backgroundColor: colors.primary },
     teamChipText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textSecondary },
@@ -791,10 +810,10 @@ const styles = StyleSheet.create({
         fontSize: 10,
         fontWeight: fontWeight.bold,
         color: colors.textMuted,
-        letterSpacing: 0.5,
+        letterSpacing: 0,
     },
     termInput: {
-        minHeight: 42,
+        minHeight: 44,
         borderWidth: 1,
         borderColor: palette.gray300,
         borderRadius: radii.md,
@@ -815,6 +834,7 @@ const styles = StyleSheet.create({
     rosterErrorRow: {
         paddingHorizontal: spacing.xl,
         paddingVertical: spacing.lg,
+        minHeight: 44,
         alignItems: 'center',
     },
     rosterErrorText: {

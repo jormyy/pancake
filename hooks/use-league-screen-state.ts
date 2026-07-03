@@ -6,6 +6,8 @@ import { useLeagueContext } from '@/contexts/league-context'
 import { getLeagueStandings, type StandingRow } from '@/lib/scoring'
 import {
     getJoinableDraft,
+    NOMINATION_ORDER_MODE_LABELS,
+    ROOKIE_TIMER_EXPIRY_BEHAVIOR_LABELS,
     startDraft,
     type Draft,
     type NominationOrderMode,
@@ -49,11 +51,23 @@ function parseRoomDateInput(value: string): string | null {
     return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString()
 }
 
+function auctionDraftConfirmationMessage(draftTimerSeconds: DraftTimerOption, nominationMode: NominationOrderMode) {
+    return `This will begin the auction draft for all teams with a ${draftTimerSeconds}-second timer and ${NOMINATION_ORDER_MODE_LABELS[nominationMode].toLowerCase()} nomination order. This cannot be undone.`
+}
+
+function rookieDraftConfirmationMessage(
+    rookieRounds: RookieRoundOption,
+    draftTimerSeconds: DraftTimerOption,
+    rookieTimerExpiryBehavior: RookieTimerExpiryBehavior,
+) {
+    return `This will begin the rookie snake draft for ${rookieRounds} rounds with a ${draftTimerSeconds}-second timer and ${ROOKIE_TIMER_EXPIRY_BEHAVIOR_LABELS[rookieTimerExpiryBehavior].toLowerCase()} timeout behavior. This cannot be undone.`
+}
+
 export function useLeagueScreenState() {
     const router = useRouter()
     const { push } = router
     const params = useLocalSearchParams<{ tab?: string }>()
-    const { current, currentLeague, isCommissioner } = useLeagueContext()
+    const { current, currentLeague, isCommissioner, loading: leagueLoading } = useLeagueContext()
     const [tab, setTab] = useState<LeagueTab>(() => parseLeagueTab(params.tab))
     const [draftLoading, setDraftLoading] = useState(false)
     const [nominationMode, setNominationMode] = useState<NominationOrderMode>('user_nominated')
@@ -62,7 +76,7 @@ export function useLeagueScreenState() {
     const [rookieTimerExpiryBehavior, setRookieTimerExpiryBehavior] =
         useState<RookieTimerExpiryBehavior>('auto_pick')
     const [activeDraft, setActiveDraft] = useState<Draft | null>(null)
-    const [activeDraftLoading, setActiveDraftLoading] = useState(false)
+    const [activeDraftLoading, setActiveDraftLoading] = useState(true)
     const [activeDraftError, setActiveDraftError] = useState<string | null>(null)
     const [roomName, setRoomName] = useState('')
     const [roomDraftType, setRoomDraftType] = useState<MockDraftRoomKind>('auction')
@@ -98,6 +112,7 @@ export function useLeagueScreenState() {
         setMockRooms([])
         setActiveDraft(null)
         setActiveDraftError(null)
+        setActiveDraftLoading(Boolean(currentLeague?.id))
         setActivityOffset(0)
         setActivityHasMore(false)
         setActivityLoadingMore(false)
@@ -218,7 +233,7 @@ export function useLeagueScreenState() {
         if (!currentLeague?.id) return
         confirmAction(
             'Start Auction Draft?',
-            'This will begin the auction draft for all teams. This cannot be undone.',
+            auctionDraftConfirmationMessage(draftTimerSeconds, nominationMode),
             async () => {
                 setDraftLoading(true)
                 try {
@@ -233,7 +248,7 @@ export function useLeagueScreenState() {
                     setDraftLoading(false)
                 }
             },
-            'Start Draft',
+            'Start Auction',
         )
     }
 
@@ -265,7 +280,7 @@ export function useLeagueScreenState() {
         if (!currentLeague?.id) return
         confirmAction(
             'Start Rookie Draft?',
-            'This will begin the rookie snake draft. This cannot be undone.',
+            rookieDraftConfirmationMessage(rookieRounds, draftTimerSeconds, rookieTimerExpiryBehavior),
             async () => {
                 setDraftLoading(true)
                 try {
@@ -282,7 +297,7 @@ export function useLeagueScreenState() {
                     setDraftLoading(false)
                 }
             },
-            'Start Draft',
+            'Start Rookie',
         )
     }
 
@@ -419,6 +434,7 @@ export function useLeagueScreenState() {
         handleStartRookieDraft,
         handleTabChange,
         isCommissioner,
+        leagueLoading,
         isTabLoading: tabLoading[tab] === true,
         mockRooms,
         nominationMode,

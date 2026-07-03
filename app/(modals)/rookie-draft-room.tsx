@@ -6,24 +6,29 @@ import {
     KeyboardAvoidingView,
     Modal,
     Platform,
+    Pressable,
     ScrollView,
+    useWindowDimensions,
 } from 'react-native'
 import { FlashList } from '@shopify/flash-list'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useLeagueContext } from '@/contexts/league-context'
 import { type RookieProspect, type SnakePick } from '@/lib/rookieDraft'
 import { pauseDraft, resetDraft, resumeDraft, stopDraft } from '@/lib/draft'
 import { getPositionColor } from "@/constants/positions"
 import { colors, palette, fontSize, fontWeight, radii, scrim, spacing } from '@/constants/tokens'
-import { MotionPressable, MotionView } from '@/components/Motion'
+import { MotionPressable } from '@/components/Motion'
 import { confirmAction, showAlert, showSuccess, getErrorMessage } from '@/lib/alert'
 import { useRookieDraftRoomController } from '@/hooks/useRookieDraftRoomController'
 
 export default function RookieDraftRoomScreen() {
     const { draftId } = useLocalSearchParams<{ draftId: string }>()
     const { current, currentLeague, isCommissioner } = useLeagueContext()
-    const { back } = useRouter()
+    const router = useRouter()
+    const { width, height } = useWindowDimensions()
+    const compactLandscape = width >= 600 && height < 500
     const myMemberId = current?.id
 
     const {
@@ -65,7 +70,7 @@ export default function RookieDraftRoomScreen() {
                 void (async () => {
                     try {
                         await stopDraft(draftId)
-                        back()
+                        router.replace(state?.draft.isMock ? '/league?tab=mockRooms' : '/league?tab=draftBoard')
                     } catch (e) {
                         showAlert('Could not stop draft', getErrorMessage(e))
                     }
@@ -133,14 +138,41 @@ export default function RookieDraftRoomScreen() {
         )
     }
 
+    function navigateBackToDraftList(isMock = false) {
+        router.replace(isMock ? '/league?tab=mockRooms' : '/league?tab=draftBoard')
+    }
+
+    function renderScreenHeader(title: string, isMock = false) {
+        return (
+            <View style={styles.screenHeader}>
+                <Pressable
+                    onPress={() => navigateBackToDraftList(isMock)}
+                    style={styles.headerBack}
+                    role="link"
+                    aria-label="Back to league drafts"
+                    accessibilityRole="link"
+                    accessibilityLabel="Back to league drafts"
+                >
+                    <MaterialIcons name="arrow-back" size={22} color={colors.textPrimary} />
+                </Pressable>
+                <Text style={styles.screenTitle} numberOfLines={1}>
+                    {title}
+                </Text>
+            </View>
+        )
+    }
+
     if (!state) {
         return (
-            <SafeAreaView style={styles.container}>
-                <Stack.Screen options={{ title: 'Rookie Draft', presentation: 'modal' }} />
-                <View style={styles.center}>
-                    <Text style={styles.emptyText}>Draft not found.</Text>
-                </View>
-            </SafeAreaView>
+            <>
+                <Stack.Screen options={{ title: 'Rookie Draft', presentation: 'modal', headerShown: false }} />
+                <SafeAreaView style={styles.container}>
+                    {renderScreenHeader('Rookie Draft')}
+                    <View style={styles.center}>
+                        <Text style={styles.emptyText}>Draft not found.</Text>
+                    </View>
+                </SafeAreaView>
+            </>
         )
     }
 
@@ -162,7 +194,7 @@ export default function RookieDraftRoomScreen() {
 
     return (
         <>
-            <Stack.Screen options={{ title: draftTitle, presentation: 'modal' }} />
+            <Stack.Screen options={{ title: draftTitle, presentation: 'modal', headerShown: false }} />
 
             {/* ── Roster overflow resolution modal (non-dismissable) ── */}
             <Modal visible={!!rosterOverflow} transparent animationType="slide">
@@ -249,91 +281,103 @@ export default function RookieDraftRoomScreen() {
             </Modal>
 
             <SafeAreaView style={styles.container} edges={['bottom']}>
+                {renderScreenHeader(draftTitle, draft.isMock)}
                 <KeyboardAvoidingView
                     style={{ flex: 1 }}
                     behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                 >
-                    {/* ── Status banner ────────────────────────── */}
-                    <View style={[styles.banner, isDone && styles.bannerDone, isPaused && styles.bannerPaused]}>
-                        {isDone ? (
-                            <Text style={styles.bannerTitle}>
-                                {stopped ? (draft.isMock ? 'Mock Draft Stopped' : 'Draft Stopped') : draft.isMock ? 'Mock Draft Complete' : 'Draft Complete'}
-                            </Text>
-                        ) : isPaused ? (
-                            <>
-                                <Text style={styles.bannerTitle}>
-                                    {canCommissionerPick ? 'Commissioner Pick Needed' : 'Draft Paused'}
+                    <View style={[styles.topDraftPanel, compactLandscape && styles.topDraftPanelCompact]}>
+                        {/* ── Status banner ────────────────────────── */}
+                        <View
+                            style={[
+                                styles.banner,
+                                compactLandscape && styles.bannerCompact,
+                                isDone && styles.bannerDone,
+                                isPaused && styles.bannerPaused,
+                            ]}
+                        >
+                            {isDone ? (
+                                <Text style={styles.bannerTitle} numberOfLines={compactLandscape ? 1 : undefined}>
+                                    {stopped ? (draft.isMock ? 'Mock Draft Stopped' : 'Draft Stopped') : draft.isMock ? 'Mock Draft Complete' : 'Draft Complete'}
                                 </Text>
-                                <Text style={styles.bannerSub}>
-                                    {canCommissionerPick
-                                        ? `Pick for ${nextPick?.teamName ?? 'the team on the clock'} to resume the draft.`
-                                        : 'Commissioner will resume the pick clock.'}
-                                </Text>
-                            </>
-                        ) : (
-                            <>
-                                <View style={styles.bannerRow}>
-                                    <Text style={styles.bannerTitle}>
-                                        Round {currentRound} · Pick {madePicks + 1} of {totalPicks}
+                            ) : isPaused ? (
+                                <>
+                                    <Text style={styles.bannerTitle} numberOfLines={compactLandscape ? 1 : undefined}>
+                                        {canCommissionerPick ? 'Commissioner Pick Needed' : 'Draft Paused'}
                                     </Text>
-                                    {secondsLeft != null && (
-                                        <Text style={[
-                                            styles.bannerClock,
-                                            secondsLeft <= 10 && styles.bannerClockUrgent,
-                                        ]}>
-                                            {secondsLeft}s
+                                    <Text style={styles.bannerSub} numberOfLines={compactLandscape ? 1 : undefined}>
+                                        {canCommissionerPick
+                                            ? `Pick for ${nextPick?.teamName ?? 'the team on the clock'} to resume the draft.`
+                                            : 'Commissioner will resume the pick clock.'}
+                                    </Text>
+                                </>
+                            ) : (
+                                <>
+                                    <View style={styles.bannerRow}>
+                                        <Text style={styles.bannerTitle} numberOfLines={1}>
+                                            Round {currentRound} · Pick {madePicks + 1} of {totalPicks}
+                                        </Text>
+                                        {secondsLeft != null && (
+                                            <Text style={[
+                                                styles.bannerClock,
+                                                secondsLeft <= 10 && styles.bannerClockUrgent,
+                                            ]}>
+                                                {secondsLeft}s
+                                            </Text>
+                                        )}
+                                    </View>
+                                    {nextPick && (
+                                        <Text style={styles.bannerSub} numberOfLines={compactLandscape ? 1 : undefined}>
+                                            On the clock:{' '}
+                                            <Text style={[styles.bannerSub, isMyTurn && styles.bannerMe]}>
+                                                {nextPick.teamName}
+                                                {isMyTurn ? ' (you)' : ''}
+                                            </Text>
                                         </Text>
                                     )}
-                                </View>
-                                {nextPick && (
-                                    <Text style={styles.bannerSub}>
-                                        On the clock:{' '}
-                                        <Text style={[styles.bannerSub, isMyTurn && styles.bannerMe]}>
-                                            {nextPick.teamName}
-                                            {isMyTurn ? ' (you)' : ''}
-                                        </Text>
-                                    </Text>
-                                )}
-                            </>
-                        )}
-                    </View>
+                                </>
+                            )}
+                        </View>
 
-                    {isCommissioner && !isDone ? (
-                        <View style={styles.adminBar}>
-                            <Text style={styles.adminBarLabel}>Commissioner</Text>
-                            <View style={styles.adminBarBtns}>
-                                {canUsePauseControl ? (
+                        {isCommissioner && !isDone ? (
+                            <View style={[styles.adminBar, compactLandscape && styles.adminBarCompact]}>
+                                <Text style={[styles.adminBarLabel, compactLandscape && styles.adminBarLabelCompact]}>
+                                    Commissioner
+                                </Text>
+                                <View style={styles.adminBarBtns}>
+                                    {canUsePauseControl ? (
+                                        <MotionPressable
+                                            style={[styles.adminBtn, styles.adminBtnPause]}
+                                            onPress={isPaused ? handleResumeDraft : handlePauseDraft}
+                                            pressedScale={0.94}
+                                            accessibilityRole="button"
+                                            accessibilityLabel={isPaused ? 'Resume draft' : 'Pause draft'}
+                                        >
+                                            <Text style={styles.adminBtnPauseText}>{isPaused ? 'Resume' : 'Pause'}</Text>
+                                        </MotionPressable>
+                                    ) : null}
                                     <MotionPressable
-                                        style={[styles.adminBtn, styles.adminBtnPause]}
-                                        onPress={isPaused ? handleResumeDraft : handlePauseDraft}
+                                        style={[styles.adminBtn, styles.adminBtnReset]}
+                                        onPress={handleResetDraft}
                                         pressedScale={0.94}
                                         accessibilityRole="button"
-                                        accessibilityLabel={isPaused ? 'Resume draft' : 'Pause draft'}
+                                        accessibilityLabel="Reset draft"
                                     >
-                                        <Text style={styles.adminBtnPauseText}>{isPaused ? 'Resume' : 'Pause'}</Text>
+                                        <Text style={styles.adminBtnResetText}>Reset</Text>
                                     </MotionPressable>
-                                ) : null}
-                                <MotionPressable
-                                    style={[styles.adminBtn, styles.adminBtnReset]}
-                                    onPress={handleResetDraft}
-                                    pressedScale={0.94}
-                                    accessibilityRole="button"
-                                    accessibilityLabel="Reset draft"
-                                >
-                                    <Text style={styles.adminBtnResetText}>Reset</Text>
-                                </MotionPressable>
-                                <MotionPressable
-                                    style={[styles.adminBtn, styles.adminBtnStop]}
-                                    onPress={handleStopDraft}
-                                    pressedScale={0.94}
-                                    accessibilityRole="button"
-                                    accessibilityLabel="Stop draft"
-                                >
-                                    <Text style={styles.adminBtnStopText}>Stop</Text>
-                                </MotionPressable>
+                                    <MotionPressable
+                                        style={[styles.adminBtn, styles.adminBtnStop]}
+                                        onPress={handleStopDraft}
+                                        pressedScale={0.94}
+                                        accessibilityRole="button"
+                                        accessibilityLabel="Stop draft"
+                                    >
+                                        <Text style={styles.adminBtnStopText}>Stop</Text>
+                                    </MotionPressable>
+                                </View>
                             </View>
-                        </View>
-                    ) : null}
+                        ) : null}
+                    </View>
 
                     {/* ── Tab switcher ─────────────────────────── */}
                     <View style={styles.tabs}>
@@ -341,6 +385,8 @@ export default function RookieDraftRoomScreen() {
                             style={[styles.tab, activeTab === 'prospects' && styles.tabActive]}
                             onPress={() => setActiveTab('prospects')}
                             pressedScale={0.96}
+                            accessibilityRole="button"
+                            accessibilityLabel="Show prospects"
                         >
                             <Text style={[styles.tabText, activeTab === 'prospects' && styles.tabTextActive]}>
                                 Prospects
@@ -350,6 +396,8 @@ export default function RookieDraftRoomScreen() {
                             style={[styles.tab, activeTab === 'board' && styles.tabActive]}
                             onPress={() => setActiveTab('board')}
                             pressedScale={0.96}
+                            accessibilityRole="button"
+                            accessibilityLabel="Show pick board"
                         >
                             <Text style={[styles.tabText, activeTab === 'board' && styles.tabTextActive]}>
                                 Pick Board
@@ -360,7 +408,7 @@ export default function RookieDraftRoomScreen() {
                     {activeTab === 'prospects' ? (
                         <>
                             {/* ── Search bar ───────────────────────── */}
-                            <View style={styles.searchContainer}>
+                            <View style={[styles.searchContainer, compactLandscape && styles.searchContainerCompact]}>
                                 <TextInput
                                     style={styles.searchInput}
                                     placeholder="Search prospects…"
@@ -369,6 +417,7 @@ export default function RookieDraftRoomScreen() {
                                     onChangeText={setQuery}
                                     autoCorrect={false}
                                     returnKeyType="search"
+                                    accessibilityLabel="Search prospects"
                                 />
                             </View>
 
@@ -441,6 +490,8 @@ function ProspectRow({
             onPress={isDone || picking ? undefined : () => onPick(player)}
             disabled={isDone || picking}
             pressedScale={0.985}
+            accessibilityRole="button"
+            accessibilityLabel={`${actionLabel} ${player.display_name}`}
         >
             {player.nba_draft_number != null ? (
                 <View style={styles.draftNumChip}>
@@ -483,13 +534,12 @@ function PickRow({
     const isOnClock = !item.player && !isSkipped && nextPick?.overallPick === item.overallPick
 
     return (
-        <MotionView
+        <View
             style={[
                 styles.pickRow,
                 isMe && styles.pickRowMe,
                 isOnClock && styles.pickRowOnClock,
             ]}
-            preset={isOnClock ? 'pop' : 'fade'}
         >
             <Text style={[styles.pickNum, isMe && styles.meText]}>
                 {item.overallPick}
@@ -524,7 +574,7 @@ function PickRow({
                     {isOnClock ? '▶ On the clock' : '—'}
                 </Text>
             )}
-        </MotionView>
+        </View>
     )
 }
 
@@ -534,6 +584,40 @@ const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgScreen },
     center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
     emptyText: { color: colors.textPlaceholder, fontSize: fontSize.md },
+    screenHeader: {
+        minHeight: 56,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.md,
+        paddingHorizontal: spacing.md,
+        borderBottomWidth: 1,
+        borderBottomColor: colors.borderLight,
+        backgroundColor: colors.bgCard,
+    },
+    headerBack: {
+        width: 44,
+        height: 44,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: radii.md,
+        borderCurve: 'continuous' as const,
+        backgroundColor: colors.bgMuted,
+    },
+    screenTitle: {
+        flex: 1,
+        color: colors.textPrimary,
+        fontSize: fontSize.lg,
+        fontWeight: fontWeight.extrabold,
+    },
+
+    topDraftPanel: {},
+    topDraftPanelCompact: {
+        minHeight: 54,
+        flexDirection: 'row',
+        alignItems: 'stretch',
+        borderBottomWidth: 1,
+        borderBottomColor: colors.borderLight,
+    },
 
     banner: {
         backgroundColor: colors.primaryLight,
@@ -543,12 +627,23 @@ const styles = StyleSheet.create({
         paddingVertical: 14,
         gap: spacing.xs,
     },
+    bannerCompact: {
+        flex: 1,
+        minWidth: 0,
+        minHeight: 54,
+        justifyContent: 'center',
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.xs,
+        borderBottomWidth: 0,
+    },
     bannerDone: { backgroundColor: palette.green50, borderBottomColor: palette.green200 },
     bannerPaused: { backgroundColor: colors.bgSubtle, borderBottomColor: colors.border },
     adminBar: {
         flexDirection: 'row',
+        flexWrap: 'wrap',
         alignItems: 'center',
         justifyContent: 'space-between',
+        gap: spacing.sm,
         paddingHorizontal: spacing['2xl'],
         paddingVertical: spacing.sm,
         backgroundColor: colors.bgSubtle,
@@ -558,14 +653,26 @@ const styles = StyleSheet.create({
     adminBarLabel: {
         fontSize: 10,
         fontWeight: fontWeight.extrabold,
-        letterSpacing: 0.8,
+        letterSpacing: 0,
         textTransform: 'uppercase' as const,
         color: colors.textMuted,
     },
-    adminBarBtns: { flexDirection: 'row', gap: spacing.md },
+    adminBarCompact: {
+        width: 252,
+        minHeight: 54,
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.xs,
+        borderBottomWidth: 0,
+        borderLeftWidth: 1,
+        borderLeftColor: colors.borderLight,
+    },
+    adminBarLabelCompact: { display: 'none' },
+    adminBarBtns: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
     adminBtn: {
+        minHeight: 46,
+        justifyContent: 'center',
+        alignItems: 'center',
         paddingHorizontal: spacing.lg,
-        paddingVertical: 6,
         borderRadius: radii.md,
         borderWidth: 1,
     },
@@ -589,8 +696,9 @@ const styles = StyleSheet.create({
     },
     tab: {
         flex: 1,
-        paddingVertical: 10,
+        minHeight: 46,
         alignItems: 'center',
+        justifyContent: 'center',
     },
     tabActive: {
         borderBottomWidth: 2,
@@ -612,7 +720,15 @@ const styles = StyleSheet.create({
         borderWidth: 1.5,
         borderColor: colors.primary,
     },
-    searchInput: { flex: 1, fontSize: 15, color: colors.textPrimary },
+    searchContainerCompact: {
+        minHeight: 44,
+        marginHorizontal: spacing.xs,
+        marginTop: spacing.xxs,
+        marginBottom: 0,
+        paddingVertical: 0,
+        borderRadius: radii.md,
+    },
+    searchInput: { flex: 1, height: 44, fontSize: 15, color: colors.textPrimary },
     searchSpinner: { marginLeft: spacing.md },
 
     emptyProspects: { paddingVertical: 40, alignItems: 'center' },
@@ -628,10 +744,11 @@ const styles = StyleSheet.create({
     pickErrorText: { color: colors.danger, fontSize: fontSize.sm, fontWeight: fontWeight.semibold },
 
     resultRow: {
+        minHeight: 48,
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: spacing.xl,
-        paddingVertical: 10,
+        paddingVertical: spacing.xs,
         gap: 10,
     },
     resultInfo: { flex: 1 },
@@ -731,8 +848,9 @@ const styles = StyleSheet.create({
         lineHeight: 22,
     },
     overflowBtn: {
-        paddingVertical: 14,
-        borderRadius: radii.xl,
+        minHeight: 46,
+        justifyContent: 'center',
+        borderRadius: radii.md,
         alignItems: 'center',
         marginTop: spacing.sm,
     },
@@ -754,6 +872,8 @@ const styles = StyleSheet.create({
         maxHeight: 220,
     },
     overflowDropRow: {
+        minHeight: 48,
+        justifyContent: 'center',
         paddingVertical: 12,
         borderBottomWidth: 1,
         borderBottomColor: colors.separator,

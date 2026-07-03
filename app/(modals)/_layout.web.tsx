@@ -19,15 +19,15 @@ export default function ModalsLayoutWeb() {
                 headerShadowVisible: false,
             }}
         >
-            <Stack.Screen name="create-league" options={{ title: 'Create League' }} />
-            <Stack.Screen name="join-league" options={{ title: 'Join League' }} />
+            <Stack.Screen name="create-league" options={{ title: 'Create League', headerShown: false }} />
+            <Stack.Screen name="join-league" options={{ title: 'Join League', headerShown: false }} />
             <Stack.Screen name="commissioner-settings" options={{ title: 'League Settings' }} />
             <Stack.Screen name="change-password" options={{ title: 'Change Password' }} />
-            <Stack.Screen name="draft-room" options={{ title: 'Draft Room' }} />
-            <Stack.Screen name="rookie-draft-room" options={{ title: 'Rookie Draft' }} />
+            <Stack.Screen name="draft-room" options={{ title: 'Draft Room', headerShown: false }} />
+            <Stack.Screen name="rookie-draft-room" options={{ title: 'Rookie Draft', headerShown: false }} />
             <Stack.Screen name="lineup" options={{ headerShown: false }} />
             <Stack.Screen name="propose-trade" options={{ headerShown: false }} />
-            <Stack.Screen name="claim-player" options={{ title: 'Waiver Claim' }} />
+            <Stack.Screen name="claim-player" options={{ title: 'Waiver Claim', headerShown: false }} />
             <Stack.Screen name="bracket" options={{ title: 'Playoff Bracket' }} />
             <Stack.Screen name="team-roster" options={{ headerShown: false }} />
         </Stack>

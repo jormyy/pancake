@@ -338,22 +338,23 @@ function MobileTopBar({ onMenuPress }: { onMenuPress: () => void }) {
 
 function MobileBottomNav() {
     const pathname = usePathname()
+    const router = useRouter()
 
     return (
         <View style={styles.mobileBottomNav}>
             {MOBILE_NAV.map((item) => {
                 const active = isRouteActive(pathname, item.href)
                 return (
-                    <Link key={item.href} href={item.href as ComponentProps<typeof Link>['href']} asChild>
-                        <Pressable
-                            style={({ pressed }: PressableState) => [styles.bottomNavItem, pressed && styles.pressed]}
-                            accessibilityRole="button"
-                            accessibilityState={{ selected: active }}
-                        >
-                            <MaterialIcons name={item.icon} size={22} color={active ? colors.primary : colors.textMuted} />
-                            <Text style={[styles.bottomNavText, active && styles.bottomNavTextActive]}>{item.label}</Text>
-                        </Pressable>
-                    </Link>
+                    <Pressable
+                        key={item.href}
+                        onPress={() => router.push(item.href)}
+                        style={({ pressed }: PressableState) => [styles.bottomNavItem, pressed && styles.pressed]}
+                        accessibilityRole="link"
+                        accessibilityState={{ selected: active }}
+                    >
+                        <MaterialIcons name={item.icon} size={22} color={active ? colors.primary : colors.textMuted} />
+                        <Text style={[styles.bottomNavText, active && styles.bottomNavTextActive]}>{item.label}</Text>
+                    </Pressable>
                 )
             })}
         </View>
