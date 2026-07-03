@@ -434,12 +434,17 @@ function DraftPrepNotice({
     kind,
     status,
     compact = false,
+    onOpenDraftBoard,
 }: {
     kind: 'auction' | 'rookie'
     status?: LeagueStatus
     compact?: boolean
+    onOpenDraftBoard?: () => void
 }) {
-    const title = kind === 'auction' ? 'Auction runway' : 'Rookie draft runway'
+    const auctionFinished = kind === 'auction' && (status === 'active' || status === 'playoffs')
+    const title = kind === 'rookie'
+        ? 'Rookie draft prep'
+        : auctionFinished ? 'Auction complete' : 'Startup auction'
     const body = (() => {
         if (status === 'drafting') {
             return kind === 'auction'
@@ -448,7 +453,7 @@ function DraftPrepNotice({
         }
         if (status === 'active' || status === 'playoffs') {
             return kind === 'auction'
-                ? 'The startup auction has moved into season play.'
+                ? "The startup auction finished before the season. Draft results live on each team's roster."
                 : 'Future rookie picks remain visible during the live season for trades and long-term planning.'
         }
         if (status === 'offseason') {
@@ -466,6 +471,7 @@ function DraftPrepNotice({
             : 'Future pick ownership is visible before the draft room opens, including traded picks.'
     })()
     const accessibilityLabel = `${title}. ${body}`
+    const showDraftBoardAction = auctionFinished && !compact && Boolean(onOpenDraftBoard)
 
     return (
         <View
@@ -483,6 +489,18 @@ function DraftPrepNotice({
             <Text style={[styles.prepNoticeText, compact && styles.prepNoticeTextCompact]} numberOfLines={compact ? 1 : undefined}>
                 {body}
             </Text>
+            {showDraftBoardAction ? (
+                <Pressable
+                    style={[styles.secondaryDraftButton, styles.prepNoticeAction]}
+                    onPress={onOpenDraftBoard}
+                    role="button"
+                    aria-label="View Draft Board"
+                    accessibilityRole="button"
+                    accessibilityLabel="View Draft Board"
+                >
+                    <Text style={styles.secondaryDraftButtonText}>View Draft Board</Text>
+                </Pressable>
+            ) : null}
         </View>
     )
 }
@@ -508,6 +526,7 @@ export function AuctionPanel({
     onStartDraft,
     onJoinDraft,
     onReseedRookiePicks,
+    onOpenDraftBoard,
 }: Pick<DraftControlProps, 'nominationMode' | 'onNominationModeChange' | 'draftTimerSeconds' | 'onDraftTimerSecondsChange'> & {
     activeDraft: Draft | null
     activeDraftLoading: boolean
@@ -519,6 +538,7 @@ export function AuctionPanel({
     onStartDraft: () => void
     onJoinDraft: () => void
     onReseedRookiePicks: () => void
+    onOpenDraftBoard?: () => void
 }) {
     const { height } = useWindowDimensions()
     const compactSetup = height < 500
@@ -609,7 +629,7 @@ export function AuctionPanel({
                 </View>
             ) : null}
             {activeDraftReady && !hasActiveAuction && !canStartAuction ? (
-                <DraftPrepNotice kind="auction" status={currentLeagueStatus} compact={compactSetup} />
+                <DraftPrepNotice kind="auction" status={currentLeagueStatus} compact={compactSetup} onOpenDraftBoard={onOpenDraftBoard} />
             ) : null}
         </ScrollView>
     )
@@ -1531,6 +1551,11 @@ const styles = StyleSheet.create({
         fontSize: fontSize.xs,
         lineHeight: 16,
     },
+    prepNoticeAction: {
+        alignSelf: 'flex-start',
+        paddingHorizontal: spacing.xl,
+        marginTop: spacing.sm,
+    },
     syncWrap: { gap: spacing.xs, marginTop: spacing.md },
     syncHint: { fontSize: fontSize.xs, color: colors.textMuted, paddingHorizontal: spacing.xs, lineHeight: 15 },
     nominationModeLabel: {
@@ -1556,9 +1581,9 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
-    nominationModeChipOn: { borderColor: colors.primary, backgroundColor: colors.bgSubtle },
+    nominationModeChipOn: { borderColor: colors.primary, backgroundColor: colors.primary },
     nominationModeChipText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textSecondary },
-    nominationModeChipTextOn: { color: colors.primaryDark },
+    nominationModeChipTextOn: { color: colors.textWhite },
 
     panelScroll: {
         padding: spacing.xl,

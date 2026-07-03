@@ -3,7 +3,7 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import { FlashList, type ListRenderItem } from '@shopify/flash-list'
 import { compareStandingsRows, type StandingRow } from '@/lib/scoring'
 import { WaiverPriorityRow } from '@/lib/waivers'
-import { TransactionRow, TRANSACTION_LABELS } from '@/lib/transactions'
+import { TransactionRow, TRANSACTION_LABELS, activityEventCategory } from '@/lib/transactions'
 import { LeaguePickItem } from '@/lib/rookieDraft'
 import { getPositionColor } from '@/constants/positions'
 import { colors, fontSize, fontWeight, radii, spacing, TX_COLORS } from '@/constants/tokens'
@@ -154,7 +154,8 @@ const styles = StyleSheet.create({
     standingsTeam: { flex: 1, minWidth: 72, paddingRight: spacing.md, fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textPrimary },
     standingsTeamWrap: { flex: 1, minWidth: 72, paddingRight: spacing.md, alignItems: 'flex-start', justifyContent: 'center', gap: spacing.xxs },
     standingsTeamWrapNarrow: { minWidth: 0, paddingRight: 0, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-    standingsTeamName: { flex: 1, minWidth: 0, fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textPrimary },
+    // Link-colored so every row (not just "You") reads as a tappable roster.
+    standingsTeamName: { flex: 1, minWidth: 0, fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.primaryDark },
     standingsIdentityNarrow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minWidth: 0 },
     standingsStatsNarrow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, paddingLeft: 40 },
     standingsStatNarrow: {
@@ -378,7 +379,7 @@ const styles = StyleSheet.create({
         borderBottomWidth: 1,
         borderBottomColor: colors.borderLight,
     },
-    picksBankHeaderRound: { width: 36 },
+    picksBankHeaderRound: { width: 56 },
     picksBankHeaderFrom: { flex: 1, marginLeft: spacing.lg },
     picksBankHeaderOwner: { width: 110, textAlign: 'right' },
     picksBankRow: {
@@ -398,7 +399,7 @@ const styles = StyleSheet.create({
         paddingVertical: spacing.md,
         gap: spacing.xxs,
     },
-    picksBankRound: { width: 36, fontSize: fontSize.md, fontWeight: fontWeight.bold, color: colors.textSecondary },
+    picksBankRound: { width: 56, fontSize: fontSize.md, fontWeight: fontWeight.bold, color: colors.textSecondary },
     picksBankRoundCompact: { width: 68 },
     picksBankRoundNarrow: { width: 'auto' },
     picksBankFromWrap: {
@@ -1227,7 +1228,7 @@ export function StandingsTable({
 
 function ActivityRow({ item, isMe, compact }: { item: TransactionRow; isMe: boolean; compact?: boolean }) {
     const color = TX_COLORS[item.transactionType] ?? colors.textMuted
-    const label = TRANSACTION_LABELS[item.transactionType] ?? item.transactionType
+    const label = TRANSACTION_LABELS[item.transactionType] ?? activityEventCategory(item.transactionType)
     const avatarSize = compact ? 32 : 40
     if (item.isSystem) {
         return (

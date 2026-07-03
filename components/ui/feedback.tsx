@@ -156,7 +156,16 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
         let frame: number | null = null
         const focusDialog = () => {
             const dialog = document.getElementById(dialogContainerId)
-            if (dialog instanceof HTMLElement) dialog.focus()
+            if (!(dialog instanceof HTMLElement)) return
+            // Once focus is inside the dialog (user tabbed to Confirm, or a
+            // recovery already landed), leave it alone — the delayed retries
+            // only exist to win against RN Modal's own focus juggling.
+            if (dialog.contains(document.activeElement)) return
+            // Cancel renders first in the actions row, so initial focus lands
+            // on the safe action instead of the dialog container div.
+            const firstAction = focusableDialogElements(dialog)[0]
+            if (firstAction) firstAction.focus()
+            else dialog.focus()
         }
         for (const delay of DIALOG_FOCUS_DELAYS) {
             if (delay === 0) frame = window.requestAnimationFrame(focusDialog)
@@ -179,7 +188,7 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
     return (
         <FeedbackContext.Provider value={api}>
             {children}
-            <View pointerEvents="box-none" style={[styles.toastHost, { top: insets.top + spacing.lg }]}>
+            <View style={[styles.toastHost, { top: insets.top + spacing.lg }]}>
                 {toasts.map((t) => {
                     const meta = VARIANT_META[t.variant]
                     return (
@@ -250,6 +259,7 @@ export function useFeedback(): FeedbackApi {
 const styles = StyleSheet.create({
     toastHost: {
         position: Platform.OS === 'web' ? ('fixed' as 'absolute') : 'absolute',
+        pointerEvents: 'box-none',
         left: 0,
         right: 0,
         alignItems: 'center',

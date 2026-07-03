@@ -85,7 +85,7 @@ export default function JoinLeagueScreen() {
                     <Text style={[styles.label, styles.compactLabel]}>Invite Code</Text>
                     <TextInput
                         style={[styles.input, styles.codeInput]}
-                        placeholder="XXXXXX"
+                        placeholder="16-character code"
                         placeholderTextColor={colors.textPlaceholder}
                         autoCapitalize="characters"
                         autoCorrect={false}
@@ -99,7 +99,7 @@ export default function JoinLeagueScreen() {
                     <Text style={[styles.label, styles.compactLabel]}>Your Team Name</Text>
                     <TextInput
                         style={styles.input}
-                        placeholder="e.g. Buckets FC"
+                        placeholder="e.g. Buckets BC"
                         placeholderTextColor={colors.textPlaceholder}
                         value={teamName}
                         onChangeText={setTeamName}
@@ -125,7 +125,7 @@ export default function JoinLeagueScreen() {
             <Text style={styles.label}>Invite Code</Text>
             <TextInput
                 style={[styles.input, styles.codeInput]}
-                placeholder="XXXXXX"
+                placeholder="16-character code"
                 placeholderTextColor={colors.textPlaceholder}
                 autoCapitalize="characters"
                 autoCorrect={false}
@@ -137,7 +137,7 @@ export default function JoinLeagueScreen() {
             <Text style={styles.label}>Your Team Name</Text>
             <TextInput
                 style={styles.input}
-                placeholder="e.g. Buckets FC"
+                placeholder="e.g. Buckets BC"
                 placeholderTextColor={colors.textPlaceholder}
                 value={teamName}
                 onChangeText={setTeamName}

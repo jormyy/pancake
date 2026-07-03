@@ -83,6 +83,7 @@ type CommissionerAction = {
     label: string
     onPress: () => void | Promise<void>
     color?: string
+    description?: string
 }
 
 export default function CommissionerSettingsScreen() {
@@ -440,6 +441,7 @@ export default function CommissionerSettingsScreen() {
         id: 'reset-schedule',
         label: 'Reset & Regenerate Schedule',
         color: colors.danger,
+        description: 'Deletes every existing matchup and rebuilds the season schedule from scratch.',
         onPress: () =>
             confirmAction(
                 'Reset Schedule',
@@ -451,14 +453,20 @@ export default function CommissionerSettingsScreen() {
     }
     const playoffActions: CommissionerAction[] = [
         { id: 'generate-playoffs', label: 'Generate Playoff Bracket', onPress: generatePlayoffBracket },
-        { id: 'advance-playoffs', label: 'Advance to Championship', onPress: advancePlayoffBracket },
+        {
+            id: 'advance-playoffs',
+            label: 'Advance to Championship',
+            onPress: advancePlayoffBracket,
+            description: 'Finalizes the semifinal results and creates the championship matchup. Semifinal scores cannot change after this.',
+        },
     ]
     const annualCycleActions: CommissionerAction[] = [
         {
             id: 'advance-season',
             label: 'Advance to Next Season',
-            color: colors.info,
+            color: colors.primaryDark,
             onPress: handleAdvanceSeason,
+            description: 'Closes the current season and rolls all teams into the next league year. The finished season becomes read-only history.',
         },
     ]
     const scheduleActions: CommissionerAction[] = [
@@ -501,21 +509,29 @@ export default function CommissionerSettingsScreen() {
 
     function renderAction(action: CommissionerAction, grid = false) {
         const color = action.color ?? colors.primary
-        return (
+        const accessibilityLabel = action.description ? `${action.label}. ${action.description}` : action.label
+        const button = (
             <Pressable
                 key={`${action.id}:${action.label}`}
-                style={[styles.actionButton, grid && styles.actionButtonGrid, { borderColor: color }]}
+                style={[styles.actionButton, grid && !action.description && styles.actionButtonGrid, { borderColor: color }]}
                 onPress={action.onPress}
                 disabled={busyAction !== null}
                 role="button"
-                aria-label={action.label}
+                aria-label={accessibilityLabel}
                 aria-disabled={busyAction !== null}
                 accessibilityRole="button"
-                accessibilityLabel={action.label}
+                accessibilityLabel={accessibilityLabel}
                 accessibilityState={{ disabled: busyAction !== null }}
             >
                 <Text style={[styles.actionButtonText, { color }]}>{action.label}</Text>
             </Pressable>
+        )
+        if (!action.description) return button
+        return (
+            <View key={`${action.id}:${action.label}`} style={[styles.actionWrap, grid && styles.actionButtonGrid]}>
+                {button}
+                <Text style={styles.actionDescription}>{action.description}</Text>
+            </View>
         )
     }
 
@@ -741,6 +757,7 @@ export default function CommissionerSettingsScreen() {
                                 label: 'Delete League',
                                 color: colors.danger,
                                 onPress: handleDeleteLeague,
+                                description: 'Permanently removes the league, all rosters, history, and picks for every manager. This cannot be undone.',
                             })}
                         </>
                     ) : null}
@@ -752,7 +769,7 @@ export default function CommissionerSettingsScreen() {
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgSubtle },
-    scroll: { padding: spacing['2xl'], gap: spacing.md, paddingBottom: 96 },
+    scroll: { padding: spacing['2xl'], gap: spacing.md, paddingBottom: 96, width: '100%', maxWidth: 760, alignSelf: 'center' },
     scrollCompact: { paddingHorizontal: spacing.md, paddingTop: spacing.md, gap: spacing.sm, paddingBottom: spacing['5xl'] },
 
     screenHeader: {
@@ -965,4 +982,11 @@ const styles = StyleSheet.create({
         flexBasis: 184,
     },
     actionButtonText: { color: colors.primaryDark, fontWeight: fontWeight.bold, fontSize: fontSize.lg },
+    actionWrap: { gap: spacing.xs },
+    actionDescription: {
+        fontSize: fontSize.xs,
+        lineHeight: 16,
+        color: colors.textMuted,
+        paddingHorizontal: spacing.xs,
+    },
 })

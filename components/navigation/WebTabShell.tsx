@@ -35,6 +35,17 @@ const MOBILE_NAV: { label: string; href: RouteHref; icon: IconName }[] = [
     { label: 'League', href: '/league', icon: 'emoji-events' },
 ]
 
+const SECTION_TITLES: { label: string; href: RouteHref }[] = [
+    ...MOBILE_NAV.map(({ label, href }) => ({ label, href })),
+    { label: 'Profile', href: '/profile' },
+]
+
+// react-native-web forwards aria-* props to the DOM, but React Native's prop
+// types don't model aria-current — spread this constant so the active nav item
+// emits a real signal for assistive tech (accessibilityState.selected is not
+// mapped to aria for role=button on web).
+const ARIA_CURRENT_PAGE = { 'aria-current': 'page' } as const
+
 const webStackRouter: typeof StackRouter = (options) => {
     const router = StackRouter(options)
 
@@ -84,6 +95,15 @@ function usePancakeWebTheme() {
     }, [])
 }
 
+function useDocumentTitle() {
+    const pathname = usePathname()
+    useEffect(() => {
+        if (typeof document === 'undefined') return
+        const section = SECTION_TITLES.find((item) => isRouteActive(pathname, item.href))
+        document.title = section ? `${section.label} · Pancake` : 'Pancake'
+    }, [pathname])
+}
+
 function BrandMark({ compact = false }: { compact?: boolean }) {
     return (
         <View style={[styles.brandMark, compact && styles.brandMarkCompact]}>
@@ -94,7 +114,7 @@ function BrandMark({ compact = false }: { compact?: boolean }) {
 
 function NavIcon({ name, active = false, size = 19 }: { name: IconName; active?: boolean; size?: number }) {
     return (
-        <View style={styles.navIconFrame}>
+        <View style={styles.navIconFrame} aria-hidden>
             <MaterialIcons name={name} size={size} color={active ? colors.textWhite : 'rgba(255, 246, 232, 0.82)'} />
         </View>
     )
@@ -211,6 +231,7 @@ function SidebarNavButton({
             accessibilityRole="button"
             accessibilityLabel={label}
             accessibilityState={{ selected: active, disabled: disabled || loading }}
+            {...(active ? ARIA_CURRENT_PAGE : null)}
         >
             <NavIcon name={icon} active={active} />
             <Text style={[styles.sideNavText, active && styles.sideNavTextActive]} numberOfLines={1}>{label}</Text>
@@ -256,8 +277,8 @@ function WebSidebar() {
     const { openDraftRoom, draftLoading } = useDraftRoomLauncher()
 
     return (
-        <View style={styles.sidebar}>
-            <ScrollView style={styles.sidebarScroll} contentContainerStyle={styles.sidebarScrollContent} showsVerticalScrollIndicator={false}>
+        <View style={styles.sidebar} role="navigation" aria-label="Primary">
+            <ScrollView style={styles.sidebarScroll} contentContainerStyle={styles.sidebarScrollContent}>
                 <View style={styles.brandRow}>
                     <BrandMark />
                     <View>
@@ -307,6 +328,8 @@ function WebSidebar() {
                         hovered && styles.userChipHover,
                         pressed && styles.pressed,
                     ]}
+                    accessibilityRole="button"
+                    accessibilityLabel="Profile & settings"
                 >
                     <View style={styles.userAvatar}>
                         <Text style={styles.userAvatarText}>{current?.team_name?.slice(0, 1).toUpperCase() ?? 'P'}</Text>
@@ -341,7 +364,7 @@ function MobileBottomNav() {
     const router = useRouter()
 
     return (
-        <View style={styles.mobileBottomNav}>
+        <View style={styles.mobileBottomNav} role="navigation" aria-label="Primary">
             {MOBILE_NAV.map((item) => {
                 const active = isRouteActive(pathname, item.href)
                 return (
@@ -350,9 +373,11 @@ function MobileBottomNav() {
                         onPress={() => router.push(item.href)}
                         style={({ pressed }: PressableState) => [styles.bottomNavItem, pressed && styles.pressed]}
                         accessibilityRole="link"
+                        accessibilityLabel={item.label}
                         accessibilityState={{ selected: active }}
+                        {...(active ? ARIA_CURRENT_PAGE : null)}
                     >
-                        <MaterialIcons name={item.icon} size={22} color={active ? colors.primary : colors.textMuted} />
+                        <MaterialIcons name={item.icon} size={22} color={active ? colors.primary : colors.textMuted} aria-hidden />
                         <Text style={[styles.bottomNavText, active && styles.bottomNavTextActive]}>{item.label}</Text>
                     </Pressable>
                 )
@@ -425,6 +450,7 @@ export function WebAppShell({ children, chrome = true }: { children: ReactNode; 
     const { width } = useWindowDimensions()
     const compact = width < breakpoints.compact
     usePancakeWebTheme()
+    useDocumentTitle()
     const [menuOpen, setMenuOpen] = useState(false)
 
     // Keep the shell mounted for ALL web routes (stable element type) so toggling
@@ -435,7 +461,7 @@ export function WebAppShell({ children, chrome = true }: { children: ReactNode; 
     return (
         <View style={[styles.root, compact ? styles.rootCompact : styles.rootDesktop]}>
             {compact ? <MobileTopBar onMenuPress={() => setMenuOpen(true)} /> : <WebSidebar />}
-            <View style={[styles.content, compact && styles.contentCompact]}>{children}</View>
+            <View style={[styles.content, compact && styles.contentCompact]} role="main">{children}</View>
             {compact ? (
                 <>
                     <MobileBottomNav />

@@ -258,6 +258,7 @@ export default function LeagueScreen() {
                     onStartDraft={screen.handleStartDraft}
                     onJoinDraft={screen.handleJoinDraftRoom}
                     onReseedRookiePicks={screen.handleReseedRookiePicks}
+                    onOpenDraftBoard={() => screen.handleTabChange('draftBoard')}
                 />
             )
         }

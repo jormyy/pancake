@@ -1,8 +1,23 @@
-import { View, Text, StyleSheet } from 'react-native'
+import { View, Text, StyleSheet, Platform } from 'react-native'
 import { WeekDay } from '@/lib/lineup'
 import { todayET } from '@/lib/shared/dates'
 import { colors, palette } from '@/constants/tokens'
 import { MotionPressable } from '@/components/Motion'
+
+// react-native-web forwards aria-* props to the DOM, but React Native's prop
+// types don't model aria-current — spread this constant on the selected day so
+// assistive tech hears the selection (accessibilityState.selected is not
+// mapped to aria for role=button on web).
+const ARIA_CURRENT_DATE = Platform.OS === 'web' ? ({ 'aria-current': 'date' } as const) : undefined
+
+function accessibleDayLabel(day: WeekDay) {
+    const fullDate = new Date(`${day.date}T12:00:00`).toLocaleDateString('en-US', {
+        weekday: 'long',
+        month: 'long',
+        day: 'numeric',
+    })
+    return day.hasGames ? fullDate : `${fullDate}, no games`
+}
 
 export function DaySelector({
     days,
@@ -33,8 +48,9 @@ export function DaySelector({
                         ]}
                         onPress={() => onSelect(day.date)}
                         accessibilityRole="button"
-                        accessibilityLabel={`Select ${day.dayLabel} ${day.dateNum}`}
-                        accessibilityState={{ selected: isSelected }}
+                        accessibilityLabel={accessibleDayLabel(day)}
+                        accessibilityState={{ selected: isSelected, disabled: !day.hasGames }}
+                        {...(isSelected ? ARIA_CURRENT_DATE : undefined)}
                         hitSlop={4}
                         pressedScale={0.92}
                     >

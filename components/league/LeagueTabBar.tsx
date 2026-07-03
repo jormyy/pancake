@@ -1,20 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native'
+import { Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions } from 'react-native'
 import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 import { LEAGUE_TABS, type LeagueTab } from '@/lib/league/tabs'
 
 type LeagueTabBarProps = {
     activeTab: LeagueTab
     onTabChange: (tab: LeagueTab) => void
-}
-
-const COMPACT_TAB_LABELS: Record<LeagueTab, string> = {
-    results: 'Results',
-    auctions: 'Auction',
-    mockRooms: 'Rooms',
-    draftBoard: 'Picks',
-    settings: 'Settings',
-    history: 'History',
 }
 
 const TAB_LABELS = Object.fromEntries(
@@ -115,9 +106,15 @@ export function LeagueTabBar({ activeTab, onTabChange }: LeagueTabBarProps) {
     }
     const tabBarAccessibilityLabel = leagueTabBarAccessibilityLabel(activeTab)
 
+    // Horizontal scroll (like SegmentedControl's scrollable mode) keeps the
+    // full descriptive tab labels on every breakpoint instead of swapping in
+    // ambiguous short names ("Picks") on compact screens.
     return (
-        <View
-            style={[styles.tabRow, compactTabs && styles.tabRowCompact]}
+        <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.tabScroll}
+            contentContainerStyle={[styles.tabRow, compactTabs && styles.tabRowCompact]}
             role="tablist"
             aria-label={tabBarAccessibilityLabel}
             aria-orientation="horizontal"
@@ -151,24 +148,26 @@ export function LeagueTabBar({ activeTab, onTabChange }: LeagueTabBarProps) {
                             style={[styles.tabChipText, compactTabs && styles.tabChipTextCompact, active && styles.tabChipTextActive]}
                             numberOfLines={1}
                         >
-                            {compactTabs ? COMPACT_TAB_LABELS[tab.key] : tab.label}
+                            {tab.label}
                         </Text>
                     </Pressable>
                 )
             })}
-        </View>
+        </ScrollView>
     )
 }
 
 const styles = StyleSheet.create({
+    tabScroll: {
+        flexGrow: 0,
+        borderBottomWidth: 1,
+        borderBottomColor: colors.borderLight,
+    },
     tabRow: {
         flexDirection: 'row',
-        flexWrap: 'wrap',
         gap: spacing.sm,
         paddingHorizontal: spacing.xl,
         paddingVertical: spacing.lg,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.borderLight,
     },
     tabRowCompact: {
         gap: spacing.xs,

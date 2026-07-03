@@ -15,7 +15,7 @@ import { getProfile, updateProfile, signOut } from '@/lib/auth'
 import { updateTeamName } from '@/lib/league'
 import { getNotificationPreferences, updateNotificationPreferences, type NotificationPreferences } from '@/lib/notification-preferences'
 import { useLeagueContext } from '@/contexts/league-context'
-import { colors, fontSize, fontWeight, spacing, layout } from '@/constants/tokens'
+import { colors, fontSize, fontWeight, spacing } from '@/constants/tokens'
 import { Avatar } from '@/components/Avatar'
 import { Button } from '@/components/ui'
 import { showAlert, confirmAction, getErrorMessage } from '@/lib/alert'
@@ -206,12 +206,14 @@ export default function ProfileScreen() {
                         return (
                             <View key={key}>
                                 <Pressable
-                                    style={rowStyle}
+                                    style={styles.row}
                                     onPress={() => togglePreference(key)}
+                                    role="switch"
+                                    aria-checked={enabled}
                                     accessibilityRole="switch"
                                     accessibilityState={{ checked: enabled }}
                                 >
-                                    <Text style={styles.rowLabel}>{label}</Text>
+                                    <Text style={[styles.rowLabel, styles.switchLabel]}>{label}</Text>
                                     <View style={[styles.toggle, enabled && styles.toggleOn]}>
                                         <View style={[styles.toggleKnob, enabled && styles.toggleKnobOn]} />
                                     </View>
@@ -256,7 +258,9 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgScreen },
     scroll: { flex: 1 },
-    scrollContent: { padding: spacing['3xl'], gap: spacing.xl, width: '100%', maxWidth: layout.contentMaxWidth, alignSelf: 'center' },
+    // Settings read best as a narrow column: cap well below the app-wide
+    // content width so label → value eye travel stays short on desktop.
+    scrollContent: { padding: spacing['3xl'], gap: spacing.xl, width: '100%', maxWidth: 720, alignSelf: 'center' },
 
     avatarSection: { alignItems: 'center', paddingTop: 48, paddingBottom: spacing.md },
 
@@ -288,6 +292,9 @@ const styles = StyleSheet.create({
     divider: { height: 1, backgroundColor: colors.separator, marginLeft: spacing.xl },
     rowNarrow: { flexDirection: 'column', alignItems: 'flex-start', gap: spacing.xs, paddingVertical: spacing.lg },
     rowLabel: { width: 80, fontSize: fontSize.md, color: colors.textMuted, fontWeight: fontWeight.medium },
+    // Switch rows always fit on one line, so the label takes the free space
+    // and the toggle right-aligns like the info-row values above it.
+    switchLabel: { width: 'auto', flex: 1 },
     rowValue: { flex: 1, minWidth: 0, fontSize: 15, color: colors.textPrimary, fontWeight: fontWeight.medium, textAlign: 'right' },
     rowValueNarrow: { width: '100%', flexGrow: 0, flexShrink: 0, flexBasis: 'auto', textAlign: 'left' },
     input: {

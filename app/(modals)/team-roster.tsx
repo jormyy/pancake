@@ -9,6 +9,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useEffect, useState } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
+import { isTradingClosed } from '@/lib/league'
 import { getRoster, RosterPlayer } from '@/lib/roster'
 import { getEligiblePositions } from '@/lib/players'
 import { getPositionColor } from "@/constants/positions"
@@ -25,6 +26,7 @@ export default function TeamRosterScreen() {
     const { memberId, teamName } = useLocalSearchParams<{ memberId: string; teamName: string }>()
     const { current, currentLeague } = useLeagueContext()
     const [roster, setRoster] = useState<RosterPlayer[]>([])
+    const canProposeTrade = !!memberId && memberId !== current?.id && !isTradingClosed(currentLeague)
 
     useEffect(() => {
         if (!memberId || !current || !currentLeague) return
@@ -42,16 +44,29 @@ export default function TeamRosterScreen() {
     return (
         <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
             <View style={styles.header}>
-                <Pressable
-                    onPress={() => back()}
-                    style={styles.closeButton}
-                    accessibilityRole="button"
-                    accessibilityLabel="Close team roster"
-                >
-                    <Text style={styles.closeText}>Done</Text>
-                </Pressable>
-                <Text style={styles.headerTitle} numberOfLines={1}>{teamName ?? 'Roster'}</Text>
-                <View style={styles.closeButton} />
+                <View style={styles.headerInner}>
+                    <Pressable
+                        onPress={() => back()}
+                        style={styles.closeButton}
+                        accessibilityRole="button"
+                        accessibilityLabel="Close team roster"
+                    >
+                        <Text style={styles.closeText}>Done</Text>
+                    </Pressable>
+                    <Text style={styles.headerTitle} numberOfLines={1}>{teamName ?? 'Roster'}</Text>
+                    {canProposeTrade ? (
+                        <Pressable
+                            onPress={() => push({ pathname: '/(modals)/propose-trade', params: { recipientMemberId: memberId } })}
+                            style={styles.closeButton}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Propose trade with ${teamName ?? 'this team'}`}
+                        >
+                            <Text style={styles.closeText}>Trade</Text>
+                        </Pressable>
+                    ) : (
+                        <View style={styles.closeButton} />
+                    )}
+                </View>
             </View>
 
             <ScrollView
@@ -131,12 +146,19 @@ const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgScreen },
 
     header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: spacing.xl,
         paddingVertical: 14,
         borderBottomWidth: 1,
         borderBottomColor: colors.borderLight,
+    },
+    // Header actions align with the centered roster column below instead of
+    // pinning to the far edges of a wide canvas.
+    headerInner: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: spacing.xl,
+        width: '100%',
+        maxWidth: 680,
+        alignSelf: 'center',
     },
     closeButton: { minWidth: 64, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
     closeText: { fontSize: 15, fontWeight: fontWeight.semibold, color: colors.primaryDark },

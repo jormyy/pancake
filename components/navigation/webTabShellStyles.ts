@@ -39,11 +39,16 @@ export const styles = StyleSheet.create({
     sidebar: {
         width: SIDEBAR_WIDTH,
         flexShrink: 0,
+        // Pin to the viewport height so the nav ScrollView scrolls on short
+        // screens (landscape phones) instead of clipping the lower items when
+        // the content column stretches the row taller than the viewport.
+        height: '100vh',
+        maxHeight: '100vh',
         backgroundColor: '#2A1A0E',
         paddingBottom: 14,
         borderRightWidth: 1,
         borderRightColor: 'rgba(0, 0, 0, 0.24)',
-    },
+    } as unknown as WebOnlyViewStyle,
     sidebarScroll: {
         flex: 1,
     },

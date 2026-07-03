@@ -23,6 +23,7 @@ import {
 } from '@/lib/trades'
 import { getRoster, RosterPlayer } from '@/lib/roster'
 import { colors, palette, fontSize, fontWeight, radii, spacing, layout } from '@/constants/tokens'
+import { SegmentedControl, type SegmentOption } from '@/components/ui/SegmentedControl'
 import { ItemSeparator } from '@/components/ItemSeparator'
 import { SectionHeader } from '@/components/SectionHeader'
 import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
@@ -375,10 +376,11 @@ export default function TradesScreen() {
                 result.push({ _type: 'pick', pick: p })
             })
         } else if (tab === 'offers') {
-            result.push({ _type: 'header', label: 'Veto Window' })
-            vetoableTrades.forEach((t) => result.push({ _type: 'trade', trade: t }))
-            if (vetoableTrades.length === 0 && !loading) {
-                result.push({ _type: 'header', label: '' })
+            // Veto Window only appears while there are league trades to veto,
+            // so it never renders as a bare header with nothing beneath it.
+            if (vetoableTrades.length > 0) {
+                result.push({ _type: 'header', label: 'Veto Window' })
+                vetoableTrades.forEach((t) => result.push({ _type: 'trade', trade: t }))
             }
             result.push({ _type: 'header', label: 'Incoming' })
             incomingTrades.forEach((t) => result.push({ _type: 'trade', trade: t }))
@@ -411,14 +413,14 @@ export default function TradesScreen() {
         return result
     }, [tab, vetoableTrades, incomingTrades, outgoingTrades, historyTrades, picksList, loading, blockItems, blockLoading, blockRoster])
 
-    const TABS: { key: TabKey; label: string }[] = [
-        { key: 'picks', label: 'Picks' },
-        { key: 'offers', label: 'Offers' },
-        { key: 'block', label: 'Block' },
-        { key: 'history', label: 'History' },
-    ]
-
     const pendingInboxCount = incomingTrades.length
+
+    const tabOptions: SegmentOption<TabKey>[] = [
+        { label: 'Picks', value: 'picks' },
+        { label: 'Offers', value: 'offers', badge: pendingInboxCount > 0 ? pendingInboxCount : undefined },
+        { label: 'Block', value: 'block' },
+        { label: 'History', value: 'history' },
+    ]
 
     return (
         <SafeAreaView style={styles.container}>
@@ -440,28 +442,13 @@ export default function TradesScreen() {
             </View>
 
             <View style={styles.tabRow}>
-                {TABS.map((t) => {
-                    const active = tab === t.key
-                    const badge =
-                        t.key === 'offers' && pendingInboxCount > 0
-                            ? pendingInboxCount
-                            : null
-                    return (
-                        <Pressable
-                            key={t.key}
-                            style={[styles.tabChip, active && styles.tabChipActive]}
-                            onPress={() => setTab(t.key)}
-                            accessibilityRole="button"
-                            accessibilityLabel={`Show ${t.label} trades`}
-                            accessibilityState={{ selected: active }}
-                        >
-                            <Text style={[styles.tabChipText, active && styles.tabChipTextActive]}>
-                                {t.label}
-                                {badge ? ` (${badge})` : ''}
-                            </Text>
-                        </Pressable>
-                    )
-                })}
+                <SegmentedControl
+                    options={tabOptions}
+                    value={tab}
+                    onChange={setTab}
+                    accessibilityLabel="Trade sections"
+                    scrollable
+                />
             </View>
 
             {(tradesError || picksError || blockError) ? (
@@ -527,26 +514,11 @@ const styles = StyleSheet.create({
     proposeBtnTextDisabled: { color: colors.textPlaceholder },
 
     tabRow: {
-        flexDirection: 'row',
-        gap: spacing.md,
         paddingHorizontal: spacing.xl,
         paddingVertical: spacing.lg,
         borderBottomWidth: 1,
         borderBottomColor: colors.borderLight,
     },
-    tabChip: {
-        paddingHorizontal: 14,
-        paddingVertical: 7,
-        borderRadius: radii['3xl'],
-        borderCurve: 'continuous' as const,
-        backgroundColor: colors.bgMuted,
-        minHeight: 44,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    tabChipActive: { backgroundColor: colors.primary },
-    tabChipText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textSecondary },
-    tabChipTextActive: { color: colors.textWhite },
 
     pickRow: {
         flexDirection: 'row',

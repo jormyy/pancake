@@ -1,7 +1,7 @@
 import { supabase } from '@/lib/supabase'
 import { getEligiblePositions } from '@/lib/players'
 
-export { TRANSACTION_LABELS } from '@/lib/shared/transaction-labels'
+export { TRANSACTION_LABELS, activityEventCategory } from '@/lib/shared/transaction-labels'
 
 export type TransactionRow = {
     id: string

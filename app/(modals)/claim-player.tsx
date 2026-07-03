@@ -379,7 +379,7 @@ const styles = StyleSheet.create({
         marginVertical: spacing.md,
         padding: spacing.lg,
     },
-    claimLabel: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.info, letterSpacing: 0 },
+    claimLabel: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.primaryDark, letterSpacing: 0 },
     claimName: { fontSize: 22, fontWeight: fontWeight.extrabold, color: colors.textPrimary },
     claimMeta: { fontSize: fontSize.md, color: colors.textMuted },
 
@@ -552,7 +552,7 @@ const styles = StyleSheet.create({
         color: colors.textPrimary,
     },
     submitButton: {
-        backgroundColor: colors.info,
+        backgroundColor: colors.primary,
         borderRadius: 14,
         borderCurve: 'continuous' as const,
         height: 52,
@@ -560,7 +560,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     compactSubmitButton: { flex: 1 },
-    submitButtonDisabled: { backgroundColor: palette.purple300 },
+    submitButtonDisabled: { opacity: 0.55 },
     submitButtonText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.lg },
 
     // IR blocking styles

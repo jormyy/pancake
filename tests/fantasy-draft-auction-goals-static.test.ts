@@ -149,7 +149,11 @@ describe('fantasy draft and auction experience goals', () => {
         expect(leagueTabBar).toContain('const compactShortPortrait = viewportWidth < 380 && viewportHeight < 760')
         expect(leagueTabBar).toContain('const compactTabs = compactLandscape || compactShortPortrait')
         expect(leagueTabBar).toContain('compactTabs && styles.tabRowCompact')
-        expect(leagueTabBar).toContain('{compactTabs ? COMPACT_TAB_LABELS[tab.key] : tab.label}')
+        // Labels never abbreviate per breakpoint; the tab row scrolls instead.
+        expect(leagueTabBar).toContain('{tab.label}')
+        expect(leagueTabBar).not.toContain('COMPACT_TAB_LABELS')
+        expect(leagueTabBar).toContain('horizontal')
+        expect(leagueTabBar).toContain('showsHorizontalScrollIndicator={false}')
         expect(leagueTabBar).toContain('aria-label={tabBarAccessibilityLabel}')
         expect(leagueTabBar).toContain('aria-orientation="horizontal"')
         expect(leagueTabBar).toContain('accessibilityLabel={tabBarAccessibilityLabel}')
@@ -278,7 +282,8 @@ describe('fantasy draft and auction experience goals', () => {
         expect(draftPrepNotice).toContain('numberOfLines={compact ? 1 : undefined}')
         expect(leagueDraftPanels).toContain('compact={compactSetup}')
         expect(leagueDraftPanels).toContain('compact={compactRookiePrepNotice}')
-        expect(draftPrepNotice).toContain('The startup auction has moved into season play.')
+        expect(draftPrepNotice).toContain("The startup auction finished before the season. Draft results live on each team's roster.")
+        expect(draftPrepNotice).toContain('View Draft Board')
         expect(draftPrepNotice).toContain('Future rookie picks remain visible during the live season for trades and long-term planning.')
     })
 
