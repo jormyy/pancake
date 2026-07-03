@@ -289,7 +289,7 @@ const styles = StyleSheet.create({
     rowNarrow: { flexDirection: 'column', alignItems: 'flex-start', gap: spacing.xs, paddingVertical: spacing.lg },
     rowLabel: { width: 80, fontSize: fontSize.md, color: colors.textMuted, fontWeight: fontWeight.medium },
     rowValue: { flex: 1, minWidth: 0, fontSize: 15, color: colors.textPrimary, fontWeight: fontWeight.medium, textAlign: 'right' },
-    rowValueNarrow: { width: '100%', flex: 0, textAlign: 'left' },
+    rowValueNarrow: { width: '100%', flexGrow: 0, flexShrink: 0, flexBasis: 'auto', textAlign: 'left' },
     input: {
         flex: 1,
         fontSize: 15,

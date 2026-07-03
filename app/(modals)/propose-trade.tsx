@@ -696,7 +696,9 @@ const styles = StyleSheet.create({
     compareRow: { flexDirection: 'row', alignItems: 'flex-start' },
     compareColStack: { flexDirection: 'column' },
     column: { flex: 1, minWidth: 0 },
-    columnStacked: { flex: 0, width: '100%' },
+    // flexBasis must stay 'auto': RN-web resolves `flex: 0` to flex-basis 0%,
+    // which collapses the stacked column to zero height and overlaps the panels.
+    columnStacked: { flexGrow: 0, flexShrink: 0, flexBasis: 'auto', width: '100%' },
     columnDivider: { width: 1, alignSelf: 'stretch', backgroundColor: colors.borderLight },
     columnDividerH: { height: 1, backgroundColor: colors.borderLight, marginVertical: spacing.md, marginHorizontal: spacing.xl },
     columnHeader: {
