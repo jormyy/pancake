@@ -33,8 +33,11 @@ import {
     NOMINATION_ORDER_MODE_LABELS,
 } from '@/lib/draft'
 import { RealtimeChannel } from '@supabase/supabase-js'
-import { alpha, colors, fontFamily, fontSize, fontWeight, palette, radii, spacing } from '@/constants/tokens'
+import { alpha, breakpoints, colors, fontFamily, fontSize, fontWeight, layout, palette, radii, spacing } from '@/constants/tokens'
 import { showAlert, confirmAction, getErrorMessage } from '@/lib/alert'
+import { getPositionColor } from '@/constants/positions'
+import { Avatar } from '@/components/Avatar'
+import { playerHeadshotUrl } from '@/lib/format'
 import { MotionPressable, MotionView } from '@/components/Motion'
 
 type DraftTab = 'budgets' | 'history'
@@ -54,6 +57,9 @@ export default function DraftRoomScreen() {
     const router = useRouter()
     const { width, height } = useWindowDimensions()
     const compactLandscape = width >= 600 && height < 500
+    // Two-column auction floor on desktop: block card + bid controls left,
+    // budgets/history right. Compact landscape keeps its own dense layout.
+    const isDesktop = width >= breakpoints.desktop && !compactLandscape
 
     const [state, setState] = useState<DraftState | null>(null)
     const [tab, setTab] = useState<DraftTab>('budgets')
@@ -489,361 +495,384 @@ export default function DraftRoomScreen() {
             >
             <ScrollView
                 style={styles.scroll}
-                contentContainerStyle={[styles.scrollContent, compactLandscape && styles.scrollContentCompact]}
+                contentContainerStyle={[
+                    styles.scrollContent,
+                    compactLandscape && styles.scrollContentCompact,
+                    isDesktop && styles.scrollContentDesktop,
+                ]}
                 keyboardShouldPersistTaps="handled"
             >
-                {/* Nomination on the clock */}
-                {openNomination ? (
-                    <View style={[styles.card, compactLandscape && styles.cardCompact, clockUrgent && styles.cardUrgent]}>
-                        <View style={[styles.liveAuctionLayout, compactLandscape && styles.liveAuctionLayoutCompact]}>
-                            <View style={styles.livePlayerInfo}>
-                                <Text style={styles.cardLabel}>ON THE BLOCK</Text>
-                                <Text style={styles.playerName} numberOfLines={compactLandscape ? 2 : undefined}>
-                                    {openNomination.player?.displayName ?? 'Unknown Player'}
-                                </Text>
-                                <Text style={styles.playerMeta} numberOfLines={compactLandscape ? 1 : undefined}>
-                                    {playerMeta([
-                                        openNomination.player?.nbaTeam,
-                                        openNomination.player?.position,
-                                        ageLabel(openNomination.player?.age),
-                                    ])}
-                                </Text>
-                            </View>
-
-                            <View style={[styles.liveBidPanel, compactLandscape && styles.liveBidPanelCompact]}>
-                                <View style={[styles.bidRow, compactLandscape && styles.bidRowCompact]}>
-                                    <View style={styles.bidInfo}>
-                                        <Text style={[styles.bidAmount, iAmLeading && styles.bidAmountLeading]}>
-                                            {openNomination.currentBidAmount > 0
-                                                ? `$${openNomination.currentBidAmount}`
-                                                : '—'}
-                                        </Text>
-                                        <Text style={[styles.bidLeader, iAmLeading && styles.bidLeaderLeading]}>
-                                            {openNomination.currentBidderId == null
-                                                ? 'No bids yet'
-                                                : iAmLeading
-                                                  ? "You're leading"
-                                                  : `${leadingTeam} leads`}
-                                        </Text>
-                                    </View>
-                                    <View style={[styles.countdown, clockUrgent && styles.countdownUrgent]}>
-                                        <Text
-                                            style={[
-                                                styles.countdownText,
-                                                isPaused && styles.countdownTextPaused,
-                                                clockUrgent && styles.countdownTextUrgent,
-                                            ]}
-                                        >
-                                            {isPaused ? 'Paused' : `0:${String(timeLeft).padStart(2, '0')}`}
-                                        </Text>
-                                    </View>
-                                </View>
-
-                                {!iAmLeading && !iAmBankrupt && !isPaused && (
-                                    <View style={[styles.bidInputRow, compactLandscape && styles.bidInputRowCompact]}>
-                                        {/* Non-wrapping group: the row may wrap between this
-                                            group and the Bid button, never inside −/amount/+. */}
-                                        <View style={styles.bidStepGroup}>
-                                            <MotionPressable
-                                                style={styles.bidStep}
-                                                onPress={() =>
-                                                    setBidText((t) => String(Math.max(minBid, (parseInt(t, 10) || minBid) - 1)))
-                                                }
-                                                accessibilityRole="button"
-                                                accessibilityLabel="Decrease bid"
-                                                hitSlop={8}
-                                                pressedScale={0.88}
-                                            >
-                                                <Text style={styles.bidStepText}>−</Text>
-                                            </MotionPressable>
-                                            <TextInput
-                                                style={[styles.bidAmountInput, compactLandscape && styles.bidAmountInputCompact]}
-                                                value={bidText}
-                                                onChangeText={(v) => setBidText(v.replace(/[^0-9]/g, ''))}
-                                                keyboardType="number-pad"
-                                                selectTextOnFocus
-                                                accessibilityLabel="Bid amount"
+                <View style={[styles.columns, compactLandscape && styles.columnsCompact, isDesktop && styles.columnsDesktop]}>
+                    <View style={[styles.column, compactLandscape && styles.columnCompact, isDesktop && styles.columnMainDesktop]}>
+                        {/* Nomination on the clock */}
+                        {openNomination ? (
+                            <View style={[styles.card, compactLandscape && styles.cardCompact, clockUrgent && styles.cardUrgent]}>
+                                <View style={[styles.liveAuctionLayout, compactLandscape && styles.liveAuctionLayoutCompact]}>
+                                    <View style={styles.livePlayerInfo}>
+                                        <Text style={styles.cardLabel}>ON THE BLOCK</Text>
+                                        {/* Nomination data carries no nba_id, so the avatar
+                                            renders position-colored initials, never a fake photo. */}
+                                        <View style={styles.livePlayerRow}>
+                                            <Avatar
+                                                name={openNomination.player?.displayName ?? 'Unknown Player'}
+                                                color={getPositionColor(openNomination.player?.position, colors.primary)}
+                                                uri={playerHeadshotUrl(openNomination.player?.nbaId)}
+                                                size={compactLandscape ? 44 : 64}
                                             />
-                                            <MotionPressable
-                                                style={styles.bidStep}
-                                                onPress={() =>
-                                                    setBidText((t) =>
-                                                        String(Math.min(remainingBudget, (parseInt(t, 10) || minBid - 1) + 1)),
-                                                    )
-                                                }
-                                                accessibilityRole="button"
-                                                accessibilityLabel="Increase bid"
-                                                hitSlop={8}
-                                                pressedScale={0.88}
-                                            >
-                                                <Text style={styles.bidStepText}>+</Text>
-                                            </MotionPressable>
+                                            <View style={styles.livePlayerText}>
+                                                <Text style={styles.playerName} numberOfLines={compactLandscape ? 2 : undefined}>
+                                                    {openNomination.player?.displayName ?? 'Unknown Player'}
+                                                </Text>
+                                                <Text style={styles.playerMeta} numberOfLines={compactLandscape ? 1 : undefined}>
+                                                    {playerMeta([
+                                                        openNomination.player?.nbaTeam,
+                                                        openNomination.player?.position,
+                                                        ageLabel(openNomination.player?.age),
+                                                    ])}
+                                                </Text>
+                                            </View>
                                         </View>
-                                        <MotionPressable
-                                            style={[
-                                                styles.bidButton,
-                                                compactLandscape && styles.bidButtonCompact,
-                                                (bidding || !bidValid) && styles.bidButtonDisabled,
-                                            ]}
-                                            onPress={handleBid}
-                                            accessibilityRole="button"
-                                            accessibilityLabel={`Bid $${(bidValid ? bidValue : minBid).toLocaleString()}`}
-                                            disabled={bidding || !bidValid || iAmLeading || timeLeft === 0}
-                                            pressedScale={0.965}
-                                        >
-                                            <Text style={styles.bidButtonText}>
-                                                Bid ${(bidValid ? bidValue : minBid).toLocaleString()}
-                                            </Text>
-                                        </MotionPressable>
                                     </View>
-                                )}
-                            </View>
-                        </View>
 
-                        {openNomination.nominatingMemberId === myMemberId &&
-                            !isPaused &&
-                            openNomination.currentBidderId == null && (
-                                <MotionPressable
-                                    style={styles.withdrawButton}
-                                    onPress={handleWithdraw}
-                                    disabled={withdrawing}
-                                    accessibilityRole="button"
-                                    accessibilityLabel="Withdraw nomination"
-                                    pressedScale={0.96}
-                                >
-                                    <Text style={styles.withdrawButtonText}>Withdraw nomination</Text>
-                                </MotionPressable>
-                            )}
-                    </View>
-                ) : (
-                    /* No open nomination — show whose turn it is */
-                    <View style={[styles.card, compactLandscape && styles.cardCompact]}>
-                        {isPaused ? (
-                            <View style={styles.waitingRow}>
-                                <Text style={styles.waitingTeam}>Draft paused</Text>
-                                <Text style={styles.waitingText}>Commissioner will resume the clock.</Text>
-                            </View>
-                        ) : isMyTurn ? (
-                            <>
-                                <Text style={styles.yourTurnBanner}>Your turn to nominate!</Text>
-                                <Text style={styles.nominationModeHint}>
-                                    Nomination order: {NOMINATION_ORDER_MODE_LABELS[draft.nominationOrderMode]}
-                                </Text>
-                                {nominating ? (
-                                    <>
-                                        <TextInput
-                                            style={styles.searchInput}
-                                            value={searchQuery}
-                                            onChangeText={setSearchQuery}
-                                            placeholder="Search player name..."
-                                            autoFocus
-                                            accessibilityLabel="Search player name"
-                                        />
-                                        <FlashList
-                                            data={searchResults}
-                                            keyExtractor={(p) => p.id}
-                                            scrollEnabled={false}
-                                            renderItem={({ item }) => (
-                                                <MotionPressable
-                                                    style={styles.playerResult}
-                                                    onPress={() =>
-                                                        handleNominate(item.id)
-                                                    }
-                                                    disabled={submittingNom}
-                                                    pressedScale={0.975}
-                                                    accessibilityRole="button"
-                                                    accessibilityLabel={`Nominate ${item.display_name ?? 'player'}`}
+                                    <View style={[styles.liveBidPanel, compactLandscape && styles.liveBidPanelCompact]}>
+                                        <View style={[styles.bidRow, compactLandscape && styles.bidRowCompact]}>
+                                            <View style={styles.bidInfo}>
+                                                <Text style={[styles.bidAmount, iAmLeading && styles.bidAmountLeading]}>
+                                                    {openNomination.currentBidAmount > 0
+                                                        ? `$${openNomination.currentBidAmount}`
+                                                        : '—'}
+                                                </Text>
+                                                <Text style={[styles.bidLeader, iAmLeading && styles.bidLeaderLeading]}>
+                                                    {openNomination.currentBidderId == null
+                                                        ? 'No bids yet'
+                                                        : iAmLeading
+                                                          ? "You're leading"
+                                                          : `${leadingTeam} leads`}
+                                                </Text>
+                                            </View>
+                                            <View style={[styles.countdown, clockUrgent && styles.countdownUrgent]}>
+                                                <Text
+                                                    style={[
+                                                        styles.countdownText,
+                                                        isPaused && styles.countdownTextPaused,
+                                                        clockUrgent && styles.countdownTextUrgent,
+                                                    ]}
                                                 >
-                                                    <View style={styles.flex1}>
-                                                        <Text style={styles.playerResultName}>
-                                                            {item.display_name}
-                                                        </Text>
-                                                        <Text style={styles.playerResultMeta}>
-                                                            {playerMeta([
-                                                                item.dynasty_rank != null ? `#${item.dynasty_rank}` : null,
-                                                                item.nba_team,
-                                                                item.position,
-                                                                ageLabel(item.age),
-                                                            ])}
-                                                        </Text>
-                                                    </View>
-                                                    <Text style={styles.nominateLabel}>
-                                                        Nominate
+                                                    {isPaused ? 'Paused' : `0:${String(timeLeft).padStart(2, '0')}`}
+                                                </Text>
+                                            </View>
+                                        </View>
+
+                                        {!iAmLeading && !iAmBankrupt && !isPaused && (
+                                            <View style={[styles.bidInputRow, compactLandscape && styles.bidInputRowCompact]}>
+                                                {/* Non-wrapping group: the row may wrap between this
+                                                    group and the Bid button, never inside −/amount/+. */}
+                                                <View style={styles.bidStepGroup}>
+                                                    <MotionPressable
+                                                        style={styles.bidStep}
+                                                        onPress={() =>
+                                                            setBidText((t) => String(Math.max(minBid, (parseInt(t, 10) || minBid) - 1)))
+                                                        }
+                                                        accessibilityRole="button"
+                                                        accessibilityLabel="Decrease bid"
+                                                        hitSlop={8}
+                                                        pressedScale={0.88}
+                                                    >
+                                                        <Text style={styles.bidStepText}>−</Text>
+                                                    </MotionPressable>
+                                                    <TextInput
+                                                        style={[styles.bidAmountInput, compactLandscape && styles.bidAmountInputCompact]}
+                                                        value={bidText}
+                                                        onChangeText={(v) => setBidText(v.replace(/[^0-9]/g, ''))}
+                                                        keyboardType="number-pad"
+                                                        selectTextOnFocus
+                                                        accessibilityLabel="Bid amount"
+                                                    />
+                                                    <MotionPressable
+                                                        style={styles.bidStep}
+                                                        onPress={() =>
+                                                            setBidText((t) =>
+                                                                String(Math.min(remainingBudget, (parseInt(t, 10) || minBid - 1) + 1)),
+                                                            )
+                                                        }
+                                                        accessibilityRole="button"
+                                                        accessibilityLabel="Increase bid"
+                                                        hitSlop={8}
+                                                        pressedScale={0.88}
+                                                    >
+                                                        <Text style={styles.bidStepText}>+</Text>
+                                                    </MotionPressable>
+                                                </View>
+                                                <MotionPressable
+                                                    style={[
+                                                        styles.bidButton,
+                                                        compactLandscape && styles.bidButtonCompact,
+                                                        (bidding || !bidValid) && styles.bidButtonDisabled,
+                                                    ]}
+                                                    onPress={handleBid}
+                                                    accessibilityRole="button"
+                                                    accessibilityLabel={`Bid $${(bidValid ? bidValue : minBid).toLocaleString()}`}
+                                                    disabled={bidding || !bidValid || iAmLeading || timeLeft === 0}
+                                                    pressedScale={0.965}
+                                                >
+                                                    <Text style={styles.bidButtonText}>
+                                                        Bid ${(bidValid ? bidValue : minBid).toLocaleString()}
                                                     </Text>
                                                 </MotionPressable>
-                                            )}
-                                            ListEmptyComponent={
-                                                searchError ? (
-                                                    <Text style={styles.emptySearch}>
-                                                        Search failed. Keep typing or try again.
-                                                    </Text>
-                                                ) : searchQuery.length > 0 && !searchLoading ? (
-                                                    <Text style={styles.emptySearch}>
-                                                        No players found
-                                                    </Text>
-                                                ) : null
-                                            }
-                                        />
+                                            </View>
+                                        )}
+                                    </View>
+                                </View>
+
+                                {openNomination.nominatingMemberId === myMemberId &&
+                                    !isPaused &&
+                                    openNomination.currentBidderId == null && (
                                         <MotionPressable
-                                            style={styles.cancelNomButton}
-                                            onPress={() => {
-                                                setNominating(false)
-                                                setSearchQuery('')
-                                                setSearchResults([])
-                                            }}
-                                            pressedScale={0.94}
+                                            style={styles.withdrawButton}
+                                            onPress={handleWithdraw}
+                                            disabled={withdrawing}
                                             accessibilityRole="button"
-                                            accessibilityLabel="Cancel nomination search"
+                                            accessibilityLabel="Withdraw nomination"
+                                            pressedScale={0.96}
                                         >
-                                            <Text style={styles.cancelNomText}>Cancel</Text>
+                                            <Text style={styles.withdrawButtonText}>Withdraw nomination</Text>
                                         </MotionPressable>
+                                    )}
+                            </View>
+                        ) : (
+                            /* No open nomination — show whose turn it is */
+                            <View style={[styles.card, compactLandscape && styles.cardCompact]}>
+                                {isPaused ? (
+                                    <View style={styles.waitingRow}>
+                                        <Text style={styles.waitingTeam}>Draft paused</Text>
+                                        <Text style={styles.waitingText}>Commissioner will resume the clock.</Text>
+                                    </View>
+                                ) : isMyTurn ? (
+                                    <>
+                                        <Text style={styles.yourTurnBanner}>Your turn to nominate!</Text>
+                                        <Text style={styles.nominationModeHint}>
+                                            Nomination order: {NOMINATION_ORDER_MODE_LABELS[draft.nominationOrderMode]}
+                                        </Text>
+                                        {nominating ? (
+                                            <>
+                                                <TextInput
+                                                    style={styles.searchInput}
+                                                    value={searchQuery}
+                                                    onChangeText={setSearchQuery}
+                                                    placeholder="Search player name..."
+                                                    autoFocus
+                                                    accessibilityLabel="Search player name"
+                                                />
+                                                <FlashList
+                                                    data={searchResults}
+                                                    keyExtractor={(p) => p.id}
+                                                    scrollEnabled={false}
+                                                    renderItem={({ item }) => (
+                                                        <MotionPressable
+                                                            style={styles.playerResult}
+                                                            onPress={() =>
+                                                                handleNominate(item.id)
+                                                            }
+                                                            disabled={submittingNom}
+                                                            pressedScale={0.975}
+                                                            accessibilityRole="button"
+                                                            accessibilityLabel={`Nominate ${item.display_name ?? 'player'}`}
+                                                        >
+                                                            <View style={styles.flex1}>
+                                                                <Text style={styles.playerResultName}>
+                                                                    {item.display_name}
+                                                                </Text>
+                                                                <Text style={styles.playerResultMeta}>
+                                                                    {playerMeta([
+                                                                        item.dynasty_rank != null ? `#${item.dynasty_rank}` : null,
+                                                                        item.nba_team,
+                                                                        item.position,
+                                                                        ageLabel(item.age),
+                                                                    ])}
+                                                                </Text>
+                                                            </View>
+                                                            <Text style={styles.nominateLabel}>
+                                                                Nominate
+                                                            </Text>
+                                                        </MotionPressable>
+                                                    )}
+                                                    ListEmptyComponent={
+                                                        searchError ? (
+                                                            <Text style={styles.emptySearch}>
+                                                                Search failed. Keep typing or try again.
+                                                            </Text>
+                                                        ) : searchQuery.length > 0 && !searchLoading ? (
+                                                            <Text style={styles.emptySearch}>
+                                                                No players found
+                                                            </Text>
+                                                        ) : null
+                                                    }
+                                                />
+                                                <MotionPressable
+                                                    style={styles.cancelNomButton}
+                                                    onPress={() => {
+                                                        setNominating(false)
+                                                        setSearchQuery('')
+                                                        setSearchResults([])
+                                                    }}
+                                                    pressedScale={0.94}
+                                                    accessibilityRole="button"
+                                                    accessibilityLabel="Cancel nomination search"
+                                                >
+                                                    <Text style={styles.cancelNomText}>Cancel</Text>
+                                                </MotionPressable>
+                                            </>
+                                        ) : (
+                                            <MotionPressable
+                                                style={styles.nominateButton}
+                                                onPress={() => setNominating(true)}
+                                                pressedScale={0.965}
+                                                accessibilityRole="button"
+                                                accessibilityLabel="Search and nominate a player"
+                                            >
+                                                <Text style={styles.nominateButtonText}>
+                                                    Search & Nominate a Player
+                                                </Text>
+                                            </MotionPressable>
+                                        )}
                                     </>
                                 ) : (
-                                    <MotionPressable
-                                        style={styles.nominateButton}
-                                        onPress={() => setNominating(true)}
-                                        pressedScale={0.965}
-                                        accessibilityRole="button"
-                                        accessibilityLabel="Search and nominate a player"
-                                    >
-                                        <Text style={styles.nominateButtonText}>
-                                            Search & Nominate a Player
-                                        </Text>
-                                    </MotionPressable>
+                                    <View style={styles.waitingRow}>
+                                        <Text style={styles.waitingText}>Waiting for</Text>
+                                        <Text style={styles.waitingTeam}>{currentNominatorTeam}</Text>
+                                        <Text style={styles.waitingText}>to nominate...</Text>
+                                    </View>
                                 )}
-                            </>
-                        ) : (
-                            <View style={styles.waitingRow}>
-                                <Text style={styles.waitingText}>Waiting for</Text>
-                                <Text style={styles.waitingTeam}>{currentNominatorTeam}</Text>
-                                <Text style={styles.waitingText}>to nominate...</Text>
                             </View>
                         )}
+
+                        {/* Live ticker — the last few hammer results, so the room feels
+                            like an auction floor. Honest data only: these are real
+                            closed nominations from state (per-bid history isn't held
+                            client-side). */}
+                        {closedNominations.length > 0 ? (
+                            <View style={styles.activityStrip}>
+                                <Text style={styles.activityLabel}>Recent activity</Text>
+                                <View style={styles.activityItems}>
+                                    {closedNominations.slice(0, 3).map((n) => {
+                                        const winnerTeam = n.winningMemberId
+                                            ? budgetByMember.get(n.winningMemberId)?.teamName
+                                            : undefined
+                                        return (
+                                            <View key={n.id} style={styles.activityItem}>
+                                                <Text style={styles.activityText} numberOfLines={1}>
+                                                    {n.status === 'sold'
+                                                        ? `${winnerTeam ?? 'Unknown'} won ${n.player?.displayName ?? 'Unknown'}`
+                                                        : n.status === 'withdrawn'
+                                                          ? `${n.player?.displayName ?? 'Unknown'} withdrawn`
+                                                          : `${n.player?.displayName ?? 'Unknown'} went unsold`}
+                                                </Text>
+                                                {n.status === 'sold' ? (
+                                                    <Text style={styles.activityPrice}>${n.finalPrice}</Text>
+                                                ) : null}
+                                            </View>
+                                        )
+                                    })}
+                                </View>
+                            </View>
+                        ) : null}
+
                     </View>
-                )}
 
-                {/* Live ticker — the last few hammer results, so the room feels
-                    like an auction floor. Honest data only: these are real
-                    closed nominations from state (per-bid history isn't held
-                    client-side). */}
-                {closedNominations.length > 0 ? (
-                    <View style={styles.activityStrip}>
-                        <Text style={styles.activityLabel}>Recent activity</Text>
-                        <View style={styles.activityItems}>
-                            {closedNominations.slice(0, 3).map((n) => {
-                                const winnerTeam = n.winningMemberId
-                                    ? budgetByMember.get(n.winningMemberId)?.teamName
-                                    : undefined
-                                return (
-                                    <View key={n.id} style={styles.activityItem}>
-                                        <Text style={styles.activityText} numberOfLines={1}>
-                                            {n.status === 'sold'
-                                                ? `${winnerTeam ?? 'Unknown'} won ${n.player?.displayName ?? 'Unknown'}`
-                                                : n.status === 'withdrawn'
-                                                  ? `${n.player?.displayName ?? 'Unknown'} withdrawn`
-                                                  : `${n.player?.displayName ?? 'Unknown'} went unsold`}
-                                        </Text>
-                                        {n.status === 'sold' ? (
-                                            <Text style={styles.activityPrice}>${n.finalPrice}</Text>
-                                        ) : null}
-                                    </View>
-                                )
-                            })}
-                        </View>
-                    </View>
-                ) : null}
-
-                {/* Tab switcher */}
-                <View style={styles.tabRow}>
-                    {(['budgets', 'history'] as DraftTab[]).map((t) => (
-                        <MotionPressable
-                            key={t}
-                            style={[styles.tabChip, tab === t && styles.tabChipActive]}
-                            onPress={() => setTab(t)}
-                            pressedScale={0.94}
-                        >
-                            <Text
-                                style={[styles.tabChipText, tab === t && styles.tabChipTextActive]}
-                            >
-                                {t === 'budgets'
-                                    ? 'Budgets'
-                                    : `History (${closedNominations.length})`}
-                            </Text>
-                        </MotionPressable>
-                    ))}
-                </View>
-
-                {tab === 'budgets' ? (
-                    <MotionView style={[styles.card, compactLandscape && styles.cardCompact]} preset="rise" delay={80}>
-                        {budgets
-                            .slice()
-                            .sort((a, b) => b.remaining - a.remaining)
-                            .map((b, i) => (
-                                <View
-                                    key={b.memberId}
-                                    style={[styles.budgetRow, i > 0 && styles.budgetDivider]}
+                    <View style={[styles.column, compactLandscape && styles.columnCompact, isDesktop && styles.columnSideDesktop]}>
+                        {/* Tab switcher */}
+                        <View style={styles.tabRow}>
+                            {(['budgets', 'history'] as DraftTab[]).map((t) => (
+                                <MotionPressable
+                                    key={t}
+                                    style={[styles.tabChip, tab === t && styles.tabChipActive]}
+                                    onPress={() => setTab(t)}
+                                    pressedScale={0.94}
                                 >
                                     <Text
-                                        style={[
-                                            styles.budgetTeam,
-                                            b.memberId === myMemberId && styles.meAccent,
-                                        ]}
-                                        numberOfLines={1}
+                                        style={[styles.tabChipText, tab === t && styles.tabChipTextActive]}
                                     >
-                                        {b.teamName}
-                                        {b.memberId === myMemberId ? ' (you)' : ''}
+                                        {t === 'budgets'
+                                            ? 'Budgets'
+                                            : `History (${closedNominations.length})`}
                                     </Text>
-                                    <Text style={styles.budgetWon}>
-                                        {wonCountByMember.get(b.memberId) ?? 0} won
-                                    </Text>
-                                    <Text
-                                        style={[
-                                            styles.budgetAmount,
-                                            b.memberId === myMemberId && styles.meAccent,
-                                        ]}
-                                    >
-                                        ${b.remaining}
-                                    </Text>
-                                </View>
+                                </MotionPressable>
                             ))}
-                    </MotionView>
-                ) : closedNominations.length === 0 ? (
-                    <View style={styles.empty}>
-                        <Text style={styles.emptyText}>No players sold yet.</Text>
+                        </View>
+
+                        {tab === 'budgets' ? (
+                            <MotionView style={[styles.card, compactLandscape && styles.cardCompact]} preset="rise" delay={80}>
+                                {budgets
+                                    .slice()
+                                    .sort((a, b) => b.remaining - a.remaining)
+                                    .map((b, i) => (
+                                        <View
+                                            key={b.memberId}
+                                            style={[styles.budgetRow, i > 0 && styles.budgetDivider]}
+                                        >
+                                            <Text
+                                                style={[
+                                                    styles.budgetTeam,
+                                                    b.memberId === myMemberId && styles.meAccent,
+                                                ]}
+                                                numberOfLines={1}
+                                            >
+                                                {b.teamName}
+                                                {b.memberId === myMemberId ? ' (you)' : ''}
+                                            </Text>
+                                            <Text style={styles.budgetWon}>
+                                                {wonCountByMember.get(b.memberId) ?? 0} won
+                                            </Text>
+                                            <Text
+                                                style={[
+                                                    styles.budgetAmount,
+                                                    b.memberId === myMemberId && styles.meAccent,
+                                                ]}
+                                            >
+                                                ${b.remaining}
+                                            </Text>
+                                        </View>
+                                    ))}
+                            </MotionView>
+                        ) : closedNominations.length === 0 ? (
+                            <View style={styles.empty}>
+                                <Text style={styles.emptyText}>No players sold yet.</Text>
+                            </View>
+                        ) : (
+                            <MotionView style={[styles.card, compactLandscape && styles.cardCompact]} preset="rise" delay={80}>
+                                {closedNominations.map((n, i) => {
+                                    const winnerTeam = n.winningMemberId
+                                        ? budgetByMember.get(n.winningMemberId)?.teamName
+                                        : undefined
+                                    return (
+                                        <View
+                                            key={n.id}
+                                            style={[styles.historyRow, i > 0 && styles.budgetDivider]}
+                                        >
+                                            <View style={{ flex: 1 }}>
+                                                <Text style={styles.historyPlayer}>
+                                                    {n.player?.displayName ?? 'Unknown'}
+                                                </Text>
+                                                <Text style={styles.historyMeta}>
+                                                    {playerMeta([
+                                                        n.status === 'sold' ? (winnerTeam ?? '—') : 'No bid',
+                                                        ageLabel(n.player?.age),
+                                                    ])}
+                                                </Text>
+                                            </View>
+                                            {n.status === 'sold' && (
+                                                <Text style={styles.historyPrice}>${n.finalPrice}</Text>
+                                            )}
+                                            {n.status === 'no_bid' && (
+                                                <Text style={styles.historyNoBid}>FA</Text>
+                                            )}
+                                        </View>
+                                    )
+                                })}
+                            </MotionView>
+                        )}
                     </View>
-                ) : (
-                    <MotionView style={[styles.card, compactLandscape && styles.cardCompact]} preset="rise" delay={80}>
-                        {closedNominations.map((n, i) => {
-                            const winnerTeam = n.winningMemberId
-                                ? budgetByMember.get(n.winningMemberId)?.teamName
-                                : undefined
-                            return (
-                                <View
-                                    key={n.id}
-                                    style={[styles.historyRow, i > 0 && styles.budgetDivider]}
-                                >
-                                    <View style={{ flex: 1 }}>
-                                        <Text style={styles.historyPlayer}>
-                                            {n.player?.displayName ?? 'Unknown'}
-                                        </Text>
-                                        <Text style={styles.historyMeta}>
-                                            {playerMeta([
-                                                n.status === 'sold' ? (winnerTeam ?? '—') : 'No bid',
-                                                ageLabel(n.player?.age),
-                                            ])}
-                                        </Text>
-                                    </View>
-                                    {n.status === 'sold' && (
-                                        <Text style={styles.historyPrice}>${n.finalPrice}</Text>
-                                    )}
-                                    {n.status === 'no_bid' && (
-                                        <Text style={styles.historyNoBid}>FA</Text>
-                                    )}
-                                </View>
-                            )
-                        })}
-                    </MotionView>
-                )}
+                </View>
             </ScrollView>
             </KeyboardAvoidingView>
             </SafeAreaView>
@@ -863,6 +892,23 @@ const styles = StyleSheet.create({
         paddingBottom: spacing['4xl'],
         gap: spacing.sm,
     },
+    // Wide screens open up to the shared content width so the auction floor
+    // fills the canvas instead of a narrow centered strip.
+    scrollContentDesktop: {
+        maxWidth: layout.contentMaxWidth,
+        paddingHorizontal: spacing['3xl'],
+        paddingTop: spacing['3xl'],
+    },
+
+    // Single column on phones; block card + activity left, budgets/history
+    // right once `isDesktop` flips the outer wrapper to a row.
+    columns: { gap: spacing.lg },
+    columnsCompact: { gap: spacing.sm },
+    columnsDesktop: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.xl },
+    column: { gap: spacing.lg },
+    columnCompact: { gap: spacing.sm },
+    columnMainDesktop: { flex: 3, minWidth: 0 },
+    columnSideDesktop: { flex: 2, minWidth: 0 },
 
     screenHeader: {
         minHeight: 56,
@@ -960,7 +1006,12 @@ const styles = StyleSheet.create({
     },
     cardLabel: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.textPlaceholder, letterSpacing: 0 },
 
-    playerName: { fontSize: 22, fontWeight: fontWeight.extrabold, color: colors.textPrimary },
+    playerName: {
+        fontSize: fontSize['2xl'],
+        fontFamily: fontFamily.display,
+        fontWeight: fontWeight.bold,
+        color: colors.textPrimary,
+    },
     playerMeta: { fontSize: fontSize.sm, color: colors.textMuted },
 
     liveAuctionLayout: { gap: spacing.md },
@@ -970,6 +1021,8 @@ const styles = StyleSheet.create({
         gap: spacing.md,
     },
     livePlayerInfo: { flex: 1, minWidth: 0, gap: spacing.xs },
+    livePlayerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg, marginTop: spacing.xs },
+    livePlayerText: { flex: 1, minWidth: 0, gap: spacing.xs },
     liveBidPanel: { gap: spacing.md },
     liveBidPanelCompact: { width: 318, maxWidth: '100%', gap: spacing.sm },
 

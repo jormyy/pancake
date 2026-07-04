@@ -53,14 +53,16 @@ export function PlayerSearchItem({
     const isAdding = adding === item.id
     const [headshotError, setHeadshotError] = useState(false)
     const headshotUri = playerHeadshotUrl(item.nba_id)
+    // Narrow rows only get two lines for the stat strip, so trim the trailing
+    // stats (3PM/TO) there instead of letting the text cut off mid-token.
     const projectionStatLine = compactProjectionStatLine({
         projection_points: item.projection_points ?? null,
         projection_rebounds: item.projection_rebounds ?? null,
         projection_assists: item.projection_assists ?? null,
         projection_steals: item.projection_steals ?? null,
         projection_blocks: item.projection_blocks ?? null,
-        projection_three_pointers_made: item.projection_three_pointers_made ?? null,
-        projection_turnovers: item.projection_turnovers ?? null,
+        projection_three_pointers_made: showStats ? item.projection_three_pointers_made ?? null : null,
+        projection_turnovers: showStats ? item.projection_turnovers ?? null : null,
     })
     const projectionGame = formatProjectionGame({
         projection_date: item.projection_date ?? null,
@@ -77,6 +79,35 @@ export function PlayerSearchItem({
         : stats
     ).slice(0, 7)
     const showProjectionStatLine = statMode === 'season'
+    // Narrow projection lists (Projections tab on phones) collapse to a dense
+    // row: FP beside the name, game/minutes/ownership folded into the meta row,
+    // and the stat strip as the only block below — so several players fit per
+    // screen instead of one tall card.
+    const denseProjectionRow = statMode === 'projection' && !showStats
+
+    const statusBadge = currentMemberId ? (
+        <View style={[
+            styles.statusBadge,
+            !showStats && styles.statusBadgeNarrow,
+            isMe && styles.statusBadgeMe,
+            isWaiver && styles.statusBadgeWaiver,
+            isFA && styles.statusBadgeFA,
+        ]}>
+            <Text
+                style={[
+                    styles.statusBadgeText,
+                    isMe && styles.statusBadgeTextMe,
+                    isWaiver && styles.statusBadgeTextWaiver,
+                ]}
+                numberOfLines={1}
+            >
+                {isMe ? 'Mine'
+                    : isOther ? owned!.teamName
+                    : isWaiver ? 'W'
+                    : 'FA'}
+            </Text>
+        </View>
+    ) : null
 
     const content = (
         <>
@@ -98,7 +129,7 @@ export function PlayerSearchItem({
             </View>
 
             <Pressable
-                style={[styles.playerCard, !showStats && styles.playerCardNarrow]}
+                style={[styles.playerCard, !showStats && styles.playerCardNarrow, denseProjectionRow && styles.playerCardDense]}
                 onPress={onPress}
                 accessibilityRole="button"
                 accessibilityLabel={`Open ${item.display_name}`}
@@ -106,18 +137,30 @@ export function PlayerSearchItem({
                 {headshotUri && !headshotError ? (
                     <Image
                         source={{ uri: headshotUri }}
-                        style={styles.headshot}
+                        style={[styles.headshot, denseProjectionRow && styles.headshotDense]}
                         onError={() => setHeadshotError(true)}
                     />
                 ) : (
                     <Avatar
                         name={item.display_name}
                         color={getPositionColor(item.eligible_positions?.[0] ?? item.position)}
+                        size={denseProjectionRow ? 36 : 44}
                     />
                 )}
 
                 <View style={styles.playerInfo}>
-                    <Text style={styles.playerName}>{item.display_name}</Text>
+                    {denseProjectionRow ? (
+                        <View style={styles.nameScoreRow}>
+                            <Text style={[styles.playerName, styles.playerNameDense]} numberOfLines={1}>
+                                {item.display_name}
+                            </Text>
+                            <Text style={styles.denseScore} numberOfLines={1}>
+                                {numberOrDash(item.projection_fantasy_points)} FP
+                            </Text>
+                        </View>
+                    ) : (
+                        <Text style={styles.playerName}>{item.display_name}</Text>
+                    )}
                     <View style={styles.playerMetaRow}>
                         {item.nba_team && <Text style={styles.playerMeta}>{item.nba_team}</Text>}
                         {getEligiblePositions(item).map((pos: string) => <PosTag key={pos} position={pos} />)}
@@ -138,8 +181,15 @@ export function PlayerSearchItem({
                                 variant="solid"
                             />
                         ) : null}
+                        {denseProjectionRow && projectionGame ? (
+                            <Text style={styles.playerMeta} numberOfLines={1}>{projectionGame}</Text>
+                        ) : null}
+                        {denseProjectionRow && item.projection_minutes != null ? (
+                            <Text style={styles.playerMeta} numberOfLines={1}>{numberOrDash(item.projection_minutes)}m</Text>
+                        ) : null}
+                        {denseProjectionRow ? statusBadge : null}
                     </View>
-                    {item.projection_fantasy_points != null ? (
+                    {item.projection_fantasy_points != null && !denseProjectionRow ? (
                         <View style={styles.projectionLine}>
                             <Text style={styles.projectionScore} numberOfLines={1}>
                                 {numberOrDash(item.projection_fantasy_points)} FP
@@ -151,7 +201,7 @@ export function PlayerSearchItem({
                                 <Text style={styles.projectionMeta} numberOfLines={1}>{numberOrDash(item.projection_minutes)}m</Text>
                             ) : null}
                             {showProjectionStatLine && projectionStatLine ? (
-                                <Text style={styles.projectionMetaWide} numberOfLines={1}>{projectionStatLine}</Text>
+                                <Text style={styles.projectionMetaWide} numberOfLines={2}>{projectionStatLine}</Text>
                             ) : null}
                             <Text style={styles.projectionSource} numberOfLines={1}>
                                 {[item.projection_source_label ?? 'Projection', projectionView, projectionFreshness].filter(Boolean).join(' · ')}
@@ -172,29 +222,7 @@ export function PlayerSearchItem({
                     ) : null}
                 </View>
 
-                {currentMemberId ? (
-                    <View style={[
-                        styles.statusBadge,
-                        !showStats && styles.statusBadgeNarrow,
-                        isMe && styles.statusBadgeMe,
-                        isWaiver && styles.statusBadgeWaiver,
-                        isFA && styles.statusBadgeFA,
-                    ]}>
-                        <Text
-                            style={[
-                                styles.statusBadgeText,
-                                isMe && styles.statusBadgeTextMe,
-                                isWaiver && styles.statusBadgeTextWaiver,
-                            ]}
-                            numberOfLines={1}
-                        >
-                            {isMe ? 'Mine'
-                                : isOther ? owned!.teamName
-                                : isWaiver ? 'W'
-                                : 'FA'}
-                        </Text>
-                    </View>
-                ) : null}
+                {denseProjectionRow ? null : statusBadge}
 
                 {showStats ? (
                     <View style={styles.statsGrid}>
@@ -277,11 +305,11 @@ const styles = StyleSheet.create({
         paddingLeft: spacing.lg,
         gap: 0,
     },
-    addCol: { width: 48, alignItems: 'center' },
+    addCol: { width: 52, alignItems: 'center' },
     addBtn: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
+        width: 44,
+        height: 44,
+        borderRadius: 22,
         borderCurve: 'continuous' as const,
         backgroundColor: colors.primaryLight,
         borderWidth: 1.5,
@@ -302,6 +330,7 @@ const styles = StyleSheet.create({
     // On narrow viewports top-align the avatar with the name (so it doesn't float
     // mid-row beside the wrapped stat strip) and tighten the right padding.
     playerCardNarrow: { alignItems: 'flex-start', paddingRight: spacing.lg },
+    playerCardDense: { paddingVertical: spacing.md, gap: spacing.md },
     headshot: {
         width: 44,
         height: 44,
@@ -309,11 +338,26 @@ const styles = StyleSheet.create({
         borderCurve: 'continuous' as const,
         backgroundColor: colors.bgMuted,
     },
+    headshotDense: { width: 36, height: 36, borderRadius: 18 },
     playerInfo: { flex: 1, minWidth: 0 },
     playerName: { fontSize: fontSize.lg, fontWeight: fontWeight.semibold, color: colors.textPrimary },
+    playerNameDense: { flexShrink: 1 },
+    nameScoreRow: {
+        flexDirection: 'row',
+        alignItems: 'baseline',
+        justifyContent: 'space-between',
+        gap: spacing.md,
+    },
+    denseScore: {
+        flexShrink: 0,
+        fontSize: fontSize.lg,
+        fontWeight: fontWeight.extrabold,
+        color: colors.primaryDark,
+        fontVariant: ['tabular-nums'],
+    },
     playerMetaRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 4, marginTop: spacing.xxs },
     playerMeta: { fontSize: fontSize.sm, color: colors.textMuted },
-    compactStats: { flexDirection: 'row', flexWrap: 'wrap', columnGap: spacing.lg, rowGap: spacing.xs, marginTop: spacing.sm },
+    compactStats: { flexDirection: 'row', flexWrap: 'wrap', columnGap: spacing.sm + spacing.xxs, rowGap: spacing.xs, marginTop: spacing.sm },
     compactStat: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.xs },
     compactStatLabel: {
         fontSize: 10,
@@ -322,7 +366,7 @@ const styles = StyleSheet.create({
         letterSpacing: 0.4,
     },
     compactStatValue: {
-        fontSize: fontSize.sm,
+        fontSize: fontSize.xs,
         fontWeight: fontWeight.bold,
         color: colors.textSecondary,
         fontVariant: ['tabular-nums'],

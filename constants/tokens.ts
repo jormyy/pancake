@@ -340,6 +340,7 @@ export const breakpoints = {
     compact: 780,  // web shell: sidebar ↔ mobile top/bottom nav
     auth: 860,     // auth split hero ↔ stacked
     statTable: 920, // players: stacked stats ↔ full stat columns
+    desktop: 1000, // draft room: single column ↔ two-column auction floor
     wide: 1200,    // extra breathing room
 } as const
 

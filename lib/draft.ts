@@ -30,6 +30,7 @@ export type Nomination = {
         displayName: string
         nbaTeam: string | null
         position: string | null
+        nbaId: string | null
         age: number | null
     } | null
 }
@@ -218,7 +219,7 @@ export async function getDraftState(draftId: string): Promise<DraftState | null>
         id, status, current_bid_amount, current_bidder_id, countdown_expires_at,
         winning_member_id, final_price, nominating_member_id, nominated_at, nomination_order,
         player_id,
-        players ( display_name, nba_team, position )
+        players ( display_name, nba_team, position, nba_id )
       `,
                 )
                 .eq('draft_id', draftId)
@@ -266,7 +267,7 @@ export async function getDraftState(draftId: string): Promise<DraftState | null>
     const playerIds = [...new Set((nominations ?? []).map((n) => n.player_id).filter(Boolean))]
     const ageByPlayerId = await getLatestDynastyAges(playerIds)
 
-    type PlayerRef = { display_name: string | null; nba_team: string | null; position: string | null }
+    type PlayerRef = { display_name: string | null; nba_team: string | null; position: string | null; nba_id: string | null }
     const mappedNominations: Nomination[] = (nominations ?? []).map((n) => ({
         id: n.id,
         status: n.status,
@@ -283,6 +284,7 @@ export async function getDraftState(draftId: string): Promise<DraftState | null>
                   displayName: (n.players as PlayerRef).display_name ?? 'Unknown',
                   nbaTeam: (n.players as PlayerRef).nba_team,
                   position: (n.players as PlayerRef).position,
+                  nbaId: (n.players as PlayerRef).nba_id,
                   age: ageByPlayerId.get(n.player_id) ?? null,
               }
             : null,

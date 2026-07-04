@@ -37,6 +37,7 @@ import { showAlert, showSuccess, getErrorMessage } from '@/lib/alert'
 import { yearShort } from '@/lib/format'
 import { Avatar } from '@/components/Avatar'
 import { EmptyState } from '@/components/EmptyState'
+import { getPositionColor } from '@/constants/positions'
 import { colors, palette, fontSize, fontWeight, radii, spacing, breakpoints } from '@/constants/tokens'
 
 const isTradeableRosterPlayer = (player: RosterPlayer) => !player.is_on_ir && !player.is_on_taxi
@@ -61,7 +62,7 @@ function PlayerRow({
         >
             <Avatar
                 name={p.display_name}
-                color={selected ? colors.primary : palette.gray300}
+                color={selected ? colors.primary : getPositionColor(p.eligible_positions?.[0] ?? p.position, colors.primaryDark)}
                 size={40}
             />
             <View style={styles.playerInfo}>
