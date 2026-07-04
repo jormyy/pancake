@@ -49,7 +49,7 @@ export function DaySelector({
                         onPress={() => onSelect(day.date)}
                         accessibilityRole="button"
                         accessibilityLabel={accessibleDayLabel(day)}
-                        accessibilityState={{ selected: isSelected, disabled: !day.hasGames }}
+                        accessibilityState={{ selected: isSelected }}
                         {...(isSelected ? ARIA_CURRENT_DATE : undefined)}
                         hitSlop={4}
                         pressedScale={0.92}

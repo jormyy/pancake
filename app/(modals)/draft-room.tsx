@@ -226,12 +226,16 @@ export default function DraftRoomScreen() {
         if (timerRef.current) clearInterval(timerRef.current)
         if (!countdownNomination) return
 
-        timerRef.current = setInterval(() => {
+        const computeDiff = () => {
             const exp = countdownNomination.countdownExpiresAt
             if (!exp) return
             const diff = Math.max(0, Math.floor((new Date(exp).getTime() - Date.now()) / 1000))
             setTimeLeft(diff)
-        }, 500)
+        }
+        // Seed immediately so a fresh nomination doesn't render the urgent
+        // (<=10s) styling for the first 500ms while timeLeft is still 0.
+        computeDiff()
+        timerRef.current = setInterval(computeDiff, 500)
 
         return () => {
             if (timerRef.current) clearInterval(timerRef.current)
@@ -407,7 +411,9 @@ export default function DraftRoomScreen() {
     const iAmBankrupt = (myBudget?.remaining ?? 0) < 1
     // Hot final seconds — the clock and the nomination card shift to the danger
     // accent together so the whole block reads as "going once, going twice".
-    const clockUrgent = !isPaused && openNomination != null && timeLeft <= 10
+    // timeLeft > 0 so a nomination with no countdown never shows as permanently
+    // urgent; the 1-10s window is the real urgency band.
+    const clockUrgent = !isPaused && openNomination != null && timeLeft > 0 && timeLeft <= 10
     // Min bid is current + 1, floored at 1
     const minBid = Math.max(1, (openNomination?.currentBidAmount ?? 0) + 1)
     const remainingBudget = myBudget?.remaining ?? Infinity
@@ -510,8 +516,8 @@ export default function DraftRoomScreen() {
                                 <View style={[styles.liveAuctionLayout, compactLandscape && styles.liveAuctionLayoutCompact]}>
                                     <View style={styles.livePlayerInfo}>
                                         <Text style={styles.cardLabel}>ON THE BLOCK</Text>
-                                        {/* Nomination data carries no nba_id, so the avatar
-                                            renders position-colored initials, never a fake photo. */}
+                                        {/* Headshot when the player has an nba_id;
+                                            position-colored initials otherwise. */}
                                         <View style={styles.livePlayerRow}>
                                             <Avatar
                                                 name={openNomination.player?.displayName ?? 'Unknown Player'}
