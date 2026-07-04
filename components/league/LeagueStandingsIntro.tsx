@@ -194,7 +194,7 @@ function CompactStandingsIntro({
             <View style={styles.standingsCompactLine}>
                 <View style={styles.standingsCompactIntroText}>
                     <Text style={styles.standingsCompactIntroTitle} numberOfLines={1} role="heading" aria-level={2}>{intro.title}</Text>
-                    <Text style={styles.standingsCompactIntroCopy} numberOfLines={1}>{intro.copy}</Text>
+                    <Text style={styles.standingsCompactIntroCopy} numberOfLines={2}>{intro.copy}</Text>
                 </View>
                 <View style={styles.standingsCompactStats}>
                     {[teamStat, recordStat, pointsStat].map((stat) => (
@@ -315,22 +315,17 @@ const styles = StyleSheet.create({
         borderBottomColor: colors.borderLight,
         backgroundColor: colors.bgCard,
     },
-    // Title/copy and the info chips flow in one wrapping line so the compact
-    // intro costs one line where space allows (two on 360px phones).
     standingsCompactLine: {
         flexDirection: 'row',
         flexWrap: 'wrap',
-        alignItems: 'center',
+        alignItems: 'flex-start',
         columnGap: spacing.sm,
         rowGap: spacing.xs,
     },
     standingsCompactIntroText: {
-        flexGrow: 1,
-        flexShrink: 1,
+        width: '100%',
         minWidth: 0,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: spacing.sm,
+        gap: 2,
     },
     standingsCompactIntroTitle: {
         color: colors.textPrimary,
