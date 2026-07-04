@@ -329,7 +329,21 @@ export const motion = {
 // Profile 640); Roster/Commissioner stay uncapped (already full-width).
 export const layout = {
     contentMaxWidth: 1280,
+    // Readable form/settings column on wide screens (was inlined as 640/720/760).
+    formMaxWidth: 720,
 } as const
+
+// Visually-hidden but screen-reader-available. Use for headings/labels that
+// exist for AT structure but are shown visually by another element. Single
+// source instead of re-inlining the absolute/1px clip in every screen.
+export const srOnly = {
+    position: 'absolute' as const,
+    width: 1,
+    height: 1,
+    margin: -1,
+    overflow: 'hidden' as const,
+    opacity: 0,
+}
 
 // ── Breakpoints ─────────────────────────────────────────────────
 // One source of truth for width breakpoints (mirrors web CSS + native

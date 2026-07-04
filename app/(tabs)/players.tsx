@@ -14,7 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { type OwnedEntry } from '@/lib/roster'
 import { useLeagueContext } from '@/contexts/league-context'
-import { colors, fontSize, fontWeight, radii, spacing, layout } from '@/constants/tokens'
+import { colors, fontSize, fontWeight, radii, spacing, srOnly, layout } from '@/constants/tokens'
 import { ItemSeparator } from '@/components/ItemSeparator'
 import { EmptyState } from '@/components/EmptyState'
 import { IRResolutionModal } from '@/components/IRResolutionModal'
@@ -492,12 +492,7 @@ const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgScreen },
     contentWrap: { flex: 1, width: '100%', maxWidth: layout.contentMaxWidth, alignSelf: 'center' },
     hiddenHeading: {
-        position: 'absolute',
-        width: 1,
-        height: 1,
-        margin: -1,
-        overflow: 'hidden',
-        opacity: 0,
+        ...srOnly,
     },
     flex1: { flex: 1 },
     loadMoreSpinner: { paddingVertical: 16 },

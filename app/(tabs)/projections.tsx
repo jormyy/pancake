@@ -18,7 +18,7 @@ import { EmptyState } from '@/components/EmptyState'
 import { IRResolutionModal } from '@/components/IRResolutionModal'
 import { ItemSeparator } from '@/components/ItemSeparator'
 import { PlayerSearchItem } from '@/components/PlayerSearchItem'
-import { colors, fontSize, fontWeight, layout, radii, spacing } from '@/constants/tokens'
+import { colors, fontSize, fontWeight, layout, radii, spacing, srOnly } from '@/constants/tokens'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
 import { useQuickAdd } from '@/hooks/use-quick-add'
@@ -682,12 +682,7 @@ const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgScreen },
     contentWrap: { flex: 1, width: '100%', maxWidth: layout.contentMaxWidth, alignSelf: 'center' },
     hiddenHeading: {
-        position: 'absolute',
-        width: 1,
-        height: 1,
-        margin: -1,
-        overflow: 'hidden',
-        opacity: 0,
+        ...srOnly,
     },
     flex1: { flex: 1 },
     filterCard: {

@@ -6,7 +6,7 @@ import { WaiverPriorityRow } from '@/lib/waivers'
 import { TransactionRow, TRANSACTION_LABELS, activityEventCategory } from '@/lib/transactions'
 import { LeaguePickItem } from '@/lib/rookieDraft'
 import { getPositionColor } from '@/constants/positions'
-import { colors, fontSize, fontWeight, radii, spacing, TX_COLORS } from '@/constants/tokens'
+import { colors, fontSize, fontWeight, radii, spacing, srOnly, TX_COLORS } from '@/constants/tokens'
 import { playerHeadshotUrl, timeAgo } from '@/lib/format'
 import { ItemSeparator } from '@/components/ItemSeparator'
 import { EmptyState } from '@/components/EmptyState'
@@ -200,12 +200,7 @@ const styles = StyleSheet.create({
         letterSpacing: 0.5,
     },
     standingsSortLiveStatus: {
-        position: 'absolute',
-        width: 1,
-        height: 1,
-        margin: -1,
-        overflow: 'hidden',
-        opacity: 0,
+        ...srOnly,
     },
     standingsScroll: { flex: 1 },
     standingsContent: { paddingBottom: spacing['3xl'] },
@@ -388,12 +383,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     activityHiddenHeading: {
-        position: 'absolute',
-        width: 1,
-        height: 1,
-        margin: -1,
-        overflow: 'hidden',
-        opacity: 0,
+        ...srOnly,
     },
 
     picksBankHeader: {
