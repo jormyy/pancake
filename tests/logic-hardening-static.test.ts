@@ -96,15 +96,31 @@ describe('logic hardening source guards - scoring and security', () => {
         expect(authHelper).not.toContain("req.headers.get('authorization')")
         expect(authHelper).not.toContain('Bearer')
 
+        const serveHelper = read('supabase/functions/_shared/serve.ts')
+        expect(serveHelper).toContain("import { requireInternalFunctionAuth } from './auth.ts'")
+        expect(serveHelper).toContain('const authError = requireInternalFunctionAuth(req)')
+        expect(serveHelper).toContain('if (authError) return authError')
+
         const edgeFunctions = readdirSync(path.join(ROOT, 'supabase/functions'), { withFileTypes: true })
             .filter((entry) => entry.isDirectory() && !entry.name.startsWith('_') && entry.name !== 'api')
             .map((entry) => entry.name)
 
         for (const functionName of edgeFunctions) {
             const src = read(`supabase/functions/${functionName}/index.ts`)
-            expect(src).toContain("import { requireInternalFunctionAuth } from '../_shared/auth.ts'")
-            expect(src).toContain('const authError = requireInternalFunctionAuth(req)')
-            expect(src).toContain('if (authError) return authError')
+            const usesServeInternal =
+                src.includes("import { serveInternal } from '../_shared/serve.ts'") &&
+                src.includes('serveInternal(')
+            const usesRawGuard =
+                src.includes("import { requireInternalFunctionAuth } from '../_shared/auth.ts'") &&
+                src.includes('const authError = requireInternalFunctionAuth(req)') &&
+                src.includes('if (authError) return authError')
+            expect(
+                usesServeInternal || usesRawGuard,
+                `${functionName}/index.ts must authenticate internal requests via serveInternal or requireInternalFunctionAuth`,
+            ).toBe(true)
+            if (!usesRawGuard) {
+                expect(src, `${functionName}/index.ts must route Deno.serve through serveInternal`).not.toContain('Deno.serve(')
+            }
         }
     })
 

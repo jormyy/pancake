@@ -1,4 +1,5 @@
 import { isRegularSeasonGameId } from './gameId.ts'
+import { fetchWithRetry } from './retry.ts'
 export { isRegularSeasonGameId } from './gameId.ts'
 
 const NBA_CDN = Deno.env.get('NBA_CDN_BASE_URL') ?? 'https://cdn.nba.com/static/json'
@@ -57,7 +58,7 @@ async function cdnGet(path: string): Promise<unknown> {
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 20_000)
   try {
-    const res = await fetch(`${NBA_CDN}${path}`, { headers: NBA_HEADERS, signal: controller.signal })
+    const res = await fetchWithRetry(`${NBA_CDN}${path}`, { headers: NBA_HEADERS, signal: controller.signal })
     if (!res.ok) {
       throw new CdnHttpError(res.status, path)
     }

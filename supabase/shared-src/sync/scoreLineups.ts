@@ -240,7 +240,7 @@ async function loadStarterSlots(leagueId: string): Promise<string[]> {
         .select('slot_type, slot_count')
         .eq('league_id', leagueId)
         .order('slot_type')
-        .range(from, to) as any)
+        .range(from, to))
 
     const slots: string[] = []
     for (const template of templates) {
@@ -303,7 +303,7 @@ async function loadLineupRows(
         .order('slot_type')
         .order('player_id')
         .order('id')
-        .range(from, to) as any)
+        .range(from, to))
 }
 
 async function loadPlayerPointsForWeek(
@@ -332,7 +332,9 @@ async function loadPlayerPointsForWeek(
         .order('player_id')
         .order('game_date')
         .order('id')
-        .range(from, to) as any)
+        .range(from, to)
+        // The concatenated select string defeats PostgREST's response typing.
+        .returns<StatRow[]>())
 
     const pointsByPlayerDate = new Map<string, number>()
     const rosterCutoffByPlayerDate = new Map<string, string>()
@@ -396,7 +398,7 @@ async function loadMaxPossiblePointsInput(
         .order('member_id')
         .order('player_id')
         .order('id')
-        .range(from, to) as any)
+        .range(from, to))
 
     const rosterTransactionRows = await fetchAllPages<RosterTransactionForScore>((from, to) => supabase
         .from('roster_transactions')
@@ -409,7 +411,7 @@ async function loadMaxPossiblePointsInput(
         .order('player_id')
         .order('occurred_at')
         .order('id')
-        .range(from, to) as any)
+        .range(from, to))
 
     const playerIds = [
         ...new Set([...rosterRows, ...rosterTransactionRows].map((row) => row.player_id)),

@@ -1,30 +1,39 @@
 import { supabase } from '../_shared/supabase.ts'
-import { requireInternalFunctionAuth } from '../_shared/auth.ts'
-import { internalServerError } from '../_shared/responses.ts'
+import { fetchWithRetry } from '../_shared/retry.ts'
+import { recordSyncRun } from '../_shared/syncRuns.ts'
+import { serveInternal } from '../_shared/serve.ts'
+import { AMBIGUOUS, normalizeName, setUnique } from '../_shared/nameMatch.ts'
 
 const SLEEPER_BASE_URL = Deno.env.get('SLEEPER_BASE_URL') ?? 'https://api.sleeper.app/v1'
 const NBA_CDN_BASE_URL = Deno.env.get('NBA_CDN_BASE_URL') ?? 'https://cdn.nba.com/static/json'
 const SLEEPER_URL = `${SLEEPER_BASE_URL}/players/nba`
 const NBA_PLAYER_INDEX_URL = `${NBA_CDN_BASE_URL}/staticData/playerIndex.json`
 const CHUNK = 500
-const AMBIGUOUS = '__ambiguous__'
 
-Deno.serve(async (req) => {
-  const authError = requireInternalFunctionAuth(req)
-  if (authError) return authError
-
-  try {
-    await syncPlayers()
-    await syncNBAIds()
-    return Response.json({ ok: true })
-  } catch (e: unknown) {
-    return internalServerError('sync-players', e)
-  }
+serveInternal('sync-players', async () => {
+  const result = await recordSyncRun('sync-players', async () => {
+    const players = await syncPlayers()
+    const nbaIds = await syncNBAIds()
+    const failures = [...players.failures, ...nbaIds.failures]
+    if (failures.length > 0) {
+      throw new Error(`sync-players had ${failures.length} failure(s): ${failures.join('; ')}`)
+    }
+    return {
+      result: {
+        updated: players.updated,
+        inserted: players.inserted,
+        nbaIdsMapped: nbaIds.mapped,
+        merged: nbaIds.merged,
+      },
+      rowsAffected: players.updated + players.inserted + nbaIds.mapped + nbaIds.merged,
+    }
+  })
+  return Response.json({ ok: true, ...result })
 })
 
-async function syncPlayers() {
+async function syncPlayers(): Promise<{ updated: number; inserted: number; failures: string[] }> {
   console.log('[sync-players] Fetching from Sleeper...')
-  const res = await fetch(SLEEPER_URL)
+  const res = await fetchWithRetry(SLEEPER_URL)
   if (!res.ok) throw new Error(`Sleeper API ${res.status}`)
   const raw = await res.json() as Record<string, any>
 
@@ -109,23 +118,25 @@ async function syncPlayers() {
     if (error) throw error
   }
 
+  const failures: string[] = []
   for (let i = 0; i < toInsert.length; i += CHUNK) {
     const { error } = await supabase
       .from('players')
       .upsert(toInsert.slice(i, i + CHUNK), { onConflict: 'sleeper_id' })
-    if (error) console.error(`[sync-players] Insert error (chunk ${i}):`, error.message)
+    if (error) failures.push(`insert chunk ${i}: ${error.message}`)
   }
 
-  console.log(`[sync-players] ${dedupedUpdate.length} updated, ${toInsert.length} inserted.`)
+  console.log(`[sync-players] ${dedupedUpdate.length} updated, ${toInsert.length} inserted, ${failures.length} failed chunk(s).`)
+  return { updated: dedupedUpdate.length, inserted: toInsert.length, failures }
 }
 
 // Fetch the NBA CDN player index and populate nba_id for any players missing it.
 // The index includes all active NBA players with their PERSON_ID, first name, and last name
 // (last name includes suffix, e.g. "Jackson Jr.", "Payton II").
-async function syncNBAIds() {
+async function syncNBAIds(): Promise<{ mapped: number; merged: number; failures: string[] }> {
   console.log('[sync-players] Syncing NBA person IDs from CDN index...')
 
-  const res = await fetch(NBA_PLAYER_INDEX_URL, {
+  const res = await fetchWithRetry(NBA_PLAYER_INDEX_URL, {
     headers: {
       'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
       'Referer': 'https://www.nba.com/',
@@ -134,12 +145,12 @@ async function syncNBAIds() {
   })
   if (!res.ok) throw new Error(`NBA player index ${res.status}`)
 
-  const data = await res.json() as any
+  const data = await res.json() as { resultSets?: { headers: string[]; rowSet: unknown[][] }[] }
   const rs = data?.resultSets?.[0]
   if (!rs) throw new Error('Unexpected NBA player index shape')
 
-  const headers: string[] = rs.headers
-  const rows: any[][] = rs.rowSet
+  const headers = rs.headers
+  const rows = rs.rowSet
 
   const pidIdx = headers.indexOf('PERSON_ID')
   const firstIdx = headers.indexOf('PLAYER_FIRST_NAME')
@@ -227,21 +238,13 @@ async function syncNBAIds() {
   console.log(`[sync-players] Updated nba_id for ${updates.length - mergedBeforeUpdate} players; merged ${mergedBeforeUpdate} duplicate rows before update.`)
 
   // Merge any players that ended up with the same nba_id (same real person, two DB rows)
+  const failures: string[] = []
   const { error: mergeErr } = await supabase.rpc('merge_duplicate_players')
-  if (mergeErr) console.error('[sync-players] merge_duplicate_players error:', mergeErr.message)
+  if (mergeErr) failures.push(`merge_duplicate_players: ${mergeErr.message}`)
   else console.log('[sync-players] Dedup complete.')
-}
 
-function setUnique(map: Map<string, string>, key: string, value: string): void {
-  const existing = map.get(key)
-  if (!existing) {
-    map.set(key, value)
-  } else if (existing !== value) {
-    map.set(key, AMBIGUOUS)
-  }
+  return { mapped: updates.length - mergedBeforeUpdate, merged: mergedBeforeUpdate, failures }
 }
-
-import { normalizeName } from '../_shared/nameMatch.ts'
 
 // Sleeper sometimes returns "Scrambled" as a catch-all when injury data is uncertain — treat as null
 const JUNK_INJURY_STATUSES = new Set(['Scrambled'])

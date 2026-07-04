@@ -1,8 +1,7 @@
 import { supabase } from '../_shared/supabase.ts'
 import type { Database } from '../_shared/database.ts'
 import { notifyMember } from '../_shared/notifications.ts'
-import { requireInternalFunctionAuth } from '../_shared/auth.ts'
-import { internalServerError } from '../_shared/responses.ts'
+import { serveInternal } from '../_shared/serve.ts'
 
 const PROCESS_BATCH_LIMIT = 100
 const NOTIFICATION_CONCURRENCY = 10
@@ -10,16 +9,9 @@ const NOTIFICATION_CONCURRENCY = 10
 type WaiverProcessRow = Database['public']['Functions']['process_due_waiver_claims_atomic']['Returns'][number]
 type NotificationJob = () => Promise<void>
 
-Deno.serve(async (req) => {
-  const authError = requireInternalFunctionAuth(req)
-  if (authError) return authError
-
-  try {
-    const processed = await processWaiverClaims()
-    return Response.json({ ok: true, processed })
-  } catch (e: unknown) {
-    return internalServerError('process-waivers', e)
-  }
+serveInternal('process-waivers', async () => {
+  const processed = await processWaiverClaims()
+  return Response.json({ ok: true, processed })
 })
 
 async function playerNames(playerIds: string[]): Promise<Map<string, string>> {

@@ -105,7 +105,7 @@ type StandingSnapshotTimestamp = {
 }
 
 type StatUpdateTimestamp = {
-    game_date: string
+    game_date: string | null
     updated_at: string | null
     nba_games?: {
         nba_game_id: string | null
@@ -133,6 +133,15 @@ type StandingSnapshotMember = {
     member_id: string
 }
 
+
+function scoringSettingsFromJson(value: Json | null | undefined): Record<string, number> {
+    if (value == null || typeof value !== 'object' || Array.isArray(value)) return {}
+    const settings: Record<string, number> = {}
+    for (const [key, stat] of Object.entries(value)) {
+        if (typeof stat === 'number') settings[key] = stat
+    }
+    return settings
+}
 
 function isPlayoffMatchupType(matchupType: string): boolean {
     return matchupType === 'playoff_quarterfinal' ||
@@ -188,7 +197,7 @@ async function buildStandingsSnapshotRows(
         .in('member_id', memberIds)
         .order('member_id')
         .order('week_number', { ascending: false })
-        .range(from, to) as any)
+        .range(from, to))
 
     const previousByMember = new Map<string, PreviousStandingSnapshot>()
     for (const row of previousRows) {
@@ -207,7 +216,7 @@ async function buildStandingsSnapshotRows(
             .lt('week_number', weekNumber)
             .order('week_number')
             .order('id')
-            .range(from, to) as any)
+            .range(from, to))
 
         const latestPriorWeekByMember = new Map<string, number>()
         const memberSet = new Set(memberIds)
@@ -241,7 +250,7 @@ async function buildStandingsSnapshotRows(
         .eq('league_season_id', leagueSeasonId)
         .in('member_id', memberIds)
         .order('member_id')
-        .range(from, to) as any)
+        .range(from, to))
     const waiverPriorityByMember = new Map(waiverRows.map((row) => [row.member_id, row.priority]))
 
     const standingsByMember = new Map<string, StandingSnapshot>()
@@ -401,13 +410,12 @@ async function finalizeWeekIfComplete(
         .eq('league_season_id', leagueSeasonId)
         .eq('week_number', weekNumber)
         .order('id')
-        .range(from, to) as any)
+        .range(from, to))
 
     if (!matchups.length) return
 
-    const matchupRows = matchups
     const memberIds = [
-        ...new Set(matchupRows.flatMap((m) => [m.home_member_id, m.away_member_id])),
+        ...new Set(matchups.flatMap((m) => [m.home_member_id, m.away_member_id])),
     ]
     const maxPossiblePointsByMember = await calcWeekMaxPossiblePointsByMember(
         memberIds,
@@ -423,12 +431,12 @@ async function finalizeWeekIfComplete(
         leagueId,
         leagueSeasonId,
         weekNumber,
-        matchupRows,
+        matchups,
         maxPossiblePointsByMember,
     )
     if (standingsRows == null) return
 
-    const matchupResults: MatchupResult[] = matchupRows.map((m) => {
+    const matchupResults: MatchupResult[] = matchups.map((m) => {
         const homePoints = Number(m.home_points ?? 0)
         const awayPoints = Number(m.away_points ?? 0)
         const homeMaxPossiblePoints = maxPossiblePointsByMember.get(m.home_member_id) ?? 0
@@ -516,15 +524,14 @@ async function updateWeekPoints(
         .eq('league_season_id', seasonId)
         .eq('week_number', weekNumber)
         .order('id')
-        .range(from, to) as any)
+        .range(from, to))
 
     if (!matchups.length) return
 
     console.log(`[scores] Updating points for week ${weekNumber} (${weekData.week_start}–${weekData.week_end}), ${matchups.length} matchup(s)`)
 
-    const matchupRows = matchups
     const memberIds = [
-        ...new Set(matchupRows.flatMap((m) => [m.home_member_id, m.away_member_id])),
+        ...new Set(matchups.flatMap((m) => [m.home_member_id, m.away_member_id])),
     ]
     const pointsByMember = await calcWeekPointsByMember(
         memberIds,
@@ -536,7 +543,7 @@ async function updateWeekPoints(
         weekData.week_end,
     )
 
-    const updates = matchupRows.map((matchup) => ({
+    const updates = matchups.map((matchup) => ({
         id: matchup.id,
         league_id: matchup.league_id,
         league_season_id: matchup.league_season_id,
@@ -568,7 +575,7 @@ async function loadWeeksToSync(
         .eq('is_finalized', false)
         .order('week_number')
         .order('id')
-        .range(from, to) as any)
+        .range(from, to))
 
     let earliestWeek = currentWeek > 1 ? currentWeek - 1 : currentWeek
     for (const row of unfinalizedRows) {
@@ -606,7 +613,7 @@ async function loadEarliestMissingFinalizedSnapshotWeek(
         .eq('matchup_type', 'regular_season')
         .lte('week_number', currentWeek)
         .order('week_number')
-        .range(from, to) as any)
+        .range(from, to))
 
     const statusByWeek = new Map<number, { total: number; finalized: number }>()
     for (const row of matchupRows) {
@@ -632,7 +639,7 @@ async function loadEarliestMissingFinalizedSnapshotWeek(
         .in('week_number', finalizedWeeks)
         .order('week_number')
         .order('member_id')
-        .range(from, to) as any)
+        .range(from, to))
 
     const snapshotMembersByWeek = new Map<number, Set<string>>()
     for (const row of snapshotRows) {
@@ -668,7 +675,7 @@ async function loadEarliestStatCorrectionWeek(
         .eq('league_season_id', seasonId)
         .lte('week_number', currentWeek)
         .order('week_number')
-        .range(from, to) as any)
+        .range(from, to))
 
     const snapshotTimeByWeek = new Map<number, number>()
     for (const row of snapshots) {
@@ -690,7 +697,7 @@ async function loadEarliestStatCorrectionWeek(
         .eq('is_finalized', true)
         .lte('week_number', currentWeek)
         .order('week_number')
-        .range(from, to) as any)
+        .range(from, to))
 
     const playoffFinalizationTimeByWeek = new Map<number, number>()
     for (const row of playoffRows) {
@@ -716,11 +723,11 @@ async function loadEarliestStatCorrectionWeek(
         .gte('game_date', firstWeekStart)
         .lte('game_date', lastWeekEnd)
         .order('game_date')
-        .range(from, to) as any)
+        .range(from, to))
 
     let earliest: number | null = null
     for (const row of statRows) {
-        if (!isRegularSeasonGameId(row.nba_games?.nba_game_id)) continue
+        if (!row.game_date || !isRegularSeasonGameId(row.nba_games?.nba_game_id)) continue
         const weekNumber = weekNumberForGameDate(row.game_date, weekBounds)
         if (weekNumber == null) continue
         const updatedAt = row.updated_at ? Date.parse(row.updated_at) : NaN
@@ -758,7 +765,7 @@ async function syncStatsForCompletedWeeks(seasonYear: number, weeks: number[], r
         .lte('game_date', lastWeekEnd)
         .order('game_date')
         .order('nba_game_id')
-        .range(from, to) as any)
+        .range(from, to))
 
     const regularGames = games.filter((game) => isRegularSeasonGameId(game.nba_game_id))
     const dateKeys = [
@@ -785,7 +792,7 @@ export async function syncScores(leagueId?: string, referenceDate = new Date()) 
         id: string
         league_id: string
         season_year: number
-        leagues: unknown
+        leagues: { scoring_settings: Json } | null
     }>((from, to) => {
         let query = supabase
             .from('league_seasons')
@@ -794,7 +801,7 @@ export async function syncScores(leagueId?: string, referenceDate = new Date()) 
             .order('id')
 
         if (leagueId) query = query.eq('league_id', leagueId)
-        return query.range(from, to) as any
+        return query.range(from, to)
     })
     if (!seasons.length) return
 
@@ -804,8 +811,7 @@ export async function syncScores(leagueId?: string, referenceDate = new Date()) 
     // the prior for-loop behavior where any throw aborted the sync.
     await Promise.all(
         seasons.map(async (season) => {
-            const league = season.leagues as any
-            const settings: Record<string, number> = league?.scoring_settings ?? {}
+            const settings = scoringSettingsFromJson(season.leagues?.scoring_settings)
 
             const weekNumber = await getWeekNumberForDate(referenceDate, season.season_year)
             if (!weekNumber) {

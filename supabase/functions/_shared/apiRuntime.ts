@@ -1,4 +1,5 @@
 import { supabase } from './supabase.ts'
+import { errorMessage } from './responses.ts'
 
 export const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -91,16 +92,6 @@ function errorResponse(scope: string, error: unknown): Response {
     error: status >= 500 ? 'Internal server error' : errorMessage(error),
     requestId,
   }, status)
-}
-
-export function errorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message
-  if (typeof error === 'string') return error
-  if (error && typeof error === 'object' && 'message' in error) {
-    const message = (error as { message?: unknown }).message
-    if (typeof message === 'string' && message.trim()) return message
-  }
-  return 'Request failed'
 }
 
 function dbErrorStatus(error: unknown): number {
