@@ -906,43 +906,52 @@ DECLARE
   v_week int;
   v_weekly_add_count int;
   v_player_name text;
+  v_candidate record;
 BEGIN
-  SELECT candidate.league_id, candidate.league_season_id, candidate.player_id
-    INTO v_target_league_id, v_target_season_id, v_target_player_id
-    FROM waiver_claims AS candidate
-    JOIN waiver_priorities AS wp
-      ON wp.league_id = candidate.league_id
-     AND wp.league_season_id = candidate.league_season_id
-     AND wp.member_id = candidate.member_id
-    JOIN waiver_wire_log AS due_wwl
-      ON due_wwl.league_id = candidate.league_id
-     AND due_wwl.league_season_id = candidate.league_season_id
-     AND due_wwl.player_id = candidate.player_id
-     AND due_wwl.cleared_at IS NULL
-     AND due_wwl.clears_at <= now()
-    JOIN leagues AS claim_league
-      ON claim_league.id = candidate.league_id
-     AND claim_league.status IN ('active'::league_status, 'playoffs'::league_status)
-    JOIN league_seasons AS claim_season
-      ON claim_season.id = candidate.league_season_id
-     AND claim_season.is_current = true
-   WHERE candidate.status = 'pending'
-     AND candidate.process_date <= p_process_date
-   ORDER BY
-     candidate.league_id,
-     candidate.league_season_id,
-     CASE WHEN claim_league.waiver_mode = 'faab' THEN candidate.bid_amount END DESC NULLS LAST,
-     wp.priority ASC,
-     candidate.claim_order ASC,
-     candidate.submitted_at ASC,
-     candidate.id ASC
-   LIMIT 1;
+  -- Try-lock-and-skip, matching the trade/nomination batch processors: a
+  -- league whose advisory lock is held elsewhere is skipped this pass instead
+  -- of blocking the cron.
+  FOR v_candidate IN
+    SELECT candidate.league_id, candidate.league_season_id, candidate.player_id
+      FROM waiver_claims AS candidate
+      JOIN waiver_priorities AS wp
+        ON wp.league_id = candidate.league_id
+       AND wp.league_season_id = candidate.league_season_id
+       AND wp.member_id = candidate.member_id
+      JOIN waiver_wire_log AS due_wwl
+        ON due_wwl.league_id = candidate.league_id
+       AND due_wwl.league_season_id = candidate.league_season_id
+       AND due_wwl.player_id = candidate.player_id
+       AND due_wwl.cleared_at IS NULL
+       AND due_wwl.clears_at <= now()
+      JOIN leagues AS claim_league
+        ON claim_league.id = candidate.league_id
+       AND claim_league.status IN ('active'::league_status, 'playoffs'::league_status)
+      JOIN league_seasons AS claim_season
+        ON claim_season.id = candidate.league_season_id
+       AND claim_season.is_current = true
+     WHERE candidate.status = 'pending'
+       AND candidate.process_date <= p_process_date
+     ORDER BY
+       candidate.league_id,
+       candidate.league_season_id,
+       CASE WHEN claim_league.waiver_mode = 'faab' THEN candidate.bid_amount END DESC NULLS LAST,
+       wp.priority ASC,
+       candidate.claim_order ASC,
+       candidate.submitted_at ASC,
+       candidate.id ASC
+  LOOP
+    IF pg_try_advisory_xact_lock(hashtext(v_candidate.league_id::text), hashtext(v_candidate.league_season_id::text)) THEN
+      v_target_league_id := v_candidate.league_id;
+      v_target_season_id := v_candidate.league_season_id;
+      v_target_player_id := v_candidate.player_id;
+      EXIT;
+    END IF;
+  END LOOP;
 
-  IF NOT FOUND THEN
+  IF v_target_league_id IS NULL THEN
     RETURN;
   END IF;
-
-  PERFORM pg_advisory_xact_lock(hashtext(v_target_league_id::text), hashtext(v_target_season_id::text));
 
   PERFORM 1
     FROM waiver_priorities AS wp_lock
