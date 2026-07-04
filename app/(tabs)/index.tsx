@@ -10,13 +10,14 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { ReactNode, useCallback, useEffect, useMemo } from 'react'
 import { EmptyState } from '@/components/EmptyState'
+import { ErrorBanner } from '@/components/ui'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useAuth } from '@/hooks/use-auth'
 import { Scoreboard } from '@/components/Scoreboard'
 import { LineupSlot, LineupPlayer } from '@/lib/lineup'
 import type { LeagueWeekMatchup } from '@/lib/scoring'
 import { LiveStatLine } from '@/lib/games'
-import { colors, fontSize, fontWeight, palette, radii, spacing } from '@/constants/tokens'
+import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 import { DaySelector } from '@/components/DaySelector'
 import { ScoreCard } from '@/components/ScoreCard'
 import { NoLeagueState } from '@/components/NoLeagueState'
@@ -27,7 +28,7 @@ import { ActivationOverflowModal } from '@/components/ActivationOverflowModal'
 import { useMatchupData } from '@/hooks/use-matchup-data'
 import { useLiveStats } from '@/hooks/use-live-stats'
 import { useLineupActions } from '@/hooks/use-lineup-actions'
-import { shortName } from '@/lib/format'
+import { countLabel, formatPoints, shortName } from '@/lib/format'
 import { todayET } from '@/lib/shared/dates'
 import { MotionPressable, MotionView } from '@/components/Motion'
 
@@ -147,11 +148,7 @@ export default function HomeScreen() {
                 compact={compact}
             />
 
-            {error && (
-                <Pressable style={styles.errorBanner} onPress={refresh}>
-                    <Text style={styles.errorBannerText}>Failed to load. Tap to retry.</Text>
-                </Pressable>
-            )}
+            {error && <ErrorBanner onRetry={refresh} />}
 
             {matchup ? (
                 <View style={styles.playSurface}>
@@ -225,7 +222,7 @@ export default function HomeScreen() {
                         ? <Scoreboard games={todaysGames} myTeamSet={myTeamSet} compact={compact} />
                         : <Text style={styles.dateLabel}>Showing lineup for {selectedDate}</Text>
                     }
-                    {league?.status === 'drafting' ? (
+                    {matchupLoading ? null : league?.status === 'drafting' ? (
                         <EmptyState
                             fullScreen={false}
                             framed
@@ -280,7 +277,6 @@ function AroundLeague({ matchups, compact }: { matchups: LeagueWeekMatchup[]; co
     const otherMatchups = matchups.filter((item) => !item.isMine)
     if (otherMatchups.length === 0) return null
 
-    const scoreText = (score: number | null) => score == null ? '—' : score.toFixed(1)
     const sidePad = compact ? 12 : 16
     const cardGap = compact ? 8 : 10
     // On narrow screens, size cards so one fits fully with a deliberate peek
@@ -298,7 +294,7 @@ function AroundLeague({ matchups, compact }: { matchups: LeagueWeekMatchup[]; co
                 >
                     Around the league
                 </Text>
-                <Text style={styles.aroundLeagueMeta}>{otherMatchups.length} matchup{otherMatchups.length === 1 ? '' : 's'}</Text>
+                <Text style={styles.aroundLeagueMeta}>{countLabel(otherMatchups.length, 'matchup')}</Text>
             </View>
             <ScrollView
                 horizontal
@@ -319,7 +315,7 @@ function AroundLeague({ matchups, compact }: { matchups: LeagueWeekMatchup[]; co
                                     {item.homeTeamName}
                                 </Text>
                                 <Text style={[styles.aroundLeagueScore, homeLeading && styles.aroundLeagueScoreLeading]}>
-                                    {scoreText(item.homePoints)}
+                                    {formatPoints(item.homePoints)}
                                 </Text>
                             </View>
                             <View style={styles.aroundLeagueDivider} />
@@ -328,7 +324,7 @@ function AroundLeague({ matchups, compact }: { matchups: LeagueWeekMatchup[]; co
                                     {item.awayTeamName}
                                 </Text>
                                 <Text style={[styles.aroundLeagueScore, awayLeading && styles.aroundLeagueScoreLeading]}>
-                                    {scoreText(item.awayPoints)}
+                                    {formatPoints(item.awayPoints)}
                                 </Text>
                             </View>
                             <Text style={styles.aroundLeagueStatus}>{item.isFinalized ? 'Final' : 'Live week'}</Text>
@@ -428,7 +424,7 @@ function MatchupLineupView({
                 key: 'taxi' as const,
                 label: 'Taxi Squad',
                 count: maxTaxi,
-                color: palette.gray500,
+                color: colors.textMuted,
                 rows: Array.from({ length: maxTaxi }, (_, i) => ({
                     key: `tx${i}`,
                     myPlayer: myLineup.taxi[i] ?? null,
@@ -529,7 +525,7 @@ const styles = StyleSheet.create({
         color: colors.textPrimary,
     },
     aroundLeagueMeta: {
-        fontSize: 12,
+        fontSize: fontSize['2sm'],
         fontWeight: fontWeight.semibold,
         color: colors.textMuted,
     },
@@ -585,7 +581,7 @@ const styles = StyleSheet.create({
     },
     aroundLeagueStatus: {
         marginTop: 8,
-        fontSize: 10,
+        fontSize: fontSize['2xs'],
         fontWeight: fontWeight.extrabold,
         color: colors.textPlaceholder,
         letterSpacing: 0.8,
@@ -602,7 +598,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
-    autoSetText: { fontSize: 11, fontWeight: '800', color: colors.primaryDark, letterSpacing: 0.6 },
+    autoSetText: { fontSize: fontSize.xs, fontWeight: fontWeight.extrabold, color: colors.primaryDark, letterSpacing: 0.6 },
 
     hint: {
         flexDirection: 'row',
@@ -616,8 +612,8 @@ const styles = StyleSheet.create({
         paddingVertical: 7,
         marginTop: 8,
     },
-    hintText: { flex: 1, fontSize: 13, color: colors.primaryDark, fontWeight: '500' },
-    hintCancel: { fontSize: 13, fontWeight: '700', color: colors.primaryDark, paddingLeft: 12 },
+    hintText: { flex: 1, fontSize: fontSize.sm, color: colors.primaryDark, fontWeight: fontWeight.medium },
+    hintCancel: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.primaryDark, paddingLeft: 12 },
 
     lineupContainer: { flex: 1, minHeight: 0, paddingHorizontal: 16, paddingBottom: 8 },
     lineupHeader: {
@@ -675,21 +671,14 @@ const styles = StyleSheet.create({
     },
 
     noLineup: { padding: 32, alignItems: 'center', gap: 12 },
-    noLineupText: { fontSize: 14, color: colors.textPlaceholder, textAlign: 'center' },
+    noLineupText: { fontSize: fontSize.md, color: colors.textPlaceholder, textAlign: 'center' },
     setLineupBtn: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10, borderCurve: 'continuous' as const, backgroundColor: colors.primary },
-    setLineupBtnText: { color: colors.textWhite, fontWeight: '700', fontSize: 14 },
+    setLineupBtnText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.md },
 
     noMatchup: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 8, padding: 32 },
-    noMatchupText: { fontSize: 16, fontWeight: '600', color: colors.textSecondary },
-    noMatchupSub: { fontSize: 13, color: colors.textPlaceholder, textAlign: 'center' },
+    noMatchupText: { fontSize: fontSize.lg, fontWeight: fontWeight.semibold, color: colors.textSecondary },
+    noMatchupSub: { fontSize: fontSize.sm, color: colors.textPlaceholder, textAlign: 'center' },
 
-    errorBanner: {
-        backgroundColor: colors.danger,
-        paddingHorizontal: 16,
-        paddingVertical: 10,
-    },
-    errorBannerText: { fontSize: 13, fontWeight: '600', color: colors.textWhite, textAlign: 'center' },
-
-    dateLabel: { fontSize: 13, color: colors.textMuted, textAlign: 'center', paddingVertical: 10 },
+    dateLabel: { fontSize: fontSize.sm, color: colors.textMuted, textAlign: 'center', paddingVertical: 10 },
 
 })

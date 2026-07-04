@@ -1,12 +1,12 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { StackRouter } from '@react-navigation/native'
 import { ComponentProps, ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
-import { Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native'
+import { Modal, Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native'
 import { Link, Navigator, usePathname, useRouter } from 'expo-router'
 import { useLeagueContext } from '@/contexts/league-context'
 import { usePendingTradeCount } from '@/hooks/use-pending-trade-count'
 import { getJoinableDraft } from '@/lib/draft'
-import { breakpoints, colors, WEB_THEME_VARS } from '@/constants/tokens'
+import { brand, breakpoints, colors, WEB_THEME_VARS } from '@/constants/tokens'
 import { styles } from './webTabShellStyles'
 
 type IconName = ComponentProps<typeof MaterialIcons>['name']
@@ -121,7 +121,7 @@ function BrandMark({ compact = false }: { compact?: boolean }) {
 function NavIcon({ name, active = false, size = 19 }: { name: IconName; active?: boolean; size?: number }) {
     return (
         <View style={styles.navIconFrame} aria-hidden>
-            <MaterialIcons name={name} size={size} color={active ? colors.textWhite : 'rgba(255, 246, 232, 0.82)'} />
+            <MaterialIcons name={name} size={size} color={active ? colors.textWhite : brand.onStrong} />
         </View>
     )
 }
@@ -132,7 +132,7 @@ function LeagueSwitcher({ tone = 'dark' }: { tone?: 'dark' | 'light' }) {
     const light = tone === 'light'
     const nameStyle = [styles.leagueName, light && styles.leagueNameLight]
     const metaStyle = [styles.leagueMeta, light && styles.leagueMetaLight]
-    const chevronColor = light ? colors.textMuted : 'rgba(255, 246, 232, 0.7)'
+    const chevronColor = light ? colors.textMuted : brand.onMuted
 
     if (!current) {
         return (
@@ -359,7 +359,7 @@ function WebSidebar() {
                         <Text style={styles.userName} numberOfLines={1}>{current?.team_name ?? 'Profile'}</Text>
                         <Text style={styles.userMeta} numberOfLines={1}>Profile & settings</Text>
                     </View>
-                    <MaterialIcons name="settings" size={17} color="rgba(232, 210, 184, 0.62)" />
+                    <MaterialIcons name="settings" size={17} color={brand.onSubtle} />
                 </Pressable>
             </View>
         </View>
@@ -438,34 +438,41 @@ function MobileMenuSheet({ visible, onClose }: { visible: boolean; onClose: () =
         [draftLoading, isCommissioner, openDraftRoom, router],
     )
 
-    if (!visible) return null
-
     return (
-        <Pressable style={styles.sheetScrim} onPress={onClose}>
-            <View style={styles.sheet} onStartShouldSetResponder={() => true}>
-                <View style={styles.sheetHeader}>
-                    <Text style={styles.sheetTitle}>Menu</Text>
-                    <Pressable onPress={onClose} style={styles.sheetClose}>
-                        <MaterialIcons name="close" size={20} color={colors.textPrimary} />
-                    </Pressable>
+        <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+            <Pressable style={styles.sheetScrim} onPress={onClose} accessibilityLabel="Close menu">
+                <View style={styles.sheet} onStartShouldSetResponder={() => true}>
+                    <View style={styles.sheetHeader}>
+                        <Text style={styles.sheetTitle}>Menu</Text>
+                        <Pressable
+                            onPress={onClose}
+                            style={styles.sheetClose}
+                            accessibilityRole="button"
+                            accessibilityLabel="Close menu"
+                        >
+                            <MaterialIcons name="close" size={20} color={colors.textPrimary} />
+                        </Pressable>
+                    </View>
+                    {menuItems.map((item) => (
+                        <Pressable
+                            key={item.key}
+                            onPress={() => {
+                                item.onPress()
+                                onClose()
+                            }}
+                            style={styles.sheetItem}
+                            disabled={item.loading}
+                            accessibilityRole="button"
+                            accessibilityLabel={item.label}
+                        >
+                            <MaterialIcons name={item.icon} size={21} color={colors.textSecondary} />
+                            <Text style={styles.sheetItemText}>{item.label}</Text>
+                            <MaterialIcons name="chevron-right" size={20} color={colors.textPlaceholder} />
+                        </Pressable>
+                    ))}
                 </View>
-                {menuItems.map((item) => (
-                    <Pressable
-                        key={item.key}
-                        onPress={() => {
-                            item.onPress()
-                            onClose()
-                        }}
-                        style={styles.sheetItem}
-                        disabled={item.loading}
-                    >
-                        <MaterialIcons name={item.icon} size={21} color={colors.textSecondary} />
-                        <Text style={styles.sheetItemText}>{item.label}</Text>
-                        <MaterialIcons name="chevron-right" size={20} color={colors.textPlaceholder} />
-                    </Pressable>
-                ))}
-            </View>
-        </Pressable>
+            </Pressable>
+        </Modal>
     )
 }
 

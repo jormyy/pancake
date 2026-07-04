@@ -1,5 +1,5 @@
 import { ScrollView, Text, StyleSheet } from 'react-native'
-import { colors } from '@/constants/tokens'
+import { colors, fontSize, fontWeight } from '@/constants/tokens'
 import { MotionPressable } from '@/components/Motion'
 
 export type LeagueSwitcherMembership = {
@@ -34,6 +34,10 @@ export function LeagueSwitcher({
                         key={m.id}
                         style={[styles.switcherChip, isActive && styles.switcherChipActive]}
                         onPress={() => onSelect(m)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Switch to ${m.leagues?.name ?? 'League'}`}
+                        accessibilityState={{ selected: isActive }}
+                        hitSlop={8}
                         pressedScale={0.94}
                     >
                         <Text style={[styles.switcherText, isActive && styles.switcherTextActive]}>
@@ -65,6 +69,6 @@ const styles = StyleSheet.create({
         backgroundColor: colors.bgMuted,
     },
     switcherChipActive: { backgroundColor: colors.primary },
-    switcherText: { fontSize: 13, fontWeight: '600', color: colors.textSecondary },
+    switcherText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textSecondary },
     switcherTextActive: { color: colors.textWhite },
 })

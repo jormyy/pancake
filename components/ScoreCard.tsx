@@ -1,10 +1,10 @@
 import { View, Text, StyleSheet } from 'react-native'
 import { Matchup } from '@/lib/scoring'
-import { colors } from '@/constants/tokens'
+import { alpha, colors, palette, fontSize, fontWeight } from '@/constants/tokens'
+import { formatPoints } from '@/lib/format'
 import { MotionView } from '@/components/Motion'
 
 export function ScoreCard({ matchup, compact = false }: { matchup: Matchup; compact?: boolean }) {
-    const fmt = (n: number | null) => (n != null ? n.toFixed(1) : '—')
     const myPts = matchup.myPoints ?? 0
     const oppPts = matchup.opponentPoints ?? 0
     // Neither side is "winning" on a tie (incl. the 0–0 week start), so a tie
@@ -13,17 +13,21 @@ export function ScoreCard({ matchup, compact = false }: { matchup: Matchup; comp
     const oppWinning = oppPts > myPts
 
     let statusLabel = 'In Progress'
-    let statusColor: string = colors.primary
+    let statusTint: string = palette.maple500
+    let statusText: string = colors.primaryDark
     if (matchup.isFinalized) {
         if (matchup.iWon === true) {
             statusLabel = 'Win'
-            statusColor = colors.success
+            statusTint = palette.green500
+            statusText = colors.successDark
         } else if (matchup.iWon === false) {
             statusLabel = 'Loss'
-            statusColor = colors.danger
+            statusTint = palette.red500
+            statusText = colors.dangerDark
         } else {
             statusLabel = 'Tie'
-            statusColor = colors.textMuted
+            statusTint = palette.latte
+            statusText = colors.textMuted
         }
     }
 
@@ -41,8 +45,8 @@ export function ScoreCard({ matchup, compact = false }: { matchup: Matchup; comp
                     WEEK {matchup.weekNumber}
                 </Text>
                 <View style={styles.headerRule} />
-                <View style={[styles.statusBadge, { backgroundColor: statusColor + '1A', borderColor: statusColor + '50' }]}>
-                    <Text style={[styles.statusText, { color: statusColor }]}>{statusLabel}</Text>
+                <View style={[styles.statusBadge, { backgroundColor: alpha(statusTint, 0.1), borderColor: alpha(statusTint, 0.31) }]}>
+                    <Text style={[styles.statusText, { color: statusText }]}>{statusLabel}</Text>
                 </View>
             </View>
 
@@ -55,7 +59,7 @@ export function ScoreCard({ matchup, compact = false }: { matchup: Matchup; comp
                         <Text style={styles.username} numberOfLines={1}>{matchup.myUsername}</Text>
                     ) : null}
                     <Text style={[styles.score, compact && styles.scoreCompact, iWinning ? styles.scoreWin : styles.scoreLose]}>
-                        {fmt(matchup.myPoints)}
+                        {formatPoints(matchup.myPoints)}
                     </Text>
                     <Text style={styles.record}>{matchup.myWins}–{matchup.myLosses}</Text>
                 </View>
@@ -76,7 +80,7 @@ export function ScoreCard({ matchup, compact = false }: { matchup: Matchup; comp
                         </Text>
                     ) : null}
                     <Text style={[styles.score, compact && styles.scoreCompact, oppWinning ? styles.scoreWin : styles.scoreLose]}>
-                        {fmt(matchup.opponentPoints)}
+                        {formatPoints(matchup.opponentPoints)}
                     </Text>
                     <Text style={[styles.record, { textAlign: 'right' }]}>
                         {matchup.opponentWins}–{matchup.opponentLosses}
@@ -121,8 +125,8 @@ const styles = StyleSheet.create({
         paddingBottom: 8,
     },
     week: {
-        fontSize: 10,
-        fontWeight: '800',
+        fontSize: fontSize['2xs'],
+        fontWeight: fontWeight.extrabold,
         color: colors.primaryDark,
         letterSpacing: 2,
     },
@@ -139,8 +143,8 @@ const styles = StyleSheet.create({
         borderWidth: 1,
     },
     statusText: {
-        fontSize: 11,
-        fontWeight: '700',
+        fontSize: fontSize.xs,
+        fontWeight: fontWeight.bold,
         letterSpacing: 0.2,
     },
 
@@ -157,24 +161,24 @@ const styles = StyleSheet.create({
     side: { flex: 1, gap: 2 },
     sideRight: { alignItems: 'flex-end' },
     teamName: {
-        fontSize: 12,
+        fontSize: fontSize['2sm'],
         color: colors.textMuted,
-        fontWeight: '600',
+        fontWeight: fontWeight.semibold,
     },
     username: {
-        fontSize: 10,
+        fontSize: fontSize['2xs'],
         color: colors.textPlaceholder,
-        fontWeight: '400',
+        fontWeight: fontWeight.regular,
     },
     record: {
-        fontSize: 11,
+        fontSize: fontSize.xs,
         color: colors.textPlaceholder,
-        fontWeight: '600',
+        fontWeight: fontWeight.semibold,
         marginTop: 2,
     },
     score: {
         fontSize: 40,
-        fontWeight: '900',
+        fontWeight: fontWeight.black,
         lineHeight: 48,
     },
     scoreCompact: {
@@ -200,9 +204,9 @@ const styles = StyleSheet.create({
         backgroundColor: colors.separator,
     },
     vs: {
-        fontSize: 10,
+        fontSize: fontSize['2xs'],
         color: colors.textPlaceholder,
-        fontWeight: '800',
+        fontWeight: fontWeight.extrabold,
         letterSpacing: 1,
     },
 })

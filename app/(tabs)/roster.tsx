@@ -21,8 +21,10 @@ import { currentSeasonYear } from '@/lib/shared/season'
 import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 import { ItemSeparator } from '@/components/ItemSeparator'
 import { EmptyState } from '@/components/EmptyState'
+import { ErrorBanner } from '@/components/ui'
 import { SectionHeader } from '@/components/SectionHeader'
 import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
+import { countLabel, formatPoints } from '@/lib/format'
 import { RosterClaimItem, RosterPickItem, RosterPlayerItem, TaxiPlayerItem } from '@/components/roster/RosterItems'
 import { getRosterStatusChangeLockMessage } from '@/lib/roster-locks'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
@@ -115,8 +117,8 @@ function writeRosterCache(memberId: string, leagueId: string, data: RosterScreen
 }
 
 function fmtStat(value?: number | null, integer = false): string {
-    if (value == null) return '—'
-    return integer ? String(Math.round(Number(value))) : Number(value).toFixed(1)
+    if (value != null && integer) return String(Math.round(Number(value)))
+    return formatPoints(value)
 }
 
 function RosterTableHeader() {
@@ -223,7 +225,7 @@ export default function RosterScreen() {
     const [cancellingId, setCancellingId] = useState<string | null>(null)
     const [droppingId, setDroppingId] = useState<string | null>(null)
 
-    const { data, error, refresh } = useFocusAsyncData<RosterScreenData | null>(async () => {
+    const { data, loading, error, refresh } = useFocusAsyncData<RosterScreenData | null>(async () => {
         if (!current || !user) return null
         if (!leagueId) return null
         const [roster, picks, claims, waiverPriority] = await Promise.all([
@@ -325,7 +327,7 @@ export default function RosterScreen() {
             }
             const currentIR = roster.filter((p) => p.is_on_ir).length
             if (currentIR >= irSlots) {
-                showAlert('IR Full', `You only have ${irSlots} IR slot${irSlots > 1 ? 's' : ''}.`)
+                showAlert('IR Full', `You only have ${countLabel(irSlots, 'IR slot')}.`)
                 return
             }
         } else {
@@ -372,7 +374,7 @@ export default function RosterScreen() {
             }
             const currentTaxi = roster.filter((p) => p.is_on_taxi).length
             if (currentTaxi >= taxiSlots) {
-                showAlert('Taxi Full', `You only have ${taxiSlots} taxi squad slot${taxiSlots > 1 ? 's' : ''}.`)
+                showAlert('Taxi Full', `You only have ${countLabel(taxiSlots, 'taxi squad slot')}.`)
                 return
             }
         } else {
@@ -505,12 +507,11 @@ export default function RosterScreen() {
 
             {/* Error banner */}
             {error ? (
-                <Pressable style={styles.errorBanner} onPress={refresh}>
-                    <Text style={styles.errorBannerText}>Failed to load roster. Tap to retry.</Text>
-                </Pressable>
+                <ErrorBanner message="Failed to load roster. Tap to retry." onRetry={refresh} />
             ) : null}
 
             {roster.length === 0 ? (
+                loading ? null : (
                 <EmptyState
                     fullScreen={false}
                     framed
@@ -522,6 +523,7 @@ export default function RosterScreen() {
                     actionLabel={currentLeague?.status === 'drafting' ? 'Go to Draft Room' : 'Browse Players'}
                     onAction={() => push(currentLeague?.status === 'drafting' ? '/league' : '/players')}
                 />
+                )
             ) : (
                 <FlashList
                     ref={listRef}
@@ -668,7 +670,7 @@ const styles = StyleSheet.create({
     },
     rosterTableSlot: {
         width: 46,
-        fontSize: 11,
+        fontSize: fontSize.xs,
         fontWeight: fontWeight.extrabold,
         color: colors.primaryDark,
         textTransform: 'uppercase' as const,
@@ -676,7 +678,7 @@ const styles = StyleSheet.create({
     rosterTablePlayer: {
         flex: 1,
         minWidth: 220,
-        fontSize: 10,
+        fontSize: fontSize['2xs'],
         fontWeight: fontWeight.extrabold,
         color: colors.textMuted,
         letterSpacing: 0.8,
@@ -711,7 +713,7 @@ const styles = StyleSheet.create({
     rosterTableAction: {
         width: 86,
         textAlign: 'right',
-        fontSize: 10,
+        fontSize: fontSize['2xs'],
         fontWeight: fontWeight.extrabold,
         color: colors.textMuted,
         letterSpacing: 0.7,
@@ -754,9 +756,9 @@ const styles = StyleSheet.create({
         marginLeft: spacing.lg,
     },
     lineupButtonText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.sm },
-    leagueName: { fontSize: 18, fontWeight: fontWeight.extrabold, color: colors.textPrimary },
+    leagueName: { fontSize: fontSize['2lg'], fontWeight: fontWeight.extrabold, color: colors.textPrimary },
     teamName: { fontSize: fontSize.md, color: colors.textSecondary },
-    rosterCount: { fontSize: 12, color: colors.textPlaceholder, marginTop: spacing.xs },
+    rosterCount: { fontSize: fontSize['2sm'], color: colors.textPlaceholder, marginTop: spacing.xs },
     claimsChip: {
         alignSelf: 'flex-start',
         marginTop: spacing.sm,
@@ -773,13 +775,6 @@ const styles = StyleSheet.create({
         fontWeight: fontWeight.bold,
         color: colors.primaryDark,
     },
-
-    errorBanner: {
-        backgroundColor: colors.dangerLight,
-        paddingHorizontal: spacing.xl,
-        paddingVertical: spacing.md,
-    },
-    errorBannerText: { color: colors.danger, fontSize: fontSize.sm, fontWeight: fontWeight.semibold },
 
     taxiHeader: {
         paddingHorizontal: spacing.xl,
@@ -812,6 +807,6 @@ const styles = StyleSheet.create({
     },
 
     empty: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: spacing.md },
-    emptyTitle: { fontSize: 18, fontWeight: fontWeight.bold, color: colors.textPrimary },
+    emptyTitle: { fontSize: fontSize['2lg'], fontWeight: fontWeight.bold, color: colors.textPrimary },
     emptyText: { fontSize: fontSize.md, color: colors.textPlaceholder },
 })

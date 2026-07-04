@@ -256,7 +256,7 @@ const styles = StyleSheet.create({
     brandSub: {
         marginTop: -2,
         color: brand.onSubtle,
-        fontSize: 10,
+        fontSize: fontSize['2xs'],
         fontWeight: fontWeight.bold,
         letterSpacing: 2,
         textTransform: 'uppercase' as const,
@@ -306,7 +306,7 @@ const styles = StyleSheet.create({
     },
     brandMarkText: {
         color: brand.on,
-        fontSize: 24,
+        fontSize: fontSize['2xl'],
         fontFamily: fontFamily.display,
         fontWeight: fontWeight.bold,
     },
@@ -320,7 +320,7 @@ const styles = StyleSheet.create({
     },
     mobileBrandSub: {
         color: colors.textMuted,
-        fontSize: 10,
+        fontSize: fontSize['2xs'],
         fontWeight: fontWeight.bold,
         letterSpacing: 1.8,
         textTransform: 'uppercase' as const,

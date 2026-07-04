@@ -69,6 +69,7 @@ export const palette = {
     amber300: '#FEF3C7',
     amber400: '#F59E0B',
     amber600: '#D97706',
+    amber700: '#B45309',
 
     // ── Position identity hues ──
     // Warm-leaning, saturation-matched deep hues for position chips/avatars.
@@ -244,6 +245,7 @@ export const fontWeight = {
     semibold: '600' as const,
     bold: '700' as const,
     extrabold: '800' as const,
+    black: '900' as const,
 }
 
 // ── Avatar sizes ────────────────────────────────────────────────
@@ -399,10 +401,11 @@ export const WEB_THEME_VARS: Record<string, string> = {
 
 // ── Domain color maps ───────────────────────────────────────────
 
+// Solid-badge backgrounds darkened so the white 11px label clears WCAG AA (>=4.5:1).
 export const INJURY_COLORS: Record<string, string> = {
-    Questionable: palette.amber400,
-    Doubtful: palette.maple500,
-    Out: palette.red500,
+    Questionable: palette.amber700,
+    Doubtful: palette.maple600,
+    Out: palette.red900,
     IR: palette.redDark,
 }
 

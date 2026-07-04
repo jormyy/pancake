@@ -18,7 +18,7 @@ import { Badge } from '@/components/Badge'
 import { EmptyState } from '@/components/EmptyState'
 import { ItemSeparator } from '@/components/ItemSeparator'
 import { PosTag } from '@/components/PosTag'
-import { colors, palette, fontSize, fontWeight, spacing } from '@/constants/tokens'
+import { colors, fontSize, fontWeight, spacing, INJURY_COLORS } from '@/constants/tokens'
 import { playerHeadshotUrl } from '@/lib/format'
 
 export default function TeamRosterScreen() {
@@ -120,15 +120,15 @@ export default function TeamRosterScreen() {
                                             {p.injury_status ? (
                                                 <Badge
                                                     label={p.injury_status}
-                                                    color={colors.danger}
-                                                    variant="soft"
+                                                    color={INJURY_COLORS[p.injury_status] ?? colors.textMuted}
+                                                    variant="solid"
                                                 />
                                             ) : null}
                                             {item.is_on_ir ? (
-                                                <Badge label="IR" color={palette.gray500} variant="soft" />
+                                                <Badge label="IR" color={colors.textMuted} variant="soft" />
                                             ) : null}
                                             {item.is_on_taxi ? (
-                                                <Badge label="TX" color={palette.gray500} variant="soft" />
+                                                <Badge label="TX" color={colors.textMuted} variant="soft" />
                                             ) : null}
                                         </View>
                                     </Pressable>
@@ -162,7 +162,7 @@ const styles = StyleSheet.create({
     },
     closeButton: { minWidth: 64, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
     closeText: { fontSize: 15, fontWeight: fontWeight.semibold, color: colors.primaryDark },
-    headerTitle: { flex: 1, fontSize: 18, fontWeight: fontWeight.extrabold, textAlign: 'center' },
+    headerTitle: { flex: 1, fontSize: fontSize['2lg'], fontWeight: fontWeight.extrabold, textAlign: 'center' },
 
     list: { flex: 1 },
     listContent: { width: '100%', maxWidth: 680, alignSelf: 'center' },

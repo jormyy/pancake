@@ -11,6 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { colors, fontSize, fontWeight, radii, spacing, layout } from '@/constants/tokens'
 import { EmptyState } from '@/components/EmptyState'
+import { ErrorBanner } from '@/components/ui'
 import { NoLeagueState } from '@/components/NoLeagueState'
 import { StandingsTable } from '@/components/league/LeagueStandings'
 import { ActivityFeed } from '@/components/league/LeagueActivityFeed'
@@ -210,20 +211,11 @@ export default function LeagueScreen() {
 
     function renderTabContent() {
         if (screen.tabErr && !screen.isTabLoading) {
-            const message = `${activeTabLabel} could not load. Select to retry.`
             return (
-                <Pressable
-                    style={styles.errorBanner}
-                    onPress={screen.retryCurrentTab}
-                    role="button"
-                    aria-label={message}
-                    aria-live="polite"
-                    accessibilityRole="button"
-                    accessibilityLabel={message}
-                    accessibilityLiveRegion="polite"
-                >
-                    <Text style={styles.errorBannerText}>{message}</Text>
-                </Pressable>
+                <ErrorBanner
+                    message={`${activeTabLabel} could not load. Select to retry.`}
+                    onRetry={screen.retryCurrentTab}
+                />
             )
         }
 
@@ -542,15 +534,4 @@ const styles = StyleSheet.create({
     },
     phaseStepTextActive: { color: colors.primaryDark },
     contentScroll: { flex: 1 },
-    errorBanner: {
-        margin: spacing['2xl'],
-        padding: spacing['2xl'],
-        minHeight: 44,
-        backgroundColor: colors.dangerLight,
-        borderRadius: radii.lg,
-        borderCurve: 'continuous' as const,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    errorBannerText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.dangerDark },
 })

@@ -26,6 +26,7 @@ import { getRoster, RosterPlayer } from '@/lib/roster'
 import { colors, palette, fontSize, fontWeight, radii, spacing, layout } from '@/constants/tokens'
 import { SegmentedControl, type SegmentOption } from '@/components/ui/SegmentedControl'
 import { ItemSeparator } from '@/components/ItemSeparator'
+import { ErrorBanner } from '@/components/ui'
 import { SectionHeader } from '@/components/SectionHeader'
 import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
 import { yearShort } from '@/lib/format'
@@ -455,14 +456,10 @@ export default function TradesScreen() {
             </View>
 
             {(tradesError || picksError || blockError) ? (
-                <Pressable
-                    style={styles.errorBanner}
-                    onPress={() => { void load(); if (tab === 'block') void loadBlock() }}
-                    accessibilityRole="button"
-                    accessibilityLabel="Failed to load trades. Tap to retry."
-                >
-                    <Text style={styles.errorBannerText}>Failed to load trades. Tap to retry.</Text>
-                </Pressable>
+                <ErrorBanner
+                    message="Failed to load trades. Tap to retry."
+                    onRetry={() => { void load(); if (tab === 'block') void loadBlock() }}
+                />
             ) : null}
 
             {tab === 'picks' && picksError ? (
@@ -587,14 +584,4 @@ const styles = StyleSheet.create({
 
     emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', marginTop: spacing['4xl'] },
     emptyStateText: { fontSize: fontSize.md, color: colors.textPlaceholder },
-
-    errorBanner: {
-        backgroundColor: colors.dangerLight,
-        paddingHorizontal: spacing.xl,
-        paddingVertical: spacing.md,
-        minHeight: 44,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    errorBannerText: { fontSize: fontSize.sm, color: colors.dangerDark, fontWeight: fontWeight.semibold },
 })
