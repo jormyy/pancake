@@ -10,6 +10,7 @@ import {
 } from '@/lib/draft'
 import type { MockDraftRoomKind } from '@/lib/mockDraftRooms'
 import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { nextRovingIndex } from '@/components/ui/rovingFocus'
 
 type ChipValue = string | number
 export type ChipOption<T extends ChipValue> = {
@@ -65,14 +66,6 @@ export type DraftControlProps = {
     onRookieRoundsChange: (value: RookieRoundOption) => void
     rookieTimerExpiryBehavior: RookieTimerExpiryBehavior
     onRookieTimerExpiryBehaviorChange: (value: RookieTimerExpiryBehavior) => void
-}
-
-function nextChipIndex(currentIndex: number, key: string, count: number): number | null {
-    if (key === 'ArrowRight' || key === 'ArrowDown') return (currentIndex + 1) % count
-    if (key === 'ArrowLeft' || key === 'ArrowUp') return (currentIndex - 1 + count) % count
-    if (key === 'Home') return 0
-    if (key === 'End') return count - 1
-    return null
 }
 
 function draftChipId(idBase: string, value: ChipValue) {
@@ -141,7 +134,7 @@ export function DraftChips<T extends ChipValue>({
     }
 
     function handleKeyDown(event: WebKeyboardEvent, index: number) {
-        const nextIndex = nextChipIndex(index, event.key, options.length)
+        const nextIndex = nextRovingIndex(index, event.key, options.length)
         if (nextIndex == null) return
 
         event.preventDefault?.()

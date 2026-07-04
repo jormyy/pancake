@@ -49,30 +49,44 @@ const syncRuns = createClient<SyncRunsDatabase>(
   { auth: { persistSession: false } },
 )
 
-// Persist a sync_runs row around a scheduled sync so cron health is queryable:
-// running on start, then success with rows_affected or failed with the error.
+// Best-effort sync_runs bookkeeping keeps cron health queryable without putting
+// observability writes on the critical path of the sync itself.
 export async function recordSyncRun<T>(
   functionName: string,
   run: () => Promise<{ result: T; rowsAffected: number | null }>,
 ): Promise<T> {
-  const { data: started, error: startError } = await syncRuns
+  const startedId = await startSyncRun(functionName)
+
+  try {
+    const { result, rowsAffected } = await run()
+    if (startedId) {
+      await finishSyncRun(startedId, { status: 'success', rows_affected: rowsAffected }).catch(
+        (updateError) => console.error(`[${functionName}] could not record successful sync run:`, updateError),
+      )
+    }
+    return result
+  } catch (error) {
+    // Record the failure but never let the bookkeeping mask the sync error.
+    if (startedId) {
+      await finishSyncRun(startedId, { status: 'failed', error: errorMessage(error) }).catch(
+        (updateError) => console.error(`[${functionName}] could not record failed sync run:`, updateError),
+      )
+    }
+    throw error
+  }
+}
+
+async function startSyncRun(functionName: string): Promise<string | null> {
+  const { data, error } = await syncRuns
     .from('sync_runs')
     .insert({ function_name: functionName })
     .select('id')
     .single()
-  if (startError) throw startError
-
-  try {
-    const { result, rowsAffected } = await run()
-    await finishSyncRun(started.id, { status: 'success', rows_affected: rowsAffected })
-    return result
-  } catch (error) {
-    // Record the failure but never let the bookkeeping mask the sync error.
-    await finishSyncRun(started.id, { status: 'failed', error: errorMessage(error) }).catch(
-      (updateError) => console.error(`[${functionName}] could not record failed sync run:`, updateError),
-    )
-    throw error
+  if (error) {
+    console.error(`[${functionName}] could not start sync run record:`, error)
+    return null
   }
+  return data.id
 }
 
 async function finishSyncRun(

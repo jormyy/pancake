@@ -2,6 +2,8 @@ import { useCallback, useEffect, useId, useRef } from 'react'
 import { Platform, ScrollView, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native'
 import { Pressable } from 'react-native'
 import { colors, fontSize, fontWeight, motion, radii, spacing } from '@/constants/tokens'
+import { nextRovingIndex } from '@/components/ui/rovingFocus'
+import { scheduleWebFocusRecovery } from '@/components/ui/webFocus'
 
 export type SegmentOption<T extends string> = {
     label: string
@@ -30,16 +32,7 @@ type WebKeyDownProps = {
     onKeyDown?: (event: WebKeyboardEvent) => void
 }
 
-const FOCUS_RECOVERY_DELAYS = [0, 50, 150, 350, 700, 1200, 2000, 3000] as const
 const INTERACTIVE_ROLES = new Set(['button', 'checkbox', 'combobox', 'link', 'menuitem', 'radio', 'switch', 'textbox'])
-
-function nextSegmentIndex(currentIndex: number, key: string, count: number): number | null {
-    if (key === 'ArrowRight' || key === 'ArrowDown') return (currentIndex + 1) % count
-    if (key === 'ArrowLeft' || key === 'ArrowUp') return (currentIndex - 1 + count) % count
-    if (key === 'Home') return 0
-    if (key === 'End') return count - 1
-    return null
-}
 
 function shouldRecoverFocus(target: HTMLElement) {
     const active = document.activeElement
@@ -53,17 +46,14 @@ function shouldRecoverFocus(target: HTMLElement) {
     return !active.isContentEditable
 }
 
-function focusSegment(idBase: string | undefined, value: string, shouldFocus: () => boolean) {
-    if (!idBase || Platform.OS !== 'web' || typeof document === 'undefined') return
+function focusSegment(idBase: string | undefined, value: string, shouldFocus: () => boolean): (() => void) | null {
+    if (!idBase || Platform.OS !== 'web' || typeof document === 'undefined') return null
     const focus = () => {
         if (!shouldFocus()) return
         const target = document.getElementById(`${idBase}-${value}`)
         if (target instanceof HTMLElement && shouldRecoverFocus(target)) target.focus()
     }
-    for (const delay of FOCUS_RECOVERY_DELAYS) {
-        if (delay === 0) requestAnimationFrame(focus)
-        else setTimeout(focus, delay)
-    }
+    return scheduleWebFocusRecovery(focus)
 }
 
 /** The single tab-switcher / segmented-control primitive (Standings/Activity/…). */
@@ -81,11 +71,15 @@ export function SegmentedControl<T extends string>({
     const effectiveIdBase = idBase ?? `segmented-${generatedId}`
     const pendingFocusValue = useRef<T | null>(null)
     const focusRequestId = useRef(0)
+    const cancelFocusRecovery = useRef<(() => void) | null>(null)
 
     const scheduleSegmentFocus = useCallback((nextValue: T) => {
         const requestId = ++focusRequestId.current
-        focusSegment(effectiveIdBase, nextValue, () => focusRequestId.current === requestId)
+        cancelFocusRecovery.current?.()
+        cancelFocusRecovery.current = focusSegment(effectiveIdBase, nextValue, () => focusRequestId.current === requestId)
     }, [effectiveIdBase])
+
+    useEffect(() => () => cancelFocusRecovery.current?.(), [])
 
     useEffect(() => {
         if (pendingFocusValue.current !== value) return
@@ -100,7 +94,7 @@ export function SegmentedControl<T extends string>({
     }
 
     function handleKeyDown(event: WebKeyboardEvent, index: number) {
-        const nextIndex = nextSegmentIndex(index, event.key, options.length)
+        const nextIndex = nextRovingIndex(index, event.key, options.length)
         if (nextIndex == null) return
 
         event.preventDefault?.()

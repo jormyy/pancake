@@ -15,9 +15,10 @@ import { EmptyState } from '@/components/EmptyState'
 import { IRResolutionModal } from '@/components/IRResolutionModal'
 import { ItemSeparator } from '@/components/ItemSeparator'
 import { PlayerSearchItem } from '@/components/PlayerSearchItem'
-import { FilterSelect, MultiTeamSelect } from '@/components/ui'
+import { FilterSelect, MultiSelect } from '@/components/ui'
 import { playerListStyles as styles } from '@/components/ui/playerListStyles'
 import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { NBA_TEAM_OPTIONS } from '@/constants/nba'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
 import { useQuickAdd } from '@/hooks/use-quick-add'
@@ -354,10 +355,13 @@ export default function ProjectionsScreen() {
                         options={POSITIONS}
                         onChange={setPosition}
                     />
-                    <MultiTeamSelect
+                    <MultiSelect
                         label="Pro team"
+                        options={NBA_TEAM_OPTIONS}
                         selected={selectedTeams}
                         onChange={setSelectedTeams}
+                        pluralLabel="teams"
+                        clearAccessibilityLabel="Clear teams"
                     />
                     <FilterSelect
                         label="Health"

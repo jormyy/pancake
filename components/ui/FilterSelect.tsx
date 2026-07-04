@@ -2,9 +2,7 @@ import { useState } from 'react'
 import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { alpha, colors, fontSize, fontWeight, palette, radii, spacing } from '@/constants/tokens'
 
-const TEAMS = ['ATL', 'BOS', 'BKN', 'CHA', 'CHI', 'CLE', 'DAL', 'DEN', 'DET', 'GSW', 'HOU', 'IND', 'LAC', 'LAL', 'MEM', 'MIA', 'MIL', 'MIN', 'NOP', 'NYK', 'OKC', 'ORL', 'PHI', 'PHX', 'POR', 'SAC', 'SAS', 'TOR', 'UTA', 'WAS']
-
-type FilterOption<T extends string> = { key: T; label: string }
+export type FilterOption<T extends string> = { key: T; label: string }
 
 /** Labeled dropdown filter — opens a centered option sheet. */
 export function FilterSelect<T extends string>({
@@ -63,20 +61,30 @@ export function FilterSelect<T extends string>({
     )
 }
 
-/** Labeled multi-select over the 30 NBA teams — opens a chip-grid sheet. */
-export function MultiTeamSelect({
+export function MultiSelect<T extends string>({
     label,
+    options,
     selected,
     onChange,
+    pluralLabel = 'selected',
+    clearAccessibilityLabel,
 }: {
     label: string
-    selected: string[]
-    onChange: (teams: string[]) => void
+    options: readonly FilterOption<T>[]
+    selected: T[]
+    onChange: (values: T[]) => void
+    pluralLabel?: string
+    clearAccessibilityLabel?: string
 }) {
     const [open, setOpen] = useState(false)
-    const summary = selected.length === 0 ? 'All' : selected.length === 1 ? selected[0] : `${selected.length} teams`
-    const toggle = (team: string) =>
-        onChange(selected.includes(team) ? selected.filter((t) => t !== team) : [...selected, team])
+    const selectedLabels = options.filter((option) => selected.includes(option.key)).map((option) => option.label)
+    const summary = selectedLabels.length === 0
+        ? 'All'
+        : selectedLabels.length === 1
+            ? selectedLabels[0]
+            : `${selectedLabels.length} ${pluralLabel}`
+    const toggle = (key: T) =>
+        onChange(selected.includes(key) ? selected.filter((value) => value !== key) : [...selected, key])
 
     return (
         <View style={styles.filterSelectWrap}>
@@ -96,25 +104,29 @@ export function MultiTeamSelect({
                         <View style={styles.multiHeader}>
                             <Text style={styles.selectTitle}>{label}</Text>
                             {selected.length > 0 ? (
-                                <Pressable onPress={() => onChange([])} accessibilityRole="button" accessibilityLabel="Clear teams">
+                                <Pressable
+                                    onPress={() => onChange([])}
+                                    accessibilityRole="button"
+                                    accessibilityLabel={clearAccessibilityLabel ?? `Clear ${label}`}
+                                >
                                     <Text style={styles.multiClear}>Clear</Text>
                                 </Pressable>
                             ) : null}
                         </View>
                         <ScrollView>
-                            <View style={styles.teamGrid}>
-                                {TEAMS.map((team) => {
-                                    const active = selected.includes(team)
+                            <View style={styles.multiGrid}>
+                                {options.map((option) => {
+                                    const active = selected.includes(option.key)
                                     return (
                                         <Pressable
-                                            key={team}
-                                            style={[styles.teamChip, active && styles.teamChipActive]}
-                                            onPress={() => toggle(team)}
+                                            key={option.key}
+                                            style={[styles.multiChip, active && styles.multiChipActive]}
+                                            onPress={() => toggle(option.key)}
                                             accessibilityRole="checkbox"
                                             accessibilityState={{ checked: active }}
-                                            accessibilityLabel={team}
+                                            accessibilityLabel={option.label}
                                         >
-                                            <Text style={[styles.teamChipText, active && styles.teamChipTextActive]}>{team}</Text>
+                                            <Text style={[styles.multiChipText, active && styles.multiChipTextActive]}>{option.label}</Text>
                                         </Pressable>
                                     )
                                 })}
@@ -203,13 +215,13 @@ const styles = StyleSheet.create({
         fontWeight: fontWeight.bold,
         color: colors.danger,
     },
-    teamGrid: {
+    multiGrid: {
         flexDirection: 'row',
         flexWrap: 'wrap',
         gap: spacing.sm,
         padding: spacing.sm,
     },
-    teamChip: {
+    multiChip: {
         minWidth: 52,
         minHeight: 36,
         alignItems: 'center',
@@ -220,12 +232,12 @@ const styles = StyleSheet.create({
         borderColor: colors.borderLight,
         backgroundColor: colors.bgMuted,
     },
-    teamChipActive: {
+    multiChipActive: {
         backgroundColor: colors.primaryLight,
         borderColor: colors.primaryBorder,
     },
-    teamChipText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.textSecondary },
-    teamChipTextActive: { color: colors.primaryDark },
+    multiChipText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.textSecondary },
+    multiChipTextActive: { color: colors.primaryDark },
     multiDone: {
         marginTop: spacing.sm,
         minHeight: 44,

@@ -94,6 +94,17 @@ describe('Supabase Edge API cutover', () => {
         expect(read('types/database.ts')).toContain('process_due_waiver_claims_atomic')
     })
 
+    it('keeps sync run observability best effort', () => {
+        const syncRuns = read('supabase/functions/_shared/syncRuns.ts')
+
+        expect(syncRuns).toContain('async function startSyncRun')
+        expect(syncRuns).toContain('return null')
+        expect(syncRuns).toContain('const { result, rowsAffected } = await run()')
+        expect(syncRuns).toContain('could not record successful sync run')
+        expect(syncRuns).toContain('could not record failed sync run')
+        expect(syncRuns).not.toContain('if (startError) throw startError')
+    })
+
     it('keeps runtime API defaults environment-bound', () => {
         const api = read('lib/shared/api.ts')
 

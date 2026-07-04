@@ -18,8 +18,9 @@ import { IRResolutionModal } from '@/components/IRResolutionModal'
 import { DropPlayerPickerModal } from '@/components/DropPlayerPickerModal'
 import { PlayerSearchItem } from '@/components/PlayerSearchItem'
 import { NoLeagueState } from '@/components/NoLeagueState'
-import { FilterSelect, MultiTeamSelect } from '@/components/ui'
+import { FilterSelect, MultiSelect } from '@/components/ui'
 import { playerListStyles as styles } from '@/components/ui/playerListStyles'
+import { NBA_TEAM_OPTIONS } from '@/constants/nba'
 import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
 import { usePlayerSearch, SORT_OPTIONS } from '@/hooks/use-player-search'
 import { useAuth } from '@/hooks/use-auth'
@@ -213,10 +214,13 @@ export default function PlayersScreen() {
                         options={POSITIONS}
                         onChange={search.position.setValue}
                     />
-                    <MultiTeamSelect
+                    <MultiSelect
                         label="Pro team"
+                        options={NBA_TEAM_OPTIONS}
                         selected={search.teamPicker.selectedTeams}
                         onChange={search.teamPicker.setSelectedTeams}
+                        pluralLabel="teams"
+                        clearAccessibilityLabel="Clear teams"
                     />
                     <FilterSelect
                         label="Health"

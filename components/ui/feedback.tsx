@@ -5,6 +5,8 @@ import Animated, { FadeIn, FadeOut, SlideInUp, SlideOutUp } from 'react-native-r
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { colors, elevation, fontSize, fontWeight, radii, scrim, spacing } from '@/constants/tokens'
 import { Button } from './Button'
+import { focusableDialogElements, trapDialogTabFocus, type DialogKeyboardEvent } from './dialogFocus'
+import { scheduleWebFocusRecovery } from './webFocus'
 
 type ToastVariant = 'info' | 'success' | 'warning' | 'error'
 
@@ -18,13 +20,8 @@ type ConfirmInput = {
     cancelText?: string
     destructive?: boolean
 }
-type WebKeyboardEvent = {
-    key: string
-    shiftKey?: boolean
-    preventDefault?: () => void
-}
 type WebKeyDownProps = {
-    onKeyDown?: (event: WebKeyboardEvent) => void
+    onKeyDown?: (event: DialogKeyboardEvent) => void
 }
 
 type FeedbackApi = {
@@ -50,49 +47,6 @@ const VARIANT_META: Record<ToastVariant, { icon: ComponentIcon; color: string; b
 type ComponentIcon = 'info' | 'check-circle' | 'warning' | 'error'
 
 let toastSeq = 1
-const DIALOG_FOCUS_DELAYS = [0, 50, 150, 350, 700, 1200, 2000, 3000] as const
-const DIALOG_FOCUSABLE_SELECTOR = [
-    'button:not([disabled])',
-    '[href]',
-    'input:not([disabled])',
-    'select:not([disabled])',
-    'textarea:not([disabled])',
-    '[role="button"]:not([aria-disabled="true"])',
-    '[tabindex]:not([tabindex="-1"])',
-].join(',')
-
-function focusableDialogElements(dialog: HTMLElement) {
-    return Array.from(dialog.querySelectorAll<HTMLElement>(DIALOG_FOCUSABLE_SELECTOR))
-        .filter((element) => element.offsetParent !== null || element.getClientRects().length > 0)
-}
-
-function trapDialogTabFocus(dialogContainerId: string, event: WebKeyboardEvent) {
-    if (event.key !== 'Tab' || Platform.OS !== 'web' || typeof document === 'undefined') return
-
-    const dialog = document.getElementById(dialogContainerId)
-    if (!(dialog instanceof HTMLElement)) return
-
-    const focusableElements = focusableDialogElements(dialog)
-    event.preventDefault?.()
-
-    if (!focusableElements.length) {
-        dialog.focus()
-        return
-    }
-
-    const active = document.activeElement
-    const first = focusableElements[0]
-    const last = focusableElements[focusableElements.length - 1]
-
-    if (event.shiftKey) {
-        if (active === first || active === dialog || !dialog.contains(active)) last.focus()
-        else focusableElements[Math.max(0, focusableElements.indexOf(active as HTMLElement) - 1)]?.focus()
-        return
-    }
-
-    if (active === last || active === dialog || !dialog.contains(active)) first.focus()
-    else focusableElements[Math.min(focusableElements.length - 1, focusableElements.indexOf(active as HTMLElement) + 1)]?.focus()
-}
 
 export function FeedbackProvider({ children }: { children: ReactNode }) {
     const insets = useSafeAreaInsets()
@@ -151,9 +105,7 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
     }, [api])
 
     useEffect(() => {
-        if (!confirmState || Platform.OS !== 'web' || typeof document === 'undefined' || typeof window === 'undefined') return
-        const timeoutIds: number[] = []
-        let frame: number | null = null
+        if (!confirmState || Platform.OS !== 'web' || typeof document === 'undefined') return
         const focusDialog = () => {
             const dialog = document.getElementById(dialogContainerId)
             if (!(dialog instanceof HTMLElement)) return
@@ -167,14 +119,7 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
             if (firstAction) firstAction.focus()
             else dialog.focus()
         }
-        for (const delay of DIALOG_FOCUS_DELAYS) {
-            if (delay === 0) frame = window.requestAnimationFrame(focusDialog)
-            else timeoutIds.push(window.setTimeout(focusDialog, delay))
-        }
-        return () => {
-            if (frame != null) window.cancelAnimationFrame(frame)
-            for (const timeoutId of timeoutIds) window.clearTimeout(timeoutId)
-        }
+        return scheduleWebFocusRecovery(focusDialog)
     }, [confirmState, dialogContainerId])
 
     const closeConfirm = (result: boolean) => {
