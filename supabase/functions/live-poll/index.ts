@@ -59,46 +59,57 @@ serveInternal('live-poll', async () => {
       return Response.json({ ok: true, action: 'idle' })
     }
 
-    let statusUpdates = 0
     let nowActive = 0
     const allDone = cdnGames.length > 0 && cdnGames.every((game) => game.gameStatus === 3)
 
+    const { data: existingGames, error: existingError } = await supabase
+      .from('nba_games')
+      .select('id, nba_game_id, status, home_score, away_score, game_status_text, game_date, home_team, away_team, season_year, week_number')
+      .in('nba_game_id', cdnGames.map((g) => g.gameId))
+    if (existingError) throw existingError
+
+    const existingByGameId = new Map((existingGames ?? []).map((game) => [game.nba_game_id, game]))
+    const updatedAt = new Date().toISOString()
+    const gameUpdates = []
     for (const g of cdnGames) {
       const newStatus = mapGameStatus(g.gameStatus)
       if (g.gameStatus === 2) nowActive++
 
-      const { data: existing, error: existingError } = await supabase
-        .from('nba_games')
-        .select('id, status, home_score, away_score, game_status_text')
-        .eq('nba_game_id', g.gameId)
-        .maybeSingle()
-      if (existingError) throw existingError
+      const existing = existingByGameId.get(g.gameId)
+      if (!existing) continue
 
       const homeScore = g.homeTeam.score ?? 0
       const awayScore = g.awayTeam.score ?? 0
       const gameStatusText = g.gameStatusText ?? ''
       if (
-        existing && (
-          existing.status !== newStatus ||
-          existing.home_score !== homeScore ||
-          existing.away_score !== awayScore ||
-          existing.game_status_text !== gameStatusText
-        )
+        existing.status !== newStatus ||
+        existing.home_score !== homeScore ||
+        existing.away_score !== awayScore ||
+        existing.game_status_text !== gameStatusText
       ) {
-        const { error: updateError } = await supabase
-          .from('nba_games')
-          .update({
-            status: newStatus,
-            home_score: homeScore,
-            away_score: awayScore,
-            game_status_text: gameStatusText,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', existing.id)
-        if (updateError) throw updateError
-        statusUpdates++
+        gameUpdates.push({
+          id: existing.id,
+          game_date: existing.game_date,
+          home_team: existing.home_team,
+          away_team: existing.away_team,
+          season_year: existing.season_year,
+          week_number: existing.week_number,
+          status: newStatus,
+          home_score: homeScore,
+          away_score: awayScore,
+          game_status_text: gameStatusText,
+          updated_at: updatedAt,
+        })
       }
     }
+
+    if (gameUpdates.length > 0) {
+      const { error: updateError } = await supabase
+        .from('nba_games')
+        .upsert(gameUpdates, { onConflict: 'id' })
+      if (updateError) throw updateError
+    }
+    const statusUpdates = gameUpdates.length
 
     const shouldSync = nowActive > 0 || allDone || (activeGames?.length ?? 0) > 0
     if (shouldSync) {
