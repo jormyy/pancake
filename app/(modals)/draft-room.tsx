@@ -33,7 +33,7 @@ import {
     NOMINATION_ORDER_MODE_LABELS,
 } from '@/lib/draft'
 import { RealtimeChannel } from '@supabase/supabase-js'
-import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { alpha, colors, fontFamily, fontSize, fontWeight, palette, radii, spacing } from '@/constants/tokens'
 import { showAlert, confirmAction, getErrorMessage } from '@/lib/alert'
 import { MotionPressable, MotionView } from '@/components/Motion'
 
@@ -399,6 +399,9 @@ export default function DraftRoomScreen() {
         : undefined
 
     const iAmBankrupt = (myBudget?.remaining ?? 0) < 1
+    // Hot final seconds — the clock and the nomination card shift to the danger
+    // accent together so the whole block reads as "going once, going twice".
+    const clockUrgent = !isPaused && openNomination != null && timeLeft <= 10
     // Min bid is current + 1, floored at 1
     const minBid = Math.max(1, (openNomination?.currentBidAmount ?? 0) + 1)
     const remainingBudget = myBudget?.remaining ?? Infinity
@@ -491,7 +494,7 @@ export default function DraftRoomScreen() {
             >
                 {/* Nomination on the clock */}
                 {openNomination ? (
-                    <View style={[styles.card, compactLandscape && styles.cardCompact]}>
+                    <View style={[styles.card, compactLandscape && styles.cardCompact, clockUrgent && styles.cardUrgent]}>
                         <View style={[styles.liveAuctionLayout, compactLandscape && styles.liveAuctionLayoutCompact]}>
                             <View style={styles.livePlayerInfo}>
                                 <Text style={styles.cardLabel}>ON THE BLOCK</Text>
@@ -510,12 +513,12 @@ export default function DraftRoomScreen() {
                             <View style={[styles.liveBidPanel, compactLandscape && styles.liveBidPanelCompact]}>
                                 <View style={[styles.bidRow, compactLandscape && styles.bidRowCompact]}>
                                     <View style={styles.bidInfo}>
-                                        <Text style={styles.bidAmount}>
+                                        <Text style={[styles.bidAmount, iAmLeading && styles.bidAmountLeading]}>
                                             {openNomination.currentBidAmount > 0
                                                 ? `$${openNomination.currentBidAmount}`
                                                 : '—'}
                                         </Text>
-                                        <Text style={styles.bidLeader}>
+                                        <Text style={[styles.bidLeader, iAmLeading && styles.bidLeaderLeading]}>
                                             {openNomination.currentBidderId == null
                                                 ? 'No bids yet'
                                                 : iAmLeading
@@ -523,13 +526,12 @@ export default function DraftRoomScreen() {
                                                   : `${leadingTeam} leads`}
                                         </Text>
                                     </View>
-                                    <View
-                                        style={[styles.countdown, !isPaused && timeLeft <= 10 && styles.countdownUrgent]}
-                                    >
+                                    <View style={[styles.countdown, clockUrgent && styles.countdownUrgent]}>
                                         <Text
                                             style={[
                                                 styles.countdownText,
-                                                !isPaused && timeLeft <= 10 && styles.countdownTextUrgent,
+                                                isPaused && styles.countdownTextPaused,
+                                                clockUrgent && styles.countdownTextUrgent,
                                             ]}
                                         >
                                             {isPaused ? 'Paused' : `0:${String(timeLeft).padStart(2, '0')}`}
@@ -720,6 +722,37 @@ export default function DraftRoomScreen() {
                     </View>
                 )}
 
+                {/* Live ticker — the last few hammer results, so the room feels
+                    like an auction floor. Honest data only: these are real
+                    closed nominations from state (per-bid history isn't held
+                    client-side). */}
+                {closedNominations.length > 0 ? (
+                    <View style={styles.activityStrip}>
+                        <Text style={styles.activityLabel}>Recent activity</Text>
+                        <View style={styles.activityItems}>
+                            {closedNominations.slice(0, 3).map((n) => {
+                                const winnerTeam = n.winningMemberId
+                                    ? budgetByMember.get(n.winningMemberId)?.teamName
+                                    : undefined
+                                return (
+                                    <View key={n.id} style={styles.activityItem}>
+                                        <Text style={styles.activityText} numberOfLines={1}>
+                                            {n.status === 'sold'
+                                                ? `${winnerTeam ?? 'Unknown'} won ${n.player?.displayName ?? 'Unknown'}`
+                                                : n.status === 'withdrawn'
+                                                  ? `${n.player?.displayName ?? 'Unknown'} withdrawn`
+                                                  : `${n.player?.displayName ?? 'Unknown'} went unsold`}
+                                        </Text>
+                                        {n.status === 'sold' ? (
+                                            <Text style={styles.activityPrice}>${n.finalPrice}</Text>
+                                        ) : null}
+                                    </View>
+                                )
+                            })}
+                        </View>
+                    </View>
+                ) : null}
+
                 {/* Tab switcher */}
                 <View style={styles.tabRow}>
                     {(['budgets', 'history'] as DraftTab[]).map((t) => (
@@ -854,7 +887,8 @@ const styles = StyleSheet.create({
         flex: 1,
         color: colors.textPrimary,
         fontSize: fontSize.lg,
-        fontWeight: fontWeight.extrabold,
+        fontFamily: fontFamily.display,
+        fontWeight: fontWeight.bold,
     },
     budgetChip: {
         backgroundColor: colors.primaryLight,
@@ -946,9 +980,26 @@ const styles = StyleSheet.create({
         marginTop: spacing.xs,
     },
     bidRowCompact: { marginTop: 0 },
-    bidInfo: { gap: spacing.xxs },
-    bidAmount: { fontSize: fontSize['3xl'], fontWeight: fontWeight.extrabold, color: colors.primaryDark },
+    bidInfo: { gap: spacing.xs },
+    bidAmount: {
+        fontSize: fontSize['4xl'],
+        fontFamily: fontFamily.display,
+        fontWeight: fontWeight.bold,
+        color: colors.primaryDark,
+        letterSpacing: -0.5,
+    },
+    bidAmountLeading: { color: colors.successDark },
     bidLeader: { fontSize: fontSize.sm, color: colors.textMuted },
+    bidLeaderLeading: {
+        color: colors.successDark,
+        fontWeight: fontWeight.bold,
+        backgroundColor: colors.successLight,
+        paddingHorizontal: spacing.md,
+        paddingVertical: 2,
+        borderRadius: radii.full,
+        overflow: 'hidden' as const,
+        alignSelf: 'flex-start' as const,
+    },
 
     countdown: {
         width: 60,
@@ -959,9 +1010,60 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
-    countdownUrgent: { backgroundColor: colors.dangerLight },
-    countdownText: { fontSize: 18, fontWeight: fontWeight.extrabold, color: colors.textSecondary },
-    countdownTextUrgent: { color: colors.danger },
+    countdownUrgent: {
+        backgroundColor: colors.dangerLight,
+        borderWidth: 2,
+        borderColor: colors.danger,
+    },
+    countdownText: {
+        fontSize: 18,
+        fontFamily: fontFamily.display,
+        fontWeight: fontWeight.bold,
+        color: colors.textSecondary,
+    },
+    countdownTextPaused: { fontSize: fontSize.sm },
+    countdownTextUrgent: { color: colors.dangerDark },
+    cardUrgent: {
+        borderColor: colors.danger,
+        borderWidth: 1.5,
+        boxShadow: `0 0 0 3px ${alpha(palette.red500, 0.14)}`,
+    },
+
+    activityStrip: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: spacing.md,
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.sm,
+        borderRadius: radii.md,
+        borderCurve: 'continuous' as const,
+        backgroundColor: colors.bgMuted,
+    },
+    activityLabel: {
+        fontSize: 10,
+        fontWeight: fontWeight.extrabold,
+        letterSpacing: 0.6,
+        textTransform: 'uppercase' as const,
+        color: colors.textMuted,
+    },
+    activityItems: {
+        flex: 1,
+        minWidth: 200,
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        columnGap: spacing.xl,
+        rowGap: spacing.xxs,
+    },
+    activityItem: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.xs, maxWidth: '100%' },
+    activityText: { fontSize: fontSize.sm, color: colors.textSecondary, flexShrink: 1 },
+    activityPrice: {
+        fontSize: fontSize.sm,
+        fontFamily: fontFamily.display,
+        fontWeight: fontWeight.bold,
+        color: colors.primaryDark,
+    },
 
     bidInputRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.md, marginTop: spacing.xs },
     bidStepGroup: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },

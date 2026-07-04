@@ -130,46 +130,42 @@ const styles = StyleSheet.create({
         paddingHorizontal: spacing.xl,
         paddingVertical: 11,
     },
+    // Narrow rows stay a single aligned line: rank + name on the left, then
+    // fixed-width numeric columns (W-L, PF, PA) — a mini-table, not pill chips.
     standingsRowNarrow: {
-        flexDirection: 'column',
-        alignItems: 'stretch',
-        paddingVertical: spacing.xs,
-        gap: spacing.xxs,
+        paddingVertical: spacing.md,
+        gap: spacing.sm,
     },
     standingsRowMe: { backgroundColor: colors.primaryLight },
     standingsHeader: { borderBottomWidth: 1, borderBottomColor: colors.borderLight, paddingVertical: spacing.md },
-    standingsHeaderNarrow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: spacing.xl,
-        paddingVertical: 0,
-        gap: spacing.sm,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.borderLight,
-    },
+    standingsHeaderNarrow: { paddingVertical: 0 },
     standingsHeaderText: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.textPlaceholder },
     standingsHeaderActive: { color: colors.primaryDark },
     standingsRank: { width: 24, fontSize: fontSize.md, fontWeight: fontWeight.bold, color: colors.textSecondary },
-    standingsRankNarrow: { width: 28, textAlign: 'center' },
+    standingsRankNarrow: { width: 22, fontSize: fontSize.sm },
     standingsTeam: { flex: 1, minWidth: 72, paddingRight: spacing.md, fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textPrimary },
     standingsTeamWrap: { flex: 1, minWidth: 72, paddingRight: spacing.md, alignItems: 'flex-start', justifyContent: 'center', gap: spacing.xxs },
     standingsTeamWrapNarrow: { minWidth: 0, paddingRight: 0, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
     // Link-colored so every row (not just "You") reads as a tappable roster.
     standingsTeamName: { flex: 1, minWidth: 0, fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.primaryDark },
-    standingsIdentityNarrow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minWidth: 0 },
-    standingsStatsNarrow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, paddingLeft: 40 },
-    standingsStatNarrow: {
-        minHeight: 26,
-        paddingHorizontal: spacing.md,
-        borderRadius: radii.sm,
-        borderCurve: 'continuous' as const,
-        backgroundColor: colors.bgSubtle,
-        borderWidth: 1,
-        borderColor: colors.borderLight,
-        justifyContent: 'center',
+    standingsTeamNameNarrow: { fontSize: fontSize.sm },
+    standingsRecordNarrow: {
+        width: 52,
+        textAlign: 'right',
+        fontSize: fontSize.sm,
+        fontWeight: fontWeight.semibold,
+        color: colors.textSecondary,
+        fontVariant: ['tabular-nums'] as const,
     },
-    standingsStatTextNarrow: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.textSecondary },
-    standingsStatLabelNarrow: { color: colors.textPlaceholder, textTransform: 'uppercase' },
+    standingsPtsNarrow: {
+        width: 58,
+        textAlign: 'right',
+        fontSize: fontSize.sm,
+        color: colors.textSecondary,
+        fontVariant: ['tabular-nums'] as const,
+    },
+    standingsRecordColNarrow: { width: 52 },
+    standingsPtsColNarrow: { width: 58 },
     standingsYouPill: {
         paddingHorizontal: spacing.sm,
         paddingVertical: 2,
@@ -181,21 +177,27 @@ const styles = StyleSheet.create({
     standingsCell: { width: 44, textAlign: 'center', fontSize: fontSize.md, color: colors.textSecondary },
     standingsPts: { width: 64, textAlign: 'center', fontSize: fontSize.sm, color: colors.textSecondary },
     standingsSortCell: { minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+    // Narrow sort cells align with the mini-table's numeric columns instead of
+    // rendering a second row of pill chips.
     standingsSortCellNarrow: {
         minHeight: 44,
-        minWidth: 64,
-        paddingHorizontal: spacing.md,
-        borderRadius: radii.md,
-        borderCurve: 'continuous' as const,
-        borderWidth: 1,
-        borderColor: colors.borderLight,
-        backgroundColor: colors.bgSubtle,
-        alignItems: 'center',
+        alignItems: 'flex-end',
         justifyContent: 'center',
     },
-    standingsSortCellNarrowActive: {
-        borderColor: colors.primary,
-        backgroundColor: colors.primaryLight,
+    playoffCutRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.md,
+        paddingHorizontal: spacing.xl,
+        paddingVertical: spacing.xs,
+    },
+    playoffCutRule: { flex: 1, height: 1, backgroundColor: colors.border },
+    playoffCutLabel: {
+        fontSize: 10,
+        fontWeight: fontWeight.bold,
+        color: colors.textMuted,
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
     },
     standingsSortLiveStatus: {
         position: 'absolute',
@@ -279,9 +281,22 @@ const styles = StyleSheet.create({
         borderBottomColor: colors.borderLight,
         backgroundColor: colors.bgCard,
     },
+    // Title/copy and the info chips flow in one wrapping line so the compact
+    // intro costs one line where space allows (two on 360px phones).
+    standingsCompactLine: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        columnGap: spacing.sm,
+        rowGap: spacing.xs,
+    },
     standingsCompactIntroText: {
+        flexGrow: 1,
+        flexShrink: 1,
         minWidth: 0,
-        gap: spacing.xxs,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.sm,
     },
     standingsCompactIntroTitle: {
         color: colors.textPrimary,
@@ -291,6 +306,8 @@ const styles = StyleSheet.create({
         letterSpacing: 0,
     },
     standingsCompactIntroCopy: {
+        flex: 1,
+        minWidth: 0,
         color: colors.textSecondary,
         fontSize: fontSize.xs,
         fontWeight: fontWeight.medium,
@@ -301,8 +318,8 @@ const styles = StyleSheet.create({
         gap: spacing.xs,
     },
     standingsCompactStat: {
-        minHeight: 28,
-        paddingHorizontal: spacing.md,
+        minHeight: 24,
+        paddingHorizontal: spacing.sm,
         borderRadius: radii.md,
         borderCurve: 'continuous' as const,
         backgroundColor: colors.bgSubtle,
@@ -369,6 +386,14 @@ const styles = StyleSheet.create({
         padding: spacing['2xl'],
         alignItems: 'center',
         justifyContent: 'center',
+    },
+    activityHiddenHeading: {
+        position: 'absolute',
+        width: 1,
+        height: 1,
+        margin: -1,
+        overflow: 'hidden',
+        opacity: 0,
     },
 
     picksBankHeader: {
@@ -500,23 +525,8 @@ const styles = StyleSheet.create({
 })
 
 
-function StandingsStat({
-    label,
-    value,
-    isMe,
-}: {
-    label: string
-    value: string | number
-    isMe: boolean
-}) {
-    return (
-        <View style={styles.standingsStatNarrow}>
-            <Text style={[styles.standingsStatTextNarrow, isMe && styles.standingsMe]} numberOfLines={1}>
-                <Text style={styles.standingsStatLabelNarrow}>{label} </Text>
-                {value}
-            </Text>
-        </View>
-    )
+function standingsRecordLabel(item: StandingRow) {
+    return item.ties > 0 ? `${item.wins}-${item.losses}-${item.ties}` : `${item.wins}-${item.losses}`
 }
 
 function StandingsRow({
@@ -549,27 +559,26 @@ function StandingsRow({
         >
             {narrow ? (
                 <>
-                    <View style={styles.standingsIdentityNarrow}>
-                        <Text style={[styles.standingsRank, styles.standingsRankNarrow, isMe && styles.standingsMe]}>{index + 1}</Text>
-                        <View style={[styles.standingsTeamWrap, styles.standingsTeamWrapNarrow]}>
-                            <Text style={[styles.standingsTeamName, isMe && styles.standingsMe]} numberOfLines={1}>
-                                {item.teamName}
-                            </Text>
-                            {isMe ? (
-                                <View style={styles.standingsYouPill} aria-hidden accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-                                    <Text style={styles.standingsYouText}>You</Text>
-                                </View>
-                            ) : null}
-                        </View>
+                    <Text style={[styles.standingsRank, styles.standingsRankNarrow, isMe && styles.standingsMe]}>{index + 1}</Text>
+                    <View style={[styles.standingsTeamWrap, styles.standingsTeamWrapNarrow]}>
+                        <Text style={[styles.standingsTeamName, styles.standingsTeamNameNarrow, isMe && styles.standingsMe]} numberOfLines={1}>
+                            {item.teamName}
+                        </Text>
+                        {isMe ? (
+                            <View style={styles.standingsYouPill} aria-hidden accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+                                <Text style={styles.standingsYouText}>You</Text>
+                            </View>
+                        ) : null}
                     </View>
-                    <View style={styles.standingsStatsNarrow}>
-                        <StandingsStat label="W" value={item.wins} isMe={isMe} />
-                        <StandingsStat label="L" value={item.losses} isMe={isMe} />
-                        <StandingsStat label="T" value={item.ties} isMe={isMe} />
-                        <StandingsStat label="PF" value={item.pointsFor.toFixed(1)} isMe={isMe} />
-                        {showMaxPf ? <StandingsStat label="MAX PF" value={item.maxPointsFor.toFixed(1)} isMe={isMe} /> : null}
-                        {showPa ? <StandingsStat label="PA" value={item.pointsAgainst.toFixed(1)} isMe={isMe} /> : null}
-                    </View>
+                    <Text style={[styles.standingsRecordNarrow, isMe && styles.standingsMe]} numberOfLines={1}>
+                        {standingsRecordLabel(item)}
+                    </Text>
+                    <Text style={[styles.standingsPtsNarrow, isMe && styles.standingsMe]} numberOfLines={1}>
+                        {item.pointsFor.toFixed(1)}
+                    </Text>
+                    <Text style={[styles.standingsPtsNarrow, isMe && styles.standingsMe]} numberOfLines={1}>
+                        {item.pointsAgainst.toFixed(1)}
+                    </Text>
                 </>
             ) : (
                 <>
@@ -614,11 +623,14 @@ const StandingsListHeader = ({
     const arrow = (key: StandingsSortKey) =>
         sortBy === key ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''
     const sortControlsLabel = standingsSortControlsAccessibilityLabel(sortBy, sortDir)
-    const narrowSortButton = (key: StandingsSortKey, label: string) => (
+    // Narrow sort cells double as the mini-table's column headers, so they sit
+    // right above the numbers they sort instead of forming a chip row.
+    const narrowSortButton = (key: StandingsSortKey, label: string, colStyle: object) => (
         <Pressable
             key={key}
-            style={[styles.standingsSortCellNarrow, sortBy === key && styles.standingsSortCellNarrowActive]}
+            style={[styles.standingsSortCellNarrow, colStyle]}
             onPress={() => onSort(key)}
+            hitSlop={6}
             role="button"
             aria-label={standingsSortAccessibilityLabel(key, sortBy, sortDir)}
             aria-controls={STANDINGS_LIST_ID}
@@ -645,15 +657,16 @@ const StandingsListHeader = ({
                     <Text>{sortControlsLabel}</Text>
                 </View>
                 <View
-                    style={styles.standingsHeaderNarrow}
+                    style={[styles.standingsRow, styles.standingsRowNarrow, styles.standingsHeader, styles.standingsHeaderNarrow]}
                     role="toolbar"
                     aria-label={sortControlsLabel}
                     accessibilityLabel={sortControlsLabel}
                 >
-                    {narrowSortButton('wins', 'Wins')}
-                    {narrowSortButton('pf', 'PF')}
-                    {showMaxPf ? narrowSortButton('maxPf', 'Max PF') : null}
-                    {showPa ? narrowSortButton('pa', 'PA') : null}
+                    <Text style={[styles.standingsRank, styles.standingsRankNarrow, styles.standingsHeaderText]} accessibilityLabel="Rank">#</Text>
+                    <Text style={[styles.standingsTeam, styles.standingsHeaderText]} accessibilityLabel="Team name">Team</Text>
+                    {narrowSortButton('wins', 'W-L', styles.standingsRecordColNarrow)}
+                    {narrowSortButton('pf', 'PF', styles.standingsPtsColNarrow)}
+                    {showPa ? narrowSortButton('pa', 'PA', styles.standingsPtsColNarrow) : null}
                 </View>
             </Fragment>
         )
@@ -883,7 +896,7 @@ function StandingsIntro({
             accessibilityState={{ busy: loading }}
         >
             <View>
-                <Text style={styles.standingsIntroTitle}>{intro.title}</Text>
+                <Text style={styles.standingsIntroTitle} role="heading" aria-level={2}>{intro.title}</Text>
                 <Text style={styles.standingsIntroCopy}>{intro.copy}</Text>
             </View>
             <View style={styles.standingsIntroStats}>
@@ -909,6 +922,31 @@ function StandingsIntro({
                     <Text style={styles.standingsIntroActionText}>Open Bracket</Text>
                 </Pressable>
             ) : null}
+        </View>
+    )
+}
+
+// Mirrors the server bracket seeding convention (supabase/migrations/
+// 20260628000008_edge_atomic_playoffs.sql): leagues with 10+ teams send 6 to
+// the bracket, smaller leagues send the top 4. There is no client-visible
+// playoff team-count setting, so the cutoff is derived from league size.
+function playoffTeamCount(teamCount: number) {
+    return teamCount >= 10 ? 6 : 4
+}
+
+function PlayoffCutLine({ teamCount }: { teamCount: number }) {
+    const label = `Playoff line: the top ${teamCount} teams qualify for the playoffs`
+    return (
+        <View
+            style={styles.playoffCutRow}
+            role="separator"
+            aria-label={label}
+            accessibilityRole="text"
+            accessibilityLabel={label}
+        >
+            <View style={styles.playoffCutRule} />
+            <Text style={styles.playoffCutLabel}>Playoff line</Text>
+            <View style={styles.playoffCutRule} />
         </View>
     )
 }
@@ -960,16 +998,18 @@ function CompactStandingsIntro({
             accessibilityLiveRegion="polite"
             accessibilityState={{ busy: loading }}
         >
-            <View style={styles.standingsCompactIntroText}>
-                <Text style={styles.standingsCompactIntroTitle} numberOfLines={1}>{intro.title}</Text>
-                <Text style={styles.standingsCompactIntroCopy} numberOfLines={1}>{intro.copy}</Text>
-            </View>
-            <View style={styles.standingsCompactStats}>
-                {[teamStat, recordStat, pointsStat].map((stat) => (
-                    <View key={stat} style={styles.standingsCompactStat}>
-                        <Text style={styles.standingsCompactStatText} numberOfLines={1}>{stat}</Text>
-                    </View>
-                ))}
+            <View style={styles.standingsCompactLine}>
+                <View style={styles.standingsCompactIntroText}>
+                    <Text style={styles.standingsCompactIntroTitle} numberOfLines={1} role="heading" aria-level={2}>{intro.title}</Text>
+                    <Text style={styles.standingsCompactIntroCopy} numberOfLines={1}>{intro.copy}</Text>
+                </View>
+                <View style={styles.standingsCompactStats}>
+                    {[teamStat, recordStat, pointsStat].map((stat) => (
+                        <View key={stat} style={styles.standingsCompactStat}>
+                            <Text style={styles.standingsCompactStatText} numberOfLines={1}>{stat}</Text>
+                        </View>
+                    ))}
+                </View>
             </View>
             {status === 'playoffs' ? <CompactPlayoffBracketAction onOpenBracket={onOpenBracket} embedded /> : null}
         </View>
@@ -1086,8 +1126,10 @@ export function StandingsTable({
     const compactPhoneLandscape = compactLandscape && viewportWidth < 700
     const narrowRows = viewportWidth < 440 || compactPhoneLandscape
     const compactHeader = compactLandscape || narrowRows
-    const showPa = viewportWidth >= 440
-    const showMaxPf = viewportWidth >= 560
+    // Narrow rows always carry the PA column in the mini-table; MAX PF only
+    // rides in the full-width desktop table.
+    const showPa = narrowRows || viewportWidth >= 440
+    const showMaxPf = viewportWidth >= 560 && !narrowRows
 
     useEffect(() => {
         if (Platform.OS !== 'web' || typeof window === 'undefined') return
@@ -1125,6 +1167,11 @@ export function StandingsTable({
         }
     }
     const listAccessibilityLabel = standingsListAccessibilityLabel(leagueStatus, sorted.length, sortBy, sortDir)
+    // The cut line only makes sense while the table reads in seed order
+    // (default wins-desc sort); any other sort scrambles seeding.
+    const cutTeamCount = playoffTeamCount(sorted.length)
+    const playoffCutIndex =
+        sortBy === 'wins' && sortDir === 'desc' && sorted.length > cutTeamCount ? cutTeamCount : -1
     const emptyState = loading
         ? {
               message: 'Loading standings...',
@@ -1165,7 +1212,11 @@ export function StandingsTable({
         >
             {sorted.map((item, index) => (
                 <Fragment key={item.memberId}>
-                    {index > 0 ? <ItemSeparator /> : null}
+                    {index === playoffCutIndex ? (
+                        <PlayoffCutLine teamCount={cutTeamCount} />
+                    ) : index > 0 ? (
+                        <ItemSeparator />
+                    ) : null}
                     <View role="listitem" accessibilityRole="text">
                         <StandingsRow
                             item={item}
@@ -1372,6 +1423,14 @@ export function ActivityFeed({
         </View>
     )
 
+    // Visually hidden section heading so the feed lands in the page outline
+    // (League name is the screen's h1).
+    const ActivityHeading = (
+        <Text style={styles.activityHiddenHeading} role="heading" aria-level={2} accessibilityRole="header">
+            Activity
+        </Text>
+    )
+
     return (
         <FlashList
             key={compactLandscape ? 'compact-activity' : 'activity'}
@@ -1379,6 +1438,7 @@ export function ActivityFeed({
             keyExtractor={(t) => t.id}
             ItemSeparatorComponent={ItemSeparator}
             renderItem={renderItem}
+            ListHeaderComponent={ActivityHeading}
             ListFooterComponent={ListFooter}
             ListEmptyComponent={ListEmpty}
             extraData={compactLandscape}
@@ -1618,12 +1678,12 @@ function PicksLedgerHeader({
             >
                 {compact ? (
                     <View style={styles.picksLedgerCompactSummary}>
-                        <Text style={styles.picksLedgerCompactTitle} numberOfLines={1}>Draft assets</Text>
+                        <Text style={styles.picksLedgerCompactTitle} numberOfLines={1} role="heading" aria-level={2}>Draft assets</Text>
                         <Text style={styles.picksLedgerCompactCopy} numberOfLines={1}>{compactCopy}</Text>
                     </View>
                 ) : (
                     <View>
-                        <Text style={styles.picksLedgerTitle}>Draft assets</Text>
+                        <Text style={styles.picksLedgerTitle} role="heading" aria-level={2}>Draft assets</Text>
                         <Text style={styles.picksLedgerCopy}>
                             {intro.copy}
                         </Text>

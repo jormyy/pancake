@@ -357,7 +357,12 @@ export default function LeagueScreen() {
                             accessibilityRole="text"
                             accessibilityLabel={compactIdentityLabel}
                         >
-                            <Text style={styles.compactLeagueName} numberOfLines={1}>
+                            <Text
+                                style={styles.compactLeagueName}
+                                numberOfLines={1}
+                                role="heading"
+                                aria-level={1}
+                            >
                                 {currentLeagueName}
                             </Text>
                             <View
@@ -373,7 +378,12 @@ export default function LeagueScreen() {
                     ) : (
                         <View style={styles.headerTop}>
                             <View style={styles.headerInfo}>
-                                <Text style={styles.currentLeagueName} numberOfLines={2}>
+                                <Text
+                                    style={styles.currentLeagueName}
+                                    numberOfLines={2}
+                                    role="heading"
+                                    aria-level={1}
+                                >
                                     {currentLeagueName}
                                 </Text>
                                 <Text style={styles.teamName} numberOfLines={1}>
@@ -405,7 +415,7 @@ const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgScreen },
     contentWrap: { flex: 1, width: '100%', maxWidth: layout.contentMaxWidth, alignSelf: 'center' },
     header: { padding: spacing['2xl'], borderBottomWidth: 1, borderBottomColor: colors.borderLight, gap: spacing.lg },
-    headerCompact: { paddingVertical: spacing.lg, gap: spacing.md },
+    headerCompact: { paddingVertical: spacing.sm, gap: spacing.sm },
     headerTop: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.lg },
     headerInfo: { flex: 1, minWidth: 0, gap: spacing.xxs },
     currentLeagueName: { fontSize: fontSize.xl, fontWeight: fontWeight.extrabold, color: colors.textPrimary },
@@ -445,7 +455,7 @@ const styles = StyleSheet.create({
         borderColor: colors.borderLight,
         backgroundColor: colors.bgCard,
     },
-    phaseWrapCompact: { gap: spacing.sm, padding: spacing.md },
+    phaseWrapCompact: { gap: spacing.xs, padding: spacing.sm },
     phaseCompactSummary: {
         minHeight: 20,
         flexDirection: 'row',
@@ -513,7 +523,15 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: colors.borderLight,
     },
-    phaseStepCompact: { minHeight: 44, flexBasis: 64 },
+    // Compact: icon + label side by side in a short strip so the phase rail
+    // costs one slim line instead of a 44px tile row on small phones.
+    phaseStepCompact: {
+        minHeight: 26,
+        flexBasis: 64,
+        flexDirection: 'row',
+        gap: spacing.xs,
+        paddingHorizontal: spacing.xs,
+    },
     phaseStepActive: {
         backgroundColor: colors.successLight,
         borderColor: colors.success,

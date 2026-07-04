@@ -426,7 +426,7 @@ export default function TradesScreen() {
         <SafeAreaView style={styles.container}>
           <View style={styles.content}>
             <View style={styles.header}>
-                <Text style={styles.headerTitle}>Trades</Text>
+                <Text style={styles.headerTitle} role="heading" aria-level={1}>Trades</Text>
                 <Pressable
                     style={[styles.proposeBtn, tradingClosed && styles.proposeBtnDisabled]}
                     onPress={() => push('/(modals)/propose-trade')}
@@ -526,6 +526,10 @@ const styles = StyleSheet.create({
         paddingHorizontal: spacing.xl,
         paddingVertical: spacing.lg,
         gap: spacing.lg,
+        // Cap the row like other constrained columns so the provenance pill
+        // sits near the pick info instead of orphaned at the far right edge.
+        width: '100%',
+        maxWidth: 760,
     },
     pickCircle: {
         width: 44,

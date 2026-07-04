@@ -320,7 +320,14 @@ export default function LineupScreen() {
                 >
                     <Text style={styles.closeText}>Done</Text>
                 </MotionPressable>
-                <Text style={styles.headerTitle}>Week {ctx.weekNumber} Lineup</Text>
+                <Text
+                    style={styles.headerTitle}
+                    role="heading"
+                    aria-level={2}
+                    accessibilityRole="header"
+                >
+                    Week {ctx.weekNumber} Lineup
+                </Text>
                 <MotionPressable
                     style={[styles.autoSetButton, rosterEmpty && styles.autoSetButtonDisabled]}
                     onPress={handleAutoSet}
@@ -359,7 +366,15 @@ export default function LineupScreen() {
                     </View>
                 ) : null}
                 {/* Starters */}
-                <Text style={styles.sectionLabel}>STARTERS</Text>
+                <Text
+                    style={styles.sectionLabel}
+                    role="heading"
+                    aria-level={2}
+                    accessibilityRole="header"
+                    accessibilityLabel="Starters"
+                >
+                    STARTERS
+                </Text>
                 <MotionView style={styles.card} preset="rise">
                     {starters.map((slot, i) => (
                         <StarterRow
@@ -376,7 +391,15 @@ export default function LineupScreen() {
                 </MotionView>
 
                 {/* Bench */}
-                <Text style={styles.sectionLabel}>BENCH</Text>
+                <Text
+                    style={styles.sectionLabel}
+                    role="heading"
+                    aria-level={2}
+                    accessibilityRole="header"
+                    accessibilityLabel="Bench"
+                >
+                    BENCH
+                </Text>
                 <MotionView style={styles.card} preset="rise" delay={90}>
                     {bench.length === 0 ? (
                         <Text style={styles.benchEmpty}>{rosterEmpty ? 'Your bench fills after the draft' : 'All players are in the starting lineup'}</Text>

@@ -70,11 +70,16 @@ export const palette = {
     amber400: '#F59E0B',
     amber600: '#D97706',
 
-    // ── Position helpers ──
-    orangeLight: '#E8832A', // warm maple-orange for SG/G flex
-    orange:      '#F97316', // SG position color
-    orangeFlex:  '#FB923C', // G (guard flex) position color
-    greenLight:  '#34D399',
+    // ── Position identity hues ──
+    // Warm-leaning, saturation-matched deep hues for position chips/avatars.
+    // Every value keeps white chip text >=4.5:1 (WCAG AA); see constants/positions.ts.
+    posCoral:  '#B0372A', // PG — deep coral (white 6.1:1)
+    posBurnt:  '#A34A00', // SG — burnt orange (white 5.9:1)
+    posForest: '#2E6B34', // SF — forest green (white 6.4:1)
+    posTeal:   '#14695F', // PF — teal-slate (white 6.5:1)
+    posPlum:   '#7D3C78', // C  — plum (white 7.5:1)
+    posAmber:  '#8A6500', // G  — deep amber (white 5.3:1)
+    posSage:   '#5C7250', // F  — sage (white 5.3:1)
 
     // ── Neutrals ──
     white:    '#fff',
@@ -208,6 +213,25 @@ export const fontSize = {
     '3xl': 28,
     '4xl': 32,
     '5xl': 36,
+} as const
+
+// Display face — Space Grotesk, loaded via useFonts in app/_layout.tsx without
+// blocking first paint. On web the family name gets a system-stack fallback so
+// text renders in sans (not the browser serif default) while @font-face loads.
+const WEB_SANS_FALLBACK =
+    "-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
+
+export const fontFamily = {
+    /** Headlines + big numerals (700). */
+    display:
+        Platform.OS === 'web'
+            ? `SpaceGrotesk_700Bold, ${WEB_SANS_FALLBACK}`
+            : 'SpaceGrotesk_700Bold',
+    /** Display face at medium weight — labels/eyebrows that want the same voice. */
+    displayMedium:
+        Platform.OS === 'web'
+            ? `SpaceGrotesk_500Medium, ${WEB_SANS_FALLBACK}`
+            : 'SpaceGrotesk_500Medium',
 } as const
 
 export const fontWeight = {

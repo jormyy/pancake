@@ -31,7 +31,15 @@ export function ScoreCard({ matchup, compact = false }: { matchup: Matchup; comp
         <MotionView style={[styles.card, compact && styles.cardCompact]} preset="rise" delay={80}>
             {/* Header bar */}
             <View style={[styles.header, compact && styles.headerCompact]}>
-                <Text style={styles.week}>WEEK {matchup.weekNumber}</Text>
+                <Text
+                    style={styles.week}
+                    role="heading"
+                    aria-level={1}
+                    accessibilityRole="header"
+                    accessibilityLabel={`Week ${matchup.weekNumber} matchup`}
+                >
+                    WEEK {matchup.weekNumber}
+                </Text>
                 <View style={styles.headerRule} />
                 <View style={[styles.statusBadge, { backgroundColor: statusColor + '1A', borderColor: statusColor + '50' }]}>
                     <Text style={[styles.statusText, { color: statusColor }]}>{statusLabel}</Text>

@@ -4,6 +4,7 @@ import { ComponentProps, ReactNode, useCallback, useEffect, useMemo, useState } 
 import { Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native'
 import { Link, Navigator, usePathname, useRouter } from 'expo-router'
 import { useLeagueContext } from '@/contexts/league-context'
+import { usePendingTradeCount } from '@/hooks/use-pending-trade-count'
 import { getJoinableDraft } from '@/lib/draft'
 import { breakpoints, colors, WEB_THEME_VARS } from '@/constants/tokens'
 import { styles } from './webTabShellStyles'
@@ -61,6 +62,11 @@ const webStackRouter: typeof StackRouter = (options) => {
 }
 
 type PressableState = { hovered?: boolean; pressed?: boolean }
+
+function tradesNavLabel(label: string, pendingCount: number) {
+    if (pendingCount <= 0) return label
+    return `${label}, ${pendingCount} pending offer${pendingCount === 1 ? '' : 's'}`
+}
 
 function isRouteActive(pathname: string, href: RouteHref) {
     if (href === '/') return pathname === '/' || pathname === '' || pathname === '/index' || pathname === '/(tabs)' || pathname === '/(tabs)/index'
@@ -206,6 +212,8 @@ function SidebarNavButton({
     href,
     disabled = false,
     loading = false,
+    badge,
+    accessibilityLabel,
 }: {
     label: string
     icon: IconName
@@ -214,6 +222,8 @@ function SidebarNavButton({
     href?: ComponentProps<typeof Link>['href']
     disabled?: boolean
     loading?: boolean
+    badge?: number
+    accessibilityLabel?: string
 }) {
     const router = useRouter()
 
@@ -229,12 +239,17 @@ function SidebarNavButton({
                 (disabled || loading) && styles.sideNavItemDisabled,
             ]}
             accessibilityRole="button"
-            accessibilityLabel={label}
+            accessibilityLabel={accessibilityLabel ?? label}
             accessibilityState={{ selected: active, disabled: disabled || loading }}
             {...(active ? ARIA_CURRENT_PAGE : null)}
         >
             <NavIcon name={icon} active={active} />
             <Text style={[styles.sideNavText, active && styles.sideNavTextActive]} numberOfLines={1}>{label}</Text>
+            {typeof badge === 'number' && badge > 0 ? (
+                <View style={[styles.navBadge, active && styles.navBadgeActive]} aria-hidden>
+                    <Text style={styles.navBadgeText}>{badge}</Text>
+                </View>
+            ) : null}
         </Pressable>
     )
 }
@@ -275,6 +290,7 @@ function WebSidebar() {
     const router = useRouter()
     const { current, isCommissioner } = useLeagueContext()
     const { openDraftRoom, draftLoading } = useDraftRoomLauncher()
+    const pendingTradeCount = usePendingTradeCount()
 
     return (
         <View style={styles.sidebar} role="navigation" aria-label="Primary">
@@ -290,15 +306,20 @@ function WebSidebar() {
                 <LeagueSwitcher />
 
                 <View style={styles.navGroup}>
-                    {PRIMARY_NAV.map((item) => (
-                        <SidebarNavButton
-                            key={item.href}
-                            label={item.label}
-                            icon={item.icon}
-                            active={isRouteActive(pathname, item.href)}
-                            href={item.href as ComponentProps<typeof Link>['href']}
-                        />
-                    ))}
+                    {PRIMARY_NAV.map((item) => {
+                        const isTrades = item.href === '/trades'
+                        return (
+                            <SidebarNavButton
+                                key={item.href}
+                                label={item.label}
+                                icon={item.icon}
+                                active={isRouteActive(pathname, item.href)}
+                                href={item.href as ComponentProps<typeof Link>['href']}
+                                badge={isTrades ? pendingTradeCount : undefined}
+                                accessibilityLabel={isTrades ? tradesNavLabel(item.label, pendingTradeCount) : undefined}
+                            />
+                        )
+                    })}
                 </View>
 
                 <View style={styles.navGroup}>
@@ -362,22 +383,31 @@ function MobileTopBar({ onMenuPress }: { onMenuPress: () => void }) {
 function MobileBottomNav() {
     const pathname = usePathname()
     const router = useRouter()
+    const pendingTradeCount = usePendingTradeCount()
 
     return (
         <View style={styles.mobileBottomNav} role="navigation" aria-label="Primary">
             {MOBILE_NAV.map((item) => {
                 const active = isRouteActive(pathname, item.href)
+                const badge = item.href === '/trades' ? pendingTradeCount : 0
                 return (
                     <Pressable
                         key={item.href}
                         onPress={() => router.push(item.href)}
                         style={({ pressed }: PressableState) => [styles.bottomNavItem, pressed && styles.pressed]}
                         accessibilityRole="link"
-                        accessibilityLabel={item.label}
+                        accessibilityLabel={item.href === '/trades' ? tradesNavLabel(item.label, pendingTradeCount) : item.label}
                         accessibilityState={{ selected: active }}
                         {...(active ? ARIA_CURRENT_PAGE : null)}
                     >
-                        <MaterialIcons name={item.icon} size={22} color={active ? colors.primary : colors.textMuted} aria-hidden />
+                        <View style={styles.bottomNavIconWrap} aria-hidden>
+                            <MaterialIcons name={item.icon} size={22} color={active ? colors.primary : colors.textMuted} />
+                            {badge > 0 ? (
+                                <View style={[styles.navBadge, styles.bottomNavBadge]}>
+                                    <Text style={styles.navBadgeText}>{badge}</Text>
+                                </View>
+                            ) : null}
+                        </View>
                         <Text style={[styles.bottomNavText, active && styles.bottomNavTextActive]}>{item.label}</Text>
                     </Pressable>
                 )

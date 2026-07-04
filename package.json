@@ -14,7 +14,7 @@
     "generate:edge-shared": "node scripts/generate-edge-shared.mjs",
     "check:edge-shared": "node scripts/generate-edge-shared.mjs --check",
     "check:db-function-sources": "node scripts/check-db-function-sources.mjs --check",
-    "check:edge-functions": "deno check supabase/functions/api/index.ts supabase/functions/sync-scores/index.ts supabase/functions/sync-rankings/index.ts supabase/functions/sync-projections/index.ts supabase/functions/process-waivers/index.ts supabase/functions/process-trades/index.ts supabase/functions/close-expired-nominations/index.ts supabase/functions/lineup-optimizer/index.ts && deno test --allow-env --allow-net --allow-read supabase/functions/api/router.test.ts supabase/functions/sync-rankings/parser.test.ts supabase/functions/sync-rankings/match.test.ts supabase/functions/sync-projections/parser.test.ts supabase/functions/sync-projections/match.test.ts",
+    "check:edge-functions": "deno check supabase/functions/api/index.ts supabase/functions/sync-scores/index.ts supabase/functions/sync-rankings/index.ts supabase/functions/sync-projections/index.ts supabase/functions/process-waivers/index.ts supabase/functions/process-trades/index.ts supabase/functions/close-expired-nominations/index.ts supabase/functions/lineup-optimizer/index.ts && deno test --allow-env --allow-net --allow-read supabase/functions/api/router.test.ts supabase/functions/api/matchups.test.ts supabase/functions/sync-rankings/parser.test.ts supabase/functions/sync-rankings/match.test.ts supabase/functions/sync-projections/parser.test.ts supabase/functions/sync-projections/match.test.ts",
     "test": "vitest run",
     "test:db:draft-goal": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/draft-goal-behavior.sql",
     "test:db:dynasty-ranking": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/dynasty-ranking-metadata.sql",
@@ -58,6 +58,7 @@
     "security:local-secrets": "node tests/e2e/local-secret-scan.mjs"
   },
   "dependencies": {
+    "@expo-google-fonts/space-grotesk": "^0.4.1",
     "@expo/vector-icons": "^15.0.3",
     "@react-navigation/bottom-tabs": "^7.4.0",
     "@react-navigation/elements": "^2.6.3",

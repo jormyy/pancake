@@ -17,7 +17,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '@/hooks/use-auth'
 import { useLeagueContext } from '@/contexts/league-context'
 import { createLeague } from '@/lib/league'
-import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { breakpoints, colors, elevation, fontFamily, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 import { getErrorMessage } from '@/lib/alert'
 
 export default function CreateLeagueScreen() {
@@ -43,6 +43,9 @@ export default function CreateLeagueScreen() {
     const viewportWidth = Platform.OS === 'web' ? webViewport.width : width
     const viewportHeight = Platform.OS === 'web' ? webViewport.height : height
     const isCompactLandscape = viewportWidth > viewportHeight && viewportHeight < 520
+    // Desktop composition: the same card treatment other modal pages use, so the
+    // form doesn't float as three bare fields in a wide void. Mobile unchanged.
+    const wide = Platform.OS === 'web' && viewportWidth >= breakpoints.roster && !isCompactLandscape
 
     async function handleCreate() {
         if (!leagueName.trim() || !teamName.trim()) {
@@ -290,10 +293,22 @@ export default function CreateLeagueScreen() {
                     behavior={Platform.OS === 'ios' ? 'padding' : undefined}
                 >
                     <ScrollView
-                        contentContainerStyle={[styles.inner, isCompactLandscape && styles.compactInner]}
+                        contentContainerStyle={[styles.inner, isCompactLandscape && styles.compactInner, wide && styles.innerWide]}
                         keyboardShouldPersistTaps="handled"
                     >
-                        {formContent}
+                        {wide ? (
+                            <View style={styles.wideCard}>
+                                <View style={styles.wideTitleBlock}>
+                                    <Text style={styles.wideTitle}>Create a league</Text>
+                                    <Text style={styles.wideSubtitle}>
+                                        Name your league, claim your team, and set the auction budget.
+                                    </Text>
+                                </View>
+                                {formContent}
+                            </View>
+                        ) : (
+                            formContent
+                        )}
                     </ScrollView>
                 </KeyboardAvoidingView>
             </SafeAreaView>
@@ -327,9 +342,34 @@ const styles = StyleSheet.create({
         flex: 1,
         color: colors.textPrimary,
         fontSize: fontSize.lg,
-        fontWeight: fontWeight.extrabold,
+        fontFamily: fontFamily.display,
+        fontWeight: fontWeight.bold,
     },
     inner: { padding: spacing['3xl'], gap: spacing.md, width: '100%', maxWidth: 560, alignSelf: 'center' },
+    innerWide: {
+        flexGrow: 1,
+        justifyContent: 'center',
+        paddingVertical: spacing['5xl'],
+    },
+    wideCard: {
+        backgroundColor: colors.bgCard,
+        borderWidth: 1,
+        borderColor: colors.borderLight,
+        borderRadius: radii['2xl'],
+        borderCurve: 'continuous' as const,
+        padding: spacing['4xl'],
+        gap: spacing.md,
+        ...(elevation('md') as object),
+    },
+    wideTitleBlock: { marginBottom: spacing.lg, gap: spacing.sm },
+    wideTitle: {
+        fontSize: fontSize['3xl'],
+        fontFamily: fontFamily.display,
+        fontWeight: fontWeight.bold,
+        color: colors.textPrimary,
+        letterSpacing: -0.5,
+    },
+    wideSubtitle: { fontSize: fontSize.md, color: colors.textMuted, lineHeight: 20 },
     compactInner: {
         maxWidth: 640,
         paddingTop: spacing.md,
@@ -385,7 +425,7 @@ const styles = StyleSheet.create({
     },
     compactSuccessCopy: { flex: 1, maxWidth: 320, gap: spacing.md },
     compactSuccessActions: { width: 220, gap: spacing.md, justifyContent: 'center' },
-    successTitle: { fontSize: fontSize['3xl'], fontWeight: fontWeight.extrabold },
+    successTitle: { fontSize: fontSize['3xl'], fontFamily: fontFamily.display, fontWeight: fontWeight.bold },
     successSub: { fontSize: 15, color: colors.textMuted, textAlign: 'center' },
     codeBox: {
         alignSelf: 'stretch',
@@ -399,7 +439,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: spacing.xl,
         marginVertical: spacing.md,
     },
-    codeText: { fontSize: fontSize.xl, fontWeight: fontWeight.extrabold, color: colors.primaryDark, letterSpacing: 0, textAlign: 'center' },
+    codeText: { fontSize: fontSize.xl, fontFamily: fontFamily.display, fontWeight: fontWeight.bold, color: colors.primaryDark, letterSpacing: 1, textAlign: 'center' },
     shareButton: {
         width: '100%',
         height: 52,

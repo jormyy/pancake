@@ -262,6 +262,35 @@ export const styles = StyleSheet.create({
     sideNavTextActive: {
         color: '#FFF6E8',
     },
+    // Pending-count pill on nav items — same dimensions as the
+    // SegmentedControl badge so counts read consistently across the app.
+    navBadge: {
+        minWidth: 18,
+        height: 18,
+        paddingHorizontal: 5,
+        borderRadius: radii.full,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: colors.primary,
+    },
+    navBadgeActive: {
+        backgroundColor: 'rgba(255, 255, 255, 0.28)',
+    },
+    navBadgeText: {
+        fontSize: 10,
+        fontWeight: fontWeight.bold,
+        color: colors.textWhite,
+    },
+    bottomNavIconWrap: {
+        position: 'relative',
+    },
+    bottomNavBadge: {
+        position: 'absolute',
+        top: -5,
+        right: -12,
+        borderWidth: 1.5,
+        borderColor: colors.bgCard,
+    },
 
     sidebarFooter: {
         paddingHorizontal: 14,

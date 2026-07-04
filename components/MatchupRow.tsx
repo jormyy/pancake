@@ -14,6 +14,13 @@ type Sel = { kind: 'starter' | 'bench' | 'ir' | 'taxi'; index: number }
 
 const SLOT_W = 52
 
+function emptySlotLabel(slotType: string): string {
+    if (slotType === 'BE') return 'Empty bench slot'
+    if (slotType === 'IR') return 'Empty IR slot'
+    if (slotType === 'TX') return 'Empty taxi slot'
+    return 'No starter'
+}
+
 function StatLines({ stats, isLive, align, compact = false }: {
     stats: LiveStatLine
     isLive: boolean
@@ -218,7 +225,9 @@ function MatchupRowImpl({
                         </View>
                     </>
                 ) : isExtraOppRow ? null : (
-                    <Text style={[styles.sideName, { color: colors.border, textAlign: 'right' }]}>—</Text>
+                    <View style={styles.playerBlockRight}>
+                        <Text style={styles.emptySlotText}>{emptySlotLabel(slotType)}</Text>
+                    </View>
                 )}
             </MotionPressable>
 
@@ -289,7 +298,9 @@ function MatchupRowImpl({
                         )}
                     </>
                 ) : (
-                    <Text style={[styles.sideName, { color: colors.border }]}>—</Text>
+                    <View style={styles.playerBlockLeft}>
+                        <Text style={styles.emptySlotText}>{emptySlotLabel(slotType)}</Text>
+                    </View>
                 )}
             </MotionPressable>
             </View>
@@ -335,6 +346,7 @@ const styles = StyleSheet.create({
     fptsRight: { textAlign: 'right', marginRight: 0, marginLeft: 6 },
     fptsLive: { color: colors.primaryDark },
     sideName: { fontSize: 13, fontWeight: '600', color: colors.textPrimary, flexShrink: 1 },
+    emptySlotText: { fontSize: 12, fontWeight: '500', color: colors.textPlaceholder },
     sideNameDense: { fontSize: 12 },
     noGameName: { color: palette.gray500 },
     metaRow: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 2 },

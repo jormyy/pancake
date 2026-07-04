@@ -2,7 +2,7 @@ import { ReactNode } from 'react'
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { useRouter } from 'expo-router'
-import { colors, fontSize, fontWeight, motion, radii, spacing } from '@/constants/tokens'
+import { colors, fontFamily, fontSize, fontWeight, motion, radii, spacing } from '@/constants/tokens'
 
 type Props = {
     title: string
@@ -79,7 +79,8 @@ const styles = StyleSheet.create({
     titleWrap: { flex: 1, minWidth: 0 },
     title: {
         fontSize: fontSize.xl,
-        fontWeight: fontWeight.extrabold,
+        fontFamily: fontFamily.display,
+        fontWeight: fontWeight.bold,
         color: colors.textPrimary,
         letterSpacing: -0.3,
     },

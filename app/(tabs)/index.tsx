@@ -8,7 +8,7 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
-import { useCallback, useEffect, useMemo } from 'react'
+import { ReactNode, useCallback, useEffect, useMemo } from 'react'
 import { EmptyState } from '@/components/EmptyState'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useAuth } from '@/hooks/use-auth'
@@ -162,34 +162,6 @@ export default function HomeScreen() {
                     <ScoreCard matchup={matchup} compact={compact} />
                     <AroundLeague matchups={leagueMatchups} compact={compact} />
 
-                    {weekDays.length > 0 && (
-                        <DaySelector days={weekDays} selectedDate={selectedDate} onSelect={handleDaySelect} compact={compact} />
-                    )}
-
-                    <View style={[styles.lineupToolbar, compact && styles.lineupToolbarCompact]}>
-                        <MotionPressable
-                            style={styles.autoSetBtn}
-                            onPress={handleAutoSet}
-                            disabled={autoSetting || saving}
-                            pressedScale={0.92}
-                        >
-                            <Text style={styles.autoSetText}>AUTO</Text>
-                        </MotionPressable>
-
-                        {selected && (
-                            <MotionView style={styles.hint} preset="slide-left">
-                                <Text style={styles.hintText} numberOfLines={1}>
-                                    {selectedPlayer
-                                        ? `${shortName(selectedPlayer.displayName)} selected — tap another slot`
-                                        : `Empty slot selected — tap a player's slot`}
-                                </Text>
-                                <MotionPressable onPress={() => setSelected(null)} pressedScale={0.9}>
-                                    <Text style={styles.hintCancel}>Cancel</Text>
-                                </MotionPressable>
-                            </MotionView>
-                        )}
-                    </View>
-
                     {myLineup && oppLineup ? (
                         <MatchupLineupView
                             myLineup={myLineup}
@@ -204,14 +176,47 @@ export default function HomeScreen() {
                             teamMatchups={teamMatchups}
                             compact={compact}
                             dense={dense}
+                            daySelector={weekDays.length > 0 ? (
+                                <DaySelector days={weekDays} selectedDate={selectedDate} onSelect={handleDaySelect} compact={compact} />
+                            ) : null}
+                            headerAccessory={
+                                <MotionPressable
+                                    style={styles.autoSetBtn}
+                                    onPress={handleAutoSet}
+                                    disabled={autoSetting || saving}
+                                    accessibilityRole="button"
+                                    accessibilityLabel="Open auto-set lineup options"
+                                    accessibilityState={{ disabled: autoSetting || saving }}
+                                    pressedScale={0.92}
+                                >
+                                    <Text style={styles.autoSetText}>AUTO</Text>
+                                </MotionPressable>
+                            }
+                            hint={selected ? (
+                                <MotionView style={styles.hint} preset="slide-left">
+                                    <Text style={styles.hintText} numberOfLines={1}>
+                                        {selectedPlayer
+                                            ? `${shortName(selectedPlayer.displayName)} selected — tap another slot`
+                                            : `Empty slot selected — tap a player's slot`}
+                                    </Text>
+                                    <MotionPressable onPress={() => setSelected(null)} pressedScale={0.9}>
+                                        <Text style={styles.hintCancel}>Cancel</Text>
+                                    </MotionPressable>
+                                </MotionView>
+                            ) : null}
                         />
                     ) : (
-                        <View style={styles.noLineup}>
-                            <Text style={styles.noLineupText}>No lineup set for this day.</Text>
-                            <Pressable style={styles.setLineupBtn} onPress={handleAutoSet} disabled={autoSetting}>
-                                <Text style={styles.setLineupBtnText}>Auto-Set Lineup</Text>
-                            </Pressable>
-                        </View>
+                        <>
+                            {weekDays.length > 0 && (
+                                <DaySelector days={weekDays} selectedDate={selectedDate} onSelect={handleDaySelect} compact={compact} />
+                            )}
+                            <View style={styles.noLineup}>
+                                <Text style={styles.noLineupText}>No lineup set for this day.</Text>
+                                <Pressable style={styles.setLineupBtn} onPress={handleAutoSet} disabled={autoSetting}>
+                                    <Text style={styles.setLineupBtnText}>Auto-Set Lineup</Text>
+                                </Pressable>
+                            </View>
+                        </>
                     )}
                 </View>
             ) : (
@@ -271,20 +276,35 @@ export default function HomeScreen() {
 
 
 function AroundLeague({ matchups, compact }: { matchups: LeagueWeekMatchup[]; compact: boolean }) {
+    const { width } = useWindowDimensions()
     const otherMatchups = matchups.filter((item) => !item.isMine)
     if (otherMatchups.length === 0) return null
 
     const scoreText = (score: number | null) => score == null ? '—' : score.toFixed(1)
+    const sidePad = compact ? 12 : 16
+    const cardGap = compact ? 8 : 10
+    // On narrow screens, size cards so one fits fully with a deliberate peek
+    // of the next card's left (name) edge — a score never sits under the clip.
+    const cardWidth = compact ? Math.min(280, width - sidePad - 64) : 220
 
     return (
         <View style={styles.aroundLeague}>
             <View style={styles.aroundLeagueHeader}>
-                <Text style={styles.aroundLeagueTitle}>Around the league</Text>
+                <Text
+                    style={styles.aroundLeagueTitle}
+                    role="heading"
+                    aria-level={2}
+                    accessibilityRole="header"
+                >
+                    Around the league
+                </Text>
                 <Text style={styles.aroundLeagueMeta}>{otherMatchups.length} matchup{otherMatchups.length === 1 ? '' : 's'}</Text>
             </View>
             <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
+                snapToInterval={compact ? cardWidth + cardGap : undefined}
+                decelerationRate={compact ? 'fast' : undefined}
                 contentContainerStyle={[styles.aroundLeagueScroll, compact && styles.aroundLeagueScrollCompact]}
             >
                 {otherMatchups.map((item) => {
@@ -293,7 +313,7 @@ function AroundLeague({ matchups, compact }: { matchups: LeagueWeekMatchup[]; co
                     const homeLeading = homeScore != null && (awayScore == null || homeScore >= awayScore)
                     const awayLeading = awayScore != null && (homeScore == null || awayScore > homeScore)
                     return (
-                        <View key={item.id} style={[styles.aroundLeagueCard, compact && styles.aroundLeagueCardCompact]}>
+                        <View key={item.id} style={[styles.aroundLeagueCard, compact && [styles.aroundLeagueCardCompact, { width: cardWidth }]]}>
                             <View style={styles.aroundLeagueTeamRow}>
                                 <Text style={[styles.aroundLeagueTeam, homeLeading && styles.aroundLeagueTeamLeading]} numberOfLines={1}>
                                     {item.homeTeamName}
@@ -334,6 +354,9 @@ function MatchupLineupView({
     teamMatchups,
     compact,
     dense,
+    daySelector,
+    headerAccessory,
+    hint,
 }: {
     myLineup: LineupData
     oppLineup: LineupData
@@ -347,6 +370,9 @@ function MatchupLineupView({
     teamMatchups: Map<string, { opponent: string; isHome: boolean }>
     compact: boolean
     dense: boolean
+    daySelector?: ReactNode
+    headerAccessory?: ReactNode
+    hint?: ReactNode
 }) {
     const maxBench = Math.max(myLineup.bench.length, oppLineup.bench.length)
     const maxIR = Math.max(myLineup.ir.length, oppLineup.ir.length)
@@ -420,9 +446,19 @@ function MatchupLineupView({
     return (
         <View style={styles.lineupContainer}>
             <View style={styles.lineupHeader}>
-                <Text style={styles.lineupTitle}>Lineup</Text>
+                <Text
+                    style={styles.lineupTitle}
+                    role="heading"
+                    aria-level={2}
+                    accessibilityRole="header"
+                >
+                    Lineup
+                </Text>
                 <Text style={styles.lineupMeta}>Starters, bench, IR, and taxi</Text>
+                {headerAccessory}
             </View>
+            {daySelector}
+            {hint}
 
             <ScrollView
                 style={styles.lineupRows}
@@ -433,7 +469,14 @@ function MatchupLineupView({
                 {sections.map((section) => (
                     <View key={section.key} style={styles.lineupSection}>
                         <View style={[styles.lineupSectionBand, { borderLeftColor: section.color }]}>
-                            <Text style={[styles.lineupSectionTitle, { color: section.color }]}>{section.label}</Text>
+                            <Text
+                                style={[styles.lineupSectionTitle, { color: section.color }]}
+                                role="heading"
+                                aria-level={2}
+                                accessibilityRole="header"
+                            >
+                                {section.label}
+                            </Text>
                             <Text style={styles.lineupSectionCount}>{section.count}</Text>
                         </View>
                         {section.rows.map((row, i) => (
@@ -508,7 +551,6 @@ const styles = StyleSheet.create({
         backgroundColor: colors.bgCard,
     },
     aroundLeagueCardCompact: {
-        width: 186,
         padding: 10,
     },
     aroundLeagueTeamRow: {
@@ -549,18 +591,6 @@ const styles = StyleSheet.create({
         letterSpacing: 0.8,
         textTransform: 'uppercase' as const,
     },
-    lineupToolbar: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 10,
-        paddingHorizontal: 16,
-        paddingVertical: 8,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.borderLight,
-    },
-    lineupToolbarCompact: {
-        paddingVertical: 5,
-    },
     autoSetBtn: {
         height: 30,
         paddingHorizontal: 18,
@@ -575,7 +605,6 @@ const styles = StyleSheet.create({
     autoSetText: { fontSize: 11, fontWeight: '800', color: colors.primaryDark, letterSpacing: 0.6 },
 
     hint: {
-        flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
         backgroundColor: colors.primaryLight,
@@ -585,6 +614,7 @@ const styles = StyleSheet.create({
         borderCurve: 'continuous' as const,
         paddingHorizontal: 12,
         paddingVertical: 7,
+        marginTop: 8,
     },
     hintText: { flex: 1, fontSize: 13, color: colors.primaryDark, fontWeight: '500' },
     hintCancel: { fontSize: 13, fontWeight: '700', color: colors.primaryDark, paddingLeft: 12 },
@@ -593,7 +623,7 @@ const styles = StyleSheet.create({
     lineupHeader: {
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'space-between',
+        gap: 10,
         paddingTop: 10,
         paddingBottom: 8,
     },
@@ -603,12 +633,14 @@ const styles = StyleSheet.create({
         color: colors.textPrimary,
     },
     lineupMeta: {
+        flex: 1,
         fontSize: fontSize.xs,
         fontWeight: fontWeight.semibold,
         color: colors.textMuted,
+        textAlign: 'right',
     },
     lineupRows: { flex: 1, minHeight: 0 },
-    lineupRowsContent: { paddingBottom: 8 },
+    lineupRowsContent: { paddingTop: 10, paddingBottom: 8 },
     lineupSection: {
         borderWidth: 1,
         borderColor: colors.borderLight,

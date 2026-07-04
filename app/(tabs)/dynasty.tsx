@@ -278,6 +278,7 @@ export default function DynastyScreen() {
     const { current, currentLeague } = useLeagueContext()
     const { width } = useWindowDimensions()
     const showStats = width >= WIDE_BREAKPOINT
+    const narrowSearch = width < 440
     const [tab, setTab] = useState<DynastyTab>('rankings')
     const rankings = useDynastyRankings()
     const cachedNews = readPersistentCache<DynastyNewsCache>(dynastyNewsCacheKey(current?.id, currentLeague?.id)) ?? undefined
@@ -312,7 +313,7 @@ export default function DynastyScreen() {
             <View style={styles.contentWrap}>
                 <View style={styles.header}>
                     <View style={styles.headerText}>
-                        <Text style={styles.title}>Dynasty Hub</Text>
+                        <Text style={styles.title} role="heading" aria-level={1}>Dynasty Hub</Text>
                         <Text style={styles.subtitle}>
                             Hashtag {formatScoringFormat(scoringFormat)} rankings and player movement
                         </Text>
@@ -343,7 +344,7 @@ export default function DynastyScreen() {
                             <Input
                                 value={rankings.query}
                                 onChangeText={rankings.setQuery}
-                                placeholder="Search dynasty rankings"
+                                placeholder={narrowSearch ? 'Search rankings' : 'Search dynasty rankings'}
                                 leftIcon="search"
                                 autoCorrect={false}
                             />
@@ -460,8 +461,11 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         gap: spacing.lg,
     },
+    // Shrinks and wraps ("50 rows / loaded") on narrow phones instead of
+    // pushing past the viewport edge and clipping the search field.
     resultCountText: {
-        flexShrink: 0,
+        flexShrink: 1,
+        textAlign: 'right',
         fontSize: fontSize.sm,
         fontWeight: fontWeight.bold,
         color: colors.textMuted,

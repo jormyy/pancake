@@ -186,7 +186,13 @@ describe('fantasy draft and auction experience goals', () => {
         expect(phaseRail).toContain('styles.phaseCompactLabel')
         expect(phaseRail).toContain('styles.phaseCompactDetail')
         expect(phaseRail).toContain('{phase.detail}')
-        expect(leagueScreen).toContain('phaseStepCompact: { minHeight: 44, flexBasis: 64 }')
+        // Compact phase steps are a slim horizontal strip, not 44px tiles.
+        const phaseStepCompact = leagueScreen.slice(
+            leagueScreen.indexOf('phaseStepCompact: {'),
+            leagueScreen.indexOf('phaseStepActive:'),
+        )
+        expect(phaseStepCompact).toContain('minHeight: 26')
+        expect(phaseStepCompact).toContain("flexDirection: 'row'")
     })
 
     it('keeps compact League identity visible when the header collapses', () => {
@@ -382,14 +388,24 @@ describe('fantasy draft and auction experience goals', () => {
         expect(leagueSections).toContain('{compactLandscape ? standingsHeader : standingsList}')
         expect(leagueSections).toContain('narrowRows={narrowRows}')
         expect(leagueSections).toContain('narrow={narrowRows}')
-        expect(leagueSections).toContain('function StandingsStat')
+        expect(leagueSections).toContain('function standingsRecordLabel')
         expect(leagueSections).toContain('standingsRowNarrow')
-        expect(leagueSections).toContain('paddingVertical: spacing.xs')
-        expect(leagueSections).toContain('gap: spacing.xxs')
         expect(leagueSections).toContain('paddingVertical: 0')
-        expect(leagueSections).toContain('standingsIdentityNarrow')
-        expect(leagueSections).toContain('standingsStatsNarrow')
-        expect(leagueSections).toContain('standingsStatLabelNarrow')
+        // Narrow rows are a one-line mini-table (rank/team + W-L, PF, PA
+        // columns), not per-value pill chips.
+        expect(leagueSections).toContain('standingsRecordNarrow')
+        expect(leagueSections).toContain('standingsPtsNarrow')
+        expect(leagueSections).toContain('{standingsRecordLabel(item)}')
+        expect(leagueSections).not.toContain('standingsStatNarrow')
+        expect(leagueSections).not.toContain('standingsStatLabelNarrow')
+        // Playoff cutoff mirrors the server seeding convention (6 with 10+
+        // teams, otherwise 4) and only renders in seed order.
+        expect(leagueSections).toContain('function playoffTeamCount')
+        expect(leagueSections).toContain('return teamCount >= 10 ? 6 : 4')
+        expect(leagueSections).toContain('function PlayoffCutLine')
+        expect(leagueSections).toContain("sortBy === 'wins' && sortDir === 'desc' && sorted.length > cutTeamCount ? cutTeamCount : -1")
+        expect(leagueSections).toContain('<PlayoffCutLine teamCount={cutTeamCount} />')
+        expect(leagueSections).toContain('Playoff line')
         expect(leagueSections).toContain('const teamStat = standingsTeamCountLabel(teamCount, loading)')
         expect(standingsIntro).toContain('const accessibilityLabel = `${intro.title}. ${intro.copy} ${teamStat}. ${recordStat}. ${pointsStat}.`')
         expect(standingsIntro).toContain('aria-busy={loading ? true : undefined}')
@@ -417,12 +433,15 @@ describe('fantasy draft and auction experience goals', () => {
         expect(standingsHeader).toContain('role="toolbar"')
         expect(standingsHeader).toContain('aria-live="polite"')
         expect(standingsHeader).toContain('accessibilityLiveRegion="polite"')
-        expect(standingsHeader).toContain('const narrowSortButton = (key: StandingsSortKey, label: string)')
+        expect(standingsHeader).toContain('const narrowSortButton = (key: StandingsSortKey, label: string, colStyle: object)')
         expect(standingsHeader).toContain('if (narrow)')
         expect(standingsHeader).toContain('styles.standingsHeaderNarrow')
         expect(standingsHeader).toContain('styles.standingsSortCellNarrow')
-        expect(standingsHeader).toContain("narrowSortButton('wins', 'Wins')")
-        expect(standingsHeader).toContain("narrowSortButton('pf', 'PF')")
+        // Narrow sort buttons double as the mini-table column headers, sized
+        // to the columns they sort.
+        expect(standingsHeader).toContain("narrowSortButton('wins', 'W-L', styles.standingsRecordColNarrow)")
+        expect(standingsHeader).toContain("narrowSortButton('pf', 'PF', styles.standingsPtsColNarrow)")
+        expect(standingsHeader).toContain("showPa ? narrowSortButton('pa', 'PA', styles.standingsPtsColNarrow) : null")
     })
 
     it('keeps empty standings statuses self-describing to assistive tech', () => {

@@ -6,10 +6,10 @@ import {
     useWindowDimensions,
 } from 'react-native'
 import { showAlert, confirmAction, getErrorMessage } from '@/lib/alert'
-import { FlashList } from '@shopify/flash-list'
+import { FlashList, FlashListRef } from '@shopify/flash-list'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import * as Haptics from 'expo-haptics'
 import { useAuth } from '@/hooks/use-auth'
 import { useLeagueContext } from '@/contexts/league-context'
@@ -217,6 +217,7 @@ export default function RosterScreen() {
         () => readRosterCache(current?.id, leagueId),
         [current?.id, leagueId],
     )
+    const listRef = useRef<FlashListRef<RosterListItem>>(null)
     const [togglingId, setTogglingId] = useState<string | null>(null)
     const [taxiingId, setTaxiingId] = useState<string | null>(null)
     const [cancellingId, setCancellingId] = useState<string | null>(null)
@@ -295,6 +296,16 @@ export default function RosterScreen() {
         }
         return result
     }, [active, ir, taxi, picks, claims])
+
+    const claimsHeaderIndex = useMemo(
+        () => listData.findIndex((item) => item._isHeader && item._section === 'claims'),
+        [listData],
+    )
+
+    function scrollToClaims() {
+        if (claimsHeaderIndex === -1) return
+        listRef.current?.scrollToIndex({ index: claimsHeaderIndex, animated: true })
+    }
 
     async function handleToggleIR(item: RosterPlayer) {
         const lockMessage = await getRosterStatusChangeLockMessage(item)
@@ -457,11 +468,30 @@ export default function RosterScreen() {
             {/* Header */}
             <View style={styles.header}>
                 <View style={styles.flex1}>
-                    <Text style={styles.leagueName}>{league?.name}</Text>
+                    <Text
+                        style={styles.leagueName}
+                        role="heading"
+                        aria-level={2}
+                        accessibilityRole="header"
+                    >
+                        {league?.name}
+                    </Text>
                     <Text style={styles.teamName}>{current.team_name}</Text>
                     <Text style={styles.rosterCount}>
                         {active.length}/{league?.roster_size ?? 20} active · {ir.length}/{league?.ir_slots ?? 2} IR · {taxi.length}/{taxiSlots} taxi
                     </Text>
+                    {claims.length > 0 ? (
+                        <Pressable
+                            style={styles.claimsChip}
+                            onPress={scrollToClaims}
+                            accessibilityRole="button"
+                            accessibilityLabel={`${claims.length} waiver claim${claims.length === 1 ? '' : 's'} pending, jump to claims`}
+                        >
+                            <Text style={styles.claimsChipText}>
+                                {claims.length} claim{claims.length === 1 ? '' : 's'} pending
+                            </Text>
+                        </Pressable>
+                    ) : null}
                 </View>
                 {roster.length > 0 ? (
                     <Pressable
@@ -494,6 +524,7 @@ export default function RosterScreen() {
                 />
             ) : (
                 <FlashList
+                    ref={listRef}
                     data={listData}
                     keyExtractor={(item) =>
                         item._isHeader ? `header-${item._section}`
@@ -726,6 +757,22 @@ const styles = StyleSheet.create({
     leagueName: { fontSize: 18, fontWeight: fontWeight.extrabold, color: colors.textPrimary },
     teamName: { fontSize: fontSize.md, color: colors.textSecondary },
     rosterCount: { fontSize: 12, color: colors.textPlaceholder, marginTop: spacing.xs },
+    claimsChip: {
+        alignSelf: 'flex-start',
+        marginTop: spacing.sm,
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.xs,
+        borderRadius: radii.full,
+        borderCurve: 'continuous' as const,
+        borderWidth: 1,
+        borderColor: colors.primaryBorder,
+        backgroundColor: colors.primaryLight,
+    },
+    claimsChipText: {
+        fontSize: fontSize.xs,
+        fontWeight: fontWeight.bold,
+        color: colors.primaryDark,
+    },
 
     errorBanner: {
         backgroundColor: colors.dangerLight,

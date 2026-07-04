@@ -407,6 +407,11 @@ export default function ProjectionsScreen() {
     return (
         <SafeAreaView style={styles.container}>
           <View style={styles.contentWrap}>
+            {/* Visually hidden h1: the screen has no visible title, but web
+                a11y still needs a page heading anchoring the outline. */}
+            <Text style={styles.hiddenHeading} role="heading" aria-level={1} accessibilityRole="header">
+                Projections
+            </Text>
             <View style={styles.filterCard}>
                 <View style={styles.filterCardTop}>
                     <TextInput
@@ -442,7 +447,7 @@ export default function ProjectionsScreen() {
                             <Text style={styles.filterSelectCaret}>{filtersOpen ? '▴' : '▾'}</Text>
                         </Pressable>
                     ) : (
-                        <Text style={styles.filterCardTitle}>Filters</Text>
+                        <Text style={styles.filterCardTitle} role="heading" aria-level={2}>Filters</Text>
                     )}
                     {activeFilterCount > 0 ? (
                         <Pressable style={styles.clearAllChip} onPress={clearAllFilters}>
@@ -676,6 +681,14 @@ function matchesHealth(injuryStatus: string | null, filter: PlayerSearchHealthFi
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgScreen },
     contentWrap: { flex: 1, width: '100%', maxWidth: layout.contentMaxWidth, alignSelf: 'center' },
+    hiddenHeading: {
+        position: 'absolute',
+        width: 1,
+        height: 1,
+        margin: -1,
+        overflow: 'hidden',
+        opacity: 0,
+    },
     flex1: { flex: 1 },
     filterCard: {
         margin: spacing.xl,
