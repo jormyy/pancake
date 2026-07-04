@@ -525,7 +525,7 @@ const styles = StyleSheet.create({
         color: colors.textPrimary,
     },
     aroundLeagueMeta: {
-        fontSize: 12,
+        fontSize: fontSize['2sm'],
         fontWeight: fontWeight.semibold,
         color: colors.textMuted,
     },
@@ -581,7 +581,7 @@ const styles = StyleSheet.create({
     },
     aroundLeagueStatus: {
         marginTop: 8,
-        fontSize: 10,
+        fontSize: fontSize['2xs'],
         fontWeight: fontWeight.extrabold,
         color: colors.textPlaceholder,
         letterSpacing: 0.8,
@@ -598,7 +598,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
-    autoSetText: { fontSize: 11, fontWeight: '800', color: colors.primaryDark, letterSpacing: 0.6 },
+    autoSetText: { fontSize: fontSize.xs, fontWeight: fontWeight.extrabold, color: colors.primaryDark, letterSpacing: 0.6 },
 
     hint: {
         flexDirection: 'row',
@@ -612,8 +612,8 @@ const styles = StyleSheet.create({
         paddingVertical: 7,
         marginTop: 8,
     },
-    hintText: { flex: 1, fontSize: 13, color: colors.primaryDark, fontWeight: '500' },
-    hintCancel: { fontSize: 13, fontWeight: '700', color: colors.primaryDark, paddingLeft: 12 },
+    hintText: { flex: 1, fontSize: fontSize.sm, color: colors.primaryDark, fontWeight: fontWeight.medium },
+    hintCancel: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.primaryDark, paddingLeft: 12 },
 
     lineupContainer: { flex: 1, minHeight: 0, paddingHorizontal: 16, paddingBottom: 8 },
     lineupHeader: {
@@ -671,14 +671,14 @@ const styles = StyleSheet.create({
     },
 
     noLineup: { padding: 32, alignItems: 'center', gap: 12 },
-    noLineupText: { fontSize: 14, color: colors.textPlaceholder, textAlign: 'center' },
+    noLineupText: { fontSize: fontSize.md, color: colors.textPlaceholder, textAlign: 'center' },
     setLineupBtn: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10, borderCurve: 'continuous' as const, backgroundColor: colors.primary },
-    setLineupBtnText: { color: colors.textWhite, fontWeight: '700', fontSize: 14 },
+    setLineupBtnText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.md },
 
     noMatchup: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 8, padding: 32 },
-    noMatchupText: { fontSize: 16, fontWeight: '600', color: colors.textSecondary },
-    noMatchupSub: { fontSize: 13, color: colors.textPlaceholder, textAlign: 'center' },
+    noMatchupText: { fontSize: fontSize.lg, fontWeight: fontWeight.semibold, color: colors.textSecondary },
+    noMatchupSub: { fontSize: fontSize.sm, color: colors.textPlaceholder, textAlign: 'center' },
 
-    dateLabel: { fontSize: 13, color: colors.textMuted, textAlign: 'center', paddingVertical: 10 },
+    dateLabel: { fontSize: fontSize.sm, color: colors.textMuted, textAlign: 'center', paddingVertical: 10 },
 
 })

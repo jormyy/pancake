@@ -82,7 +82,7 @@ export const styles = StyleSheet.create({
     } as WebOnlyViewStyle,
     brandMarkText: {
         color: brand.on,
-        fontSize: 20,
+        fontSize: fontSize.xl,
         fontWeight: fontWeight.extrabold,
     },
     brandMarkTextCompact: {
@@ -96,7 +96,7 @@ export const styles = StyleSheet.create({
     },
     brandSubtitle: {
         marginTop: -2,
-        fontSize: 10,
+        fontSize: fontSize['2xs'],
         fontWeight: fontWeight.bold,
         letterSpacing: 1.5,
         textTransform: 'uppercase',
@@ -220,7 +220,7 @@ export const styles = StyleSheet.create({
         paddingHorizontal: spacing.lg,
         paddingBottom: spacing.sm,
         color: brand.onSubtle,
-        fontSize: 10,
+        fontSize: fontSize['2xs'],
         fontWeight: fontWeight.extrabold,
         letterSpacing: 1.4,
         textTransform: 'uppercase',
@@ -398,7 +398,7 @@ export const styles = StyleSheet.create({
         textDecorationLine: 'none',
     } as WebOnlyViewStyle,
     bottomNavText: {
-        fontSize: 10,
+        fontSize: fontSize['2xs'],
         fontWeight: fontWeight.bold,
         color: colors.textMuted,
     },

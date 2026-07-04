@@ -162,7 +162,7 @@ const styles = StyleSheet.create({
     },
     closeButton: { minWidth: 64, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
     closeText: { fontSize: 15, fontWeight: fontWeight.semibold, color: colors.primaryDark },
-    headerTitle: { flex: 1, fontSize: 18, fontWeight: fontWeight.extrabold, textAlign: 'center' },
+    headerTitle: { flex: 1, fontSize: fontSize['2lg'], fontWeight: fontWeight.extrabold, textAlign: 'center' },
 
     list: { flex: 1 },
     listContent: { width: '100%', maxWidth: 680, alignSelf: 'center' },

@@ -670,7 +670,7 @@ const styles = StyleSheet.create({
     },
     rosterTableSlot: {
         width: 46,
-        fontSize: 11,
+        fontSize: fontSize.xs,
         fontWeight: fontWeight.extrabold,
         color: colors.primaryDark,
         textTransform: 'uppercase' as const,
@@ -678,7 +678,7 @@ const styles = StyleSheet.create({
     rosterTablePlayer: {
         flex: 1,
         minWidth: 220,
-        fontSize: 10,
+        fontSize: fontSize['2xs'],
         fontWeight: fontWeight.extrabold,
         color: colors.textMuted,
         letterSpacing: 0.8,
@@ -713,7 +713,7 @@ const styles = StyleSheet.create({
     rosterTableAction: {
         width: 86,
         textAlign: 'right',
-        fontSize: 10,
+        fontSize: fontSize['2xs'],
         fontWeight: fontWeight.extrabold,
         color: colors.textMuted,
         letterSpacing: 0.7,
@@ -756,9 +756,9 @@ const styles = StyleSheet.create({
         marginLeft: spacing.lg,
     },
     lineupButtonText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.sm },
-    leagueName: { fontSize: 18, fontWeight: fontWeight.extrabold, color: colors.textPrimary },
+    leagueName: { fontSize: fontSize['2lg'], fontWeight: fontWeight.extrabold, color: colors.textPrimary },
     teamName: { fontSize: fontSize.md, color: colors.textSecondary },
-    rosterCount: { fontSize: 12, color: colors.textPlaceholder, marginTop: spacing.xs },
+    rosterCount: { fontSize: fontSize['2sm'], color: colors.textPlaceholder, marginTop: spacing.xs },
     claimsChip: {
         alignSelf: 'flex-start',
         marginTop: spacing.sm,
@@ -807,6 +807,6 @@ const styles = StyleSheet.create({
     },
 
     empty: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: spacing.md },
-    emptyTitle: { fontSize: 18, fontWeight: fontWeight.bold, color: colors.textPrimary },
+    emptyTitle: { fontSize: fontSize['2lg'], fontWeight: fontWeight.bold, color: colors.textPrimary },
     emptyText: { fontSize: fontSize.md, color: colors.textPlaceholder },
 })

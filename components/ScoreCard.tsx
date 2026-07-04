@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet } from 'react-native'
 import { Matchup } from '@/lib/scoring'
-import { alpha, colors, palette } from '@/constants/tokens'
+import { alpha, colors, palette, fontSize, fontWeight } from '@/constants/tokens'
 import { formatPoints } from '@/lib/format'
 import { MotionView } from '@/components/Motion'
 
@@ -125,8 +125,8 @@ const styles = StyleSheet.create({
         paddingBottom: 8,
     },
     week: {
-        fontSize: 10,
-        fontWeight: '800',
+        fontSize: fontSize['2xs'],
+        fontWeight: fontWeight.extrabold,
         color: colors.primaryDark,
         letterSpacing: 2,
     },
@@ -143,8 +143,8 @@ const styles = StyleSheet.create({
         borderWidth: 1,
     },
     statusText: {
-        fontSize: 11,
-        fontWeight: '700',
+        fontSize: fontSize.xs,
+        fontWeight: fontWeight.bold,
         letterSpacing: 0.2,
     },
 
@@ -161,24 +161,24 @@ const styles = StyleSheet.create({
     side: { flex: 1, gap: 2 },
     sideRight: { alignItems: 'flex-end' },
     teamName: {
-        fontSize: 12,
+        fontSize: fontSize['2sm'],
         color: colors.textMuted,
-        fontWeight: '600',
+        fontWeight: fontWeight.semibold,
     },
     username: {
-        fontSize: 10,
+        fontSize: fontSize['2xs'],
         color: colors.textPlaceholder,
-        fontWeight: '400',
+        fontWeight: fontWeight.regular,
     },
     record: {
-        fontSize: 11,
+        fontSize: fontSize.xs,
         color: colors.textPlaceholder,
-        fontWeight: '600',
+        fontWeight: fontWeight.semibold,
         marginTop: 2,
     },
     score: {
         fontSize: 40,
-        fontWeight: '900',
+        fontWeight: fontWeight.black,
         lineHeight: 48,
     },
     scoreCompact: {
@@ -204,9 +204,9 @@ const styles = StyleSheet.create({
         backgroundColor: colors.separator,
     },
     vs: {
-        fontSize: 10,
+        fontSize: fontSize['2xs'],
         color: colors.textPlaceholder,
-        fontWeight: '800',
+        fontWeight: fontWeight.extrabold,
         letterSpacing: 1,
     },
 })

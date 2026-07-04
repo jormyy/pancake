@@ -4,7 +4,7 @@ import { LineupPlayer } from '@/lib/lineup'
 import { LiveStatLine } from '@/lib/games'
 import { computeLiveFantasyPoints } from '@/lib/scoring'
 import { POSITION_COLORS } from '@/constants/positions'
-import { alpha, colors, palette, fontWeight, INJURY_COLORS } from '@/constants/tokens'
+import { alpha, colors, palette, fontSize, fontWeight, INJURY_COLORS } from '@/constants/tokens'
 import { PosTag } from '@/components/PosTag'
 import { Badge } from '@/components/Badge'
 import { shortName } from '@/lib/format'
@@ -351,19 +351,19 @@ const styles = StyleSheet.create({
     rowSideRight: { flex: 1, flexDirection: 'row', alignItems: 'center' },
     playerBlockRight: { flex: 1, alignItems: 'flex-end' },
     playerBlockLeft: { flex: 1, alignItems: 'flex-start' },
-    fptsNum: { fontSize: 20, fontWeight: '800', color: colors.textMuted, minWidth: 36, textAlign: 'left', marginRight: 6 },
-    fptsNumDense: { fontSize: 16, minWidth: 28 },
+    fptsNum: { fontSize: fontSize.xl, fontWeight: fontWeight.extrabold, color: colors.textMuted, minWidth: 36, textAlign: 'left', marginRight: 6 },
+    fptsNumDense: { fontSize: fontSize.lg, minWidth: 28 },
     fptsRight: { textAlign: 'right', marginRight: 0, marginLeft: 6 },
     fptsLive: { color: colors.primaryDark },
-    sideName: { fontSize: 13, fontWeight: '600', color: colors.textPrimary, flexShrink: 1 },
-    emptySlotText: { fontSize: 12, fontWeight: '500', color: colors.textPlaceholder },
-    sideNameDense: { fontSize: 12 },
+    sideName: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textPrimary, flexShrink: 1 },
+    emptySlotText: { fontSize: fontSize['2sm'], fontWeight: fontWeight.medium, color: colors.textPlaceholder },
+    sideNameDense: { fontSize: fontSize['2sm'] },
     noGameName: { color: colors.textDisabled },
     metaRow: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 2 },
-    sideMeta: { fontSize: 11, color: colors.textPlaceholder },
-    lockedBadge: { fontSize: 10, fontWeight: fontWeight.bold, color: palette.green600, letterSpacing: 0.4, marginHorizontal: 3 },
+    sideMeta: { fontSize: fontSize.xs, color: colors.textPlaceholder },
+    lockedBadge: { fontSize: fontSize['2xs'], fontWeight: fontWeight.bold, color: palette.green600, letterSpacing: 0.4, marginHorizontal: 3 },
     liveBadgeRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
-    statLine: { fontSize: 11, color: colors.textMuted, textAlign: 'right', marginTop: 1 },
+    statLine: { fontSize: fontSize.xs, color: colors.textMuted, textAlign: 'right', marginTop: 1 },
     statLineLive: { color: colors.primaryDark, fontWeight: fontWeight.semibold },
     slotChipCenter: {
         width: SLOT_W,
@@ -384,7 +384,7 @@ const styles = StyleSheet.create({
         height: 24,
     },
     slotChipSelected: { borderWidth: 1.5, borderColor: colors.primary },
-    slotChipText: { fontSize: 11, fontWeight: '800', letterSpacing: 0.3 },
+    slotChipText: { fontSize: fontSize.xs, fontWeight: fontWeight.extrabold, letterSpacing: 0.3 },
     expandedPanel: {
         flexDirection: 'row',
         gap: 10,
@@ -403,7 +403,7 @@ const styles = StyleSheet.create({
         backgroundColor: colors.borderLight,
     },
     expandedLabel: {
-        fontSize: 10,
+        fontSize: fontSize['2xs'],
         fontWeight: fontWeight.extrabold,
         color: colors.textPlaceholder,
         letterSpacing: 0.8,
@@ -416,7 +416,7 @@ const styles = StyleSheet.create({
     },
     expandedName: {
         flex: 1,
-        fontSize: 12,
+        fontSize: fontSize['2sm'],
         fontWeight: fontWeight.bold,
         color: colors.textPrimary,
     },
@@ -435,7 +435,7 @@ const styles = StyleSheet.create({
         borderColor: colors.borderLight,
     },
     expandedStatValue: {
-        fontSize: 12,
+        fontSize: fontSize['2sm'],
         fontWeight: fontWeight.extrabold,
         color: colors.textPrimary,
     },
@@ -445,11 +445,11 @@ const styles = StyleSheet.create({
         color: colors.textMuted,
     },
     expandedEmpty: {
-        fontSize: 12,
+        fontSize: fontSize['2sm'],
         color: colors.textPlaceholder,
     },
     expandedNote: {
-        fontSize: 11,
+        fontSize: fontSize.xs,
         fontWeight: fontWeight.semibold,
         color: colors.textMuted,
     },
