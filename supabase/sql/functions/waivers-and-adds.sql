@@ -273,6 +273,7 @@ BEGIN
      AND league_season_id = v_season_id
      AND player_id = p_player_id
      AND cleared_at IS NULL
+     AND clears_at > now()
    ORDER BY clears_at
    LIMIT 1
    FOR UPDATE;
