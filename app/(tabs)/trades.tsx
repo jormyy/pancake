@@ -7,7 +7,7 @@ import {
 import { FlashList } from '@shopify/flash-list'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
 import { NoLeagueState } from '@/components/NoLeagueState'
 import { isTradingClosed } from '@/lib/league'
@@ -97,6 +97,8 @@ export default function TradesScreen() {
     const [blockLoading, setBlockLoading] = useState(false)
     const [blockError, setBlockError] = useState<string | null>(null)
     const [blockBusyId, setBlockBusyId] = useState<string | null>(null)
+    const tradesLoadSeqRef = useRef(0)
+    const blockLoadSeqRef = useRef(0)
 
     const { data: picks, error: picksError } = useFocusAsyncData(async () => {
         if (!current || !leagueId) return [] as TradePickItem[]
@@ -106,45 +108,66 @@ export default function TradesScreen() {
     }, [current?.id, leagueId], { initialData: cachedPicks ?? undefined })
 
     const load = useCallback(async () => {
-        if (!myMemberId || !leagueId) return
+        const requestId = ++tradesLoadSeqRef.current
+        const memberId = myMemberId
+        const currentLeagueId = leagueId
+        if (!memberId || !currentLeagueId) {
+            setTrades([])
+            setTradesError(null)
+            setLoading(false)
+            return
+        }
         setTradesError(null)
         try {
             const [myTradeData, vetoableTradeData] = await Promise.all([
-                getMyTrades(myMemberId, leagueId),
-                getVetoableTrades(myMemberId, leagueId),
+                getMyTrades(memberId, currentLeagueId),
+                getVetoableTrades(memberId, currentLeagueId),
             ])
+            if (tradesLoadSeqRef.current !== requestId) return
             const result = [...vetoableTradeData, ...myTradeData]
             setTrades(result)
-            writePersistentCache(tradesCacheKey(myMemberId, leagueId), result)
+            writePersistentCache(tradesCacheKey(memberId, currentLeagueId), result)
         } catch (e) {
+            if (tradesLoadSeqRef.current !== requestId) return
             console.error(e)
             setTradesError(getErrorMessage(e) ?? 'Unknown error')
         } finally {
-            setLoading(false)
+            if (tradesLoadSeqRef.current === requestId) setLoading(false)
         }
     }, [myMemberId, leagueId])
 
     const loadBlock = useCallback(async () => {
-        if (!myMemberId || !leagueId) return
+        const requestId = ++blockLoadSeqRef.current
+        const memberId = myMemberId
+        const currentLeagueId = leagueId
+        if (!memberId || !currentLeagueId) {
+            setBlockItems([])
+            setBlockRoster([])
+            setBlockError(null)
+            setBlockLoading(false)
+            return
+        }
         setBlockLoading(true)
         setBlockError(null)
         try {
             const [items, roster] = await Promise.all([
-                getTradeBlockItems(leagueId),
-                getRoster(myMemberId, leagueId),
+                getTradeBlockItems(currentLeagueId),
+                getRoster(memberId, currentLeagueId),
             ])
+            if (blockLoadSeqRef.current !== requestId) return
             const activeRoster = roster.filter((player) => !player.is_on_ir && !player.is_on_taxi)
             setBlockItems(items)
             setBlockRoster(activeRoster)
-            writePersistentCache(tradeBlockCacheKey(myMemberId, leagueId), {
+            writePersistentCache(tradeBlockCacheKey(memberId, currentLeagueId), {
                 items,
                 roster: activeRoster,
             })
         } catch (e) {
+            if (blockLoadSeqRef.current !== requestId) return
             console.error(e)
             setBlockError(getErrorMessage(e) ?? 'Unknown error')
         } finally {
-            setBlockLoading(false)
+            if (blockLoadSeqRef.current === requestId) setBlockLoading(false)
         }
     }, [myMemberId, leagueId])
 

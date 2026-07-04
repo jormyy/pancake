@@ -11,7 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useAuth } from '@/hooks/use-auth'
 import { getRoster, RosterPlayer } from '@/lib/roster'
@@ -36,6 +36,7 @@ export default function ClaimPlayerScreen() {
     const [loading, setLoading] = useState(true)
     const [selectedDrop, setSelectedDrop] = useState<RosterPlayer | null>(null)
     const [submitting, setSubmitting] = useState(false)
+    const claimLoadSeqRef = useRef(0)
     const { width, height } = useWindowDimensions()
     const [webViewport, setWebViewport] = useState({ width, height })
     useEffect(() => {
@@ -53,23 +54,39 @@ export default function ClaimPlayerScreen() {
     const leagueId = currentLeague?.id
 
     useEffect(() => {
+        const requestId = ++claimLoadSeqRef.current
+        setLoading(true)
+        setPlayer(null)
+        setMyRoster([])
+        setPriority(null)
+        setTransactionState(null)
+        setSelectedDrop(null)
+        setBidInput('0')
         async function load() {
-            if (!current || !user || !playerId || !leagueId) return
+            if (!current || !user || !playerId || !leagueId) {
+                if (claimLoadSeqRef.current === requestId) setLoading(false)
+                return
+            }
+            const memberId = current.id
+            const requestedPlayerId = playerId
+            const requestedLeagueId = leagueId
             try {
                 const [p, roster, prio, txState] = await Promise.all([
-                    getPlayer(playerId),
-                    getRoster(current.id, leagueId),
-                    getMyWaiverPriority(current.id, leagueId),
-                    getMemberTransactionState(current.id, leagueId),
+                    getPlayer(requestedPlayerId),
+                    getRoster(memberId, requestedLeagueId),
+                    getMyWaiverPriority(memberId, requestedLeagueId),
+                    getMemberTransactionState(memberId, requestedLeagueId),
                 ])
+                if (claimLoadSeqRef.current !== requestId) return
                 setPlayer(p)
                 setMyRoster(roster)
                 setPriority(prio)
                 setTransactionState(txState)
             } catch (e) {
+                if (claimLoadSeqRef.current !== requestId) return
                 console.error(e)
             } finally {
-                setLoading(false)
+                if (claimLoadSeqRef.current === requestId) setLoading(false)
             }
         }
         load()
@@ -82,6 +99,7 @@ export default function ClaimPlayerScreen() {
 
     async function handleSubmit() {
         if (!current || !user || !playerId || !currentLeague) return
+        if (loading || !player) return
         if (needsDrop && !selectedDrop) {
             showAlert('Select Drop', 'Your roster is full. Select a player to drop.')
             return
@@ -202,7 +220,7 @@ export default function ClaimPlayerScreen() {
                         </View>
                         <Pressable
                             style={styles.blockButton}
-                            onPress={() => router.back()}
+                            onPress={() => router.replace('/(tabs)/roster')}
                             accessibilityRole="button"
                             accessibilityLabel="Go to roster"
                         >
