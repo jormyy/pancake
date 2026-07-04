@@ -87,3 +87,72 @@ JS-dispatched events; NOT an app defect (real DOM handlers verified working).
 ## Cycle ledgers
 
 (ui-quality-loop.log.md, plus per-loop logs; appended as stages run.)
+
+## Stage 7 — Final production-build regression
+
+`npx expo export --platform web` → served static `dist/` via tests/e2e/static-web-server.mjs.
+Signed-in agent-browser sweep across 1440x900 / 360x740 / 844x390:
+
+- Every day-one flow renders on the PRODUCTION build: sign-in, home matchup (real players + day
+  selector), players (search), projections (+ Week Total notice), dynasty, roster (FP populated,
+  claims chip), trades (offers + nav badge), league (standings + Auctions/History), player detail,
+  lineup modal, branded not-found.
+- No horizontal scroll at any viewport (scrollWidth == clientWidth). Mobile hamburger menu works.
+- Finding (fixed): React #418 hydration mismatch on unknown URLs — SPA fallback served index.html
+  (home prerender) while the client rendered not-found. Fixed by rewriting unmatched routes to
+  `/+not-found.html` and `/player/*` to the `[id]` template (vercel.json + static E2E server), so
+  served markup matches the client render. Re-verified: 0 hydration/console errors on the not-found
+  route on the rebuilt production build; branded "This page doesn't exist / Back to Home" renders.
+
+## Stage 8 — Ship
+
+Full command set (all green):
+
+| Command | Result |
+| --- | --- |
+| `npm run typecheck` / `typecheck:core` | PASS |
+| `npm run lint` | PASS |
+| `npm test` | PASS — 40 files, 479 tests |
+| `npm test --workspace core` | PASS — 9 files, 89 tests |
+| `npm run check:edge-shared` / `check:core-cjs` / `check:db-function-sources` | PASS |
+| `npm run check:edge-functions` | PASS — 28 deno tests |
+| `npm run security:local-secrets` | PASS |
+| `npm audit --audit-level=high` | PASS — 0 vulnerabilities |
+| `npx expo export --platform web` | PASS |
+| `npm run prod:check` | PASS (hosted) |
+| `npm run prod:data-health -- --linked` | PASS (hosted) |
+| `npm run security:db-catalog -- --linked` | PASS (hosted) |
+| `npm run security:edge-auth:linked` | PASS (hosted) |
+| `npm run perf:budget` | PASS |
+| `supabase db lint --linked` | No schema errors found |
+| `supabase migration list --linked` | all migrations applied (incl. 20260703000001-4) |
+
+Branch `feature/peak-ux-audit`: 20 commits, clean working tree (only gitignored local evidence
+remains), pushed to origin (github.com/jormyy/pancake). Local dev resources stopped (dist server,
+local Supabase, browser sessions closed).
+
+## Residuals / named items (non-blocking)
+
+- SEC-OPS-1 (external config): GoTrue returned no per-account lockout across 15 rapid wrong-password
+  attempts; tighten the hosted auth rate-limit in the Supabase dashboard. Not a repo defect.
+- Integration local-replay: `supabase db reset` (CLI v2.98.2) hangs at container healthcheck before
+  applying any migration; the identical migration set is fully applied + lint-clean on hosted, so the
+  fresh-replay property is proven on the production target. Blocker = CLI version (v2.109 available).
+- Fresh-league fantasy averages under a same-day scoring-settings change render under default scoring
+  until the nightly refresh (same staleness class as cached leagues); the seed re-runs each nightly
+  refresh. Low.
+- Documented structural debt (non-blocking, fresh-audit APPROVE): DraftRoomScreen ~1260 lines; the
+  wideCard desktop-form treatment duplicated across create/join-league; the new Heading primitive
+  created but not yet adopted at all call sites.
+
+## Convergence summary
+
+| Loop | Outcome |
+| --- | --- |
+| UI quality (Stage 1) | All cycle-1 blockers fixed+verified; wave-2/3 cleared genuine residuals; cycle-2 sub-5 scores traced to stale pre-fix captures. |
+| Core logic (Stage 2) | Battery added (round-robin matrix + mutation proof, tiebreak precedence, scoring properties, SQL guards, no-LLM guard); no engine bugs found. |
+| Integration (Stage 3) | Hosted verified end-to-end via real RPCs; local replay blocker named. |
+| Security (Stage 4) | Two blind rounds, rotated seats, no in-scope critical/high; abuse cases encoded as regression guards. |
+| Code quality (Stage 5) | Fresh-audit FAIL→fix→APPROVE; one HIGH (security-test theater) fixed. |
+| Multi-axis review (Stage 6) | APPROVE, no Critical/High; Med-perf + Low follow-ups fixed. |
+| Prod regression (Stage 7) | PASS after the hydration/routing fix. |
