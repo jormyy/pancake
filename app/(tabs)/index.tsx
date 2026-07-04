@@ -10,6 +10,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { ReactNode, useCallback, useEffect, useMemo } from 'react'
 import { EmptyState } from '@/components/EmptyState'
+import { ErrorBanner } from '@/components/ui'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useAuth } from '@/hooks/use-auth'
 import { Scoreboard } from '@/components/Scoreboard'
@@ -147,11 +148,7 @@ export default function HomeScreen() {
                 compact={compact}
             />
 
-            {error && (
-                <Pressable style={styles.errorBanner} onPress={refresh}>
-                    <Text style={styles.errorBannerText}>Failed to load. Tap to retry.</Text>
-                </Pressable>
-            )}
+            {error && <ErrorBanner onRetry={refresh} />}
 
             {matchup ? (
                 <View style={styles.playSurface}>
@@ -682,13 +679,6 @@ const styles = StyleSheet.create({
     noMatchup: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 8, padding: 32 },
     noMatchupText: { fontSize: 16, fontWeight: '600', color: colors.textSecondary },
     noMatchupSub: { fontSize: 13, color: colors.textPlaceholder, textAlign: 'center' },
-
-    errorBanner: {
-        backgroundColor: colors.danger,
-        paddingHorizontal: 16,
-        paddingVertical: 10,
-    },
-    errorBannerText: { fontSize: 13, fontWeight: '600', color: colors.textWhite, textAlign: 'center' },
 
     dateLabel: { fontSize: 13, color: colors.textMuted, textAlign: 'center', paddingVertical: 10 },
 

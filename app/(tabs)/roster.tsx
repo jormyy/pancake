@@ -21,6 +21,7 @@ import { currentSeasonYear } from '@/lib/shared/season'
 import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 import { ItemSeparator } from '@/components/ItemSeparator'
 import { EmptyState } from '@/components/EmptyState'
+import { ErrorBanner } from '@/components/ui'
 import { SectionHeader } from '@/components/SectionHeader'
 import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
 import { RosterClaimItem, RosterPickItem, RosterPlayerItem, TaxiPlayerItem } from '@/components/roster/RosterItems'
@@ -505,9 +506,7 @@ export default function RosterScreen() {
 
             {/* Error banner */}
             {error ? (
-                <Pressable style={styles.errorBanner} onPress={refresh}>
-                    <Text style={styles.errorBannerText}>Failed to load roster. Tap to retry.</Text>
-                </Pressable>
+                <ErrorBanner message="Failed to load roster. Tap to retry." onRetry={refresh} />
             ) : null}
 
             {roster.length === 0 ? (
@@ -775,13 +774,6 @@ const styles = StyleSheet.create({
         fontWeight: fontWeight.bold,
         color: colors.primaryDark,
     },
-
-    errorBanner: {
-        backgroundColor: colors.dangerLight,
-        paddingHorizontal: spacing.xl,
-        paddingVertical: spacing.md,
-    },
-    errorBannerText: { color: colors.danger, fontSize: fontSize.sm, fontWeight: fontWeight.semibold },
 
     taxiHeader: {
         paddingHorizontal: spacing.xl,
