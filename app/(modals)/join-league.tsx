@@ -16,7 +16,7 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '@/hooks/use-auth'
 import { useLeagueContext } from '@/contexts/league-context'
 import { joinLeague } from '@/lib/league'
-import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { breakpoints, colors, elevation, fontFamily, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 import { getErrorMessage } from '@/lib/alert'
 
 export default function JoinLeagueScreen() {
@@ -39,6 +39,9 @@ export default function JoinLeagueScreen() {
     const viewportWidth = Platform.OS === 'web' ? webViewport.width : width
     const viewportHeight = Platform.OS === 'web' ? webViewport.height : height
     const isCompactLandscape = viewportWidth > viewportHeight && viewportHeight < 520
+    // Desktop composition: same card treatment as create-league so the two
+    // fields don't float as bare inputs in a wide void. Mobile unchanged.
+    const wide = Platform.OS === 'web' && viewportWidth >= breakpoints.roster && !isCompactLandscape
 
     async function handleJoin() {
         if (!inviteCode.trim() || !teamName.trim()) {
@@ -168,10 +171,22 @@ export default function JoinLeagueScreen() {
                     behavior={Platform.OS === 'ios' ? 'padding' : undefined}
                 >
                     <ScrollView
-                        contentContainerStyle={[styles.inner, isCompactLandscape && styles.compactInner]}
+                        contentContainerStyle={[styles.inner, isCompactLandscape && styles.compactInner, wide && styles.innerWide]}
                         keyboardShouldPersistTaps="handled"
                     >
-                        {formContent}
+                        {wide ? (
+                            <View style={styles.wideCard}>
+                                <View style={styles.wideTitleBlock}>
+                                    <Text style={styles.wideTitle}>Join a league</Text>
+                                    <Text style={styles.wideSubtitle}>
+                                        Enter the invite code your commissioner shared and name your team.
+                                    </Text>
+                                </View>
+                                {formContent}
+                            </View>
+                        ) : (
+                            formContent
+                        )}
                     </ScrollView>
                 </KeyboardAvoidingView>
             </SafeAreaView>
@@ -208,6 +223,26 @@ const styles = StyleSheet.create({
         fontWeight: fontWeight.extrabold,
     },
     inner: { flexGrow: 1, padding: spacing['3xl'], gap: spacing.md, width: '100%', maxWidth: 560, alignSelf: 'center' },
+    innerWide: { flexGrow: 1, justifyContent: 'center', paddingVertical: spacing['5xl'] },
+    wideCard: {
+        backgroundColor: colors.bgCard,
+        borderWidth: 1,
+        borderColor: colors.borderLight,
+        borderRadius: radii['2xl'],
+        borderCurve: 'continuous' as const,
+        padding: spacing['4xl'],
+        gap: spacing.md,
+        ...(elevation('md') as object),
+    },
+    wideTitleBlock: { marginBottom: spacing.lg, gap: spacing.sm },
+    wideTitle: {
+        fontSize: fontSize['3xl'],
+        fontFamily: fontFamily.display,
+        fontWeight: fontWeight.bold,
+        color: colors.textPrimary,
+        letterSpacing: -0.5,
+    },
+    wideSubtitle: { fontSize: fontSize.md, color: colors.textMuted, lineHeight: 20 },
     compactInner: {
         maxWidth: 640,
         paddingTop: spacing.md,

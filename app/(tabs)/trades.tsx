@@ -9,6 +9,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
+import { NoLeagueState } from '@/components/NoLeagueState'
 import { isTradingClosed } from '@/lib/league'
 import {
     addTradeBlockItem,
@@ -66,7 +67,7 @@ const listGetItemType = (item: ListItem) => item._type
 
 export default function TradesScreen() {
     const { push } = useRouter()
-    const { current, currentLeague } = useLeagueContext()
+    const { current, currentLeague, memberships } = useLeagueContext()
 
     const myMemberId = current?.id ?? ''
     const leagueId = currentLeague?.id ?? ''
@@ -421,6 +422,8 @@ export default function TradesScreen() {
         { label: 'Block', value: 'block' },
         { label: 'History', value: 'history' },
     ]
+
+    if (memberships.length === 0) return <NoLeagueState />
 
     return (
         <SafeAreaView style={styles.container}>

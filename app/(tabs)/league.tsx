@@ -11,6 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { colors, fontSize, fontWeight, radii, spacing, layout } from '@/constants/tokens'
 import { EmptyState } from '@/components/EmptyState'
+import { NoLeagueState } from '@/components/NoLeagueState'
 import { StandingsTable, ActivityFeed } from '@/components/league/LeagueSections'
 import {
     AuctionPanel,
@@ -202,7 +203,7 @@ export default function LeagueScreen() {
                 />
             )
         }
-        return <EmptyState message="Join or create a league first." />
+        return <NoLeagueState />
     }
 
     const currentLeagueName = screen.currentLeague?.name ?? 'League'

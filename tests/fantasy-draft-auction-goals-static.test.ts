@@ -168,7 +168,9 @@ describe('fantasy draft and auction experience goals', () => {
         expect(leagueScreen).toContain('message="Loading league..."')
         expect(leagueScreen).toContain('description="Fetching your teams and league settings."')
         expect(leagueScreen).toContain('icon="sync"')
-        expect(leagueScreen).toContain('Join or create a league first.')
+        // No-league state now shows the full NoLeagueState welcome (Create/Join CTAs),
+        // matching Home and Trades, instead of a bare one-line EmptyState.
+        expect(leagueScreen).toContain('return <NoLeagueState />')
     })
 
     it('keeps the league phase rail announced as a live transition surface', () => {

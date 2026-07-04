@@ -1066,7 +1066,9 @@ const styles = StyleSheet.create({
     },
 
     bidInputRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.md, marginTop: spacing.xs },
-    bidStepGroup: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+    // flexShrink 0 keeps the −/amount/+ trio intact; the Bid button (flex:1) wraps
+    // to its own line at narrow widths instead of pushing "+" off the card edge.
+    bidStepGroup: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, flexShrink: 0 },
     bidInputRowCompact: { gap: spacing.sm, marginTop: 0 },
     bidStep: {
         width: 44,
@@ -1081,7 +1083,7 @@ const styles = StyleSheet.create({
     bidAmountInput: {
         fontSize: 18,
         fontWeight: fontWeight.extrabold,
-        minWidth: 64,
+        width: 84,
         height: 44,
         textAlign: 'center',
         backgroundColor: colors.bgMuted,
