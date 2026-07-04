@@ -38,16 +38,19 @@ describe('auction bid guards (place_auction_bid_atomic / settlement)', () => {
 describe('waiver claim resolution ordering (process_waiver_claim internals)', () => {
     it('picks the next claim by FAAB bid DESC, then priority, claim order, submit time, id', () => {
         expect(waivers).toContain(
-            '   ORDER BY\n' +
-            '     candidate.league_id,\n' +
-            '     candidate.league_season_id,\n' +
-            "     CASE WHEN claim_league.waiver_mode = 'faab' THEN candidate.bid_amount END DESC NULLS LAST,\n" +
-            '     wp.priority ASC,\n' +
-            '     candidate.claim_order ASC,\n' +
-            '     candidate.submitted_at ASC,\n' +
-            '     candidate.id ASC\n' +
-            '   LIMIT 1;',
+            '     ORDER BY\n' +
+            '       candidate.league_id,\n' +
+            '       candidate.league_season_id,\n' +
+            "       CASE WHEN claim_league.waiver_mode = 'faab' THEN candidate.bid_amount END DESC NULLS LAST,\n" +
+            '       wp.priority ASC,\n' +
+            '       candidate.claim_order ASC,\n' +
+            '       candidate.submitted_at ASC,\n' +
+            '       candidate.id ASC',
         )
+    })
+
+    it('skips leagues whose advisory lock is held instead of blocking the batch', () => {
+        expect(waivers).toContain('IF pg_try_advisory_xact_lock(hashtext(v_candidate.league_id::text), hashtext(v_candidate.league_season_id::text)) THEN')
     })
 
     it('re-applies the identical FAAB tie-break ordering under row locks', () => {
