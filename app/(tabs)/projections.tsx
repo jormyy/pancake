@@ -1,8 +1,5 @@
 import {
-    Modal,
-    Platform,
     Pressable,
-    ScrollView,
     StyleSheet,
     Text,
     TextInput,
@@ -18,7 +15,9 @@ import { EmptyState } from '@/components/EmptyState'
 import { IRResolutionModal } from '@/components/IRResolutionModal'
 import { ItemSeparator } from '@/components/ItemSeparator'
 import { PlayerSearchItem } from '@/components/PlayerSearchItem'
-import { colors, fontSize, fontWeight, layout, radii, spacing, srOnly } from '@/constants/tokens'
+import { FilterSelect, MultiTeamSelect } from '@/components/ui'
+import { playerListStyles as styles } from '@/components/ui/playerListStyles'
+import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
 import { useQuickAdd } from '@/hooks/use-quick-add'
@@ -54,7 +53,6 @@ const POSITIONS = [
     { key: 'G', label: 'G' },
     { key: 'F', label: 'F' },
 ] as const
-const TEAMS = ['ATL', 'BOS', 'BKN', 'CHA', 'CHI', 'CLE', 'DAL', 'DEN', 'DET', 'GSW', 'HOU', 'IND', 'LAC', 'LAL', 'MEM', 'MIA', 'MIL', 'MIN', 'NOP', 'NYK', 'OKC', 'ORL', 'PHI', 'PHX', 'POR', 'SAC', 'SAS', 'TOR', 'UTA', 'WAS']
 const VIEW_OPTIONS = [
     { key: 'today', label: 'Today' },
     { key: 'week_avg', label: 'Week Avg' },
@@ -102,130 +100,6 @@ const EMPTY_GAMES_LEFT = new Map<string, number>()
 const PROJECTION_CACHE_PREFIX = 'pancake:league-projections:v1:'
 
 const projectionCacheKey = (leagueId: string, view: ProjectionView) => `${PROJECTION_CACHE_PREFIX}${leagueId}:${view}`
-
-type FilterOption<T extends string> = { key: T; label: string }
-
-function FilterSelect<T extends string>({
-    label,
-    value,
-    options,
-    onChange,
-}: {
-    label: string
-    value: T
-    options: readonly FilterOption<T>[]
-    onChange: (value: T) => void
-}) {
-    const [open, setOpen] = useState(false)
-    const current = options.find((option) => option.key === value) ?? options[0]
-
-    return (
-        <View style={styles.filterSelectWrap}>
-            <Text style={styles.filterSelectLabel}>{label}</Text>
-            <Pressable
-                style={styles.filterSelectButton}
-                onPress={() => setOpen(true)}
-                accessibilityRole="button"
-                accessibilityLabel={`${label}: ${current.label}`}
-            >
-                <Text style={styles.filterSelectValue} numberOfLines={1}>{current.label}</Text>
-                <Text style={styles.filterSelectCaret}>▾</Text>
-            </Pressable>
-            <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
-                <Pressable style={styles.selectBackdrop} onPress={() => setOpen(false)}>
-                    <View style={styles.selectSheet} onStartShouldSetResponder={() => true}>
-                        <Text style={styles.selectTitle}>{label}</Text>
-                        <ScrollView>
-                            {options.map((option) => {
-                                const active = option.key === value
-                                return (
-                                    <Pressable
-                                        key={option.key}
-                                        style={[styles.selectOption, active && styles.selectOptionActive]}
-                                        onPress={() => {
-                                            onChange(option.key)
-                                            setOpen(false)
-                                        }}
-                                    >
-                                        <Text style={[styles.selectOptionText, active && styles.selectOptionTextActive]}>
-                                            {option.label}
-                                        </Text>
-                                    </Pressable>
-                                )
-                            })}
-                        </ScrollView>
-                    </View>
-                </Pressable>
-            </Modal>
-        </View>
-    )
-}
-
-function MultiTeamSelect({
-    label,
-    selected,
-    onChange,
-}: {
-    label: string
-    selected: string[]
-    onChange: (teams: string[]) => void
-}) {
-    const [open, setOpen] = useState(false)
-    const summary = selected.length === 0 ? 'All' : selected.length === 1 ? selected[0] : `${selected.length} teams`
-    const toggle = (team: string) =>
-        onChange(selected.includes(team) ? selected.filter((t) => t !== team) : [...selected, team])
-
-    return (
-        <View style={styles.filterSelectWrap}>
-            <Text style={styles.filterSelectLabel}>{label}</Text>
-            <Pressable
-                style={styles.filterSelectButton}
-                onPress={() => setOpen(true)}
-                accessibilityRole="button"
-                accessibilityLabel={`${label}: ${summary}`}
-            >
-                <Text style={styles.filterSelectValue} numberOfLines={1}>{summary}</Text>
-                <Text style={styles.filterSelectCaret}>▾</Text>
-            </Pressable>
-            <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
-                <Pressable style={styles.selectBackdrop} onPress={() => setOpen(false)}>
-                    <View style={styles.selectSheet} onStartShouldSetResponder={() => true}>
-                        <View style={styles.multiHeader}>
-                            <Text style={styles.selectTitle}>{label}</Text>
-                            {selected.length > 0 ? (
-                                <Pressable onPress={() => onChange([])} accessibilityRole="button" accessibilityLabel="Clear teams">
-                                    <Text style={styles.multiClear}>Clear</Text>
-                                </Pressable>
-                            ) : null}
-                        </View>
-                        <ScrollView>
-                            <View style={styles.teamGrid}>
-                                {TEAMS.map((team) => {
-                                    const active = selected.includes(team)
-                                    return (
-                                        <Pressable
-                                            key={team}
-                                            style={[styles.teamChip, active && styles.teamChipActive]}
-                                            onPress={() => toggle(team)}
-                                            accessibilityRole="checkbox"
-                                            accessibilityState={{ checked: active }}
-                                            accessibilityLabel={team}
-                                        >
-                                            <Text style={[styles.teamChipText, active && styles.teamChipTextActive]}>{team}</Text>
-                                        </Pressable>
-                                    )
-                                })}
-                            </View>
-                        </ScrollView>
-                        <Pressable style={styles.multiDone} onPress={() => setOpen(false)} accessibilityRole="button" accessibilityLabel="Done">
-                            <Text style={styles.multiDoneText}>Done</Text>
-                        </Pressable>
-                    </View>
-                </Pressable>
-            </Modal>
-        </View>
-    )
-}
 
 export default function ProjectionsScreen() {
     const { push } = useRouter()
@@ -512,14 +386,14 @@ export default function ProjectionsScreen() {
             </View>
 
             {error ? (
-                <View style={styles.errorBox}>
-                    <Text style={styles.errorText}>{error}</Text>
+                <View style={localStyles.errorBox}>
+                    <Text style={localStyles.errorText}>{error}</Text>
                 </View>
             ) : null}
 
             {weekTotalsEmpty ? (
-                <View style={styles.noticeBox}>
-                    <Text style={styles.noticeText}>
+                <View style={localStyles.noticeBox}>
+                    <Text style={localStyles.noticeText}>
                         No NBA games are scheduled in this week&apos;s range, so weekly totals are 0.
                         Switch to Today or Week Avg for per-game projections.
                     </Text>
@@ -678,281 +552,7 @@ function matchesHealth(injuryStatus: string | null, filter: PlayerSearchHealthFi
     }
 }
 
-const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: colors.bgScreen },
-    contentWrap: { flex: 1, width: '100%', maxWidth: layout.contentMaxWidth, alignSelf: 'center' },
-    hiddenHeading: {
-        ...srOnly,
-    },
-    flex1: { flex: 1 },
-    filterCard: {
-        margin: spacing.xl,
-        marginBottom: spacing.md,
-        padding: spacing.lg,
-        borderWidth: 1,
-        borderColor: colors.borderLight,
-        borderRadius: radii.lg,
-        backgroundColor: colors.bgCard,
-        gap: spacing.lg,
-        ...(Platform.OS === 'web' ? { boxShadow: '0 10px 28px rgba(74, 37, 9, 0.08)' } : {}),
-    },
-    filterCardTop: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: spacing.lg,
-    },
-    filterCardHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: spacing.md,
-    },
-    filterCardTitle: {
-        fontSize: fontSize.sm,
-        fontWeight: fontWeight.extrabold,
-        color: colors.textPrimary,
-        letterSpacing: 0.6,
-        textTransform: 'uppercase' as const,
-    },
-    filterToggle: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: spacing.md,
-        minHeight: 32,
-    },
-    filterCountDot: {
-        minWidth: 20,
-        height: 20,
-        paddingHorizontal: 6,
-        borderRadius: radii.full,
-        backgroundColor: colors.primary,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    filterCountDotText: { fontSize: 11, fontWeight: fontWeight.bold, color: colors.textWhite },
-    resultCountText: {
-        flexShrink: 0,
-        fontSize: fontSize.sm,
-        fontWeight: fontWeight.bold,
-        color: colors.textMuted,
-    },
-    filterGrid: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: spacing.md,
-    },
-    filterSelectWrap: {
-        minWidth: 142,
-        flexGrow: 1,
-        flexBasis: 142,
-        gap: spacing.xs,
-    },
-    filterSelectLabel: {
-        fontSize: 10,
-        fontWeight: fontWeight.extrabold,
-        color: colors.textMuted,
-        letterSpacing: 0.8,
-        textTransform: 'uppercase' as const,
-    },
-    filterSelectButton: {
-        minHeight: 38,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: spacing.sm,
-        borderWidth: 1,
-        borderColor: colors.borderLight,
-        borderRadius: radii.md,
-        backgroundColor: colors.bgMuted,
-        paddingHorizontal: spacing.md,
-    },
-    filterSelectValue: {
-        flex: 1,
-        minWidth: 0,
-        fontSize: fontSize.sm,
-        fontWeight: fontWeight.bold,
-        color: colors.textPrimary,
-    },
-    filterSelectCaret: {
-        flexShrink: 0,
-        fontSize: 11,
-        color: colors.textMuted,
-    },
-    selectBackdrop: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        padding: spacing.xl,
-        backgroundColor: 'rgba(44, 26, 14, 0.36)',
-    },
-    selectSheet: {
-        width: '100%',
-        maxWidth: 360,
-        maxHeight: 460,
-        borderWidth: 1,
-        borderColor: colors.border,
-        borderRadius: radii.lg,
-        backgroundColor: colors.bgCard,
-        padding: spacing.md,
-        ...(Platform.OS === 'web' ? { boxShadow: '0 18px 48px rgba(0,0,0,0.22)' } : {}),
-    },
-    selectTitle: {
-        paddingHorizontal: spacing.sm,
-        paddingVertical: spacing.sm,
-        fontSize: fontSize.md,
-        fontWeight: fontWeight.extrabold,
-        color: colors.textPrimary,
-    },
-    multiHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-    },
-    multiClear: {
-        paddingHorizontal: spacing.sm,
-        fontSize: fontSize.sm,
-        fontWeight: fontWeight.bold,
-        color: colors.danger,
-    },
-    teamGrid: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: spacing.sm,
-        padding: spacing.sm,
-    },
-    teamChip: {
-        minWidth: 52,
-        minHeight: 36,
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingHorizontal: spacing.md,
-        borderRadius: radii.md,
-        borderWidth: 1,
-        borderColor: colors.borderLight,
-        backgroundColor: colors.bgMuted,
-    },
-    teamChipActive: {
-        backgroundColor: colors.primaryLight,
-        borderColor: colors.primaryBorder,
-    },
-    teamChipText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.textSecondary },
-    teamChipTextActive: { color: colors.primaryDark },
-    multiDone: {
-        marginTop: spacing.sm,
-        minHeight: 44,
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderRadius: radii.md,
-        backgroundColor: colors.primary,
-    },
-    multiDoneText: { fontSize: fontSize.md, fontWeight: fontWeight.bold, color: colors.textWhite },
-    selectOption: {
-        minHeight: 42,
-        justifyContent: 'center',
-        borderRadius: radii.md,
-        paddingHorizontal: spacing.md,
-    },
-    selectOptionActive: {
-        backgroundColor: colors.primaryLight,
-    },
-    selectOptionText: {
-        fontSize: fontSize.md,
-        fontWeight: fontWeight.semibold,
-        color: colors.textSecondary,
-    },
-    selectOptionTextActive: {
-        color: colors.primaryDark,
-    },
-    sortDirButton: {
-        minHeight: 38,
-        alignSelf: 'flex-end',
-        justifyContent: 'center',
-        borderRadius: radii.md,
-        backgroundColor: colors.bgMuted,
-        paddingHorizontal: spacing.lg,
-    },
-    sortDirText: {
-        fontSize: fontSize.sm,
-        fontWeight: fontWeight.bold,
-        color: colors.textSecondary,
-    },
-    tableHeader: {
-        minHeight: 34,
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingLeft: spacing.lg,
-        borderTopWidth: 1,
-        borderBottomWidth: 1,
-        borderColor: colors.borderLight,
-        backgroundColor: colors.bgSubtle,
-    },
-    tableHeaderAddSpacer: { width: 36 },
-    tableHeaderCardRow: {
-        flex: 1,
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingLeft: spacing.md,
-        paddingRight: spacing['4xl'],
-        gap: spacing.lg,
-    },
-    tableHeaderHeadshotSpacer: { width: 44 },
-    tableHeaderPlayer: {
-        flex: 1,
-        fontSize: 10,
-        fontWeight: fontWeight.extrabold,
-        color: colors.textMuted,
-        letterSpacing: 0.8,
-        textTransform: 'uppercase' as const,
-    },
-    tableHeaderOwnership: {
-        width: 90,
-        textAlign: 'center',
-        fontSize: 10,
-        fontWeight: fontWeight.extrabold,
-        color: colors.textMuted,
-        letterSpacing: 0.7,
-        textTransform: 'uppercase' as const,
-    },
-    tableHeaderStatsGroup: {
-        width: 9 * 54,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'flex-end',
-    },
-    tableHeaderStatBtn: {
-        width: 54,
-        minHeight: 34,
-        alignItems: 'flex-end',
-        justifyContent: 'center',
-    },
-    tableHeaderStat: {
-        textAlign: 'right',
-        fontSize: 10,
-        fontWeight: fontWeight.extrabold,
-        color: colors.textSecondary,
-        letterSpacing: 0.7,
-        textTransform: 'uppercase' as const,
-    },
-    tableHeaderStatActive: {
-        color: colors.primaryDark,
-    },
-    searchInput: {
-        flex: 1,
-        height: 44,
-        backgroundColor: colors.bgMuted,
-        borderRadius: radii.lg,
-        borderCurve: 'continuous' as const,
-        paddingHorizontal: spacing.lg + spacing.xxs,
-        fontSize: fontSize.lg,
-        color: colors.textPrimary,
-    },
-    clearAllChip: {
-        paddingHorizontal: spacing.md,
-        paddingVertical: spacing.xs,
-        borderRadius: radii.md,
-        borderCurve: 'continuous' as const,
-        backgroundColor: colors.dangerLight,
-    },
-    clearAllChipText: { fontSize: fontSize.xs, fontWeight: fontWeight.semibold, color: colors.danger },
+const localStyles = StyleSheet.create({
     errorBox: {
         marginHorizontal: spacing.xl,
         borderWidth: 1,
@@ -974,5 +574,4 @@ const styles = StyleSheet.create({
         borderCurve: 'continuous',
     },
     noticeText: { color: colors.textSecondary, fontSize: fontSize.sm, fontWeight: fontWeight.medium },
-    emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 })
