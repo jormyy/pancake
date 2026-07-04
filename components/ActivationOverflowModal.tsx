@@ -1,5 +1,5 @@
 import { View, Text, Pressable, StyleSheet, Modal, ScrollView } from 'react-native'
-import { colors, palette, scrim } from '@/constants/tokens'
+import { alpha, colors, palette, scrim } from '@/constants/tokens'
 import { LineupPlayer } from '@/lib/lineup'
 import { isIREligible } from '@/lib/roster'
 
@@ -56,7 +56,7 @@ export function ActivationOverflowModal({
                                 </View>
                                 {isIREligible(p.injuryStatus) && (
                                     <Pressable
-                                        style={[styles.overflowBtn, { backgroundColor: palette.red900 + '22', marginRight: 6 }]}
+                                        style={[styles.overflowBtn, { backgroundColor: alpha(palette.red900, 0.13), marginRight: 6 }]}
                                         onPress={() => onMoveToIR(p.rosterPlayerId)}
                                         disabled={saving}
                                     >
@@ -65,7 +65,7 @@ export function ActivationOverflowModal({
                                 )}
                                 {taxiAvailable && (
                                     <Pressable
-                                        style={[styles.overflowBtn, { backgroundColor: palette.latte + '22', marginRight: 6 }]}
+                                        style={[styles.overflowBtn, { backgroundColor: alpha(palette.latte, 0.13), marginRight: 6 }]}
                                         onPress={() => onMoveToTaxi(p.rosterPlayerId)}
                                         disabled={saving}
                                     >
@@ -73,7 +73,7 @@ export function ActivationOverflowModal({
                                     </Pressable>
                                 )}
                                 <Pressable
-                                    style={[styles.overflowBtn, { backgroundColor: colors.danger + '22' }]}
+                                    style={[styles.overflowBtn, { backgroundColor: alpha(palette.red500, 0.13) }]}
                                     onPress={() => onDrop(p.rosterPlayerId)}
                                     disabled={saving}
                                 >

@@ -4,7 +4,7 @@ import { LineupPlayer } from '@/lib/lineup'
 import { LiveStatLine } from '@/lib/games'
 import { computeLiveFantasyPoints } from '@/lib/scoring'
 import { POSITION_COLORS } from '@/constants/positions'
-import { colors, palette, fontWeight, INJURY_COLORS } from '@/constants/tokens'
+import { alpha, colors, palette, fontWeight, INJURY_COLORS } from '@/constants/tokens'
 import { PosTag } from '@/components/PosTag'
 import { Badge } from '@/components/Badge'
 import { shortName } from '@/lib/format'
@@ -241,7 +241,7 @@ function MatchupRowImpl({
                     styles.slotChipCenter,
                     compact && styles.slotChipCenterCompact,
                     dense && styles.slotChipCenterDense,
-                    { backgroundColor: slotColor + '22' },
+                    { backgroundColor: alpha(slotColor, 0.13) },
                     isSel && styles.slotChipSelected,
                     saving && { opacity: 0.4 },
                 ]}

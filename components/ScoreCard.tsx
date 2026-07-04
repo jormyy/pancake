@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet } from 'react-native'
 import { Matchup } from '@/lib/scoring'
-import { colors } from '@/constants/tokens'
+import { alpha, colors, palette } from '@/constants/tokens'
 import { MotionView } from '@/components/Motion'
 
 export function ScoreCard({ matchup, compact = false }: { matchup: Matchup; compact?: boolean }) {
@@ -13,17 +13,21 @@ export function ScoreCard({ matchup, compact = false }: { matchup: Matchup; comp
     const oppWinning = oppPts > myPts
 
     let statusLabel = 'In Progress'
-    let statusColor: string = colors.primary
+    let statusTint: string = palette.maple500
+    let statusText: string = colors.primaryDark
     if (matchup.isFinalized) {
         if (matchup.iWon === true) {
             statusLabel = 'Win'
-            statusColor = colors.success
+            statusTint = palette.green500
+            statusText = colors.successDark
         } else if (matchup.iWon === false) {
             statusLabel = 'Loss'
-            statusColor = colors.danger
+            statusTint = palette.red500
+            statusText = colors.dangerDark
         } else {
             statusLabel = 'Tie'
-            statusColor = colors.textMuted
+            statusTint = palette.latte
+            statusText = colors.textMuted
         }
     }
 
@@ -41,8 +45,8 @@ export function ScoreCard({ matchup, compact = false }: { matchup: Matchup; comp
                     WEEK {matchup.weekNumber}
                 </Text>
                 <View style={styles.headerRule} />
-                <View style={[styles.statusBadge, { backgroundColor: statusColor + '1A', borderColor: statusColor + '50' }]}>
-                    <Text style={[styles.statusText, { color: statusColor }]}>{statusLabel}</Text>
+                <View style={[styles.statusBadge, { backgroundColor: alpha(statusTint, 0.1), borderColor: alpha(statusTint, 0.31) }]}>
+                    <Text style={[styles.statusText, { color: statusText }]}>{statusLabel}</Text>
                 </View>
             </View>
 
