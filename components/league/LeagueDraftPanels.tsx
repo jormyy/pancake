@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useRef } from 'react'
 import { View, Text, Pressable, StyleSheet, ScrollView, TextInput, useWindowDimensions, Platform } from 'react-native'
 import {
     NOMINATION_ORDER_MODES,
@@ -18,6 +18,7 @@ import type {
 } from '@/lib/mockDraftRooms'
 import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 import { PicksBankList } from '@/components/league/LeagueSections'
+import { useWebViewport } from '@/hooks/use-web-viewport'
 import type { LeagueStatus } from '@/types/database'
 
 type ChipValue = string | number
@@ -1041,19 +1042,9 @@ export function MockRoomsPanel({
     onLeaveRoom: (room: MockDraftRoom) => void
     onStartRoom: (room: MockDraftRoom) => void
 }) {
-    const { height } = useWindowDimensions()
-    const [webViewportHeight, setWebViewportHeight] = useState<number | null>(null)
-    const viewportHeight = Platform.OS === 'web' && webViewportHeight !== null ? webViewportHeight : height
+    const { viewportHeight } = useWebViewport()
     const compactComposer = viewportHeight < 500
     const statuses: MockDraftRoomStatus[] = ['live', 'active', 'scheduled', 'completed']
-
-    useEffect(() => {
-        if (Platform.OS !== 'web' || typeof window === 'undefined') return
-        const syncViewport = () => setWebViewportHeight(window.innerHeight)
-        syncViewport()
-        window.addEventListener('resize', syncViewport)
-        return () => window.removeEventListener('resize', syncViewport)
-    }, [])
 
     const createButton = (
         <Pressable

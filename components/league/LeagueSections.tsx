@@ -1,4 +1,4 @@
-import { View, Text, Pressable, ScrollView, StyleSheet, useWindowDimensions, Platform } from 'react-native'
+import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native'
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import { FlashList, type ListRenderItem } from '@shopify/flash-list'
 import { compareStandingsRows, type StandingRow } from '@/lib/scoring'
@@ -15,6 +15,7 @@ import { Badge } from '@/components/Badge'
 import { PosTag } from '@/components/PosTag'
 import { SectionHeader } from '@/components/SectionHeader'
 import { SegmentedControl, type SegmentOption } from '@/components/ui/SegmentedControl'
+import { useWebViewport } from '@/hooks/use-web-viewport'
 import type { LeagueStatus } from '@/types/database'
 
 type StandingsSortKey = 'wins' | 'pf' | 'maxPf' | 'pa'
@@ -1106,13 +1107,9 @@ export function StandingsTable({
 }) {
     const [sortBy, setSortBy] = useState<StandingsSortKey>('wins')
     const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
-    const [webViewport, setWebViewport] = useState<{ width: number; height: number } | null>(null)
     // Drop secondary point columns on narrow viewports so the Team name never
     // collapses (320px would otherwise squeeze it to a single letter).
-    const { width, height } = useWindowDimensions()
-    const viewportWidth = Platform.OS === 'web' && webViewport !== null ? webViewport.width : width
-    const viewportHeight = Platform.OS === 'web' && webViewport !== null ? webViewport.height : height
-    const compactLandscape = viewportWidth >= 600 && viewportHeight < 500
+    const { viewportWidth, compactLandscape } = useWebViewport()
     const compactPhoneLandscape = compactLandscape && viewportWidth < 700
     const narrowRows = viewportWidth < 440 || compactPhoneLandscape
     const compactHeader = compactLandscape || narrowRows
@@ -1120,14 +1117,6 @@ export function StandingsTable({
     // rides in the full-width desktop table.
     const showPa = narrowRows || viewportWidth >= 440
     const showMaxPf = viewportWidth >= 560 && !narrowRows
-
-    useEffect(() => {
-        if (Platform.OS !== 'web' || typeof window === 'undefined') return
-        const syncViewport = () => setWebViewport({ width: window.innerWidth, height: window.innerHeight })
-        syncViewport()
-        window.addEventListener('resize', syncViewport)
-        return () => window.removeEventListener('resize', syncViewport)
-    }, [])
 
     useEffect(() => {
         if (standingsSortIsVisible(sortBy, showPa, showMaxPf)) return
@@ -1337,19 +1326,7 @@ export function ActivityFeed({
     loadingMore?: boolean
     loadMoreError?: string | null
 }) {
-    const { width, height } = useWindowDimensions()
-    const [webViewport, setWebViewport] = useState<{ width: number; height: number } | null>(null)
-    const viewportWidth = Platform.OS === 'web' && webViewport !== null ? webViewport.width : width
-    const viewportHeight = Platform.OS === 'web' && webViewport !== null ? webViewport.height : height
-    const compactLandscape = viewportWidth >= 600 && viewportHeight < 500
-
-    useEffect(() => {
-        if (Platform.OS !== 'web' || typeof window === 'undefined') return
-        const syncViewport = () => setWebViewport({ width: window.innerWidth, height: window.innerHeight })
-        syncViewport()
-        window.addEventListener('resize', syncViewport)
-        return () => window.removeEventListener('resize', syncViewport)
-    }, [])
+    const { compactLandscape } = useWebViewport()
 
     const renderItem = useCallback<ListRenderItem<TransactionRow>>(({ item }) => (
         <ActivityRow item={item} isMe={item.memberId === myMemberId} compact={compactLandscape} />
@@ -1783,29 +1760,13 @@ export function PicksBankList({
     leagueStatus?: LeagueStatus
 }) {
     const [filter, setFilter] = useState<PickLedgerFilter>('mine')
-    const [webViewportWidth, setWebViewportWidth] = useState<number | null>(null)
-    const [webViewportHeight, setWebViewportHeight] = useState<number | null>(null)
-    const { width, height } = useWindowDimensions()
-    const viewportWidth = Platform.OS === 'web' && webViewportWidth !== null ? webViewportWidth : width
-    const viewportHeight = Platform.OS === 'web' && webViewportHeight !== null ? webViewportHeight : height
+    const { viewportWidth, viewportHeight, compactLandscape } = useWebViewport()
     const narrowRows = viewportWidth < 440
-    const compactLandscape = viewportWidth >= 600 && viewportHeight < 500
     const compactHeader = viewportHeight < 500 || narrowRows
     const compactRows = compactHeader || narrowRows
     const landscapeDenseRows = compactLandscape && !narrowRows
     const hasMemberId = Boolean(myMemberId)
     const activeFilter = effectivePickFilter(filter, hasMemberId)
-
-    useEffect(() => {
-        if (Platform.OS !== 'web' || typeof window === 'undefined') return
-        const syncViewport = () => {
-            setWebViewportWidth(window.innerWidth)
-            setWebViewportHeight(window.innerHeight)
-        }
-        syncViewport()
-        window.addEventListener('resize', syncViewport)
-        return () => window.removeEventListener('resize', syncViewport)
-    }, [])
 
     useEffect(() => {
         if (!hasMemberId && filter === 'mine') setFilter('all')

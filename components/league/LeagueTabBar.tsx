@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions } from 'react-native'
+import { useCallback, useEffect, useRef } from 'react'
+import { Platform, Pressable, ScrollView, StyleSheet, Text } from 'react-native'
 import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { useWebViewport } from '@/hooks/use-web-viewport'
 import { LEAGUE_TABS, type LeagueTab } from '@/lib/league/tabs'
 
 type LeagueTabBarProps = {
@@ -62,11 +63,7 @@ function focusLeagueTab(tab: LeagueTab, shouldFocus: () => boolean) {
 }
 
 export function LeagueTabBar({ activeTab, onTabChange }: LeagueTabBarProps) {
-    const { width, height } = useWindowDimensions()
-    const [webViewport, setWebViewport] = useState<{ width: number; height: number } | null>(null)
-    const viewportWidth = Platform.OS === 'web' && webViewport !== null ? webViewport.width : width
-    const viewportHeight = Platform.OS === 'web' && webViewport !== null ? webViewport.height : height
-    const compactLandscape = viewportWidth >= 600 && viewportHeight < 500
+    const { viewportWidth, viewportHeight, compactLandscape } = useWebViewport()
     const compactShortPortrait = viewportWidth < 380 && viewportHeight < 760
     const compactTabs = compactLandscape || compactShortPortrait
     const pendingFocusTab = useRef<LeagueTab | null>(null)
@@ -75,14 +72,6 @@ export function LeagueTabBar({ activeTab, onTabChange }: LeagueTabBarProps) {
     const scheduleTabFocus = useCallback((tab: LeagueTab) => {
         const requestId = ++focusRequestId.current
         focusLeagueTab(tab, () => focusRequestId.current === requestId)
-    }, [])
-
-    useEffect(() => {
-        if (Platform.OS !== 'web' || typeof window === 'undefined') return
-        const syncViewport = () => setWebViewport({ width: window.innerWidth, height: window.innerHeight })
-        syncViewport()
-        window.addEventListener('resize', syncViewport)
-        return () => window.removeEventListener('resize', syncViewport)
     }, [])
 
     useEffect(() => {
