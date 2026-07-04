@@ -204,10 +204,13 @@ export const radii = {
 // ── Typography ──────────────────────────────────────────────────
 
 export const fontSize = {
+    '2xs': 10,
     xs: 11,
+    '2sm': 12,
     sm: 13,
     md: 14,
     lg: 16,
+    '2lg': 18,
     xl: 20,
     '2xl': 24,
     '3xl': 28,
