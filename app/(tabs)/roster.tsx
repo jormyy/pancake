@@ -24,6 +24,7 @@ import { EmptyState } from '@/components/EmptyState'
 import { ErrorBanner } from '@/components/ui'
 import { SectionHeader } from '@/components/SectionHeader'
 import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
+import { countLabel, formatPoints } from '@/lib/format'
 import { RosterClaimItem, RosterPickItem, RosterPlayerItem, TaxiPlayerItem } from '@/components/roster/RosterItems'
 import { getRosterStatusChangeLockMessage } from '@/lib/roster-locks'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
@@ -116,8 +117,8 @@ function writeRosterCache(memberId: string, leagueId: string, data: RosterScreen
 }
 
 function fmtStat(value?: number | null, integer = false): string {
-    if (value == null) return '—'
-    return integer ? String(Math.round(Number(value))) : Number(value).toFixed(1)
+    if (value != null && integer) return String(Math.round(Number(value)))
+    return formatPoints(value)
 }
 
 function RosterTableHeader() {
@@ -326,7 +327,7 @@ export default function RosterScreen() {
             }
             const currentIR = roster.filter((p) => p.is_on_ir).length
             if (currentIR >= irSlots) {
-                showAlert('IR Full', `You only have ${irSlots} IR slot${irSlots > 1 ? 's' : ''}.`)
+                showAlert('IR Full', `You only have ${countLabel(irSlots, 'IR slot')}.`)
                 return
             }
         } else {
@@ -373,7 +374,7 @@ export default function RosterScreen() {
             }
             const currentTaxi = roster.filter((p) => p.is_on_taxi).length
             if (currentTaxi >= taxiSlots) {
-                showAlert('Taxi Full', `You only have ${taxiSlots} taxi squad slot${taxiSlots > 1 ? 's' : ''}.`)
+                showAlert('Taxi Full', `You only have ${countLabel(taxiSlots, 'taxi squad slot')}.`)
                 return
             }
         } else {

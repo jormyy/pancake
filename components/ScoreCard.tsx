@@ -1,10 +1,10 @@
 import { View, Text, StyleSheet } from 'react-native'
 import { Matchup } from '@/lib/scoring'
 import { alpha, colors, palette } from '@/constants/tokens'
+import { formatPoints } from '@/lib/format'
 import { MotionView } from '@/components/Motion'
 
 export function ScoreCard({ matchup, compact = false }: { matchup: Matchup; compact?: boolean }) {
-    const fmt = (n: number | null) => (n != null ? n.toFixed(1) : '—')
     const myPts = matchup.myPoints ?? 0
     const oppPts = matchup.opponentPoints ?? 0
     // Neither side is "winning" on a tie (incl. the 0–0 week start), so a tie
@@ -59,7 +59,7 @@ export function ScoreCard({ matchup, compact = false }: { matchup: Matchup; comp
                         <Text style={styles.username} numberOfLines={1}>{matchup.myUsername}</Text>
                     ) : null}
                     <Text style={[styles.score, compact && styles.scoreCompact, iWinning ? styles.scoreWin : styles.scoreLose]}>
-                        {fmt(matchup.myPoints)}
+                        {formatPoints(matchup.myPoints)}
                     </Text>
                     <Text style={styles.record}>{matchup.myWins}–{matchup.myLosses}</Text>
                 </View>
@@ -80,7 +80,7 @@ export function ScoreCard({ matchup, compact = false }: { matchup: Matchup; comp
                         </Text>
                     ) : null}
                     <Text style={[styles.score, compact && styles.scoreCompact, oppWinning ? styles.scoreWin : styles.scoreLose]}>
-                        {fmt(matchup.opponentPoints)}
+                        {formatPoints(matchup.opponentPoints)}
                     </Text>
                     <Text style={[styles.record, { textAlign: 'right' }]}>
                         {matchup.opponentWins}–{matchup.opponentLosses}

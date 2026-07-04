@@ -13,6 +13,7 @@ import { useEffect, useState } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
 import { getPlayoffBracket, PlayoffBracket, BracketMatchup } from '@/lib/bracket'
 import { EmptyState } from '@/components/EmptyState'
+import { formatPoints } from '@/lib/format'
 import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 
 export default function BracketScreen() {
@@ -243,7 +244,7 @@ function TeamRow({
                     lost && styles.teamPointsLost,
                 ]}
             >
-                {points != null ? points.toFixed(1) : '—'}
+                {formatPoints(points)}
             </Text>
         </View>
     )

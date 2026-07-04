@@ -21,7 +21,7 @@ import { useLeagueContext } from '@/contexts/league-context'
 import { useDynastyRankings } from '@/hooks/use-dynasty-rankings'
 import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
 import { getDynastyNews, getMyDynastyNews, type DynastyNewsItem, type DynastyRankPlayer } from '@/lib/dynasty'
-import { playerHeadshotUrl } from '@/lib/format'
+import { formatPoints, playerHeadshotUrl } from '@/lib/format'
 import { getEligiblePositions } from '@/lib/players'
 import { API_URL } from '@/lib/shared/api'
 import { colors, fontSize, fontWeight, layout, radii, spacing } from '@/constants/tokens'
@@ -97,7 +97,7 @@ function formatStat(value: number | null, format?: 'integer' | 'pct'): string {
     if (value == null) return '-'
     if (format === 'integer') return String(Math.round(value))
     if (format === 'pct') return Number(value).toFixed(3)
-    return Number(value).toFixed(1)
+    return formatPoints(value)
 }
 
 function formatScoringFormat(value: string | null | undefined): string {

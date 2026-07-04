@@ -28,7 +28,7 @@ import { ActivationOverflowModal } from '@/components/ActivationOverflowModal'
 import { useMatchupData } from '@/hooks/use-matchup-data'
 import { useLiveStats } from '@/hooks/use-live-stats'
 import { useLineupActions } from '@/hooks/use-lineup-actions'
-import { shortName } from '@/lib/format'
+import { countLabel, formatPoints, shortName } from '@/lib/format'
 import { todayET } from '@/lib/shared/dates'
 import { MotionPressable, MotionView } from '@/components/Motion'
 
@@ -277,7 +277,6 @@ function AroundLeague({ matchups, compact }: { matchups: LeagueWeekMatchup[]; co
     const otherMatchups = matchups.filter((item) => !item.isMine)
     if (otherMatchups.length === 0) return null
 
-    const scoreText = (score: number | null) => score == null ? '—' : score.toFixed(1)
     const sidePad = compact ? 12 : 16
     const cardGap = compact ? 8 : 10
     // On narrow screens, size cards so one fits fully with a deliberate peek
@@ -295,7 +294,7 @@ function AroundLeague({ matchups, compact }: { matchups: LeagueWeekMatchup[]; co
                 >
                     Around the league
                 </Text>
-                <Text style={styles.aroundLeagueMeta}>{otherMatchups.length} matchup{otherMatchups.length === 1 ? '' : 's'}</Text>
+                <Text style={styles.aroundLeagueMeta}>{countLabel(otherMatchups.length, 'matchup')}</Text>
             </View>
             <ScrollView
                 horizontal
@@ -316,7 +315,7 @@ function AroundLeague({ matchups, compact }: { matchups: LeagueWeekMatchup[]; co
                                     {item.homeTeamName}
                                 </Text>
                                 <Text style={[styles.aroundLeagueScore, homeLeading && styles.aroundLeagueScoreLeading]}>
-                                    {scoreText(item.homePoints)}
+                                    {formatPoints(item.homePoints)}
                                 </Text>
                             </View>
                             <View style={styles.aroundLeagueDivider} />
@@ -325,7 +324,7 @@ function AroundLeague({ matchups, compact }: { matchups: LeagueWeekMatchup[]; co
                                     {item.awayTeamName}
                                 </Text>
                                 <Text style={[styles.aroundLeagueScore, awayLeading && styles.aroundLeagueScoreLeading]}>
-                                    {scoreText(item.awayPoints)}
+                                    {formatPoints(item.awayPoints)}
                                 </Text>
                             </View>
                             <Text style={styles.aroundLeagueStatus}>{item.isFinalized ? 'Final' : 'Live week'}</Text>

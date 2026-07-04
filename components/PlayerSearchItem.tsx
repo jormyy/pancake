@@ -1,7 +1,7 @@
 import { View, Text, StyleSheet, Image, Pressable } from 'react-native'
 import { useState } from 'react'
 import { PlayerRow, getEligiblePositions } from '@/lib/players'
-import { playerHeadshotUrl } from '@/lib/format'
+import { countLabel, formatPoints, playerHeadshotUrl } from '@/lib/format'
 import { OwnedEntry } from '@/lib/roster'
 import { getPositionColor } from '@/constants/positions'
 import { INJURY_COLORS, colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
@@ -171,7 +171,7 @@ export function PlayerSearchItem({
                         )}
                         {item.nba_team != null && (gamesLeft.get(item.nba_team) ?? 0) > 0 && (
                             <Text style={styles.gamesLeftText}>
-                                {gamesLeft.get(item.nba_team)} {gamesLeft.get(item.nba_team) === 1 ? 'game' : 'games'} left
+                                {countLabel(gamesLeft.get(item.nba_team) ?? 0, 'game')} left
                             </Text>
                         )}
                         {item.injury_status ? (
@@ -214,7 +214,7 @@ export function PlayerSearchItem({
                                 <View key={stat.label} style={styles.compactStat}>
                                     <Text style={styles.compactStatLabel}>{stat.label}</Text>
                                     <Text style={[styles.compactStatValue, stat.highlight && styles.compactStatValuePrimary]}>
-                                        {stat.value == null ? '—' : Number(stat.value).toFixed(1)}
+                                        {formatPoints(stat.value)}
                                     </Text>
                                 </View>
                             ))}
@@ -290,7 +290,7 @@ function StatCell({
     highlight?: boolean
     integer?: boolean
 }) {
-    const display = value == null ? '—' : integer ? String(Math.round(Number(value))) : Number(value).toFixed(1)
+    const display = value != null && integer ? String(Math.round(Number(value))) : formatPoints(value)
     return (
         <Text style={[styles.statCell, highlight && styles.statCellPrimary]} numberOfLines={1}>
             {display}
