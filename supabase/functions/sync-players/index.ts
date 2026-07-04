@@ -1,25 +1,17 @@
 import { supabase } from '../_shared/supabase.ts'
-import { requireInternalFunctionAuth } from '../_shared/auth.ts'
-import { internalServerError } from '../_shared/responses.ts'
+import { serveInternal } from '../_shared/serve.ts'
+import { AMBIGUOUS, normalizeName, setUnique } from '../_shared/nameMatch.ts'
 
 const SLEEPER_BASE_URL = Deno.env.get('SLEEPER_BASE_URL') ?? 'https://api.sleeper.app/v1'
 const NBA_CDN_BASE_URL = Deno.env.get('NBA_CDN_BASE_URL') ?? 'https://cdn.nba.com/static/json'
 const SLEEPER_URL = `${SLEEPER_BASE_URL}/players/nba`
 const NBA_PLAYER_INDEX_URL = `${NBA_CDN_BASE_URL}/staticData/playerIndex.json`
 const CHUNK = 500
-const AMBIGUOUS = '__ambiguous__'
 
-Deno.serve(async (req) => {
-  const authError = requireInternalFunctionAuth(req)
-  if (authError) return authError
-
-  try {
-    await syncPlayers()
-    await syncNBAIds()
-    return Response.json({ ok: true })
-  } catch (e: unknown) {
-    return internalServerError('sync-players', e)
-  }
+serveInternal('sync-players', async () => {
+  await syncPlayers()
+  await syncNBAIds()
+  return Response.json({ ok: true })
 })
 
 async function syncPlayers() {
@@ -231,17 +223,6 @@ async function syncNBAIds() {
   if (mergeErr) console.error('[sync-players] merge_duplicate_players error:', mergeErr.message)
   else console.log('[sync-players] Dedup complete.')
 }
-
-function setUnique(map: Map<string, string>, key: string, value: string): void {
-  const existing = map.get(key)
-  if (!existing) {
-    map.set(key, value)
-  } else if (existing !== value) {
-    map.set(key, AMBIGUOUS)
-  }
-}
-
-import { normalizeName } from '../_shared/nameMatch.ts'
 
 // Sleeper sometimes returns "Scrambled" as a catch-all when injury data is uncertain — treat as null
 const JUNK_INJURY_STATUSES = new Set(['Scrambled'])

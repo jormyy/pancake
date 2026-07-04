@@ -1,7 +1,6 @@
 import { supabase } from '../_shared/supabase.ts'
 import { currentSeasonYear } from '../_shared/season.ts'
-import { requireInternalFunctionAuth } from '../_shared/auth.ts'
-import { internalServerError } from '../_shared/responses.ts'
+import { serveInternal } from '../_shared/serve.ts'
 import type { Database, Json } from '../_shared/database.ts'
 import { parseFantasyProsProjectionHtml, type FantasyProsProjectionType } from './parser.ts'
 import {
@@ -61,16 +60,9 @@ type ProjectionSyncRunInsert = Database['public']['Tables']['projection_sync_run
 type ProjectionSyncRunUpdate = Database['public']['Tables']['projection_sync_runs']['Update']
 type InternalProjectionUpsert = Database['public']['Tables']['player_projections']['Insert']
 
-Deno.serve(async (req) => {
-  const authError = requireInternalFunctionAuth(req)
-  if (authError) return authError
-
-  try {
-    const result = await syncProjections()
-    return Response.json({ ok: true, ...result })
-  } catch (e: unknown) {
-    return internalServerError('sync-projections', e)
-  }
+serveInternal('sync-projections', async () => {
+  const result = await syncProjections()
+  return Response.json({ ok: true, ...result })
 })
 
 async function syncProjections(): Promise<{ fantasypros: SourceResult[]; internalFallback: number }> {

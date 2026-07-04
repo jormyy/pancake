@@ -1,5 +1,4 @@
-import { requireInternalFunctionAuth } from '../_shared/auth.ts'
-import { internalServerError } from '../_shared/responses.ts'
+import { serveInternal } from '../_shared/serve.ts'
 import { supabase } from '../_shared/supabase.ts'
 import { toETDate } from '../_shared/date.ts'
 import { SLOT_ELIGIBLE } from '../../../constants/slots.ts'
@@ -76,18 +75,11 @@ type ProjectionRow = {
 
 const FILL_ORDER = ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F', 'UTIL']
 
-Deno.serve(async (req) => {
-  const authError = requireInternalFunctionAuth(req)
-  if (authError) return authError
-
-  try {
-    const body = req.method === 'POST' ? await req.json().catch(() => ({})) : {}
-    const requestedDate = typeof body.date === 'string' ? body.date : null
-    const result = await processEnabledLineupOptimizers(requestedDate)
-    return Response.json({ ok: true, ...result })
-  } catch (error: unknown) {
-    return internalServerError('lineup-optimizer', error)
-  }
+serveInternal('lineup-optimizer', async (req) => {
+  const body = req.method === 'POST' ? await req.json().catch(() => ({})) : {}
+  const requestedDate = typeof body.date === 'string' ? body.date : null
+  const result = await processEnabledLineupOptimizers(requestedDate)
+  return Response.json({ ok: true, ...result })
 })
 
 async function processEnabledLineupOptimizers(requestedDate: string | null): Promise<{

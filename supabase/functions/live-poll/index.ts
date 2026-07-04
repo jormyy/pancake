@@ -17,8 +17,8 @@ import { supabase } from '../_shared/supabase.ts'
 import { fetchTodaysGames, mapGameStatus } from '../_shared/nba.ts'
 import { syncStatsByDate } from '../_shared/syncStats.ts'
 import { syncScores } from '../_shared/syncScores.ts'
-import { requireInternalFunctionAuth } from '../_shared/auth.ts'
-import { errorMessage, internalServerError } from '../_shared/responses.ts'
+import { serveInternal } from '../_shared/serve.ts'
+import { errorMessage } from '../_shared/responses.ts'
 import {
   LIVE_POLL_LEASE_TTL_SECONDS,
   LIVE_POLL_LOCK_KEY,
@@ -26,103 +26,96 @@ import {
   livePollCandidateDates,
 } from '../_shared/livePoll.ts'
 
-Deno.serve(async (req) => {
-  const authError = requireInternalFunctionAuth(req)
-  if (authError) return authError
+serveInternal('live-poll', async () => {
+  const { data: holderId, error: lockErr } = await supabase.rpc('try_live_poll_lease', {
+    p_lock_key: LIVE_POLL_LOCK_KEY,
+    p_ttl_seconds: LIVE_POLL_LEASE_TTL_SECONDS,
+  })
+  if (lockErr) throw lockErr
+  if (!holderId) return Response.json({ ok: true, action: 'lease-skip' })
 
   try {
-    const { data: holderId, error: lockErr } = await supabase.rpc('try_live_poll_lease', {
-      p_lock_key: LIVE_POLL_LOCK_KEY,
-      p_ttl_seconds: LIVE_POLL_LEASE_TTL_SECONDS,
+    const candidateDates = livePollCandidateDates()
+
+    const { data: activeGames, error: activeGamesError } = await supabase
+      .from('nba_games')
+      .select('id')
+      .in('game_date', candidateDates)
+      .eq('status', 'InProgress')
+    if (activeGamesError) throw activeGamesError
+
+    const cdnGames = await fetchTodaysGames().catch((e) => {
+      console.warn('[live-poll] CDN scoreboard unavailable:', errorMessage(e))
+      return []
     })
-    if (lockErr) throw lockErr
-    if (!holderId) return Response.json({ ok: true, action: 'lease-skip' })
 
-    try {
-      const candidateDates = livePollCandidateDates()
-
-      const { data: activeGames, error: activeGamesError } = await supabase
-        .from('nba_games')
-        .select('id')
-        .in('game_date', candidateDates)
-        .eq('status', 'InProgress')
-      if (activeGamesError) throw activeGamesError
-
-      const cdnGames = await fetchTodaysGames().catch((e) => {
-        console.warn('[live-poll] CDN scoreboard unavailable:', errorMessage(e))
-        return []
-      })
-
-      if (!cdnGames.length) {
-        if (activeGames && activeGames.length > 0) {
-          console.log(`[live-poll] ${activeGames.length} DB-active games, CDN unavailable — syncing stats + scores`)
-          await syncCandidateDates(candidateDates)
-          await syncScores()
-          return Response.json({ ok: true, action: 'synced-db-active', activeGames: activeGames.length })
-        }
-        return Response.json({ ok: true, action: 'idle' })
-      }
-
-      let statusUpdates = 0
-      let nowActive = 0
-      const allDone = cdnGames.length > 0 && cdnGames.every((game) => game.gameStatus === 3)
-
-      for (const g of cdnGames) {
-        const newStatus = mapGameStatus(g.gameStatus)
-        if (g.gameStatus === 2) nowActive++
-
-        const { data: existing, error: existingError } = await supabase
-          .from('nba_games')
-          .select('id, status, home_score, away_score, game_status_text')
-          .eq('nba_game_id', g.gameId)
-          .maybeSingle()
-        if (existingError) throw existingError
-
-        const homeScore = g.homeTeam.score ?? 0
-        const awayScore = g.awayTeam.score ?? 0
-        const gameStatusText = g.gameStatusText ?? ''
-        if (
-          existing && (
-            existing.status !== newStatus ||
-            existing.home_score !== homeScore ||
-            existing.away_score !== awayScore ||
-            existing.game_status_text !== gameStatusText
-          )
-        ) {
-          const { error: updateError } = await supabase
-            .from('nba_games')
-            .update({
-              status: newStatus,
-              home_score: homeScore,
-              away_score: awayScore,
-              game_status_text: gameStatusText,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', existing.id)
-          if (updateError) throw updateError
-          statusUpdates++
-        }
-      }
-
-      const shouldSync = nowActive > 0 || allDone || (activeGames?.length ?? 0) > 0
-      if (shouldSync) {
-        console.log(`[live-poll] syncing stats + scores; active=${nowActive}, allDone=${allDone}, priorDbActive=${activeGames?.length ?? 0}`)
+    if (!cdnGames.length) {
+      if (activeGames && activeGames.length > 0) {
+        console.log(`[live-poll] ${activeGames.length} DB-active games, CDN unavailable — syncing stats + scores`)
         await syncCandidateDates(candidateDates)
         await syncScores()
-        return Response.json({ ok: true, action: 'synced', statusUpdates, activeGames: nowActive, allDone })
+        return Response.json({ ok: true, action: 'synced-db-active', activeGames: activeGames.length })
       }
-
-      console.log(`[live-poll] No active games. Updated ${statusUpdates} statuses.`)
-      return Response.json({ ok: true, action: 'status-check', statusUpdates })
-    } finally {
-      const { error: releaseErr } = await supabase.rpc('release_live_poll_lease', {
-        p_lock_key: LIVE_POLL_LOCK_KEY,
-        p_holder_id: holderId,
-      })
-      if (releaseErr) console.error('[live-poll] release lease failed:', releaseErr)
+      return Response.json({ ok: true, action: 'idle' })
     }
-  } catch (e: unknown) {
-    return internalServerError('live-poll', e)
+
+    let statusUpdates = 0
+    let nowActive = 0
+    const allDone = cdnGames.length > 0 && cdnGames.every((game) => game.gameStatus === 3)
+
+    for (const g of cdnGames) {
+      const newStatus = mapGameStatus(g.gameStatus)
+      if (g.gameStatus === 2) nowActive++
+
+      const { data: existing, error: existingError } = await supabase
+        .from('nba_games')
+        .select('id, status, home_score, away_score, game_status_text')
+        .eq('nba_game_id', g.gameId)
+        .maybeSingle()
+      if (existingError) throw existingError
+
+      const homeScore = g.homeTeam.score ?? 0
+      const awayScore = g.awayTeam.score ?? 0
+      const gameStatusText = g.gameStatusText ?? ''
+      if (
+        existing && (
+          existing.status !== newStatus ||
+          existing.home_score !== homeScore ||
+          existing.away_score !== awayScore ||
+          existing.game_status_text !== gameStatusText
+        )
+      ) {
+        const { error: updateError } = await supabase
+          .from('nba_games')
+          .update({
+            status: newStatus,
+            home_score: homeScore,
+            away_score: awayScore,
+            game_status_text: gameStatusText,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', existing.id)
+        if (updateError) throw updateError
+        statusUpdates++
+      }
+    }
+
+    const shouldSync = nowActive > 0 || allDone || (activeGames?.length ?? 0) > 0
+    if (shouldSync) {
+      console.log(`[live-poll] syncing stats + scores; active=${nowActive}, allDone=${allDone}, priorDbActive=${activeGames?.length ?? 0}`)
+      await syncCandidateDates(candidateDates)
+      await syncScores()
+      return Response.json({ ok: true, action: 'synced', statusUpdates, activeGames: nowActive, allDone })
+    }
+
+    console.log(`[live-poll] No active games. Updated ${statusUpdates} statuses.`)
+    return Response.json({ ok: true, action: 'status-check', statusUpdates })
+  } finally {
+    const { error: releaseErr } = await supabase.rpc('release_live_poll_lease', {
+      p_lock_key: LIVE_POLL_LOCK_KEY,
+      p_holder_id: holderId,
+    })
+    if (releaseErr) console.error('[live-poll] release lease failed:', releaseErr)
   }
 })
 

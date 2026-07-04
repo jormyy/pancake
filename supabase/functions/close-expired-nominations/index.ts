@@ -1,6 +1,5 @@
-import { requireInternalFunctionAuth } from '../_shared/auth.ts'
 import type { Database } from '../_shared/database.ts'
-import { internalServerError } from '../_shared/responses.ts'
+import { serveInternal } from '../_shared/serve.ts'
 import { supabase } from '../_shared/supabase.ts'
 
 const CLOSE_BATCH_LIMIT = 100
@@ -8,16 +7,9 @@ const CLOSE_BATCH_LIMIT = 100
 type ClosedNominationRow = Database['public']['Functions']['close_expired_auction_nominations_atomic']['Returns'][number]
 type ExpiredSnakePickRow = Database['public']['Functions']['process_expired_snake_picks_atomic']['Returns'][number]
 
-Deno.serve(async (req) => {
-  const authError = requireInternalFunctionAuth(req)
-  if (authError) return authError
-
-  try {
-    const result = await closeExpiredNominations()
-    return Response.json({ ok: true, ...result })
-  } catch (error) {
-    return internalServerError('close-expired-nominations', error)
-  }
+serveInternal('close-expired-nominations', async () => {
+  const result = await closeExpiredNominations()
+  return Response.json({ ok: true, ...result })
 })
 
 async function closeExpiredNominations(): Promise<{

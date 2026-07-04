@@ -1,21 +1,13 @@
 import { supabase } from '../_shared/supabase.ts'
 import { fetchSeasonSchedule } from '../_shared/nba.ts'
-import { requireInternalFunctionAuth } from '../_shared/auth.ts'
-import { internalServerError } from '../_shared/responses.ts'
+import { serveInternal } from '../_shared/serve.ts'
 import { buildScheduleSyncPlan, type ScheduleGameRow, type SeasonWeekRow } from '../_shared/schedule.ts'
 
 const CHUNK = 500
 
-Deno.serve(async (req) => {
-  const authError = requireInternalFunctionAuth(req)
-  if (authError) return authError
-
-  try {
-    const result = await syncSchedule()
-    return Response.json({ ok: true, ...result })
-  } catch (e: unknown) {
-    return internalServerError('sync-schedule', e)
-  }
+serveInternal('sync-schedule', async () => {
+  const result = await syncSchedule()
+  return Response.json({ ok: true, ...result })
 })
 
 async function syncSchedule(): Promise<{ updated: number; inserted: number; weeks: number }> {

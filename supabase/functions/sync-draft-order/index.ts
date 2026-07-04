@@ -1,7 +1,7 @@
 import { supabase } from '../_shared/supabase.ts'
-import { requireInternalFunctionAuth } from '../_shared/auth.ts'
-import { internalServerError } from '../_shared/responses.ts'
-import { normalizeName } from '../_shared/nameMatch.ts'
+import { serveInternal } from '../_shared/serve.ts'
+import { errorMessage } from '../_shared/responses.ts'
+import { AMBIGUOUS, normalizeName, setUnique } from '../_shared/nameMatch.ts'
 import { currentSeasonYear } from '../_shared/season.ts'
 
 const NBA_STATS_URL = 'https://stats.nba.com/stats/drafthistory'
@@ -60,20 +60,13 @@ function defaultDraftOrderSeasonYear(now = new Date()): number {
   return currentSeasonYear(now)
 }
 
-Deno.serve(async (req) => {
-  const authError = requireInternalFunctionAuth(req)
-  if (authError) return authError
-
-  try {
-    const body = await readBody(req)
-    const seasonYear = Number.isInteger(body.seasonYear)
-      ? Number(body.seasonYear)
-      : defaultDraftOrderSeasonYear()
-    const result = await syncDraftOrder(seasonYear)
-    return Response.json({ ok: true, ...result })
-  } catch (e: unknown) {
-    return internalServerError('sync-draft-order', e)
-  }
+serveInternal('sync-draft-order', async (req) => {
+  const body = await readBody(req)
+  const seasonYear = Number.isInteger(body.seasonYear)
+    ? Number(body.seasonYear)
+    : defaultDraftOrderSeasonYear()
+  const result = await syncDraftOrder(seasonYear)
+  return Response.json({ ok: true, ...result })
 })
 
 async function readBody(req: Request): Promise<Record<string, unknown>> {
@@ -374,9 +367,9 @@ async function resolveDraftPlayers(picks: NBADraftPick[], existingPlayers: Playe
 
   for (const pick of picks) {
     const playerId = byNormName.get(normalizeName(pick.playerName))
-    if (playerId && playerId !== '__ambiguous__') {
+    if (playerId && playerId !== AMBIGUOUS) {
       resolved.push({ pick, playerId, inserted: false })
-    } else if (playerId === '__ambiguous__') {
+    } else if (playerId === AMBIGUOUS) {
       unmatched.push(`#${pick.overallPick} ${pick.playerName} (ambiguous player name)`)
     } else {
       missing.push(pick)
@@ -390,7 +383,7 @@ async function resolveDraftPlayers(picks: NBADraftPick[], existingPlayers: Playe
     }
     for (const pick of missing) {
       const playerId = byNormName.get(normalizeName(pick.playerName))
-      if (playerId && playerId !== '__ambiguous__') resolved.push({ pick, playerId, inserted: true })
+      if (playerId && playerId !== AMBIGUOUS) resolved.push({ pick, playerId, inserted: true })
       else unmatched.push(`#${pick.overallPick} ${pick.playerName}`)
     }
   }
@@ -462,13 +455,3 @@ async function verifySyncedDraftBoard(picks: NBADraftPick[]): Promise<void> {
   }
 }
 
-function setUnique(map: Map<string, string>, key: string, value: string): void {
-  const existing = map.get(key)
-  if (!existing) map.set(key, value)
-  else if (existing !== value) map.set(key, '__ambiguous__')
-}
-
-function errorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message
-  return String(error)
-}

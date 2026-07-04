@@ -1,6 +1,5 @@
 import { supabase } from '../_shared/supabase.ts'
-import { requireInternalFunctionAuth } from '../_shared/auth.ts'
-import { internalServerError } from '../_shared/responses.ts'
+import { serveInternal } from '../_shared/serve.ts'
 import { buildDynastyRankingPayload, RANKINGS_SOURCE, type PlayerForRanking } from './match.ts'
 import { parseDynastyRankingsHtml, selectedDynastyRankingType, type RankingRow } from './parser.ts'
 import * as cheerio from 'npm:cheerio'
@@ -9,16 +8,9 @@ const RANKINGS_URL = 'https://hashtagbasketball.com/fantasy-basketball-dynasty-r
 const POINTS_RANKING_TYPE = 'POINT'
 const MIN_RANKING_ROWS = 500
 
-Deno.serve(async (req) => {
-  const authError = requireInternalFunctionAuth(req)
-  if (authError) return authError
-
-  try {
-    await syncDynastyRankings()
-    return Response.json({ ok: true })
-  } catch (e: unknown) {
-    return internalServerError('sync-rankings', e)
-  }
+serveInternal('sync-rankings', async () => {
+  await syncDynastyRankings()
+  return Response.json({ ok: true })
 })
 
 async function syncDynastyRankings() {
