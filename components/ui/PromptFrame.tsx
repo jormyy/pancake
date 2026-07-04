@@ -1,5 +1,5 @@
 import { ReactNode } from 'react'
-import { Platform, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native'
+import { Platform, ScrollView, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { colors, radii, shadows, spacing, type WebOnlyViewStyle } from '@/constants/tokens'
 
@@ -33,7 +33,13 @@ export function PromptFrame({
 
     return (
         <SafeAreaView style={[styles.container, containerStyle]}>
-            <View style={styles.inner}>{card}</View>
+            <ScrollView
+                style={styles.scroller}
+                contentContainerStyle={styles.fullScreenContent}
+                keyboardShouldPersistTaps="handled"
+            >
+                {card}
+            </ScrollView>
         </SafeAreaView>
     )
 }
@@ -42,6 +48,15 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: colors.bgScreen,
+    },
+    scroller: {
+        flex: 1,
+    },
+    fullScreenContent: {
+        flexGrow: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: spacing['3xl'],
     },
     inner: {
         flex: 1,
