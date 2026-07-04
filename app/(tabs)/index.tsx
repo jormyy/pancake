@@ -16,7 +16,7 @@ import { Scoreboard } from '@/components/Scoreboard'
 import { LineupSlot, LineupPlayer } from '@/lib/lineup'
 import type { LeagueWeekMatchup } from '@/lib/scoring'
 import { LiveStatLine } from '@/lib/games'
-import { colors, fontSize, fontWeight, palette, radii, spacing } from '@/constants/tokens'
+import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 import { DaySelector } from '@/components/DaySelector'
 import { ScoreCard } from '@/components/ScoreCard'
 import { NoLeagueState } from '@/components/NoLeagueState'
@@ -428,7 +428,7 @@ function MatchupLineupView({
                 key: 'taxi' as const,
                 label: 'Taxi Squad',
                 count: maxTaxi,
-                color: palette.gray500,
+                color: colors.textMuted,
                 rows: Array.from({ length: maxTaxi }, (_, i) => ({
                     key: `tx${i}`,
                     myPlayer: myLineup.taxi[i] ?? null,

@@ -65,11 +65,11 @@ export function ActivationOverflowModal({
                                 )}
                                 {taxiAvailable && (
                                     <Pressable
-                                        style={[styles.overflowBtn, { backgroundColor: palette.gray500 + '22', marginRight: 6 }]}
+                                        style={[styles.overflowBtn, { backgroundColor: palette.latte + '22', marginRight: 6 }]}
                                         onPress={() => onMoveToTaxi(p.rosterPlayerId)}
                                         disabled={saving}
                                     >
-                                        <Text style={[styles.overflowBtnText, { color: palette.gray500 }]}>→ TX</Text>
+                                        <Text style={[styles.overflowBtnText, { color: palette.latte }]}>→ TX</Text>
                                     </Pressable>
                                 )}
                                 <Pressable

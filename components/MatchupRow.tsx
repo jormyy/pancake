@@ -151,7 +151,7 @@ function MatchupRowImpl({
 }: MatchupRowProps) {
     const [expanded, setExpanded] = useState(false)
     const isSel = selected?.kind === selKind && selected.index === selIndex
-    const slotColor = slotType === 'IR' ? colors.danger : slotType === 'TX' ? palette.gray500 : (POSITION_COLORS[slotType] ?? colors.textPlaceholder)
+    const slotColor = slotType === 'IR' ? palette.red500 : slotType === 'TX' ? palette.latte : (POSITION_COLORS[slotType] ?? palette.cappuccino)
     const myHasGame = myPlayer?.nbaTeam ? playingTeams.has(myPlayer.nbaTeam) : false
     const oppHasGame = oppPlayer?.nbaTeam ? playingTeams.has(oppPlayer.nbaTeam) : false
     const myMatchup = myPlayer?.nbaTeam ? teamMatchups.get(myPlayer.nbaTeam) : undefined
@@ -348,7 +348,7 @@ const styles = StyleSheet.create({
     sideName: { fontSize: 13, fontWeight: '600', color: colors.textPrimary, flexShrink: 1 },
     emptySlotText: { fontSize: 12, fontWeight: '500', color: colors.textPlaceholder },
     sideNameDense: { fontSize: 12 },
-    noGameName: { color: palette.gray500 },
+    noGameName: { color: colors.textDisabled },
     metaRow: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 2 },
     sideMeta: { fontSize: 11, color: colors.textPlaceholder },
     lockedBadge: { fontSize: 10, fontWeight: fontWeight.bold, color: palette.green600, letterSpacing: 0.4, marginHorizontal: 3 },

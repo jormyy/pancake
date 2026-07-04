@@ -18,7 +18,7 @@ import { Badge } from '@/components/Badge'
 import { EmptyState } from '@/components/EmptyState'
 import { ItemSeparator } from '@/components/ItemSeparator'
 import { PosTag } from '@/components/PosTag'
-import { colors, palette, fontSize, fontWeight, spacing } from '@/constants/tokens'
+import { colors, fontSize, fontWeight, spacing } from '@/constants/tokens'
 import { playerHeadshotUrl } from '@/lib/format'
 
 export default function TeamRosterScreen() {
@@ -125,10 +125,10 @@ export default function TeamRosterScreen() {
                                                 />
                                             ) : null}
                                             {item.is_on_ir ? (
-                                                <Badge label="IR" color={palette.gray500} variant="soft" />
+                                                <Badge label="IR" color={colors.textMuted} variant="soft" />
                                             ) : null}
                                             {item.is_on_taxi ? (
-                                                <Badge label="TX" color={palette.gray500} variant="soft" />
+                                                <Badge label="TX" color={colors.textMuted} variant="soft" />
                                             ) : null}
                                         </View>
                                     </Pressable>
