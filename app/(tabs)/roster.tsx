@@ -223,7 +223,7 @@ export default function RosterScreen() {
     const [cancellingId, setCancellingId] = useState<string | null>(null)
     const [droppingId, setDroppingId] = useState<string | null>(null)
 
-    const { data, error, refresh } = useFocusAsyncData<RosterScreenData | null>(async () => {
+    const { data, loading, error, refresh } = useFocusAsyncData<RosterScreenData | null>(async () => {
         if (!current || !user) return null
         if (!leagueId) return null
         const [roster, picks, claims, waiverPriority] = await Promise.all([
@@ -511,6 +511,7 @@ export default function RosterScreen() {
             ) : null}
 
             {roster.length === 0 ? (
+                loading ? null : (
                 <EmptyState
                     fullScreen={false}
                     framed
@@ -522,6 +523,7 @@ export default function RosterScreen() {
                     actionLabel={currentLeague?.status === 'drafting' ? 'Go to Draft Room' : 'Browse Players'}
                     onAction={() => push(currentLeague?.status === 'drafting' ? '/league' : '/players')}
                 />
+                )
             ) : (
                 <FlashList
                     ref={listRef}

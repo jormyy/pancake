@@ -225,7 +225,7 @@ export default function HomeScreen() {
                         ? <Scoreboard games={todaysGames} myTeamSet={myTeamSet} compact={compact} />
                         : <Text style={styles.dateLabel}>Showing lineup for {selectedDate}</Text>
                     }
-                    {league?.status === 'drafting' ? (
+                    {matchupLoading ? null : league?.status === 'drafting' ? (
                         <EmptyState
                             fullScreen={false}
                             framed
