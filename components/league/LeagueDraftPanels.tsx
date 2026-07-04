@@ -17,6 +17,7 @@ import type {
     MockDraftRoomStatus,
 } from '@/lib/mockDraftRooms'
 import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { countLabel } from '@/lib/format'
 import { PicksBankList } from '@/components/league/LeagueSections'
 import { useWebViewport } from '@/hooks/use-web-viewport'
 import type { LeagueStatus } from '@/types/database'
@@ -53,7 +54,6 @@ const ROOKIE_TIMER_EXPIRY_CHIPS: readonly ChipOption<RookieTimerExpiryBehavior>[
     ROOKIE_TIMER_EXPIRY_BEHAVIORS.map((value) => ({ value, label: ROOKIE_TIMER_EXPIRY_BEHAVIOR_LABELS[value] }))
 
 const OPEN_DRAFT_STATUSES = new Set(['pending', 'in_progress', 'paused'])
-const FOCUS_RECOVERY_DELAYS = [0, 50, 150, 350, 700, 1200, 2000, 3000] as const
 const INTERACTIVE_ROLES = new Set([
     'alertdialog',
     'button',
@@ -110,16 +110,12 @@ function formatRoomTime(value: string | null): string {
     })
 }
 
-function roomCountLabel(count: number) {
-    return `${count} ${count === 1 ? 'room' : 'rooms'}`
-}
-
 function roomTypeLabel(type: MockDraftRoomKind) {
     return type === 'snake' ? 'Rookie' : 'Auction'
 }
 
 function roomSectionAccessibilityLabel(status: MockDraftRoomStatus, count: number) {
-    return `${ROOM_STATUS_LABELS[status]} mock rooms, ${roomCountLabel(count)}`
+    return `${ROOM_STATUS_LABELS[status]} mock rooms, ${countLabel(count, 'room')}`
 }
 
 function roomCardAccessibilityLabel(room: MockDraftRoom) {
@@ -167,10 +163,9 @@ function focusDraftChip(idBase: string, value: ChipValue, shouldFocus: () => boo
         const target = document.getElementById(draftChipId(idBase, value))
         if (target instanceof HTMLElement && shouldRecoverDraftChipFocus(target)) target.focus()
     }
-    for (const delay of FOCUS_RECOVERY_DELAYS) {
-        if (delay === 0) requestAnimationFrame(focus)
-        else setTimeout(focus, delay)
-    }
+    // One deferred retry: the re-render after selection can replace the chip node.
+    requestAnimationFrame(focus)
+    setTimeout(focus, 150)
 }
 
 function DraftChips<T extends ChipValue>({
@@ -288,19 +283,10 @@ function roomStartBlockedCopy(room: MockDraftRoom) {
     return `Needs ${missing} more joined ${missing === 1 ? 'team' : 'teams'}`
 }
 
-function roomStartBlockedButtonText(room: MockDraftRoom) {
-    const missing = Math.max(0, 2 - room.participants.length)
-    return `Needs ${missing} ${missing === 1 ? 'Team' : 'Teams'}`
-}
-
 function activeDraftLoadingLabel(filterType?: 'auction' | 'snake') {
     if (filterType === 'snake') return 'Checking for live rookie draft'
     if (filterType === 'auction') return 'Checking for live auction draft'
     return 'Checking for live draft'
-}
-
-function activeDraftLoadingDescription() {
-    return 'Looking for an active draft room before showing draft setup controls.'
 }
 
 function ActiveDraftLoadingNotice({
@@ -311,7 +297,7 @@ function ActiveDraftLoadingNotice({
     filterType?: 'auction' | 'snake'
 }) {
     const label = activeDraftLoadingLabel(filterType)
-    const description = activeDraftLoadingDescription()
+    const description = 'Looking for an active draft room before showing draft setup controls.'
     const accessibilityLabel = `${label}. ${description}`
     return (
         <View
@@ -877,10 +863,11 @@ function RoomAction({
               : `Start ${roomName}`
         const buttonStyle = canStart ? styles.draftButton : styles.secondaryDraftButton
         const buttonTextStyle = canStart ? styles.draftButtonText : styles.secondaryDraftButtonText
+        const missing = Math.max(0, 2 - room.participants.length)
         const buttonText = draftLoading && canStart
             ? 'Starting...'
             : startBlockedCopy
-              ? roomStartBlockedButtonText(room)
+              ? `Needs ${missing} ${missing === 1 ? 'Team' : 'Teams'}`
               : 'Start Room'
         return (
             <Pressable
@@ -1207,10 +1194,6 @@ export function MockRoomsPanel({
     )
 }
 
-function settingCountLabel(count: number, singular: string, plural = `${singular}s`) {
-    return `${count} ${count === 1 ? singular : plural}`
-}
-
 function settingsWaiverPriorityRowLabel(row: WaiverPriorityRow, index: number, isMe: boolean) {
     return `Waiver priority ${index + 1}, ${row.teamName}${isMe ? ', your team' : ''}, manager ${row.displayName}`
 }
@@ -1219,11 +1202,7 @@ function settingsCompactWaiverSummaryLabel(waiverOrder: WaiverPriorityRow[], myM
     if (!waiverOrder.length) return 'No waiver priorities yet. Priority order is listed here once the season starts.'
     const top = waiverOrder[0]
     const isMe = top.memberId === myMemberId
-    return `Waiver priority, ${settingCountLabel(waiverOrder.length, 'team')}. First priority ${top.teamName}${isMe ? ', your team' : ''}.`
-}
-
-function inviteCodeShareLabel(inviteCode?: string | null) {
-    return inviteCode ? `Share invite code ${inviteCode}` : 'Share invite code'
+    return `Waiver priority, ${countLabel(waiverOrder.length, 'team')}. First priority ${top.teamName}${isMe ? ', your team' : ''}.`
 }
 
 function SettingsCompactWaiverSummary({
@@ -1259,7 +1238,7 @@ function SettingsWaiverPriorityCard({
     myMemberId?: string
     compact: boolean
 }) {
-    const listLabel = `Waiver priority, ${settingCountLabel(waiverOrder.length, 'team')}`
+    const listLabel = `Waiver priority, ${countLabel(waiverOrder.length, 'team')}`
     const emptyLabel = 'No waiver priorities yet.'
     const emptyDescription = 'Priority order is listed here once the season starts.'
     const emptyAccessibilityLabel = `${emptyLabel} ${emptyDescription}`
@@ -1336,7 +1315,7 @@ export function SettingsPanel({
 }) {
     const { width, height } = useWindowDimensions()
     const compactLandscape = width >= 600 && height < 500
-    const shareInviteAccessibilityLabel = inviteCodeShareLabel(inviteCode)
+    const shareInviteAccessibilityLabel = inviteCode ? `Share invite code ${inviteCode}` : 'Share invite code'
 
     if (compactLandscape) {
         return (

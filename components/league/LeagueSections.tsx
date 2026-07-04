@@ -7,7 +7,7 @@ import { TransactionRow, TRANSACTION_LABELS, activityEventCategory } from '@/lib
 import { LeaguePickItem } from '@/lib/rookieDraft'
 import { getPositionColor } from '@/constants/positions'
 import { colors, fontSize, fontWeight, radii, spacing, srOnly, TX_COLORS } from '@/constants/tokens'
-import { playerHeadshotUrl, timeAgo } from '@/lib/format'
+import { countLabel, playerHeadshotUrl, timeAgo } from '@/lib/format'
 import { ItemSeparator } from '@/components/ItemSeparator'
 import { EmptyState } from '@/components/EmptyState'
 import { Avatar } from '@/components/Avatar'
@@ -35,10 +35,6 @@ const STANDINGS_SORT_LABELS: Record<StandingsSortKey, string> = {
     pf: 'points for',
     maxPf: 'maximum possible points for',
     pa: 'points against',
-}
-
-function countLabel(count: number, singular: string, plural = `${singular}s`) {
-    return `${count} ${count === 1 ? singular : plural}`
 }
 
 function effectivePickFilter(filter: PickLedgerFilter, hasMemberId: boolean): PickLedgerFilter {
@@ -97,7 +93,7 @@ function standingsRowAccessibilityLabel(item: StandingRow, index: number, isMe: 
     const parts = [
         `Rank ${index + 1}`,
         `${item.teamName}${isMe ? ', your team' : ''}`,
-        `record ${countLabel(item.wins, 'win')}, ${countLabel(item.losses, 'loss', 'losses')}, ${countLabel(item.ties, 'tie')}`,
+        `record ${countLabel(item.wins, 'win')}, ${item.losses} ${item.losses === 1 ? 'loss' : 'losses'}, ${countLabel(item.ties, 'tie')}`,
         `${item.pointsFor.toFixed(1)} points for`,
     ]
     if (showMaxPf) parts.push(`${item.maxPointsFor.toFixed(1)} maximum possible points for`)
@@ -1607,8 +1603,7 @@ function PicksLedgerHeader({
     leagueStatus?: LeagueStatus
 }) {
     const intro = pickLedgerIntroCopy(leagueStatus)
-    const pickCountLabel = (count: number) => `${count} ${count === 1 ? 'pick' : 'picks'}`
-    const pickCountState = (count: number) => loading ? 'loading' : pickCountLabel(count)
+    const pickCountState = (count: number) => loading ? 'loading' : countLabel(count, 'pick')
     const totalStatLabel = loading ? 'Assets loading' : `${totalCount} total`
     const mineStatLabel = loading || !hasMemberId ? 'Mine loading' : `${mineCount} mine`
     const tradedStatLabel = loading ? 'Traded loading' : `${tradedCount} traded`
