@@ -6,7 +6,7 @@ import { Link, Navigator, usePathname, useRouter } from 'expo-router'
 import { useLeagueContext } from '@/contexts/league-context'
 import { usePendingTradeCount } from '@/hooks/use-pending-trade-count'
 import { getJoinableDraft } from '@/lib/draft'
-import { breakpoints, colors, WEB_THEME_VARS } from '@/constants/tokens'
+import { brand, breakpoints, colors, WEB_THEME_VARS } from '@/constants/tokens'
 import { styles } from './webTabShellStyles'
 
 type IconName = ComponentProps<typeof MaterialIcons>['name']
@@ -121,7 +121,7 @@ function BrandMark({ compact = false }: { compact?: boolean }) {
 function NavIcon({ name, active = false, size = 19 }: { name: IconName; active?: boolean; size?: number }) {
     return (
         <View style={styles.navIconFrame} aria-hidden>
-            <MaterialIcons name={name} size={size} color={active ? colors.textWhite : 'rgba(255, 246, 232, 0.82)'} />
+            <MaterialIcons name={name} size={size} color={active ? colors.textWhite : brand.onStrong} />
         </View>
     )
 }
@@ -132,7 +132,7 @@ function LeagueSwitcher({ tone = 'dark' }: { tone?: 'dark' | 'light' }) {
     const light = tone === 'light'
     const nameStyle = [styles.leagueName, light && styles.leagueNameLight]
     const metaStyle = [styles.leagueMeta, light && styles.leagueMetaLight]
-    const chevronColor = light ? colors.textMuted : 'rgba(255, 246, 232, 0.7)'
+    const chevronColor = light ? colors.textMuted : brand.onMuted
 
     if (!current) {
         return (
@@ -359,7 +359,7 @@ function WebSidebar() {
                         <Text style={styles.userName} numberOfLines={1}>{current?.team_name ?? 'Profile'}</Text>
                         <Text style={styles.userMeta} numberOfLines={1}>Profile & settings</Text>
                     </View>
-                    <MaterialIcons name="settings" size={17} color="rgba(232, 210, 184, 0.62)" />
+                    <MaterialIcons name="settings" size={17} color={brand.onSubtle} />
                 </Pressable>
             </View>
         </View>
