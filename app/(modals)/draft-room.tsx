@@ -33,6 +33,9 @@ function playerMeta(parts: (string | null | undefined)[]): string {
     return parts.filter(Boolean).join(' · ') || '—'
 }
 
+// Approximate height of a two-line history row (padding + name + meta lines).
+const HISTORY_ROW_HEIGHT = 54
+
 export default function DraftRoomScreen() {
     const { draftId } = useLocalSearchParams<{ draftId: string }>()
     const { current, isCommissioner } = useLeagueContext()
@@ -139,6 +142,12 @@ export default function DraftRoomScreen() {
     const bidValue = parseInt(bidText, 10) // NaN while the field is empty/partial
     const bidValid = !isNaN(bidValue) && bidValue >= minBid && bidValue <= remainingBudget
     const draftTitle = draft.isMock ? 'Mock Auction Draft' : 'Auction Draft'
+    // Grows with content but stays within the viewport so long histories scroll
+    // inside the panel rather than stretching the page.
+    const historyListHeight = Math.min(
+        closedNominations.length * HISTORY_ROW_HEIGHT,
+        Math.max(280, height - 380),
+    )
 
     if (draft.status === 'completed' || draft.status === 'cancelled') {
         const stopped = draft.status === 'cancelled'
@@ -542,35 +551,41 @@ export default function DraftRoomScreen() {
                             </View>
                         ) : (
                             <MotionView style={[styles.card, compactLandscape && styles.cardCompact]} preset="rise" delay={80}>
-                                {closedNominations.map((n, i) => {
-                                    const winnerTeam = n.winningMemberId
-                                        ? budgetByMember.get(n.winningMemberId)?.teamName
-                                        : undefined
-                                    return (
-                                        <View
-                                            key={n.id}
-                                            style={[styles.historyRow, i > 0 && styles.budgetDivider]}
-                                        >
-                                            <View style={{ flex: 1 }}>
-                                                <Text style={styles.historyPlayer}>
-                                                    {n.player?.displayName ?? 'Unknown'}
-                                                </Text>
-                                                <Text style={styles.historyMeta}>
-                                                    {playerMeta([
-                                                        n.status === 'sold' ? (winnerTeam ?? '—') : 'No bid',
-                                                        ageLabel(n.player?.age),
-                                                    ])}
-                                                </Text>
-                                            </View>
-                                            {n.status === 'sold' && (
-                                                <Text style={styles.historyPrice}>${n.finalPrice}</Text>
-                                            )}
-                                            {n.status === 'no_bid' && (
-                                                <Text style={styles.historyNoBid}>FA</Text>
-                                            )}
-                                        </View>
-                                    )
-                                })}
+                                {/* Bounded height so the list virtualizes instead of laying
+                                    out every closed nomination inside the page ScrollView. */}
+                                <View style={{ height: historyListHeight }}>
+                                    <FlashList
+                                        data={closedNominations}
+                                        keyExtractor={(n) => n.id}
+                                        nestedScrollEnabled
+                                        renderItem={({ item, index }) => {
+                                            const winnerTeam = item.winningMemberId
+                                                ? budgetByMember.get(item.winningMemberId)?.teamName
+                                                : undefined
+                                            return (
+                                                <View style={[styles.historyRow, index > 0 && styles.budgetDivider]}>
+                                                    <View style={styles.flex1}>
+                                                        <Text style={styles.historyPlayer}>
+                                                            {item.player?.displayName ?? 'Unknown'}
+                                                        </Text>
+                                                        <Text style={styles.historyMeta}>
+                                                            {playerMeta([
+                                                                item.status === 'sold' ? (winnerTeam ?? '—') : 'No bid',
+                                                                ageLabel(item.player?.age),
+                                                            ])}
+                                                        </Text>
+                                                    </View>
+                                                    {item.status === 'sold' && (
+                                                        <Text style={styles.historyPrice}>${item.finalPrice}</Text>
+                                                    )}
+                                                    {item.status === 'no_bid' && (
+                                                        <Text style={styles.historyNoBid}>FA</Text>
+                                                    )}
+                                                </View>
+                                            )
+                                        }}
+                                    />
+                                </View>
                             </MotionView>
                         )}
                     </View>
