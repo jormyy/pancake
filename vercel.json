@@ -3,5 +3,8 @@
   "buildCommand": "npx expo export --platform web",
   "outputDirectory": "dist",
   "framework": null,
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+  "rewrites": [
+    { "source": "/player/(.*)", "destination": "/player/[id].html" },
+    { "source": "/(.*)", "destination": "/+not-found.html" }
+  ]
 }

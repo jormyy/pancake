@@ -90,6 +90,11 @@ function resolveRoute(urlPath) {
     existingFile(path.join(root, `${withoutSlash}.html`)) ??
     existingFile(path.join(root, withoutSlash, 'index.html')) ??
     existingFile(dynamicTemplate(withoutSlash)) ??
+    // Unmatched routes fall back to the not-found prerender (mirrors
+    // vercel.json), so the served markup matches the client-rendered
+    // not-found screen — no React hydration mismatch. index.html is a
+    // last resort if the not-found prerender is somehow absent.
+    existingFile(path.join(root, '+not-found.html')) ??
     existingFile(path.join(root, 'index.html'))
   );
 }
