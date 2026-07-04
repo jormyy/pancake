@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useRef } from 'react'
 import { Platform, ScrollView, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native'
 import { Pressable } from 'react-native'
-import { colors, fontFamily, fontSize, fontWeight, motion, radii, spacing } from '@/constants/tokens'
+import { colors, fontFamily, fontSize, fontWeight, motion, radii, spacing, webOverlays } from '@/constants/tokens'
 import { nextRovingIndex } from '@/components/ui/rovingFocus'
 import { scheduleWebFocusRecovery } from '@/components/ui/webFocus'
 
@@ -154,7 +154,7 @@ export function SegmentedControl<T extends string>({
                 aria-orientation="horizontal"
                 accessibilityRole="tablist"
                 accessibilityLabel={accessibilityLabel}
-                contentContainerStyle={[styles.track, style]}
+                contentContainerStyle={[styles.track, styles.trackScrollable, style]}
             >
                 {segments}
             </ScrollView>
@@ -181,6 +181,9 @@ const styles = StyleSheet.create({
         gap: spacing.sm,
         alignItems: 'center',
         flexWrap: 'wrap',
+    },
+    trackScrollable: {
+        flexWrap: 'nowrap',
     },
     segment: {
         flexDirection: 'row',
@@ -216,7 +219,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         backgroundColor: colors.bgCard,
     },
-    badgeActive: { backgroundColor: 'rgba(255, 255, 255, 0.28)' },
+    badgeActive: { backgroundColor: webOverlays.navBadgeActive },
     badgeText: { fontSize: 10, fontWeight: fontWeight.bold, color: colors.textSecondary },
     badgeTextActive: { color: colors.textWhite },
 })

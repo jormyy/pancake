@@ -1,4 +1,4 @@
-import { Platform } from 'react-native'
+import { Platform, type ViewStyle } from 'react-native'
 
 // ── Raw palette ─────────────────────────────────────────────────
 // Every color in the app lives here. Components import semantic
@@ -122,31 +122,31 @@ export function alpha(hex: string, a: number): string {
 // ── Semantic tokens ─────────────────────────────────────────────
 
 export const colors = {
-    // Text — warm espresso/coffee scale
-    textPrimary:     webColor('text-primary', palette.espresso),    // '#2C1A0E' deep dark brown
-    textSecondary:   webColor('text-secondary', palette.mocha),      // '#6B4535' medium brown
-    textMuted:       webColor('text-muted', palette.latte),          // '#9B7060' warm muted
-    textPlaceholder: webColor('text-placeholder', palette.cappuccino), // '#B8917F' soft warm placeholder
-    textDisabled:    webColor('text-disabled', palette.oatmilk),     // '#CCAA99' very light
+    // Text
+    textPrimary:     webColor('text-primary', palette.espresso),
+    textSecondary:   webColor('text-secondary', palette.mocha),
+    textMuted:       webColor('text-muted', palette.latte),
+    textPlaceholder: webColor('text-placeholder', palette.cappuccino),
+    textDisabled:    webColor('text-disabled', palette.oatmilk),
     textWhite:       palette.white,
 
-    // Backgrounds — warm cream/parchment
-    bgScreen: webColor('bg-screen', palette.cream100), // '#FDF8EE' warm cream screen
-    bgCard:   webColor('bg-card', palette.cream50),    // '#FFFDF8' near-white warm card
-    bgMuted:  webColor('bg-muted', palette.cream200),  // '#F4E8D2' warm muted areas
-    bgSubtle: webColor('bg-subtle', palette.cream150), // '#FAF2E2' very subtle warm
-    bgInput:  webColor('bg-input', palette.cream150),  // subtle well, clearly delineated from card
+    // Backgrounds
+    bgScreen: webColor('bg-screen', palette.cream100),
+    bgCard:   webColor('bg-card', palette.cream50),
+    bgMuted:  webColor('bg-muted', palette.cream200),
+    bgSubtle: webColor('bg-subtle', palette.cream150),
+    bgInput:  webColor('bg-input', palette.cream150),
 
-    // Borders / Separators — warm cream
-    separator:   webColor('separator', palette.cream300), // '#E8D8BE'
-    border:      webColor('border', palette.cream400),    // '#D9C4A5'
-    borderLight: webColor('border-light', palette.cream300), // '#E8D8BE'
+    // Borders / separators
+    separator:   webColor('separator', palette.cream300),
+    border:      webColor('border', palette.cream400),
+    borderLight: webColor('border-light', palette.cream300),
 
-    // Primary — deep maple amber
-    primary:       webColor('primary', palette.maple500),       // '#C9660F'
-    primaryLight:  webColor('primary-light', palette.maple50),  // '#FEF6E4'
-    primaryBorder: webColor('primary-border', palette.maple200), // '#FAD490'
-    primaryDark:   webColor('primary-dark', palette.maple600),  // '#A05212'
+    // Primary
+    primary:       webColor('primary', palette.maple500),
+    primaryLight:  webColor('primary-light', palette.maple50),
+    primaryBorder: webColor('primary-border', palette.maple200),
+    primaryDark:   webColor('primary-dark', palette.maple600),
 
     // Danger (red)
     danger:     webColor('danger', palette.red500),
@@ -234,7 +234,7 @@ export const fontFamily = {
         Platform.OS === 'web'
             ? `Outfit_600SemiBold, ${WEB_SANS_FALLBACK}`
             : 'Outfit_600SemiBold',
-    body:
+    control:
         Platform.OS === 'web'
             ? `Outfit_500Medium, ${WEB_SANS_FALLBACK}`
             : 'Outfit_500Medium',
@@ -318,6 +318,35 @@ export function elevation(level: ElevationLevel) {
 }
 
 export const shadows = SHADOW_WEB
+
+export type WebOnlyViewStyle = ViewStyle & {
+    backdropFilter?: string
+    WebkitBackdropFilter?: string
+    backgroundImage?: string
+    boxShadow?: string
+}
+
+export const webBackgrounds = {
+    appRoot: 'radial-gradient(circle at 22% 0%, rgba(166, 83, 23, 0.10), transparent 32%), radial-gradient(circle at 78% 10%, rgba(47, 122, 91, 0.12), transparent 30%), linear-gradient(180deg, #FFFDF7 0%, #F7F1E8 42%, #EFE5D6 100%)',
+    appContent: 'radial-gradient(circle at 74% -10%, rgba(47, 122, 91, 0.12), transparent 30%), linear-gradient(180deg, rgba(255, 253, 247, 0.92), rgba(247, 241, 232, 0.98))',
+    authScreen: 'radial-gradient(circle at 84% 8%, rgba(47, 122, 91, 0.12), transparent 32%), linear-gradient(135deg, #FFFDF7 0%, #F7F1E8 54%, #EDE0CE 100%)',
+    authHero: `radial-gradient(circle at 24% 12%, rgba(166, 83, 23, 0.30), transparent 30%), radial-gradient(circle at 80% 30%, rgba(47, 122, 91, 0.22), transparent 34%), linear-gradient(155deg, ${brand.surface} 0%, ${brand.surfaceDeeper} 100%)`,
+    noLeague: 'radial-gradient(circle at 78% 8%, rgba(47, 122, 91, 0.12), transparent 34%), linear-gradient(145deg, #FFFDF7, #F7F1E8)',
+    sidebar: `radial-gradient(circle at 18% 0%, rgba(166, 83, 23, 0.26), transparent 34%), linear-gradient(180deg, ${brand.surface} 0%, ${brand.surfaceDeeper} 100%)`,
+} as const
+
+export const webOverlays = {
+    brandPreview: 'rgba(255, 248, 234, 0.08)',
+    mobileTopbar: 'rgba(255, 253, 247, 0.90)',
+    mobileBottomNav: 'rgba(255, 253, 247, 0.94)',
+    navBadgeActive: 'rgba(255, 255, 255, 0.28)',
+    sheetScrim: 'rgba(16, 23, 19, 0.48)',
+    scoreboardBorder: 'rgba(255,255,255,0.07)',
+    scoreboardHidden: 'rgba(255,255,255,0.18)',
+    scoreboardMuted: 'rgba(255,255,255,0.30)',
+    scoreboardFaint: 'rgba(255,255,255,0.20)',
+    liveGlow: '0 0 14px rgba(166, 83, 23, 0.35)',
+} as const
 
 // ── Motion ──────────────────────────────────────────────────────
 // Named durations (ms) for transitions/micro-interactions. Honor

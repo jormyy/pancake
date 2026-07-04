@@ -1,9 +1,9 @@
 import { Platform, View, Text, StyleSheet } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { useRouter } from 'expo-router'
-import { colors, elevation, fontFamily, fontSize, fontWeight, radii, shadows, spacing } from '@/constants/tokens'
+import { colors, elevation, fontFamily, fontSize, fontWeight, radii, spacing, webBackgrounds, type WebOnlyViewStyle } from '@/constants/tokens'
 import { Button } from '@/components/ui'
+import { PromptFrame } from '@/components/ui/PromptFrame'
 
 const FEATURES: { icon: 'sports-basketball' | 'groups' | 'swap-horiz'; text: string }[] = [
     { icon: 'sports-basketball', text: 'Live weekly matchups & auto-set lineups' },
@@ -14,60 +14,45 @@ const FEATURES: { icon: 'sports-basketball' | 'groups' | 'swap-horiz'; text: str
 export function NoLeagueState() {
     const { push } = useRouter()
     return (
-        <SafeAreaView style={styles.container}>
-            <View style={styles.inner}>
-                <View style={styles.brandMark}>
-                    <Text style={styles.brandMarkText}>P</Text>
-                </View>
-                <Text style={styles.eyebrow}>Dynasty Hoops</Text>
-                <Text style={styles.title}>Welcome to Pancake</Text>
-                <Text style={styles.sub}>
-                    You&apos;re not in a league yet. Create your own dynasty room, or join an existing one with an invite code.
-                </Text>
-
-                <View style={styles.features}>
-                    {FEATURES.map((f) => (
-                        <View key={f.text} style={styles.featureRow}>
-                            <View style={styles.featureIcon}>
-                                <MaterialIcons name={f.icon} size={18} color={colors.primary} />
-                            </View>
-                            <Text style={styles.featureText}>{f.text}</Text>
-                        </View>
-                    ))}
-                </View>
-
-                <View style={styles.actions}>
-                    <Button title="Create a League" size="lg" fullWidth icon="add" onPress={() => push('/(modals)/create-league')} />
-                    <Button title="Join with Invite Code" size="lg" variant="outline" fullWidth icon="vpn-key" onPress={() => push('/(modals)/join-league')} />
-                </View>
+        <PromptFrame
+            cardMaxWidth={520}
+            containerStyle={Platform.OS === 'web' ? styles.containerWeb : null}
+            cardStyle={styles.card}
+        >
+            <View style={styles.brandMark}>
+                <Text style={styles.brandMarkText}>P</Text>
             </View>
-        </SafeAreaView>
+            <Text style={styles.eyebrow}>Dynasty Hoops</Text>
+            <Text style={styles.title}>Welcome to Pancake</Text>
+            <Text style={styles.sub}>
+                You&apos;re not in a league yet. Create your own dynasty room, or join an existing one with an invite code.
+            </Text>
+
+            <View style={styles.features}>
+                {FEATURES.map((f) => (
+                    <View key={f.text} style={styles.featureRow}>
+                        <View style={styles.featureIcon}>
+                            <MaterialIcons name={f.icon} size={18} color={colors.primary} />
+                        </View>
+                        <Text style={styles.featureText}>{f.text}</Text>
+                    </View>
+                ))}
+            </View>
+
+            <View style={styles.actions}>
+                <Button title="Create a League" size="lg" fullWidth icon="add" onPress={() => push('/(modals)/create-league')} />
+                <Button title="Join with Invite Code" size="lg" variant="outline" fullWidth icon="vpn-key" onPress={() => push('/(modals)/join-league')} />
+            </View>
+        </PromptFrame>
     )
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: colors.bgScreen,
-        backgroundImage: 'radial-gradient(circle at 78% 8%, rgba(47, 122, 91, 0.12), transparent 34%), linear-gradient(145deg, #FFFDF7, #F7F1E8)',
-    },
-    inner: {
-        margin: spacing['3xl'],
-        padding: spacing['4xl'],
-        justifyContent: 'center',
-        alignItems: 'center',
-        borderWidth: 1,
-        borderColor: colors.borderLight,
-        borderRadius: radii['2xl'],
-        backgroundColor: colors.bgCard,
+    containerWeb: {
+        backgroundImage: webBackgrounds.noLeague,
+    } as WebOnlyViewStyle,
+    card: {
         paddingHorizontal: spacing['4xl'],
-        gap: spacing.md,
-        maxWidth: 520,
-        width: '100%',
-        alignSelf: 'center',
-        ...(Platform.OS === 'web' ? { boxShadow: shadows.lg } : {}),
     },
     brandMark: {
         width: 56,

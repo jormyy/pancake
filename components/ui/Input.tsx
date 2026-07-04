@@ -76,7 +76,7 @@ const styles = StyleSheet.create({
     input: {
         flex: 1,
         fontSize: 16,
-        fontFamily: fontFamily.body,
+        fontFamily: fontFamily.control,
         color: colors.textPrimary,
         paddingVertical: spacing.lg,
     },

@@ -2,10 +2,30 @@ import { Link } from 'expo-router'
 import { useState } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 import { AuthScaffold } from '@/components/auth/AuthScaffold'
+import type { AuthHeroContent } from '@/components/auth/AuthHero'
 import { Button, Input } from '@/components/ui'
 import { colors, fontSize, fontWeight, spacing } from '@/constants/tokens'
 import { getErrorMessage } from '@/lib/alert'
 import { signUp } from '@/lib/auth'
+
+const SIGN_UP_HERO: AuthHeroContent = {
+    kicker: 'Dynasty league setup',
+    title: 'Set up the league before the league sets the agenda.',
+    copy: 'Use real roster limits, future-pick banks, waiver settings, auction starts, rookie drafts, and manager profiles from day one.',
+    proofItems: [
+        'Five-year pick banks are created with each league.',
+        'Auction and rookie draft rooms stay connected to roster state.',
+        'League settings, lineup slots, IR, and taxi rules travel together.',
+        'Managers can join, draft, trade, claim, and compete from the same shell.',
+    ],
+    previewTitle: 'Setup',
+    previewBadge: 'Commissioner ready',
+    previewRows: [
+        { label: 'Managers', value: '10 teams' },
+        { label: 'Pick bank', value: '5 years' },
+        { label: 'Draft modes', value: '2 rooms' },
+    ],
+}
 
 export default function SignUpScreen() {
     const [email, setEmail] = useState('')
@@ -44,14 +64,7 @@ export default function SignUpScreen() {
             eyebrow="Create account"
             title="Start your dynasty"
             subtitle="Create your manager profile, then build or join a league with persistent roster rules."
-            heroTitle="Set up the league before the league sets the agenda."
-            heroCopy="Use real roster limits, future-pick banks, waiver settings, auction starts, rookie drafts, and manager profiles from day one."
-            proofItems={[
-                'Five-year pick banks are created with each league.',
-                'Auction and rookie draft rooms stay connected to roster state.',
-                'League settings, lineup slots, IR, and taxi rules travel together.',
-                'Managers can join, draft, trade, claim, and compete from the same shell.',
-            ]}
+            hero={SIGN_UP_HERO}
             footer={(
                 <Link href="/(auth)/sign-in" style={styles.link}>
                     Already have an account? Sign in

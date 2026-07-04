@@ -1,30 +1,16 @@
 import { StyleSheet } from 'react-native'
-import type { ViewStyle } from 'react-native'
-import { brand, colors, fontFamily, fontSize, fontWeight, radii, shadows, spacing } from '@/constants/tokens'
+import { brand, colors, fontFamily, fontSize, fontWeight, radii, shadows, spacing, webBackgrounds, webOverlays, type WebOnlyViewStyle } from '@/constants/tokens'
 
 const SIDEBAR_WIDTH = 264
 const MOBILE_TOPBAR_HEIGHT = 56
 const MOBILE_BOTTOMBAR_HEIGHT = 64
-
-// react-native-web supports these CSS properties at runtime, but React
-// Native's bundled ViewStyle types don't model them. This stays an
-// intersection with ViewStyle so the styles remain assignable to
-// StyleSheet.create. Note: `position: 'fixed' | 'sticky'` can't be added
-// here — intersecting collapses position back to ViewStyle['position'], and
-// widening it would make WebOnlyViewStyle no longer assignable to ViewStyle.
-// The few fixed-position styles below are cast through `unknown` instead.
-type WebOnlyViewStyle = ViewStyle & {
-    backdropFilter?: string
-    WebkitBackdropFilter?: string
-    boxShadow?: string
-}
 
 export const styles = StyleSheet.create({
     root: {
         flex: 1,
         minHeight: '100%',
         backgroundColor: colors.bgScreen,
-        backgroundImage: 'radial-gradient(circle at 22% 0%, rgba(166, 83, 23, 0.10), transparent 32%), radial-gradient(circle at 78% 10%, rgba(47, 122, 91, 0.12), transparent 30%), linear-gradient(180deg, #FFFDF7 0%, #F7F1E8 42%, #EFE5D6 100%)',
+        backgroundImage: webBackgrounds.appRoot,
     } as WebOnlyViewStyle,
     rootDesktop: {
         flexDirection: 'row',
@@ -46,7 +32,7 @@ export const styles = StyleSheet.create({
         height: '100vh',
         maxHeight: '100vh',
         backgroundColor: brand.surface,
-        backgroundImage: `radial-gradient(circle at 18% 0%, rgba(166, 83, 23, 0.26), transparent 34%), linear-gradient(180deg, ${brand.surface} 0%, ${brand.surfaceDeeper} 100%)`,
+        backgroundImage: webBackgrounds.sidebar,
         paddingBottom: 14,
         borderRightWidth: 1,
         borderRightColor: brand.divider,
@@ -279,7 +265,7 @@ export const styles = StyleSheet.create({
         backgroundColor: colors.primary,
     },
     navBadgeActive: {
-        backgroundColor: 'rgba(255, 255, 255, 0.28)',
+        backgroundColor: webOverlays.navBadgeActive,
     },
     navBadgeText: {
         fontSize: 10,
@@ -340,7 +326,7 @@ export const styles = StyleSheet.create({
         flex: 1,
         minWidth: 0,
         backgroundColor: colors.bgScreen,
-        backgroundImage: 'radial-gradient(circle at 74% -10%, rgba(47, 122, 91, 0.12), transparent 30%), linear-gradient(180deg, rgba(255, 253, 247, 0.92), rgba(247, 241, 232, 0.98))',
+        backgroundImage: webBackgrounds.appContent,
     },
     contentCompact: {
         paddingTop: MOBILE_TOPBAR_HEIGHT,
@@ -358,12 +344,12 @@ export const styles = StyleSheet.create({
         alignItems: 'center',
         gap: spacing.lg,
         paddingHorizontal: spacing.xl,
-        backgroundColor: 'rgba(255, 253, 247, 0.90)',
+        backgroundColor: webOverlays.mobileTopbar,
         backdropFilter: 'blur(20px) saturate(180%)',
         WebkitBackdropFilter: 'blur(20px) saturate(180%)',
         borderBottomWidth: 1,
         borderBottomColor: colors.borderLight,
-        boxShadow: '0 10px 28px rgba(34, 41, 36, 0.08)',
+        boxShadow: shadows.sm,
     } as unknown as WebOnlyViewStyle,
     mobileLeagueWrap: {
         flex: 1,
@@ -388,7 +374,7 @@ export const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-around',
         paddingBottom: spacing.xs,
-        backgroundColor: 'rgba(255, 253, 247, 0.94)',
+        backgroundColor: webOverlays.mobileBottomNav,
         borderTopWidth: 1,
         borderTopColor: colors.borderLight,
         boxShadow: shadows.topNav,
@@ -420,7 +406,7 @@ export const styles = StyleSheet.create({
         left: 0,
         right: 0,
         zIndex: 90,
-        backgroundColor: 'rgba(16, 23, 19, 0.48)',
+        backgroundColor: webOverlays.sheetScrim,
     } as unknown as WebOnlyViewStyle,
     sheet: {
         backgroundColor: colors.bgCard,

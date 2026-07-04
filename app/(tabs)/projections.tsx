@@ -415,7 +415,7 @@ export default function ProjectionsScreen() {
                 keyExtractor={(player) => player.id}
                 contentContainerStyle={playerRows.length === 0 ? styles.emptyContainer : undefined}
                 ItemSeparatorComponent={ItemSeparator}
-                ListHeaderComponent={showStatTable ? (
+                ListHeaderComponent={showStatTable && playerRows.length > 0 ? (
                     <View style={styles.tableHeader}>
                         <View style={styles.tableHeaderAddSpacer} />
                         <View style={styles.tableHeaderCardRow}>

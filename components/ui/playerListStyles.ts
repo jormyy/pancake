@@ -157,7 +157,7 @@ export const playerListStyles = StyleSheet.create({
         borderCurve: 'continuous' as const,
         paddingHorizontal: spacing.lg + spacing.xxs,
         fontSize: fontSize.lg,
-        fontFamily: fontFamily.body,
+        fontFamily: fontFamily.control,
         color: colors.textPrimary,
     },
     clearAllChip: {

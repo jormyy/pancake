@@ -2,10 +2,30 @@ import { Link, useRouter } from 'expo-router'
 import { useState } from 'react'
 import { Platform, StyleSheet, Text, View } from 'react-native'
 import { AuthScaffold } from '@/components/auth/AuthScaffold'
+import type { AuthHeroContent } from '@/components/auth/AuthHero'
 import { Button, Input } from '@/components/ui'
 import { colors, fontSize, fontWeight, spacing } from '@/constants/tokens'
 import { getErrorMessage } from '@/lib/alert'
 import { signIn } from '@/lib/auth'
+
+const SIGN_IN_HERO: AuthHeroContent = {
+    kicker: 'Dynasty basketball operations',
+    title: 'A calmer command center for serious dynasty leagues.',
+    copy: 'Pancake keeps the season moving: live scoring, future picks, waivers, auctions, rookie drafts, and roster rules in one fast web app.',
+    proofItems: [
+        'Daily lineup decisions stay close to live NBA context.',
+        'Trades include players, FAAB, and long-horizon pick assets.',
+        'Commissioner tools stay available without leaving the app shell.',
+        'Player search, projections, and dynasty ranks share one workflow.',
+    ],
+    previewTitle: 'Tonight',
+    previewBadge: 'Live board',
+    previewRows: [
+        { label: 'Lineup edge', value: '+42.6' },
+        { label: 'Waiver budget', value: '$61' },
+        { label: 'Pick bank', value: '15 assets' },
+    ],
+}
 
 export default function SignInScreen() {
     const [email, setEmail] = useState('')
@@ -40,14 +60,7 @@ export default function SignInScreen() {
             eyebrow="Dynasty hoops"
             title="Welcome back"
             subtitle="Manage lineups, claims, trades, draft rooms, and long-term roster value from one console."
-            heroTitle="A calmer command center for serious dynasty leagues."
-            heroCopy="Pancake keeps the season moving: live scoring, future picks, waivers, auctions, rookie drafts, and roster rules in one fast web app."
-            proofItems={[
-                'Daily lineup decisions stay close to live NBA context.',
-                'Trades include players, FAAB, and long-horizon pick assets.',
-                'Commissioner tools stay available without leaving the app shell.',
-                'Player search, projections, and dynasty ranks share one workflow.',
-            ]}
+            hero={SIGN_IN_HERO}
             footer={(
                 <Link href="/(auth)/sign-up" style={styles.link}>
                     New to Pancake? Create an account

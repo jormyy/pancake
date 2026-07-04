@@ -4,7 +4,7 @@ import { LineupPlayer } from '@/lib/lineup'
 import { LiveStatLine } from '@/lib/games'
 import { computeLiveFantasyPoints } from '@/lib/scoring'
 import { POSITION_COLORS } from '@/constants/positions'
-import { alpha, colors, palette, fontSize, fontWeight, INJURY_COLORS } from '@/constants/tokens'
+import { alpha, colors, palette, fontSize, fontWeight, INJURY_COLORS, spacing } from '@/constants/tokens'
 import { PosTag } from '@/components/PosTag'
 import { Badge } from '@/components/Badge'
 import { shortName } from '@/lib/format'
@@ -347,10 +347,10 @@ const styles = StyleSheet.create({
     },
     extraOppRow: {
     },
-    rowSideLeft: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end' },
-    rowSideRight: { flex: 1, flexDirection: 'row', alignItems: 'center' },
-    playerBlockRight: { flex: 1, alignItems: 'flex-end' },
-    playerBlockLeft: { flex: 1, alignItems: 'flex-start' },
+    rowSideLeft: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', paddingLeft: spacing.sm },
+    rowSideRight: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center' },
+    playerBlockRight: { flex: 1, minWidth: 0, alignItems: 'flex-end' },
+    playerBlockLeft: { flex: 1, minWidth: 0, alignItems: 'flex-start' },
     fptsNum: { fontSize: fontSize.xl, fontWeight: fontWeight.extrabold, color: colors.textMuted, minWidth: 36, textAlign: 'left', marginRight: 6 },
     fptsNumDense: { fontSize: fontSize.lg, minWidth: 28 },
     fptsRight: { textAlign: 'right', marginRight: 0, marginLeft: 6 },
