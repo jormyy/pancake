@@ -12,7 +12,7 @@ type LeagueMemberId = {
     id: string
 }
 
-export async function fetchAllPages<T>(queryFactory: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: any }>): Promise<T[]> {
+export async function fetchAllPages<T>(queryFactory: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>): Promise<T[]> {
     const rows: T[] = []
     for (let from = 0; ; from += PAGE_SIZE) {
         const { data, error } = await queryFactory(from, from + PAGE_SIZE - 1)
@@ -48,7 +48,7 @@ export async function loadSeasonWeekBounds(seasonYear: number, throughWeek: numb
         .eq('season_year', seasonYear)
         .lte('week_number', throughWeek)
         .order('week_number')
-        .range(from, to) as any)
+        .range(from, to))
 }
 
 export async function loadLeagueMemberIds(leagueId: string): Promise<string[]> {
@@ -57,7 +57,7 @@ export async function loadLeagueMemberIds(leagueId: string): Promise<string[]> {
         .select('id')
         .eq('league_id', leagueId)
         .order('id')
-        .range(from, to) as any)
+        .range(from, to))
     return rows.map((row) => row.id)
 }
 

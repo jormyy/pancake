@@ -27,6 +27,11 @@ type PlayerRow = {
   nba_draft_number: number | null
 }
 
+type PlayerDraftFields = {
+  years_exp?: number
+  nba_draft_number?: number | null
+}
+
 const HTTP_HEADERS = {
   'User-Agent':
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
@@ -350,7 +355,7 @@ async function loadPlayers(): Promise<PlayerRow[]> {
       .select('id, display_name, first_name, last_name, nba_draft_number')
       .range(from, from + pageSize - 1)
     if (error) throw error
-    rows.push(...((data ?? []) as PlayerRow[]))
+    rows.push(...(data ?? []))
     if (!data || data.length < pageSize) break
   }
   return rows
@@ -411,10 +416,10 @@ async function insertMissingDraftPlayers(picks: NBADraftPick[]): Promise<PlayerR
   })
   const { data, error } = await supabase
     .from('players')
-    .insert(rows as any)
+    .insert(rows)
     .select('id, display_name, first_name, last_name, nba_draft_number')
   if (error) throw error
-  return (data ?? []) as PlayerRow[]
+  return data ?? []
 }
 
 function splitPlayerName(displayName: string): { firstName: string; lastName: string } {
@@ -425,12 +430,12 @@ function splitPlayerName(displayName: string): { firstName: string; lastName: st
   }
 }
 
-async function updatePlayers(rows: Record<string, unknown>[]): Promise<void> {
+async function updatePlayers(rows: ({ id: string } & PlayerDraftFields)[]): Promise<void> {
   for (let i = 0; i < rows.length; i += PLAYER_UPDATE_CONCURRENCY) {
     const chunk = rows.slice(i, i + PLAYER_UPDATE_CONCURRENCY)
     await Promise.all(chunk.map(async (row) => {
       const { id, ...fields } = row
-      const { error } = await supabase.from('players').update(fields as any).eq('id', String(id))
+      const { error } = await supabase.from('players').update(fields).eq('id', id)
       if (error) throw error
     }))
   }
@@ -446,7 +451,7 @@ async function verifySyncedDraftBoard(picks: NBADraftPick[]): Promise<void> {
   if (error) throw error
 
   const expected = new Set(picks.map((pick) => pick.overallPick))
-  const actual = new Set((data ?? []).map((player: any) => Number(player.nba_draft_number)))
+  const actual = new Set((data ?? []).map((player) => Number(player.nba_draft_number)))
   const missing = [...expected].filter((pick) => !actual.has(pick))
   const extras = [...actual].filter((pick) => !expected.has(pick))
   if (missing.length > 0 || extras.length > 0 || (data ?? []).length !== picks.length) {

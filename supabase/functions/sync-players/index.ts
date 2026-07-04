@@ -134,12 +134,12 @@ async function syncNBAIds() {
   })
   if (!res.ok) throw new Error(`NBA player index ${res.status}`)
 
-  const data = await res.json() as any
+  const data = await res.json() as { resultSets?: { headers: string[]; rowSet: unknown[][] }[] }
   const rs = data?.resultSets?.[0]
   if (!rs) throw new Error('Unexpected NBA player index shape')
 
-  const headers: string[] = rs.headers
-  const rows: any[][] = rs.rowSet
+  const headers = rs.headers
+  const rows = rs.rowSet
 
   const pidIdx = headers.indexOf('PERSON_ID')
   const firstIdx = headers.indexOf('PLAYER_FIRST_NAME')
