@@ -4,9 +4,9 @@ import { LineupPlayer } from '@/lib/lineup'
 import { LiveStatLine } from '@/lib/games'
 import { computeLiveFantasyPoints } from '@/lib/scoring'
 import { POSITION_COLORS } from '@/constants/positions'
-import { colors, palette, fontWeight } from '@/constants/tokens'
+import { colors, palette, fontWeight, INJURY_COLORS } from '@/constants/tokens'
 import { PosTag } from '@/components/PosTag'
-import { InjuryBadge } from '@/components/InjuryBadge'
+import { Badge } from '@/components/Badge'
 import { shortName } from '@/lib/format'
 import { LivePulse, MotionPressable, MotionView } from '@/components/Motion'
 
@@ -170,8 +170,6 @@ function MatchupRowImpl({
     const oppFpts = oppStats && !oppStats.didNotPlay ? computeLiveFantasyPoints(oppStats, scoringSettings) : null
     const myPlayedToday = myStats != null && !myStats.didNotPlay
     const oppPlayedToday = oppStats != null && !oppStats.didNotPlay
-    const myShowInjury = myPlayer?.injuryStatus && !myPlayedToday
-    const oppShowInjury = oppPlayer?.injuryStatus && !oppPlayedToday
 
     return (
         <MotionView style={styles.matchupRowWrap} preset="fade" delay={motionDelay}>
@@ -200,7 +198,13 @@ function MatchupRowImpl({
                         )}
                         <View style={styles.playerBlockRight}>
                             <View style={[styles.metaRow, { justifyContent: 'flex-end' }]}>
-                                {myShowInjury && <InjuryBadge status={myPlayer.injuryStatus} />}
+                                {myPlayer.injuryStatus && !myPlayedToday ? (
+                                    <Badge
+                                        label={myPlayer.injuryStatus}
+                                        color={INJURY_COLORS[myPlayer.injuryStatus] ?? colors.textMuted}
+                                        variant="solid"
+                                    />
+                                ) : null}
                                 <Text style={[styles.sideName, dense && styles.sideNameDense, !myHasGame && styles.noGameName]} numberOfLines={1}>
                                     {shortName(myPlayer.displayName)}
                                 </Text>
@@ -273,7 +277,13 @@ function MatchupRowImpl({
                                 <Text style={[styles.sideName, dense && styles.sideNameDense, !oppHasGame && styles.noGameName]} numberOfLines={1}>
                                     {shortName(oppPlayer.displayName)}
                                 </Text>
-                                {oppShowInjury && <InjuryBadge status={oppPlayer.injuryStatus} />}
+                                {oppPlayer.injuryStatus && !oppPlayedToday ? (
+                                    <Badge
+                                        label={oppPlayer.injuryStatus}
+                                        color={INJURY_COLORS[oppPlayer.injuryStatus] ?? colors.textMuted}
+                                        variant="solid"
+                                    />
+                                ) : null}
                             </View>
                             {!dense && <View style={styles.metaRow}>
                                 {!compact && oppPlayer.eligiblePositions.map((pos) => <PosTag key={pos} position={pos} />)}
