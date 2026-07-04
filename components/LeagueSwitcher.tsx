@@ -34,6 +34,10 @@ export function LeagueSwitcher({
                         key={m.id}
                         style={[styles.switcherChip, isActive && styles.switcherChipActive]}
                         onPress={() => onSelect(m)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Switch to ${m.leagues?.name ?? 'League'}`}
+                        accessibilityState={{ selected: isActive }}
+                        hitSlop={8}
                         pressedScale={0.94}
                     >
                         <Text style={[styles.switcherText, isActive && styles.switcherTextActive]}>
