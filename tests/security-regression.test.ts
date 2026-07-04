@@ -1,9 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
     functionPrivilegeStatements,
+    latestFunctionDefinition,
     latestPolicyDefinition,
-    migrationsFrom,
-    read,
     tablePrivilegeStatements,
 } from './source-guard'
 
@@ -58,10 +57,12 @@ describe('security regression guards', () => {
     })
 
     it('keeps join-by-invite errors generic (no existence oracle)', () => {
-        // The current join RPC (latest definition wins) must fail wrong codes
-        // with the generic message, so codes can't be enumerated.
-        const laterMigrations = migrationsFrom('20260516350000_join_league_status_gate.sql')
-        expect(laterMigrations).toContain('League not found. Check your invite code.')
+        // The CURRENT join RPC definition (latest-wins) must reject wrong codes
+        // with the generic message, so codes can't be enumerated. Guarding the
+        // latest definition — not any historical file — fails if a future
+        // migration redefines the RPC with a code-existence oracle.
+        const joinRpc = latestFunctionDefinition('join_league_by_invite_code')
+        expect(joinRpc).toContain('League not found. Check your invite code.')
     })
 
     it('holds the anon-write lockdown: no migration grants INSERT/UPDATE/DELETE to anon on gameplay tables', () => {

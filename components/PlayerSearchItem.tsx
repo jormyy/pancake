@@ -306,10 +306,13 @@ const styles = StyleSheet.create({
         gap: 0,
     },
     addCol: { width: 52, alignItems: 'center' },
+    // MotionPressable's touch surface is an absoluteFill overlay inside the
+    // border, so the outer circle is padded to 48 to keep the measurable
+    // target >= 44px.
     addBtn: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
+        width: 48,
+        height: 48,
+        borderRadius: 24,
         borderCurve: 'continuous' as const,
         backgroundColor: colors.primaryLight,
         borderWidth: 1.5,
