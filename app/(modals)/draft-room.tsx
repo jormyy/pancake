@@ -11,23 +11,17 @@ import {
 } from 'react-native'
 import { FlashList } from '@shopify/flash-list'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
-import { useCallback } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
-import {
-    stopDraft,
-    resetDraft,
-    pauseDraft,
-    resumeDraft,
-    NOMINATION_ORDER_MODE_LABELS,
-} from '@/lib/draft'
+import { NOMINATION_ORDER_MODE_LABELS } from '@/lib/draft'
 import { alpha, breakpoints, colors, fontFamily, fontSize, fontWeight, layout, palette, radii, spacing } from '@/constants/tokens'
-import { showAlert, confirmAction, getErrorMessage } from '@/lib/alert'
 import { getPositionColor } from '@/constants/positions'
 import { Avatar } from '@/components/Avatar'
 import { playerHeadshotUrl } from '@/lib/format'
 import { MotionPressable, MotionView } from '@/components/Motion'
+import { DraftAdminBar } from '@/components/league/draft-room/DraftAdminBar'
+import { DraftScreenHeader } from '@/components/league/draft-room/DraftScreenHeader'
+import { useDraftAdminControls } from '@/components/league/draft-room/useDraftAdminControls'
 import { useAuctionDraftRoomController, type DraftTab } from '@/hooks/useAuctionDraftRoomController'
 
 function ageLabel(age: number | null | undefined): string | null {
@@ -79,109 +73,21 @@ export default function DraftRoomScreen() {
         cancelNominating,
     } = useAuctionDraftRoomController({ draftId, memberId: myMemberId })
 
-    const handleStopDraft = useCallback(() => {
-        if (!draftId) return
-        confirmAction(
-            'Stop draft?',
-            'This ends the draft now. Players already drafted stay on their rosters and the league moves into the season. This cannot be undone.',
-            () => {
-                void (async () => {
-                    try {
-                        await stopDraft(draftId)
-                        router.replace(state?.draft.isMock ? '/league?tab=mockRooms' : '/league?tab=auctions')
-                    } catch (e) {
-                        showAlert('Could not stop draft', getErrorMessage(e))
-                    }
-                })()
+    const { handleStopDraft, handleResetDraft, handlePauseDraft, handleResumeDraft } =
+        useDraftAdminControls({
+            draftId,
+            refresh,
+            onStopped: () => navigateBackToDraftList(state?.draft.isMock),
+            confirmCopy: {
+                stop: 'This ends the draft now. Players already drafted stay on their rosters and the league moves into the season. This cannot be undone.',
+                reset: 'This wipes every pick, bid, and budget and restarts the draft from scratch. This cannot be undone.',
+                pause: 'This freezes nominations and bidding until the commissioner resumes the draft.',
+                resume: 'This reopens the draft clock and lets managers nominate and bid again.',
             },
-            'Stop Draft',
-        )
-    }, [draftId, router, state?.draft.isMock])
-
-    const handleResetDraft = useCallback(() => {
-        if (!draftId) return
-        confirmAction(
-            'Reset draft?',
-            'This wipes every pick, bid, and budget and restarts the draft from scratch. This cannot be undone.',
-            () => {
-                void (async () => {
-                    try {
-                        await resetDraft(draftId)
-                        await refresh()
-                    } catch (e) {
-                        showAlert('Could not reset draft', getErrorMessage(e))
-                    }
-                })()
-            },
-            'Reset Draft',
-        )
-    }, [draftId, refresh])
-
-    const handlePauseDraft = useCallback(() => {
-        if (!draftId) return
-        confirmAction(
-            'Pause draft?',
-            'This freezes nominations and bidding until the commissioner resumes the draft.',
-            () => {
-                void (async () => {
-                    try {
-                        await pauseDraft(draftId)
-                        await refresh()
-                    } catch (e) {
-                        showAlert('Could not pause draft', getErrorMessage(e))
-                    }
-                })()
-            },
-            'Pause Draft',
-        )
-    }, [draftId, refresh])
-
-    const handleResumeDraft = useCallback(() => {
-        if (!draftId) return
-        confirmAction(
-            'Resume draft?',
-            'This reopens the draft clock and lets managers nominate and bid again.',
-            () => {
-                void (async () => {
-                    try {
-                        await resumeDraft(draftId)
-                        await refresh()
-                    } catch (e) {
-                        showAlert('Could not resume draft', getErrorMessage(e))
-                    }
-                })()
-            },
-            'Resume Draft',
-        )
-    }, [draftId, refresh])
+        })
 
     function navigateBackToDraftList(isMock = false) {
         router.replace(isMock ? '/league?tab=mockRooms' : '/league?tab=auctions')
-    }
-
-    function renderScreenHeader(title: string, isMock = false, budgetRemaining?: number) {
-        return (
-            <View style={styles.screenHeader}>
-                <Pressable
-                    onPress={() => navigateBackToDraftList(isMock)}
-                    style={styles.headerBack}
-                    role="link"
-                    aria-label="Back to league drafts"
-                    accessibilityRole="link"
-                    accessibilityLabel="Back to league drafts"
-                >
-                    <MaterialIcons name="arrow-back" size={22} color={colors.textPrimary} />
-                </Pressable>
-                <Text style={styles.screenTitle} numberOfLines={1}>
-                    {title}
-                </Text>
-                {budgetRemaining != null ? (
-                    <View style={styles.budgetChip}>
-                        <Text style={styles.budgetChipText}>${budgetRemaining} left</Text>
-                    </View>
-                ) : null}
-            </View>
-        )
     }
 
     if (!state) {
@@ -190,7 +96,7 @@ export default function DraftRoomScreen() {
             <>
                 <Stack.Screen options={{ title: 'Draft Room', headerShown: false }} />
                 <SafeAreaView style={styles.container} edges={['bottom']}>
-                    {renderScreenHeader('Auction Draft')}
+                    <DraftScreenHeader title="Auction Draft" onBack={() => navigateBackToDraftList()} />
                     <View style={styles.draftEndedContainer}>
                         <Text style={styles.draftEndedTitle}>{hasLoadError ? 'Could not load draft' : 'Draft not found'}</Text>
                         <Text style={styles.draftEndedSub}>
@@ -240,7 +146,7 @@ export default function DraftRoomScreen() {
             <>
                 <Stack.Screen options={{ title: 'Draft Room', headerShown: false }} />
                 <SafeAreaView style={styles.container} edges={['bottom']}>
-                    {renderScreenHeader(draftTitle, draft.isMock)}
+                    <DraftScreenHeader title={draftTitle} onBack={() => navigateBackToDraftList(draft.isMock)} />
                     <View style={styles.draftEndedContainer}>
                         <Text style={styles.draftEndedTitle}>{stopped ? 'Draft Stopped' : 'Draft Complete'}</Text>
                         <Text style={styles.draftEndedSub}>
@@ -265,41 +171,22 @@ export default function DraftRoomScreen() {
         <>
             <Stack.Screen options={{ title: 'Draft Room', headerShown: false }} />
             <SafeAreaView style={styles.container} edges={['bottom']}>
-            {renderScreenHeader(draftTitle, draft.isMock, myBudget?.remaining)}
+            <DraftScreenHeader title={draftTitle} onBack={() => navigateBackToDraftList(draft.isMock)}>
+                {myBudget?.remaining != null ? (
+                    <View style={styles.budgetChip}>
+                        <Text style={styles.budgetChipText}>${myBudget.remaining} left</Text>
+                    </View>
+                ) : null}
+            </DraftScreenHeader>
 
             {isCommissioner ? (
-                <View style={styles.adminBar}>
-                    <Text style={styles.adminBarLabel}>Commissioner</Text>
-                    <View style={styles.adminBarBtns}>
-                        <MotionPressable
-                            style={[styles.adminBtn, styles.adminBtnPause]}
-                            onPress={isPaused ? handleResumeDraft : handlePauseDraft}
-                            pressedScale={0.94}
-                            accessibilityRole="button"
-                            accessibilityLabel={isPaused ? 'Resume draft' : 'Pause draft'}
-                        >
-                            <Text style={styles.adminBtnPauseText}>{isPaused ? 'Resume' : 'Pause'}</Text>
-                        </MotionPressable>
-                        <MotionPressable
-                            style={[styles.adminBtn, styles.adminBtnReset]}
-                            onPress={handleResetDraft}
-                            pressedScale={0.94}
-                            accessibilityRole="button"
-                            accessibilityLabel="Reset draft"
-                        >
-                            <Text style={styles.adminBtnResetText}>Reset</Text>
-                        </MotionPressable>
-                        <MotionPressable
-                            style={[styles.adminBtn, styles.adminBtnStop]}
-                            onPress={handleStopDraft}
-                            pressedScale={0.94}
-                            accessibilityRole="button"
-                            accessibilityLabel="Stop draft"
-                        >
-                            <Text style={styles.adminBtnStopText}>Stop</Text>
-                        </MotionPressable>
-                    </View>
-                </View>
+                <DraftAdminBar
+                    isPaused={isPaused}
+                    onPause={handlePauseDraft}
+                    onResume={handleResumeDraft}
+                    onReset={handleResetDraft}
+                    onStop={handleStopDraft}
+                />
             ) : null}
 
             {loadError ? (
@@ -725,32 +612,6 @@ const styles = StyleSheet.create({
     columnMainDesktop: { flex: 3, minWidth: 0 },
     columnSideDesktop: { flex: 2, minWidth: 0 },
 
-    screenHeader: {
-        minHeight: 56,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: spacing.md,
-        paddingHorizontal: spacing.md,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.borderLight,
-        backgroundColor: colors.bgCard,
-    },
-    headerBack: {
-        width: 44,
-        height: 44,
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderRadius: radii.md,
-        borderCurve: 'continuous' as const,
-        backgroundColor: colors.bgMuted,
-    },
-    screenTitle: {
-        flex: 1,
-        color: colors.textPrimary,
-        fontSize: fontSize.lg,
-        fontFamily: fontFamily.display,
-        fontWeight: fontWeight.bold,
-    },
     budgetChip: {
         backgroundColor: colors.primaryLight,
         minHeight: 36,
@@ -762,40 +623,6 @@ const styles = StyleSheet.create({
         borderColor: colors.primaryBorder,
     },
     budgetChipText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.primaryDark },
-    adminBar: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: spacing.sm,
-        paddingHorizontal: spacing.xl,
-        paddingVertical: spacing.sm,
-        backgroundColor: colors.bgSubtle,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.borderLight,
-    },
-    adminBarLabel: {
-        fontSize: 10,
-        fontWeight: fontWeight.extrabold,
-        letterSpacing: 0,
-        textTransform: 'uppercase' as const,
-        color: colors.textMuted,
-    },
-    adminBarBtns: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-    adminBtn: {
-        minHeight: 46,
-        justifyContent: 'center',
-        alignItems: 'center',
-        paddingHorizontal: spacing.lg,
-        borderRadius: radii.md,
-        borderWidth: 1,
-    },
-    adminBtnReset: { backgroundColor: colors.bgCard, borderColor: colors.border },
-    adminBtnPause: { backgroundColor: colors.primaryLight, borderColor: colors.primaryBorder },
-    adminBtnStop: { backgroundColor: colors.dangerLight, borderColor: colors.danger },
-    adminBtnResetText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.textSecondary },
-    adminBtnPauseText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.primaryDark },
-    adminBtnStopText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.dangerDark },
     refreshWarning: {
         paddingHorizontal: spacing.xl,
         paddingVertical: spacing.sm,

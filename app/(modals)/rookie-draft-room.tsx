@@ -6,21 +6,21 @@ import {
     KeyboardAvoidingView,
     Modal,
     Platform,
-    Pressable,
     ScrollView,
     useWindowDimensions,
 } from 'react-native'
 import { FlashList } from '@shopify/flash-list'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useLeagueContext } from '@/contexts/league-context'
 import { type RookieProspect, type SnakePick } from '@/lib/rookieDraft'
-import { pauseDraft, resetDraft, resumeDraft, stopDraft } from '@/lib/draft'
 import { getPositionColor } from "@/constants/positions"
 import { colors, palette, fontSize, fontWeight, radii, scrim, spacing } from '@/constants/tokens'
 import { MotionPressable } from '@/components/Motion'
-import { confirmAction, showAlert, showSuccess, getErrorMessage } from '@/lib/alert'
+import { showSuccess } from '@/lib/alert'
+import { DraftAdminBar } from '@/components/league/draft-room/DraftAdminBar'
+import { DraftScreenHeader } from '@/components/league/draft-room/DraftScreenHeader'
+import { useDraftAdminControls } from '@/components/league/draft-room/useDraftAdminControls'
 import { useRookieDraftRoomController } from '@/hooks/useRookieDraftRoomController'
 
 export default function RookieDraftRoomScreen() {
@@ -61,105 +61,22 @@ export default function RookieDraftRoomScreen() {
         rosterSize: currentLeague?.roster_size ?? 20,
     })
 
-    const handleStopDraft = () => {
-        if (!draftId) return
-        confirmAction(
-            'Stop draft?',
-            'This ends the rookie draft now. Players already drafted stay on their rosters and the league moves into the season. This cannot be undone.',
-            () => {
-                void (async () => {
-                    try {
-                        await stopDraft(draftId)
-                        router.replace(state?.draft.isMock ? '/league?tab=mockRooms' : '/league?tab=draftBoard')
-                    } catch (e) {
-                        showAlert('Could not stop draft', getErrorMessage(e))
-                    }
-                })()
+    const { handleStopDraft, handleResetDraft, handlePauseDraft, handleResumeDraft } =
+        useDraftAdminControls({
+            draftId,
+            refresh,
+            onStopped: () => navigateBackToDraftList(state?.draft.isMock),
+            onReset: () => showSuccess('Draft Reset', 'The rookie draft has been reset to the first pick.'),
+            confirmCopy: {
+                stop: 'This ends the rookie draft now. Players already drafted stay on their rosters and the league moves into the season. This cannot be undone.',
+                reset: 'This clears every pick, returns all pick assets, and restarts the draft from the first selection. This cannot be undone.',
+                pause: 'This freezes the pick clock until the commissioner resumes the draft.',
+                resume: 'This restarts the draft clock and allows picks again.',
             },
-            'Stop Draft',
-        )
-    }
-
-    const handleResetDraft = () => {
-        if (!draftId) return
-        confirmAction(
-            'Reset draft?',
-            'This clears every pick, returns all pick assets, and restarts the draft from the first selection. This cannot be undone.',
-            () => {
-                void (async () => {
-                    try {
-                        await resetDraft(draftId)
-                        await refresh()
-                        showSuccess('Draft Reset', 'The rookie draft has been reset to the first pick.')
-                    } catch (e) {
-                        showAlert('Could not reset draft', getErrorMessage(e))
-                    }
-                })()
-            },
-            'Reset Draft',
-        )
-    }
-
-    const handlePauseDraft = () => {
-        if (!draftId) return
-        confirmAction(
-            'Pause draft?',
-            'This freezes the pick clock until the commissioner resumes the draft.',
-            () => {
-                void (async () => {
-                    try {
-                        await pauseDraft(draftId)
-                        await refresh()
-                    } catch (e) {
-                        showAlert('Could not pause draft', getErrorMessage(e))
-                    }
-                })()
-            },
-            'Pause Draft',
-        )
-    }
-
-    const handleResumeDraft = () => {
-        if (!draftId) return
-        confirmAction(
-            'Resume draft?',
-            'This restarts the draft clock and allows picks again.',
-            () => {
-                void (async () => {
-                    try {
-                        await resumeDraft(draftId)
-                        await refresh()
-                    } catch (e) {
-                        showAlert('Could not resume draft', getErrorMessage(e))
-                    }
-                })()
-            },
-            'Resume Draft',
-        )
-    }
+        })
 
     function navigateBackToDraftList(isMock = false) {
         router.replace(isMock ? '/league?tab=mockRooms' : '/league?tab=draftBoard')
-    }
-
-    function renderScreenHeader(title: string, isMock = false) {
-        return (
-            <View style={styles.screenHeader}>
-                <Pressable
-                    onPress={() => navigateBackToDraftList(isMock)}
-                    style={styles.headerBack}
-                    role="link"
-                    aria-label="Back to league drafts"
-                    accessibilityRole="link"
-                    accessibilityLabel="Back to league drafts"
-                >
-                    <MaterialIcons name="arrow-back" size={22} color={colors.textPrimary} />
-                </Pressable>
-                <Text style={styles.screenTitle} numberOfLines={1}>
-                    {title}
-                </Text>
-            </View>
-        )
     }
 
     if (!state) {
@@ -167,7 +84,7 @@ export default function RookieDraftRoomScreen() {
             <>
                 <Stack.Screen options={{ title: 'Rookie Draft', presentation: 'modal', headerShown: false }} />
                 <SafeAreaView style={styles.container}>
-                    {renderScreenHeader('Rookie Draft')}
+                    <DraftScreenHeader title="Rookie Draft" onBack={() => navigateBackToDraftList()} />
                     <View style={styles.center}>
                         <Text style={styles.emptyText}>Draft not found.</Text>
                     </View>
@@ -283,7 +200,7 @@ export default function RookieDraftRoomScreen() {
             </Modal>
 
             <SafeAreaView style={styles.container} edges={['bottom']}>
-                {renderScreenHeader(draftTitle, draft.isMock)}
+                <DraftScreenHeader title={draftTitle} onBack={() => navigateBackToDraftList(draft.isMock)} />
                 <KeyboardAvoidingView
                     style={{ flex: 1 }}
                     behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -353,42 +270,16 @@ export default function RookieDraftRoomScreen() {
                         </View>
 
                         {isCommissioner && !isDone ? (
-                            <View style={[styles.adminBar, compactLandscape && styles.adminBarCompact]}>
-                                <Text style={[styles.adminBarLabel, compactLandscape && styles.adminBarLabelCompact]}>
-                                    Commissioner
-                                </Text>
-                                <View style={styles.adminBarBtns}>
-                                    {canUsePauseControl ? (
-                                        <MotionPressable
-                                            style={[styles.adminBtn, styles.adminBtnPause]}
-                                            onPress={isPaused ? handleResumeDraft : handlePauseDraft}
-                                            pressedScale={0.94}
-                                            accessibilityRole="button"
-                                            accessibilityLabel={isPaused ? 'Resume draft' : 'Pause draft'}
-                                        >
-                                            <Text style={styles.adminBtnPauseText}>{isPaused ? 'Resume' : 'Pause'}</Text>
-                                        </MotionPressable>
-                                    ) : null}
-                                    <MotionPressable
-                                        style={[styles.adminBtn, styles.adminBtnReset]}
-                                        onPress={handleResetDraft}
-                                        pressedScale={0.94}
-                                        accessibilityRole="button"
-                                        accessibilityLabel="Reset draft"
-                                    >
-                                        <Text style={styles.adminBtnResetText}>Reset</Text>
-                                    </MotionPressable>
-                                    <MotionPressable
-                                        style={[styles.adminBtn, styles.adminBtnStop]}
-                                        onPress={handleStopDraft}
-                                        pressedScale={0.94}
-                                        accessibilityRole="button"
-                                        accessibilityLabel="Stop draft"
-                                    >
-                                        <Text style={styles.adminBtnStopText}>Stop</Text>
-                                    </MotionPressable>
-                                </View>
-                            </View>
+                            <DraftAdminBar
+                                isPaused={isPaused}
+                                showPause={canUsePauseControl}
+                                showLabel={!compactLandscape}
+                                onPause={handlePauseDraft}
+                                onResume={handleResumeDraft}
+                                onReset={handleResetDraft}
+                                onStop={handleStopDraft}
+                                style={compactLandscape ? styles.adminBarCompact : styles.adminBarWide}
+                            />
                         ) : null}
                     </View>
 
@@ -597,31 +488,6 @@ const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgScreen },
     center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
     emptyText: { color: colors.textPlaceholder, fontSize: fontSize.md },
-    screenHeader: {
-        minHeight: 56,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: spacing.md,
-        paddingHorizontal: spacing.md,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.borderLight,
-        backgroundColor: colors.bgCard,
-    },
-    headerBack: {
-        width: 44,
-        height: 44,
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderRadius: radii.md,
-        borderCurve: 'continuous' as const,
-        backgroundColor: colors.bgMuted,
-    },
-    screenTitle: {
-        flex: 1,
-        color: colors.textPrimary,
-        fontSize: fontSize.lg,
-        fontWeight: fontWeight.extrabold,
-    },
 
     topDraftPanel: {},
     topDraftPanelCompact: {
@@ -651,25 +517,7 @@ const styles = StyleSheet.create({
     },
     bannerDone: { backgroundColor: palette.green50, borderBottomColor: palette.green200 },
     bannerPaused: { backgroundColor: colors.bgSubtle, borderBottomColor: colors.border },
-    adminBar: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: spacing.sm,
-        paddingHorizontal: spacing['2xl'],
-        paddingVertical: spacing.sm,
-        backgroundColor: colors.bgSubtle,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.borderLight,
-    },
-    adminBarLabel: {
-        fontSize: 10,
-        fontWeight: fontWeight.extrabold,
-        letterSpacing: 0,
-        textTransform: 'uppercase' as const,
-        color: colors.textMuted,
-    },
+    adminBarWide: { paddingHorizontal: spacing['2xl'] },
     adminBarCompact: {
         width: 252,
         minHeight: 54,
@@ -679,22 +527,6 @@ const styles = StyleSheet.create({
         borderLeftWidth: 1,
         borderLeftColor: colors.borderLight,
     },
-    adminBarLabelCompact: { display: 'none' },
-    adminBarBtns: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-    adminBtn: {
-        minHeight: 46,
-        justifyContent: 'center',
-        alignItems: 'center',
-        paddingHorizontal: spacing.lg,
-        borderRadius: radii.md,
-        borderWidth: 1,
-    },
-    adminBtnReset: { backgroundColor: colors.bgCard, borderColor: colors.border },
-    adminBtnPause: { backgroundColor: colors.primaryLight, borderColor: colors.primaryBorder },
-    adminBtnStop: { backgroundColor: colors.dangerLight, borderColor: colors.danger },
-    adminBtnResetText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.textSecondary },
-    adminBtnPauseText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.primaryDark },
-    adminBtnStopText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.dangerDark },
     bannerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     bannerTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.extrabold, color: colors.textPrimary },
     bannerClock: { fontSize: fontSize.lg, fontWeight: fontWeight.extrabold, color: colors.textMuted },
