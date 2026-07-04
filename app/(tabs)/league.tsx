@@ -14,12 +14,9 @@ import { EmptyState } from '@/components/EmptyState'
 import { NoLeagueState } from '@/components/NoLeagueState'
 import { StandingsTable } from '@/components/league/LeagueStandings'
 import { ActivityFeed } from '@/components/league/LeagueActivityFeed'
-import {
-    AuctionPanel,
-    DraftBoardPanel,
-    MockRoomsPanel,
-    SettingsPanel,
-} from '@/components/league/LeagueDraftPanels'
+import { AuctionPanel, DraftBoardPanel } from '@/components/league/DraftSetupPanels'
+import { MockRoomsPanel } from '@/components/league/MockRoomsPanel'
+import { SettingsPanel } from '@/components/league/SettingsPanel'
 import { LeagueTabBar } from '@/components/league/LeagueTabBar'
 import { useLeagueScreenState } from '@/hooks/use-league-screen-state'
 import { LEAGUE_TABS } from '@/lib/league/tabs'

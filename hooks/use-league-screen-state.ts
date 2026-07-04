@@ -33,7 +33,7 @@ import {
 } from '@/lib/mockDraftRooms'
 import { confirmAction, showAlert } from '@/lib/alert'
 import { parseLeagueTab, type LeagueTab } from '@/lib/league/tabs'
-import type { DraftTimerOption, RookieRoundOption } from '@/components/league/LeagueDraftPanels'
+import type { DraftTimerOption, RookieRoundOption } from '@/components/league/DraftChips'
 
 const ACTIVITY_LIMIT = 50
 const OPEN_DRAFT_STATUSES = new Set(['pending', 'in_progress', 'paused'])
