@@ -405,6 +405,26 @@ describe('logic hardening source guards - draft, auction, roster history', () =>
         expect(read('types/database.ts')).toContain('p_is_mock?: boolean')
     })
 
+    it('keeps rookie draft round configuration inside the seeded pick bank', () => {
+        const startRookieBody = latestFunctionDefinition('start_rookie_draft_atomic')
+        const reseedBody = latestFunctionDefinition('reseed_rookie_draft_picks_atomic')
+        const api = read('supabase/functions/api/draft.ts')
+        const draftChips = read('components/league/DraftChips.tsx')
+
+        expect(draftChips).toContain('export const ROOKIE_ROUND_OPTIONS = [2, 3] as const')
+        expect(api).toContain('const MAX_ROOKIE_DRAFT_ROUNDS = 3')
+        expect(api).toContain("optionalIntegerField(body, 'rounds', { min: 1, max: MAX_ROOKIE_DRAFT_ROUNDS })")
+        expect(api).toContain(".select('rounds')")
+        expect(api).toContain('const draftRounds = Number(draft.rounds ?? ROOKIE_DRAFT_ROUNDS)')
+        expect(api).toContain('p_rounds: draftRounds')
+        expect(startRookieBody).toContain('p_rounds < 1 OR p_rounds > 3')
+        expect(startRookieBody).toContain('Rookie draft rounds must be between 1 and 3.')
+        expect(reseedBody).toContain('p_rounds int DEFAULT NULL')
+        expect(reseedBody).toContain('v_rounds := COALESCE(p_rounds, v_draft.rounds, 3)')
+        expect(reseedBody).toContain('generate_series(1, v_rounds)')
+        expect(reseedBody).toContain('v_order_count * v_rounds')
+    })
+
     it('requires commissioner authority for direct rookie activation RPC calls', () => {
         const activateBody = latestFunctionDefinition('activate_rookie_draft_league_atomic')
         const rookieLib = read('lib/rookieDraft.ts')

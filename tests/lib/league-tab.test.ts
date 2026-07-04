@@ -194,7 +194,7 @@ describe('draft confirmation via confirmAction', () => {
         const startRookieDraftFlow = () => {
             confirmAction(
                 'Start Rookie Draft?',
-                'This will begin the rookie snake draft for 4 rounds with a 120-second timer and pause timeout behavior. This cannot be undone.',
+                'This will begin the rookie snake draft for 3 rounds with a 120-second timer and pause timeout behavior. This cannot be undone.',
                 () => { /* draft logic */ },
                 'Start Rookie',
             )
@@ -205,7 +205,7 @@ describe('draft confirmation via confirmAction', () => {
         expect(confirmAction).toHaveBeenCalledOnce()
         expect(confirmAction).toHaveBeenCalledWith(
             'Start Rookie Draft?',
-            'This will begin the rookie snake draft for 4 rounds with a 120-second timer and pause timeout behavior. This cannot be undone.',
+            'This will begin the rookie snake draft for 3 rounds with a 120-second timer and pause timeout behavior. This cannot be undone.',
             expect.any(Function),
             'Start Rookie',
         )
