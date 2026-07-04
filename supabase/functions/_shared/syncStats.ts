@@ -10,7 +10,7 @@ function toETDate(date: Date): string {
   return date.toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
 }
 
-export async function syncStatsByDate(date: Date) {
+export async function syncStatsByDate(date: Date): Promise<number> {
   const dateStr = toETDate(date)
   console.log(`[sync-stats] Fetching stats for ${dateStr}...`)
 
@@ -26,7 +26,7 @@ export async function syncStatsByDate(date: Date) {
   if (gErr) throw gErr
   if (!games?.length) {
     console.log(`[sync-stats] No completed/live games for ${dateStr}.`)
-    return
+    return 0
   }
 
   let statCount = 0
@@ -85,6 +85,7 @@ export async function syncStatsByDate(date: Date) {
   }
 
   console.log(`[sync-stats] Upserted ${statCount} stat lines for ${dateStr}.`)
+  return statCount
 }
 
 export function buildStatRow(

@@ -1,12 +1,16 @@
 import { supabase } from '../_shared/supabase.ts'
 import { fetchSeasonSchedule } from '../_shared/nba.ts'
+import { recordSyncRun } from '../_shared/syncRuns.ts'
 import { serveInternal } from '../_shared/serve.ts'
 import { buildScheduleSyncPlan, type ScheduleGameRow, type SeasonWeekRow } from '../_shared/schedule.ts'
 
 const CHUNK = 500
 
 serveInternal('sync-schedule', async () => {
-  const result = await syncSchedule()
+  const result = await recordSyncRun('sync-schedule', async () => {
+    const result = await syncSchedule()
+    return { result, rowsAffected: result.updated + result.inserted + result.weeks }
+  })
   return Response.json({ ok: true, ...result })
 })
 

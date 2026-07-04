@@ -1,4 +1,5 @@
 import { supabase } from '../_shared/supabase.ts'
+import { recordSyncRun } from '../_shared/syncRuns.ts'
 import { serveInternal } from '../_shared/serve.ts'
 import { buildDynastyRankingPayload, RANKINGS_SOURCE, type PlayerForRanking } from './match.ts'
 import { parseDynastyRankingsHtml, selectedDynastyRankingType, type RankingRow } from './parser.ts'
@@ -9,11 +10,14 @@ const POINTS_RANKING_TYPE = 'POINT'
 const MIN_RANKING_ROWS = 500
 
 serveInternal('sync-rankings', async () => {
-  await syncDynastyRankings()
-  return Response.json({ ok: true })
+  const rows = await recordSyncRun('sync-rankings', async () => {
+    const rows = await syncDynastyRankings()
+    return { result: rows, rowsAffected: rows }
+  })
+  return Response.json({ ok: true, rows })
 })
 
-async function syncDynastyRankings() {
+async function syncDynastyRankings(): Promise<number> {
   console.log('[sync-rankings] Scraping dynasty rankings...')
   const [scraped, players] = await Promise.all([scrapeDynastyRankings(), fetchPlayersForRanking()])
   const fetchedAt = new Date().toISOString()
@@ -36,6 +40,7 @@ async function syncDynastyRankings() {
   if (error) throw error
 
   console.log(`[sync-rankings] Stored ${rankingRows.length} ranking rows; matched ${matched}/${rankingRows.length} players.`, result)
+  return rankingRows.length
 }
 
 async function fetchPlayersForRanking(): Promise<PlayerForRanking[]> {

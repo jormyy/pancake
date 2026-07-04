@@ -1,6 +1,7 @@
 import { supabase } from '../_shared/supabase.ts'
 import { syncScores } from '../_shared/syncScores.ts'
 import { syncStatsByDate } from '../_shared/syncStats.ts'
+import { recordSyncRun } from '../_shared/syncRuns.ts'
 import { serveInternal } from '../_shared/serve.ts'
 import {
   LIVE_POLL_LEASE_TTL_SECONDS,
@@ -9,10 +10,12 @@ import {
   livePollCandidateDates,
 } from '../_shared/livePoll.ts'
 
-async function syncStatsForScoreCandidateDates(): Promise<void> {
+async function syncStatsForScoreCandidateDates(): Promise<number> {
+  let statLines = 0
   for (const date of livePollCandidateDates()) {
-    await syncStatsByDate(dateFromETDate(date))
+    statLines += await syncStatsByDate(dateFromETDate(date))
   }
+  return statLines
 }
 
 serveInternal('sync-scores', async (req) => {
@@ -20,7 +23,10 @@ serveInternal('sync-scores', async (req) => {
   const leagueId = typeof body.leagueId === 'string' ? body.leagueId : undefined
   const date = typeof body.date === 'string' ? new Date(body.date) : null
   if (date && !Number.isNaN(date.getTime())) {
-    await syncScores(leagueId, date)
+    await recordSyncRun('sync-scores', async () => {
+      await syncScores(leagueId, date)
+      return { result: undefined, rowsAffected: null }
+    })
     return Response.json({ ok: true, date: body.date, leagueId: leagueId ?? null })
   }
 
@@ -37,8 +43,11 @@ serveInternal('sync-scores', async (req) => {
   }
 
   try {
-    await syncStatsForScoreCandidateDates()
-    await syncScores()
+    await recordSyncRun('sync-scores', async () => {
+      const statLines = await syncStatsForScoreCandidateDates()
+      await syncScores()
+      return { result: undefined, rowsAffected: statLines }
+    })
     return Response.json({ ok: true })
   } finally {
     const { error: releaseErr } = await supabase.rpc('release_live_poll_lease', {
