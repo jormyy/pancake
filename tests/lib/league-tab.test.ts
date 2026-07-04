@@ -169,9 +169,9 @@ describe('draft confirmation via confirmAction', () => {
         const startDraftFlow = () => {
             confirmAction(
                 'Start Auction Draft?',
-                'This will begin the auction draft for all teams. This cannot be undone.',
+                "This will begin the auction draft for all teams with a 60-second timer and manager's choice nomination order. This cannot be undone.",
                 () => { /* draft logic */ },
-                'Start Draft',
+                'Start Auction',
             )
         }
 
@@ -180,9 +180,9 @@ describe('draft confirmation via confirmAction', () => {
         expect(confirmAction).toHaveBeenCalledOnce()
         expect(confirmAction).toHaveBeenCalledWith(
             'Start Auction Draft?',
-            'This will begin the auction draft for all teams. This cannot be undone.',
+            "This will begin the auction draft for all teams with a 60-second timer and manager's choice nomination order. This cannot be undone.",
             expect.any(Function),
-            'Start Draft',
+            'Start Auction',
         )
     })
 
@@ -194,9 +194,9 @@ describe('draft confirmation via confirmAction', () => {
         const startRookieDraftFlow = () => {
             confirmAction(
                 'Start Rookie Draft?',
-                'This will begin the rookie snake draft. This cannot be undone.',
+                'This will begin the rookie snake draft for 3 rounds with a 120-second timer and pause timeout behavior. This cannot be undone.',
                 () => { /* draft logic */ },
-                'Start Draft',
+                'Start Rookie',
             )
         }
 
@@ -205,9 +205,9 @@ describe('draft confirmation via confirmAction', () => {
         expect(confirmAction).toHaveBeenCalledOnce()
         expect(confirmAction).toHaveBeenCalledWith(
             'Start Rookie Draft?',
-            'This will begin the rookie snake draft. This cannot be undone.',
+            'This will begin the rookie snake draft for 3 rounds with a 120-second timer and pause timeout behavior. This cannot be undone.',
             expect.any(Function),
-            'Start Draft',
+            'Start Rookie',
         )
     })
 

@@ -1,0 +1,206 @@
+import { useCallback, useEffect, useId, useRef } from 'react'
+import { View, Text, Pressable, StyleSheet, Platform } from 'react-native'
+import {
+    NOMINATION_ORDER_MODES,
+    NOMINATION_ORDER_MODE_LABELS,
+    ROOKIE_TIMER_EXPIRY_BEHAVIORS,
+    ROOKIE_TIMER_EXPIRY_BEHAVIOR_LABELS,
+    type NominationOrderMode,
+    type RookieTimerExpiryBehavior,
+} from '@/lib/draft'
+import type { MockDraftRoomKind } from '@/lib/mockDraftRooms'
+import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { nextRovingIndex } from '@/components/ui/rovingFocus'
+
+type ChipValue = string | number
+export type ChipOption<T extends ChipValue> = {
+    value: T
+    label: string
+}
+type WebKeyboardEvent = {
+    key: string
+    preventDefault?: () => void
+}
+type WebKeyDownProps = {
+    onKeyDown?: (event: WebKeyboardEvent) => void
+}
+
+export const DRAFT_TIMER_OPTIONS = [30, 60, 120] as const
+export const ROOKIE_ROUND_OPTIONS = [2, 3] as const
+export type DraftTimerOption = (typeof DRAFT_TIMER_OPTIONS)[number]
+export type RookieRoundOption = (typeof ROOKIE_ROUND_OPTIONS)[number]
+
+export const MOCK_ROOM_TYPE_CHIPS: readonly ChipOption<MockDraftRoomKind>[] = [
+    { value: 'auction', label: 'Auction' },
+    { value: 'snake', label: 'Rookie' },
+]
+export const DRAFT_TIMER_CHIPS: readonly ChipOption<DraftTimerOption>[] =
+    DRAFT_TIMER_OPTIONS.map((value) => ({ value, label: `${value}s` }))
+export const ROOKIE_ROUND_CHIPS: readonly ChipOption<RookieRoundOption>[] =
+    ROOKIE_ROUND_OPTIONS.map((value) => ({ value, label: String(value) }))
+export const NOMINATION_ORDER_CHIPS: readonly ChipOption<NominationOrderMode>[] =
+    NOMINATION_ORDER_MODES.map((value) => ({ value, label: NOMINATION_ORDER_MODE_LABELS[value] }))
+export const ROOKIE_TIMER_EXPIRY_CHIPS: readonly ChipOption<RookieTimerExpiryBehavior>[] =
+    ROOKIE_TIMER_EXPIRY_BEHAVIORS.map((value) => ({ value, label: ROOKIE_TIMER_EXPIRY_BEHAVIOR_LABELS[value] }))
+
+const INTERACTIVE_ROLES = new Set([
+    'alertdialog',
+    'button',
+    'checkbox',
+    'combobox',
+    'dialog',
+    'link',
+    'menuitem',
+    'radio',
+    'switch',
+    'tab',
+    'textbox',
+])
+
+export type DraftControlProps = {
+    nominationMode: NominationOrderMode
+    onNominationModeChange: (value: NominationOrderMode) => void
+    draftTimerSeconds: DraftTimerOption
+    onDraftTimerSecondsChange: (value: DraftTimerOption) => void
+    rookieRounds: RookieRoundOption
+    onRookieRoundsChange: (value: RookieRoundOption) => void
+    rookieTimerExpiryBehavior: RookieTimerExpiryBehavior
+    onRookieTimerExpiryBehaviorChange: (value: RookieTimerExpiryBehavior) => void
+}
+
+function draftChipId(idBase: string, value: ChipValue) {
+    return `${idBase}-${String(value).replace(/[^a-zA-Z0-9_-]/g, '-')}`
+}
+
+function shouldRecoverDraftChipFocus(target: HTMLElement) {
+    const active = document.activeElement
+    if (!active || active === target || active === document.body) return true
+    if (!(active instanceof HTMLElement)) return false
+
+    const role = active.getAttribute('role')
+    if (role === 'radio') return true
+    if (role && INTERACTIVE_ROLES.has(role)) return false
+    if (['A', 'BUTTON', 'INPUT', 'SELECT', 'TEXTAREA'].includes(active.tagName)) return false
+    return !active.isContentEditable
+}
+
+function focusDraftChip(idBase: string, value: ChipValue, shouldFocus: () => boolean) {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return
+    const focus = () => {
+        if (!shouldFocus()) return
+        const target = document.getElementById(draftChipId(idBase, value))
+        if (target instanceof HTMLElement && shouldRecoverDraftChipFocus(target)) target.focus()
+    }
+    // One deferred retry: the re-render after selection can replace the chip node.
+    requestAnimationFrame(focus)
+    setTimeout(focus, 150)
+}
+
+export function DraftChips<T extends ChipValue>({
+    options,
+    selectedValue,
+    onSelect,
+    groupLabel,
+    accessibilityLabelForOption,
+    compact = false,
+}: {
+    options: readonly ChipOption<T>[]
+    selectedValue: T
+    onSelect: (value: T) => void
+    groupLabel: string
+    accessibilityLabelForOption?: (option: ChipOption<T>) => string
+    compact?: boolean
+}) {
+    const generatedId = useId().replace(/[^a-zA-Z0-9_-]/g, '')
+    const idBase = `draft-chip-${generatedId}`
+    const pendingFocusValue = useRef<T | null>(null)
+    const focusRequestId = useRef(0)
+
+    const scheduleChipFocus = useCallback((value: T) => {
+        const requestId = ++focusRequestId.current
+        focusDraftChip(idBase, value, () => focusRequestId.current === requestId)
+    }, [idBase])
+
+    useEffect(() => {
+        if (pendingFocusValue.current !== selectedValue) return
+        pendingFocusValue.current = null
+        scheduleChipFocus(selectedValue)
+    }, [scheduleChipFocus, selectedValue])
+
+    function selectValue(value: T) {
+        pendingFocusValue.current = value
+        onSelect(value)
+        scheduleChipFocus(value)
+    }
+
+    function handleKeyDown(event: WebKeyboardEvent, index: number) {
+        const nextIndex = nextRovingIndex(index, event.key, options.length)
+        if (nextIndex == null) return
+
+        event.preventDefault?.()
+        selectValue(options[nextIndex].value)
+    }
+
+    return (
+        <View
+            style={[styles.nominationModeRow, compact && styles.nominationModeRowCompact]}
+            role="radiogroup"
+            aria-label={groupLabel}
+            aria-orientation="horizontal"
+            accessibilityRole="radiogroup"
+            accessibilityLabel={groupLabel}
+        >
+            {options.map((option, index) => {
+                const selected = selectedValue === option.value
+                const accessibilityLabel = accessibilityLabelForOption?.(option) ?? option.label
+                const webKeyProps: WebKeyDownProps = Platform.OS === 'web'
+                    ? { onKeyDown: (event) => handleKeyDown(event, index) }
+                    : {}
+                return (
+                    <Pressable
+                        key={String(option.value)}
+                        nativeID={draftChipId(idBase, option.value)}
+                        style={[styles.nominationModeChip, selected && styles.nominationModeChipOn]}
+                        onPress={() => selectValue(option.value)}
+                        role="radio"
+                        aria-label={accessibilityLabel}
+                        aria-checked={selected}
+                        tabIndex={selected ? 0 : -1}
+                        accessibilityRole="radio"
+                        accessibilityLabel={accessibilityLabel}
+                        accessibilityState={{ checked: selected }}
+                        {...webKeyProps}
+                    >
+                        <Text style={[styles.nominationModeChipText, selected && styles.nominationModeChipTextOn]}>
+                            {option.label}
+                        </Text>
+                    </Pressable>
+                )
+            })}
+        </View>
+    )
+}
+
+export const draftTimerChipLabel = (option: ChipOption<DraftTimerOption>) => `${option.value} seconds`
+export const rookieRoundChipLabel = (option: ChipOption<RookieRoundOption>) => `${option.value} rounds`
+export const mockRoomTypeChipLabel = (option: ChipOption<MockDraftRoomKind>) => `${option.label} room`
+
+const styles = StyleSheet.create({
+    nominationModeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, marginBottom: spacing.sm },
+    nominationModeRowCompact: { marginBottom: 0 },
+    nominationModeChip: {
+        flexGrow: 1,
+        flexBasis: 78,
+        minHeight: 44,
+        paddingVertical: spacing.sm,
+        borderRadius: radii.md,
+        borderWidth: 1,
+        borderColor: colors.border,
+        backgroundColor: colors.bgCard,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    nominationModeChipOn: { borderColor: colors.primary, backgroundColor: colors.primary },
+    nominationModeChipText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textSecondary },
+    nominationModeChipTextOn: { color: colors.textWhite },
+})

@@ -1,7 +1,8 @@
 import { supabase } from '../_shared/supabase.ts'
-import { requireInternalFunctionAuth } from '../_shared/auth.ts'
-import { internalServerError } from '../_shared/responses.ts'
-import { normalizeName } from '../_shared/nameMatch.ts'
+import { serveInternal } from '../_shared/serve.ts'
+import { errorMessage } from '../_shared/responses.ts'
+import { fetchWithRetry } from '../_shared/retry.ts'
+import { AMBIGUOUS, normalizeName, setUnique } from '../_shared/nameMatch.ts'
 import { currentSeasonYear } from '../_shared/season.ts'
 
 const NBA_STATS_URL = 'https://stats.nba.com/stats/drafthistory'
@@ -25,6 +26,11 @@ type PlayerRow = {
   first_name: string
   last_name: string
   nba_draft_number: number | null
+}
+
+type PlayerDraftFields = {
+  years_exp?: number
+  nba_draft_number?: number | null
 }
 
 const HTTP_HEADERS = {
@@ -55,20 +61,13 @@ function defaultDraftOrderSeasonYear(now = new Date()): number {
   return currentSeasonYear(now)
 }
 
-Deno.serve(async (req) => {
-  const authError = requireInternalFunctionAuth(req)
-  if (authError) return authError
-
-  try {
-    const body = await readBody(req)
-    const seasonYear = Number.isInteger(body.seasonYear)
-      ? Number(body.seasonYear)
-      : defaultDraftOrderSeasonYear()
-    const result = await syncDraftOrder(seasonYear)
-    return Response.json({ ok: true, ...result })
-  } catch (e: unknown) {
-    return internalServerError('sync-draft-order', e)
-  }
+serveInternal('sync-draft-order', async (req) => {
+  const body = await readBody(req)
+  const seasonYear = Number.isInteger(body.seasonYear)
+    ? Number(body.seasonYear)
+    : defaultDraftOrderSeasonYear()
+  const result = await syncDraftOrder(seasonYear)
+  return Response.json({ ok: true, ...result })
 })
 
 async function readBody(req: Request): Promise<Record<string, unknown>> {
@@ -229,7 +228,7 @@ async function fetchWithTimeout(url: string, init: RequestInit): Promise<Respons
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), 20_000)
   try {
-    return await fetch(url, { ...init, signal: controller.signal })
+    return await fetchWithRetry(url, { ...init, signal: controller.signal })
   } finally {
     clearTimeout(timer)
   }
@@ -350,7 +349,7 @@ async function loadPlayers(): Promise<PlayerRow[]> {
       .select('id, display_name, first_name, last_name, nba_draft_number')
       .range(from, from + pageSize - 1)
     if (error) throw error
-    rows.push(...((data ?? []) as PlayerRow[]))
+    rows.push(...(data ?? []))
     if (!data || data.length < pageSize) break
   }
   return rows
@@ -369,9 +368,9 @@ async function resolveDraftPlayers(picks: NBADraftPick[], existingPlayers: Playe
 
   for (const pick of picks) {
     const playerId = byNormName.get(normalizeName(pick.playerName))
-    if (playerId && playerId !== '__ambiguous__') {
+    if (playerId && playerId !== AMBIGUOUS) {
       resolved.push({ pick, playerId, inserted: false })
-    } else if (playerId === '__ambiguous__') {
+    } else if (playerId === AMBIGUOUS) {
       unmatched.push(`#${pick.overallPick} ${pick.playerName} (ambiguous player name)`)
     } else {
       missing.push(pick)
@@ -385,7 +384,7 @@ async function resolveDraftPlayers(picks: NBADraftPick[], existingPlayers: Playe
     }
     for (const pick of missing) {
       const playerId = byNormName.get(normalizeName(pick.playerName))
-      if (playerId && playerId !== '__ambiguous__') resolved.push({ pick, playerId, inserted: true })
+      if (playerId && playerId !== AMBIGUOUS) resolved.push({ pick, playerId, inserted: true })
       else unmatched.push(`#${pick.overallPick} ${pick.playerName}`)
     }
   }
@@ -411,10 +410,10 @@ async function insertMissingDraftPlayers(picks: NBADraftPick[]): Promise<PlayerR
   })
   const { data, error } = await supabase
     .from('players')
-    .insert(rows as any)
+    .insert(rows)
     .select('id, display_name, first_name, last_name, nba_draft_number')
   if (error) throw error
-  return (data ?? []) as PlayerRow[]
+  return data ?? []
 }
 
 function splitPlayerName(displayName: string): { firstName: string; lastName: string } {
@@ -425,12 +424,12 @@ function splitPlayerName(displayName: string): { firstName: string; lastName: st
   }
 }
 
-async function updatePlayers(rows: Record<string, unknown>[]): Promise<void> {
+async function updatePlayers(rows: ({ id: string } & PlayerDraftFields)[]): Promise<void> {
   for (let i = 0; i < rows.length; i += PLAYER_UPDATE_CONCURRENCY) {
     const chunk = rows.slice(i, i + PLAYER_UPDATE_CONCURRENCY)
     await Promise.all(chunk.map(async (row) => {
       const { id, ...fields } = row
-      const { error } = await supabase.from('players').update(fields as any).eq('id', String(id))
+      const { error } = await supabase.from('players').update(fields).eq('id', id)
       if (error) throw error
     }))
   }
@@ -446,7 +445,7 @@ async function verifySyncedDraftBoard(picks: NBADraftPick[]): Promise<void> {
   if (error) throw error
 
   const expected = new Set(picks.map((pick) => pick.overallPick))
-  const actual = new Set((data ?? []).map((player: any) => Number(player.nba_draft_number)))
+  const actual = new Set((data ?? []).map((player) => Number(player.nba_draft_number)))
   const missing = [...expected].filter((pick) => !actual.has(pick))
   const extras = [...actual].filter((pick) => !expected.has(pick))
   if (missing.length > 0 || extras.length > 0 || (data ?? []).length !== picks.length) {
@@ -457,13 +456,3 @@ async function verifySyncedDraftBoard(picks: NBADraftPick[]): Promise<void> {
   }
 }
 
-function setUnique(map: Map<string, string>, key: string, value: string): void {
-  const existing = map.get(key)
-  if (!existing) map.set(key, value)
-  else if (existing !== value) map.set(key, '__ambiguous__')
-}
-
-function errorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message
-  return String(error)
-}

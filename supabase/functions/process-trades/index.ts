@@ -1,7 +1,6 @@
-import { requireInternalFunctionAuth } from '../_shared/auth.ts'
 import type { Database } from '../_shared/database.ts'
 import { notifyMember } from '../_shared/notifications.ts'
-import { internalServerError } from '../_shared/responses.ts'
+import { serveInternal } from '../_shared/serve.ts'
 import { supabase } from '../_shared/supabase.ts'
 
 const PROCESS_BATCH_LIMIT = 50
@@ -13,16 +12,9 @@ type ExpiredTradeRow = {
   recipient_member_id: string
 }
 
-Deno.serve(async (req) => {
-  const authError = requireInternalFunctionAuth(req)
-  if (authError) return authError
-
-  try {
-    const result = await processAcceptedTrades()
-    return Response.json({ ok: true, ...result })
-  } catch (error) {
-    return internalServerError('process-trades', error)
-  }
+serveInternal('process-trades', async () => {
+  const result = await processAcceptedTrades()
+  return Response.json({ ok: true, ...result })
 })
 
 async function processAcceptedTrades(): Promise<{ processed: number; failed: number; failures: string[] }> {

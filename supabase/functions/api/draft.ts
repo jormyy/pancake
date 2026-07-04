@@ -21,6 +21,7 @@ import {
 
 const MIN_BID = 1
 const ROOKIE_DRAFT_ROUNDS = 3
+const MAX_ROOKIE_DRAFT_ROUNDS = 3
 const DEFAULT_ROSTER_SIZE = 20
 const DEFAULT_TAXI_SLOTS = 2
 const DEFAULT_DRAFT_TIMER_SECONDS = 30
@@ -142,11 +143,15 @@ function auctionDraftStartOptions(body: Record<string, unknown>): AuctionDraftSt
   }
 }
 
+function rookieDraftRounds(body: Record<string, unknown>): number {
+  return optionalIntegerField(body, 'rounds', { min: 1, max: MAX_ROOKIE_DRAFT_ROUNDS }) ?? ROOKIE_DRAFT_ROUNDS
+}
+
 function rookieDraftStartOptions(body: Record<string, unknown>): RookieDraftStartOptions {
   return {
     isMock: optionalBooleanField(body, 'isMock') ?? false,
     timerSeconds: optionalIntegerField(body, 'timerSeconds', { min: 5, max: 3600 }) ?? DEFAULT_DRAFT_TIMER_SECONDS,
-    rounds: optionalIntegerField(body, 'rounds', { min: 1, max: 10 }) ?? ROOKIE_DRAFT_ROUNDS,
+    rounds: rookieDraftRounds(body),
     timerExpiryBehavior: rookieTimerExpiryBehavior(body),
   }
 }
@@ -169,7 +174,7 @@ function mockDraftRoomOptions(body: Record<string, unknown>): MockDraftRoomOptio
     nominationOrderMode: nominationOrderMode(body),
     timerSeconds: optionalIntegerField(body, 'timerSeconds', { min: 5, max: 3600 }) ?? DEFAULT_DRAFT_TIMER_SECONDS,
     budgetPerTeam: optionalIntegerField(body, 'budgetPerTeam', { min: 1, max: 1_000_000 }),
-    rounds: optionalIntegerField(body, 'rounds', { min: 1, max: 10 }) ?? ROOKIE_DRAFT_ROUNDS,
+    rounds: rookieDraftRounds(body),
     timerExpiryBehavior: rookieTimerExpiryBehavior(body),
   }
 }
@@ -530,9 +535,18 @@ async function activateRookieDraftLeague(draftId: string, userId: string): Promi
 }
 
 async function reseedRookieDraftPicks(draftId: string): Promise<{ reseeded: number }> {
+  const { data: draft, error: draftError } = await supabase
+    .from('drafts')
+    .select('rounds')
+    .eq('id', draftId)
+    .maybeSingle()
+  if (draftError) throwDb(draftError)
+  if (!draft) throw new NotFoundError('Draft not found')
+
+  const draftRounds = Number(draft.rounds ?? ROOKIE_DRAFT_ROUNDS)
   const { data, error } = await supabase.rpc('reseed_rookie_draft_picks_atomic', {
     p_draft_id: draftId,
-    p_rounds: ROOKIE_DRAFT_ROUNDS,
+    p_rounds: draftRounds,
   })
   if (error) throwDb(error)
   return { reseeded: Number(data ?? 0) }

@@ -13,7 +13,7 @@ function defaultSecretKey(): string | undefined {
   }
 }
 
-function requiredSecretKey(): string {
+export function requiredSecretKey(): string {
   const key =
     Deno.env.get('PANCAKE_SUPABASE_SECRET_KEY') ??
     Deno.env.get('SUPABASE_SECRET_KEY') ??

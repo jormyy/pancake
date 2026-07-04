@@ -1,5 +1,4 @@
-import { requireInternalFunctionAuth } from '../_shared/auth.ts'
-import { internalServerError } from '../_shared/responses.ts'
+import { serveInternal } from '../_shared/serve.ts'
 import { supabase } from '../_shared/supabase.ts'
 import { toETDate } from '../_shared/date.ts'
 import { SLOT_ELIGIBLE } from '../../../constants/slots.ts'
@@ -20,6 +19,13 @@ type DateContext = {
   date: string
   seasonYear: number
   weekNumber: number
+  games: GameRow[]
+}
+type SeasonWeekRow = {
+  season_year: number
+  week_number: number
+  week_start: string
+  week_end: string
 }
 type RosterPlayerRow = {
   player_id: string
@@ -73,21 +79,18 @@ type ProjectionRow = {
   projection_source_label: string | null
   projection_view: string | null
 }
+type MemberRoster = {
+  rosterRows: RosterPlayerRow[]
+  templates: StarterTemplate[]
+}
 
 const FILL_ORDER = ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F', 'UTIL']
 
-Deno.serve(async (req) => {
-  const authError = requireInternalFunctionAuth(req)
-  if (authError) return authError
-
-  try {
-    const body = req.method === 'POST' ? await req.json().catch(() => ({})) : {}
-    const requestedDate = typeof body.date === 'string' ? body.date : null
-    const result = await processEnabledLineupOptimizers(requestedDate)
-    return Response.json({ ok: true, ...result })
-  } catch (error: unknown) {
-    return internalServerError('lineup-optimizer', error)
-  }
+serveInternal('lineup-optimizer', async (req) => {
+  const body = req.method === 'POST' ? await req.json().catch(() => ({})) : {}
+  const requestedDate = typeof body.date === 'string' ? body.date : null
+  const result = await processEnabledLineupOptimizers(requestedDate)
+  return Response.json({ ok: true, ...result })
 })
 
 async function processEnabledLineupOptimizers(requestedDate: string | null): Promise<{
@@ -105,22 +108,36 @@ async function processEnabledLineupOptimizers(requestedDate: string | null): Pro
     .eq('enabled', true)
   if (settingsError) throw settingsError
 
+  // Many enabled members share a league; load each league and season once.
+  const leagues = new Map<string, LeagueRow | null>()
+  const seasons = new Map<string, SeasonRow | null>()
+
   let optimized = 0
   let skipped = 0
   for (const setting of (settings ?? []) as OptimizerSetting[]) {
-    const league = await loadLeague(setting.league_id)
-    const season = await loadSeason(setting.league_id, setting.league_season_id)
+    let league = leagues.get(setting.league_id)
+    if (league === undefined) {
+      league = await loadLeague(setting.league_id)
+      leagues.set(setting.league_id, league)
+    }
+    const seasonKey = `${setting.league_id}|${setting.league_season_id}`
+    let season = seasons.get(seasonKey)
+    if (season === undefined) {
+      season = await loadSeason(setting.league_id, setting.league_season_id)
+      seasons.set(seasonKey, season)
+    }
     if (!season?.is_current || !['active', 'playoffs'].includes(league?.status ?? '')) {
       skipped += dateContexts.length
       continue
     }
 
+    const roster = await loadMemberRoster(setting)
     for (const dateContext of dateContexts) {
       if (dateContext.seasonYear !== season.season_year) {
         skipped++
         continue
       }
-      await autoSetMemberDate(setting, dateContext)
+      await autoSetMemberDate(setting, dateContext, roster)
       optimized++
     }
   }
@@ -159,6 +176,9 @@ async function loadDateContexts(requestedDate: string | null): Promise<DateConte
     byDate.set(game.game_date, games)
   }
 
+  if (byDate.size === 0) return []
+  const weeks = await loadSeasonWeeks([...byDate.keys()].sort())
+
   const contexts: DateContext[] = []
   for (const [date, games] of byDate) {
     const anyStarted = games.some((game) =>
@@ -168,9 +188,11 @@ async function loadDateContexts(requestedDate: string | null): Promise<DateConte
     if (anyStarted) continue
 
     const seasonYear = games[0]?.season_year
-    const weekNumber = await weekNumberForDate(seasonYear, date)
+    const weekNumber = weeks.find(
+      (week) => week.season_year === seasonYear && week.week_start <= date && date <= week.week_end,
+    )?.week_number ?? null
     if (weekNumber == null) continue
-    contexts.push({ date, seasonYear, weekNumber })
+    contexts.push({ date, seasonYear, weekNumber, games })
   }
   return contexts
 }
@@ -196,16 +218,14 @@ async function loadSeason(leagueId: string, seasonId: string): Promise<SeasonRow
   return data as SeasonRow | null
 }
 
-async function weekNumberForDate(seasonYear: number, gameDate: string): Promise<number | null> {
+async function loadSeasonWeeks(dates: string[]): Promise<SeasonWeekRow[]> {
   const { data, error } = await supabase
     .from('season_weeks')
-    .select('week_number')
-    .eq('season_year', seasonYear)
-    .lte('week_start', gameDate)
-    .gte('week_end', gameDate)
-    .maybeSingle()
+    .select('season_year, week_number, week_start, week_end')
+    .lte('week_start', dates[dates.length - 1])
+    .gte('week_end', dates[0])
   if (error) throw error
-  return data?.week_number ?? null
+  return data ?? []
 }
 
 function addDays(date: string, days: number): string {
@@ -214,10 +234,7 @@ function addDays(date: string, days: number): string {
   return next.toISOString().slice(0, 10)
 }
 
-async function autoSetMemberDate(
-  setting: OptimizerSetting,
-  dateContext: DateContext,
-): Promise<void> {
+async function loadMemberRoster(setting: OptimizerSetting): Promise<MemberRoster> {
   const [{ data: roster, error: rosterErr }, { data: templates, error: templatesErr }] = await Promise.all([
     supabase
       .from('roster_players')
@@ -235,11 +252,21 @@ async function autoSetMemberDate(
   if (rosterErr) throw rosterErr
   if (templatesErr) throw templatesErr
 
-  const rosterRows = (roster ?? []) as RosterPlayerRow[]
+  return {
+    rosterRows: (roster ?? []) as RosterPlayerRow[],
+    templates: (templates ?? []) as StarterTemplate[],
+  }
+}
+
+async function autoSetMemberDate(
+  setting: OptimizerSetting,
+  dateContext: DateContext,
+  { rosterRows, templates }: MemberRoster,
+): Promise<void> {
   const playerIds = rosterRows.map((row) => row.player_id)
   if (playerIds.length === 0) return
 
-  const [{ data: projections, error: projectionErr }, { data: games, error: gamesErr }, { data: existingEntries, error: existingErr }] =
+  const [{ data: projections, error: projectionErr }, { data: existingEntries, error: existingErr }] =
     await Promise.all([
       supabase.rpc('get_league_projection_rows', {
         p_league_id: setting.league_id,
@@ -251,11 +278,6 @@ async function autoSetMemberDate(
         p_offset: 0,
       }),
       supabase
-        .from('nba_games')
-        .select('home_team, away_team, status, game_time')
-        .eq('season_year', dateContext.seasonYear)
-        .eq('game_date', dateContext.date),
-      supabase
         .from('weekly_lineups')
         .select('player_id, slot_type')
         .eq('member_id', setting.member_id)
@@ -264,7 +286,6 @@ async function autoSetMemberDate(
         .eq('game_date', dateContext.date),
     ])
   if (projectionErr) throw projectionErr
-  if (gamesErr) throw gamesErr
   if (existingErr) throw existingErr
 
   const projectionMap = new Map(((projections ?? []) as ProjectionRow[]).map((row) => [row.player_id, row]))
@@ -285,7 +306,7 @@ async function autoSetMemberDate(
   const playingTeams = new Set<string>()
   const startedTeams = new Set<string>()
   const now = new Date().toISOString()
-  for (const game of (games ?? []) as GameRow[]) {
+  for (const game of dateContext.games) {
     if (game.home_team) playingTeams.add(game.home_team)
     if (game.away_team) playingTeams.add(game.away_team)
     const hasStarted =
@@ -315,7 +336,7 @@ async function autoSetMemberDate(
     }
   }
 
-  const starterTemplates = ((templates ?? []) as StarterTemplate[]).filter(
+  const starterTemplates = templates.filter(
     (template) => !['BE', 'IR', 'TX'].includes(template.slot_type),
   )
   const slotsToFill = slotsForTemplates(starterTemplates, lockedEntries)

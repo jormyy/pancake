@@ -10,7 +10,7 @@ import {
 import { Link } from 'expo-router'
 import { useState } from 'react'
 import { signUp } from '@/lib/auth'
-import { brand, colors, elevation, fontSize, fontWeight, radii, spacing, breakpoints } from '@/constants/tokens'
+import { brand, colors, elevation, fontFamily, fontSize, fontWeight, radii, spacing, breakpoints } from '@/constants/tokens'
 import { getErrorMessage } from '@/lib/alert'
 import { Button, Input } from '@/components/ui'
 
@@ -210,7 +210,8 @@ const styles = StyleSheet.create({
         color: brand.on,
         fontSize: 44,
         lineHeight: 48,
-        fontWeight: fontWeight.extrabold,
+        fontFamily: fontFamily.display,
+        fontWeight: fontWeight.bold,
         letterSpacing: -1,
     },
     brandCopy: {
@@ -248,12 +249,14 @@ const styles = StyleSheet.create({
     brandName: {
         color: brand.on,
         fontSize: 22,
-        fontWeight: fontWeight.extrabold,
+        fontFamily: fontFamily.display,
+        fontWeight: fontWeight.bold,
+        letterSpacing: -0.3,
     },
     brandSub: {
         marginTop: -2,
         color: brand.onSubtle,
-        fontSize: 10,
+        fontSize: fontSize['2xs'],
         fontWeight: fontWeight.bold,
         letterSpacing: 2,
         textTransform: 'uppercase' as const,
@@ -303,18 +306,21 @@ const styles = StyleSheet.create({
     },
     brandMarkText: {
         color: brand.on,
-        fontSize: 24,
-        fontWeight: fontWeight.extrabold,
+        fontSize: fontSize['2xl'],
+        fontFamily: fontFamily.display,
+        fontWeight: fontWeight.bold,
     },
     brandMarkTextCompact: { fontSize: 21 },
     mobileBrandName: {
         color: colors.textPrimary,
         fontSize: 21,
-        fontWeight: fontWeight.extrabold,
+        fontFamily: fontFamily.display,
+        fontWeight: fontWeight.bold,
+        letterSpacing: -0.3,
     },
     mobileBrandSub: {
         color: colors.textMuted,
-        fontSize: 10,
+        fontSize: fontSize['2xs'],
         fontWeight: fontWeight.bold,
         letterSpacing: 1.8,
         textTransform: 'uppercase' as const,
@@ -332,7 +338,8 @@ const styles = StyleSheet.create({
         color: colors.textPrimary,
         fontSize: 30,
         lineHeight: 34,
-        fontWeight: fontWeight.extrabold,
+        fontFamily: fontFamily.display,
+        fontWeight: fontWeight.bold,
         letterSpacing: -0.5,
     },
     subtitle: {

@@ -5,8 +5,10 @@ import {
     Pressable,
     ScrollView,
     StyleSheet,
+    useWindowDimensions,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { Stack, useRouter } from 'expo-router'
 import { useEffect, useRef, useState } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
@@ -81,11 +83,15 @@ type CommissionerAction = {
     label: string
     onPress: () => void | Promise<void>
     color?: string
+    description?: string
 }
 
 export default function CommissionerSettingsScreen() {
     const { currentLeague, isCommissioner, refresh } = useLeagueContext()
-    const { back } = useRouter()
+    const router = useRouter()
+    const { width, height } = useWindowDimensions()
+    const compactLandscape = width >= 600 && height < 500
+    const { back } = router
     const league = currentLeague
     const hydratedLeagueId = useRef<string | null>(null)
 
@@ -431,63 +437,135 @@ export default function CommissionerSettingsScreen() {
         }
     }
 
-    const actionGroups: CommissionerAction[][] = [
-        [
-            { id: 'generate-playoffs', label: 'Generate Playoff Bracket', onPress: generatePlayoffBracket },
-            { id: 'advance-playoffs', label: 'Advance to Championship', onPress: advancePlayoffBracket },
-            { id: 'process-waivers', label: 'Process Waiver Claims', onPress: processWaivers },
-            { id: 'sync-stats', label: 'Sync Player Stats', onPress: syncStats },
-            { id: 'sync-scores', label: 'Sync Scores Now', onPress: syncScores },
-            { id: 'sync-rankings', label: 'Sync Dynasty Rankings', onPress: syncRankings },
-            { id: 'sync-projections', label: 'Sync Projections', onPress: syncProjections },
-            { id: 'sync-games', label: 'Sync NBA Game Schedule', onPress: syncGameSchedule },
-            { id: 'generate-schedule', label: 'Generate Season Schedule', onPress: () => generateSchedule(false) },
-            {
-                id: 'reset-schedule',
-                label: 'Reset & Regenerate Schedule',
-                color: colors.danger,
-                onPress: () =>
-                    confirmAction(
-                        'Reset Schedule',
-                        'This will delete all existing matchups and regenerate. Are you sure?',
-                        () => generateSchedule(true),
-                        'Reset',
-                        true,
-                    ),
-            },
-        ],
-        [
-            {
-                id: 'advance-season',
-                label: 'Advance to Next Season',
-                color: colors.info,
-                onPress: handleAdvanceSeason,
-            },
-        ],
+    const resetScheduleAction: CommissionerAction = {
+        id: 'reset-schedule',
+        label: 'Reset & Regenerate Schedule',
+        color: colors.danger,
+        description: 'Deletes every existing matchup and rebuilds the season schedule from scratch.',
+        onPress: () =>
+            confirmAction(
+                'Reset Schedule',
+                'This will delete all existing matchups and regenerate. Are you sure?',
+                () => generateSchedule(true),
+                'Reset',
+                true,
+            ),
+    }
+    const playoffActions: CommissionerAction[] = [
+        { id: 'generate-playoffs', label: 'Generate Playoff Bracket', onPress: generatePlayoffBracket },
+        {
+            id: 'advance-playoffs',
+            label: 'Advance to Championship',
+            onPress: advancePlayoffBracket,
+            description: 'Finalizes the semifinal results and creates the championship matchup. Semifinal scores cannot change after this.',
+        },
+    ]
+    const annualCycleActions: CommissionerAction[] = [
+        {
+            id: 'advance-season',
+            label: 'Advance to Next Season',
+            color: colors.primaryDark,
+            onPress: handleAdvanceSeason,
+            description: 'Closes the current season and rolls all teams into the next league year. The finished season becomes read-only history.',
+        },
+    ]
+    const scheduleActions: CommissionerAction[] = [
+        { id: 'generate-schedule', label: 'Generate Season Schedule', onPress: () => generateSchedule(false) },
+        resetScheduleAction,
+    ]
+    const utilityActions: CommissionerAction[] = [
+        { id: 'process-waivers', label: 'Process Waiver Claims', onPress: processWaivers },
+        { id: 'sync-stats', label: 'Sync Player Stats', onPress: syncStats },
+        { id: 'sync-scores', label: 'Sync Scores Now', onPress: syncScores },
+        { id: 'sync-rankings', label: 'Sync Dynasty Rankings', onPress: syncRankings },
+        { id: 'sync-projections', label: 'Sync Projections', onPress: syncProjections },
+        { id: 'sync-games', label: 'Sync NBA Game Schedule', onPress: syncGameSchedule },
     ]
 
-    function renderAction(action: CommissionerAction) {
+    const status = (league?.status as LeagueStatus | undefined) ?? 'setup'
+    const lifecycle =
+        status === 'playoffs'
+            ? {
+                  label: 'Playoff Controls',
+                  detail: 'Generate the bracket or advance after each playoff round is finalized.',
+                  actions: playoffActions,
+              }
+            : status === 'offseason'
+              ? {
+                    label: 'Annual Cycle',
+                    detail: 'Create the next season when rosters and results are ready to roll forward.',
+                    actions: annualCycleActions,
+                }
+              : {
+                    label: 'Schedule Controls',
+                    detail: 'Build or reset the regular-season schedule before managers rely on matchups.',
+                    actions: scheduleActions,
+                }
+
+    const lowerPriorityActions = [...utilityActions]
+    if (status !== 'playoffs') lowerPriorityActions.push(...playoffActions)
+    if (status !== 'offseason') lowerPriorityActions.push(...annualCycleActions)
+    if (status === 'playoffs' || status === 'offseason') lowerPriorityActions.push(...scheduleActions)
+
+    function renderAction(action: CommissionerAction, grid = false) {
         const color = action.color ?? colors.primary
-        return (
+        const accessibilityLabel = action.description ? `${action.label}. ${action.description}` : action.label
+        const button = (
             <Pressable
                 key={`${action.id}:${action.label}`}
-                style={[styles.actionButton, { borderColor: color }]}
+                style={[styles.actionButton, grid && !action.description && styles.actionButtonGrid, { borderColor: color }]}
                 onPress={action.onPress}
                 disabled={busyAction !== null}
+                role="button"
+                aria-label={accessibilityLabel}
+                aria-disabled={busyAction !== null}
+                accessibilityRole="button"
+                accessibilityLabel={accessibilityLabel}
+                accessibilityState={{ disabled: busyAction !== null }}
             >
                 <Text style={[styles.actionButtonText, { color }]}>{action.label}</Text>
             </Pressable>
+        )
+        if (!action.description) return button
+        return (
+            <View key={`${action.id}:${action.label}`} style={[styles.actionWrap, grid && styles.actionButtonGrid]}>
+                {button}
+                <Text style={styles.actionDescription}>{action.description}</Text>
+            </View>
         )
     }
 
     return (
         <>
-            <Stack.Screen options={{ title: 'League Settings', presentation: 'modal' }} />
+            <Stack.Screen options={{ title: 'League Settings', presentation: 'modal', headerShown: false }} />
             <SafeAreaView style={styles.container} edges={['bottom']}>
+                <View style={styles.screenHeader}>
+                    <Pressable
+                        onPress={() => router.replace('/league?tab=settings')}
+                        style={styles.headerBack}
+                        role="link"
+                        aria-label="Back to league settings"
+                        accessibilityRole="link"
+                        accessibilityLabel="Back to league settings"
+                    >
+                        <MaterialIcons name="arrow-back" size={22} color={colors.textPrimary} />
+                    </Pressable>
+                    <Text style={styles.screenTitle}>League Settings</Text>
+                </View>
                 <ScrollView
-                    contentContainerStyle={styles.scroll}
+                    contentContainerStyle={[styles.scroll, compactLandscape && styles.scrollCompact]}
                     keyboardShouldPersistTaps="handled"
                 >
+                    <View style={[styles.lifecycleCard, compactLandscape && styles.lifecycleCardCompact]}>
+                        <View style={styles.lifecycleCopy}>
+                            <Text style={styles.lifecycleTitle}>{lifecycle.label}</Text>
+                            <Text style={styles.lifecycleDetail}>{lifecycle.detail}</Text>
+                        </View>
+                        <View style={[styles.lifecycleActions, compactLandscape && styles.lifecycleActionsCompact]}>
+                            {lifecycle.actions.map((action) => renderAction(action, true))}
+                        </View>
+                    </View>
+
                     {/* ── Scoring ────────────────────────────────────── */}
                     <Text style={styles.sectionTitle}>SCORING</Text>
                     <View style={styles.card}>
@@ -669,10 +747,7 @@ export default function CommissionerSettingsScreen() {
                     </Pressable>
 
                     <Text style={styles.sectionTitle}>COMMISSIONER ACTIONS</Text>
-                    {actionGroups[0].map(renderAction)}
-
-                    <Text style={styles.sectionTitle}>ANNUAL CYCLE</Text>
-                    {actionGroups[1].map(renderAction)}
+                    {lowerPriorityActions.map((action) => renderAction(action))}
 
                     {isCommissioner ? (
                         <>
@@ -682,6 +757,7 @@ export default function CommissionerSettingsScreen() {
                                 label: 'Delete League',
                                 color: colors.danger,
                                 onPress: handleDeleteLeague,
+                                description: 'Permanently removes the league, all rosters, history, and picks for every manager. This cannot be undone.',
                             })}
                         </>
                     ) : null}
@@ -693,13 +769,75 @@ export default function CommissionerSettingsScreen() {
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgSubtle },
-    scroll: { padding: spacing['2xl'], gap: spacing.md, paddingBottom: 96 },
+    scroll: { padding: spacing['2xl'], gap: spacing.md, paddingBottom: 96, width: '100%', maxWidth: 760, alignSelf: 'center' },
+    scrollCompact: { paddingHorizontal: spacing.md, paddingTop: spacing.md, gap: spacing.sm, paddingBottom: spacing['5xl'] },
+
+    screenHeader: {
+        minHeight: 56,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.md,
+        paddingHorizontal: spacing.md,
+        borderBottomWidth: 1,
+        borderBottomColor: colors.borderLight,
+        backgroundColor: colors.bgCard,
+    },
+    headerBack: {
+        width: 44,
+        height: 44,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: radii.md,
+        borderCurve: 'continuous' as const,
+        backgroundColor: colors.bgMuted,
+    },
+    screenTitle: {
+        flex: 1,
+        color: colors.textPrimary,
+        fontSize: fontSize.lg,
+        fontWeight: fontWeight.extrabold,
+    },
+
+    lifecycleCard: {
+        backgroundColor: colors.bgScreen,
+        borderRadius: radii.md,
+        borderCurve: 'continuous' as const,
+        borderWidth: 1,
+        borderColor: colors.borderLight,
+        padding: spacing.xl,
+        gap: spacing.lg,
+    },
+    lifecycleCardCompact: {
+        padding: spacing.md,
+        gap: spacing.md,
+    },
+    lifecycleCopy: {
+        gap: spacing.xs,
+    },
+    lifecycleTitle: {
+        fontSize: fontSize.lg,
+        fontWeight: fontWeight.extrabold,
+        color: colors.textPrimary,
+    },
+    lifecycleDetail: {
+        fontSize: fontSize.sm,
+        lineHeight: 18,
+        color: colors.textSecondary,
+    },
+    lifecycleActions: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: spacing.md,
+    },
+    lifecycleActionsCompact: {
+        gap: spacing.sm,
+    },
 
     sectionTitle: {
         fontSize: fontSize.xs,
         fontWeight: fontWeight.bold,
         color: colors.textPlaceholder,
-        letterSpacing: 0.8,
+        letterSpacing: 0,
         marginTop: spacing.lg,
         marginBottom: spacing.xs,
         marginLeft: spacing.xs,
@@ -707,18 +845,19 @@ const styles = StyleSheet.create({
 
     card: {
         backgroundColor: colors.bgScreen,
-        borderRadius: 14,
+        borderRadius: radii.md,
         borderCurve: 'continuous' as const,
         borderWidth: 1,
         borderColor: colors.borderLight,
         overflow: 'hidden',
     },
-    row: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.xl, paddingVertical: spacing.lg },
+    row: { minHeight: 44, flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.xl, paddingVertical: spacing.lg },
     rowBorder: { borderBottomWidth: 1, borderBottomColor: colors.separator },
     rowLabel: { flex: 1, fontSize: 15, color: colors.textPrimary },
 
     scoreInput: {
         width: 72,
+        minHeight: 44,
         textAlign: 'right',
         fontSize: 15,
         fontWeight: fontWeight.semibold,
@@ -731,7 +870,7 @@ const styles = StyleSheet.create({
     },
     segmentButton: {
         minWidth: 76,
-        minHeight: 34,
+        minHeight: 44,
         alignItems: 'center',
         justifyContent: 'center',
         borderWidth: 1,
@@ -755,7 +894,7 @@ const styles = StyleSheet.create({
         paddingBottom: spacing.sm,
     },
     memberChip: {
-        minHeight: 34,
+        minHeight: 44,
         justifyContent: 'center',
         borderRadius: radii.md,
         borderCurve: 'continuous' as const,
@@ -774,7 +913,7 @@ const styles = StyleSheet.create({
     },
     overrideInput: {
         flex: 1,
-        minHeight: 42,
+        minHeight: 44,
         borderWidth: 1,
         borderColor: colors.borderLight,
         borderRadius: radii.md,
@@ -785,7 +924,7 @@ const styles = StyleSheet.create({
     },
     overrideButton: {
         minWidth: 92,
-        minHeight: 42,
+        minHeight: 44,
         alignItems: 'center',
         justifyContent: 'center',
         borderRadius: radii.md,
@@ -817,7 +956,7 @@ const styles = StyleSheet.create({
     saveButton: {
         marginTop: spacing.xl,
         backgroundColor: colors.primary,
-        borderRadius: 14,
+        borderRadius: radii.md,
         borderCurve: 'continuous' as const,
         height: 52,
         justifyContent: 'center',
@@ -828,13 +967,26 @@ const styles = StyleSheet.create({
 
     actionButton: {
         backgroundColor: colors.bgScreen,
-        borderRadius: 14,
+        borderRadius: radii.md,
         borderCurve: 'continuous' as const,
         borderWidth: 1.5,
         borderColor: colors.primary,
+        minHeight: 44,
         height: 52,
         justifyContent: 'center',
         alignItems: 'center',
+        paddingHorizontal: spacing.lg,
+    },
+    actionButtonGrid: {
+        flexGrow: 1,
+        flexBasis: 184,
     },
     actionButtonText: { color: colors.primaryDark, fontWeight: fontWeight.bold, fontSize: fontSize.lg },
+    actionWrap: { gap: spacing.xs },
+    actionDescription: {
+        fontSize: fontSize.xs,
+        lineHeight: 16,
+        color: colors.textMuted,
+        paddingHorizontal: spacing.xs,
+    },
 })

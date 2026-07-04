@@ -1,5 +1,5 @@
 import { View, Text, ScrollView, StyleSheet } from 'react-native'
-import { colors, palette, fontWeight, radii, spacing } from '@/constants/tokens'
+import { colors, palette, fontFamily, fontWeight, radii, spacing } from '@/constants/tokens'
 import { NBAGameRow } from '@/lib/games'
 import { LivePulse, MotionView } from '@/components/Motion'
 
@@ -169,7 +169,8 @@ const styles = StyleSheet.create({
     },
     score: {
         fontSize: 13,
-        fontWeight: fontWeight.extrabold,
+        fontFamily: fontFamily.display,
+        fontWeight: fontWeight.bold,
         color: palette.maple200,
         minWidth: 24,
         textAlign: 'right',

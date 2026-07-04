@@ -3404,6 +3404,21 @@ export type Database = {
         }
         Returns: undefined
       }
+      activate_roster_player_with_lineup_atomic: {
+        Args: {
+          p_activate_roster_player_id: string
+          p_activate_source: string
+          p_free_action: string | null
+          p_free_roster_player_id: string | null
+          p_game_date: string
+          p_league_id: string
+          p_league_season_id: string
+          p_member_id: string
+          p_slot_type: Database["public"]["Enums"]["roster_slot_type"] | null
+          p_week_number: number
+        }
+        Returns: undefined
+      }
       add_free_agent_atomic: {
         Args: { p_league_id: string; p_member_id: string; p_player_id: string }
         Returns: undefined

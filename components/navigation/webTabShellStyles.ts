@@ -1,6 +1,6 @@
 import { StyleSheet } from 'react-native'
 import type { ViewStyle } from 'react-native'
-import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { brand, colors, fontSize, fontWeight, radii, shadows, spacing } from '@/constants/tokens'
 
 const SIDEBAR_WIDTH = 248
 const MOBILE_TOPBAR_HEIGHT = 56
@@ -39,11 +39,16 @@ export const styles = StyleSheet.create({
     sidebar: {
         width: SIDEBAR_WIDTH,
         flexShrink: 0,
-        backgroundColor: '#2A1A0E',
+        // Pin to the viewport height so the nav ScrollView scrolls on short
+        // screens (landscape phones) instead of clipping the lower items when
+        // the content column stretches the row taller than the viewport.
+        height: '100vh',
+        maxHeight: '100vh',
+        backgroundColor: brand.surface,
         paddingBottom: 14,
         borderRightWidth: 1,
-        borderRightColor: 'rgba(0, 0, 0, 0.24)',
-    },
+        borderRightColor: brand.divider,
+    } as unknown as WebOnlyViewStyle,
     sidebarScroll: {
         flex: 1,
     },
@@ -67,7 +72,7 @@ export const styles = StyleSheet.create({
         backgroundColor: colors.primary,
         alignItems: 'center',
         justifyContent: 'center',
-        boxShadow: '0 4px 12px rgba(201, 102, 15, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.3)',
+        boxShadow: shadows.brandGlowInset,
     } as WebOnlyViewStyle,
     brandMarkCompact: {
         width: 34,
@@ -76,8 +81,8 @@ export const styles = StyleSheet.create({
         boxShadow: 'none', // the glow bleeds into the league switcher on the light top bar
     } as WebOnlyViewStyle,
     brandMarkText: {
-        color: '#FFF6E8',
-        fontSize: 20,
+        color: brand.on,
+        fontSize: fontSize.xl,
         fontWeight: fontWeight.extrabold,
     },
     brandMarkTextCompact: {
@@ -86,16 +91,16 @@ export const styles = StyleSheet.create({
     brandTitle: {
         fontSize: 19,
         fontWeight: fontWeight.extrabold,
-        color: '#FFF6E8',
+        color: brand.on,
         letterSpacing: -0.4,
     },
     brandSubtitle: {
         marginTop: -2,
-        fontSize: 10,
+        fontSize: fontSize['2xs'],
         fontWeight: fontWeight.bold,
         letterSpacing: 1.5,
         textTransform: 'uppercase',
-        color: '#A9876B',
+        color: brand.onSubtle,
     },
 
     leagueSwitchWrap: {
@@ -112,12 +117,12 @@ export const styles = StyleSheet.create({
         paddingHorizontal: spacing.lg,
         paddingVertical: spacing.md,
         borderRadius: radii.md,
-        backgroundColor: 'rgba(255, 255, 255, 0.06)',
+        backgroundColor: brand.overlay,
         borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.08)',
+        borderColor: brand.borderSubtle,
     },
     leagueSwitchHover: {
-        backgroundColor: 'rgba(255, 255, 255, 0.10)',
+        backgroundColor: brand.overlayHover,
     },
     leagueCrest: {
         width: 30,
@@ -134,19 +139,18 @@ export const styles = StyleSheet.create({
         fontSize: fontSize.sm,
     },
     leagueName: {
-        color: '#E8D2B8',
+        color: brand.onStrong,
         fontWeight: fontWeight.bold,
         fontSize: fontSize.sm,
     },
     leagueMeta: {
-        color: '#A9876B',
+        color: brand.onSubtle,
         fontSize: fontSize.xs,
     },
-    // Light variant for the mobile top bar (web is light-themed). Sized to sit
-    // at ~40px so it lines up with the 38px hamburger and 34px brand mark in the
-    // 56px top bar — the default 52px height made it look too tall / detached.
+    // Light variant for the mobile top bar (web is light-themed). Kept at the
+    // touch-target floor while staying visually aligned with the compact brand mark.
     leagueSwitchLight: {
-        minHeight: 40,
+        minHeight: 44,
         paddingVertical: spacing.xs,
         paddingHorizontal: spacing.md,
         gap: spacing.md,
@@ -215,8 +219,8 @@ export const styles = StyleSheet.create({
         paddingTop: 14,
         paddingHorizontal: spacing.lg,
         paddingBottom: spacing.sm,
-        color: '#A9876B',
-        fontSize: 10,
+        color: brand.onSubtle,
+        fontSize: fontSize['2xs'],
         fontWeight: fontWeight.extrabold,
         letterSpacing: 1.4,
         textTransform: 'uppercase',
@@ -240,7 +244,7 @@ export const styles = StyleSheet.create({
         flexShrink: 0,
     },
     sideNavItemHover: {
-        backgroundColor: 'rgba(255, 255, 255, 0.06)',
+        backgroundColor: brand.overlay,
     },
     sideNavItemActive: {
         backgroundColor: colors.primary,
@@ -251,19 +255,48 @@ export const styles = StyleSheet.create({
     },
     sideNavText: {
         flex: 1,
-        color: '#E8D2B8',
+        color: brand.onStrong,
         fontSize: fontSize.md,
         fontWeight: fontWeight.semibold,
     },
     sideNavTextActive: {
-        color: '#FFF6E8',
+        color: brand.on,
+    },
+    // Pending-count pill on nav items — same dimensions as the
+    // SegmentedControl badge so counts read consistently across the app.
+    navBadge: {
+        minWidth: 18,
+        height: 18,
+        paddingHorizontal: 5,
+        borderRadius: radii.full,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: colors.primary,
+    },
+    navBadgeActive: {
+        backgroundColor: 'rgba(255, 255, 255, 0.28)',
+    },
+    navBadgeText: {
+        fontSize: 10,
+        fontWeight: fontWeight.bold,
+        color: colors.textWhite,
+    },
+    bottomNavIconWrap: {
+        position: 'relative',
+    },
+    bottomNavBadge: {
+        position: 'absolute',
+        top: -5,
+        right: -12,
+        borderWidth: 1.5,
+        borderColor: colors.bgCard,
     },
 
     sidebarFooter: {
         paddingHorizontal: 14,
         paddingTop: spacing.md,
         borderTopWidth: 1,
-        borderTopColor: 'rgba(255, 255, 255, 0.06)',
+        borderTopColor: brand.borderSubtle,
     },
     userChip: {
         minHeight: 50,
@@ -274,7 +307,7 @@ export const styles = StyleSheet.create({
         borderRadius: radii.md,
     },
     userChipHover: {
-        backgroundColor: 'rgba(255, 255, 255, 0.06)',
+        backgroundColor: brand.overlay,
     },
     userAvatar: {
         width: 34,
@@ -289,12 +322,12 @@ export const styles = StyleSheet.create({
         fontWeight: fontWeight.extrabold,
     },
     userName: {
-        color: '#E8D2B8',
+        color: brand.onStrong,
         fontSize: fontSize.sm,
         fontWeight: fontWeight.bold,
     },
     userMeta: {
-        color: '#A9876B',
+        color: brand.onSubtle,
         fontSize: fontSize.xs,
     },
 
@@ -330,8 +363,8 @@ export const styles = StyleSheet.create({
         minWidth: 0,
     },
     mobileMenuButton: {
-        width: 38,
-        height: 38,
+        width: 44,
+        height: 44,
         borderRadius: radii.md,
         alignItems: 'center',
         justifyContent: 'center',
@@ -354,14 +387,18 @@ export const styles = StyleSheet.create({
         boxShadow: '0 -6px 24px rgba(74, 37, 9, 0.10)',
     } as unknown as WebOnlyViewStyle,
     bottomNavItem: {
+        display: 'flex',
         flex: 1,
+        minHeight: 44,
         height: 54,
+        flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
         gap: spacing.xs,
-    },
+        textDecorationLine: 'none',
+    } as WebOnlyViewStyle,
     bottomNavText: {
-        fontSize: 10,
+        fontSize: fontSize['2xs'],
         fontWeight: fontWeight.bold,
         color: colors.textMuted,
     },
@@ -400,8 +437,8 @@ export const styles = StyleSheet.create({
         fontWeight: fontWeight.extrabold,
     },
     sheetClose: {
-        width: 36,
-        height: 36,
+        width: 44,
+        height: 44,
         alignItems: 'center',
         justifyContent: 'center',
         borderRadius: radii.md,

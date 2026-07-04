@@ -1,0 +1,36 @@
+export const NBA_TEAM_CODES = [
+    'ATL',
+    'BOS',
+    'BKN',
+    'CHA',
+    'CHI',
+    'CLE',
+    'DAL',
+    'DEN',
+    'DET',
+    'GSW',
+    'HOU',
+    'IND',
+    'LAC',
+    'LAL',
+    'MEM',
+    'MIA',
+    'MIL',
+    'MIN',
+    'NOP',
+    'NYK',
+    'OKC',
+    'ORL',
+    'PHI',
+    'PHX',
+    'POR',
+    'SAC',
+    'SAS',
+    'TOR',
+    'UTA',
+    'WAS',
+] as const
+
+export type NBATeamCode = (typeof NBA_TEAM_CODES)[number]
+
+export const NBA_TEAM_OPTIONS = NBA_TEAM_CODES.map((team) => ({ key: team, label: team }))

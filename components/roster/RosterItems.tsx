@@ -5,7 +5,7 @@ import { isIREligible, isTaxiEligible, RosterPlayer } from '@/lib/roster'
 import { getEligiblePositions } from '@/lib/players'
 import { TradePickItem } from '@/lib/trades'
 import { WaiverClaim } from '@/lib/waivers'
-import { shortDateFmt, playerHeadshotUrl } from '@/lib/format'
+import { formatPoints, shortDateFmt, playerHeadshotUrl } from '@/lib/format'
 import { Avatar } from '@/components/Avatar'
 import { Badge } from '@/components/Badge'
 import { PosTag } from '@/components/PosTag'
@@ -169,6 +169,7 @@ export function RosterPlayerItem({
             <Avatar
                 name={player.display_name}
                 color={colors.bgMuted}
+                textColor={colors.textSecondary}
                 uri={headshotUri ?? undefined}
             />
 
@@ -178,7 +179,7 @@ export function RosterPlayerItem({
                     {player.nba_team ? <Text style={styles.playerMeta}>{player.nba_team}</Text> : null}
                     {positions.map((pos) => <PosTag key={pos} position={pos} />)}
                     {avgFpts != null ? (
-                        <Text style={styles.fptsText}>{avgFpts.toFixed(1)} FPts</Text>
+                        <Text style={styles.fptsText}>{formatPoints(avgFpts)} FPts</Text>
                     ) : null}
                 </View>
                 {player.injury_status ? (
@@ -241,6 +242,7 @@ export function TaxiPlayerItem({
             <Avatar
                 name={player.display_name}
                 color={colors.bgMuted}
+                textColor={colors.textSecondary}
                 uri={headshotUri ?? undefined}
             />
 
@@ -250,7 +252,7 @@ export function TaxiPlayerItem({
                     {player.nba_team ? <Text style={styles.playerMeta}>{player.nba_team}</Text> : null}
                     {positions.map((pos) => <PosTag key={pos} position={pos} />)}
                     {avgFpts != null ? (
-                        <Text style={styles.fptsText}>{avgFpts.toFixed(1)} FPts</Text>
+                        <Text style={styles.fptsText}>{formatPoints(avgFpts)} FPts</Text>
                     ) : null}
                 </View>
             </View>

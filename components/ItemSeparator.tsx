@@ -3,7 +3,14 @@ import { colors } from '@/constants/tokens'
 
 /** Standard 1px list separator with left inset for avatar rows */
 export function ItemSeparator() {
-    return <View style={styles.separator} />
+    return (
+        <View
+            style={styles.separator}
+            aria-hidden
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+        />
+    )
 }
 
 const styles = StyleSheet.create({

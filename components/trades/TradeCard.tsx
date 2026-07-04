@@ -381,6 +381,9 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         gap: 10,
         marginTop: 10,
+        // On wide cards keep the button group at a tappable-but-sane width
+        // instead of stretching each button across the whole card.
+        maxWidth: 480,
     },
     actionBtn: {
         flex: 1,

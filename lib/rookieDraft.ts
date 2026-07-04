@@ -174,7 +174,7 @@ export async function getAllLeaguePicks(leagueId: string): Promise<LeaguePickIte
         .order('season_year', { ascending: true })
         .order('round', { ascending: true })
 
-    if (error) console.error('[getAllLeaguePicks]', error)
+    if (error) throw error
     type PickRow = (typeof data extends (infer T)[] | null ? T : never) & {
         original_owner: { team_name: string } | null
         current_owner: { team_name: string } | null

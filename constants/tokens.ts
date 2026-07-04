@@ -9,7 +9,7 @@ export const palette = {
     maple50:  '#FEF6E4',
     maple100: '#FDEAC0',
     maple200: '#FAD490',
-    maple500: '#C9660F',   // deep amber maple — the primary brand color
+    maple500: '#B25A0D',   // deep amber maple — the primary brand color (4.8:1 under white fills, AA for the 13-16px white-on-primary text app-wide; was #C9660F @ 3.9:1)
     maple600: '#8F4A10', // maple TEXT variant (links/FP/active-nav/Share) — ~6.3:1 on cream (was #A05212 @ 5.35, judges read borderline)
     maple900: '#6B3410',
 
@@ -69,12 +69,18 @@ export const palette = {
     amber300: '#FEF3C7',
     amber400: '#F59E0B',
     amber600: '#D97706',
+    amber700: '#B45309',
 
-    // ── Position helpers ──
-    orangeLight: '#E8832A', // warm maple-orange for SG/G flex
-    orange:      '#F97316', // SG position color
-    orangeFlex:  '#FB923C', // G (guard flex) position color
-    greenLight:  '#34D399',
+    // ── Position identity hues ──
+    // Warm-leaning, saturation-matched deep hues for position chips/avatars.
+    // Every value keeps white chip text >=4.5:1 (WCAG AA); see constants/positions.ts.
+    posCoral:  '#B0372A', // PG — deep coral (white 6.1:1)
+    posBurnt:  '#A34A00', // SG — burnt orange (white 5.9:1)
+    posForest: '#2E6B34', // SF — forest green (white 6.4:1)
+    posTeal:   '#14695F', // PF — teal-slate (white 6.5:1)
+    posPlum:   '#7D3C78', // C  — plum (white 7.5:1)
+    posAmber:  '#8A6500', // G  — deep amber (white 5.3:1)
+    posSage:   '#5C7250', // F  — sage (white 5.3:1)
 
     // ── Neutrals ──
     white:    '#fff',
@@ -199,15 +205,37 @@ export const radii = {
 // ── Typography ──────────────────────────────────────────────────
 
 export const fontSize = {
+    '2xs': 10,
     xs: 11,
+    '2sm': 12,
     sm: 13,
     md: 14,
     lg: 16,
+    '2lg': 18,
     xl: 20,
     '2xl': 24,
     '3xl': 28,
     '4xl': 32,
     '5xl': 36,
+} as const
+
+// Display face — Space Grotesk, loaded via useFonts in app/_layout.tsx without
+// blocking first paint. On web the family name gets a system-stack fallback so
+// text renders in sans (not the browser serif default) while @font-face loads.
+const WEB_SANS_FALLBACK =
+    "-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
+
+export const fontFamily = {
+    /** Headlines + big numerals (700). */
+    display:
+        Platform.OS === 'web'
+            ? `SpaceGrotesk_700Bold, ${WEB_SANS_FALLBACK}`
+            : 'SpaceGrotesk_700Bold',
+    /** Display face at medium weight — labels/eyebrows that want the same voice. */
+    displayMedium:
+        Platform.OS === 'web'
+            ? `SpaceGrotesk_500Medium, ${WEB_SANS_FALLBACK}`
+            : 'SpaceGrotesk_500Medium',
 } as const
 
 export const fontWeight = {
@@ -217,6 +245,7 @@ export const fontWeight = {
     semibold: '600' as const,
     bold: '700' as const,
     extrabold: '800' as const,
+    black: '900' as const,
 }
 
 // ── Avatar sizes ────────────────────────────────────────────────
@@ -305,7 +334,21 @@ export const motion = {
 // Profile 640); Roster/Commissioner stay uncapped (already full-width).
 export const layout = {
     contentMaxWidth: 1280,
+    // Readable form/settings column on wide screens (was inlined as 640/720/760).
+    formMaxWidth: 720,
 } as const
+
+// Visually-hidden but screen-reader-available. Use for headings/labels that
+// exist for AT structure but are shown visually by another element. Single
+// source instead of re-inlining the absolute/1px clip in every screen.
+export const srOnly = {
+    position: 'absolute' as const,
+    width: 1,
+    height: 1,
+    margin: -1,
+    overflow: 'hidden' as const,
+    opacity: 0,
+}
 
 // ── Breakpoints ─────────────────────────────────────────────────
 // One source of truth for width breakpoints (mirrors web CSS + native
@@ -316,6 +359,7 @@ export const breakpoints = {
     compact: 780,  // web shell: sidebar ↔ mobile top/bottom nav
     auth: 860,     // auth split hero ↔ stacked
     statTable: 920, // players: stacked stats ↔ full stat columns
+    desktop: 1000, // draft room: single column ↔ two-column auction floor
     wide: 1200,    // extra breathing room
 } as const
 
@@ -357,10 +401,11 @@ export const WEB_THEME_VARS: Record<string, string> = {
 
 // ── Domain color maps ───────────────────────────────────────────
 
+// Solid-badge backgrounds darkened so the white 11px label clears WCAG AA (>=4.5:1).
 export const INJURY_COLORS: Record<string, string> = {
-    Questionable: palette.amber400,
-    Doubtful: palette.maple500,
-    Out: palette.red500,
+    Questionable: palette.amber700,
+    Doubtful: palette.maple600,
+    Out: palette.red900,
     IR: palette.redDark,
 }
 

@@ -1,4 +1,4 @@
-import { Modal, View, Text, Pressable, StyleSheet } from 'react-native'
+import { Modal, View, Text, Pressable, StyleSheet, Platform } from 'react-native'
 import { colors, scrim } from '@/constants/tokens'
 
 export function AutoSetModal({
@@ -82,7 +82,14 @@ export function AutoSetModal({
 }
 
 const styles = StyleSheet.create({
-    overlay: { flex: 1, backgroundColor: scrim, justifyContent: 'center', alignItems: 'center', padding: 20 },
+    overlay: {
+        flex: 1,
+        backgroundColor: scrim,
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 20,
+        paddingBottom: Platform.OS === 'web' ? 80 : 20,
+    },
     content: { backgroundColor: colors.bgScreen, borderRadius: 16, padding: 20, width: '100%', gap: 16 },
     title: { fontSize: 19, fontWeight: '800', color: colors.textPrimary, textAlign: 'center' },
     text: { fontSize: 14, color: colors.textMuted, textAlign: 'center' },
@@ -92,6 +99,6 @@ const styles = StyleSheet.create({
     secondaryButton: { backgroundColor: colors.bgSubtle, borderWidth: 1, borderColor: colors.border },
     buttonText: { fontSize: 15, fontWeight: '700', color: colors.textWhite },
     secondaryButtonText: { color: colors.textSecondary },
-    cancel: { paddingVertical: 8, alignItems: 'center' },
+    cancel: { minHeight: 44, alignItems: 'center', justifyContent: 'center' },
     cancelText: { fontSize: 15, fontWeight: '600', color: colors.textMuted },
 })

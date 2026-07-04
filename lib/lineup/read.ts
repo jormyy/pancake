@@ -15,6 +15,7 @@ export type LineupPlayer = {
     eligiblePositions: string[]
     nbaTeam: string | null
     injuryStatus: string | null
+    nbaId: string | null
 }
 
 export type LineupSlot = {
@@ -36,6 +37,20 @@ export type WeekDay = {
     hasGames: boolean    // any NBA games scheduled
     isToday: boolean
     playingTeams: string[]
+}
+
+/**
+ * Default day for a week view: today when it falls inside the week, otherwise
+ * the nearest edge of the week. Without the clamp, viewing a week that does
+ * not contain today (offseason, pre-season, catching up on a past week)
+ * selects a date with no lineup rows and every slot renders as an em-dash.
+ */
+export function clampDateToWeek(date: string, days: WeekDay[]): string {
+    if (days.length === 0) return date
+    if (date < days[0].date) return days[0].date
+    const last = days[days.length - 1].date
+    if (date > last) return last
+    return date
 }
 
 // Returns the set of NBA team abbreviations whose game has already started on the given date.
@@ -192,7 +207,7 @@ export async function getWeeklyLineup(
             .eq('league_id', leagueId),
         supabase
             .from('roster_players')
-            .select('id, player_id, is_on_ir, is_on_taxi, players(display_name, position, eligible_positions, nba_team, injury_status)')
+            .select('id, player_id, is_on_ir, is_on_taxi, players(display_name, position, eligible_positions, nba_team, injury_status, nba_id)')
             .eq('member_id', memberId)
             .eq('league_id', leagueId)
             .eq('league_season_id', seasonId),
@@ -230,6 +245,7 @@ export async function getWeeklyLineup(
             eligiblePositions: getEligiblePositions(p ?? {}),
             nbaTeam: p?.nba_team ?? null,
             injuryStatus: p?.injury_status ?? null,
+            nbaId: p?.nba_id ?? null,
         })
     }
 
@@ -239,12 +255,12 @@ export async function getWeeklyLineup(
     let addedAfterDate = new Set<string>()
     if (isPastDate) {
         const missingPlayerIds = [...assignmentMap.keys()].filter((pid) => !rosterByPlayerId.has(pid))
-        type ExtraPlayer = Pick<PlayerRow, 'id' | 'display_name' | 'position' | 'eligible_positions' | 'nba_team' | 'injury_status'>
+        type ExtraPlayer = Pick<PlayerRow, 'id' | 'display_name' | 'position' | 'eligible_positions' | 'nba_team' | 'injury_status' | 'nba_id'>
         const [extraPlayersResult, laterAddsResult] = await Promise.all([
             missingPlayerIds.length > 0
                 ? supabase
                     .from('players')
-                    .select('id, display_name, position, eligible_positions, nba_team, injury_status')
+                    .select('id, display_name, position, eligible_positions, nba_team, injury_status, nba_id')
                     .in('id', missingPlayerIds)
                 : Promise.resolve({ data: [] as ExtraPlayer[] }),
             supabase
@@ -268,6 +284,7 @@ export async function getWeeklyLineup(
                 eligiblePositions: getEligiblePositions(p),
                 nbaTeam: p.nba_team ?? null,
                 injuryStatus: p.injury_status ?? null,
+                nbaId: p.nba_id ?? null,
             })
         }
 

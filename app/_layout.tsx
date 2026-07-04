@@ -1,4 +1,5 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native'
+import { SpaceGrotesk_500Medium, SpaceGrotesk_700Bold, useFonts } from '@expo-google-fonts/space-grotesk'
 import { Stack, useRouter, useSegments } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import { useEffect } from 'react'
@@ -18,6 +19,11 @@ export const unstable_settings = {
 
 export default function RootLayout() {
     const colorScheme = useColorScheme()
+
+    // Display face (headlines + big numerals). Deliberately NOT gating render on
+    // the loaded flag: text paints immediately with the fallback stack in
+    // constants/tokens.ts fontFamily and upgrades in place once the font arrives.
+    useFonts({ SpaceGrotesk_500Medium, SpaceGrotesk_700Bold })
 
     // Web ships light-only (locked decision): never let react-navigation chrome
     // (modal/stack headers) follow the OS dark preference. Native keeps dark.

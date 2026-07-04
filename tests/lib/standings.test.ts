@@ -37,10 +37,37 @@ beforeEach(() => {
 })
 
 describe('getLeagueStandings', () => {
-    it('returns empty array when no active season', async () => {
+    it('returns initialized member rows when no active season exists yet', async () => {
         vi.mocked(getCurrentSeason).mockResolvedValue(null)
+        vi.mocked(supabase.from).mockReturnValue(q([
+            { id: 'm2', team_name: 'Beta' },
+            { id: 'm1', team_name: 'Alpha' },
+        ]) as any)
+
         const result = await getLeagueStandings('league-1')
-        expect(result).toEqual([])
+
+        expect(result).toEqual([
+            {
+                memberId: 'm1',
+                teamName: 'Alpha',
+                wins: 0,
+                losses: 0,
+                ties: 0,
+                pointsFor: 0,
+                pointsAgainst: 0,
+                maxPointsFor: 0,
+            },
+            {
+                memberId: 'm2',
+                teamName: 'Beta',
+                wins: 0,
+                losses: 0,
+                ties: 0,
+                pointsFor: 0,
+                pointsAgainst: 0,
+                maxPointsFor: 0,
+            },
+        ])
     })
 
     it('calculates wins and losses from finalized matchups', async () => {

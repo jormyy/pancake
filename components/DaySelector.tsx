@@ -1,8 +1,23 @@
-import { View, Text, StyleSheet } from 'react-native'
+import { View, Text, StyleSheet, Platform } from 'react-native'
 import { WeekDay } from '@/lib/lineup'
 import { todayET } from '@/lib/shared/dates'
 import { colors, palette } from '@/constants/tokens'
 import { MotionPressable } from '@/components/Motion'
+
+// react-native-web forwards aria-* props to the DOM, but React Native's prop
+// types don't model aria-current — spread this constant on the selected day so
+// assistive tech hears the selection (accessibilityState.selected is not
+// mapped to aria for role=button on web).
+const ARIA_CURRENT_DATE = Platform.OS === 'web' ? ({ 'aria-current': 'date' } as const) : undefined
+
+function accessibleDayLabel(day: WeekDay) {
+    const fullDate = new Date(`${day.date}T12:00:00`).toLocaleDateString('en-US', {
+        weekday: 'long',
+        month: 'long',
+        day: 'numeric',
+    })
+    return day.hasGames ? fullDate : `${fullDate}, no games`
+}
 
 export function DaySelector({
     days,
@@ -33,8 +48,9 @@ export function DaySelector({
                         ]}
                         onPress={() => onSelect(day.date)}
                         accessibilityRole="button"
-                        accessibilityLabel={`Select ${day.dayLabel} ${day.dateNum}`}
+                        accessibilityLabel={accessibleDayLabel(day)}
                         accessibilityState={{ selected: isSelected }}
+                        {...(isSelected ? ARIA_CURRENT_DATE : undefined)}
                         hitSlop={4}
                         pressedScale={0.92}
                     >
@@ -62,8 +78,8 @@ const styles = StyleSheet.create({
     row: { borderBottomWidth: 1, borderBottomColor: colors.borderLight },
     content: { flexDirection: 'row', justifyContent: 'center', paddingHorizontal: 12, paddingVertical: 10, gap: 6 },
     contentCompact: { paddingVertical: 6, gap: 4 },
-    cell: { width: 40, alignItems: 'center', paddingVertical: 6, borderRadius: 10, borderCurve: 'continuous' as const, gap: 2 },
-    cellCompact: { width: 36, paddingVertical: 4, gap: 1 },
+    cell: { width: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center', paddingVertical: 6, borderRadius: 10, borderCurve: 'continuous' as const, gap: 2 },
+    cellCompact: { width: 44, minHeight: 44, paddingVertical: 4, gap: 1 },
     cellSelected: { backgroundColor: colors.primary },
     cellToday: { backgroundColor: colors.primaryLight },
     cellNoGames: { opacity: 0.4 },

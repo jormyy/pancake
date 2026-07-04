@@ -1,13 +1,13 @@
 import { useCallback, useState } from 'react'
 import { Alert } from 'react-native'
-import { setPlayerSlot, setPlayerSlotMoves, autoSetLineup, canPlaySlot, LineupSlot, LineupPlayer } from '@/lib/lineup'
-import { activateRosterPlayerWithOverflow, isIREligible, toggleIR, toggleTaxi } from '@/lib/roster'
+import { setPlayerSlotMoves, autoSetLineup, canPlaySlot, LineupSlot, LineupPlayer } from '@/lib/lineup'
+import { activateRosterPlayerWithLineup, isIREligible, toggleIR, toggleTaxi } from '@/lib/roster'
 import { todayET } from '@/lib/shared/dates'
 import { getErrorMessage } from '@/lib/alert'
 
 type LineupData = { starters: LineupSlot[]; bench: LineupPlayer[]; ir?: LineupPlayer[]; taxi?: LineupPlayer[] }
 type Sel = { kind: 'starter'; index: number } | { kind: 'bench'; index: number } | { kind: 'ir'; index: number } | { kind: 'taxi'; index: number }
-type PendingActivation = { rosterPlayerId: string; source: 'ir' | 'taxi' }
+type PendingActivation = { rosterPlayerId: string; source: 'ir' | 'taxi'; slotType: string | null }
 export type LineupActionContext = {
     memberId: string
     leagueId: string
@@ -67,6 +67,11 @@ export function useLineupActions({
             : s.kind === 'bench' ? 'BE'
             : s.kind === 'ir' ? 'IR'
             : 'TX'
+        const getActivationSlotType = (target: Sel, player: LineupPlayer | null): string | null => {
+            if (!player || target.kind !== 'starter') return null
+            const slotType = starters[target.index]?.slotType
+            return slotType && canPlaySlot(player.eligiblePositions, slotType) ? slotType : null
+        }
 
         const aPlayer = getPlayer(selected)
         const bPlayer = getPlayer(newSel)
@@ -100,22 +105,32 @@ export function useLineupActions({
                 const rosterSize: number = league?.roster_size ?? 20
                 const activeCount = starters.filter(s => s.player !== null).length + bench.length
                 if (activeCount >= rosterSize) {
-                    setActivationOverflowPending({ rosterPlayerId: irPlayer.rosterPlayerId, source: 'ir' })
+                    setActivationOverflowPending({
+                        rosterPlayerId: irPlayer.rosterPlayerId,
+                        source: 'ir',
+                        slotType: getActivationSlotType(actSel, irPlayer),
+                    })
                     return
                 }
             }
 
             setSaving(true)
             try {
-                if (actPlayer) await toggleIR(actPlayer.rosterPlayerId, true)
                 if (irPlayer) {
-                    await toggleIR(irPlayer.rosterPlayerId, false)
-                    if (actSel.kind === 'starter') {
-                        const slotType = starters[actSel.index]?.slotType
-                        if (slotType && canPlaySlot(irPlayer.eligiblePositions, slotType)) {
-                            await setPlayerSlot(actionContext.memberId, actionContext.leagueId, actionContext.seasonId, actionContext.weekNumber, selectedDate, irPlayer.playerId, slotType)
-                        }
-                    }
+                    await activateRosterPlayerWithLineup({
+                        activateRosterPlayerId: irPlayer.rosterPlayerId,
+                        activateSource: 'ir',
+                        freeRosterPlayerId: actPlayer?.rosterPlayerId ?? null,
+                        freeAction: actPlayer ? 'ir' : null,
+                        memberId: actionContext.memberId,
+                        leagueId: actionContext.leagueId,
+                        seasonId: actionContext.seasonId,
+                        gameDate: selectedDate,
+                        weekNumber: actionContext.weekNumber,
+                        slotType: getActivationSlotType(actSel, irPlayer),
+                    })
+                } else if (actPlayer) {
+                    await toggleIR(actPlayer.rosterPlayerId, true)
                 }
                 await reloadLineup(selectedDate)
             } catch (e) {
@@ -132,7 +147,7 @@ export function useLineupActions({
             const taxiPlayer = getPlayer(taxiSel)
             const actPlayer  = getPlayer(actSel)
 
-            if (actPlayer) {
+            if (actPlayer && !taxiPlayer) {
                 // Moving active → taxi: check taxi slot availability
                 const taxiLimit: number = league?.taxi_slots ?? 0
                 if (taxiLimit === 0) {
@@ -150,22 +165,32 @@ export function useLineupActions({
                 const rosterSize: number = league?.roster_size ?? 20
                 const activeCount = starters.filter(s => s.player !== null).length + bench.length
                 if (activeCount >= rosterSize) {
-                    setActivationOverflowPending({ rosterPlayerId: taxiPlayer.rosterPlayerId, source: 'taxi' })
+                    setActivationOverflowPending({
+                        rosterPlayerId: taxiPlayer.rosterPlayerId,
+                        source: 'taxi',
+                        slotType: getActivationSlotType(actSel, taxiPlayer),
+                    })
                     return
                 }
             }
 
             setSaving(true)
             try {
-                if (actPlayer) await toggleTaxi(actPlayer.rosterPlayerId, true)
                 if (taxiPlayer) {
-                    await toggleTaxi(taxiPlayer.rosterPlayerId, false)
-                    if (actSel.kind === 'starter') {
-                        const slotType = starters[actSel.index]?.slotType
-                        if (slotType && canPlaySlot(taxiPlayer.eligiblePositions, slotType)) {
-                            await setPlayerSlot(actionContext.memberId, actionContext.leagueId, actionContext.seasonId, actionContext.weekNumber, selectedDate, taxiPlayer.playerId, slotType)
-                        }
-                    }
+                    await activateRosterPlayerWithLineup({
+                        activateRosterPlayerId: taxiPlayer.rosterPlayerId,
+                        activateSource: 'taxi',
+                        freeRosterPlayerId: actPlayer?.rosterPlayerId ?? null,
+                        freeAction: actPlayer ? 'taxi' : null,
+                        memberId: actionContext.memberId,
+                        leagueId: actionContext.leagueId,
+                        seasonId: actionContext.seasonId,
+                        gameDate: selectedDate,
+                        weekNumber: actionContext.weekNumber,
+                        slotType: getActivationSlotType(actSel, taxiPlayer),
+                    })
+                } else if (actPlayer) {
+                    await toggleTaxi(actPlayer.rosterPlayerId, true)
                 }
                 await reloadLineup(selectedDate)
             } catch (e) {
@@ -229,12 +254,18 @@ export function useLineupActions({
         }
         setActivationOverflowSaving(true)
         try {
-            await activateRosterPlayerWithOverflow(
-                activationOverflowPending.rosterPlayerId,
-                activationOverflowPending.source,
-                rosterPlayerId,
+            await activateRosterPlayerWithLineup({
+                activateRosterPlayerId: activationOverflowPending.rosterPlayerId,
+                activateSource: activationOverflowPending.source,
+                freeRosterPlayerId: rosterPlayerId,
                 freeAction,
-            )
+                memberId: actionContext.memberId,
+                leagueId: actionContext.leagueId,
+                seasonId: actionContext.seasonId,
+                gameDate: selectedDate,
+                weekNumber: actionContext.weekNumber,
+                slotType: activationOverflowPending.slotType,
+            })
             setActivationOverflowPending(null)
             await reloadLineup(selectedDate)
         } catch (e) {

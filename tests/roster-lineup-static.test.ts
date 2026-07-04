@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { read, sources } from './source-guard'
+import { latestFunctionDefinition, read, sources } from './source-guard'
 
 const {
     scoringCronAuctionMigration,
@@ -85,7 +85,7 @@ describe('logic hardening source guards - lineup and roster locks', () => {
 
     it('shows cumulative max possible in app standings', () => {
         const appScoring = read('lib/scoring.ts')
-        const leagueSections = read('components/league/LeagueSections.tsx')
+        const leagueSections = read('components/league/LeagueStandings.tsx')
         expect(appScoring).toContain('home_max_possible_points, away_max_possible_points')
         expect(appScoring).toContain('const hMax = Number(m.home_max_possible_points ?? 0)')
         expect(appScoring).toContain('const aMax = Number(m.away_max_possible_points ?? 0)')
@@ -160,5 +160,57 @@ describe('logic hardening source guards - lineup and roster locks', () => {
         expect(edgeLeague).toContain('recentWindowStart')
         expect(edgeLeague).toContain("game.status === 'InProgress'")
         expect(edgeLeague).toContain("game.game_date === today && game.status === 'Final'")
+    })
+
+    it('uses one transaction when activating IR or taxi players into lineup slots', () => {
+        const hook = read('hooks/use-lineup-actions.ts')
+        const roster = read('lib/roster.ts')
+        const rpc = latestFunctionDefinition('activate_roster_player_with_lineup_atomic')
+
+        expect(hook).toContain('activateRosterPlayerWithLineup')
+        expect(hook).toContain('slotType: getActivationSlotType(actSel, irPlayer)')
+        expect(hook).toContain('slotType: getActivationSlotType(actSel, taxiPlayer)')
+        expect(hook).toContain('slotType: activationOverflowPending.slotType')
+        expect(hook).not.toContain('await setPlayerSlot(')
+        expect(hook).not.toContain('await toggleIR(irPlayer.rosterPlayerId, false)')
+        expect(hook).not.toContain('await toggleTaxi(taxiPlayer.rosterPlayerId, false)')
+
+        expect(roster).toContain("supabase.rpc('activate_roster_player_with_lineup_atomic'")
+        expect(rpc).toContain('PERFORM public.toggle_ir_atomic(p_free_roster_player_id, true, v_user_id)')
+        expect(rpc).toContain('PERFORM public.toggle_taxi_atomic(p_free_roster_player_id, true, v_user_id)')
+        expect(rpc).toContain('PERFORM public.toggle_ir_atomic(p_activate_roster_player_id, false, v_user_id)')
+        expect(rpc).toContain('PERFORM public.toggle_taxi_atomic(p_activate_roster_player_id, false, v_user_id)')
+        expect(rpc).toContain('PERFORM public.set_player_slot_atomic')
+        expect(rpc.indexOf('PERFORM public.set_player_slot_atomic')).toBeGreaterThan(
+            rpc.indexOf('PERFORM public.toggle_ir_atomic(p_activate_roster_player_id, false, v_user_id)'),
+        )
+    })
+
+    it('drops stale async results before committing trade, projection, and lineup state', () => {
+        const trade = read('app/(modals)/propose-trade.tsx')
+        const projections = read('app/(tabs)/projections.tsx')
+        const lineup = read('app/(modals)/lineup.tsx')
+
+        const tradeRequestIndex = trade.indexOf('const requestId = ++rosterLoadSeqRef.current')
+        const tradeCommitGuardIndex = trade.indexOf('if (rosterLoadSeqRef.current !== requestId) return', trade.indexOf('Promise.all'))
+        const tradeCommitIndex = trade.indexOf('setTheirRoster(theirActiveRoster)')
+        expect(tradeRequestIndex).toBeGreaterThan(-1)
+        expect(tradeCommitGuardIndex).toBeGreaterThan(tradeRequestIndex)
+        expect(tradeCommitGuardIndex).toBeLessThan(tradeCommitIndex)
+        expect(trade).toContain('if (rosterLoadSeqRef.current === requestId) setRosterLoading(false)')
+
+        const projectionRequestIndex = projections.indexOf('const requestId = ++projectionLoadSeqRef.current')
+        const projectionFetchIndex = projections.indexOf('await getLeagueProjections')
+        const projectionCommitGuardIndex = projections.indexOf('if (projectionLoadSeqRef.current !== requestId) return', projectionFetchIndex)
+        const projectionCommitIndex = projections.indexOf('setRows(projections)')
+        expect(projectionRequestIndex).toBeGreaterThan(-1)
+        expect(projectionCommitGuardIndex).toBeGreaterThan(projectionFetchIndex)
+        expect(projectionCommitGuardIndex).toBeLessThan(projectionCommitIndex)
+
+        expect(lineup).toContain('lineupLoadSeqRef')
+        expect(lineup).toContain('lineupError')
+        expect(lineup).toContain('Retry lineup load')
+        expect(lineup).toContain('if (lineupLoadSeqRef.current !== requestId) return false')
+        expect(lineup).toContain("lineupError\n              ? 'Could not load lineup.'")
     })
 })

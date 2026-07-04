@@ -87,7 +87,13 @@ Edge sync source lives under `supabase/shared-src/`.
 
 Player discovery uses the `search_players` Postgres RPC as the canonical read path. The RPC starts
 from the full player pool, left-joins season stats, preserves players without current-season rows,
-and uses indexed name/stat access for high-volume search and sorting. The Dynasty Hub reads Hashtag
+and uses indexed name/stat access for high-volume search and sorting. League-scored fantasy averages
+come from the `analytics.mv_player_avg_fantasy_points` materialized view (refreshed daily); a league
+created after the last refresh is seeded into `analytics.player_avg_fantasy_points_fresh` by an
+AFTER INSERT trigger (current season only) so its FP column and `fpts` sort are populated immediately,
+and those rows are pruned once the nightly refresh folds the league into the view. The FP column is
+never a fallback to plain points — a player with no league-scored average shows an em dash, not a
+duplicate of PTS. The Dynasty Hub reads Hashtag
 Basketball rows from `dynasty_rankings`, joins matched players for app headshots and injuries, and
 loads rankings 50 rows at a time. `sync-rankings` replaces that read model through the
 service-role-only `replace_dynasty_rankings` RPC and also keeps `players.dynasty_rank` in sync for
@@ -110,8 +116,19 @@ npm audit --audit-level=high       # dependency audit
 Cross-cutting guard tests: `tests/scoring-parity.test.ts` (scoring drift),
 `tests/rls-grants.test.ts` (service-role-only RPCs never granted to client roles, default
 PUBLIC EXECUTE revoked, service-role read grants preserved),
+`tests/security-regression.test.ts` (push_token column stays revoked, realtime tables
+stay RLS-gated, invite-join error stays generic, invite-code generation stays server-only,
+no anon writes on gameplay tables — each checks the current effective state so a later
+migration can't silently reopen the hole),
 `tests/performance-budget-static.test.ts` (instant-loading workflow and budget
 contract), and Edge/API static guards.
+
+Deterministic-core battery: `supabase/functions/api/matchups.test.ts` (round-robin
+invariants over team counts 2–14 + a mutation-proof), `tests/lib/standings-tiebreak.test.ts`
+(6-key precedence + shuffle stability), `core/tests/scoring-properties.test.ts`
+(DNP⇒0, additivity, per-stat monotonicity), `tests/waiver-auction-logic-static.test.ts`
+(auction/waiver SQL inequality + resolution ORDER BY guards), and `tests/no-llm-guard.test.ts`
+(no model SDK in runtime logic).
 Browser E2E flows live in `tests/e2e/` (see [tests/e2e/README.md](./tests/e2e/README.md));
 the multi-season soak is `npm run e2e:soak`.
 

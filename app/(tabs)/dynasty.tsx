@@ -21,7 +21,7 @@ import { useLeagueContext } from '@/contexts/league-context'
 import { useDynastyRankings } from '@/hooks/use-dynasty-rankings'
 import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
 import { getDynastyNews, getMyDynastyNews, type DynastyNewsItem, type DynastyRankPlayer } from '@/lib/dynasty'
-import { playerHeadshotUrl } from '@/lib/format'
+import { formatPoints, playerHeadshotUrl } from '@/lib/format'
 import { getEligiblePositions } from '@/lib/players'
 import { API_URL } from '@/lib/shared/api'
 import { colors, fontSize, fontWeight, layout, radii, spacing } from '@/constants/tokens'
@@ -97,7 +97,7 @@ function formatStat(value: number | null, format?: 'integer' | 'pct'): string {
     if (value == null) return '-'
     if (format === 'integer') return String(Math.round(value))
     if (format === 'pct') return Number(value).toFixed(3)
-    return Number(value).toFixed(1)
+    return formatPoints(value)
 }
 
 function formatScoringFormat(value: string | null | undefined): string {
@@ -278,6 +278,7 @@ export default function DynastyScreen() {
     const { current, currentLeague } = useLeagueContext()
     const { width } = useWindowDimensions()
     const showStats = width >= WIDE_BREAKPOINT
+    const narrowSearch = width < 440
     const [tab, setTab] = useState<DynastyTab>('rankings')
     const rankings = useDynastyRankings()
     const cachedNews = readPersistentCache<DynastyNewsCache>(dynastyNewsCacheKey(current?.id, currentLeague?.id)) ?? undefined
@@ -312,7 +313,7 @@ export default function DynastyScreen() {
             <View style={styles.contentWrap}>
                 <View style={styles.header}>
                     <View style={styles.headerText}>
-                        <Text style={styles.title}>Dynasty Hub</Text>
+                        <Text style={styles.title} role="heading" aria-level={1}>Dynasty Hub</Text>
                         <Text style={styles.subtitle}>
                             Hashtag {formatScoringFormat(scoringFormat)} rankings and player movement
                         </Text>
@@ -343,7 +344,7 @@ export default function DynastyScreen() {
                             <Input
                                 value={rankings.query}
                                 onChangeText={rankings.setQuery}
-                                placeholder="Search dynasty rankings"
+                                placeholder={narrowSearch ? 'Search rankings' : 'Search dynasty rankings'}
                                 leftIcon="search"
                                 autoCorrect={false}
                             />
@@ -460,8 +461,11 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         gap: spacing.lg,
     },
+    // Shrinks and wraps ("50 rows / loaded") on narrow phones instead of
+    // pushing past the viewport edge and clipping the search field.
     resultCountText: {
-        flexShrink: 0,
+        flexShrink: 1,
+        textAlign: 'right',
         fontSize: fontSize.sm,
         fontWeight: fontWeight.bold,
         color: colors.textMuted,

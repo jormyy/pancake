@@ -5,11 +5,11 @@ export default function ModalsLayout() {
         <Stack>
             <Stack.Screen
                 name="create-league"
-                options={{ title: 'Create League', presentation: 'modal' }}
+                options={{ title: 'Create League', presentation: 'modal', headerShown: false }}
             />
             <Stack.Screen
                 name="join-league"
-                options={{ title: 'Join League', presentation: 'modal' }}
+                options={{ title: 'Join League', presentation: 'modal', headerShown: false }}
             />
             <Stack.Screen
                 name="commissioner-settings"
@@ -25,7 +25,7 @@ export default function ModalsLayout() {
             />
             <Stack.Screen
                 name="rookie-draft-room"
-                options={{ title: 'Rookie Draft', headerBackVisible: false }}
+                options={{ title: 'Rookie Draft', headerShown: false }}
             />
             <Stack.Screen
                 name="lineup"
@@ -37,7 +37,7 @@ export default function ModalsLayout() {
             />
             <Stack.Screen
                 name="claim-player"
-                options={{ title: 'Waiver Claim', presentation: 'modal' }}
+                options={{ title: 'Waiver Claim', presentation: 'modal', headerShown: false }}
             />
             <Stack.Screen
                 name="bracket"

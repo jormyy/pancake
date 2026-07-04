@@ -697,7 +697,7 @@ filtered_base AS (
     p.headshot_url,
     p.nba_id,
     p.years_exp,
-    COALESCE(fp.avg_fantasy_points, avg.avg_points) AS avg_fantasy_points,
+    fp.avg_fantasy_points,
     avg.avg_points,
     avg.avg_rebounds,
     avg.avg_assists,

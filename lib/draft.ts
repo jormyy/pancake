@@ -30,6 +30,7 @@ export type Nomination = {
         displayName: string
         nbaTeam: string | null
         position: string | null
+        nbaId: string | null
         age: number | null
     } | null
 }
@@ -146,7 +147,7 @@ function mapDraft(data: {
 }
 
 export async function getActiveDraft(leagueId: string): Promise<Draft | null> {
-    const { data } = await supabase
+    const { data, error } = await supabase
         .from('drafts')
         .select(DRAFT_SELECT)
         .eq('league_id', leagueId)
@@ -156,6 +157,7 @@ export async function getActiveDraft(leagueId: string): Promise<Draft | null> {
         .limit(1)
         .maybeSingle()
 
+    if (error) throw error
     if (!data) return null
 
     return mapDraft(data)
@@ -168,14 +170,15 @@ export async function getJoinableDraft(
     const activeDraft = await getActiveDraft(leagueId)
     if (activeDraft || !options.includeCompletedRookie) return activeDraft
 
-    const { data: league } = await supabase
+    const { data: league, error: leagueError } = await supabase
         .from('leagues')
         .select('status')
         .eq('id', leagueId)
         .maybeSingle()
+    if (leagueError) throw leagueError
     if (league?.status !== 'drafting') return null
 
-    const { data } = await supabase
+    const { data, error } = await supabase
         .from('drafts')
         .select(DRAFT_SELECT)
         .eq('league_id', leagueId)
@@ -186,6 +189,7 @@ export async function getJoinableDraft(
         .limit(1)
         .maybeSingle()
 
+    if (error) throw error
     return data ? mapDraft(data) : null
 }
 
@@ -215,7 +219,7 @@ export async function getDraftState(draftId: string): Promise<DraftState | null>
         id, status, current_bid_amount, current_bidder_id, countdown_expires_at,
         winning_member_id, final_price, nominating_member_id, nominated_at, nomination_order,
         player_id,
-        players ( display_name, nba_team, position )
+        players ( display_name, nba_team, position, nba_id )
       `,
                 )
                 .eq('draft_id', draftId)
@@ -263,7 +267,7 @@ export async function getDraftState(draftId: string): Promise<DraftState | null>
     const playerIds = [...new Set((nominations ?? []).map((n) => n.player_id).filter(Boolean))]
     const ageByPlayerId = await getLatestDynastyAges(playerIds)
 
-    type PlayerRef = { display_name: string | null; nba_team: string | null; position: string | null }
+    type PlayerRef = { display_name: string | null; nba_team: string | null; position: string | null; nba_id: string | null }
     const mappedNominations: Nomination[] = (nominations ?? []).map((n) => ({
         id: n.id,
         status: n.status,
@@ -280,6 +284,7 @@ export async function getDraftState(draftId: string): Promise<DraftState | null>
                   displayName: (n.players as PlayerRef).display_name ?? 'Unknown',
                   nbaTeam: (n.players as PlayerRef).nba_team,
                   position: (n.players as PlayerRef).position,
+                  nbaId: (n.players as PlayerRef).nba_id,
                   age: ageByPlayerId.get(n.player_id) ?? null,
               }
             : null,

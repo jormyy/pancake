@@ -58,6 +58,30 @@ describe('instant-loading performance budget contract', () => {
         expect(secondaryIndexMigration).toContain('idx_players_rookie_board_instant')
     })
 
+    it('serves fantasy averages to leagues created after the last cache refresh', () => {
+        const freshTableMigration = read('supabase/migrations/20260703000003_fresh_league_fantasy_avg_table.sql')
+
+        // New leagues get seeded rows at creation (trigger) and the view unions
+        // the indexed side table for leagues the nightly MV has not covered —
+        // no live aggregation in the hot path, no NULL FP for fresh leagues.
+        expect(freshTableMigration).toContain('analytics.player_avg_fantasy_points_fresh')
+        expect(freshTableMigration).toContain('CREATE TRIGGER leagues_seed_fantasy_avgs')
+        expect(freshTableMigration).toContain('AFTER INSERT ON public.leagues')
+        expect(freshTableMigration).toContain('CREATE OR REPLACE VIEW public.v_player_avg_fantasy_points')
+        expect(freshTableMigration).toContain('UNION ALL')
+        expect(freshTableMigration).toContain('DELETE FROM analytics.player_avg_fantasy_points_fresh fresh')
+    })
+
+    it('never dresses plain points up as fantasy points', () => {
+        const fpHonestyMigration = read('supabase/migrations/20260703000002_search_players_fp_no_pts_fallback.sql')
+        const canonicalSearch = read('supabase/sql/functions/dynasty-projections-search.sql')
+        const searchItem = read('components/PlayerSearchItem.tsx')
+
+        expect(fpHonestyMigration).not.toContain('COALESCE(fp.avg_fantasy_points, avg.avg_points)')
+        expect(canonicalSearch).not.toContain('COALESCE(fp.avg_fantasy_points, avg.avg_points)')
+        expect(searchItem).not.toContain('item.avg_fantasy_points ?? item.avg_points')
+    })
+
     it('wires performance budgets into the normal release surface', () => {
         const packageJson = JSON.parse(read('package.json'))
         const readme = read('README.md')

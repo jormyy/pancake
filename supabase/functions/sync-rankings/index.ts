@@ -1,6 +1,7 @@
 import { supabase } from '../_shared/supabase.ts'
-import { requireInternalFunctionAuth } from '../_shared/auth.ts'
-import { internalServerError } from '../_shared/responses.ts'
+import { fetchWithRetry } from '../_shared/retry.ts'
+import { recordSyncRun } from '../_shared/syncRuns.ts'
+import { serveInternal } from '../_shared/serve.ts'
 import { buildDynastyRankingPayload, RANKINGS_SOURCE, type PlayerForRanking } from './match.ts'
 import { parseDynastyRankingsHtml, selectedDynastyRankingType, type RankingRow } from './parser.ts'
 import * as cheerio from 'npm:cheerio'
@@ -9,19 +10,15 @@ const RANKINGS_URL = 'https://hashtagbasketball.com/fantasy-basketball-dynasty-r
 const POINTS_RANKING_TYPE = 'POINT'
 const MIN_RANKING_ROWS = 500
 
-Deno.serve(async (req) => {
-  const authError = requireInternalFunctionAuth(req)
-  if (authError) return authError
-
-  try {
-    await syncDynastyRankings()
-    return Response.json({ ok: true })
-  } catch (e: unknown) {
-    return internalServerError('sync-rankings', e)
-  }
+serveInternal('sync-rankings', async () => {
+  const rows = await recordSyncRun('sync-rankings', async () => {
+    const rows = await syncDynastyRankings()
+    return { result: rows, rowsAffected: rows }
+  })
+  return Response.json({ ok: true, rows })
 })
 
-async function syncDynastyRankings() {
+async function syncDynastyRankings(): Promise<number> {
   console.log('[sync-rankings] Scraping dynasty rankings...')
   const [scraped, players] = await Promise.all([scrapeDynastyRankings(), fetchPlayersForRanking()])
   const fetchedAt = new Date().toISOString()
@@ -44,6 +41,7 @@ async function syncDynastyRankings() {
   if (error) throw error
 
   console.log(`[sync-rankings] Stored ${rankingRows.length} ranking rows; matched ${matched}/${rankingRows.length} players.`, result)
+  return rankingRows.length
 }
 
 async function fetchPlayersForRanking(): Promise<PlayerForRanking[]> {
@@ -103,7 +101,7 @@ async function scrapeDynastyRankings(): Promise<ScrapedRankings> {
 }
 
 async function fetchRankingsHtml(): Promise<string> {
-  const res = await fetch(RANKINGS_URL, {
+  const res = await fetchWithRetry(RANKINGS_URL, {
     headers: { 'User-Agent': 'Mozilla/5.0 (compatible; PancakeApp/1.0)' },
   })
   if (!res.ok) throw new Error(`Rankings fetch ${res.status}`)
@@ -115,7 +113,7 @@ async function fetchPointsRankingsHtml(): Promise<string> {
   const form = buildAspNetRankingForm(html)
   form.set('ctl00$ContentPlaceHolder1$DDTYPE', POINTS_RANKING_TYPE)
 
-  const res = await fetch(RANKINGS_URL, {
+  const res = await fetchWithRetry(RANKINGS_URL, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',

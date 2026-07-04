@@ -7,8 +7,9 @@ import {
 import { FlashList } from '@shopify/flash-list'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
+import { NoLeagueState } from '@/components/NoLeagueState'
 import { isTradingClosed } from '@/lib/league'
 import {
     addTradeBlockItem,
@@ -23,7 +24,9 @@ import {
 } from '@/lib/trades'
 import { getRoster, RosterPlayer } from '@/lib/roster'
 import { colors, palette, fontSize, fontWeight, radii, spacing, layout } from '@/constants/tokens'
+import { SegmentedControl, type SegmentOption } from '@/components/ui/SegmentedControl'
 import { ItemSeparator } from '@/components/ItemSeparator'
+import { ErrorBanner } from '@/components/ui'
 import { SectionHeader } from '@/components/SectionHeader'
 import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
 import { yearShort } from '@/lib/format'
@@ -65,7 +68,7 @@ const listGetItemType = (item: ListItem) => item._type
 
 export default function TradesScreen() {
     const { push } = useRouter()
-    const { current, currentLeague } = useLeagueContext()
+    const { current, currentLeague, memberships } = useLeagueContext()
 
     const myMemberId = current?.id ?? ''
     const leagueId = currentLeague?.id ?? ''
@@ -94,6 +97,8 @@ export default function TradesScreen() {
     const [blockLoading, setBlockLoading] = useState(false)
     const [blockError, setBlockError] = useState<string | null>(null)
     const [blockBusyId, setBlockBusyId] = useState<string | null>(null)
+    const tradesLoadSeqRef = useRef(0)
+    const blockLoadSeqRef = useRef(0)
 
     const { data: picks, error: picksError } = useFocusAsyncData(async () => {
         if (!current || !leagueId) return [] as TradePickItem[]
@@ -103,45 +108,66 @@ export default function TradesScreen() {
     }, [current?.id, leagueId], { initialData: cachedPicks ?? undefined })
 
     const load = useCallback(async () => {
-        if (!myMemberId || !leagueId) return
+        const requestId = ++tradesLoadSeqRef.current
+        const memberId = myMemberId
+        const currentLeagueId = leagueId
+        if (!memberId || !currentLeagueId) {
+            setTrades([])
+            setTradesError(null)
+            setLoading(false)
+            return
+        }
         setTradesError(null)
         try {
             const [myTradeData, vetoableTradeData] = await Promise.all([
-                getMyTrades(myMemberId, leagueId),
-                getVetoableTrades(myMemberId, leagueId),
+                getMyTrades(memberId, currentLeagueId),
+                getVetoableTrades(memberId, currentLeagueId),
             ])
+            if (tradesLoadSeqRef.current !== requestId) return
             const result = [...vetoableTradeData, ...myTradeData]
             setTrades(result)
-            writePersistentCache(tradesCacheKey(myMemberId, leagueId), result)
+            writePersistentCache(tradesCacheKey(memberId, currentLeagueId), result)
         } catch (e) {
+            if (tradesLoadSeqRef.current !== requestId) return
             console.error(e)
             setTradesError(getErrorMessage(e) ?? 'Unknown error')
         } finally {
-            setLoading(false)
+            if (tradesLoadSeqRef.current === requestId) setLoading(false)
         }
     }, [myMemberId, leagueId])
 
     const loadBlock = useCallback(async () => {
-        if (!myMemberId || !leagueId) return
+        const requestId = ++blockLoadSeqRef.current
+        const memberId = myMemberId
+        const currentLeagueId = leagueId
+        if (!memberId || !currentLeagueId) {
+            setBlockItems([])
+            setBlockRoster([])
+            setBlockError(null)
+            setBlockLoading(false)
+            return
+        }
         setBlockLoading(true)
         setBlockError(null)
         try {
             const [items, roster] = await Promise.all([
-                getTradeBlockItems(leagueId),
-                getRoster(myMemberId, leagueId),
+                getTradeBlockItems(currentLeagueId),
+                getRoster(memberId, currentLeagueId),
             ])
+            if (blockLoadSeqRef.current !== requestId) return
             const activeRoster = roster.filter((player) => !player.is_on_ir && !player.is_on_taxi)
             setBlockItems(items)
             setBlockRoster(activeRoster)
-            writePersistentCache(tradeBlockCacheKey(myMemberId, leagueId), {
+            writePersistentCache(tradeBlockCacheKey(memberId, currentLeagueId), {
                 items,
                 roster: activeRoster,
             })
         } catch (e) {
+            if (blockLoadSeqRef.current !== requestId) return
             console.error(e)
             setBlockError(getErrorMessage(e) ?? 'Unknown error')
         } finally {
-            setBlockLoading(false)
+            if (blockLoadSeqRef.current === requestId) setBlockLoading(false)
         }
     }, [myMemberId, leagueId])
 
@@ -268,6 +294,8 @@ export default function TradesScreen() {
                             style={styles.blockAction}
                             onPress={() => handleRemoveBlockItem(block)}
                             disabled={blockBusyId === block.id}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Remove ${label} from trade block`}
                         >
                             <Text style={styles.blockActionText}>Remove</Text>
                         </Pressable>
@@ -282,6 +310,8 @@ export default function TradesScreen() {
                                     requestPickId: block.asset.kind === 'pick' ? block.asset.pickId : undefined,
                                 },
                             })}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Offer for ${label}`}
                         >
                             <Text style={styles.blockActionText}>Offer</Text>
                         </Pressable>
@@ -301,6 +331,9 @@ export default function TradesScreen() {
                         style={[styles.blockAction, listed && styles.blockActionDisabled]}
                         onPress={() => handleListPlayer(item.player)}
                         disabled={listed || blockBusyId === item.player.players.id}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${listed ? 'Listed' : 'List'} ${item.player.players.display_name} on trade block`}
+                        accessibilityState={{ disabled: listed || blockBusyId === item.player.players.id }}
                     >
                         <Text style={styles.blockActionText}>{listed ? 'Listed' : 'List'}</Text>
                     </Pressable>
@@ -319,6 +352,9 @@ export default function TradesScreen() {
                         style={[styles.blockAction, listed && styles.blockActionDisabled]}
                         onPress={() => handleListPick(item.pick)}
                         disabled={listed || blockBusyId === item.pick.pickId}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${listed ? 'Listed' : 'List'} ${item.pick.seasonYear} round ${item.pick.round} pick on trade block`}
+                        accessibilityState={{ disabled: listed || blockBusyId === item.pick.pickId }}
                     >
                         <Text style={styles.blockActionText}>{listed ? 'Listed' : 'List'}</Text>
                     </Pressable>
@@ -365,10 +401,11 @@ export default function TradesScreen() {
                 result.push({ _type: 'pick', pick: p })
             })
         } else if (tab === 'offers') {
-            result.push({ _type: 'header', label: 'Veto Window' })
-            vetoableTrades.forEach((t) => result.push({ _type: 'trade', trade: t }))
-            if (vetoableTrades.length === 0 && !loading) {
-                result.push({ _type: 'header', label: '' })
+            // Veto Window only appears while there are league trades to veto,
+            // so it never renders as a bare header with nothing beneath it.
+            if (vetoableTrades.length > 0) {
+                result.push({ _type: 'header', label: 'Veto Window' })
+                vetoableTrades.forEach((t) => result.push({ _type: 'trade', trade: t }))
             }
             result.push({ _type: 'header', label: 'Incoming' })
             incomingTrades.forEach((t) => result.push({ _type: 'trade', trade: t }))
@@ -401,20 +438,22 @@ export default function TradesScreen() {
         return result
     }, [tab, vetoableTrades, incomingTrades, outgoingTrades, historyTrades, picksList, loading, blockItems, blockLoading, blockRoster])
 
-    const TABS: { key: TabKey; label: string }[] = [
-        { key: 'picks', label: 'Picks' },
-        { key: 'offers', label: 'Offers' },
-        { key: 'block', label: 'Block' },
-        { key: 'history', label: 'History' },
+    const pendingInboxCount = incomingTrades.length
+
+    const tabOptions: SegmentOption<TabKey>[] = [
+        { label: 'Picks', value: 'picks' },
+        { label: 'Offers', value: 'offers', badge: pendingInboxCount > 0 ? pendingInboxCount : undefined },
+        { label: 'Block', value: 'block' },
+        { label: 'History', value: 'history' },
     ]
 
-    const pendingInboxCount = incomingTrades.length
+    if (memberships.length === 0) return <NoLeagueState />
 
     return (
         <SafeAreaView style={styles.container}>
           <View style={styles.content}>
             <View style={styles.header}>
-                <Text style={styles.headerTitle}>Trades</Text>
+                <Text style={styles.headerTitle} role="heading" aria-level={1}>Trades</Text>
                 <Pressable
                     style={[styles.proposeBtn, tradingClosed && styles.proposeBtnDisabled]}
                     onPress={() => push('/(modals)/propose-trade')}
@@ -430,39 +469,20 @@ export default function TradesScreen() {
             </View>
 
             <View style={styles.tabRow}>
-                {TABS.map((t) => {
-                    const active = tab === t.key
-                    const badge =
-                        t.key === 'offers' && pendingInboxCount > 0
-                            ? pendingInboxCount
-                            : null
-                    return (
-                        <Pressable
-                            key={t.key}
-                            style={[styles.tabChip, active && styles.tabChipActive]}
-                            onPress={() => setTab(t.key)}
-                            accessibilityRole="button"
-                            accessibilityLabel={`Show ${t.label} trades`}
-                            accessibilityState={{ selected: active }}
-                        >
-                            <Text style={[styles.tabChipText, active && styles.tabChipTextActive]}>
-                                {t.label}
-                                {badge ? ` (${badge})` : ''}
-                            </Text>
-                        </Pressable>
-                    )
-                })}
+                <SegmentedControl
+                    options={tabOptions}
+                    value={tab}
+                    onChange={setTab}
+                    accessibilityLabel="Trade sections"
+                    scrollable
+                />
             </View>
 
             {(tradesError || picksError || blockError) ? (
-                <Pressable
-                    style={styles.errorBanner}
-                    onPress={() => { void load(); if (tab === 'block') void loadBlock() }}
-                    accessibilityRole="button"
-                    accessibilityLabel="Failed to load trades. Tap to retry."
-                >
-                    <Text style={styles.errorBannerText}>Failed to load trades. Tap to retry.</Text>
-                </Pressable>
+                <ErrorBanner
+                    message="Failed to load trades. Tap to retry."
+                    onRetry={() => { void load(); if (tab === 'block') void loadBlock() }}
+                />
             ) : null}
 
             {tab === 'picks' && picksError ? (
@@ -508,30 +528,20 @@ const styles = StyleSheet.create({
         borderRadius: radii.md,
         borderCurve: 'continuous' as const,
         minWidth: 90,
+        minHeight: 44,
         alignItems: 'center',
+        justifyContent: 'center',
     },
     proposeBtnText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.md },
     proposeBtnDisabled: { backgroundColor: colors.bgMuted, borderWidth: 1, borderColor: colors.borderLight },
     proposeBtnTextDisabled: { color: colors.textPlaceholder },
 
     tabRow: {
-        flexDirection: 'row',
-        gap: spacing.md,
         paddingHorizontal: spacing.xl,
         paddingVertical: spacing.lg,
         borderBottomWidth: 1,
         borderBottomColor: colors.borderLight,
     },
-    tabChip: {
-        paddingHorizontal: 14,
-        paddingVertical: 7,
-        borderRadius: radii['3xl'],
-        borderCurve: 'continuous' as const,
-        backgroundColor: colors.bgMuted,
-    },
-    tabChipActive: { backgroundColor: colors.primary },
-    tabChipText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textSecondary },
-    tabChipTextActive: { color: colors.textWhite },
 
     pickRow: {
         flexDirection: 'row',
@@ -539,6 +549,10 @@ const styles = StyleSheet.create({
         paddingHorizontal: spacing.xl,
         paddingVertical: spacing.lg,
         gap: spacing.lg,
+        // Cap the row like other constrained columns so the provenance pill
+        // sits near the pick info instead of orphaned at the far right edge.
+        width: '100%',
+        maxWidth: 760,
     },
     pickCircle: {
         width: 44,
@@ -576,7 +590,7 @@ const styles = StyleSheet.create({
     blockNote: { fontSize: fontSize.sm, color: colors.textSecondary },
     blockAction: {
         minWidth: 72,
-        minHeight: 36,
+        minHeight: 44,
         alignItems: 'center',
         justifyContent: 'center',
         borderRadius: radii.md,
@@ -593,12 +607,4 @@ const styles = StyleSheet.create({
 
     emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', marginTop: spacing['4xl'] },
     emptyStateText: { fontSize: fontSize.md, color: colors.textPlaceholder },
-
-    errorBanner: {
-        backgroundColor: colors.dangerLight,
-        paddingHorizontal: spacing.xl,
-        paddingVertical: spacing.md,
-        alignItems: 'center',
-    },
-    errorBannerText: { fontSize: fontSize.sm, color: colors.dangerDark, fontWeight: fontWeight.semibold },
 })

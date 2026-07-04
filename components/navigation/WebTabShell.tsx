@@ -1,11 +1,12 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { StackRouter } from '@react-navigation/native'
 import { ComponentProps, ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
-import { Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native'
+import { Modal, Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native'
 import { Link, Navigator, usePathname, useRouter } from 'expo-router'
 import { useLeagueContext } from '@/contexts/league-context'
+import { usePendingTradeCount } from '@/hooks/use-pending-trade-count'
 import { getJoinableDraft } from '@/lib/draft'
-import { breakpoints, colors, WEB_THEME_VARS } from '@/constants/tokens'
+import { brand, breakpoints, colors, WEB_THEME_VARS } from '@/constants/tokens'
 import { styles } from './webTabShellStyles'
 
 type IconName = ComponentProps<typeof MaterialIcons>['name']
@@ -35,6 +36,17 @@ const MOBILE_NAV: { label: string; href: RouteHref; icon: IconName }[] = [
     { label: 'League', href: '/league', icon: 'emoji-events' },
 ]
 
+const SECTION_TITLES: { label: string; href: RouteHref }[] = [
+    ...MOBILE_NAV.map(({ label, href }) => ({ label, href })),
+    { label: 'Profile', href: '/profile' },
+]
+
+// react-native-web forwards aria-* props to the DOM, but React Native's prop
+// types don't model aria-current — spread this constant so the active nav item
+// emits a real signal for assistive tech (accessibilityState.selected is not
+// mapped to aria for role=button on web).
+const ARIA_CURRENT_PAGE = { 'aria-current': 'page' } as const
+
 const webStackRouter: typeof StackRouter = (options) => {
     const router = StackRouter(options)
 
@@ -50,6 +62,11 @@ const webStackRouter: typeof StackRouter = (options) => {
 }
 
 type PressableState = { hovered?: boolean; pressed?: boolean }
+
+function tradesNavLabel(label: string, pendingCount: number) {
+    if (pendingCount <= 0) return label
+    return `${label}, ${pendingCount} pending offer${pendingCount === 1 ? '' : 's'}`
+}
 
 function isRouteActive(pathname: string, href: RouteHref) {
     if (href === '/') return pathname === '/' || pathname === '' || pathname === '/index' || pathname === '/(tabs)' || pathname === '/(tabs)/index'
@@ -84,6 +101,15 @@ function usePancakeWebTheme() {
     }, [])
 }
 
+function useDocumentTitle() {
+    const pathname = usePathname()
+    useEffect(() => {
+        if (typeof document === 'undefined') return
+        const section = SECTION_TITLES.find((item) => isRouteActive(pathname, item.href))
+        document.title = section ? `${section.label} · Pancake` : 'Pancake'
+    }, [pathname])
+}
+
 function BrandMark({ compact = false }: { compact?: boolean }) {
     return (
         <View style={[styles.brandMark, compact && styles.brandMarkCompact]}>
@@ -94,8 +120,8 @@ function BrandMark({ compact = false }: { compact?: boolean }) {
 
 function NavIcon({ name, active = false, size = 19 }: { name: IconName; active?: boolean; size?: number }) {
     return (
-        <View style={styles.navIconFrame}>
-            <MaterialIcons name={name} size={size} color={active ? colors.textWhite : 'rgba(255, 246, 232, 0.82)'} />
+        <View style={styles.navIconFrame} aria-hidden>
+            <MaterialIcons name={name} size={size} color={active ? colors.textWhite : brand.onStrong} />
         </View>
     )
 }
@@ -106,7 +132,7 @@ function LeagueSwitcher({ tone = 'dark' }: { tone?: 'dark' | 'light' }) {
     const light = tone === 'light'
     const nameStyle = [styles.leagueName, light && styles.leagueNameLight]
     const metaStyle = [styles.leagueMeta, light && styles.leagueMetaLight]
-    const chevronColor = light ? colors.textMuted : 'rgba(255, 246, 232, 0.7)'
+    const chevronColor = light ? colors.textMuted : brand.onMuted
 
     if (!current) {
         return (
@@ -186,6 +212,8 @@ function SidebarNavButton({
     href,
     disabled = false,
     loading = false,
+    badge,
+    accessibilityLabel,
 }: {
     label: string
     icon: IconName
@@ -194,6 +222,8 @@ function SidebarNavButton({
     href?: ComponentProps<typeof Link>['href']
     disabled?: boolean
     loading?: boolean
+    badge?: number
+    accessibilityLabel?: string
 }) {
     const router = useRouter()
 
@@ -209,11 +239,17 @@ function SidebarNavButton({
                 (disabled || loading) && styles.sideNavItemDisabled,
             ]}
             accessibilityRole="button"
-            accessibilityLabel={label}
+            accessibilityLabel={accessibilityLabel ?? label}
             accessibilityState={{ selected: active, disabled: disabled || loading }}
+            {...(active ? ARIA_CURRENT_PAGE : null)}
         >
             <NavIcon name={icon} active={active} />
             <Text style={[styles.sideNavText, active && styles.sideNavTextActive]} numberOfLines={1}>{label}</Text>
+            {typeof badge === 'number' && badge > 0 ? (
+                <View style={[styles.navBadge, active && styles.navBadgeActive]} aria-hidden>
+                    <Text style={styles.navBadgeText}>{badge}</Text>
+                </View>
+            ) : null}
         </Pressable>
     )
 }
@@ -254,10 +290,11 @@ function WebSidebar() {
     const router = useRouter()
     const { current, isCommissioner } = useLeagueContext()
     const { openDraftRoom, draftLoading } = useDraftRoomLauncher()
+    const pendingTradeCount = usePendingTradeCount()
 
     return (
-        <View style={styles.sidebar}>
-            <ScrollView style={styles.sidebarScroll} contentContainerStyle={styles.sidebarScrollContent} showsVerticalScrollIndicator={false}>
+        <View style={styles.sidebar} role="navigation" aria-label="Primary">
+            <ScrollView style={styles.sidebarScroll} contentContainerStyle={styles.sidebarScrollContent}>
                 <View style={styles.brandRow}>
                     <BrandMark />
                     <View>
@@ -269,15 +306,20 @@ function WebSidebar() {
                 <LeagueSwitcher />
 
                 <View style={styles.navGroup}>
-                    {PRIMARY_NAV.map((item) => (
-                        <SidebarNavButton
-                            key={item.href}
-                            label={item.label}
-                            icon={item.icon}
-                            active={isRouteActive(pathname, item.href)}
-                            href={item.href as ComponentProps<typeof Link>['href']}
-                        />
-                    ))}
+                    {PRIMARY_NAV.map((item) => {
+                        const isTrades = item.href === '/trades'
+                        return (
+                            <SidebarNavButton
+                                key={item.href}
+                                label={item.label}
+                                icon={item.icon}
+                                active={isRouteActive(pathname, item.href)}
+                                href={item.href as ComponentProps<typeof Link>['href']}
+                                badge={isTrades ? pendingTradeCount : undefined}
+                                accessibilityLabel={isTrades ? tradesNavLabel(item.label, pendingTradeCount) : undefined}
+                            />
+                        )
+                    })}
                 </View>
 
                 <View style={styles.navGroup}>
@@ -307,6 +349,8 @@ function WebSidebar() {
                         hovered && styles.userChipHover,
                         pressed && styles.pressed,
                     ]}
+                    accessibilityRole="button"
+                    accessibilityLabel="Profile & settings"
                 >
                     <View style={styles.userAvatar}>
                         <Text style={styles.userAvatarText}>{current?.team_name?.slice(0, 1).toUpperCase() ?? 'P'}</Text>
@@ -315,7 +359,7 @@ function WebSidebar() {
                         <Text style={styles.userName} numberOfLines={1}>{current?.team_name ?? 'Profile'}</Text>
                         <Text style={styles.userMeta} numberOfLines={1}>Profile & settings</Text>
                     </View>
-                    <MaterialIcons name="settings" size={17} color="rgba(232, 210, 184, 0.62)" />
+                    <MaterialIcons name="settings" size={17} color={brand.onSubtle} />
                 </Pressable>
             </View>
         </View>
@@ -338,22 +382,34 @@ function MobileTopBar({ onMenuPress }: { onMenuPress: () => void }) {
 
 function MobileBottomNav() {
     const pathname = usePathname()
+    const router = useRouter()
+    const pendingTradeCount = usePendingTradeCount()
 
     return (
-        <View style={styles.mobileBottomNav}>
+        <View style={styles.mobileBottomNav} role="navigation" aria-label="Primary">
             {MOBILE_NAV.map((item) => {
                 const active = isRouteActive(pathname, item.href)
+                const badge = item.href === '/trades' ? pendingTradeCount : 0
                 return (
-                    <Link key={item.href} href={item.href as ComponentProps<typeof Link>['href']} asChild>
-                        <Pressable
-                            style={({ pressed }: PressableState) => [styles.bottomNavItem, pressed && styles.pressed]}
-                            accessibilityRole="button"
-                            accessibilityState={{ selected: active }}
-                        >
+                    <Pressable
+                        key={item.href}
+                        onPress={() => router.push(item.href)}
+                        style={({ pressed }: PressableState) => [styles.bottomNavItem, pressed && styles.pressed]}
+                        accessibilityRole="link"
+                        accessibilityLabel={item.href === '/trades' ? tradesNavLabel(item.label, pendingTradeCount) : item.label}
+                        accessibilityState={{ selected: active }}
+                        {...(active ? ARIA_CURRENT_PAGE : null)}
+                    >
+                        <View style={styles.bottomNavIconWrap} aria-hidden>
                             <MaterialIcons name={item.icon} size={22} color={active ? colors.primary : colors.textMuted} />
-                            <Text style={[styles.bottomNavText, active && styles.bottomNavTextActive]}>{item.label}</Text>
-                        </Pressable>
-                    </Link>
+                            {badge > 0 ? (
+                                <View style={[styles.navBadge, styles.bottomNavBadge]}>
+                                    <Text style={styles.navBadgeText}>{badge}</Text>
+                                </View>
+                            ) : null}
+                        </View>
+                        <Text style={[styles.bottomNavText, active && styles.bottomNavTextActive]}>{item.label}</Text>
+                    </Pressable>
                 )
             })}
         </View>
@@ -382,34 +438,41 @@ function MobileMenuSheet({ visible, onClose }: { visible: boolean; onClose: () =
         [draftLoading, isCommissioner, openDraftRoom, router],
     )
 
-    if (!visible) return null
-
     return (
-        <Pressable style={styles.sheetScrim} onPress={onClose}>
-            <View style={styles.sheet} onStartShouldSetResponder={() => true}>
-                <View style={styles.sheetHeader}>
-                    <Text style={styles.sheetTitle}>Menu</Text>
-                    <Pressable onPress={onClose} style={styles.sheetClose}>
-                        <MaterialIcons name="close" size={20} color={colors.textPrimary} />
-                    </Pressable>
+        <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+            <Pressable style={styles.sheetScrim} onPress={onClose} accessibilityLabel="Close menu">
+                <View style={styles.sheet} onStartShouldSetResponder={() => true}>
+                    <View style={styles.sheetHeader}>
+                        <Text style={styles.sheetTitle}>Menu</Text>
+                        <Pressable
+                            onPress={onClose}
+                            style={styles.sheetClose}
+                            accessibilityRole="button"
+                            accessibilityLabel="Close menu"
+                        >
+                            <MaterialIcons name="close" size={20} color={colors.textPrimary} />
+                        </Pressable>
+                    </View>
+                    {menuItems.map((item) => (
+                        <Pressable
+                            key={item.key}
+                            onPress={() => {
+                                item.onPress()
+                                onClose()
+                            }}
+                            style={styles.sheetItem}
+                            disabled={item.loading}
+                            accessibilityRole="button"
+                            accessibilityLabel={item.label}
+                        >
+                            <MaterialIcons name={item.icon} size={21} color={colors.textSecondary} />
+                            <Text style={styles.sheetItemText}>{item.label}</Text>
+                            <MaterialIcons name="chevron-right" size={20} color={colors.textPlaceholder} />
+                        </Pressable>
+                    ))}
                 </View>
-                {menuItems.map((item) => (
-                    <Pressable
-                        key={item.key}
-                        onPress={() => {
-                            item.onPress()
-                            onClose()
-                        }}
-                        style={styles.sheetItem}
-                        disabled={item.loading}
-                    >
-                        <MaterialIcons name={item.icon} size={21} color={colors.textSecondary} />
-                        <Text style={styles.sheetItemText}>{item.label}</Text>
-                        <MaterialIcons name="chevron-right" size={20} color={colors.textPlaceholder} />
-                    </Pressable>
-                ))}
-            </View>
-        </Pressable>
+            </Pressable>
+        </Modal>
     )
 }
 
@@ -424,6 +487,7 @@ export function WebAppShell({ children, chrome = true }: { children: ReactNode; 
     const { width } = useWindowDimensions()
     const compact = width < breakpoints.compact
     usePancakeWebTheme()
+    useDocumentTitle()
     const [menuOpen, setMenuOpen] = useState(false)
 
     // Keep the shell mounted for ALL web routes (stable element type) so toggling
@@ -434,7 +498,7 @@ export function WebAppShell({ children, chrome = true }: { children: ReactNode; 
     return (
         <View style={[styles.root, compact ? styles.rootCompact : styles.rootDesktop]}>
             {compact ? <MobileTopBar onMenuPress={() => setMenuOpen(true)} /> : <WebSidebar />}
-            <View style={[styles.content, compact && styles.contentCompact]}>{children}</View>
+            <View style={[styles.content, compact && styles.contentCompact]} role="main">{children}</View>
             {compact ? (
                 <>
                     <MobileBottomNav />

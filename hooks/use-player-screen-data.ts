@@ -130,7 +130,9 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null) {
         transactions: initialCache?.transactions ?? [],
     })
     const seasonCacheRef = useRef(new Map<string, SeasonCacheEntry>(seasonCacheEntries(initialCache)))
+    const playerRequestRef = useRef(0)
     const seasonRequestRef = useRef(0)
+    const transactionRequestRef = useRef(0)
 
     const persistScreenCache = useCallback(() => {
         writePersistentCache<PlayerScreenCache>(playerScreenCacheKey(playerId, leagueId), {
@@ -178,6 +180,7 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null) {
     }, [playerId, leagueId])
 
     useEffect(() => {
+        const requestId = ++playerRequestRef.current
         seasonRequestRef.current += 1
         const cached = readPlayerScreenCache(playerId, leagueId)
         applyScreenCache(cached)
@@ -197,6 +200,7 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null) {
                         .eq('game_date', todayET())
                         .maybeSingle(),
                 ])
+                if (playerRequestRef.current !== requestId) return
                 const didPlayToday = todayStats.data != null && todayStats.data.did_not_play === false
                 setPlayedToday(didPlayToday)
                 setPlayer(p)
@@ -219,9 +223,10 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null) {
                 persistScreenCache()
                 setPlayerError(null)
             } catch (e) {
+                if (playerRequestRef.current !== requestId) return
                 setPlayerError(errorMessage(e))
             } finally {
-                setLoading(false)
+                if (playerRequestRef.current === requestId) setLoading(false)
             }
         }
         load()
@@ -290,20 +295,28 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null) {
 
     // Load transaction history
     useEffect(() => {
-        if (!leagueId) return
+        const requestId = ++transactionRequestRef.current
+        if (!leagueId) {
+            setTransactions([])
+            setTransactionsError(null)
+            cacheStateRef.current = { ...cacheStateRef.current, transactions: [] }
+            return
+        }
         async function loadTransactions() {
             try {
                 const tx = await getPlayerTransactionHistory(playerId, leagueId!)
+                if (transactionRequestRef.current !== requestId) return
                 setTransactions(tx)
                 cacheStateRef.current = { ...cacheStateRef.current, transactions: tx }
                 persistScreenCache()
                 setTransactionsError(null)
             } catch (e) {
+                if (transactionRequestRef.current !== requestId) return
                 setTransactionsError(errorMessage(e))
             }
         }
         loadTransactions()
-    }, [playerId, leagueId])
+    }, [playerId, leagueId, persistScreenCache])
 
     useEffect(() => {
         let cancelled = false

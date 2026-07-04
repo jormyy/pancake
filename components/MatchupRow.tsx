@@ -4,15 +4,22 @@ import { LineupPlayer } from '@/lib/lineup'
 import { LiveStatLine } from '@/lib/games'
 import { computeLiveFantasyPoints } from '@/lib/scoring'
 import { POSITION_COLORS } from '@/constants/positions'
-import { colors, palette, fontWeight } from '@/constants/tokens'
+import { alpha, colors, palette, fontSize, fontWeight, INJURY_COLORS } from '@/constants/tokens'
 import { PosTag } from '@/components/PosTag'
-import { InjuryBadge } from '@/components/InjuryBadge'
+import { Badge } from '@/components/Badge'
 import { shortName } from '@/lib/format'
 import { LivePulse, MotionPressable, MotionView } from '@/components/Motion'
 
 type Sel = { kind: 'starter' | 'bench' | 'ir' | 'taxi'; index: number }
 
 const SLOT_W = 52
+
+function emptySlotLabel(slotType: string): string {
+    if (slotType === 'BE') return 'Empty bench slot'
+    if (slotType === 'IR') return 'Empty IR slot'
+    if (slotType === 'TX') return 'Empty taxi slot'
+    return 'No starter'
+}
 
 function StatLines({ stats, isLive, align, compact = false }: {
     stats: LiveStatLine
@@ -144,7 +151,7 @@ function MatchupRowImpl({
 }: MatchupRowProps) {
     const [expanded, setExpanded] = useState(false)
     const isSel = selected?.kind === selKind && selected.index === selIndex
-    const slotColor = slotType === 'IR' ? colors.danger : slotType === 'TX' ? palette.gray500 : (POSITION_COLORS[slotType] ?? colors.textPlaceholder)
+    const slotColor = slotType === 'IR' ? palette.red500 : slotType === 'TX' ? palette.latte : (POSITION_COLORS[slotType] ?? palette.cappuccino)
     const myHasGame = myPlayer?.nbaTeam ? playingTeams.has(myPlayer.nbaTeam) : false
     const oppHasGame = oppPlayer?.nbaTeam ? playingTeams.has(oppPlayer.nbaTeam) : false
     const myMatchup = myPlayer?.nbaTeam ? teamMatchups.get(myPlayer.nbaTeam) : undefined
@@ -163,8 +170,6 @@ function MatchupRowImpl({
     const oppFpts = oppStats && !oppStats.didNotPlay ? computeLiveFantasyPoints(oppStats, scoringSettings) : null
     const myPlayedToday = myStats != null && !myStats.didNotPlay
     const oppPlayedToday = oppStats != null && !oppStats.didNotPlay
-    const myShowInjury = myPlayer?.injuryStatus && !myPlayedToday
-    const oppShowInjury = oppPlayer?.injuryStatus && !oppPlayedToday
 
     return (
         <MotionView style={styles.matchupRowWrap} preset="fade" delay={motionDelay}>
@@ -182,7 +187,7 @@ function MatchupRowImpl({
                 onPress={myPlayer || oppPlayer ? () => setExpanded((value) => !value) : undefined}
                 disabled={!myPlayer}
                 accessibilityRole="button"
-                accessibilityLabel="Toggle matchup stat details"
+                accessibilityLabel={myPlayer ? `Stat details for ${myPlayer.displayName}` : 'Toggle matchup stat details'}
                 accessibilityState={{ expanded }}
                 pressedScale={0.985}
             >
@@ -193,7 +198,13 @@ function MatchupRowImpl({
                         )}
                         <View style={styles.playerBlockRight}>
                             <View style={[styles.metaRow, { justifyContent: 'flex-end' }]}>
-                                {myShowInjury && <InjuryBadge status={myPlayer.injuryStatus} />}
+                                {myPlayer.injuryStatus && !myPlayedToday ? (
+                                    <Badge
+                                        label={myPlayer.injuryStatus}
+                                        color={INJURY_COLORS[myPlayer.injuryStatus] ?? colors.textMuted}
+                                        variant="solid"
+                                    />
+                                ) : null}
                                 <Text style={[styles.sideName, dense && styles.sideNameDense, !myHasGame && styles.noGameName]} numberOfLines={1}>
                                     {shortName(myPlayer.displayName)}
                                 </Text>
@@ -218,7 +229,9 @@ function MatchupRowImpl({
                         </View>
                     </>
                 ) : isExtraOppRow ? null : (
-                    <Text style={[styles.sideName, { color: colors.border, textAlign: 'right' }]}>—</Text>
+                    <View style={styles.playerBlockRight}>
+                        <Text style={styles.emptySlotText}>{emptySlotLabel(slotType)}</Text>
+                    </View>
                 )}
             </MotionPressable>
 
@@ -228,14 +241,16 @@ function MatchupRowImpl({
                     styles.slotChipCenter,
                     compact && styles.slotChipCenterCompact,
                     dense && styles.slotChipCenterDense,
-                    { backgroundColor: slotColor + '22' },
+                    { backgroundColor: alpha(slotColor, 0.13) },
                     isSel && styles.slotChipSelected,
                     saving && { opacity: 0.4 },
                 ]}
                 onPress={isExtraOppRow ? undefined : () => onTap({ kind: selKind, index: selIndex })}
                 disabled={saving || isExtraOppRow}
                 accessibilityRole="button"
-                accessibilityLabel={`Select ${slotType}`}
+                accessibilityLabel={myPlayer
+                    ? `Select ${slotType} slot, ${myPlayer.displayName}`
+                    : `Select empty ${slotType} slot ${selIndex + 1}`}
                 accessibilityState={{ disabled: saving || isExtraOppRow, selected: isSel }}
                 hitSlop={7}
                 pressedScale={0.88}
@@ -251,7 +266,7 @@ function MatchupRowImpl({
                 onPress={myPlayer || oppPlayer ? () => setExpanded((value) => !value) : undefined}
                 disabled={!oppPlayer}
                 accessibilityRole="button"
-                accessibilityLabel="Toggle matchup stat details"
+                accessibilityLabel={oppPlayer ? `Stat details for ${oppPlayer.displayName}` : 'Toggle matchup stat details'}
                 accessibilityState={{ expanded }}
                 pressedScale={0.985}
             >
@@ -262,7 +277,13 @@ function MatchupRowImpl({
                                 <Text style={[styles.sideName, dense && styles.sideNameDense, !oppHasGame && styles.noGameName]} numberOfLines={1}>
                                     {shortName(oppPlayer.displayName)}
                                 </Text>
-                                {oppShowInjury && <InjuryBadge status={oppPlayer.injuryStatus} />}
+                                {oppPlayer.injuryStatus && !oppPlayedToday ? (
+                                    <Badge
+                                        label={oppPlayer.injuryStatus}
+                                        color={INJURY_COLORS[oppPlayer.injuryStatus] ?? colors.textMuted}
+                                        variant="solid"
+                                    />
+                                ) : null}
                             </View>
                             {!dense && <View style={styles.metaRow}>
                                 {!compact && oppPlayer.eligiblePositions.map((pos) => <PosTag key={pos} position={pos} />)}
@@ -287,7 +308,9 @@ function MatchupRowImpl({
                         )}
                     </>
                 ) : (
-                    <Text style={[styles.sideName, { color: colors.border }]}>—</Text>
+                    <View style={styles.playerBlockLeft}>
+                        <Text style={styles.emptySlotText}>{emptySlotLabel(slotType)}</Text>
+                    </View>
                 )}
             </MotionPressable>
             </View>
@@ -328,18 +351,19 @@ const styles = StyleSheet.create({
     rowSideRight: { flex: 1, flexDirection: 'row', alignItems: 'center' },
     playerBlockRight: { flex: 1, alignItems: 'flex-end' },
     playerBlockLeft: { flex: 1, alignItems: 'flex-start' },
-    fptsNum: { fontSize: 20, fontWeight: '800', color: colors.textMuted, minWidth: 36, textAlign: 'left', marginRight: 6 },
-    fptsNumDense: { fontSize: 16, minWidth: 28 },
+    fptsNum: { fontSize: fontSize.xl, fontWeight: fontWeight.extrabold, color: colors.textMuted, minWidth: 36, textAlign: 'left', marginRight: 6 },
+    fptsNumDense: { fontSize: fontSize.lg, minWidth: 28 },
     fptsRight: { textAlign: 'right', marginRight: 0, marginLeft: 6 },
     fptsLive: { color: colors.primaryDark },
-    sideName: { fontSize: 13, fontWeight: '600', color: colors.textPrimary, flexShrink: 1 },
-    sideNameDense: { fontSize: 12 },
-    noGameName: { color: palette.gray500 },
+    sideName: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textPrimary, flexShrink: 1 },
+    emptySlotText: { fontSize: fontSize['2sm'], fontWeight: fontWeight.medium, color: colors.textPlaceholder },
+    sideNameDense: { fontSize: fontSize['2sm'] },
+    noGameName: { color: colors.textDisabled },
     metaRow: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 2 },
-    sideMeta: { fontSize: 11, color: colors.textPlaceholder },
-    lockedBadge: { fontSize: 10, fontWeight: fontWeight.bold, color: palette.green600, letterSpacing: 0.4, marginHorizontal: 3 },
+    sideMeta: { fontSize: fontSize.xs, color: colors.textPlaceholder },
+    lockedBadge: { fontSize: fontSize['2xs'], fontWeight: fontWeight.bold, color: palette.green600, letterSpacing: 0.4, marginHorizontal: 3 },
     liveBadgeRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
-    statLine: { fontSize: 11, color: colors.textMuted, textAlign: 'right', marginTop: 1 },
+    statLine: { fontSize: fontSize.xs, color: colors.textMuted, textAlign: 'right', marginTop: 1 },
     statLineLive: { color: colors.primaryDark, fontWeight: fontWeight.semibold },
     slotChipCenter: {
         width: SLOT_W,
@@ -360,7 +384,7 @@ const styles = StyleSheet.create({
         height: 24,
     },
     slotChipSelected: { borderWidth: 1.5, borderColor: colors.primary },
-    slotChipText: { fontSize: 11, fontWeight: '800', letterSpacing: 0.3 },
+    slotChipText: { fontSize: fontSize.xs, fontWeight: fontWeight.extrabold, letterSpacing: 0.3 },
     expandedPanel: {
         flexDirection: 'row',
         gap: 10,
@@ -379,7 +403,7 @@ const styles = StyleSheet.create({
         backgroundColor: colors.borderLight,
     },
     expandedLabel: {
-        fontSize: 10,
+        fontSize: fontSize['2xs'],
         fontWeight: fontWeight.extrabold,
         color: colors.textPlaceholder,
         letterSpacing: 0.8,
@@ -392,7 +416,7 @@ const styles = StyleSheet.create({
     },
     expandedName: {
         flex: 1,
-        fontSize: 12,
+        fontSize: fontSize['2sm'],
         fontWeight: fontWeight.bold,
         color: colors.textPrimary,
     },
@@ -411,7 +435,7 @@ const styles = StyleSheet.create({
         borderColor: colors.borderLight,
     },
     expandedStatValue: {
-        fontSize: 12,
+        fontSize: fontSize['2sm'],
         fontWeight: fontWeight.extrabold,
         color: colors.textPrimary,
     },
@@ -421,11 +445,11 @@ const styles = StyleSheet.create({
         color: colors.textMuted,
     },
     expandedEmpty: {
-        fontSize: 12,
+        fontSize: fontSize['2sm'],
         color: colors.textPlaceholder,
     },
     expandedNote: {
-        fontSize: 11,
+        fontSize: fontSize.xs,
         fontWeight: fontWeight.semibold,
         color: colors.textMuted,
     },

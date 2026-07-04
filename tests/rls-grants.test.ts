@@ -244,6 +244,7 @@ describe('waiver intent oracle closure', () => {
 
         expect(addBody).toContain('IF v_waiver_log_id IS NOT NULL THEN')
         expect(addBody).toContain('This player is on waivers - submit a waiver claim instead.')
+        expect(addBody).toContain('AND clears_at > now()')
         expect(addBody).not.toContain('FROM waiver_claims')
         expect(addBody).not.toContain("wc.status = 'pending'")
         expect(addBody).not.toContain('SET cleared_at = now()')

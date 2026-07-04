@@ -24,6 +24,7 @@ export default function Root({ children }: PropsWithChildren) {
                     name="viewport"
                     content="width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover"
                 />
+                <title>Pancake</title>
                 <meta
                     name="description"
                     content="Dynasty fantasy basketball — drafts, lineups, trades, waivers, and live scoring."
