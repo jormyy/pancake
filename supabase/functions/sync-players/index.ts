@@ -1,4 +1,5 @@
 import { supabase } from '../_shared/supabase.ts'
+import { fetchWithRetry } from '../_shared/retry.ts'
 import { recordSyncRun } from '../_shared/syncRuns.ts'
 import { serveInternal } from '../_shared/serve.ts'
 import { AMBIGUOUS, normalizeName, setUnique } from '../_shared/nameMatch.ts'
@@ -32,7 +33,7 @@ serveInternal('sync-players', async () => {
 
 async function syncPlayers(): Promise<{ updated: number; inserted: number; failures: string[] }> {
   console.log('[sync-players] Fetching from Sleeper...')
-  const res = await fetch(SLEEPER_URL)
+  const res = await fetchWithRetry(SLEEPER_URL)
   if (!res.ok) throw new Error(`Sleeper API ${res.status}`)
   const raw = await res.json() as Record<string, any>
 
@@ -135,7 +136,7 @@ async function syncPlayers(): Promise<{ updated: number; inserted: number; failu
 async function syncNBAIds(): Promise<{ mapped: number; merged: number; failures: string[] }> {
   console.log('[sync-players] Syncing NBA person IDs from CDN index...')
 
-  const res = await fetch(NBA_PLAYER_INDEX_URL, {
+  const res = await fetchWithRetry(NBA_PLAYER_INDEX_URL, {
     headers: {
       'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
       'Referer': 'https://www.nba.com/',

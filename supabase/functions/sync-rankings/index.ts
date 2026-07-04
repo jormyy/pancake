@@ -1,4 +1,5 @@
 import { supabase } from '../_shared/supabase.ts'
+import { fetchWithRetry } from '../_shared/retry.ts'
 import { recordSyncRun } from '../_shared/syncRuns.ts'
 import { serveInternal } from '../_shared/serve.ts'
 import { buildDynastyRankingPayload, RANKINGS_SOURCE, type PlayerForRanking } from './match.ts'
@@ -100,7 +101,7 @@ async function scrapeDynastyRankings(): Promise<ScrapedRankings> {
 }
 
 async function fetchRankingsHtml(): Promise<string> {
-  const res = await fetch(RANKINGS_URL, {
+  const res = await fetchWithRetry(RANKINGS_URL, {
     headers: { 'User-Agent': 'Mozilla/5.0 (compatible; PancakeApp/1.0)' },
   })
   if (!res.ok) throw new Error(`Rankings fetch ${res.status}`)
@@ -112,7 +113,7 @@ async function fetchPointsRankingsHtml(): Promise<string> {
   const form = buildAspNetRankingForm(html)
   form.set('ctl00$ContentPlaceHolder1$DDTYPE', POINTS_RANKING_TYPE)
 
-  const res = await fetch(RANKINGS_URL, {
+  const res = await fetchWithRetry(RANKINGS_URL, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',

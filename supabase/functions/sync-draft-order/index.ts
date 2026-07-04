@@ -1,6 +1,7 @@
 import { supabase } from '../_shared/supabase.ts'
 import { serveInternal } from '../_shared/serve.ts'
 import { errorMessage } from '../_shared/responses.ts'
+import { fetchWithRetry } from '../_shared/retry.ts'
 import { AMBIGUOUS, normalizeName, setUnique } from '../_shared/nameMatch.ts'
 import { currentSeasonYear } from '../_shared/season.ts'
 
@@ -227,7 +228,7 @@ async function fetchWithTimeout(url: string, init: RequestInit): Promise<Respons
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), 20_000)
   try {
-    return await fetch(url, { ...init, signal: controller.signal })
+    return await fetchWithRetry(url, { ...init, signal: controller.signal })
   } finally {
     clearTimeout(timer)
   }

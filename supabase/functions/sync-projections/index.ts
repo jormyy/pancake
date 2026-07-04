@@ -1,5 +1,6 @@
 import { supabase } from '../_shared/supabase.ts'
 import { currentSeasonYear } from '../_shared/season.ts'
+import { fetchWithRetry } from '../_shared/retry.ts'
 import { serveInternal } from '../_shared/serve.ts'
 import type { Database, Json } from '../_shared/database.ts'
 import { parseFantasyProsProjectionHtml, type FantasyProsProjectionType } from './parser.ts'
@@ -116,7 +117,7 @@ async function syncFantasyProsSource({
 
   try {
     const fetchedAt = new Date().toISOString()
-    const response = await fetch(url, {
+    const response = await fetchWithRetry(url, {
       headers: {
         'Accept': 'text/html,application/xhtml+xml',
         'User-Agent': 'Mozilla/5.0 (compatible; PancakeProjectionSync/1.0; +https://pancake.app)',
