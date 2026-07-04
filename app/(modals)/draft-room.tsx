@@ -740,7 +740,7 @@ const styles = StyleSheet.create({
         borderColor: colors.danger,
     },
     countdownText: {
-        fontSize: 18,
+        fontSize: fontSize['2lg'],
         fontFamily: fontFamily.display,
         fontWeight: fontWeight.bold,
         color: colors.textSecondary,
@@ -765,7 +765,7 @@ const styles = StyleSheet.create({
         backgroundColor: colors.bgMuted,
     },
     activityLabel: {
-        fontSize: 10,
+        fontSize: fontSize['2xs'],
         fontWeight: fontWeight.extrabold,
         letterSpacing: 0.6,
         textTransform: 'uppercase' as const,
@@ -803,9 +803,9 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
-    bidStepText: { fontSize: 20, fontWeight: fontWeight.semibold, color: colors.textSecondary },
+    bidStepText: { fontSize: fontSize.xl, fontWeight: fontWeight.semibold, color: colors.textSecondary },
     bidAmountInput: {
-        fontSize: 18,
+        fontSize: fontSize['2lg'],
         fontWeight: fontWeight.extrabold,
         width: 84,
         height: 44,
@@ -829,7 +829,7 @@ const styles = StyleSheet.create({
     },
     bidButtonCompact: { minWidth: 96 },
     bidButtonDisabled: { opacity: 0.5 },
-    bidButtonText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: 15 },
+    bidButtonText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.md },
 
     yourTurnBanner: { fontSize: fontSize.lg, fontWeight: fontWeight.extrabold, color: colors.primaryDark, textAlign: 'center' },
     nominationModeHint: { fontSize: fontSize.sm, color: colors.textMuted, textAlign: 'center', marginTop: spacing.xs },
@@ -842,7 +842,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
-    nominateButtonText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: 15 },
+    nominateButtonText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.md },
 
     searchInput: {
         height: 44,
@@ -850,7 +850,7 @@ const styles = StyleSheet.create({
         borderRadius: radii.md,
         borderCurve: 'continuous' as const,
         paddingHorizontal: 14,
-        fontSize: 15,
+        fontSize: fontSize.lg,
         marginTop: spacing.xs,
     },
 
@@ -863,8 +863,8 @@ const styles = StyleSheet.create({
         borderTopColor: colors.separator,
         gap: spacing.md,
     },
-    playerResultName: { fontSize: 15, fontWeight: fontWeight.semibold },
-    playerResultMeta: { fontSize: 12, color: colors.textMuted, marginTop: 1 },
+    playerResultName: { fontSize: fontSize.md, fontWeight: fontWeight.semibold },
+    playerResultMeta: { fontSize: fontSize['2sm'], color: colors.textMuted, marginTop: 1 },
     nominateLabel: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.primaryDark },
     emptySearch: { fontSize: fontSize.sm, color: colors.textPlaceholder, textAlign: 'center', marginTop: spacing.md },
     cancelNomButton: { minHeight: 44, marginTop: spacing.sm, alignItems: 'center', justifyContent: 'center' },
@@ -883,7 +883,7 @@ const styles = StyleSheet.create({
 
     waitingRow: { alignItems: 'center', gap: spacing.xs, paddingVertical: spacing.md },
     waitingText: { fontSize: fontSize.md, color: colors.textMuted },
-    waitingTeam: { fontSize: 18, fontWeight: fontWeight.extrabold, color: colors.textPrimary },
+    waitingTeam: { fontSize: fontSize['2lg'], fontWeight: fontWeight.extrabold, color: colors.textPrimary },
 
     tabRow: { flexDirection: 'row', gap: spacing.md },
     tabChip: {
@@ -909,10 +909,10 @@ const styles = StyleSheet.create({
 
     historyRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10 },
     historyPlayer: { fontSize: fontSize.md, fontWeight: fontWeight.semibold },
-    historyMeta: { fontSize: 12, color: colors.textMuted, marginTop: 1 },
-    historyPrice: { fontSize: 15, fontWeight: fontWeight.extrabold, color: colors.textPrimary },
+    historyMeta: { fontSize: fontSize['2sm'], color: colors.textMuted, marginTop: 1 },
+    historyPrice: { fontSize: fontSize.md, fontWeight: fontWeight.extrabold, color: colors.textPrimary },
     historyNoBid: {
-        fontSize: 12,
+        fontSize: fontSize['2sm'],
         fontWeight: fontWeight.bold,
         color: colors.textPlaceholder,
         backgroundColor: colors.bgMuted,

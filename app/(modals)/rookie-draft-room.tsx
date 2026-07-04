@@ -123,7 +123,7 @@ export default function RookieDraftRoomScreen() {
                         <Text style={styles.overflowTitle}>Roster Full</Text>
                         <Text style={styles.overflowBody}>
                             You drafted{' '}
-                            <Text style={{ fontWeight: '700' }}>{rosterOverflow?.newPlayerName}</Text>
+                            <Text style={{ fontWeight: fontWeight.bold }}>{rosterOverflow?.newPlayerName}</Text>
                             {' '}but your active roster is over capacity. Resolve before continuing.
                         </Text>
 
@@ -174,7 +174,7 @@ export default function RookieDraftRoomScreen() {
                         <Text style={styles.overflowTitle}>Trim Your Roster</Text>
                         <Text style={styles.overflowBody}>
                             Your active roster is{' '}
-                            <Text style={{ fontWeight: '700' }}>{trimOverflow?.excess ?? 0} over</Text>
+                            <Text style={{ fontWeight: fontWeight.bold }}>{trimOverflow?.excess ?? 0} over</Text>
                             {' '}the limit. Drop {countLabel(trimOverflow?.excess ?? 0, 'player')} to continue.
                         </Text>
                         <Text style={styles.overflowDropLabel}>Select a player to drop:</Text>
@@ -574,7 +574,7 @@ const styles = StyleSheet.create({
         paddingVertical: 0,
         borderRadius: radii.md,
     },
-    searchInput: { flex: 1, height: 44, fontSize: 15, color: colors.textPrimary },
+    searchInput: { flex: 1, height: 44, fontSize: fontSize.lg, color: colors.textPrimary },
     searchSpinner: { marginLeft: spacing.md },
 
     emptyProspects: { paddingVertical: 40, alignItems: 'center' },
@@ -599,7 +599,7 @@ const styles = StyleSheet.create({
     },
     resultInfo: { flex: 1 },
     resultName: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textPrimary },
-    resultTeam: { fontSize: 12, color: colors.textMuted },
+    resultTeam: { fontSize: fontSize['2sm'], color: colors.textMuted },
     pickBtn: { fontSize: fontSize.md, fontWeight: fontWeight.bold, color: colors.primaryDark },
 
     draftNumChip: {
@@ -631,7 +631,7 @@ const styles = StyleSheet.create({
         borderRadius: radii.xs,
         borderCurve: 'continuous' as const,
     },
-    posChipXsText: { color: colors.textWhite, fontSize: 10, fontWeight: fontWeight.bold },
+    posChipXsText: { color: colors.textWhite, fontSize: fontSize['2xs'], fontWeight: fontWeight.bold },
 
     posChipSm: {
         width: 28,
@@ -641,7 +641,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
-    posChipSmText: { color: colors.textWhite, fontSize: 10, fontWeight: fontWeight.bold },
+    posChipSmText: { color: colors.textWhite, fontSize: fontSize['2xs'], fontWeight: fontWeight.bold },
 
     separator: { height: 1, backgroundColor: colors.separator },
 
