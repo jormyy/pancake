@@ -1,7 +1,6 @@
 import {
     View,
     Text,
-    Pressable,
     Platform,
     StyleSheet,
     useWindowDimensions,
@@ -9,7 +8,7 @@ import {
 import { useEffect, useState, type ComponentProps } from 'react'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
-import { colors, fontSize, fontWeight, radii, spacing, layout } from '@/constants/tokens'
+import { colors, fontFamily, fontSize, fontWeight, radii, shadows, spacing, layout } from '@/constants/tokens'
 import { EmptyState } from '@/components/EmptyState'
 import { ErrorBanner } from '@/components/ui'
 import { NoLeagueState } from '@/components/NoLeagueState'
@@ -404,12 +403,23 @@ export default function LeagueScreen() {
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgScreen },
-    contentWrap: { flex: 1, width: '100%', maxWidth: layout.contentMaxWidth, alignSelf: 'center' },
-    header: { padding: spacing['2xl'], borderBottomWidth: 1, borderBottomColor: colors.borderLight, gap: spacing.lg },
+    contentWrap: { flex: 1, width: '100%', maxWidth: layout.contentMaxWidth, alignSelf: 'center', paddingHorizontal: spacing.md },
+    header: {
+        margin: spacing.lg,
+        marginBottom: spacing.md,
+        padding: spacing['2xl'],
+        borderWidth: 1,
+        borderColor: colors.borderLight,
+        borderRadius: radii.xl,
+        borderCurve: 'continuous' as const,
+        backgroundColor: colors.bgCard,
+        gap: spacing.lg,
+        ...(Platform.OS === 'web' ? { boxShadow: shadows.md } : {}),
+    },
     headerCompact: { paddingVertical: spacing.sm, gap: spacing.sm },
     headerTop: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.lg },
     headerInfo: { flex: 1, minWidth: 0, gap: spacing.xxs },
-    currentLeagueName: { fontSize: fontSize.xl, fontWeight: fontWeight.extrabold, color: colors.textPrimary },
+    currentLeagueName: { fontSize: fontSize['2xl'], fontFamily: fontFamily.display, fontWeight: fontWeight.black, color: colors.textPrimary },
     teamName: { fontSize: fontSize.md, color: colors.textMuted },
     compactLeagueCrumb: {
         minHeight: 24,
@@ -445,6 +455,7 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: colors.borderLight,
         backgroundColor: colors.bgCard,
+        ...(Platform.OS === 'web' ? { boxShadow: shadows.sm } : {}),
     },
     phaseWrapCompact: { gap: spacing.xs, padding: spacing.sm },
     phaseCompactSummary: {
@@ -476,7 +487,7 @@ const styles = StyleSheet.create({
     statusPill: {
         paddingHorizontal: spacing.lg,
         paddingVertical: spacing.sm,
-        borderRadius: radii.full,
+        borderRadius: radii.md,
         backgroundColor: colors.primaryLight,
         borderWidth: 1,
         borderColor: colors.primaryBorder,

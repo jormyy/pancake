@@ -139,7 +139,7 @@ const styles = StyleSheet.create({
     cardLive: {
         borderColor: colors.primary,
         borderWidth: 1.5,
-        boxShadow: '0 0 10px rgba(201, 102, 15, 0.35)',
+        boxShadow: '0 0 14px rgba(166, 83, 23, 0.35)',
     },
     cardFinal: {
         opacity: 0.6,
@@ -197,7 +197,7 @@ const styles = StyleSheet.create({
         letterSpacing: 0.3,
     },
     statusLive: {
-        color: colors.primaryDark,
+        color: palette.maple200,
         fontWeight: fontWeight.extrabold,
         letterSpacing: 0.5,
     },

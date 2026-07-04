@@ -34,8 +34,8 @@ export default function Root({ children }: PropsWithChildren) {
                     status bar blends with the header instead of an orange strip;
                     the body background prevents a white flash before first paint. */}
                 <link rel="manifest" href="/manifest.webmanifest" />
-                <meta name="theme-color" content="#FDF8EE" />
-                <style dangerouslySetInnerHTML={{ __html: 'html,body,#root{background-color:#FDF8EE;}' }} />
+                <meta name="theme-color" content="#F7F1E8" />
+                <style dangerouslySetInnerHTML={{ __html: 'html,body,#root{background-color:#F7F1E8;}' }} />
                 <link rel="icon" href="/favicon.ico" />
                 <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
                 <meta name="mobile-web-app-capable" content="yes" />

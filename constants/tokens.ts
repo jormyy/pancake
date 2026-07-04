@@ -5,31 +5,29 @@ import { Platform } from 'react-native'
 // aliases (below) or domain maps — never raw hex strings.
 
 export const palette = {
-    // ── Maple / Brand ── (warm amber — like Grade A dark maple syrup)
-    maple50:  '#FEF6E4',
-    maple100: '#FDEAC0',
-    maple200: '#FAD490',
-    maple500: '#B25A0D',   // deep amber maple — the primary brand color (4.8:1 under white fills, AA for the 13-16px white-on-primary text app-wide; was #C9660F @ 3.9:1)
-    maple600: '#8F4A10', // maple TEXT variant (links/FP/active-nav/Share) — ~6.3:1 on cream (was #A05212 @ 5.35, judges read borderline)
-    maple900: '#6B3410',
+    // ── Maple / Brand ──
+    maple50:  '#FAEADC',
+    maple100: '#F2D3B6',
+    maple200: '#E2A36A',
+    maple500: '#A65317',
+    maple600: '#854314',
+    maple900: '#4F2812',
 
-    // ── Cream / Parchment ── (warm backgrounds — like unbleached breakfast paper)
-    cream50:  '#FFFDF8',   // near-white warm — cards, inputs
-    cream100: '#FDF8EE',   // warm screen background
-    cream150: '#FAF2E2',   // subtle section backgrounds
-    cream200: '#F4E8D2',   // muted areas
-    cream300: '#DBC8A6',   // light borders (more perceptible)
-    cream400: '#C9B188',   // borders (≈2.6:1 vs card — clearly visible)
+    // ── Parchment / Neutral ──
+    cream50:  '#FFFDF7',
+    cream100: '#F7F1E8',
+    cream150: '#F0E7D9',
+    cream200: '#E8DAC7',
+    cream300: '#D3C1AB',
+    cream400: '#BFA88F',
 
-    // ── Espresso / Brown ── (warm text — replaces cold gray text)
-    // Tuned so secondary/muted text clears WCAG AA (≥4.5:1) on the cream
-    // surfaces (bg-card #FFFDF8 is the lightest worst case).
-    espresso:   '#2C1A0E', // darkest — primary text
-    coffee:     '#4A2E1C', // very dark — rich headers
-    mocha:      '#6B4535', // secondary text (~7:1)
-    latte:      '#6E4C3A', // muted/caption/label text (~7.2:1 — strong margin even for tiny 10–11px captions/headers)
-    cappuccino: '#6F4E3D', // placeholder + small-caps section labels / table headers (~7.0:1 — strong margin for tiny bold caps)
-    oatmilk:    '#BE9C87', // disabled text
+    // ── Ink / Olive Neutrals ──
+    espresso:   '#1F2421',
+    coffee:     '#29332E',
+    mocha:      '#4D5A54',
+    latte:      '#627068',
+    cappuccino: '#6D6155',
+    oatmilk:    '#A99379',
 
     // ── Red ──
     red50:    '#FEF2F2',
@@ -42,34 +40,34 @@ export const palette = {
     redBright:'#d00',
 
     // ── Green ──
-    green50:  '#F0FDF4',
-    green100: '#D1FAE5',
-    green200: '#BBF7D0',
+    green50:  '#EDF7F1',
+    green100: '#CFEADB',
+    green200: '#B7DDC9',
     green300: '#DCFCE7',
-    green500: '#10B981',
-    green600: '#16A34A',
-    green700: '#15803D',
-    green800: '#166534',
-    green900: '#065F46',
+    green500: '#2F7A5B',
+    green600: '#276A4F',
+    green700: '#205A43',
+    green800: '#1D4939',
+    green900: '#15372B',
 
     // ── Blue ──
-    blue500: '#3B82F6',
+    blue500: '#386C8F',
 
     // ── Purple ──
-    purple100: '#EDE9FE',
-    purple300: '#C4B5FD',
-    purple500: '#8B5CF6',
-    purple600: '#7C3AED',  // waiver-badge text — keeps >=4.5:1 (WCAG AA) on purple100
+    purple100: '#EFE8F2',
+    purple300: '#CBB8D6',
+    purple500: '#7B558E',
+    purple600: '#654275',
 
     // ── Indigo ──
     indigo500: '#6366F1',
 
     // ── Amber / Yellow ──
     amber200: '#FDE68A',
-    amber300: '#FEF3C7',
-    amber400: '#F59E0B',
-    amber600: '#D97706',
-    amber700: '#B45309',
+    amber300: '#F7E0AD',
+    amber400: '#C7862B',
+    amber600: '#9E671F',
+    amber700: '#805017',
 
     // ── Position identity hues ──
     // Warm-leaning, saturation-matched deep hues for position chips/avatars.
@@ -219,7 +217,7 @@ export const fontSize = {
     '5xl': 36,
 } as const
 
-// Display face — Space Grotesk, loaded via useFonts in app/_layout.tsx without
+// Display face — Outfit, loaded via useFonts in app/_layout.tsx without
 // blocking first paint. On web the family name gets a system-stack fallback so
 // text renders in sans (not the browser serif default) while @font-face loads.
 const WEB_SANS_FALLBACK =
@@ -229,13 +227,17 @@ export const fontFamily = {
     /** Headlines + big numerals (700). */
     display:
         Platform.OS === 'web'
-            ? `SpaceGrotesk_700Bold, ${WEB_SANS_FALLBACK}`
-            : 'SpaceGrotesk_700Bold',
+            ? `Outfit_700Bold, ${WEB_SANS_FALLBACK}`
+            : 'Outfit_700Bold',
     /** Display face at medium weight — labels/eyebrows that want the same voice. */
     displayMedium:
         Platform.OS === 'web'
-            ? `SpaceGrotesk_500Medium, ${WEB_SANS_FALLBACK}`
-            : 'SpaceGrotesk_500Medium',
+            ? `Outfit_600SemiBold, ${WEB_SANS_FALLBACK}`
+            : 'Outfit_600SemiBold',
+    body:
+        Platform.OS === 'web'
+            ? `Outfit_500Medium, ${WEB_SANS_FALLBACK}`
+            : 'Outfit_500Medium',
 } as const
 
 export const fontWeight = {
@@ -263,20 +265,18 @@ export const avatarSize = {
 // and duplicated across WebTabShell + sign-in + sign-up; now they live here.
 
 export const brand = {
-    surface:       '#2A1A0E', // sidebar / hero base
-    surfaceDeep:   '#1A1008', // darkest hero background
-    surfaceDeeper: '#160D06', // hero gradient end
-    // cream text ramp on brand surfaces (primary → faint)
-    on:        '#FFF6E8',
-    onStrong:  '#E8D2B8',
-    onMuted:   '#C9A988',
-    onSubtle:  '#A9876B',
-    onFaint:   '#A07A58', // ~4.8:1 on the darkest hero (was #8C6A4C ≈ 3.8:1)
-    // interactive overlays + dividers on the dark brand surface
-    overlay:      'rgba(255, 255, 255, 0.06)',
-    overlayHover: 'rgba(255, 255, 255, 0.10)',
-    border:       'rgba(255, 255, 255, 0.10)',
-    borderSubtle: 'rgba(255, 255, 255, 0.08)',
+    surface:       '#18211D',
+    surfaceDeep:   '#101713',
+    surfaceDeeper: '#0B110E',
+    on:        '#FFF8EA',
+    onStrong:  '#DDE5D7',
+    onMuted:   '#BFC6B4',
+    onSubtle:  '#9FA690',
+    onFaint:   '#8E937F',
+    overlay:      'rgba(255, 248, 234, 0.07)',
+    overlayHover: 'rgba(255, 248, 234, 0.12)',
+    border:       'rgba(255, 248, 234, 0.12)',
+    borderSubtle: 'rgba(255, 248, 234, 0.08)',
     divider:      'rgba(0, 0, 0, 0.24)',
 } as const
 
@@ -291,24 +291,24 @@ export const scrim = 'rgba(28, 18, 10, 0.55)' as const
 
 const SHADOW_WEB = {
     none: 'none',
-    sm:  '0 1px 2px rgba(74, 37, 9, 0.06), 0 1px 3px rgba(74, 37, 9, 0.10)',
-    md:  '0 4px 12px rgba(74, 37, 9, 0.10)',
-    lg:  '0 16px 44px rgba(74, 37, 9, 0.16), 0 4px 12px rgba(74, 37, 9, 0.08)',
-    xl:  '0 18px 48px rgba(74, 37, 9, 0.20)',
-    topNav:    '0 -6px 24px rgba(74, 37, 9, 0.10)',
-    brandGlow: '0 4px 12px rgba(201, 102, 15, 0.40)',
-    brandGlowInset: '0 4px 12px rgba(201, 102, 15, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.3)',
+    sm:  '0 1px 2px rgba(34, 41, 36, 0.06), 0 1px 3px rgba(34, 41, 36, 0.08)',
+    md:  '0 8px 22px rgba(34, 41, 36, 0.10)',
+    lg:  '0 18px 48px rgba(34, 41, 36, 0.14), 0 4px 14px rgba(34, 41, 36, 0.08)',
+    xl:  '0 24px 70px rgba(34, 41, 36, 0.18)',
+    topNav:    '0 -8px 28px rgba(34, 41, 36, 0.12)',
+    brandGlow: '0 10px 24px rgba(166, 83, 23, 0.26)',
+    brandGlowInset: '0 10px 24px rgba(166, 83, 23, 0.30), inset 0 1px 0 rgba(255, 255, 255, 0.28)',
 } as const
 
 export type ElevationLevel = 'none' | 'sm' | 'md' | 'lg' | 'xl' | 'topNav' | 'brandGlow' | 'brandGlowInset'
 
 const SHADOW_NATIVE: Record<ElevationLevel, object> = {
     none: {},
-    sm:  { shadowColor: '#4A2509', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.10, shadowRadius: 3, elevation: 1 },
-    md:  { shadowColor: '#4A2509', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 12, elevation: 3 },
-    lg:  { shadowColor: '#4A2509', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.16, shadowRadius: 32, elevation: 8 },
-    xl:  { shadowColor: '#4A2509', shadowOffset: { width: 0, height: 16 }, shadowOpacity: 0.22, shadowRadius: 44, elevation: 12 },
-    topNav: { shadowColor: '#4A2509', shadowOffset: { width: 0, height: -6 }, shadowOpacity: 0.10, shadowRadius: 24, elevation: 8 },
+    sm:  { shadowColor: palette.coffee, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 3, elevation: 1 },
+    md:  { shadowColor: palette.coffee, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.10, shadowRadius: 16, elevation: 3 },
+    lg:  { shadowColor: palette.coffee, shadowOffset: { width: 0, height: 14 }, shadowOpacity: 0.14, shadowRadius: 34, elevation: 8 },
+    xl:  { shadowColor: palette.coffee, shadowOffset: { width: 0, height: 18 }, shadowOpacity: 0.18, shadowRadius: 46, elevation: 12 },
+    topNav: { shadowColor: palette.coffee, shadowOffset: { width: 0, height: -6 }, shadowOpacity: 0.10, shadowRadius: 24, elevation: 8 },
     brandGlow: { shadowColor: palette.maple500, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.40, shadowRadius: 12, elevation: 6 },
     brandGlowInset: { shadowColor: palette.maple500, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.45, shadowRadius: 12, elevation: 6 },
 }

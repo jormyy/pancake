@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useRef } from 'react'
 import { Platform, ScrollView, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native'
 import { Pressable } from 'react-native'
-import { colors, fontSize, fontWeight, motion, radii, spacing } from '@/constants/tokens'
+import { colors, fontFamily, fontSize, fontWeight, motion, radii, spacing } from '@/constants/tokens'
 import { nextRovingIndex } from '@/components/ui/rovingFocus'
 import { scheduleWebFocusRecovery } from '@/components/ui/webFocus'
 
@@ -180,6 +180,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         gap: spacing.sm,
         alignItems: 'center',
+        flexWrap: 'wrap',
     },
     segment: {
         flexDirection: 'row',
@@ -188,9 +189,9 @@ const styles = StyleSheet.create({
         gap: spacing.sm,
         minHeight: 44,
         paddingHorizontal: spacing.xl,
-        borderRadius: radii.full,
+        borderRadius: radii.md,
         borderWidth: 1,
-        borderColor: 'transparent',
+        borderColor: colors.borderLight,
         backgroundColor: colors.bgMuted,
         borderCurve: 'continuous',
     },
@@ -202,6 +203,7 @@ const styles = StyleSheet.create({
     label: {
         fontSize: fontSize.sm,
         fontWeight: fontWeight.bold,
+        fontFamily: fontFamily.displayMedium,
         color: colors.textSecondary,
     },
     labelActive: { color: colors.textWhite },

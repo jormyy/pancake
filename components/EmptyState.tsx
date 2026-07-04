@@ -1,8 +1,8 @@
 import { ComponentProps } from 'react'
-import { View, Text, StyleSheet } from 'react-native'
+import { Platform, View, Text, StyleSheet } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
-import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { colors, fontFamily, fontSize, fontWeight, radii, shadows, spacing } from '@/constants/tokens'
 import { Button } from '@/components/ui'
 
 type IconName = ComponentProps<typeof MaterialIcons>['name']
@@ -58,11 +58,12 @@ const styles = StyleSheet.create({
         maxWidth: 440,
         paddingVertical: spacing['4xl'],
         paddingHorizontal: spacing['3xl'],
-        borderRadius: radii.xl,
+        borderRadius: radii['2xl'],
         borderCurve: 'continuous',
         backgroundColor: colors.bgCard,
         borderWidth: 1,
         borderColor: colors.borderLight,
+        ...(Platform.OS === 'web' ? { boxShadow: shadows.md } : {}),
     },
     iconCircle: {
         width: 64,
@@ -75,8 +76,9 @@ const styles = StyleSheet.create({
     },
     title: {
         color: colors.textSecondary,
-        fontSize: fontSize.lg,
-        fontWeight: fontWeight.bold,
+        fontSize: fontSize.xl,
+        fontFamily: fontFamily.display,
+        fontWeight: fontWeight.black,
         textAlign: 'center',
     },
     description: {

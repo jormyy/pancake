@@ -32,7 +32,7 @@ export function Card({
     elevated = 'sm',
     bordered = true,
     padding = 'xl',
-    radius = '2xl',
+    radius = 'xl',
     onPress,
     style,
     accessibilityLabel,

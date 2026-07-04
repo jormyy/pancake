@@ -299,7 +299,7 @@ function WebSidebar() {
                     <BrandMark />
                     <View>
                         <Text style={styles.brandTitle}>Pancake</Text>
-                        <Text style={styles.brandSubtitle}>Dynasty Hoops</Text>
+                        <Text style={styles.brandSubtitle}>Manager Console</Text>
                     </View>
                 </View>
 
@@ -331,7 +331,7 @@ function WebSidebar() {
                     />
                 </View>
 
-                <Text style={styles.navSectionLabel}>Season</Text>
+                <Text style={styles.navSectionLabel}>Season tools</Text>
                 <View style={styles.navGroup}>
                     <SidebarNavButton label="Draft Room" icon="flash-on" onPress={openDraftRoom} loading={draftLoading} />
                     <SidebarNavButton label="Playoffs" icon="account-tree" onPress={() => router.push('/(modals)/bracket')} />

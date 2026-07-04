@@ -547,6 +547,7 @@ const styles = StyleSheet.create({
         backgroundColor: colors.bgCard,
     },
     aroundLeagueCardCompact: {
+        width: 184,
         padding: 10,
     },
     aroundLeagueTeamRow: {
@@ -583,8 +584,8 @@ const styles = StyleSheet.create({
         marginTop: 8,
         fontSize: fontSize['2xs'],
         fontWeight: fontWeight.extrabold,
-        color: colors.textPlaceholder,
-        letterSpacing: 0.8,
+        color: colors.textMuted,
+        letterSpacing: 0.5,
         textTransform: 'uppercase' as const,
     },
     autoSetBtn: {

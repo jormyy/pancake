@@ -1,8 +1,8 @@
-import { View, Text, StyleSheet } from 'react-native'
+import { Platform, View, Text, StyleSheet } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { useRouter } from 'expo-router'
-import { colors, elevation, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { colors, elevation, fontFamily, fontSize, fontWeight, radii, shadows, spacing } from '@/constants/tokens'
 import { Button } from '@/components/ui'
 
 const FEATURES: { icon: 'sports-basketball' | 'groups' | 'swap-horiz'; text: string }[] = [
@@ -46,16 +46,28 @@ export function NoLeagueState() {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: colors.bgScreen },
-    inner: {
+    container: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
+        backgroundColor: colors.bgScreen,
+        backgroundImage: 'radial-gradient(circle at 78% 8%, rgba(47, 122, 91, 0.12), transparent 34%), linear-gradient(145deg, #FFFDF7, #F7F1E8)',
+    },
+    inner: {
+        margin: spacing['3xl'],
+        padding: spacing['4xl'],
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: colors.borderLight,
+        borderRadius: radii['2xl'],
+        backgroundColor: colors.bgCard,
         paddingHorizontal: spacing['4xl'],
         gap: spacing.md,
-        maxWidth: 460,
+        maxWidth: 520,
         width: '100%',
         alignSelf: 'center',
+        ...(Platform.OS === 'web' ? { boxShadow: shadows.lg } : {}),
     },
     brandMark: {
         width: 56,
@@ -67,15 +79,15 @@ const styles = StyleSheet.create({
         marginBottom: spacing.sm,
         ...(elevation('brandGlow') as object),
     },
-    brandMarkText: { color: colors.textWhite, fontSize: 28, fontWeight: fontWeight.extrabold },
+    brandMarkText: { color: colors.textWhite, fontSize: 28, fontFamily: fontFamily.display, fontWeight: fontWeight.extrabold },
     eyebrow: {
         color: colors.primaryDark,
         fontSize: fontSize.xs,
         fontWeight: fontWeight.extrabold,
-        letterSpacing: 1.5,
+        letterSpacing: 1,
         textTransform: 'uppercase',
     },
-    title: { fontSize: fontSize['3xl'], fontWeight: fontWeight.extrabold, color: colors.textPrimary, textAlign: 'center' },
+    title: { fontSize: fontSize['4xl'], fontFamily: fontFamily.display, fontWeight: fontWeight.black, color: colors.textPrimary, textAlign: 'center' },
     sub: {
         fontSize: fontSize.md,
         color: colors.textMuted,
@@ -88,7 +100,15 @@ const styles = StyleSheet.create({
         gap: spacing.md,
         marginBottom: spacing.xl,
     },
-    featureRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg },
+    featureRow: {
+        minHeight: 48,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.lg,
+        paddingHorizontal: spacing.lg,
+        borderRadius: radii.lg,
+        backgroundColor: colors.bgSubtle,
+    },
     featureIcon: {
         width: 34,
         height: 34,
@@ -97,6 +117,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
-    featureText: { flex: 1, fontSize: fontSize.md, color: colors.textSecondary, fontWeight: fontWeight.medium },
+    featureText: { flex: 1, fontSize: fontSize.md, color: colors.textSecondary, fontWeight: fontWeight.semibold },
     actions: { width: '100%', gap: spacing.md },
 })

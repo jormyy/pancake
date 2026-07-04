@@ -1,7 +1,7 @@
 import { ComponentProps, forwardRef } from 'react'
 import { StyleSheet, Text, TextInput, View, type StyleProp, type ViewStyle } from 'react-native'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
-import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { colors, fontFamily, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 
 type IconName = ComponentProps<typeof MaterialIcons>['name']
 
@@ -56,26 +56,27 @@ const styles = StyleSheet.create({
     label: {
         fontSize: fontSize.xs,
         fontWeight: fontWeight.bold,
-        letterSpacing: 0.8,
+        letterSpacing: 0.6,
         textTransform: 'uppercase',
-        color: colors.textSecondary,
+        color: colors.textMuted,
     },
     field: {
         flexDirection: 'row',
         alignItems: 'center',
-        minHeight: 48,
+        minHeight: 50,
         borderWidth: 1,
-        borderColor: colors.border,
+        borderColor: colors.borderLight,
         borderRadius: radii.lg,
         borderCurve: 'continuous',
-        backgroundColor: colors.bgInput,
+        backgroundColor: colors.bgCard,
         paddingHorizontal: spacing.lg,
     },
     fieldError: { borderColor: colors.danger },
     leftIcon: { marginRight: spacing.md },
     input: {
         flex: 1,
-        fontSize: 16, // ≥16px avoids iOS Safari focus-zoom
+        fontSize: 16,
+        fontFamily: fontFamily.body,
         color: colors.textPrimary,
         paddingVertical: spacing.lg,
     },
