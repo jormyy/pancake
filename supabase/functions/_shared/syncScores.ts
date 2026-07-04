@@ -414,9 +414,8 @@ async function finalizeWeekIfComplete(
 
     if (!matchups.length) return
 
-    const matchupRows = matchups
     const memberIds = [
-        ...new Set(matchupRows.flatMap((m) => [m.home_member_id, m.away_member_id])),
+        ...new Set(matchups.flatMap((m) => [m.home_member_id, m.away_member_id])),
     ]
     const maxPossiblePointsByMember = await calcWeekMaxPossiblePointsByMember(
         memberIds,
@@ -432,12 +431,12 @@ async function finalizeWeekIfComplete(
         leagueId,
         leagueSeasonId,
         weekNumber,
-        matchupRows,
+        matchups,
         maxPossiblePointsByMember,
     )
     if (standingsRows == null) return
 
-    const matchupResults: MatchupResult[] = matchupRows.map((m) => {
+    const matchupResults: MatchupResult[] = matchups.map((m) => {
         const homePoints = Number(m.home_points ?? 0)
         const awayPoints = Number(m.away_points ?? 0)
         const homeMaxPossiblePoints = maxPossiblePointsByMember.get(m.home_member_id) ?? 0
@@ -531,9 +530,8 @@ async function updateWeekPoints(
 
     console.log(`[scores] Updating points for week ${weekNumber} (${weekData.week_start}–${weekData.week_end}), ${matchups.length} matchup(s)`)
 
-    const matchupRows = matchups
     const memberIds = [
-        ...new Set(matchupRows.flatMap((m) => [m.home_member_id, m.away_member_id])),
+        ...new Set(matchups.flatMap((m) => [m.home_member_id, m.away_member_id])),
     ]
     const pointsByMember = await calcWeekPointsByMember(
         memberIds,
@@ -545,7 +543,7 @@ async function updateWeekPoints(
         weekData.week_end,
     )
 
-    const updates = matchupRows.map((matchup) => ({
+    const updates = matchups.map((matchup) => ({
         id: matchup.id,
         league_id: matchup.league_id,
         league_season_id: matchup.league_season_id,
