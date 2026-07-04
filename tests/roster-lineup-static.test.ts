@@ -85,7 +85,7 @@ describe('logic hardening source guards - lineup and roster locks', () => {
 
     it('shows cumulative max possible in app standings', () => {
         const appScoring = read('lib/scoring.ts')
-        const leagueSections = read('components/league/LeagueSections.tsx')
+        const leagueSections = read('components/league/LeagueStandings.tsx')
         expect(appScoring).toContain('home_max_possible_points, away_max_possible_points')
         expect(appScoring).toContain('const hMax = Number(m.home_max_possible_points ?? 0)')
         expect(appScoring).toContain('const aMax = Number(m.away_max_possible_points ?? 0)')

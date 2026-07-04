@@ -18,7 +18,7 @@ import type {
 } from '@/lib/mockDraftRooms'
 import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 import { countLabel } from '@/lib/format'
-import { PicksBankList } from '@/components/league/LeagueSections'
+import { PicksBankList } from '@/components/league/LeaguePicksBank'
 import { useWebViewport } from '@/hooks/use-web-viewport'
 import type { LeagueStatus } from '@/types/database'
 
