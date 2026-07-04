@@ -53,6 +53,16 @@ export function timeAgo(iso: string): string {
     return `${Math.floor(hrs / 24)}d ago`
 }
 
+/** Fantasy points to one decimal, em-dash when absent: 12.3 → "12.3", null → "—" */
+export function formatPoints(value: number | null | undefined): string {
+    return value == null ? '—' : value.toFixed(1)
+}
+
+/** "3 picks", "1 pick" — count with pluralized noun */
+export function countLabel(count: number, noun: string): string {
+    return `${count} ${noun}${count === 1 ? '' : 's'}`
+}
+
 /** Predicate: roster player is on IR but no longer IR-eligible (should be moved off). */
 export function isIneligibleIR(rp: { is_on_ir: boolean; players?: { injury_status: string | null } | null }): boolean {
     return Boolean(rp.is_on_ir && !isIREligible(rp.players?.injury_status ?? null))
