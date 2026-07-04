@@ -18,6 +18,7 @@ import { getPositionColor } from "@/constants/positions"
 import { colors, palette, fontSize, fontWeight, radii, scrim, spacing } from '@/constants/tokens'
 import { MotionPressable } from '@/components/Motion'
 import { showSuccess } from '@/lib/alert'
+import { countLabel } from '@/lib/format'
 import { DraftAdminBar } from '@/components/league/draft-room/DraftAdminBar'
 import { DraftScreenHeader } from '@/components/league/draft-room/DraftScreenHeader'
 import { useDraftAdminControls } from '@/components/league/draft-room/useDraftAdminControls'
@@ -174,7 +175,7 @@ export default function RookieDraftRoomScreen() {
                         <Text style={styles.overflowBody}>
                             Your active roster is{' '}
                             <Text style={{ fontWeight: '700' }}>{trimOverflow?.excess ?? 0} over</Text>
-                            {' '}the limit. Drop {trimOverflow?.excess === 1 ? 'a player' : `${trimOverflow?.excess} players`} to continue.
+                            {' '}the limit. Drop {countLabel(trimOverflow?.excess ?? 0, 'player')} to continue.
                         </Text>
                         <Text style={styles.overflowDropLabel}>Select a player to drop:</Text>
                         <ScrollView style={styles.overflowDropList} showsVerticalScrollIndicator>
@@ -627,7 +628,7 @@ const styles = StyleSheet.create({
     posChipXs: {
         paddingHorizontal: 5,
         paddingVertical: 2,
-        borderRadius: radii.xs ?? 4,
+        borderRadius: radii.xs,
         borderCurve: 'continuous' as const,
     },
     posChipXsText: { color: colors.textWhite, fontSize: 10, fontWeight: fontWeight.bold },
@@ -676,10 +677,10 @@ const styles = StyleSheet.create({
     },
     overflowCard: {
         backgroundColor: colors.bgCard,
-        borderTopLeftRadius: radii['2xl'] ?? 24,
-        borderTopRightRadius: radii['2xl'] ?? 24,
+        borderTopLeftRadius: radii['2xl'],
+        borderTopRightRadius: radii['2xl'],
         padding: spacing['2xl'],
-        paddingBottom: spacing['5xl'] ?? 48,
+        paddingBottom: spacing['5xl'],
         gap: spacing.md,
     },
     overflowTitle: {

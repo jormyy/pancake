@@ -176,6 +176,116 @@ export default function DraftRoomScreen() {
         )
     }
 
+    function renderNominationSearch() {
+        return (
+            <>
+                <TextInput
+                    style={styles.searchInput}
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                    placeholder="Search player name..."
+                    autoFocus
+                    accessibilityLabel="Search player name"
+                />
+                <FlashList
+                    data={searchResults}
+                    keyExtractor={(p) => p.id}
+                    scrollEnabled={false}
+                    renderItem={({ item }) => (
+                        <MotionPressable
+                            style={styles.playerResult}
+                            onPress={() => handleNominate(item.id)}
+                            disabled={submittingNom}
+                            pressedScale={0.975}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Nominate ${item.display_name ?? 'player'}`}
+                        >
+                            <View style={styles.flex1}>
+                                <Text style={styles.playerResultName}>
+                                    {item.display_name}
+                                </Text>
+                                <Text style={styles.playerResultMeta}>
+                                    {playerMeta([
+                                        item.dynasty_rank != null ? `#${item.dynasty_rank}` : null,
+                                        item.nba_team,
+                                        item.position,
+                                        ageLabel(item.age),
+                                    ])}
+                                </Text>
+                            </View>
+                            <Text style={styles.nominateLabel}>
+                                Nominate
+                            </Text>
+                        </MotionPressable>
+                    )}
+                    ListEmptyComponent={
+                        searchError ? (
+                            <Text style={styles.emptySearch}>
+                                Search failed. Keep typing or try again.
+                            </Text>
+                        ) : searchQuery.length > 0 && !searchLoading ? (
+                            <Text style={styles.emptySearch}>
+                                No players found
+                            </Text>
+                        ) : null
+                    }
+                />
+                <MotionPressable
+                    style={styles.cancelNomButton}
+                    onPress={cancelNominating}
+                    pressedScale={0.94}
+                    accessibilityRole="button"
+                    accessibilityLabel="Cancel nomination search"
+                >
+                    <Text style={styles.cancelNomText}>Cancel</Text>
+                </MotionPressable>
+            </>
+        )
+    }
+
+    function renderIdleCardBody() {
+        if (isPaused) {
+            return (
+                <View style={styles.waitingRow}>
+                    <Text style={styles.waitingTeam}>Draft paused</Text>
+                    <Text style={styles.waitingText}>Commissioner will resume the clock.</Text>
+                </View>
+            )
+        }
+        if (!isMyTurn) {
+            return (
+                <View style={styles.waitingRow}>
+                    <Text style={styles.waitingText}>Waiting for</Text>
+                    <Text style={styles.waitingTeam}>{currentNominatorTeam}</Text>
+                    <Text style={styles.waitingText}>to nominate...</Text>
+                </View>
+            )
+        }
+        return (
+            <>
+                <Text style={styles.yourTurnBanner}>Your turn to nominate!</Text>
+                <Text style={styles.nominationModeHint}>
+                    Nomination order: {NOMINATION_ORDER_MODE_LABELS[draft.nominationOrderMode]}
+                </Text>
+                {nominating ? (
+                    renderNominationSearch()
+                ) : (
+                    <MotionPressable
+                        style={styles.nominateButton}
+                        onPress={() => setNominating(true)}
+                        pressedScale={0.965}
+                        accessibilityRole="button"
+                        accessibilityLabel="Search and nominate a player"
+                    >
+                        <Text style={styles.nominateButtonText}>
+                            Search & Nominate a Player
+                        </Text>
+                    </MotionPressable>
+                )}
+            </>
+        )
+    }
+
     return (
         <>
             <Stack.Screen options={{ title: 'Draft Room', headerShown: false }} />
@@ -357,103 +467,7 @@ export default function DraftRoomScreen() {
                         ) : (
                             /* No open nomination — show whose turn it is */
                             <View style={[styles.card, compactLandscape && styles.cardCompact]}>
-                                {isPaused ? (
-                                    <View style={styles.waitingRow}>
-                                        <Text style={styles.waitingTeam}>Draft paused</Text>
-                                        <Text style={styles.waitingText}>Commissioner will resume the clock.</Text>
-                                    </View>
-                                ) : isMyTurn ? (
-                                    <>
-                                        <Text style={styles.yourTurnBanner}>Your turn to nominate!</Text>
-                                        <Text style={styles.nominationModeHint}>
-                                            Nomination order: {NOMINATION_ORDER_MODE_LABELS[draft.nominationOrderMode]}
-                                        </Text>
-                                        {nominating ? (
-                                            <>
-                                                <TextInput
-                                                    style={styles.searchInput}
-                                                    value={searchQuery}
-                                                    onChangeText={setSearchQuery}
-                                                    placeholder="Search player name..."
-                                                    autoFocus
-                                                    accessibilityLabel="Search player name"
-                                                />
-                                                <FlashList
-                                                    data={searchResults}
-                                                    keyExtractor={(p) => p.id}
-                                                    scrollEnabled={false}
-                                                    renderItem={({ item }) => (
-                                                        <MotionPressable
-                                                            style={styles.playerResult}
-                                                            onPress={() =>
-                                                                handleNominate(item.id)
-                                                            }
-                                                            disabled={submittingNom}
-                                                            pressedScale={0.975}
-                                                            accessibilityRole="button"
-                                                            accessibilityLabel={`Nominate ${item.display_name ?? 'player'}`}
-                                                        >
-                                                            <View style={styles.flex1}>
-                                                                <Text style={styles.playerResultName}>
-                                                                    {item.display_name}
-                                                                </Text>
-                                                                <Text style={styles.playerResultMeta}>
-                                                                    {playerMeta([
-                                                                        item.dynasty_rank != null ? `#${item.dynasty_rank}` : null,
-                                                                        item.nba_team,
-                                                                        item.position,
-                                                                        ageLabel(item.age),
-                                                                    ])}
-                                                                </Text>
-                                                            </View>
-                                                            <Text style={styles.nominateLabel}>
-                                                                Nominate
-                                                            </Text>
-                                                        </MotionPressable>
-                                                    )}
-                                                    ListEmptyComponent={
-                                                        searchError ? (
-                                                            <Text style={styles.emptySearch}>
-                                                                Search failed. Keep typing or try again.
-                                                            </Text>
-                                                        ) : searchQuery.length > 0 && !searchLoading ? (
-                                                            <Text style={styles.emptySearch}>
-                                                                No players found
-                                                            </Text>
-                                                        ) : null
-                                                    }
-                                                />
-                                                <MotionPressable
-                                                    style={styles.cancelNomButton}
-                                                    onPress={cancelNominating}
-                                                    pressedScale={0.94}
-                                                    accessibilityRole="button"
-                                                    accessibilityLabel="Cancel nomination search"
-                                                >
-                                                    <Text style={styles.cancelNomText}>Cancel</Text>
-                                                </MotionPressable>
-                                            </>
-                                        ) : (
-                                            <MotionPressable
-                                                style={styles.nominateButton}
-                                                onPress={() => setNominating(true)}
-                                                pressedScale={0.965}
-                                                accessibilityRole="button"
-                                                accessibilityLabel="Search and nominate a player"
-                                            >
-                                                <Text style={styles.nominateButtonText}>
-                                                    Search & Nominate a Player
-                                                </Text>
-                                            </MotionPressable>
-                                        )}
-                                    </>
-                                ) : (
-                                    <View style={styles.waitingRow}>
-                                        <Text style={styles.waitingText}>Waiting for</Text>
-                                        <Text style={styles.waitingTeam}>{currentNominatorTeam}</Text>
-                                        <Text style={styles.waitingText}>to nominate...</Text>
-                                    </View>
-                                )}
+                                {renderIdleCardBody()}
                             </View>
                         )}
 
