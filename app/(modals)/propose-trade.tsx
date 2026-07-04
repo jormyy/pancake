@@ -233,6 +233,7 @@ export default function ProposeTradeScreen() {
     const [submitting, setSubmitting] = useState(false)
     const submittingRef = useRef(false)
     const prefillAppliedToRef = useRef<string | null>(null)
+    const rosterLoadSeqRef = useRef(0)
     const {
         mode,
         editTradeId,
@@ -272,7 +273,14 @@ export default function ProposeTradeScreen() {
 
     // Load rosters and picks when recipient changes
     const loadRosters = useCallback(async () => {
-        if (!selectedRecipientId || !leagueId || !myMemberId) return
+        const requestId = ++rosterLoadSeqRef.current
+        const recipientId = selectedRecipientId
+        if (!recipientId || !leagueId || !myMemberId) {
+            setTheirRoster([])
+            setTheirPicks([])
+            setRosterLoading(false)
+            return
+        }
         setRosterLoading(true)
         setRosterError(null)
         setRequestIds(new Set())
@@ -281,11 +289,12 @@ export default function ProposeTradeScreen() {
         setRequestPickIds(new Set())
         try {
             const [theirData, myData, theirPicksData, myPicksData] = await Promise.all([
-                getRoster(selectedRecipientId, leagueId),
+                getRoster(recipientId, leagueId),
                 getRoster(myMemberId, leagueId),
-                getPicksForMember(selectedRecipientId, leagueId),
+                getPicksForMember(recipientId, leagueId),
                 getPicksForMember(myMemberId, leagueId),
             ])
+            if (rosterLoadSeqRef.current !== requestId) return
             const theirActiveRoster = theirData.filter(isTradeableRosterPlayer)
             const myActiveRoster = myData.filter(isTradeableRosterPlayer)
             const theirActiveIds = new Set(theirActiveRoster.map((player) => player.players.id))
@@ -304,7 +313,7 @@ export default function ProposeTradeScreen() {
                 setRequestFaabInput(prefill.requestFaabInput)
                 prefillAppliedToRef.current = prefillTrade.id
             } else if (!prefillTrade) {
-                const routePrefill = prefillTradeComposerFromRoute(selectedRecipientId, {
+                const routePrefill = prefillTradeComposerFromRoute(recipientId, {
                     requestPlayerId: routeRequestPlayerId,
                     requestPickId: routeRequestPickId,
                 })
@@ -316,10 +325,11 @@ export default function ProposeTradeScreen() {
                 }
             }
         } catch (e) {
+            if (rosterLoadSeqRef.current !== requestId) return
             console.error(e)
             setRosterError(getErrorMessage(e) ?? 'Unknown error')
         } finally {
-            setRosterLoading(false)
+            if (rosterLoadSeqRef.current === requestId) setRosterLoading(false)
         }
     }, [selectedRecipientId, leagueId, myMemberId, prefillTrade, mode, routeRequestPlayerId, routeRequestPickId])
 

@@ -3,7 +3,7 @@ import { alpha, colors, palette, fontSize, fontWeight, scrim } from '@/constants
 import { LineupPlayer } from '@/lib/lineup'
 import { isIREligible } from '@/lib/roster'
 
-export type ActivationOverflowPending = { rosterPlayerId: string; source: 'ir' | 'taxi' } | null
+export type ActivationOverflowPending = { rosterPlayerId: string; source: 'ir' | 'taxi'; slotType?: string | null } | null
 
 export function ActivationOverflowModal({
     pending,

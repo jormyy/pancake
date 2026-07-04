@@ -8,6 +8,7 @@ import { useLeagueContext } from '@/contexts/league-context'
 import { useAuth } from '@/hooks/use-auth'
 import { useLineupActions } from '@/hooks/use-lineup-actions'
 import { useLiveStats } from '@/hooks/use-live-stats'
+import { getErrorMessage } from '@/lib/alert'
 import {
     clampDateToWeek,
     getLineupContext,
@@ -180,13 +181,22 @@ export default function LineupScreen() {
     const [starters, setStarters] = useState<LineupSlot[]>([])
     const [bench, setBench] = useState<LineupPlayer[]>([])
     const [seasonOptimizerEnabled, setSeasonOptimizerEnabled] = useState(false)
+    const [lineupLoading, setLineupLoading] = useState(true)
+    const [lineupRefreshing, setLineupRefreshing] = useState(false)
+    const [lineupError, setLineupError] = useState<string | null>(null)
+    const lineupLoadSeqRef = useRef(0)
 
     const { startedTeams, liveTeams, teamMatchups } = useLiveStats(selectedDate)
     // Wrap in a ref so memoized row components read the latest value without re-rendering on poll updates
     const liveTeamsRef = useRef(liveTeams)
     liveTeamsRef.current = liveTeams
 
-    const loadLineup = useCallback(async (lineupCtx: LineupContext, league: any, date: string) => {
+    const loadLineup = useCallback(async (
+        lineupCtx: LineupContext,
+        league: any,
+        date: string,
+        requestId = ++lineupLoadSeqRef.current,
+    ) => {
         const lineup = await getWeeklyLineup(
             current!.id,
             league.id,
@@ -194,26 +204,63 @@ export default function LineupScreen() {
             lineupCtx.weekNumber,
             date,
         )
+        if (lineupLoadSeqRef.current !== requestId) return false
         setStarters(lineup.starters)
         setBench(lineup.bench)
+        return true
     }, [current])
 
     const load = useCallback(async () => {
-        if (!current || !user || !currentLeague) return
+        const requestId = ++lineupLoadSeqRef.current
+        setLineupLoading(true)
+        setLineupError(null)
+        if (!current || !user || !currentLeague) {
+            setCtx(null)
+            setWeekDays([])
+            setStarters([])
+            setBench([])
+            setLineupLoading(false)
+            return
+        }
         try {
             const lineupCtx = await getLineupContext(currentLeague.id)
-            if (!lineupCtx) return
-            setCtx(lineupCtx)
+            if (lineupLoadSeqRef.current !== requestId) return
+            if (!lineupCtx) {
+                setCtx(null)
+                setWeekDays([])
+                setStarters([])
+                setBench([])
+                return
+            }
             const days = await getWeekDays(lineupCtx.weekNumber, lineupCtx.seasonYear)
+            if (lineupLoadSeqRef.current !== requestId) return
             const selected = clampDateToWeek(lineupCtx.today, days)
+            const optimizerEnabled = await getLineupOptimizerEnabled(current.id, currentLeague.id, lineupCtx.seasonId)
+            if (lineupLoadSeqRef.current !== requestId) return
+            const lineup = await getWeeklyLineup(
+                current.id,
+                currentLeague.id,
+                lineupCtx.seasonId,
+                lineupCtx.weekNumber,
+                selected,
+            )
+            if (lineupLoadSeqRef.current !== requestId) return
+            setCtx(lineupCtx)
             setSelectedDate(selected)
             setWeekDays(days)
-            setSeasonOptimizerEnabled(await getLineupOptimizerEnabled(current.id, currentLeague.id, lineupCtx.seasonId))
-            await loadLineup(lineupCtx, currentLeague, selected)
+            setSeasonOptimizerEnabled(optimizerEnabled)
+            setStarters(lineup.starters)
+            setBench(lineup.bench)
         } catch (e) {
             console.error(e)
+            if (lineupLoadSeqRef.current === requestId) {
+                setCtx(null)
+                setLineupError(getErrorMessage(e) ?? 'Could not load lineup.')
+            }
+        } finally {
+            if (lineupLoadSeqRef.current === requestId) setLineupLoading(false)
         }
-    }, [current, currentLeague, user, loadLineup])
+    }, [current, currentLeague, user])
 
     useEffect(() => { load() }, [load])
 
@@ -227,6 +274,7 @@ export default function LineupScreen() {
     const lineupForActions = ctx ? { starters, bench } : null
     const reloadLineupForActions = useCallback(async (date: string) => {
         if (!ctx || !currentLeague) return
+        setLineupError(null)
         await loadLineup(ctx, currentLeague, date)
     }, [ctx, currentLeague, loadLineup])
     const {
@@ -250,9 +298,21 @@ export default function LineupScreen() {
 
     async function handleDaySelect(date: string) {
         if (!ctx || !currentLeague) return
+        const requestId = ++lineupLoadSeqRef.current
         setSelectedDate(date)
         setSelected(null)
-        await loadLineup(ctx, currentLeague, date)
+        setLineupRefreshing(true)
+        setLineupError(null)
+        try {
+            await loadLineup(ctx, currentLeague, date, requestId)
+        } catch (e) {
+            console.error(e)
+            if (lineupLoadSeqRef.current === requestId) {
+                setLineupError(getErrorMessage(e) ?? 'Could not load lineup.')
+            }
+        } finally {
+            if (lineupLoadSeqRef.current === requestId) setLineupRefreshing(false)
+        }
     }
 
     async function handleEnableSeasonOptimizer() {
@@ -296,10 +356,27 @@ export default function LineupScreen() {
               : null
 
     if (!ctx) {
+        const emptyMessage = lineupLoading
+            ? 'Loading lineup...'
+            : lineupError
+              ? 'Could not load lineup.'
+              : 'No active lineup yet.'
         return (
             <SafeAreaView style={styles.container}>
                 <View style={styles.empty}>
-                    <Text style={styles.emptyText}>No active lineup yet.</Text>
+                    <Text style={styles.emptyText}>{emptyMessage}</Text>
+                    {lineupError ? <Text style={styles.emptySubtext}>{lineupError}</Text> : null}
+                    {lineupError ? (
+                        <MotionPressable
+                            style={styles.retryButton}
+                            onPress={load}
+                            accessibilityRole="button"
+                            accessibilityLabel="Retry lineup load"
+                            pressedScale={0.96}
+                        >
+                            <Text style={styles.retryButtonText}>Try again</Text>
+                        </MotionPressable>
+                    ) : null}
                 </View>
             </SafeAreaView>
         )
@@ -346,6 +423,27 @@ export default function LineupScreen() {
                 <DaySelector days={weekDays} selectedDate={selectedDate} onSelect={handleDaySelect} />
             )}
 
+            {lineupRefreshing ? (
+                <View style={styles.statusBanner}>
+                    <Text style={styles.statusBannerText}>Refreshing lineup...</Text>
+                </View>
+            ) : null}
+
+            {lineupError ? (
+                <View style={styles.errorBanner}>
+                    <Text style={styles.errorBannerText}>{lineupError}</Text>
+                    <MotionPressable
+                        style={styles.errorRetryButton}
+                        onPress={() => { void handleDaySelect(selectedDate) }}
+                        accessibilityRole="button"
+                        accessibilityLabel="Retry selected lineup day"
+                        pressedScale={0.96}
+                    >
+                        <Text style={styles.errorRetryButtonText}>Retry</Text>
+                    </MotionPressable>
+                </View>
+            ) : null}
+
             {/* Selection hint */}
             {selected && (
                 <MotionView style={styles.hint} preset="slide-left">
@@ -385,7 +483,7 @@ export default function LineupScreen() {
                             liveTeamsRef={liveTeamsRef}
                             teamMatchups={teamMatchups}
                             onPress={() => handleTap({ kind: 'starter', index: i })}
-                            disabled={saving}
+                            disabled={saving || lineupRefreshing}
                         />
                     ))}
                 </MotionView>
@@ -413,7 +511,7 @@ export default function LineupScreen() {
                                 liveTeamsRef={liveTeamsRef}
                                 teamMatchups={teamMatchups}
                                 onPress={() => handleTap({ kind: 'bench', index: i })}
-                                disabled={saving}
+                                disabled={saving || lineupRefreshing}
                             />
                         ))
                     )}
@@ -483,6 +581,36 @@ const styles = StyleSheet.create({
     },
     hintText: { fontSize: fontSize.sm, color: colors.primaryDark, fontWeight: fontWeight.medium },
 
+    statusBanner: {
+        backgroundColor: colors.primaryLight,
+        borderBottomWidth: 1,
+        borderBottomColor: colors.primaryBorder,
+        paddingHorizontal: spacing.xl,
+        paddingVertical: 10,
+    },
+    statusBannerText: { fontSize: fontSize.sm, color: colors.primaryDark, fontWeight: fontWeight.medium },
+    errorBanner: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.md,
+        backgroundColor: colors.dangerLight,
+        borderBottomWidth: 1,
+        borderBottomColor: colors.dangerLight,
+        paddingHorizontal: spacing.xl,
+        paddingVertical: 10,
+    },
+    errorBannerText: { flex: 1, fontSize: fontSize.sm, color: colors.danger, fontWeight: fontWeight.medium },
+    errorRetryButton: {
+        minHeight: 36,
+        paddingHorizontal: spacing.lg,
+        borderRadius: radii.md,
+        borderCurve: 'continuous' as const,
+        backgroundColor: colors.bgScreen,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    errorRetryButtonText: { fontSize: fontSize.sm, color: colors.danger, fontWeight: fontWeight.bold },
+
     scroller: { flex: 1, minHeight: 0 },
     scroll: { padding: spacing.xl, gap: spacing.md, width: '100%', maxWidth: 640, alignSelf: 'center' },
 
@@ -548,6 +676,25 @@ const styles = StyleSheet.create({
 
     empty: { flex: 1, justifyContent: 'center', alignItems: 'center' },
     emptyText: { fontSize: fontSize.md, color: colors.textPlaceholder },
+    emptySubtext: {
+        maxWidth: 320,
+        marginTop: spacing.sm,
+        fontSize: fontSize.sm,
+        lineHeight: 18,
+        color: colors.textMuted,
+        textAlign: 'center',
+    },
+    retryButton: {
+        minHeight: 44,
+        marginTop: spacing.lg,
+        paddingHorizontal: spacing.xl,
+        borderRadius: radii.md,
+        borderCurve: 'continuous' as const,
+        backgroundColor: colors.primary,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    retryButtonText: { fontSize: fontSize.sm, color: colors.textWhite, fontWeight: fontWeight.bold },
 
     savingOverlay: {
         position: 'absolute',

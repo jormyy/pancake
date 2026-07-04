@@ -2,6 +2,7 @@ import { supabase } from '@/lib/supabase'
 import { getActiveSeasonId } from '@/lib/shared/season'
 import { isDTD, isIREligible, isTaxiEligible as isEligibleForTaxi } from '@pancake/core'
 import { apiPost } from '@/lib/shared/api'
+import type { RosterSlotType } from '@/types/database'
 
 export { isIREligible, isDTD }
 
@@ -213,6 +214,18 @@ export async function dropPlayer(rosterPlayerId: string): Promise<void> {
 
 export type RosterOverflowFreeAction = 'drop' | 'ir' | 'taxi'
 export type RosterActivationSource = 'ir' | 'taxi'
+export type RosterActivationWithLineup = {
+    activateRosterPlayerId: string
+    activateSource: RosterActivationSource
+    freeRosterPlayerId?: string | null
+    freeAction?: RosterOverflowFreeAction | null
+    memberId: string
+    leagueId: string
+    seasonId: string
+    gameDate: string
+    weekNumber: number
+    slotType?: string | null
+}
 
 export async function activateRosterPlayerWithOverflow(
     activateRosterPlayerId: string,
@@ -225,6 +238,34 @@ export async function activateRosterPlayerWithOverflow(
         p_activate_source: activateSource,
         p_free_roster_player_id: freeRosterPlayerId,
         p_free_action: freeAction,
+    })
+
+    if (error) throw new Error(error.message)
+}
+
+export async function activateRosterPlayerWithLineup({
+    activateRosterPlayerId,
+    activateSource,
+    freeRosterPlayerId = null,
+    freeAction = null,
+    memberId,
+    leagueId,
+    seasonId,
+    gameDate,
+    weekNumber,
+    slotType = null,
+}: RosterActivationWithLineup): Promise<void> {
+    const { error } = await supabase.rpc('activate_roster_player_with_lineup_atomic', {
+        p_activate_roster_player_id: activateRosterPlayerId,
+        p_activate_source: activateSource,
+        p_free_roster_player_id: freeRosterPlayerId,
+        p_free_action: freeAction,
+        p_member_id: memberId,
+        p_league_id: leagueId,
+        p_league_season_id: seasonId,
+        p_game_date: gameDate,
+        p_week_number: weekNumber,
+        p_slot_type: slotType as RosterSlotType | null,
     })
 
     if (error) throw new Error(error.message)

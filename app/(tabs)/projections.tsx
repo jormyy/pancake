@@ -9,7 +9,7 @@ import {
 import { FlashList } from '@shopify/flash-list'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { DropPlayerPickerModal } from '@/components/DropPlayerPickerModal'
 import { EmptyState } from '@/components/EmptyState'
 import { IRResolutionModal } from '@/components/IRResolutionModal'
@@ -122,6 +122,7 @@ export default function ProjectionsScreen() {
     const [rows, setRows] = useState<LeagueProjectionRow[]>([])
     const [hydrated, setHydrated] = useState(false)
     const [error, setError] = useState<string | null>(null)
+    const projectionLoadSeqRef = useRef(0)
 
     const {
         data: ownedData,
@@ -143,6 +144,7 @@ export default function ProjectionsScreen() {
     )
 
     async function load(nextView = view) {
+        const requestId = ++projectionLoadSeqRef.current
         if (!leagueId) {
             setRows([])
             setHydrated(true)
@@ -152,6 +154,7 @@ export default function ProjectionsScreen() {
         const cacheKey = projectionCacheKey(leagueId, nextView)
         const cached = readPersistentCache<LeagueProjectionRow[]>(cacheKey)
         if (cached) {
+            if (projectionLoadSeqRef.current !== requestId) return
             setRows(cached)
             setHydrated(true)
         } else if (rows.length === 0) {
@@ -159,10 +162,12 @@ export default function ProjectionsScreen() {
         }
         try {
             const projections = await getLeagueProjections({ leagueId, view: nextView, limit: 1000 })
+            if (projectionLoadSeqRef.current !== requestId) return
             setRows(projections)
             setHydrated(true)
             writePersistentCache(cacheKey, projections)
         } catch (e) {
+            if (projectionLoadSeqRef.current !== requestId) return
             setError(e instanceof Error ? e.message : String(e))
             setHydrated(true)
         }
