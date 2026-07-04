@@ -63,6 +63,7 @@ export function useRookieDraftRoomController({
     const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
     const queryRef = useRef('')
     const loadSeqRef = useRef(0)
+    const prospectsSeqRef = useRef(0)
 
     const load = useCallback(async () => {
         if (!draftId) {
@@ -85,15 +86,24 @@ export function useRookieDraftRoomController({
     }, [draftId])
 
     const loadProspects = useCallback(async (q?: string) => {
-        if (!draftId) return
+        const requestId = ++prospectsSeqRef.current
+        const requestedDraftId = draftId
+        const requestedQuery = q
+        if (!requestedDraftId) {
+            setProspects([])
+            setProspectsLoading(false)
+            return
+        }
         setProspectsLoading(true)
         try {
-            const data = await getRookiePlayers(draftId, q)
+            const data = await getRookiePlayers(requestedDraftId, requestedQuery)
+            if (prospectsSeqRef.current !== requestId) return
             setProspects(data)
         } catch (e) {
+            if (prospectsSeqRef.current !== requestId) return
             console.error(e)
         } finally {
-            setProspectsLoading(false)
+            if (prospectsSeqRef.current === requestId) setProspectsLoading(false)
         }
     }, [draftId])
 

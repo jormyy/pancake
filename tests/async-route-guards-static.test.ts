@@ -63,4 +63,40 @@ describe('async route and league switch guards', () => {
         expect(source).toContain('if (loading || !player) return')
         expect(source).toContain("router.replace('/(tabs)/roster')")
     })
+
+    it('guards matchup lineup fetches by selected date and league', () => {
+        const source = read('hooks/use-matchup-data.ts')
+
+        expect(source).toContain('const lineupSeqRef = useRef(0)')
+        expect(source).toContain('const seq = ++lineupSeqRef.current')
+        expect(source).toContain('if (seq !== lineupSeqRef.current || currentLeagueId !== leagueId) return null')
+        expect(source).toContain('if (seq !== lineupSeqRef.current || currentLeagueId !== leagueId) return')
+        expect(source).toContain('if (seq !== lineupSeqRef.current || currentLeagueId !== leagueId || date !== selectedDate) return')
+        expect(source).toContain('if (seq === lineupSeqRef.current) setLineupLoading(false)')
+        expect(source).toContain('lineupSeqRef.current += 1')
+    })
+
+    it('guards auction and rookie draft search result commits', () => {
+        const auction = read('hooks/useAuctionDraftRoomController.ts')
+        const rookie = read('hooks/useRookieDraftRoomController.ts')
+
+        const auctionRequestIndex = auction.indexOf('const requestId = ++searchSeqRef.current')
+        const auctionFetchIndex = auction.indexOf('await searchPlayers')
+        const auctionGuardIndex = auction.indexOf('if (searchSeqRef.current !== requestId) return', auctionFetchIndex)
+        const auctionCommitIndex = auction.indexOf('setSearchResults(results)', auctionGuardIndex)
+        expect(auctionRequestIndex).toBeGreaterThan(-1)
+        expect(auctionGuardIndex).toBeGreaterThan(auctionFetchIndex)
+        expect(auctionGuardIndex).toBeLessThan(auctionCommitIndex)
+        expect(auction).toContain('if (searchSeqRef.current === requestId) setSearchLoading(false)')
+        expect(auction).toContain('searchSeqRef.current += 1')
+
+        const rookieRequestIndex = rookie.indexOf('const requestId = ++prospectsSeqRef.current')
+        const rookieFetchIndex = rookie.indexOf('await getRookiePlayers')
+        const rookieGuardIndex = rookie.indexOf('if (prospectsSeqRef.current !== requestId) return', rookieFetchIndex)
+        const rookieCommitIndex = rookie.indexOf('setProspects(data)', rookieGuardIndex)
+        expect(rookieRequestIndex).toBeGreaterThan(-1)
+        expect(rookieGuardIndex).toBeGreaterThan(rookieFetchIndex)
+        expect(rookieGuardIndex).toBeLessThan(rookieCommitIndex)
+        expect(rookie).toContain('if (prospectsSeqRef.current === requestId) setProspectsLoading(false)')
+    })
 })

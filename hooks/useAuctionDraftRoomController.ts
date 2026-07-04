@@ -53,6 +53,7 @@ export function useAuctionDraftRoomController({
     // Monotonic load token: realtime handlers + the 5s poll + post-action reloads
     // fire load() concurrently, so drop any result that a newer load supersedes.
     const loadSeqRef = useRef(0)
+    const searchSeqRef = useRef(0)
 
     const channelRef = useRef<RealtimeChannel | null>(null)
     const countdownNomination = state?.openNomination
@@ -130,20 +131,28 @@ export function useAuctionDraftRoomController({
     // Player search
     useEffect(() => {
         if (!nominating || !draftId) {
+            searchSeqRef.current += 1
             setSearchResults([])
+            setSearchLoading(false)
             return
         }
+        const requestId = ++searchSeqRef.current
+        const requestedQuery = searchQuery
+        const requestedDraftId = draftId
+        const requestedMode = nominationModeRef.current
         const timeout = setTimeout(async () => {
             setSearchLoading(true)
             setSearchError(null)
             try {
-                const results = await searchPlayers(searchQuery, draftId, nominationModeRef.current)
+                const results = await searchPlayers(requestedQuery, requestedDraftId, requestedMode)
+                if (searchSeqRef.current !== requestId) return
                 setSearchResults(results)
             } catch (e) {
+                if (searchSeqRef.current !== requestId) return
                 setSearchResults([])
                 setSearchError(getErrorMessage(e))
             } finally {
-                setSearchLoading(false)
+                if (searchSeqRef.current === requestId) setSearchLoading(false)
             }
         }, 300)
         return () => clearTimeout(timeout)
@@ -197,6 +206,7 @@ export function useAuctionDraftRoomController({
             setNominating(false)
             setSearchQuery('')
             setSearchResults([])
+            searchSeqRef.current += 1
             load()
         } catch (e) {
             showAlert('Nomination failed', getErrorMessage(e))
@@ -209,6 +219,7 @@ export function useAuctionDraftRoomController({
         setNominating(false)
         setSearchQuery('')
         setSearchResults([])
+        searchSeqRef.current += 1
     }
 
     // Memoize O(N) derivations from state so we don't recompute them every render
