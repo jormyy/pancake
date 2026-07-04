@@ -1,6 +1,7 @@
 /** Shared formatting utilities — consolidated from multiple screens */
 
 import { isIREligible } from '@pancake/core'
+import { API_URL } from '@/lib/shared/api'
 
 export function getInitials(name: string): string {
     const words = name.trim().split(/\s+/).filter((w) => /[a-zA-Z0-9]/.test(w))
@@ -17,10 +18,17 @@ export const shortDateFmt = new Intl.DateTimeFormat('en-US', {
     day: 'numeric',
 })
 
-/** NBA CDN headshot URL. Returns null when nbaId is absent. */
+/**
+ * Player headshot URL, routed through the app's Edge proxy
+ * (`/players/headshot/:nbaId`). The direct cdn.nba.com URL is blocked
+ * cross-origin in the browser (loads via curl, fails via <Image>), so every
+ * avatar fell back to initials; the proxy serves it same-origin. Returns null
+ * when nbaId is absent (Avatar then shows initials). Mirrors the path the
+ * Dynasty Hub already uses.
+ */
 export function playerHeadshotUrl(nbaId: string | null | undefined): string | null {
     if (!nbaId) return null
-    return `https://cdn.nba.com/headshots/nba/latest/260x190/${nbaId}.png`
+    return `${API_URL}/players/headshot/${nbaId}`
 }
 
 /** "Damian Lillard" → "D. Lillard" */
