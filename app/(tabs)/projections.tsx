@@ -89,10 +89,10 @@ const SORT_OPTIONS = [
     { key: 'to', label: 'Turnovers' },
     { key: 'gp', label: 'Games Played' },
 ] satisfies readonly { key: PlayerSearchSortMode; label: string }[]
-const TABLE_COLUMNS = ['FP', 'PTS', 'REB', 'AST', 'STL', 'BLK', '3PM', 'TO', 'GP']
+const TABLE_COLUMNS = ['FP', 'MIN', 'PTS', 'REB', 'AST', 'STL', 'BLK', '3PM', 'TO', 'GP']
 const STAT_LABELS: Record<string, string> = {
     FP: 'Fantasy points', PTS: 'Points', REB: 'Rebounds', AST: 'Assists', STL: 'Steals',
-    BLK: 'Blocks', '3PM': 'Three-pointers made', TO: 'Turnovers', GP: 'Games played',
+    BLK: 'Blocks', '3PM': 'Three-pointers made', TO: 'Turnovers', GP: 'Games played', MIN: 'Minutes',
 }
 
 const EMPTY_OWNED_MAP = new Map<string, OwnedEntry>()
@@ -136,6 +136,7 @@ export default function ProjectionsScreen() {
     const ownedDataForLeague = ownedData?.leagueId === leagueId ? ownedData : null
     const ownedMap = ownedDataForLeague?.ownedMap ?? EMPTY_OWNED_MAP
     const waiverIds = ownedDataForLeague?.waiverIds ?? EMPTY_WAIVER_IDS
+    const projectionSupportReady = !leagueId || ownedDataForLeague != null
     const quickAdd = useQuickAdd(
         current?.id,
         leagueId,
@@ -274,6 +275,7 @@ export default function ProjectionsScreen() {
         playingFilter,
         health,
         selectedTeams.join(','),
+        projectionSupportReady ? 'ready' : 'pending',
     ].join('|')
 
     if (!leagueId) {
@@ -431,9 +433,12 @@ export default function ProjectionsScreen() {
                                             key={column}
                                             style={styles.tableHeaderStatBtn}
                                             onPress={() => mode && handleColumnSort(mode)}
+                                            disabled={mode == null}
                                             accessibilityRole="button"
-                                            accessibilityState={{ selected: active }}
-                                            accessibilityLabel={`Sort by ${STAT_LABELS[column] ?? column}${active ? (sortDir === 'asc' ? ', ascending' : ', descending') : ''}`}
+                                            accessibilityState={{ selected: active, disabled: mode == null }}
+                                            accessibilityLabel={mode
+                                                ? `Sort by ${STAT_LABELS[column] ?? column}${active ? (sortDir === 'asc' ? ', ascending' : ', descending') : ''}`
+                                                : STAT_LABELS[column] ?? column}
                                         >
                                             <Text style={[styles.tableHeaderStat, active && styles.tableHeaderStatActive]} numberOfLines={1}>
                                                 {column}{active ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
@@ -448,7 +453,7 @@ export default function ProjectionsScreen() {
                 renderItem={({ item }: { item: PlayerRow }) => (
                     <PlayerSearchItem
                         item={item}
-                        currentMemberId={current?.id}
+                        currentMemberId={projectionSupportReady ? current?.id : undefined}
                         ownedMap={ownedMap}
                         waiverIds={waiverIds}
                         adding={quickAdd.adding}

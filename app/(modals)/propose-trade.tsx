@@ -34,7 +34,7 @@ import {
 } from '@/lib/trade-composer'
 import { showAlert, showSuccess, getErrorMessage } from '@/lib/alert'
 
-import { yearShort } from '@/lib/format'
+import { playerHeadshotUrl, yearShort } from '@/lib/format'
 import { Avatar } from '@/components/Avatar'
 import { EmptyState } from '@/components/EmptyState'
 import { getPositionColor } from '@/constants/positions'
@@ -62,6 +62,7 @@ function PlayerRow({
         >
             <Avatar
                 name={p.display_name}
+                uri={playerHeadshotUrl(p.nba_id) ?? undefined}
                 color={selected ? colors.primary : getPositionColor(p.eligible_positions?.[0] ?? p.position, colors.primaryDark)}
                 size={40}
             />

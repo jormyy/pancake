@@ -136,9 +136,10 @@ export function projectionViewLabel(view: string | null | undefined): string {
 
 export function compactProjectionStatLine(row: Pick<
     LeagueProjectionRow,
-    'projection_points' | 'projection_rebounds' | 'projection_assists' | 'projection_steals' | 'projection_blocks' | 'projection_three_pointers_made' | 'projection_turnovers'
+    'projection_minutes' | 'projection_points' | 'projection_rebounds' | 'projection_assists' | 'projection_steals' | 'projection_blocks' | 'projection_three_pointers_made' | 'projection_turnovers'
 >): string {
     const parts = [
+        numberPart(row.projection_minutes, 'MIN'),
         numberPart(row.projection_points, 'PTS'),
         numberPart(row.projection_rebounds, 'REB'),
         numberPart(row.projection_assists, 'AST'),

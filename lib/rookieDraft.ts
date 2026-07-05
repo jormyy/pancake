@@ -19,6 +19,7 @@ export type SnakePick = {
         displayName: string
         nbaTeam: string | null
         position: string | null
+        nbaId: string | null
     } | null
 }
 
@@ -47,6 +48,7 @@ export type RookieProspect = {
     display_name: string
     nba_team: string | null
     position: string | null
+    nba_id: string | null
     nba_draft_number: number | null
 }
 
@@ -99,7 +101,7 @@ export async function getRookieDraftState(draftId: string): Promise<RookieDraftS
             .from('snake_draft_picks')
             .select(
                 `overall_pick, round, pick_in_round, member_id, picked_at, skipped_at, skip_reason, timer_expires_at,
-                 players ( id, display_name, nba_team, position ),
+                 players ( id, display_name, nba_team, position, nba_id ),
                  league_members ( team_name )`,
             )
             .eq('draft_id', draftId)
@@ -130,6 +132,7 @@ export async function getRookieDraftState(draftId: string): Promise<RookieDraftS
                   displayName: (p.players as { display_name: string }).display_name ?? 'Unknown',
                   nbaTeam: (p.players as { nba_team: string | null }).nba_team,
                   position: (p.players as { position: string | null }).position,
+                  nbaId: (p.players as { nba_id: string | null }).nba_id,
               }
             : null,
     }))
@@ -202,7 +205,7 @@ export async function searchDraftablePlayers(query: string, draftId: string) {
 
     const { data } = await supabase
         .from('players')
-        .select('id, display_name, nba_team, position')
+        .select('id, display_name, nba_team, position, nba_id')
         .ilike('display_name', `%${query}%`)
         .eq('years_exp', 0)
         .order('last_name')
@@ -222,7 +225,7 @@ export async function getRookiePlayers(draftId: string, query?: string): Promise
 
     let q = supabase
         .from('players')
-        .select('id, display_name, nba_team, position, nba_draft_number')
+        .select('id, display_name, nba_team, position, nba_id, nba_draft_number')
         .not('nba_draft_number', 'is', null)
         .eq('years_exp', 0)
         .order('nba_draft_number', { ascending: true })
@@ -238,7 +241,7 @@ export async function getRookiePlayers(draftId: string, query?: string): Promise
         console.error('[getRookiePlayers] query error:', error.message)
         let fallback = supabase
             .from('players')
-            .select('id, display_name, nba_team, position')
+            .select('id, display_name, nba_team, position, nba_id, nba_draft_number')
             .not('nba_draft_number', 'is', null)
             .eq('years_exp', 0)
             .order('nba_draft_number', { ascending: true })

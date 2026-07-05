@@ -7,8 +7,9 @@ import { POSITION_COLORS } from '@/constants/positions'
 import { alpha, colors, palette, fontSize, fontWeight, INJURY_COLORS, spacing } from '@/constants/tokens'
 import { PosTag } from '@/components/PosTag'
 import { Badge } from '@/components/Badge'
-import { shortName } from '@/lib/format'
+import { playerHeadshotUrl, shortName } from '@/lib/format'
 import { LivePulse, MotionPressable, MotionView } from '@/components/Motion'
+import { Avatar } from '@/components/Avatar'
 
 type Sel = { kind: 'starter' | 'bench' | 'ir' | 'taxi'; index: number }
 
@@ -19,6 +20,18 @@ function emptySlotLabel(slotType: string): string {
     if (slotType === 'IR') return 'Empty IR slot'
     if (slotType === 'TX') return 'Empty taxi slot'
     return 'No starter'
+}
+
+function LineupAvatar({ player, dense = false }: { player: LineupPlayer; dense?: boolean }) {
+    return (
+        <Avatar
+            name={player.displayName}
+            uri={playerHeadshotUrl(player.nbaId) ?? undefined}
+            color={POSITION_COLORS[player.position ?? ''] ?? colors.bgMuted}
+            textColor={colors.textSecondary}
+            size={dense ? 20 : 24}
+        />
+    )
 }
 
 function StatLines({ stats, isLive, align, compact = false }: {
@@ -71,6 +84,7 @@ function ExpandedStats({ label, player, stats, fpts, isLive }: {
     const items = stats
         ? [
               ['FP', fpts ?? '—'],
+              ['MIN', stats.minutesPlayed ?? 0],
               ['PTS', stats.points ?? 0],
               ['REB', stats.rebounds ?? 0],
               ['AST', stats.assists ?? 0],
@@ -81,6 +95,7 @@ function ExpandedStats({ label, player, stats, fpts, isLive }: {
           ]
         : [
               ['FP', '—'],
+              ['MIN', '—'],
               ['PTS', '—'],
               ['REB', '—'],
               ['AST', '—'],
@@ -94,6 +109,7 @@ function ExpandedStats({ label, player, stats, fpts, isLive }: {
         <View style={styles.expandedSide}>
             <Text style={styles.expandedLabel}>{label}</Text>
             <View style={styles.expandedNameRow}>
+                <LineupAvatar player={player} dense />
                 <Text style={styles.expandedName} numberOfLines={1}>{player.displayName}</Text>
                 {isLive ? <LivePulse color={palette.green600} size={5} /> : null}
             </View>
@@ -208,6 +224,7 @@ function MatchupRowImpl({
                                 <Text style={[styles.sideName, dense && styles.sideNameDense, !myHasGame && styles.noGameName]} numberOfLines={1}>
                                     {shortName(myPlayer.displayName)}
                                 </Text>
+                                <LineupAvatar player={myPlayer} dense={dense} />
                             </View>
                             {!dense && <View style={[styles.metaRow, { justifyContent: 'flex-end' }]}>
                                 {myIsLive && (
@@ -274,6 +291,7 @@ function MatchupRowImpl({
                     <>
                         <View style={styles.playerBlockLeft}>
                             <View style={styles.metaRow}>
+                                <LineupAvatar player={oppPlayer} dense={dense} />
                                 <Text style={[styles.sideName, dense && styles.sideNameDense, !oppHasGame && styles.noGameName]} numberOfLines={1}>
                                     {shortName(oppPlayer.displayName)}
                                 </Text>

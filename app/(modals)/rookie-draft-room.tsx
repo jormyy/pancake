@@ -18,7 +18,8 @@ import { getPositionColor } from "@/constants/positions"
 import { colors, palette, fontSize, fontWeight, radii, scrim, spacing } from '@/constants/tokens'
 import { MotionPressable } from '@/components/Motion'
 import { showSuccess } from '@/lib/alert'
-import { countLabel } from '@/lib/format'
+import { countLabel, playerHeadshotUrl } from '@/lib/format'
+import { Avatar } from '@/components/Avatar'
 import { DraftAdminBar } from '@/components/league/draft-room/DraftAdminBar'
 import { DraftScreenHeader } from '@/components/league/draft-room/DraftScreenHeader'
 import { useDraftAdminControls } from '@/components/league/draft-room/useDraftAdminControls'
@@ -152,12 +153,21 @@ export default function RookieDraftRoomScreen() {
                                             disabled={resolvingOverflow}
                                             pressedScale={0.975}
                                         >
-                                            <Text style={styles.overflowDropName}>
-                                                {rp.players?.display_name ?? 'Player'}
-                                            </Text>
-                                            <Text style={styles.overflowDropPos}>
-                                                {rp.players?.position ?? ''} · {rp.players?.nba_team ?? ''}
-                                            </Text>
+                                            <Avatar
+                                                name={rp.players?.display_name ?? 'Player'}
+                                                uri={playerHeadshotUrl(rp.players?.nba_id) ?? undefined}
+                                                color={getPositionColor(rp.players?.position, colors.bgMuted)}
+                                                textColor={colors.textSecondary}
+                                                size={34}
+                                            />
+                                            <View style={styles.overflowDropInfo}>
+                                                <Text style={styles.overflowDropName} numberOfLines={1}>
+                                                    {rp.players?.display_name ?? 'Player'}
+                                                </Text>
+                                                <Text style={styles.overflowDropPos}>
+                                                    {rp.players?.position ?? ''} · {rp.players?.nba_team ?? ''}
+                                                </Text>
+                                            </View>
                                         </MotionPressable>
                                     ))}
                                 </ScrollView>
@@ -187,12 +197,21 @@ export default function RookieDraftRoomScreen() {
                                     disabled={!!trimmingId}
                                     pressedScale={0.975}
                                 >
-                                    <Text style={styles.overflowDropName}>
-                                        {rp.players?.display_name ?? 'Player'}
-                                    </Text>
-                                    <Text style={styles.overflowDropPos}>
-                                        {rp.players?.position ?? ''} · {rp.players?.nba_team ?? ''}
-                                    </Text>
+                                    <Avatar
+                                        name={rp.players?.display_name ?? 'Player'}
+                                        uri={playerHeadshotUrl(rp.players?.nba_id) ?? undefined}
+                                        color={getPositionColor(rp.players?.position, colors.bgMuted)}
+                                        textColor={colors.textSecondary}
+                                        size={34}
+                                    />
+                                    <View style={styles.overflowDropInfo}>
+                                        <Text style={styles.overflowDropName} numberOfLines={1}>
+                                            {rp.players?.display_name ?? 'Player'}
+                                        </Text>
+                                        <Text style={styles.overflowDropPos}>
+                                            {rp.players?.position ?? ''} · {rp.players?.nba_team ?? ''}
+                                        </Text>
+                                    </View>
                                 </MotionPressable>
                             ))}
                         </ScrollView>
@@ -398,25 +417,25 @@ function ProspectRow({
             accessibilityRole="button"
             accessibilityLabel={`${actionLabel} ${player.display_name}`}
         >
-            {player.nba_draft_number != null ? (
-                <View style={styles.draftNumChip}>
-                    <Text style={styles.draftNumText}>{player.nba_draft_number}</Text>
-                </View>
-            ) : (
-                <View style={[styles.posChip, { backgroundColor: getPositionColor(player.position) }]}>
-                    <Text style={styles.posChipText}>{player.position ?? '?'}</Text>
-                </View>
-            )}
+            <Avatar
+                name={player.display_name}
+                uri={playerHeadshotUrl(player.nba_id) ?? undefined}
+                color={getPositionColor(player.position, colors.bgMuted)}
+                textColor={colors.textSecondary}
+                size={38}
+            />
             <View style={styles.resultInfo}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <Text style={styles.resultName}>{player.display_name}</Text>
+                    <Text style={styles.resultName} numberOfLines={1}>{player.display_name}</Text>
                     {player.nba_draft_number != null && (
                         <View style={[styles.posChipXs, { backgroundColor: getPositionColor(player.position) }]}>
                             <Text style={styles.posChipXsText}>{player.position ?? '?'}</Text>
                         </View>
                     )}
                 </View>
-                <Text style={styles.resultTeam}>{player.nba_team ?? 'FA'}</Text>
+                <Text style={styles.resultTeam}>
+                    {player.nba_draft_number != null ? `#${player.nba_draft_number} · ` : ''}{player.nba_team ?? 'FA'}
+                </Text>
             </View>
             {!isDone && (
                 <Text style={styles.pickBtn}>{actionLabel}</Text>
@@ -457,14 +476,13 @@ function PickRow({
             </Text>
             {item.player ? (
                 <View style={styles.pickPlayerCell}>
-                    <View
-                        style={[
-                            styles.posChipSm,
-                            { backgroundColor: getPositionColor(item.player.position) },
-                        ]}
-                    >
-                        <Text style={styles.posChipSmText}>{item.player.position ?? '?'}</Text>
-                    </View>
+                    <Avatar
+                        name={item.player.displayName}
+                        uri={playerHeadshotUrl(item.player.nbaId) ?? undefined}
+                        color={getPositionColor(item.player.position, colors.bgMuted)}
+                        textColor={colors.textSecondary}
+                        size={28}
+                    />
                     <View>
                         <Text style={[styles.pickedName, isMe && styles.meText]} numberOfLines={1}>
                             {item.player.displayName}
@@ -719,11 +737,14 @@ const styles = StyleSheet.create({
     },
     overflowDropRow: {
         minHeight: 48,
-        justifyContent: 'center',
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.md,
         paddingVertical: 12,
         borderBottomWidth: 1,
         borderBottomColor: colors.separator,
     },
+    overflowDropInfo: { flex: 1, minWidth: 0 },
     overflowDropName: {
         fontSize: fontSize.md,
         fontWeight: fontWeight.semibold,

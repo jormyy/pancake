@@ -64,10 +64,10 @@ const CLASS_FILTERS = [
     { key: 'all', label: 'All' },
     { key: 'rookies', label: 'Rookies only' },
 ] as const
-const TABLE_COLUMNS = ['FP', 'PTS', 'REB', 'AST', 'STL', 'BLK', '3PM', 'TO', 'GP']
+const TABLE_COLUMNS = ['FP', 'MIN', 'PTS', 'REB', 'AST', 'STL', 'BLK', '3PM', 'TO', 'GP']
 const STAT_LABELS: Record<string, string> = {
     FP: 'Fantasy points', PTS: 'Points', REB: 'Rebounds', AST: 'Assists', STL: 'Steals',
-    BLK: 'Blocks', '3PM': 'Three-pointers made', TO: 'Turnovers', GP: 'Games played',
+    BLK: 'Blocks', '3PM': 'Three-pointers made', TO: 'Turnovers', GP: 'Games played', MIN: 'Minutes',
 }
 
 const EMPTY_OWNED_MAP = new Map<string, OwnedEntry>()
@@ -294,9 +294,12 @@ export default function PlayersScreen() {
                                                 key={column}
                                                 style={styles.tableHeaderStatBtn}
                                                 onPress={() => mode && handleColumnSort(mode)}
+                                                disabled={mode == null}
                                                 accessibilityRole="button"
-                                                accessibilityState={{ selected: active }}
-                                                accessibilityLabel={`Sort by ${STAT_LABELS[column] ?? column}${active ? (search.sort.dir === 'asc' ? ', ascending' : ', descending') : ''}`}
+                                                accessibilityState={{ selected: active, disabled: mode == null }}
+                                                accessibilityLabel={mode
+                                                    ? `Sort by ${STAT_LABELS[column] ?? column}${active ? (search.sort.dir === 'asc' ? ', ascending' : ', descending') : ''}`
+                                                    : STAT_LABELS[column] ?? column}
                                             >
                                                 <Text style={[styles.tableHeaderStat, active && styles.tableHeaderStatActive]} numberOfLines={1}>
                                                     {column}{active ? (search.sort.dir === 'asc' ? ' ▲' : ' ▼') : ''}

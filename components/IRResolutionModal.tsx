@@ -18,6 +18,7 @@ import {
     spacing,
 } from '@/constants/tokens'
 import { Avatar } from '@/components/Avatar'
+import { playerHeadshotUrl } from '@/lib/format'
 
 type Phase = 'ineligible' | 'drop-to-activate'
 
@@ -111,6 +112,7 @@ export function IRResolutionModal({
                                         <View key={rp.id} style={styles.row}>
                                             <Avatar
                                                 name={p.display_name}
+                                                uri={playerHeadshotUrl(p.nba_id) ?? undefined}
                                                 color={getPositionColor(p.position)}
                                                 size={38}
                                             />
@@ -152,6 +154,7 @@ export function IRResolutionModal({
                                         <View key={rp.id} style={styles.row}>
                                             <Avatar
                                                 name={p.display_name}
+                                                uri={playerHeadshotUrl(p.nba_id) ?? undefined}
                                                 color={getPositionColor(p.position)}
                                                 size={38}
                                             />

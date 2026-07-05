@@ -12,6 +12,7 @@ import { getPositionColor } from '@/constants/positions'
 import { colors, fontSize, fontWeight, radii, scrim, spacing } from '@/constants/tokens'
 import { Avatar } from '@/components/Avatar'
 import { PosTag } from '@/components/PosTag'
+import { playerHeadshotUrl } from '@/lib/format'
 
 type Props = {
     visible: boolean
@@ -36,7 +37,12 @@ export function DropPlayerPickerModal({ visible, title, subtitle, roster, droppi
                             const ep = getEligiblePositions(p)
                             return (
                                 <View key={rp.id} style={styles.row}>
-                                    <Avatar name={p.display_name} color={getPositionColor(ep[0])} size={38} />
+                                    <Avatar
+                                        name={p.display_name}
+                                        uri={playerHeadshotUrl(p.nba_id) ?? undefined}
+                                        color={getPositionColor(ep[0])}
+                                        size={38}
+                                    />
                                     <View style={styles.info}>
                                         <Text style={styles.name} numberOfLines={1}>{p.display_name}</Text>
                                         <View style={styles.metaRow}>

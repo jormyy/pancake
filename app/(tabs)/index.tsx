@@ -154,7 +154,7 @@ export default function HomeScreen() {
                 <View style={styles.playSurface}>
                     {shouldShowScoreboard(selectedDate, today) && !dense
                         ? <Scoreboard games={todaysGames} myTeamSet={myTeamSet} compact={compact} />
-                        : <Text style={styles.dateLabel}>Showing lineup for {selectedDate}</Text>
+                        : null
                     }
                     <ScoreCard matchup={matchup} compact={compact} />
                     <AroundLeague matchups={leagueMatchups} compact={compact} />
@@ -220,7 +220,7 @@ export default function HomeScreen() {
                 <View style={styles.playSurface}>
                     {shouldShowScoreboard(selectedDate, today)
                         ? <Scoreboard games={todaysGames} myTeamSet={myTeamSet} compact={compact} />
-                        : <Text style={styles.dateLabel}>Showing lineup for {selectedDate}</Text>
+                        : null
                     }
                     {matchupLoading ? null : league?.status === 'drafting' ? (
                         <EmptyState
@@ -277,11 +277,11 @@ function AroundLeague({ matchups, compact }: { matchups: LeagueWeekMatchup[]; co
     const otherMatchups = matchups.filter((item) => !item.isMine)
     if (otherMatchups.length === 0) return null
 
-    const sidePad = compact ? 12 : 16
-    const cardGap = compact ? 8 : 10
+    const sidePad = compact ? 10 : 16
+    const cardGap = compact ? 6 : 8
     // On narrow screens, size cards so one fits fully with a deliberate peek
     // of the next card's left (name) edge — a score never sits under the clip.
-    const cardWidth = compact ? Math.min(280, width - sidePad - 64) : 220
+    const cardWidth = compact ? Math.min(220, width - sidePad - 72) : 190
 
     return (
         <View style={styles.aroundLeague}>
@@ -292,7 +292,7 @@ function AroundLeague({ matchups, compact }: { matchups: LeagueWeekMatchup[]; co
                     aria-level={2}
                     accessibilityRole="header"
                 >
-                    Around the league
+                    Other matchups
                 </Text>
                 <Text style={styles.aroundLeagueMeta}>{countLabel(otherMatchups.length, 'matchup')}</Text>
             </View>
@@ -327,7 +327,7 @@ function AroundLeague({ matchups, compact }: { matchups: LeagueWeekMatchup[]; co
                                     {formatPoints(item.awayPoints)}
                                 </Text>
                             </View>
-                            <Text style={styles.aroundLeagueStatus}>{item.isFinalized ? 'Final' : 'Live week'}</Text>
+                            <Text style={styles.aroundLeagueStatus}>{item.isFinalized ? 'Final' : 'Live'}</Text>
                         </View>
                     )
                 })}
@@ -509,20 +509,22 @@ const styles = StyleSheet.create({
 
     playSurface: { flex: 1, minHeight: 0 },
     aroundLeague: {
-        paddingTop: 2,
-        paddingBottom: 6,
+        paddingTop: 0,
+        paddingBottom: 2,
     },
     aroundLeagueHeader: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingHorizontal: 16,
-        paddingBottom: 8,
+        paddingBottom: 3,
     },
     aroundLeagueTitle: {
-        fontSize: 15,
+        fontSize: fontSize.xs,
         fontWeight: fontWeight.extrabold,
-        color: colors.textPrimary,
+        color: colors.textMuted,
+        letterSpacing: 0.6,
+        textTransform: 'uppercase' as const,
     },
     aroundLeagueMeta: {
         fontSize: fontSize['2sm'],
@@ -531,16 +533,17 @@ const styles = StyleSheet.create({
     },
     aroundLeagueScroll: {
         paddingHorizontal: 16,
-        gap: 10,
-    },
-    aroundLeagueScrollCompact: {
-        paddingHorizontal: 12,
         gap: 8,
     },
+    aroundLeagueScrollCompact: {
+        paddingHorizontal: 10,
+        gap: 6,
+    },
     aroundLeagueCard: {
-        width: 220,
-        padding: 12,
-        borderRadius: radii.xl,
+        width: 190,
+        paddingHorizontal: 10,
+        paddingVertical: 7,
+        borderRadius: radii.md,
         borderCurve: 'continuous' as const,
         borderWidth: 1,
         borderColor: colors.borderLight,
@@ -548,7 +551,8 @@ const styles = StyleSheet.create({
     },
     aroundLeagueCardCompact: {
         width: 184,
-        padding: 10,
+        paddingHorizontal: 9,
+        paddingVertical: 6,
     },
     aroundLeagueTeamRow: {
         flexDirection: 'row',
@@ -558,7 +562,7 @@ const styles = StyleSheet.create({
     aroundLeagueTeam: {
         flex: 1,
         minWidth: 0,
-        fontSize: fontSize.sm,
+        fontSize: fontSize.xs,
         fontWeight: fontWeight.bold,
         color: colors.textSecondary,
     },
@@ -566,7 +570,7 @@ const styles = StyleSheet.create({
         color: colors.textPrimary,
     },
     aroundLeagueScore: {
-        fontSize: 17,
+        fontSize: fontSize.md,
         fontWeight: fontWeight.extrabold,
         color: colors.textMuted,
         minWidth: 48,
@@ -578,10 +582,10 @@ const styles = StyleSheet.create({
     aroundLeagueDivider: {
         height: 1,
         backgroundColor: colors.separator,
-        marginVertical: 7,
+        marginVertical: 3,
     },
     aroundLeagueStatus: {
-        marginTop: 8,
+        marginTop: 3,
         fontSize: fontSize['2xs'],
         fontWeight: fontWeight.extrabold,
         color: colors.textMuted,

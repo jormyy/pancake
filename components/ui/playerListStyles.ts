@@ -125,7 +125,7 @@ export const playerListStyles = StyleSheet.create({
         textTransform: 'uppercase' as const,
     },
     tableHeaderStatsGroup: {
-        width: 9 * 54,              // mirrors statsGrid.width
+        width: 10 * 54,             // mirrors statsGrid.width
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'flex-end', // mirrors statsGrid.justifyContent

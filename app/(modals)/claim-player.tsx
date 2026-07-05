@@ -15,12 +15,14 @@ import { useEffect, useRef, useState } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useAuth } from '@/hooks/use-auth'
 import { getRoster, RosterPlayer } from '@/lib/roster'
-import { isIneligibleIR } from '@/lib/format'
+import { isIneligibleIR, playerHeadshotUrl } from '@/lib/format'
 import { getPlayer } from '@/lib/players'
 import { submitWaiverClaim, getMyWaiverPriority } from '@/lib/waivers'
 import { getMemberTransactionState, type MemberTransactionState } from '@/lib/league'
 import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 import { showAlert, showSuccess, getErrorMessage } from '@/lib/alert'
+import { Avatar } from '@/components/Avatar'
+import { getPositionColor } from '@/constants/positions'
 
 export default function ClaimPlayerScreen() {
     const { playerId } = useLocalSearchParams<{ playerId: string }>()
@@ -175,6 +177,13 @@ export default function ClaimPlayerScreen() {
                     accessibilityLabel={`Select ${item.players.display_name} to drop`}
                     accessibilityState={{ selected: isSelected }}
                 >
+                    <Avatar
+                        name={item.players.display_name}
+                        uri={playerHeadshotUrl(item.players.nba_id) ?? undefined}
+                        color={getPositionColor(item.players.position, colors.bgMuted)}
+                        textColor={colors.textSecondary}
+                        size={38}
+                    />
                     <View style={styles.rosterInfo}>
                         <Text style={styles.rosterName}>{item.players.display_name}</Text>
                         <Text style={styles.rosterMeta}>
@@ -213,6 +222,13 @@ export default function ClaimPlayerScreen() {
                             </Text>
                             {ineligibleIR.map((rp) => (
                                 <View key={rp.id} style={styles.blockPlayerRow}>
+                                    <Avatar
+                                        name={rp.players.display_name}
+                                        uri={playerHeadshotUrl(rp.players.nba_id) ?? undefined}
+                                        color={getPositionColor(rp.players.position, colors.bgMuted)}
+                                        textColor={colors.textSecondary}
+                                        size={34}
+                                    />
                                     <Text style={styles.blockPlayerName}>{rp.players.display_name}</Text>
                                     <Text style={styles.blockPlayerStatus}>{rp.players.injury_status ?? 'Healthy'}</Text>
                                 </View>
@@ -238,10 +254,21 @@ export default function ClaimPlayerScreen() {
                                 <>
                                     <View style={[styles.claimCard, isCompactLandscape && styles.compactClaimCard]}>
                                 <Text style={styles.claimLabel}>CLAIMING</Text>
-                            <Text style={styles.claimName}>{player?.display_name ?? '—'}</Text>
-                            <Text style={styles.claimMeta}>
-                                {[player?.nba_team, player?.position].filter(Boolean).join(' · ')}
-                            </Text>
+                                <View style={styles.claimPlayerRow}>
+                                    <Avatar
+                                        name={player?.display_name ?? 'Player'}
+                                        uri={playerHeadshotUrl(player?.nba_id) ?? undefined}
+                                        color={getPositionColor(player?.position, colors.bgMuted)}
+                                        textColor={colors.textSecondary}
+                                        size={44}
+                                    />
+                                    <View style={styles.claimPlayerCopy}>
+                                        <Text style={styles.claimName} numberOfLines={1}>{player?.display_name ?? '—'}</Text>
+                                        <Text style={styles.claimMeta}>
+                                            {[player?.nba_team, player?.position].filter(Boolean).join(' · ')}
+                                        </Text>
+                                    </View>
+                                </View>
                             </View>
 
                             <View style={[styles.infoRow, isCompactLandscape && styles.compactInfoRow]}>
@@ -398,6 +425,8 @@ const styles = StyleSheet.create({
         padding: spacing.lg,
     },
     claimLabel: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.primaryDark, letterSpacing: 0 },
+    claimPlayerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+    claimPlayerCopy: { flex: 1, minWidth: 0 },
     claimName: { fontSize: 22, fontWeight: fontWeight.extrabold, color: colors.textPrimary },
     claimMeta: { fontSize: fontSize.md, color: colors.textMuted },
 
@@ -633,7 +662,7 @@ const styles = StyleSheet.create({
         borderCurve: 'continuous' as const,
         minHeight: 44,
     },
-    blockPlayerName: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textPrimary },
+    blockPlayerName: { flex: 1, minWidth: 0, fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textPrimary },
     blockPlayerStatus: {
         fontSize: fontSize.sm,
         fontWeight: fontWeight.bold,

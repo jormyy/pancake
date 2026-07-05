@@ -213,8 +213,7 @@ describe('fantasy draft and auction experience goals', () => {
         expect(phaseRail).toContain("aria-current={isActive ? 'step' : undefined}")
         expect(phaseRail).toContain('styles.phaseCompactSummary')
         expect(phaseRail).toContain('styles.phaseCompactLabel')
-        expect(phaseRail).toContain('styles.phaseCompactDetail')
-        expect(phaseRail).toContain('{phase.detail}')
+        expect(phaseRail).not.toContain('styles.phaseCompactDetail')
         // Compact phase steps are a slim horizontal strip, not 44px tiles.
         const phaseStepCompact = leagueScreen.slice(
             leagueScreen.indexOf('phaseStepCompact: {'),
@@ -224,7 +223,7 @@ describe('fantasy draft and auction experience goals', () => {
         expect(phaseStepCompact).toContain("flexDirection: 'row'")
     })
 
-    it('keeps compact League identity visible when the header collapses', () => {
+    it('keeps compact League identity visible as the default header', () => {
         const leagueScreenBody = leagueScreen.slice(
             leagueScreen.indexOf('export default function LeagueScreen'),
             leagueScreen.indexOf('const styles = StyleSheet.create'),
@@ -232,12 +231,9 @@ describe('fantasy draft and auction experience goals', () => {
         expect(leagueScreenBody).toContain("const currentLeagueName = screen.currentLeague?.name ?? 'League'")
         expect(leagueScreenBody).toContain("const currentTeamName = screen.current.team_name ?? 'Team'")
         expect(leagueScreenBody).toContain('const compactIdentityLabel = `${currentLeagueName}, ${currentTeamName}`')
-        expect(leagueScreenBody).toContain('const [webViewport, setWebViewport] = useState<{ width: number; height: number } | null>(null)')
-        expect(leagueScreenBody).toContain("const viewportWidth = Platform.OS === 'web' && webViewport !== null ? webViewport.width : width")
-        expect(leagueScreenBody).toContain("const viewportHeight = Platform.OS === 'web' && webViewport !== null ? webViewport.height : height")
-        expect(leagueScreenBody).toContain('const syncViewport = () => setWebViewport({ width: window.innerWidth, height: window.innerHeight })')
-        expect(leagueScreenBody).toContain('const compactShortPortrait = viewportWidth < 380 && viewportHeight < 760')
-        expect(leagueScreenBody).toContain('const compactLeagueHeader = compactLandscape || compactShortPortrait')
+        expect(leagueScreenBody).toContain('const compactLeagueHeader = true')
+        expect(leagueScreenBody).not.toContain('const [webViewport, setWebViewport]')
+        expect(leagueScreenBody).not.toContain('compactShortPortrait')
         expect(leagueScreenBody).toContain('compactLeagueHeader && styles.headerCompact')
         expect(leagueScreenBody).toContain('compact={compactLeagueHeader}')
         expect(leagueScreenBody).toContain('styles.compactLeagueCrumb')

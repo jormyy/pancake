@@ -194,9 +194,9 @@ describe('FantasyPros projection source implementation', () => {
         expect(projectionsScreen).toContain("'mine'")
         expect(projectionsScreen).toContain("'free_agents'")
         expect(projectionsScreen).toContain('getLeagueProjections')
+        expect(projectionsScreen).toContain('projection_source_label')
+        expect(projectionsScreen).toContain('projection_view')
         expect(playerItem).toContain('projection_fantasy_points')
-        expect(playerItem).toContain('projection_source_label')
-        expect(playerItem).toContain('projection_view')
         expect(playerDetail).toContain('NextProjectionCard')
 
         expect(autoSetSource).toContain('getProjectionMap')

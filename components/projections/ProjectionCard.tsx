@@ -64,12 +64,6 @@ export function ProjectionCard({
                 </View>
             </View>
             <View style={styles.detailRow}>
-                {projection.projection_minutes != null ? (
-                    <View style={styles.metric}>
-                        <Text style={styles.metricValue}>{numberOrDash(projection.projection_minutes)}</Text>
-                        <Text style={styles.metricLabel}>MIN</Text>
-                    </View>
-                ) : null}
                 {statLine ? <Text style={styles.statLine} numberOfLines={compact ? 3 : 2}>{statLine}</Text> : null}
             </View>
             {footer ? <View style={styles.footerSlot}>{footer}</View> : null}
@@ -118,18 +112,6 @@ const styles = StyleSheet.create({
     },
     scoreLabel: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.textMuted },
     detailRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg, flexWrap: 'wrap' },
-    metric: {
-        minWidth: 52,
-        paddingHorizontal: spacing.md,
-        paddingVertical: spacing.sm,
-        borderRadius: radii.sm,
-        borderWidth: 1,
-        borderColor: colors.borderLight,
-        backgroundColor: colors.bgSubtle,
-        alignItems: 'center',
-    },
-    metricValue: { fontSize: fontSize.md, fontWeight: fontWeight.extrabold, color: colors.textPrimary },
-    metricLabel: { fontSize: 10, fontWeight: fontWeight.bold, color: colors.textMuted },
     statLine: { flex: 1, minWidth: 180, fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textSecondary },
     footerSlot: { minWidth: 0 },
 })
