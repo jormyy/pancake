@@ -327,7 +327,7 @@ export const styles = StyleSheet.create({
         minWidth: 0,
         backgroundColor: colors.bgScreen,
         backgroundImage: webBackgrounds.appContent,
-    },
+    } as WebOnlyViewStyle,
     contentCompact: {
         paddingTop: MOBILE_TOPBAR_HEIGHT,
         paddingBottom: MOBILE_BOTTOMBAR_HEIGHT,
