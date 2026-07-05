@@ -7,6 +7,7 @@ export type TradePlayerItem = {
     playerName: string
     position: string | null
     nbaTeam: string | null
+    nbaId?: string | null
 }
 
 export type TradePickItem = {
@@ -58,6 +59,7 @@ type TradePlayerQueryRow = {
     display_name: string | null
     position: string | null
     nba_team: string | null
+    nba_id: string | null
 } | null
 type TradeItemQueryRow = {
     side: 'proposer' | 'recipient'
@@ -253,7 +255,7 @@ const TRADE_SELECT = `
                 side,
                 player_id,
                 pick_id,
-                players ( display_name, position, nba_team ),
+                players ( display_name, position, nba_team, nba_id ),
                 draft_picks (
                     season_year,
                     round,
@@ -276,6 +278,7 @@ function mapTradeRow(row: TradeQueryRow, memberId: string): Trade {
                 playerName: item.players?.display_name ?? 'Unknown',
                 position: item.players?.position ?? null,
                 nbaTeam: item.players?.nba_team ?? null,
+                nbaId: item.players?.nba_id ?? null,
             } satisfies TradePlayerItem
         } else if (item.pick_id != null && item.draft_picks) {
             tradeItem = {
@@ -392,7 +395,7 @@ export async function getTradeBlockItems(leagueId: string): Promise<TradeBlockIt
             note,
             updated_at,
             league_members ( team_name ),
-            players ( display_name, position, nba_team ),
+            players ( display_name, position, nba_team, nba_id ),
             draft_picks (
                 season_year,
                 round,
@@ -418,6 +421,7 @@ export async function getTradeBlockItems(leagueId: string): Promise<TradeBlockIt
                     playerName: row.players.display_name ?? 'Unknown',
                     position: row.players.position ?? null,
                     nbaTeam: row.players.nba_team ?? null,
+                    nbaId: row.players.nba_id ?? null,
                 },
             }]
         }

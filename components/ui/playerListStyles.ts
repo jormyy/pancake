@@ -1,24 +1,25 @@
 import { Platform, StyleSheet } from 'react-native'
-import { colors, fontSize, fontWeight, layout, radii, spacing, srOnly } from '@/constants/tokens'
+import { colors, fontFamily, fontSize, fontWeight, layout, radii, shadows, spacing, srOnly } from '@/constants/tokens'
 
 // Shared chrome for the Players + Projections screens (filter card, stat-table
 // header, search input) — previously duplicated verbatim in both screens.
 export const playerListStyles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgScreen },
-    contentWrap: { flex: 1, width: '100%', maxWidth: layout.contentMaxWidth, alignSelf: 'center' },
+    contentWrap: { flex: 1, width: '100%', maxWidth: layout.contentMaxWidth, alignSelf: 'center', paddingHorizontal: spacing.md },
     hiddenHeading: {
         ...srOnly,
     },
     filterCard: {
-        margin: spacing.xl,
-        marginBottom: spacing.md,
-        padding: spacing.lg,
+        marginTop: spacing.xl,
+        marginHorizontal: spacing.lg,
+        marginBottom: spacing.lg,
+        padding: spacing.xl,
         borderWidth: 1,
         borderColor: colors.borderLight,
-        borderRadius: radii.lg,
+        borderRadius: radii.xl,
         backgroundColor: colors.bgCard,
-        gap: spacing.lg,
-        ...(Platform.OS === 'web' ? { boxShadow: '0 10px 28px rgba(74, 37, 9, 0.08)' } : {}),
+        gap: spacing.xl,
+        ...(Platform.OS === 'web' ? { boxShadow: shadows.md } : {}),
     },
     filterCardTop: {
         flexDirection: 'row',
@@ -34,8 +35,9 @@ export const playerListStyles = StyleSheet.create({
     filterCardTitle: {
         fontSize: fontSize.sm,
         fontWeight: fontWeight.extrabold,
+        fontFamily: fontFamily.displayMedium,
         color: colors.textPrimary,
-        letterSpacing: 0.6,
+        letterSpacing: 0.4,
         textTransform: 'uppercase' as const,
     },
     filterToggle: {
@@ -75,7 +77,9 @@ export const playerListStyles = StyleSheet.create({
         alignSelf: 'flex-end',
         justifyContent: 'center',
         borderRadius: radii.md,
-        backgroundColor: colors.bgMuted,
+        borderWidth: 1,
+        borderColor: colors.borderLight,
+        backgroundColor: colors.bgCard,
         paddingHorizontal: spacing.lg,
     },
     sortDirText: {
@@ -91,7 +95,7 @@ export const playerListStyles = StyleSheet.create({
         borderTopWidth: 1,
         borderBottomWidth: 1,
         borderColor: colors.borderLight,
-        backgroundColor: colors.bgSubtle,
+        backgroundColor: colors.bgMuted,
     },
     tableHeaderAddSpacer: { width: 36 },    // mirrors addCol.width
     tableHeaderCardRow: {
@@ -121,7 +125,7 @@ export const playerListStyles = StyleSheet.create({
         textTransform: 'uppercase' as const,
     },
     tableHeaderStatsGroup: {
-        width: 9 * 54,              // mirrors statsGrid.width
+        width: 10 * 54,             // mirrors statsGrid.width
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'flex-end', // mirrors statsGrid.justifyContent
@@ -146,11 +150,14 @@ export const playerListStyles = StyleSheet.create({
     searchInput: {
         flex: 1,
         height: 44,
-        backgroundColor: colors.bgMuted,
+        backgroundColor: colors.bgCard,
+        borderWidth: 1,
+        borderColor: colors.borderLight,
         borderRadius: radii.lg,
         borderCurve: 'continuous' as const,
         paddingHorizontal: spacing.lg + spacing.xxs,
         fontSize: fontSize.lg,
+        fontFamily: fontFamily.control,
         color: colors.textPrimary,
     },
     clearAllChip: {

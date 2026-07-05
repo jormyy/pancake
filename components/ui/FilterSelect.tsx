@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
-import { alpha, colors, fontSize, fontWeight, palette, radii, spacing } from '@/constants/tokens'
+import { alpha, colors, fontSize, fontWeight, palette, radii, shadows, spacing } from '@/constants/tokens'
 
 export type FilterOption<T extends string> = { key: T; label: string }
 
@@ -195,7 +195,7 @@ const styles = StyleSheet.create({
         borderRadius: radii.lg,
         backgroundColor: colors.bgCard,
         padding: spacing.md,
-        ...(Platform.OS === 'web' ? { boxShadow: '0 18px 48px rgba(0,0,0,0.22)' } : {}),
+        ...(Platform.OS === 'web' ? { boxShadow: shadows.lg } : {}),
     },
     selectTitle: {
         paddingHorizontal: spacing.sm,

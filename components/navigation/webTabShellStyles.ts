@@ -1,29 +1,16 @@
 import { StyleSheet } from 'react-native'
-import type { ViewStyle } from 'react-native'
-import { brand, colors, fontSize, fontWeight, radii, shadows, spacing } from '@/constants/tokens'
+import { brand, colors, fontFamily, fontSize, fontWeight, radii, shadows, spacing, webBackgrounds, webOverlays, type WebOnlyViewStyle } from '@/constants/tokens'
 
-const SIDEBAR_WIDTH = 248
+const SIDEBAR_WIDTH = 264
 const MOBILE_TOPBAR_HEIGHT = 56
 const MOBILE_BOTTOMBAR_HEIGHT = 64
-
-// react-native-web supports these CSS properties at runtime, but React
-// Native's bundled ViewStyle types don't model them. This stays an
-// intersection with ViewStyle so the styles remain assignable to
-// StyleSheet.create. Note: `position: 'fixed' | 'sticky'` can't be added
-// here — intersecting collapses position back to ViewStyle['position'], and
-// widening it would make WebOnlyViewStyle no longer assignable to ViewStyle.
-// The few fixed-position styles below are cast through `unknown` instead.
-type WebOnlyViewStyle = ViewStyle & {
-    backdropFilter?: string
-    WebkitBackdropFilter?: string
-    boxShadow?: string
-}
 
 export const styles = StyleSheet.create({
     root: {
         flex: 1,
         minHeight: '100%',
         backgroundColor: colors.bgScreen,
+        backgroundImage: webBackgrounds.appRoot,
     } as WebOnlyViewStyle,
     rootDesktop: {
         flexDirection: 'row',
@@ -45,6 +32,7 @@ export const styles = StyleSheet.create({
         height: '100vh',
         maxHeight: '100vh',
         backgroundColor: brand.surface,
+        backgroundImage: webBackgrounds.sidebar,
         paddingBottom: 14,
         borderRightWidth: 1,
         borderRightColor: brand.divider,
@@ -53,9 +41,9 @@ export const styles = StyleSheet.create({
         flex: 1,
     },
     sidebarScrollContent: {
-        paddingHorizontal: 14,
-        paddingTop: 18,
-        gap: spacing.sm,
+        paddingHorizontal: 16,
+        paddingTop: 20,
+        gap: spacing.md,
     },
     brandRow: {
         flexDirection: 'row',
@@ -66,9 +54,9 @@ export const styles = StyleSheet.create({
         paddingBottom: 16,
     },
     brandMark: {
-        width: 38,
-        height: 38,
-        borderRadius: 11,
+        width: 42,
+        height: 42,
+        borderRadius: 14,
         backgroundColor: colors.primary,
         alignItems: 'center',
         justifyContent: 'center',
@@ -83,22 +71,24 @@ export const styles = StyleSheet.create({
     brandMarkText: {
         color: brand.on,
         fontSize: fontSize.xl,
+        fontFamily: fontFamily.display,
         fontWeight: fontWeight.extrabold,
     },
     brandMarkTextCompact: {
         fontSize: 17,
     },
     brandTitle: {
-        fontSize: 19,
+        fontSize: 21,
+        fontFamily: fontFamily.display,
         fontWeight: fontWeight.extrabold,
         color: brand.on,
-        letterSpacing: -0.4,
+        letterSpacing: 0,
     },
     brandSubtitle: {
         marginTop: -2,
         fontSize: fontSize['2xs'],
         fontWeight: fontWeight.bold,
-        letterSpacing: 1.5,
+        letterSpacing: 1.1,
         textTransform: 'uppercase',
         color: brand.onSubtle,
     },
@@ -109,14 +99,14 @@ export const styles = StyleSheet.create({
         marginBottom: spacing.md,
     },
     leagueSwitch: {
-        minHeight: 52,
+        minHeight: 58,
         width: '100%',
         flexDirection: 'row',
         alignItems: 'center',
         gap: spacing.lg,
         paddingHorizontal: spacing.lg,
         paddingVertical: spacing.md,
-        borderRadius: radii.md,
+        borderRadius: radii.lg,
         backgroundColor: brand.overlay,
         borderWidth: 1,
         borderColor: brand.borderSubtle,
@@ -125,9 +115,9 @@ export const styles = StyleSheet.create({
         backgroundColor: brand.overlayHover,
     },
     leagueCrest: {
-        width: 30,
-        height: 30,
-        borderRadius: radii.md,
+        width: 34,
+        height: 34,
+        borderRadius: radii.lg,
         backgroundColor: colors.primary,
         alignItems: 'center',
         justifyContent: 'center',
@@ -141,7 +131,8 @@ export const styles = StyleSheet.create({
     leagueName: {
         color: brand.onStrong,
         fontWeight: fontWeight.bold,
-        fontSize: fontSize.sm,
+        fontSize: fontSize.md,
+        fontFamily: fontFamily.displayMedium,
     },
     leagueMeta: {
         color: brand.onSubtle,
@@ -179,11 +170,11 @@ export const styles = StyleSheet.create({
         right: 0,
         zIndex: 100,
         padding: spacing.sm,
-        borderRadius: radii.lg,
+        borderRadius: radii.xl,
         borderWidth: 1,
         borderColor: colors.border,
         backgroundColor: colors.bgCard,
-        boxShadow: '0 16px 44px rgba(74, 37, 9, 0.16), 0 4px 12px rgba(74, 37, 9, 0.08)',
+        boxShadow: shadows.lg,
     } as WebOnlyViewStyle,
     leagueMenuItem: {
         flexDirection: 'row',
@@ -222,18 +213,18 @@ export const styles = StyleSheet.create({
         color: brand.onSubtle,
         fontSize: fontSize['2xs'],
         fontWeight: fontWeight.extrabold,
-        letterSpacing: 1.4,
+        letterSpacing: 1,
         textTransform: 'uppercase',
     },
     sideNavItem: {
         display: 'flex',
         width: '100%',
-        minHeight: 40,
+        minHeight: 44,
         flexDirection: 'row',
         alignItems: 'center',
         gap: spacing.lg,
         paddingHorizontal: spacing.lg,
-        borderRadius: radii.md,
+        borderRadius: radii.lg,
         textDecorationLine: 'none',
     } as WebOnlyViewStyle,
     navIconFrame: {
@@ -248,7 +239,7 @@ export const styles = StyleSheet.create({
     },
     sideNavItemActive: {
         backgroundColor: colors.primary,
-        boxShadow: '0 4px 12px rgba(201, 102, 15, 0.4)',
+        boxShadow: shadows.brandGlow,
     } as WebOnlyViewStyle,
     sideNavItemDisabled: {
         opacity: 0.64,
@@ -274,7 +265,7 @@ export const styles = StyleSheet.create({
         backgroundColor: colors.primary,
     },
     navBadgeActive: {
-        backgroundColor: 'rgba(255, 255, 255, 0.28)',
+        backgroundColor: webOverlays.navBadgeActive,
     },
     navBadgeText: {
         fontSize: 10,
@@ -335,7 +326,8 @@ export const styles = StyleSheet.create({
         flex: 1,
         minWidth: 0,
         backgroundColor: colors.bgScreen,
-    },
+        backgroundImage: webBackgrounds.appContent,
+    } as WebOnlyViewStyle,
     contentCompact: {
         paddingTop: MOBILE_TOPBAR_HEIGHT,
         paddingBottom: MOBILE_BOTTOMBAR_HEIGHT,
@@ -352,11 +344,12 @@ export const styles = StyleSheet.create({
         alignItems: 'center',
         gap: spacing.lg,
         paddingHorizontal: spacing.xl,
-        backgroundColor: 'rgba(253, 248, 238, 0.88)',
+        backgroundColor: webOverlays.mobileTopbar,
         backdropFilter: 'blur(20px) saturate(180%)',
         WebkitBackdropFilter: 'blur(20px) saturate(180%)',
         borderBottomWidth: 1,
         borderBottomColor: colors.borderLight,
+        boxShadow: shadows.sm,
     } as unknown as WebOnlyViewStyle,
     mobileLeagueWrap: {
         flex: 1,
@@ -365,7 +358,7 @@ export const styles = StyleSheet.create({
     mobileMenuButton: {
         width: 44,
         height: 44,
-        borderRadius: radii.md,
+        borderRadius: radii.lg,
         alignItems: 'center',
         justifyContent: 'center',
         backgroundColor: colors.bgMuted,
@@ -381,10 +374,10 @@ export const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-around',
         paddingBottom: spacing.xs,
-        backgroundColor: colors.bgCard,
+        backgroundColor: webOverlays.mobileBottomNav,
         borderTopWidth: 1,
         borderTopColor: colors.borderLight,
-        boxShadow: '0 -6px 24px rgba(74, 37, 9, 0.10)',
+        boxShadow: shadows.topNav,
     } as unknown as WebOnlyViewStyle,
     bottomNavItem: {
         display: 'flex',
@@ -413,17 +406,17 @@ export const styles = StyleSheet.create({
         left: 0,
         right: 0,
         zIndex: 90,
-        backgroundColor: 'rgba(44, 26, 14, 0.42)',
+        backgroundColor: webOverlays.sheetScrim,
     } as unknown as WebOnlyViewStyle,
     sheet: {
         backgroundColor: colors.bgCard,
-        borderBottomLeftRadius: radii['2xl'],
-        borderBottomRightRadius: radii['2xl'],
+        borderBottomLeftRadius: radii['3xl'],
+        borderBottomRightRadius: radii['3xl'],
         borderBottomWidth: 1,
         borderBottomColor: colors.border,
         padding: spacing.xl,
         paddingTop: spacing.lg,
-        boxShadow: '0 18px 48px rgba(74, 37, 9, 0.20)',
+        boxShadow: shadows.xl,
     } as WebOnlyViewStyle,
     sheetHeader: {
         flexDirection: 'row',

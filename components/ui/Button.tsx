@@ -1,7 +1,7 @@
 import { ComponentProps, ReactNode } from 'react'
 import { Pressable, StyleSheet, Text, type StyleProp, type ViewStyle } from 'react-native'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
-import { colors, elevation, fontSize, fontWeight, motion, radii, spacing } from '@/constants/tokens'
+import { colors, elevation, fontFamily, fontSize, fontWeight, motion, radii, spacing } from '@/constants/tokens'
 
 type IconName = ComponentProps<typeof MaterialIcons>['name']
 export type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'danger' | 'ghost'
@@ -37,7 +37,7 @@ function variantColors(variant: ButtonVariant) {
         case 'danger':
             return { bg: colors.danger, bgHover: colors.dangerDark, fg: colors.textWhite, border: 'transparent' }
         case 'secondary':
-            return { bg: colors.bgMuted, bgHover: colors.bgSubtle, fg: colors.textPrimary, border: 'transparent' }
+            return { bg: colors.bgMuted, bgHover: colors.bgCard, fg: colors.textPrimary, border: colors.borderLight }
         case 'outline':
             // primaryDark (maple600) clears WCAG AA on cream; primary (maple500) does not.
             return { bg: 'transparent', bgHover: colors.primaryLight, fg: colors.primaryDark, border: colors.primaryBorder }
@@ -81,7 +81,7 @@ export function Button({
                     gap: s.gap,
                     backgroundColor: hovered && !isDisabled ? c.bgHover : c.bg,
                     borderColor: c.border,
-                    borderWidth: variant === 'outline' ? 1 : 0,
+                    borderWidth: variant === 'outline' || variant === 'secondary' ? 1 : 0,
                 },
                 fullWidth && styles.fullWidth,
                 raised && !isDisabled && (elevation('brandGlow') as ViewStyle),
@@ -108,12 +108,13 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        borderRadius: radii.lg,
+        borderRadius: radii.md,
         borderCurve: 'continuous',
     } as ViewStyle,
     fullWidth: { width: '100%' },
     label: {
         fontWeight: fontWeight.bold,
+        fontFamily: fontFamily.displayMedium,
         letterSpacing: 0.1,
     },
     pressed: { opacity: motion.pressedOpacity },

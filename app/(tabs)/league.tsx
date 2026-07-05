@@ -1,15 +1,13 @@
 import {
     View,
     Text,
-    Pressable,
     Platform,
     StyleSheet,
-    useWindowDimensions,
 } from 'react-native'
-import { useEffect, useState, type ComponentProps } from 'react'
+import { type ComponentProps } from 'react'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
-import { colors, fontSize, fontWeight, radii, spacing, layout } from '@/constants/tokens'
+import { colors, fontFamily, fontSize, fontWeight, radii, shadows, spacing, layout } from '@/constants/tokens'
 import { EmptyState } from '@/components/EmptyState'
 import { ErrorBanner } from '@/components/ui'
 import { NoLeagueState } from '@/components/NoLeagueState'
@@ -111,9 +109,6 @@ function LeaguePhaseRail({ status, compact = false }: { status?: LeagueStatus; c
                     <Text style={styles.phaseCompactLabel} numberOfLines={1}>
                         {phase.label}
                     </Text>
-                    <Text style={styles.phaseCompactDetail} numberOfLines={1}>
-                        {phase.detail}
-                    </Text>
                 </View>
             ) : (
                 <View style={styles.phaseTop}>
@@ -173,24 +168,10 @@ function LeaguePhaseRail({ status, compact = false }: { status?: LeagueStatus; c
 
 export default function LeagueScreen() {
     const screen = useLeagueScreenState()
-    const { width, height } = useWindowDimensions()
-    const [webViewport, setWebViewport] = useState<{ width: number; height: number } | null>(null)
-    const viewportWidth = Platform.OS === 'web' && webViewport !== null ? webViewport.width : width
-    const viewportHeight = Platform.OS === 'web' && webViewport !== null ? webViewport.height : height
-    const compactLandscape = viewportWidth >= 600 && viewportHeight < 500
-    const compactShortPortrait = viewportWidth < 380 && viewportHeight < 760
-    const compactLeagueHeader = compactLandscape || compactShortPortrait
+    const compactLeagueHeader = true
     const activePanelId = `league-panel-${screen.tab}`
     const activeTabId = `league-tab-${screen.tab}`
     const activeTabLabel = LEAGUE_TAB_LABELS[screen.tab]
-
-    useEffect(() => {
-        if (Platform.OS !== 'web' || typeof window === 'undefined') return
-        const syncViewport = () => setWebViewport({ width: window.innerWidth, height: window.innerHeight })
-        syncViewport()
-        window.addEventListener('resize', syncViewport)
-        return () => window.removeEventListener('resize', syncViewport)
-    }, [])
 
     if (!screen.current) {
         if (screen.leagueLoading) {
@@ -404,12 +385,31 @@ export default function LeagueScreen() {
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgScreen },
-    contentWrap: { flex: 1, width: '100%', maxWidth: layout.contentMaxWidth, alignSelf: 'center' },
-    header: { padding: spacing['2xl'], borderBottomWidth: 1, borderBottomColor: colors.borderLight, gap: spacing.lg },
-    headerCompact: { paddingVertical: spacing.sm, gap: spacing.sm },
+    contentWrap: { flex: 1, width: '100%', maxWidth: layout.contentMaxWidth, alignSelf: 'center', paddingHorizontal: spacing.md },
+    header: {
+        margin: spacing.lg,
+        marginBottom: spacing.md,
+        padding: spacing['2xl'],
+        borderWidth: 1,
+        borderColor: colors.borderLight,
+        borderRadius: radii.xl,
+        borderCurve: 'continuous' as const,
+        backgroundColor: colors.bgCard,
+        gap: spacing.lg,
+        ...(Platform.OS === 'web' ? { boxShadow: shadows.md } : {}),
+    },
+    headerCompact: {
+        marginHorizontal: spacing.lg,
+        marginTop: spacing.md,
+        marginBottom: spacing.sm,
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.sm,
+        borderRadius: radii.lg,
+        gap: spacing.xs,
+    },
     headerTop: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.lg },
     headerInfo: { flex: 1, minWidth: 0, gap: spacing.xxs },
-    currentLeagueName: { fontSize: fontSize.xl, fontWeight: fontWeight.extrabold, color: colors.textPrimary },
+    currentLeagueName: { fontSize: fontSize['2xl'], fontFamily: fontFamily.display, fontWeight: fontWeight.black, color: colors.textPrimary },
     teamName: { fontSize: fontSize.md, color: colors.textMuted },
     compactLeagueCrumb: {
         minHeight: 24,
@@ -445,8 +445,15 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: colors.borderLight,
         backgroundColor: colors.bgCard,
+        ...(Platform.OS === 'web' ? { boxShadow: shadows.sm } : {}),
     },
-    phaseWrapCompact: { gap: spacing.xs, padding: spacing.sm },
+    phaseWrapCompact: {
+        gap: spacing.xs,
+        padding: 0,
+        borderWidth: 0,
+        backgroundColor: 'transparent',
+        ...(Platform.OS === 'web' ? { boxShadow: 'none' } : {}),
+    },
     phaseCompactSummary: {
         minHeight: 20,
         flexDirection: 'row',
@@ -460,13 +467,6 @@ const styles = StyleSheet.create({
         textTransform: 'uppercase',
         letterSpacing: 0,
     },
-    phaseCompactDetail: {
-        flex: 1,
-        minWidth: 0,
-        color: colors.textSecondary,
-        fontSize: fontSize.xs,
-        fontWeight: fontWeight.medium,
-    },
     phaseTop: {
         flexDirection: 'row',
         flexWrap: 'wrap',
@@ -476,7 +476,7 @@ const styles = StyleSheet.create({
     statusPill: {
         paddingHorizontal: spacing.lg,
         paddingVertical: spacing.sm,
-        borderRadius: radii.full,
+        borderRadius: radii.md,
         backgroundColor: colors.primaryLight,
         borderWidth: 1,
         borderColor: colors.primaryBorder,

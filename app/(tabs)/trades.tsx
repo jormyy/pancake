@@ -29,10 +29,12 @@ import { ItemSeparator } from '@/components/ItemSeparator'
 import { ErrorBanner } from '@/components/ui'
 import { SectionHeader } from '@/components/SectionHeader'
 import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
-import { yearShort } from '@/lib/format'
+import { playerHeadshotUrl, yearShort } from '@/lib/format'
 import { TradeCard, TabKey } from '@/components/trades/TradeCard'
 import { getErrorMessage } from '@/lib/alert'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
+import { Avatar } from '@/components/Avatar'
+import { getPositionColor } from '@/constants/positions'
 
 type ListItem =
     | { _type: 'trade'; trade: Trade }
@@ -282,6 +284,15 @@ export default function TradesScreen() {
                 : `${block.asset.seasonYear} Round ${block.asset.round} pick`
             return (
                 <View style={styles.blockRow}>
+                    {block.asset.kind === 'player' ? (
+                        <Avatar
+                            name={block.asset.playerName}
+                            uri={playerHeadshotUrl(block.asset.nbaId) ?? undefined}
+                            color={getPositionColor(block.asset.position, colors.bgMuted)}
+                            textColor={colors.textSecondary}
+                            size={38}
+                        />
+                    ) : null}
                     <View style={styles.blockInfo}>
                         <Text style={styles.blockTitle}>{label}</Text>
                         <Text style={styles.blockMeta}>
@@ -323,6 +334,13 @@ export default function TradesScreen() {
             const listed = blockItems.some((block) => block.memberId === myMemberId && block.asset.kind === 'player' && block.asset.playerId === item.player.players.id)
             return (
                 <View style={styles.blockRow}>
+                    <Avatar
+                        name={item.player.players.display_name}
+                        uri={playerHeadshotUrl(item.player.players.nba_id) ?? undefined}
+                        color={getPositionColor(item.player.players.position, colors.bgMuted)}
+                        textColor={colors.textSecondary}
+                        size={38}
+                    />
                     <View style={styles.blockInfo}>
                         <Text style={styles.blockTitle}>{item.player.players.display_name}</Text>
                         <Text style={styles.blockMeta}>{[item.player.players.nba_team, item.player.players.position].filter(Boolean).join(' · ')}</Text>

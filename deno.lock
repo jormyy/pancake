@@ -22,7 +22,7 @@
   "workspace": {
     "packageJson": {
       "dependencies": [
-        "npm:@expo-google-fonts/space-grotesk@~0.4.1",
+        "npm:@expo-google-fonts/outfit@~0.4.3",
         "npm:@expo/vector-icons@^15.0.3",
         "npm:@react-navigation/bottom-tabs@^7.4.0",
         "npm:@react-navigation/elements@^2.6.3",

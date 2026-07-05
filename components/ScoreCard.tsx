@@ -1,6 +1,6 @@
-import { View, Text, StyleSheet } from 'react-native'
+import { Platform, View, Text, StyleSheet } from 'react-native'
 import { Matchup } from '@/lib/scoring'
-import { alpha, colors, palette, fontSize, fontWeight } from '@/constants/tokens'
+import { alpha, colors, palette, fontFamily, fontSize, fontWeight, radii, shadows } from '@/constants/tokens'
 import { formatPoints } from '@/lib/format'
 import { MotionView } from '@/components/Motion'
 
@@ -96,12 +96,12 @@ const styles = StyleSheet.create({
         marginHorizontal: 16,
         marginVertical: 10,
         backgroundColor: colors.bgCard,
-        borderRadius: 16,
+        borderRadius: radii.xl,
         borderCurve: 'continuous' as const,
         borderWidth: 1.5,
         borderColor: colors.borderLight,
         overflow: 'hidden' as const,
-        boxShadow: '0 2px 12px rgba(44, 26, 14, 0.09)',
+        ...(Platform.OS === 'web' ? { boxShadow: shadows.md } : {}),
     },
     cardCompact: {
         marginVertical: 6,
@@ -128,7 +128,7 @@ const styles = StyleSheet.create({
         fontSize: fontSize['2xs'],
         fontWeight: fontWeight.extrabold,
         color: colors.primaryDark,
-        letterSpacing: 2,
+        letterSpacing: 1.1,
     },
     headerRule: {
         flex: 1,
@@ -178,6 +178,7 @@ const styles = StyleSheet.create({
     },
     score: {
         fontSize: 40,
+        fontFamily: fontFamily.display,
         fontWeight: fontWeight.black,
         lineHeight: 48,
     },

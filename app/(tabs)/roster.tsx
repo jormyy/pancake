@@ -24,10 +24,11 @@ import { EmptyState } from '@/components/EmptyState'
 import { ErrorBanner } from '@/components/ui'
 import { SectionHeader } from '@/components/SectionHeader'
 import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
-import { countLabel, formatPoints } from '@/lib/format'
+import { countLabel, formatPoints, playerHeadshotUrl } from '@/lib/format'
 import { RosterClaimItem, RosterPickItem, RosterPlayerItem, TaxiPlayerItem } from '@/components/roster/RosterItems'
 import { getRosterStatusChangeLockMessage } from '@/lib/roster-locks'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
+import { Avatar } from '@/components/Avatar'
 
 type RosterListItem =
     | { _isHeader: true; _section: string }
@@ -48,6 +49,7 @@ type RosterAverage = {
     avg_blocks: number | null
     avg_three_pointers_made: number | null
     avg_turnovers: number | null
+    avg_minutes_played: number | null
     games_played: number | null
 }
 const EMPTY_STATS_MAP = new Map<string, RosterAverage>()
@@ -126,7 +128,7 @@ function RosterTableHeader() {
         <View style={styles.rosterTableHeader}>
             <Text style={styles.rosterTableSlot}>Slot</Text>
             <Text style={styles.rosterTablePlayer}>Player</Text>
-            {['PTS', 'REB', 'AST', 'STL', 'BLK', '3PM', 'TO', 'FP', 'GP'].map((label) => (
+            {['PTS', 'REB', 'AST', 'STL', 'BLK', '3PM', 'TO', 'FP', 'MIN', 'GP'].map((label) => (
                 <Text key={label} style={styles.rosterTableStat}>{label}</Text>
             ))}
             <Text style={styles.rosterTableAction}>Action</Text>
@@ -175,10 +177,19 @@ function RosterTablePlayerItem({
         >
             <Text style={styles.rosterTableSlot}>{slot}</Text>
             <View style={styles.rosterTablePlayerCell}>
-                <Text style={styles.rosterTableName} numberOfLines={1}>{item.players.display_name}</Text>
-                <Text style={styles.rosterTableMeta} numberOfLines={1}>
-                    {[item.players.nba_team, ...positions].filter(Boolean).join(' · ')}
-                </Text>
+                <Avatar
+                    name={item.players.display_name}
+                    uri={playerHeadshotUrl(item.players.nba_id) ?? undefined}
+                    color={colors.bgMuted}
+                    textColor={colors.textSecondary}
+                    size={34}
+                />
+                <View style={styles.rosterTablePlayerInfo}>
+                    <Text style={styles.rosterTableName} numberOfLines={1}>{item.players.display_name}</Text>
+                    <Text style={styles.rosterTableMeta} numberOfLines={1}>
+                        {[item.players.nba_team, ...positions].filter(Boolean).join(' · ')}
+                    </Text>
+                </View>
             </View>
             <Text style={styles.rosterTableStat}>{fmtStat(stats?.avg_points)}</Text>
             <Text style={styles.rosterTableStat}>{fmtStat(stats?.avg_rebounds)}</Text>
@@ -188,6 +199,7 @@ function RosterTablePlayerItem({
             <Text style={styles.rosterTableStat}>{fmtStat(stats?.avg_three_pointers_made)}</Text>
             <Text style={styles.rosterTableStat}>{fmtStat(stats?.avg_turnovers)}</Text>
             <Text style={[styles.rosterTableStat, styles.rosterTableFp]}>{fmtStat(avgFpts)}</Text>
+            <Text style={styles.rosterTableStat}>{fmtStat(stats?.avg_minutes_played)}</Text>
             <Text style={styles.rosterTableStat}>{fmtStat(stats?.games_played, true)}</Text>
             <View style={styles.rosterTableActions}>
                 {section === 'taxi' ? (
@@ -243,7 +255,7 @@ export default function RosterScreen() {
             .in('player_id', playerIds)
         const { data: statsData } = await supabase
             .from('mv_player_season_averages')
-            .select('player_id, avg_points, avg_rebounds, avg_assists, avg_steals, avg_blocks, avg_three_pointers_made, avg_turnovers, games_played')
+            .select('player_id, avg_points, avg_rebounds, avg_assists, avg_steals, avg_blocks, avg_three_pointers_made, avg_turnovers, avg_minutes_played, games_played')
             .eq('season_year', currentSeasonYear())
             .in('player_id', playerIds)
         const avgMap = new Map<string, number>()
@@ -605,6 +617,7 @@ export default function RosterScreen() {
                                     item={item as RosterPlayer}
                                     taxiingId={taxiingId}
                                     avgFpts={avgMap.get((item as RosterPlayer).players.id)}
+                                    avgMinutes={avgStatsMap.get((item as RosterPlayer).players.id)?.avg_minutes_played}
                                     onPress={() => push(`/player/${(item as RosterPlayer).players.id}`)}
                                     onToggleTaxi={handleToggleTaxi}
                                 />
@@ -635,6 +648,7 @@ export default function RosterScreen() {
                                 droppingId={droppingId}
                                 taxiSlotsAvailable={taxi.length < taxiSlots}
                                 avgFpts={avgMap.get(rosterItem.players.id)}
+                                avgMinutes={avgStatsMap.get(rosterItem.players.id)?.avg_minutes_played}
                                 onPress={() => push(`/player/${rosterItem.players.id}`)}
                                 onLongPress={() => handleDropPrompt(rosterItem)}
                                 onToggleIR={handleToggleIR}
@@ -687,6 +701,13 @@ const styles = StyleSheet.create({
     rosterTablePlayerCell: {
         flex: 1,
         minWidth: 220,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.md,
+    },
+    rosterTablePlayerInfo: {
+        flex: 1,
+        minWidth: 0,
         gap: 2,
     },
     rosterTableName: {

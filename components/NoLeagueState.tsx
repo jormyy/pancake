@@ -1,9 +1,9 @@
-import { View, Text, StyleSheet } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import { Platform, View, Text, StyleSheet } from 'react-native'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { useRouter } from 'expo-router'
-import { colors, elevation, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { colors, elevation, fontFamily, fontSize, fontWeight, radii, spacing, webBackgrounds, type WebOnlyViewStyle } from '@/constants/tokens'
 import { Button } from '@/components/ui'
+import { PromptFrame } from '@/components/ui/PromptFrame'
 
 const FEATURES: { icon: 'sports-basketball' | 'groups' | 'swap-horiz'; text: string }[] = [
     { icon: 'sports-basketball', text: 'Live weekly matchups & auto-set lineups' },
@@ -14,48 +14,45 @@ const FEATURES: { icon: 'sports-basketball' | 'groups' | 'swap-horiz'; text: str
 export function NoLeagueState() {
     const { push } = useRouter()
     return (
-        <SafeAreaView style={styles.container}>
-            <View style={styles.inner}>
-                <View style={styles.brandMark}>
-                    <Text style={styles.brandMarkText}>P</Text>
-                </View>
-                <Text style={styles.eyebrow}>Dynasty Hoops</Text>
-                <Text style={styles.title}>Welcome to Pancake</Text>
-                <Text style={styles.sub}>
-                    You&apos;re not in a league yet. Create your own dynasty room, or join an existing one with an invite code.
-                </Text>
-
-                <View style={styles.features}>
-                    {FEATURES.map((f) => (
-                        <View key={f.text} style={styles.featureRow}>
-                            <View style={styles.featureIcon}>
-                                <MaterialIcons name={f.icon} size={18} color={colors.primary} />
-                            </View>
-                            <Text style={styles.featureText}>{f.text}</Text>
-                        </View>
-                    ))}
-                </View>
-
-                <View style={styles.actions}>
-                    <Button title="Create a League" size="lg" fullWidth icon="add" onPress={() => push('/(modals)/create-league')} />
-                    <Button title="Join with Invite Code" size="lg" variant="outline" fullWidth icon="vpn-key" onPress={() => push('/(modals)/join-league')} />
-                </View>
+        <PromptFrame
+            cardMaxWidth={520}
+            containerStyle={Platform.OS === 'web' ? styles.containerWeb : null}
+            cardStyle={styles.card}
+        >
+            <View style={styles.brandMark}>
+                <Text style={styles.brandMarkText}>P</Text>
             </View>
-        </SafeAreaView>
+            <Text style={styles.eyebrow}>Dynasty Hoops</Text>
+            <Text style={styles.title}>Welcome to Pancake</Text>
+            <Text style={styles.sub}>
+                You&apos;re not in a league yet. Create your own dynasty room, or join an existing one with an invite code.
+            </Text>
+
+            <View style={styles.features}>
+                {FEATURES.map((f) => (
+                    <View key={f.text} style={styles.featureRow}>
+                        <View style={styles.featureIcon}>
+                            <MaterialIcons name={f.icon} size={18} color={colors.primary} />
+                        </View>
+                        <Text style={styles.featureText}>{f.text}</Text>
+                    </View>
+                ))}
+            </View>
+
+            <View style={styles.actions}>
+                <Button title="Create a League" size="lg" fullWidth icon="add" onPress={() => push('/(modals)/create-league')} />
+                <Button title="Join with Invite Code" size="lg" variant="outline" fullWidth icon="vpn-key" onPress={() => push('/(modals)/join-league')} />
+            </View>
+        </PromptFrame>
     )
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: colors.bgScreen },
-    inner: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
+    containerWeb: {
+        backgroundImage: webBackgrounds.noLeague,
+    } as WebOnlyViewStyle,
+    card: {
         paddingHorizontal: spacing['4xl'],
-        gap: spacing.md,
-        maxWidth: 460,
-        width: '100%',
-        alignSelf: 'center',
     },
     brandMark: {
         width: 56,
@@ -67,15 +64,15 @@ const styles = StyleSheet.create({
         marginBottom: spacing.sm,
         ...(elevation('brandGlow') as object),
     },
-    brandMarkText: { color: colors.textWhite, fontSize: 28, fontWeight: fontWeight.extrabold },
+    brandMarkText: { color: colors.textWhite, fontSize: 28, fontFamily: fontFamily.display, fontWeight: fontWeight.extrabold },
     eyebrow: {
         color: colors.primaryDark,
         fontSize: fontSize.xs,
         fontWeight: fontWeight.extrabold,
-        letterSpacing: 1.5,
+        letterSpacing: 1,
         textTransform: 'uppercase',
     },
-    title: { fontSize: fontSize['3xl'], fontWeight: fontWeight.extrabold, color: colors.textPrimary, textAlign: 'center' },
+    title: { fontSize: fontSize['4xl'], fontFamily: fontFamily.display, fontWeight: fontWeight.black, color: colors.textPrimary, textAlign: 'center' },
     sub: {
         fontSize: fontSize.md,
         color: colors.textMuted,
@@ -88,7 +85,15 @@ const styles = StyleSheet.create({
         gap: spacing.md,
         marginBottom: spacing.xl,
     },
-    featureRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg },
+    featureRow: {
+        minHeight: 48,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.lg,
+        paddingHorizontal: spacing.lg,
+        borderRadius: radii.lg,
+        backgroundColor: colors.bgSubtle,
+    },
     featureIcon: {
         width: 34,
         height: 34,
@@ -97,6 +102,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
-    featureText: { flex: 1, fontSize: fontSize.md, color: colors.textSecondary, fontWeight: fontWeight.medium },
+    featureText: { flex: 1, fontSize: fontSize.md, color: colors.textSecondary, fontWeight: fontWeight.semibold },
     actions: { width: '100%', gap: spacing.md },
 })

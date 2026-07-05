@@ -7,6 +7,9 @@ import { getRoster, RosterPlayer } from '@/lib/roster'
 import { DropPlayerPickerModal } from '@/components/DropPlayerPickerModal'
 import { showAlert, confirmAction, getErrorMessage } from '@/lib/alert'
 import { MotionPressable, MotionView } from '@/components/Motion'
+import { Avatar } from '@/components/Avatar'
+import { playerHeadshotUrl } from '@/lib/format'
+import { getPositionColor } from '@/constants/positions'
 
 export type TabKey = 'picks' | 'offers' | 'history' | 'block'
 
@@ -26,7 +29,23 @@ const STATUS_COLORS = TRADE_STATUS_COLORS
 
 function TradeItemLine({ item }: { item: TradeItem }) {
     if (item.kind === 'player') {
-        return <Text style={styles.assetPlayer}>{item.playerName}</Text>
+        return (
+            <View style={styles.assetPlayerRow}>
+                <Avatar
+                    name={item.playerName}
+                    uri={playerHeadshotUrl(item.nbaId) ?? undefined}
+                    color={getPositionColor(item.position, colors.bgMuted)}
+                    textColor={colors.textSecondary}
+                    size={26}
+                />
+                <View style={styles.assetPlayerCopy}>
+                    <Text style={styles.assetPlayer} numberOfLines={1}>{item.playerName}</Text>
+                    <Text style={styles.assetPlayerMeta} numberOfLines={1}>
+                        {[item.nbaTeam, item.position].filter(Boolean).join(' · ')}
+                    </Text>
+                </View>
+            </View>
+        )
     }
     return (
         <Text style={styles.assetPick}>
@@ -370,7 +389,10 @@ const styles = StyleSheet.create({
     assetBlock: { marginBottom: spacing.xs },
     assetLabel: { fontSize: 12, fontWeight: fontWeight.semibold, color: colors.textPrimary, marginBottom: spacing.xxs },
     assetEmpty: { fontSize: fontSize.sm, color: colors.textPlaceholder },
+    assetPlayerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: 2 },
+    assetPlayerCopy: { flex: 1, minWidth: 0 },
     assetPlayer: { fontSize: fontSize.sm, color: colors.textSecondary },
+    assetPlayerMeta: { fontSize: fontSize.xs, color: colors.textMuted },
     assetPick: { fontSize: fontSize.sm, color: colors.textSecondary, fontStyle: 'italic' },
     assetPickVia: { fontSize: 12, color: colors.textMuted },
 

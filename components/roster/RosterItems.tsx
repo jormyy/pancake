@@ -144,6 +144,7 @@ export function RosterPlayerItem({
     droppingId,
     taxiSlotsAvailable,
     avgFpts,
+    avgMinutes,
     onPress,
     onLongPress,
     onToggleIR,
@@ -155,6 +156,7 @@ export function RosterPlayerItem({
     droppingId: string | null
     taxiSlotsAvailable: boolean
     avgFpts?: number
+    avgMinutes?: number | null
     onPress: () => void
     onLongPress: () => void
     onToggleIR: (item: RosterPlayer) => void
@@ -180,6 +182,9 @@ export function RosterPlayerItem({
                     {positions.map((pos) => <PosTag key={pos} position={pos} />)}
                     {avgFpts != null ? (
                         <Text style={styles.fptsText}>{formatPoints(avgFpts)} FPts</Text>
+                    ) : null}
+                    {avgMinutes != null ? (
+                        <Text style={styles.fptsText}>{formatPoints(avgMinutes)} MIN</Text>
                     ) : null}
                 </View>
                 {player.injury_status ? (
@@ -225,12 +230,14 @@ export function TaxiPlayerItem({
     item,
     taxiingId,
     avgFpts,
+    avgMinutes,
     onPress,
     onToggleTaxi,
 }: {
     item: RosterPlayer
     taxiingId: string | null
     avgFpts?: number
+    avgMinutes?: number | null
     onPress: () => void
     onToggleTaxi: (item: RosterPlayer) => void
 }) {
@@ -253,6 +260,9 @@ export function TaxiPlayerItem({
                     {positions.map((pos) => <PosTag key={pos} position={pos} />)}
                     {avgFpts != null ? (
                         <Text style={styles.fptsText}>{formatPoints(avgFpts)} FPts</Text>
+                    ) : null}
+                    {avgMinutes != null ? (
+                        <Text style={styles.fptsText}>{formatPoints(avgMinutes)} MIN</Text>
                     ) : null}
                 </View>
             </View>

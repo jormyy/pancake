@@ -5,6 +5,7 @@ import {
     Pressable,
     ScrollView,
     StyleSheet,
+    Platform,
     useWindowDimensions,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -15,7 +16,7 @@ import { getProfile, updateProfile, signOut } from '@/lib/auth'
 import { updateTeamName } from '@/lib/league'
 import { getNotificationPreferences, updateNotificationPreferences, type NotificationPreferences } from '@/lib/notification-preferences'
 import { useLeagueContext } from '@/contexts/league-context'
-import { colors, fontSize, fontWeight, spacing } from '@/constants/tokens'
+import { colors, fontFamily, fontSize, fontWeight, radii, shadows, spacing } from '@/constants/tokens'
 import { Avatar } from '@/components/Avatar'
 import { Button } from '@/components/ui'
 import { showAlert, confirmAction, getErrorMessage } from '@/lib/alert'
@@ -125,15 +126,17 @@ export default function ProfileScreen() {
     return (
         <SafeAreaView style={styles.container}>
             <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-                {/* Avatar */}
                 <View style={styles.avatarSection}>
                     <Avatar
                         name={profile?.display_name ?? profile?.username ?? '?'}
                         size={84}
                     />
+                    <Text style={styles.profileTitle} numberOfLines={1}>
+                        {profile?.display_name ?? 'Profile'}
+                    </Text>
+                    <Text style={styles.profileSubtitle}>Profile & settings</Text>
                 </View>
 
-                {/* Info card */}
                 <View style={styles.card}>
                     <View style={rowStyle}>
                         <Text style={styles.rowLabel}>Name</Text>
@@ -169,7 +172,7 @@ export default function ProfileScreen() {
                 {current && (
                     <>
                         <Text style={styles.sectionLabel}>
-                            {currentLeague?.name?.toUpperCase() ?? 'LEAGUE'}
+                            {currentLeague?.name ?? 'League'}
                         </Text>
                         <View style={styles.card}>
                             <View style={rowStyle}>
@@ -194,7 +197,7 @@ export default function ProfileScreen() {
                     </>
                 )}
 
-                <Text style={styles.sectionLabel}>NOTIFICATIONS</Text>
+                <Text style={styles.sectionLabel}>Notifications</Text>
                 <View style={styles.card}>
                     {([
                         ['tradeEnabled', 'Trades'],
@@ -224,7 +227,6 @@ export default function ProfileScreen() {
                     })}
                 </View>
 
-                {/* Edit / Save / Cancel buttons */}
                 {editing ? (
                     <View style={styles.actionRow}>
                         <Button title="Cancel" variant="secondary" onPress={handleCancel} style={styles.flexBtn} />
@@ -234,7 +236,6 @@ export default function ProfileScreen() {
                     <Button title="Edit Profile" variant="outline" fullWidth icon="edit" onPress={() => setEditing(true)} />
                 )}
 
-                {/* Account actions */}
                 {!editing ? (
                     <Button
                         title="Change Password"
@@ -245,7 +246,6 @@ export default function ProfileScreen() {
                     />
                 ) : null}
 
-                {/* Sign out */}
                 <Button title="Sign Out" variant="ghost" fullWidth icon="logout" onPress={handleSignOut} style={styles.signOutButton} />
                 <View style={styles.appMeta}>
                     <Text style={styles.appMetaText}>Pancake · Dynasty Hoops</Text>
@@ -258,17 +258,32 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgScreen },
     scroll: { flex: 1 },
-    // Settings read best as a narrow column: cap well below the app-wide
-    // content width so label → value eye travel stays short on desktop.
-    scrollContent: { padding: spacing['3xl'], gap: spacing.xl, width: '100%', maxWidth: 720, alignSelf: 'center' },
+    scrollContent: { padding: spacing['3xl'], gap: spacing.xl, width: '100%', maxWidth: 760, alignSelf: 'center' },
 
-    avatarSection: { alignItems: 'center', paddingTop: 48, paddingBottom: spacing.md },
+    avatarSection: {
+        alignItems: 'center',
+        paddingTop: spacing['2xl'],
+        paddingBottom: spacing.lg,
+        gap: spacing.sm,
+    },
+    profileTitle: {
+        maxWidth: '100%',
+        color: colors.textPrimary,
+        fontSize: fontSize['2xl'],
+        fontFamily: fontFamily.display,
+        fontWeight: fontWeight.black,
+    },
+    profileSubtitle: {
+        color: colors.textMuted,
+        fontSize: fontSize.sm,
+        fontWeight: fontWeight.semibold,
+    },
 
     sectionLabel: {
         fontSize: fontSize.xs,
-        fontWeight: fontWeight.bold,
-        color: colors.textPlaceholder,
-        letterSpacing: 0.8,
+        fontWeight: fontWeight.extrabold,
+        color: colors.textMuted,
+        letterSpacing: 0.4,
         marginTop: spacing.md,
         marginBottom: spacing.xs,
         marginLeft: spacing.xs,
@@ -276,11 +291,12 @@ const styles = StyleSheet.create({
 
     card: {
         backgroundColor: colors.bgCard,
-        borderRadius: 14,
+        borderRadius: radii.xl,
         borderCurve: 'continuous' as const,
         borderWidth: 1,
         borderColor: colors.borderLight,
         overflow: 'hidden',
+        ...(Platform.OS === 'web' ? { boxShadow: shadows.sm } : {}),
     },
     row: {
         flexDirection: 'row',
@@ -291,11 +307,9 @@ const styles = StyleSheet.create({
     },
     divider: { height: 1, backgroundColor: colors.separator, marginLeft: spacing.xl },
     rowNarrow: { flexDirection: 'column', alignItems: 'flex-start', gap: spacing.xs, paddingVertical: spacing.lg },
-    rowLabel: { width: 80, fontSize: fontSize.md, color: colors.textMuted, fontWeight: fontWeight.medium },
-    // Switch rows always fit on one line, so the label takes the free space
-    // and the toggle right-aligns like the info-row values above it.
+    rowLabel: { width: 86, fontSize: fontSize.md, color: colors.textMuted, fontWeight: fontWeight.semibold },
     switchLabel: { width: 'auto', flex: 1 },
-    rowValue: { flex: 1, minWidth: 0, fontSize: 15, color: colors.textPrimary, fontWeight: fontWeight.medium, textAlign: 'right' },
+    rowValue: { flex: 1, minWidth: 0, fontSize: 15, color: colors.textPrimary, fontWeight: fontWeight.semibold, textAlign: 'right' },
     rowValueNarrow: { width: '100%', flexGrow: 0, flexShrink: 0, flexBasis: 'auto', textAlign: 'left' },
     input: {
         flex: 1,
@@ -310,7 +324,7 @@ const styles = StyleSheet.create({
         width: 48,
         height: 28,
         borderRadius: 14,
-        backgroundColor: colors.bgMuted,
+        backgroundColor: colors.bgSubtle,
         borderWidth: 1,
         borderColor: colors.borderLight,
         justifyContent: 'center',

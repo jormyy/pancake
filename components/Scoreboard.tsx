@@ -1,5 +1,5 @@
 import { View, Text, ScrollView, StyleSheet } from 'react-native'
-import { colors, palette, fontFamily, fontWeight, radii, spacing } from '@/constants/tokens'
+import { colors, palette, fontFamily, fontWeight, radii, spacing, webOverlays } from '@/constants/tokens'
 import { NBAGameRow } from '@/lib/games'
 import { LivePulse, MotionView } from '@/components/Motion'
 
@@ -128,7 +128,7 @@ const styles = StyleSheet.create({
         gap: 2,
         overflow: 'hidden' as const,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.07)',
+        borderColor: webOverlays.scoreboardBorder,
     },
     cardCompact: {
         width: 78,
@@ -139,7 +139,7 @@ const styles = StyleSheet.create({
     cardLive: {
         borderColor: colors.primary,
         borderWidth: 1.5,
-        boxShadow: '0 0 10px rgba(201, 102, 15, 0.35)',
+        boxShadow: webOverlays.liveGlow,
     },
     cardFinal: {
         opacity: 0.6,
@@ -176,7 +176,7 @@ const styles = StyleSheet.create({
         textAlign: 'right',
     },
     scoreHidden: {
-        color: 'rgba(255,255,255,0.18)',
+        color: webOverlays.scoreboardHidden,
         fontSize: 11,
     },
     scoreHighlight: {
@@ -192,16 +192,16 @@ const styles = StyleSheet.create({
     status: {
         fontSize: 9,
         fontWeight: fontWeight.bold,
-        color: 'rgba(255,255,255,0.3)',
+        color: webOverlays.scoreboardMuted,
         textAlign: 'center',
         letterSpacing: 0.3,
     },
     statusLive: {
-        color: colors.primaryDark,
+        color: palette.maple200,
         fontWeight: fontWeight.extrabold,
         letterSpacing: 0.5,
     },
     statusFinal: {
-        color: 'rgba(255,255,255,0.2)',
+        color: webOverlays.scoreboardFaint,
     },
 })
