@@ -8,7 +8,6 @@ import { type ComponentProps } from 'react'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { colors, fontFamily, fontSize, fontWeight, radii, shadows, spacing, layout } from '@/constants/tokens'
-import { EmptyState } from '@/components/EmptyState'
 import { ErrorBanner } from '@/components/ui'
 import { NoLeagueState } from '@/components/NoLeagueState'
 import { StandingsTable } from '@/components/league/LeagueStandings'
@@ -37,6 +36,7 @@ const PHASE_STEPS: readonly PhaseStep[] = [
 const LEAGUE_TAB_LABELS = Object.fromEntries(
     LEAGUE_TABS.map((tab) => [tab.key, tab.label]),
 ) as Record<(typeof LEAGUE_TABS)[number]['key'], string>
+const PLACEHOLDER_ROWS = 7
 
 const STATUS_COPY: Record<LeagueStatus, { label: string; stepLabel: string; detail: string; activeStep: PhaseStep['key'] }> = {
     setup: {
@@ -166,6 +166,97 @@ function LeaguePhaseRail({ status, compact = false }: { status?: LeagueStatus; c
     )
 }
 
+function LeagueTabPlaceholder({ tab }: { tab: (typeof LEAGUE_TABS)[number]['key'] }) {
+    const wideRows = tab === 'results' || tab === 'draftBoard'
+    return (
+        <View
+            style={styles.tabPlaceholder}
+            role="status"
+            aria-busy
+            aria-label={`${LEAGUE_TAB_LABELS[tab]} content loading`}
+            accessibilityLabel={`${LEAGUE_TAB_LABELS[tab]} content loading`}
+            accessibilityState={{ busy: true }}
+        >
+            <View style={styles.placeholderHeader}>
+                <View style={styles.placeholderTitle} />
+                <View style={styles.placeholderAction} />
+            </View>
+            {Array.from({ length: wideRows ? PLACEHOLDER_ROWS : 4 }, (_, index) => (
+                <View key={index} style={[styles.placeholderRow, wideRows && styles.placeholderRowWide]}>
+                    <View style={styles.placeholderAvatar} />
+                    <View style={styles.placeholderRowBody}>
+                        <View style={styles.placeholderLineStrong} />
+                        <View style={styles.placeholderLine} />
+                    </View>
+                    {wideRows ? (
+                        <View style={styles.placeholderValueGroup}>
+                            <View style={styles.placeholderValue} />
+                            <View style={styles.placeholderValue} />
+                            <View style={styles.placeholderValue} />
+                        </View>
+                    ) : null}
+                </View>
+            ))}
+        </View>
+    )
+}
+
+function LeagueLoadingShell({ tab }: { tab: (typeof LEAGUE_TABS)[number]['key'] }) {
+    const activePanelId = `league-panel-${tab}`
+    const activeTabId = `league-tab-${tab}`
+    const activeTabLabel = LEAGUE_TAB_LABELS[tab]
+
+    return (
+        <SafeAreaView style={styles.container}>
+            <View style={styles.contentWrap}>
+                <View style={[styles.header, styles.headerCompact]}>
+                    <View
+                        style={styles.compactLeagueCrumb}
+                        role="group"
+                        aria-label="League loading"
+                        accessibilityRole="text"
+                        accessibilityLabel="League loading"
+                    >
+                        <View style={styles.placeholderLeagueName} />
+                        <View
+                            style={styles.compactLeagueDot}
+                            aria-hidden
+                            accessibilityElementsHidden
+                            importantForAccessibility="no-hide-descendants"
+                        />
+                        <View style={styles.placeholderTeamName} />
+                    </View>
+                    <View style={[styles.phaseWrap, styles.phaseWrapCompact]}>
+                        <View style={styles.phaseCompactSummary}>
+                            <View style={styles.placeholderPhaseLabel} />
+                        </View>
+                        <View style={styles.phaseRail}>
+                            {PHASE_STEPS.map((step) => (
+                                <View key={step.key} style={[styles.phaseStep, styles.phaseStepCompact]}>
+                                    <View style={styles.placeholderPhaseIcon} />
+                                    <View style={styles.placeholderPhaseStepText} />
+                                </View>
+                            ))}
+                        </View>
+                    </View>
+                </View>
+
+                <LeagueTabBar activeTab={tab} onTabChange={() => {}} />
+                <View
+                    nativeID={activePanelId}
+                    style={styles.contentScroll}
+                    role="tabpanel"
+                    aria-label={`${activeTabLabel} league section`}
+                    aria-labelledby={activeTabId}
+                    accessibilityLabel={`${activeTabLabel} league section`}
+                >
+                    <LeagueTabPlaceholder tab={tab} />
+                </View>
+            </View>
+        </SafeAreaView>
+    )
+}
+
 export default function LeagueScreen() {
     const screen = useLeagueScreenState()
     const compactLeagueHeader = true
@@ -175,13 +266,7 @@ export default function LeagueScreen() {
 
     if (!screen.current) {
         if (screen.leagueLoading) {
-            return (
-                <EmptyState
-                    message="Loading league..."
-                    description="Fetching your teams and league settings."
-                    icon="sync"
-                />
-            )
+            return <LeagueLoadingShell tab={screen.tab} />
         }
         return <NoLeagueState />
     }
@@ -192,7 +277,7 @@ export default function LeagueScreen() {
 
     function renderTabContent() {
         if (screen.isTabLoading && !screen.isCurrentTabHydrated) {
-            return null
+            return <LeagueTabPlaceholder tab={screen.tab} />
         }
 
         if (screen.tabErr && !screen.isTabLoading) {
@@ -538,4 +623,127 @@ const styles = StyleSheet.create({
     },
     phaseStepTextActive: { color: colors.primaryDark },
     contentScroll: { flex: 1 },
+    tabPlaceholder: {
+        flex: 1,
+        padding: spacing.xl,
+        gap: spacing.md,
+        width: '100%',
+        maxWidth: 760,
+        alignSelf: 'center',
+    },
+    placeholderHeader: {
+        minHeight: 52,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: spacing.lg,
+        paddingHorizontal: spacing.lg,
+        borderWidth: 1,
+        borderColor: colors.borderLight,
+        borderRadius: radii.lg,
+        backgroundColor: colors.bgCard,
+    },
+    placeholderTitle: {
+        width: 172,
+        height: 16,
+        borderRadius: radii.xs,
+        backgroundColor: colors.bgMuted,
+    },
+    placeholderAction: {
+        width: 112,
+        height: 32,
+        borderRadius: radii.md,
+        backgroundColor: colors.bgSubtle,
+        borderWidth: 1,
+        borderColor: colors.borderLight,
+    },
+    placeholderRow: {
+        minHeight: 76,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.lg,
+        paddingHorizontal: spacing.lg,
+        borderWidth: 1,
+        borderColor: colors.borderLight,
+        borderRadius: radii.lg,
+        backgroundColor: colors.bgCard,
+    },
+    placeholderRowWide: {
+        minHeight: 58,
+    },
+    placeholderAvatar: {
+        width: 34,
+        height: 34,
+        borderRadius: 17,
+        backgroundColor: colors.bgMuted,
+        borderWidth: 1,
+        borderColor: colors.borderLight,
+    },
+    placeholderRowBody: {
+        flex: 1,
+        minWidth: 0,
+        gap: spacing.sm,
+    },
+    placeholderLineStrong: {
+        width: '52%',
+        maxWidth: 220,
+        height: 14,
+        borderRadius: radii.xs,
+        backgroundColor: colors.bgMuted,
+    },
+    placeholderLine: {
+        width: '38%',
+        maxWidth: 170,
+        height: 11,
+        borderRadius: radii.xs,
+        backgroundColor: colors.bgSubtle,
+    },
+    placeholderValueGroup: {
+        width: 172,
+        flexDirection: 'row',
+        justifyContent: 'flex-end',
+        gap: spacing.md,
+    },
+    placeholderValue: {
+        width: 42,
+        height: 12,
+        borderRadius: radii.xs,
+        backgroundColor: colors.bgMuted,
+    },
+    placeholderLeagueName: {
+        flex: 1.2,
+        minWidth: 0,
+        maxWidth: 260,
+        height: 14,
+        borderRadius: radii.xs,
+        backgroundColor: colors.bgMuted,
+    },
+    placeholderTeamName: {
+        flex: 1,
+        minWidth: 0,
+        maxWidth: 180,
+        height: 14,
+        borderRadius: radii.xs,
+        backgroundColor: colors.bgSubtle,
+    },
+    placeholderPhaseLabel: {
+        width: 96,
+        height: 12,
+        borderRadius: radii.xs,
+        backgroundColor: colors.bgMuted,
+    },
+    placeholderPhaseIcon: {
+        width: 15,
+        height: 15,
+        borderRadius: 8,
+        backgroundColor: colors.bgMuted,
+    },
+    placeholderPhaseStepText: {
+        flex: 1,
+        minWidth: 28,
+        maxWidth: 64,
+        height: 10,
+        borderRadius: radii.xs,
+        backgroundColor: colors.bgSubtle,
+    },
 })

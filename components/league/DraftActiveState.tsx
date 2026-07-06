@@ -28,39 +28,24 @@ function activeDraftButtonLabel(draft: Draft) {
     return `${draft.status === 'paused' ? 'Resume' : 'Join'} ${mock}${kind}`
 }
 
-function activeDraftLoadingLabel(filterType?: 'auction' | 'snake') {
-    if (filterType === 'snake') return 'Checking for live rookie draft'
-    if (filterType === 'auction') return 'Checking for live auction draft'
-    return 'Checking for live draft'
-}
-
 function ActiveDraftLoadingNotice({
     compact,
-    filterType,
 }: {
     compact: boolean
     filterType?: 'auction' | 'snake'
 }) {
-    const label = activeDraftLoadingLabel(filterType)
-    const description = 'Looking for an active draft room before showing draft setup controls.'
-    const accessibilityLabel = `${label}. ${description}`
+    const accessibilityLabel = 'Draft status updating.'
     return (
         <View
             style={[styles.draftLoadingNotice, compact && styles.draftLoadingNoticeCompact]}
             role="status"
             aria-label={accessibilityLabel}
-            aria-live="polite"
             aria-busy
             accessibilityLabel={accessibilityLabel}
-            accessibilityLiveRegion="polite"
             accessibilityState={{ busy: true }}
         >
-            <Text style={styles.draftLoadingTitle}>{label}</Text>
-            {compact ? null : (
-                <Text style={styles.draftLoadingText}>
-                    {description}
-                </Text>
-            )}
+            <View style={styles.draftLoadingTitlePlaceholder} />
+            {compact ? null : <View style={styles.draftLoadingTextPlaceholder} />}
         </View>
     )
 }
@@ -264,15 +249,18 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         paddingVertical: spacing.sm,
     },
-    draftLoadingTitle: {
-        fontSize: fontSize.sm,
-        fontWeight: fontWeight.extrabold,
-        color: colors.textPrimary,
+    draftLoadingTitlePlaceholder: {
+        width: 164,
+        height: 14,
+        borderRadius: radii.xs,
+        backgroundColor: colors.bgMuted,
     },
-    draftLoadingText: {
-        fontSize: fontSize.xs,
-        lineHeight: 16,
-        color: colors.textMuted,
+    draftLoadingTextPlaceholder: {
+        width: '68%',
+        maxWidth: 340,
+        height: 11,
+        borderRadius: radii.xs,
+        backgroundColor: colors.bgSubtle,
     },
     activeDraftCompactRow: {
         flexDirection: 'row',

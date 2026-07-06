@@ -99,8 +99,90 @@ const EMPTY_OWNED_MAP = new Map<string, OwnedEntry>()
 const EMPTY_WAIVER_IDS = new Set<string>()
 const EMPTY_GAMES_LEFT = new Map<string, number>()
 const PROJECTION_CACHE_PREFIX = 'pancake:league-projections:v1:'
+const PROJECTION_LOADING_ROWS = 8
 
 const projectionCacheKey = (leagueId: string, view: ProjectionView) => `${PROJECTION_CACHE_PREFIX}${leagueId}:${view}`
+
+function ProjectionTableHeader({
+    activeSort,
+    sortDir,
+    onColumnSort,
+}: {
+    activeSort?: PlayerSearchSortMode
+    sortDir?: PlayerSearchSortDir
+    onColumnSort?: (mode: PlayerSearchSortMode) => void
+}) {
+    return (
+        <View style={styles.tableHeader}>
+            <View style={styles.tableHeaderAddSpacer} />
+            <View style={styles.tableHeaderCardRow}>
+                <View style={styles.tableHeaderHeadshotSpacer} />
+                <Text style={styles.tableHeaderPlayer}>Player</Text>
+                <Text style={styles.tableHeaderOwnership}>Ownership</Text>
+                <View style={styles.tableHeaderStatsGroup}>
+                    {TABLE_COLUMNS.map((column) => {
+                        const mode = STAT_COLUMN_SORT[column]
+                        const active = mode != null && activeSort === mode
+                        const disabled = mode == null || !onColumnSort
+                        return (
+                            <Pressable
+                                key={column}
+                                style={styles.tableHeaderStatBtn}
+                                onPress={() => mode && onColumnSort?.(mode)}
+                                disabled={disabled}
+                                accessibilityRole="button"
+                                accessibilityState={{ selected: active, disabled }}
+                                accessibilityLabel={mode
+                                    ? `Sort by ${STAT_LABELS[column] ?? column}${active && sortDir ? (sortDir === 'asc' ? ', ascending' : ', descending') : ''}`
+                                    : STAT_LABELS[column] ?? column}
+                            >
+                                <Text style={[styles.tableHeaderStat, active && styles.tableHeaderStatActive]} numberOfLines={1}>
+                                    {column}{active && sortDir ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
+                                </Text>
+                            </Pressable>
+                        )
+                    })}
+                </View>
+            </View>
+        </View>
+    )
+}
+
+function ProjectionLoadingRows({ showStatTable }: { showStatTable: boolean }) {
+    return (
+        <View
+            style={localStyles.loadingRows}
+            role="status"
+            aria-busy
+            aria-label="Projection table loading"
+            accessibilityLabel="Projection table loading"
+            accessibilityState={{ busy: true }}
+        >
+            {Array.from({ length: PROJECTION_LOADING_ROWS }, (_, index) => (
+                <View key={index} style={localStyles.loadingRow}>
+                    <View style={localStyles.loadingAddSpacer} />
+                    <View style={[localStyles.loadingCard, !showStatTable && localStyles.loadingCardNarrow]}>
+                        <View style={localStyles.loadingAvatar} />
+                        <View style={localStyles.loadingInfo}>
+                            <View style={localStyles.loadingNameLine} />
+                            <View style={localStyles.loadingMetaLine} />
+                        </View>
+                        {showStatTable ? (
+                            <>
+                                <View style={localStyles.loadingOwnership} />
+                                <View style={localStyles.loadingStatsGroup}>
+                                    {TABLE_COLUMNS.map((column) => (
+                                        <View key={column} style={localStyles.loadingStatCell} />
+                                    ))}
+                                </View>
+                            </>
+                        ) : null}
+                    </View>
+                </View>
+            ))}
+        </View>
+    )
+}
 
 export default function ProjectionsScreen() {
     const { push } = useRouter()
@@ -309,7 +391,7 @@ export default function ProjectionsScreen() {
                     />
                     <Text style={styles.resultCountText}>
                         {!projectionRowsReady
-                            ? 'Players'
+                            ? '— players'
                             : `${visiblePlayerRows.length}${activeFilterCount > 0 ? ' filtered' : ''} player${visiblePlayerRows.length === 1 ? '' : 's'}`}
                     </Text>
                 </View>
@@ -417,40 +499,10 @@ export default function ProjectionsScreen() {
                 data={visiblePlayerRows}
                 extraData={playerListExtraData}
                 keyExtractor={(player) => player.id}
-                contentContainerStyle={visiblePlayerRows.length === 0 ? styles.emptyContainer : undefined}
+                contentContainerStyle={visiblePlayerRows.length === 0 && projectionRowsReady ? styles.emptyContainer : undefined}
                 ItemSeparatorComponent={ItemSeparator}
-                ListHeaderComponent={showStatTable && visiblePlayerRows.length > 0 ? (
-                    <View style={styles.tableHeader}>
-                        <View style={styles.tableHeaderAddSpacer} />
-                        <View style={styles.tableHeaderCardRow}>
-                            <View style={styles.tableHeaderHeadshotSpacer} />
-                            <Text style={styles.tableHeaderPlayer}>Player</Text>
-                            <Text style={styles.tableHeaderOwnership}>Ownership</Text>
-                            <View style={styles.tableHeaderStatsGroup}>
-                                {TABLE_COLUMNS.map((column) => {
-                                    const mode = STAT_COLUMN_SORT[column]
-                                    const active = mode != null && sortMode === mode
-                                    return (
-                                        <Pressable
-                                            key={column}
-                                            style={styles.tableHeaderStatBtn}
-                                            onPress={() => mode && handleColumnSort(mode)}
-                                            disabled={mode == null}
-                                            accessibilityRole="button"
-                                            accessibilityState={{ selected: active, disabled: mode == null }}
-                                            accessibilityLabel={mode
-                                                ? `Sort by ${STAT_LABELS[column] ?? column}${active ? (sortDir === 'asc' ? ', ascending' : ', descending') : ''}`
-                                                : STAT_LABELS[column] ?? column}
-                                        >
-                                            <Text style={[styles.tableHeaderStat, active && styles.tableHeaderStatActive]} numberOfLines={1}>
-                                                {column}{active ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
-                                            </Text>
-                                        </Pressable>
-                                    )
-                                })}
-                            </View>
-                        </View>
-                    </View>
+                ListHeaderComponent={showStatTable ? (
+                    <ProjectionTableHeader activeSort={sortMode} sortDir={sortDir} onColumnSort={handleColumnSort} />
                 ) : null}
                 renderItem={({ item }: { item: PlayerRow }) => (
                     <PlayerSearchItem
@@ -473,7 +525,9 @@ export default function ProjectionsScreen() {
                         onPress={() => push(`/player/${item.id}`)}
                     />
                 )}
-                ListEmptyComponent={projectionRowsReady ? <EmptyState message="No projections found." fullScreen={false} /> : null}
+                ListEmptyComponent={projectionRowsReady
+                    ? <EmptyState message="No projections found." fullScreen={false} />
+                    : <ProjectionLoadingRows showStatTable={showStatTable} />}
             />
           </View>
 
@@ -590,4 +644,76 @@ const localStyles = StyleSheet.create({
         borderCurve: 'continuous',
     },
     noticeText: { color: colors.textSecondary, fontSize: fontSize.sm, fontWeight: fontWeight.medium },
+    loadingRows: {
+        width: '100%',
+    },
+    loadingRow: {
+        minHeight: 78,
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingLeft: spacing.lg,
+        borderBottomWidth: 1,
+        borderBottomColor: colors.separator,
+    },
+    loadingAddSpacer: { width: 52 },
+    loadingCard: {
+        flex: 1,
+        minHeight: 78,
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingLeft: spacing.md,
+        paddingRight: spacing['4xl'],
+        gap: spacing.lg,
+    },
+    loadingCardNarrow: {
+        alignItems: 'flex-start',
+        paddingRight: spacing.lg,
+        paddingVertical: spacing.lg,
+    },
+    loadingAvatar: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: colors.bgMuted,
+        borderWidth: 1,
+        borderColor: colors.borderLight,
+    },
+    loadingInfo: {
+        flex: 1,
+        minWidth: 0,
+        gap: spacing.sm,
+    },
+    loadingNameLine: {
+        width: '58%',
+        maxWidth: 220,
+        height: 16,
+        borderRadius: 4,
+        backgroundColor: colors.bgMuted,
+    },
+    loadingMetaLine: {
+        width: '42%',
+        maxWidth: 170,
+        height: 12,
+        borderRadius: 4,
+        backgroundColor: colors.bgSubtle,
+    },
+    loadingOwnership: {
+        width: 90,
+        height: 28,
+        borderRadius: 8,
+        backgroundColor: colors.bgMuted,
+    },
+    loadingStatsGroup: {
+        width: 10 * 54,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'flex-end',
+    },
+    loadingStatCell: {
+        width: 34,
+        height: 12,
+        marginLeft: 20,
+        borderRadius: 4,
+        backgroundColor: colors.bgMuted,
+    },
 })

@@ -6,6 +6,7 @@ vi.mock('@/lib/shared/season', () => ({ getActiveSeasonId: vi.fn() }))
 import { supabase } from '@/lib/supabase'
 import { getActiveSeasonId } from '@/lib/shared/season'
 import { getMyDynastyNews } from '@/lib/dynasty'
+import { read } from '../source-guard'
 
 const mockFrom = vi.mocked(supabase.from)
 const mockGetActiveSeasonId = vi.mocked(getActiveSeasonId)
@@ -81,5 +82,17 @@ describe('getMyDynastyNews', () => {
                 playerNbaId: '203999',
             },
         ])
+    })
+})
+
+describe('dynasty hub UI stability contracts', () => {
+    it('renders ranking and news placeholders while async sections hydrate', () => {
+        const source = read('app/(tabs)/dynasty.tsx')
+
+        expect(source).toContain('function RankingsLoadingRows')
+        expect(source).toContain('function NewsLoadingRows')
+        expect(source).toContain('ListHeaderComponent={showStats ? <RankingsTableHeader /> : null}')
+        expect(source).toContain('<RankingsLoadingRows showStats={showStats} />')
+        expect(source).toContain('<NewsLoadingRows />')
     })
 })

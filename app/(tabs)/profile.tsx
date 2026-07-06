@@ -25,13 +25,14 @@ import type { Profile } from '@/types/database'
 export default function ProfileScreen() {
     const { user } = useAuth()
     const router = useRouter()
-    const { current, currentLeague, refresh } = useLeagueContext()
+    const { current, currentLeague, refresh, loading: leagueLoading } = useLeagueContext()
     // On narrow screens stack value under label (left-aligned) so long
     // emails/usernames read on their own line instead of right-aligned wraps.
     const narrow = useWindowDimensions().width < 480
     const rowStyle = [styles.row, narrow && styles.rowNarrow]
     const valueStyle = [styles.rowValue, narrow && styles.rowValueNarrow]
     const [profile, setProfile] = useState<Profile | null>(null)
+    const [profileLoaded, setProfileLoaded] = useState(false)
     const [editing, setEditing] = useState(false)
     const [displayName, setDisplayName] = useState('')
     const [teamName, setTeamName] = useState('')
@@ -45,7 +46,12 @@ export default function ProfileScreen() {
 
     useEffect(() => {
         async function load() {
-            if (!user) return
+            if (!user) {
+                setProfile(null)
+                setProfileLoaded(false)
+                return
+            }
+            setProfileLoaded(false)
             try {
                 const p = await getProfile(user.id)
                 const prefs = await getNotificationPreferences(user.id)
@@ -54,6 +60,8 @@ export default function ProfileScreen() {
                 setDisplayName(p.display_name ?? '')
             } catch (e) {
                 console.error(e)
+            } finally {
+                setProfileLoaded(true)
             }
         }
         load()
@@ -122,6 +130,7 @@ export default function ProfileScreen() {
             showAlert('Error', getErrorMessage(e))
         }
     }
+    const showTeamSection = Boolean(current) || leagueLoading
 
     return (
         <SafeAreaView style={styles.container}>
@@ -169,7 +178,7 @@ export default function ProfileScreen() {
                 </View>
 
                 {/* Team name (league-specific) */}
-                {current && (
+                {showTeamSection && (
                     <>
                         <Text style={styles.sectionLabel}>
                             {currentLeague?.name ?? 'League'}
@@ -177,7 +186,7 @@ export default function ProfileScreen() {
                         <View style={styles.card}>
                             <View style={rowStyle}>
                                 <Text style={styles.rowLabel}>Team Name</Text>
-                                {editing ? (
+                                {editing && current ? (
                                     <TextInput
                                         style={styles.input}
                                         value={teamName}
@@ -233,7 +242,7 @@ export default function ProfileScreen() {
                         <Button title="Save" onPress={handleSave} loading={saving} style={styles.flexBtn} />
                     </View>
                 ) : (
-                    <Button title="Edit Profile" variant="outline" fullWidth icon="edit" onPress={() => setEditing(true)} />
+                    <Button title="Edit Profile" variant="outline" fullWidth icon="edit" disabled={!profileLoaded || !user} onPress={() => setEditing(true)} />
                 )}
 
                 {!editing ? (

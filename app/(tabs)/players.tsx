@@ -72,6 +72,139 @@ const STAT_LABELS: Record<string, string> = {
 
 const EMPTY_OWNED_MAP = new Map<string, OwnedEntry>()
 const EMPTY_WAIVER_IDS = new Set<string>()
+const PLAYER_LOADING_ROWS = 8
+
+function PlayerTableHeader({
+    activeSort,
+    sortDir,
+    onColumnSort,
+}: {
+    activeSort?: PlayerSearchSortMode
+    sortDir?: 'asc' | 'desc'
+    onColumnSort?: (mode: PlayerSearchSortMode) => void
+}) {
+    return (
+        <View style={styles.tableHeader}>
+            <View style={styles.tableHeaderAddSpacer} />
+            <View style={styles.tableHeaderCardRow}>
+                <View style={styles.tableHeaderHeadshotSpacer} />
+                <Text style={styles.tableHeaderPlayer}>Player</Text>
+                <Text style={styles.tableHeaderOwnership}>Ownership</Text>
+                <View style={styles.tableHeaderStatsGroup}>
+                    {TABLE_COLUMNS.map((column) => {
+                        const mode = STAT_COLUMN_SORT[column]
+                        const active = mode != null && activeSort === mode
+                        const disabled = mode == null || !onColumnSort
+                        return (
+                            <Pressable
+                                key={column}
+                                style={styles.tableHeaderStatBtn}
+                                onPress={() => mode && onColumnSort?.(mode)}
+                                disabled={disabled}
+                                accessibilityRole="button"
+                                accessibilityState={{ selected: active, disabled }}
+                                accessibilityLabel={mode
+                                    ? `Sort by ${STAT_LABELS[column] ?? column}${active && sortDir ? (sortDir === 'asc' ? ', ascending' : ', descending') : ''}`
+                                    : STAT_LABELS[column] ?? column}
+                            >
+                                <Text style={[styles.tableHeaderStat, active && styles.tableHeaderStatActive]} numberOfLines={1}>
+                                    {column}{active && sortDir ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
+                                </Text>
+                            </Pressable>
+                        )
+                    })}
+                </View>
+            </View>
+        </View>
+    )
+}
+
+function PlayerListLoadingRows({ showStatTable }: { showStatTable: boolean }) {
+    return (
+        <View
+            style={localStyles.loadingRows}
+            role="status"
+            aria-busy
+            aria-label="Player table loading"
+            accessibilityLabel="Player table loading"
+            accessibilityState={{ busy: true }}
+        >
+            {Array.from({ length: PLAYER_LOADING_ROWS }, (_, index) => (
+                <View key={index} style={localStyles.loadingRow}>
+                    <View style={localStyles.loadingAddSpacer} />
+                    <View style={[localStyles.loadingCard, !showStatTable && localStyles.loadingCardNarrow]}>
+                        <View style={localStyles.loadingAvatar} />
+                        <View style={localStyles.loadingInfo}>
+                            <View style={localStyles.loadingNameLine} />
+                            <View style={localStyles.loadingMetaLine} />
+                        </View>
+                        {showStatTable ? (
+                            <>
+                                <View style={localStyles.loadingOwnership} />
+                                <View style={localStyles.loadingStatsGroup}>
+                                    {TABLE_COLUMNS.map((column) => (
+                                        <View key={column} style={localStyles.loadingStatCell} />
+                                    ))}
+                                </View>
+                            </>
+                        ) : null}
+                    </View>
+                </View>
+            ))}
+        </View>
+    )
+}
+
+function FilterSkeletonGrid({ visible }: { visible: boolean }) {
+    if (!visible) return null
+    return (
+        <View style={styles.filterGrid}>
+            {Array.from({ length: 7 }, (_, index) => (
+                <View key={index} style={localStyles.filterSkeleton} />
+            ))}
+            <View style={localStyles.sortSkeleton} />
+        </View>
+    )
+}
+
+function PlayersLoadingShell({
+    showStatTable,
+    filtersVisible,
+}: {
+    showStatTable: boolean
+    filtersVisible: boolean
+}) {
+    return (
+        <SafeAreaView style={styles.container}>
+            <View style={styles.contentWrap}>
+                <Text style={styles.hiddenHeading} role="heading" aria-level={1} accessibilityRole="header">
+                    Players
+                </Text>
+                <View style={styles.filterCard}>
+                    <View style={styles.filterCardTop}>
+                        <TextInput
+                            style={styles.searchInput}
+                            placeholder="Search players..."
+                            placeholderTextColor={colors.textPlaceholder}
+                            editable={false}
+                        />
+                        <Text style={styles.resultCountText}>— players</Text>
+                    </View>
+                    <View style={styles.filterCardHeader}>
+                        <Text style={styles.filterCardTitle} role="heading" aria-level={2}>Filters</Text>
+                    </View>
+                    <FilterSkeletonGrid visible={filtersVisible} />
+                    <View style={localStyles.transactionBar}>
+                        <Text style={localStyles.transactionBarText}>Adds: —/— this week</Text>
+                        <Text style={localStyles.transactionBarText}>Waivers: —</Text>
+                    </View>
+                </View>
+                {showStatTable ? <PlayerTableHeader /> : null}
+                <PlayerListLoadingRows showStatTable={showStatTable} />
+            </View>
+        </SafeAreaView>
+    )
+}
 
 export default function PlayersScreen() {
     const { push } = useRouter()
@@ -148,9 +281,13 @@ export default function PlayersScreen() {
         search.teamPicker.selectedTeams.join(','),
         gamesLeftVersion,
     ].join('|')
+    const showInitialShell = authLoading || (leagueLoading && memberships.length === 0)
+    const listIsInitialLoading = playerSupportLoading || (search.results.loading && search.results.players.length === 0)
 
-    if (authLoading || !user) return <NoLeagueState />
-    if (leagueLoading && memberships.length === 0) return <NoLeagueState />
+    if (showInitialShell) {
+        return <PlayersLoadingShell showStatTable={showStatTable} filtersVisible={filtersVisible} />
+    }
+    if (!user) return <NoLeagueState />
     if (memberships.length === 0 || !current || !leagueId) return <NoLeagueState />
 
     return (
@@ -174,7 +311,7 @@ export default function PlayersScreen() {
                     />
                     <Text style={styles.resultCountText}>
                         {search.results.loading && search.results.players.length === 0
-                            ? 'Players'
+                            ? '— players'
                             : `${search.results.players.length}${search.activeFilterCount > 0 ? ' filtered' : ''} player${search.results.players.length === 1 ? '' : 's'}`}
                     </Text>
                 </View>
@@ -261,15 +398,17 @@ export default function PlayersScreen() {
                     </Pressable>
                 </View>
                 ) : null}
-                {transactionState && (search.results.players.length > 0 || !search.results.loading) ? (
+                {leagueId ? (
                     <View style={localStyles.transactionBar}>
                         <Text style={localStyles.transactionBarText}>
-                            Adds: {transactionState.weeklyAddCount}/{transactionState.weeklyAddLimit ?? 'Unlimited'} this week
+                            Adds: {transactionState ? `${transactionState.weeklyAddCount}/${transactionState.weeklyAddLimit ?? 'Unlimited'}` : '—/—'} this week
                         </Text>
                         <Text style={localStyles.transactionBarText}>
-                            {transactionState.waiverMode === 'faab'
+                            {transactionState
+                                ? transactionState.waiverMode === 'faab'
                                 ? `FAAB: $${transactionState.faabBalance}`
-                                : 'Waivers: rolling priority'}
+                                : 'Waivers: rolling priority'
+                                : 'Waivers: —'}
                         </Text>
                     </View>
                 ) : null}
@@ -280,40 +419,10 @@ export default function PlayersScreen() {
                     data={search.results.players}
                     extraData={playerListExtraData}
                     keyExtractor={(p: PlayerRow) => p.id}
-                    contentContainerStyle={search.results.players.length === 0 ? styles.emptyContainer : undefined}
+                    contentContainerStyle={search.results.players.length === 0 && !listIsInitialLoading ? styles.emptyContainer : undefined}
                     ItemSeparatorComponent={ItemSeparator}
                     ListHeaderComponent={showStatTable ? (
-                        <View style={styles.tableHeader}>
-                            <View style={styles.tableHeaderAddSpacer} />
-                            <View style={styles.tableHeaderCardRow}>
-                                <View style={styles.tableHeaderHeadshotSpacer} />
-                                <Text style={styles.tableHeaderPlayer}>Player</Text>
-                                <Text style={styles.tableHeaderOwnership}>Ownership</Text>
-                                <View style={styles.tableHeaderStatsGroup}>
-                                    {TABLE_COLUMNS.map((column) => {
-                                        const mode = STAT_COLUMN_SORT[column]
-                                        const active = mode != null && search.sort.mode === mode
-                                        return (
-                                            <Pressable
-                                                key={column}
-                                                style={styles.tableHeaderStatBtn}
-                                                onPress={() => mode && handleColumnSort(mode)}
-                                                disabled={mode == null}
-                                                accessibilityRole="button"
-                                                accessibilityState={{ selected: active, disabled: mode == null }}
-                                                accessibilityLabel={mode
-                                                    ? `Sort by ${STAT_LABELS[column] ?? column}${active ? (search.sort.dir === 'asc' ? ', ascending' : ', descending') : ''}`
-                                                    : STAT_LABELS[column] ?? column}
-                                            >
-                                                <Text style={[styles.tableHeaderStat, active && styles.tableHeaderStatActive]} numberOfLines={1}>
-                                                    {column}{active ? (search.sort.dir === 'asc' ? ' ▲' : ' ▼') : ''}
-                                                </Text>
-                                            </Pressable>
-                                        )
-                                    })}
-                                </View>
-                            </View>
-                        </View>
+                        <PlayerTableHeader activeSort={search.sort.mode} sortDir={search.sort.dir} onColumnSort={handleColumnSort} />
                     ) : null}
                     renderItem={({ item }: { item: PlayerRow }) => (
                         <PlayerSearchItem
@@ -337,8 +446,8 @@ export default function PlayersScreen() {
                         />
                     )}
                     ListEmptyComponent={
-                        playerSupportLoading || search.results.loading
-                            ? null
+                        listIsInitialLoading
+                            ? <PlayerListLoadingRows showStatTable={showStatTable} />
                             : playerSupportError && playerSupportForLeague == null
                               ? <EmptyState message="Players could not load." description="Tap retry to reload roster and waiver state." actionLabel="Retry" onAction={() => void refreshPlayerSupport()} fullScreen={false} />
                             : <EmptyState message="No players found." fullScreen={false} />
@@ -388,5 +497,94 @@ const localStyles = StyleSheet.create({
         fontSize: fontSize.sm,
         fontWeight: fontWeight.bold,
         color: colors.textSecondary,
+    },
+    loadingRows: {
+        width: '100%',
+    },
+    loadingRow: {
+        minHeight: 78,
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingLeft: spacing.lg,
+        borderBottomWidth: 1,
+        borderBottomColor: colors.separator,
+    },
+    loadingAddSpacer: { width: 52 },
+    loadingCard: {
+        flex: 1,
+        minHeight: 78,
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingLeft: spacing.md,
+        paddingRight: spacing['4xl'],
+        gap: spacing.lg,
+    },
+    loadingCardNarrow: {
+        alignItems: 'flex-start',
+        paddingRight: spacing.lg,
+        paddingVertical: spacing.lg,
+    },
+    loadingAvatar: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: colors.bgMuted,
+        borderWidth: 1,
+        borderColor: colors.borderLight,
+    },
+    loadingInfo: {
+        flex: 1,
+        minWidth: 0,
+        gap: spacing.sm,
+    },
+    loadingNameLine: {
+        width: '58%',
+        maxWidth: 220,
+        height: 16,
+        borderRadius: 4,
+        backgroundColor: colors.bgMuted,
+    },
+    loadingMetaLine: {
+        width: '42%',
+        maxWidth: 170,
+        height: 12,
+        borderRadius: 4,
+        backgroundColor: colors.bgSubtle,
+    },
+    loadingOwnership: {
+        width: 90,
+        height: 28,
+        borderRadius: 8,
+        backgroundColor: colors.bgMuted,
+    },
+    loadingStatsGroup: {
+        width: 10 * 54,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'flex-end',
+    },
+    loadingStatCell: {
+        width: 34,
+        height: 12,
+        marginLeft: 20,
+        borderRadius: 4,
+        backgroundColor: colors.bgMuted,
+    },
+    filterSkeleton: {
+        width: 148,
+        minHeight: 58,
+        borderRadius: 10,
+        backgroundColor: colors.bgSubtle,
+        borderWidth: 1,
+        borderColor: colors.borderLight,
+    },
+    sortSkeleton: {
+        width: 138,
+        minHeight: 38,
+        alignSelf: 'flex-end',
+        borderRadius: 10,
+        backgroundColor: colors.bgSubtle,
+        borderWidth: 1,
+        borderColor: colors.borderLight,
     },
 })
