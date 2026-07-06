@@ -23,6 +23,25 @@ function emptySlotLabel(slotType: string): string {
     return 'No starter'
 }
 
+function compactLineupName(name: string): string {
+    const parts = name.trim().split(/\s+/).filter(Boolean)
+    const last = parts.at(-1) ?? name
+    const primary = last.split('-')[0]
+    return primary.length > 3 ? primary.slice(0, 3) : primary
+}
+
+function matchupLine(
+    team: string | null | undefined,
+    matchup: { opponent: string; isHome: boolean } | undefined,
+    compact: boolean,
+): string {
+    if (!team) return STABLE_PLACEHOLDER
+    if (!matchup) return compact ? `${team} OFF` : `${team} · No game`
+    return compact
+        ? `${team}${matchup.isHome ? ' v ' : ' @ '}${matchup.opponent}`
+        : `${team} ${matchup.isHome ? 'vs' : '@'} ${matchup.opponent}`
+}
+
 function LineupAvatar({ player, compact = false, dense = false }: { player: LineupPlayer; compact?: boolean; dense?: boolean }) {
     const size = dense ? 24 : compact ? 28 : 30
     return (
@@ -50,16 +69,16 @@ function StatLines({ stats, isLive, align, compact = false }: {
     if (stats?.didNotPlay) {
         line1 = 'DNP'
     } else if (stats) {
-        const to = stats.turnovers ?? 0
-        line1 = [
+        const statParts = [
             stats.points   ? `${stats.points} PTS`   : null,
             stats.rebounds ? `${stats.rebounds} REB`  : null,
             stats.assists  ? `${stats.assists} AST`   : null,
             stats.steals   ? `${stats.steals} STL`    : null,
             stats.blocks   ? `${stats.blocks} BLK`    : null,
             stats.threeMade ? `${stats.threeMade} 3PM` : null,
-            to             ? `${to} TO`                : null,
-        ].filter(Boolean).join(', ') || STABLE_PLACEHOLDER
+            (stats.turnovers ?? 0) ? `${stats.turnovers ?? 0} TO` : null,
+        ].filter(Boolean)
+        line1 = compact ? (statParts[0] ?? STABLE_PLACEHOLDER) : statParts.join(', ') || STABLE_PLACEHOLDER
         line2 = [
             stats.fgAttempted ? `${stats.fgMade}/${stats.fgAttempted} FGM` : null,
             stats.ftAttempted ? `${stats.ftMade}/${stats.ftAttempted} FTM` : null,
@@ -68,8 +87,26 @@ function StatLines({ stats, isLive, align, compact = false }: {
     }
     return (
         <View style={[styles.statStack, compact && styles.statStackCompact]}>
-            <Text style={base} numberOfLines={1}>{line1}</Text>
-            {!compact ? <Text style={base} numberOfLines={1}>{line2}</Text> : null}
+            <Text
+                style={base}
+                numberOfLines={compact ? undefined : 1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.78}
+                ellipsizeMode="clip"
+            >
+                {line1}
+            </Text>
+            {!compact ? (
+                <Text
+                    style={base}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.78}
+                    ellipsizeMode="clip"
+                >
+                    {line2}
+                </Text>
+            ) : null}
         </View>
     )
 }
@@ -78,11 +115,13 @@ function FantasyScore({
     value,
     isLive,
     side,
+    compact = false,
     dense = false,
 }: {
     value: number | null
     isLive: boolean
     side: 'left' | 'right'
+    compact?: boolean
     dense?: boolean
 }) {
     const displayValue = formatPoints(value)
@@ -90,12 +129,15 @@ function FantasyScore({
         <Text
             style={[
                 styles.fptsNum,
-                side === 'right' && styles.fptsRight,
+                compact && styles.fptsNumCompact,
                 dense && styles.fptsNumDense,
+                side === 'right' && styles.fptsRight,
+                side === 'left' && compact && styles.fptsLeftCompact,
+                side === 'right' && compact && styles.fptsRightCompact,
                 value == null && styles.fptsPlaceholder,
                 value != null && isLive && styles.fptsLive,
             ]}
-            numberOfLines={1}
+            numberOfLines={compact ? undefined : 1}
             adjustsFontSizeToFit
             minimumFontScale={0.72}
             ellipsizeMode="clip"
@@ -216,12 +258,8 @@ function MatchupRowImpl({
     const oppHasGame = oppPlayer?.nbaTeam ? playingTeams.has(oppPlayer.nbaTeam) : false
     const myMatchup = myPlayer?.nbaTeam ? teamMatchups.get(myPlayer.nbaTeam) : undefined
     const oppMatchup = oppPlayer?.nbaTeam ? teamMatchups.get(oppPlayer.nbaTeam) : undefined
-    const myMatchupLabel = myPlayer?.nbaTeam
-        ? (myMatchup ? `${myMatchup.isHome ? 'vs' : '@'} ${myMatchup.opponent}` : '· No game')
-        : null
-    const oppMatchupLabel = oppPlayer?.nbaTeam
-        ? (oppMatchup ? `${oppMatchup.isHome ? 'vs' : '@'} ${oppMatchup.opponent}` : '· No game')
-        : null
+    const myMatchupLine = myPlayer ? matchupLine(myPlayer.nbaTeam, myMatchup, compact) : STABLE_PLACEHOLDER
+    const oppMatchupLine = oppPlayer ? matchupLine(oppPlayer.nbaTeam, oppMatchup, compact) : STABLE_PLACEHOLDER
     const myStats = myPlayer ? liveStats.get(myPlayer.playerId) : undefined
     const oppStats = oppPlayer ? liveStats.get(oppPlayer.playerId) : undefined
     const myIsLive = myPlayer?.nbaTeam ? liveTeams.has(myPlayer.nbaTeam) : false
@@ -253,7 +291,7 @@ function MatchupRowImpl({
             >
                 {myPlayer ? (
                     <>
-                        <FantasyScore value={myFpts} isLive={myIsLive} side="left" dense={dense} />
+                        <FantasyScore value={myFpts} isLive={myIsLive} side="left" compact={compact} dense={dense} />
                         <View style={[styles.playerBlockRight, compact && styles.playerBlockCompact, dense && styles.playerBlockDense]}>
                             <View style={[styles.metaRow, styles.primaryMetaRow, { justifyContent: 'flex-end' }]}>
                                 {myPlayer.injuryStatus && !myPlayedToday ? (
@@ -263,8 +301,14 @@ function MatchupRowImpl({
                                         variant="solid"
                                     />
                                 ) : null}
-                                <Text style={[styles.sideName, dense && styles.sideNameDense, !myHasGame && styles.noGameName]} numberOfLines={1}>
-                                    {shortName(myPlayer.displayName)}
+                                <Text
+                                    style={[styles.sideName, dense && styles.sideNameDense, !myHasGame && styles.noGameName]}
+                                    numberOfLines={compact ? undefined : 1}
+                                    adjustsFontSizeToFit
+                                    minimumFontScale={0.74}
+                                    ellipsizeMode="clip"
+                                >
+                                    {compact ? compactLineupName(myPlayer.displayName) : shortName(myPlayer.displayName)}
                                 </Text>
                                 <LineupAvatar player={myPlayer} compact={compact} dense={dense} />
                             </View>
@@ -276,8 +320,14 @@ function MatchupRowImpl({
                                     </View>
                                 )}
                                 {!compact && myPlayer.eligiblePositions.map((pos) => <PosTag key={pos} position={pos} />)}
-                                <Text style={styles.sideMeta} numberOfLines={1}>
-                                    {myMatchupLabel !== null ? `${myPlayer.nbaTeam} ${myMatchupLabel}` : STABLE_PLACEHOLDER}
+                                <Text
+                                    style={styles.sideMeta}
+                                    numberOfLines={compact ? undefined : 1}
+                                    adjustsFontSizeToFit
+                                    minimumFontScale={0.78}
+                                    ellipsizeMode="clip"
+                                >
+                                    {myMatchupLine}
                                 </Text>
                             </View>}
                             {!dense ? (
@@ -287,15 +337,15 @@ function MatchupRowImpl({
                     </>
                 ) : isExtraOppRow ? null : (
                     <>
-                        <FantasyScore value={null} isLive={false} side="left" dense={dense} />
+                        <FantasyScore value={null} isLive={false} side="left" compact={compact} dense={dense} />
                         <View style={[styles.playerBlockRight, compact && styles.playerBlockCompact, dense && styles.playerBlockDense]}>
                             <View style={[styles.metaRow, styles.primaryMetaRow, { justifyContent: 'flex-end' }]}>
-                                <Text style={styles.emptySlotText} numberOfLines={1}>{emptySlotLabel(slotType)}</Text>
+                                <Text style={styles.emptySlotText} numberOfLines={1} ellipsizeMode="clip">{emptySlotLabel(slotType)}</Text>
                             </View>
                             {!dense ? (
                                 <>
                                     <View style={[styles.metaRow, styles.secondaryMetaRow, { justifyContent: 'flex-end' }]}>
-                                        <Text style={styles.sideMeta} numberOfLines={1}>{STABLE_PLACEHOLDER}</Text>
+                                        <Text style={styles.sideMeta} numberOfLines={1} ellipsizeMode="clip">{STABLE_PLACEHOLDER}</Text>
                                     </View>
                                     <StatLines isLive={false} align="right" compact={compact} />
                                 </>
@@ -305,15 +355,15 @@ function MatchupRowImpl({
                 )}
                 {isExtraOppRow && !myPlayer ? (
                     <>
-                        <FantasyScore value={null} isLive={false} side="left" dense={dense} />
+                        <FantasyScore value={null} isLive={false} side="left" compact={compact} dense={dense} />
                         <View style={[styles.playerBlockRight, compact && styles.playerBlockCompact, dense && styles.playerBlockDense]}>
                             <View style={[styles.metaRow, styles.primaryMetaRow, { justifyContent: 'flex-end' }]}>
-                                <Text style={styles.sideMeta} numberOfLines={1}>{STABLE_PLACEHOLDER}</Text>
+                                <Text style={styles.sideMeta} numberOfLines={1} ellipsizeMode="clip">{STABLE_PLACEHOLDER}</Text>
                             </View>
                             {!dense ? (
                                 <>
                                     <View style={[styles.metaRow, styles.secondaryMetaRow, { justifyContent: 'flex-end' }]}>
-                                        <Text style={styles.sideMeta} numberOfLines={1}>{STABLE_PLACEHOLDER}</Text>
+                                        <Text style={styles.sideMeta} numberOfLines={1} ellipsizeMode="clip">{STABLE_PLACEHOLDER}</Text>
                                     </View>
                                     <StatLines isLive={false} align="right" compact={compact} />
                                 </>
@@ -363,8 +413,14 @@ function MatchupRowImpl({
                         <View style={[styles.playerBlockLeft, compact && styles.playerBlockCompact, dense && styles.playerBlockDense]}>
                             <View style={[styles.metaRow, styles.primaryMetaRow]}>
                                 <LineupAvatar player={oppPlayer} compact={compact} dense={dense} />
-                                <Text style={[styles.sideName, dense && styles.sideNameDense, !oppHasGame && styles.noGameName]} numberOfLines={1}>
-                                    {shortName(oppPlayer.displayName)}
+                                <Text
+                                    style={[styles.sideName, dense && styles.sideNameDense, !oppHasGame && styles.noGameName]}
+                                    numberOfLines={compact ? undefined : 1}
+                                    adjustsFontSizeToFit
+                                    minimumFontScale={0.74}
+                                    ellipsizeMode="clip"
+                                >
+                                    {compact ? compactLineupName(oppPlayer.displayName) : shortName(oppPlayer.displayName)}
                                 </Text>
                                 {oppPlayer.injuryStatus && !oppPlayedToday ? (
                                     <Badge
@@ -376,8 +432,14 @@ function MatchupRowImpl({
                             </View>
                             {!dense && <View style={[styles.metaRow, styles.secondaryMetaRow]}>
                                 {!compact && oppPlayer.eligiblePositions.map((pos) => <PosTag key={pos} position={pos} />)}
-                                <Text style={styles.sideMeta} numberOfLines={1}>
-                                    {oppMatchupLabel !== null ? `${oppPlayer.nbaTeam} ${oppMatchupLabel}` : STABLE_PLACEHOLDER}
+                                <Text
+                                    style={styles.sideMeta}
+                                    numberOfLines={compact ? undefined : 1}
+                                    adjustsFontSizeToFit
+                                    minimumFontScale={0.78}
+                                    ellipsizeMode="clip"
+                                >
+                                    {oppMatchupLine}
                                 </Text>
                                 {oppIsLive && (
                                     <View style={styles.liveBadgeRow}>
@@ -390,24 +452,24 @@ function MatchupRowImpl({
                                 <StatLines stats={oppStats} isLive={oppIsLive} align="left" compact={compact} />
                             ) : null}
                         </View>
-                        <FantasyScore value={oppFpts} isLive={oppIsLive} side="right" dense={dense} />
+                        <FantasyScore value={oppFpts} isLive={oppIsLive} side="right" compact={compact} dense={dense} />
                     </>
                 ) : (
                     <>
                         <View style={[styles.playerBlockLeft, compact && styles.playerBlockCompact, dense && styles.playerBlockDense]}>
                             <View style={[styles.metaRow, styles.primaryMetaRow]}>
-                                <Text style={styles.emptySlotText} numberOfLines={1}>{emptySlotLabel(slotType)}</Text>
+                                <Text style={styles.emptySlotText} numberOfLines={1} ellipsizeMode="clip">{emptySlotLabel(slotType)}</Text>
                             </View>
                             {!dense ? (
                                 <>
                                     <View style={[styles.metaRow, styles.secondaryMetaRow]}>
-                                        <Text style={styles.sideMeta} numberOfLines={1}>{STABLE_PLACEHOLDER}</Text>
+                                        <Text style={styles.sideMeta} numberOfLines={1} ellipsizeMode="clip">{STABLE_PLACEHOLDER}</Text>
                                     </View>
                                     <StatLines isLive={false} align="left" compact={compact} />
                                 </>
                             ) : null}
                         </View>
-                        <FantasyScore value={null} isLive={false} side="right" dense={dense} />
+                        <FantasyScore value={null} isLive={false} side="right" compact={compact} dense={dense} />
                     </>
                 )}
             </MotionPressable>
@@ -469,8 +531,11 @@ const styles = StyleSheet.create({
         marginRight: 6,
         fontVariant: ['tabular-nums'] as const,
     },
+    fptsNumCompact: { width: 52, fontSize: fontSize.lg },
     fptsNumDense: { width: 54, fontSize: fontSize.lg },
     fptsRight: { textAlign: 'right', marginRight: spacing.sm, marginLeft: 6 },
+    fptsLeftCompact: { marginRight: 10 },
+    fptsRightCompact: { marginLeft: 10 },
     fptsPlaceholder: { color: colors.textPlaceholder },
     fptsLive: { color: colors.primaryDark },
     sideName: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textPrimary, flexShrink: 1 },
