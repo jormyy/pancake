@@ -338,34 +338,6 @@ export async function getWeeklyLineup(
     return { starters, bench, ir, taxi }
 }
 
-export async function setPlayerSlot(
-    memberId: string,
-    leagueId: string,
-    seasonId: string,
-    weekNumber: number,
-    gameDate: string,
-    playerId: string,
-    slotType: string,
-): Promise<void> {
-    // Atomic: SECURITY DEFINER RPC takes pg_advisory_xact_lock(member_id, game_date)
-    // and re-verifies roster ownership (SELECT … FOR SHARE on roster_players)
-    // before mutating weekly_lineups. The prior client-side UPSERT/DELETE had
-    // no lock and no ownership re-check, so a race with drop_player_atomic
-    // could leave a lineup row for a player the member no longer owned, and
-    // two concurrent autoSets / setPlayerSlot calls from different devices
-    // could interleave reads + writes on (member, game_date).
-    const { error } = await supabase.rpc('set_player_slot_atomic', {
-        p_member_id: memberId,
-        p_league_id: leagueId,
-        p_league_season_id: seasonId,
-        p_player_id: playerId,
-        p_game_date: gameDate,
-        p_slot_type: slotType as RosterSlotType,
-        p_week_number: weekNumber,
-    })
-    if (error) throw error
-}
-
 export type LineupSlotMove = {
     playerId: string
     slotType: string

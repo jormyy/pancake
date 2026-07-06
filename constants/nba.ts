@@ -1,4 +1,4 @@
-export const NBA_TEAM_CODES = [
+const NBA_TEAM_CODES = [
     'ATL',
     'BOS',
     'BKN',
@@ -30,7 +30,5 @@ export const NBA_TEAM_CODES = [
     'UTA',
     'WAS',
 ] as const
-
-export type NBATeamCode = (typeof NBA_TEAM_CODES)[number]
 
 export const NBA_TEAM_OPTIONS = NBA_TEAM_CODES.map((team) => ({ key: team, label: team }))

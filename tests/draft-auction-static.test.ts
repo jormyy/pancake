@@ -411,7 +411,7 @@ describe('logic hardening source guards - draft, auction, roster history', () =>
         const api = read('supabase/functions/api/draft.ts')
         const draftChips = read('components/league/DraftChips.tsx')
 
-        expect(draftChips).toContain('export const ROOKIE_ROUND_OPTIONS = [2, 3] as const')
+        expect(draftChips).toContain('const ROOKIE_ROUND_OPTIONS = [2, 3] as const')
         expect(api).toContain('const MAX_ROOKIE_DRAFT_ROUNDS = 3')
         expect(api).toContain("optionalIntegerField(body, 'rounds', { min: 1, max: MAX_ROOKIE_DRAFT_ROUNDS })")
         expect(api).toContain(".select('rounds')")

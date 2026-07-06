@@ -205,7 +205,7 @@ describe('profile privacy and invite capacity policies', () => {
         expect(profilePrivileges).toContain('REVOKE SELECT (push_token) ON public.profiles FROM anon, authenticated')
 
         const authenticatedGrant = profilePrivileges.match(/GRANT SELECT \([^;]*?\) ON public\.profiles TO authenticated;/i)?.[0]
-        expect(authenticatedGrant).toBeTruthy()
+        expect(authenticatedGrant).toEqual(expect.any(String))
         expect(authenticatedGrant).not.toContain('push_token')
     })
 
@@ -226,7 +226,7 @@ describe('waiver intent oracle closure', () => {
         expect(logPolicy).toContain('OR clears_at > now()')
         const waiverSource = readFileSync(path.resolve(__dirname, '../lib/waivers.ts'), 'utf8')
         const playerIdsBody = waiverSource.slice(
-            waiverSource.indexOf('export async function getWaiverPlayerIds'),
+            waiverSource.indexOf('export async function getWaiverPlayerIdsForSeason'),
             waiverSource.indexOf('export async function submitWaiverClaim'),
         )
         const rosterSource = readFileSync(path.resolve(__dirname, '../lib/roster.ts'), 'utf8')

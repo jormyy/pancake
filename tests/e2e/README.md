@@ -144,7 +144,8 @@ Browser trade acceptance gameplay is available through `npm run e2e:browser-trad
 
 Browser trade reject/withdraw gameplay is available through `npm run e2e:browser-trade-terminal` or `E2E_ENABLE_BROWSER_TRADE_TERMINAL=1 npm run e2e:soak`. It creates two isolated pending player-for-player trades, signs into Expo web through `agent-browser` as the recipient to reject one and as the proposer to withdraw the other, confirms through the web confirmation path, and verifies the authenticated Edge API routes set `rejected` and `withdrawn` without moving rostered players or writing trade transaction rows. This covers the first D.SEA.2 terminal trade action UI slice; veto, future-pick UI acceptance, overflow drop-before-accept, and post-deadline rejection remain separate work.
 
-Outputs:
+Generated outputs are ignored and should be regenerated for the run you are
+auditing rather than treated as checked-in source of truth:
 
 - `tests/e2e-report.md`
 - `tests/e2e-coverage.md`
@@ -183,4 +184,4 @@ Outputs:
 - `tests/artifacts/season-<N>/midlife-migration.json`
 - `tests/artifacts/season-<N>/rookie-draft-pick-chain.json`
 
-The runner fails closed when the real test Supabase API/frontend environment is missing or when the linked Supabase project is missing required post-refactor RPCs/columns. A `PARTIAL` report means only the enabled subset passed, usually fake-upstream/database boundary checks without the full browser scenario set. The current source-of-truth dynasty proof is a `PASS` report in `tests/e2e-report.md` from the all-flags 20-season run with browser, Supabase API, Supabase, realtime, push, and long-horizon slices enabled.
+The runner fails closed when the real test Supabase API/frontend environment is missing or when the linked Supabase project is missing required post-refactor RPCs/columns. A `PARTIAL` report means only the enabled subset passed, usually fake-upstream/database boundary checks without the full browser scenario set. For release evidence, run the relevant scripts and keep the generated reports from that run; stale reports are intentionally not committed.

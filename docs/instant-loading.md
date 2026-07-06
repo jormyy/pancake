@@ -30,13 +30,13 @@ The source of truth for thresholds and workflow rank is
 ## Regression Gates
 
 - `npm run perf:budget` validates the ranked workflow manifest and writes
-  `tests/performance-budget-report.md`.
+  the ignored `tests/performance-budget-report.md` run artifact.
 - `npm run e2e:browser-perf && npm run perf:budget -- --require-report`
-  enforces the structured browser perf report when a seeded E2E environment is
-  available.
+  enforces the ignored structured browser perf report when a seeded E2E
+  environment is available.
 - `npm run e2e:data-latency` measures authenticated Supabase/PostgREST/RPC
   request latency for all top workflow ids. `npm run perf:budget` enforces this
-  report when present.
+  ignored report when present.
 - `npm test` includes static guards for the performance manifest, player-search
   materialization, and first-paint read indexes.
 

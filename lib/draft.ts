@@ -147,7 +147,7 @@ function mapDraft(data: {
     }
 }
 
-export async function getActiveDraft(leagueId: string): Promise<Draft | null> {
+async function getActiveDraft(leagueId: string): Promise<Draft | null> {
     const { data, error } = await supabase
         .from('drafts')
         .select(DRAFT_SELECT)

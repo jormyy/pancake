@@ -274,15 +274,6 @@ export const controlSize = {
     },
 } as const
 
-// ── Avatar sizes ────────────────────────────────────────────────
-
-export const avatarSize = {
-    sm: 38,
-    md: 44,
-    lg: 72,
-    xl: 84,
-} as const
-
 // ── Brand dark surfaces ─────────────────────────────────────────
 // The espresso "brand" surfaces (web sidebar + auth hero panel) and the
 // cream text ramp that sits on them. Previously these hexes were hardcoded

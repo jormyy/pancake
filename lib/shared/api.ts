@@ -108,25 +108,3 @@ export async function apiPost<T = unknown>(
     }
     return json as T
 }
-
-export async function apiGet<T = unknown>(
-    path: string,
-    options: ApiRequestOptions = {},
-): Promise<T> {
-    const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
-    let res: Response
-    try {
-        res = await fetch(`${apiUrl()}${path}`, {
-            headers: await authHeaders(),
-            signal: buildAbortSignal(timeoutMs),
-        })
-    } catch (err) {
-        wrapAbortAsTimeout(err, timeoutMs)
-    }
-
-    const json = await res!.json()
-    if (!res!.ok || json?.ok === false) {
-        throw new Error(apiErrorMessage(json, res!.status))
-    }
-    return json as T
-}

@@ -59,7 +59,7 @@ Post-fix lineup reruns:
 
 Covered slices included boundary invariants, league lifecycle, realtime score/bid events, auction validation, playoffs, standings tiebreakers, commissioner settings, starter-only scoring finalization, waiver processing, trade acceptance, trade veto, rookie draft auto-pick/order, season reset carryover, future-pick ownership, snapshot no-shrink checks, runtime drift, and memory drift.
 
-The generated `tests/e2e-coverage.md` still marks disabled optional modes as pending because browser and operational slices were run separately from the soak harness.
+The generated `tests/e2e-coverage.md` from that run marked disabled optional modes as pending because browser and operational slices were run separately from the soak harness. Generated E2E reports are ignored run artifacts; regenerate them when fresh release evidence is needed.
 
 ## Blocker Ledger
 

@@ -21,27 +21,6 @@ export type TransactionRow = {
     body?: string | null
 }
 
-export async function logTransaction(params: {
-    leagueId: string
-    leagueSeasonId: string
-    memberId: string
-    playerId: string
-    transactionType: string
-    relatedTradeId?: string | null
-    relatedClaimId?: string | null
-}): Promise<void> {
-    const { error } = await supabase.from('roster_transactions').insert({
-        league_id: params.leagueId,
-        league_season_id: params.leagueSeasonId,
-        member_id: params.memberId,
-        player_id: params.playerId,
-        transaction_type: params.transactionType,
-        related_trade_id: params.relatedTradeId ?? null,
-        related_claim_id: params.relatedClaimId ?? null,
-    })
-    if (error) console.error('[logTransaction]', error)
-}
-
 export async function getLeagueTransactions(
     leagueId: string,
     limit = 50,

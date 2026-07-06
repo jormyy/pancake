@@ -101,7 +101,7 @@ export function getTradeComposerMode(input: TradeComposerModeInput): TradeCompos
     }
 }
 
-export function tradeItemIds(items: TradeItem[], kind: 'player' | 'pick'): string[] {
+function tradeItemIds(items: TradeItem[], kind: 'player' | 'pick'): string[] {
     return items.flatMap((item) => {
         if (kind === 'player' && item.kind === 'player') return [item.playerId]
         if (kind === 'pick' && item.kind === 'pick') return [item.pickId]
@@ -148,7 +148,7 @@ export function prefillTradeComposerFromRoute(
     }
 }
 
-export function parseNonNegativeInt(value: string, fallback = 0): number {
+function parseNonNegativeInt(value: string, fallback = 0): number {
     const parsed = parseInt(value || String(fallback), 10)
     return Math.max(0, Number.isFinite(parsed) ? parsed : fallback)
 }

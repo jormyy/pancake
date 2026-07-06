@@ -4,8 +4,8 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { colors, controlSize, elevation, fontFamily, fontWeight, motion, radii } from '@/constants/tokens'
 
 type IconName = ComponentProps<typeof MaterialIcons>['name']
-export type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'danger' | 'ghost'
-export type ButtonSize = 'sm' | 'md' | 'lg'
+type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'danger' | 'ghost'
+type ButtonSize = 'sm' | 'md' | 'lg'
 
 type Props = {
     title?: string
