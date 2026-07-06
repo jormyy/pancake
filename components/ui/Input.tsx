@@ -1,5 +1,5 @@
 import { ComponentProps, forwardRef } from 'react'
-import { StyleSheet, Text, TextInput, View, type StyleProp, type ViewStyle } from 'react-native'
+import { Platform, StyleSheet, Text, TextInput, View, type StyleProp, type ViewStyle } from 'react-native'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { colors, controlSize, fontFamily, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 
@@ -79,6 +79,7 @@ const styles = StyleSheet.create({
         fontFamily: fontFamily.control,
         color: colors.textPrimary,
         paddingVertical: spacing.lg,
+        ...(Platform.OS === 'web' ? { outlineWidth: 0 } : {}),
     },
     inputWithIcon: { paddingLeft: 0 },
     error: {

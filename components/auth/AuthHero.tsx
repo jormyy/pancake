@@ -1,12 +1,7 @@
 import { Platform, StyleSheet, Text, View } from 'react-native'
 import { AuthBrandMark } from '@/components/auth/AuthBrandMark'
 import { MotionView } from '@/components/Motion'
-import { brand, colors, fontFamily, fontSize, fontWeight, radii, spacing, webBackgrounds, webOverlays, type WebOnlyViewStyle } from '@/constants/tokens'
-
-type AuthPreviewMetric = {
-    label: string
-    value: string
-}
+import { brand, fontFamily, fontSize, fontWeight, radii, spacing, webBackgrounds, type WebOnlyViewStyle } from '@/constants/tokens'
 
 export type AuthHeroContent = {
     kicker: string
@@ -15,7 +10,7 @@ export type AuthHeroContent = {
     proofItems: readonly string[]
     previewTitle: string
     previewBadge: string
-    previewRows: readonly AuthPreviewMetric[]
+    previewRows: readonly { label: string; value: string }[]
 }
 
 export function AuthHero({ content }: { content: AuthHeroContent }) {
@@ -47,36 +42,10 @@ export function AuthHero({ content }: { content: AuthHeroContent }) {
                     </MotionView>
                 ))}
             </View>
-
-            <AuthPreview title={content.previewTitle} badge={content.previewBadge} rows={content.previewRows} />
         </View>
     )
 }
 
-function AuthPreview({
-    title,
-    badge,
-    rows,
-}: {
-    title: string
-    badge: string
-    rows: readonly AuthPreviewMetric[]
-}) {
-    return (
-        <View style={styles.previewPanel}>
-            <View style={styles.previewHeader}>
-                <Text style={styles.previewTitle}>{title}</Text>
-                <Text style={styles.previewPill}>{badge}</Text>
-            </View>
-            {rows.map((row) => (
-                <View key={row.label} style={styles.previewRow}>
-                    <Text style={styles.previewLabel}>{row.label}</Text>
-                    <Text style={styles.previewValue}>{row.value}</Text>
-                </View>
-            ))}
-        </View>
-    )
-}
 
 const styles = StyleSheet.create({
     panel: {
@@ -152,55 +121,5 @@ const styles = StyleSheet.create({
         fontSize: fontSize.md,
         lineHeight: 20,
         fontWeight: fontWeight.semibold,
-    },
-    previewPanel: {
-        marginTop: spacing.xl,
-        maxWidth: 420,
-        padding: spacing.xl,
-        borderRadius: radii['2xl'],
-        borderWidth: 1,
-        borderColor: brand.border,
-        backgroundColor: webOverlays.brandPreview,
-    },
-    previewHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        marginBottom: spacing.lg,
-    },
-    previewTitle: {
-        color: brand.on,
-        fontSize: fontSize.lg,
-        fontFamily: fontFamily.display,
-        fontWeight: fontWeight.bold,
-    },
-    previewPill: {
-        color: colors.textWhite,
-        fontSize: fontSize.xs,
-        fontWeight: fontWeight.bold,
-        backgroundColor: colors.primary,
-        borderRadius: radii.full,
-        paddingHorizontal: spacing.md,
-        paddingVertical: spacing.xs,
-        overflow: 'hidden',
-    },
-    previewRow: {
-        minHeight: 36,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        borderTopWidth: 1,
-        borderTopColor: brand.borderSubtle,
-    },
-    previewLabel: {
-        color: brand.onMuted,
-        fontSize: fontSize.sm,
-        fontWeight: fontWeight.semibold,
-    },
-    previewValue: {
-        color: brand.on,
-        fontSize: fontSize.md,
-        fontFamily: fontFamily.display,
-        fontWeight: fontWeight.bold,
     },
 })
