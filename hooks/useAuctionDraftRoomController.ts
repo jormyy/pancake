@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
+    closeExpiredNominations,
     getDraftState,
     nominatePlayer,
     placeBid,
@@ -29,7 +30,7 @@ export function useAuctionDraftRoomController({
 
     // Bidding — held as raw text so the field can be cleared/typed freely;
     // the value is validated and clamped only on submit (handleBid).
-    const [bidText, setBidText] = useState('2')
+    const [bidText, setBidText] = useState('1')
     const [bidding, setBidding] = useState(false)
     const [withdrawing, setWithdrawing] = useState(false)
 
@@ -47,6 +48,10 @@ export function useAuctionDraftRoomController({
     // Track which nomination the bid field was last seeded for, so the 5s poll /
     // realtime refresh never clobbers a value the user is actively typing.
     const lastNomIdRef = useRef<string | null>(null)
+    // Mirror of bidText so load() can read the current value without a dep.
+    const bidTextRef = useRef('1')
+    // Track which nomination has had its expiry close triggered so we only fire once per nomination.
+    const closeTriggeredForNomRef = useRef<string | null>(null)
     // The draft's nomination-order mode is stable; keep it in a ref so the search
     // effect can read it without re-running on every poll-driven state change.
     const nominationModeRef = useRef<NominationOrderMode>('user_nominated')
@@ -54,6 +59,9 @@ export function useAuctionDraftRoomController({
     // fire load() concurrently, so drop any result that a newer load supersedes.
     const loadSeqRef = useRef(0)
     const searchSeqRef = useRef(0)
+
+    // Keep bidTextRef in sync so load() can read current typed value without a dep.
+    useEffect(() => { bidTextRef.current = bidText }, [bidText])
 
     const channelRef = useRef<RealtimeChannel | null>(null)
     const countdownNomination = state?.openNomination
@@ -81,13 +89,16 @@ export function useAuctionDraftRoomController({
                     )
                     setTimeLeft(diff)
                 }
-                // Seed the default bid ONLY when a new player comes on the block —
-                // not on every poll — so typed bids survive refreshes. Min-bid
-                // changes within a nomination are handled by the submit guard.
+                // Seed the bid field when a new player comes on the block, or when
+                // the current bid has advanced past what the user typed (their value
+                // would be invalid, so bring it up to the new minimum automatically).
                 const nomId = nom?.id ?? null
-                if (nomId !== lastNomIdRef.current) {
+                const minBid = (nom?.currentBidAmount ?? 0) + 1
+                const typedValue = parseInt(bidTextRef.current, 10)
+                const typedIsStale = isNaN(typedValue) || typedValue < minBid
+                if (nomId !== lastNomIdRef.current || (nom && typedIsStale)) {
                     lastNomIdRef.current = nomId
-                    if (nom) setBidText(String(Math.max((nom.currentBidAmount ?? 1) + 1, 2)))
+                    if (nom) setBidText(String(minBid))
                 }
             }
         } catch (e) {
@@ -117,6 +128,21 @@ export function useAuctionDraftRoomController({
             if (!exp) return
             const diff = Math.max(0, Math.floor((new Date(exp).getTime() - Date.now()) / 1000))
             setTimeLeft(diff)
+            // When the clock hits zero, trigger server-side close once per nomination.
+            if (diff === 0 && draftId && closeTriggeredForNomRef.current !== countdownNomination.id) {
+                closeTriggeredForNomRef.current = countdownNomination.id
+                closeExpiredNominations(draftId)
+                    .then(({ closed }) => {
+                        // If the server closed nothing (clock skew — client hit 0 before
+                        // the server expiry), reset so the next tick retries.
+                        if (closed === 0) closeTriggeredForNomRef.current = null
+                        else load()
+                    })
+                    .catch(() => {
+                        // Network/auth failure — reset so the next tick can retry.
+                        closeTriggeredForNomRef.current = null
+                    })
+            }
         }
         // Seed immediately so a fresh nomination doesn't render the urgent
         // (<=10s) styling for the first 500ms while timeLeft is still 0.
@@ -126,7 +152,7 @@ export function useAuctionDraftRoomController({
         return () => {
             if (timerRef.current) clearInterval(timerRef.current)
         }
-    }, [countdownNomination])
+    }, [countdownNomination, draftId, load])
 
     // Player search
     useEffect(() => {

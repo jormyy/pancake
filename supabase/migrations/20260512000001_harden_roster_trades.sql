@@ -44,7 +44,7 @@ RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
-AS $accept_trade_atomic$
+AS $$
 DECLARE
   v_trade trades%ROWTYPE;
   v_item trade_items%ROWTYPE;
@@ -170,7 +170,7 @@ BEGIN
     RAISE EXCEPTION 'Failed to complete trade atomically';
   END IF;
 END;
-$accept_trade_atomic$;
+$$;
 $accept_trade_sql$;
 
   EXECUTE 'REVOKE ALL ON FUNCTION public.accept_trade_atomic(uuid, uuid) FROM PUBLIC';
@@ -184,7 +184,7 @@ RETURNS TABLE(new_season_id uuid, new_year int)
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
-AS $advance_season_atomic$
+AS $$
 DECLARE
   v_current_season league_seasons%ROWTYPE;
   v_new_season_id uuid;
@@ -310,7 +310,7 @@ BEGIN
   new_year := v_new_year;
   RETURN NEXT;
 END;
-$advance_season_atomic$;
+$$;
 $advance_season_sql$;
 
   EXECUTE 'REVOKE ALL ON FUNCTION public.advance_season_atomic(uuid) FROM PUBLIC';
