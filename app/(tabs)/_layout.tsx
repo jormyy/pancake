@@ -14,11 +14,7 @@ export default function TabLayout() {
                 <Label>Players</Label>
                 <Icon sf="person.2.fill" />
             </NativeTabs.Trigger>
-            <NativeTabs.Trigger name="projections">
-                <Label>Projections</Label>
-                <Icon sf="chart.line.uptrend.xyaxis" />
-            </NativeTabs.Trigger>
-            <NativeTabs.Trigger name="dynasty">
+<NativeTabs.Trigger name="dynasty">
                 <Label>Dynasty</Label>
                 <Icon sf="sparkles" />
             </NativeTabs.Trigger>
@@ -29,6 +25,10 @@ export default function TabLayout() {
             <NativeTabs.Trigger name="trades">
                 <Label>Trades</Label>
                 <Icon sf="arrow.left.arrow.right" />
+            </NativeTabs.Trigger>
+            <NativeTabs.Trigger name="draft-room">
+                <Label>Draft</Label>
+                <Icon sf="bolt.fill" />
             </NativeTabs.Trigger>
             <NativeTabs.Trigger name="league">
                 <Label>League</Label>

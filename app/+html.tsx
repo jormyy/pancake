@@ -37,6 +37,7 @@ export default function Root({ children }: PropsWithChildren) {
                 <link rel="manifest" href="/manifest.webmanifest" />
                 <meta name="theme-color" content={webChrome.themeColor} />
                 <style dangerouslySetInnerHTML={{ __html: webChrome.rootBackgroundCss }} />
+                <style dangerouslySetInnerHTML={{ __html: 'input:focus,textarea:focus{outline:none;}' }} />
                 <link rel="icon" href="/favicon.ico" />
                 <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
                 <meta name="mobile-web-app-capable" content="yes" />

@@ -11,13 +11,12 @@ import { styles } from './webTabShellStyles'
 
 type IconName = ComponentProps<typeof MaterialIcons>['name']
 type LeagueTab = 'results' | 'auctions' | 'mockRooms' | 'draftBoard' | 'settings' | 'history'
-type RouteHref = '/' | '/players' | '/projections' | '/dynasty' | '/roster' | '/trades' | '/league' | '/profile'
+type RouteHref = '/' | '/players' | '/dynasty' | '/roster' | '/trades' | '/league' | '/profile'
 
 const PRIMARY_NAV: { label: string; href: RouteHref; icon: IconName }[] = [
     { label: 'Matchup', href: '/', icon: 'home' },
     { label: 'Players', href: '/players', icon: 'groups' },
-    { label: 'Projections', href: '/projections', icon: 'stacked-line-chart' },
-    { label: 'Dynasty', href: '/dynasty', icon: 'auto-awesome' },
+{ label: 'Dynasty', href: '/dynasty', icon: 'auto-awesome' },
     { label: 'Roster', href: '/roster', icon: 'assignment' },
     { label: 'Trades', href: '/trades', icon: 'swap-horiz' },
 ]
@@ -39,8 +38,7 @@ const MOBILE_NAV: { label: string; href: RouteHref; icon: IconName }[] = [
 const MOBILE_LABELS: Record<RouteHref, string> = {
     '/': 'Match',
     '/players': 'Players',
-    '/projections': 'Proj',
-    '/dynasty': 'Dyn',
+'/dynasty': 'Dyn',
     '/roster': 'Roster',
     '/trades': 'Trades',
     '/league': 'League',
@@ -282,7 +280,7 @@ function useDraftRoomLauncher() {
 
     const openDraftRoom = useCallback(async () => {
         if (!currentLeague?.id || draftLoading) {
-            router.push('/league')
+            router.push('/draft-room')
             return
         }
         setDraftLoading(true)
@@ -291,7 +289,7 @@ function useDraftRoomLauncher() {
                 includeCompletedRookie: true,
             })
             if (!draft) {
-                router.push('/league')
+                router.push('/draft-room')
             } else if (draft.draftType === 'snake') {
                 router.push({ pathname: '/(modals)/rookie-draft-room', params: { draftId: draft.id } })
             } else {
@@ -542,8 +540,7 @@ export default function WebTabsLayout() {
         <Navigator router={webStackRouter} initialRouteName="index">
             <Navigator.Screen name="index" />
             <Navigator.Screen name="players" />
-            <Navigator.Screen name="projections" />
-            <Navigator.Screen name="dynasty" />
+<Navigator.Screen name="dynasty" />
             <Navigator.Screen name="roster" />
             <Navigator.Screen name="trades" />
             <Navigator.Screen name="league" />

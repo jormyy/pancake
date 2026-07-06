@@ -185,9 +185,8 @@ describe('logic hardening source guards - lineup and roster locks', () => {
         )
     })
 
-    it('drops stale async results before committing trade, projection, and lineup state', () => {
+    it('drops stale async results before committing trade and lineup state', () => {
         const trade = read('app/(modals)/propose-trade.tsx')
-        const projections = read('app/(tabs)/projections.tsx')
         const lineup = read('app/(modals)/lineup.tsx')
 
         const tradeRequestIndex = trade.indexOf('const requestId = ++rosterLoadSeqRef.current')
@@ -197,14 +196,6 @@ describe('logic hardening source guards - lineup and roster locks', () => {
         expect(tradeCommitGuardIndex).toBeGreaterThan(tradeRequestIndex)
         expect(tradeCommitGuardIndex).toBeLessThan(tradeCommitIndex)
         expect(trade).toContain('if (rosterLoadSeqRef.current === requestId) setRosterLoading(false)')
-
-        const projectionRequestIndex = projections.indexOf('const requestId = ++projectionLoadSeqRef.current')
-        const projectionFetchIndex = projections.indexOf('await getLeagueProjections')
-        const projectionCommitGuardIndex = projections.indexOf('if (projectionLoadSeqRef.current !== requestId) return', projectionFetchIndex)
-        const projectionCommitIndex = projections.indexOf('setRows(projections)')
-        expect(projectionRequestIndex).toBeGreaterThan(-1)
-        expect(projectionCommitGuardIndex).toBeGreaterThan(projectionFetchIndex)
-        expect(projectionCommitGuardIndex).toBeLessThan(projectionCommitIndex)
 
         expect(lineup).toContain('lineupLoadSeqRef')
         expect(lineup).toContain('lineupError')
