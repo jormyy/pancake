@@ -391,9 +391,11 @@ export const styles = StyleSheet.create({
         textDecorationLine: 'none',
     } as WebOnlyViewStyle,
     bottomNavText: {
+        width: '100%',
         fontSize: fontSize['2xs'],
         fontWeight: fontWeight.bold,
         color: colors.textMuted,
+        textAlign: 'center',
     },
     bottomNavTextActive: {
         color: colors.primaryDark,

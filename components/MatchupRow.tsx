@@ -27,15 +27,17 @@ function compactLineupName(name: string): string {
     const parts = name.trim().split(/\s+/).filter(Boolean)
     const last = parts.at(-1) ?? name
     const primary = last.split('-')[0]
-    return primary.length > 3 ? primary.slice(0, 3) : primary
+    return primary.length > 6 ? primary.slice(0, 6) : primary
 }
 
 function matchupLine(
     team: string | null | undefined,
     matchup: { opponent: string; isHome: boolean } | undefined,
     compact: boolean,
+    compactWithBadge = false,
 ): string {
     if (!team) return STABLE_PLACEHOLDER
+    if (compactWithBadge) return team
     if (!matchup) return compact ? `${team} OFF` : `${team} · No game`
     return compact
         ? `${team}${matchup.isHome ? ' v ' : ' @ '}${matchup.opponent}`
@@ -43,7 +45,7 @@ function matchupLine(
 }
 
 function LineupAvatar({ player, compact = false, dense = false }: { player: LineupPlayer; compact?: boolean; dense?: boolean }) {
-    const size = dense ? 24 : compact ? 28 : 30
+    const size = dense ? 24 : compact ? 24 : 30
     return (
         <View style={[styles.lineupAvatarFrame, { width: size + 2, height: size + 2, borderRadius: (size + 2) / 2 }]}>
             <Avatar
@@ -89,9 +91,9 @@ function StatLines({ stats, isLive, align, compact = false }: {
         <View style={[styles.statStack, compact && styles.statStackCompact]}>
             <Text
                 style={base}
-                numberOfLines={compact ? undefined : 1}
+                numberOfLines={1}
                 adjustsFontSizeToFit
-                minimumFontScale={0.78}
+                minimumFontScale={0.7}
                 ellipsizeMode="clip"
             >
                 {line1}
@@ -108,6 +110,17 @@ function StatLines({ stats, isLive, align, compact = false }: {
                 </Text>
             ) : null}
         </View>
+    )
+}
+
+function InjuryStatusBadge({ status }: { status: string | null }) {
+    if (!status) return null
+    return (
+        <Badge
+            label={status}
+            color={INJURY_COLORS[status] ?? colors.textMuted}
+            variant="solid"
+        />
     )
 }
 
@@ -137,7 +150,7 @@ function FantasyScore({
                 value == null && styles.fptsPlaceholder,
                 value != null && isLive && styles.fptsLive,
             ]}
-            numberOfLines={compact ? undefined : 1}
+            numberOfLines={1}
             adjustsFontSizeToFit
             minimumFontScale={0.72}
             ellipsizeMode="clip"
@@ -258,8 +271,6 @@ function MatchupRowImpl({
     const oppHasGame = oppPlayer?.nbaTeam ? playingTeams.has(oppPlayer.nbaTeam) : false
     const myMatchup = myPlayer?.nbaTeam ? teamMatchups.get(myPlayer.nbaTeam) : undefined
     const oppMatchup = oppPlayer?.nbaTeam ? teamMatchups.get(oppPlayer.nbaTeam) : undefined
-    const myMatchupLine = myPlayer ? matchupLine(myPlayer.nbaTeam, myMatchup, compact) : STABLE_PLACEHOLDER
-    const oppMatchupLine = oppPlayer ? matchupLine(oppPlayer.nbaTeam, oppMatchup, compact) : STABLE_PLACEHOLDER
     const myStats = myPlayer ? liveStats.get(myPlayer.playerId) : undefined
     const oppStats = oppPlayer ? liveStats.get(oppPlayer.playerId) : undefined
     const myIsLive = myPlayer?.nbaTeam ? liveTeams.has(myPlayer.nbaTeam) : false
@@ -268,6 +279,12 @@ function MatchupRowImpl({
     const oppFpts = oppStats && !oppStats.didNotPlay ? computeLiveFantasyPoints(oppStats, scoringSettings) : null
     const myPlayedToday = myStats != null && !myStats.didNotPlay
     const oppPlayedToday = oppStats != null && !oppStats.didNotPlay
+    const myInjuryStatus = myPlayer?.injuryStatus ?? null
+    const oppInjuryStatus = oppPlayer?.injuryStatus ?? null
+    const myCompactBadge = compact && !!myInjuryStatus && !myPlayedToday
+    const oppCompactBadge = compact && !!oppInjuryStatus && !oppPlayedToday
+    const myMatchupLine = myPlayer ? matchupLine(myPlayer.nbaTeam, myMatchup, compact, myCompactBadge) : STABLE_PLACEHOLDER
+    const oppMatchupLine = oppPlayer ? matchupLine(oppPlayer.nbaTeam, oppMatchup, compact, oppCompactBadge) : STABLE_PLACEHOLDER
 
     return (
         <MotionView style={styles.matchupRowWrap} preset="fade" delay={motionDelay}>
@@ -294,18 +311,12 @@ function MatchupRowImpl({
                         <FantasyScore value={myFpts} isLive={myIsLive} side="left" compact={compact} dense={dense} />
                         <View style={[styles.playerBlockRight, compact && styles.playerBlockCompact, dense && styles.playerBlockDense]}>
                             <View style={[styles.metaRow, styles.primaryMetaRow, { justifyContent: 'flex-end' }]}>
-                                {myPlayer.injuryStatus && !myPlayedToday ? (
-                                    <Badge
-                                        label={myPlayer.injuryStatus}
-                                        color={INJURY_COLORS[myPlayer.injuryStatus] ?? colors.textMuted}
-                                        variant="solid"
-                                    />
-                                ) : null}
+                                {!compact && !myPlayedToday ? <InjuryStatusBadge status={myInjuryStatus} /> : null}
                                 <Text
                                     style={[styles.sideName, dense && styles.sideNameDense, !myHasGame && styles.noGameName]}
-                                    numberOfLines={compact ? undefined : 1}
+                                    numberOfLines={1}
                                     adjustsFontSizeToFit
-                                    minimumFontScale={0.74}
+                                    minimumFontScale={0.68}
                                     ellipsizeMode="clip"
                                 >
                                     {compact ? compactLineupName(myPlayer.displayName) : shortName(myPlayer.displayName)}
@@ -319,12 +330,13 @@ function MatchupRowImpl({
                                         <Text style={styles.lockedBadge}>LIVE</Text>
                                     </View>
                                 )}
+                                {myCompactBadge ? <InjuryStatusBadge status={myInjuryStatus} /> : null}
                                 {!compact && myPlayer.eligiblePositions.map((pos) => <PosTag key={pos} position={pos} />)}
                                 <Text
                                     style={styles.sideMeta}
-                                    numberOfLines={compact ? undefined : 1}
+                                    numberOfLines={1}
                                     adjustsFontSizeToFit
-                                    minimumFontScale={0.78}
+                                    minimumFontScale={0.68}
                                     ellipsizeMode="clip"
                                 >
                                     {myMatchupLine}
@@ -415,28 +427,23 @@ function MatchupRowImpl({
                                 <LineupAvatar player={oppPlayer} compact={compact} dense={dense} />
                                 <Text
                                     style={[styles.sideName, dense && styles.sideNameDense, !oppHasGame && styles.noGameName]}
-                                    numberOfLines={compact ? undefined : 1}
+                                    numberOfLines={1}
                                     adjustsFontSizeToFit
-                                    minimumFontScale={0.74}
+                                    minimumFontScale={0.68}
                                     ellipsizeMode="clip"
                                 >
                                     {compact ? compactLineupName(oppPlayer.displayName) : shortName(oppPlayer.displayName)}
                                 </Text>
-                                {oppPlayer.injuryStatus && !oppPlayedToday ? (
-                                    <Badge
-                                        label={oppPlayer.injuryStatus}
-                                        color={INJURY_COLORS[oppPlayer.injuryStatus] ?? colors.textMuted}
-                                        variant="solid"
-                                    />
-                                ) : null}
+                                {!compact && !oppPlayedToday ? <InjuryStatusBadge status={oppInjuryStatus} /> : null}
                             </View>
                             {!dense && <View style={[styles.metaRow, styles.secondaryMetaRow]}>
+                                {oppCompactBadge ? <InjuryStatusBadge status={oppInjuryStatus} /> : null}
                                 {!compact && oppPlayer.eligiblePositions.map((pos) => <PosTag key={pos} position={pos} />)}
                                 <Text
                                     style={styles.sideMeta}
-                                    numberOfLines={compact ? undefined : 1}
+                                    numberOfLines={1}
                                     adjustsFontSizeToFit
-                                    minimumFontScale={0.78}
+                                    minimumFontScale={0.68}
                                     ellipsizeMode="clip"
                                 >
                                     {oppMatchupLine}
@@ -500,7 +507,7 @@ const styles = StyleSheet.create({
     },
     matchupRowCompact: {
         paddingVertical: 4,
-        gap: 6,
+        gap: 4,
     },
     matchupRowDense: {
         paddingVertical: 2,
@@ -515,8 +522,8 @@ const styles = StyleSheet.create({
         borderColor: colors.borderLight,
         flexShrink: 0,
     },
-    rowSideLeft: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', paddingLeft: spacing.sm },
-    rowSideRight: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', paddingRight: spacing.sm },
+    rowSideLeft: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', paddingLeft: 6 },
+    rowSideRight: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', paddingRight: 6 },
     playerBlockRight: { flex: 1, minWidth: 0, minHeight: 66, justifyContent: 'center', alignItems: 'flex-end' },
     playerBlockLeft: { flex: 1, minWidth: 0, minHeight: 66, justifyContent: 'center', alignItems: 'flex-start' },
     playerBlockCompact: { minHeight: 48 },
@@ -531,11 +538,11 @@ const styles = StyleSheet.create({
         marginRight: 6,
         fontVariant: ['tabular-nums'] as const,
     },
-    fptsNumCompact: { width: 52, fontSize: fontSize.lg },
+    fptsNumCompact: { width: 40, fontSize: fontSize.lg },
     fptsNumDense: { width: 54, fontSize: fontSize.lg },
     fptsRight: { textAlign: 'right', marginRight: spacing.sm, marginLeft: 6 },
-    fptsLeftCompact: { marginRight: 10 },
-    fptsRightCompact: { marginLeft: 10 },
+    fptsLeftCompact: { marginRight: 5 },
+    fptsRightCompact: { marginLeft: 5, marginRight: 0 },
     fptsPlaceholder: { color: colors.textPlaceholder },
     fptsLive: { color: colors.primaryDark },
     sideName: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textPrimary, flexShrink: 1 },
@@ -543,7 +550,7 @@ const styles = StyleSheet.create({
     sideNameDense: { fontSize: fontSize['2sm'] },
     noGameName: { color: colors.textDisabled },
     metaRow: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 2 },
-    primaryMetaRow: { minHeight: 34, maxWidth: '100%' },
+    primaryMetaRow: { minHeight: 32, maxWidth: '100%' },
     secondaryMetaRow: { minHeight: 18, maxWidth: '100%' },
     sideMeta: { fontSize: fontSize.xs, color: colors.textPlaceholder },
     lockedBadge: { fontSize: fontSize['2xs'], fontWeight: fontWeight.bold, color: uiColors.successTextLive, letterSpacing: 0.4, marginHorizontal: 3 },
@@ -562,7 +569,7 @@ const styles = StyleSheet.create({
         flexShrink: 0,
     },
     slotChipCenterCompact: {
-        width: 42,
+        width: 38,
         height: 26,
         borderRadius: 7,
     },

@@ -36,6 +36,17 @@ const MOBILE_NAV: { label: string; href: RouteHref; icon: IconName }[] = [
     { label: 'League', href: '/league', icon: 'emoji-events' },
 ]
 
+const MOBILE_LABELS: Record<RouteHref, string> = {
+    '/': 'Match',
+    '/players': 'Players',
+    '/projections': 'Proj',
+    '/dynasty': 'Dyn',
+    '/roster': 'Roster',
+    '/trades': 'Trades',
+    '/league': 'League',
+    '/profile': 'Profile',
+}
+
 const SECTION_TITLES: { label: string; href: RouteHref }[] = [
     ...MOBILE_NAV.map(({ label, href }) => ({ label, href })),
     { label: 'Profile', href: '/profile' },
@@ -399,6 +410,7 @@ function MobileBottomNav() {
             {MOBILE_NAV.map((item) => {
                 const active = isRouteActive(pathname, item.href)
                 const badge = item.href === '/trades' ? pendingTradeCount : 0
+                const displayLabel = MOBILE_LABELS[item.href]
                 return (
                     <Pressable
                         key={item.href}
@@ -417,7 +429,9 @@ function MobileBottomNav() {
                                 </View>
                             ) : null}
                         </View>
-                        <Text style={[styles.bottomNavText, active && styles.bottomNavTextActive]}>{item.label}</Text>
+                        <Text style={[styles.bottomNavText, active && styles.bottomNavTextActive]} numberOfLines={1} ellipsizeMode="clip">
+                            {displayLabel}
+                        </Text>
                     </Pressable>
                 )
             })}
