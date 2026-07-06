@@ -88,28 +88,32 @@ export default function PlayersScreen() {
     const filtersVisible = !collapsibleFilters || filtersOpen
 
     const {
-        data: ownedData,
-        loading: ownedLoading,
-        error: ownedError,
-        refresh: refreshOwned,
+        data: playerSupport,
+        loading: playerSupportFetchLoading,
+        error: playerSupportError,
+        refresh: refreshPlayerSupport,
     } = useFocusAsyncData(async () => {
-        if (!leagueId) return { leagueId: null, ownedMap: new Map<string, OwnedEntry>(), waiverIds: new Set<string>() }
-        return getPlayerAvailabilitySnapshot(leagueId)
-    }, [leagueId])
-
-    const ownedDataForLeague = ownedData?.leagueId === leagueId ? ownedData : null
-    const ownedMap = ownedDataForLeague?.ownedMap ?? EMPTY_OWNED_MAP
-    const waiverIds = ownedDataForLeague?.waiverIds ?? EMPTY_WAIVER_IDS
-    const playerSupportLoading = !!leagueId && ownedLoading && ownedDataForLeague == null
-    const playerSupportReady = !leagueId || ownedDataForLeague != null
-
-    const {
-        data: transactionState,
-        refresh: refreshTransactionState,
-    } = useFocusAsyncData(async () => {
-        if (!current?.id || !leagueId) return null
-        return getMemberTransactionState(current.id, leagueId)
+        if (!leagueId) {
+            return {
+                leagueId: null,
+                ownedMap: new Map<string, OwnedEntry>(),
+                waiverIds: new Set<string>(),
+                transactionState: null,
+            }
+        }
+        const [availability, transactionState] = await Promise.all([
+            getPlayerAvailabilitySnapshot(leagueId),
+            current?.id ? getMemberTransactionState(current.id, leagueId) : Promise.resolve(null),
+        ])
+        return { ...availability, transactionState }
     }, [current?.id, leagueId])
+
+    const playerSupportForLeague = playerSupport?.leagueId === leagueId ? playerSupport : null
+    const ownedMap = playerSupportForLeague?.ownedMap ?? EMPTY_OWNED_MAP
+    const waiverIds = playerSupportForLeague?.waiverIds ?? EMPTY_WAIVER_IDS
+    const playerSupportLoading = !!leagueId && playerSupportFetchLoading && playerSupportForLeague == null
+    const playerSupportReady = !leagueId || playerSupportForLeague != null
+    const transactionState = playerSupportForLeague?.transactionState ?? null
 
     const search = usePlayerSearch(leagueId, ownedMap, waiverIds, current?.id, { enabled: searchEnabled && playerSupportReady })
     // ESPN-style column sort: click a stat header to sort the whole pool by it;
@@ -128,8 +132,8 @@ export default function PlayersScreen() {
         leagueId,
         currentLeague?.roster_size ?? 20,
         waiverIds,
-        refreshOwned,
-        refreshTransactionState,
+        refreshPlayerSupport,
+        refreshPlayerSupport,
     )
     const gamesLeftVersion = Array.from(search.availability.gamesLeft.entries())
         .sort(([a], [b]) => a.localeCompare(b))
@@ -257,7 +261,7 @@ export default function PlayersScreen() {
                     </Pressable>
                 </View>
                 ) : null}
-                {transactionState ? (
+                {transactionState && (search.results.players.length > 0 || !search.results.loading) ? (
                     <View style={localStyles.transactionBar}>
                         <Text style={localStyles.transactionBarText}>
                             Adds: {transactionState.weeklyAddCount}/{transactionState.weeklyAddLimit ?? 'Unlimited'} this week
@@ -335,8 +339,8 @@ export default function PlayersScreen() {
                     ListEmptyComponent={
                         playerSupportLoading || search.results.loading
                             ? null
-                            : ownedError && ownedDataForLeague == null
-                              ? <EmptyState message="Players could not load." description="Tap retry to reload roster and waiver state." actionLabel="Retry" onAction={() => void refreshOwned()} fullScreen={false} />
+                            : playerSupportError && playerSupportForLeague == null
+                              ? <EmptyState message="Players could not load." description="Tap retry to reload roster and waiver state." actionLabel="Retry" onAction={() => void refreshPlayerSupport()} fullScreen={false} />
                             : <EmptyState message="No players found." fullScreen={false} />
                     }
                     onEndReached={search.results.loadMore}

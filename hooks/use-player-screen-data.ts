@@ -105,7 +105,7 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null) {
     const [selectedSeason, setSelectedSeason] = useState<number>(initialSelectedSeason)
 
     const [seasonAverages, setSeasonAverages] = useState<PlayerSeasonAverages | null>(initialSeason?.seasonAverages ?? null)
-    const [seasonLoading, setSeasonLoading] = useState(false)
+    const [seasonLoading, setSeasonLoading] = useState(!initialSeason)
     const [seasonError, setSeasonError] = useState<string | null>(null)
 
     const [gameLog, setGameLog] = useState<GameLogEntry[]>(initialSeason?.gameLog ?? [])
@@ -212,7 +212,15 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null) {
                     : seasons.length > 0 && !seasons.includes(currentYear)
                     ? seasons[0]
                     : currentYear
+                const nextSeason = seasonCacheRef.current.get(seasonCacheKey(playerId, leagueId, nextSelectedSeason))
                 setSelectedSeason(nextSelectedSeason)
+                setSeasonAverages(nextSeason?.seasonAverages ?? null)
+                setGameLog(nextSeason?.gameLog ?? [])
+                setGameLogOffset(nextSeason?.gameLogOffset ?? 0)
+                setHasMoreGames(nextSeason?.hasMoreGames ?? false)
+                setFantasyPointsMap(nextSeason?.fantasyPointsMap ?? null)
+                setAvgFantasyPoints(nextSeason?.avgFantasyPoints ?? 0)
+                setSeasonLoading(!nextSeason)
                 cacheStateRef.current = {
                     ...cacheStateRef.current,
                     player: p,

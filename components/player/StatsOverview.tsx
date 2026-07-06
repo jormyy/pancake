@@ -28,6 +28,7 @@ export function StatsOverview({ averages, seasonYear }: Props) {
             {/* Primary stats */}
             <View style={styles.grid}>
                 {[
+                    { label: 'MIN', value: averages.avgMinutesPlayed.toFixed(1) },
                     { label: 'PTS', value: averages.avgPoints.toFixed(1) },
                     { label: 'REB', value: averages.avgRebounds.toFixed(1) },
                     { label: 'AST', value: averages.avgAssists.toFixed(1) },
@@ -35,7 +36,6 @@ export function StatsOverview({ averages, seasonYear }: Props) {
                     { label: 'BLK', value: averages.avgBlocks.toFixed(1) },
                     { label: '3PM', value: averages.avgThreePointersMade.toFixed(1) },
                     { label: 'TO', value: averages.avgTurnovers.toFixed(1) },
-                    { label: 'MIN', value: averages.avgMinutesPlayed.toFixed(1) },
                 ].map(({ label, value }) => (
                     <View key={label} style={[styles.cell, { minWidth: cellMinWidth }]}>
                         <Text style={styles.cellValue}>{value}</Text>

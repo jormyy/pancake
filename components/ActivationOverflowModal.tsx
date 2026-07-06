@@ -2,6 +2,9 @@ import { View, Text, Pressable, StyleSheet, Modal, ScrollView } from 'react-nati
 import { alpha, colors, palette, fontSize, fontWeight, scrim } from '@/constants/tokens'
 import { LineupPlayer } from '@/lib/lineup'
 import { isIREligible } from '@/lib/roster'
+import { getPositionColor } from '@/constants/positions'
+import { playerHeadshotUrl } from '@/lib/format'
+import { Avatar } from '@/components/Avatar'
 
 export type ActivationOverflowPending = { rosterPlayerId: string; source: 'ir' | 'taxi'; slotType?: string | null } | null
 
@@ -45,6 +48,12 @@ export function ActivationOverflowModal({
                     <ScrollView style={{ maxHeight: 360 }}>
                         {activePlayers.map((p) => (
                             <View key={p.rosterPlayerId} style={styles.overflowRow}>
+                                <Avatar
+                                    name={p.displayName}
+                                    uri={playerHeadshotUrl(p.nbaId) ?? undefined}
+                                    color={getPositionColor(p.eligiblePositions[0] ?? p.position)}
+                                    size={34}
+                                />
                                 <View style={{ flex: 1 }}>
                                     <Text style={styles.overflowName} numberOfLines={1}>
                                         {p.displayName}

@@ -96,13 +96,13 @@ export default function TradesScreen() {
     const [tradesError, setTradesError] = useState<string | null>(null)
     const [blockItems, setBlockItems] = useState<TradeBlockItem[]>(cachedBlock?.items ?? [])
     const [blockRoster, setBlockRoster] = useState<RosterPlayer[]>(cachedBlock?.roster ?? [])
-    const [blockLoading, setBlockLoading] = useState(false)
+    const [blockLoading, setBlockLoading] = useState(!cachedBlock)
     const [blockError, setBlockError] = useState<string | null>(null)
     const [blockBusyId, setBlockBusyId] = useState<string | null>(null)
     const tradesLoadSeqRef = useRef(0)
     const blockLoadSeqRef = useRef(0)
 
-    const { data: picks, error: picksError } = useFocusAsyncData(async () => {
+    const { data: picks, loading: picksLoading, error: picksError } = useFocusAsyncData(async () => {
         if (!current || !leagueId) return [] as TradePickItem[]
         const result = await getPicksForMember(current.id, leagueId)
         writePersistentCache(picksCacheKey(current.id, leagueId), result)
@@ -187,6 +187,7 @@ export default function TradesScreen() {
             : null
         setBlockItems(nextCachedBlock?.items ?? [])
         setBlockRoster(nextCachedBlock?.roster ?? [])
+        setBlockLoading(!nextCachedBlock)
     }, [myMemberId, leagueId])
 
     useEffect(() => {
@@ -457,6 +458,13 @@ export default function TradesScreen() {
     }, [tab, vetoableTrades, incomingTrades, outgoingTrades, historyTrades, picksList, loading, blockItems, blockLoading, blockRoster])
 
     const pendingInboxCount = incomingTrades.length
+    const picksHydrated = !picksLoading || picksList.length > 0
+    const tradesHydrated = !loading || trades.length > 0
+    const blockHydrated = !blockLoading || blockItems.length > 0 || blockRoster.length > 0
+    const activeTabHydrated =
+        tab === 'picks' ? picksHydrated
+        : tab === 'block' ? blockHydrated
+        : tradesHydrated
 
     const tabOptions: SegmentOption<TabKey>[] = [
         { label: 'Picks', value: 'picks' },
@@ -503,7 +511,7 @@ export default function TradesScreen() {
                 />
             ) : null}
 
-            {tab === 'picks' && picksError ? (
+            {!activeTabHydrated ? null : tab === 'picks' && picksError ? (
                 <View style={styles.emptyState}>
                     <Text style={styles.emptyStateText}>Error: {picksError.message}</Text>
                 </View>

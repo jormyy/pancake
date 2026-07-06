@@ -229,6 +229,8 @@ export default function ProjectionsScreen() {
     ])
 
     const playerRows = useMemo(() => filteredRows.map(toPlayerRow), [filteredRows])
+    const projectionRowsReady = hydrated && projectionSupportReady
+    const visiblePlayerRows = projectionRowsReady ? playerRows : []
     const weekTotalsEmpty = useMemo(
         () => view === 'week_total' && rows.length > 0 && rows.every((row) => !row.projection_games_played),
         [rows, view],
@@ -306,9 +308,9 @@ export default function ProjectionsScreen() {
                         clearButtonMode="while-editing"
                     />
                     <Text style={styles.resultCountText}>
-                        {!hydrated && playerRows.length === 0
+                        {!projectionRowsReady
                             ? 'Players'
-                            : `${playerRows.length}${activeFilterCount > 0 ? ' filtered' : ''} player${playerRows.length === 1 ? '' : 's'}`}
+                            : `${visiblePlayerRows.length}${activeFilterCount > 0 ? ' filtered' : ''} player${visiblePlayerRows.length === 1 ? '' : 's'}`}
                     </Text>
                 </View>
                 <View style={styles.filterCardHeader}>
@@ -412,12 +414,12 @@ export default function ProjectionsScreen() {
             ) : null}
 
             <FlashList
-                data={playerRows}
+                data={visiblePlayerRows}
                 extraData={playerListExtraData}
                 keyExtractor={(player) => player.id}
-                contentContainerStyle={playerRows.length === 0 ? styles.emptyContainer : undefined}
+                contentContainerStyle={visiblePlayerRows.length === 0 ? styles.emptyContainer : undefined}
                 ItemSeparatorComponent={ItemSeparator}
-                ListHeaderComponent={showStatTable && playerRows.length > 0 ? (
+                ListHeaderComponent={showStatTable && visiblePlayerRows.length > 0 ? (
                     <View style={styles.tableHeader}>
                         <View style={styles.tableHeaderAddSpacer} />
                         <View style={styles.tableHeaderCardRow}>
@@ -471,7 +473,7 @@ export default function ProjectionsScreen() {
                         onPress={() => push(`/player/${item.id}`)}
                     />
                 )}
-                ListEmptyComponent={hydrated ? <EmptyState message="No projections found." fullScreen={false} /> : null}
+                ListEmptyComponent={projectionRowsReady ? <EmptyState message="No projections found." fullScreen={false} /> : null}
             />
           </View>
 

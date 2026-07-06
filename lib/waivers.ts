@@ -17,8 +17,10 @@ export type WaiverClaim = {
     id: string
     playerId: string
     playerName: string
+    playerNbaId: string | null
     dropPlayerId: string | null
     dropPlayerName: string | null
+    dropPlayerNbaId: string | null
     status: string
     submittedAt: string
     processDate: string
@@ -30,6 +32,7 @@ export type WaiverClaim = {
 
 type PlayerSummaryRow = {
     display_name: string | null
+    nba_id?: string | null
     position?: string | null
     nba_team?: string | null
     injury_status?: string | null
@@ -190,8 +193,8 @@ export async function getMyWaiverClaims(
             bid_amount,
             claim_order,
             failure_reason,
-            claim_player:players!waiver_claims_player_id_fkey ( display_name ),
-            drop_player:players!waiver_claims_drop_player_id_fkey ( display_name )
+            claim_player:players!waiver_claims_player_id_fkey ( display_name, nba_id ),
+            drop_player:players!waiver_claims_drop_player_id_fkey ( display_name, nba_id )
         `)
         .eq('member_id', memberId)
         .eq('league_season_id', seasonId)
@@ -206,8 +209,10 @@ export async function getMyWaiverClaims(
         id: row.id,
         playerId: row.player_id,
         playerName: row.claim_player?.display_name ?? 'Unknown',
+        playerNbaId: row.claim_player?.nba_id ?? null,
         dropPlayerId: row.drop_player_id ?? null,
         dropPlayerName: row.drop_player?.display_name ?? null,
+        dropPlayerNbaId: row.drop_player?.nba_id ?? null,
         status: row.status,
         submittedAt: row.submitted_at,
         processDate: row.process_date,

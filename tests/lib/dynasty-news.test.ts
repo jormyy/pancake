@@ -52,7 +52,7 @@ describe('getMyDynastyNews', () => {
                 source: 'Beat',
                 url: 'https://example.test/news',
                 published_at: '2026-06-30T00:00:00Z',
-                players: { display_name: 'Roster Player', nba_team: 'OKC' },
+                players: { display_name: 'Roster Player', nba_team: 'OKC', nba_id: '203999' },
             },
         ])
         mockFrom.mockImplementation((table: string) => {
@@ -78,6 +78,7 @@ describe('getMyDynastyNews', () => {
                 publishedAt: '2026-06-30T00:00:00Z',
                 playerName: 'Roster Player',
                 playerTeam: 'OKC',
+                playerNbaId: '203999',
             },
         ])
     })

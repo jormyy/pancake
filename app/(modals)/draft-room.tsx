@@ -200,6 +200,12 @@ export default function DraftRoomScreen() {
                             accessibilityRole="button"
                             accessibilityLabel={`Nominate ${item.display_name ?? 'player'}`}
                         >
+                            <Avatar
+                                name={item.display_name ?? 'Player'}
+                                color={getPositionColor(item.position, colors.bgMuted)}
+                                uri={playerHeadshotUrl(item.nba_id)}
+                                size={36}
+                            />
                             <View style={styles.flex1}>
                                 <Text style={styles.playerResultName}>
                                     {item.display_name}
@@ -485,6 +491,12 @@ export default function DraftRoomScreen() {
                                             : undefined
                                         return (
                                             <View key={n.id} style={styles.activityItem}>
+                                                <Avatar
+                                                    name={n.player?.displayName ?? 'Player'}
+                                                    color={getPositionColor(n.player?.position, colors.bgMuted)}
+                                                    uri={playerHeadshotUrl(n.player?.nbaId)}
+                                                    size={22}
+                                                />
                                                 <Text style={styles.activityText} numberOfLines={1}>
                                                     {n.status === 'sold'
                                                         ? `${winnerTeam ?? 'Unknown'} won ${n.player?.displayName ?? 'Unknown'}`
@@ -578,6 +590,12 @@ export default function DraftRoomScreen() {
                                                 : undefined
                                             return (
                                                 <View style={[styles.historyRow, index > 0 && styles.budgetDivider]}>
+                                                    <Avatar
+                                                        name={item.player?.displayName ?? 'Player'}
+                                                        color={getPositionColor(item.player?.position, colors.bgMuted)}
+                                                        uri={playerHeadshotUrl(item.player?.nbaId)}
+                                                        size={34}
+                                                    />
                                                     <View style={styles.flex1}>
                                                         <Text style={styles.historyPlayer}>
                                                             {item.player?.displayName ?? 'Unknown'}
@@ -780,7 +798,7 @@ const styles = StyleSheet.create({
         columnGap: spacing.xl,
         rowGap: spacing.xxs,
     },
-    activityItem: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.xs, maxWidth: '100%' },
+    activityItem: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, maxWidth: '100%' },
     activityText: { fontSize: fontSize.sm, color: colors.textSecondary, flexShrink: 1 },
     activityPrice: {
         fontSize: fontSize.sm,
@@ -907,7 +925,7 @@ const styles = StyleSheet.create({
     budgetWon: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textMuted, marginRight: spacing.lg },
     meAccent: { color: colors.primaryDark },
 
-    historyRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10 },
+    historyRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, gap: spacing.md },
     historyPlayer: { fontSize: fontSize.md, fontWeight: fontWeight.semibold },
     historyMeta: { fontSize: fontSize['2sm'], color: colors.textMuted, marginTop: 1 },
     historyPrice: { fontSize: fontSize.md, fontWeight: fontWeight.extrabold, color: colors.textPrimary },
