@@ -14,7 +14,7 @@ import { useLeagueContext } from '@/contexts/league-context'
 import { getPlayoffBracket, PlayoffBracket, BracketMatchup } from '@/lib/bracket'
 import { EmptyState } from '@/components/EmptyState'
 import { formatPoints } from '@/lib/format'
-import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { colors, fontSize, fontWeight, radii, spacing, uiColors } from '@/constants/tokens'
 
 export default function BracketScreen() {
     const { current, currentLeague } = useLeagueContext()
@@ -285,18 +285,18 @@ const styles = StyleSheet.create({
     emptyText: { fontSize: fontSize.md, color: colors.textPlaceholder, textAlign: 'center', lineHeight: 20 },
 
     championBanner: {
-        backgroundColor: palette.amber300,
+        backgroundColor: uiColors.warningSurface,
         borderRadius: radii.md,
         borderCurve: 'continuous' as const,
         borderWidth: 1,
-        borderColor: palette.amber200,
+        borderColor: uiColors.warningBorder,
         padding: spacing['2xl'],
         alignItems: 'center',
         gap: spacing.xs,
         marginBottom: spacing.md,
     },
     championBannerCompact: { padding: spacing.lg, marginBottom: spacing.sm },
-    championLabel: { fontSize: fontSize.sm, fontWeight: fontWeight.extrabold, color: palette.amber600, letterSpacing: 0 },
+    championLabel: { fontSize: fontSize.sm, fontWeight: fontWeight.extrabold, color: uiColors.warningText, letterSpacing: 0 },
     championName: { fontSize: fontSize['2xl'], fontWeight: fontWeight.extrabold, color: colors.textPrimary },
 
     roundLabel: {
@@ -320,7 +320,7 @@ const styles = StyleSheet.create({
         marginBottom: spacing.md,
     },
     cardCompact: { marginBottom: spacing.sm },
-    cardFinal: { borderColor: palette.amber200, borderWidth: 1.5 },
+    cardFinal: { borderColor: uiColors.warningBorder, borderWidth: 1.5 },
 
     cardHeader: {
         flexDirection: 'row',
@@ -341,11 +341,11 @@ const styles = StyleSheet.create({
         borderCurve: 'continuous' as const,
     },
     statusPending: { backgroundColor: colors.bgMuted },
-    statusLive: { backgroundColor: palette.green300 },
+    statusLive: { backgroundColor: uiColors.successSurfaceStrong },
     statusFinal: { backgroundColor: colors.bgMuted },
     statusText: { fontSize: fontSize.xs, fontWeight: fontWeight.bold },
     statusTextPending: { color: colors.textPlaceholder },
-    statusTextLive: { color: palette.green600 },
+    statusTextLive: { color: uiColors.successTextLive },
     statusTextFinal: { color: colors.textSecondary },
 
     divider: { height: 1, backgroundColor: colors.separator, marginHorizontal: spacing.xl },
@@ -361,15 +361,15 @@ const styles = StyleSheet.create({
     teamRowWon: { backgroundColor: colors.successLight },
     teamRowLost: { opacity: 0.5 },
     teamLeft: { flexDirection: 'row', alignItems: 'center', flex: 1, gap: spacing.sm },
-    winIndicator: { fontSize: 10, color: palette.green600 },
+    winIndicator: { fontSize: 10, color: uiColors.successTextLive },
     teamName: { fontSize: fontSize.lg, fontWeight: fontWeight.semibold, color: colors.textPrimary, flex: 1 },
     teamNameCompact: { fontSize: fontSize.md },
-    teamNameWon: { color: palette.green700, fontWeight: fontWeight.bold },
-    teamNameLost: { color: palette.gray650 },
+    teamNameWon: { color: uiColors.successTextStrong, fontWeight: fontWeight.bold },
+    teamNameLost: { color: uiColors.textLost },
     teamNameMe: { color: colors.primaryDark },
     meTag: { fontSize: fontSize.sm, color: colors.textPlaceholder, fontWeight: fontWeight.regular },
-    teamPoints: { fontSize: 18, fontWeight: fontWeight.bold, color: palette.gray900, minWidth: 60, textAlign: 'right' },
+    teamPoints: { fontSize: 18, fontWeight: fontWeight.bold, color: uiColors.tableText, minWidth: 60, textAlign: 'right' },
     teamPointsCompact: { fontSize: fontSize.md, minWidth: 52 },
-    teamPointsWon: { color: palette.green700 },
+    teamPointsWon: { color: uiColors.successTextStrong },
     teamPointsLost: { color: colors.textDisabled },
 })

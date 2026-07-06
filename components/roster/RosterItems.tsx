@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { View, Text, StyleSheet, TextInput } from 'react-native'
-import { INJURY_COLORS, colors, fontSize, fontWeight, radii, spacing, palette } from '@/constants/tokens'
+import { INJURY_COLORS, colors, fontSize, fontWeight, radii, spacing, uiColors } from '@/constants/tokens'
 import { isIREligible, isTaxiEligible, RosterPlayer } from '@/lib/roster'
 import { getEligiblePositions } from '@/lib/players'
 import { TradePickItem } from '@/lib/trades'
@@ -360,7 +360,7 @@ const styles = StyleSheet.create({
         height: 36,
         borderRadius: 18,
         borderCurve: 'continuous' as const,
-        backgroundColor: palette.purple500,
+        backgroundColor: uiColors.taxi,
         justifyContent: 'center',
         alignItems: 'center',
     },

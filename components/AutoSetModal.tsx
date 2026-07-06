@@ -1,5 +1,5 @@
 import { Modal, View, Text, Pressable, StyleSheet, Platform } from 'react-native'
-import { colors, scrim } from '@/constants/tokens'
+import { colors, controlSize, fontSize, fontWeight, radii, scrim, spacing } from '@/constants/tokens'
 
 export function AutoSetModal({
     visible,
@@ -87,18 +87,18 @@ const styles = StyleSheet.create({
         backgroundColor: scrim,
         justifyContent: 'center',
         alignItems: 'center',
-        padding: 20,
-        paddingBottom: Platform.OS === 'web' ? 80 : 20,
+        padding: spacing['2xl'],
+        paddingBottom: Platform.OS === 'web' ? spacing['6xl'] + spacing['4xl'] : spacing['2xl'],
     },
-    content: { backgroundColor: colors.bgScreen, borderRadius: 16, padding: 20, width: '100%', gap: 16 },
-    title: { fontSize: 19, fontWeight: '800', color: colors.textPrimary, textAlign: 'center' },
-    text: { fontSize: 14, color: colors.textMuted, textAlign: 'center' },
-    buttons: { flexDirection: 'row', gap: 12 },
-    button: { flex: 1, height: 48, backgroundColor: colors.primary, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
-    seasonButton: { height: 48, backgroundColor: colors.primary, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+    content: { backgroundColor: colors.bgScreen, borderRadius: radii['2xl'], padding: spacing['2xl'], width: '100%', gap: spacing.xl },
+    title: { fontSize: fontSize['2lg'], fontWeight: fontWeight.extrabold, color: colors.textPrimary, textAlign: 'center' },
+    text: { fontSize: fontSize.md, color: colors.textMuted, textAlign: 'center' },
+    buttons: { flexDirection: 'row', gap: spacing.lg },
+    button: { flex: 1, height: controlSize.button.md.height, backgroundColor: colors.primary, borderRadius: radii.lg, justifyContent: 'center', alignItems: 'center' },
+    seasonButton: { height: controlSize.button.md.height, backgroundColor: colors.primary, borderRadius: radii.lg, justifyContent: 'center', alignItems: 'center' },
     secondaryButton: { backgroundColor: colors.bgSubtle, borderWidth: 1, borderColor: colors.border },
-    buttonText: { fontSize: 15, fontWeight: '700', color: colors.textWhite },
+    buttonText: { fontSize: fontSize.md + 1, fontWeight: fontWeight.bold, color: colors.textWhite },
     secondaryButtonText: { color: colors.textSecondary },
-    cancel: { minHeight: 44, alignItems: 'center', justifyContent: 'center' },
-    cancelText: { fontSize: 15, fontWeight: '600', color: colors.textMuted },
+    cancel: { minHeight: controlSize.minTouch, alignItems: 'center', justifyContent: 'center' },
+    cancelText: { fontSize: fontSize.md + 1, fontWeight: fontWeight.semibold, color: colors.textMuted },
 })

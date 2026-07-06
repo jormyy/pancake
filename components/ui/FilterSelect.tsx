@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
-import { alpha, colors, fontSize, fontWeight, palette, radii, shadows, spacing } from '@/constants/tokens'
+import { colors, fontSize, fontWeight, radii, shadows, spacing, tints } from '@/constants/tokens'
 
 export type FilterOption<T extends string> = { key: T; label: string }
 
@@ -184,7 +184,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         padding: spacing.xl,
-        backgroundColor: alpha(palette.espresso, 0.36),
+        backgroundColor: tints.selectBackdrop,
     },
     selectSheet: {
         width: '100%',

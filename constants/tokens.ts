@@ -119,6 +119,16 @@ export function alpha(hex: string, a: number): string {
     return `rgba(${r}, ${g}, ${b}, ${a})`
 }
 
+const GRID = 4
+const unit = (steps: number) => steps * GRID
+const halfUnit = (steps: number) => steps * (GRID / 2)
+
+export const foundation = {
+    grid: GRID,
+    halfGrid: GRID / 2,
+    minTouch: unit(11),
+} as const
+
 // ── Semantic tokens ─────────────────────────────────────────────
 
 export const colors = {
@@ -174,47 +184,49 @@ export const colors = {
 // ── Spacing ─────────────────────────────────────────────────────
 
 export const spacing = {
-    xxs: 2,
-    xs: 4,
-    sm: 6,
-    md: 8,
-    lg: 12,
-    xl: 16,
-    '2xl': 20,
-    '3xl': 24,
-    '4xl': 32,
-    '5xl': 40,
-    '6xl': 48,
+    xxs: halfUnit(1),
+    xs: unit(1),
+    sm: halfUnit(3),
+    md: unit(2),
+    lg: unit(3),
+    xl: unit(4),
+    '2xl': unit(5),
+    '3xl': unit(6),
+    '4xl': unit(8),
+    '5xl': unit(10),
+    '6xl': unit(12),
 } as const
 
 // ── Border radii ────────────────────────────────────────────────
 
 export const radii = {
-    xs: 4,
-    sm: 6,
-    md: 8,
-    lg: 10,
-    xl: 12,
-    '2xl': 16,
-    '3xl': 20,
+    xs: unit(1),
+    sm: halfUnit(3),
+    md: unit(2),
+    lg: halfUnit(5),
+    xl: unit(3),
+    '2xl': unit(4),
+    '3xl': unit(5),
     full: 9999,
 } as const
 
 // ── Typography ──────────────────────────────────────────────────
 
+const TYPE_SCALE = [10, 11, 12, 13, 14, 16, 18, 20, 24, 28, 32, 36] as const
+
 export const fontSize = {
-    '2xs': 10,
-    xs: 11,
-    '2sm': 12,
-    sm: 13,
-    md: 14,
-    lg: 16,
-    '2lg': 18,
-    xl: 20,
-    '2xl': 24,
-    '3xl': 28,
-    '4xl': 32,
-    '5xl': 36,
+    '2xs': TYPE_SCALE[0],
+    xs: TYPE_SCALE[1],
+    '2sm': TYPE_SCALE[2],
+    sm: TYPE_SCALE[3],
+    md: TYPE_SCALE[4],
+    lg: TYPE_SCALE[5],
+    '2lg': TYPE_SCALE[6],
+    xl: TYPE_SCALE[7],
+    '2xl': TYPE_SCALE[8],
+    '3xl': TYPE_SCALE[9],
+    '4xl': TYPE_SCALE[10],
+    '5xl': TYPE_SCALE[11],
 } as const
 
 // Display face — Outfit, loaded via useFonts in app/_layout.tsx without
@@ -249,6 +261,18 @@ export const fontWeight = {
     extrabold: '800' as const,
     black: '900' as const,
 }
+
+export const controlSize = {
+    minTouch: foundation.minTouch,
+    button: {
+        sm: { height: unit(10), padX: spacing.lg, font: fontSize.sm, icon: unit(4), gap: spacing.sm },
+        md: { height: unit(12), padX: spacing.xl, font: fontSize.md, icon: halfUnit(9), gap: spacing.md },
+        lg: { height: unit(13), padX: spacing['3xl'], font: fontSize.lg, icon: unit(5), gap: spacing.md },
+    },
+    field: {
+        md: unit(12),
+    },
+} as const
 
 // ── Avatar sizes ────────────────────────────────────────────────
 
@@ -346,6 +370,68 @@ export const webOverlays = {
     scoreboardMuted: 'rgba(255,255,255,0.30)',
     scoreboardFaint: 'rgba(255,255,255,0.20)',
     liveGlow: '0 0 14px rgba(166, 83, 23, 0.35)',
+} as const
+
+export const webChrome = {
+    themeColor: palette.cream100,
+    rootBackgroundCss: `html,body,#root{background-color:${palette.cream100};}`,
+} as const
+
+export const tints = {
+    selectedIndicatorStrong: alpha(palette.white, 0.7),
+    selectedIndicatorMuted: alpha(palette.white, 0.5),
+    dangerAction: alpha(palette.red500, 0.13),
+    dangerActionStrong: alpha(palette.red900, 0.13),
+    dangerFocusRing: alpha(palette.red500, 0.14),
+    neutralAction: alpha(palette.latte, 0.13),
+    selectBackdrop: alpha(palette.espresso, 0.36),
+} as const
+
+export const uiColors = {
+    accentDanger: palette.red500,
+    accentPick: palette.indigo500,
+    accentSuccess: palette.green500,
+    brandAccent: palette.maple500,
+    brandBorder: palette.maple200,
+    brandBorderSoft: palette.maple100,
+    brandSurface: palette.maple100,
+    brandSurfaceSoft: palette.maple50,
+    brandText: palette.maple600,
+    brandTextStrong: palette.maple900,
+    borderNeutral: palette.gray300,
+    dangerBorder: palette.red200,
+    dangerSurface: palette.red50,
+    dangerText: palette.red900,
+    neutralSolid: palette.mocha,
+    neutralTint: palette.latte,
+    successBorder: palette.green200,
+    successSurface: palette.green50,
+    successSurfaceStrong: palette.green300,
+    successText: palette.green800,
+    successTextLive: palette.green600,
+    successTextStrong: palette.green700,
+    surfaceAlt: palette.gray50,
+    tableText: palette.gray900,
+    taxi: palette.purple500,
+    textFaint: palette.gray500,
+    textLost: palette.gray650,
+    warningBorder: palette.amber200,
+    warningSurface: palette.amber300,
+    warningText: palette.amber600,
+    waiverText: palette.purple600,
+} as const
+
+export const scoreboardColors = {
+    background: brand.surface,
+    card: brand.surfaceDeep,
+    textMuted: brand.onFaint,
+    accent: palette.maple200,
+    accentSoft: palette.maple100,
+    hidden: webOverlays.scoreboardHidden,
+    border: webOverlays.scoreboardBorder,
+    statusMuted: webOverlays.scoreboardMuted,
+    statusFinal: webOverlays.scoreboardFaint,
+    liveGlow: webOverlays.liveGlow,
 } as const
 
 // ── Motion ──────────────────────────────────────────────────────

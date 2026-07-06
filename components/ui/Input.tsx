@@ -1,7 +1,7 @@
 import { ComponentProps, forwardRef } from 'react'
 import { StyleSheet, Text, TextInput, View, type StyleProp, type ViewStyle } from 'react-native'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
-import { colors, fontFamily, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { colors, controlSize, fontFamily, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 
 type IconName = ComponentProps<typeof MaterialIcons>['name']
 
@@ -63,7 +63,7 @@ const styles = StyleSheet.create({
     field: {
         flexDirection: 'row',
         alignItems: 'center',
-        minHeight: 50,
+        minHeight: controlSize.field.md,
         borderWidth: 1,
         borderColor: colors.borderLight,
         borderRadius: radii.lg,

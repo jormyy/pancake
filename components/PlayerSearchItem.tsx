@@ -4,7 +4,7 @@ import { PlayerRow, getEligiblePositions } from '@/lib/players'
 import { countLabel, formatPoints, playerHeadshotUrl } from '@/lib/format'
 import { OwnedEntry } from '@/lib/roster'
 import { getPositionColor } from '@/constants/positions'
-import { INJURY_COLORS, colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { INJURY_COLORS, colors, fontSize, fontWeight, radii, spacing, uiColors } from '@/constants/tokens'
 import { Avatar } from '@/components/Avatar'
 import { Badge } from '@/components/Badge'
 import { PosTag } from '@/components/PosTag'
@@ -372,5 +372,5 @@ const styles = StyleSheet.create({
     statusBadgeFA: { backgroundColor: colors.bgMuted },
     statusBadgeText: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.textMuted },
     statusBadgeTextMe: { color: colors.successDark },
-    statusBadgeTextWaiver: { color: palette.purple600 },
+    statusBadgeTextWaiver: { color: uiColors.waiverText },
 })

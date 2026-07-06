@@ -15,7 +15,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useLeagueContext } from '@/contexts/league-context'
 import { type RookieProspect, type SnakePick } from '@/lib/rookieDraft'
 import { getPositionColor } from "@/constants/positions"
-import { colors, palette, fontSize, fontWeight, radii, scrim, spacing } from '@/constants/tokens'
+import { colors, fontSize, fontWeight, radii, scrim, spacing, uiColors } from '@/constants/tokens'
 import { MotionPressable } from '@/components/Motion'
 import { showSuccess } from '@/lib/alert'
 import { countLabel, playerHeadshotUrl } from '@/lib/format'
@@ -520,7 +520,7 @@ const styles = StyleSheet.create({
     banner: {
         backgroundColor: colors.primaryLight,
         borderBottomWidth: 1,
-        borderBottomColor: palette.maple100,
+        borderBottomColor: uiColors.brandBorderSoft,
         paddingHorizontal: spacing['2xl'],
         paddingVertical: 14,
         gap: spacing.xs,
@@ -534,7 +534,7 @@ const styles = StyleSheet.create({
         paddingVertical: spacing.xs,
         borderBottomWidth: 0,
     },
-    bannerDone: { backgroundColor: palette.green50, borderBottomColor: palette.green200 },
+    bannerDone: { backgroundColor: uiColors.successSurface, borderBottomColor: uiColors.successBorder },
     bannerPaused: { backgroundColor: colors.bgSubtle, borderBottomColor: colors.border },
     adminBarWide: { paddingHorizontal: spacing['2xl'] },
     adminBarCompact: {
@@ -600,10 +600,10 @@ const styles = StyleSheet.create({
         marginHorizontal: spacing.lg,
         marginBottom: spacing.sm,
         padding: spacing.md,
-        backgroundColor: palette.red50,
+        backgroundColor: uiColors.dangerSurface,
         borderRadius: radii.md,
         borderWidth: 1,
-        borderColor: palette.red200,
+        borderColor: uiColors.dangerBorder,
     },
     pickErrorText: { color: colors.danger, fontSize: fontSize.sm, fontWeight: fontWeight.semibold },
 
@@ -674,7 +674,7 @@ const styles = StyleSheet.create({
         gap: spacing.md,
     },
     pickRowMe: { backgroundColor: colors.primaryLight },
-    pickRowOnClock: { backgroundColor: palette.green50 },
+    pickRowOnClock: { backgroundColor: uiColors.successSurface },
 
     pickNum: { width: 28, fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.textMuted },
     pickTeam: { width: 100, fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textPrimary },
@@ -685,7 +685,7 @@ const styles = StyleSheet.create({
     pickedName: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textPrimary },
     pickedTeam: { fontSize: fontSize.xs, color: colors.textMuted },
 
-    onClockText: { color: palette.green800, fontWeight: fontWeight.bold },
+    onClockText: { color: uiColors.successText, fontWeight: fontWeight.bold },
     meText: { color: colors.primaryDark, fontWeight: fontWeight.bold },
 
     overflowOverlay: {
@@ -748,7 +748,7 @@ const styles = StyleSheet.create({
     overflowDropName: {
         fontSize: fontSize.md,
         fontWeight: fontWeight.semibold,
-        color: palette.red900,
+        color: uiColors.dangerText,
     },
     overflowDropPos: {
         fontSize: fontSize.xs,

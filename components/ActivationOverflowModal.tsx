@@ -1,5 +1,5 @@
 import { View, Text, Pressable, StyleSheet, Modal, ScrollView } from 'react-native'
-import { alpha, colors, palette, fontSize, fontWeight, scrim } from '@/constants/tokens'
+import { colors, fontSize, fontWeight, scrim, tints, uiColors } from '@/constants/tokens'
 import { LineupPlayer } from '@/lib/lineup'
 import { isIREligible } from '@/lib/roster'
 import { getPositionColor } from '@/constants/positions'
@@ -65,24 +65,24 @@ export function ActivationOverflowModal({
                                 </View>
                                 {isIREligible(p.injuryStatus) && (
                                     <Pressable
-                                        style={[styles.overflowBtn, { backgroundColor: alpha(palette.red900, 0.13), marginRight: 6 }]}
+                                        style={[styles.overflowBtn, { backgroundColor: tints.dangerActionStrong, marginRight: 6 }]}
                                         onPress={() => onMoveToIR(p.rosterPlayerId)}
                                         disabled={saving}
                                     >
-                                        <Text style={[styles.overflowBtnText, { color: palette.red900 }]}>→ IR</Text>
+                                        <Text style={[styles.overflowBtnText, { color: uiColors.dangerText }]}>→ IR</Text>
                                     </Pressable>
                                 )}
                                 {taxiAvailable && (
                                     <Pressable
-                                        style={[styles.overflowBtn, { backgroundColor: alpha(palette.latte, 0.13), marginRight: 6 }]}
+                                        style={[styles.overflowBtn, { backgroundColor: tints.neutralAction, marginRight: 6 }]}
                                         onPress={() => onMoveToTaxi(p.rosterPlayerId)}
                                         disabled={saving}
                                     >
-                                        <Text style={[styles.overflowBtnText, { color: palette.latte }]}>→ TX</Text>
+                                        <Text style={[styles.overflowBtnText, { color: colors.textMuted }]}>→ TX</Text>
                                     </Pressable>
                                 )}
                                 <Pressable
-                                    style={[styles.overflowBtn, { backgroundColor: alpha(palette.red500, 0.13) }]}
+                                    style={[styles.overflowBtn, { backgroundColor: tints.dangerAction }]}
                                     onPress={() => onDrop(p.rosterPlayerId)}
                                     disabled={saving}
                                 >

@@ -3,7 +3,7 @@ import { Avatar } from '@/components/Avatar'
 import { DaySelector } from '@/components/DaySelector'
 import { PosTag } from '@/components/PosTag'
 import { getPositionColor } from "@/constants/positions"
-import { colors, fontSize, fontWeight, palette, radii, scrim, spacing } from '@/constants/tokens'
+import { colors, fontSize, fontWeight, radii, scrim, spacing, uiColors } from '@/constants/tokens'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useAuth } from '@/hooks/use-auth'
 import { useLineupActions } from '@/hooks/use-lineup-actions'
@@ -575,7 +575,7 @@ const styles = StyleSheet.create({
     hint: {
         backgroundColor: colors.primaryLight,
         borderBottomWidth: 1,
-        borderBottomColor: palette.maple200,
+        borderBottomColor: colors.primaryBorder,
         paddingHorizontal: spacing.xl,
         paddingVertical: 10,
     },
@@ -669,7 +669,7 @@ const styles = StyleSheet.create({
     lockedBadge: {
         fontSize: 10,
         fontWeight: fontWeight.bold,
-        color: palette.green600,
+        color: uiColors.successTextLive,
         letterSpacing: 0,
     },
     benchEmpty: { padding: spacing.xl, fontSize: fontSize.sm, color: colors.textPlaceholder, textAlign: 'center' },

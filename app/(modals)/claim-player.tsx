@@ -19,7 +19,7 @@ import { isIneligibleIR, playerHeadshotUrl } from '@/lib/format'
 import { getPlayer } from '@/lib/players'
 import { submitWaiverClaim, getMyWaiverPriority } from '@/lib/waivers'
 import { getMemberTransactionState, type MemberTransactionState } from '@/lib/league'
-import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { colors, fontSize, fontWeight, radii, spacing, uiColors } from '@/constants/tokens'
 import { showAlert, showSuccess, getErrorMessage } from '@/lib/alert'
 import { Avatar } from '@/components/Avatar'
 import { getPositionColor } from '@/constants/positions'
@@ -529,7 +529,7 @@ const styles = StyleSheet.create({
         paddingVertical: spacing.md,
         paddingHorizontal: spacing.lg,
     },
-    rosterRowSelected: { borderColor: colors.danger, backgroundColor: palette.red50 },
+    rosterRowSelected: { borderColor: colors.danger, backgroundColor: uiColors.dangerSurface },
     rosterInfo: { flex: 1, gap: spacing.xxs },
     rosterName: { fontSize: 15, fontWeight: fontWeight.semibold, color: colors.textPrimary },
     rosterMeta: { fontSize: fontSize.sm, color: colors.textMuted },
@@ -549,18 +549,18 @@ const styles = StyleSheet.create({
     spaceNote: {
         margin: spacing.xl,
         padding: spacing.xl,
-        backgroundColor: palette.green50,
+        backgroundColor: uiColors.successSurface,
         borderRadius: radii.xl,
         borderCurve: 'continuous' as const,
         borderWidth: 1,
-        borderColor: palette.green200,
+        borderColor: uiColors.successBorder,
     },
     compactSpaceNote: {
         marginHorizontal: spacing['2xl'],
         marginVertical: spacing.md,
         padding: spacing.lg,
     },
-    spaceNoteText: { fontSize: fontSize.md, color: palette.green800, fontWeight: fontWeight.semibold, textAlign: 'center' },
+    spaceNoteText: { fontSize: fontSize.md, color: uiColors.successText, fontWeight: fontWeight.semibold, textAlign: 'center' },
 
     footer: {
         padding: spacing.xl,
@@ -618,7 +618,7 @@ const styles = StyleSheet.create({
         borderRadius: radii.xl,
         borderCurve: 'continuous' as const,
         borderWidth: 1,
-        borderColor: palette.maple200,
+        borderColor: uiColors.brandBorder,
         gap: spacing.lg,
     },
     compactBlockCard: {
@@ -632,7 +632,7 @@ const styles = StyleSheet.create({
         height: 56,
         borderRadius: 28,
         borderCurve: 'continuous' as const,
-        backgroundColor: palette.maple100,
+        backgroundColor: uiColors.brandSurface,
         justifyContent: 'center',
         alignItems: 'center',
         alignSelf: 'center',
@@ -657,7 +657,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingVertical: spacing.md,
         paddingHorizontal: spacing.lg,
-        backgroundColor: palette.maple50,
+        backgroundColor: uiColors.brandSurfaceSoft,
         borderRadius: radii.lg,
         borderCurve: 'continuous' as const,
         minHeight: 44,
@@ -666,7 +666,7 @@ const styles = StyleSheet.create({
     blockPlayerStatus: {
         fontSize: fontSize.sm,
         fontWeight: fontWeight.bold,
-        color: palette.maple600,
+        color: uiColors.brandText,
     },
     blockButton: {
         margin: spacing.xl,

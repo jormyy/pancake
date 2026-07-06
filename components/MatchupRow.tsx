@@ -4,7 +4,7 @@ import { LineupPlayer } from '@/lib/lineup'
 import { LiveStatLine } from '@/lib/games'
 import { computeLiveFantasyPoints } from '@/lib/scoring'
 import { POSITION_COLORS } from '@/constants/positions'
-import { alpha, colors, palette, fontSize, fontWeight, INJURY_COLORS, spacing } from '@/constants/tokens'
+import { alpha, colors, fontSize, fontWeight, INJURY_COLORS, spacing, uiColors } from '@/constants/tokens'
 import { PosTag } from '@/components/PosTag'
 import { Badge } from '@/components/Badge'
 import { playerHeadshotUrl, shortName } from '@/lib/format'
@@ -114,7 +114,7 @@ function ExpandedStats({ label, player, stats, fpts, isLive }: {
             <View style={styles.expandedNameRow}>
                 <LineupAvatar player={player} dense />
                 <Text style={styles.expandedName} numberOfLines={1}>{player.displayName}</Text>
-                {isLive ? <LivePulse color={palette.green600} size={5} /> : null}
+                {isLive ? <LivePulse color={uiColors.successTextLive} size={5} /> : null}
             </View>
             <View style={styles.expandedGrid}>
                 {items.map(([statLabel, value]) => (
@@ -170,7 +170,11 @@ function MatchupRowImpl({
 }: MatchupRowProps) {
     const [expanded, setExpanded] = useState(false)
     const isSel = selected?.kind === selKind && selected.index === selIndex
-    const slotColor = slotType === 'IR' ? palette.red500 : slotType === 'TX' ? palette.latte : (POSITION_COLORS[slotType] ?? palette.cappuccino)
+    const slotColor = slotType === 'IR'
+        ? uiColors.accentDanger
+        : slotType === 'TX'
+            ? uiColors.neutralTint
+            : (POSITION_COLORS[slotType] ?? uiColors.neutralTint)
     const myHasGame = myPlayer?.nbaTeam ? playingTeams.has(myPlayer.nbaTeam) : false
     const oppHasGame = oppPlayer?.nbaTeam ? playingTeams.has(oppPlayer.nbaTeam) : false
     const myMatchup = myPlayer?.nbaTeam ? teamMatchups.get(myPlayer.nbaTeam) : undefined
@@ -232,7 +236,7 @@ function MatchupRowImpl({
                             {!dense && <View style={[styles.metaRow, { justifyContent: 'flex-end' }]}>
                                 {myIsLive && (
                                     <View style={styles.liveBadgeRow}>
-                                        <LivePulse color={palette.green600} size={5} />
+                                        <LivePulse color={uiColors.successTextLive} size={5} />
                                         <Text style={styles.lockedBadge}>LIVE</Text>
                                     </View>
                                 )}
@@ -315,7 +319,7 @@ function MatchupRowImpl({
                                 )}
                                 {oppIsLive && (
                                     <View style={styles.liveBadgeRow}>
-                                        <LivePulse color={palette.green600} size={5} />
+                                        <LivePulse color={uiColors.successTextLive} size={5} />
                                         <Text style={styles.lockedBadge}>LIVE</Text>
                                     </View>
                                 )}
@@ -390,7 +394,7 @@ const styles = StyleSheet.create({
     noGameName: { color: colors.textDisabled },
     metaRow: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 2 },
     sideMeta: { fontSize: fontSize.xs, color: colors.textPlaceholder },
-    lockedBadge: { fontSize: fontSize['2xs'], fontWeight: fontWeight.bold, color: palette.green600, letterSpacing: 0.4, marginHorizontal: 3 },
+    lockedBadge: { fontSize: fontSize['2xs'], fontWeight: fontWeight.bold, color: uiColors.successTextLive, letterSpacing: 0.4, marginHorizontal: 3 },
     liveBadgeRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
     statLine: { fontSize: fontSize.xs, color: colors.textMuted, textAlign: 'right', marginTop: 1 },
     statLineLive: { color: colors.primaryDark, fontWeight: fontWeight.semibold },

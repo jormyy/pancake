@@ -1,7 +1,7 @@
 import { View, Text, StyleSheet } from 'react-native'
 import { useState } from 'react'
 import { useRouter } from 'expo-router'
-import { TRADE_STATUS_COLORS, colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { TRADE_STATUS_COLORS, colors, fontSize, fontWeight, radii, spacing, uiColors } from '@/constants/tokens'
 import { Trade, TradeItem, acceptTrade, rejectTrade, vetoTrade, withdrawTrade } from '@/lib/trades'
 import { getRoster, RosterPlayer } from '@/lib/roster'
 import { DropPlayerPickerModal } from '@/components/DropPlayerPickerModal'
@@ -361,7 +361,7 @@ export function TradeCard({
 const styles = StyleSheet.create({
     card: {
         borderWidth: 1,
-        borderColor: palette.gray300,
+        borderColor: uiColors.borderNeutral,
         borderRadius: radii.xl,
         borderCurve: 'continuous' as const,
         padding: 14,
@@ -415,7 +415,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     actionBtnAccept: { backgroundColor: colors.primary },
-    actionBtnReject: { backgroundColor: colors.bgMuted, borderWidth: 1, borderColor: palette.gray300 },
+    actionBtnReject: { backgroundColor: colors.bgMuted, borderWidth: 1, borderColor: uiColors.borderNeutral },
     actionBtnAcceptText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.md },
     actionBtnRejectText: { color: colors.textSecondary, fontWeight: fontWeight.semibold, fontSize: fontSize.md },
 })
