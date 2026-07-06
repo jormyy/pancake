@@ -3,6 +3,12 @@ import { Matchup } from '@/lib/scoring'
 import { alpha, colors, fontFamily, fontSize, fontWeight, radii, shadows, uiColors } from '@/constants/tokens'
 import { formatPoints } from '@/lib/format'
 
+function compactOwnerRecord(username: string | null | undefined, wins: number, losses: number): string {
+    const firstName = username?.trim().split(/\s+/)[0]
+    const owner = firstName ? firstName.slice(0, 6) : null
+    return [owner, `${wins}-${losses}`].filter(Boolean).join(' ')
+}
+
 export function ScoreCard({ matchup, compact = false }: { matchup: Matchup; compact?: boolean }) {
     const myPts = matchup.myPoints ?? 0
     const oppPts = matchup.opponentPoints ?? 0
@@ -14,8 +20,9 @@ export function ScoreCard({ matchup, compact = false }: { matchup: Matchup; comp
     const edgeLabel = margin === 0
         ? 'Tied'
         : `${iWinning ? matchup.myTeamName : matchup.opponentTeamName} +${formatPoints(margin)}`
-    const myCompactMeta = [matchup.myUsername, `${matchup.myWins}–${matchup.myLosses}`].filter(Boolean).join(' · ')
-    const opponentCompactMeta = [matchup.opponentUsername, `${matchup.opponentWins}–${matchup.opponentLosses}`].filter(Boolean).join(' · ')
+    const compactEdgeLabel = margin === 0 ? 'Tied' : `${iWinning ? 'You' : 'Opp'} +${formatPoints(margin)}`
+    const myCompactMeta = compactOwnerRecord(matchup.myUsername, matchup.myWins, matchup.myLosses)
+    const opponentCompactMeta = compactOwnerRecord(matchup.opponentUsername, matchup.opponentWins, matchup.opponentLosses)
 
     let statusLabel = 'In Progress'
     let statusTint: string = uiColors.brandAccent
@@ -56,11 +63,11 @@ export function ScoreCard({ matchup, compact = false }: { matchup: Matchup; comp
 
             <View style={[styles.scores, compact && styles.scoresCompact]}>
                 <View style={styles.side}>
-                    <Text style={[styles.teamName, compact && styles.teamNameCompact]} numberOfLines={1}>{matchup.myTeamName}</Text>
+                    <Text style={[styles.teamName, compact && styles.teamNameCompact]} numberOfLines={1} ellipsizeMode="clip">{matchup.myTeamName}</Text>
                     {compact ? (
-                        <Text style={styles.compactMeta} numberOfLines={1}>{myCompactMeta}</Text>
+                        <Text style={styles.compactMeta} numberOfLines={1} ellipsizeMode="clip">{myCompactMeta}</Text>
                     ) : matchup.myUsername ? (
-                        <Text style={styles.username} numberOfLines={1}>{matchup.myUsername}</Text>
+                        <Text style={styles.username} numberOfLines={1} ellipsizeMode="clip">{matchup.myUsername}</Text>
                     ) : null}
                     <Text style={[styles.score, compact && styles.scoreCompact, iWinning ? styles.scoreWin : styles.scoreLose]}>
                         {formatPoints(matchup.myPoints)}
@@ -73,11 +80,11 @@ export function ScoreCard({ matchup, compact = false }: { matchup: Matchup; comp
                 </View>
 
                 <View style={[styles.side, styles.sideRight]}>
-                    <Text style={[styles.teamName, compact && styles.teamNameCompact]} numberOfLines={1}>{matchup.opponentTeamName}</Text>
+                    <Text style={[styles.teamName, compact && styles.teamNameCompact]} numberOfLines={1} ellipsizeMode="clip">{matchup.opponentTeamName}</Text>
                     {compact ? (
-                        <Text style={[styles.compactMeta, styles.compactMetaRight]} numberOfLines={1}>{opponentCompactMeta}</Text>
+                        <Text style={[styles.compactMeta, styles.compactMetaRight]} numberOfLines={1} ellipsizeMode="clip">{opponentCompactMeta}</Text>
                     ) : matchup.opponentUsername ? (
-                        <Text style={[styles.username, { textAlign: 'right' }]} numberOfLines={1}>
+                        <Text style={[styles.username, { textAlign: 'right' }]} numberOfLines={1} ellipsizeMode="clip">
                             {matchup.opponentUsername}
                         </Text>
                     ) : null}
@@ -96,11 +103,11 @@ export function ScoreCard({ matchup, compact = false }: { matchup: Matchup; comp
                     <View style={styles.edgeOpponent} />
                 </View>
                 <View style={styles.edgeLabels}>
-                    <Text style={[styles.edgeText, iWinning && styles.edgeTextStrong]} numberOfLines={1}>
+                    <Text style={[styles.edgeText, iWinning && styles.edgeTextStrong]} numberOfLines={1} ellipsizeMode="clip">
                         {formatPoints(matchup.myPoints)}
                     </Text>
-                    <Text style={styles.edgeCenter} numberOfLines={1}>{edgeLabel}</Text>
-                    <Text style={[styles.edgeText, oppWinning && styles.edgeTextStrong]} numberOfLines={1}>
+                    <Text style={styles.edgeCenter} numberOfLines={1} ellipsizeMode="clip">{compact ? compactEdgeLabel : edgeLabel}</Text>
+                    <Text style={[styles.edgeText, oppWinning && styles.edgeTextStrong]} numberOfLines={1} ellipsizeMode="clip">
                         {formatPoints(matchup.opponentPoints)}
                     </Text>
                 </View>

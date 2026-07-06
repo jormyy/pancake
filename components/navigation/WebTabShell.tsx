@@ -36,6 +36,17 @@ const MOBILE_NAV: { label: string; href: RouteHref; icon: IconName }[] = [
     { label: 'League', href: '/league', icon: 'emoji-events' },
 ]
 
+const MOBILE_LABELS: Record<RouteHref, string> = {
+    '/': 'Match',
+    '/players': 'Players',
+    '/projections': 'Proj',
+    '/dynasty': 'Dyn',
+    '/roster': 'Roster',
+    '/trades': 'Trades',
+    '/league': 'League',
+    '/profile': 'Profile',
+}
+
 const SECTION_TITLES: { label: string; href: RouteHref }[] = [
     ...MOBILE_NAV.map(({ label, href }) => ({ label, href })),
     { label: 'Profile', href: '/profile' },
@@ -126,6 +137,11 @@ function NavIcon({ name, active = false, size = 19 }: { name: IconName; active?:
     )
 }
 
+function compactHeaderLabel(label: string): string {
+    const words = label.trim().split(/\s+/).filter(Boolean)
+    return words.length > 2 ? words.slice(0, 2).join(' ') : label
+}
+
 function LeagueSwitcher({ tone = 'dark' }: { tone?: 'dark' | 'light' }) {
     const { memberships, current, setCurrent } = useLeagueContext()
     const [open, setOpen] = useState(false)
@@ -133,18 +149,22 @@ function LeagueSwitcher({ tone = 'dark' }: { tone?: 'dark' | 'light' }) {
     const nameStyle = [styles.leagueName, light && styles.leagueNameLight]
     const metaStyle = [styles.leagueMeta, light && styles.leagueMetaLight]
     const chevronColor = light ? colors.textMuted : brand.onMuted
+    const labelForTone = (label: string) => light ? compactHeaderLabel(label) : label
 
     if (!current) {
         return (
             <View style={[styles.leagueSwitch, light && styles.leagueSwitchLight]}>
                 <View style={styles.leagueCrest}><Text style={styles.leagueCrestText}>P</Text></View>
                 <View style={styles.flex1}>
-                    <Text style={nameStyle} numberOfLines={1}>No league</Text>
-                    <Text style={metaStyle} numberOfLines={1}>Create or join from League</Text>
+                    <Text style={nameStyle} numberOfLines={1} ellipsizeMode="clip">No league</Text>
+                    <Text style={metaStyle} numberOfLines={1} ellipsizeMode="clip">{labelForTone('Create or join from League')}</Text>
                 </View>
             </View>
         )
     }
+
+    const currentLeagueName = current.leagues?.name ?? 'Pancake League'
+    const currentTeamName = current.team_name ?? 'Team'
 
     return (
         <View style={styles.leagueSwitchWrap}>
@@ -163,8 +183,8 @@ function LeagueSwitcher({ tone = 'dark' }: { tone?: 'dark' | 'light' }) {
                     <Text style={styles.leagueCrestText}>{(current.team_name ?? 'Team').slice(0, 1).toUpperCase()}</Text>
                 </View>
                 <View style={styles.flex1}>
-                    <Text style={nameStyle} numberOfLines={1}>{current.leagues?.name ?? 'Pancake League'}</Text>
-                    <Text style={metaStyle} numberOfLines={1}>{current.team_name ?? 'Team'}</Text>
+                    <Text style={nameStyle} numberOfLines={1} ellipsizeMode="clip">{labelForTone(currentLeagueName)}</Text>
+                    <Text style={metaStyle} numberOfLines={1} ellipsizeMode="clip">{labelForTone(currentTeamName)}</Text>
                 </View>
                 <MaterialIcons name={open ? 'expand-less' : 'expand-more'} size={18} color={chevronColor} />
             </Pressable>
@@ -191,8 +211,8 @@ function LeagueSwitcher({ tone = 'dark' }: { tone?: 'dark' | 'light' }) {
                                     <Text style={styles.leagueCrestText}>{(membership.team_name ?? 'Team').slice(0, 1).toUpperCase()}</Text>
                                 </View>
                                 <View style={styles.flex1}>
-                                    <Text style={styles.leagueMenuName} numberOfLines={1}>{membership.leagues?.name ?? 'League'}</Text>
-                                    <Text style={styles.leagueMenuMeta} numberOfLines={1}>{membership.team_name ?? 'Team'}</Text>
+                                    <Text style={styles.leagueMenuName} numberOfLines={1} ellipsizeMode="clip">{membership.leagues?.name ?? 'League'}</Text>
+                                    <Text style={styles.leagueMenuMeta} numberOfLines={1} ellipsizeMode="clip">{membership.team_name ?? 'Team'}</Text>
                                 </View>
                                 {active ? <MaterialIcons name="check" size={17} color={colors.primary} /> : null}
                             </Pressable>
@@ -390,6 +410,7 @@ function MobileBottomNav() {
             {MOBILE_NAV.map((item) => {
                 const active = isRouteActive(pathname, item.href)
                 const badge = item.href === '/trades' ? pendingTradeCount : 0
+                const displayLabel = MOBILE_LABELS[item.href]
                 return (
                     <Pressable
                         key={item.href}
@@ -408,7 +429,9 @@ function MobileBottomNav() {
                                 </View>
                             ) : null}
                         </View>
-                        <Text style={[styles.bottomNavText, active && styles.bottomNavTextActive]}>{item.label}</Text>
+                        <Text style={[styles.bottomNavText, active && styles.bottomNavTextActive]} numberOfLines={1} ellipsizeMode="clip">
+                            {displayLabel}
+                        </Text>
                     </Pressable>
                 )
             })}

@@ -119,6 +119,28 @@ function PlayerTableHeader({
     )
 }
 
+function PlayerTableHeaderSkeleton() {
+    return (
+        <View
+            style={styles.tableHeader}
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+        >
+            <View style={styles.tableHeaderAddSpacer} />
+            <View style={styles.tableHeaderCardRow}>
+                <View style={styles.tableHeaderHeadshotSpacer} />
+                <View style={[localStyles.loadingHeaderPill, localStyles.loadingHeaderPlayer]} />
+                <View style={[localStyles.loadingHeaderPill, localStyles.loadingHeaderOwnership]} />
+                <View style={styles.tableHeaderStatsGroup}>
+                    {TABLE_COLUMNS.map((column) => (
+                        <View key={column} style={localStyles.loadingHeaderStatCell} />
+                    ))}
+                </View>
+            </View>
+        </View>
+    )
+}
+
 function PlayerListLoadingRows({ showStatTable }: { showStatTable: boolean }) {
     return (
         <View
@@ -199,7 +221,7 @@ function PlayersLoadingShell({
                         <Text style={localStyles.transactionBarText}>Waivers: —</Text>
                     </View>
                 </View>
-                {showStatTable ? <PlayerTableHeader /> : null}
+                {showStatTable ? <PlayerTableHeaderSkeleton /> : null}
                 <PlayerListLoadingRows showStatTable={showStatTable} />
             </View>
         </SafeAreaView>
@@ -422,7 +444,9 @@ export default function PlayersScreen() {
                     contentContainerStyle={search.results.players.length === 0 && !listIsInitialLoading ? styles.emptyContainer : undefined}
                     ItemSeparatorComponent={ItemSeparator}
                     ListHeaderComponent={showStatTable ? (
-                        <PlayerTableHeader activeSort={search.sort.mode} sortDir={search.sort.dir} onColumnSort={handleColumnSort} />
+                        listIsInitialLoading
+                            ? <PlayerTableHeaderSkeleton />
+                            : <PlayerTableHeader activeSort={search.sort.mode} sortDir={search.sort.dir} onColumnSort={handleColumnSort} />
                     ) : null}
                     renderItem={({ item }: { item: PlayerRow }) => (
                         <PlayerSearchItem
@@ -562,6 +586,26 @@ const localStyles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'flex-end',
+    },
+    loadingHeaderPill: {
+        height: 10,
+        borderRadius: 4,
+        backgroundColor: colors.bgSubtle,
+    },
+    loadingHeaderPlayer: {
+        flex: 1,
+        maxWidth: 72,
+    },
+    loadingHeaderOwnership: {
+        width: 70,
+        marginHorizontal: 10,
+    },
+    loadingHeaderStatCell: {
+        width: 36,
+        height: 10,
+        marginLeft: 18,
+        borderRadius: 4,
+        backgroundColor: colors.bgSubtle,
     },
     loadingStatCell: {
         width: 34,
