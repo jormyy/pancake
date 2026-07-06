@@ -1,6 +1,6 @@
 import { Platform, View, Text, StyleSheet } from 'react-native'
 import { Matchup } from '@/lib/scoring'
-import { alpha, colors, palette, fontFamily, fontSize, fontWeight, radii, shadows } from '@/constants/tokens'
+import { alpha, colors, fontFamily, fontSize, fontWeight, radii, shadows, uiColors } from '@/constants/tokens'
 import { formatPoints } from '@/lib/format'
 
 export function ScoreCard({ matchup, compact = false }: { matchup: Matchup; compact?: boolean }) {
@@ -18,20 +18,20 @@ export function ScoreCard({ matchup, compact = false }: { matchup: Matchup; comp
     const opponentCompactMeta = [matchup.opponentUsername, `${matchup.opponentWins}–${matchup.opponentLosses}`].filter(Boolean).join(' · ')
 
     let statusLabel = 'In Progress'
-    let statusTint: string = palette.maple500
+    let statusTint: string = uiColors.brandAccent
     let statusText: string = colors.primaryDark
     if (matchup.isFinalized) {
         if (matchup.iWon === true) {
             statusLabel = 'Win'
-            statusTint = palette.green500
+            statusTint = uiColors.accentSuccess
             statusText = colors.successDark
         } else if (matchup.iWon === false) {
             statusLabel = 'Loss'
-            statusTint = palette.red500
+            statusTint = uiColors.accentDanger
             statusText = colors.dangerDark
         } else {
             statusLabel = 'Tie'
-            statusTint = palette.latte
+            statusTint = uiColors.neutralTint
             statusText = colors.textMuted
         }
     }

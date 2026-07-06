@@ -16,7 +16,7 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '@/hooks/use-auth'
 import { useLeagueContext } from '@/contexts/league-context'
 import { joinLeague } from '@/lib/league'
-import { breakpoints, colors, elevation, fontFamily, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { breakpoints, colors, elevation, fontFamily, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 import { getErrorMessage } from '@/lib/alert'
 
 export default function JoinLeagueScreen() {
@@ -270,7 +270,7 @@ const styles = StyleSheet.create({
         letterSpacing: 0,
         textAlign: 'center',
     },
-    error: { color: palette.redBright, fontSize: fontSize.md, marginTop: spacing.md },
+    error: { color: colors.danger, fontSize: fontSize.md, marginTop: spacing.md },
     button: {
         height: 50,
         backgroundColor: colors.primary,

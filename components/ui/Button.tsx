@@ -1,7 +1,7 @@
 import { ComponentProps, ReactNode } from 'react'
 import { Pressable, StyleSheet, Text, type StyleProp, type ViewStyle } from 'react-native'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
-import { colors, elevation, fontFamily, fontSize, fontWeight, motion, radii, spacing } from '@/constants/tokens'
+import { colors, controlSize, elevation, fontFamily, fontWeight, motion, radii } from '@/constants/tokens'
 
 type IconName = ComponentProps<typeof MaterialIcons>['name']
 export type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'danger' | 'ghost'
@@ -24,11 +24,7 @@ type Props = {
 
 type PressableState = { hovered?: boolean; pressed?: boolean }
 
-const SIZES: Record<ButtonSize, { height: number; padX: number; font: number; icon: number; gap: number }> = {
-    sm: { height: 40, padX: spacing.lg, font: fontSize.sm, icon: 16, gap: spacing.sm },
-    md: { height: 46, padX: spacing.xl, font: fontSize.md, icon: 18, gap: spacing.md },
-    lg: { height: 52, padX: spacing['3xl'], font: fontSize.lg, icon: 20, gap: spacing.md },
-}
+const SIZES: Record<ButtonSize, { height: number; padX: number; font: number; icon: number; gap: number }> = controlSize.button
 
 function variantColors(variant: ButtonVariant) {
     switch (variant) {

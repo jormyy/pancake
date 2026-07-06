@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet } from 'react-native'
-import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { colors, fontSize, fontWeight, radii, spacing, uiColors } from '@/constants/tokens'
 
 type Props = {
     avgFantasyPoints: number
@@ -38,5 +38,5 @@ const styles = StyleSheet.create({
     stat: { alignItems: 'center', gap: spacing.xs, minWidth: 88 },
     divider: { width: 1, height: 36, backgroundColor: colors.primaryBorder },
     statValue: { fontSize: fontSize['2xl'], fontWeight: fontWeight.extrabold, color: colors.primaryDark },
-    statLabel: { fontSize: fontSize.xs, fontWeight: fontWeight.semibold, color: palette.maple900 },
+    statLabel: { fontSize: fontSize.xs, fontWeight: fontWeight.semibold, color: uiColors.brandTextStrong },
 })

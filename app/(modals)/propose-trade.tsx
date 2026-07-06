@@ -38,7 +38,7 @@ import { playerHeadshotUrl, yearShort } from '@/lib/format'
 import { Avatar } from '@/components/Avatar'
 import { EmptyState } from '@/components/EmptyState'
 import { getPositionColor } from '@/constants/positions'
-import { colors, palette, fontSize, fontWeight, radii, spacing, breakpoints } from '@/constants/tokens'
+import { colors, fontSize, fontWeight, radii, spacing, breakpoints, uiColors } from '@/constants/tokens'
 
 const isTradeableRosterPlayer = (player: RosterPlayer) => !player.is_on_ir && !player.is_on_taxi
 
@@ -730,7 +730,7 @@ const styles = StyleSheet.create({
         height: 22,
         paddingHorizontal: spacing.sm,
         borderRadius: radii.full,
-        backgroundColor: palette.mocha,
+        backgroundColor: uiColors.neutralSolid,
         alignItems: 'center',
         justifyContent: 'center',
     },
@@ -773,7 +773,7 @@ const styles = StyleSheet.create({
         height: 40,
         borderRadius: 20,
         borderCurve: 'continuous' as const,
-        backgroundColor: palette.indigo500,
+        backgroundColor: uiColors.accentPick,
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -798,7 +798,7 @@ const styles = StyleSheet.create({
     notesInput: {
         marginHorizontal: spacing.xl,
         borderWidth: 1,
-        borderColor: palette.gray300,
+        borderColor: uiColors.borderNeutral,
         borderRadius: radii.lg,
         borderCurve: 'continuous' as const,
         paddingHorizontal: 14,
@@ -829,7 +829,7 @@ const styles = StyleSheet.create({
     termInput: {
         minHeight: 44,
         borderWidth: 1,
-        borderColor: palette.gray300,
+        borderColor: uiColors.borderNeutral,
         borderRadius: radii.md,
         borderCurve: 'continuous' as const,
         paddingHorizontal: spacing.md,

@@ -14,7 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useLeagueContext } from '@/contexts/league-context'
 import { NOMINATION_ORDER_MODE_LABELS } from '@/lib/draft'
-import { alpha, breakpoints, colors, fontFamily, fontSize, fontWeight, layout, palette, radii, spacing } from '@/constants/tokens'
+import { breakpoints, colors, fontFamily, fontSize, fontWeight, layout, radii, spacing, tints } from '@/constants/tokens'
 import { getPositionColor } from '@/constants/positions'
 import { Avatar } from '@/components/Avatar'
 import { playerHeadshotUrl } from '@/lib/format'
@@ -768,7 +768,7 @@ const styles = StyleSheet.create({
     cardUrgent: {
         borderColor: colors.danger,
         borderWidth: 1.5,
-        boxShadow: `0 0 0 3px ${alpha(palette.red500, 0.14)}`,
+        boxShadow: `0 0 0 3px ${tints.dangerFocusRing}`,
     },
 
     activityStrip: {

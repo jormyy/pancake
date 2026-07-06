@@ -1,5 +1,5 @@
 import { View, Text, ScrollView, StyleSheet } from 'react-native'
-import { colors, palette, fontFamily, fontWeight, radii, spacing, webOverlays } from '@/constants/tokens'
+import { colors, fontFamily, fontWeight, radii, scoreboardColors, spacing } from '@/constants/tokens'
 import { NBAGameRow } from '@/lib/games'
 import { LivePulse, MotionView } from '@/components/Motion'
 
@@ -101,7 +101,7 @@ export function Scoreboard({
 
 const styles = StyleSheet.create({
     container: {
-        backgroundColor: palette.espresso,
+        backgroundColor: scoreboardColors.background,
         borderBottomWidth: 3,
         borderBottomColor: colors.primary,
     },
@@ -120,7 +120,7 @@ const styles = StyleSheet.create({
     },
     card: {
         width: 90,
-        backgroundColor: palette.coffee,
+        backgroundColor: scoreboardColors.card,
         borderRadius: radii.md,
         borderCurve: 'continuous' as const,
         paddingHorizontal: 10,
@@ -128,7 +128,7 @@ const styles = StyleSheet.create({
         gap: 2,
         overflow: 'hidden' as const,
         borderWidth: 1,
-        borderColor: webOverlays.scoreboardBorder,
+        borderColor: scoreboardColors.border,
     },
     cardCompact: {
         width: 78,
@@ -139,7 +139,7 @@ const styles = StyleSheet.create({
     cardLive: {
         borderColor: colors.primary,
         borderWidth: 1.5,
-        boxShadow: webOverlays.liveGlow,
+        boxShadow: scoreboardColors.liveGlow,
     },
     cardFinal: {
         opacity: 0.6,
@@ -160,27 +160,27 @@ const styles = StyleSheet.create({
     tricode: {
         fontSize: 11,
         fontWeight: fontWeight.bold,
-        color: palette.oatmilk,
+        color: scoreboardColors.textMuted,
         letterSpacing: 0.4,
     },
     tricodeHighlight: {
-        color: palette.maple200,
+        color: scoreboardColors.accent,
         fontWeight: fontWeight.extrabold,
     },
     score: {
         fontSize: 13,
         fontFamily: fontFamily.display,
         fontWeight: fontWeight.bold,
-        color: palette.maple200,
+        color: scoreboardColors.accent,
         minWidth: 24,
         textAlign: 'right',
     },
     scoreHidden: {
-        color: webOverlays.scoreboardHidden,
+        color: scoreboardColors.hidden,
         fontSize: 11,
     },
     scoreHighlight: {
-        color: palette.maple100,
+        color: scoreboardColors.accentSoft,
     },
     statusRow: {
         flexDirection: 'row',
@@ -192,16 +192,16 @@ const styles = StyleSheet.create({
     status: {
         fontSize: 9,
         fontWeight: fontWeight.bold,
-        color: webOverlays.scoreboardMuted,
+        color: scoreboardColors.statusMuted,
         textAlign: 'center',
         letterSpacing: 0.3,
     },
     statusLive: {
-        color: palette.maple200,
+        color: scoreboardColors.accent,
         fontWeight: fontWeight.extrabold,
         letterSpacing: 0.5,
     },
     statusFinal: {
-        color: webOverlays.scoreboardFaint,
+        color: scoreboardColors.statusFinal,
     },
 })

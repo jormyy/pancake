@@ -23,7 +23,7 @@ import {
     getPicksForMember,
 } from '@/lib/trades'
 import { getRoster, RosterPlayer } from '@/lib/roster'
-import { colors, palette, fontSize, fontWeight, radii, spacing, layout } from '@/constants/tokens'
+import { colors, fontSize, fontWeight, radii, spacing, layout, uiColors } from '@/constants/tokens'
 import { SegmentedControl, type SegmentOption } from '@/components/ui/SegmentedControl'
 import { ItemSeparator } from '@/components/ItemSeparator'
 import { ErrorBanner } from '@/components/ui'
@@ -585,7 +585,7 @@ const styles = StyleSheet.create({
         height: 44,
         borderRadius: 22,
         borderCurve: 'continuous' as const,
-        backgroundColor: palette.mocha,
+        backgroundColor: uiColors.neutralSolid,
         justifyContent: 'center',
         alignItems: 'center',
     },

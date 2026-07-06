@@ -1,5 +1,5 @@
 import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native'
-import { colors, palette, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { colors, fontSize, fontWeight, radii, spacing, uiColors } from '@/constants/tokens'
 import type { GameLogEntry } from '@/lib/players'
 
 type Props = {
@@ -138,12 +138,12 @@ const styles = StyleSheet.create({
         paddingHorizontal: 2,
     },
     headerRow: { borderBottomWidth: 1, borderBottomColor: colors.borderLight, paddingBottom: 6 },
-    rowAlt: { backgroundColor: palette.gray50 },
+    rowAlt: { backgroundColor: uiColors.surfaceAlt },
 
     dateCell: { width: 58, fontSize: fontSize.sm, color: colors.textSecondary },
-    oppCell: { width: 60, fontSize: fontSize.sm, color: palette.gray900 },
-    numCell: { width: 38, textAlign: 'center', fontSize: fontSize.sm, color: palette.gray900 },
-    shotCell: { width: 52, textAlign: 'center', fontSize: 12, color: palette.gray900 },
+    oppCell: { width: 60, fontSize: fontSize.sm, color: uiColors.tableText },
+    numCell: { width: 38, textAlign: 'center', fontSize: fontSize.sm, color: uiColors.tableText },
+    shotCell: { width: 52, textAlign: 'center', fontSize: fontSize['2sm'], color: uiColors.tableText },
     fptsCell: { width: 46, textAlign: 'center', fontSize: fontSize.sm, color: colors.textPlaceholder },
     fptsValue: { color: colors.primaryDark, fontWeight: fontWeight.semibold },
 

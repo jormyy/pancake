@@ -1,5 +1,6 @@
 import { ScrollViewStyleReset } from 'expo-router/html'
 import { type PropsWithChildren } from 'react'
+import { webChrome } from '@/constants/tokens'
 
 // Root HTML document for the web build. Adds the PWA manifest, theme color,
 // Apple install metadata, and registers the offline-shell service worker.
@@ -34,8 +35,8 @@ export default function Root({ children }: PropsWithChildren) {
                     status bar blends with the header instead of an orange strip;
                     the body background prevents a white flash before first paint. */}
                 <link rel="manifest" href="/manifest.webmanifest" />
-                <meta name="theme-color" content="#F7F1E8" />
-                <style dangerouslySetInnerHTML={{ __html: 'html,body,#root{background-color:#F7F1E8;}' }} />
+                <meta name="theme-color" content={webChrome.themeColor} />
+                <style dangerouslySetInnerHTML={{ __html: webChrome.rootBackgroundCss }} />
                 <link rel="icon" href="/favicon.ico" />
                 <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
                 <meta name="mobile-web-app-capable" content="yes" />

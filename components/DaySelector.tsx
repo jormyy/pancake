@@ -1,7 +1,7 @@
 import { View, Text, StyleSheet, Platform } from 'react-native'
 import { WeekDay } from '@/lib/lineup'
 import { todayET } from '@/lib/shared/dates'
-import { colors, palette } from '@/constants/tokens'
+import { colors, fontSize, fontWeight, radii, spacing, tints, uiColors } from '@/constants/tokens'
 import { MotionPressable } from '@/components/Motion'
 
 // react-native-web forwards aria-* props to the DOM, but React Native's prop
@@ -76,24 +76,24 @@ export function DaySelector({
 
 const styles = StyleSheet.create({
     row: { borderBottomWidth: 1, borderBottomColor: colors.borderLight },
-    content: { flexDirection: 'row', justifyContent: 'center', paddingHorizontal: 12, paddingVertical: 10, gap: 6 },
-    contentCompact: { paddingVertical: 3, gap: 3 },
-    cell: { width: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center', paddingVertical: 6, borderRadius: 10, borderCurve: 'continuous' as const, gap: 2 },
-    cellCompact: { width: 40, minHeight: 36, paddingVertical: 3, gap: 0, borderRadius: 9 },
+    content: { flexDirection: 'row', justifyContent: 'center', paddingHorizontal: spacing.lg, paddingVertical: spacing.lg - spacing.xxs, gap: spacing.sm },
+    contentCompact: { paddingVertical: spacing.xs - 1, gap: spacing.xs - 1 },
+    cell: { width: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center', paddingVertical: spacing.sm, borderRadius: radii.lg, borderCurve: 'continuous' as const, gap: spacing.xxs },
+    cellCompact: { width: 40, minHeight: 36, paddingVertical: spacing.xs - 1, gap: 0, borderRadius: radii.md + 1 },
     cellSelected: { backgroundColor: colors.primary },
     cellToday: { backgroundColor: colors.primaryLight },
     cellNoGames: { opacity: 0.4 },
-    label: { fontSize: 11, fontWeight: '700', color: colors.textMuted },
-    labelCompact: { fontSize: 10, lineHeight: 11 },
+    label: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.textMuted },
+    labelCompact: { fontSize: fontSize['2xs'], lineHeight: fontSize.xs },
     labelSelected: { color: colors.textWhite },
-    labelFaint: { color: palette.gray500 },
-    num: { fontSize: 15, fontWeight: '800', color: colors.textPrimary },
-    numCompact: { fontSize: 14, lineHeight: 16 },
+    labelFaint: { color: uiColors.textFaint },
+    num: { fontSize: fontSize.md + 1, fontWeight: fontWeight.extrabold, color: colors.textPrimary },
+    numCompact: { fontSize: fontSize.md, lineHeight: fontSize.lg },
     numSelected: { color: colors.textWhite },
-    numFaint: { color: palette.gray500 },
+    numFaint: { color: uiColors.textFaint },
     dot: { width: 5, height: 5, borderRadius: 3, borderCurve: 'continuous' as const, backgroundColor: colors.primary, marginTop: 1 },
-    dotSelected: { backgroundColor: 'rgba(255,255,255,0.7)' },
-    dash: { width: 12, height: 2, borderRadius: 1, backgroundColor: colors.border, marginTop: 3 },
-    dashSelected: { backgroundColor: 'rgba(255,255,255,0.5)' },
+    dotSelected: { backgroundColor: tints.selectedIndicatorStrong },
+    dash: { width: spacing.lg, height: spacing.xxs, borderRadius: 1, backgroundColor: colors.border, marginTop: spacing.xs - 1 },
+    dashSelected: { backgroundColor: tints.selectedIndicatorMuted },
     indicatorSpacer: { height: 5, marginTop: 1 },
 })
