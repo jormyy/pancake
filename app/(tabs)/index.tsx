@@ -899,6 +899,7 @@ const styles = StyleSheet.create({
         minWidth: 0,
         flexDirection: 'row',
         alignItems: 'center',
+        paddingRight: spacing.sm,
     },
     placeholderFpts: {
         width: 58,

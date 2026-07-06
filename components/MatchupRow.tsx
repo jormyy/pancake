@@ -450,7 +450,7 @@ const styles = StyleSheet.create({
         flexShrink: 0,
     },
     rowSideLeft: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', paddingLeft: spacing.sm },
-    rowSideRight: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center' },
+    rowSideRight: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', paddingRight: spacing.sm },
     playerBlockRight: { flex: 1, minWidth: 0, minHeight: 66, justifyContent: 'center', alignItems: 'flex-end' },
     playerBlockLeft: { flex: 1, minWidth: 0, minHeight: 66, justifyContent: 'center', alignItems: 'flex-start' },
     playerBlockCompact: { minHeight: 48 },
