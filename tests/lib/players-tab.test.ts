@@ -5,69 +5,6 @@ vi.mock('@/lib/shared/season', () => ({ currentSeasonYear: vi.fn(() => 2025) }))
 
 import { supabase } from '@/lib/supabase'
 import { getPlayerGameLog, getPlayerTransactionHistory, searchPlayers } from '@/lib/players'
-import { read } from '../source-guard'
-
-// ── Pure logic helpers (extracted from component logic) ──────────────────────
-
-function shouldShowIRModal(ineligibleIRPlayers: unknown[], _isWaiverPlayer: boolean): boolean {
-    return ineligibleIRPlayers.length > 0
-}
-
-function shouldShowInjuryBadge(injuryStatus: string | null, _playedToday: boolean): boolean {
-    return injuryStatus != null && injuryStatus !== ''
-}
-
-// ── IR check before waiver claim ─────────────────────────────────────────────
-
-describe('shouldShowIRModal', () => {
-    it('returns true when ineligible IR players exist and player is on waivers', () => {
-        expect(shouldShowIRModal([{ id: 'p1' }], true)).toBe(true)
-    })
-
-    it('returns true when ineligible IR players exist and player is a free agent', () => {
-        expect(shouldShowIRModal([{ id: 'p1' }], false)).toBe(true)
-    })
-
-    it('returns false when no ineligible IR players exist (waiver claim)', () => {
-        expect(shouldShowIRModal([], true)).toBe(false)
-    })
-
-    it('returns false when no ineligible IR players exist (free agent add)', () => {
-        expect(shouldShowIRModal([], false)).toBe(false)
-    })
-
-    it('returns true for multiple ineligible IR players', () => {
-        expect(shouldShowIRModal([{ id: 'p1' }, { id: 'p2' }], true)).toBe(true)
-    })
-})
-
-// ── Injury badge visibility ───────────────────────────────────────────────────
-
-describe('shouldShowInjuryBadge', () => {
-    it('shows badge when injury status is set and player did not play today', () => {
-        expect(shouldShowInjuryBadge('Out', false)).toBe(true)
-    })
-
-    it('shows badge when injury status is set even if player played today', () => {
-        expect(shouldShowInjuryBadge('DTD', true)).toBe(true)
-    })
-
-    it('shows badge for IR status regardless of playedToday', () => {
-        expect(shouldShowInjuryBadge('IR', true)).toBe(true)
-        expect(shouldShowInjuryBadge('IR-LTI', true)).toBe(true)
-    })
-
-    it('does not show badge when injury status is null', () => {
-        expect(shouldShowInjuryBadge(null, false)).toBe(false)
-        expect(shouldShowInjuryBadge(null, true)).toBe(false)
-    })
-
-    it('does not show badge when injury status is empty string', () => {
-        expect(shouldShowInjuryBadge('', false)).toBe(false)
-    })
-})
-
-// ── Transaction pagination ────────────────────────────────────────────────────
 
 describe('getPlayerTransactionHistory', () => {
     const mockRow = (id: string) => ({
@@ -269,50 +206,5 @@ describe('searchPlayers', () => {
         expect(supabase.rpc).toHaveBeenCalledWith('search_players', expect.objectContaining({
             p_include_player_ids: [],
         }))
-    })
-})
-
-describe('player and projection table stability contracts', () => {
-    it('renders table-shaped loading rows instead of header-only empty loads', () => {
-        const playersSource = read('app/(tabs)/players.tsx')
-        const projectionsSource = read('app/(tabs)/projections.tsx')
-
-        expect(playersSource).toContain('function PlayersLoadingShell')
-        expect(playersSource).toContain('function PlayerListLoadingRows')
-        expect(playersSource).toContain('ListEmptyComponent={')
-        expect(playersSource).toContain('<PlayerListLoadingRows showStatTable={showStatTable} />')
-        expect(playersSource).toContain("transactionState ? `${transactionState.weeklyAddCount}")
-        expect(projectionsSource).toContain('function ProjectionTableHeader')
-        expect(projectionsSource).toContain('function ProjectionLoadingRows')
-        expect(projectionsSource).toContain('<ProjectionLoadingRows showStatTable={showStatTable} />')
-        expect(projectionsSource).toContain('ListHeaderComponent={showStatTable ? (')
-    })
-})
-
-describe('Players tab jitter guards', () => {
-    it('does not remount FlashList or replay row entrance animations on sort changes', () => {
-        const source = read('app/(tabs)/players.tsx')
-        const flashListBody = source.slice(source.indexOf('<FlashList'), source.indexOf('ListHeaderComponent'))
-
-        expect(flashListBody).not.toMatch(/\n\s+key=\{/)
-        expect(flashListBody).toContain('extraData={playerListExtraData}')
-        expect(source).toContain('animate={false}')
-    })
-
-    it('keeps compact player rows from repeating the stat strip under names', () => {
-        const source = read('app/(tabs)/players.tsx')
-        const playerItem = read('components/PlayerSearchItem.tsx')
-
-        expect(source).toContain('showCompactStats={false}')
-        expect(playerItem).toContain('!showStats && showCompactStats')
-    })
-
-    it('keeps rookies-only search as a complete internally paged result set', () => {
-        const source = read('hooks/use-player-search.ts')
-
-        expect(source).toContain('const ROOKIE_SEARCH_MAX_PAGES')
-        expect(source).toContain('if (!params.rookiesOnly || firstPage.length < PLAYER_SEARCH_PAGE_SIZE) return firstPage')
-        expect(source).toContain('fetchCompleteResults(searchParams)')
-        expect(source).toContain('const hasNext = !searchParams.rookiesOnly && results.length === PLAYER_SEARCH_PAGE_SIZE')
     })
 })

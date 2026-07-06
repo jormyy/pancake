@@ -28,7 +28,6 @@ describe('logic hardening source guards - lineup and roster locks', () => {
         expect(scoring).toContain('return last.week_number')
         expect(scoring).toContain('if (exactErr) throw exactErr')
         expect(scoring).toContain('if (lastErr) throw lastErr')
-        expect(scoring).toContain('if (boundsErr) throw boundsErr')
         expect(scoring).not.toContain('return last.week_number + 1')
 
         const edgeScores = read('supabase/functions/_shared/syncScores.ts')

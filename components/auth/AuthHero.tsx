@@ -3,7 +3,7 @@ import { AuthBrandMark } from '@/components/auth/AuthBrandMark'
 import { MotionView } from '@/components/Motion'
 import { brand, colors, fontFamily, fontSize, fontWeight, radii, spacing, webBackgrounds, webOverlays, type WebOnlyViewStyle } from '@/constants/tokens'
 
-export type AuthPreviewMetric = {
+type AuthPreviewMetric = {
     label: string
     value: string
 }

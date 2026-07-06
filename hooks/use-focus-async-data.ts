@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react'
 import { useFocusEffect } from '@react-navigation/native'
 
 /**
- * Like useAsyncData but refreshes stale data when the screen gains focus.
+ * Refreshes stale data when the screen gains focus.
  * Existing data stays visible while refreshes run.
  *
  * When `deps` change (e.g. consumer switches league), the freshness gate and

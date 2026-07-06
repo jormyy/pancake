@@ -158,7 +158,7 @@ describe('fantasy draft and auction experience goals', () => {
         expect(projectionsScreen).toContain("import { NBA_TEAM_OPTIONS } from '@/constants/nba'")
         expect(playersScreen).toContain('options={NBA_TEAM_OPTIONS}')
         expect(projectionsScreen).toContain('options={NBA_TEAM_OPTIONS}')
-        expect(nbaConstants).toContain('export const NBA_TEAM_CODES')
+        expect(nbaConstants).toContain('const NBA_TEAM_CODES')
     })
 
     it('keeps League section navigation labeled with the selected tab', () => {

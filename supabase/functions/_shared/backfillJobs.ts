@@ -73,28 +73,6 @@ export async function updateBackfillJob(jobId: string, patch: SyncJobUpdate): Pr
   if (error) throw error
 }
 
-export async function loadBackfillProgress(jobId: string): Promise<{ completed_items: number; failed_items: number }> {
-  const { data, error } = await supabase
-    .from('sync_jobs')
-    .select('completed_items, failed_items')
-    .eq('id', jobId)
-    .single()
-  if (error) throw error
-  return {
-    completed_items: data.completed_items ?? 0,
-    failed_items: data.failed_items ?? 0,
-  }
-}
-
-export async function completeBackfillJob(jobId: string, completedItems?: number): Promise<void> {
-  const progress = await loadBackfillProgress(jobId)
-  await updateBackfillJob(jobId, {
-    status: progress.failed_items > 0 ? 'completed_with_errors' : 'completed',
-    completed_at: new Date().toISOString(),
-    completed_items: completedItems ?? progress.completed_items,
-  })
-}
-
 export async function completeBackfillJobFromLedger(jobId: string, source: string): Promise<void> {
   await syncBackfillLedgerProgress(jobId, source, true)
 }
@@ -143,7 +121,7 @@ export async function loadBackfillTerminalGameKeys(jobId: string, source: string
   return keys
 }
 
-export async function loadBackfillLedgerProgress(jobId: string, source: string): Promise<BackfillLedgerProgress> {
+async function loadBackfillLedgerProgress(jobId: string, source: string): Promise<BackfillLedgerProgress> {
   const progress = { completed_items: 0, failed_items: 0, missing_items: 0 }
   let page = 0
 

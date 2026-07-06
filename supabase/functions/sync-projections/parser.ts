@@ -3,7 +3,7 @@ import * as cheerio from 'npm:cheerio'
 
 export type FantasyProsProjectionType = 'daily' | 'weekly_avg' | 'weekly_total'
 
-export type FantasyProsProjectionStats = {
+type FantasyProsProjectionStats = {
   points: number | null
   rebounds: number | null
   assists: number | null

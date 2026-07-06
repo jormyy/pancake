@@ -194,26 +194,6 @@ export async function getAllLeaguePicks(leagueId: string): Promise<LeaguePickIte
     }))
 }
 
-export async function searchDraftablePlayers(query: string, draftId: string) {
-    const { data: picked } = await supabase
-        .from('snake_draft_picks')
-        .select('player_id')
-        .eq('draft_id', draftId)
-        .not('player_id', 'is', null)
-
-    const pickedIds = new Set((picked ?? []).map((p) => p.player_id))
-
-    const { data } = await supabase
-        .from('players')
-        .select('id, display_name, nba_team, position, nba_id')
-        .ilike('display_name', `%${query}%`)
-        .eq('years_exp', 0)
-        .order('last_name')
-        .limit(20)
-
-    return (data ?? []).filter((p) => !pickedIds.has(p.id))
-}
-
 export async function getRookiePlayers(draftId: string, query?: string): Promise<RookieProspect[]> {
     const { data: picked } = await supabase
         .from('snake_draft_picks')
@@ -271,13 +251,6 @@ export async function makeSnakePick(draftId: string, memberId: string, playerId:
 
 export async function commissionerSnakePick(draftId: string, memberId: string, playerId: string) {
     return sharedApiPost<any>(`/draft/${draftId}/commissioner-pick`, { memberId, playerId })
-}
-
-export async function autoPickBest(draftId: string, memberId: string) {
-    // Server picks best available — only memberId is required by AutoPickBody.
-    // Sending playerId: '' here would fail the UUID-format check in the schema
-    // and 400 before the handler runs (breaks the pick-clock auto-pick path).
-    return sharedApiPost<any>(`/draft/${draftId}/auto-pick`, { memberId })
 }
 
 export async function processExpiredSnakePick(draftId: string, memberId: string) {

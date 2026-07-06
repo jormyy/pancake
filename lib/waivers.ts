@@ -2,17 +2,6 @@ import { supabase } from '@/lib/supabase'
 import { getCurrentSeasonId } from '@/lib/shared/season'
 import { apiPost } from '@/lib/shared/api'
 
-export type WaiverEntry = {
-    logId: string
-    playerId: string
-    playerName: string
-    position: string | null
-    nbaTeam: string | null
-    injuryStatus: string | null
-    clearsAt: string
-    droppedByTeamName: string | null
-}
-
 export type WaiverClaim = {
     id: string
     playerId: string
@@ -37,14 +26,6 @@ type PlayerSummaryRow = {
     nba_team?: string | null
     injury_status?: string | null
 } | null
-type TeamNameRow = { team_name: string | null } | null
-type WaiverEntryQueryRow = {
-    id: string
-    player_id: string
-    clears_at: string
-    players: PlayerSummaryRow
-    dropped_by: TeamNameRow
-}
 type WaiverPlayerIdRow = { player_id: string }
 type WaiverClaimQueryRow = {
     id: string
@@ -70,40 +51,6 @@ type WaiverPriorityQueryRow = {
     league_members: PriorityMemberRow
 }
 
-export async function getWaiverEntries(leagueId: string): Promise<WaiverEntry[]> {
-    const seasonId = await getCurrentSeasonId(leagueId)
-    if (!seasonId) return []
-
-    const now = new Date().toISOString()
-    const { data, error } = await supabase
-        .from('waiver_wire_log')
-        .select(`
-            id,
-            player_id,
-            clears_at,
-            players ( display_name, position, nba_team, injury_status ),
-            dropped_by:league_members!waiver_wire_log_dropped_by_member_id_fkey ( team_name )
-        `)
-        .eq('league_id', leagueId)
-        .eq('league_season_id', seasonId)
-        .is('cleared_at', null)
-        .gt('clears_at', now)
-        .order('clears_at', { ascending: true })
-
-    if (error) throw error
-
-    return ((data ?? []) as WaiverEntryQueryRow[]).map((row) => ({
-        logId: row.id,
-        playerId: row.player_id,
-        playerName: row.players?.display_name ?? 'Unknown',
-        position: row.players?.position ?? null,
-        nbaTeam: row.players?.nba_team ?? null,
-        injuryStatus: row.players?.injury_status ?? null,
-        clearsAt: row.clears_at,
-        droppedByTeamName: row.dropped_by?.team_name ?? null,
-    }))
-}
-
 export async function getWaiverPlayerIdsForSeason(leagueId: string, seasonId: string): Promise<Set<string>> {
     const now = new Date().toISOString()
     const { data: activeLogs, error } = await supabase
@@ -119,12 +66,6 @@ export async function getWaiverPlayerIdsForSeason(leagueId: string, seasonId: st
     const playerIds = new Set(((activeLogs ?? []) as WaiverPlayerIdRow[]).map((row) => row.player_id))
 
     return playerIds
-}
-
-export async function getWaiverPlayerIds(leagueId: string): Promise<Set<string>> {
-    const seasonId = await getCurrentSeasonId(leagueId)
-    if (!seasonId) return new Set()
-    return getWaiverPlayerIdsForSeason(leagueId, seasonId)
 }
 
 export async function submitWaiverClaim(

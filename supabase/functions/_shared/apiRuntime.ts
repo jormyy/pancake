@@ -1,7 +1,7 @@
 import { supabase } from './supabase.ts'
 import { errorMessage } from './responses.ts'
 
-export const CORS_HEADERS = {
+const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': [
     'authorization',
@@ -17,7 +17,7 @@ export const CORS_HEADERS = {
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-export class ApiError extends Error {
+class ApiError extends Error {
   status: number
 
   constructor(message: string, status = 500) {
@@ -52,7 +52,7 @@ export function json(data: unknown, status = 200): Response {
   return withCors(Response.json(data, { status }))
 }
 
-export function noContent(): Response {
+function noContent(): Response {
   return withCors(new Response(null, { status: 204 }))
 }
 
@@ -185,7 +185,7 @@ export function optionalIntegerField(
   return integerField(body, key, { min, max })
 }
 
-export function uuidArrayField(body: Record<string, unknown>, key: string): string[] {
+function uuidArrayField(body: Record<string, unknown>, key: string): string[] {
   const value = body[key]
   if (!Array.isArray(value)) throw new ValidationError(`${key} must be an array`)
   if (value.length > 50) throw new ValidationError(`${key} must contain at most 50 items`)

@@ -162,7 +162,7 @@ export type PlayerSearchOptions = {
     pageSize?: number
 }
 
-export const DEFAULT_PLAYER_SEARCH_PAGE_SIZE = 20
+const DEFAULT_PLAYER_SEARCH_PAGE_SIZE = 20
 
 function uniqueNonEmpty(values?: string[]): string[] {
     return Array.from(new Set((values ?? []).filter(Boolean)))

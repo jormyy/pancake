@@ -25,8 +25,8 @@ type WebKeyDownProps = {
     onKeyDown?: (event: WebKeyboardEvent) => void
 }
 
-export const DRAFT_TIMER_OPTIONS = [30, 60, 120] as const
-export const ROOKIE_ROUND_OPTIONS = [2, 3] as const
+const DRAFT_TIMER_OPTIONS = [30, 60, 120] as const
+const ROOKIE_ROUND_OPTIONS = [2, 3] as const
 export type DraftTimerOption = (typeof DRAFT_TIMER_OPTIONS)[number]
 export type RookieRoundOption = (typeof ROOKIE_ROUND_OPTIONS)[number]
 

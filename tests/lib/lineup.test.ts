@@ -426,7 +426,7 @@ describe('autoSetLineup — locked lineup preservation', () => {
 
         const rows: any[] = insertSpy.mock.calls[0][0]
         expect(rows.find((r: any) => r.player_id === 'pA')).toBeUndefined()
-        expect(rows.find((r: any) => r.player_id === 'pB' && r.slot_type === 'PG')).toBeDefined()
+        expect(rows).toContainEqual(expect.objectContaining({ player_id: 'pB', slot_type: 'PG' }))
     })
 
     it('re-optimizes remaining unlocked slots when a locked player holds a slot', async () => {
@@ -449,9 +449,10 @@ describe('autoSetLineup — locked lineup preservation', () => {
         await autoSetLineup('m1', 'lg1', 's1', 20, 2026, '2026-04-22')
 
         const rows: any[] = insertSpy.mock.calls[0][0]
-        // Unlocked slots should be filled with available players
-        expect(rows.find((r: any) => r.player_id === 'pB' && r.slot_type === 'SG')).toBeDefined()
-        expect(rows.find((r: any) => r.player_id === 'pC' && r.slot_type === 'SF')).toBeDefined()
+        expect(rows).toEqual(expect.arrayContaining([
+            expect.objectContaining({ player_id: 'pB', slot_type: 'SG' }),
+            expect.objectContaining({ player_id: 'pC', slot_type: 'SF' }),
+        ]))
     })
 
     it('skips the delete call entirely when all existing entries are locked', async () => {
@@ -501,7 +502,7 @@ describe('autoSetLineup — locked lineup preservation', () => {
         for (const call of insertSpy.mock.calls) {
             const rows: any[] = call[0]
             expect(rows.find((r: any) => r.player_id === 'pA')).toBeUndefined()
-            expect(rows.find((r: any) => r.player_id === 'pB' && r.slot_type === 'SG')).toBeDefined()
+            expect(rows).toContainEqual(expect.objectContaining({ player_id: 'pB', slot_type: 'SG' }))
         }
     })
 
@@ -529,7 +530,7 @@ describe('autoSetLineup — locked lineup preservation', () => {
         for (const call of insertSpy.mock.calls) {
             const rows: any[] = call[0]
             expect(rows.find((r: any) => r.player_id === 'pA')).toBeUndefined()
-            expect(rows.find((r: any) => r.player_id === 'pB' && r.slot_type === 'SG')).toBeDefined()
+            expect(rows).toContainEqual(expect.objectContaining({ player_id: 'pB', slot_type: 'SG' }))
         }
     })
 })
@@ -591,8 +592,10 @@ describe('autoSetLineup — position eligibility', () => {
         await autoSetLineup('m1', 'lg1', 's1', 20, 2026, '2026-04-22')
 
         const rows: any[] = insertSpy.mock.calls[0][0]
-        expect(rows.find((r: any) => r.player_id === 'pA' && r.slot_type === 'PG')).toBeDefined()
-        expect(rows.find((r: any) => r.player_id === 'pB' && r.slot_type === 'G')).toBeDefined()
+        expect(rows).toEqual(expect.arrayContaining([
+            expect.objectContaining({ player_id: 'pA', slot_type: 'PG' }),
+            expect.objectContaining({ player_id: 'pB', slot_type: 'G' }),
+        ]))
     })
 
     it('does not push a single pure-position player into UTIL on equal score ties', async () => {

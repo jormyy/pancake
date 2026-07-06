@@ -19,7 +19,7 @@ type PlayerMaps = {
   byNormName: Map<string, PlayerForRanking[]>
 }
 
-export type DynastyRankingInsert = RankingStats & {
+type DynastyRankingInsert = RankingStats & {
   source: string
   source_rank: number
   source_player_id: string | null

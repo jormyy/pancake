@@ -130,7 +130,10 @@ invariants over team counts 2–14 + a mutation-proof), `tests/lib/standings-tie
 (auction/waiver SQL inequality + resolution ORDER BY guards), and `tests/no-llm-guard.test.ts`
 (no model SDK in runtime logic).
 Browser E2E flows live in `tests/e2e/` (see [tests/e2e/README.md](./tests/e2e/README.md));
-the multi-season soak is `npm run e2e:soak`.
+the multi-season soak is `npm run e2e:soak`. E2E reports, screenshots,
+snapshots, loop logs, and web export output are generated artifacts and are
+ignored; regenerate them for the run you are validating instead of committing
+stale outputs.
 
 Dynasty transaction release gates:
 

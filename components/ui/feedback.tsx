@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import Animated, { FadeIn, FadeOut, SlideInUp, SlideOutUp } from 'react-native-reanimated'
@@ -195,11 +195,6 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
     )
 }
 
-export function useFeedback(): FeedbackApi {
-    const ctx = useContext(FeedbackContext)
-    if (!ctx) throw new Error('useFeedback must be used within FeedbackProvider')
-    return ctx
-}
 
 const styles = StyleSheet.create({
     toastHost: {
