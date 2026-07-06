@@ -51,16 +51,16 @@ const dynastyNewsCacheKey = (memberId?: string, leagueId?: string) =>
     `${DYNASTY_NEWS_CACHE_PREFIX}${leagueId ?? 'none'}:${memberId ?? 'anon'}`
 // Full table shown on wide screens; column labels live in the table header row.
 const STAT_COLUMNS: StatColumn[] = [
-    { key: 'gamesPlayed', label: 'GP', format: 'integer' },
-    { key: 'fieldGoalPct', label: 'FG%', format: 'pct' },
-    { key: 'freeThrowPct', label: 'FT%', format: 'pct' },
-    { key: 'threePointersMade', label: '3PM' },
     { key: 'points', label: 'PTS' },
     { key: 'rebounds', label: 'REB' },
     { key: 'assists', label: 'AST' },
     { key: 'steals', label: 'STL' },
     { key: 'blocks', label: 'BLK' },
+    { key: 'threePointersMade', label: '3PM' },
     { key: 'turnovers', label: 'TO' },
+    { key: 'gamesPlayed', label: 'GP', format: 'integer' },
+    { key: 'fieldGoalPct', label: 'FG%', format: 'pct' },
+    { key: 'freeThrowPct', label: 'FT%', format: 'pct' },
 ]
 // On narrow screens each player stays a single tidy row, so only the headline
 // counting stats ride inline under the name.
@@ -267,7 +267,18 @@ function NewsRow({ item }: { item: DynastyNewsItem }) {
             <Text style={styles.newsTitle}>{item.title}</Text>
             <Text style={styles.newsSummary}>{item.summary}</Text>
             {item.playerName ? (
-                <Text style={styles.newsPlayer}>{item.playerName}{item.playerTeam ? ` - ${item.playerTeam}` : ''}</Text>
+                <View style={styles.newsPlayerRow}>
+                    <Avatar
+                        name={item.playerName}
+                        uri={playerHeadshotUrl(item.playerNbaId)}
+                        color={colors.bgMuted}
+                        textColor={colors.textSecondary}
+                        size={28}
+                    />
+                    <Text style={styles.newsPlayer} numberOfLines={1}>
+                        {item.playerName}{item.playerTeam ? ` - ${item.playerTeam}` : ''}
+                    </Text>
+                </View>
             ) : null}
         </Pressable>
     )
@@ -592,7 +603,8 @@ const styles = StyleSheet.create({
     newsDate: { fontSize: fontSize.xs, fontWeight: fontWeight.semibold, color: colors.textMuted },
     newsTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: colors.textPrimary },
     newsSummary: { fontSize: fontSize.md, lineHeight: 20, color: colors.textSecondary },
-    newsPlayer: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.textMuted },
+    newsPlayerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+    newsPlayer: { flex: 1, fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.textMuted },
     separator: { height: 1, backgroundColor: colors.borderLight },
     loadMoreSpinner: { paddingVertical: spacing.xl },
     emptyContainer: { flexGrow: 1, justifyContent: 'center' },

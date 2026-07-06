@@ -59,6 +59,7 @@ export type DynastyNewsItem = {
     publishedAt: string
     playerName: string | null
     playerTeam: string | null
+    playerNbaId: string | null
 }
 
 type RankingPlayerJoin = {
@@ -198,7 +199,7 @@ export async function getMyDynastyNews(memberId: string, leagueId: string, limit
 async function fetchDynastyNews(limit: number, playerIds?: string[]): Promise<DynastyNewsItem[]> {
     let request = supabase
         .from('dynasty_news')
-        .select('id, title, summary, source, url, published_at, player_id, players(display_name, nba_team)')
+        .select('id, title, summary, source, url, published_at, player_id, players(display_name, nba_team, nba_id)')
         .order('published_at', { ascending: false })
         .limit(limit)
 
@@ -212,7 +213,7 @@ async function fetchDynastyNews(limit: number, playerIds?: string[]): Promise<Dy
     }
 
     return (data ?? []).map((row) => {
-        const player = row.players as { display_name: string | null; nba_team: string | null } | null
+        const player = row.players as { display_name: string | null; nba_team: string | null; nba_id: string | null } | null
         return {
             id: row.id,
             title: row.title,
@@ -222,6 +223,7 @@ async function fetchDynastyNews(limit: number, playerIds?: string[]): Promise<Dy
             publishedAt: row.published_at,
             playerName: player?.display_name ?? null,
             playerTeam: player?.nba_team ?? null,
+            playerNbaId: player?.nba_id ?? null,
         }
     })
 }

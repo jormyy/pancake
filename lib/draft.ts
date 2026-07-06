@@ -95,6 +95,7 @@ export type DraftSearchPlayer = {
     display_name: string | null
     nba_team: string | null
     position: string | null
+    nba_id: string | null
     dynasty_rank: number | null
     dynasty_rank_source: string | null
     dynasty_rank_fetched_at: string | null
@@ -328,7 +329,7 @@ export async function searchPlayers(
     // NBA player, so unranked players fall back alphabetically).
     let playerQuery = supabase
         .from('players')
-        .select('id, display_name, nba_team, position, dynasty_rank, dynasty_rank_source, dynasty_rank_fetched_at')
+        .select('id, display_name, nba_team, position, nba_id, dynasty_rank, dynasty_rank_source, dynasty_rank_fetched_at')
     playerQuery =
         mode === 'alphabetical'
             ? playerQuery.order('last_name').order('display_name')

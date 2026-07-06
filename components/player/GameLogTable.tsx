@@ -60,18 +60,18 @@ export function GameLogTable({
                     <View style={[styles.row, styles.headerRow]}>
                         <Text style={[styles.dateCell, styles.colHdr]}>DATE</Text>
                         <Text style={[styles.oppCell, styles.colHdr]}>OPP</Text>
+                        {showFpts && <Text style={[styles.fptsCell, styles.colHdr]}>FPTS</Text>}
                         <Text style={[styles.numCell, styles.colHdr]}>MIN</Text>
                         <Text style={[styles.numCell, styles.colHdr]}>PTS</Text>
                         <Text style={[styles.numCell, styles.colHdr]}>REB</Text>
                         <Text style={[styles.numCell, styles.colHdr]}>AST</Text>
                         <Text style={[styles.numCell, styles.colHdr]}>STL</Text>
                         <Text style={[styles.numCell, styles.colHdr]}>BLK</Text>
+                        <Text style={[styles.numCell, styles.colHdr]}>3PM</Text>
                         <Text style={[styles.numCell, styles.colHdr]}>TO</Text>
                         <Text style={[styles.shotCell, styles.colHdr]}>FG</Text>
-                        <Text style={[styles.shotCell, styles.colHdr]}>3P</Text>
                         <Text style={[styles.shotCell, styles.colHdr]}>FT</Text>
                         <Text style={[styles.numCell, styles.colHdr]}>+/-</Text>
-                        {showFpts && <Text style={[styles.fptsCell, styles.colHdr]}>FPTS</Text>}
                     </View>
 
                     {/* Data rows */}
@@ -87,6 +87,11 @@ export function GameLogTable({
                                 <Text style={styles.oppCell} numberOfLines={1}>
                                     {g.opponent || '—'}
                                 </Text>
+                                {showFpts && (
+                                    <Text style={[styles.fptsCell, fpts != null && styles.fptsValue]}>
+                                        {fpts != null ? fpts.toFixed(1) : ''}
+                                    </Text>
+                                )}
                                 <Text style={styles.numCell}>
                                     {dnp ? 'DNP' : Math.round(g.minutes)}
                                 </Text>
@@ -97,16 +102,11 @@ export function GameLogTable({
                                 <Text style={styles.numCell}>{fmtStat(g.assists, dnp)}</Text>
                                 <Text style={styles.numCell}>{fmtStat(g.steals, dnp)}</Text>
                                 <Text style={styles.numCell}>{fmtStat(g.blocks, dnp)}</Text>
+                                <Text style={styles.numCell}>{fmtStat(g.threeMade, dnp)}</Text>
                                 <Text style={styles.numCell}>{fmtStat(g.turnovers, dnp)}</Text>
                                 <Text style={styles.shotCell}>{fmtShot(g.fgMade, g.fgAttempted, dnp)}</Text>
-                                <Text style={styles.shotCell}>{fmtShot(g.threeMade, g.threeAttempted, dnp)}</Text>
                                 <Text style={styles.shotCell}>{fmtShot(g.ftMade, g.ftAttempted, dnp)}</Text>
                                 <Text style={styles.numCell}>{fmtPM(g.plusMinus, dnp)}</Text>
-                                {showFpts && (
-                                    <Text style={[styles.fptsCell, fpts != null && styles.fptsValue]}>
-                                        {fpts != null ? fpts.toFixed(1) : ''}
-                                    </Text>
-                                )}
                             </View>
                         )
                     })}

@@ -52,12 +52,12 @@ function StatLines({ stats, isLive, align, compact = false }: {
         stats.assists  ? `${stats.assists} AST`   : null,
         stats.steals   ? `${stats.steals} STL`    : null,
         stats.blocks   ? `${stats.blocks} BLK`    : null,
+        stats.threeMade ? `${stats.threeMade} 3PM` : null,
+        to             ? `${to} TO`                : null,
     ].filter(Boolean).join(', ') || '—'
     const line2 = [
         stats.fgAttempted ? `${stats.fgMade}/${stats.fgAttempted} FGM` : null,
         stats.ftAttempted ? `${stats.ftMade}/${stats.ftAttempted} FTM` : null,
-        stats.threeMade   ? `${stats.threeMade} 3PM`                   : null,
-        to                ? `${to} TO`                                  : null,
         stats.fouls       ? `${stats.fouls} PF`                        : null,
     ].filter(Boolean).join(', ')
     return (

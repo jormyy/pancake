@@ -68,7 +68,7 @@ export function PlayerSearchItem({
     // screen instead of one tall card.
     const denseProjectionRow = statMode === 'projection' && !showStats
 
-    const statusBadge = currentMemberId ? (
+    const statusBadge = currentMemberId && !isFA ? (
         <View style={[
             styles.statusBadge,
             !showStats && styles.statusBadgeNarrow,

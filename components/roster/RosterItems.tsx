@@ -45,10 +45,25 @@ export function RosterClaimItem({
                     <Text style={styles.priorityBadgeText}>#{waiverPriority}</Text>
                 </View>
             ) : null}
+            <Avatar
+                name={claim.playerName}
+                color={colors.bgMuted}
+                textColor={colors.textSecondary}
+                uri={playerHeadshotUrl(claim.playerNbaId) ?? undefined}
+            />
             <View style={styles.info}>
                 <Text style={styles.playerName}>{claim.playerName}</Text>
                 {claim.dropPlayerName ? (
-                    <Text style={styles.playerMeta}>Drop: {claim.dropPlayerName}</Text>
+                    <View style={styles.claimDropRow}>
+                        <Avatar
+                            name={claim.dropPlayerName}
+                            color={colors.bgMuted}
+                            textColor={colors.textSecondary}
+                            uri={playerHeadshotUrl(claim.dropPlayerNbaId) ?? undefined}
+                            size={18}
+                        />
+                        <Text style={styles.playerMeta}>Drop: {claim.dropPlayerName}</Text>
+                    </View>
                 ) : null}
                 <Text style={styles.playerMeta}>
                     Order {claim.claimOrder}{usesFaab ? ` · Bid $${claim.bidAmount}` : ''}
@@ -291,6 +306,7 @@ const styles = StyleSheet.create({
     info: { flex: 1, gap: 2 },
     playerName: { fontSize: fontSize.lg, fontWeight: fontWeight.semibold, color: colors.textPrimary },
     playerMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+    claimDropRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginTop: 1 },
     playerMeta: { fontSize: fontSize.sm, color: colors.textMuted },
     fptsText: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.primaryDark },
 

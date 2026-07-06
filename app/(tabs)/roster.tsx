@@ -128,7 +128,7 @@ function RosterTableHeader() {
         <View style={styles.rosterTableHeader}>
             <Text style={styles.rosterTableSlot}>Slot</Text>
             <Text style={styles.rosterTablePlayer}>Player</Text>
-            {['PTS', 'REB', 'AST', 'STL', 'BLK', '3PM', 'TO', 'FP', 'MIN', 'GP'].map((label) => (
+            {['FP', 'MIN', 'PTS', 'REB', 'AST', 'STL', 'BLK', '3PM', 'TO', 'GP'].map((label) => (
                 <Text key={label} style={styles.rosterTableStat}>{label}</Text>
             ))}
             <Text style={styles.rosterTableAction}>Action</Text>
@@ -191,6 +191,8 @@ function RosterTablePlayerItem({
                     </Text>
                 </View>
             </View>
+            <Text style={[styles.rosterTableStat, styles.rosterTableFp]}>{fmtStat(avgFpts)}</Text>
+            <Text style={styles.rosterTableStat}>{fmtStat(stats?.avg_minutes_played)}</Text>
             <Text style={styles.rosterTableStat}>{fmtStat(stats?.avg_points)}</Text>
             <Text style={styles.rosterTableStat}>{fmtStat(stats?.avg_rebounds)}</Text>
             <Text style={styles.rosterTableStat}>{fmtStat(stats?.avg_assists)}</Text>
@@ -198,8 +200,6 @@ function RosterTablePlayerItem({
             <Text style={styles.rosterTableStat}>{fmtStat(stats?.avg_blocks)}</Text>
             <Text style={styles.rosterTableStat}>{fmtStat(stats?.avg_three_pointers_made)}</Text>
             <Text style={styles.rosterTableStat}>{fmtStat(stats?.avg_turnovers)}</Text>
-            <Text style={[styles.rosterTableStat, styles.rosterTableFp]}>{fmtStat(avgFpts)}</Text>
-            <Text style={styles.rosterTableStat}>{fmtStat(stats?.avg_minutes_played)}</Text>
             <Text style={styles.rosterTableStat}>{fmtStat(stats?.games_played, true)}</Text>
             <View style={styles.rosterTableActions}>
                 {section === 'taxi' ? (
