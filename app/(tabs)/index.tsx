@@ -596,8 +596,8 @@ const styles = StyleSheet.create({
         textTransform: 'uppercase' as const,
     },
     autoSetBtn: {
-        height: 30,
-        paddingHorizontal: 18,
+        height: 26,
+        paddingHorizontal: 14,
         borderRadius: 20,
         borderCurve: 'continuous' as const,
         backgroundColor: colors.primaryLight,
@@ -606,7 +606,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
-    autoSetText: { fontSize: fontSize.xs, fontWeight: fontWeight.extrabold, color: colors.primaryDark, letterSpacing: 0.6 },
+    autoSetText: { fontSize: fontSize['2xs'], fontWeight: fontWeight.extrabold, color: colors.primaryDark, letterSpacing: 0.6 },
 
     hint: {
         flexDirection: 'row',
@@ -629,17 +629,17 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 10,
-        paddingTop: 2,
-        paddingBottom: 6,
+        paddingTop: 0,
+        paddingBottom: 2,
     },
     lineupTitle: {
         flex: 1,
-        fontSize: fontSize.lg,
+        fontSize: fontSize.md,
         fontWeight: fontWeight.extrabold,
         color: colors.textPrimary,
     },
     lineupRows: { flex: 1, minHeight: 0 },
-    lineupRowsContent: { paddingTop: 6, paddingBottom: 8 },
+    lineupRowsContent: { paddingTop: 4, paddingBottom: 8 },
     lineupSection: {
         borderWidth: 1,
         borderColor: colors.borderLight,

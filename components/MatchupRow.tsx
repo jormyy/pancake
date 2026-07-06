@@ -22,15 +22,18 @@ function emptySlotLabel(slotType: string): string {
     return 'No starter'
 }
 
-function LineupAvatar({ player, dense = false }: { player: LineupPlayer; dense?: boolean }) {
+function LineupAvatar({ player, compact = false, dense = false }: { player: LineupPlayer; compact?: boolean; dense?: boolean }) {
+    const size = dense ? 24 : compact ? 28 : 30
     return (
-        <Avatar
-            name={player.displayName}
-            uri={playerHeadshotUrl(player.nbaId) ?? undefined}
-            color={POSITION_COLORS[player.position ?? ''] ?? colors.bgMuted}
-            textColor={colors.textSecondary}
-            size={dense ? 20 : 24}
-        />
+        <View style={[styles.lineupAvatarFrame, { width: size + 2, height: size + 2, borderRadius: (size + 2) / 2 }]}>
+            <Avatar
+                name={player.displayName}
+                uri={playerHeadshotUrl(player.nbaId) ?? undefined}
+                color={POSITION_COLORS[player.position ?? ''] ?? colors.bgMuted}
+                textColor={colors.textSecondary}
+                size={size}
+            />
+        </View>
     )
 }
 
@@ -224,7 +227,7 @@ function MatchupRowImpl({
                                 <Text style={[styles.sideName, dense && styles.sideNameDense, !myHasGame && styles.noGameName]} numberOfLines={1}>
                                     {shortName(myPlayer.displayName)}
                                 </Text>
-                                <LineupAvatar player={myPlayer} dense={dense} />
+                                <LineupAvatar player={myPlayer} compact={compact} dense={dense} />
                             </View>
                             {!dense && <View style={[styles.metaRow, { justifyContent: 'flex-end' }]}>
                                 {myIsLive && (
@@ -291,7 +294,7 @@ function MatchupRowImpl({
                     <>
                         <View style={styles.playerBlockLeft}>
                             <View style={styles.metaRow}>
-                                <LineupAvatar player={oppPlayer} dense={dense} />
+                                <LineupAvatar player={oppPlayer} compact={compact} dense={dense} />
                                 <Text style={[styles.sideName, dense && styles.sideNameDense, !oppHasGame && styles.noGameName]} numberOfLines={1}>
                                     {shortName(oppPlayer.displayName)}
                                 </Text>
@@ -364,6 +367,14 @@ const styles = StyleSheet.create({
         paddingVertical: 2,
     },
     extraOppRow: {
+    },
+    lineupAvatarFrame: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: colors.bgCard,
+        borderWidth: 1,
+        borderColor: colors.borderLight,
+        flexShrink: 0,
     },
     rowSideLeft: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', paddingLeft: spacing.sm },
     rowSideRight: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center' },

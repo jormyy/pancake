@@ -54,10 +54,10 @@ export function DaySelector({
                         hitSlop={4}
                         pressedScale={0.92}
                     >
-                        <Text style={[styles.label, isSelected && styles.labelSelected, !day.hasGames && styles.labelFaint]}>
+                        <Text style={[styles.label, compact && styles.labelCompact, isSelected && styles.labelSelected, !day.hasGames && styles.labelFaint]}>
                             {day.dayLabel}
                         </Text>
-                        <Text style={[styles.num, isSelected && styles.numSelected, !day.hasGames && styles.numFaint]}>
+                        <Text style={[styles.num, compact && styles.numCompact, isSelected && styles.numSelected, !day.hasGames && styles.numFaint]}>
                             {day.dateNum}
                         </Text>
                         {day.hasGames && day.isToday && (
@@ -77,16 +77,18 @@ export function DaySelector({
 const styles = StyleSheet.create({
     row: { borderBottomWidth: 1, borderBottomColor: colors.borderLight },
     content: { flexDirection: 'row', justifyContent: 'center', paddingHorizontal: 12, paddingVertical: 10, gap: 6 },
-    contentCompact: { paddingVertical: 6, gap: 4 },
+    contentCompact: { paddingVertical: 3, gap: 3 },
     cell: { width: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center', paddingVertical: 6, borderRadius: 10, borderCurve: 'continuous' as const, gap: 2 },
-    cellCompact: { width: 44, minHeight: 44, paddingVertical: 4, gap: 1 },
+    cellCompact: { width: 40, minHeight: 36, paddingVertical: 3, gap: 0, borderRadius: 9 },
     cellSelected: { backgroundColor: colors.primary },
     cellToday: { backgroundColor: colors.primaryLight },
     cellNoGames: { opacity: 0.4 },
     label: { fontSize: 11, fontWeight: '700', color: colors.textMuted },
+    labelCompact: { fontSize: 10, lineHeight: 11 },
     labelSelected: { color: colors.textWhite },
     labelFaint: { color: palette.gray500 },
     num: { fontSize: 15, fontWeight: '800', color: colors.textPrimary },
+    numCompact: { fontSize: 14, lineHeight: 16 },
     numSelected: { color: colors.textWhite },
     numFaint: { color: palette.gray500 },
     dot: { width: 5, height: 5, borderRadius: 3, borderCurve: 'continuous' as const, backgroundColor: colors.primary, marginTop: 1 },
