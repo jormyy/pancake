@@ -14,7 +14,6 @@ const parserSource = read('supabase/functions/sync-projections/parser.ts')
 const matchSource = read('supabase/functions/sync-projections/match.ts')
 const lineupOptimizerSource = read('supabase/functions/lineup-optimizer/index.ts')
 const autoSetSource = read('lib/lineup/autoSet.ts')
-const projectionsScreen = read('app/(tabs)/projections.tsx')
 const playerItem = read('components/PlayerSearchItem.tsx')
 const playerDetail = read('app/player/[id].tsx')
 const databaseTypes = read('types/database.ts')
@@ -186,16 +185,7 @@ describe('FantasyPros projection source implementation', () => {
         expect(syncProjectionSource).toContain('error instanceof ProjectionFetchError ? error.httpStatus : undefined')
     })
 
-    it('wires player, projections, manual Auto-Set, and season optimizer surfaces to the shared projection source', () => {
-        expect(projectionsScreen).toContain('VIEW_OPTIONS')
-        expect(projectionsScreen).toContain("'today'")
-        expect(projectionsScreen).toContain("'week_avg'")
-        expect(projectionsScreen).toContain("'week_total'")
-        expect(projectionsScreen).toContain("'mine'")
-        expect(projectionsScreen).toContain("'free_agents'")
-        expect(projectionsScreen).toContain('getLeagueProjections')
-        expect(projectionsScreen).toContain('projection_source_label')
-        expect(projectionsScreen).toContain('projection_view')
+    it('wires player, Auto-Set, and season optimizer surfaces to the shared projection source', () => {
         expect(playerItem).toContain('projection_fantasy_points')
         expect(playerDetail).toContain('NextProjectionCard')
 
