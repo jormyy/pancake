@@ -34,7 +34,7 @@ export default function PlayerDetailScreen() {
         player, loading, playedToday,
         playerError,
         availableSeasons, selectedSeason, handleSeasonSelect,
-        seasonAverages, seasonError,
+        seasonAverages, seasonLoading, seasonError,
         gameLog, hasMoreGames, gameLogLoading, loadMoreGames, gameLogError,
         fantasyPointsMap, avgFantasyPoints,
         nextProjection, projectionError,
@@ -294,7 +294,7 @@ export default function PlayerDetailScreen() {
                             averages={seasonAverages}
                             seasonYear={selectedSeason}
                         />
-                    ) : (
+                    ) : seasonLoading ? null : (
                         <View style={styles.section}>
                             <Text style={styles.sectionTitle}>
                                 {selectedSeason - 1}–{String(selectedSeason).slice(2)} Averages
@@ -312,13 +312,15 @@ export default function PlayerDetailScreen() {
                     )}
 
                     {/* Game log */}
-                    <GameLogTable
-                        games={gameLog}
-                        fantasyPointsMap={showFantasy ? fantasyPointsMap : null}
-                        hasMore={hasMoreGames}
-                        loadingMore={gameLogLoading}
-                        onLoadMore={loadMoreGames}
-                    />
+                    {!seasonLoading ? (
+                        <GameLogTable
+                            games={gameLog}
+                            fantasyPointsMap={showFantasy ? fantasyPointsMap : null}
+                            hasMore={hasMoreGames}
+                            loadingMore={gameLogLoading}
+                            onLoadMore={loadMoreGames}
+                        />
+                    ) : null}
 
                     {/* Transaction history — always shown regardless of season */}
                     {showTransactions && (

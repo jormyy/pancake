@@ -473,6 +473,7 @@ export default function RosterScreen() {
     }
 
     if (!current) return <EmptyState message="Join or create a league first." />
+    if (loading && !data) return <SafeAreaView style={styles.container} />
 
     const league = currentLeague
     const taxiSlots = league?.taxi_slots ?? 3

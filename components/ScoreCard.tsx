@@ -2,15 +2,18 @@ import { Platform, View, Text, StyleSheet } from 'react-native'
 import { Matchup } from '@/lib/scoring'
 import { alpha, colors, palette, fontFamily, fontSize, fontWeight, radii, shadows } from '@/constants/tokens'
 import { formatPoints } from '@/lib/format'
-import { MotionView } from '@/components/Motion'
 
 export function ScoreCard({ matchup, compact = false }: { matchup: Matchup; compact?: boolean }) {
     const myPts = matchup.myPoints ?? 0
     const oppPts = matchup.opponentPoints ?? 0
-    // Neither side is "winning" on a tie (incl. the 0–0 week start), so a tie
-    // shows both scores neutrally rather than crowning the opponent.
     const iWinning = myPts > oppPts
     const oppWinning = oppPts > myPts
+    const scoreTotal = myPts + oppPts
+    const myShare = scoreTotal > 0 ? Math.max(8, Math.min(92, (myPts / scoreTotal) * 100)) : 50
+    const margin = Math.abs(myPts - oppPts)
+    const edgeLabel = margin === 0
+        ? 'Tied'
+        : `${iWinning ? matchup.myTeamName : matchup.opponentTeamName} +${formatPoints(margin)}`
 
     let statusLabel = 'In Progress'
     let statusTint: string = palette.maple500
@@ -32,8 +35,7 @@ export function ScoreCard({ matchup, compact = false }: { matchup: Matchup; comp
     }
 
     return (
-        <MotionView style={[styles.card, compact && styles.cardCompact]} preset="rise" delay={80}>
-            {/* Header bar */}
+        <View style={[styles.card, compact && styles.cardCompact]}>
             <View style={[styles.header, compact && styles.headerCompact]}>
                 <Text
                     style={styles.week}
@@ -50,9 +52,7 @@ export function ScoreCard({ matchup, compact = false }: { matchup: Matchup; comp
                 </View>
             </View>
 
-            {/* Scores */}
             <View style={[styles.scores, compact && styles.scoresCompact]}>
-                {/* My side */}
                 <View style={styles.side}>
                     <Text style={styles.teamName} numberOfLines={1}>{matchup.myTeamName}</Text>
                     {matchup.myUsername ? (
@@ -64,14 +64,10 @@ export function ScoreCard({ matchup, compact = false }: { matchup: Matchup; comp
                     <Text style={styles.record}>{matchup.myWins}–{matchup.myLosses}</Text>
                 </View>
 
-                {/* VS divider */}
                 <View style={styles.vsDivider}>
-                    <View style={styles.vsDividerLine} />
                     <Text style={styles.vs}>vs</Text>
-                    <View style={styles.vsDividerLine} />
                 </View>
 
-                {/* Opponent side */}
                 <View style={[styles.side, styles.sideRight]}>
                     <Text style={styles.teamName} numberOfLines={1}>{matchup.opponentTeamName}</Text>
                     {matchup.opponentUsername ? (
@@ -87,7 +83,23 @@ export function ScoreCard({ matchup, compact = false }: { matchup: Matchup; comp
                     </Text>
                 </View>
             </View>
-        </MotionView>
+
+            <View style={styles.edgeWrap}>
+                <View style={styles.edgeTrack}>
+                    <View style={[styles.edgeMine, { width: `${myShare}%` }]} />
+                    <View style={styles.edgeOpponent} />
+                </View>
+                <View style={styles.edgeLabels}>
+                    <Text style={[styles.edgeText, iWinning && styles.edgeTextStrong]} numberOfLines={1}>
+                        {formatPoints(matchup.myPoints)}
+                    </Text>
+                    <Text style={styles.edgeCenter} numberOfLines={1}>{edgeLabel}</Text>
+                    <Text style={[styles.edgeText, oppWinning && styles.edgeTextStrong]} numberOfLines={1}>
+                        {formatPoints(matchup.opponentPoints)}
+                    </Text>
+                </View>
+            </View>
+        </View>
     )
 }
 
@@ -104,7 +116,7 @@ const styles = StyleSheet.create({
         ...(Platform.OS === 'web' ? { boxShadow: shadows.md } : {}),
     },
     cardCompact: {
-        marginVertical: 6,
+        marginVertical: 4,
         borderRadius: 12,
     },
 
@@ -112,8 +124,8 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: 18,
-        paddingTop: 13,
-        paddingBottom: 12,
+        paddingTop: 10,
+        paddingBottom: 9,
         gap: 10,
         borderBottomWidth: 1,
         borderBottomColor: colors.separator,
@@ -121,8 +133,8 @@ const styles = StyleSheet.create({
     },
     headerCompact: {
         paddingHorizontal: 14,
-        paddingTop: 8,
-        paddingBottom: 8,
+        paddingTop: 7,
+        paddingBottom: 7,
     },
     week: {
         fontSize: fontSize['2xs'],
@@ -152,11 +164,13 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: 18,
-        paddingVertical: 18,
+        paddingTop: 14,
+        paddingBottom: 10,
     },
     scoresCompact: {
         paddingHorizontal: 14,
-        paddingVertical: 10,
+        paddingTop: 10,
+        paddingBottom: 7,
     },
     side: { flex: 1, gap: 2 },
     sideRight: { alignItems: 'flex-end' },
@@ -177,10 +191,10 @@ const styles = StyleSheet.create({
         marginTop: 2,
     },
     score: {
-        fontSize: 40,
+        fontSize: 38,
         fontFamily: fontFamily.display,
         fontWeight: fontWeight.black,
-        lineHeight: 48,
+        lineHeight: 44,
     },
     scoreCompact: {
         fontSize: 30,
@@ -195,19 +209,59 @@ const styles = StyleSheet.create({
 
     vsDivider: {
         alignItems: 'center',
-        gap: 5,
-        paddingHorizontal: 14,
+        justifyContent: 'center',
+        paddingHorizontal: 12,
         alignSelf: 'center',
-    },
-    vsDividerLine: {
-        width: 1,
-        height: 22,
-        backgroundColor: colors.separator,
     },
     vs: {
         fontSize: fontSize['2xs'],
         color: colors.textPlaceholder,
         fontWeight: fontWeight.extrabold,
         letterSpacing: 1,
+    },
+    edgeWrap: {
+        paddingHorizontal: 18,
+        paddingBottom: 13,
+        gap: 6,
+    },
+    edgeTrack: {
+        height: 6,
+        flexDirection: 'row',
+        overflow: 'hidden' as const,
+        borderRadius: 999,
+        backgroundColor: colors.bgMuted,
+        borderWidth: 1,
+        borderColor: colors.borderLight,
+    },
+    edgeMine: {
+        height: '100%',
+        backgroundColor: colors.primary,
+    },
+    edgeOpponent: {
+        flex: 1,
+        height: '100%',
+        backgroundColor: colors.bgMuted,
+    },
+    edgeLabels: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    edgeText: {
+        width: 58,
+        fontSize: fontSize.xs,
+        fontWeight: fontWeight.extrabold,
+        color: colors.textMuted,
+    },
+    edgeTextStrong: {
+        color: colors.primaryDark,
+    },
+    edgeCenter: {
+        flex: 1,
+        minWidth: 0,
+        textAlign: 'center',
+        fontSize: fontSize.xs,
+        fontWeight: fontWeight.bold,
+        color: colors.textSecondary,
     },
 })

@@ -349,7 +349,9 @@ export default function DynastyScreen() {
                                 autoCorrect={false}
                             />
                             <Text style={styles.resultCountText}>
-                                {`${rankings.players.length} row${rankings.players.length === 1 ? '' : 's'} loaded`}
+                                {rankings.loading && rankings.players.length === 0
+                                    ? 'Rankings'
+                                    : `${rankings.players.length} row${rankings.players.length === 1 ? '' : 's'} loaded`}
                             </Text>
                         </View>
                         {rankings.error && rankings.players.length === 0 ? (
@@ -377,7 +379,7 @@ export default function DynastyScreen() {
                                         onPress={() => item.playerId && router.push(`/player/${item.playerId}`)}
                                     />
                                 )}
-                                ListEmptyComponent={<EmptyState message="No ranked players found." fullScreen={false} />}
+                                ListEmptyComponent={rankings.loading ? null : <EmptyState message="No ranked players found." fullScreen={false} />}
                                 ListFooterComponent={rankingFooter}
                                 onEndReached={rankings.loadMore}
                                 onEndReachedThreshold={0.4}

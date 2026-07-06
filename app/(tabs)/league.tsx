@@ -191,6 +191,10 @@ export default function LeagueScreen() {
     const compactIdentityLabel = `${currentLeagueName}, ${currentTeamName}`
 
     function renderTabContent() {
+        if (screen.isTabLoading && !screen.isCurrentTabHydrated) {
+            return null
+        }
+
         if (screen.tabErr && !screen.isTabLoading) {
             return (
                 <ErrorBanner

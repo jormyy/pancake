@@ -37,6 +37,7 @@ import type { DraftTimerOption, RookieRoundOption } from '@/components/league/Dr
 
 const ACTIVITY_LIMIT = 50
 const OPEN_DRAFT_STATUSES = new Set(['pending', 'in_progress', 'paused'])
+const PREFETCH_TABS: LeagueTab[] = ['results', 'auctions', 'mockRooms', 'draftBoard', 'settings', 'history']
 
 function defaultRoomDateInput(): string {
     const date = new Date(Date.now() + 30 * 60 * 1000)
@@ -192,14 +193,13 @@ export function useLeagueScreenState() {
         useCallback(() => {
             const lid = currentLeague?.id
             if (!lid) return
-            if (!loadedTabs.current.has('results')) {
-                fetchTab('results', lid)
-            }
-            if (tab !== 'results' && !loadedTabs.current.has(tab)) {
-                fetchTab(tab, lid)
+            for (const prefetchTab of PREFETCH_TABS) {
+                if (!loadedTabs.current.has(prefetchTab)) {
+                    fetchTab(prefetchTab, lid)
+                }
             }
             fetchActiveDraft(lid)
-        }, [currentLeague?.id, tab, fetchTab, fetchActiveDraft]),
+        }, [currentLeague?.id, fetchTab, fetchActiveDraft]),
     )
 
     function handleTabChange(nextTab: LeagueTab) {
@@ -435,6 +435,7 @@ export function useLeagueScreenState() {
         handleTabChange,
         isCommissioner,
         leagueLoading,
+        isCurrentTabHydrated: loadedTabs.current.has(tab),
         isTabLoading: tabLoading[tab] === true,
         mockRooms,
         nominationMode,

@@ -49,7 +49,7 @@ export default function HomeScreen() {
 
     const {
         matchup, leagueMatchups, weekDays, selectedDate, setSelectedDate,
-        myLineup, oppLineup, matchupLoading,
+        myLineup, oppLineup, matchupLoading, lineupLoading,
         loadMyLineup, loadLineups, refreshSilently, matchupRef,
         error, refresh,
     } = useMatchupData(current, user, league)
@@ -152,12 +152,7 @@ export default function HomeScreen() {
 
             {matchup ? (
                 <View style={styles.playSurface}>
-                    {shouldShowScoreboard(selectedDate, today) && !dense
-                        ? <Scoreboard games={todaysGames} myTeamSet={myTeamSet} compact={compact} />
-                        : null
-                    }
                     <ScoreCard matchup={matchup} compact={compact} />
-                    <AroundLeague matchups={leagueMatchups} compact={compact} />
 
                     {myLineup && oppLineup ? (
                         <MatchupLineupView
@@ -201,8 +196,18 @@ export default function HomeScreen() {
                                     </MotionPressable>
                                 </MotionView>
                             ) : null}
+                            footer={
+                                <>
+                                    <AroundLeague matchups={leagueMatchups} compact={compact} />
+                                    {shouldShowScoreboard(selectedDate, today) && !dense ? (
+                                        <View style={styles.scoreboardFooter}>
+                                            <Scoreboard games={todaysGames} myTeamSet={myTeamSet} compact={compact} />
+                                        </View>
+                                    ) : null}
+                                </>
+                            }
                         />
-                    ) : (
+                    ) : matchupLoading || lineupLoading ? null : (
                         <>
                             {weekDays.length > 0 && (
                                 <DaySelector days={weekDays} selectedDate={selectedDate} onSelect={handleDaySelect} compact={compact} />
@@ -218,10 +223,6 @@ export default function HomeScreen() {
                 </View>
             ) : (
                 <View style={styles.playSurface}>
-                    {shouldShowScoreboard(selectedDate, today)
-                        ? <Scoreboard games={todaysGames} myTeamSet={myTeamSet} compact={compact} />
-                        : null
-                    }
                     {matchupLoading ? null : league?.status === 'drafting' ? (
                         <EmptyState
                             fullScreen={false}
@@ -353,6 +354,7 @@ function MatchupLineupView({
     daySelector,
     headerAccessory,
     hint,
+    footer,
 }: {
     myLineup: LineupData
     oppLineup: LineupData
@@ -369,6 +371,7 @@ function MatchupLineupView({
     daySelector?: ReactNode
     headerAccessory?: ReactNode
     hint?: ReactNode
+    footer?: ReactNode
 }) {
     const maxBench = Math.max(myLineup.bench.length, oppLineup.bench.length)
     const maxIR = Math.max(myLineup.ir.length, oppLineup.ir.length)
@@ -440,7 +443,7 @@ function MatchupLineupView({
     )
 
     return (
-        <View style={styles.lineupContainer}>
+        <View style={[styles.lineupContainer, compact && styles.lineupContainerCompact]}>
             <View style={styles.lineupHeader}>
                 <Text
                     style={styles.lineupTitle}
@@ -450,7 +453,6 @@ function MatchupLineupView({
                 >
                     Lineup
                 </Text>
-                <Text style={styles.lineupMeta}>Starters, bench, IR, and taxi</Text>
                 {headerAccessory}
             </View>
             {daySelector}
@@ -499,6 +501,7 @@ function MatchupLineupView({
                         ))}
                     </View>
                 ))}
+                {footer ? <View style={styles.lineupFooter}>{footer}</View> : null}
             </ScrollView>
         </View>
     )
@@ -620,28 +623,23 @@ const styles = StyleSheet.create({
     hintText: { flex: 1, fontSize: fontSize.sm, color: colors.primaryDark, fontWeight: fontWeight.medium },
     hintCancel: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.primaryDark, paddingLeft: 12 },
 
-    lineupContainer: { flex: 1, minHeight: 0, paddingHorizontal: 16, paddingBottom: 8 },
+    lineupContainer: { flex: 1, minHeight: 0, paddingHorizontal: 12, paddingBottom: 8 },
+    lineupContainerCompact: { paddingHorizontal: 8 },
     lineupHeader: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 10,
-        paddingTop: 10,
-        paddingBottom: 8,
+        paddingTop: 2,
+        paddingBottom: 6,
     },
     lineupTitle: {
+        flex: 1,
         fontSize: fontSize.lg,
         fontWeight: fontWeight.extrabold,
         color: colors.textPrimary,
     },
-    lineupMeta: {
-        flex: 1,
-        fontSize: fontSize.xs,
-        fontWeight: fontWeight.semibold,
-        color: colors.textMuted,
-        textAlign: 'right',
-    },
     lineupRows: { flex: 1, minHeight: 0 },
-    lineupRowsContent: { paddingTop: 10, paddingBottom: 8 },
+    lineupRowsContent: { paddingTop: 6, paddingBottom: 8 },
     lineupSection: {
         borderWidth: 1,
         borderColor: colors.borderLight,
@@ -649,14 +647,14 @@ const styles = StyleSheet.create({
         borderCurve: 'continuous' as const,
         backgroundColor: colors.bgCard,
         overflow: 'hidden' as const,
-        marginBottom: 12,
+        marginBottom: 8,
     },
     lineupSectionBand: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: spacing.md,
         paddingHorizontal: spacing.lg,
-        paddingVertical: spacing.md,
+        paddingVertical: spacing.sm,
         borderLeftWidth: 3,
         backgroundColor: colors.bgSubtle,
         borderBottomWidth: 1,
@@ -673,6 +671,16 @@ const styles = StyleSheet.create({
         fontSize: fontSize.xs,
         fontWeight: fontWeight.extrabold,
         color: colors.textMuted,
+    },
+    lineupFooter: {
+        gap: spacing.md,
+        paddingTop: spacing.sm,
+        paddingBottom: spacing.lg,
+    },
+    scoreboardFooter: {
+        overflow: 'hidden' as const,
+        borderRadius: radii.lg,
+        borderCurve: 'continuous' as const,
     },
 
     noLineup: { padding: 32, alignItems: 'center', gap: 12 },

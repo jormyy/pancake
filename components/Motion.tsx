@@ -14,14 +14,12 @@ import Animated, {
     useAnimatedStyle,
     useReducedMotion,
     useSharedValue,
-    withDelay,
     withRepeat,
     withSequence,
     withSpring,
     withTiming,
 } from 'react-native-reanimated'
 
-const ENTER_SPRING = { damping: 18, stiffness: 210, mass: 0.72 }
 const PRESS_SPRING = { damping: 16, stiffness: 360, mass: 0.42 }
 
 type MotionPreset = 'fade' | 'rise' | 'pop' | 'slide-left' | 'slide-right'
@@ -35,36 +33,9 @@ type MotionViewProps = {
 
 export function MotionView({
     children,
-    delay = 0,
-    preset = 'rise',
     style,
 }: MotionViewProps) {
-    const reduceMotion = useReducedMotion()
-    const progress = useSharedValue(reduceMotion ? 1 : 0)
-
-    useEffect(() => {
-        progress.value = reduceMotion
-            ? 1
-            : withDelay(delay, withSpring(1, ENTER_SPRING))
-    }, [delay, progress, reduceMotion])
-
-    const animatedStyle = useAnimatedStyle(() => {
-        const y = preset === 'rise' ? interpolate(progress.value, [0, 1], [14, 0]) : 0
-        const x =
-            preset === 'slide-left'
-                ? interpolate(progress.value, [0, 1], [18, 0])
-                : preset === 'slide-right'
-                  ? interpolate(progress.value, [0, 1], [-18, 0])
-                  : 0
-        const scale = preset === 'pop' ? interpolate(progress.value, [0, 1], [0.92, 1]) : 1
-
-        return {
-            opacity: progress.value,
-            transform: [{ translateX: x }, { translateY: y }, { scale }],
-        }
-    }, [preset])
-
-    return <Animated.View style={[style, animatedStyle]}>{children}</Animated.View>
+    return <View style={style}>{children}</View>
 }
 
 type MotionPressableProps = Omit<PressableProps, 'style'> & {
