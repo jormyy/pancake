@@ -7,7 +7,7 @@ import { POSITION_COLORS } from '@/constants/positions'
 import { alpha, colors, fontSize, fontWeight, INJURY_COLORS, spacing, uiColors } from '@/constants/tokens'
 import { PosTag } from '@/components/PosTag'
 import { Badge } from '@/components/Badge'
-import { playerHeadshotUrl, shortName } from '@/lib/format'
+import { formatPoints, playerHeadshotUrl, shortName } from '@/lib/format'
 import { LivePulse, MotionPressable, MotionView } from '@/components/Motion'
 import { Avatar } from '@/components/Avatar'
 
@@ -85,6 +85,7 @@ function FantasyScore({
     side: 'left' | 'right'
     dense?: boolean
 }) {
+    const displayValue = formatPoints(value)
     return (
         <Text
             style={[
@@ -95,8 +96,11 @@ function FantasyScore({
                 value != null && isLive && styles.fptsLive,
             ]}
             numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.72}
+            ellipsizeMode="clip"
         >
-            {value ?? STABLE_PLACEHOLDER}
+            {displayValue}
         </Text>
     )
 }
@@ -459,14 +463,14 @@ const styles = StyleSheet.create({
         fontSize: fontSize.xl,
         fontWeight: fontWeight.extrabold,
         color: colors.textMuted,
-        width: 58,
+        width: 64,
         flexShrink: 0,
         textAlign: 'left',
         marginRight: 6,
         fontVariant: ['tabular-nums'] as const,
     },
-    fptsNumDense: { width: 44, fontSize: fontSize.lg },
-    fptsRight: { textAlign: 'right', marginRight: 0, marginLeft: 6 },
+    fptsNumDense: { width: 54, fontSize: fontSize.lg },
+    fptsRight: { textAlign: 'right', marginRight: spacing.sm, marginLeft: 6 },
     fptsPlaceholder: { color: colors.textPlaceholder },
     fptsLive: { color: colors.primaryDark },
     sideName: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textPrimary, flexShrink: 1 },
