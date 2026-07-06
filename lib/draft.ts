@@ -457,6 +457,11 @@ export async function withdrawNomination(
     await sharedApiPost(`/draft/${draftId}/withdraw-nomination`, { memberId, nominationId })
 }
 
+export async function closeExpiredNominations(draftId: string): Promise<{ closed: number }> {
+    const res = await sharedApiPost<{ closed: number }>(`/draft/${draftId}/close-expired`, {})
+    return { closed: res?.closed ?? 0 }
+}
+
 
 export function subscribeToDraft(draftId: string, onChange: () => void): RealtimeChannel {
     const channel = supabase

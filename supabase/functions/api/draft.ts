@@ -685,5 +685,13 @@ export async function handleDraftRoute(req: Request, path: string): Promise<Resp
     return json({ ok: true, ...await reseedRookieDraftPicks(draftId) })
   }
 
+  if (action.action === 'close-expired') {
+    await requireDraftLeagueMember(userId, draftId)
+    const { data, error } = await supabase.rpc('close_expired_auction_nominations_atomic', { p_limit: 10 })
+    if (error) throwDb(error)
+    const closed = (data ?? []).filter((r: { closed: boolean }) => r.closed).length
+    return json({ ok: true, closed })
+  }
+
   return null
 }
