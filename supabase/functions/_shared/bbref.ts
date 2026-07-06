@@ -23,7 +23,7 @@ async function bbrefGet(path: string): Promise<string> {
   }
 }
 
-export const BBREF_TO_TRICODE: Record<string, string> = {
+const BBREF_TO_TRICODE: Record<string, string> = {
   ATL: 'ATL', BOS: 'BOS',
   BRK: 'BKN', NJN: 'BKN',
   CHA: 'CHA', CHH: 'CHA', CHO: 'CHA',
@@ -50,19 +50,19 @@ const SCHEDULE_MONTHS = [
 const NBA_FRANCHISE_CODES = new Set(Object.keys(BBREF_TO_TRICODE))
 
 // Keep the schedule parser's regular-season filter aligned with the static guards.
-export function isPlayoffsDividerRow(text: string): boolean {
+function isPlayoffsDividerRow(text: string): boolean {
   return text.trim().toLowerCase().includes('playoff')
 }
 
-export function isNonRegularMatchup(homeBBRef: string, awayBBRef: string): boolean {
+function isNonRegularMatchup(homeBBRef: string, awayBBRef: string): boolean {
   return !NBA_FRANCHISE_CODES.has(homeBBRef) && !NBA_FRANCHISE_CODES.has(awayBBRef)
 }
 
-export interface ScheduleParseState {
+interface ScheduleParseState {
   playoffsReached: boolean
 }
 
-export function parseBBRefScheduleHtml(
+function parseBBRefScheduleHtml(
   html: string,
   seasonEndYear: number,
   month: string,
@@ -255,7 +255,7 @@ function parseTeamTable($: ReturnType<typeof cheerio.load>, teamCode: string): B
   return stats
 }
 
-export function parseMpToDecimal(mp: string): number | null {
+function parseMpToDecimal(mp: string): number | null {
   if (!mp) return null
   const parts = mp.split(':')
   if (parts.length !== 2) return null

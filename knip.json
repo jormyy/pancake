@@ -1,0 +1,51 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": [
+    "app/**/*.{ts,tsx}",
+    "components/**/*.{ts,tsx}",
+    "constants/**/*.{ts,tsx}",
+    "contexts/**/*.{ts,tsx}",
+    "hooks/**/*.{ts,tsx}",
+    "lib/**/*.{ts,tsx}",
+    "scripts/**/*.mjs",
+    "tests/**/*.test.ts",
+    "tests/e2e/**/*.mjs",
+    "tests/source-guard.ts",
+    "vitest.config.ts",
+    "app.json",
+    "app/+html.tsx",
+    "hooks/use-color-scheme.web.ts",
+    "public/sw.js",
+    "supabase/functions/**/index.ts",
+    "supabase/functions/**/*.test.ts"
+  ],
+  "project": [
+    "**/*.{js,mjs,ts,tsx}"
+  ],
+  "ignore": [
+    "core/cjs/**",
+    "dist/**",
+    "supabase/shared-src/**",
+    "supabase/functions/_shared/date.ts",
+    "supabase/functions/_shared/gameId.ts",
+    "supabase/functions/_shared/livePoll.ts",
+    "supabase/functions/_shared/schedule.ts",
+    "supabase/functions/_shared/scoreLineups.ts",
+    "supabase/functions/_shared/scoreShared.ts",
+    "supabase/functions/_shared/scoringCore.ts",
+    "supabase/functions/_shared/season.ts",
+    "supabase/functions/_shared/syncScores.ts",
+    "types/database.ts"
+  ],
+  "ignoreDependencies": [
+    "cheerio",
+    "expo-symbols",
+    "expo-updates",
+    "npm",
+    "prettier"
+  ],
+  "ignoreBinaries": [
+    "psql",
+    "security"
+  ]
+}

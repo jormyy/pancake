@@ -27,7 +27,7 @@ export async function notifyMember(
   await notifyUser(member.user_id, title, body, data, category)
 }
 
-export async function notifyUser(
+async function notifyUser(
   userId: string,
   title: string,
   body: string,

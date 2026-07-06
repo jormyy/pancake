@@ -1,6 +1,5 @@
 import { supabase } from './supabase.ts'
 export { calculateFantasyPoints, roundFantasyPoints, snakeToStatLine } from './scoringCore.ts'
-export type { ScoringSettings, StatLine } from './scoringCore.ts'
 
 export async function getWeekNumberForDate(date: Date, seasonYear: number): Promise<number | null> {
     const dateISO = date.toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
@@ -28,16 +27,4 @@ export async function getWeekNumberForDate(date: Date, seasonYear: number): Prom
     if (!last) return null
     if (dateISO > last.week_end) return last.week_number
     return last.week_number
-}
-
-export async function getWeekBounds(seasonYear: number, weekNumber: number): Promise<{ weekStart: string; weekEnd: string } | null> {
-    const { data, error: boundsErr } = await supabase
-        .from('season_weeks')
-        .select('week_start, week_end')
-        .eq('season_year', seasonYear)
-        .eq('week_number', weekNumber)
-        .maybeSingle()
-    if (boundsErr) throw boundsErr
-
-    return data ? { weekStart: data.week_start, weekEnd: data.week_end } : null
 }

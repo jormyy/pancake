@@ -111,7 +111,7 @@ function firstString(...values: unknown[]): string | null {
   return null
 }
 
-export function parseNBAScheduleGame(g: NBAScheduleGamePayload, scheduleSeasonYear: string | null = null): NBAScheduledGame | null {
+function parseNBAScheduleGame(g: NBAScheduleGamePayload, scheduleSeasonYear: string | null = null): NBAScheduledGame | null {
   const gameId = firstString(g.gameId)
   const gameDateSource = firstString(g.gameDateEst, g.gameDateTimeEst, g.gameEt, g.gameDateTimeUTC)
   const gameDate = gameDateSource?.split('T')[0] ?? null
@@ -163,7 +163,7 @@ export interface NBABoxScore {
   awayTeam: NBABoxScoreTeam
 }
 
-export interface NBABoxScoreTeam {
+interface NBABoxScoreTeam {
   teamTricode: string
   players: NBABoxScorePlayer[]
 }
