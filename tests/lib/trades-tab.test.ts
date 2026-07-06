@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
+import { read } from '../source-guard'
 
 // ── helpers extracted from the UI logic ───────────────────────────────────────
 
@@ -121,5 +122,15 @@ describe('onRefresh properly awaits both loads', () => {
         // Promise.all rejects when any promise rejects — finally still runs
         await expect(onRefresh()).rejects.toThrow('network')
         expect(setRefreshing).toHaveBeenCalledWith(false)
+    })
+})
+
+describe('trades UI stability contracts', () => {
+    it('renders tab-panel placeholders instead of null while trade tabs hydrate', () => {
+        const source = read('app/(tabs)/trades.tsx')
+
+        expect(source).toContain('function TradeListPlaceholder')
+        expect(source).toContain('!activeTabHydrated ? <TradeListPlaceholder tab={tab} />')
+        expect(source).toContain('memberships.length === 0 && leagueLoading')
     })
 })

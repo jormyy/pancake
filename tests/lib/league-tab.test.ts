@@ -18,6 +18,7 @@ import { supabase } from '@/lib/supabase'
 import { getLeagueTransactions } from '@/lib/transactions'
 import { confirmAction } from '@/lib/alert'
 import { LEAGUE_TABS, parseLeagueTab } from '@/lib/league/tabs'
+import { read } from '../source-guard'
 
 beforeEach(() => {
     vi.clearAllMocks()
@@ -231,5 +232,19 @@ describe('draft confirmation via confirmAction', () => {
         confirmAction('Start Auction Draft?', 'message', draftLogic, 'Start Draft')
 
         expect(draftLogic).toHaveBeenCalledOnce()
+    })
+})
+
+describe('league UI stability contracts', () => {
+    it('keeps league tab panels and draft checks stable during hydration', () => {
+        const leagueSource = read('app/(tabs)/league.tsx')
+        const draftStateSource = read('components/league/DraftActiveState.tsx')
+
+        expect(leagueSource).toContain('function LeagueTabPlaceholder')
+        expect(leagueSource).toContain('function LeagueLoadingShell')
+        expect(leagueSource).toContain('return <LeagueTabPlaceholder tab={screen.tab} />')
+        expect(draftStateSource).toContain('draftLoadingTitlePlaceholder')
+        expect(draftStateSource).not.toContain('Checking for live auction draft')
+        expect(draftStateSource).not.toContain('Checking for live rookie draft')
     })
 })

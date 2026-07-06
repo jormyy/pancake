@@ -51,3 +51,19 @@ describe('home matchup instant cache', () => {
         expect(source).toContain('writeMatchupCache(current.id, leagueId')
     })
 })
+
+describe('home matchup UI stability contracts', () => {
+    it('keeps matchup and lineup placeholder shells instead of rendering blank loading surfaces', () => {
+        const homeSource = readFileSync(path.join(process.cwd(), 'app/(tabs)/index.tsx'), 'utf8')
+        const rowSource = readFileSync(path.join(process.cwd(), 'components/MatchupRow.tsx'), 'utf8')
+
+        expect(homeSource).toContain('function MatchupLoadingSurface')
+        expect(homeSource).toContain('function MatchupLineupPlaceholder')
+        expect(homeSource).toContain('matchupLoading ? (')
+        expect(homeSource).toContain('<MatchupLineupPlaceholder')
+        expect(rowSource).toContain('function FantasyScore')
+        expect(rowSource).toContain('const STABLE_PLACEHOLDER')
+        expect(rowSource).toContain('<StatLines stats={myStats}')
+        expect(rowSource).toContain('<StatLines stats={oppStats}')
+    })
+})

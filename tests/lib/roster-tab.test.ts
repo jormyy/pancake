@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { read } from '../source-guard'
 
 vi.mock('@/lib/supabase', () => ({ supabase: { from: vi.fn() } }))
 vi.mock('@/lib/shared/season', () => ({
@@ -95,5 +96,16 @@ describe('getMyWaiverPriority (via mock)', () => {
 
         expect(mockGetPriority).toHaveBeenCalledWith('member-abc', 'league-xyz')
         expect(priority).toBe(5)
+    })
+})
+
+describe('roster UI stability contracts', () => {
+    it('renders a stable roster shell while uncached roster data hydrates', () => {
+        const source = read('app/(tabs)/roster.tsx')
+
+        expect(source).toContain('function RosterLoadingShell')
+        expect(source).toContain('function RosterLoadingRows')
+        expect(source).toContain('return <RosterLoadingShell current={current} currentLeague={currentLeague} showRosterTable={showRosterTable} />')
+        expect(source).not.toContain('return <SafeAreaView style={styles.container} />')
     })
 })

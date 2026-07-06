@@ -53,6 +53,7 @@ type RosterAverage = {
     games_played: number | null
 }
 const EMPTY_STATS_MAP = new Map<string, RosterAverage>()
+const ROSTER_LOADING_ROWS = 8
 type RosterScreenData = {
     roster: RosterPlayer[]
     picks: TradePickItem[]
@@ -133,6 +134,71 @@ function RosterTableHeader() {
             ))}
             <Text style={styles.rosterTableAction}>Action</Text>
         </View>
+    )
+}
+
+function RosterLoadingRows({ showRosterTable }: { showRosterTable: boolean }) {
+    return (
+        <View
+            role="status"
+            aria-busy
+            aria-label="Roster loading"
+            accessibilityLabel="Roster loading"
+            accessibilityState={{ busy: true }}
+        >
+            {Array.from({ length: ROSTER_LOADING_ROWS }, (_, index) => (
+                <View key={index} style={[styles.rosterLoadingRow, showRosterTable && styles.rosterLoadingRowTable]}>
+                    {showRosterTable ? <View style={styles.rosterLoadingSlot} /> : null}
+                    <View style={styles.rosterLoadingAvatar} />
+                    <View style={styles.rosterLoadingBody}>
+                        <View style={styles.rosterLoadingName} />
+                        <View style={styles.rosterLoadingMeta} />
+                    </View>
+                    {showRosterTable ? (
+                        <View style={styles.rosterLoadingStats}>
+                            {Array.from({ length: 10 }, (_, statIndex) => (
+                                <View key={statIndex} style={styles.rosterLoadingStat} />
+                            ))}
+                        </View>
+                    ) : null}
+                </View>
+            ))}
+        </View>
+    )
+}
+
+function RosterLoadingShell({
+    current,
+    currentLeague,
+    showRosterTable,
+}: {
+    current: { team_name?: string | null } | null
+    currentLeague: { name?: string | null; roster_size?: number | null; ir_slots?: number | null; taxi_slots?: number | null } | null
+    showRosterTable: boolean
+}) {
+    return (
+        <SafeAreaView style={styles.container}>
+            <View style={styles.header}>
+                <View style={styles.flex1}>
+                    {currentLeague?.name ? (
+                        <Text style={styles.leagueName}>{currentLeague.name}</Text>
+                    ) : (
+                        <View style={styles.rosterLoadingLeagueName} />
+                    )}
+                    {current?.team_name ? (
+                        <Text style={styles.teamName}>{current.team_name}</Text>
+                    ) : (
+                        <View style={styles.rosterLoadingTeamName} />
+                    )}
+                    <Text style={styles.rosterCount}>
+                        —/{currentLeague?.roster_size ?? 20} active · —/{currentLeague?.ir_slots ?? 2} IR · —/{currentLeague?.taxi_slots ?? 3} taxi
+                    </Text>
+                </View>
+                <View style={[styles.lineupButton, styles.rosterLoadingAction]} />
+            </View>
+            {showRosterTable ? <RosterTableHeader /> : null}
+            <RosterLoadingRows showRosterTable={showRosterTable} />
+        </SafeAreaView>
     )
 }
 
@@ -225,7 +291,7 @@ export default function RosterScreen() {
     const { push } = useRouter()
     const { width } = useWindowDimensions()
     const { user } = useAuth()
-    const { current, currentLeague } = useLeagueContext()
+    const { current, currentLeague, loading: leagueLoading } = useLeagueContext()
     const leagueId = currentLeague?.id
     const cachedRosterData = useMemo(
         () => readRosterCache(current?.id, leagueId),
@@ -472,8 +538,15 @@ export default function RosterScreen() {
         }
     }
 
-    if (!current) return <EmptyState message="Join or create a league first." />
-    if (loading && !data) return <SafeAreaView style={styles.container} />
+    if (!current) {
+        if (leagueLoading) {
+            return <RosterLoadingShell current={current} currentLeague={currentLeague} showRosterTable={showRosterTable} />
+        }
+        return <EmptyState message="Join or create a league first." />
+    }
+    if (loading && !data) {
+        return <RosterLoadingShell current={current} currentLeague={currentLeague} showRosterTable={showRosterTable} />
+    }
 
     const league = currentLeague
     const taxiSlots = league?.taxi_slots ?? 3
@@ -744,6 +817,86 @@ const styles = StyleSheet.create({
     rosterTableActions: {
         width: 86,
         alignItems: 'flex-end',
+    },
+    rosterLoadingRow: {
+        minHeight: 72,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.lg,
+        paddingHorizontal: spacing.xl,
+        borderBottomWidth: 1,
+        borderBottomColor: colors.separator,
+    },
+    rosterLoadingRowTable: {
+        minHeight: 58,
+        gap: spacing.md,
+    },
+    rosterLoadingSlot: {
+        width: 28,
+        height: 12,
+        borderRadius: radii.xs,
+        backgroundColor: colors.bgMuted,
+    },
+    rosterLoadingAvatar: {
+        width: 34,
+        height: 34,
+        borderRadius: 17,
+        backgroundColor: colors.bgMuted,
+        borderWidth: 1,
+        borderColor: colors.borderLight,
+    },
+    rosterLoadingBody: {
+        flex: 1,
+        minWidth: 0,
+        gap: spacing.sm,
+    },
+    rosterLoadingName: {
+        width: '52%',
+        maxWidth: 220,
+        height: 14,
+        borderRadius: radii.xs,
+        backgroundColor: colors.bgMuted,
+    },
+    rosterLoadingMeta: {
+        width: '36%',
+        maxWidth: 160,
+        height: 11,
+        borderRadius: radii.xs,
+        backgroundColor: colors.bgSubtle,
+    },
+    rosterLoadingStats: {
+        width: 10 * 50 + 86,
+        flexDirection: 'row',
+        justifyContent: 'flex-end',
+        gap: 14,
+    },
+    rosterLoadingStat: {
+        width: 30,
+        height: 12,
+        borderRadius: radii.xs,
+        backgroundColor: colors.bgMuted,
+    },
+    rosterLoadingLeagueName: {
+        width: 210,
+        maxWidth: '70%',
+        height: 18,
+        borderRadius: radii.xs,
+        backgroundColor: colors.bgMuted,
+    },
+    rosterLoadingTeamName: {
+        width: 148,
+        maxWidth: '56%',
+        height: 14,
+        marginTop: spacing.xs,
+        borderRadius: radii.xs,
+        backgroundColor: colors.bgSubtle,
+    },
+    rosterLoadingAction: {
+        width: 96,
+        height: 38,
+        backgroundColor: colors.bgMuted,
+        borderWidth: 1,
+        borderColor: colors.borderLight,
     },
     tableActionButton: {
         minWidth: 56,

@@ -58,6 +58,8 @@ export const playerListStyles = StyleSheet.create({
     filterCountDotText: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.textWhite },
     resultCountText: {
         flexShrink: 0,
+        minWidth: 104,
+        textAlign: 'right',
         fontSize: fontSize.sm,
         fontWeight: fontWeight.bold,
         color: colors.textMuted,

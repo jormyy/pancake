@@ -272,6 +272,23 @@ describe('searchPlayers', () => {
     })
 })
 
+describe('player and projection table stability contracts', () => {
+    it('renders table-shaped loading rows instead of header-only empty loads', () => {
+        const playersSource = read('app/(tabs)/players.tsx')
+        const projectionsSource = read('app/(tabs)/projections.tsx')
+
+        expect(playersSource).toContain('function PlayersLoadingShell')
+        expect(playersSource).toContain('function PlayerListLoadingRows')
+        expect(playersSource).toContain('ListEmptyComponent={')
+        expect(playersSource).toContain('<PlayerListLoadingRows showStatTable={showStatTable} />')
+        expect(playersSource).toContain("transactionState ? `${transactionState.weeklyAddCount}")
+        expect(projectionsSource).toContain('function ProjectionTableHeader')
+        expect(projectionsSource).toContain('function ProjectionLoadingRows')
+        expect(projectionsSource).toContain('<ProjectionLoadingRows showStatTable={showStatTable} />')
+        expect(projectionsSource).toContain('ListHeaderComponent={showStatTable ? (')
+    })
+})
+
 describe('Players tab jitter guards', () => {
     it('does not remount FlashList or replay row entrance animations on sort changes', () => {
         const source = read('app/(tabs)/players.tsx')

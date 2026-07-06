@@ -51,6 +51,7 @@ type TradeBlockCache = {
 const TRADES_CACHE_PREFIX = 'pancake:trades:v1:'
 const PICKS_CACHE_PREFIX = 'pancake:trade-picks:v1:'
 const TRADE_BLOCK_CACHE_PREFIX = 'pancake:trade-block:v1:'
+const TRADE_LOADING_ROWS = 6
 
 const tradesCacheKey = (memberId: string, leagueId: string) => `${TRADES_CACHE_PREFIX}${leagueId}:${memberId}`
 const picksCacheKey = (memberId: string, leagueId: string) => `${PICKS_CACHE_PREFIX}${leagueId}:${memberId}`
@@ -68,9 +69,36 @@ const listKeyExtractor = (item: ListItem, index: number) => {
 
 const listGetItemType = (item: ListItem) => item._type
 
+function TradeListPlaceholder({ tab }: { tab: TabKey }) {
+    return (
+        <View
+            style={styles.placeholderList}
+            role="status"
+            aria-busy
+            aria-label={`${tab} trades loading`}
+            accessibilityLabel={`${tab} trades loading`}
+            accessibilityState={{ busy: true }}
+        >
+            <View style={styles.placeholderSectionHeader}>
+                <View style={styles.placeholderSectionTitle} />
+            </View>
+            {Array.from({ length: TRADE_LOADING_ROWS }, (_, index) => (
+                <View key={index} style={styles.placeholderRow}>
+                    <View style={styles.placeholderAvatar} />
+                    <View style={styles.placeholderBody}>
+                        <View style={styles.placeholderLineStrong} />
+                        <View style={styles.placeholderLine} />
+                    </View>
+                    <View style={styles.placeholderAction} />
+                </View>
+            ))}
+        </View>
+    )
+}
+
 export default function TradesScreen() {
     const { push } = useRouter()
-    const { current, currentLeague, memberships } = useLeagueContext()
+    const { current, currentLeague, memberships, loading: leagueLoading } = useLeagueContext()
 
     const myMemberId = current?.id ?? ''
     const leagueId = currentLeague?.id ?? ''
@@ -473,6 +501,28 @@ export default function TradesScreen() {
         { label: 'History', value: 'history' },
     ]
 
+    if (memberships.length === 0 && leagueLoading) {
+        return (
+            <SafeAreaView style={styles.container}>
+              <View style={styles.content}>
+                <View style={styles.header}>
+                    <Text style={styles.headerTitle} role="heading" aria-level={1}>Trades</Text>
+                    <View style={[styles.proposeBtn, styles.placeholderProposeBtn]} />
+                </View>
+                <View style={styles.tabRow}>
+                    <SegmentedControl
+                        options={tabOptions}
+                        value={tab}
+                        onChange={setTab}
+                        accessibilityLabel="Trade sections"
+                        scrollable
+                    />
+                </View>
+                <TradeListPlaceholder tab={tab} />
+              </View>
+            </SafeAreaView>
+        )
+    }
     if (memberships.length === 0) return <NoLeagueState />
 
     return (
@@ -511,7 +561,7 @@ export default function TradesScreen() {
                 />
             ) : null}
 
-            {!activeTabHydrated ? null : tab === 'picks' && picksError ? (
+            {!activeTabHydrated ? <TradeListPlaceholder tab={tab} /> : tab === 'picks' && picksError ? (
                 <View style={styles.emptyState}>
                     <Text style={styles.emptyStateText}>Error: {picksError.message}</Text>
                 </View>
@@ -561,12 +611,79 @@ const styles = StyleSheet.create({
     proposeBtnText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.md },
     proposeBtnDisabled: { backgroundColor: colors.bgMuted, borderWidth: 1, borderColor: colors.borderLight },
     proposeBtnTextDisabled: { color: colors.textPlaceholder },
+    placeholderProposeBtn: {
+        backgroundColor: colors.bgMuted,
+        borderWidth: 1,
+        borderColor: colors.borderLight,
+    },
 
     tabRow: {
         paddingHorizontal: spacing.xl,
         paddingVertical: spacing.lg,
         borderBottomWidth: 1,
         borderBottomColor: colors.borderLight,
+    },
+    placeholderList: {
+        flex: 1,
+    },
+    placeholderSectionHeader: {
+        minHeight: 38,
+        justifyContent: 'center',
+        paddingHorizontal: spacing.xl,
+        borderBottomWidth: 1,
+        borderBottomColor: colors.borderLight,
+        backgroundColor: colors.bgSubtle,
+    },
+    placeholderSectionTitle: {
+        width: 142,
+        height: 12,
+        borderRadius: radii.xs,
+        backgroundColor: colors.bgMuted,
+    },
+    placeholderRow: {
+        minHeight: 64,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.lg,
+        paddingHorizontal: spacing.xl,
+        paddingVertical: spacing.md,
+        borderBottomWidth: 1,
+        borderBottomColor: colors.separator,
+    },
+    placeholderAvatar: {
+        width: 38,
+        height: 38,
+        borderRadius: 19,
+        backgroundColor: colors.bgMuted,
+        borderWidth: 1,
+        borderColor: colors.borderLight,
+    },
+    placeholderBody: {
+        flex: 1,
+        minWidth: 0,
+        gap: spacing.sm,
+    },
+    placeholderLineStrong: {
+        width: '48%',
+        maxWidth: 220,
+        height: 14,
+        borderRadius: radii.xs,
+        backgroundColor: colors.bgMuted,
+    },
+    placeholderLine: {
+        width: '34%',
+        maxWidth: 160,
+        height: 11,
+        borderRadius: radii.xs,
+        backgroundColor: colors.bgSubtle,
+    },
+    placeholderAction: {
+        width: 72,
+        height: 36,
+        borderRadius: radii.md,
+        backgroundColor: colors.bgSubtle,
+        borderWidth: 1,
+        borderColor: colors.borderLight,
     },
 
     pickRow: {
