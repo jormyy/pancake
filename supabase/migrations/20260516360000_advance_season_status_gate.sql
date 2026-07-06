@@ -31,7 +31,7 @@ RETURNS TABLE(new_season_id uuid, new_year int)
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
-AS $advance_season_atomic$
+AS $$
 DECLARE
   v_league leagues%ROWTYPE;
   v_current_season league_seasons%ROWTYPE;
@@ -210,10 +210,4 @@ BEGIN
   new_year := v_new_year;
   RETURN NEXT;
 END;
-$advance_season_atomic$;
-
--- Preserve the service-role-only lockdown from 20260512000001.
-REVOKE ALL ON FUNCTION public.advance_season_atomic(uuid) FROM PUBLIC;
-REVOKE ALL ON FUNCTION public.advance_season_atomic(uuid) FROM anon;
-REVOKE ALL ON FUNCTION public.advance_season_atomic(uuid) FROM authenticated;
-GRANT EXECUTE ON FUNCTION public.advance_season_atomic(uuid) TO service_role;
+$$;
