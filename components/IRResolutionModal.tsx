@@ -113,7 +113,7 @@ export function IRResolutionModal({
                                             <Avatar
                                                 name={p.display_name}
                                                 uri={playerHeadshotUrl(p.nba_id) ?? undefined}
-                                                color={getPositionColor(p.position)}
+                                                color={colors.bgMuted}
                                                 size={38}
                                             />
                                             <View style={styles.info}>
@@ -155,7 +155,7 @@ export function IRResolutionModal({
                                             <Avatar
                                                 name={p.display_name}
                                                 uri={playerHeadshotUrl(p.nba_id) ?? undefined}
-                                                color={getPositionColor(p.position)}
+                                                color={colors.bgMuted}
                                                 size={38}
                                             />
                                             <View style={styles.info}>

@@ -126,7 +126,7 @@ export function PlayerSearchItem({
                 ) : (
                     <Avatar
                         name={item.display_name}
-                        color={getPositionColor(item.eligible_positions?.[0] ?? item.position)}
+                        color={colors.bgMuted}
                         size={denseProjectionRow ? 36 : 44}
                     />
                 )}

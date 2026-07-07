@@ -40,7 +40,7 @@ export function DropPlayerPickerModal({ visible, title, subtitle, roster, droppi
                                     <Avatar
                                         name={p.display_name}
                                         uri={playerHeadshotUrl(p.nba_id) ?? undefined}
-                                        color={getPositionColor(ep[0])}
+                                        color={colors.bgMuted}
                                         size={38}
                                     />
                                     <View style={styles.info}>

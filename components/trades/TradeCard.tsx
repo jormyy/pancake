@@ -34,7 +34,7 @@ function TradeItemLine({ item }: { item: TradeItem }) {
                 <Avatar
                     name={item.playerName}
                     uri={playerHeadshotUrl(item.nbaId) ?? undefined}
-                    color={getPositionColor(item.position, colors.bgMuted)}
+                    color={colors.bgMuted}
                     textColor={colors.textSecondary}
                     size={26}
                 />

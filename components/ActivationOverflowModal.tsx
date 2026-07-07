@@ -51,7 +51,7 @@ export function ActivationOverflowModal({
                                 <Avatar
                                     name={p.displayName}
                                     uri={playerHeadshotUrl(p.nbaId) ?? undefined}
-                                    color={getPositionColor(p.eligiblePositions[0] ?? p.position)}
+                                    color={colors.bgMuted}
                                     size={34}
                                 />
                                 <View style={{ flex: 1 }}>

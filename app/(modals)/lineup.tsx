@@ -79,7 +79,7 @@ const StarterRow = memo(function StarterRow({
                 <>
                     <Avatar
                         name={p.displayName}
-                        color={getPositionColor(p.position)}
+                        color={colors.bgMuted}
                         size={36}
                         uri={playerHeadshotUrl(p.nbaId)}
                     />
@@ -144,7 +144,7 @@ const BenchRow = memo(function BenchRow({
         >
             <Avatar
                 name={player.displayName}
-                color={getPositionColor(player.position)}
+                color={colors.bgMuted}
                 size={36}
                 uri={playerHeadshotUrl(player.nbaId)}
             />

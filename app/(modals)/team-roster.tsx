@@ -105,7 +105,7 @@ export default function TeamRosterScreen() {
                                     >
                                         <Avatar
                                             name={p.display_name}
-                                            color={getPositionColor(eligiblePositions[0])}
+                                            color={colors.bgMuted}
                                             size={44}
                                             uri={playerHeadshotUrl(p.nba_id)}
                                         />

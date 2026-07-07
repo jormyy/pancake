@@ -70,7 +70,7 @@ export function PlayerHeader({
                         onError={() => setHeadshotError(true)}
                     />
                 ) : (
-                    <Avatar name={player.display_name} color={posColor} size={72} />
+                    <Avatar name={player.display_name} size={72} />
                 )}
             </View>
 
