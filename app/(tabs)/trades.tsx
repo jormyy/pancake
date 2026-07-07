@@ -317,7 +317,7 @@ export default function TradesScreen() {
                         <Avatar
                             name={block.asset.playerName}
                             uri={playerHeadshotUrl(block.asset.nbaId) ?? undefined}
-                            color={getPositionColor(block.asset.position, colors.bgMuted)}
+                            color={colors.bgMuted}
                             textColor={colors.textSecondary}
                             size={38}
                         />
@@ -366,7 +366,7 @@ export default function TradesScreen() {
                     <Avatar
                         name={item.player.players.display_name}
                         uri={playerHeadshotUrl(item.player.players.nba_id) ?? undefined}
-                        color={getPositionColor(item.player.players.position, colors.bgMuted)}
+                        color={colors.bgMuted}
                         textColor={colors.textSecondary}
                         size={38}
                     />

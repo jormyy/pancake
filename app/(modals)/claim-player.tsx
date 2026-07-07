@@ -180,7 +180,7 @@ export default function ClaimPlayerScreen() {
                     <Avatar
                         name={item.players.display_name}
                         uri={playerHeadshotUrl(item.players.nba_id) ?? undefined}
-                        color={getPositionColor(item.players.position, colors.bgMuted)}
+                        color={colors.bgMuted}
                         textColor={colors.textSecondary}
                         size={38}
                     />
@@ -225,7 +225,7 @@ export default function ClaimPlayerScreen() {
                                     <Avatar
                                         name={rp.players.display_name}
                                         uri={playerHeadshotUrl(rp.players.nba_id) ?? undefined}
-                                        color={getPositionColor(rp.players.position, colors.bgMuted)}
+                                        color={colors.bgMuted}
                                         textColor={colors.textSecondary}
                                         size={34}
                                     />
@@ -258,7 +258,7 @@ export default function ClaimPlayerScreen() {
                                     <Avatar
                                         name={player?.display_name ?? 'Player'}
                                         uri={playerHeadshotUrl(player?.nba_id) ?? undefined}
-                                        color={getPositionColor(player?.position, colors.bgMuted)}
+                                        color={colors.bgMuted}
                                         textColor={colors.textSecondary}
                                         size={44}
                                     />

@@ -51,7 +51,7 @@ function LineupAvatar({ player, compact = false, dense = false }: { player: Line
             <Avatar
                 name={player.displayName}
                 uri={playerHeadshotUrl(player.nbaId) ?? undefined}
-                color={POSITION_COLORS[player.position ?? ''] ?? colors.bgMuted}
+                color={colors.bgMuted}
                 textColor={colors.textSecondary}
                 size={size}
             />

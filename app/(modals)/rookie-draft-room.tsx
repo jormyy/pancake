@@ -156,7 +156,7 @@ export default function RookieDraftRoomScreen() {
                                             <Avatar
                                                 name={rp.players?.display_name ?? 'Player'}
                                                 uri={playerHeadshotUrl(rp.players?.nba_id) ?? undefined}
-                                                color={getPositionColor(rp.players?.position, colors.bgMuted)}
+                                                color={colors.bgMuted}
                                                 textColor={colors.textSecondary}
                                                 size={34}
                                             />
@@ -200,7 +200,7 @@ export default function RookieDraftRoomScreen() {
                                     <Avatar
                                         name={rp.players?.display_name ?? 'Player'}
                                         uri={playerHeadshotUrl(rp.players?.nba_id) ?? undefined}
-                                        color={getPositionColor(rp.players?.position, colors.bgMuted)}
+                                        color={colors.bgMuted}
                                         textColor={colors.textSecondary}
                                         size={34}
                                     />
@@ -420,7 +420,7 @@ function ProspectRow({
             <Avatar
                 name={player.display_name}
                 uri={playerHeadshotUrl(player.nba_id) ?? undefined}
-                color={getPositionColor(player.position, colors.bgMuted)}
+                color={colors.bgMuted}
                 textColor={colors.textSecondary}
                 size={38}
             />
@@ -479,7 +479,7 @@ function PickRow({
                     <Avatar
                         name={item.player.displayName}
                         uri={playerHeadshotUrl(item.player.nbaId) ?? undefined}
-                        color={getPositionColor(item.player.position, colors.bgMuted)}
+                        color={colors.bgMuted}
                         textColor={colors.textSecondary}
                         size={28}
                     />

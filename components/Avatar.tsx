@@ -15,7 +15,7 @@ type Props = {
 }
 
 /** Circular avatar — shows headshot image when uri is provided, falls back to initials */
-export function Avatar({ name, color = colors.primary, textColor = colors.textWhite, size = 44, uri }: Props) {
+export function Avatar({ name, color = colors.bgMuted, textColor = colors.textSecondary, size = 44, uri }: Props) {
     const [imageFailed, setImageFailed] = useState(false)
     const half = size / 2
     const fs = size <= 38 ? 12 : size <= 44 ? 14 : 18

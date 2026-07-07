@@ -63,7 +63,7 @@ function PlayerRow({
             <Avatar
                 name={p.display_name}
                 uri={playerHeadshotUrl(p.nba_id) ?? undefined}
-                color={selected ? colors.primary : getPositionColor(p.eligible_positions?.[0] ?? p.position, colors.primaryDark)}
+                color={colors.bgMuted}
                 size={40}
             />
             <View style={styles.playerInfo}>

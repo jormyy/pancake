@@ -43,7 +43,7 @@ function ActivityRow({ item, isMe, compact }: { item: TransactionRow; isMe: bool
         <View style={[styles.txRow, compact && styles.txRowCompact, isMe && styles.txRowMe]}>
             <Avatar
                 name={item.playerName}
-                color={getPositionColor(item.eligiblePositions[0] ?? item.position)}
+                color={colors.bgMuted}
                 size={avatarSize}
                 uri={playerHeadshotUrl(item.nbaId)}
             />

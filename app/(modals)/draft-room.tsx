@@ -202,7 +202,7 @@ export default function DraftRoomScreen() {
                         >
                             <Avatar
                                 name={item.display_name ?? 'Player'}
-                                color={getPositionColor(item.position, colors.bgMuted)}
+                                color={colors.bgMuted}
                                 uri={playerHeadshotUrl(item.nba_id)}
                                 size={36}
                             />
@@ -346,7 +346,7 @@ export default function DraftRoomScreen() {
                                         <View style={styles.livePlayerRow}>
                                             <Avatar
                                                 name={openNomination.player?.displayName ?? 'Unknown Player'}
-                                                color={getPositionColor(openNomination.player?.position, colors.primary)}
+                                                color={colors.bgMuted}
                                                 uri={playerHeadshotUrl(openNomination.player?.nbaId)}
                                                 size={compactLandscape ? 44 : 64}
                                             />
@@ -493,7 +493,7 @@ export default function DraftRoomScreen() {
                                             <View key={n.id} style={styles.activityItem}>
                                                 <Avatar
                                                     name={n.player?.displayName ?? 'Player'}
-                                                    color={getPositionColor(n.player?.position, colors.bgMuted)}
+                                                    color={colors.bgMuted}
                                                     uri={playerHeadshotUrl(n.player?.nbaId)}
                                                     size={22}
                                                 />
@@ -592,7 +592,7 @@ export default function DraftRoomScreen() {
                                                 <View style={[styles.historyRow, index > 0 && styles.budgetDivider]}>
                                                     <Avatar
                                                         name={item.player?.displayName ?? 'Player'}
-                                                        color={getPositionColor(item.player?.position, colors.bgMuted)}
+                                                        color={colors.bgMuted}
                                                         uri={playerHeadshotUrl(item.player?.nbaId)}
                                                         size={34}
                                                     />
