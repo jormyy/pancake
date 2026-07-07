@@ -1,7 +1,7 @@
 export type LeagueTab = 'results' | 'auctions' | 'mockRooms' | 'draftBoard' | 'settings' | 'history'
 
 export const LEAGUE_TABS: readonly { key: LeagueTab; label: string }[] = [
-    { key: 'results', label: 'Results' },
+    { key: 'results', label: 'Standings' },
     { key: 'auctions', label: 'Auctions' },
     { key: 'mockRooms', label: 'Mock Rooms' },
     { key: 'draftBoard', label: 'Draft Board' },

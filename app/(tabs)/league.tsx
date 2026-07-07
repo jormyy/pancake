@@ -209,38 +209,6 @@ function LeagueLoadingShell({ tab }: { tab: (typeof LEAGUE_TABS)[number]['key'] 
     return (
         <SafeAreaView style={styles.container}>
             <View style={styles.contentWrap}>
-                <View style={[styles.header, styles.headerCompact]}>
-                    <View
-                        style={styles.compactLeagueCrumb}
-                        role="group"
-                        aria-label="League loading"
-                        accessibilityRole="text"
-                        accessibilityLabel="League loading"
-                    >
-                        <View style={styles.placeholderLeagueName} />
-                        <View
-                            style={styles.compactLeagueDot}
-                            aria-hidden
-                            accessibilityElementsHidden
-                            importantForAccessibility="no-hide-descendants"
-                        />
-                        <View style={styles.placeholderTeamName} />
-                    </View>
-                    <View style={[styles.phaseWrap, styles.phaseWrapCompact]}>
-                        <View style={styles.phaseCompactSummary}>
-                            <View style={styles.placeholderPhaseLabel} />
-                        </View>
-                        <View style={styles.phaseRail}>
-                            {PHASE_STEPS.map((step) => (
-                                <View key={step.key} style={[styles.phaseStep, styles.phaseStepCompact]}>
-                                    <View style={styles.placeholderPhaseIcon} />
-                                    <View style={styles.placeholderPhaseStepText} />
-                                </View>
-                            ))}
-                        </View>
-                    </View>
-                </View>
-
                 <LeagueTabBar activeTab={tab} onTabChange={() => {}} />
                 <View
                     nativeID={activePanelId}
@@ -409,53 +377,6 @@ export default function LeagueScreen() {
     return (
         <SafeAreaView style={styles.container}>
             <View style={styles.contentWrap}>
-                <View style={[styles.header, compactLeagueHeader && styles.headerCompact]}>
-                    {compactLeagueHeader ? (
-                        <View
-                            style={styles.compactLeagueCrumb}
-                            role="group"
-                            aria-label={compactIdentityLabel}
-                            accessibilityRole="text"
-                            accessibilityLabel={compactIdentityLabel}
-                        >
-                            <Text
-                                style={styles.compactLeagueName}
-                                numberOfLines={1}
-                                role="heading"
-                                aria-level={1}
-                            >
-                                {currentLeagueName}
-                            </Text>
-                            <View
-                                style={styles.compactLeagueDot}
-                                aria-hidden
-                                accessibilityElementsHidden
-                                importantForAccessibility="no-hide-descendants"
-                            />
-                            <Text style={styles.compactTeamName} numberOfLines={1}>
-                                {currentTeamName}
-                            </Text>
-                        </View>
-                    ) : (
-                        <View style={styles.headerTop}>
-                            <View style={styles.headerInfo}>
-                                <Text
-                                    style={styles.currentLeagueName}
-                                    numberOfLines={2}
-                                    role="heading"
-                                    aria-level={1}
-                                >
-                                    {currentLeagueName}
-                                </Text>
-                                <Text style={styles.teamName} numberOfLines={1}>
-                                    {currentTeamName}
-                                </Text>
-                            </View>
-                        </View>
-                    )}
-                    <LeaguePhaseRail status={screen.currentLeague?.status} compact={compactLeagueHeader} />
-                </View>
-
                 <LeagueTabBar activeTab={screen.tab} onTabChange={screen.handleTabChange} />
                 <View
                     nativeID={activePanelId}

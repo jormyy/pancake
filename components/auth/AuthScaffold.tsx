@@ -69,10 +69,6 @@ function MobileBrand() {
     return (
         <View style={styles.mobileBrand}>
             <AuthBrandMark compact />
-            <View>
-                <Text style={styles.mobileBrandName}>Pancake</Text>
-                <Text style={styles.mobileBrandSub}>Manager console</Text>
-            </View>
         </View>
     )
 }
@@ -121,19 +117,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         gap: spacing.lg,
         marginBottom: spacing['4xl'],
-    },
-    mobileBrandName: {
-        color: colors.textPrimary,
-        fontSize: 22,
-        fontFamily: fontFamily.display,
-        fontWeight: fontWeight.bold,
-    },
-    mobileBrandSub: {
-        color: colors.textMuted,
-        fontSize: fontSize['2xs'],
-        fontWeight: fontWeight.bold,
-        letterSpacing: 1.4,
-        textTransform: 'uppercase' as const,
     },
     titleBlock: { marginBottom: spacing['3xl'] },
     eyebrow: {

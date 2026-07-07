@@ -1,7 +1,7 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { StackRouter } from '@react-navigation/native'
 import { ComponentProps, ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
-import { Modal, Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native'
+import { Image, Modal, Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native'
 import { Link, Navigator, usePathname, useRouter } from 'expo-router'
 import { useLeagueContext } from '@/contexts/league-context'
 import { usePendingTradeCount } from '@/hooks/use-pending-trade-count'
@@ -121,9 +121,11 @@ function useDocumentTitle() {
 
 function BrandMark({ compact = false }: { compact?: boolean }) {
     return (
-        <View style={[styles.brandMark, compact && styles.brandMarkCompact]}>
-            <Text style={[styles.brandMarkText, compact && styles.brandMarkTextCompact]}>P</Text>
-        </View>
+        <Image
+            source={require('@/assets/images/pancake_logo.png')}
+            style={compact ? styles.brandMarkCompact : styles.brandMark}
+            resizeMode="contain"
+        />
     )
 }
 
