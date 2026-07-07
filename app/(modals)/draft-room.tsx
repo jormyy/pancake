@@ -69,6 +69,8 @@ export default function DraftRoomScreen() {
         closedNominations,
         budgetByMember,
         wonCountByMember,
+        allMembersPresent,
+        absentMembers,
         refresh,
         handleBid,
         handleWithdraw,
@@ -251,10 +253,26 @@ export default function DraftRoomScreen() {
 
     function renderIdleCardBody() {
         if (isPaused) {
+            const absentNames = absentMembers.map((o) => o.teamName).join(', ')
             return (
                 <View style={styles.waitingRow}>
                     <Text style={styles.waitingTeam}>Draft paused</Text>
-                    <Text style={styles.waitingText}>Commissioner will resume the clock.</Text>
+                    {draft.pauseReason === 'member_absent' && absentNames ? (
+                        <Text style={styles.waitingText}>
+                            Waiting for {absentNames} to rejoin...
+                        </Text>
+                    ) : (
+                        <Text style={styles.waitingText}>Commissioner will resume the clock.</Text>
+                    )}
+                </View>
+            )
+        }
+        if (!allMembersPresent) {
+            const absentNames = absentMembers.map((o) => o.teamName).join(', ')
+            return (
+                <View style={styles.waitingRow}>
+                    <Text style={styles.waitingTeam}>Waiting for everyone to join</Text>
+                    <Text style={styles.waitingText}>{absentNames} hasn&apos;t joined the draft room yet.</Text>
                 </View>
             )
         }

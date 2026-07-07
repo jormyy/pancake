@@ -3817,6 +3817,14 @@ export type Database = {
         Args: { p_actor_user_id?: string; p_draft_id: string }
         Returns: undefined
       }
+      pause_draft_for_absence_atomic: {
+        Args: { p_actor_user_id?: string; p_draft_id: string }
+        Returns: undefined
+      }
+      resume_draft_if_absent_atomic: {
+        Args: { p_actor_user_id?: string; p_draft_id: string }
+        Returns: undefined
+      }
       place_auction_bid_atomic: {
         Args: {
           p_amount: number

@@ -462,6 +462,13 @@ export async function closeExpiredNominations(draftId: string): Promise<{ closed
     return { closed: res?.closed ?? 0 }
 }
 
+export async function pauseForAbsence(draftId: string): Promise<void> {
+    await sharedApiPost(`/draft/${draftId}/pause-for-absence`, {})
+}
+
+export async function resumeIfAbsent(draftId: string): Promise<void> {
+    await sharedApiPost(`/draft/${draftId}/resume-if-absent`, {})
+}
 
 export function subscribeToDraft(draftId: string, onChange: () => void): RealtimeChannel {
     const channel = supabase
@@ -493,6 +500,31 @@ export function subscribeToDraft(draftId: string, onChange: () => void): Realtim
             onChange,
         )
         .subscribe()
+
+    return channel
+}
+
+// Presence uses a separate public channel because private channels require
+// additional RLS setup on realtime.messages for broadcast/presence to work.
+// postgres_changes (handled by subscribeToDraft) works fine on private channels.
+export function subscribeToPresence(
+    draftId: string,
+    memberId: string,
+    onSync: (presentMemberIds: string[]) => void,
+): RealtimeChannel {
+    const channel = supabase.channel(`draft-presence:${draftId}`)
+
+    channel.on('presence', { event: 'sync' }, () => {
+        const state = channel.presenceState<{ memberId: string }>()
+        const ids = [...new Set(Object.values(state).flat().map((p) => p.memberId))]
+        onSync(ids)
+    })
+
+    channel.subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+            channel.track({ memberId })
+        }
+    })
 
     return channel
 }
