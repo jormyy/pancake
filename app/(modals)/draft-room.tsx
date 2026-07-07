@@ -272,7 +272,7 @@ export default function DraftRoomScreen() {
             return (
                 <View style={styles.waitingRow}>
                     <Text style={styles.waitingTeam}>Waiting for everyone to join</Text>
-                    <Text style={styles.waitingText}>{absentNames} hasn't joined the draft room yet.</Text>
+                    <Text style={styles.waitingText}>{absentNames} hasn&apos;t joined the draft room yet.</Text>
                 </View>
             )
         }
