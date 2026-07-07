@@ -377,6 +377,19 @@ export default function LeagueScreen() {
     return (
         <SafeAreaView style={styles.container}>
             <View style={styles.contentWrap}>
+                <View style={[styles.header, compactLeagueHeader && styles.headerCompact]}>
+                    <View
+                        style={styles.compactLeagueCrumb}
+                        role="region"
+                        aria-label={compactIdentityLabel}
+                        accessibilityLabel={compactIdentityLabel}
+                    >
+                        <Text style={styles.compactLeagueName} numberOfLines={1}>{currentLeagueName}</Text>
+                        <View style={styles.compactLeagueDot} />
+                        <Text style={styles.compactTeamName} numberOfLines={1}>{currentTeamName}</Text>
+                    </View>
+                    <LeaguePhaseRail status={screen.currentLeague?.status} compact={compactLeagueHeader} />
+                </View>
                 <LeagueTabBar activeTab={screen.tab} onTabChange={screen.handleTabChange} />
                 <View
                     nativeID={activePanelId}

@@ -164,6 +164,7 @@ const StandingsListHeader = ({
     showMaxPf,
     showPa,
     narrow,
+    loading,
 }: {
     sortBy: StandingsSortKey
     sortDir: 'asc' | 'desc'
@@ -171,6 +172,7 @@ const StandingsListHeader = ({
     showMaxPf: boolean
     showPa: boolean
     narrow: boolean
+    loading?: boolean
 }) => {
     const arrow = (key: StandingsSortKey) =>
         sortBy === key ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''
@@ -387,7 +389,7 @@ function StandingsTableHeader({
     loading?: boolean
 }) {
     return (
-        <StandingsListHeader sortBy={sortBy} sortDir={sortDir} onSort={onSort} showMaxPf={showMaxPf} showPa={showPa} narrow={narrowRows} />
+        <StandingsListHeader sortBy={sortBy} sortDir={sortDir} onSort={onSort} showMaxPf={showMaxPf} showPa={showPa} narrow={narrowRows} loading={loading} />
     )
 }
 
@@ -529,6 +531,19 @@ export function StandingsTable({
                 </>
             ) : (
                 <>
+                    <StandingsTableHeader
+                        sortBy={sortBy}
+                        sortDir={sortDir}
+                        onSort={handleSort}
+                        showMaxPf={showMaxPf}
+                        showPa={showPa}
+                        narrowRows={narrowRows}
+                        teamCount={0}
+                        leagueStatus={leagueStatus}
+                        compact={compactHeader}
+                        onOpenBracket={onOpenBracket}
+                        loading={loading}
+                    />
                     <View
                         nativeID={STANDINGS_LIST_ID}
                         role="status"
