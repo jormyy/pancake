@@ -193,12 +193,15 @@ export function useAuctionDraftRoomController({
         }
 
         if (allPresent && state.draft.status === 'paused' && state.draft.pauseReason === 'member_absent') {
-            // Debounce: wait 2 s to avoid thrashing on brief network blips.
-            if (resumeDebounceRef.current) clearTimeout(resumeDebounceRef.current)
-            resumeDebounceRef.current = setTimeout(() => {
-                resumeDebounceRef.current = null
-                resumeIfAbsent(draftId).catch(() => {/* ignore */}).then(() => load())
-            }, 2000)
+            // Start the 2-second debounce only once — don't reset it on every
+            // poll-driven re-run. Clearing only happens if conditions stop being met
+            // (another member leaves), which is handled in the else branch below.
+            if (!resumeDebounceRef.current) {
+                resumeDebounceRef.current = setTimeout(() => {
+                    resumeDebounceRef.current = null
+                    resumeIfAbsent(draftId).catch(() => {/* ignore */}).then(() => load())
+                }, 2000)
+            }
         } else if (resumeDebounceRef.current) {
             clearTimeout(resumeDebounceRef.current)
             resumeDebounceRef.current = null

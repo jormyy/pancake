@@ -514,11 +514,18 @@ export function subscribeToPresence(
 ): RealtimeChannel {
     const channel = supabase.channel(`draft-presence:${draftId}`)
 
-    channel.on('presence', { event: 'sync' }, () => {
+    const snapshot = () => {
         const state = channel.presenceState<{ memberId: string }>()
         const ids = [...new Set(Object.values(state).flat().map((p) => p.memberId))]
         onSync(ids)
-    })
+    }
+
+    // Listen to both 'sync' and 'join' so that rejoining members are detected
+    // reliably. 'sync' fires for the initial state and after leaves; 'join' fires
+    // specifically when new presences are added, which is the event we need for
+    // auto-resume to work.
+    channel.on('presence', { event: 'sync' }, snapshot)
+    channel.on('presence', { event: 'join' }, snapshot)
 
     channel.subscribe((status) => {
         if (status === 'SUBSCRIBED') {
