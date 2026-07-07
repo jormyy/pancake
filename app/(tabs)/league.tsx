@@ -266,6 +266,41 @@ const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgScreen },
     contentWrap: { flex: 1, width: '100%', maxWidth: layout.contentMaxWidth, alignSelf: 'center', paddingHorizontal: spacing.md },
     contentScroll: { flex: 1 },
+    header: {
+        marginHorizontal: spacing.lg,
+        marginTop: spacing.md,
+        marginBottom: spacing.sm,
+    },
+    headerCompact: {
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.sm,
+    },
+    compactLeagueCrumb: {
+        minHeight: 24,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.sm,
+    },
+    compactLeagueName: {
+        flex: 1.2,
+        minWidth: 0,
+        color: colors.textPrimary,
+        fontSize: fontSize.sm,
+        fontWeight: fontWeight.extrabold,
+    },
+    compactLeagueDot: {
+        width: 4,
+        height: 4,
+        borderRadius: 2,
+        backgroundColor: colors.border,
+    },
+    compactTeamName: {
+        flex: 1,
+        minWidth: 0,
+        color: colors.textSecondary,
+        fontSize: fontSize.sm,
+        fontWeight: fontWeight.medium,
+    },
     tabPlaceholder: {
         flex: 1,
         padding: spacing.xl,
