@@ -4,8 +4,11 @@ import { ComponentProps, ReactNode, useCallback, useEffect, useMemo, useState } 
 import { Image, Modal, Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native'
 import { Link, Navigator, usePathname, useRouter } from 'expo-router'
 import { useLeagueContext } from '@/contexts/league-context'
+import { useAuth } from '@/hooks/use-auth'
 import { usePendingTradeCount } from '@/hooks/use-pending-trade-count'
 import { getJoinableDraft } from '@/lib/draft'
+import { getProfile } from '@/lib/auth'
+import { Avatar } from '@/components/Avatar'
 import { brand, breakpoints, colors, WEB_THEME_VARS } from '@/constants/tokens'
 import { styles } from './webTabShellStyles'
 
@@ -309,8 +312,15 @@ function WebSidebar() {
     const pathname = usePathname()
     const router = useRouter()
     const { current, isCommissioner } = useLeagueContext()
+    const { user } = useAuth()
     const { openDraftRoom, draftLoading } = useDraftRoomLauncher()
     const pendingTradeCount = usePendingTradeCount()
+    const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
+
+    useEffect(() => {
+        if (!user) return
+        getProfile(user.id).then((p) => setAvatarUrl(p.avatar_url ?? null)).catch(() => {})
+    }, [user, pathname])
 
     return (
         <View style={styles.sidebar} role="navigation" aria-label="Primary">
@@ -372,9 +382,13 @@ function WebSidebar() {
                     accessibilityRole="button"
                     accessibilityLabel="Profile & settings"
                 >
-                    <View style={styles.userAvatar}>
-                        <Text style={styles.userAvatarText}>{current?.team_name?.slice(0, 1).toUpperCase() ?? 'P'}</Text>
-                    </View>
+                    <Avatar
+                        name={current?.team_name ?? user?.email ?? 'P'}
+                        size={34}
+                        uri={avatarUrl}
+                        color={colors.primary}
+                        textColor={colors.textWhite}
+                    />
                     <View style={styles.flex1}>
                         <Text style={styles.userName} numberOfLines={1}>{current?.team_name ?? 'Profile'}</Text>
                         <Text style={styles.userMeta} numberOfLines={1}>Profile & settings</Text>

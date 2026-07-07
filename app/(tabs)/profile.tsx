@@ -7,12 +7,15 @@ import {
     StyleSheet,
     Platform,
     useWindowDimensions,
+    ActivityIndicator,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'expo-router'
+import * as ImagePicker from 'expo-image-picker'
+import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { useAuth } from '@/hooks/use-auth'
-import { getProfile, updateProfile, signOut } from '@/lib/auth'
+import { getProfile, updateProfile, uploadAvatar, signOut } from '@/lib/auth'
 import { updateTeamName } from '@/lib/league'
 import { getNotificationPreferences, updateNotificationPreferences, type NotificationPreferences } from '@/lib/notification-preferences'
 import { useLeagueContext } from '@/contexts/league-context'
@@ -37,6 +40,7 @@ export default function ProfileScreen() {
     const [displayName, setDisplayName] = useState('')
     const [teamName, setTeamName] = useState('')
     const [saving, setSaving] = useState(false)
+    const [avatarUploading, setAvatarUploading] = useState(false)
     const [preferences, setPreferences] = useState<NotificationPreferences>({
         tradeEnabled: true,
         waiverEnabled: true,
@@ -108,6 +112,32 @@ export default function ProfileScreen() {
         setEditing(false)
     }
 
+    async function handlePickAvatar() {
+        if (!user) return
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
+        if (status !== 'granted') {
+            showAlert('Permission Required', 'Allow photo library access to change your profile picture.')
+            return
+        }
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: 'images',
+            allowsEditing: true,
+            aspect: [1, 1],
+            quality: 0.8,
+        })
+        if (result.canceled) return
+        const uri = result.assets[0].uri
+        setAvatarUploading(true)
+        try {
+            const url = await uploadAvatar(user.id, uri)
+            setProfile((prev) => prev ? { ...prev, avatar_url: url } : prev)
+        } catch (e) {
+            showAlert('Error', getErrorMessage(e))
+        } finally {
+            setAvatarUploading(false)
+        }
+    }
+
     function handleSignOut() {
         confirmAction('Sign Out', 'Are you sure you want to sign out?', async () => {
             try {
@@ -136,10 +166,23 @@ export default function ProfileScreen() {
         <SafeAreaView style={styles.container}>
             <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
                 <View style={styles.avatarSection}>
-                    <Avatar
-                        name={profile?.display_name ?? profile?.username ?? '?'}
-                        size={84}
-                    />
+                    <Pressable
+                        onPress={handlePickAvatar}
+                        disabled={avatarUploading || !profileLoaded}
+                        style={styles.avatarWrapper}
+                    >
+                        <Avatar
+                            name={profile?.display_name ?? profile?.username ?? '?'}
+                            size={84}
+                            uri={profile?.avatar_url}
+                        />
+                        <View style={styles.avatarBadge}>
+                            {avatarUploading
+                                ? <ActivityIndicator size={12} color={colors.textWhite} />
+                                : <MaterialIcons name="photo-camera" size={14} color={colors.textWhite} />
+                            }
+                        </View>
+                    </Pressable>
                     <Text style={styles.profileTitle} numberOfLines={1}>
                         {profile?.display_name ?? 'Profile'}
                     </Text>
@@ -274,6 +317,22 @@ const styles = StyleSheet.create({
         paddingTop: spacing['2xl'],
         paddingBottom: spacing.lg,
         gap: spacing.sm,
+    },
+    avatarWrapper: {
+        position: 'relative',
+    },
+    avatarBadge: {
+        position: 'absolute',
+        bottom: 0,
+        right: 0,
+        width: 26,
+        height: 26,
+        borderRadius: 13,
+        backgroundColor: colors.primary,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 2,
+        borderColor: colors.bgScreen,
     },
     profileTitle: {
         maxWidth: '100%',
