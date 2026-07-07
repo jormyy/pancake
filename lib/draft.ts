@@ -470,16 +470,7 @@ export async function resumeIfAbsent(draftId: string): Promise<void> {
     await sharedApiPost(`/draft/${draftId}/resume-if-absent`, {})
 }
 
-export type DraftPresenceOptions = {
-    memberId: string
-    onSync: (presentMemberIds: string[]) => void
-}
-
-export function subscribeToDraft(
-    draftId: string,
-    onChange: () => void,
-    presence?: DraftPresenceOptions,
-): RealtimeChannel {
+export function subscribeToDraft(draftId: string, onChange: () => void): RealtimeChannel {
     const channel = supabase
         .channel(`draft:${draftId}`, { config: { private: true } })
         .on(
@@ -508,18 +499,30 @@ export function subscribeToDraft(
             { event: 'UPDATE', schema: 'public', table: 'drafts', filter: `id=eq.${draftId}` },
             onChange,
         )
+        .subscribe()
 
-    if (presence) {
-        channel.on('presence', { event: 'sync' }, () => {
-            const state = channel.presenceState<{ memberId: string }>()
-            const ids = [...new Set(Object.values(state).flat().map((p) => p.memberId))]
-            presence.onSync(ids)
-        })
-    }
+    return channel
+}
+
+// Presence uses a separate public channel because private channels require
+// additional RLS setup on realtime.messages for broadcast/presence to work.
+// postgres_changes (handled by subscribeToDraft) works fine on private channels.
+export function subscribeToPresence(
+    draftId: string,
+    memberId: string,
+    onSync: (presentMemberIds: string[]) => void,
+): RealtimeChannel {
+    const channel = supabase.channel(`draft-presence:${draftId}`)
+
+    channel.on('presence', { event: 'sync' }, () => {
+        const state = channel.presenceState<{ memberId: string }>()
+        const ids = [...new Set(Object.values(state).flat().map((p) => p.memberId))]
+        onSync(ids)
+    })
 
     channel.subscribe((status) => {
-        if (status === 'SUBSCRIBED' && presence) {
-            channel.track({ memberId: presence.memberId })
+        if (status === 'SUBSCRIBED') {
+            channel.track({ memberId })
         }
     })
 

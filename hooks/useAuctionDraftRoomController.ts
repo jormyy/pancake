@@ -8,6 +8,7 @@ import {
     resumeIfAbsent,
     searchPlayers,
     subscribeToDraft,
+    subscribeToPresence,
     unsubscribeFromDraft,
     withdrawNomination,
     type DraftSearchPlayer,
@@ -71,6 +72,7 @@ export function useAuctionDraftRoomController({
     useEffect(() => { bidTextRef.current = bidText }, [bidText])
 
     const channelRef = useRef<RealtimeChannel | null>(null)
+    const presenceChannelRef = useRef<RealtimeChannel | null>(null)
     const countdownNomination = state?.openNomination
 
     const load = useCallback(async () => {
@@ -117,25 +119,26 @@ export function useAuctionDraftRoomController({
     useEffect(() => {
         if (!draftId) return
         load()
-        channelRef.current = subscribeToDraft(
-            draftId,
-            load,
-            memberId
-                ? {
-                      memberId,
-                      onSync: (ids) => {
-                          setPresentMemberIds(ids)
-                          setPresenceSynced(true)
-                      },
-                  }
-                : undefined,
-        )
+        channelRef.current = subscribeToDraft(draftId, load)
         const poll = setInterval(load, 5000)
         return () => {
             if (channelRef.current) unsubscribeFromDraft(channelRef.current)
             clearInterval(poll)
         }
-    }, [draftId, load, memberId])
+    }, [draftId, load])
+
+    // Presence — separate public channel so it works without realtime.messages RLS
+    useEffect(() => {
+        if (!draftId || !memberId) return
+        presenceChannelRef.current = subscribeToPresence(draftId, memberId, (ids) => {
+            setPresentMemberIds(ids)
+            setPresenceSynced(true)
+        })
+        return () => {
+            if (presenceChannelRef.current) unsubscribeFromDraft(presenceChannelRef.current)
+            presenceChannelRef.current = null
+        }
+    }, [draftId, memberId])
 
     // Countdown tick
     useEffect(() => {
