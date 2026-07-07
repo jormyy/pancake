@@ -3,7 +3,9 @@ import {
     closeExpiredNominations,
     getDraftState,
     nominatePlayer,
+    pauseForAbsence,
     placeBid,
+    resumeIfAbsent,
     searchPlayers,
     subscribeToDraft,
     unsubscribeFromDraft,
@@ -33,6 +35,11 @@ export function useAuctionDraftRoomController({
     const [bidText, setBidText] = useState('1')
     const [bidding, setBidding] = useState(false)
     const [withdrawing, setWithdrawing] = useState(false)
+
+    // Presence — who is currently in the draft room
+    const [presentMemberIds, setPresentMemberIds] = useState<string[]>([])
+    const [presenceSynced, setPresenceSynced] = useState(false)
+    const resumeDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
     // Nomination / player search
     const [nominating, setNominating] = useState(false)
@@ -110,13 +117,25 @@ export function useAuctionDraftRoomController({
     useEffect(() => {
         if (!draftId) return
         load()
-        channelRef.current = subscribeToDraft(draftId, load)
+        channelRef.current = subscribeToDraft(
+            draftId,
+            load,
+            memberId
+                ? {
+                      memberId,
+                      onSync: (ids) => {
+                          setPresentMemberIds(ids)
+                          setPresenceSynced(true)
+                      },
+                  }
+                : undefined,
+        )
         const poll = setInterval(load, 5000)
         return () => {
             if (channelRef.current) unsubscribeFromDraft(channelRef.current)
             clearInterval(poll)
         }
-    }, [draftId, load])
+    }, [draftId, load, memberId])
 
     // Countdown tick
     useEffect(() => {
@@ -153,6 +172,35 @@ export function useAuctionDraftRoomController({
             if (timerRef.current) clearInterval(timerRef.current)
         }
     }, [countdownNomination, draftId, load])
+
+    // Presence: auto-pause when a member leaves, auto-resume when all are back.
+    // Only auction drafts; only after presence has synced at least once so the
+    // initial empty-state doesn't trigger a spurious pause on mount.
+    useEffect(() => {
+        if (!presenceSynced || !state || !draftId || !memberId) return
+        if (state.draft.draftType !== 'auction') return
+
+        const requiredIds = state.order.map((o) => o.memberId)
+        const presentSet = new Set(presentMemberIds)
+        const allPresent = requiredIds.every((id) => presentSet.has(id))
+
+        if (!allPresent && state.draft.status === 'in_progress') {
+            // Multiple clients will race here — the RPC no-ops after the first wins.
+            pauseForAbsence(draftId).catch(() => {/* already paused or transient error */})
+        }
+
+        if (allPresent && state.draft.status === 'paused' && state.draft.pauseReason === 'member_absent') {
+            // Debounce: wait 2 s to avoid thrashing on brief network blips.
+            if (resumeDebounceRef.current) clearTimeout(resumeDebounceRef.current)
+            resumeDebounceRef.current = setTimeout(() => {
+                resumeDebounceRef.current = null
+                resumeIfAbsent(draftId).catch(() => {/* ignore */}).then(() => load())
+            }, 2000)
+        } else if (resumeDebounceRef.current) {
+            clearTimeout(resumeDebounceRef.current)
+            resumeDebounceRef.current = null
+        }
+    }, [presenceSynced, presentMemberIds, state?.draft.status, state?.draft.pauseReason, state?.order, draftId, memberId]) // eslint-disable-line react-hooks/exhaustive-deps
 
     // Player search
     useEffect(() => {
@@ -226,6 +274,15 @@ export function useAuctionDraftRoomController({
 
     async function handleNominate(playerId: string) {
         if (!memberId || !draftId) return
+        if (presenceSynced && state?.draft.draftType === 'auction') {
+            const presentSet = new Set(presentMemberIds)
+            const missing = (state?.order ?? []).filter((o) => !presentSet.has(o.memberId))
+            if (missing.length > 0) {
+                const names = missing.map((o) => o.teamName).join(', ')
+                showAlert('Not everyone is here', `${names} hasn't joined the draft room yet.`)
+                return
+            }
+        }
         setSubmittingNom(true)
         try {
             await nominatePlayer(draftId, memberId, playerId)
@@ -247,6 +304,15 @@ export function useAuctionDraftRoomController({
         setSearchResults([])
         searchSeqRef.current += 1
     }
+
+    // Presence-derived values
+    const absentMembers = useMemo(() => {
+        if (!state || !presenceSynced) return []
+        const presentSet = new Set(presentMemberIds)
+        return state.order.filter((o) => !presentSet.has(o.memberId))
+    }, [state, presentMemberIds, presenceSynced])
+
+    const allMembersPresent = presenceSynced ? absentMembers.length === 0 : true
 
     // Memoize O(N) derivations from state so we don't recompute them every render
     // (poll fires every 5s; without memos every parent re-render rebuilds these arrays/maps).
@@ -291,6 +357,8 @@ export function useAuctionDraftRoomController({
         closedNominations,
         budgetByMember,
         wonCountByMember,
+        allMembersPresent,
+        absentMembers,
         refresh: load,
         handleBid,
         handleWithdraw,

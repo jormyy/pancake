@@ -462,8 +462,24 @@ export async function closeExpiredNominations(draftId: string): Promise<{ closed
     return { closed: res?.closed ?? 0 }
 }
 
+export async function pauseForAbsence(draftId: string): Promise<void> {
+    await sharedApiPost(`/draft/${draftId}/pause-for-absence`, {})
+}
 
-export function subscribeToDraft(draftId: string, onChange: () => void): RealtimeChannel {
+export async function resumeIfAbsent(draftId: string): Promise<void> {
+    await sharedApiPost(`/draft/${draftId}/resume-if-absent`, {})
+}
+
+export type DraftPresenceOptions = {
+    memberId: string
+    onSync: (presentMemberIds: string[]) => void
+}
+
+export function subscribeToDraft(
+    draftId: string,
+    onChange: () => void,
+    presence?: DraftPresenceOptions,
+): RealtimeChannel {
     const channel = supabase
         .channel(`draft:${draftId}`, { config: { private: true } })
         .on(
@@ -492,7 +508,20 @@ export function subscribeToDraft(draftId: string, onChange: () => void): Realtim
             { event: 'UPDATE', schema: 'public', table: 'drafts', filter: `id=eq.${draftId}` },
             onChange,
         )
-        .subscribe()
+
+    if (presence) {
+        channel.on('presence', { event: 'sync' }, () => {
+            const state = channel.presenceState<{ memberId: string }>()
+            const ids = [...new Set(Object.values(state).flat().map((p) => p.memberId))]
+            presence.onSync(ids)
+        })
+    }
+
+    channel.subscribe((status) => {
+        if (status === 'SUBSCRIBED' && presence) {
+            channel.track({ memberId: presence.memberId })
+        }
+    })
 
     return channel
 }
