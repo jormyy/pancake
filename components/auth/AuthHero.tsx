@@ -18,14 +18,9 @@ export function AuthHero({ content }: { content: AuthHeroContent }) {
         <View style={[styles.panel, Platform.OS === 'web' && styles.panelWeb]}>
             <View style={styles.brandTop}>
                 <AuthBrandMark />
-                <View>
-                    <Text style={styles.brandName}>Pancake</Text>
-                    <Text style={styles.brandSub}>Manager console</Text>
-                </View>
             </View>
 
             <View style={styles.content}>
-                <Text style={styles.kicker}>{content.kicker}</Text>
                 <Text style={styles.title}>{content.title}</Text>
                 <Text style={styles.copy}>{content.copy}</Text>
             </View>
@@ -77,7 +72,7 @@ const styles = StyleSheet.create({
         textTransform: 'uppercase' as const,
     },
     content: {
-        marginTop: 72,
+        marginTop: 32,
         maxWidth: 760,
     },
     kicker: {

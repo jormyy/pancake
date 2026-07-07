@@ -5,7 +5,7 @@ import { colors, fontSize, fontWeight, radii, spacing, srOnly } from '@/constant
 import { countLabel } from '@/lib/format'
 import { ItemSeparator } from '@/components/ItemSeparator'
 import { EmptyState } from '@/components/EmptyState'
-import { StandingsContextHeader, standingsPointMetricLabels } from '@/components/league/LeagueStandingsIntro'
+import { standingsPointMetricLabels } from '@/components/league/LeagueStandingsIntro'
 import { tableStyles } from '@/components/league/leagueTableStyles'
 import { useWebViewport } from '@/hooks/use-web-viewport'
 import type { LeagueStatus } from '@/types/database'
@@ -164,6 +164,7 @@ const StandingsListHeader = ({
     showMaxPf,
     showPa,
     narrow,
+    loading,
 }: {
     sortBy: StandingsSortKey
     sortDir: 'asc' | 'desc'
@@ -171,6 +172,7 @@ const StandingsListHeader = ({
     showMaxPf: boolean
     showPa: boolean
     narrow: boolean
+    loading?: boolean
 }) => {
     const arrow = (key: StandingsSortKey) =>
         sortBy === key ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''
@@ -387,18 +389,7 @@ function StandingsTableHeader({
     loading?: boolean
 }) {
     return (
-        <>
-            <StandingsContextHeader
-                showMaxPf={showMaxPf}
-                showPa={showPa}
-                teamCount={teamCount}
-                leagueStatus={leagueStatus}
-                compact={compact}
-                onOpenBracket={onOpenBracket}
-                loading={loading}
-            />
-            <StandingsListHeader sortBy={sortBy} sortDir={sortDir} onSort={onSort} showMaxPf={showMaxPf} showPa={showPa} narrow={narrowRows} />
-        </>
+        <StandingsListHeader sortBy={sortBy} sortDir={sortDir} onSort={onSort} showMaxPf={showMaxPf} showPa={showPa} narrow={narrowRows} loading={loading} />
     )
 }
 
@@ -540,9 +531,13 @@ export function StandingsTable({
                 </>
             ) : (
                 <>
-                    <StandingsContextHeader
+                    <StandingsTableHeader
+                        sortBy={sortBy}
+                        sortDir={sortDir}
+                        onSort={handleSort}
                         showMaxPf={showMaxPf}
                         showPa={showPa}
+                        narrowRows={narrowRows}
                         teamCount={0}
                         leagueStatus={leagueStatus}
                         compact={compactHeader}

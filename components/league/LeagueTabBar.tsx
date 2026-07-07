@@ -7,6 +7,7 @@ import { LEAGUE_TABS, type LeagueTab } from '@/lib/league/tabs'
 type LeagueTabBarProps = {
     activeTab: LeagueTab
     onTabChange: (tab: LeagueTab) => void
+    compact?: boolean
 }
 
 const TAB_LABELS = Object.fromEntries(

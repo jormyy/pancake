@@ -56,26 +56,10 @@ export const styles = StyleSheet.create({
     brandMark: {
         width: 42,
         height: 42,
-        borderRadius: 14,
-        backgroundColor: colors.primary,
-        alignItems: 'center',
-        justifyContent: 'center',
-        boxShadow: shadows.brandGlowInset,
-    } as WebOnlyViewStyle,
+    },
     brandMarkCompact: {
         width: 34,
         height: 34,
-        borderRadius: 9,
-        boxShadow: 'none', // the glow bleeds into the league switcher on the light top bar
-    } as WebOnlyViewStyle,
-    brandMarkText: {
-        color: brand.on,
-        fontSize: fontSize.xl,
-        fontFamily: fontFamily.display,
-        fontWeight: fontWeight.extrabold,
-    },
-    brandMarkTextCompact: {
-        fontSize: 17,
     },
     brandTitle: {
         fontSize: 21,

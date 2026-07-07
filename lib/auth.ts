@@ -71,17 +71,38 @@ export async function getProfile(userId: string) {
     // (iter 27 Slice C); `select('*')` would 42501 in production.
     const { data, error } = await supabase
         .from('profiles')
-        .select('id, username, display_name, created_at, updated_at')
+        .select('id, username, display_name, avatar_url, created_at, updated_at')
         .eq('id', userId)
         .single<Profile>()
     if (error) throw error
     return data
 }
 
-export async function updateProfile(userId: string, updates: { display_name?: string }) {
+export async function updateProfile(userId: string, updates: { display_name?: string; avatar_url?: string }) {
     const { error } = await supabase
         .from('profiles')
         .update({ ...updates, updated_at: new Date().toISOString() })
         .eq('id', userId)
     if (error) throw error
+}
+
+export async function uploadAvatar(userId: string, imageUri: string): Promise<string> {
+    const response = await fetch(imageUri)
+    const blob = await response.blob()
+
+    // Fixed path per user so upsert replaces the previous avatar
+    const ext = imageUri.split('.').pop()?.split('?')[0]?.toLowerCase() ?? 'jpg'
+    const path = `${userId}/avatar.${ext}`
+
+    const { error } = await supabase.storage
+        .from('avatars')
+        .upload(path, blob, { upsert: true, contentType: blob.type || 'image/jpeg' })
+    if (error) throw error
+
+    const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(path)
+
+    // Append cache-buster so the new image shows immediately
+    const bustUrl = `${publicUrl}?t=${Date.now()}`
+    await updateProfile(userId, { avatar_url: bustUrl })
+    return bustUrl
 }
