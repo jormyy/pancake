@@ -7,7 +7,7 @@ RETURNS TABLE(new_season_id uuid, new_year int)
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
-AS $advance_season_atomic$
+AS $$
 DECLARE
   v_league leagues%ROWTYPE;
   v_current_season league_seasons%ROWTYPE;
@@ -185,7 +185,7 @@ BEGIN
   new_year := v_new_year;
   RETURN NEXT;
 END;
-$advance_season_atomic$;
+$$;
 
 CREATE OR REPLACE FUNCTION public.make_snake_pick_atomic(
   p_draft_id uuid,

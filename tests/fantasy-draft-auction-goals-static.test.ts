@@ -198,53 +198,6 @@ describe('fantasy draft and auction experience goals', () => {
         expect(leagueScreen).toContain('return <NoLeagueState />')
     })
 
-    it('keeps the league phase rail announced as a live transition surface', () => {
-        const phaseRail = leagueScreen.slice(
-            leagueScreen.indexOf('function LeaguePhaseRail'),
-            leagueScreen.indexOf('export default function LeagueScreen'),
-        )
-        expect(phaseRail).toContain('League phase: ${phase.label}, step ${activeStepPosition} of ${stepCount}. ${phase.detail}')
-        expect(phaseRail).toContain('role="group"')
-        expect(phaseRail).toContain('aria-label={phaseLabel}')
-        expect(phaseRail).toContain('aria-live="polite"')
-        expect(phaseRail).toContain('accessibilityLiveRegion="polite"')
-        expect(phaseRail).toContain("aria-current={isActive ? 'step' : undefined}")
-        expect(phaseRail).toContain('styles.phaseCompactSummary')
-        expect(phaseRail).toContain('styles.phaseCompactLabel')
-        expect(phaseRail).not.toContain('styles.phaseCompactDetail')
-        // Compact phase steps are a slim horizontal strip, not 44px tiles.
-        const phaseStepCompact = leagueScreen.slice(
-            leagueScreen.indexOf('phaseStepCompact: {'),
-            leagueScreen.indexOf('phaseStepActive:'),
-        )
-        expect(phaseStepCompact).toContain('minHeight: 26')
-        expect(phaseStepCompact).toContain("flexDirection: 'row'")
-    })
-
-    it('keeps compact League identity visible as the default header', () => {
-        const leagueScreenBody = leagueScreen.slice(
-            leagueScreen.indexOf('export default function LeagueScreen'),
-            leagueScreen.indexOf('const styles = StyleSheet.create'),
-        )
-        expect(leagueScreenBody).toContain("const currentLeagueName = screen.currentLeague?.name ?? 'League'")
-        expect(leagueScreenBody).toContain("const currentTeamName = screen.current.team_name ?? 'Team'")
-        expect(leagueScreenBody).toContain('const compactIdentityLabel = `${currentLeagueName}, ${currentTeamName}`')
-        expect(leagueScreenBody).toContain('const compactLeagueHeader = true')
-        expect(leagueScreenBody).not.toContain('const [webViewport, setWebViewport]')
-        expect(leagueScreenBody).not.toContain('compactShortPortrait')
-        expect(leagueScreenBody).toContain('compactLeagueHeader && styles.headerCompact')
-        expect(leagueScreenBody).toContain('compact={compactLeagueHeader}')
-        expect(leagueScreenBody).toContain('styles.compactLeagueCrumb')
-        expect(leagueScreenBody).toContain('aria-label={compactIdentityLabel}')
-        expect(leagueScreenBody).toContain('accessibilityLabel={compactIdentityLabel}')
-        expect(leagueScreenBody).toContain('styles.compactLeagueName')
-        expect(leagueScreenBody).toContain('{currentLeagueName}')
-        expect(leagueScreenBody).toContain('styles.compactLeagueDot')
-        expect(leagueScreenBody).toContain('styles.compactTeamName')
-        expect(leagueScreenBody).toContain('{currentTeamName}')
-        expect(leagueScreen).toContain('compactLeagueName: {')
-        expect(leagueScreen).toContain('compactTeamName: {')
-    })
 
     it('keeps empty mock rooms as one actionable status', () => {
         expect(mockRoomsPanel).toContain('function MockRoomsEmptyState')

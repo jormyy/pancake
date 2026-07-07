@@ -457,6 +457,18 @@ export async function withdrawNomination(
     await sharedApiPost(`/draft/${draftId}/withdraw-nomination`, { memberId, nominationId })
 }
 
+export async function closeExpiredNominations(draftId: string): Promise<{ closed: number }> {
+    const res = await sharedApiPost<{ closed: number }>(`/draft/${draftId}/close-expired`, {})
+    return { closed: res?.closed ?? 0 }
+}
+
+export async function pauseForAbsence(draftId: string): Promise<void> {
+    await sharedApiPost(`/draft/${draftId}/pause-for-absence`, {})
+}
+
+export async function resumeIfAbsent(draftId: string): Promise<void> {
+    await sharedApiPost(`/draft/${draftId}/resume-if-absent`, {})
+}
 
 export function subscribeToDraft(draftId: string, onChange: () => void): RealtimeChannel {
     const channel = supabase
@@ -488,6 +500,38 @@ export function subscribeToDraft(draftId: string, onChange: () => void): Realtim
             onChange,
         )
         .subscribe()
+
+    return channel
+}
+
+// Presence uses a separate public channel because private channels require
+// additional RLS setup on realtime.messages for broadcast/presence to work.
+// postgres_changes (handled by subscribeToDraft) works fine on private channels.
+export function subscribeToPresence(
+    draftId: string,
+    memberId: string,
+    onSync: (presentMemberIds: string[]) => void,
+): RealtimeChannel {
+    const channel = supabase.channel(`draft-presence:${draftId}`)
+
+    const snapshot = () => {
+        const state = channel.presenceState<{ memberId: string }>()
+        const ids = [...new Set(Object.values(state).flat().map((p) => p.memberId))]
+        onSync(ids)
+    }
+
+    // Listen to both 'sync' and 'join' so that rejoining members are detected
+    // reliably. 'sync' fires for the initial state and after leaves; 'join' fires
+    // specifically when new presences are added, which is the event we need for
+    // auto-resume to work.
+    channel.on('presence', { event: 'sync' }, snapshot)
+    channel.on('presence', { event: 'join' }, snapshot)
+
+    channel.subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+            channel.track({ memberId })
+        }
+    })
 
     return channel
 }

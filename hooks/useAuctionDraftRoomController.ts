@@ -1,10 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
+    closeExpiredNominations,
     getDraftState,
     nominatePlayer,
+    pauseForAbsence,
     placeBid,
+    resumeIfAbsent,
     searchPlayers,
     subscribeToDraft,
+    subscribeToPresence,
     unsubscribeFromDraft,
     withdrawNomination,
     type DraftSearchPlayer,
@@ -29,9 +33,14 @@ export function useAuctionDraftRoomController({
 
     // Bidding — held as raw text so the field can be cleared/typed freely;
     // the value is validated and clamped only on submit (handleBid).
-    const [bidText, setBidText] = useState('2')
+    const [bidText, setBidText] = useState('1')
     const [bidding, setBidding] = useState(false)
     const [withdrawing, setWithdrawing] = useState(false)
+
+    // Presence — who is currently in the draft room
+    const [presentMemberIds, setPresentMemberIds] = useState<string[]>([])
+    const [presenceSynced, setPresenceSynced] = useState(false)
+    const resumeDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
     // Nomination / player search
     const [nominating, setNominating] = useState(false)
@@ -47,6 +56,10 @@ export function useAuctionDraftRoomController({
     // Track which nomination the bid field was last seeded for, so the 5s poll /
     // realtime refresh never clobbers a value the user is actively typing.
     const lastNomIdRef = useRef<string | null>(null)
+    // Mirror of bidText so load() can read the current value without a dep.
+    const bidTextRef = useRef('1')
+    // Track which nomination has had its expiry close triggered so we only fire once per nomination.
+    const closeTriggeredForNomRef = useRef<string | null>(null)
     // The draft's nomination-order mode is stable; keep it in a ref so the search
     // effect can read it without re-running on every poll-driven state change.
     const nominationModeRef = useRef<NominationOrderMode>('user_nominated')
@@ -55,7 +68,11 @@ export function useAuctionDraftRoomController({
     const loadSeqRef = useRef(0)
     const searchSeqRef = useRef(0)
 
+    // Keep bidTextRef in sync so load() can read current typed value without a dep.
+    useEffect(() => { bidTextRef.current = bidText }, [bidText])
+
     const channelRef = useRef<RealtimeChannel | null>(null)
+    const presenceChannelRef = useRef<RealtimeChannel | null>(null)
     const countdownNomination = state?.openNomination
 
     const load = useCallback(async () => {
@@ -81,13 +98,16 @@ export function useAuctionDraftRoomController({
                     )
                     setTimeLeft(diff)
                 }
-                // Seed the default bid ONLY when a new player comes on the block —
-                // not on every poll — so typed bids survive refreshes. Min-bid
-                // changes within a nomination are handled by the submit guard.
+                // Seed the bid field when a new player comes on the block, or when
+                // the current bid has advanced past what the user typed (their value
+                // would be invalid, so bring it up to the new minimum automatically).
                 const nomId = nom?.id ?? null
-                if (nomId !== lastNomIdRef.current) {
+                const minBid = (nom?.currentBidAmount ?? 0) + 1
+                const typedValue = parseInt(bidTextRef.current, 10)
+                const typedIsStale = isNaN(typedValue) || typedValue < minBid
+                if (nomId !== lastNomIdRef.current || (nom && typedIsStale)) {
                     lastNomIdRef.current = nomId
-                    if (nom) setBidText(String(Math.max((nom.currentBidAmount ?? 1) + 1, 2)))
+                    if (nom) setBidText(String(minBid))
                 }
             }
         } catch (e) {
@@ -107,6 +127,19 @@ export function useAuctionDraftRoomController({
         }
     }, [draftId, load])
 
+    // Presence — separate public channel so it works without realtime.messages RLS
+    useEffect(() => {
+        if (!draftId || !memberId) return
+        presenceChannelRef.current = subscribeToPresence(draftId, memberId, (ids) => {
+            setPresentMemberIds(ids)
+            setPresenceSynced(true)
+        })
+        return () => {
+            if (presenceChannelRef.current) unsubscribeFromDraft(presenceChannelRef.current)
+            presenceChannelRef.current = null
+        }
+    }, [draftId, memberId])
+
     // Countdown tick
     useEffect(() => {
         if (timerRef.current) clearInterval(timerRef.current)
@@ -117,6 +150,21 @@ export function useAuctionDraftRoomController({
             if (!exp) return
             const diff = Math.max(0, Math.floor((new Date(exp).getTime() - Date.now()) / 1000))
             setTimeLeft(diff)
+            // When the clock hits zero, trigger server-side close once per nomination.
+            if (diff === 0 && draftId && closeTriggeredForNomRef.current !== countdownNomination.id) {
+                closeTriggeredForNomRef.current = countdownNomination.id
+                closeExpiredNominations(draftId)
+                    .then(({ closed }) => {
+                        // If the server closed nothing (clock skew — client hit 0 before
+                        // the server expiry), reset so the next tick retries.
+                        if (closed === 0) closeTriggeredForNomRef.current = null
+                        else load()
+                    })
+                    .catch(() => {
+                        // Network/auth failure — reset so the next tick can retry.
+                        closeTriggeredForNomRef.current = null
+                    })
+            }
         }
         // Seed immediately so a fresh nomination doesn't render the urgent
         // (<=10s) styling for the first 500ms while timeLeft is still 0.
@@ -126,7 +174,39 @@ export function useAuctionDraftRoomController({
         return () => {
             if (timerRef.current) clearInterval(timerRef.current)
         }
-    }, [countdownNomination])
+    }, [countdownNomination, draftId, load])
+
+    // Presence: auto-pause when a member leaves, auto-resume when all are back.
+    // Only auction drafts; only after presence has synced at least once so the
+    // initial empty-state doesn't trigger a spurious pause on mount.
+    useEffect(() => {
+        if (!presenceSynced || !state || !draftId || !memberId) return
+        if (state.draft.draftType !== 'auction') return
+
+        const requiredIds = state.order.map((o) => o.memberId)
+        const presentSet = new Set(presentMemberIds)
+        const allPresent = requiredIds.every((id) => presentSet.has(id))
+
+        if (!allPresent && state.draft.status === 'in_progress') {
+            // Multiple clients will race here — the RPC no-ops after the first wins.
+            pauseForAbsence(draftId).catch(() => {/* already paused or transient error */})
+        }
+
+        if (allPresent && state.draft.status === 'paused' && state.draft.pauseReason === 'member_absent') {
+            // Start the 2-second debounce only once — don't reset it on every
+            // poll-driven re-run. Clearing only happens if conditions stop being met
+            // (another member leaves), which is handled in the else branch below.
+            if (!resumeDebounceRef.current) {
+                resumeDebounceRef.current = setTimeout(() => {
+                    resumeDebounceRef.current = null
+                    resumeIfAbsent(draftId).catch(() => {/* ignore */}).then(() => load())
+                }, 2000)
+            }
+        } else if (resumeDebounceRef.current) {
+            clearTimeout(resumeDebounceRef.current)
+            resumeDebounceRef.current = null
+        }
+    }, [presenceSynced, presentMemberIds, state?.draft.status, state?.draft.pauseReason, state?.order, draftId, memberId]) // eslint-disable-line react-hooks/exhaustive-deps
 
     // Player search
     useEffect(() => {
@@ -200,6 +280,15 @@ export function useAuctionDraftRoomController({
 
     async function handleNominate(playerId: string) {
         if (!memberId || !draftId) return
+        if (presenceSynced && state?.draft.draftType === 'auction') {
+            const presentSet = new Set(presentMemberIds)
+            const missing = (state?.order ?? []).filter((o) => !presentSet.has(o.memberId))
+            if (missing.length > 0) {
+                const names = missing.map((o) => o.teamName).join(', ')
+                showAlert('Not everyone is here', `${names} hasn't joined the draft room yet.`)
+                return
+            }
+        }
         setSubmittingNom(true)
         try {
             await nominatePlayer(draftId, memberId, playerId)
@@ -221,6 +310,15 @@ export function useAuctionDraftRoomController({
         setSearchResults([])
         searchSeqRef.current += 1
     }
+
+    // Presence-derived values
+    const absentMembers = useMemo(() => {
+        if (!state || !presenceSynced) return []
+        const presentSet = new Set(presentMemberIds)
+        return state.order.filter((o) => !presentSet.has(o.memberId))
+    }, [state, presentMemberIds, presenceSynced])
+
+    const allMembersPresent = presenceSynced ? absentMembers.length === 0 : true
 
     // Memoize O(N) derivations from state so we don't recompute them every render
     // (poll fires every 5s; without memos every parent re-render rebuilds these arrays/maps).
@@ -265,6 +363,8 @@ export function useAuctionDraftRoomController({
         closedNominations,
         budgetByMember,
         wonCountByMember,
+        allMembersPresent,
+        absentMembers,
         refresh: load,
         handleBid,
         handleWithdraw,

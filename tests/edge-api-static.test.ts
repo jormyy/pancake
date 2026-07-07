@@ -111,6 +111,9 @@ describe('Supabase Edge API cutover', () => {
         expect(api).toContain('EXPO_PUBLIC_API_URL')
         expect(api).toContain('EXPO_PUBLIC_SUPABASE_URL')
         expect(api).toContain('EXPO_PUBLIC_API_URL or EXPO_PUBLIC_SUPABASE_URL is required.')
+        expect(api.indexOf('if (configuredSupabaseUrl)')).toBeLessThan(
+            api.indexOf('if (configuredApiUrl) return configuredApiUrl'),
+        )
         expect(api).not.toContain('DEFAULT_SUPABASE_URL')
         expect(api).not.toContain('ceeytbfmwsnzalxlkalc')
     })

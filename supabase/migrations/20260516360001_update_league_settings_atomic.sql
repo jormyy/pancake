@@ -251,18 +251,3 @@ BEGIN
    WHERE id = p_league_id;
 END;
 $$;
-
--- Lockdown grants — match the convention of every other DEFINER RPC in
--- this repo. PUBLIC + anon get nothing; authenticated + service_role
--- get EXECUTE.
-REVOKE ALL ON FUNCTION public.update_league_settings_atomic(uuid, jsonb)
-  FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.update_league_settings_atomic(uuid, jsonb)
-  TO authenticated, service_role;
-
-COMMENT ON FUNCTION public.update_league_settings_atomic(uuid, jsonb) IS
-  'Commissioner-only league-settings writer. Validates leagues.status = ''setup'' '
-  'for structural keys (scoring_settings, roster_size, ir_slots, taxi_slots, '
-  'auction_budget); allows playoff_start_week and trade_deadline at any '
-  'lifecycle stage. Replaces the direct PostgREST UPDATE in lib/league.ts '
-  'updateLeague().';

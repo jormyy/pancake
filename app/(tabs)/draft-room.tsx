@@ -10,30 +10,24 @@ export default function DraftRoomTab() {
     const router = useRouter()
     const { currentLeague } = useLeagueContext()
     const [checking, setChecking] = useState(true)
-    const [hasDraft, setHasDraft] = useState(false)
 
     useFocusEffect(
         useCallback(() => {
             if (!currentLeague?.id) {
                 setChecking(false)
-                setHasDraft(false)
                 return
             }
 
             setChecking(true)
             getJoinableDraft(currentLeague.id, { includeCompletedRookie: true })
                 .then((draft) => {
-                    if (!draft) {
-                        setHasDraft(false)
-                        return
-                    }
-                    setHasDraft(true)
+                    if (!draft) return
                     const pathname = draft.draftType === 'snake'
                         ? '/(modals)/rookie-draft-room'
                         : '/(modals)/draft-room'
                     router.push({ pathname, params: { draftId: draft.id } })
                 })
-                .catch(() => setHasDraft(false))
+                .catch(() => {/* show empty state */})
                 .finally(() => setChecking(false))
         }, [currentLeague?.id, router]),
     )

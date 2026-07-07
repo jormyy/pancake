@@ -685,5 +685,33 @@ export async function handleDraftRoute(req: Request, path: string): Promise<Resp
     return json({ ok: true, ...await reseedRookieDraftPicks(draftId) })
   }
 
+  if (action.action === 'close-expired') {
+    await requireDraftLeagueMember(userId, draftId)
+    const { data, error } = await supabase.rpc('close_expired_auction_nominations_atomic', { p_limit: 10 })
+    if (error) throwDb(error)
+    const closed = (data ?? []).filter((r: { closed: boolean }) => r.closed).length
+    return json({ ok: true, closed })
+  }
+
+  if (action.action === 'pause-for-absence') {
+    await requireDraftLeagueMember(userId, draftId)
+    const { error } = await supabase.rpc('pause_draft_for_absence_atomic', {
+      p_draft_id: draftId,
+      p_actor_user_id: userId,
+    })
+    if (error) throwDb(error)
+    return json({ ok: true })
+  }
+
+  if (action.action === 'resume-if-absent') {
+    await requireDraftLeagueMember(userId, draftId)
+    const { error } = await supabase.rpc('resume_draft_if_absent_atomic', {
+      p_draft_id: draftId,
+      p_actor_user_id: userId,
+    })
+    if (error) throwDb(error)
+    return json({ ok: true })
+  }
+
   return null
 }

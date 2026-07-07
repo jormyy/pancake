@@ -137,7 +137,7 @@ RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
-AS $accept_trade_atomic$
+AS $$
 DECLARE
   v_trade trades%ROWTYPE;
   v_item trade_items%ROWTYPE;
@@ -276,7 +276,7 @@ BEGIN
     RAISE EXCEPTION 'Failed to complete trade atomically';
   END IF;
 END;
-$accept_trade_atomic$;
+$$;
 $accept_trade_sql$;
 
   EXECUTE 'REVOKE ALL ON FUNCTION public.accept_trade_atomic(uuid, uuid) FROM PUBLIC';
