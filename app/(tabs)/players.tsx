@@ -5,6 +5,7 @@ import {
     Pressable,
     StyleSheet,
     useWindowDimensions,
+    Animated,
 } from 'react-native'
 import { FlashList } from '@shopify/flash-list'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -28,7 +29,7 @@ import { STAT_COLUMN_SORT, type PlayerSearchSortMode } from '@/lib/player-search
 import { useQuickAdd } from '@/hooks/use-quick-add'
 import { getMemberTransactionState } from '@/lib/league'
 import { PlayerRow } from '@/lib/players'
-import { useState } from 'react'
+import { useState, useRef, useCallback } from 'react'
 import { getPlayerAvailabilitySnapshot } from '@/lib/player-availability'
 
 const POSITIONS = [
@@ -242,6 +243,23 @@ export default function PlayersScreen() {
     const [filtersOpen, setFiltersOpen] = useState(false)
     const filtersVisible = !collapsibleFilters || filtersOpen
 
+    const scrollY = useRef(0)
+    const expandAnim = useRef(new Animated.Value(1)).current
+    const handleScroll = useCallback((event: { nativeEvent: { contentOffset: { y: number } } }) => {
+        const y = event.nativeEvent.contentOffset.y
+        const wasMinimized = scrollY.current > 40
+        scrollY.current = y
+        const shouldMinimize = y > 40
+        if (shouldMinimize !== wasMinimized) {
+            Animated.spring(expandAnim, {
+                toValue: shouldMinimize ? 0 : 1,
+                useNativeDriver: false,
+                tension: 100,
+                friction: 14,
+            }).start()
+        }
+    }, [expandAnim])
+
     const {
         data: playerSupport,
         loading: playerSupportFetchLoading,
@@ -320,7 +338,7 @@ export default function PlayersScreen() {
             <Text style={styles.hiddenHeading} role="heading" aria-level={1} accessibilityRole="header">
                 Players
             </Text>
-            <View style={styles.filterCard}>
+            <View style={[styles.filterCard, { gap: 0 }]}>
                 <View style={styles.filterCardTop}>
                     <TextInput
                         style={styles.searchInput}
@@ -337,108 +355,118 @@ export default function PlayersScreen() {
                             : `${search.results.players.length}${search.activeFilterCount > 0 ? ' filtered' : ''} player${search.results.players.length === 1 ? '' : 's'}`}
                     </Text>
                 </View>
-                <View style={styles.filterCardHeader}>
-                    {collapsibleFilters ? (
-                        <Pressable
-                            style={styles.filterToggle}
-                            onPress={() => setFiltersOpen((v) => !v)}
-                            accessibilityRole="button"
-                            accessibilityLabel={`${filtersOpen ? 'Hide' : 'Show'} filters`}
-                            accessibilityState={{ expanded: filtersOpen }}
-                        >
-                            <Text style={styles.filterCardTitle}>Filters</Text>
+                <Animated.View style={{
+                    overflow: 'hidden',
+                    maxHeight: expandAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 600] }),
+                    opacity: expandAnim,
+                }}>
+                    <View style={{ gap: spacing.xl, paddingTop: spacing.xl }}>
+                        <View style={styles.filterCardHeader}>
+                            {collapsibleFilters ? (
+                                <Pressable
+                                    style={styles.filterToggle}
+                                    onPress={() => setFiltersOpen((v) => !v)}
+                                    accessibilityRole="button"
+                                    accessibilityLabel={`${filtersOpen ? 'Hide' : 'Show'} filters`}
+                                    accessibilityState={{ expanded: filtersOpen }}
+                                >
+                                    <Text style={styles.filterCardTitle}>Filters</Text>
+                                    {search.activeFilterCount > 0 ? (
+                                        <View style={styles.filterCountDot}>
+                                            <Text style={styles.filterCountDotText}>{search.activeFilterCount}</Text>
+                                        </View>
+                                    ) : null}
+                                    <Text style={styles.filterSelectCaret}>{filtersOpen ? '▴' : '▾'}</Text>
+                                </Pressable>
+                            ) : (
+                                <Text style={styles.filterCardTitle} role="heading" aria-level={2}>Filters</Text>
+                            )}
                             {search.activeFilterCount > 0 ? (
-                                <View style={styles.filterCountDot}>
-                                    <Text style={styles.filterCountDotText}>{search.activeFilterCount}</Text>
-                                </View>
+                                <Pressable style={styles.clearAllChip} onPress={search.clearAllFilters}>
+                                    <Text style={styles.clearAllChipText}>Clear all ({search.activeFilterCount})</Text>
+                                </Pressable>
                             ) : null}
-                            <Text style={styles.filterSelectCaret}>{filtersOpen ? '▴' : '▾'}</Text>
-                        </Pressable>
-                    ) : (
-                        <Text style={styles.filterCardTitle} role="heading" aria-level={2}>Filters</Text>
-                    )}
-                    {search.activeFilterCount > 0 ? (
-                        <Pressable style={styles.clearAllChip} onPress={search.clearAllFilters}>
-                            <Text style={styles.clearAllChipText}>Clear all ({search.activeFilterCount})</Text>
-                        </Pressable>
-                    ) : null}
-                </View>
-                {filtersVisible ? (
-                <View style={styles.filterGrid}>
-                    <FilterSelect
-                        label="Availability"
-                        value={search.availabilityFilter.value}
-                        options={AVAILABILITY_FILTERS}
-                        onChange={search.availabilityFilter.setValue}
-                    />
-                    <FilterSelect
-                        label="Position"
-                        value={search.position.value}
-                        options={POSITIONS}
-                        onChange={search.position.setValue}
-                    />
-                    <MultiSelect
-                        label="Pro team"
-                        options={NBA_TEAM_OPTIONS}
-                        selected={search.teamPicker.selectedTeams}
-                        onChange={search.teamPicker.setSelectedTeams}
-                        pluralLabel="teams"
-                        clearAccessibilityLabel="Clear teams"
-                    />
-                    <FilterSelect
-                        label="Health"
-                        value={search.health.value}
-                        options={HEALTH_FILTERS}
-                        onChange={search.health.setValue}
-                    />
-                    <FilterSelect
-                        label="Game today"
-                        value={search.playing.value}
-                        options={PLAYING_FILTERS}
-                        onChange={search.playing.setValue}
-                    />
-                    <FilterSelect
-                        label="Experience"
-                        value={search.toggles.rookiesOnly ? 'rookies' : 'all'}
-                        options={CLASS_FILTERS}
-                        onChange={(value) => search.toggles.setRookiesOnly(value === 'rookies')}
-                    />
-                    <FilterSelect
-                        label="Sort"
-                        value={search.sort.mode}
-                        options={SORT_OPTIONS}
-                        onChange={(value) => {
-                            search.sort.setMode(value)
-                            search.sort.setDir('desc')
-                        }}
-                    />
-                    <Pressable
-                        style={styles.sortDirButton}
-                        onPress={() => search.sort.setDir((dir) => dir === 'asc' ? 'desc' : 'asc')}
-                    >
-                        <Text style={styles.sortDirText}>{search.sort.dir === 'asc' ? 'Ascending ↑' : 'Descending ↓'}</Text>
-                    </Pressable>
-                </View>
-                ) : null}
-                {leagueId ? (
-                    <View style={localStyles.transactionBar}>
-                        <Text style={localStyles.transactionBarText}>
-                            Adds: {transactionState ? `${transactionState.weeklyAddCount}/${transactionState.weeklyAddLimit ?? 'Unlimited'}` : '—/—'} this week
-                        </Text>
-                        <Text style={localStyles.transactionBarText}>
-                            {transactionState
-                                ? transactionState.waiverMode === 'faab'
-                                ? `FAAB: $${transactionState.faabBalance}`
-                                : 'Waivers: rolling priority'
-                                : 'Waivers: —'}
-                        </Text>
+                        </View>
+                        {filtersVisible ? (
+                        <View style={styles.filterGrid}>
+                            <FilterSelect
+                                label="Availability"
+                                value={search.availabilityFilter.value}
+                                options={AVAILABILITY_FILTERS}
+                                onChange={search.availabilityFilter.setValue}
+                            />
+                            <FilterSelect
+                                label="Position"
+                                value={search.position.value}
+                                options={POSITIONS}
+                                onChange={search.position.setValue}
+                            />
+                            <MultiSelect
+                                label="Pro team"
+                                options={NBA_TEAM_OPTIONS}
+                                selected={search.teamPicker.selectedTeams}
+                                onChange={search.teamPicker.setSelectedTeams}
+                                pluralLabel="teams"
+                                clearAccessibilityLabel="Clear teams"
+                            />
+                            <FilterSelect
+                                label="Health"
+                                value={search.health.value}
+                                options={HEALTH_FILTERS}
+                                onChange={search.health.setValue}
+                            />
+                            <FilterSelect
+                                label="Game today"
+                                value={search.playing.value}
+                                options={PLAYING_FILTERS}
+                                onChange={search.playing.setValue}
+                            />
+                            <FilterSelect
+                                label="Experience"
+                                value={search.toggles.rookiesOnly ? 'rookies' : 'all'}
+                                options={CLASS_FILTERS}
+                                onChange={(value) => search.toggles.setRookiesOnly(value === 'rookies')}
+                            />
+                            <FilterSelect
+                                label="Sort"
+                                value={search.sort.mode}
+                                options={SORT_OPTIONS}
+                                onChange={(value) => {
+                                    search.sort.setMode(value)
+                                    search.sort.setDir('desc')
+                                }}
+                            />
+                            <Pressable
+                                style={styles.sortDirButton}
+                                onPress={() => search.sort.setDir((dir) => dir === 'asc' ? 'desc' : 'asc')}
+                            >
+                                <Text style={styles.sortDirText}>{search.sort.dir === 'asc' ? 'Ascending ↑' : 'Descending ↓'}</Text>
+                            </Pressable>
+                        </View>
+                        ) : null}
+                        {leagueId ? (
+                            <View style={localStyles.transactionBar}>
+                                <Text style={localStyles.transactionBarText}>
+                                    Adds: {transactionState ? `${transactionState.weeklyAddCount}/${transactionState.weeklyAddLimit ?? 'Unlimited'}` : '—/—'} this week
+                                </Text>
+                                <Text style={localStyles.transactionBarText}>
+                                    {transactionState
+                                        ? transactionState.waiverMode === 'faab'
+                                        ? `FAAB: $${transactionState.faabBalance}`
+                                        : 'Waivers: rolling priority'
+                                        : 'Waivers: —'}
+                                </Text>
+                            </View>
+                        ) : null}
                     </View>
-                ) : null}
+                </Animated.View>
             </View>
 
             <FlashList
                     ref={search.results.listRef}
                     data={search.results.players}
+                    onScroll={handleScroll}
+                    scrollEventThrottle={16}
                     extraData={playerListExtraData}
                     keyExtractor={(p: PlayerRow) => p.id}
                     contentContainerStyle={search.results.players.length === 0 && !listIsInitialLoading ? styles.emptyContainer : undefined}
