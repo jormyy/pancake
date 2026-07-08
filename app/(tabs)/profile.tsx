@@ -418,3 +418,6 @@ const styles = StyleSheet.create({
     appMeta: { alignItems: 'center', paddingTop: spacing.lg },
     appMetaText: { fontSize: fontSize.xs, color: colors.textMuted, fontWeight: fontWeight.semibold, letterSpacing: 0.5 },
 })
+
+// Contain a render crash to this screen instead of blanking the whole app.
+export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFallback'

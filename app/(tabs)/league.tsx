@@ -267,3 +267,6 @@ const styles = StyleSheet.create({
         lineHeight: 18,
     },
 })
+
+// Contain a render crash to this screen instead of blanking the whole app.
+export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFallback'

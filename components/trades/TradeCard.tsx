@@ -119,9 +119,10 @@ export function TradeCard({
     const { push } = useRouter()
     const isProposer = trade.proposerMemberId === myMemberId
     const isRecipient = trade.recipientMemberId === myMemberId
-    const isMultiParticipant = trade.participants.some((participant) => participant.memberId === myMemberId)
+    const participants = trade.participants ?? []
+    const isMultiParticipant = participants.some((participant) => participant.memberId === myMemberId)
     const isTradeParty = isProposer || isRecipient || isMultiParticipant
-    const participantNames = trade.participants.map((participant) => participant.teamName).join(' / ')
+    const participantNames = participants.map((participant) => participant.teamName).join(' / ')
     const opponentName = trade.isMultiTeam && participantNames
         ? participantNames
         : isProposer
@@ -153,7 +154,7 @@ export function TradeCard({
     const alreadyVetoed = tab === 'offers' && !isTradeParty && trade.status === 'accepted' && trade.myVetoed && canVetoBySettings
     const canRespond = tab === 'offers' && needsMemberAcceptance(trade, myMemberId)
     const participantAcceptanceText = trade.isMultiTeam
-        ? `${trade.participants.filter((participant) => participant.acceptedAt != null).length}/${trade.participants.length} teams accepted`
+        ? `${participants.filter((participant) => participant.acceptedAt != null).length}/${participants.length} teams accepted`
         : null
     const vetoWindowText = trade.status === 'accepted' && trade.vetoWindowExpiresAt
         ? `Veto window closes ${new Date(trade.vetoWindowExpiresAt).toLocaleString([], {

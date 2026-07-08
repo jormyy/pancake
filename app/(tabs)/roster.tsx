@@ -827,3 +827,6 @@ const styles = StyleSheet.create({
     emptyTitle: { fontSize: fontSize['2lg'], fontWeight: fontWeight.bold, color: colors.textPrimary },
     emptyText: { fontSize: fontSize.md, color: colors.textPlaceholder },
 })
+
+// Contain a render crash to this screen instead of blanking the whole app.
+export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFallback'
