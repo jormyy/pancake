@@ -5,7 +5,7 @@ import { isIREligible, isTaxiEligible, RosterPlayer } from '@/lib/roster'
 import { getEligiblePositions } from '@/lib/players'
 import { TradePickItem } from '@/lib/trades'
 import { WaiverClaim } from '@/lib/waivers'
-import { formatPoints, shortDateFmt, playerHeadshotUrl } from '@/lib/format'
+import { formatPoints, safeShortDate, playerHeadshotUrl } from '@/lib/format'
 import { Avatar } from '@/components/Avatar'
 import { Badge } from '@/components/Badge'
 import { PosTag } from '@/components/PosTag'
@@ -76,7 +76,7 @@ export function RosterClaimItem({
                 </Text>
                 <Text style={[styles.playerMeta, { color: statusColor }]}>
                     {claim.status === 'pending'
-                        ? `Processes ${shortDateFmt.format(new Date(claim.processDate + 'T12:00:00Z'))}`
+                        ? `Processes ${safeShortDate(claim.processDate ? `${claim.processDate}T12:00:00Z` : null) || 'soon'}`
                         : claim.status === 'succeeded'
                           ? 'Succeeded'
                           : claim.status === 'failed_roster'

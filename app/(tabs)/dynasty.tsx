@@ -116,7 +116,7 @@ function sourceMeta(player: DynastyRankPlayer): string[] {
 }
 
 function playerPositions(player: DynastyRankPlayer): string[] {
-    if (player.sourcePositions.length > 0) return player.sourcePositions
+    if (player.sourcePositions?.length) return player.sourcePositions
     return getEligiblePositions({ eligible_positions: player.eligiblePositions, position: player.position })
 }
 

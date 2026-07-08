@@ -331,7 +331,7 @@ function MatchupRowImpl({
                                     </View>
                                 )}
                                 {myCompactBadge ? <InjuryStatusBadge status={myInjuryStatus} /> : null}
-                                {!compact && myPlayer.eligiblePositions.map((pos) => <PosTag key={pos} position={pos} />)}
+                                {!compact && (myPlayer.eligiblePositions ?? []).map((pos) => <PosTag key={pos} position={pos} />)}
                                 <Text
                                     style={styles.sideMeta}
                                     numberOfLines={1}
@@ -438,7 +438,7 @@ function MatchupRowImpl({
                             </View>
                             {!dense && <View style={[styles.metaRow, styles.secondaryMetaRow]}>
                                 {oppCompactBadge ? <InjuryStatusBadge status={oppInjuryStatus} /> : null}
-                                {!compact && oppPlayer.eligiblePositions.map((pos) => <PosTag key={pos} position={pos} />)}
+                                {!compact && (oppPlayer.eligiblePositions ?? []).map((pos) => <PosTag key={pos} position={pos} />)}
                                 <Text
                                     style={styles.sideMeta}
                                     numberOfLines={1}

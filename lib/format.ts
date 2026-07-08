@@ -3,20 +3,31 @@
 import { isIREligible } from '@pancake/core'
 import { API_URL } from '@/lib/shared/api'
 
-export function getInitials(name: string): string {
-    const words = name.trim().split(/\s+/).filter((w) => /[a-zA-Z0-9]/.test(w))
+export function getInitials(name: string | null | undefined): string {
+    // Names flow in from `display_name`, which is nullable in the DB despite the
+    // callers' non-null casts — tolerate null so an Avatar can't crash a render.
+    const safe = (name ?? '').trim()
+    const words = safe.split(/\s+/).filter((w) => /[a-zA-Z0-9]/.test(w))
     // Prefer tokens that start with a letter so "Team #1" → "T", not "#".
     const letterWords = words.filter((w) => /^[a-zA-Z]/.test(w))
     const pick = letterWords.length ? letterWords : words
     if (pick.length >= 2) return (pick[0][0] + pick[pick.length - 1][0]).toUpperCase()
     if (pick.length === 1) return pick[0].replace(/[^a-zA-Z0-9]/g, '').slice(0, 2).toUpperCase()
-    return (name.replace(/[^a-zA-Z0-9]/g, '').slice(0, 2) || '?').toUpperCase()
+    return (safe.replace(/[^a-zA-Z0-9]/g, '').slice(0, 2) || '?').toUpperCase()
 }
 
 export const shortDateFmt = new Intl.DateTimeFormat('en-US', {
     month: 'short',
     day: 'numeric',
 })
+
+// Intl.DateTimeFormat.format() throws RangeError on an Invalid Date (unlike
+// toLocaleDateString), so a null/malformed date string would crash the render.
+export function safeShortDate(value: string | null | undefined): string {
+    if (!value) return ''
+    const d = new Date(value)
+    return Number.isNaN(d.getTime()) ? '' : shortDateFmt.format(d)
+}
 
 /**
  * Player headshot URL, routed through the app's Edge proxy
