@@ -378,7 +378,7 @@ export default function ProposeTradeScreen() {
         if (submittingRef.current) return
         if (!selectedRecipientId) return
         if (isTradingClosed(currentLeague)) {
-            showAlert('Trades Unavailable', 'Trades are available during active and playoff seasons before the trade deadline.')
+            showAlert('Trades Unavailable', 'Trades are locked only from the trade deadline until the champion is finalized.')
             return
         }
         const draft = buildTradeComposerPayload({
@@ -487,7 +487,7 @@ export default function ProposeTradeScreen() {
                 {tradingClosed ? (
                     <View style={styles.lockBanner}>
                         <Text style={styles.lockBannerText}>
-                            Trades are available during active and playoff seasons before the trade deadline.
+                            Trades are locked only from the trade deadline until the champion is finalized.
                         </Text>
                     </View>
                 ) : null}

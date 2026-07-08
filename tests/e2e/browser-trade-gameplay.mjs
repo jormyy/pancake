@@ -1314,7 +1314,7 @@ export async function runBrowserTradePostDeadlineScenario({
         'YOU GIVE',
         fixture.recipientPlayer.display_name,
         fixture.proposerPlayer.display_name,
-        'Trades are available during active and playoff seasons before the trade deadline.',
+        'Trades are locked only from the trade deadline until the champion is finalized.',
       ],
       'post-deadline trade proposal before submit',
     )

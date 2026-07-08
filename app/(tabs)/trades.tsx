@@ -39,6 +39,7 @@ import { getPositionColor } from '@/constants/positions'
 type ListItem =
     | { _type: 'trade'; trade: Trade }
     | { _type: 'header'; label: string }
+    | { _type: 'empty'; key: string; message: string }
     | { _type: 'pick'; pick: TradePickItem }
     | { _type: 'blockItem'; item: TradeBlockItem }
     | { _type: 'blockPlayer'; player: RosterPlayer }
@@ -60,6 +61,7 @@ const tradeBlockCacheKey = (memberId: string, leagueId: string) => `${TRADE_BLOC
 // Module-level: these are pure functions of the row, no closures needed.
 const listKeyExtractor = (item: ListItem, index: number) => {
     if (item._type === 'header') return `header-${index}`
+    if (item._type === 'empty') return `empty-${item.key}`
     if (item._type === 'trade') return `trade-${item.trade.id}`
     if (item._type === 'blockItem') return `block-${item.item.id}`
     if (item._type === 'blockPlayer') return `block-player-${item.player.players.id}`
@@ -279,10 +281,25 @@ export default function TradesScreen() {
     ), [trades, myMemberId])
 
     const picksList = useMemo(() => picks ?? [], [picks])
+    const myBlockItems = useMemo(
+        () => blockItems.filter((item) => item.memberId === myMemberId),
+        [blockItems, myMemberId],
+    )
+    const publicBlockItems = useMemo(
+        () => blockItems.filter((item) => item.memberId !== myMemberId),
+        [blockItems, myMemberId],
+    )
 
     const renderItem = useCallback(({ item }: { item: ListItem }) => {
         if (item._type === 'header') {
             return item.label ? <SectionHeader label={item.label} /> : null
+        }
+        if (item._type === 'empty') {
+            return (
+                <View style={styles.blockEmptyRow}>
+                    <Text style={styles.blockEmptyText}>{item.message}</Text>
+                </View>
+            )
         }
         if (item._type === 'pick') {
             const isOwn = item.pick.originalTeamName === myTeamName
@@ -465,15 +482,20 @@ export default function TradesScreen() {
                 result.push({ _type: 'header', label: '' })
             }
         } else if (tab === 'block') {
-            result.push({ _type: 'header', label: 'League Trade Block' })
-            blockItems.forEach((item) => result.push({ _type: 'blockItem', item }))
-            if (blockItems.length === 0 && !blockLoading) {
-                result.push({ _type: 'header', label: '' })
+            result.push({ _type: 'header', label: 'Your Listings' })
+            myBlockItems.forEach((item) => result.push({ _type: 'blockItem', item }))
+            if (myBlockItems.length === 0 && !blockLoading) {
+                result.push({ _type: 'empty', key: 'my-block-listings', message: 'No listings yet.' })
             }
             result.push({ _type: 'header', label: 'List Your Players' })
             blockRoster.forEach((player) => result.push({ _type: 'blockPlayer', player }))
             result.push({ _type: 'header', label: 'List Your Picks' })
             picksList.forEach((pick) => result.push({ _type: 'blockPick', pick }))
+            result.push({ _type: 'header', label: 'League Trade Block' })
+            publicBlockItems.forEach((item) => result.push({ _type: 'blockItem', item }))
+            if (publicBlockItems.length === 0 && !blockLoading) {
+                result.push({ _type: 'empty', key: 'league-block-listings', message: 'No league listings yet.' })
+            }
         } else {
             result.push({ _type: 'header', label: 'Trade History' })
             historyTrades.forEach((t) => result.push({ _type: 'trade', trade: t }))
@@ -483,7 +505,7 @@ export default function TradesScreen() {
         }
 
         return result
-    }, [tab, vetoableTrades, incomingTrades, outgoingTrades, historyTrades, picksList, loading, blockItems, blockLoading, blockRoster])
+    }, [tab, vetoableTrades, incomingTrades, outgoingTrades, historyTrades, picksList, loading, myBlockItems, blockLoading, blockRoster, publicBlockItems])
 
     const pendingInboxCount = incomingTrades.length
     const picksHydrated = !picksLoading || picksList.length > 0
@@ -719,6 +741,13 @@ const styles = StyleSheet.create({
     pickChipTraded: { backgroundColor: colors.primaryLight },
     pickChipText: { fontSize: fontSize.xs, fontWeight: fontWeight.semibold, color: colors.textSecondary },
     pickHint: { fontSize: 12, color: colors.primaryDark, fontWeight: fontWeight.bold },
+    blockEmptyRow: {
+        minHeight: 56,
+        justifyContent: 'center',
+        paddingHorizontal: spacing.xl,
+        paddingVertical: spacing.md,
+    },
+    blockEmptyText: { fontSize: fontSize.sm, color: colors.textMuted },
     blockRow: {
         minHeight: 64,
         flexDirection: 'row',

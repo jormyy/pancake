@@ -157,14 +157,19 @@ describe('logic hardening source guards - scoring, playoffs, schedule', () => {
         expect(playoffGuardBody).toContain('Playoff start week cannot be changed after current-season matchups have been generated.')
     })
 
-    it('rejects trade acceptance after the trade deadline', () => {
+    it('rejects trade acceptance from the deadline until champion finalization', () => {
         const tradeGuardBody = latestFunctionDefinition('prevent_trade_acceptance_after_deadline')
         const tradeGuardTrigger = latestTriggerStatement('prevent_trade_acceptance_after_deadline')
 
         expect(tradeGuardTrigger).toContain('BEFORE UPDATE OF status ON public.trades')
         expect(tradeGuardTrigger).toContain("WHEN (OLD.status = 'pending'::trade_status AND NEW.status = 'accepted'::trade_status)")
         expect(tradeGuardBody).toContain("v_trade_deadline < (now() AT TIME ZONE 'America/New_York')::date")
-        expect(tradeGuardBody).toContain('Trade can no longer be accepted after the trade deadline.')
+        expect(tradeGuardBody).toContain("matchup.matchup_type = 'playoff_final'::matchup_type")
+        expect(tradeGuardBody).toContain('matchup.is_finalized = true')
+        expect(tradeGuardBody).toContain('matchup.winner_member_id IS NOT NULL')
+        expect(tradeGuardBody).toContain("v_league_status = 'active'::league_status")
+        expect(tradeGuardBody).toContain("v_league_status = 'playoffs'::league_status AND NOT v_champion_finalized")
+        expect(tradeGuardBody).toContain('Trades are locked from the trade deadline until the champion is finalized.')
     })
 
     it('keeps current-schema playoff and trade-deadline guards effective after later migrations', () => {

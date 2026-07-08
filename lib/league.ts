@@ -140,16 +140,19 @@ export async function fetchUserLeagues(userId: string) {
     return (data ?? []) as LeagueMembershipQueryRow[]
 }
 
+const TRADE_OPEN_STATUSES = new Set<LeagueStatus>(['setup', 'drafting', 'active', 'playoffs', 'offseason'])
+
 /**
- * Dynasty trade window (mirrors propose_trade_atomic): trading is available
- * during active and playoff seasons, and closes after a configured deadline.
- * A null deadline never locks an otherwise tradable league.
+ * Dynasty trade window (mirrors trade RPCs): trading is open in setup,
+ * drafting, offseason, and pre-deadline active/playoff states. The deadline
+ * lock only applies during the current active/playoff season.
  */
 export function isTradingClosed(
     league: { status: LeagueStatus; trade_deadline?: string | null } | null | undefined,
 ): boolean {
     if (!league) return false
-    if (league.status !== 'active' && league.status !== 'playoffs') return true
+    if (!TRADE_OPEN_STATUSES.has(league.status)) return true
+    if (league.status !== 'active' && league.status !== 'playoffs') return false
     if (!league.trade_deadline) return false
     return league.trade_deadline < todayET()
 }

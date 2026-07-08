@@ -1,25 +1,4 @@
--- Canonical SQL source for trade negotiation.
--- Edit this file first, then copy changed function statements into a timestamped Supabase migration.
--- npm run check:db-function-sources verifies the latest migration definitions still match.
-
-CREATE OR REPLACE FUNCTION private.clear_trade_block_listing_on_inactive_roster()
-RETURNS trigger
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-BEGIN
-  IF NEW.is_on_ir = true OR NEW.is_on_taxi = true THEN
-    PERFORM private.clear_trade_block_listing_for_asset(
-      NEW.league_id,
-      NEW.member_id,
-      NEW.player_id
-    );
-  END IF;
-
-  RETURN NEW;
-END;
-$$;
+-- Feedback F07: open trades in setup/drafting/offseason, lock only from the deadline until champion finalization.
 
 CREATE OR REPLACE FUNCTION private.create_trade_offer(
   p_league_id uuid,
@@ -332,333 +311,6 @@ BEGIN
   );
 
   RETURN v_trade_id;
-END;
-$$;
-
-CREATE OR REPLACE FUNCTION public.propose_trade_atomic(
-  p_league_id uuid,
-  p_league_season_id uuid,
-  p_proposer_member_id uuid,
-  p_recipient_member_id uuid,
-  p_offer_player_ids uuid[],
-  p_request_player_ids uuid[],
-  p_offer_pick_ids uuid[],
-  p_request_pick_ids uuid[],
-  p_notes text DEFAULT NULL,
-  p_expires_at timestamptz DEFAULT NULL,
-  p_offer_faab_amount int DEFAULT 0,
-  p_request_faab_amount int DEFAULT 0
-)
-RETURNS uuid
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-BEGIN
-  RETURN private.create_trade_offer(
-    p_league_id,
-    p_league_season_id,
-    p_proposer_member_id,
-    p_recipient_member_id,
-    p_offer_player_ids,
-    p_request_player_ids,
-    p_offer_pick_ids,
-    p_request_pick_ids,
-    p_notes,
-    p_expires_at,
-    p_offer_faab_amount,
-    p_request_faab_amount,
-    NULL,
-    NULL,
-    NULL,
-    1
-  );
-END;
-$$;
-
-CREATE OR REPLACE FUNCTION private.replace_trade_offer(
-  p_trade_id uuid,
-  p_member_id uuid,
-  p_user_id uuid,
-  p_action text,
-  p_offer_player_ids uuid[],
-  p_request_player_ids uuid[],
-  p_offer_pick_ids uuid[],
-  p_request_pick_ids uuid[],
-  p_notes text DEFAULT NULL,
-  p_expires_at timestamptz DEFAULT NULL,
-  p_offer_faab_amount int DEFAULT 0,
-  p_request_faab_amount int DEFAULT 0
-)
-RETURNS uuid
-LANGUAGE plpgsql
-SET search_path = public
-AS $$
-DECLARE
-  v_trade trades%ROWTYPE;
-  v_new_trade_id uuid;
-  v_parent_trade_id uuid;
-  v_new_proposer_member_id uuid;
-  v_new_recipient_member_id uuid;
-  v_replaced_status trade_status;
-  v_countered_from_trade_id uuid := NULL;
-  v_edited_from_trade_id uuid := NULL;
-  v_pending_error text;
-  v_actor_error text;
-BEGIN
-  IF p_action NOT IN ('counter', 'edit') THEN
-    RAISE EXCEPTION 'Unsupported trade replacement action.'
-      USING ERRCODE = '22023';
-  END IF;
-
-  SELECT *
-    INTO v_trade
-    FROM trades
-   WHERE id = p_trade_id
-   FOR UPDATE;
-
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'Trade not found.'
-      USING ERRCODE = 'P0002';
-  END IF;
-
-  IF p_action = 'counter' THEN
-    v_new_proposer_member_id := p_member_id;
-    v_new_recipient_member_id := v_trade.proposer_member_id;
-    v_replaced_status := 'countered'::trade_status;
-    v_countered_from_trade_id := p_trade_id;
-    v_pending_error := 'Only pending offers can be countered.';
-    v_actor_error := 'Only the recipient can counter this offer.';
-  ELSE
-    v_new_proposer_member_id := p_member_id;
-    v_new_recipient_member_id := v_trade.recipient_member_id;
-    v_replaced_status := 'edited'::trade_status;
-    v_edited_from_trade_id := p_trade_id;
-    v_pending_error := 'Only pending offers can be edited.';
-    v_actor_error := 'Only the proposer can edit this offer.';
-  END IF;
-
-  IF v_trade.status <> 'pending'::trade_status THEN
-    RAISE EXCEPTION '%', v_pending_error
-      USING ERRCODE = 'P0001';
-  END IF;
-
-  IF v_trade.expires_at IS NOT NULL AND v_trade.expires_at <= now() THEN
-    UPDATE trades SET status = 'expired'::trade_status WHERE id = p_trade_id;
-    RETURN NULL;
-  END IF;
-
-  IF (
-    (p_action = 'counter' AND v_trade.recipient_member_id <> p_member_id)
-    OR (p_action = 'edit' AND v_trade.proposer_member_id <> p_member_id)
-  ) THEN
-    RAISE EXCEPTION '%', v_actor_error
-      USING ERRCODE = '42501';
-  END IF;
-
-  PERFORM 1
-    FROM league_members
-   WHERE id = p_member_id
-     AND user_id = p_user_id
-     AND league_id = v_trade.league_id;
-
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'Not authorized to act for this member.'
-      USING ERRCODE = '42501';
-  END IF;
-
-  v_parent_trade_id := COALESCE(v_trade.parent_trade_id, v_trade.id);
-
-  v_new_trade_id := private.create_trade_offer(
-    v_trade.league_id,
-    v_trade.league_season_id,
-    v_new_proposer_member_id,
-    v_new_recipient_member_id,
-    p_offer_player_ids,
-    p_request_player_ids,
-    p_offer_pick_ids,
-    p_request_pick_ids,
-    p_notes,
-    p_expires_at,
-    p_offer_faab_amount,
-    p_request_faab_amount,
-    v_parent_trade_id,
-    v_countered_from_trade_id,
-    v_edited_from_trade_id,
-    v_trade.version + 1
-  );
-
-  UPDATE trades
-     SET status = v_replaced_status,
-         replaced_by_trade_id = v_new_trade_id
-   WHERE id = p_trade_id
-     AND status = 'pending'::trade_status;
-
-  RETURN v_new_trade_id;
-END;
-$$;
-
-CREATE OR REPLACE FUNCTION public.counter_trade_atomic(
-  p_trade_id uuid,
-  p_member_id uuid,
-  p_user_id uuid,
-  p_offer_player_ids uuid[],
-  p_request_player_ids uuid[],
-  p_offer_pick_ids uuid[],
-  p_request_pick_ids uuid[],
-  p_notes text DEFAULT NULL,
-  p_expires_at timestamptz DEFAULT NULL,
-  p_offer_faab_amount int DEFAULT 0,
-  p_request_faab_amount int DEFAULT 0
-)
-RETURNS uuid
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-BEGIN
-  RETURN private.replace_trade_offer(
-    p_trade_id,
-    p_member_id,
-    p_user_id,
-    'counter',
-    p_offer_player_ids,
-    p_request_player_ids,
-    p_offer_pick_ids,
-    p_request_pick_ids,
-    p_notes,
-    p_expires_at,
-    p_offer_faab_amount,
-    p_request_faab_amount
-  );
-END;
-$$;
-
-CREATE OR REPLACE FUNCTION public.edit_trade_atomic(
-  p_trade_id uuid,
-  p_member_id uuid,
-  p_user_id uuid,
-  p_offer_player_ids uuid[],
-  p_request_player_ids uuid[],
-  p_offer_pick_ids uuid[],
-  p_request_pick_ids uuid[],
-  p_notes text DEFAULT NULL,
-  p_expires_at timestamptz DEFAULT NULL,
-  p_offer_faab_amount int DEFAULT 0,
-  p_request_faab_amount int DEFAULT 0
-)
-RETURNS uuid
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-BEGIN
-  RETURN private.replace_trade_offer(
-    p_trade_id,
-    p_member_id,
-    p_user_id,
-    'edit',
-    p_offer_player_ids,
-    p_request_player_ids,
-    p_offer_pick_ids,
-    p_request_pick_ids,
-    p_notes,
-    p_expires_at,
-    p_offer_faab_amount,
-    p_request_faab_amount
-  );
-END;
-$$;
-
-CREATE OR REPLACE FUNCTION private.prevent_expired_or_unfunded_trade_accept()
-RETURNS trigger
-LANGUAGE plpgsql
-SET search_path = public
-AS $$
-DECLARE
-  v_balance int;
-BEGIN
-  IF OLD.status = 'pending'::trade_status AND NEW.status = 'accepted'::trade_status THEN
-    IF OLD.expires_at IS NOT NULL AND OLD.expires_at <= now() THEN
-      RAISE EXCEPTION 'This trade offer has expired.'
-        USING ERRCODE = 'P0001';
-    END IF;
-
-    IF OLD.proposer_faab_amount > 0 THEN
-      v_balance := private.ensure_faab_balance(OLD.league_id, OLD.league_season_id, OLD.proposer_member_id);
-      IF v_balance < OLD.proposer_faab_amount THEN
-        RAISE EXCEPTION 'Proposer no longer has enough FAAB for this trade.'
-          USING ERRCODE = 'P0001';
-      END IF;
-    END IF;
-
-    IF OLD.recipient_faab_amount > 0 THEN
-      v_balance := private.ensure_faab_balance(OLD.league_id, OLD.league_season_id, OLD.recipient_member_id);
-      IF v_balance < OLD.recipient_faab_amount THEN
-        RAISE EXCEPTION 'Recipient no longer has enough FAAB for this trade.'
-          USING ERRCODE = 'P0001';
-      END IF;
-    END IF;
-  END IF;
-
-  RETURN NEW;
-END;
-$$;
-
-CREATE OR REPLACE FUNCTION public.expire_pending_trades_atomic(
-  p_limit int DEFAULT 100
-)
-RETURNS TABLE (
-  trade_id uuid,
-  proposer_member_id uuid,
-  recipient_member_id uuid
-)
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-DECLARE
-  v_limit int := LEAST(GREATEST(COALESCE(p_limit, 100), 0), 500);
-BEGIN
-  RETURN QUERY
-  WITH expired AS (
-    UPDATE trades AS trade
-       SET status = 'expired'::trade_status
-     WHERE trade.id IN (
-       SELECT pending.id
-         FROM trades AS pending
-        WHERE pending.status = 'pending'::trade_status
-          AND pending.expires_at IS NOT NULL
-          AND pending.expires_at <= now()
-        ORDER BY pending.expires_at, pending.proposed_at, pending.id
-        LIMIT v_limit
-        FOR UPDATE SKIP LOCKED
-     )
-     RETURNING trade.id, trade.league_id, trade.league_season_id, trade.proposer_member_id, trade.recipient_member_id
-  ),
-  logged AS (
-    INSERT INTO league_activity (
-      league_id,
-      league_season_id,
-      actor_member_id,
-      target_member_id,
-      related_trade_id,
-      event_type,
-      title
-    )
-    SELECT
-      expired.league_id,
-      expired.league_season_id,
-      expired.proposer_member_id,
-      expired.recipient_member_id,
-      expired.id,
-      'trade_expired',
-      'Trade offer expired'
-    FROM expired
-    RETURNING id
-  )
-  SELECT expired.id, expired.proposer_member_id, expired.recipient_member_id
-    FROM expired;
 END;
 $$;
 
@@ -1020,130 +672,6 @@ BEGIN
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION public.reject_trade_atomic(
-  p_trade_id uuid,
-  p_member_id uuid,
-  p_user_id uuid
-)
-RETURNS jsonb
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-DECLARE
-  v_trade trades%ROWTYPE;
-BEGIN
-  SELECT *
-    INTO v_trade
-    FROM trades
-   WHERE id = p_trade_id
-   FOR UPDATE;
-
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'Trade not found'
-      USING ERRCODE = 'P0002';
-  END IF;
-
-  IF v_trade.status <> 'pending'::public.trade_status THEN
-    RAISE EXCEPTION 'This trade is no longer pending.'
-      USING ERRCODE = 'P0001';
-  END IF;
-
-  IF v_trade.recipient_member_id <> p_member_id THEN
-    RAISE EXCEPTION 'Only the trade recipient can reject this trade.'
-      USING ERRCODE = '42501';
-  END IF;
-
-  PERFORM 1
-    FROM public.league_members AS member
-   WHERE member.id = p_member_id
-     AND member.user_id = p_user_id
-   FOR UPDATE;
-
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'Not authorized to act for this member.'
-      USING ERRCODE = '42501';
-  END IF;
-
-  UPDATE public.trades
-     SET status = 'rejected'::public.trade_status
-   WHERE id = p_trade_id
-     AND status = 'pending'::public.trade_status;
-
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'This trade is no longer pending.'
-      USING ERRCODE = 'P0001';
-  END IF;
-
-  RETURN jsonb_build_object(
-    'proposerMemberId', v_trade.proposer_member_id,
-    'recipientMemberId', v_trade.recipient_member_id
-  );
-END;
-$$;
-
-CREATE OR REPLACE FUNCTION public.withdraw_trade_atomic(
-  p_trade_id uuid,
-  p_member_id uuid,
-  p_user_id uuid
-)
-RETURNS jsonb
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-DECLARE
-  v_trade trades%ROWTYPE;
-BEGIN
-  SELECT *
-    INTO v_trade
-    FROM trades
-   WHERE id = p_trade_id
-   FOR UPDATE;
-
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'Trade not found'
-      USING ERRCODE = 'P0002';
-  END IF;
-
-  IF v_trade.status <> 'pending'::public.trade_status THEN
-    RAISE EXCEPTION 'This trade is no longer pending.'
-      USING ERRCODE = 'P0001';
-  END IF;
-
-  IF v_trade.proposer_member_id <> p_member_id THEN
-    RAISE EXCEPTION 'Only the trade proposer can withdraw this trade.'
-      USING ERRCODE = '42501';
-  END IF;
-
-  PERFORM 1
-    FROM public.league_members AS member
-   WHERE member.id = p_member_id
-     AND member.user_id = p_user_id
-   FOR UPDATE;
-
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'Not authorized to act for this member.'
-      USING ERRCODE = '42501';
-  END IF;
-
-  UPDATE public.trades
-     SET status = 'withdrawn'::public.trade_status
-   WHERE id = p_trade_id
-     AND status = 'pending'::public.trade_status;
-
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'This trade is no longer pending.'
-      USING ERRCODE = 'P0001';
-  END IF;
-
-  RETURN jsonb_build_object(
-    'proposerMemberId', v_trade.proposer_member_id,
-    'recipientMemberId', v_trade.recipient_member_id
-  );
-END;
-$$;
-
 CREATE OR REPLACE FUNCTION public.process_due_accepted_trades_atomic(
   p_limit int DEFAULT 50
 )
@@ -1224,146 +752,63 @@ BEGIN
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION public.add_trade_block_item_atomic(
-  p_member_id uuid,
-  p_league_id uuid,
-  p_player_id uuid DEFAULT NULL,
-  p_pick_id uuid DEFAULT NULL,
-  p_note text DEFAULT NULL,
-  p_user_id uuid DEFAULT NULL
-)
-RETURNS uuid
+CREATE OR REPLACE FUNCTION public.prevent_trade_acceptance_after_deadline()
+RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
-  v_season_id uuid;
-  v_item_id uuid;
+  v_trade_deadline date;
+  v_league_status league_status;
+  v_champion_finalized boolean := false;
 BEGIN
-  IF ((p_player_id IS NOT NULL)::int + (p_pick_id IS NOT NULL)::int) <> 1 THEN
-    RAISE EXCEPTION 'Trade block item must be exactly one player or pick.'
-      USING ERRCODE = '22023';
-  END IF;
-
-  IF p_note IS NOT NULL AND length(p_note) > 280 THEN
-    RAISE EXCEPTION 'Trade block notes must be 280 characters or fewer.'
-      USING ERRCODE = '22023';
-  END IF;
-
-  PERFORM 1
-    FROM league_members
-   WHERE id = p_member_id
-     AND league_id = p_league_id
-     AND (p_user_id IS NULL OR user_id = p_user_id);
+  SELECT league.trade_deadline, league.status
+    INTO v_trade_deadline, v_league_status
+    FROM leagues AS league
+   WHERE league.id = NEW.league_id
+   FOR UPDATE;
 
   IF NOT FOUND THEN
-    RAISE EXCEPTION 'Access denied.'
-      USING ERRCODE = '42501';
+    RAISE EXCEPTION 'League not found.';
   END IF;
 
-  SELECT id
-    INTO v_season_id
-    FROM league_seasons
-   WHERE league_id = p_league_id
-     AND is_current = true
-   LIMIT 1;
+  SELECT EXISTS (
+    SELECT 1
+      FROM matchups AS matchup
+     WHERE matchup.league_id = NEW.league_id
+       AND matchup.league_season_id = NEW.league_season_id
+       AND matchup.matchup_type = 'playoff_final'::matchup_type
+       AND matchup.is_finalized = true
+       AND matchup.winner_member_id IS NOT NULL
+  )
+    INTO v_champion_finalized;
 
-  IF v_season_id IS NULL THEN
-    RAISE EXCEPTION 'No active season found.'
-      USING ERRCODE = 'P0001';
-  END IF;
-
-  IF p_player_id IS NOT NULL THEN
-    PERFORM 1
-      FROM roster_players
-     WHERE league_id = p_league_id
-       AND league_season_id = v_season_id
-       AND member_id = p_member_id
-       AND player_id = p_player_id
-       AND is_on_ir = false
-       AND is_on_taxi = false
-     FOR SHARE;
-
-    IF NOT FOUND THEN
-      RAISE EXCEPTION 'Only active roster players can be listed on the trade block.'
+  IF v_trade_deadline IS NOT NULL
+     AND v_trade_deadline < (now() AT TIME ZONE 'America/New_York')::date THEN
+    IF v_league_status = 'active'::league_status
+       OR (v_league_status = 'playoffs'::league_status AND NOT v_champion_finalized) THEN
+      RAISE EXCEPTION 'Trades are locked from the trade deadline until the champion is finalized.'
         USING ERRCODE = 'P0001';
     END IF;
-
-    INSERT INTO trade_block_items (
-      league_id,
-      member_id,
-      player_id,
-      note,
-      updated_at
-    )
-    VALUES (
-      p_league_id,
-      p_member_id,
-      p_player_id,
-      NULLIF(BTRIM(COALESCE(p_note, '')), ''),
-      now()
-    )
-    ON CONFLICT (league_id, member_id, player_id) WHERE player_id IS NOT NULL DO UPDATE
-       SET note = EXCLUDED.note,
-           updated_at = now()
-    RETURNING id INTO v_item_id;
-  ELSE
-    PERFORM 1
-      FROM draft_picks
-     WHERE id = p_pick_id
-       AND league_id = p_league_id
-       AND current_owner_id = p_member_id
-       AND is_used = false
-     FOR SHARE;
-
-    IF NOT FOUND THEN
-      RAISE EXCEPTION 'Only picks you own can be listed on the trade block.'
-        USING ERRCODE = 'P0001';
-    END IF;
-
-    INSERT INTO trade_block_items (
-      league_id,
-      member_id,
-      pick_id,
-      note,
-      updated_at
-    )
-    VALUES (
-      p_league_id,
-      p_member_id,
-      p_pick_id,
-      NULLIF(BTRIM(COALESCE(p_note, '')), ''),
-      now()
-    )
-    ON CONFLICT (league_id, member_id, pick_id) WHERE pick_id IS NOT NULL DO UPDATE
-       SET note = EXCLUDED.note,
-           updated_at = now()
-    RETURNING id INTO v_item_id;
   END IF;
 
-  PERFORM private.log_league_activity(
-    p_league_id,
-    v_season_id,
-    'trade_block_updated',
-    'Trade block updated',
-    NULL,
-    p_member_id,
-    NULL,
-    p_player_id,
-    NULL,
-    NULL,
-    jsonb_build_object('trade_block_item_id', v_item_id, 'pick_id', p_pick_id)
-  );
-
-  RETURN v_item_id;
+  RETURN NEW;
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION public.remove_trade_block_item_atomic(
-  p_item_id uuid,
-  p_member_id uuid,
-  p_user_id uuid DEFAULT NULL
+DROP TRIGGER IF EXISTS prevent_trade_acceptance_after_deadline ON public.trades;
+
+CREATE TRIGGER prevent_trade_acceptance_after_deadline
+  BEFORE UPDATE OF status ON public.trades
+  FOR EACH ROW
+  WHEN (OLD.status = 'pending'::trade_status AND NEW.status = 'accepted'::trade_status)
+  EXECUTE FUNCTION public.prevent_trade_acceptance_after_deadline();
+
+CREATE OR REPLACE FUNCTION public.accept_trade_atomic(
+  p_trade_id uuid,
+  p_accepting_member_id uuid,
+  p_drop_roster_player_ids uuid[] DEFAULT ARRAY[]::uuid[]
 )
 RETURNS void
 LANGUAGE plpgsql
@@ -1371,57 +816,341 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
-  v_item trade_block_items%ROWTYPE;
-  v_season_id uuid;
+  v_trade trades%ROWTYPE;
+  v_item trade_items%ROWTYPE;
+  v_league leagues%ROWTYPE;
+  v_drop_ids uuid[] := COALESCE(p_drop_roster_player_ids, ARRAY[]::uuid[]);
+  v_from_member uuid;
+  v_member_lock uuid;
+  v_lock_player_id uuid;
+  v_rows int;
+  v_active_count int;
+  v_incoming_players int;
+  v_outgoing_players int;
+  v_required_drops int;
+  v_proposer_active_count int;
+  v_proposer_incoming_players int;
+  v_proposer_outgoing_players int;
+  v_proposer_required_drops int;
 BEGIN
   SELECT *
-    INTO v_item
-    FROM trade_block_items
-   WHERE id = p_item_id
+    INTO v_trade
+    FROM trades
+   WHERE id = p_trade_id
    FOR UPDATE;
 
   IF NOT FOUND THEN
-    RETURN;
+    RAISE EXCEPTION 'Trade not found';
   END IF;
 
-  IF v_item.member_id <> p_member_id THEN
-    RAISE EXCEPTION 'Only the listing manager can remove this trade block item.'
-      USING ERRCODE = '42501';
+  IF v_trade.status <> 'pending' THEN
+    RAISE EXCEPTION 'This trade is no longer pending';
+  END IF;
+
+  IF v_trade.recipient_member_id <> p_accepting_member_id THEN
+    RAISE EXCEPTION 'Only the recipient can accept this trade';
+  END IF;
+
+  FOR v_member_lock IN
+    SELECT member_id
+      FROM (
+        VALUES (v_trade.proposer_member_id), (v_trade.recipient_member_id)
+      ) AS members(member_id)
+     ORDER BY member_id ASC
+  LOOP
+    PERFORM pg_advisory_xact_lock(
+      hashtext(v_trade.league_id::text),
+      hashtext(v_member_lock::text)
+    );
+  END LOOP;
+
+  IF (SELECT count(*) FROM unnest(v_drop_ids) AS id) <>
+     (SELECT count(DISTINCT id) FROM unnest(v_drop_ids) AS id) THEN
+    RAISE EXCEPTION 'Duplicate drop players are not allowed.';
+  END IF;
+
+  FOR v_lock_player_id IN
+    SELECT DISTINCT player_id
+      FROM (
+        SELECT player_id
+          FROM trade_items
+         WHERE trade_id = p_trade_id
+           AND player_id IS NOT NULL
+        UNION ALL
+        SELECT player_id
+          FROM roster_players
+         WHERE id = ANY(v_drop_ids)
+      ) AS touched
+     WHERE player_id IS NOT NULL
+     ORDER BY player_id ASC
+  LOOP
+    PERFORM pg_advisory_xact_lock(
+      hashtext(v_trade.league_id::text),
+      hashtext(v_lock_player_id::text)
+    );
+  END LOOP;
+
+  SELECT *
+    INTO v_league
+    FROM leagues
+   WHERE id = v_trade.league_id
+   FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'League not found.';
+  END IF;
+
+  IF v_league.status = 'archived'::league_status THEN
+    RAISE EXCEPTION 'Archived leagues are read-only.'
+      USING ERRCODE = 'P0001';
   END IF;
 
   PERFORM 1
-    FROM league_members
-   WHERE id = p_member_id
-     AND league_id = v_item.league_id
-     AND (p_user_id IS NULL OR user_id = p_user_id);
+    FROM league_seasons AS season
+   WHERE season.id = v_trade.league_season_id
+     AND season.is_current = true
+   FOR UPDATE;
 
   IF NOT FOUND THEN
-    RAISE EXCEPTION 'Access denied.'
-      USING ERRCODE = '42501';
+    RAISE EXCEPTION 'Trades require the current season.'
+      USING ERRCODE = 'P0001';
   END IF;
 
-  SELECT id
-    INTO v_season_id
-    FROM league_seasons
-   WHERE league_id = v_item.league_id
-     AND is_current = true
-   LIMIT 1;
+  FOR v_item IN
+    SELECT * FROM trade_items WHERE trade_id = p_trade_id ORDER BY created_at, id
+  LOOP
+    v_from_member := CASE
+      WHEN v_item.side = 'proposer' THEN v_trade.proposer_member_id
+      ELSE v_trade.recipient_member_id
+    END;
 
-  DELETE FROM trade_block_items
-   WHERE id = p_item_id;
+    IF v_item.player_id IS NOT NULL THEN
+      PERFORM 1
+        FROM roster_players
+       WHERE league_id = v_trade.league_id
+         AND league_season_id = v_trade.league_season_id
+         AND member_id = v_from_member
+         AND player_id = v_item.player_id
+         AND is_on_ir = false
+         AND is_on_taxi = false
+       FOR UPDATE;
 
-  PERFORM private.log_league_activity(
-    v_item.league_id,
-    v_season_id,
-    'trade_block_updated',
-    'Trade block updated',
-    'An item was removed from the trade block.',
-    p_member_id,
-    NULL,
-    v_item.player_id,
-    NULL,
-    NULL,
-    jsonb_build_object('pick_id', v_item.pick_id)
+      IF NOT FOUND THEN
+        RAISE EXCEPTION 'Player asset is no longer owned by the expected active roster side';
+      END IF;
+
+      IF EXISTS (
+        SELECT 1
+          FROM trade_items AS accepted_item
+          JOIN trades AS accepted_trade
+            ON accepted_trade.id = accepted_item.trade_id
+           AND accepted_trade.status = 'accepted'::trade_status
+         WHERE accepted_item.player_id = v_item.player_id
+           AND accepted_trade.id <> p_trade_id
+           AND accepted_trade.league_id = v_trade.league_id
+           AND accepted_trade.league_season_id = v_trade.league_season_id
+           AND (
+             (accepted_item.side = 'proposer' AND accepted_trade.proposer_member_id = v_from_member)
+             OR (accepted_item.side = 'recipient' AND accepted_trade.recipient_member_id = v_from_member)
+           )
+      ) THEN
+        RAISE EXCEPTION 'Player asset is reserved for another accepted trade';
+      END IF;
+
+      IF EXISTS (
+        SELECT 1
+          FROM trade_drop_reservations AS reservation
+          JOIN trades AS accepted_trade
+            ON accepted_trade.id = reservation.trade_id
+           AND accepted_trade.status = 'accepted'::trade_status
+         WHERE reservation.player_id = v_item.player_id
+           AND reservation.member_id = v_from_member
+           AND accepted_trade.id <> p_trade_id
+           AND accepted_trade.league_id = v_trade.league_id
+           AND accepted_trade.league_season_id = v_trade.league_season_id
+      ) THEN
+        RAISE EXCEPTION 'Player asset is reserved as a drop for another accepted trade';
+      END IF;
+    ELSE
+      PERFORM 1
+        FROM draft_picks
+       WHERE id = v_item.pick_id
+         AND league_id = v_trade.league_id
+         AND current_owner_id = v_from_member
+         AND is_used = false
+       FOR UPDATE;
+
+      IF NOT FOUND THEN
+        RAISE EXCEPTION 'Draft-pick asset is no longer owned by the expected trade side';
+      END IF;
+
+      IF EXISTS (
+        SELECT 1
+          FROM trade_items AS accepted_item
+          JOIN trades AS accepted_trade
+            ON accepted_trade.id = accepted_item.trade_id
+           AND accepted_trade.status = 'accepted'::trade_status
+         WHERE accepted_item.pick_id = v_item.pick_id
+           AND accepted_trade.id <> p_trade_id
+           AND accepted_trade.league_id = v_trade.league_id
+           AND accepted_trade.league_season_id = v_trade.league_season_id
+      ) THEN
+        RAISE EXCEPTION 'Draft-pick asset is reserved for another accepted trade';
+      END IF;
+    END IF;
+  END LOOP;
+
+  IF cardinality(v_drop_ids) > 0 THEN
+    WITH locked AS (
+      SELECT *
+        FROM roster_players
+       WHERE id = ANY(v_drop_ids)
+         AND league_id = v_trade.league_id
+         AND league_season_id = v_trade.league_season_id
+         AND member_id = p_accepting_member_id
+         AND is_on_ir = false
+         AND is_on_taxi = false
+       FOR UPDATE
+    )
+    SELECT count(*) INTO v_rows FROM locked;
+
+    IF v_rows <> cardinality(v_drop_ids) THEN
+      RAISE EXCEPTION 'Drop list includes a player that is no longer on your active roster.';
+    END IF;
+
+    IF EXISTS (
+      SELECT 1
+        FROM roster_players AS rp
+        JOIN trade_items AS ti
+          ON ti.trade_id = p_trade_id
+         AND ti.player_id = rp.player_id
+       WHERE rp.id = ANY(v_drop_ids)
+    ) THEN
+      RAISE EXCEPTION 'You cannot drop a player included in this trade.';
+    END IF;
+
+    IF EXISTS (
+      SELECT 1
+        FROM trade_drop_reservations AS reservation
+        JOIN trades AS trade
+          ON trade.id = reservation.trade_id
+         AND trade.status = 'accepted'::trade_status
+       WHERE reservation.roster_player_id = ANY(v_drop_ids)
+         AND reservation.trade_id <> p_trade_id
+    ) THEN
+      RAISE EXCEPTION 'A selected drop player is already reserved for another accepted trade.';
+    END IF;
+
+    IF EXISTS (
+      SELECT 1
+        FROM roster_players AS rp
+        JOIN trade_items AS accepted_item
+          ON accepted_item.player_id = rp.player_id
+        JOIN trades AS accepted_trade
+          ON accepted_trade.id = accepted_item.trade_id
+         AND accepted_trade.status = 'accepted'::trade_status
+       WHERE rp.id = ANY(v_drop_ids)
+         AND accepted_trade.id <> p_trade_id
+         AND accepted_trade.league_id = v_trade.league_id
+         AND accepted_trade.league_season_id = v_trade.league_season_id
+         AND (
+           (accepted_item.side = 'proposer' AND accepted_trade.proposer_member_id = rp.member_id)
+           OR (accepted_item.side = 'recipient' AND accepted_trade.recipient_member_id = rp.member_id)
+         )
+    ) THEN
+      RAISE EXCEPTION 'A selected drop player is reserved as an asset for another accepted trade.';
+    END IF;
+  END IF;
+
+  SELECT count(*)
+    INTO v_active_count
+    FROM roster_players
+   WHERE league_id = v_trade.league_id
+     AND league_season_id = v_trade.league_season_id
+     AND member_id = p_accepting_member_id
+     AND is_on_ir = false
+     AND is_on_taxi = false;
+
+  SELECT count(*)
+    INTO v_incoming_players
+    FROM trade_items
+   WHERE trade_id = p_trade_id
+     AND side = 'proposer'
+     AND player_id IS NOT NULL;
+
+  SELECT count(*)
+    INTO v_outgoing_players
+    FROM trade_items
+   WHERE trade_id = p_trade_id
+     AND side = 'recipient'
+     AND player_id IS NOT NULL;
+
+  v_required_drops := GREATEST(v_active_count - v_outgoing_players + v_incoming_players - COALESCE(v_league.roster_size, 0), 0);
+  IF cardinality(v_drop_ids) <> v_required_drops THEN
+    RAISE EXCEPTION 'Accepting this trade requires exactly % active roster drop(s).', v_required_drops;
+  END IF;
+
+  SELECT count(*)
+    INTO v_proposer_active_count
+    FROM roster_players
+   WHERE league_id = v_trade.league_id
+     AND league_season_id = v_trade.league_season_id
+     AND member_id = v_trade.proposer_member_id
+     AND is_on_ir = false
+     AND is_on_taxi = false;
+
+  SELECT count(*)
+    INTO v_proposer_incoming_players
+    FROM trade_items
+   WHERE trade_id = p_trade_id
+     AND side = 'recipient'
+     AND player_id IS NOT NULL;
+
+  SELECT count(*)
+    INTO v_proposer_outgoing_players
+    FROM trade_items
+   WHERE trade_id = p_trade_id
+     AND side = 'proposer'
+     AND player_id IS NOT NULL;
+
+  v_proposer_required_drops := GREATEST(
+    v_proposer_active_count - v_proposer_outgoing_players + v_proposer_incoming_players - COALESCE(v_league.roster_size, 0),
+    0
   );
+
+  IF v_proposer_required_drops > 0 THEN
+    RAISE EXCEPTION 'This trade would overfill the proposer roster.';
+  END IF;
+
+  DELETE FROM trade_drop_reservations WHERE trade_id = p_trade_id;
+
+  INSERT INTO trade_drop_reservations (
+    trade_id,
+    roster_player_id,
+    member_id,
+    player_id
+  )
+  SELECT
+    p_trade_id,
+    rp.id,
+    rp.member_id,
+    rp.player_id
+  FROM roster_players AS rp
+  WHERE rp.id = ANY(v_drop_ids)
+  ORDER BY rp.player_id ASC;
+
+  UPDATE trades
+     SET status = 'accepted',
+         accepted_at = now(),
+         veto_window_expires_at = now() + INTERVAL '24 hours',
+         completed_at = NULL,
+         vetoed_at = NULL
+   WHERE id = p_trade_id
+     AND status = 'pending';
+
+  GET DIAGNOSTICS v_rows = ROW_COUNT;
+  IF v_rows <> 1 THEN
+    RAISE EXCEPTION 'Failed to accept trade atomically';
+  END IF;
 END;
 $$;
