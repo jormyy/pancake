@@ -27,11 +27,14 @@ describe('multi-team trade schema and privacy', () => {
         const tradePolicy = latestPolicyDefinition('trades_select_parties_or_accepted', 'trades')
         const itemPolicy = latestPolicyDefinition('trade_items_select_parties_or_accepted', 'trade_items')
         const participantPolicy = latestPolicyDefinition('trade_participants_select_parties_or_accepted', 'trade_participants')
+        const visibilityHelper = latestFunctionDefinition('can_read_trade', 'private')
 
-        expect(tradePolicy).toContain('FROM public.trade_participants AS participant')
-        expect(tradePolicy).toContain('participant.member_id IN (SELECT private.my_member_ids())')
-        expect(itemPolicy).toContain('FROM public.trade_participants AS participant')
-        expect(participantPolicy).toContain('trade_participants.member_id IN (SELECT private.my_member_ids())')
+        expect(tradePolicy).toContain('private.can_read_trade(id)')
+        expect(itemPolicy).toContain('private.can_read_trade(trade_id)')
+        expect(participantPolicy).toContain('private.can_read_trade(trade_id)')
+        expect(visibilityHelper).toContain('FROM public.trade_participants AS participant')
+        expect(visibilityHelper).toContain('participant.member_id IN (SELECT private.my_member_ids())')
+        expect(visibilityHelper).toContain('SECURITY DEFINER')
     })
 })
 
