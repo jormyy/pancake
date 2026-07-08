@@ -8,8 +8,10 @@ import { DropPlayerPickerModal } from '@/components/DropPlayerPickerModal'
 import { showAlert, confirmAction, getErrorMessage } from '@/lib/alert'
 import { MotionPressable, MotionView } from '@/components/Motion'
 import { Avatar } from '@/components/Avatar'
-import { playerHeadshotUrl } from '@/lib/format'
-import { getPositionColor } from '@/constants/positions'
+import { formatPoints, playerHeadshotUrl } from '@/lib/format'
+import { PosTag } from '@/components/PosTag'
+import { Badge } from '@/components/Badge'
+import { INJURY_COLORS } from '@/constants/tokens'
 
 export type TabKey = 'picks' | 'offers' | 'history' | 'block'
 
@@ -29,6 +31,20 @@ const STATUS_COLORS = TRADE_STATUS_COLORS
 
 function TradeItemLine({ item }: { item: TradeItem }) {
     if (item.kind === 'player') {
+        const positions = item.eligiblePositions?.length
+            ? item.eligiblePositions
+            : item.position
+              ? [item.position]
+              : []
+        const yearsLabel =
+            item.yearsExp == null ? null
+            : item.yearsExp <= 0 ? 'Rookie'
+            : `${item.yearsExp} YR`
+        const statText = [
+            item.avgFantasyPoints != null ? `${formatPoints(item.avgFantasyPoints)} FPts` : null,
+            item.avgMinutesPlayed != null ? `${formatPoints(item.avgMinutesPlayed)} MIN` : null,
+            yearsLabel,
+        ].filter(Boolean).join(' · ')
         return (
             <View style={styles.assetPlayerRow}>
                 <Avatar
@@ -40,8 +56,19 @@ function TradeItemLine({ item }: { item: TradeItem }) {
                 />
                 <View style={styles.assetPlayerCopy}>
                     <Text style={styles.assetPlayer} numberOfLines={1}>{item.playerName}</Text>
-                    <Text style={styles.assetPlayerMeta} numberOfLines={1}>
-                        {[item.nbaTeam, item.position].filter(Boolean).join(' · ')}
+                    <View style={styles.assetPlayerMetaRow}>
+                        {item.nbaTeam ? <Text style={styles.assetPlayerMeta}>{item.nbaTeam}</Text> : null}
+                        {positions.map((pos) => <PosTag key={pos} position={pos} />)}
+                        {item.injuryStatus ? (
+                            <Badge
+                                label={item.injuryStatus}
+                                color={INJURY_COLORS[item.injuryStatus] ?? colors.textMuted}
+                                variant="solid"
+                            />
+                        ) : null}
+                    </View>
+                    <Text style={styles.assetPlayerContext} numberOfLines={1}>
+                        {statText || 'No season stats'}
                     </Text>
                 </View>
             </View>
@@ -389,10 +416,12 @@ const styles = StyleSheet.create({
     assetBlock: { marginBottom: spacing.xs },
     assetLabel: { fontSize: 12, fontWeight: fontWeight.semibold, color: colors.textPrimary, marginBottom: spacing.xxs },
     assetEmpty: { fontSize: fontSize.sm, color: colors.textPlaceholder },
-    assetPlayerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: 2 },
+    assetPlayerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.xs },
     assetPlayerCopy: { flex: 1, minWidth: 0 },
     assetPlayer: { fontSize: fontSize.sm, color: colors.textSecondary },
     assetPlayerMeta: { fontSize: fontSize.xs, color: colors.textMuted },
+    assetPlayerMetaRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 4, marginTop: 1 },
+    assetPlayerContext: { fontSize: fontSize.xs, color: colors.primaryDark, fontWeight: fontWeight.bold, marginTop: 1 },
     assetPick: { fontSize: fontSize.sm, color: colors.textSecondary, fontStyle: 'italic' },
     assetPickVia: { fontSize: 12, color: colors.textMuted },
 

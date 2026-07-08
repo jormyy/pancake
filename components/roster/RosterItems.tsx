@@ -11,6 +11,12 @@ import { Badge } from '@/components/Badge'
 import { PosTag } from '@/components/PosTag'
 import { MotionPressable, MotionView } from '@/components/Motion'
 
+function yearsExperienceLabel(yearsExp?: number | null): string | null {
+    if (yearsExp == null) return null
+    if (yearsExp <= 0) return 'Rookie'
+    return `${yearsExp} YR`
+}
+
 export function RosterClaimItem({
     claim,
     cancellingId,
@@ -241,6 +247,64 @@ export function RosterPlayerItem({
     )
 }
 
+export function ReadOnlyRosterPlayerItem({
+    item,
+    avgFpts,
+    avgMinutes,
+    onPress,
+}: {
+    item: RosterPlayer
+    avgFpts?: number
+    avgMinutes?: number | null
+    onPress: () => void
+}) {
+    const player = item.players
+    const positions = getEligiblePositions(player)
+    const headshotUri = playerHeadshotUrl(player.nba_id)
+    const yearsLabel = yearsExperienceLabel(player.years_exp)
+    const hasStats = avgFpts != null || avgMinutes != null
+
+    return (
+        <MotionPressable style={styles.playerRow} onPress={onPress} pressedScale={0.985}>
+            <Avatar
+                name={player.display_name}
+                color={colors.bgMuted}
+                textColor={colors.textSecondary}
+                uri={headshotUri ?? undefined}
+            />
+
+            <View style={styles.info}>
+                <Text style={styles.playerName} numberOfLines={1}>{player.display_name}</Text>
+                <View style={styles.playerMetaRow}>
+                    {player.nba_team ? <Text style={styles.playerMeta}>{player.nba_team}</Text> : null}
+                    {positions.map((pos) => <PosTag key={pos} position={pos} />)}
+                    {yearsLabel ? <Text style={styles.playerMeta}>{yearsLabel}</Text> : null}
+                    {avgFpts != null ? (
+                        <Text style={styles.fptsText}>{formatPoints(avgFpts)} FPts</Text>
+                    ) : null}
+                    {avgMinutes != null ? (
+                        <Text style={styles.fptsText}>{formatPoints(avgMinutes)} MIN</Text>
+                    ) : null}
+                    {!hasStats ? <Text style={styles.playerMeta}>No season stats</Text> : null}
+                </View>
+                {(player.injury_status || item.is_on_ir || item.is_on_taxi) ? (
+                    <View style={styles.readOnlyBadges}>
+                        {player.injury_status ? (
+                            <Badge
+                                label={player.injury_status}
+                                color={INJURY_COLORS[player.injury_status] ?? colors.textMuted}
+                                variant="solid"
+                            />
+                        ) : null}
+                        {item.is_on_ir ? <Badge label="IR" color={colors.textMuted} variant="soft" /> : null}
+                        {item.is_on_taxi ? <Badge label="TX" color={colors.textMuted} variant="soft" /> : null}
+                    </View>
+                ) : null}
+            </View>
+        </MotionPressable>
+    )
+}
+
 export function TaxiPlayerItem({
     item,
     taxiingId,
@@ -305,10 +369,11 @@ const styles = StyleSheet.create({
 
     info: { flex: 1, gap: 2 },
     playerName: { fontSize: fontSize.lg, fontWeight: fontWeight.semibold, color: colors.textPrimary },
-    playerMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+    playerMetaRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 4 },
     claimDropRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginTop: 1 },
     playerMeta: { fontSize: fontSize.sm, color: colors.textMuted },
     fptsText: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.primaryDark },
+    readOnlyBadges: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.xs, marginTop: 2 },
 
     rowActions: { flexDirection: 'row', gap: spacing.sm },
 

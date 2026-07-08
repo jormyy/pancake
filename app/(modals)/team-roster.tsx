@@ -7,39 +7,97 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLocalSearchParams, useRouter } from 'expo-router'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
 import { isTradingClosed } from '@/lib/league'
 import { getRoster, RosterPlayer } from '@/lib/roster'
-import { getEligiblePositions } from '@/lib/players'
-import { getPositionColor } from "@/constants/positions"
-import { Avatar } from '@/components/Avatar'
-import { Badge } from '@/components/Badge'
+import { EMPTY_AVG_MAP, EMPTY_STATS_MAP, getRosterStatsMaps } from '@/lib/roster-stats'
 import { EmptyState } from '@/components/EmptyState'
-import { ItemSeparator } from '@/components/ItemSeparator'
-import { PosTag } from '@/components/PosTag'
-import { colors, fontSize, fontWeight, spacing, INJURY_COLORS } from '@/constants/tokens'
-import { playerHeadshotUrl } from '@/lib/format'
+import { SectionHeader } from '@/components/SectionHeader'
+import { ReadOnlyRosterPlayerItem } from '@/components/roster/RosterItems'
+import { colors, fontSize, fontWeight, spacing } from '@/constants/tokens'
+
+const LINEUP_SLOT_ORDER = ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F', 'UTIL', 'BE'] as const
+
+function rosterSlotRank(player: RosterPlayer): number {
+    const eligible = player.players.eligible_positions?.length
+        ? player.players.eligible_positions
+        : player.players.position
+          ? [player.players.position]
+          : []
+    const rank = LINEUP_SLOT_ORDER.findIndex((slot) => eligible.includes(slot))
+    return rank === -1 ? LINEUP_SLOT_ORDER.length : rank
+}
+
+function compareRosterBySlot(a: RosterPlayer, b: RosterPlayer): number {
+    const slotCmp = rosterSlotRank(a) - rosterSlotRank(b)
+    if (slotCmp !== 0) return slotCmp
+    return (a.players.display_name ?? '').localeCompare(b.players.display_name ?? '')
+}
 
 export default function TeamRosterScreen() {
     const { back, push } = useRouter()
     const { memberId, teamName } = useLocalSearchParams<{ memberId: string; teamName: string }>()
     const { current, currentLeague } = useLeagueContext()
     const [roster, setRoster] = useState<RosterPlayer[]>([])
+    const [avgMap, setAvgMap] = useState(EMPTY_AVG_MAP)
+    const [avgStatsMap, setAvgStatsMap] = useState(EMPTY_STATS_MAP)
+    const [loading, setLoading] = useState(true)
     const canProposeTrade = !!memberId && memberId !== current?.id && !isTradingClosed(currentLeague)
 
     useEffect(() => {
-        if (!memberId || !current || !currentLeague) return
+        if (!memberId || !current || !currentLeague) {
+            setLoading(false)
+            return
+        }
+        let cancelled = false
         setRoster([])
-        getRoster(memberId, currentLeague.id)
-            .then(setRoster)
+        setAvgMap(EMPTY_AVG_MAP)
+        setAvgStatsMap(EMPTY_STATS_MAP)
+        setLoading(true)
+
+        void (async () => {
+            const nextRoster = await getRoster(memberId, currentLeague.id)
+            const stats = await getRosterStatsMaps(nextRoster.map((r) => r.players.id), currentLeague.id)
+            if (cancelled) return
+            setRoster(nextRoster)
+            setAvgMap(stats.avgMap)
+            setAvgStatsMap(stats.avgStatsMap)
+        })()
             .catch(console.error)
+            .finally(() => {
+                if (!cancelled) setLoading(false)
+            })
+
+        return () => {
+            cancelled = true
+        }
     }, [memberId, current, currentLeague])
 
-    const active = roster.filter((r) => !r.is_on_ir && !r.is_on_taxi)
-    const ir = roster.filter((r) => r.is_on_ir)
-    const taxi = roster.filter((r) => r.is_on_taxi)
-    const rows = [...active, ...ir, ...taxi]
+    const active = useMemo(
+        () => roster.filter((r) => !r.is_on_ir && !r.is_on_taxi).sort(compareRosterBySlot),
+        [roster],
+    )
+    const ir = useMemo(
+        () => roster.filter((r) => r.is_on_ir).sort(compareRosterBySlot),
+        [roster],
+    )
+    const taxi = useMemo(
+        () => roster.filter((r) => r.is_on_taxi).sort(compareRosterBySlot),
+        [roster],
+    )
+
+    const renderRosterRows = (items: RosterPlayer[]) => items.map((item, index) => (
+        <View key={item.id}>
+            <ReadOnlyRosterPlayerItem
+                item={item}
+                avgFpts={avgMap.get(item.players.id)}
+                avgMinutes={avgStatsMap.get(item.players.id)?.avg_minutes_played}
+                onPress={() => push({ pathname: '/player/[id]', params: { id: item.players.id } })}
+            />
+            {index < items.length - 1 ? <View style={styles.separator} /> : null}
+        </View>
+    ))
 
     return (
         <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
@@ -73,7 +131,9 @@ export default function TeamRosterScreen() {
                 style={styles.list}
                 contentContainerStyle={styles.listContent}
             >
-                {roster.length === 0 ? (
+                {loading && roster.length === 0 ? (
+                    <Text style={styles.loadingText}>Loading roster...</Text>
+                ) : roster.length === 0 ? (
                     <EmptyState
                         icon="sports-basketball"
                         message="No players yet"
@@ -91,50 +151,20 @@ export default function TeamRosterScreen() {
                             </Text>
                         </View>
 
-                        {rows.map((item, index) => {
-                            const p = item.players
-                            const eligiblePositions = getEligiblePositions(p)
-                            return (
-                                <View key={item.id}>
-                                    {index > 0 ? <ItemSeparator /> : null}
-                                    <Pressable
-                                        style={styles.playerRow}
-                                        onPress={() => push({ pathname: '/player/[id]', params: { id: p.id } })}
-                                        accessibilityRole="button"
-                                        accessibilityLabel={`Open ${p.display_name}`}
-                                    >
-                                        <Avatar
-                                            name={p.display_name}
-                                            color={colors.bgMuted}
-                                            size={44}
-                                            uri={playerHeadshotUrl(p.nba_id)}
-                                        />
-                                        <View style={styles.playerInfo}>
-                                            <Text style={styles.playerName}>{p.display_name}</Text>
-                                            <View style={styles.playerMetaRow}>
-                                                {p.nba_team && <Text style={styles.playerMeta}>{p.nba_team}</Text>}
-                                                {eligiblePositions.map((pos) => <PosTag key={pos} position={pos} />)}
-                                            </View>
-                                        </View>
-                                        <View style={styles.badges}>
-                                            {p.injury_status ? (
-                                                <Badge
-                                                    label={p.injury_status}
-                                                    color={INJURY_COLORS[p.injury_status] ?? colors.textMuted}
-                                                    variant="solid"
-                                                />
-                                            ) : null}
-                                            {item.is_on_ir ? (
-                                                <Badge label="IR" color={colors.textMuted} variant="soft" />
-                                            ) : null}
-                                            {item.is_on_taxi ? (
-                                                <Badge label="TX" color={colors.textMuted} variant="soft" />
-                                            ) : null}
-                                        </View>
-                                    </Pressable>
-                                </View>
-                            )
-                        })}
+                        <SectionHeader label="Starters & Bench · slot order" />
+                        {renderRosterRows(active)}
+                        {ir.length > 0 ? (
+                            <>
+                                <SectionHeader label="IR" />
+                                {renderRosterRows(ir)}
+                            </>
+                        ) : null}
+                        <SectionHeader label="Taxi Squad" />
+                        {taxi.length > 0 ? renderRosterRows(taxi) : (
+                            <View style={styles.taxiEmpty}>
+                                <Text style={styles.taxiEmptyText}>No players on taxi squad</Text>
+                            </View>
+                        )}
                     </>
                 )}
             </ScrollView>
@@ -174,17 +204,24 @@ const styles = StyleSheet.create({
         borderBottomColor: colors.borderLight,
     },
     countText: { fontSize: fontSize.sm, color: colors.textMuted },
-
-    playerRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
+    loadingText: {
+        paddingHorizontal: spacing.xl,
+        paddingVertical: spacing['2xl'],
+        fontSize: fontSize.md,
+        color: colors.textMuted,
+    },
+    separator: {
+        height: 1,
+        marginLeft: spacing.xl + 44 + spacing.lg,
+        backgroundColor: colors.separator,
+    },
+    taxiEmpty: {
         paddingHorizontal: spacing.xl,
         paddingVertical: spacing.lg,
-        gap: spacing.lg,
     },
-    playerInfo: { flex: 1, gap: spacing.xxs },
-    playerName: { fontSize: 15, fontWeight: fontWeight.semibold, color: colors.textPrimary },
-    playerMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-    playerMeta: { fontSize: fontSize.sm, color: colors.textMuted },
-    badges: { flexDirection: 'row', gap: spacing.sm, alignItems: 'center' },
+    taxiEmptyText: {
+        fontSize: fontSize.sm,
+        color: colors.textPlaceholder,
+        fontStyle: 'italic',
+    },
 })

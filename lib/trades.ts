@@ -1,13 +1,19 @@
 import { supabase } from '@/lib/supabase'
 import { apiPost } from '@/lib/shared/api'
+import { getRosterStatsMaps } from '@/lib/roster-stats'
 
 export type TradePlayerItem = {
     kind: 'player'
     playerId: string
     playerName: string
     position: string | null
+    eligiblePositions?: string[]
     nbaTeam: string | null
     nbaId?: string | null
+    injuryStatus?: string | null
+    yearsExp?: number | null
+    avgFantasyPoints?: number | null
+    avgMinutesPlayed?: number | null
 }
 
 export type TradePickItem = {
@@ -58,8 +64,11 @@ type TradePickQueryRow = {
 type TradePlayerQueryRow = {
     display_name: string | null
     position: string | null
+    eligible_positions: string[] | null
     nba_team: string | null
     nba_id: string | null
+    injury_status: string | null
+    years_exp: number | null
 } | null
 type TradeItemQueryRow = {
     side: 'proposer' | 'recipient'
@@ -74,6 +83,7 @@ type TradeItemQueryRow = {
 }
 type TradeQueryRow = {
     id: string
+    league_id: string
     status: string
     proposed_at: string
     accepted_at: string | null
@@ -230,6 +240,7 @@ export async function vetoTrade(tradeId: string, memberId: string): Promise<void
 
 const TRADE_SELECT = `
             id,
+            league_id,
             status,
             proposed_at,
             accepted_at,
@@ -255,7 +266,7 @@ const TRADE_SELECT = `
                 side,
                 player_id,
                 pick_id,
-                players ( display_name, position, nba_team, nba_id ),
+                players ( display_name, position, eligible_positions, nba_team, nba_id, injury_status, years_exp ),
                 draft_picks (
                     season_year,
                     round,
@@ -277,8 +288,11 @@ function mapTradeRow(row: TradeQueryRow, memberId: string): Trade {
                 playerId: item.player_id,
                 playerName: item.players?.display_name ?? 'Unknown',
                 position: item.players?.position ?? null,
+                eligiblePositions: item.players?.eligible_positions ?? (item.players?.position ? [item.players.position] : []),
                 nbaTeam: item.players?.nba_team ?? null,
                 nbaId: item.players?.nba_id ?? null,
+                injuryStatus: item.players?.injury_status ?? null,
+                yearsExp: item.players?.years_exp ?? null,
             } satisfies TradePlayerItem
         } else if (item.pick_id != null && item.draft_picks) {
             tradeItem = {
@@ -326,6 +340,40 @@ function mapTradeRow(row: TradeQueryRow, memberId: string): Trade {
     } satisfies Trade
 }
 
+function playerIdsFromItems(items: TradeItem[]): string[] {
+    return items.flatMap((item) => item.kind === 'player' ? [item.playerId] : [])
+}
+
+function enrichItemsWithStats(
+    items: TradeItem[],
+    avgMap: Map<string, number>,
+    avgStatsMap: Map<string, { avg_minutes_played: number | null }>,
+): TradeItem[] {
+    return items.map((item) => {
+        if (item.kind !== 'player') return item
+        return {
+            ...item,
+            avgFantasyPoints: avgMap.get(item.playerId) ?? null,
+            avgMinutesPlayed: avgStatsMap.get(item.playerId)?.avg_minutes_played ?? null,
+        }
+    })
+}
+
+async function enrichTradesWithStats(trades: Trade[], leagueId: string): Promise<Trade[]> {
+    const playerIds = trades.flatMap((trade) => [
+        ...playerIdsFromItems(trade.proposerGives),
+        ...playerIdsFromItems(trade.recipientGives),
+    ])
+    if (playerIds.length === 0) return trades
+
+    const { avgMap, avgStatsMap } = await getRosterStatsMaps(playerIds, leagueId)
+    return trades.map((trade) => ({
+        ...trade,
+        proposerGives: enrichItemsWithStats(trade.proposerGives, avgMap, avgStatsMap),
+        recipientGives: enrichItemsWithStats(trade.recipientGives, avgMap, avgStatsMap),
+    }))
+}
+
 export async function getMyTrades(memberId: string, leagueId: string): Promise<Trade[]> {
     const { data, error } = await supabase
         .from('trades')
@@ -337,7 +385,10 @@ export async function getMyTrades(memberId: string, leagueId: string): Promise<T
 
     if (error) throw error
 
-    return ((data ?? []) as TradeQueryRow[]).map((row) => mapTradeRow(row, memberId))
+    return enrichTradesWithStats(
+        ((data ?? []) as TradeQueryRow[]).map((row) => mapTradeRow(row, memberId)),
+        leagueId,
+    )
 }
 
 export async function getVetoableTrades(memberId: string, leagueId: string): Promise<Trade[]> {
@@ -354,7 +405,10 @@ export async function getVetoableTrades(memberId: string, leagueId: string): Pro
 
     if (error) throw error
 
-    return ((data ?? []) as TradeQueryRow[]).map((row) => mapTradeRow(row, memberId))
+    return enrichTradesWithStats(
+        ((data ?? []) as TradeQueryRow[]).map((row) => mapTradeRow(row, memberId)),
+        leagueId,
+    )
 }
 
 export async function getTradeById(tradeId: string, memberId: string): Promise<Trade | null> {
@@ -365,7 +419,10 @@ export async function getTradeById(tradeId: string, memberId: string): Promise<T
         .maybeSingle()
 
     if (error) throw error
-    return data ? mapTradeRow(data as TradeQueryRow, memberId) : null
+    if (!data) return null
+    const row = data as TradeQueryRow
+    const [trade] = await enrichTradesWithStats([mapTradeRow(row, memberId)], row.league_id)
+    return trade ?? null
 }
 
 type TradeBlockQueryRow = {
@@ -395,7 +452,7 @@ export async function getTradeBlockItems(leagueId: string): Promise<TradeBlockIt
             note,
             updated_at,
             league_members ( team_name ),
-            players ( display_name, position, nba_team, nba_id ),
+            players ( display_name, position, eligible_positions, nba_team, nba_id, injury_status, years_exp ),
             draft_picks (
                 season_year,
                 round,
@@ -407,7 +464,7 @@ export async function getTradeBlockItems(leagueId: string): Promise<TradeBlockIt
 
     if (error) throw error
 
-    return ((data ?? []) as TradeBlockQueryRow[]).flatMap<TradeBlockItem>((row) => {
+    const items = ((data ?? []) as TradeBlockQueryRow[]).flatMap<TradeBlockItem>((row) => {
         if (row.player_id && row.players) {
             return [{
                 id: row.id,
@@ -420,8 +477,11 @@ export async function getTradeBlockItems(leagueId: string): Promise<TradeBlockIt
                     playerId: row.player_id,
                     playerName: row.players.display_name ?? 'Unknown',
                     position: row.players.position ?? null,
+                    eligiblePositions: row.players.eligible_positions ?? (row.players.position ? [row.players.position] : []),
                     nbaTeam: row.players.nba_team ?? null,
                     nbaId: row.players.nba_id ?? null,
+                    injuryStatus: row.players.injury_status ?? null,
+                    yearsExp: row.players.years_exp ?? null,
                 },
             }]
         }
@@ -443,6 +503,16 @@ export async function getTradeBlockItems(leagueId: string): Promise<TradeBlockIt
         }
         return []
     })
+
+    const playerIds = items.flatMap((item) => item.asset.kind === 'player' ? [item.asset.playerId] : [])
+    if (playerIds.length === 0) return items
+    const { avgMap, avgStatsMap } = await getRosterStatsMaps(playerIds, leagueId)
+    return items.map((item) => ({
+        ...item,
+        asset: item.asset.kind === 'player'
+            ? enrichItemsWithStats([item.asset], avgMap, avgStatsMap)[0]
+            : item.asset,
+    }))
 }
 
 export async function addTradeBlockItem(params: {

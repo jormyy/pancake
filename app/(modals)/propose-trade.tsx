@@ -13,6 +13,8 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
 import { getLeagueMembers, isTradingClosed } from '@/lib/league'
 import { getRoster, RosterPlayer } from '@/lib/roster'
+import { getRosterStatsMaps, EMPTY_AVG_MAP, EMPTY_STATS_MAP } from '@/lib/roster-stats'
+import { getEligiblePositions } from '@/lib/players'
 import {
     counterTrade,
     editTrade,
@@ -34,25 +36,40 @@ import {
 } from '@/lib/trade-composer'
 import { showAlert, showSuccess, getErrorMessage } from '@/lib/alert'
 
-import { playerHeadshotUrl, yearShort } from '@/lib/format'
+import { formatPoints, playerHeadshotUrl, yearShort } from '@/lib/format'
 import { Avatar } from '@/components/Avatar'
+import { Badge } from '@/components/Badge'
 import { EmptyState } from '@/components/EmptyState'
-import { getPositionColor } from '@/constants/positions'
-import { colors, fontSize, fontWeight, radii, spacing, breakpoints, uiColors } from '@/constants/tokens'
+import { PosTag } from '@/components/PosTag'
+import { colors, fontSize, fontWeight, radii, spacing, breakpoints, uiColors, INJURY_COLORS } from '@/constants/tokens'
 
 const isTradeableRosterPlayer = (player: RosterPlayer) => !player.is_on_ir && !player.is_on_taxi
 
 function PlayerRow({
     player,
+    avgFpts,
+    avgMinutes,
     selected,
     onToggle,
 }: {
     player: RosterPlayer
+    avgFpts?: number
+    avgMinutes?: number | null
     selected: boolean
     onToggle: () => void
 }) {
     const p = player.players
+    const positions = getEligiblePositions(p)
     const action = selected ? 'Remove' : 'Select'
+    const yearsLabel =
+        p.years_exp == null ? null
+        : p.years_exp <= 0 ? 'Rookie'
+        : `${p.years_exp} YR`
+    const statText = [
+        avgFpts != null ? `${formatPoints(avgFpts)} FPts` : null,
+        avgMinutes != null ? `${formatPoints(avgMinutes)} MIN` : null,
+        yearsLabel,
+    ].filter(Boolean).join(' · ')
     return (
         <Pressable
             style={[styles.playerRow, selected && styles.playerRowSelected]}
@@ -70,9 +87,20 @@ function PlayerRow({
                 <Text style={[styles.playerName, selected && styles.playerNameSelected]}>
                     {p.display_name}
                 </Text>
-                <Text style={styles.playerMeta}>
-                    {[p.position, p.nba_team].filter(Boolean).join(' · ')}
-                    {player.is_on_ir ? ' · IR' : ''}
+                <View style={styles.playerMetaRow}>
+                    {p.nba_team ? <Text style={styles.playerMeta}>{p.nba_team}</Text> : null}
+                    {positions.map((pos) => <PosTag key={pos} position={pos} />)}
+                    {p.injury_status ? (
+                        <Badge
+                            label={p.injury_status}
+                            color={INJURY_COLORS[p.injury_status] ?? colors.textMuted}
+                            variant="solid"
+                        />
+                    ) : null}
+                    {player.is_on_ir ? <Badge label="IR" color={colors.textMuted} variant="soft" /> : null}
+                </View>
+                <Text style={styles.playerContext} numberOfLines={1}>
+                    {statText || 'No season stats'}
                 </Text>
             </View>
             {selected && (
@@ -126,6 +154,8 @@ function TeamColumn({
     twoColumn,
     roster,
     picks,
+    avgMap,
+    avgStatsMap,
     selectedPlayerIds,
     selectedPickIds,
     onTogglePlayer,
@@ -138,6 +168,8 @@ function TeamColumn({
     twoColumn: boolean
     roster: RosterPlayer[]
     picks: TradePickItem[]
+    avgMap: Map<string, number>
+    avgStatsMap: Map<string, { avg_minutes_played: number | null }>
     selectedPlayerIds: Set<string>
     selectedPickIds: Set<string>
     onTogglePlayer: (id: string) => void
@@ -169,6 +201,8 @@ function TeamColumn({
                     <PlayerRow
                         key={rp.id}
                         player={rp}
+                        avgFpts={avgMap.get(rp.players.id)}
+                        avgMinutes={avgStatsMap.get(rp.players.id)?.avg_minutes_played}
                         selected={selectedPlayerIds.has(rp.players.id)}
                         onToggle={() => onTogglePlayer(rp.players.id)}
                     />
@@ -219,6 +253,8 @@ export default function ProposeTradeScreen() {
     const [myRoster, setMyRoster] = useState<RosterPlayer[]>([])
     const [myPicks, setMyPicks] = useState<TradePickItem[]>([])
     const [theirPicks, setTheirPicks] = useState<TradePickItem[]>([])
+    const [avgMap, setAvgMap] = useState(EMPTY_AVG_MAP)
+    const [avgStatsMap, setAvgStatsMap] = useState(EMPTY_STATS_MAP)
     const [requestIds, setRequestIds] = useState<Set<string>>(new Set())
     const [offerIds, setOfferIds] = useState<Set<string>>(new Set())
     const [offerPickIds, setOfferPickIds] = useState<Set<string>>(new Set())
@@ -279,6 +315,8 @@ export default function ProposeTradeScreen() {
         if (!recipientId || !leagueId || !myMemberId) {
             setTheirRoster([])
             setTheirPicks([])
+            setAvgMap(EMPTY_AVG_MAP)
+            setAvgStatsMap(EMPTY_STATS_MAP)
             setRosterLoading(false)
             return
         }
@@ -298,12 +336,19 @@ export default function ProposeTradeScreen() {
             if (rosterLoadSeqRef.current !== requestId) return
             const theirActiveRoster = theirData.filter(isTradeableRosterPlayer)
             const myActiveRoster = myData.filter(isTradeableRosterPlayer)
+            const stats = await getRosterStatsMaps(
+                [...theirActiveRoster, ...myActiveRoster].map((player) => player.players.id),
+                leagueId,
+            )
+            if (rosterLoadSeqRef.current !== requestId) return
             const theirActiveIds = new Set(theirActiveRoster.map((player) => player.players.id))
             const myActiveIds = new Set(myActiveRoster.map((player) => player.players.id))
             setTheirRoster(theirActiveRoster)
             setMyRoster(myActiveRoster)
             setTheirPicks(theirPicksData)
             setMyPicks(myPicksData)
+            setAvgMap(stats.avgMap)
+            setAvgStatsMap(stats.avgStatsMap)
             if (prefillTrade && prefillAppliedToRef.current !== prefillTrade.id) {
                 const prefill = prefillTradeComposerFromTrade(mode, prefillTrade)
                 setOfferIds(new Set(prefill.offerPlayerIds.filter((id) => myActiveIds.has(id))))
@@ -540,6 +585,8 @@ export default function ProposeTradeScreen() {
                                     twoColumn={twoColumn}
                                     roster={myRoster}
                                     picks={myPicks}
+                                    avgMap={avgMap}
+                                    avgStatsMap={avgStatsMap}
                                     selectedPlayerIds={offerIds}
                                     selectedPickIds={offerPickIds}
                                     onTogglePlayer={toggleOffer}
@@ -554,6 +601,8 @@ export default function ProposeTradeScreen() {
                                     twoColumn={twoColumn}
                                     roster={theirRoster}
                                     picks={theirPicks}
+                                    avgMap={avgMap}
+                                    avgStatsMap={avgStatsMap}
                                     selectedPlayerIds={requestIds}
                                     selectedPickIds={requestPickIds}
                                     onTogglePlayer={toggleRequest}
@@ -780,10 +829,12 @@ const styles = StyleSheet.create({
     pickCircleSelected: { backgroundColor: colors.primary },
     pickCircleText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: 12 },
 
-    playerInfo: { flex: 1 },
+    playerInfo: { flex: 1, minWidth: 0, gap: 2 },
     playerName: { fontSize: 15, fontWeight: fontWeight.semibold, color: colors.textPrimary },
     playerNameSelected: { color: colors.primaryDark },
-    playerMeta: { fontSize: 12, color: colors.textMuted, marginTop: spacing.xxs },
+    playerMetaRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 4 },
+    playerMeta: { fontSize: 12, color: colors.textMuted },
+    playerContext: { fontSize: 11, color: colors.primaryDark, fontWeight: fontWeight.bold },
     checkBadge: {
         width: 24,
         height: 24,

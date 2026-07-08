@@ -16,8 +16,7 @@ import { useLeagueContext } from '@/contexts/league-context'
 import { getRoster, toggleIR, toggleTaxi, dropPlayer, isIREligible, isTaxiEligible, RosterPlayer } from '@/lib/roster'
 import { getPicksForMember, TradePickItem } from '@/lib/trades'
 import { getMyWaiverClaims, cancelWaiverClaim, editWaiverClaim, reorderWaiverClaim, getMyWaiverPriority, WaiverClaim } from '@/lib/waivers'
-import { supabase } from '@/lib/supabase'
-import { currentSeasonYear } from '@/lib/shared/season'
+import { EMPTY_AVG_MAP, EMPTY_STATS_MAP, getRosterStatsMaps, RosterAverage } from '@/lib/roster-stats'
 import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 import { ItemSeparator } from '@/components/ItemSeparator'
 import { EmptyState } from '@/components/EmptyState'
@@ -40,19 +39,6 @@ type RosterListItem =
 const EMPTY_ROSTER: RosterPlayer[] = []
 const EMPTY_PICKS: TradePickItem[] = []
 const EMPTY_CLAIMS: WaiverClaim[] = []
-const EMPTY_AVG_MAP = new Map<string, number>()
-type RosterAverage = {
-    avg_points: number | null
-    avg_rebounds: number | null
-    avg_assists: number | null
-    avg_steals: number | null
-    avg_blocks: number | null
-    avg_three_pointers_made: number | null
-    avg_turnovers: number | null
-    avg_minutes_played: number | null
-    games_played: number | null
-}
-const EMPTY_STATS_MAP = new Map<string, RosterAverage>()
 const ROSTER_LOADING_ROWS = 8
 type RosterScreenData = {
     roster: RosterPlayer[]
@@ -312,26 +298,7 @@ export default function RosterScreen() {
             getMyWaiverClaims(current.id, leagueId),
             getMyWaiverPriority(current.id, leagueId),
         ])
-        const playerIds = roster.map((r) => r.players.id)
-        const { data: avgData } = await supabase
-            .from('v_player_avg_fantasy_points')
-            .select('player_id, avg_fantasy_points')
-            .eq('league_id', leagueId)
-            .eq('season_year', currentSeasonYear())
-            .in('player_id', playerIds)
-        const { data: statsData } = await supabase
-            .from('mv_player_season_averages')
-            .select('player_id, avg_points, avg_rebounds, avg_assists, avg_steals, avg_blocks, avg_three_pointers_made, avg_turnovers, avg_minutes_played, games_played')
-            .eq('season_year', currentSeasonYear())
-            .in('player_id', playerIds)
-        const avgMap = new Map<string, number>()
-        for (const row of (avgData ?? []) as { player_id: string; avg_fantasy_points: number | null }[]) {
-            avgMap.set(row.player_id, Number(row.avg_fantasy_points))
-        }
-        const avgStatsMap = new Map<string, RosterAverage>()
-        for (const row of (statsData ?? []) as (RosterAverage & { player_id: string | null })[]) {
-            if (row.player_id) avgStatsMap.set(row.player_id, row)
-        }
+        const { avgMap, avgStatsMap } = await getRosterStatsMaps(roster.map((r) => r.players.id), leagueId)
         const result = { roster, picks, claims, avgMap, avgStatsMap, waiverPriority }
         writeRosterCache(current.id, leagueId, result)
         return result

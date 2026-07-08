@@ -23,18 +23,20 @@ import {
     getPicksForMember,
 } from '@/lib/trades'
 import { getRoster, RosterPlayer } from '@/lib/roster'
-import { colors, fontSize, fontWeight, radii, spacing, layout, uiColors } from '@/constants/tokens'
+import { colors, fontSize, fontWeight, radii, spacing, layout, uiColors, INJURY_COLORS } from '@/constants/tokens'
 import { SegmentedControl, type SegmentOption } from '@/components/ui/SegmentedControl'
 import { ItemSeparator } from '@/components/ItemSeparator'
 import { ErrorBanner } from '@/components/ui'
 import { SectionHeader } from '@/components/SectionHeader'
 import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
-import { playerHeadshotUrl, yearShort } from '@/lib/format'
+import { formatPoints, playerHeadshotUrl, yearShort } from '@/lib/format'
 import { TradeCard, TabKey } from '@/components/trades/TradeCard'
 import { getErrorMessage } from '@/lib/alert'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
+import { EMPTY_AVG_MAP, EMPTY_STATS_MAP, getRosterStatsMaps } from '@/lib/roster-stats'
 import { Avatar } from '@/components/Avatar'
-import { getPositionColor } from '@/constants/positions'
+import { PosTag } from '@/components/PosTag'
+import { Badge } from '@/components/Badge'
 
 type ListItem =
     | { _type: 'trade'; trade: Trade }
@@ -126,6 +128,8 @@ export default function TradesScreen() {
     const [tradesError, setTradesError] = useState<string | null>(null)
     const [blockItems, setBlockItems] = useState<TradeBlockItem[]>(cachedBlock?.items ?? [])
     const [blockRoster, setBlockRoster] = useState<RosterPlayer[]>(cachedBlock?.roster ?? [])
+    const [blockAvgMap, setBlockAvgMap] = useState(EMPTY_AVG_MAP)
+    const [blockAvgStatsMap, setBlockAvgStatsMap] = useState(EMPTY_STATS_MAP)
     const [blockLoading, setBlockLoading] = useState(!cachedBlock)
     const [blockError, setBlockError] = useState<string | null>(null)
     const [blockBusyId, setBlockBusyId] = useState<string | null>(null)
@@ -175,6 +179,8 @@ export default function TradesScreen() {
         if (!memberId || !currentLeagueId) {
             setBlockItems([])
             setBlockRoster([])
+            setBlockAvgMap(EMPTY_AVG_MAP)
+            setBlockAvgStatsMap(EMPTY_STATS_MAP)
             setBlockError(null)
             setBlockLoading(false)
             return
@@ -188,8 +194,12 @@ export default function TradesScreen() {
             ])
             if (blockLoadSeqRef.current !== requestId) return
             const activeRoster = roster.filter((player) => !player.is_on_ir && !player.is_on_taxi)
+            const stats = await getRosterStatsMaps(activeRoster.map((player) => player.players.id), currentLeagueId)
+            if (blockLoadSeqRef.current !== requestId) return
             setBlockItems(items)
             setBlockRoster(activeRoster)
+            setBlockAvgMap(stats.avgMap)
+            setBlockAvgStatsMap(stats.avgStatsMap)
             writePersistentCache(tradeBlockCacheKey(memberId, currentLeagueId), {
                 items,
                 roster: activeRoster,
@@ -217,6 +227,8 @@ export default function TradesScreen() {
             : null
         setBlockItems(nextCachedBlock?.items ?? [])
         setBlockRoster(nextCachedBlock?.roster ?? [])
+        setBlockAvgMap(EMPTY_AVG_MAP)
+        setBlockAvgStatsMap(EMPTY_STATS_MAP)
         setBlockLoading(!nextCachedBlock)
     }, [myMemberId, leagueId])
 
@@ -328,6 +340,25 @@ export default function TradesScreen() {
             const label = block.asset.kind === 'player'
                 ? block.asset.playerName
                 : `${block.asset.seasonYear} Round ${block.asset.round} pick`
+            const positions = block.asset.kind === 'player'
+                ? block.asset.eligiblePositions?.length
+                    ? block.asset.eligiblePositions
+                    : block.asset.position
+                      ? [block.asset.position]
+                      : []
+                : []
+            const yearsLabel = block.asset.kind === 'player'
+                ? block.asset.yearsExp == null ? null
+                    : block.asset.yearsExp <= 0 ? 'Rookie'
+                    : `${block.asset.yearsExp} YR`
+                : null
+            const statText = block.asset.kind === 'player'
+                ? [
+                    block.asset.avgFantasyPoints != null ? `${formatPoints(block.asset.avgFantasyPoints)} FPts` : null,
+                    block.asset.avgMinutesPlayed != null ? `${formatPoints(block.asset.avgMinutesPlayed)} MIN` : null,
+                    yearsLabel,
+                ].filter(Boolean).join(' · ')
+                : ''
             return (
                 <View style={styles.blockRow}>
                     {block.asset.kind === 'player' ? (
@@ -341,9 +372,25 @@ export default function TradesScreen() {
                     ) : null}
                     <View style={styles.blockInfo}>
                         <Text style={styles.blockTitle}>{label}</Text>
-                        <Text style={styles.blockMeta}>
-                            {block.teamName}{block.asset.kind === 'player' && block.asset.position ? ` · ${block.asset.position}` : ''}
-                        </Text>
+                        {block.asset.kind === 'player' ? (
+                            <>
+                                <View style={styles.blockMetaRow}>
+                                    <Text style={styles.blockMeta}>{block.teamName}</Text>
+                                    {block.asset.nbaTeam ? <Text style={styles.blockMeta}>{block.asset.nbaTeam}</Text> : null}
+                                    {positions.map((pos) => <PosTag key={pos} position={pos} />)}
+                                    {block.asset.injuryStatus ? (
+                                        <Badge
+                                            label={block.asset.injuryStatus}
+                                            color={INJURY_COLORS[block.asset.injuryStatus] ?? colors.textMuted}
+                                            variant="solid"
+                                        />
+                                    ) : null}
+                                </View>
+                                <Text style={styles.blockContext} numberOfLines={1}>{statText || 'No season stats'}</Text>
+                            </>
+                        ) : (
+                            <Text style={styles.blockMeta}>{block.teamName}</Text>
+                        )}
                         {block.note ? <Text style={styles.blockNote}>{block.note}</Text> : null}
                     </View>
                     {mine ? (
@@ -378,26 +425,52 @@ export default function TradesScreen() {
         }
         if (item._type === 'blockPlayer') {
             const listed = blockItems.some((block) => block.memberId === myMemberId && block.asset.kind === 'player' && block.asset.playerId === item.player.players.id)
+            const player = item.player.players
+            const positions = player.eligible_positions?.length
+                ? player.eligible_positions
+                : player.position
+                  ? [player.position]
+                  : []
+            const yearsLabel =
+                player.years_exp == null ? null
+                : player.years_exp <= 0 ? 'Rookie'
+                : `${player.years_exp} YR`
+            const statText = [
+                blockAvgMap.get(player.id) != null ? `${formatPoints(blockAvgMap.get(player.id))} FPts` : null,
+                blockAvgStatsMap.get(player.id)?.avg_minutes_played != null ? `${formatPoints(blockAvgStatsMap.get(player.id)?.avg_minutes_played)} MIN` : null,
+                yearsLabel,
+            ].filter(Boolean).join(' · ')
             return (
                 <View style={styles.blockRow}>
                     <Avatar
-                        name={item.player.players.display_name}
-                        uri={playerHeadshotUrl(item.player.players.nba_id) ?? undefined}
+                        name={player.display_name}
+                        uri={playerHeadshotUrl(player.nba_id) ?? undefined}
                         color={colors.bgMuted}
                         textColor={colors.textSecondary}
                         size={38}
                     />
                     <View style={styles.blockInfo}>
-                        <Text style={styles.blockTitle}>{item.player.players.display_name}</Text>
-                        <Text style={styles.blockMeta}>{[item.player.players.nba_team, item.player.players.position].filter(Boolean).join(' · ')}</Text>
+                        <Text style={styles.blockTitle}>{player.display_name}</Text>
+                        <View style={styles.blockMetaRow}>
+                            {player.nba_team ? <Text style={styles.blockMeta}>{player.nba_team}</Text> : null}
+                            {positions.map((pos) => <PosTag key={pos} position={pos} />)}
+                            {player.injury_status ? (
+                                <Badge
+                                    label={player.injury_status}
+                                    color={INJURY_COLORS[player.injury_status] ?? colors.textMuted}
+                                    variant="solid"
+                                />
+                            ) : null}
+                        </View>
+                        <Text style={styles.blockContext} numberOfLines={1}>{statText || 'No season stats'}</Text>
                     </View>
                     <Pressable
                         style={[styles.blockAction, listed && styles.blockActionDisabled]}
                         onPress={() => handleListPlayer(item.player)}
-                        disabled={listed || blockBusyId === item.player.players.id}
+                        disabled={listed || blockBusyId === player.id}
                         accessibilityRole="button"
-                        accessibilityLabel={`${listed ? 'Listed' : 'List'} ${item.player.players.display_name} on trade block`}
-                        accessibilityState={{ disabled: listed || blockBusyId === item.player.players.id }}
+                        accessibilityLabel={`${listed ? 'Listed' : 'List'} ${player.display_name} on trade block`}
+                        accessibilityState={{ disabled: listed || blockBusyId === player.id }}
                     >
                         <Text style={styles.blockActionText}>{listed ? 'Listed' : 'List'}</Text>
                     </Pressable>
@@ -444,6 +517,8 @@ export default function TradesScreen() {
         load,
         blockItems,
         blockBusyId,
+        blockAvgMap,
+        blockAvgStatsMap,
         handleListPlayer,
         handleListPick,
         handleRemoveBlockItem,
@@ -758,7 +833,9 @@ const styles = StyleSheet.create({
     },
     blockInfo: { flex: 1, minWidth: 0, gap: spacing.xxs },
     blockTitle: { fontSize: fontSize.md, fontWeight: fontWeight.bold, color: colors.textPrimary },
+    blockMetaRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 4 },
     blockMeta: { fontSize: fontSize.sm, color: colors.textMuted },
+    blockContext: { fontSize: fontSize.xs, color: colors.primaryDark, fontWeight: fontWeight.bold },
     blockNote: { fontSize: fontSize.sm, color: colors.textSecondary },
     blockAction: {
         minWidth: 72,

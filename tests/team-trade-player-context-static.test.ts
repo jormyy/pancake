@@ -1,0 +1,63 @@
+import { describe, expect, it } from 'vitest'
+import { read } from './source-guard'
+
+describe('team and trade player context feedback', () => {
+    it('normalizes roster stat maps through one shared helper', () => {
+        const helper = read('lib/roster-stats.ts')
+        const ownRoster = read('app/(tabs)/roster.tsx')
+        const teamRoster = read('app/(modals)/team-roster.tsx')
+        const proposeTrade = read('app/(modals)/propose-trade.tsx')
+        const trades = read('lib/trades.ts')
+
+        expect(helper).toContain("from('v_player_avg_fantasy_points')")
+        expect(helper).toContain("from('mv_player_season_averages')")
+        expect(helper).toContain('export async function getRosterStatsMaps')
+        expect(ownRoster).toContain('getRosterStatsMaps(roster.map((r) => r.players.id), leagueId)')
+        expect(teamRoster).toContain('getRosterStatsMaps(nextRoster.map((r) => r.players.id), currentLeague.id)')
+        expect(proposeTrade).toContain('getRosterStatsMaps(')
+        expect(trades).toContain('getRosterStatsMaps(playerIds, leagueId)')
+    })
+
+    it('renders other teams with shared read-only roster rows and no owner controls', () => {
+        const rosterItems = read('components/roster/RosterItems.tsx')
+        const teamRoster = read('app/(modals)/team-roster.tsx')
+
+        expect(rosterItems).toContain('export function ReadOnlyRosterPlayerItem')
+        expect(rosterItems).toContain('No season stats')
+        expect(rosterItems).toContain('formatPoints(avgFpts)')
+        expect(rosterItems).toContain('formatPoints(avgMinutes)')
+        expect(teamRoster).toContain('ReadOnlyRosterPlayerItem')
+        expect(teamRoster).toContain('Starters & Bench · slot order')
+        expect(teamRoster).toContain('Taxi Squad')
+        expect(teamRoster).toContain('cancelled = true')
+        expect(teamRoster).not.toContain('dropPlayer')
+        expect(teamRoster).not.toContain('toggleIR')
+        expect(teamRoster).not.toContain('toggleTaxi')
+        expect(teamRoster).not.toContain('Set Lineup')
+    })
+
+    it('enriches trade proposal, trade card, and trade block player rows', () => {
+        const trades = read('lib/trades.ts')
+        const tradeCard = read('components/trades/TradeCard.tsx')
+        const proposeTrade = read('app/(modals)/propose-trade.tsx')
+        const tradesScreen = read('app/(tabs)/trades.tsx')
+
+        expect(trades).toContain('league_id,')
+        expect(trades).toContain('eligiblePositions?: string[]')
+        expect(trades).toContain('avgFantasyPoints?: number | null')
+        expect(trades).toContain('avgMinutesPlayed?: number | null')
+        expect(trades).toContain('players ( display_name, position, eligible_positions, nba_team, nba_id, injury_status, years_exp )')
+        expect(trades).toContain('enrichTradesWithStats')
+        expect(tradeCard).toContain('item.avgFantasyPoints')
+        expect(tradeCard).toContain('item.avgMinutesPlayed')
+        expect(tradeCard).toContain('<PosTag key={pos} position={pos} />')
+        expect(tradeCard).toContain('No season stats')
+        expect(proposeTrade).toContain('avgFpts={avgMap.get(rp.players.id)}')
+        expect(proposeTrade).toContain('avgMinutes={avgStatsMap.get(rp.players.id)?.avg_minutes_played}')
+        expect(proposeTrade).toContain('rosterLoadSeqRef.current !== requestId')
+        expect(tradesScreen).toContain('blockAvgMap')
+        expect(tradesScreen).toContain('block.asset.avgFantasyPoints')
+        expect(tradesScreen).toContain('block.asset.avgMinutesPlayed')
+    })
+})
+
