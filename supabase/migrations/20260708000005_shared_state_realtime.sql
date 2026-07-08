@@ -17,7 +17,7 @@ DECLARE
     'trades',
     'trade_items',
     'trade_participants',
-    'trade_vetoes',
+    'trade_vetos',
     'trade_block_items',
     'weekly_lineups'
   ];

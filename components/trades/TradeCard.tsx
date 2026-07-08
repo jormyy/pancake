@@ -8,7 +8,8 @@ import { DropPlayerPickerModal } from '@/components/DropPlayerPickerModal'
 import { showAlert, confirmAction, getErrorMessage } from '@/lib/alert'
 import { MotionPressable, MotionView } from '@/components/Motion'
 import { Avatar } from '@/components/Avatar'
-import { formatPoints, playerHeadshotUrl } from '@/lib/format'
+import { playerHeadshotUrl } from '@/lib/format'
+import { playerEligiblePositions, playerSeasonContextText } from '@/lib/player-context'
 import { PosTag } from '@/components/PosTag'
 import { Badge } from '@/components/Badge'
 import { INJURY_COLORS } from '@/constants/tokens'
@@ -32,20 +33,7 @@ const STATUS_COLORS = TRADE_STATUS_COLORS
 
 function TradeItemLine({ item }: { item: TradeItem }) {
     if (item.kind === 'player') {
-        const positions = item.eligiblePositions?.length
-            ? item.eligiblePositions
-            : item.position
-              ? [item.position]
-              : []
-        const yearsLabel =
-            item.yearsExp == null ? null
-            : item.yearsExp <= 0 ? 'Rookie'
-            : `${item.yearsExp} YR`
-        const statText = [
-            item.avgFantasyPoints != null ? `${formatPoints(item.avgFantasyPoints)} FPts` : null,
-            item.avgMinutesPlayed != null ? `${formatPoints(item.avgMinutesPlayed)} MIN` : null,
-            yearsLabel,
-        ].filter(Boolean).join(' · ')
+        const positions = playerEligiblePositions(item)
         return (
             <View style={styles.assetPlayerRow}>
                 <Avatar
@@ -69,7 +57,7 @@ function TradeItemLine({ item }: { item: TradeItem }) {
                         ) : null}
                     </View>
                     <Text style={styles.assetPlayerContext} numberOfLines={1}>
-                        {statText || 'No season stats'}
+                        {playerSeasonContextText(item)}
                     </Text>
                 </View>
             </View>

@@ -17,6 +17,10 @@ import {
     getMyTrades,
     getTradeBlockItems,
     getVetoableTrades,
+    isIncomingTradeForMember,
+    isOutgoingTradeForMember,
+    isTradeHistoryForMember,
+    isVetoableTradeForMember,
     removeTradeBlockItem,
     Trade,
     TradeBlockItem,
@@ -30,7 +34,8 @@ import { ItemSeparator } from '@/components/ItemSeparator'
 import { ErrorBanner } from '@/components/ui'
 import { SectionHeader } from '@/components/SectionHeader'
 import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
-import { formatPoints, playerHeadshotUrl, yearShort } from '@/lib/format'
+import { playerHeadshotUrl, yearShort } from '@/lib/format'
+import { playerEligiblePositions, playerSeasonContextText } from '@/lib/player-context'
 import { TradeCard, TabKey } from '@/components/trades/TradeCard'
 import { getErrorMessage } from '@/lib/alert'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
@@ -206,9 +211,9 @@ export default function TradesScreen() {
             `trades-screen:${leagueId}:${myMemberId}`,
             [
                 { table: 'trades', filter: `league_id=eq.${leagueId}` },
-                { table: 'trade_items' },
-                { table: 'trade_participants' },
-                { table: 'trade_vetoes' },
+                { table: 'trade_items', filter: `league_id=eq.${leagueId}` },
+                { table: 'trade_participants', filter: `league_id=eq.${leagueId}` },
+                { table: 'trade_vetos', filter: `league_id=eq.${leagueId}` },
                 { table: 'trade_block_items', filter: `league_id=eq.${leagueId}` },
                 { table: 'draft_picks', filter: `league_id=eq.${leagueId}` },
             ],
@@ -285,16 +290,16 @@ export default function TradesScreen() {
     }, [myMemberId, loadBlock])
 
     const incomingTrades = useMemo(() => trades.filter(
-        (t) => t.recipientMemberId === myMemberId && t.status === 'pending',
+        (trade) => isIncomingTradeForMember(trade, myMemberId),
     ), [trades, myMemberId])
     const outgoingTrades = useMemo(() => trades.filter(
-        (t) => t.proposerMemberId === myMemberId && t.status === 'pending',
+        (trade) => isOutgoingTradeForMember(trade, myMemberId),
     ), [trades, myMemberId])
     const vetoableTrades = useMemo(() => trades.filter(
-        (t) => t.status === 'accepted' && t.proposerMemberId !== myMemberId && t.recipientMemberId !== myMemberId,
+        (trade) => isVetoableTradeForMember(trade, myMemberId),
     ), [trades, myMemberId])
     const historyTrades = useMemo(() => trades.filter(
-        (t) => t.status !== 'pending' && (t.proposerMemberId === myMemberId || t.recipientMemberId === myMemberId),
+        (trade) => isTradeHistoryForMember(trade, myMemberId),
     ), [trades, myMemberId])
 
     const picksList = useMemo(() => picks ?? [], [picks])
@@ -348,23 +353,10 @@ export default function TradesScreen() {
                   ? `${block.asset.seasonYear} Round ${block.asset.round} pick`
                   : `FAAB $${block.asset.amount}`
             const positions = block.asset.kind === 'player'
-                ? block.asset.eligiblePositions?.length
-                    ? block.asset.eligiblePositions
-                    : block.asset.position
-                      ? [block.asset.position]
-                      : []
+                ? playerEligiblePositions(block.asset)
                 : []
-            const yearsLabel = block.asset.kind === 'player'
-                ? block.asset.yearsExp == null ? null
-                    : block.asset.yearsExp <= 0 ? 'Rookie'
-                    : `${block.asset.yearsExp} YR`
-                : null
             const statText = block.asset.kind === 'player'
-                ? [
-                    block.asset.avgFantasyPoints != null ? `${formatPoints(block.asset.avgFantasyPoints)} FPts` : null,
-                    block.asset.avgMinutesPlayed != null ? `${formatPoints(block.asset.avgMinutesPlayed)} MIN` : null,
-                    yearsLabel,
-                ].filter(Boolean).join(' · ')
+                ? playerSeasonContextText(block.asset)
                 : ''
             return (
                 <View style={styles.blockRow}>
@@ -393,7 +385,7 @@ export default function TradesScreen() {
                                         />
                                     ) : null}
                                 </View>
-                                <Text style={styles.blockContext} numberOfLines={1}>{statText || 'No season stats'}</Text>
+                                <Text style={styles.blockContext} numberOfLines={1}>{statText}</Text>
                             </>
                         ) : (
                             <Text style={styles.blockMeta}>{block.teamName}</Text>
@@ -433,20 +425,15 @@ export default function TradesScreen() {
         if (item._type === 'blockPlayer') {
             const listed = blockItems.some((block) => block.memberId === myMemberId && block.asset.kind === 'player' && block.asset.playerId === item.player.players.id)
             const player = item.player.players
-            const positions = player.eligible_positions?.length
-                ? player.eligible_positions
-                : player.position
-                  ? [player.position]
-                  : []
-            const yearsLabel =
-                player.years_exp == null ? null
-                : player.years_exp <= 0 ? 'Rookie'
-                : `${player.years_exp} YR`
-            const statText = [
-                blockAvgMap.get(player.id) != null ? `${formatPoints(blockAvgMap.get(player.id))} FPts` : null,
-                blockAvgStatsMap.get(player.id)?.avg_minutes_played != null ? `${formatPoints(blockAvgStatsMap.get(player.id)?.avg_minutes_played)} MIN` : null,
-                yearsLabel,
-            ].filter(Boolean).join(' · ')
+            const positions = playerEligiblePositions({
+                position: player.position,
+                eligiblePositions: player.eligible_positions,
+            })
+            const statText = playerSeasonContextText({
+                yearsExp: player.years_exp,
+                avgFantasyPoints: blockAvgMap.get(player.id) ?? null,
+                avgMinutesPlayed: blockAvgStatsMap.get(player.id)?.avg_minutes_played ?? null,
+            })
             return (
                 <View style={styles.blockRow}>
                     <Avatar
@@ -469,7 +456,7 @@ export default function TradesScreen() {
                                 />
                             ) : null}
                         </View>
-                        <Text style={styles.blockContext} numberOfLines={1}>{statText || 'No season stats'}</Text>
+                        <Text style={styles.blockContext} numberOfLines={1}>{statText}</Text>
                     </View>
                     <Pressable
                         style={[styles.blockAction, listed && styles.blockActionDisabled]}

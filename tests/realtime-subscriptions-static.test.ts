@@ -4,6 +4,7 @@ import { read } from './source-guard'
 describe('shared realtime subscription coverage', () => {
     it('publishes shared league state tables with full row identity', () => {
         const migration = read('supabase/migrations/20260708000005_shared_state_realtime.sql')
+        const tradeChildMigration = read('supabase/migrations/20260708000006_trade_child_realtime_league_ids.sql')
 
         expect(migration).toContain('ALTER TABLE public.%I REPLICA IDENTITY FULL')
         expect(migration).toContain('ALTER PUBLICATION supabase_realtime ADD TABLE public.%I')
@@ -22,12 +23,16 @@ describe('shared realtime subscription coverage', () => {
             'trades',
             'trade_items',
             'trade_participants',
-            'trade_vetoes',
+            'trade_vetos',
             'trade_block_items',
             'weekly_lineups',
         ]) {
             expect(migration).toContain(`'${table}'`)
         }
+        expect(tradeChildMigration).toContain('ADD COLUMN IF NOT EXISTS league_id uuid REFERENCES public.leagues(id)')
+        expect(tradeChildMigration).toContain('CREATE OR REPLACE FUNCTION private.set_trade_child_league_id')
+        expect(tradeChildMigration).toContain("tablename = v_table")
+        expect(tradeChildMigration).toContain("'trade_vetos'")
     })
 
     it('wires shared app surfaces to realtime refreshes with focus refresh fallback intact', () => {
@@ -55,7 +60,9 @@ describe('shared realtime subscription coverage', () => {
 
         expect(tradesScreen).toContain('trades-screen:${leagueId}:${myMemberId}')
         expect(tradesScreen).toContain("table: 'trades', filter: `league_id=eq.${leagueId}`")
-        expect(tradesScreen).toContain("table: 'trade_participants'")
+        expect(tradesScreen).toContain("table: 'trade_items', filter: `league_id=eq.${leagueId}`")
+        expect(tradesScreen).toContain("table: 'trade_participants', filter: `league_id=eq.${leagueId}`")
+        expect(tradesScreen).toContain("table: 'trade_vetos', filter: `league_id=eq.${leagueId}`")
         expect(tradesScreen).toContain("table: 'trade_block_items', filter: `league_id=eq.${leagueId}`")
 
         expect(rosterScreen).toContain('roster-screen:${leagueId}:${current.id}')
@@ -67,7 +74,8 @@ describe('shared realtime subscription coverage', () => {
         expect(playersScreen).toContain("table: 'roster_players', filter: `league_id=eq.${leagueId}`")
 
         expect(pendingTradeCount).toContain('pending-trade-count:${leagueId}:${memberId}')
-        expect(pendingTradeCount).toContain("table: 'trade_participants'")
+        expect(pendingTradeCount).toContain('getPendingIncomingTradeCount(memberId, leagueId)')
+        expect(pendingTradeCount).toContain("table: 'trade_participants', filter: `league_id=eq.${leagueId}`")
         expect(pendingTradeCount).toContain("window.addEventListener('focus', fetchCount)")
 
         expect(matchupData).toContain("table: 'matchups'")

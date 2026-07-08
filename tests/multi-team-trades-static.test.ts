@@ -5,7 +5,10 @@ const migration = read('supabase/migrations/20260708000004_multi_team_trades.sql
 const api = read('supabase/functions/api/trades.ts')
 const clientTrades = read('lib/trades.ts')
 const composer = read('app/(modals)/propose-trade.tsx')
+const multiTeamComposer = read('hooks/use-multi-team-trade-composer.ts')
 const tradeCard = read('components/trades/TradeCard.tsx')
+const tradesScreen = read('app/(tabs)/trades.tsx')
+const playerContext = read('lib/player-context.ts')
 
 describe('multi-team trade schema and privacy', () => {
     it('adds explicit participants and routed trade item assets', () => {
@@ -75,17 +78,42 @@ describe('multi-team trade UI and client mapping', () => {
         expect(clientTrades).toContain('proposeMultiTeamTrade')
         expect(clientTrades).toContain("'/trades/propose-multi'")
         expect(clientTrades).toContain("from('trade_participants')")
+        expect(clientTrades).toContain('function isIncomingTradeForMember')
+        expect(clientTrades).toContain('function isTradeHistoryForMember')
+        expect(clientTrades).toContain('function getPendingIncomingTradeCount')
     })
 
     it('exposes a multi-team composer and participant-aware trade card actions', () => {
         expect(composer).toContain('multiTeamMode')
-        expect(composer).toContain('selectedParticipantIds')
-        expect(composer).toContain('buildMultiTeamItems')
+        expect(composer).toContain('useMultiTeamTradeComposer')
+        expect(multiTeamComposer).toContain('selectedParticipantIds')
+        expect(multiTeamComposer).toContain('buildMultiTeamItems')
+        expect(multiTeamComposer).toContain('loadParticipantAssets')
         expect(composer).toContain('proposeMultiTeamTrade')
         expect(composer).toContain('MULTI-TEAM BUILDER')
         expect(tradeCard).toContain('isMultiParticipant')
         expect(tradeCard).toContain('participantAcceptanceText')
         expect(tradeCard).toContain("item.kind === 'faab'")
         expect(tradeCard).toContain('acceptTrade(trade.id, myMemberId')
+    })
+
+    it('uses shared participant-aware perspective helpers in trade surfaces', () => {
+        const pendingTradeCount = read('hooks/use-pending-trade-count.ts')
+
+        expect(tradesScreen).toContain('isIncomingTradeForMember(trade, myMemberId)')
+        expect(tradesScreen).toContain('isOutgoingTradeForMember(trade, myMemberId)')
+        expect(tradesScreen).toContain('isVetoableTradeForMember(trade, myMemberId)')
+        expect(tradesScreen).toContain('isTradeHistoryForMember(trade, myMemberId)')
+        expect(pendingTradeCount).toContain('getPendingIncomingTradeCount(memberId, leagueId)')
+        expect(pendingTradeCount).not.toContain(".eq('recipient_member_id', memberId)")
+    })
+
+    it('uses shared player context formatting in trade asset surfaces', () => {
+        expect(playerContext).toContain('function playerSeasonContextText')
+        expect(playerContext).toContain('function playerEligiblePositions')
+        expect(tradeCard).toContain('playerSeasonContextText(item)')
+        expect(tradesScreen).toContain('playerSeasonContextText(block.asset)')
+        expect(tradesScreen).toContain('playerEligiblePositions(block.asset)')
+        expect(composer).toContain('playerSeasonContextText({')
     })
 })

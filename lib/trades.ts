@@ -178,6 +178,36 @@ export type TradeBlockItem = {
     asset: TradeItem
 }
 
+export function tradeParticipantIds(trade: Pick<Trade, 'proposerMemberId' | 'recipientMemberId' | 'participants'>): string[] {
+    return [...new Set([
+        trade.proposerMemberId,
+        trade.recipientMemberId,
+        ...trade.participants.map((participant) => participant.memberId),
+    ].filter(Boolean))]
+}
+
+export function isTradeParticipant(trade: Pick<Trade, 'proposerMemberId' | 'recipientMemberId' | 'participants'>, memberId: string): boolean {
+    return memberId.length > 0 && tradeParticipantIds(trade).includes(memberId)
+}
+
+export function isIncomingTradeForMember(trade: Pick<Trade, 'status' | 'proposerMemberId' | 'recipientMemberId' | 'participants'>, memberId: string): boolean {
+    return trade.status === 'pending'
+        && trade.proposerMemberId !== memberId
+        && isTradeParticipant(trade, memberId)
+}
+
+export function isOutgoingTradeForMember(trade: Pick<Trade, 'status' | 'proposerMemberId'>, memberId: string): boolean {
+    return trade.status === 'pending' && trade.proposerMemberId === memberId
+}
+
+export function isVetoableTradeForMember(trade: Pick<Trade, 'status' | 'proposerMemberId' | 'recipientMemberId' | 'participants'>, memberId: string): boolean {
+    return trade.status === 'accepted' && !isTradeParticipant(trade, memberId)
+}
+
+export function isTradeHistoryForMember(trade: Pick<Trade, 'status' | 'proposerMemberId' | 'recipientMemberId' | 'participants'>, memberId: string): boolean {
+    return trade.status !== 'pending' && isTradeParticipant(trade, memberId)
+}
+
 export async function getPicksForMember(memberId: string, leagueId: string): Promise<TradePickItem[]> {
     const { data, error } = await supabase
         .from('draft_picks')
@@ -486,6 +516,7 @@ export async function getMyTrades(memberId: string, leagueId: string): Promise<T
         .from('trade_participants')
         .select('trade_id')
         .eq('member_id', memberId)
+        .eq('league_id', leagueId)
     if (participantError) throw participantError
     const participantTradeIds = [...new Set((participantRows ?? []).map((row) => row.trade_id))]
     const visibilityFilters = [
@@ -507,6 +538,31 @@ export async function getMyTrades(memberId: string, leagueId: string): Promise<T
         ((data ?? []) as TradeQueryRow[]).map((row) => mapTradeRow(row, memberId)),
         leagueId,
     )
+}
+
+export async function getPendingIncomingTradeCount(memberId: string, leagueId: string): Promise<number> {
+    const { data: participantRows, error: participantError } = await supabase
+        .from('trade_participants')
+        .select('trade_id')
+        .eq('member_id', memberId)
+        .eq('league_id', leagueId)
+    if (participantError) throw participantError
+
+    const participantTradeIds = [...new Set((participantRows ?? []).map((row) => row.trade_id))]
+    const visibilityFilters = [
+        `recipient_member_id.eq.${memberId}`,
+        ...(participantTradeIds.length > 0 ? [`id.in.(${participantTradeIds.join(',')})`] : []),
+    ].join(',')
+    const { count, error } = await supabase
+        .from('trades')
+        .select('id', { count: 'exact', head: true })
+        .eq('league_id', leagueId)
+        .eq('status', 'pending')
+        .neq('proposer_member_id', memberId)
+        .or(visibilityFilters)
+
+    if (error) throw error
+    return count ?? 0
 }
 
 export async function getVetoableTrades(memberId: string, leagueId: string): Promise<Trade[]> {
