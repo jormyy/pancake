@@ -352,18 +352,20 @@ export function TradeCard({
                     ) : null}
                 </View>
             )}
-            {tab === 'offers' && isProposer && trade.status === 'pending' && !trade.isMultiTeam && (
+            {tab === 'offers' && isProposer && trade.status === 'pending' && (
                 <View style={styles.cardActions}>
-                    <MotionPressable
-                        style={[styles.actionBtn, styles.actionBtnAccept]}
-                        onPress={() => push({ pathname: '/(modals)/propose-trade', params: { editTradeId: trade.id } })}
-                        disabled={acting}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Edit trade with ${opponentName}`}
-                        pressedScale={0.94}
-                    >
-                        <Text style={styles.actionBtnAcceptText}>Edit</Text>
-                    </MotionPressable>
+                    {!trade.isMultiTeam ? (
+                        <MotionPressable
+                            style={[styles.actionBtn, styles.actionBtnAccept]}
+                            onPress={() => push({ pathname: '/(modals)/propose-trade', params: { editTradeId: trade.id } })}
+                            disabled={acting}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Edit trade with ${opponentName}`}
+                            pressedScale={0.94}
+                        >
+                            <Text style={styles.actionBtnAcceptText}>Edit</Text>
+                        </MotionPressable>
+                    ) : null}
                     <MotionPressable
                         style={[styles.actionBtn, styles.actionBtnReject]}
                         onPress={handleWithdraw}

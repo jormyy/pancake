@@ -1854,6 +1854,7 @@ BEGIN
         FROM trade_participants AS participant
        WHERE participant.trade_id = p_trade_id
          AND participant.member_id = p_member_id
+         AND participant.accepted_at IS NULL
     ) THEN
       RAISE EXCEPTION 'Only a non-proposer trade participant can reject this trade.'
         USING ERRCODE = '42501';

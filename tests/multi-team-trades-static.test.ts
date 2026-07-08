@@ -42,6 +42,7 @@ describe('multi-team trade RPC lifecycle', () => {
         const acceptMulti = latestFunctionDefinition('accept_multi_team_trade_atomic')
         const complete = latestFunctionDefinition('complete_accepted_trade_atomic')
         const veto = latestFunctionDefinition('veto_trade_atomic')
+        const reject = latestFunctionDefinition('reject_trade_atomic')
 
         expect(createMulti).toContain('jsonb_array_elements(p_items) WITH ORDINALITY')
         expect(createMulti).toContain('Every item source and destination must be a trade participant.')
@@ -61,6 +62,7 @@ describe('multi-team trade RPC lifecycle', () => {
         expect(complete).toContain('v_item.faab_amount')
         expect(veto).toContain('FROM trade_participants AS participant')
         expect(veto).toContain('participant.trade_id = p_trade_id')
+        expect(reject).toContain('participant.accepted_at IS NULL')
     })
 
     it('keeps Edge API calls behind service-role RPCs', () => {
@@ -103,6 +105,9 @@ describe('multi-team trade UI and client mapping', () => {
         expect(tradeCard).toContain("item.kind === 'faab'")
         expect(tradeCard).toContain('needsMemberAcceptance(trade, myMemberId)')
         expect(tradeCard).toContain('acceptTrade(trade.id, myMemberId')
+        expect(tradeCard).toContain("tab === 'offers' && isProposer && trade.status === 'pending'")
+        expect(tradeCard).toContain('!trade.isMultiTeam ? (')
+        expect(tradeCard).toContain('onPress={handleWithdraw}')
     })
 
     it('uses shared participant-aware perspective helpers in trade surfaces', () => {
