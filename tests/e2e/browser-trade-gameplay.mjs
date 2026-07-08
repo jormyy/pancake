@@ -1146,11 +1146,35 @@ const waitForTradeVetoed = async (fixture, timeoutMs = 10_000) => {
   return last
 }
 
+const clickTab = async (session, namePrefix, label) => {
+  const output = await browser(session, [
+    'eval',
+    `(() => {
+      const norm = (value) => (value || '').trim();
+      const target = [...document.querySelectorAll('[role="tab"], [role="button"], button, [tabindex]')]
+        .find((element) => {
+          const name = norm(element.getAttribute('aria-label')) || norm(element.textContent);
+          return name === ${JSON.stringify(namePrefix)} || name.startsWith(${JSON.stringify(namePrefix + ',')}) || name.startsWith(${JSON.stringify(namePrefix)});
+        });
+      if (!target) return JSON.stringify({ ok: false, body: (document.body?.innerText || '').slice(0, 1400) });
+      target.scrollIntoView({ block: 'center', inline: 'center' });
+      target.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, pointerId: 1, pointerType: 'mouse' }));
+      target.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      target.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
+      target.click();
+      return JSON.stringify({ ok: true, ariaLabel: target.getAttribute('aria-label'), role: target.getAttribute('role') });
+    })()`,
+  ])
+  const parsed = parseEvalJson(output)
+  if (!parsed.ok) throw new Error(`${label}: tab not found: ${namePrefix}. Body: ${parsed.body}`)
+  return parsed
+}
+
 const openOffersTab = async (session, env) => {
   await browser(session, ['open', joinUrl(env.frontendUrl, '/trades')])
   await installBrowserHooks(session, env)
   await browser(session, ['wait', '2500'])
-  await clickButton(session, 'Show Offers trades', 'offers tab')
+  await clickTab(session, 'Offers', 'offers tab')
   await browser(session, ['wait', '2500'])
 }
 

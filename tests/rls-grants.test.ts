@@ -33,6 +33,8 @@ const SERVICE_ROLE_ONLY_RPCS = [
     'veto_trade_atomic',
     'expire_trade_completion_failure_atomic',
     'process_due_accepted_trades_atomic',
+    'add_trade_block_item_atomic',
+    'remove_trade_block_item_atomic',
     'create_waiver_claim_atomic',
     'cancel_waiver_claim_atomic',
     'process_next_waiver_claim_atomic',
