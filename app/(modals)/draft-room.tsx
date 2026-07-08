@@ -503,43 +503,8 @@ export default function DraftRoomScreen() {
                             </View>
                         )}
 
-                        {/* Live ticker — the last few hammer results, so the room feels
-                            like an auction floor. Honest data only: these are real
-                            closed nominations from state (per-bid history isn't held
-                            client-side). */}
-                        {closedNominations.length > 0 ? (
-                            <View style={styles.activityStrip}>
-                                <Text style={styles.activityLabel}>Recent activity</Text>
-                                <View style={styles.activityItems}>
-                                    {closedNominations.slice(0, 3).map((n) => {
-                                        const winnerTeam = n.winningMemberId
-                                            ? budgetByMember.get(n.winningMemberId)?.teamName
-                                            : undefined
-                                        return (
-                                            <View key={n.id} style={styles.activityItem}>
-                                                <Avatar
-                                                    name={n.player?.displayName ?? 'Player'}
-                                                    color={colors.bgMuted}
-                                                    uri={playerHeadshotUrl(n.player?.nbaId)}
-                                                    size={22}
-                                                />
-                                                <Text style={styles.activityText} numberOfLines={1}>
-                                                    {n.status === 'sold'
-                                                        ? `${winnerTeam ?? 'Unknown'} won ${n.player?.displayName ?? 'Unknown'}`
-                                                        : n.status === 'withdrawn'
-                                                          ? `${n.player?.displayName ?? 'Unknown'} withdrawn`
-                                                          : `${n.player?.displayName ?? 'Unknown'} went unsold`}
-                                                </Text>
-                                                {n.status === 'sold' ? (
-                                                    <Text style={styles.activityPrice}>${n.finalPrice}</Text>
-                                                ) : null}
-                                            </View>
-                                        )
-                                    })}
-                                </View>
-                            </View>
-                        ) : null}
-
+                        {/* The live area focuses on the active nomination's bid history;
+                            completed hammer results live in the History tab. */}
                         {openNomination ? (
                             <View style={styles.bidHistoryPanel}>
                                 <View style={styles.bidHistoryHeader}>
@@ -837,41 +802,6 @@ const styles = StyleSheet.create({
         boxShadow: `0 0 0 3px ${tints.dangerFocusRing}`,
     },
 
-    activityStrip: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        flexWrap: 'wrap',
-        gap: spacing.md,
-        paddingHorizontal: spacing.lg,
-        paddingVertical: spacing.sm,
-        borderRadius: radii.md,
-        borderCurve: 'continuous' as const,
-        backgroundColor: colors.bgMuted,
-    },
-    activityLabel: {
-        fontSize: fontSize['2xs'],
-        fontWeight: fontWeight.extrabold,
-        letterSpacing: 0.6,
-        textTransform: 'uppercase' as const,
-        color: colors.textMuted,
-    },
-    activityItems: {
-        flex: 1,
-        minWidth: 200,
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        alignItems: 'center',
-        columnGap: spacing.xl,
-        rowGap: spacing.xxs,
-    },
-    activityItem: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, maxWidth: '100%' },
-    activityText: { fontSize: fontSize.sm, color: colors.textSecondary, flexShrink: 1 },
-    activityPrice: {
-        fontSize: fontSize.sm,
-        fontFamily: fontFamily.display,
-        fontWeight: fontWeight.bold,
-        color: colors.primaryDark,
-    },
 
     bidHistoryPanel: {
         gap: spacing.md,

@@ -64,6 +64,10 @@ describe('logic hardening source guards - draft, auction, roster history', () =>
         expect(draftLib).toContain('activeBids: AuctionBid[]')
         expect(draftLib).toContain('activeBids,')
         expect(draftRoom).toContain('Bid history')
+        // The generic "Recent activity" feed is replaced by focused bid history;
+        // completed hammer results live in the History tab.
+        expect(draftRoom).not.toContain('Recent activity')
+        expect(draftRoom).not.toContain('activityStrip')
         expect(draftRoom).toContain('activeBids.slice(0, 6)')
         expect(draftRoom).toContain('No bids yet. Minimum bid is ${minBid}.')
         expect(draftRoom).toContain('auctionEventTime(bid.placedAt)')
