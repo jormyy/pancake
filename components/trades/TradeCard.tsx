@@ -2,7 +2,7 @@ import { View, Text, StyleSheet } from 'react-native'
 import { useState } from 'react'
 import { useRouter } from 'expo-router'
 import { TRADE_STATUS_COLORS, colors, fontSize, fontWeight, radii, spacing, uiColors } from '@/constants/tokens'
-import { Trade, TradeItem, acceptTrade, rejectTrade, vetoTrade, withdrawTrade } from '@/lib/trades'
+import { Trade, TradeItem, acceptTrade, needsMemberAcceptance, rejectTrade, vetoTrade, withdrawTrade } from '@/lib/trades'
 import { getRoster, RosterPlayer } from '@/lib/roster'
 import { DropPlayerPickerModal } from '@/components/DropPlayerPickerModal'
 import { showAlert, confirmAction, getErrorMessage } from '@/lib/alert'
@@ -151,6 +151,7 @@ export function TradeCard({
         (tradeVetoMode === 'commissioner' && isCommissioner)
     const canVeto = tab === 'offers' && !isTradeParty && trade.status === 'accepted' && !trade.myVetoed && canVetoBySettings
     const alreadyVetoed = tab === 'offers' && !isTradeParty && trade.status === 'accepted' && trade.myVetoed && canVetoBySettings
+    const canRespond = tab === 'offers' && needsMemberAcceptance(trade, myMemberId)
     const participantAcceptanceText = trade.isMultiTeam
         ? `${trade.participants.filter((participant) => participant.acceptedAt != null).length}/${trade.participants.length} teams accepted`
         : null
@@ -315,7 +316,7 @@ export function TradeCard({
 
             {trade.notes ? <Text style={styles.cardNotes}>{trade.notes}</Text> : null}
 
-            {tab === 'offers' && isTradeParty && !isProposer && trade.status === 'pending' && (
+            {canRespond && (
                 <View style={styles.cardActions}>
                     <MotionPressable
                         style={[styles.actionBtn, styles.actionBtnAccept]}

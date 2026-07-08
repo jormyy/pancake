@@ -190,14 +190,25 @@ export function isTradeParticipant(trade: Pick<Trade, 'proposerMemberId' | 'reci
     return memberId.length > 0 && tradeParticipantIds(trade).includes(memberId)
 }
 
-export function isIncomingTradeForMember(trade: Pick<Trade, 'status' | 'proposerMemberId' | 'recipientMemberId' | 'participants'>, memberId: string): boolean {
-    return trade.status === 'pending'
-        && trade.proposerMemberId !== memberId
-        && isTradeParticipant(trade, memberId)
+export function needsMemberAcceptance(trade: Pick<Trade, 'status' | 'proposerMemberId' | 'recipientMemberId' | 'participants'>, memberId: string): boolean {
+    if (trade.status !== 'pending' || trade.proposerMemberId === memberId || !isTradeParticipant(trade, memberId)) {
+        return false
+    }
+
+    const participant = trade.participants.find((row) => row.memberId === memberId)
+    if (participant) return participant.acceptedAt == null
+
+    return trade.recipientMemberId === memberId
 }
 
-export function isOutgoingTradeForMember(trade: Pick<Trade, 'status' | 'proposerMemberId'>, memberId: string): boolean {
-    return trade.status === 'pending' && trade.proposerMemberId === memberId
+export function isIncomingTradeForMember(trade: Pick<Trade, 'status' | 'proposerMemberId' | 'recipientMemberId' | 'participants'>, memberId: string): boolean {
+    return needsMemberAcceptance(trade, memberId)
+}
+
+export function isOutgoingTradeForMember(trade: Pick<Trade, 'status' | 'proposerMemberId' | 'recipientMemberId' | 'participants'>, memberId: string): boolean {
+    return trade.status === 'pending'
+        && isTradeParticipant(trade, memberId)
+        && !needsMemberAcceptance(trade, memberId)
 }
 
 export function isVetoableTradeForMember(trade: Pick<Trade, 'status' | 'proposerMemberId' | 'recipientMemberId' | 'participants'>, memberId: string): boolean {
@@ -543,14 +554,18 @@ export async function getMyTrades(memberId: string, leagueId: string): Promise<T
 export async function getPendingIncomingTradeCount(memberId: string, leagueId: string): Promise<number> {
     const { data: participantRows, error: participantError } = await supabase
         .from('trade_participants')
-        .select('trade_id')
+        .select('trade_id, accepted_at')
         .eq('member_id', memberId)
         .eq('league_id', leagueId)
     if (participantError) throw participantError
 
-    const participantTradeIds = [...new Set((participantRows ?? []).map((row) => row.trade_id))]
+    const participantTradeIds = [...new Set(
+        (participantRows ?? [])
+            .filter((row) => row.accepted_at == null)
+            .map((row) => row.trade_id),
+    )]
     const visibilityFilters = [
-        `recipient_member_id.eq.${memberId}`,
+        `and(is_multi_team.eq.false,recipient_member_id.eq.${memberId})`,
         ...(participantTradeIds.length > 0 ? [`id.in.(${participantTradeIds.join(',')})`] : []),
     ].join(',')
     const { count, error } = await supabase
@@ -566,7 +581,15 @@ export async function getPendingIncomingTradeCount(memberId: string, leagueId: s
 }
 
 export async function getVetoableTrades(memberId: string, leagueId: string): Promise<Trade[]> {
-    const { data, error } = await supabase
+    const { data: participantRows, error: participantError } = await supabase
+        .from('trade_participants')
+        .select('trade_id')
+        .eq('member_id', memberId)
+        .eq('league_id', leagueId)
+    if (participantError) throw participantError
+    const participantTradeIds = [...new Set((participantRows ?? []).map((row) => row.trade_id))]
+
+    let query = supabase
         .from('trades')
         .select(TRADE_SELECT)
         .eq('league_id', leagueId)
@@ -576,7 +599,11 @@ export async function getVetoableTrades(memberId: string, leagueId: string): Pro
         .gt('veto_window_expires_at', new Date().toISOString())
         .order('accepted_at', { ascending: false })
         .limit(20)
+    if (participantTradeIds.length > 0) {
+        query = query.not('id', 'in', `(${participantTradeIds.join(',')})`)
+    }
 
+    const { data, error } = await query
     if (error) throw error
 
     const trades = ((data ?? []) as TradeQueryRow[]).map((row) => mapTradeRow(row, memberId))
