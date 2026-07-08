@@ -102,7 +102,7 @@ function TradeListPlaceholder({ tab }: { tab: TabKey }) {
 
 export default function TradesScreen() {
     const { push } = useRouter()
-    const { current, currentLeague, memberships, loading: leagueLoading } = useLeagueContext()
+    const { current, currentLeague, memberships, loading: leagueLoading, isCommissioner } = useLeagueContext()
 
     const myMemberId = current?.id ?? ''
     const leagueId = currentLeague?.id ?? ''
@@ -505,6 +505,8 @@ export default function TradesScreen() {
                 leagueId={leagueId}
                 rosterSize={rosterSize}
                 tab={tab}
+                tradeVetoMode={currentLeague?.trade_veto_mode ?? 'member_vote'}
+                isCommissioner={isCommissioner}
                 onAction={load}
             />
         )
@@ -514,6 +516,8 @@ export default function TradesScreen() {
         leagueId,
         rosterSize,
         tab,
+        currentLeague?.trade_veto_mode,
+        isCommissioner,
         load,
         blockItems,
         blockBusyId,

@@ -14,6 +14,7 @@ import { Badge } from '@/components/Badge'
 import { INJURY_COLORS } from '@/constants/tokens'
 
 export type TabKey = 'picks' | 'offers' | 'history' | 'block'
+type TradeVetoMode = 'disabled' | 'commissioner' | 'member_vote'
 
 const STATUS_LABELS: Record<string, string> = {
     pending: 'Pending',
@@ -106,6 +107,8 @@ export function TradeCard({
     leagueId,
     rosterSize,
     tab,
+    tradeVetoMode = 'member_vote',
+    isCommissioner = false,
     onAction,
 }: {
     trade: Trade
@@ -113,6 +116,8 @@ export function TradeCard({
     leagueId: string
     rosterSize: number
     tab: TabKey
+    tradeVetoMode?: TradeVetoMode
+    isCommissioner?: boolean
     onAction: () => void
 }) {
     const { push } = useRouter()
@@ -137,8 +142,11 @@ export function TradeCard({
         : `${trade.proposerTeamName} receives:`
 
     const statusStyle = STATUS_COLORS[trade.status] ?? STATUS_COLORS.pending
-    const canVeto = tab === 'offers' && !isTradeParty && trade.status === 'accepted' && !trade.myVetoed
-    const alreadyVetoed = tab === 'offers' && !isTradeParty && trade.status === 'accepted' && trade.myVetoed
+    const canVetoBySettings =
+        tradeVetoMode === 'member_vote' ||
+        (tradeVetoMode === 'commissioner' && isCommissioner)
+    const canVeto = tab === 'offers' && !isTradeParty && trade.status === 'accepted' && !trade.myVetoed && canVetoBySettings
+    const alreadyVetoed = tab === 'offers' && !isTradeParty && trade.status === 'accepted' && trade.myVetoed && canVetoBySettings
     const vetoWindowText = trade.status === 'accepted' && trade.vetoWindowExpiresAt
         ? `Veto window closes ${new Date(trade.vetoWindowExpiresAt).toLocaleString([], {
             month: 'short',

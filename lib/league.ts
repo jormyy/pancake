@@ -4,6 +4,7 @@ import type { LeagueInfo, LeagueMembership } from '@/types/app'
 import { todayET } from '@/lib/shared/dates'
 
 export type WaiverMode = 'rolling' | 'faab'
+export type TradeVetoMode = 'disabled' | 'commissioner' | 'member_vote'
 
 export type LeagueSettingsUpdate = {
     scoring_settings?: Record<string, number>
@@ -16,6 +17,9 @@ export type LeagueSettingsUpdate = {
     weekly_add_unlimited?: boolean
     waiver_mode?: WaiverMode
     faab_starting_budget?: number
+    trade_veto_mode?: TradeVetoMode
+    trade_veto_window_hours?: number
+    trade_veto_threshold_percent?: number
 }
 
 type LineupSlotUpdate = {
@@ -47,6 +51,9 @@ function leagueSettingsPayload(updates: LeagueSettingsUpdate): Json {
     if (updates.weekly_add_limit != null) payload.weekly_add_limit = updates.weekly_add_limit
     if (updates.waiver_mode != null) payload.waiver_mode = updates.waiver_mode
     if (updates.faab_starting_budget != null) payload.faab_starting_budget = updates.faab_starting_budget
+    if (updates.trade_veto_mode != null) payload.trade_veto_mode = updates.trade_veto_mode
+    if (updates.trade_veto_window_hours != null) payload.trade_veto_window_hours = updates.trade_veto_window_hours
+    if (updates.trade_veto_threshold_percent != null) payload.trade_veto_threshold_percent = updates.trade_veto_threshold_percent
     return payload
 }
 
@@ -129,7 +136,10 @@ export async function fetchUserLeagues(userId: string) {
         deleted_by,
         weekly_add_limit,
         waiver_mode,
-        faab_starting_budget
+        faab_starting_budget,
+        trade_veto_mode,
+        trade_veto_window_hours,
+        trade_veto_threshold_percent
       )
     `,
         )

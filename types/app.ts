@@ -1,6 +1,7 @@
 import type { LeagueStatus, LeagueMemberRole, Json } from './database'
 
 type WaiverMode = 'rolling' | 'faab'
+type TradeVetoMode = 'disabled' | 'commissioner' | 'member_vote'
 
 /**
  * League data as returned from Supabase nested select.
@@ -22,6 +23,9 @@ export interface LeagueInfo {
     weekly_add_limit?: number | null
     waiver_mode?: WaiverMode
     faab_starting_budget?: number
+    trade_veto_mode?: TradeVetoMode
+    trade_veto_window_hours?: number
+    trade_veto_threshold_percent?: number
     deleted_at?: string | null
     deleted_by?: string | null
 }

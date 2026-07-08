@@ -1131,6 +1131,9 @@ export type Database = {
           status: Database["public"]["Enums"]["league_status"]
           taxi_slots: number
           trade_deadline: string | null
+          trade_veto_mode: string
+          trade_veto_threshold_percent: number
+          trade_veto_window_hours: number
           updated_at: string
           waiver_mode: string
           weekly_add_limit: number | null
@@ -1153,6 +1156,9 @@ export type Database = {
           status?: Database["public"]["Enums"]["league_status"]
           taxi_slots?: number
           trade_deadline?: string | null
+          trade_veto_mode?: string
+          trade_veto_threshold_percent?: number
+          trade_veto_window_hours?: number
           updated_at?: string
           waiver_mode?: string
           weekly_add_limit?: number | null
@@ -1175,6 +1181,9 @@ export type Database = {
           status?: Database["public"]["Enums"]["league_status"]
           taxi_slots?: number
           trade_deadline?: string | null
+          trade_veto_mode?: string
+          trade_veto_threshold_percent?: number
+          trade_veto_window_hours?: number
           updated_at?: string
           waiver_mode?: string
           weekly_add_limit?: number | null
