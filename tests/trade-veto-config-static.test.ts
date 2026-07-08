@@ -39,6 +39,8 @@ describe('configurable trade veto settings', () => {
         expect(vetoTrade).toContain('member.id <> v_trade.proposer_member_id')
         expect(vetoTrade).toContain('member.id <> v_trade.recipient_member_id')
         expect(vetoTrade).toContain('participant.member_id = member.id')
+        expect(vetoTrade).toContain('IF v_is_trade_party THEN')
+        expect(vetoTrade).not.toContain('v_is_trade_party AND NOT v_is_commissioner')
         expect(vetoTrade).toContain("COALESCE(v_league.trade_veto_mode, 'member_vote') = 'commissioner'")
         expect(vetoTrade).not.toContain('CEIL(COALESCE(v_eligible_count, 0)::numeric / 2)')
 
