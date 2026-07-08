@@ -20,10 +20,12 @@ import {
     editTrade,
     getTradeById,
     proposeTrade,
+    proposeMultiTeamTrade,
     getCurrentSeasonId,
     getPicksForMember,
     Trade,
     TradePickItem,
+    MultiTeamTradeItemPayload,
 } from '@/lib/trades'
 import {
     buildTradeComposerPayload,
@@ -249,10 +251,17 @@ export default function ProposeTradeScreen() {
     const [selectedRecipientId, setSelectedRecipientId] = useState<string | null>(
         params.recipientMemberId ?? null,
     )
+    const [multiTeamMode, setMultiTeamMode] = useState(false)
+    const [selectedParticipantIds, setSelectedParticipantIds] = useState<Set<string>>(new Set())
     const [theirRoster, setTheirRoster] = useState<RosterPlayer[]>([])
     const [myRoster, setMyRoster] = useState<RosterPlayer[]>([])
     const [myPicks, setMyPicks] = useState<TradePickItem[]>([])
     const [theirPicks, setTheirPicks] = useState<TradePickItem[]>([])
+    const [participantRosters, setParticipantRosters] = useState<Record<string, RosterPlayer[]>>({})
+    const [participantPicks, setParticipantPicks] = useState<Record<string, TradePickItem[]>>({})
+    const [participantPlayerIds, setParticipantPlayerIds] = useState<Record<string, Set<string>>>({})
+    const [participantPickIds, setParticipantPickIds] = useState<Record<string, Set<string>>>({})
+    const [participantFaabInputs, setParticipantFaabInputs] = useState<Record<string, string>>({})
     const [avgMap, setAvgMap] = useState(EMPTY_AVG_MAP)
     const [avgStatsMap, setAvgStatsMap] = useState(EMPTY_STATS_MAP)
     const [requestIds, setRequestIds] = useState<Set<string>>(new Set())
@@ -268,6 +277,7 @@ export default function ProposeTradeScreen() {
     const [rosterLoading, setRosterLoading] = useState(false)
     const [rosterError, setRosterError] = useState<string | null>(null)
     const [submitting, setSubmitting] = useState(false)
+    const [multiRosterRetryToken, setMultiRosterRetryToken] = useState(0)
     const submittingRef = useRef(false)
     const prefillAppliedToRef = useRef<string | null>(null)
     const rosterLoadSeqRef = useRef(0)
@@ -278,6 +288,8 @@ export default function ProposeTradeScreen() {
         sourceTradeId,
     } = getTradeComposerMode(params)
     const faabEnabled = currentLeague?.waiver_mode === 'faab'
+    const canUseMultiTeamMode = mode === 'propose'
+    const selectedParticipantKey = [...selectedParticipantIds].sort().join(',')
 
     // Load league members (excluding self)
     useEffect(() => {
@@ -312,7 +324,7 @@ export default function ProposeTradeScreen() {
     const loadRosters = useCallback(async () => {
         const requestId = ++rosterLoadSeqRef.current
         const recipientId = selectedRecipientId
-        if (!recipientId || !leagueId || !myMemberId) {
+        if (multiTeamMode || !recipientId || !leagueId || !myMemberId) {
             setTheirRoster([])
             setTheirPicks([])
             setAvgMap(EMPTY_AVG_MAP)
@@ -377,11 +389,60 @@ export default function ProposeTradeScreen() {
         } finally {
             if (rosterLoadSeqRef.current === requestId) setRosterLoading(false)
         }
-    }, [selectedRecipientId, leagueId, myMemberId, prefillTrade, mode, routeRequestPlayerId, routeRequestPickId])
+    }, [multiTeamMode, selectedRecipientId, leagueId, myMemberId, prefillTrade, mode, routeRequestPlayerId, routeRequestPickId])
 
     useEffect(() => {
         loadRosters()
     }, [loadRosters])
+
+    useEffect(() => {
+        if (!multiTeamMode || !leagueId || !myMemberId) return
+        const requestId = ++rosterLoadSeqRef.current
+        const participantIds = [myMemberId, ...selectedParticipantIds]
+        setRosterLoading(true)
+        setRosterError(null)
+
+        async function loadMultiRosters() {
+            try {
+                const rows = await Promise.all(participantIds.map(async (memberId) => {
+                    const [roster, picks] = await Promise.all([
+                        getRoster(memberId, leagueId),
+                        getPicksForMember(memberId, leagueId),
+                    ])
+                    return {
+                        memberId,
+                        roster: roster.filter(isTradeableRosterPlayer),
+                        picks,
+                    }
+                }))
+                if (rosterLoadSeqRef.current !== requestId) return
+
+                const nextRosters: Record<string, RosterPlayer[]> = {}
+                const nextPicks: Record<string, TradePickItem[]> = {}
+                for (const row of rows) {
+                    nextRosters[row.memberId] = row.roster
+                    nextPicks[row.memberId] = row.picks
+                }
+                const stats = await getRosterStatsMaps(
+                    rows.flatMap((row) => row.roster.map((player) => player.players.id)),
+                    leagueId,
+                )
+                if (rosterLoadSeqRef.current !== requestId) return
+                setParticipantRosters(nextRosters)
+                setParticipantPicks(nextPicks)
+                setAvgMap(stats.avgMap)
+                setAvgStatsMap(stats.avgStatsMap)
+            } catch (e) {
+                if (rosterLoadSeqRef.current !== requestId) return
+                console.error(e)
+                setRosterError(getErrorMessage(e) ?? 'Unknown error')
+            } finally {
+                if (rosterLoadSeqRef.current === requestId) setRosterLoading(false)
+            }
+        }
+
+        loadMultiRosters()
+    }, [multiTeamMode, selectedParticipantKey, leagueId, myMemberId, multiRosterRetryToken])
 
     function toggleRequest(playerId: string) {
         setRequestIds((prev) => {
@@ -419,8 +480,125 @@ export default function ProposeTradeScreen() {
         })
     }
 
+    function toggleMultiTeamMode(enabled: boolean) {
+        if (!canUseMultiTeamMode) return
+        setMultiTeamMode(enabled)
+        setSelectedRecipientId(null)
+        setSelectedParticipantIds(new Set())
+        setParticipantPlayerIds({})
+        setParticipantPickIds({})
+        setParticipantFaabInputs({})
+        setOfferIds(new Set())
+        setRequestIds(new Set())
+        setOfferPickIds(new Set())
+        setRequestPickIds(new Set())
+    }
+
+    function toggleParticipant(memberId: string) {
+        setSelectedParticipantIds((prev) => {
+            const next = new Set(prev)
+            if (next.has(memberId)) next.delete(memberId)
+            else next.add(memberId)
+            return next
+        })
+    }
+
+    function toggleParticipantPlayer(memberId: string, playerId: string) {
+        setParticipantPlayerIds((prev) => {
+            const current = new Set(prev[memberId] ?? [])
+            if (current.has(playerId)) current.delete(playerId)
+            else current.add(playerId)
+            return { ...prev, [memberId]: current }
+        })
+    }
+
+    function toggleParticipantPick(memberId: string, pickId: string) {
+        setParticipantPickIds((prev) => {
+            const current = new Set(prev[memberId] ?? [])
+            if (current.has(pickId)) current.delete(pickId)
+            else current.add(pickId)
+            return { ...prev, [memberId]: current }
+        })
+    }
+
+    function setParticipantFaab(memberId: string, value: string) {
+        if (!/^\d*$/.test(value)) return
+        setParticipantFaabInputs((prev) => ({ ...prev, [memberId]: value }))
+    }
+
+    function multiParticipantIds(): string[] {
+        return [myMemberId, ...members.filter((member) => selectedParticipantIds.has(member.id)).map((member) => member.id)]
+    }
+
+    function participantName(memberId: string): string {
+        if (memberId === myMemberId) return myTeamName
+        return members.find((member) => member.id === memberId)?.team_name ?? 'Unnamed'
+    }
+
+    function buildMultiTeamItems(participantIds: string[]): MultiTeamTradeItemPayload[] {
+        return participantIds.flatMap((memberId, index) => {
+            const toMemberId = participantIds[(index + 1) % participantIds.length]
+            const playerItems = [...(participantPlayerIds[memberId] ?? new Set<string>())].map((playerId) => ({
+                fromMemberId: memberId,
+                toMemberId,
+                playerId,
+            }))
+            const pickItems = [...(participantPickIds[memberId] ?? new Set<string>())].map((pickId) => ({
+                fromMemberId: memberId,
+                toMemberId,
+                pickId,
+            }))
+            const faabAmount = parseInt(participantFaabInputs[memberId] || '0', 10) || 0
+            const faabItems = faabEnabled && faabAmount > 0
+                ? [{ fromMemberId: memberId, toMemberId, faabAmount }]
+                : []
+            return [...playerItems, ...pickItems, ...faabItems]
+        })
+    }
+
     async function handleSubmit() {
         if (submittingRef.current) return
+        if (multiTeamMode) {
+            if (isTradingClosed(currentLeague)) {
+                showAlert('Trades Unavailable', 'Trades are locked only from the trade deadline until the champion is finalized.')
+                return
+            }
+            const participantIds = multiParticipantIds()
+            const items = buildMultiTeamItems(participantIds)
+            if (participantIds.length < 2 || items.length === 0) return
+            const draft = buildTradeComposerPayload({
+                offerPlayerIds: [],
+                requestPlayerIds: [],
+                offerPickIds: [],
+                requestPickIds: [],
+                notes,
+                offerFaabInput: '0',
+                requestFaabInput: '0',
+                expirationDaysInput: expirationDays,
+                leagueStatus: currentLeague?.status,
+                tradeDeadline: currentLeague?.trade_deadline,
+            })
+            submittingRef.current = true
+            setSubmitting(true)
+            try {
+                const seasonId = await getCurrentSeasonId(leagueId)
+                if (!seasonId) throw new Error('No active season found.')
+                await proposeMultiTeamTrade(myMemberId, leagueId, seasonId, {
+                    participantMemberIds: participantIds,
+                    items,
+                    notes: notes.trim() || undefined,
+                    expiresAt: draft.payload.expiresAt,
+                })
+                showSuccess('Trade Proposed', 'Your multi-team trade offer has been sent.')
+                back()
+            } catch (e) {
+                showAlert('Error', getErrorMessage(e) ?? 'Could not propose trade.')
+            } finally {
+                submittingRef.current = false
+                setSubmitting(false)
+            }
+            return
+        }
         if (!selectedRecipientId) return
         if (isTradingClosed(currentLeague)) {
             showAlert('Trades Unavailable', 'Trades are locked only from the trade deadline until the champion is finalized.')
@@ -482,13 +660,17 @@ export default function ProposeTradeScreen() {
         tradeDeadline: currentLeague?.trade_deadline,
     })
     const tradingClosed = isTradingClosed(currentLeague)
+    const multiIds = multiParticipantIds()
+    const multiItems = multiTeamMode ? buildMultiTeamItems(multiIds) : []
     const canSubmit =
-        selectedRecipientId !== null &&
-        draft.hasOffer &&
-        draft.hasRequest &&
-        !tradingClosed &&
-        !submitting &&
-        !rosterLoading
+        multiTeamMode
+            ? multiIds.length >= 2 && multiItems.length > 0 && !tradingClosed && !submitting && !rosterLoading
+            : selectedRecipientId !== null &&
+                draft.hasOffer &&
+                draft.hasRequest &&
+                !tradingClosed &&
+                !submitting &&
+                !rosterLoading
 
     if (!current) {
         return (
@@ -539,16 +721,36 @@ export default function ProposeTradeScreen() {
 
                 {/* Team picker */}
                 <Text style={styles.sectionLabel}>TRADE WITH</Text>
+                {canUseMultiTeamMode ? (
+                    <View style={styles.modeSwitch}>
+                        <Pressable
+                            style={[styles.modeButton, !multiTeamMode && styles.modeButtonActive]}
+                            onPress={() => toggleMultiTeamMode(false)}
+                            accessibilityRole="button"
+                            accessibilityLabel="Use two-team trade mode"
+                        >
+                            <Text style={[styles.modeButtonText, !multiTeamMode && styles.modeButtonTextActive]}>2-Team</Text>
+                        </Pressable>
+                        <Pressable
+                            style={[styles.modeButton, multiTeamMode && styles.modeButtonActive]}
+                            onPress={() => toggleMultiTeamMode(true)}
+                            accessibilityRole="button"
+                            accessibilityLabel="Use multi-team trade mode"
+                        >
+                            <Text style={[styles.modeButtonText, multiTeamMode && styles.modeButtonTextActive]}>Multi-Team</Text>
+                        </Pressable>
+                    </View>
+                ) : null}
                 <View style={styles.teamChips}>
                     {members.map((m) => {
-                        const active = selectedRecipientId === m.id
+                        const active = multiTeamMode ? selectedParticipantIds.has(m.id) : selectedRecipientId === m.id
                         return (
                             <Pressable
                                 key={m.id}
                                 style={[styles.teamChip, active && styles.teamChipActive]}
-                                onPress={() => setSelectedRecipientId(m.id)}
+                                onPress={() => multiTeamMode ? toggleParticipant(m.id) : setSelectedRecipientId(m.id)}
                                 accessibilityRole="button"
-                                accessibilityLabel={`Trade with ${m.team_name ?? 'Unnamed team'}`}
+                                accessibilityLabel={`${active ? 'Remove' : 'Trade with'} ${m.team_name ?? 'Unnamed team'}`}
                             >
                                 <Text
                                     style={[
@@ -563,7 +765,85 @@ export default function ProposeTradeScreen() {
                     })}
                 </View>
 
-                {selectedRecipientId && (
+                {multiTeamMode && multiIds.length >= 2 && (
+                    rosterError ? (
+                        <Pressable
+                            style={styles.rosterErrorRow}
+                            onPress={() => setMultiRosterRetryToken((value) => value + 1)}
+                            accessibilityRole="button"
+                            accessibilityLabel="Failed to load rosters. Tap to retry."
+                        >
+                            <Text style={styles.rosterErrorText}>Failed to load rosters. Tap to retry.</Text>
+                        </Pressable>
+                    ) : (
+                        <>
+                            <Text style={styles.sectionLabel}>MULTI-TEAM BUILDER</Text>
+                            <View style={styles.multiTeamStack}>
+                                {multiIds.map((memberId, index) => {
+                                    const toMemberId = multiIds[(index + 1) % multiIds.length]
+                                    const roster = participantRosters[memberId] ?? []
+                                    const picks = participantPicks[memberId] ?? []
+                                    return (
+                                        <View key={memberId} style={styles.multiTeamPanel}>
+                                            <TeamColumn
+                                                title={`${memberId === myMemberId ? 'YOU' : participantName(memberId).toUpperCase()} SENDS`}
+                                                subtitle={`To ${participantName(toMemberId)}`}
+                                                side="give"
+                                                twoColumn={false}
+                                                roster={roster}
+                                                picks={picks}
+                                                avgMap={avgMap}
+                                                avgStatsMap={avgStatsMap}
+                                                selectedPlayerIds={participantPlayerIds[memberId] ?? new Set()}
+                                                selectedPickIds={participantPickIds[memberId] ?? new Set()}
+                                                onTogglePlayer={(playerId) => toggleParticipantPlayer(memberId, playerId)}
+                                                onTogglePick={(pickId) => toggleParticipantPick(memberId, pickId)}
+                                                emptyText="No tradeable active players."
+                                            />
+                                            {faabEnabled ? (
+                                                <View style={styles.multiFaabRow}>
+                                                    <Text style={styles.termLabel}>FAAB to {participantName(toMemberId)}</Text>
+                                                    <TextInput
+                                                        style={styles.termInput}
+                                                        value={participantFaabInputs[memberId] ?? '0'}
+                                                        onChangeText={(value) => setParticipantFaab(memberId, value)}
+                                                        keyboardType="numeric"
+                                                    />
+                                                </View>
+                                            ) : null}
+                                        </View>
+                                    )
+                                })}
+                            </View>
+                            <Text style={styles.sectionLabel}>NOTES (optional)</Text>
+                            <TextInput
+                                style={styles.notesInput}
+                                placeholder="Add a message to your trade offer..."
+                                placeholderTextColor={colors.textPlaceholder}
+                                value={notes}
+                                onChangeText={setNotes}
+                                multiline
+                                numberOfLines={3}
+                            />
+                            <Text style={styles.sectionLabel}>TERMS</Text>
+                            <View style={styles.termsRow}>
+                                <View style={styles.termField}>
+                                    <Text style={styles.termLabel}>Expires in days</Text>
+                                    <TextInput
+                                        style={styles.termInput}
+                                        value={expirationDays}
+                                        onChangeText={(value) => {
+                                            if (/^\d*$/.test(value)) setExpirationDays(value)
+                                        }}
+                                        keyboardType="numeric"
+                                    />
+                                </View>
+                            </View>
+                        </>
+                    )
+                )}
+
+                {!multiTeamMode && selectedRecipientId && (
                     rosterError ? (
                         <Pressable
                             style={styles.rosterErrorRow}
@@ -666,7 +946,7 @@ export default function ProposeTradeScreen() {
                     )
                 )}
 
-                {!selectedRecipientId && !loading && (
+                {!selectedRecipientId && !multiTeamMode && !loading && (
                     <EmptyState
                         icon="swap-horiz"
                         message="Pick a team to trade with"
@@ -675,6 +955,15 @@ export default function ProposeTradeScreen() {
                         framed
                     />
                 )}
+                {multiTeamMode && multiIds.length < 2 && !loading ? (
+                    <EmptyState
+                        icon="group-add"
+                        message="Pick at least one more team"
+                        description="Choose teams above, then select the assets each team sends."
+                        fullScreen={false}
+                        framed
+                    />
+                ) : null}
 
                 <View style={{ height: 40 }} />
             </ScrollView>
@@ -793,6 +1082,29 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         flexWrap: 'wrap',
     },
+    modeSwitch: {
+        flexDirection: 'row',
+        gap: spacing.sm,
+        paddingHorizontal: spacing.xl,
+        paddingBottom: spacing.sm,
+    },
+    modeButton: {
+        minHeight: 40,
+        paddingHorizontal: spacing.lg,
+        borderRadius: radii.md,
+        borderCurve: 'continuous' as const,
+        backgroundColor: colors.bgMuted,
+        borderWidth: 1,
+        borderColor: colors.borderLight,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    modeButtonActive: {
+        backgroundColor: colors.primary,
+        borderColor: colors.primary,
+    },
+    modeButtonText: { color: colors.textSecondary, fontSize: fontSize.sm, fontWeight: fontWeight.bold },
+    modeButtonTextActive: { color: colors.textWhite },
     teamChip: {
         paddingHorizontal: 14,
         minHeight: 44,
@@ -805,6 +1117,19 @@ const styles = StyleSheet.create({
     teamChipActive: { backgroundColor: colors.primary },
     teamChipText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textSecondary },
     teamChipTextActive: { color: colors.textWhite },
+    multiTeamStack: { gap: spacing.lg, marginBottom: spacing.lg },
+    multiTeamPanel: {
+        borderTopWidth: 1,
+        borderBottomWidth: 1,
+        borderColor: colors.borderLight,
+        backgroundColor: colors.bgScreen,
+    },
+    multiFaabRow: {
+        marginHorizontal: spacing.xl,
+        marginBottom: spacing.lg,
+        gap: spacing.xs,
+        maxWidth: 220,
+    },
 
     playerRow: {
         flexDirection: 'row',

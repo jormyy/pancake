@@ -14,6 +14,8 @@ export type TradePlayerItem = {
     yearsExp?: number | null
     avgFantasyPoints?: number | null
     avgMinutesPlayed?: number | null
+    fromMemberId?: string | null
+    toMemberId?: string | null
 }
 
 export type TradePickItem = {
@@ -22,9 +24,26 @@ export type TradePickItem = {
     seasonYear: number
     round: number
     originalTeamName: string
+    fromMemberId?: string | null
+    toMemberId?: string | null
 }
 
-export type TradeItem = TradePlayerItem | TradePickItem
+export type TradeFaabItem = {
+    kind: 'faab'
+    amount: number
+    fromMemberId?: string | null
+    toMemberId?: string | null
+}
+
+export type TradeItem = TradePlayerItem | TradePickItem | TradeFaabItem
+
+export type TradeParticipant = {
+    memberId: string
+    teamName: string
+    sortOrder: number
+    isInitiator: boolean
+    acceptedAt: string | null
+}
 
 export type Trade = {
     id: string
@@ -40,6 +59,8 @@ export type Trade = {
     proposerTeamName: string
     recipientMemberId: string
     recipientTeamName: string
+    isMultiTeam: boolean
+    participants: TradeParticipant[]
     parentTradeId: string | null
     counteredFromTradeId: string | null
     editedFromTradeId: string | null
@@ -52,6 +73,8 @@ export type Trade = {
     proposerGives: TradeItem[]
     // Items the recipient is giving (proposer receives)
     recipientGives: TradeItem[]
+    // Explicitly routed items for multi-team displays and audits.
+    routedItems: TradeItem[]
 }
 
 type TeamNameRow = { team_name: string | null } | null
@@ -74,12 +97,22 @@ type TradeItemQueryRow = {
     side: 'proposer' | 'recipient'
     player_id: string | null
     pick_id: string | null
+    from_member_id: string | null
+    to_member_id: string | null
+    faab_amount: number | null
     players: TradePlayerQueryRow
     draft_picks: {
         season_year: number
         round: number
         original_owner: TeamNameRow
     } | null
+}
+type TradeParticipantQueryRow = {
+    member_id: string
+    sort_order: number
+    is_initiator: boolean
+    accepted_at: string | null
+    league_members: TeamNameRow
 }
 type TradeQueryRow = {
     id: string
@@ -94,6 +127,7 @@ type TradeQueryRow = {
     notes: string | null
     proposer_member_id: string
     recipient_member_id: string
+    is_multi_team: boolean | null
     parent_trade_id: string | null
     countered_from_trade_id: string | null
     edited_from_trade_id: string | null
@@ -104,6 +138,7 @@ type TradeQueryRow = {
     proposer: TeamNameRow
     recipient: TeamNameRow
     trade_vetos: { member_id: string | null }[] | null
+    trade_participants: TradeParticipantQueryRow[] | null
     trade_items: TradeItemQueryRow[] | null
 }
 
@@ -120,6 +155,19 @@ export type TradeProposalPayload = {
     offerPickIds: string[]
     requestPickIds: string[]
 } & TradeProposalOptions
+
+export type MultiTeamTradeItemPayload = {
+    fromMemberId: string
+    toMemberId: string
+    playerId?: string | null
+    pickId?: string | null
+    faabAmount?: number
+}
+
+export type MultiTeamTradeProposalPayload = {
+    participantMemberIds: string[]
+    items: MultiTeamTradeItemPayload[]
+} & Pick<TradeProposalOptions, 'notes' | 'expiresAt'>
 
 export type TradeBlockItem = {
     id: string
@@ -181,6 +229,25 @@ export async function proposeTrade(
         expiresAt: options.expiresAt ?? null,
         offerFaabAmount: options.offerFaabAmount ?? 0,
         requestFaabAmount: options.requestFaabAmount ?? 0,
+    })
+
+    return result.tradeId
+}
+
+export async function proposeMultiTeamTrade(
+    memberId: string,
+    leagueId: string,
+    seasonId: string,
+    payload: MultiTeamTradeProposalPayload,
+): Promise<string> {
+    const result = await apiPost<{ tradeId: string }>('/trades/propose-multi', {
+        memberId,
+        leagueId,
+        leagueSeasonId: seasonId,
+        participantMemberIds: payload.participantMemberIds,
+        items: payload.items,
+        notes: payload.notes ?? '',
+        expiresAt: payload.expiresAt ?? null,
     })
 
     return result.tradeId
@@ -251,6 +318,7 @@ const TRADE_SELECT = `
             notes,
             proposer_member_id,
             recipient_member_id,
+            is_multi_team,
             parent_trade_id,
             countered_from_trade_id,
             edited_from_trade_id,
@@ -261,11 +329,21 @@ const TRADE_SELECT = `
             proposer:league_members!trades_proposer_member_id_fkey ( team_name ),
             recipient:league_members!trades_recipient_member_id_fkey ( team_name ),
             trade_vetos ( member_id ),
+            trade_participants (
+                member_id,
+                sort_order,
+                is_initiator,
+                accepted_at,
+                league_members ( team_name )
+            ),
             trade_items (
                 id,
                 side,
                 player_id,
                 pick_id,
+                from_member_id,
+                to_member_id,
+                faab_amount,
                 players ( display_name, position, eligible_positions, nba_team, nba_id, injury_status, years_exp ),
                 draft_picks (
                     season_year,
@@ -278,6 +356,7 @@ const TRADE_SELECT = `
 function mapTradeRow(row: TradeQueryRow, memberId: string): Trade {
     const proposerGives: TradeItem[] = []
     const recipientGives: TradeItem[] = []
+    const routedItems: TradeItem[] = []
 
     for (const item of row.trade_items ?? []) {
         let tradeItem: TradeItem | null = null
@@ -293,6 +372,8 @@ function mapTradeRow(row: TradeQueryRow, memberId: string): Trade {
                 nbaId: item.players?.nba_id ?? null,
                 injuryStatus: item.players?.injury_status ?? null,
                 yearsExp: item.players?.years_exp ?? null,
+                fromMemberId: item.from_member_id ?? null,
+                toMemberId: item.to_member_id ?? null,
             } satisfies TradePlayerItem
         } else if (item.pick_id != null && item.draft_picks) {
             tradeItem = {
@@ -301,17 +382,38 @@ function mapTradeRow(row: TradeQueryRow, memberId: string): Trade {
                 seasonYear: item.draft_picks?.season_year,
                 round: item.draft_picks?.round,
                 originalTeamName: item.draft_picks?.original_owner?.team_name ?? 'Unknown',
+                fromMemberId: item.from_member_id ?? null,
+                toMemberId: item.to_member_id ?? null,
             } satisfies TradePickItem
+        } else if ((item.faab_amount ?? 0) > 0) {
+            tradeItem = {
+                kind: 'faab',
+                amount: item.faab_amount ?? 0,
+                fromMemberId: item.from_member_id ?? null,
+                toMemberId: item.to_member_id ?? null,
+            } satisfies TradeFaabItem
         }
 
         if (tradeItem) {
-            if (item.side === 'proposer') {
+            routedItems.push(tradeItem)
+            const fromMemberId = item.from_member_id ?? (item.side === 'proposer' ? row.proposer_member_id : row.recipient_member_id)
+            if (fromMemberId === row.proposer_member_id) {
                 proposerGives.push(tradeItem)
-            } else {
+            }
+            if (fromMemberId === row.recipient_member_id) {
                 recipientGives.push(tradeItem)
             }
         }
     }
+    const participants = (row.trade_participants ?? [])
+        .map((participant) => ({
+            memberId: participant.member_id,
+            teamName: participant.league_members?.team_name ?? 'Unknown',
+            sortOrder: participant.sort_order ?? 0,
+            isInitiator: participant.is_initiator ?? false,
+            acceptedAt: participant.accepted_at ?? null,
+        }))
+        .sort((a, b) => a.sortOrder - b.sortOrder || a.teamName.localeCompare(b.teamName))
 
     return {
         id: row.id,
@@ -327,6 +429,8 @@ function mapTradeRow(row: TradeQueryRow, memberId: string): Trade {
         proposerTeamName: row.proposer?.team_name ?? 'Unknown',
         recipientMemberId: row.recipient_member_id,
         recipientTeamName: row.recipient?.team_name ?? 'Unknown',
+        isMultiTeam: row.is_multi_team ?? false,
+        participants,
         parentTradeId: row.parent_trade_id ?? null,
         counteredFromTradeId: row.countered_from_trade_id ?? null,
         editedFromTradeId: row.edited_from_trade_id ?? null,
@@ -337,6 +441,7 @@ function mapTradeRow(row: TradeQueryRow, memberId: string): Trade {
         myVetoed: (row.trade_vetos ?? []).some((veto: { member_id: string | null }) => veto.member_id === memberId),
         proposerGives,
         recipientGives,
+        routedItems,
     } satisfies Trade
 }
 
@@ -363,6 +468,7 @@ async function enrichTradesWithStats(trades: Trade[], leagueId: string): Promise
     const playerIds = trades.flatMap((trade) => [
         ...playerIdsFromItems(trade.proposerGives),
         ...playerIdsFromItems(trade.recipientGives),
+        ...playerIdsFromItems(trade.routedItems),
     ])
     if (playerIds.length === 0) return trades
 
@@ -371,14 +477,26 @@ async function enrichTradesWithStats(trades: Trade[], leagueId: string): Promise
         ...trade,
         proposerGives: enrichItemsWithStats(trade.proposerGives, avgMap, avgStatsMap),
         recipientGives: enrichItemsWithStats(trade.recipientGives, avgMap, avgStatsMap),
+        routedItems: enrichItemsWithStats(trade.routedItems, avgMap, avgStatsMap),
     }))
 }
 
 export async function getMyTrades(memberId: string, leagueId: string): Promise<Trade[]> {
+    const { data: participantRows, error: participantError } = await supabase
+        .from('trade_participants')
+        .select('trade_id')
+        .eq('member_id', memberId)
+    if (participantError) throw participantError
+    const participantTradeIds = [...new Set((participantRows ?? []).map((row) => row.trade_id))]
+    const visibilityFilters = [
+        `proposer_member_id.eq.${memberId}`,
+        `recipient_member_id.eq.${memberId}`,
+        ...(participantTradeIds.length > 0 ? [`id.in.(${participantTradeIds.join(',')})`] : []),
+    ].join(',')
     const { data, error } = await supabase
         .from('trades')
         .select(TRADE_SELECT)
-        .or(`proposer_member_id.eq.${memberId},recipient_member_id.eq.${memberId}`)
+        .or(visibilityFilters)
         .eq('league_id', leagueId)
         .order('proposed_at', { ascending: false })
         .limit(20)
@@ -405,8 +523,11 @@ export async function getVetoableTrades(memberId: string, leagueId: string): Pro
 
     if (error) throw error
 
+    const trades = ((data ?? []) as TradeQueryRow[]).map((row) => mapTradeRow(row, memberId))
+        .filter((trade) => !trade.participants.some((participant) => participant.memberId === memberId))
+
     return enrichTradesWithStats(
-        ((data ?? []) as TradeQueryRow[]).map((row) => mapTradeRow(row, memberId)),
+        trades,
         leagueId,
     )
 }

@@ -339,7 +339,9 @@ export default function TradesScreen() {
             const mine = block.memberId === myMemberId
             const label = block.asset.kind === 'player'
                 ? block.asset.playerName
-                : `${block.asset.seasonYear} Round ${block.asset.round} pick`
+                : block.asset.kind === 'pick'
+                  ? `${block.asset.seasonYear} Round ${block.asset.round} pick`
+                  : `FAAB $${block.asset.amount}`
             const positions = block.asset.kind === 'player'
                 ? block.asset.eligiblePositions?.length
                     ? block.asset.eligiblePositions

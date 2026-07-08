@@ -75,6 +75,9 @@ function TradeItemLine({ item }: { item: TradeItem }) {
             </View>
         )
     }
+    if (item.kind === 'faab') {
+        return <Text style={styles.assetPlayer}>FAAB ${item.amount}</Text>
+    }
     return (
         <Text style={styles.assetPick}>
             {item.seasonYear} Rd {item.round}{' '}
@@ -84,15 +87,20 @@ function TradeItemLine({ item }: { item: TradeItem }) {
 }
 
 function AssetList({ items, label }: { items: TradeItem[]; label: string }) {
+    const keyForItem = (item: TradeItem, index: number) => {
+        if (item.kind === 'player') return `player:${item.playerId}:${index}`
+        if (item.kind === 'pick') return `pick:${item.pickId}:${index}`
+        return `faab:${item.fromMemberId ?? 'from'}:${item.toMemberId ?? 'to'}:${item.amount}:${index}`
+    }
     return (
         <View style={styles.assetBlock}>
             <Text style={styles.assetLabel}>{label}</Text>
             {items.length === 0 ? (
                 <Text style={styles.assetEmpty}>Nothing</Text>
             ) : (
-                items.map((item) => (
+                items.map((item, index) => (
                     <TradeItemLine
-                        key={item.kind === 'player' ? item.playerId : item.pickId}
+                        key={keyForItem(item, index)}
                         item={item}
                     />
                 ))
@@ -123,17 +131,25 @@ export function TradeCard({
     const { push } = useRouter()
     const isProposer = trade.proposerMemberId === myMemberId
     const isRecipient = trade.recipientMemberId === myMemberId
-    const isTradeParty = isProposer || isRecipient
-    const opponentName = isProposer
+    const isMultiParticipant = trade.participants.some((participant) => participant.memberId === myMemberId)
+    const isTradeParty = isProposer || isRecipient || isMultiParticipant
+    const participantNames = trade.participants.map((participant) => participant.teamName).join(' / ')
+    const opponentName = trade.isMultiTeam && participantNames
+        ? participantNames
+        : isProposer
         ? trade.recipientTeamName
         : isRecipient
             ? trade.proposerTeamName
             : `${trade.proposerTeamName} vs ${trade.recipientTeamName}`
 
-    const iReceive = isProposer ? trade.recipientGives : trade.proposerGives
-    const iGive = isProposer ? trade.proposerGives : trade.recipientGives
-    const iReceiveFaab = isProposer ? trade.recipientFaabAmount : trade.proposerFaabAmount
-    const iGiveFaab = isProposer ? trade.proposerFaabAmount : trade.recipientFaabAmount
+    const iReceive = trade.isMultiTeam
+        ? trade.routedItems.filter((item) => item.toMemberId === myMemberId)
+        : isProposer ? trade.recipientGives : trade.proposerGives
+    const iGive = trade.isMultiTeam
+        ? trade.routedItems.filter((item) => item.fromMemberId === myMemberId)
+        : isProposer ? trade.proposerGives : trade.recipientGives
+    const iReceiveFaab = trade.isMultiTeam ? 0 : isProposer ? trade.recipientFaabAmount : trade.proposerFaabAmount
+    const iGiveFaab = trade.isMultiTeam ? 0 : isProposer ? trade.proposerFaabAmount : trade.recipientFaabAmount
     const receiveLabel = isTradeParty
         ? 'You receive:'
         : `${trade.recipientTeamName} receives:`
@@ -147,6 +163,9 @@ export function TradeCard({
         (tradeVetoMode === 'commissioner' && isCommissioner)
     const canVeto = tab === 'offers' && !isTradeParty && trade.status === 'accepted' && !trade.myVetoed && canVetoBySettings
     const alreadyVetoed = tab === 'offers' && !isTradeParty && trade.status === 'accepted' && trade.myVetoed && canVetoBySettings
+    const participantAcceptanceText = trade.isMultiTeam
+        ? `${trade.participants.filter((participant) => participant.acceptedAt != null).length}/${trade.participants.length} teams accepted`
+        : null
     const vetoWindowText = trade.status === 'accepted' && trade.vetoWindowExpiresAt
         ? `Veto window closes ${new Date(trade.vetoWindowExpiresAt).toLocaleString([], {
             month: 'short',
@@ -298,6 +317,7 @@ export function TradeCard({
             {vetoWindowText ? <Text style={styles.vetoWindowText}>{vetoWindowText}</Text> : null}
             {expiresText ? <Text style={styles.vetoWindowText}>{expiresText}</Text> : null}
             {trade.version > 1 ? <Text style={styles.vetoWindowText}>Version {trade.version}</Text> : null}
+            {participantAcceptanceText ? <Text style={styles.vetoWindowText}>{participantAcceptanceText}</Text> : null}
             {alreadyVetoed ? <Text style={styles.vetoWindowText}>Your veto has been recorded.</Text> : null}
 
             <AssetList items={iReceive} label={receiveLabel} />
@@ -307,7 +327,7 @@ export function TradeCard({
 
             {trade.notes ? <Text style={styles.cardNotes}>{trade.notes}</Text> : null}
 
-            {tab === 'offers' && !isProposer && trade.status === 'pending' && (
+            {tab === 'offers' && isTradeParty && !isProposer && trade.status === 'pending' && (
                 <View style={styles.cardActions}>
                     <MotionPressable
                         style={[styles.actionBtn, styles.actionBtnAccept]}
@@ -329,19 +349,21 @@ export function TradeCard({
                     >
                         <Text style={styles.actionBtnRejectText}>Reject</Text>
                     </MotionPressable>
-                    <MotionPressable
-                        style={[styles.actionBtn, styles.actionBtnReject]}
-                        onPress={() => push({ pathname: '/(modals)/propose-trade', params: { counterTradeId: trade.id } })}
-                        disabled={acting}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Counter trade with ${opponentName}`}
-                        pressedScale={0.94}
-                    >
-                        <Text style={styles.actionBtnRejectText}>Counter</Text>
-                    </MotionPressable>
+                    {!trade.isMultiTeam ? (
+                        <MotionPressable
+                            style={[styles.actionBtn, styles.actionBtnReject]}
+                            onPress={() => push({ pathname: '/(modals)/propose-trade', params: { counterTradeId: trade.id } })}
+                            disabled={acting}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Counter trade with ${opponentName}`}
+                            pressedScale={0.94}
+                        >
+                            <Text style={styles.actionBtnRejectText}>Counter</Text>
+                        </MotionPressable>
+                    ) : null}
                 </View>
             )}
-            {tab === 'offers' && isProposer && trade.status === 'pending' && (
+            {tab === 'offers' && isProposer && trade.status === 'pending' && !trade.isMultiTeam && (
                 <View style={styles.cardActions}>
                     <MotionPressable
                         style={[styles.actionBtn, styles.actionBtnAccept]}
