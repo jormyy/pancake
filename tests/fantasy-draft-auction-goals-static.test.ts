@@ -109,6 +109,24 @@ describe('fantasy draft and auction experience goals', () => {
         expect(draftSetupPanels).toContain('aria-label={startRookieAccessibilityLabel}')
     })
 
+    it('supports low preset and custom draft timers end to end', () => {
+        expect(draftChips).toContain('const DRAFT_TIMER_OPTIONS = [15, 30] as const')
+        expect(draftChips).toContain('export type DraftTimerOption = number')
+        expect(draftChips).toContain('export const DRAFT_TIMER_MIN_SECONDS = 5')
+        expect(draftChips).toContain('export const DRAFT_TIMER_MAX_SECONDS = 3600')
+        expect(draftChips).toContain('export function normalizeDraftTimerSeconds(value: number)')
+        expect(draftChips).toContain('export function DraftTimerControl')
+        expect(draftChips).toContain('keyboardType="number-pad"')
+        expect(draftSetupPanels).toContain('<DraftTimerControl')
+        expect(mockRoomsPanel).toContain('<DraftTimerControl')
+        expect(leagueScreenState).toContain('setDraftTimerSecondsState(normalizeDraftTimerSeconds(value))')
+        expect(draftApi).toContain("optionalIntegerField(body, 'timerSeconds', { min: 5, max: 3600 })")
+        expect(latestFunctionDefinition('start_auction_draft_atomic')).toContain('p_pick_timer_seconds int DEFAULT 30')
+        expect(latestFunctionDefinition('start_auction_draft_atomic')).toContain('p_pick_timer_seconds < 5 OR p_pick_timer_seconds > 3600')
+        expect(latestFunctionDefinition('create_mock_draft_room_atomic')).toContain('p_pick_timer_seconds int DEFAULT 30')
+        expect(latestFunctionDefinition('create_mock_draft_room_atomic')).toContain('p_pick_timer_seconds < 5 OR p_pick_timer_seconds > 3600')
+    })
+
     it('keeps irreversible draft-start confirmations configuration-aware', () => {
         expect(leagueScreenState).toContain('function auctionDraftConfirmationMessage')
         expect(leagueScreenState).toContain('with a ${draftTimerSeconds}-second timer and ${NOMINATION_ORDER_MODE_LABELS[nominationMode].toLowerCase()} nomination order')

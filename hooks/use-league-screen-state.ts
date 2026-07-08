@@ -33,7 +33,11 @@ import {
 } from '@/lib/mockDraftRooms'
 import { confirmAction, showAlert } from '@/lib/alert'
 import { parseLeagueTab, type LeagueTab } from '@/lib/league/tabs'
-import type { DraftTimerOption, RookieRoundOption } from '@/components/league/DraftChips'
+import {
+    normalizeDraftTimerSeconds,
+    type DraftTimerOption,
+    type RookieRoundOption,
+} from '@/components/league/DraftChips'
 
 const ACTIVITY_LIMIT = 50
 const OPEN_DRAFT_STATUSES = new Set(['pending', 'in_progress', 'paused'])
@@ -72,7 +76,7 @@ export function useLeagueScreenState() {
     const [tab, setTab] = useState<LeagueTab>(() => parseLeagueTab(params.tab))
     const [draftLoading, setDraftLoading] = useState(false)
     const [nominationMode, setNominationMode] = useState<NominationOrderMode>('user_nominated')
-    const [draftTimerSeconds, setDraftTimerSeconds] = useState<DraftTimerOption>(30)
+    const [draftTimerSeconds, setDraftTimerSecondsState] = useState<DraftTimerOption>(30)
     const [rookieRounds, setRookieRounds] = useState<RookieRoundOption>(3)
     const [rookieTimerExpiryBehavior, setRookieTimerExpiryBehavior] =
         useState<RookieTimerExpiryBehavior>('auto_pick')
@@ -103,6 +107,10 @@ export function useLeagueScreenState() {
     useEffect(() => {
         setTab(parseLeagueTab(params.tab))
     }, [params.tab])
+
+    const setDraftTimerSeconds = useCallback((value: DraftTimerOption) => {
+        setDraftTimerSecondsState(normalizeDraftTimerSeconds(value))
+    }, [])
 
     useEffect(() => {
         loadedTabs.current.clear()

@@ -10,11 +10,10 @@ import type { LeaguePickItem } from '@/lib/rookieDraft'
 import { spacing } from '@/constants/tokens'
 import {
     DraftChips,
-    DRAFT_TIMER_CHIPS,
+    DraftTimerControl,
     NOMINATION_ORDER_CHIPS,
     ROOKIE_ROUND_CHIPS,
     ROOKIE_TIMER_EXPIRY_CHIPS,
-    draftTimerChipLabel,
     rookieRoundChipLabel,
     type DraftControlProps,
     type DraftTimerOption,
@@ -118,12 +117,10 @@ export function AuctionPanel({
                         <>
                             <View style={styles.auctionCompactStartRow}>
                                 <View style={styles.auctionCompactTimerWrap}>
-                                    <DraftChips
-                                        options={DRAFT_TIMER_CHIPS}
+                                    <DraftTimerControl
                                         selectedValue={draftTimerSeconds}
                                         onSelect={onDraftTimerSecondsChange}
                                         groupLabel="Auction draft timer"
-                                        accessibilityLabelForOption={draftTimerChipLabel}
                                         compact
                                     />
                                 </View>
@@ -141,12 +138,10 @@ export function AuctionPanel({
                     ) : (
                         <>
                             <Text style={panelStyles.nominationModeLabel}>Timer</Text>
-                            <DraftChips
-                                options={DRAFT_TIMER_CHIPS}
+                            <DraftTimerControl
                                 selectedValue={draftTimerSeconds}
                                 onSelect={onDraftTimerSecondsChange}
                                 groupLabel="Auction draft timer"
-                                accessibilityLabelForOption={draftTimerChipLabel}
                             />
                             <Text style={panelStyles.nominationModeLabel}>Nomination order</Text>
                             <DraftChips
@@ -261,12 +256,10 @@ export function DraftBoardPanel({
                                 {startRookieButton}
                             </View>
                             <Text style={panelStyles.nominationModeLabel}>Timer</Text>
-                            <DraftChips
-                                options={DRAFT_TIMER_CHIPS}
+                            <DraftTimerControl
                                 selectedValue={draftTimerSeconds}
                                 onSelect={onDraftTimerSecondsChange}
                                 groupLabel="Rookie draft timer"
-                                accessibilityLabelForOption={draftTimerChipLabel}
                                 compact
                             />
                             <Text style={panelStyles.nominationModeLabel}>Timeout behavior</Text>
@@ -281,12 +274,10 @@ export function DraftBoardPanel({
                     ) : (
                         <>
                             <Text style={panelStyles.nominationModeLabel}>Timer</Text>
-                            <DraftChips
-                                options={DRAFT_TIMER_CHIPS}
+                            <DraftTimerControl
                                 selectedValue={draftTimerSeconds}
                                 onSelect={onDraftTimerSecondsChange}
                                 groupLabel="Rookie draft timer"
-                                accessibilityLabelForOption={draftTimerChipLabel}
                             />
                             <Text style={panelStyles.nominationModeLabel}>Rookie rounds</Text>
                             <DraftChips
