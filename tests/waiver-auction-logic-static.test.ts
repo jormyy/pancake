@@ -9,6 +9,8 @@ import { read } from './source-guard'
 const waivers = read('supabase/sql/functions/waivers-and-adds.sql')
 const auction = read('supabase/sql/functions/auction-lifecycle.sql')
 const dynastyTx = read('supabase/sql/functions/dynasty-transactions.sql')
+const waiverApi = read('supabase/functions/api/waivers.ts')
+const claimPlayerModal = read('app/(modals)/claim-player.tsx')
 
 const count = (haystack: string, needle: string): number =>
     haystack.split(needle).length - 1
@@ -94,6 +96,14 @@ describe('waiver claim resolution ordering (process_waiver_claim internals)', ()
 })
 
 describe('FAAB budget guards', () => {
+    it('keeps $0 FAAB bids legal across UI, API, and SQL entry points', () => {
+        expect(claimPlayerModal).toContain("const [bidInput, setBidInput] = useState('0')")
+        expect(claimPlayerModal).toContain("const bidAmount = Math.max(0, parseInt(bidInput || '0', 10) || 0)")
+        expect(waiverApi).toContain("optionalIntegerField(body, 'bidAmount', { min: 0 }) ?? 0")
+        expect(count(waivers, 'v_bid_amount int := COALESCE(p_bid_amount, 0);')).toBe(2)
+        expect(count(waivers, "IF v_bid_amount < 0 THEN\n    RAISE EXCEPTION 'FAAB bid must be a non-negative integer.'")).toBe(2)
+    })
+
     it('rejects negative bids at submit and update time (both entry points)', () => {
         expect(count(waivers, "IF v_bid_amount < 0 THEN\n    RAISE EXCEPTION 'FAAB bid must be a non-negative integer.'")).toBe(2)
     })
@@ -108,6 +118,12 @@ describe('FAAB budget guards', () => {
 
     it('deducts exactly the winning bid from the FAAB balance', () => {
         expect(waivers).toContain('SET balance = balance_row.balance - v_claim.bid_amount,')
+    })
+
+    it('does not deduct failed lower-priority or lower-bid FAAB claims', () => {
+        expect(count(waivers, 'SET balance = balance_row.balance - v_claim.bid_amount,')).toBe(1)
+        expect(waivers).toContain("CASE WHEN v_league.waiver_mode = 'faab' THEN 'faab_bid_lost' ELSE 'waiver_claim_failed_priority' END")
+        expect(waivers).toContain("jsonb_build_object('bid_amount', failed.bid_amount, 'winning_bid_amount', v_claim.bid_amount)")
     })
 })
 

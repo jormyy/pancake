@@ -455,6 +455,7 @@ async function main() {
       tieBidPlayer,
       expiredTradePlayer,
       reservedEditClaimPlayer,
+      zeroBidPlayer,
     ] = fixture.players
 
     await step('commissioner settings', 'weekly add limit, FAAB mode, budget, and state RPC', async () => {
@@ -659,21 +660,46 @@ async function main() {
       if (tieLoserDueError) throw new Error(`tie loser due update: ${tieLoserDueError.message}`)
       await processWaiversUntil(admin, [tieWinner.id, tieLoser.id])
 
+      const zeroBidLogId = await createWaiverLog(admin, fixture.league.id, fixture.season.id, zeroBidPlayer.id)
+      await apiPost(env, managerThree.session.token, '/waivers/claims', {
+        memberId: managerThree.id,
+        leagueId: fixture.league.id,
+        playerId: zeroBidPlayer.id,
+        bidAmount: 0,
+      })
+      const zeroBidClaim = await findClaim(admin, managerThree.id, zeroBidPlayer.id)
+      assertCondition(zeroBidClaim.bid_amount === 0, `zero bid claim stored bid=${zeroBidClaim.bid_amount}`)
+      await makeClaimDue(admin, zeroBidClaim.id, zeroBidLogId)
+      await processWaiversUntil(admin, [zeroBidClaim.id])
+
       const highWinnerRow = await findClaim(admin, managerThree.id, highBidPlayer.id)
       const highLoserRow = await findClaim(admin, managerFour.id, highBidPlayer.id)
       const tieWinnerRow = await findClaim(admin, managerFour.id, tieBidPlayer.id)
       const tieLoserRow = await findClaim(admin, managerThree.id, tieBidPlayer.id)
+      const zeroBidRow = await findClaim(admin, managerThree.id, zeroBidPlayer.id)
       assertCondition(highWinnerRow.status === 'succeeded', `high bid winner status=${highWinnerRow.status}`)
       assertCondition(highLoserRow.status === 'failed_priority', `high bid loser status=${highLoserRow.status}`)
       assertCondition(tieWinnerRow.status === 'succeeded', `tie winner status=${tieWinnerRow.status}`)
       assertCondition(tieLoserRow.status === 'failed_priority', `tie loser status=${tieLoserRow.status}`)
+      assertCondition(zeroBidRow.status === 'succeeded', `zero bid status=${zeroBidRow.status}`)
       assertCondition(await rosterHas(admin, fixture.league.id, fixture.season.id, managerThree.id, highBidPlayer.id), 'high bid winner did not roster player')
       assertCondition(await rosterHas(admin, fixture.league.id, fixture.season.id, managerFour.id, tieBidPlayer.id), 'tie winner did not roster player')
+      assertCondition(await rosterHas(admin, fixture.league.id, fixture.season.id, managerThree.id, zeroBidPlayer.id), 'zero bid winner did not roster player')
+      const { data: zeroBidActivity, error: zeroBidActivityError } = await admin
+        .from('league_activity')
+        .select('id, event_type, body, metadata')
+        .eq('related_claim_id', zeroBidClaim.id)
+        .eq('event_type', 'faab_bid_won')
+        .maybeSingle()
+      if (zeroBidActivityError) throw new Error(`zero bid activity lookup: ${zeroBidActivityError.message}`)
+      assertCondition(Boolean(zeroBidActivity), 'zero bid win did not write FAAB history')
+      assertCondition(Number(zeroBidActivity?.metadata?.bid_amount ?? -1) === 0, `zero bid activity metadata=${JSON.stringify(zeroBidActivity?.metadata)}`)
+      assertCondition(String(zeroBidActivity?.body ?? '').includes('$0'), `zero bid activity body=${zeroBidActivity?.body}`)
       const managerThreeBalance = await getBalance(admin, fixture.league.id, fixture.season.id, managerThree.id)
       const managerFourBalance = await getBalance(admin, fixture.league.id, fixture.season.id, managerFour.id)
       assertCondition(managerThreeBalance === 70, `managerThree FAAB=${managerThreeBalance}; expected 70`)
       assertCondition(managerFourBalance === 89, `managerFour FAAB=${managerFourBalance}; expected 89`)
-      return 'bid $30 beat $20; equal $11 bids used waiver-priority tiebreaker; balances are $70 and $89'
+      return 'bid $30 beat $20; equal $11 bids used waiver-priority tiebreaker; $0 bid processed with history; balances are $70 and $89'
     })
 
     await step('commissioner controls', 'FAAB balance adjustment and weekly count override', async () => {
