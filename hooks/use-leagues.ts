@@ -2,7 +2,8 @@ import { fetchUserLeagues } from '@/lib/league'
 import { useAuth } from '@/hooks/use-auth'
 import type { LeagueMembership } from '@/types/app'
 import { readPersistentCache, removePersistentCache, writePersistentCache } from '@/lib/persistent-cache'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { subscribeToTableChanges, unsubscribeFromTableChanges } from '@/lib/realtime'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 export type { LeagueMembership }
 
@@ -67,6 +68,31 @@ export function useLeagues() {
     const refresh = useCallback(() => {
         void load({ force: true })
     }, [load])
+
+    const leagueRealtimeKey = useMemo(
+        () => memberships.map((membership) => membership.leagues.id).sort().join(':'),
+        [memberships],
+    )
+
+    useEffect(() => {
+        const userId = user?.id
+        if (!userId) return
+
+        const leagueIds = leagueRealtimeKey ? leagueRealtimeKey.split(':') : []
+        const channel = subscribeToTableChanges(
+            `league-context:${userId}:${leagueRealtimeKey || 'none'}`,
+            [
+                { table: 'league_members', filter: `user_id=eq.${userId}` },
+                ...leagueIds.flatMap((leagueId) => [
+                    { table: 'leagues', filter: `id=eq.${leagueId}` },
+                    { table: 'league_members', filter: `league_id=eq.${leagueId}` },
+                ]),
+            ],
+            refresh,
+        )
+
+        return () => unsubscribeFromTableChanges(channel)
+    }, [leagueRealtimeKey, refresh, user?.id])
 
     return { memberships, loading, error, refresh }
 }

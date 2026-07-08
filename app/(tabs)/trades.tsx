@@ -38,6 +38,7 @@ import { EMPTY_AVG_MAP, EMPTY_STATS_MAP, getRosterStatsMaps } from '@/lib/roster
 import { Avatar } from '@/components/Avatar'
 import { PosTag } from '@/components/PosTag'
 import { Badge } from '@/components/Badge'
+import { subscribeToTableChanges, unsubscribeFromTableChanges } from '@/lib/realtime'
 
 type ListItem =
     | { _type: 'trade'; trade: Trade }
@@ -116,7 +117,7 @@ export default function TradesScreen() {
     const tradesLoadSeqRef = useRef(0)
     const blockLoadSeqRef = useRef(0)
 
-    const { data: picks, loading: picksLoading, error: picksError } = useFocusAsyncData(async () => {
+    const { data: picks, loading: picksLoading, error: picksError, refresh: refreshPicks } = useFocusAsyncData(async () => {
         if (!current || !leagueId) return [] as TradePickItem[]
         const result = await getPicksForMember(current.id, leagueId)
         writePersistentCache(picksCacheKey(current.id, leagueId), result)
@@ -192,6 +193,30 @@ export default function TradesScreen() {
             if (blockLoadSeqRef.current === requestId) setBlockLoading(false)
         }
     }, [myMemberId, leagueId])
+
+    useEffect(() => {
+        if (!myMemberId || !leagueId) return
+
+        const refreshTradesSurface = () => {
+            void load()
+            void refreshPicks()
+            void loadBlock()
+        }
+        const channel = subscribeToTableChanges(
+            `trades-screen:${leagueId}:${myMemberId}`,
+            [
+                { table: 'trades', filter: `league_id=eq.${leagueId}` },
+                { table: 'trade_items' },
+                { table: 'trade_participants' },
+                { table: 'trade_vetoes' },
+                { table: 'trade_block_items', filter: `league_id=eq.${leagueId}` },
+                { table: 'draft_picks', filter: `league_id=eq.${leagueId}` },
+            ],
+            refreshTradesSurface,
+        )
+
+        return () => unsubscribeFromTableChanges(channel)
+    }, [leagueId, load, loadBlock, myMemberId, refreshPicks])
 
     // Clear stale trades + show loading immediately when league/member changes,
     // so the previous league's accepted trades don't flash in the Veto Window

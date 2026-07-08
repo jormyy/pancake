@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { usePathname } from 'expo-router'
 import { useLeagueContext } from '@/contexts/league-context'
 import { supabase } from '@/lib/supabase'
+import { subscribeToTableChanges, unsubscribeFromTableChanges } from '@/lib/realtime'
 
 /**
  * Count of pending incoming trade offers for the current member — powers the
@@ -33,15 +34,25 @@ export function usePendingTradeCount(): number {
             if (!cancelled && !error) setCount(pending ?? 0)
         }
         fetchCount()
+        const channel = subscribeToTableChanges(
+            `pending-trade-count:${leagueId}:${memberId}`,
+            [
+                { table: 'trades', filter: `league_id=eq.${leagueId}` },
+                { table: 'trade_participants' },
+            ],
+            fetchCount,
+        )
         if (typeof window !== 'undefined') {
             window.addEventListener('focus', fetchCount)
             return () => {
                 cancelled = true
                 window.removeEventListener('focus', fetchCount)
+                unsubscribeFromTableChanges(channel)
             }
         }
         return () => {
             cancelled = true
+            unsubscribeFromTableChanges(channel)
         }
     }, [memberId, leagueId, pathname])
 

@@ -9,7 +9,7 @@ import { showAlert, confirmAction, getErrorMessage } from '@/lib/alert'
 import { FlashList, FlashListRef } from '@shopify/flash-list'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
-import { useState, useMemo, useRef } from 'react'
+import { useEffect, useState, useMemo, useRef } from 'react'
 import * as Haptics from 'expo-haptics'
 import { useAuth } from '@/hooks/use-auth'
 import { useLeagueContext } from '@/contexts/league-context'
@@ -28,6 +28,7 @@ import { RosterClaimItem, RosterPickItem, RosterPlayerItem, TaxiPlayerItem } fro
 import { getRosterStatusChangeLockMessage } from '@/lib/roster-locks'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 import { Avatar } from '@/components/Avatar'
+import { subscribeToTableChanges, unsubscribeFromTableChanges } from '@/lib/realtime'
 
 type RosterListItem =
     | { _isHeader: true; _section: string }
@@ -237,6 +238,24 @@ export default function RosterScreen() {
         writeRosterCache(current.id, leagueId, result)
         return result
     }, [current?.id, user?.id, leagueId], { initialData: cachedRosterData ?? undefined })
+
+    useEffect(() => {
+        if (!current?.id || !leagueId) return
+
+        const channel = subscribeToTableChanges(
+            `roster-screen:${leagueId}:${current.id}`,
+            [
+                { table: 'roster_players', filter: `member_id=eq.${current.id}` },
+                { table: 'draft_picks', filter: `league_id=eq.${leagueId}` },
+                { table: 'waiver_claims', filter: `member_id=eq.${current.id}` },
+                { table: 'waiver_priorities', filter: `member_id=eq.${current.id}` },
+                { table: 'waiver_wire_log', filter: `league_id=eq.${leagueId}` },
+            ],
+            () => { void refresh() },
+        )
+
+        return () => unsubscribeFromTableChanges(channel)
+    }, [current?.id, leagueId, refresh])
 
     const roster = useMemo(() => data?.roster ?? EMPTY_ROSTER, [data?.roster])
     const picks = useMemo(() => data?.picks ?? EMPTY_PICKS, [data?.picks])

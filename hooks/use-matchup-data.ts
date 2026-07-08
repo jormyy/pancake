@@ -250,10 +250,18 @@ export function useMatchupData(
                     ),
                 )
             })
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'weekly_lineups',
+                filter: `league_season_id=eq.${matchup.seasonId}`,
+            }, () => {
+                void refreshSilently()
+            })
             .subscribe()
 
         return () => { supabase.removeChannel(channel) }
-    }, [matchup?.id, matchup?.seasonId, matchup?.weekNumber])
+    }, [matchup?.id, matchup?.seasonId, matchup?.weekNumber, refreshSilently])
 
     return {
         matchup,

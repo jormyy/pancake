@@ -38,6 +38,7 @@ import {
     type DraftTimerOption,
     type RookieRoundOption,
 } from '@/components/league/DraftChips'
+import { subscribeToTableChanges, unsubscribeFromTableChanges } from '@/lib/realtime'
 
 const ACTIVITY_LIMIT = 50
 const OPEN_DRAFT_STATUSES = new Set(['pending', 'in_progress', 'paused'])
@@ -209,6 +210,36 @@ export function useLeagueScreenState() {
             fetchActiveDraft(lid)
         }, [currentLeague?.id, fetchTab, fetchActiveDraft]),
     )
+
+    const refreshLeaguePanels = useCallback(() => {
+        const lid = currentLeague?.id
+        if (!lid) return
+        for (const prefetchTab of PREFETCH_TABS) {
+            fetchTab(prefetchTab, lid)
+        }
+        fetchActiveDraft(lid)
+    }, [currentLeague?.id, fetchActiveDraft, fetchTab])
+
+    useEffect(() => {
+        const lid = currentLeague?.id
+        if (!lid) return
+
+        const channel = subscribeToTableChanges(
+            `league-screen:${lid}`,
+            [
+                { table: 'league_members', filter: `league_id=eq.${lid}` },
+                { table: 'roster_transactions', filter: `league_id=eq.${lid}` },
+                { table: 'waiver_priorities', filter: `league_id=eq.${lid}` },
+                { table: 'draft_picks', filter: `league_id=eq.${lid}` },
+                { table: 'drafts', filter: `league_id=eq.${lid}` },
+                { table: 'draft_room_members' },
+                { table: 'snake_draft_picks' },
+            ],
+            refreshLeaguePanels,
+        )
+
+        return () => unsubscribeFromTableChanges(channel)
+    }, [currentLeague?.id, refreshLeaguePanels])
 
     function handleTabChange(nextTab: LeagueTab) {
         setTab(nextTab)

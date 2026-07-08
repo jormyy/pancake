@@ -1,0 +1,77 @@
+import { describe, expect, it } from 'vitest'
+import { read } from './source-guard'
+
+describe('shared realtime subscription coverage', () => {
+    it('publishes shared league state tables with full row identity', () => {
+        const migration = read('supabase/migrations/20260708000005_shared_state_realtime.sql')
+
+        expect(migration).toContain('ALTER TABLE public.%I REPLICA IDENTITY FULL')
+        expect(migration).toContain('ALTER PUBLICATION supabase_realtime ADD TABLE public.%I')
+        for (const table of [
+            'leagues',
+            'league_members',
+            'league_seasons',
+            'roster_players',
+            'roster_transactions',
+            'waiver_claims',
+            'waiver_priorities',
+            'waiver_wire_log',
+            'draft_picks',
+            'snake_draft_picks',
+            'draft_room_members',
+            'trades',
+            'trade_items',
+            'trade_participants',
+            'trade_vetoes',
+            'trade_block_items',
+            'weekly_lineups',
+        ]) {
+            expect(migration).toContain(`'${table}'`)
+        }
+    })
+
+    it('wires shared app surfaces to realtime refreshes with focus refresh fallback intact', () => {
+        const realtimeHelper = read('lib/realtime.ts')
+        const useLeagues = read('hooks/use-leagues.ts')
+        const leagueScreenState = read('hooks/use-league-screen-state.ts')
+        const tradesScreen = read('app/(tabs)/trades.tsx')
+        const rosterScreen = read('app/(tabs)/roster.tsx')
+        const playersScreen = read('app/(tabs)/players.tsx')
+        const pendingTradeCount = read('hooks/use-pending-trade-count.ts')
+        const matchupData = read('hooks/use-matchup-data.ts')
+
+        expect(realtimeHelper).toContain('function subscribeToTableChanges')
+        expect(realtimeHelper).toContain("channel.on(")
+        expect(realtimeHelper).toContain('function unsubscribeFromTableChanges')
+
+        expect(useLeagues).toContain('league-context:${userId}')
+        expect(useLeagues).toContain("table: 'league_members', filter: `user_id=eq.${userId}`")
+        expect(useLeagues).toContain("table: 'leagues', filter: `id=eq.${leagueId}`")
+
+        expect(leagueScreenState).toContain('league-screen:${lid}')
+        expect(leagueScreenState).toContain("table: 'roster_transactions', filter: `league_id=eq.${lid}`")
+        expect(leagueScreenState).toContain("table: 'draft_picks', filter: `league_id=eq.${lid}`")
+        expect(leagueScreenState).toContain("table: 'snake_draft_picks'")
+
+        expect(tradesScreen).toContain('trades-screen:${leagueId}:${myMemberId}')
+        expect(tradesScreen).toContain("table: 'trades', filter: `league_id=eq.${leagueId}`")
+        expect(tradesScreen).toContain("table: 'trade_participants'")
+        expect(tradesScreen).toContain("table: 'trade_block_items', filter: `league_id=eq.${leagueId}`")
+
+        expect(rosterScreen).toContain('roster-screen:${leagueId}:${current.id}')
+        expect(rosterScreen).toContain("table: 'roster_players', filter: `member_id=eq.${current.id}`")
+        expect(rosterScreen).toContain("table: 'waiver_claims', filter: `member_id=eq.${current.id}`")
+
+        expect(playersScreen).toContain('players-screen:${leagueId}')
+        expect(playersScreen).toContain("table: 'waiver_wire_log', filter: `league_id=eq.${leagueId}`")
+        expect(playersScreen).toContain("table: 'roster_players', filter: `league_id=eq.${leagueId}`")
+
+        expect(pendingTradeCount).toContain('pending-trade-count:${leagueId}:${memberId}')
+        expect(pendingTradeCount).toContain("table: 'trade_participants'")
+        expect(pendingTradeCount).toContain("window.addEventListener('focus', fetchCount)")
+
+        expect(matchupData).toContain("table: 'matchups'")
+        expect(matchupData).toContain("table: 'weekly_lineups'")
+        expect(matchupData).toContain('void refreshSilently()')
+    })
+})

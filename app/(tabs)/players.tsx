@@ -29,8 +29,9 @@ import { STAT_COLUMN_SORT, type PlayerSearchSortMode } from '@/lib/player-search
 import { useQuickAdd } from '@/hooks/use-quick-add'
 import { getMemberTransactionState } from '@/lib/league'
 import { PlayerRow } from '@/lib/players'
-import { useState, useRef, useCallback } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { getPlayerAvailabilitySnapshot } from '@/lib/player-availability'
+import { subscribeToTableChanges, unsubscribeFromTableChanges } from '@/lib/realtime'
 
 const POSITIONS = [
     { key: 'ALL', label: 'All' },
@@ -210,6 +211,24 @@ export default function PlayersScreen() {
         ])
         return { ...availability, transactionState }
     }, [current?.id, leagueId])
+
+    useEffect(() => {
+        if (!leagueId) return
+
+        const channel = subscribeToTableChanges(
+            `players-screen:${leagueId}`,
+            [
+                { table: 'roster_players', filter: `league_id=eq.${leagueId}` },
+                { table: 'waiver_wire_log', filter: `league_id=eq.${leagueId}` },
+                { table: 'waiver_claims', filter: `league_id=eq.${leagueId}` },
+                { table: 'waiver_priorities', filter: `league_id=eq.${leagueId}` },
+                { table: 'league_members', filter: `league_id=eq.${leagueId}` },
+            ],
+            () => { void refreshPlayerSupport() },
+        )
+
+        return () => unsubscribeFromTableChanges(channel)
+    }, [leagueId, refreshPlayerSupport])
 
     const playerSupportForLeague = playerSupport?.leagueId === leagueId ? playerSupport : null
     const ownedMap = playerSupportForLeague?.ownedMap ?? EMPTY_OWNED_MAP
