@@ -16,7 +16,8 @@ export function tradeParticipantIds(
     return [...new Set([
         trade.proposerMemberId,
         trade.recipientMemberId,
-        ...trade.participants.map((participant) => participant.memberId),
+        // Tolerate legacy/cached trades saved before `participants` existed.
+        ...(trade.participants ?? []).map((participant) => participant.memberId),
     ].filter(Boolean))]
 }
 

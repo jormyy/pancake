@@ -45,6 +45,9 @@ import { PosTag } from '@/components/PosTag'
 import { Badge } from '@/components/Badge'
 import { subscribeToTableChanges, unsubscribeFromTableChanges } from '@/lib/realtime'
 
+// Contain a render crash to this screen (recoverable) instead of blanking the whole app.
+export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFallback'
+
 type ListItem =
     | { _type: 'trade'; trade: Trade }
     | { _type: 'header'; label: string }
@@ -58,7 +61,9 @@ type TradeBlockCache = {
     items: TradeBlockItem[]
     roster: RosterPlayer[]
 }
-const TRADES_CACHE_PREFIX = 'pancake:trades:v1:'
+// v2: the Trade shape gained participants/routedItems/isMultiTeam with multi-team
+// trades; bump so pre-deploy v1 blobs (missing those fields) are never read back.
+const TRADES_CACHE_PREFIX = 'pancake:trades:v2:'
 const PICKS_CACHE_PREFIX = 'pancake:trade-picks:v1:'
 const TRADE_BLOCK_CACHE_PREFIX = 'pancake:trade-block:v1:'
 

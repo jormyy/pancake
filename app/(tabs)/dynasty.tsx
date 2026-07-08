@@ -116,7 +116,7 @@ function sourceMeta(player: DynastyRankPlayer): string[] {
 }
 
 function playerPositions(player: DynastyRankPlayer): string[] {
-    if (player.sourcePositions.length > 0) return player.sourcePositions
+    if (player.sourcePositions?.length) return player.sourcePositions
     return getEligiblePositions({ eligible_positions: player.eligiblePositions, position: player.position })
 }
 
@@ -653,3 +653,6 @@ const styles = StyleSheet.create({
     },
     footerRetryText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.primaryDark },
 })
+
+// Contain a render crash to this screen instead of blanking the whole app.
+export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFallback'

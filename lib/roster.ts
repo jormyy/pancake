@@ -52,7 +52,10 @@ export async function getRoster(memberId: string, leagueId: string): Promise<Ros
         .order('is_on_ir')
 
     if (error) throw error
-    return (data ?? []) as unknown as RosterPlayer[]
+    // A roster_players row whose player was merged/deleted comes back with
+    // players: null (the embed isn't !inner). Drop those so downstream sorts and
+    // rows — which assume player.players is present — can't throw.
+    return ((data ?? []) as unknown as RosterPlayer[]).filter((row) => row.players != null)
 }
 
 export async function toggleIR(rosterPlayerId: string, isOnIR: boolean): Promise<void> {

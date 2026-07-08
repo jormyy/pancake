@@ -153,10 +153,10 @@ export default function HomeScreen() {
             new Set<string>(
                 myLineup
                     ? ([
-                          ...myLineup.starters.map((s) => s.player?.nbaTeam),
-                          ...myLineup.bench.map((p) => p.nbaTeam),
-                          ...myLineup.ir.map((p) => p.nbaTeam),
-                          ...myLineup.taxi.map((p) => p.nbaTeam),
+                          ...(myLineup.starters ?? []).map((s) => s.player?.nbaTeam),
+                          ...(myLineup.bench ?? []).map((p) => p.nbaTeam),
+                          ...(myLineup.ir ?? []).map((p) => p.nbaTeam),
+                          ...(myLineup.taxi ?? []).map((p) => p.nbaTeam),
                       ].filter(Boolean) as string[])
                     : [],
             ),
@@ -762,3 +762,6 @@ const styles = StyleSheet.create({
     dateLabel: { fontSize: fontSize.sm, color: colors.textMuted, textAlign: 'center', paddingVertical: 10 },
 
 })
+
+// Contain a render crash to this screen instead of blanking the whole app.
+export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFallback'

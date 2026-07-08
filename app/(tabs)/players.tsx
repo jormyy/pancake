@@ -498,3 +498,6 @@ const localStyles = StyleSheet.create({
         color: colors.textSecondary,
     },
 })
+
+// Contain a render crash to this screen instead of blanking the whole app.
+export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFallback'
