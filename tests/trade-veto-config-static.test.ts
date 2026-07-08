@@ -36,6 +36,9 @@ describe('configurable trade veto settings', () => {
         expect(vetoTrade).toContain('Trade vetoes are disabled for this league.')
         expect(vetoTrade).toContain('Only commissioners can veto trades in this league.')
         expect(vetoTrade).toContain('COALESCE(v_league.trade_veto_threshold_percent, 50)')
+        expect(vetoTrade).toContain('member.id <> v_trade.proposer_member_id')
+        expect(vetoTrade).toContain('member.id <> v_trade.recipient_member_id')
+        expect(vetoTrade).toContain('participant.member_id = member.id')
         expect(vetoTrade).toContain("COALESCE(v_league.trade_veto_mode, 'member_vote') = 'commissioner'")
         expect(vetoTrade).not.toContain('CEIL(COALESCE(v_eligible_count, 0)::numeric / 2)')
 
@@ -62,4 +65,3 @@ describe('configurable trade veto settings', () => {
         expect(tradeCard).toContain('canVetoBySettings')
     })
 })
-
