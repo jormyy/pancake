@@ -30,6 +30,22 @@ describe('auction bid guards (place_auction_bid_atomic / settlement)', () => {
         expect(auction).toContain("IF v_budget.remaining < p_amount THEN\n    RAISE EXCEPTION 'Insufficient budget (you have $% remaining)', v_budget.remaining;")
     })
 
+    it('requires auction bids to reserve $1 for remaining active roster slots', () => {
+        expect(auction).toContain('v_required_reserve := GREATEST(v_roster_size - v_active_roster_count - 1, 0);')
+        expect(auction).toContain('IF v_budget.remaining < p_amount + v_required_reserve THEN')
+        expect(auction).toContain("Bid must leave at least $1 for each remaining active roster slot.")
+    })
+
+    it('auto-awards unbeatable real-auction bids server-side', () => {
+        expect(auction).toContain('IF NOT v_draft.is_mock THEN')
+        expect(auction).toContain('v_next_bid := p_amount + 1;')
+        expect(auction).toContain('budget.member_id <> p_member_id')
+        expect(auction).toContain('roster.active_count < v_roster_size')
+        expect(auction).toContain('budget.remaining >= v_next_bid + GREATEST(v_roster_size - roster.active_count - 1, 0)')
+        expect(auction).toContain("SET countdown_expires_at = now() - interval '1 millisecond'")
+        expect(auction).toContain('PERFORM public.close_auction_nomination_atomic(p_nomination_id);')
+    })
+
     it('re-verifies the winning bidder budget at settlement', () => {
         expect(auction).toContain("IF v_budget.remaining < v_nom.current_bid_amount THEN\n      RAISE EXCEPTION 'Winning bidder no longer has enough remaining budget';")
     })

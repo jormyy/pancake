@@ -33,6 +33,14 @@ function playerMeta(parts: (string | null | undefined)[]): string {
     return parts.filter(Boolean).join(' · ') || '—'
 }
 
+function auctionEventTime(value: string | null | undefined): string | null {
+    if (!value) return null
+    return new Date(value).toLocaleTimeString(undefined, {
+        hour: 'numeric',
+        minute: '2-digit',
+    })
+}
+
 // Approximate height of a two-line history row (padding + name + meta lines).
 const HISTORY_ROW_HEIGHT = 54
 
@@ -120,7 +128,7 @@ export default function DraftRoomScreen() {
         )
     }
 
-    const { draft, order, budgets, openNomination, currentNominatorMemberId } = state
+    const { draft, order, budgets, activeBids, openNomination, currentNominatorMemberId } = state
     const isMyTurn = currentNominatorMemberId === myMemberId
     const isPaused = draft.status === 'paused'
     const currentNominatorTeam =
@@ -148,7 +156,7 @@ export default function DraftRoomScreen() {
     // inside the panel rather than stretching the page.
     const historyListHeight = Math.min(
         closedNominations.length * HISTORY_ROW_HEIGHT,
-        Math.max(280, height - 380),
+        Math.max(360, height - 300),
     )
 
     if (draft.status === 'completed' || draft.status === 'cancelled') {
@@ -532,6 +540,44 @@ export default function DraftRoomScreen() {
                             </View>
                         ) : null}
 
+                        {openNomination ? (
+                            <View style={styles.bidHistoryPanel}>
+                                <View style={styles.bidHistoryHeader}>
+                                    <Text style={styles.bidHistoryLabel}>Bid history</Text>
+                                    <Text style={styles.bidHistoryCount}>
+                                        {activeBids.length === 0 ? 'No bids' : `${activeBids.length} bid${activeBids.length === 1 ? '' : 's'}`}
+                                    </Text>
+                                </View>
+                                {activeBids.length === 0 ? (
+                                    <Text style={styles.bidHistoryEmpty}>
+                                        No bids yet. Minimum bid is ${minBid}.
+                                    </Text>
+                                ) : (
+                                    <View style={styles.bidHistoryItems}>
+                                        {activeBids.slice(0, 6).map((bid, index) => {
+                                            const isHighBid = bid.memberId === openNomination.currentBidderId && index === 0
+                                            return (
+                                                <View key={bid.id} style={styles.bidHistoryItem}>
+                                                    <View style={[styles.bidOrderPill, isHighBid && styles.bidOrderPillHigh]}>
+                                                        <Text style={[styles.bidOrderText, isHighBid && styles.bidOrderTextHigh]}>
+                                                            {isHighBid ? 'High' : `#${activeBids.length - index}`}
+                                                        </Text>
+                                                    </View>
+                                                    <View style={styles.bidHistoryInfo}>
+                                                        <Text style={styles.bidHistoryTeam} numberOfLines={1}>{bid.teamName}</Text>
+                                                        <Text style={styles.bidHistoryMeta}>{auctionEventTime(bid.placedAt) ?? 'Just now'}</Text>
+                                                    </View>
+                                                    <Text style={[styles.bidHistoryAmount, isHighBid && styles.bidHistoryAmountHigh]}>
+                                                        ${bid.amount}
+                                                    </Text>
+                                                </View>
+                                            )
+                                        })}
+                                    </View>
+                                )}
+                            </View>
+                        ) : null}
+
                     </View>
 
                     <View style={[styles.column, compactLandscape && styles.columnCompact, isDesktop && styles.columnSideDesktop]}>
@@ -620,6 +666,8 @@ export default function DraftRoomScreen() {
                                                         </Text>
                                                         <Text style={styles.historyMeta}>
                                                             {playerMeta([
+                                                                `#${item.nominationOrder}`,
+                                                                auctionEventTime(item.nominatedAt),
                                                                 item.status === 'sold' ? (winnerTeam ?? '—') : 'No bid',
                                                                 ageLabel(item.player?.age),
                                                             ])}
@@ -746,7 +794,7 @@ const styles = StyleSheet.create({
         fontFamily: fontFamily.display,
         fontWeight: fontWeight.bold,
         color: colors.primaryDark,
-        letterSpacing: -0.5,
+        letterSpacing: 0,
     },
     bidAmountLeading: { color: colors.successDark },
     bidLeader: { fontSize: fontSize.sm, color: colors.textMuted },
@@ -824,6 +872,55 @@ const styles = StyleSheet.create({
         fontWeight: fontWeight.bold,
         color: colors.primaryDark,
     },
+
+    bidHistoryPanel: {
+        gap: spacing.md,
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.md,
+        borderRadius: radii.md,
+        borderCurve: 'continuous' as const,
+        backgroundColor: colors.bgMuted,
+    },
+    bidHistoryHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md },
+    bidHistoryLabel: {
+        fontSize: fontSize['2xs'],
+        fontWeight: fontWeight.extrabold,
+        letterSpacing: 0,
+        textTransform: 'uppercase' as const,
+        color: colors.textMuted,
+    },
+    bidHistoryCount: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.textMuted },
+    bidHistoryEmpty: { fontSize: fontSize.sm, color: colors.textSecondary },
+    bidHistoryItems: { gap: spacing.xs },
+    bidHistoryItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.sm,
+        minHeight: 38,
+    },
+    bidOrderPill: {
+        minWidth: 44,
+        minHeight: 26,
+        borderRadius: radii.full,
+        borderCurve: 'continuous' as const,
+        backgroundColor: colors.bgScreen,
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingHorizontal: spacing.sm,
+    },
+    bidOrderPillHigh: { backgroundColor: colors.successLight },
+    bidOrderText: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.textMuted },
+    bidOrderTextHigh: { color: colors.successDark },
+    bidHistoryInfo: { flex: 1, minWidth: 0 },
+    bidHistoryTeam: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.textPrimary },
+    bidHistoryMeta: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: 1 },
+    bidHistoryAmount: {
+        fontSize: fontSize.sm,
+        fontFamily: fontFamily.display,
+        fontWeight: fontWeight.bold,
+        color: colors.primaryDark,
+    },
+    bidHistoryAmountHigh: { color: colors.successDark },
 
     bidInputRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.md, marginTop: spacing.xs },
     // flexShrink 0 keeps the −/amount/+ trio intact; the Bid button (flex:1) wraps

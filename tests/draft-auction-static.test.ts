@@ -55,6 +55,23 @@ describe('logic hardening source guards - draft, auction, roster history', () =>
         expect(bidBody).toContain('v_active_roster_count >= v_roster_size')
     })
 
+    it('shows focused active bid history in the live auction room', () => {
+        const draftLib = read('lib/draft.ts')
+        const draftRoom = read('app/(modals)/draft-room.tsx')
+
+        expect(draftLib).toContain('export type AuctionBid')
+        expect(draftLib).toContain("select('id, nomination_id, member_id, amount, placed_at, league_members(team_name)')")
+        expect(draftLib).toContain('activeBids: AuctionBid[]')
+        expect(draftLib).toContain('activeBids,')
+        expect(draftRoom).toContain('Bid history')
+        expect(draftRoom).toContain('activeBids.slice(0, 6)')
+        expect(draftRoom).toContain('No bids yet. Minimum bid is ${minBid}.')
+        expect(draftRoom).toContain('auctionEventTime(bid.placedAt)')
+        expect(draftRoom).toContain('`#${item.nominationOrder}`')
+        expect(draftRoom).toContain('auctionEventTime(item.nominatedAt)')
+        expect(draftRoom).toContain('Math.max(360, height - 300)')
+    })
+
     it('requires user ownership and roster advisory locks for auction manager RPCs', () => {
         const nominateBody = latestFunctionDefinition('create_auction_nomination_atomic')
         const bidBody = latestFunctionDefinition('place_auction_bid_atomic')
