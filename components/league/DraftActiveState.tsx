@@ -35,6 +35,7 @@ function ActiveDraftLoadingNotice({
     filterType?: 'auction' | 'snake'
 }) {
     const accessibilityLabel = 'Draft status updating.'
+    const body = 'Checking whether an auction or rookie draft is ready to join.'
     return (
         <View
             style={[styles.draftLoadingNotice, compact && styles.draftLoadingNoticeCompact]}
@@ -44,8 +45,8 @@ function ActiveDraftLoadingNotice({
             accessibilityLabel={accessibilityLabel}
             accessibilityState={{ busy: true }}
         >
-            <View style={styles.draftLoadingTitlePlaceholder} />
-            {compact ? null : <View style={styles.draftLoadingTextPlaceholder} />}
+            <Text style={styles.draftLoadingTitle} numberOfLines={1}>Draft status updating</Text>
+            {compact ? null : <Text style={styles.draftLoadingText}>{body}</Text>}
         </View>
     )
 }
@@ -249,18 +250,15 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         paddingVertical: spacing.sm,
     },
-    draftLoadingTitlePlaceholder: {
-        width: 164,
-        height: 14,
-        borderRadius: radii.xs,
-        backgroundColor: colors.bgMuted,
+    draftLoadingTitle: {
+        color: colors.textPrimary,
+        fontSize: fontSize.md,
+        fontWeight: fontWeight.extrabold,
     },
-    draftLoadingTextPlaceholder: {
-        width: '68%',
-        maxWidth: 340,
-        height: 11,
-        borderRadius: radii.xs,
-        backgroundColor: colors.bgSubtle,
+    draftLoadingText: {
+        color: colors.textSecondary,
+        fontSize: fontSize.sm,
+        lineHeight: 18,
     },
     activeDraftCompactRow: {
         flexDirection: 'row',

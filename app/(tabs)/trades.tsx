@@ -10,6 +10,7 @@ import { useRouter } from 'expo-router'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
 import { NoLeagueState } from '@/components/NoLeagueState'
+import { EmptyState } from '@/components/EmptyState'
 import { isTradingClosed } from '@/lib/league'
 import {
     addTradeBlockItem,
@@ -54,7 +55,6 @@ type TradeBlockCache = {
 const TRADES_CACHE_PREFIX = 'pancake:trades:v1:'
 const PICKS_CACHE_PREFIX = 'pancake:trade-picks:v1:'
 const TRADE_BLOCK_CACHE_PREFIX = 'pancake:trade-block:v1:'
-const TRADE_LOADING_ROWS = 6
 
 const tradesCacheKey = (memberId: string, leagueId: string) => `${TRADES_CACHE_PREFIX}${leagueId}:${memberId}`
 const picksCacheKey = (memberId: string, leagueId: string) => `${PICKS_CACHE_PREFIX}${leagueId}:${memberId}`
@@ -73,31 +73,11 @@ const listKeyExtractor = (item: ListItem, index: number) => {
 
 const listGetItemType = (item: ListItem) => item._type
 
-function TradeListPlaceholder({ tab }: { tab: TabKey }) {
-    return (
-        <View
-            style={styles.placeholderList}
-            role="status"
-            aria-busy
-            aria-label={`${tab} trades loading`}
-            accessibilityLabel={`${tab} trades loading`}
-            accessibilityState={{ busy: true }}
-        >
-            <View style={styles.placeholderSectionHeader}>
-                <View style={styles.placeholderSectionTitle} />
-            </View>
-            {Array.from({ length: TRADE_LOADING_ROWS }, (_, index) => (
-                <View key={index} style={styles.placeholderRow}>
-                    <View style={styles.placeholderAvatar} />
-                    <View style={styles.placeholderBody}>
-                        <View style={styles.placeholderLineStrong} />
-                        <View style={styles.placeholderLine} />
-                    </View>
-                    <View style={styles.placeholderAction} />
-                </View>
-            ))}
-        </View>
-    )
+function tradeLoadingMessage(tab: TabKey) {
+    if (tab === 'picks') return 'Loading draft picks'
+    if (tab === 'block') return 'Loading trade block'
+    if (tab === 'history') return 'Loading trade history'
+    return 'Loading trade offers'
 }
 
 export default function TradesScreen() {
@@ -555,12 +535,12 @@ export default function TradesScreen() {
             result.push({ _type: 'header', label: 'Incoming' })
             incomingTrades.forEach((t) => result.push({ _type: 'trade', trade: t }))
             if (incomingTrades.length === 0 && !loading) {
-                result.push({ _type: 'header', label: '' })
+                result.push({ _type: 'empty', key: 'incoming-offers', message: 'No incoming offers.' })
             }
             result.push({ _type: 'header', label: 'Outgoing' })
             outgoingTrades.forEach((t) => result.push({ _type: 'trade', trade: t }))
             if (outgoingTrades.length === 0 && !loading) {
-                result.push({ _type: 'header', label: '' })
+                result.push({ _type: 'empty', key: 'outgoing-offers', message: 'No outgoing offers.' })
             }
         } else if (tab === 'block') {
             result.push({ _type: 'header', label: 'Your Listings' })
@@ -581,7 +561,7 @@ export default function TradesScreen() {
             result.push({ _type: 'header', label: 'Trade History' })
             historyTrades.forEach((t) => result.push({ _type: 'trade', trade: t }))
             if (historyTrades.length === 0 && !loading) {
-                result.push({ _type: 'header', label: '' })
+                result.push({ _type: 'empty', key: 'trade-history', message: 'No completed trades yet.' })
             }
         }
 
@@ -589,13 +569,10 @@ export default function TradesScreen() {
     }, [tab, vetoableTrades, incomingTrades, outgoingTrades, historyTrades, picksList, loading, myBlockItems, blockLoading, blockRoster, publicBlockItems])
 
     const pendingInboxCount = incomingTrades.length
-    const picksHydrated = !picksLoading || picksList.length > 0
-    const tradesHydrated = !loading || trades.length > 0
-    const blockHydrated = !blockLoading || blockItems.length > 0 || blockRoster.length > 0
-    const activeTabHydrated =
-        tab === 'picks' ? picksHydrated
-        : tab === 'block' ? blockHydrated
-        : tradesHydrated
+    const activeTabLoading =
+        tab === 'picks' ? picksLoading && picksList.length === 0
+        : tab === 'block' ? blockLoading && blockItems.length === 0 && blockRoster.length === 0 && picksList.length === 0
+        : loading && trades.length === 0
 
     const tabOptions: SegmentOption<TabKey>[] = [
         { label: 'Picks', value: 'picks' },
@@ -610,7 +587,9 @@ export default function TradesScreen() {
               <View style={styles.content}>
                 <View style={styles.header}>
                     <Text style={styles.headerTitle} role="heading" aria-level={1}>Trades</Text>
-                    <View style={[styles.proposeBtn, styles.placeholderProposeBtn]} />
+                    <View style={[styles.proposeBtn, styles.proposeBtnDisabled]}>
+                        <Text style={styles.proposeBtnTextDisabled}>Propose</Text>
+                    </View>
                 </View>
                 <View style={styles.tabRow}>
                     <SegmentedControl
@@ -621,7 +600,11 @@ export default function TradesScreen() {
                         scrollable
                     />
                 </View>
-                <TradeListPlaceholder tab={tab} />
+                <EmptyState
+                    fullScreen={false}
+                    message="Loading trades"
+                    description="Your trade inbox appears here as soon as league context is ready."
+                />
               </View>
             </SafeAreaView>
         )
@@ -664,7 +647,13 @@ export default function TradesScreen() {
                 />
             ) : null}
 
-            {!activeTabHydrated ? <TradeListPlaceholder tab={tab} /> : tab === 'picks' && picksError ? (
+            {activeTabLoading ? (
+                <EmptyState
+                    fullScreen={false}
+                    message={tradeLoadingMessage(tab)}
+                    description="Cached trade content stays visible while fresh data updates in place."
+                />
+            ) : tab === 'picks' && picksError ? (
                 <View style={styles.emptyState}>
                     <Text style={styles.emptyStateText}>Error: {picksError.message}</Text>
                 </View>
@@ -714,79 +703,11 @@ const styles = StyleSheet.create({
     proposeBtnText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.md },
     proposeBtnDisabled: { backgroundColor: colors.bgMuted, borderWidth: 1, borderColor: colors.borderLight },
     proposeBtnTextDisabled: { color: colors.textPlaceholder },
-    placeholderProposeBtn: {
-        backgroundColor: colors.bgMuted,
-        borderWidth: 1,
-        borderColor: colors.borderLight,
-    },
-
     tabRow: {
         paddingHorizontal: spacing.xl,
         paddingVertical: spacing.lg,
         borderBottomWidth: 1,
         borderBottomColor: colors.borderLight,
-    },
-    placeholderList: {
-        flex: 1,
-    },
-    placeholderSectionHeader: {
-        minHeight: 38,
-        justifyContent: 'center',
-        paddingHorizontal: spacing.xl,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.borderLight,
-        backgroundColor: colors.bgSubtle,
-    },
-    placeholderSectionTitle: {
-        width: 142,
-        height: 12,
-        borderRadius: radii.xs,
-        backgroundColor: colors.bgMuted,
-    },
-    placeholderRow: {
-        minHeight: 64,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: spacing.lg,
-        paddingHorizontal: spacing.xl,
-        paddingVertical: spacing.md,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.separator,
-    },
-    placeholderAvatar: {
-        width: 38,
-        height: 38,
-        borderRadius: 19,
-        backgroundColor: colors.bgMuted,
-        borderWidth: 1,
-        borderColor: colors.borderLight,
-    },
-    placeholderBody: {
-        flex: 1,
-        minWidth: 0,
-        gap: spacing.sm,
-    },
-    placeholderLineStrong: {
-        width: '48%',
-        maxWidth: 220,
-        height: 14,
-        borderRadius: radii.xs,
-        backgroundColor: colors.bgMuted,
-    },
-    placeholderLine: {
-        width: '34%',
-        maxWidth: 160,
-        height: 11,
-        borderRadius: radii.xs,
-        backgroundColor: colors.bgSubtle,
-    },
-    placeholderAction: {
-        width: 72,
-        height: 36,
-        borderRadius: radii.md,
-        backgroundColor: colors.bgSubtle,
-        borderWidth: 1,
-        borderColor: colors.borderLight,
     },
 
     pickRow: {

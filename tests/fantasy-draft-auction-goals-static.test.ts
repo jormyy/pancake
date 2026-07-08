@@ -203,14 +203,14 @@ describe('fantasy draft and auction experience goals', () => {
         expect(leagueTabBar).not.toContain('accessibilityLabel="League sections"')
     })
 
-    it('keeps League loading distinct from no-league empty state', () => {
+    it('keeps League loading distinct from no-league empty state without a placeholder shell', () => {
         expect(leagueScreenState).toContain('loading: leagueLoading')
         expect(leagueScreenState).toContain('leagueLoading,')
         expect(leagueScreen).toContain('if (screen.leagueLoading)')
-        expect(leagueScreen).toContain('function LeagueLoadingShell')
-        expect(leagueScreen).toContain('function LeagueTabPlaceholder')
-        expect(leagueScreen).toContain('return <LeagueLoadingShell tab={screen.tab} />')
-        expect(leagueScreen).toContain('aria-busy')
+        expect(leagueScreen).toContain('function LeagueLoadingState')
+        expect(leagueScreen).toContain('message="Loading league"')
+        expect(leagueScreen).not.toContain('function LeagueLoadingShell')
+        expect(leagueScreen).not.toContain('function LeagueTabPlaceholder')
         // No-league state now shows the full NoLeagueState welcome (Create/Join CTAs),
         // matching Home and Trades, instead of a bare one-line EmptyState.
         expect(leagueScreen).toContain('return <NoLeagueState />')
@@ -285,7 +285,7 @@ describe('fantasy draft and auction experience goals', () => {
         expect(draftPrepNotice).toContain('Future rookie picks remain visible during the live season for trades and long-term planning.')
     })
 
-    it('keeps active draft loading reserved without visible checking copy', () => {
+    it('keeps active draft loading as a readable status instead of placeholder bars', () => {
         const loadingNotice = draftActiveState.slice(
             draftActiveState.indexOf('function ActiveDraftLoadingNotice'),
             draftActiveState.indexOf('function ActiveDraftEntry'),
@@ -293,8 +293,10 @@ describe('fantasy draft and auction experience goals', () => {
         expect(loadingNotice).toContain("const accessibilityLabel = 'Draft status updating.'")
         expect(loadingNotice).toContain('aria-label={accessibilityLabel}')
         expect(loadingNotice).toContain('accessibilityLabel={accessibilityLabel}')
-        expect(loadingNotice).toContain('draftLoadingTitlePlaceholder')
-        expect(loadingNotice).toContain('draftLoadingTextPlaceholder')
+        expect(loadingNotice).toContain('Draft status updating</Text>')
+        expect(loadingNotice).toContain('Checking whether an auction or rookie draft is ready to join.')
+        expect(loadingNotice).not.toContain('draftLoadingTitlePlaceholder')
+        expect(loadingNotice).not.toContain('draftLoadingTextPlaceholder')
         expect(draftActiveState).not.toContain('Checking for live auction draft')
         expect(draftActiveState).not.toContain('Checking for live rookie draft')
     })

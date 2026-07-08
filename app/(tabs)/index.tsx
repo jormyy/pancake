@@ -38,41 +38,26 @@ function shouldShowScoreboard(selectedDate: string, today: string): boolean {
 
 type LineupData = { starters: LineupSlot[]; bench: LineupPlayer[]; ir: LineupPlayer[]; taxi: LineupPlayer[] }
 type Sel = { kind: 'starter'; index: number } | { kind: 'bench'; index: number } | { kind: 'ir'; index: number } | { kind: 'taxi'; index: number }
-const MATCHUP_LOADING_ROWS = 8
 
-function MatchupLoadingSurface({ compact = false, dense = false }: { compact?: boolean; dense?: boolean }) {
+function MatchupLoadingSurface() {
     return (
         <View style={styles.playSurface}>
-            <View style={[styles.scoreCardPlaceholder, compact && styles.scoreCardPlaceholderCompact]}>
-                <View style={styles.scoreCardPlaceholderHeader}>
-                    <View style={styles.placeholderWeek} />
-                    <View style={styles.placeholderRule} />
-                    <View style={styles.placeholderStatus} />
-                </View>
-                <View style={styles.scorePlaceholderBody}>
-                    <View style={styles.scorePlaceholderSide}>
-                        <View style={styles.placeholderTeamName} />
-                        <View style={styles.placeholderScore} />
-                    </View>
-                    <View style={styles.placeholderVs} />
-                    <View style={[styles.scorePlaceholderSide, styles.scorePlaceholderSideRight]}>
-                        <View style={styles.placeholderTeamName} />
-                        <View style={styles.placeholderScore} />
-                    </View>
-                </View>
-            </View>
-            <MatchupLineupPlaceholder compact={compact} dense={dense} />
+            <EmptyState
+                fullScreen={false}
+                framed
+                icon="sports-basketball"
+                message="Loading matchup"
+                description="Scores, lineups, and league matchups update here as soon as they hydrate."
+            />
         </View>
     )
 }
 
-function MatchupLineupPlaceholder({
+function MatchupLineupLoadingState({
     compact,
-    dense,
     daySelector,
 }: {
     compact: boolean
-    dense: boolean
     daySelector?: ReactNode
 }) {
     return (
@@ -93,43 +78,16 @@ function MatchupLineupPlaceholder({
                 >
                     Lineup
                 </Text>
-                <View style={[styles.autoSetBtn, styles.placeholderAutoButton]} />
+                <View style={[styles.autoSetBtn, styles.autoSetBtnDisabled]}>
+                    <Text style={[styles.autoSetText, styles.autoSetTextDisabled]}>AUTO</Text>
+                </View>
             </View>
             {daySelector}
-            <ScrollView
-                style={styles.lineupRows}
-                contentContainerStyle={styles.lineupRowsContent}
-                showsVerticalScrollIndicator={false}
-                nestedScrollEnabled
-            >
-                <View style={styles.lineupSection}>
-                    <View style={[styles.lineupSectionBand, { borderLeftColor: colors.primaryDark }]}>
-                        <View style={styles.placeholderSectionTitle} />
-                        <View style={styles.placeholderSectionCount} />
-                    </View>
-                    {Array.from({ length: MATCHUP_LOADING_ROWS }, (_, index) => (
-                        <View key={index} style={[styles.matchupPlaceholderRow, compact && styles.matchupPlaceholderRowCompact, dense && styles.matchupPlaceholderRowDense]}>
-                            <View style={styles.placeholderSideLeft}>
-                                <View style={styles.placeholderFpts} />
-                                <View style={styles.placeholderPlayerBlockRight}>
-                                    <View style={styles.placeholderNameLine} />
-                                    {!dense ? <View style={styles.placeholderMetaLine} /> : null}
-                                    {!dense ? <View style={styles.placeholderStatLine} /> : null}
-                                </View>
-                            </View>
-                            <View style={[styles.placeholderSlotChip, compact && styles.placeholderSlotChipCompact, dense && styles.placeholderSlotChipDense]} />
-                            <View style={styles.placeholderSideRight}>
-                                <View style={styles.placeholderPlayerBlockLeft}>
-                                    <View style={styles.placeholderNameLine} />
-                                    {!dense ? <View style={styles.placeholderMetaLine} /> : null}
-                                    {!dense ? <View style={styles.placeholderStatLine} /> : null}
-                                </View>
-                                <View style={styles.placeholderFpts} />
-                            </View>
-                        </View>
-                    ))}
-                </View>
-            </ScrollView>
+            <EmptyState
+                fullScreen={false}
+                message="Loading lineups"
+                description="Your lineup stays visible from cache when available; fresh slot data updates in place."
+            />
         </View>
     )
 }
@@ -303,9 +261,8 @@ export default function HomeScreen() {
                             }
                         />
                     ) : matchupLoading || lineupLoading ? (
-                        <MatchupLineupPlaceholder
+                        <MatchupLineupLoadingState
                             compact={compact}
-                            dense={dense}
                             daySelector={weekDays.length > 0 ? (
                                 <DaySelector days={weekDays} selectedDate={selectedDate} onSelect={handleDaySelect} compact={compact} />
                             ) : null}
@@ -325,7 +282,7 @@ export default function HomeScreen() {
                     )}
                 </View>
             ) : matchupLoading ? (
-                <MatchupLoadingSurface compact={compact} dense={dense} />
+                <MatchupLoadingSurface />
             ) : (
                 <View style={styles.playSurface}>
                     {league?.status === 'drafting' ? (
@@ -712,84 +669,11 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     autoSetText: { fontSize: fontSize['2xs'], fontWeight: fontWeight.extrabold, color: colors.primaryDark, letterSpacing: 0.6 },
-    placeholderAutoButton: {
-        width: 62,
+    autoSetBtnDisabled: {
         backgroundColor: colors.bgMuted,
         borderColor: colors.borderLight,
     },
-    scoreCardPlaceholder: {
-        marginHorizontal: 16,
-        marginVertical: 10,
-        backgroundColor: colors.bgCard,
-        borderRadius: radii.xl,
-        borderWidth: 1.5,
-        borderColor: colors.borderLight,
-        overflow: 'hidden' as const,
-    },
-    scoreCardPlaceholderCompact: {
-        marginVertical: 3,
-        borderRadius: 12,
-    },
-    scoreCardPlaceholderHeader: {
-        minHeight: 34,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 10,
-        paddingHorizontal: 18,
-        backgroundColor: colors.bgSubtle,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.separator,
-    },
-    placeholderWeek: {
-        width: 58,
-        height: 10,
-        borderRadius: radii.xs,
-        backgroundColor: colors.bgMuted,
-    },
-    placeholderRule: {
-        flex: 1,
-        height: 1,
-        backgroundColor: colors.separator,
-    },
-    placeholderStatus: {
-        width: 52,
-        height: 22,
-        borderRadius: radii.full,
-        backgroundColor: colors.bgMuted,
-    },
-    scorePlaceholderBody: {
-        minHeight: 94,
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 18,
-        gap: spacing.lg,
-    },
-    scorePlaceholderSide: {
-        flex: 1,
-        gap: spacing.sm,
-    },
-    scorePlaceholderSideRight: {
-        alignItems: 'flex-end',
-    },
-    placeholderTeamName: {
-        width: '58%',
-        maxWidth: 160,
-        height: 12,
-        borderRadius: radii.xs,
-        backgroundColor: colors.bgSubtle,
-    },
-    placeholderScore: {
-        width: 74,
-        height: 36,
-        borderRadius: radii.xs,
-        backgroundColor: colors.bgMuted,
-    },
-    placeholderVs: {
-        width: 18,
-        height: 10,
-        borderRadius: radii.xs,
-        backgroundColor: colors.bgSubtle,
-    },
+    autoSetTextDisabled: { color: colors.textPlaceholder },
 
     hint: {
         flexDirection: 'row',
@@ -854,112 +738,6 @@ const styles = StyleSheet.create({
         fontSize: fontSize.xs,
         fontWeight: fontWeight.extrabold,
         color: colors.textMuted,
-    },
-    placeholderSectionTitle: {
-        flex: 1,
-        maxWidth: 120,
-        height: 12,
-        borderRadius: radii.xs,
-        backgroundColor: colors.bgMuted,
-    },
-    placeholderSectionCount: {
-        width: 18,
-        height: 12,
-        borderRadius: radii.xs,
-        backgroundColor: colors.bgMuted,
-    },
-    matchupPlaceholderRow: {
-        minHeight: 84,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-        paddingVertical: 8,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.separator,
-    },
-    matchupPlaceholderRowCompact: {
-        minHeight: 62,
-        paddingVertical: 4,
-        gap: 6,
-    },
-    matchupPlaceholderRowDense: {
-        minHeight: 36,
-        paddingVertical: 2,
-    },
-    placeholderSideLeft: {
-        flex: 1,
-        minWidth: 0,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'flex-end',
-        paddingLeft: spacing.sm,
-    },
-    placeholderSideRight: {
-        flex: 1,
-        minWidth: 0,
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingRight: spacing.sm,
-    },
-    placeholderFpts: {
-        width: 58,
-        height: 22,
-        marginHorizontal: 6,
-        borderRadius: radii.xs,
-        backgroundColor: colors.bgMuted,
-    },
-    placeholderPlayerBlockRight: {
-        flex: 1,
-        minWidth: 0,
-        minHeight: 66,
-        alignItems: 'flex-end',
-        justifyContent: 'center',
-        gap: spacing.xs,
-    },
-    placeholderPlayerBlockLeft: {
-        flex: 1,
-        minWidth: 0,
-        minHeight: 66,
-        alignItems: 'flex-start',
-        justifyContent: 'center',
-        gap: spacing.xs,
-    },
-    placeholderNameLine: {
-        width: '58%',
-        maxWidth: 148,
-        height: 13,
-        borderRadius: radii.xs,
-        backgroundColor: colors.bgMuted,
-    },
-    placeholderMetaLine: {
-        width: '46%',
-        maxWidth: 124,
-        height: 10,
-        borderRadius: radii.xs,
-        backgroundColor: colors.bgSubtle,
-    },
-    placeholderStatLine: {
-        width: '74%',
-        maxWidth: 180,
-        height: 10,
-        borderRadius: radii.xs,
-        backgroundColor: colors.bgSubtle,
-    },
-    placeholderSlotChip: {
-        width: 52,
-        height: 30,
-        borderRadius: 8,
-        backgroundColor: colors.bgMuted,
-        flexShrink: 0,
-    },
-    placeholderSlotChipCompact: {
-        width: 42,
-        height: 26,
-        borderRadius: 7,
-    },
-    placeholderSlotChipDense: {
-        width: 38,
-        height: 24,
     },
     lineupFooter: {
         gap: spacing.md,

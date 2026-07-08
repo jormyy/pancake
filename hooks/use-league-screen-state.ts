@@ -443,7 +443,6 @@ export function useLeagueScreenState() {
         handleTabChange,
         isCommissioner,
         leagueLoading,
-        isCurrentTabHydrated: loadedTabs.current.has(tab),
         isTabLoading: tabLoading[tab] === true,
         mockRooms,
         nominationMode,

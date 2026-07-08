@@ -111,7 +111,7 @@ export function usePlayerSearch(
     const offsetRef = useRef(0)
     const listRef = useRef<FlashListRef<PlayerRow>>(null)
     const pendingScrollTopRef = useRef(false)
-    const isFirstLeagueRunRef = useRef(true)
+    const lastLeagueIdRef = useRef(leagueId)
     const currentKeyRef = useRef(playerSearchParamsKey(DEFAULT_PLAYER_SEARCH_PARAMS))
     const requestSeqRef = useRef(0)
     const loadMoreSeqRef = useRef(0)
@@ -224,6 +224,7 @@ export function usePlayerSearch(
         if (!enabled) {
             requestSeqRef.current += 1
             loadMoreSeqRef.current += 1
+            lastLeagueIdRef.current = leagueId
             searchParamsRef.current = searchParams
             currentKeyRef.current = searchParamsKey
             offsetRef.current = 0
@@ -246,6 +247,8 @@ export function usePlayerSearch(
         listRef.current?.scrollToOffset({ offset: 0, animated: false })
 
         const cached = pageCacheRef.current.get(searchParamsKey)
+        const leagueChanged = lastLeagueIdRef.current !== leagueId
+        lastLeagueIdRef.current = leagueId
         if (cached) {
             // Re-selecting the params already on screen yields a reference-equal
             // array, so the [players] effect won't re-run to consume the flag.
@@ -270,6 +273,11 @@ export function usePlayerSearch(
             setHasMore(persisted.hasMore)
             offsetRef.current = persisted.offset
             setLoading(false)
+        } else if (leagueChanged) {
+            setPlayers([])
+            playersRef.current = []
+            setHasMore(false)
+            offsetRef.current = 0
         }
 
         const requestId = ++requestSeqRef.current
@@ -293,7 +301,7 @@ export function usePlayerSearch(
                 setLoading(false)
                 setRefreshing(false)
             })
-    }, [enabled, searchParams, searchParamsKey, fetchCompleteResults])
+    }, [enabled, leagueId, searchParams, searchParamsKey, fetchCompleteResults])
 
     const loadMore = useCallback(async () => {
         if (!enabled || loadingMore || !hasMore) return
@@ -329,17 +337,6 @@ export function usePlayerSearch(
             }
         }
     }, [enabled, loadingMore, hasMore, fetchPage])
-
-    useEffect(() => {
-        if (isFirstLeagueRunRef.current) {
-            isFirstLeagueRunRef.current = false
-            return
-        }
-        setPlayers([])
-        playersRef.current = []
-        setLoading(true)
-        setRefreshing(false)
-    }, [leagueId])
 
     const clearAllFilters = useCallback(() => {
         setQuery('')

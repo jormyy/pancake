@@ -57,6 +57,8 @@ type MultiTeamTradePayload = {
   expiresAt: string | null
 }
 
+type JsonObject = { [key: string]: Json | undefined }
+
 type PendingTradeForAccept = {
   proposer_member_id: string
   recipient_member_id: string
@@ -239,6 +241,17 @@ function rpcTradeArgs(payload: TradeAssetPayload) {
   }
 }
 
+function multiTeamTradeItemsJson(items: MultiTeamTradeItemPayload[]): Json {
+  const encodedItems: Json[] = items.map((item): JsonObject => ({
+    fromMemberId: item.fromMemberId,
+    toMemberId: item.toMemberId,
+    playerId: item.playerId ?? null,
+    pickId: item.pickId ?? null,
+    faabAmount: item.faabAmount ?? 0,
+  }))
+  return encodedItems
+}
+
 async function proposeTrade(userId: string, body: Record<string, unknown>): Promise<{ tradeId: string }> {
   const memberId = uuidField(body, 'memberId')
   await verifyOwnMember(userId, memberId)
@@ -278,7 +291,7 @@ async function proposeMultiTeamTrade(userId: string, body: Record<string, unknow
     p_league_season_id: uuidField(body, 'leagueSeasonId'),
     p_proposer_member_id: memberId,
     p_participant_member_ids: payload.participantMemberIds,
-    p_items: payload.items as unknown as Json,
+    p_items: multiTeamTradeItemsJson(payload.items),
     p_notes: payload.notes ?? undefined,
     p_expires_at: payload.expiresAt ?? undefined,
   })
