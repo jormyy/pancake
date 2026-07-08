@@ -97,4 +97,47 @@ describe('instant-loading performance budget contract', () => {
         expect(e2eReadme).toContain('performance-budgets.json')
         expect(productionReadiness).toContain("run('npm', ['run', 'perf:budget']")
     })
+
+    it('keeps major app screens free of generic skeleton loading surfaces', () => {
+        const leagueScreen = read('app/(tabs)/league.tsx')
+        const tradesScreen = read('app/(tabs)/trades.tsx')
+        const rosterScreen = read('app/(tabs)/roster.tsx')
+        const playersScreen = read('app/(tabs)/players.tsx')
+        const homeScreen = read('app/(tabs)/index.tsx')
+        const draftRoomTab = read('app/(tabs)/draft-room.tsx')
+        const dynastyScreen = read('app/(tabs)/dynasty.tsx')
+        const draftActiveState = read('components/league/DraftActiveState.tsx')
+        const playerSearchHook = read('hooks/use-player-search.ts')
+
+        for (const [name, source] of Object.entries({
+            leagueScreen,
+            tradesScreen,
+            rosterScreen,
+            playersScreen,
+            homeScreen,
+            draftRoomTab,
+            dynastyScreen,
+            draftActiveState,
+        })) {
+            expect(source, name).not.toContain('LoadingShell')
+            expect(source, name).not.toContain('Skeleton')
+            expect(source, name).not.toContain('TradeListPlaceholder')
+            expect(source, name).not.toContain('RosterLoadingShell')
+            expect(source, name).not.toContain('LeagueTabPlaceholder')
+            expect(source, name).not.toContain('PlayerListLoadingRows')
+            expect(source, name).not.toContain('MatchupLineupPlaceholder')
+            expect(source, name).not.toContain('ActivityIndicator')
+        }
+
+        expect(draftActiveState).toContain('Draft status updating</Text>')
+        expect(draftActiveState).not.toContain('draftLoadingTitlePlaceholder')
+        expect(homeScreen).not.toContain('matchupPlaceholderRow')
+        // Dynasty rankings/news use text loading states, not grey skeleton rows.
+        expect(dynastyScreen).not.toContain('RankingsLoadingRows')
+        expect(dynastyScreen).not.toContain('NewsLoadingRows')
+        expect(dynastyScreen).not.toContain('rankLoadingRow')
+        expect(dynastyScreen).not.toContain('newsLoadingRow')
+        expect(playerSearchHook).toContain('lastLeagueIdRef')
+        expect(playerSearchHook).not.toContain('isFirstLeagueRunRef')
+    })
 })

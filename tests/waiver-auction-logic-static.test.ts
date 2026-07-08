@@ -9,6 +9,8 @@ import { read } from './source-guard'
 const waivers = read('supabase/sql/functions/waivers-and-adds.sql')
 const auction = read('supabase/sql/functions/auction-lifecycle.sql')
 const dynastyTx = read('supabase/sql/functions/dynasty-transactions.sql')
+const waiverApi = read('supabase/functions/api/waivers.ts')
+const claimPlayerModal = read('app/(modals)/claim-player.tsx')
 
 const count = (haystack: string, needle: string): number =>
     haystack.split(needle).length - 1
@@ -28,6 +30,22 @@ describe('auction bid guards (place_auction_bid_atomic / settlement)', () => {
 
     it('rejects bids above the remaining draft budget', () => {
         expect(auction).toContain("IF v_budget.remaining < p_amount THEN\n    RAISE EXCEPTION 'Insufficient budget (you have $% remaining)', v_budget.remaining;")
+    })
+
+    it('requires auction bids to reserve $1 for remaining active roster slots', () => {
+        expect(auction).toContain('v_required_reserve := GREATEST(v_roster_size - v_active_roster_count - 1, 0);')
+        expect(auction).toContain('IF v_budget.remaining < p_amount + v_required_reserve THEN')
+        expect(auction).toContain("Bid must leave at least $1 for each remaining active roster slot.")
+    })
+
+    it('auto-awards unbeatable real-auction bids server-side', () => {
+        expect(auction).toContain('IF NOT v_draft.is_mock THEN')
+        expect(auction).toContain('v_next_bid := p_amount + 1;')
+        expect(auction).toContain('budget.member_id <> p_member_id')
+        expect(auction).toContain('roster.active_count < v_roster_size')
+        expect(auction).toContain('budget.remaining >= v_next_bid + GREATEST(v_roster_size - roster.active_count - 1, 0)')
+        expect(auction).toContain("SET countdown_expires_at = now() - interval '1 millisecond'")
+        expect(auction).toContain('PERFORM public.close_auction_nomination_atomic(p_nomination_id);')
     })
 
     it('re-verifies the winning bidder budget at settlement', () => {
@@ -78,6 +96,14 @@ describe('waiver claim resolution ordering (process_waiver_claim internals)', ()
 })
 
 describe('FAAB budget guards', () => {
+    it('keeps $0 FAAB bids legal across UI, API, and SQL entry points', () => {
+        expect(claimPlayerModal).toContain("const [bidInput, setBidInput] = useState('0')")
+        expect(claimPlayerModal).toContain("const bidAmount = Math.max(0, parseInt(bidInput || '0', 10) || 0)")
+        expect(waiverApi).toContain("optionalIntegerField(body, 'bidAmount', { min: 0 }) ?? 0")
+        expect(count(waivers, 'v_bid_amount int := COALESCE(p_bid_amount, 0);')).toBe(2)
+        expect(count(waivers, "IF v_bid_amount < 0 THEN\n    RAISE EXCEPTION 'FAAB bid must be a non-negative integer.'")).toBe(2)
+    })
+
     it('rejects negative bids at submit and update time (both entry points)', () => {
         expect(count(waivers, "IF v_bid_amount < 0 THEN\n    RAISE EXCEPTION 'FAAB bid must be a non-negative integer.'")).toBe(2)
     })
@@ -92,6 +118,12 @@ describe('FAAB budget guards', () => {
 
     it('deducts exactly the winning bid from the FAAB balance', () => {
         expect(waivers).toContain('SET balance = balance_row.balance - v_claim.bid_amount,')
+    })
+
+    it('does not deduct failed lower-priority or lower-bid FAAB claims', () => {
+        expect(count(waivers, 'SET balance = balance_row.balance - v_claim.bid_amount,')).toBe(1)
+        expect(waivers).toContain("CASE WHEN v_league.waiver_mode = 'faab' THEN 'faab_bid_lost' ELSE 'waiver_claim_failed_priority' END")
+        expect(waivers).toContain("jsonb_build_object('bid_amount', failed.bid_amount, 'winning_bid_amount', v_claim.bid_amount)")
     })
 })
 

@@ -1,8 +1,9 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
     buildTradeComposerPayload,
     getTradeComposerMode,
     prefillTradeComposerFromTrade,
+    submitMultiTeamTradeComposer,
     submitTradeComposer,
 } from '@/lib/trade-composer'
 import type { Trade } from '@/lib/trades'
@@ -10,6 +11,10 @@ import { endOfETDayUTC } from '@/lib/shared/dates'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const NOW_MS = Date.parse('2026-01-01T00:00:00.000Z')
+
+afterEach(() => {
+    vi.useRealTimers()
+})
 
 function trade(overrides: Partial<Trade> = {}): Trade {
     return {
@@ -236,5 +241,54 @@ describe('submitTradeComposer', () => {
         expect(getCurrentSeasonId).not.toHaveBeenCalled()
         expect(proposeTrade).not.toHaveBeenCalled()
         expect(editTrade).not.toHaveBeenCalled()
+    })
+})
+
+describe('submitMultiTeamTradeComposer', () => {
+    it('loads the current season and submits routed assets with a deadline-clamped expiration', async () => {
+        vi.useFakeTimers()
+        vi.setSystemTime(new Date(NOW_MS))
+        const getCurrentSeasonId = vi.fn().mockResolvedValue('season-1')
+        const proposeMultiTeamTrade = vi.fn().mockResolvedValue('trade-2')
+        const deadline = '2026-01-02'
+        const items = [
+            { fromMemberId: 'me', toMemberId: 'them', playerId: 'player-1' },
+            { fromMemberId: 'third', toMemberId: 'me', faabAmount: 12 },
+        ]
+
+        await submitMultiTeamTradeComposer({
+            myMemberId: 'me',
+            leagueId: 'league-1',
+            participantMemberIds: ['me', 'them', 'third'],
+            items,
+            notes: '  multi team deal  ',
+            expirationDays: '7',
+            leagueStatus: 'active',
+            tradeDeadline: deadline,
+        }, { getCurrentSeasonId, proposeMultiTeamTrade })
+
+        expect(getCurrentSeasonId).toHaveBeenCalledWith('league-1')
+        expect(proposeMultiTeamTrade).toHaveBeenCalledWith('me', 'league-1', 'season-1', {
+            participantMemberIds: ['me', 'them', 'third'],
+            items,
+            notes: 'multi team deal',
+            expiresAt: new Date(Date.parse(endOfETDayUTC(deadline)) - 1).toISOString(),
+        })
+    })
+
+    it('does not submit a multi-team offer without an active season', async () => {
+        const getCurrentSeasonId = vi.fn().mockResolvedValue(null)
+        const proposeMultiTeamTrade = vi.fn().mockResolvedValue('trade-2')
+
+        await expect(submitMultiTeamTradeComposer({
+            myMemberId: 'me',
+            leagueId: 'league-1',
+            participantMemberIds: ['me', 'them'],
+            items: [{ fromMemberId: 'me', toMemberId: 'them', pickId: 'pick-1' }],
+            notes: '',
+            expirationDays: '3',
+        }, { getCurrentSeasonId, proposeMultiTeamTrade })).rejects.toThrow('No active season found.')
+
+        expect(proposeMultiTeamTrade).not.toHaveBeenCalled()
     })
 })

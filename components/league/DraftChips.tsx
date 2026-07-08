@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useId, useRef } from 'react'
-import { View, Text, Pressable, StyleSheet, Platform } from 'react-native'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
+import { View, Text, TextInput, Pressable, StyleSheet, Platform } from 'react-native'
 import {
     NOMINATION_ORDER_MODES,
     NOMINATION_ORDER_MODE_LABELS,
@@ -25,10 +25,12 @@ type WebKeyDownProps = {
     onKeyDown?: (event: WebKeyboardEvent) => void
 }
 
-const DRAFT_TIMER_OPTIONS = [30, 60, 120] as const
+const DRAFT_TIMER_OPTIONS = [15, 30] as const
 const ROOKIE_ROUND_OPTIONS = [2, 3] as const
-export type DraftTimerOption = (typeof DRAFT_TIMER_OPTIONS)[number]
+export type DraftTimerOption = number
 export type RookieRoundOption = (typeof ROOKIE_ROUND_OPTIONS)[number]
+export const DRAFT_TIMER_MIN_SECONDS = 5
+export const DRAFT_TIMER_MAX_SECONDS = 3600
 
 export const MOCK_ROOM_TYPE_CHIPS: readonly ChipOption<MockDraftRoomKind>[] = [
     { value: 'auction', label: 'Auction' },
@@ -66,6 +68,16 @@ export type DraftControlProps = {
     onRookieRoundsChange: (value: RookieRoundOption) => void
     rookieTimerExpiryBehavior: RookieTimerExpiryBehavior
     onRookieTimerExpiryBehaviorChange: (value: RookieTimerExpiryBehavior) => void
+}
+
+function isDraftTimerPreset(value: DraftTimerOption) {
+    return DRAFT_TIMER_OPTIONS.some((preset) => preset === value)
+}
+
+export function normalizeDraftTimerSeconds(value: number): DraftTimerOption {
+    if (!Number.isFinite(value)) return 30
+    const rounded = Math.floor(value)
+    return Math.min(DRAFT_TIMER_MAX_SECONDS, Math.max(DRAFT_TIMER_MIN_SECONDS, rounded))
 }
 
 function draftChipId(idBase: string, value: ChipValue) {
@@ -185,6 +197,81 @@ export const draftTimerChipLabel = (option: ChipOption<DraftTimerOption>) => `${
 export const rookieRoundChipLabel = (option: ChipOption<RookieRoundOption>) => `${option.value} rounds`
 export const mockRoomTypeChipLabel = (option: ChipOption<MockDraftRoomKind>) => `${option.label} room`
 
+export function DraftTimerControl({
+    selectedValue,
+    onSelect,
+    groupLabel,
+    compact = false,
+}: {
+    selectedValue: DraftTimerOption
+    onSelect: (value: DraftTimerOption) => void
+    groupLabel: string
+    compact?: boolean
+}) {
+    const [customText, setCustomText] = useState(isDraftTimerPreset(selectedValue) ? '' : String(selectedValue))
+
+    useEffect(() => {
+        setCustomText(isDraftTimerPreset(selectedValue) ? '' : String(selectedValue))
+    }, [selectedValue])
+
+    function handleCustomChange(value: string) {
+        const digits = value.replace(/[^0-9]/g, '')
+        setCustomText(digits)
+        if (!digits) return
+
+        const parsed = Number.parseInt(digits, 10)
+        if (
+            Number.isFinite(parsed) &&
+            parsed >= DRAFT_TIMER_MIN_SECONDS &&
+            parsed <= DRAFT_TIMER_MAX_SECONDS
+        ) {
+            onSelect(parsed)
+        }
+    }
+
+    function commitCustom() {
+        const parsed = Number.parseInt(customText, 10)
+        if (!Number.isFinite(parsed)) {
+            setCustomText(isDraftTimerPreset(selectedValue) ? '' : String(selectedValue))
+            return
+        }
+        const normalized = normalizeDraftTimerSeconds(parsed)
+        setCustomText(String(normalized))
+        onSelect(normalized)
+    }
+
+    const customSelected = !isDraftTimerPreset(selectedValue)
+
+    return (
+        <View style={[styles.timerControl, compact && styles.timerControlCompact]}>
+            <View style={styles.timerPresetWrap}>
+                <DraftChips
+                    options={DRAFT_TIMER_CHIPS}
+                    selectedValue={customSelected ? -1 : selectedValue}
+                    onSelect={onSelect}
+                    groupLabel={groupLabel}
+                    accessibilityLabelForOption={draftTimerChipLabel}
+                    compact={compact}
+                />
+            </View>
+            <View style={[styles.customTimerField, customSelected && styles.customTimerFieldActive]}>
+                <Text style={[styles.customTimerLabel, customSelected && styles.customTimerLabelActive]}>Custom</Text>
+                <TextInput
+                    style={styles.customTimerInput}
+                    value={customText}
+                    onChangeText={handleCustomChange}
+                    onEndEditing={commitCustom}
+                    onSubmitEditing={commitCustom}
+                    keyboardType="number-pad"
+                    placeholder="sec"
+                    placeholderTextColor={colors.textPlaceholder}
+                    accessibilityLabel="Custom timer seconds"
+                />
+            </View>
+        </View>
+    )
+}
+
 const styles = StyleSheet.create({
     nominationModeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, marginBottom: spacing.sm },
     nominationModeRowCompact: { marginBottom: 0 },
@@ -203,4 +290,47 @@ const styles = StyleSheet.create({
     nominationModeChipOn: { borderColor: colors.primary, backgroundColor: colors.primary },
     nominationModeChipText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textSecondary },
     nominationModeChipTextOn: { color: colors.textWhite },
+    timerControl: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        gap: spacing.sm,
+        marginBottom: spacing.sm,
+    },
+    timerControlCompact: {
+        marginBottom: 0,
+    },
+    timerPresetWrap: {
+        flex: 1,
+        minWidth: 0,
+    },
+    customTimerField: {
+        minWidth: 118,
+        minHeight: 44,
+        borderWidth: 1,
+        borderColor: colors.border,
+        borderRadius: radii.md,
+        borderCurve: 'continuous' as const,
+        backgroundColor: colors.bgCard,
+        paddingHorizontal: spacing.sm,
+        paddingVertical: 4,
+        justifyContent: 'center',
+    },
+    customTimerFieldActive: {
+        borderColor: colors.primary,
+        backgroundColor: colors.primaryLight,
+    },
+    customTimerLabel: {
+        fontSize: 10,
+        fontWeight: fontWeight.bold,
+        color: colors.textMuted,
+        letterSpacing: 0,
+    },
+    customTimerLabelActive: { color: colors.primaryDark },
+    customTimerInput: {
+        minHeight: 22,
+        padding: 0,
+        fontSize: fontSize.sm,
+        fontWeight: fontWeight.semibold,
+        color: colors.textPrimary,
+    },
 })

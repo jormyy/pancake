@@ -10,12 +10,17 @@ import { useRouter } from 'expo-router'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
 import { NoLeagueState } from '@/components/NoLeagueState'
+import { EmptyState } from '@/components/EmptyState'
 import { isTradingClosed } from '@/lib/league'
 import {
     addTradeBlockItem,
     getMyTrades,
     getTradeBlockItems,
     getVetoableTrades,
+    isIncomingTradeForMember,
+    isOutgoingTradeForMember,
+    isTradeHistoryForMember,
+    isVetoableTradeForMember,
     removeTradeBlockItem,
     Trade,
     TradeBlockItem,
@@ -23,22 +28,27 @@ import {
     getPicksForMember,
 } from '@/lib/trades'
 import { getRoster, RosterPlayer } from '@/lib/roster'
-import { colors, fontSize, fontWeight, radii, spacing, layout, uiColors } from '@/constants/tokens'
+import { colors, fontSize, fontWeight, radii, spacing, layout, uiColors, INJURY_COLORS } from '@/constants/tokens'
 import { SegmentedControl, type SegmentOption } from '@/components/ui/SegmentedControl'
 import { ItemSeparator } from '@/components/ItemSeparator'
 import { ErrorBanner } from '@/components/ui'
 import { SectionHeader } from '@/components/SectionHeader'
 import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
 import { playerHeadshotUrl, yearShort } from '@/lib/format'
+import { playerEligiblePositions, playerSeasonContextText } from '@/lib/player-context'
 import { TradeCard, TabKey } from '@/components/trades/TradeCard'
 import { getErrorMessage } from '@/lib/alert'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
+import { EMPTY_AVG_MAP, EMPTY_STATS_MAP, getRosterStatsMaps } from '@/lib/roster-stats'
 import { Avatar } from '@/components/Avatar'
-import { getPositionColor } from '@/constants/positions'
+import { PosTag } from '@/components/PosTag'
+import { Badge } from '@/components/Badge'
+import { subscribeToTableChanges, unsubscribeFromTableChanges } from '@/lib/realtime'
 
 type ListItem =
     | { _type: 'trade'; trade: Trade }
     | { _type: 'header'; label: string }
+    | { _type: 'empty'; key: string; message: string }
     | { _type: 'pick'; pick: TradePickItem }
     | { _type: 'blockItem'; item: TradeBlockItem }
     | { _type: 'blockPlayer'; player: RosterPlayer }
@@ -51,7 +61,6 @@ type TradeBlockCache = {
 const TRADES_CACHE_PREFIX = 'pancake:trades:v1:'
 const PICKS_CACHE_PREFIX = 'pancake:trade-picks:v1:'
 const TRADE_BLOCK_CACHE_PREFIX = 'pancake:trade-block:v1:'
-const TRADE_LOADING_ROWS = 6
 
 const tradesCacheKey = (memberId: string, leagueId: string) => `${TRADES_CACHE_PREFIX}${leagueId}:${memberId}`
 const picksCacheKey = (memberId: string, leagueId: string) => `${PICKS_CACHE_PREFIX}${leagueId}:${memberId}`
@@ -60,6 +69,7 @@ const tradeBlockCacheKey = (memberId: string, leagueId: string) => `${TRADE_BLOC
 // Module-level: these are pure functions of the row, no closures needed.
 const listKeyExtractor = (item: ListItem, index: number) => {
     if (item._type === 'header') return `header-${index}`
+    if (item._type === 'empty') return `empty-${item.key}`
     if (item._type === 'trade') return `trade-${item.trade.id}`
     if (item._type === 'blockItem') return `block-${item.item.id}`
     if (item._type === 'blockPlayer') return `block-player-${item.player.players.id}`
@@ -69,36 +79,16 @@ const listKeyExtractor = (item: ListItem, index: number) => {
 
 const listGetItemType = (item: ListItem) => item._type
 
-function TradeListPlaceholder({ tab }: { tab: TabKey }) {
-    return (
-        <View
-            style={styles.placeholderList}
-            role="status"
-            aria-busy
-            aria-label={`${tab} trades loading`}
-            accessibilityLabel={`${tab} trades loading`}
-            accessibilityState={{ busy: true }}
-        >
-            <View style={styles.placeholderSectionHeader}>
-                <View style={styles.placeholderSectionTitle} />
-            </View>
-            {Array.from({ length: TRADE_LOADING_ROWS }, (_, index) => (
-                <View key={index} style={styles.placeholderRow}>
-                    <View style={styles.placeholderAvatar} />
-                    <View style={styles.placeholderBody}>
-                        <View style={styles.placeholderLineStrong} />
-                        <View style={styles.placeholderLine} />
-                    </View>
-                    <View style={styles.placeholderAction} />
-                </View>
-            ))}
-        </View>
-    )
+function tradeLoadingMessage(tab: TabKey) {
+    if (tab === 'picks') return 'Loading draft picks'
+    if (tab === 'block') return 'Loading trade block'
+    if (tab === 'history') return 'Loading trade history'
+    return 'Loading trade offers'
 }
 
 export default function TradesScreen() {
     const { push } = useRouter()
-    const { current, currentLeague, memberships, loading: leagueLoading } = useLeagueContext()
+    const { current, currentLeague, memberships, loading: leagueLoading, isCommissioner } = useLeagueContext()
 
     const myMemberId = current?.id ?? ''
     const leagueId = currentLeague?.id ?? ''
@@ -124,13 +114,15 @@ export default function TradesScreen() {
     const [tradesError, setTradesError] = useState<string | null>(null)
     const [blockItems, setBlockItems] = useState<TradeBlockItem[]>(cachedBlock?.items ?? [])
     const [blockRoster, setBlockRoster] = useState<RosterPlayer[]>(cachedBlock?.roster ?? [])
+    const [blockAvgMap, setBlockAvgMap] = useState(EMPTY_AVG_MAP)
+    const [blockAvgStatsMap, setBlockAvgStatsMap] = useState(EMPTY_STATS_MAP)
     const [blockLoading, setBlockLoading] = useState(!cachedBlock)
     const [blockError, setBlockError] = useState<string | null>(null)
     const [blockBusyId, setBlockBusyId] = useState<string | null>(null)
     const tradesLoadSeqRef = useRef(0)
     const blockLoadSeqRef = useRef(0)
 
-    const { data: picks, loading: picksLoading, error: picksError } = useFocusAsyncData(async () => {
+    const { data: picks, loading: picksLoading, error: picksError, refresh: refreshPicks } = useFocusAsyncData(async () => {
         if (!current || !leagueId) return [] as TradePickItem[]
         const result = await getPicksForMember(current.id, leagueId)
         writePersistentCache(picksCacheKey(current.id, leagueId), result)
@@ -173,6 +165,8 @@ export default function TradesScreen() {
         if (!memberId || !currentLeagueId) {
             setBlockItems([])
             setBlockRoster([])
+            setBlockAvgMap(EMPTY_AVG_MAP)
+            setBlockAvgStatsMap(EMPTY_STATS_MAP)
             setBlockError(null)
             setBlockLoading(false)
             return
@@ -186,8 +180,12 @@ export default function TradesScreen() {
             ])
             if (blockLoadSeqRef.current !== requestId) return
             const activeRoster = roster.filter((player) => !player.is_on_ir && !player.is_on_taxi)
+            const stats = await getRosterStatsMaps(activeRoster.map((player) => player.players.id), currentLeagueId)
+            if (blockLoadSeqRef.current !== requestId) return
             setBlockItems(items)
             setBlockRoster(activeRoster)
+            setBlockAvgMap(stats.avgMap)
+            setBlockAvgStatsMap(stats.avgStatsMap)
             writePersistentCache(tradeBlockCacheKey(memberId, currentLeagueId), {
                 items,
                 roster: activeRoster,
@@ -200,6 +198,30 @@ export default function TradesScreen() {
             if (blockLoadSeqRef.current === requestId) setBlockLoading(false)
         }
     }, [myMemberId, leagueId])
+
+    useEffect(() => {
+        if (!myMemberId || !leagueId) return
+
+        const refreshTradesSurface = () => {
+            void load()
+            void refreshPicks()
+            void loadBlock()
+        }
+        const channel = subscribeToTableChanges(
+            `trades-screen:${leagueId}:${myMemberId}`,
+            [
+                { table: 'trades', filter: `league_id=eq.${leagueId}` },
+                { table: 'trade_items', filter: `league_id=eq.${leagueId}` },
+                { table: 'trade_participants', filter: `league_id=eq.${leagueId}` },
+                { table: 'trade_vetos', filter: `league_id=eq.${leagueId}` },
+                { table: 'trade_block_items', filter: `league_id=eq.${leagueId}` },
+                { table: 'draft_picks', filter: `league_id=eq.${leagueId}` },
+            ],
+            refreshTradesSurface,
+        )
+
+        return () => unsubscribeFromTableChanges(channel)
+    }, [leagueId, load, loadBlock, myMemberId, refreshPicks])
 
     // Clear stale trades + show loading immediately when league/member changes,
     // so the previous league's accepted trades don't flash in the Veto Window
@@ -215,6 +237,8 @@ export default function TradesScreen() {
             : null
         setBlockItems(nextCachedBlock?.items ?? [])
         setBlockRoster(nextCachedBlock?.roster ?? [])
+        setBlockAvgMap(EMPTY_AVG_MAP)
+        setBlockAvgStatsMap(EMPTY_STATS_MAP)
         setBlockLoading(!nextCachedBlock)
     }, [myMemberId, leagueId])
 
@@ -266,23 +290,38 @@ export default function TradesScreen() {
     }, [myMemberId, loadBlock])
 
     const incomingTrades = useMemo(() => trades.filter(
-        (t) => t.recipientMemberId === myMemberId && t.status === 'pending',
+        (trade) => isIncomingTradeForMember(trade, myMemberId),
     ), [trades, myMemberId])
     const outgoingTrades = useMemo(() => trades.filter(
-        (t) => t.proposerMemberId === myMemberId && t.status === 'pending',
+        (trade) => isOutgoingTradeForMember(trade, myMemberId),
     ), [trades, myMemberId])
     const vetoableTrades = useMemo(() => trades.filter(
-        (t) => t.status === 'accepted' && t.proposerMemberId !== myMemberId && t.recipientMemberId !== myMemberId,
+        (trade) => isVetoableTradeForMember(trade, myMemberId),
     ), [trades, myMemberId])
     const historyTrades = useMemo(() => trades.filter(
-        (t) => t.status !== 'pending' && (t.proposerMemberId === myMemberId || t.recipientMemberId === myMemberId),
+        (trade) => isTradeHistoryForMember(trade, myMemberId),
     ), [trades, myMemberId])
 
     const picksList = useMemo(() => picks ?? [], [picks])
+    const myBlockItems = useMemo(
+        () => blockItems.filter((item) => item.memberId === myMemberId),
+        [blockItems, myMemberId],
+    )
+    const publicBlockItems = useMemo(
+        () => blockItems.filter((item) => item.memberId !== myMemberId),
+        [blockItems, myMemberId],
+    )
 
     const renderItem = useCallback(({ item }: { item: ListItem }) => {
         if (item._type === 'header') {
             return item.label ? <SectionHeader label={item.label} /> : null
+        }
+        if (item._type === 'empty') {
+            return (
+                <View style={styles.blockEmptyRow}>
+                    <Text style={styles.blockEmptyText}>{item.message}</Text>
+                </View>
+            )
         }
         if (item._type === 'pick') {
             const isOwn = item.pick.originalTeamName === myTeamName
@@ -310,7 +349,15 @@ export default function TradesScreen() {
             const mine = block.memberId === myMemberId
             const label = block.asset.kind === 'player'
                 ? block.asset.playerName
-                : `${block.asset.seasonYear} Round ${block.asset.round} pick`
+                : block.asset.kind === 'pick'
+                  ? `${block.asset.seasonYear} Round ${block.asset.round} pick`
+                  : `FAAB $${block.asset.amount}`
+            const positions = block.asset.kind === 'player'
+                ? playerEligiblePositions(block.asset)
+                : []
+            const statText = block.asset.kind === 'player'
+                ? playerSeasonContextText(block.asset)
+                : ''
             return (
                 <View style={styles.blockRow}>
                     {block.asset.kind === 'player' ? (
@@ -324,9 +371,25 @@ export default function TradesScreen() {
                     ) : null}
                     <View style={styles.blockInfo}>
                         <Text style={styles.blockTitle}>{label}</Text>
-                        <Text style={styles.blockMeta}>
-                            {block.teamName}{block.asset.kind === 'player' && block.asset.position ? ` · ${block.asset.position}` : ''}
-                        </Text>
+                        {block.asset.kind === 'player' ? (
+                            <>
+                                <View style={styles.blockMetaRow}>
+                                    <Text style={styles.blockMeta}>{block.teamName}</Text>
+                                    {block.asset.nbaTeam ? <Text style={styles.blockMeta}>{block.asset.nbaTeam}</Text> : null}
+                                    {positions.map((pos) => <PosTag key={pos} position={pos} />)}
+                                    {block.asset.injuryStatus ? (
+                                        <Badge
+                                            label={block.asset.injuryStatus}
+                                            color={INJURY_COLORS[block.asset.injuryStatus] ?? colors.textMuted}
+                                            variant="solid"
+                                        />
+                                    ) : null}
+                                </View>
+                                <Text style={styles.blockContext} numberOfLines={1}>{statText}</Text>
+                            </>
+                        ) : (
+                            <Text style={styles.blockMeta}>{block.teamName}</Text>
+                        )}
                         {block.note ? <Text style={styles.blockNote}>{block.note}</Text> : null}
                     </View>
                     {mine ? (
@@ -361,26 +424,47 @@ export default function TradesScreen() {
         }
         if (item._type === 'blockPlayer') {
             const listed = blockItems.some((block) => block.memberId === myMemberId && block.asset.kind === 'player' && block.asset.playerId === item.player.players.id)
+            const player = item.player.players
+            const positions = playerEligiblePositions({
+                position: player.position,
+                eligiblePositions: player.eligible_positions,
+            })
+            const statText = playerSeasonContextText({
+                yearsExp: player.years_exp,
+                avgFantasyPoints: blockAvgMap.get(player.id) ?? null,
+                avgMinutesPlayed: blockAvgStatsMap.get(player.id)?.avg_minutes_played ?? null,
+            })
             return (
                 <View style={styles.blockRow}>
                     <Avatar
-                        name={item.player.players.display_name}
-                        uri={playerHeadshotUrl(item.player.players.nba_id) ?? undefined}
+                        name={player.display_name}
+                        uri={playerHeadshotUrl(player.nba_id) ?? undefined}
                         color={colors.bgMuted}
                         textColor={colors.textSecondary}
                         size={38}
                     />
                     <View style={styles.blockInfo}>
-                        <Text style={styles.blockTitle}>{item.player.players.display_name}</Text>
-                        <Text style={styles.blockMeta}>{[item.player.players.nba_team, item.player.players.position].filter(Boolean).join(' · ')}</Text>
+                        <Text style={styles.blockTitle}>{player.display_name}</Text>
+                        <View style={styles.blockMetaRow}>
+                            {player.nba_team ? <Text style={styles.blockMeta}>{player.nba_team}</Text> : null}
+                            {positions.map((pos) => <PosTag key={pos} position={pos} />)}
+                            {player.injury_status ? (
+                                <Badge
+                                    label={player.injury_status}
+                                    color={INJURY_COLORS[player.injury_status] ?? colors.textMuted}
+                                    variant="solid"
+                                />
+                            ) : null}
+                        </View>
+                        <Text style={styles.blockContext} numberOfLines={1}>{statText}</Text>
                     </View>
                     <Pressable
                         style={[styles.blockAction, listed && styles.blockActionDisabled]}
                         onPress={() => handleListPlayer(item.player)}
-                        disabled={listed || blockBusyId === item.player.players.id}
+                        disabled={listed || blockBusyId === player.id}
                         accessibilityRole="button"
-                        accessibilityLabel={`${listed ? 'Listed' : 'List'} ${item.player.players.display_name} on trade block`}
-                        accessibilityState={{ disabled: listed || blockBusyId === item.player.players.id }}
+                        accessibilityLabel={`${listed ? 'Listed' : 'List'} ${player.display_name} on trade block`}
+                        accessibilityState={{ disabled: listed || blockBusyId === player.id }}
                     >
                         <Text style={styles.blockActionText}>{listed ? 'Listed' : 'List'}</Text>
                     </Pressable>
@@ -415,6 +499,8 @@ export default function TradesScreen() {
                 leagueId={leagueId}
                 rosterSize={rosterSize}
                 tab={tab}
+                tradeVetoMode={currentLeague?.trade_veto_mode ?? 'member_vote'}
+                isCommissioner={isCommissioner}
                 onAction={load}
             />
         )
@@ -424,9 +510,13 @@ export default function TradesScreen() {
         leagueId,
         rosterSize,
         tab,
+        currentLeague?.trade_veto_mode,
+        isCommissioner,
         load,
         blockItems,
         blockBusyId,
+        blockAvgMap,
+        blockAvgStatsMap,
         handleListPlayer,
         handleListPick,
         handleRemoveBlockItem,
@@ -457,42 +547,44 @@ export default function TradesScreen() {
             result.push({ _type: 'header', label: 'Incoming' })
             incomingTrades.forEach((t) => result.push({ _type: 'trade', trade: t }))
             if (incomingTrades.length === 0 && !loading) {
-                result.push({ _type: 'header', label: '' })
+                result.push({ _type: 'empty', key: 'incoming-offers', message: 'No incoming offers.' })
             }
             result.push({ _type: 'header', label: 'Outgoing' })
             outgoingTrades.forEach((t) => result.push({ _type: 'trade', trade: t }))
             if (outgoingTrades.length === 0 && !loading) {
-                result.push({ _type: 'header', label: '' })
+                result.push({ _type: 'empty', key: 'outgoing-offers', message: 'No outgoing offers.' })
             }
         } else if (tab === 'block') {
-            result.push({ _type: 'header', label: 'League Trade Block' })
-            blockItems.forEach((item) => result.push({ _type: 'blockItem', item }))
-            if (blockItems.length === 0 && !blockLoading) {
-                result.push({ _type: 'header', label: '' })
+            result.push({ _type: 'header', label: 'Your Listings' })
+            myBlockItems.forEach((item) => result.push({ _type: 'blockItem', item }))
+            if (myBlockItems.length === 0 && !blockLoading) {
+                result.push({ _type: 'empty', key: 'my-block-listings', message: 'No listings yet.' })
             }
             result.push({ _type: 'header', label: 'List Your Players' })
             blockRoster.forEach((player) => result.push({ _type: 'blockPlayer', player }))
             result.push({ _type: 'header', label: 'List Your Picks' })
             picksList.forEach((pick) => result.push({ _type: 'blockPick', pick }))
+            result.push({ _type: 'header', label: 'League Trade Block' })
+            publicBlockItems.forEach((item) => result.push({ _type: 'blockItem', item }))
+            if (publicBlockItems.length === 0 && !blockLoading) {
+                result.push({ _type: 'empty', key: 'league-block-listings', message: 'No league listings yet.' })
+            }
         } else {
             result.push({ _type: 'header', label: 'Trade History' })
             historyTrades.forEach((t) => result.push({ _type: 'trade', trade: t }))
             if (historyTrades.length === 0 && !loading) {
-                result.push({ _type: 'header', label: '' })
+                result.push({ _type: 'empty', key: 'trade-history', message: 'No completed trades yet.' })
             }
         }
 
         return result
-    }, [tab, vetoableTrades, incomingTrades, outgoingTrades, historyTrades, picksList, loading, blockItems, blockLoading, blockRoster])
+    }, [tab, vetoableTrades, incomingTrades, outgoingTrades, historyTrades, picksList, loading, myBlockItems, blockLoading, blockRoster, publicBlockItems])
 
     const pendingInboxCount = incomingTrades.length
-    const picksHydrated = !picksLoading || picksList.length > 0
-    const tradesHydrated = !loading || trades.length > 0
-    const blockHydrated = !blockLoading || blockItems.length > 0 || blockRoster.length > 0
-    const activeTabHydrated =
-        tab === 'picks' ? picksHydrated
-        : tab === 'block' ? blockHydrated
-        : tradesHydrated
+    const activeTabLoading =
+        tab === 'picks' ? picksLoading && picksList.length === 0
+        : tab === 'block' ? blockLoading && blockItems.length === 0 && blockRoster.length === 0 && picksList.length === 0
+        : loading && trades.length === 0
 
     const tabOptions: SegmentOption<TabKey>[] = [
         { label: 'Picks', value: 'picks' },
@@ -507,7 +599,9 @@ export default function TradesScreen() {
               <View style={styles.content}>
                 <View style={styles.header}>
                     <Text style={styles.headerTitle} role="heading" aria-level={1}>Trades</Text>
-                    <View style={[styles.proposeBtn, styles.placeholderProposeBtn]} />
+                    <View style={[styles.proposeBtn, styles.proposeBtnDisabled]}>
+                        <Text style={styles.proposeBtnTextDisabled}>Propose</Text>
+                    </View>
                 </View>
                 <View style={styles.tabRow}>
                     <SegmentedControl
@@ -518,7 +612,11 @@ export default function TradesScreen() {
                         scrollable
                     />
                 </View>
-                <TradeListPlaceholder tab={tab} />
+                <EmptyState
+                    fullScreen={false}
+                    message="Loading trades"
+                    description="Your trade inbox appears here as soon as league context is ready."
+                />
               </View>
             </SafeAreaView>
         )
@@ -561,7 +659,13 @@ export default function TradesScreen() {
                 />
             ) : null}
 
-            {!activeTabHydrated ? <TradeListPlaceholder tab={tab} /> : tab === 'picks' && picksError ? (
+            {activeTabLoading ? (
+                <EmptyState
+                    fullScreen={false}
+                    message={tradeLoadingMessage(tab)}
+                    description="Cached trade content stays visible while fresh data updates in place."
+                />
+            ) : tab === 'picks' && picksError ? (
                 <View style={styles.emptyState}>
                     <Text style={styles.emptyStateText}>Error: {picksError.message}</Text>
                 </View>
@@ -611,79 +715,11 @@ const styles = StyleSheet.create({
     proposeBtnText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.md },
     proposeBtnDisabled: { backgroundColor: colors.bgMuted, borderWidth: 1, borderColor: colors.borderLight },
     proposeBtnTextDisabled: { color: colors.textPlaceholder },
-    placeholderProposeBtn: {
-        backgroundColor: colors.bgMuted,
-        borderWidth: 1,
-        borderColor: colors.borderLight,
-    },
-
     tabRow: {
         paddingHorizontal: spacing.xl,
         paddingVertical: spacing.lg,
         borderBottomWidth: 1,
         borderBottomColor: colors.borderLight,
-    },
-    placeholderList: {
-        flex: 1,
-    },
-    placeholderSectionHeader: {
-        minHeight: 38,
-        justifyContent: 'center',
-        paddingHorizontal: spacing.xl,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.borderLight,
-        backgroundColor: colors.bgSubtle,
-    },
-    placeholderSectionTitle: {
-        width: 142,
-        height: 12,
-        borderRadius: radii.xs,
-        backgroundColor: colors.bgMuted,
-    },
-    placeholderRow: {
-        minHeight: 64,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: spacing.lg,
-        paddingHorizontal: spacing.xl,
-        paddingVertical: spacing.md,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.separator,
-    },
-    placeholderAvatar: {
-        width: 38,
-        height: 38,
-        borderRadius: 19,
-        backgroundColor: colors.bgMuted,
-        borderWidth: 1,
-        borderColor: colors.borderLight,
-    },
-    placeholderBody: {
-        flex: 1,
-        minWidth: 0,
-        gap: spacing.sm,
-    },
-    placeholderLineStrong: {
-        width: '48%',
-        maxWidth: 220,
-        height: 14,
-        borderRadius: radii.xs,
-        backgroundColor: colors.bgMuted,
-    },
-    placeholderLine: {
-        width: '34%',
-        maxWidth: 160,
-        height: 11,
-        borderRadius: radii.xs,
-        backgroundColor: colors.bgSubtle,
-    },
-    placeholderAction: {
-        width: 72,
-        height: 36,
-        borderRadius: radii.md,
-        backgroundColor: colors.bgSubtle,
-        borderWidth: 1,
-        borderColor: colors.borderLight,
     },
 
     pickRow: {
@@ -719,6 +755,13 @@ const styles = StyleSheet.create({
     pickChipTraded: { backgroundColor: colors.primaryLight },
     pickChipText: { fontSize: fontSize.xs, fontWeight: fontWeight.semibold, color: colors.textSecondary },
     pickHint: { fontSize: 12, color: colors.primaryDark, fontWeight: fontWeight.bold },
+    blockEmptyRow: {
+        minHeight: 56,
+        justifyContent: 'center',
+        paddingHorizontal: spacing.xl,
+        paddingVertical: spacing.md,
+    },
+    blockEmptyText: { fontSize: fontSize.sm, color: colors.textMuted },
     blockRow: {
         minHeight: 64,
         flexDirection: 'row',
@@ -729,7 +772,9 @@ const styles = StyleSheet.create({
     },
     blockInfo: { flex: 1, minWidth: 0, gap: spacing.xxs },
     blockTitle: { fontSize: fontSize.md, fontWeight: fontWeight.bold, color: colors.textPrimary },
+    blockMetaRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 4 },
     blockMeta: { fontSize: fontSize.sm, color: colors.textMuted },
+    blockContext: { fontSize: fontSize.xs, color: colors.primaryDark, fontWeight: fontWeight.bold },
     blockNote: { fontSize: fontSize.sm, color: colors.textSecondary },
     blockAction: {
         minWidth: 72,

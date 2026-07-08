@@ -29,8 +29,9 @@ import { STAT_COLUMN_SORT, type PlayerSearchSortMode } from '@/lib/player-search
 import { useQuickAdd } from '@/hooks/use-quick-add'
 import { getMemberTransactionState } from '@/lib/league'
 import { PlayerRow } from '@/lib/players'
-import { useState, useRef, useCallback } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { getPlayerAvailabilitySnapshot } from '@/lib/player-availability'
+import { subscribeToTableChanges, unsubscribeFromTableChanges } from '@/lib/realtime'
 
 const POSITIONS = [
     { key: 'ALL', label: 'All' },
@@ -73,7 +74,6 @@ const STAT_LABELS: Record<string, string> = {
 
 const EMPTY_OWNED_MAP = new Map<string, OwnedEntry>()
 const EMPTY_WAIVER_IDS = new Set<string>()
-const PLAYER_LOADING_ROWS = 8
 
 function PlayerTableHeader({
     activeSort,
@@ -120,82 +120,10 @@ function PlayerTableHeader({
     )
 }
 
-function PlayerTableHeaderSkeleton() {
-    return (
-        <View
-            style={styles.tableHeader}
-            accessibilityElementsHidden
-            importantForAccessibility="no-hide-descendants"
-        >
-            <View style={styles.tableHeaderAddSpacer} />
-            <View style={styles.tableHeaderCardRow}>
-                <View style={styles.tableHeaderHeadshotSpacer} />
-                <View style={[localStyles.loadingHeaderPill, localStyles.loadingHeaderPlayer]} />
-                <View style={[localStyles.loadingHeaderPill, localStyles.loadingHeaderOwnership]} />
-                <View style={styles.tableHeaderStatsGroup}>
-                    {TABLE_COLUMNS.map((column) => (
-                        <View key={column} style={localStyles.loadingHeaderStatCell} />
-                    ))}
-                </View>
-            </View>
-        </View>
-    )
-}
-
-function PlayerListLoadingRows({ showStatTable }: { showStatTable: boolean }) {
-    return (
-        <View
-            style={localStyles.loadingRows}
-            role="status"
-            aria-busy
-            aria-label="Player table loading"
-            accessibilityLabel="Player table loading"
-            accessibilityState={{ busy: true }}
-        >
-            {Array.from({ length: PLAYER_LOADING_ROWS }, (_, index) => (
-                <View key={index} style={localStyles.loadingRow}>
-                    <View style={localStyles.loadingAddSpacer} />
-                    <View style={[localStyles.loadingCard, !showStatTable && localStyles.loadingCardNarrow]}>
-                        <View style={localStyles.loadingAvatar} />
-                        <View style={localStyles.loadingInfo}>
-                            <View style={localStyles.loadingNameLine} />
-                            <View style={localStyles.loadingMetaLine} />
-                        </View>
-                        {showStatTable ? (
-                            <>
-                                <View style={localStyles.loadingOwnership} />
-                                <View style={localStyles.loadingStatsGroup}>
-                                    {TABLE_COLUMNS.map((column) => (
-                                        <View key={column} style={localStyles.loadingStatCell} />
-                                    ))}
-                                </View>
-                            </>
-                        ) : null}
-                    </View>
-                </View>
-            ))}
-        </View>
-    )
-}
-
-function FilterSkeletonGrid({ visible }: { visible: boolean }) {
-    if (!visible) return null
-    return (
-        <View style={styles.filterGrid}>
-            {Array.from({ length: 7 }, (_, index) => (
-                <View key={index} style={localStyles.filterSkeleton} />
-            ))}
-            <View style={localStyles.sortSkeleton} />
-        </View>
-    )
-}
-
-function PlayersLoadingShell({
+function PlayersLoadingState({
     showStatTable,
-    filtersVisible,
 }: {
     showStatTable: boolean
-    filtersVisible: boolean
 }) {
     return (
         <SafeAreaView style={styles.container}>
@@ -216,14 +144,17 @@ function PlayersLoadingShell({
                     <View style={styles.filterCardHeader}>
                         <Text style={styles.filterCardTitle} role="heading" aria-level={2}>Filters</Text>
                     </View>
-                    <FilterSkeletonGrid visible={filtersVisible} />
                     <View style={localStyles.transactionBar}>
                         <Text style={localStyles.transactionBarText}>Adds: —/— this week</Text>
                         <Text style={localStyles.transactionBarText}>Waivers: —</Text>
                     </View>
                 </View>
-                {showStatTable ? <PlayerTableHeaderSkeleton /> : null}
-                <PlayerListLoadingRows showStatTable={showStatTable} />
+                {showStatTable ? <PlayerTableHeader /> : null}
+                <EmptyState
+                    fullScreen={false}
+                    message="Loading players"
+                    description="Roster ownership, waiver status, and player rows update here as soon as they hydrate."
+                />
             </View>
         </SafeAreaView>
     )
@@ -281,6 +212,24 @@ export default function PlayersScreen() {
         return { ...availability, transactionState }
     }, [current?.id, leagueId])
 
+    useEffect(() => {
+        if (!leagueId) return
+
+        const channel = subscribeToTableChanges(
+            `players-screen:${leagueId}`,
+            [
+                { table: 'roster_players', filter: `league_id=eq.${leagueId}` },
+                { table: 'waiver_wire_log', filter: `league_id=eq.${leagueId}` },
+                { table: 'waiver_claims', filter: `league_id=eq.${leagueId}` },
+                { table: 'waiver_priorities', filter: `league_id=eq.${leagueId}` },
+                { table: 'league_members', filter: `league_id=eq.${leagueId}` },
+            ],
+            () => { void refreshPlayerSupport() },
+        )
+
+        return () => unsubscribeFromTableChanges(channel)
+    }, [leagueId, refreshPlayerSupport])
+
     const playerSupportForLeague = playerSupport?.leagueId === leagueId ? playerSupport : null
     const ownedMap = playerSupportForLeague?.ownedMap ?? EMPTY_OWNED_MAP
     const waiverIds = playerSupportForLeague?.waiverIds ?? EMPTY_WAIVER_IDS
@@ -325,7 +274,7 @@ export default function PlayersScreen() {
     const listIsInitialLoading = playerSupportLoading || (search.results.loading && search.results.players.length === 0)
 
     if (showInitialShell) {
-        return <PlayersLoadingShell showStatTable={showStatTable} filtersVisible={filtersVisible} />
+        return <PlayersLoadingState showStatTable={showStatTable} />
     }
     if (!user) return <NoLeagueState />
     if (memberships.length === 0 || !current || !leagueId) return <NoLeagueState />
@@ -472,9 +421,7 @@ export default function PlayersScreen() {
                     contentContainerStyle={search.results.players.length === 0 && !listIsInitialLoading ? styles.emptyContainer : undefined}
                     ItemSeparatorComponent={ItemSeparator}
                     ListHeaderComponent={showStatTable ? (
-                        listIsInitialLoading
-                            ? <PlayerTableHeaderSkeleton />
-                            : <PlayerTableHeader activeSort={search.sort.mode} sortDir={search.sort.dir} onColumnSort={handleColumnSort} />
+                        <PlayerTableHeader activeSort={search.sort.mode} sortDir={search.sort.dir} onColumnSort={handleColumnSort} />
                     ) : null}
                     renderItem={({ item }: { item: PlayerRow }) => (
                         <PlayerSearchItem
@@ -499,7 +446,7 @@ export default function PlayersScreen() {
                     )}
                     ListEmptyComponent={
                         listIsInitialLoading
-                            ? <PlayerListLoadingRows showStatTable={showStatTable} />
+                            ? <EmptyState message="Loading players" description="Refreshing availability, waivers, and fantasy averages." fullScreen={false} />
                             : playerSupportError && playerSupportForLeague == null
                               ? <EmptyState message="Players could not load." description="Tap retry to reload roster and waiver state." actionLabel="Retry" onAction={() => void refreshPlayerSupport()} fullScreen={false} />
                             : <EmptyState message="No players found." fullScreen={false} />
@@ -549,114 +496,5 @@ const localStyles = StyleSheet.create({
         fontSize: fontSize.sm,
         fontWeight: fontWeight.bold,
         color: colors.textSecondary,
-    },
-    loadingRows: {
-        width: '100%',
-    },
-    loadingRow: {
-        minHeight: 78,
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingLeft: spacing.lg,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.separator,
-    },
-    loadingAddSpacer: { width: 52 },
-    loadingCard: {
-        flex: 1,
-        minHeight: 78,
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingLeft: spacing.md,
-        paddingRight: spacing['4xl'],
-        gap: spacing.lg,
-    },
-    loadingCardNarrow: {
-        alignItems: 'flex-start',
-        paddingRight: spacing.lg,
-        paddingVertical: spacing.lg,
-    },
-    loadingAvatar: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
-        backgroundColor: colors.bgMuted,
-        borderWidth: 1,
-        borderColor: colors.borderLight,
-    },
-    loadingInfo: {
-        flex: 1,
-        minWidth: 0,
-        gap: spacing.sm,
-    },
-    loadingNameLine: {
-        width: '58%',
-        maxWidth: 220,
-        height: 16,
-        borderRadius: 4,
-        backgroundColor: colors.bgMuted,
-    },
-    loadingMetaLine: {
-        width: '42%',
-        maxWidth: 170,
-        height: 12,
-        borderRadius: 4,
-        backgroundColor: colors.bgSubtle,
-    },
-    loadingOwnership: {
-        width: 90,
-        height: 28,
-        borderRadius: 8,
-        backgroundColor: colors.bgMuted,
-    },
-    loadingStatsGroup: {
-        width: 10 * 54,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'flex-end',
-    },
-    loadingHeaderPill: {
-        height: 10,
-        borderRadius: 4,
-        backgroundColor: colors.bgSubtle,
-    },
-    loadingHeaderPlayer: {
-        flex: 1,
-        maxWidth: 72,
-    },
-    loadingHeaderOwnership: {
-        width: 70,
-        marginHorizontal: 10,
-    },
-    loadingHeaderStatCell: {
-        width: 36,
-        height: 10,
-        marginLeft: 18,
-        borderRadius: 4,
-        backgroundColor: colors.bgSubtle,
-    },
-    loadingStatCell: {
-        width: 34,
-        height: 12,
-        marginLeft: 20,
-        borderRadius: 4,
-        backgroundColor: colors.bgMuted,
-    },
-    filterSkeleton: {
-        width: 148,
-        minHeight: 58,
-        borderRadius: 10,
-        backgroundColor: colors.bgSubtle,
-        borderWidth: 1,
-        borderColor: colors.borderLight,
-    },
-    sortSkeleton: {
-        width: 138,
-        minHeight: 38,
-        alignSelf: 'flex-end',
-        borderRadius: 10,
-        backgroundColor: colors.bgSubtle,
-        borderWidth: 1,
-        borderColor: colors.borderLight,
     },
 })

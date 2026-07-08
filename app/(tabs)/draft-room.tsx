@@ -1,10 +1,8 @@
 import { useCallback, useState } from 'react'
-import { ActivityIndicator, StyleSheet, View } from 'react-native'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { EmptyState } from '@/components/EmptyState'
 import { useLeagueContext } from '@/contexts/league-context'
 import { getJoinableDraft } from '@/lib/draft'
-import { colors } from '@/constants/tokens'
 
 export default function DraftRoomTab() {
     const router = useRouter()
@@ -34,9 +32,11 @@ export default function DraftRoomTab() {
 
     if (checking) {
         return (
-            <View style={styles.center}>
-                <ActivityIndicator color={colors.primary} size="large" />
-            </View>
+            <EmptyState
+                icon="flash-on"
+                message="Checking draft room"
+                description="The active auction or rookie draft opens automatically when one is ready."
+            />
         )
     }
 
@@ -50,11 +50,3 @@ export default function DraftRoomTab() {
         />
     )
 }
-
-const styles = StyleSheet.create({
-    center: {
-        flex: 1,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-})

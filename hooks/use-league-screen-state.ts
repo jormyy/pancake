@@ -33,7 +33,12 @@ import {
 } from '@/lib/mockDraftRooms'
 import { confirmAction, showAlert } from '@/lib/alert'
 import { parseLeagueTab, type LeagueTab } from '@/lib/league/tabs'
-import type { DraftTimerOption, RookieRoundOption } from '@/components/league/DraftChips'
+import {
+    normalizeDraftTimerSeconds,
+    type DraftTimerOption,
+    type RookieRoundOption,
+} from '@/components/league/DraftChips'
+import { subscribeToTableChanges, unsubscribeFromTableChanges } from '@/lib/realtime'
 
 const ACTIVITY_LIMIT = 50
 const OPEN_DRAFT_STATUSES = new Set(['pending', 'in_progress', 'paused'])
@@ -72,7 +77,7 @@ export function useLeagueScreenState() {
     const [tab, setTab] = useState<LeagueTab>(() => parseLeagueTab(params.tab))
     const [draftLoading, setDraftLoading] = useState(false)
     const [nominationMode, setNominationMode] = useState<NominationOrderMode>('user_nominated')
-    const [draftTimerSeconds, setDraftTimerSeconds] = useState<DraftTimerOption>(30)
+    const [draftTimerSeconds, setDraftTimerSecondsState] = useState<DraftTimerOption>(30)
     const [rookieRounds, setRookieRounds] = useState<RookieRoundOption>(3)
     const [rookieTimerExpiryBehavior, setRookieTimerExpiryBehavior] =
         useState<RookieTimerExpiryBehavior>('auto_pick')
@@ -103,6 +108,10 @@ export function useLeagueScreenState() {
     useEffect(() => {
         setTab(parseLeagueTab(params.tab))
     }, [params.tab])
+
+    const setDraftTimerSeconds = useCallback((value: DraftTimerOption) => {
+        setDraftTimerSecondsState(normalizeDraftTimerSeconds(value))
+    }, [])
 
     useEffect(() => {
         loadedTabs.current.clear()
@@ -201,6 +210,36 @@ export function useLeagueScreenState() {
             fetchActiveDraft(lid)
         }, [currentLeague?.id, fetchTab, fetchActiveDraft]),
     )
+
+    const refreshLeaguePanels = useCallback(() => {
+        const lid = currentLeague?.id
+        if (!lid) return
+        for (const prefetchTab of PREFETCH_TABS) {
+            fetchTab(prefetchTab, lid)
+        }
+        fetchActiveDraft(lid)
+    }, [currentLeague?.id, fetchActiveDraft, fetchTab])
+
+    useEffect(() => {
+        const lid = currentLeague?.id
+        if (!lid) return
+
+        const channel = subscribeToTableChanges(
+            `league-screen:${lid}`,
+            [
+                { table: 'league_members', filter: `league_id=eq.${lid}` },
+                { table: 'roster_transactions', filter: `league_id=eq.${lid}` },
+                { table: 'waiver_priorities', filter: `league_id=eq.${lid}` },
+                { table: 'draft_picks', filter: `league_id=eq.${lid}` },
+                { table: 'drafts', filter: `league_id=eq.${lid}` },
+                { table: 'draft_room_members' },
+                { table: 'snake_draft_picks' },
+            ],
+            refreshLeaguePanels,
+        )
+
+        return () => unsubscribeFromTableChanges(channel)
+    }, [currentLeague?.id, refreshLeaguePanels])
 
     function handleTabChange(nextTab: LeagueTab) {
         setTab(nextTab)
@@ -435,7 +474,6 @@ export function useLeagueScreenState() {
         handleTabChange,
         isCommissioner,
         leagueLoading,
-        isCurrentTabHydrated: loadedTabs.current.has(tab),
         isTabLoading: tabLoading[tab] === true,
         mockRooms,
         nominationMode,

@@ -33,6 +33,8 @@ const SERVICE_ROLE_ONLY_RPCS = [
     'veto_trade_atomic',
     'expire_trade_completion_failure_atomic',
     'process_due_accepted_trades_atomic',
+    'add_trade_block_item_atomic',
+    'remove_trade_block_item_atomic',
     'create_waiver_claim_atomic',
     'cancel_waiver_claim_atomic',
     'process_next_waiver_claim_atomic',
@@ -254,19 +256,23 @@ describe('waiver intent oracle closure', () => {
 describe('trade privacy policies', () => {
     it('keeps pending trade rows visible only to the proposing or receiving managers', () => {
         const tradePolicy = latestPolicyDefinition('trades_select_parties_or_accepted', 'trades')
+        const visibilityHelper = latestFunctionDefinition('can_read_trade', 'private')
 
-        expect(tradePolicy).toContain("status = 'accepted'::public.trade_status")
-        expect(tradePolicy).toContain('OR proposer_member_id IN (SELECT private.my_member_ids())')
-        expect(tradePolicy).toContain('OR recipient_member_id IN (SELECT private.my_member_ids())')
+        expect(tradePolicy).toContain('private.can_read_trade(id)')
+        expect(visibilityHelper).toContain("trade.status = 'accepted'::public.trade_status")
+        expect(visibilityHelper).toContain('OR trade.proposer_member_id IN (SELECT private.my_member_ids())')
+        expect(visibilityHelper).toContain('OR trade.recipient_member_id IN (SELECT private.my_member_ids())')
+        expect(visibilityHelper).toContain('FROM public.trade_participants AS participant')
         expect(tradePolicy).not.toContain('USING (league_id IN (SELECT private.my_league_ids()))')
     })
 
     it('applies the same visibility rule to nested trade items', () => {
         const itemPolicy = latestPolicyDefinition('trade_items_select_parties_or_accepted', 'trade_items')
+        const visibilityHelper = latestFunctionDefinition('can_read_trade', 'private')
 
-        expect(itemPolicy).toContain('WHERE trade.id = trade_items.trade_id')
-        expect(itemPolicy).toContain("trade.status = 'accepted'::public.trade_status")
-        expect(itemPolicy).toContain('OR trade.proposer_member_id IN (SELECT private.my_member_ids())')
-        expect(itemPolicy).toContain('OR trade.recipient_member_id IN (SELECT private.my_member_ids())')
+        expect(itemPolicy).toContain('private.can_read_trade(trade_id)')
+        expect(visibilityHelper).toContain("trade.status = 'accepted'::public.trade_status")
+        expect(visibilityHelper).toContain('OR trade.proposer_member_id IN (SELECT private.my_member_ids())')
+        expect(visibilityHelper).toContain('OR trade.recipient_member_id IN (SELECT private.my_member_ids())')
     })
 })

@@ -11,13 +11,16 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
+import { useMultiTeamTradeComposer, isTradeableRosterPlayer, type TradeComposerMember } from '@/hooks/use-multi-team-trade-composer'
 import { getLeagueMembers, isTradingClosed } from '@/lib/league'
 import { getRoster, RosterPlayer } from '@/lib/roster'
+import { getRosterStatsMaps, EMPTY_AVG_MAP, EMPTY_STATS_MAP } from '@/lib/roster-stats'
 import {
     counterTrade,
     editTrade,
     getTradeById,
     proposeTrade,
+    proposeMultiTeamTrade,
     getCurrentSeasonId,
     getPicksForMember,
     Trade,
@@ -28,169 +31,17 @@ import {
     getTradeComposerMode,
     prefillTradeComposerFromRoute,
     prefillTradeComposerFromTrade,
+    submitMultiTeamTradeComposer,
     submitTradeComposer,
     tradeComposerSuccessCopy,
     tradeComposerTitle,
 } from '@/lib/trade-composer'
 import { showAlert, showSuccess, getErrorMessage } from '@/lib/alert'
 
-import { playerHeadshotUrl, yearShort } from '@/lib/format'
-import { Avatar } from '@/components/Avatar'
 import { EmptyState } from '@/components/EmptyState'
-import { getPositionColor } from '@/constants/positions'
+import { TradeAssetColumn } from '@/components/trades/TradeAssetColumn'
+import { MultiTeamTradeBuilder } from '@/components/trades/MultiTeamTradeBuilder'
 import { colors, fontSize, fontWeight, radii, spacing, breakpoints, uiColors } from '@/constants/tokens'
-
-const isTradeableRosterPlayer = (player: RosterPlayer) => !player.is_on_ir && !player.is_on_taxi
-
-function PlayerRow({
-    player,
-    selected,
-    onToggle,
-}: {
-    player: RosterPlayer
-    selected: boolean
-    onToggle: () => void
-}) {
-    const p = player.players
-    const action = selected ? 'Remove' : 'Select'
-    return (
-        <Pressable
-            style={[styles.playerRow, selected && styles.playerRowSelected]}
-            onPress={onToggle}
-            accessibilityRole="button"
-            accessibilityLabel={`${action} ${p.display_name} for trade`}
-        >
-            <Avatar
-                name={p.display_name}
-                uri={playerHeadshotUrl(p.nba_id) ?? undefined}
-                color={colors.bgMuted}
-                size={40}
-            />
-            <View style={styles.playerInfo}>
-                <Text style={[styles.playerName, selected && styles.playerNameSelected]}>
-                    {p.display_name}
-                </Text>
-                <Text style={styles.playerMeta}>
-                    {[p.position, p.nba_team].filter(Boolean).join(' · ')}
-                    {player.is_on_ir ? ' · IR' : ''}
-                </Text>
-            </View>
-            {selected && (
-                <View style={styles.checkBadge}>
-                    <Text style={styles.checkBadgeText}>+</Text>
-                </View>
-            )}
-        </Pressable>
-    )
-}
-
-function PickRow({
-    pick,
-    selected,
-    onToggle,
-}: {
-    pick: TradePickItem
-    selected: boolean
-    onToggle: () => void
-}) {
-    const action = selected ? 'Remove' : 'Select'
-    return (
-        <Pressable
-            style={[styles.playerRow, selected && styles.playerRowSelected]}
-            onPress={onToggle}
-            accessibilityRole="button"
-            accessibilityLabel={`${action} ${pick.seasonYear} round ${pick.round} pick via ${pick.originalTeamName} for trade`}
-        >
-            <View style={[styles.pickCircle, selected && styles.pickCircleSelected]}>
-                <Text style={styles.pickCircleText}>{yearShort(pick.seasonYear)}</Text>
-            </View>
-            <View style={styles.playerInfo}>
-                <Text style={[styles.playerName, selected && styles.playerNameSelected]}>
-                    {pick.seasonYear} Round {pick.round}
-                </Text>
-                <Text style={styles.playerMeta}>via {pick.originalTeamName}</Text>
-            </View>
-            {selected && (
-                <View style={styles.checkBadge}>
-                    <Text style={styles.checkBadgeText}>+</Text>
-                </View>
-            )}
-        </Pressable>
-    )
-}
-
-function TeamColumn({
-    title,
-    subtitle,
-    side,
-    twoColumn,
-    roster,
-    picks,
-    selectedPlayerIds,
-    selectedPickIds,
-    onTogglePlayer,
-    onTogglePick,
-    emptyText,
-}: {
-    title: string
-    subtitle: string
-    side: 'give' | 'receive'
-    twoColumn: boolean
-    roster: RosterPlayer[]
-    picks: TradePickItem[]
-    selectedPlayerIds: Set<string>
-    selectedPickIds: Set<string>
-    onTogglePlayer: (id: string) => void
-    onTogglePick: (id: string) => void
-    emptyText: string
-}) {
-    const selectedCount =
-        roster.filter((rp) => selectedPlayerIds.has(rp.players.id)).length +
-        picks.filter((p) => selectedPickIds.has(p.pickId)).length
-
-    return (
-        <View style={[styles.column, !twoColumn && styles.columnStacked]}>
-            <View style={styles.columnHeader}>
-                <View style={styles.flex1}>
-                    <Text style={[styles.columnTitle, side === 'receive' && styles.columnTitleReceive]}>{title}</Text>
-                    <Text style={styles.columnSubtitle} numberOfLines={1}>{subtitle}</Text>
-                </View>
-                {selectedCount > 0 ? (
-                    <View style={[styles.columnCount, side === 'receive' && styles.columnCountReceive]}>
-                        <Text style={styles.columnCountText}>{selectedCount}</Text>
-                    </View>
-                ) : null}
-            </View>
-
-            {roster.length === 0 ? (
-                <Text style={styles.emptyRowText}>{emptyText}</Text>
-            ) : (
-                roster.map((rp) => (
-                    <PlayerRow
-                        key={rp.id}
-                        player={rp}
-                        selected={selectedPlayerIds.has(rp.players.id)}
-                        onToggle={() => onTogglePlayer(rp.players.id)}
-                    />
-                ))
-            )}
-
-            {picks.length > 0 ? (
-                <>
-                    <Text style={styles.subSectionLabel}>DRAFT PICKS</Text>
-                    {picks.map((pick) => (
-                        <PickRow
-                            key={pick.pickId}
-                            pick={pick}
-                            selected={selectedPickIds.has(pick.pickId)}
-                            onToggle={() => onTogglePick(pick.pickId)}
-                        />
-                    ))}
-                </>
-            ) : null}
-        </View>
-    )
-}
 
 export default function ProposeTradeScreen() {
     const { current, currentLeague } = useLeagueContext()
@@ -211,14 +62,17 @@ export default function ProposeTradeScreen() {
     const twoColumn = width >= breakpoints.roster
     const myTeamName = current?.team_name ?? 'Your team'
 
-    const [members, setMembers] = useState<any[]>([])
+    const [members, setMembers] = useState<TradeComposerMember[]>([])
     const [selectedRecipientId, setSelectedRecipientId] = useState<string | null>(
         params.recipientMemberId ?? null,
     )
+    const [multiTeamMode, setMultiTeamMode] = useState(false)
     const [theirRoster, setTheirRoster] = useState<RosterPlayer[]>([])
     const [myRoster, setMyRoster] = useState<RosterPlayer[]>([])
     const [myPicks, setMyPicks] = useState<TradePickItem[]>([])
     const [theirPicks, setTheirPicks] = useState<TradePickItem[]>([])
+    const [avgMap, setAvgMap] = useState(EMPTY_AVG_MAP)
+    const [avgStatsMap, setAvgStatsMap] = useState(EMPTY_STATS_MAP)
     const [requestIds, setRequestIds] = useState<Set<string>>(new Set())
     const [offerIds, setOfferIds] = useState<Set<string>>(new Set())
     const [offerPickIds, setOfferPickIds] = useState<Set<string>>(new Set())
@@ -242,6 +96,15 @@ export default function ProposeTradeScreen() {
         sourceTradeId,
     } = getTradeComposerMode(params)
     const faabEnabled = currentLeague?.waiver_mode === 'faab'
+    const canUseMultiTeamMode = mode === 'propose'
+    const multiTeam = useMultiTeamTradeComposer({
+        enabled: multiTeamMode,
+        myMemberId,
+        leagueId,
+        myTeamName,
+        members,
+        faabEnabled,
+    })
 
     // Load league members (excluding self)
     useEffect(() => {
@@ -276,9 +139,11 @@ export default function ProposeTradeScreen() {
     const loadRosters = useCallback(async () => {
         const requestId = ++rosterLoadSeqRef.current
         const recipientId = selectedRecipientId
-        if (!recipientId || !leagueId || !myMemberId) {
+        if (multiTeamMode || !recipientId || !leagueId || !myMemberId) {
             setTheirRoster([])
             setTheirPicks([])
+            setAvgMap(EMPTY_AVG_MAP)
+            setAvgStatsMap(EMPTY_STATS_MAP)
             setRosterLoading(false)
             return
         }
@@ -298,12 +163,19 @@ export default function ProposeTradeScreen() {
             if (rosterLoadSeqRef.current !== requestId) return
             const theirActiveRoster = theirData.filter(isTradeableRosterPlayer)
             const myActiveRoster = myData.filter(isTradeableRosterPlayer)
+            const stats = await getRosterStatsMaps(
+                [...theirActiveRoster, ...myActiveRoster].map((player) => player.players.id),
+                leagueId,
+            )
+            if (rosterLoadSeqRef.current !== requestId) return
             const theirActiveIds = new Set(theirActiveRoster.map((player) => player.players.id))
             const myActiveIds = new Set(myActiveRoster.map((player) => player.players.id))
             setTheirRoster(theirActiveRoster)
             setMyRoster(myActiveRoster)
             setTheirPicks(theirPicksData)
             setMyPicks(myPicksData)
+            setAvgMap(stats.avgMap)
+            setAvgStatsMap(stats.avgStatsMap)
             if (prefillTrade && prefillAppliedToRef.current !== prefillTrade.id) {
                 const prefill = prefillTradeComposerFromTrade(mode, prefillTrade)
                 setOfferIds(new Set(prefill.offerPlayerIds.filter((id) => myActiveIds.has(id))))
@@ -332,7 +204,7 @@ export default function ProposeTradeScreen() {
         } finally {
             if (rosterLoadSeqRef.current === requestId) setRosterLoading(false)
         }
-    }, [selectedRecipientId, leagueId, myMemberId, prefillTrade, mode, routeRequestPlayerId, routeRequestPickId])
+    }, [multiTeamMode, selectedRecipientId, leagueId, myMemberId, prefillTrade, mode, routeRequestPlayerId, routeRequestPickId])
 
     useEffect(() => {
         loadRosters()
@@ -374,11 +246,53 @@ export default function ProposeTradeScreen() {
         })
     }
 
+    function toggleMultiTeamMode(enabled: boolean) {
+        if (!canUseMultiTeamMode) return
+        setMultiTeamMode(enabled)
+        setSelectedRecipientId(null)
+        multiTeam.reset()
+        setOfferIds(new Set())
+        setRequestIds(new Set())
+        setOfferPickIds(new Set())
+        setRequestPickIds(new Set())
+    }
+
     async function handleSubmit() {
         if (submittingRef.current) return
+        if (multiTeamMode) {
+            if (isTradingClosed(currentLeague)) {
+                showAlert('Trades Unavailable', 'Trades are locked only from the trade deadline until the champion is finalized.')
+                return
+            }
+            const participantIds = multiTeam.participantIds
+            const items = multiTeam.buildMultiTeamItems(participantIds)
+            if (participantIds.length < 2 || items.length === 0) return
+            submittingRef.current = true
+            setSubmitting(true)
+            try {
+                await submitMultiTeamTradeComposer({
+                    myMemberId,
+                    leagueId,
+                    participantMemberIds: participantIds,
+                    items,
+                    notes,
+                    expirationDays,
+                    leagueStatus: currentLeague?.status,
+                    tradeDeadline: currentLeague?.trade_deadline,
+                }, { getCurrentSeasonId, proposeMultiTeamTrade })
+                showSuccess('Trade Proposed', 'Your multi-team trade offer has been sent.')
+                back()
+            } catch (e) {
+                showAlert('Error', getErrorMessage(e) ?? 'Could not propose trade.')
+            } finally {
+                submittingRef.current = false
+                setSubmitting(false)
+            }
+            return
+        }
         if (!selectedRecipientId) return
         if (isTradingClosed(currentLeague)) {
-            showAlert('Trades Unavailable', 'Trades are available during active and playoff seasons before the trade deadline.')
+            showAlert('Trades Unavailable', 'Trades are locked only from the trade deadline until the champion is finalized.')
             return
         }
         const draft = buildTradeComposerPayload({
@@ -437,13 +351,18 @@ export default function ProposeTradeScreen() {
         tradeDeadline: currentLeague?.trade_deadline,
     })
     const tradingClosed = isTradingClosed(currentLeague)
+    const multiIds = multiTeam.participantIds
+    const multiItems = multiTeamMode ? multiTeam.buildMultiTeamItems(multiIds) : []
+    const activeRosterLoading = multiTeamMode ? multiTeam.rosterLoading : rosterLoading
     const canSubmit =
-        selectedRecipientId !== null &&
-        draft.hasOffer &&
-        draft.hasRequest &&
-        !tradingClosed &&
-        !submitting &&
-        !rosterLoading
+        multiTeamMode
+            ? multiIds.length >= 2 && multiItems.length > 0 && !tradingClosed && !submitting && !activeRosterLoading
+            : selectedRecipientId !== null &&
+                draft.hasOffer &&
+                draft.hasRequest &&
+                !tradingClosed &&
+                !submitting &&
+                !activeRosterLoading
 
     if (!current) {
         return (
@@ -487,23 +406,43 @@ export default function ProposeTradeScreen() {
                 {tradingClosed ? (
                     <View style={styles.lockBanner}>
                         <Text style={styles.lockBannerText}>
-                            Trades are available during active and playoff seasons before the trade deadline.
+                            Trades are locked only from the trade deadline until the champion is finalized.
                         </Text>
                     </View>
                 ) : null}
 
                 {/* Team picker */}
                 <Text style={styles.sectionLabel}>TRADE WITH</Text>
+                {canUseMultiTeamMode ? (
+                    <View style={styles.modeSwitch}>
+                        <Pressable
+                            style={[styles.modeButton, !multiTeamMode && styles.modeButtonActive]}
+                            onPress={() => toggleMultiTeamMode(false)}
+                            accessibilityRole="button"
+                            accessibilityLabel="Use two-team trade mode"
+                        >
+                            <Text style={[styles.modeButtonText, !multiTeamMode && styles.modeButtonTextActive]}>2-Team</Text>
+                        </Pressable>
+                        <Pressable
+                            style={[styles.modeButton, multiTeamMode && styles.modeButtonActive]}
+                            onPress={() => toggleMultiTeamMode(true)}
+                            accessibilityRole="button"
+                            accessibilityLabel="Use multi-team trade mode"
+                        >
+                            <Text style={[styles.modeButtonText, multiTeamMode && styles.modeButtonTextActive]}>Multi-Team</Text>
+                        </Pressable>
+                    </View>
+                ) : null}
                 <View style={styles.teamChips}>
                     {members.map((m) => {
-                        const active = selectedRecipientId === m.id
+                        const active = multiTeamMode ? multiTeam.selectedParticipantIds.has(m.id) : selectedRecipientId === m.id
                         return (
                             <Pressable
                                 key={m.id}
                                 style={[styles.teamChip, active && styles.teamChipActive]}
-                                onPress={() => setSelectedRecipientId(m.id)}
+                                onPress={() => multiTeamMode ? multiTeam.toggleParticipant(m.id) : setSelectedRecipientId(m.id)}
                                 accessibilityRole="button"
-                                accessibilityLabel={`Trade with ${m.team_name ?? 'Unnamed team'}`}
+                                accessibilityLabel={`${active ? 'Remove' : 'Trade with'} ${m.team_name ?? 'Unnamed team'}`}
                             >
                                 <Text
                                     style={[
@@ -518,7 +457,32 @@ export default function ProposeTradeScreen() {
                     })}
                 </View>
 
-                {selectedRecipientId && (
+                {multiTeamMode && multiIds.length >= 2 && (
+                    <MultiTeamTradeBuilder
+                        participantIds={multiIds}
+                        myMemberId={myMemberId}
+                        faabEnabled={faabEnabled}
+                        notes={notes}
+                        expirationDays={expirationDays}
+                        rosterError={multiTeam.rosterError}
+                        participantRosters={multiTeam.participantRosters}
+                        participantPicks={multiTeam.participantPicks}
+                        participantPlayerIds={multiTeam.participantPlayerIds}
+                        participantPickIds={multiTeam.participantPickIds}
+                        participantFaabInputs={multiTeam.participantFaabInputs}
+                        avgMap={multiTeam.avgMap}
+                        avgStatsMap={multiTeam.avgStatsMap}
+                        participantName={multiTeam.participantName}
+                        onRetry={multiTeam.retry}
+                        onTogglePlayer={multiTeam.toggleParticipantPlayer}
+                        onTogglePick={multiTeam.toggleParticipantPick}
+                        onFaabChange={multiTeam.setParticipantFaab}
+                        onNotesChange={setNotes}
+                        onExpirationDaysChange={setExpirationDays}
+                    />
+                )}
+
+                {!multiTeamMode && selectedRecipientId && (
                     rosterError ? (
                         <Pressable
                             style={styles.rosterErrorRow}
@@ -533,13 +497,15 @@ export default function ProposeTradeScreen() {
                             {/* Two-column compare: your team (give) on the left, their
                                 team (receive) on the right. Stacks on narrow viewports. */}
                             <View style={[styles.compareRow, !twoColumn && styles.compareColStack]}>
-                                <TeamColumn
+                                <TradeAssetColumn
                                     title="YOU GIVE"
                                     subtitle={myTeamName}
                                     side="give"
                                     twoColumn={twoColumn}
                                     roster={myRoster}
                                     picks={myPicks}
+                                    avgMap={avgMap}
+                                    avgStatsMap={avgStatsMap}
                                     selectedPlayerIds={offerIds}
                                     selectedPickIds={offerPickIds}
                                     onTogglePlayer={toggleOffer}
@@ -547,13 +513,15 @@ export default function ProposeTradeScreen() {
                                     emptyText="No players on your roster."
                                 />
                                 <View style={twoColumn ? styles.columnDivider : styles.columnDividerH} />
-                                <TeamColumn
+                                <TradeAssetColumn
                                     title="YOU RECEIVE"
                                     subtitle={recipientTeamName}
                                     side="receive"
                                     twoColumn={twoColumn}
                                     roster={theirRoster}
                                     picks={theirPicks}
+                                    avgMap={avgMap}
+                                    avgStatsMap={avgStatsMap}
                                     selectedPlayerIds={requestIds}
                                     selectedPickIds={requestPickIds}
                                     onTogglePlayer={toggleRequest}
@@ -617,7 +585,7 @@ export default function ProposeTradeScreen() {
                     )
                 )}
 
-                {!selectedRecipientId && !loading && (
+                {!selectedRecipientId && !multiTeamMode && !loading && (
                     <EmptyState
                         icon="swap-horiz"
                         message="Pick a team to trade with"
@@ -626,6 +594,15 @@ export default function ProposeTradeScreen() {
                         framed
                     />
                 )}
+                {multiTeamMode && multiIds.length < 2 && !loading ? (
+                    <EmptyState
+                        icon="group-add"
+                        message="Pick at least one more team"
+                        description="Choose teams above, then select the assets each team sends."
+                        fullScreen={false}
+                        framed
+                    />
+                ) : null}
 
                 <View style={{ height: 40 }} />
             </ScrollView>
@@ -694,48 +671,12 @@ const styles = StyleSheet.create({
         paddingTop: spacing['2xl'],
         paddingBottom: spacing.md,
     },
-    subSectionLabel: {
-        fontSize: 10,
-        fontWeight: fontWeight.bold,
-        color: colors.textSecondary,
-        letterSpacing: 0,
-        paddingHorizontal: spacing.xl,
-        paddingTop: spacing.lg,
-        paddingBottom: spacing.sm,
-    },
 
     // Two-column compare layout
     compareRow: { flexDirection: 'row', alignItems: 'flex-start' },
     compareColStack: { flexDirection: 'column' },
-    column: { flex: 1, minWidth: 0 },
-    // flexBasis must stay 'auto': RN-web resolves `flex: 0` to flex-basis 0%,
-    // which collapses the stacked column to zero height and overlaps the panels.
-    columnStacked: { flexGrow: 0, flexShrink: 0, flexBasis: 'auto', width: '100%' },
     columnDivider: { width: 1, alignSelf: 'stretch', backgroundColor: colors.borderLight },
     columnDividerH: { height: 1, backgroundColor: colors.borderLight, marginVertical: spacing.md, marginHorizontal: spacing.xl },
-    columnHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: spacing.md,
-        paddingHorizontal: spacing.xl,
-        paddingTop: spacing['2xl'],
-        paddingBottom: spacing.md,
-    },
-    flex1: { flex: 1, minWidth: 0 },
-    columnTitle: { fontSize: fontSize.sm, fontWeight: fontWeight.extrabold, color: colors.textPrimary, letterSpacing: 0 },
-    columnTitleReceive: { color: colors.primaryDark },
-    columnSubtitle: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: spacing.xxs, fontWeight: fontWeight.semibold },
-    columnCount: {
-        minWidth: 22,
-        height: 22,
-        paddingHorizontal: spacing.sm,
-        borderRadius: radii.full,
-        backgroundColor: uiColors.neutralSolid,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    columnCountReceive: { backgroundColor: colors.primary },
-    columnCountText: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.textWhite },
 
     teamChips: {
         paddingHorizontal: spacing.xl,
@@ -744,6 +685,29 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         flexWrap: 'wrap',
     },
+    modeSwitch: {
+        flexDirection: 'row',
+        gap: spacing.sm,
+        paddingHorizontal: spacing.xl,
+        paddingBottom: spacing.sm,
+    },
+    modeButton: {
+        minHeight: 40,
+        paddingHorizontal: spacing.lg,
+        borderRadius: radii.md,
+        borderCurve: 'continuous' as const,
+        backgroundColor: colors.bgMuted,
+        borderWidth: 1,
+        borderColor: colors.borderLight,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    modeButtonActive: {
+        backgroundColor: colors.primary,
+        borderColor: colors.primary,
+    },
+    modeButtonText: { color: colors.textSecondary, fontSize: fontSize.sm, fontWeight: fontWeight.bold },
+    modeButtonTextActive: { color: colors.textWhite },
     teamChip: {
         paddingHorizontal: 14,
         minHeight: 44,
@@ -756,44 +720,6 @@ const styles = StyleSheet.create({
     teamChipActive: { backgroundColor: colors.primary },
     teamChipText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textSecondary },
     teamChipTextActive: { color: colors.textWhite },
-
-    playerRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: spacing.xl,
-        paddingVertical: spacing.lg,
-        gap: spacing.lg,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.separator,
-    },
-    playerRowSelected: { backgroundColor: colors.primaryLight },
-
-    pickCircle: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        borderCurve: 'continuous' as const,
-        backgroundColor: uiColors.accentPick,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    pickCircleSelected: { backgroundColor: colors.primary },
-    pickCircleText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: 12 },
-
-    playerInfo: { flex: 1 },
-    playerName: { fontSize: 15, fontWeight: fontWeight.semibold, color: colors.textPrimary },
-    playerNameSelected: { color: colors.primaryDark },
-    playerMeta: { fontSize: 12, color: colors.textMuted, marginTop: spacing.xxs },
-    checkBadge: {
-        width: 24,
-        height: 24,
-        borderRadius: 12,
-        borderCurve: 'continuous' as const,
-        backgroundColor: colors.primary,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    checkBadgeText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.lg, lineHeight: 22 },
 
     notesInput: {
         marginHorizontal: spacing.xl,
@@ -836,13 +762,6 @@ const styles = StyleSheet.create({
         fontSize: fontSize.md,
         fontWeight: fontWeight.bold,
         color: colors.textPrimary,
-    },
-
-    emptyRowText: {
-        paddingHorizontal: spacing.xl,
-        paddingVertical: spacing.lg,
-        color: colors.textPlaceholder,
-        fontSize: fontSize.md,
     },
 
     rosterErrorRow: {

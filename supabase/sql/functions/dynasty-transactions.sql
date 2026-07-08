@@ -713,6 +713,9 @@ DECLARE
   v_weekly_add_unlimited boolean;
   v_waiver_mode text;
   v_faab_starting_budget int;
+  v_trade_veto_mode text;
+  v_trade_veto_window_hours int;
+  v_trade_veto_threshold_percent int;
 BEGIN
   IF v_user_id IS NULL THEN
     RAISE EXCEPTION 'Not authenticated.'
@@ -824,6 +827,30 @@ BEGIN
     END IF;
   END IF;
 
+  IF p_settings ? 'trade_veto_mode' AND jsonb_typeof(p_settings -> 'trade_veto_mode') = 'string' THEN
+    v_trade_veto_mode := p_settings ->> 'trade_veto_mode';
+    IF v_trade_veto_mode NOT IN ('disabled', 'commissioner', 'member_vote') THEN
+      RAISE EXCEPTION 'trade_veto_mode must be disabled, commissioner, or member_vote.'
+        USING ERRCODE = '22023';
+    END IF;
+  END IF;
+
+  IF p_settings ? 'trade_veto_window_hours' AND jsonb_typeof(p_settings -> 'trade_veto_window_hours') = 'number' THEN
+    v_trade_veto_window_hours := (p_settings ->> 'trade_veto_window_hours')::int;
+    IF v_trade_veto_window_hours < 0 OR v_trade_veto_window_hours > 168 THEN
+      RAISE EXCEPTION 'trade_veto_window_hours must be between 0 and 168.'
+        USING ERRCODE = '22023';
+    END IF;
+  END IF;
+
+  IF p_settings ? 'trade_veto_threshold_percent' AND jsonb_typeof(p_settings -> 'trade_veto_threshold_percent') = 'number' THEN
+    v_trade_veto_threshold_percent := (p_settings ->> 'trade_veto_threshold_percent')::int;
+    IF v_trade_veto_threshold_percent < 1 OR v_trade_veto_threshold_percent > 100 THEN
+      RAISE EXCEPTION 'trade_veto_threshold_percent must be between 1 and 100.'
+        USING ERRCODE = '22023';
+    END IF;
+  END IF;
+
   v_touches_structural :=
        v_scoring_settings IS NOT NULL
     OR v_roster_size IS NOT NULL
@@ -853,7 +880,10 @@ BEGIN
            ELSE weekly_add_limit
          END,
          waiver_mode = COALESCE(v_waiver_mode, waiver_mode),
-         faab_starting_budget = COALESCE(v_faab_starting_budget, faab_starting_budget)
+         faab_starting_budget = COALESCE(v_faab_starting_budget, faab_starting_budget),
+         trade_veto_mode = COALESCE(v_trade_veto_mode, trade_veto_mode),
+         trade_veto_window_hours = COALESCE(v_trade_veto_window_hours, trade_veto_window_hours),
+         trade_veto_threshold_percent = COALESCE(v_trade_veto_threshold_percent, trade_veto_threshold_percent)
    WHERE id = p_league_id;
 
   IF v_faab_starting_budget IS NOT NULL THEN

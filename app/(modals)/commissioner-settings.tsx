@@ -21,6 +21,7 @@ import {
     updateLeague,
     updateLineupSlots,
     type LeagueSettingsUpdate,
+    type TradeVetoMode,
     type WaiverMode,
 } from '@/lib/league'
 import { advanceSeason } from '@/lib/rookieDraft'
@@ -106,6 +107,9 @@ export default function CommissionerSettingsScreen() {
     const [weeklyAddLimit, setWeeklyAddLimit] = useState('')
     const [waiverMode, setWaiverMode] = useState<WaiverMode>('faab')
     const [faabBudget, setFaabBudget] = useState('')
+    const [tradeVetoMode, setTradeVetoMode] = useState<TradeVetoMode>('member_vote')
+    const [tradeVetoWindowHours, setTradeVetoWindowHours] = useState('')
+    const [tradeVetoThresholdPercent, setTradeVetoThresholdPercent] = useState('')
     const [members, setMembers] = useState<{ id: string; team_name: string | null }[]>([])
     const [overrideMemberId, setOverrideMemberId] = useState<string | null>(null)
     const [overrideFaab, setOverrideFaab] = useState('')
@@ -121,6 +125,9 @@ export default function CommissionerSettingsScreen() {
         weeklyAddLimit: '',
         waiverMode: 'faab' as WaiverMode,
         faabBudget: '',
+        tradeVetoMode: 'member_vote' as TradeVetoMode,
+        tradeVetoWindowHours: '',
+        tradeVetoThresholdPercent: '',
     })
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
@@ -175,6 +182,9 @@ export default function CommissionerSettingsScreen() {
                     weeklyAddLimit: String(league.weekly_add_limit ?? 0),
                     waiverMode: (league.waiver_mode ?? 'faab') as WaiverMode,
                     faabBudget: String(league.faab_starting_budget ?? 100),
+                    tradeVetoMode: (league.trade_veto_mode ?? 'member_vote') as TradeVetoMode,
+                    tradeVetoWindowHours: String(league.trade_veto_window_hours ?? 24),
+                    tradeVetoThresholdPercent: String(league.trade_veto_threshold_percent ?? 50),
                 }
                 setRosterSize(general.rosterSize)
                 setIrSlots(general.irSlots)
@@ -184,6 +194,9 @@ export default function CommissionerSettingsScreen() {
                 setWeeklyAddLimit(general.weeklyAddLimit)
                 setWaiverMode(general.waiverMode)
                 setFaabBudget(general.faabBudget)
+                setTradeVetoMode(general.tradeVetoMode)
+                setTradeVetoWindowHours(general.tradeVetoWindowHours)
+                setTradeVetoThresholdPercent(general.tradeVetoThresholdPercent)
                 setInitialGeneral(general)
                 hydratedLeagueId.current = league.id
             } catch (e) {
@@ -216,6 +229,8 @@ export default function CommissionerSettingsScreen() {
         const parsedPlayoff = parseInt(playoffWeek)
         const parsedWeeklyAddLimit = parseInt(weeklyAddLimit)
         const parsedFaabBudget = parseInt(faabBudget)
+        const parsedVetoWindowHours = parseInt(tradeVetoWindowHours)
+        const parsedVetoThresholdPercent = parseInt(tradeVetoThresholdPercent)
 
         if (isNaN(parsedRoster) || parsedRoster < 1) {
             showAlert('Invalid', 'Roster size must be at least 1.')
@@ -243,6 +258,23 @@ export default function CommissionerSettingsScreen() {
         }
         if (isNaN(parsedFaabBudget) || parsedFaabBudget < 0) {
             showAlert('Invalid', 'FAAB starting budget must be 0 or more.')
+            return
+        }
+        if (!['disabled', 'commissioner', 'member_vote'].includes(tradeVetoMode)) {
+            showAlert('Invalid', 'Choose a valid trade veto mode.')
+            return
+        }
+        if (tradeVetoMode === 'disabled') {
+            if (isNaN(parsedVetoWindowHours) || parsedVetoWindowHours < 0 || parsedVetoWindowHours > 168) {
+                showAlert('Invalid', 'Veto window must be between 0 and 168 hours.')
+                return
+            }
+        } else if (isNaN(parsedVetoWindowHours) || parsedVetoWindowHours < 1 || parsedVetoWindowHours > 168) {
+            showAlert('Invalid', 'Veto window must be between 1 and 168 hours.')
+            return
+        }
+        if (isNaN(parsedVetoThresholdPercent) || parsedVetoThresholdPercent < 1 || parsedVetoThresholdPercent > 100) {
+            showAlert('Invalid', 'Member veto threshold must be between 1% and 100%.')
             return
         }
 
@@ -273,13 +305,28 @@ export default function CommissionerSettingsScreen() {
         }
         if (waiverMode !== initialGeneral.waiverMode) updates.waiver_mode = waiverMode
         if (faabBudget !== initialGeneral.faabBudget) updates.faab_starting_budget = parsedFaabBudget
+        if (tradeVetoMode !== initialGeneral.tradeVetoMode) updates.trade_veto_mode = tradeVetoMode
+        if (tradeVetoWindowHours !== initialGeneral.tradeVetoWindowHours) updates.trade_veto_window_hours = parsedVetoWindowHours
+        if (tradeVetoThresholdPercent !== initialGeneral.tradeVetoThresholdPercent) updates.trade_veto_threshold_percent = parsedVetoThresholdPercent
 
         setSaving(true)
         try {
             if (Object.keys(updates).length > 0) {
                 await updateLeague(league.id, updates)
                 setInitialScoring(scoring)
-                setInitialGeneral({ rosterSize, irSlots, taxiSlots, auctionBudget, playoffWeek, weeklyAddLimit, waiverMode, faabBudget })
+                setInitialGeneral({
+                    rosterSize,
+                    irSlots,
+                    taxiSlots,
+                    auctionBudget,
+                    playoffWeek,
+                    weeklyAddLimit,
+                    waiverMode,
+                    faabBudget,
+                    tradeVetoMode,
+                    tradeVetoWindowHours,
+                    tradeVetoThresholdPercent,
+                })
             }
             if (slotsChanged) {
                 await updateLineupSlots(
@@ -507,6 +554,13 @@ export default function CommissionerSettingsScreen() {
     if (status !== 'offseason') lowerPriorityActions.push(...annualCycleActions)
     if (status === 'playoffs' || status === 'offseason') lowerPriorityActions.push(...scheduleActions)
 
+    const tradeVetoModeDescription =
+        tradeVetoMode === 'disabled'
+            ? 'Accepted trades complete immediately with no veto period.'
+            : tradeVetoMode === 'commissioner'
+              ? 'Accepted trades wait through the window; only commissioners can veto.'
+              : 'Accepted trades wait through the window; non-party member votes can veto at the configured threshold.'
+
     function renderAction(action: CommissionerAction, grid = false) {
         const color = action.color ?? colors.primary
         const accessibilityLabel = action.description ? `${action.label}. ${action.description}` : action.label
@@ -691,6 +745,54 @@ export default function CommissionerSettingsScreen() {
                         </View>
                     </View>
 
+                    <Text style={styles.sectionTitle}>TRADE VETO</Text>
+                    <View style={styles.card}>
+                        <View style={[styles.row, styles.rowBorder]}>
+                            <Text style={styles.rowLabel}>Veto Mode</Text>
+                            <View style={styles.segmentRow}>
+                                {([
+                                    { value: 'member_vote', label: 'Members' },
+                                    { value: 'commissioner', label: 'Commish' },
+                                    { value: 'disabled', label: 'Off' },
+                                ] as { value: TradeVetoMode; label: string }[]).map((mode) => {
+                                    const active = tradeVetoMode === mode.value
+                                    return (
+                                        <Pressable
+                                            key={mode.value}
+                                            style={[styles.segmentButton, active && styles.segmentButtonActive]}
+                                            onPress={() => setTradeVetoMode(mode.value)}
+                                        >
+                                            <Text style={[styles.segmentButtonText, active && styles.segmentButtonTextActive]}>
+                                                {mode.label}
+                                            </Text>
+                                        </Pressable>
+                                    )
+                                })}
+                            </View>
+                        </View>
+                        <Text style={styles.settingHint}>{tradeVetoModeDescription}</Text>
+                        <View style={[styles.row, styles.rowBorder]}>
+                            <Text style={styles.rowLabel}>Veto Window Hours</Text>
+                            <TextInput
+                                style={styles.scoreInput}
+                                value={tradeVetoWindowHours}
+                                onChangeText={setTradeVetoWindowHours}
+                                keyboardType="numeric"
+                                selectTextOnFocus
+                            />
+                        </View>
+                        <View style={styles.row}>
+                            <Text style={styles.rowLabel}>Member Threshold %</Text>
+                            <TextInput
+                                style={styles.scoreInput}
+                                value={tradeVetoThresholdPercent}
+                                onChangeText={setTradeVetoThresholdPercent}
+                                keyboardType="numeric"
+                                selectTextOnFocus
+                            />
+                        </View>
+                    </View>
+
                     <Text style={styles.sectionTitle}>TRANSACTION OVERRIDES</Text>
                     <View style={styles.card}>
                         <View style={styles.memberChipRow}>
@@ -854,6 +956,15 @@ const styles = StyleSheet.create({
     row: { minHeight: 44, flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.xl, paddingVertical: spacing.lg },
     rowBorder: { borderBottomWidth: 1, borderBottomColor: colors.separator },
     rowLabel: { flex: 1, fontSize: 15, color: colors.textPrimary },
+    settingHint: {
+        paddingHorizontal: spacing.xl,
+        paddingVertical: spacing.md,
+        borderBottomWidth: 1,
+        borderBottomColor: colors.separator,
+        fontSize: fontSize.sm,
+        lineHeight: 18,
+        color: colors.textMuted,
+    },
 
     scoreInput: {
         width: 72,

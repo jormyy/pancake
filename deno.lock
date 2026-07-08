@@ -35,6 +35,7 @@
         "npm:expo-device@~8.0.10",
         "npm:expo-font@~14.0.11",
         "npm:expo-haptics@~15.0.8",
+        "npm:expo-image-picker@~17.0.11",
         "npm:expo-linking@~8.0.12",
         "npm:expo-notifications@~0.32.17",
         "npm:expo-router@~6.0.23",

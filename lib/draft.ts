@@ -35,6 +35,15 @@ export type Nomination = {
     } | null
 }
 
+export type AuctionBid = {
+    id: string
+    nominationId: string
+    memberId: string
+    teamName: string
+    amount: number
+    placedAt: string
+}
+
 export const NOMINATION_ORDER_MODES = ['user_nominated', 'by_projection', 'alphabetical'] as const
 export type NominationOrderMode = (typeof NOMINATION_ORDER_MODES)[number]
 export const ROOKIE_TIMER_EXPIRY_BEHAVIORS = ['auto_pick', 'skip_pick', 'pause_draft', 'commissioner_pick'] as const
@@ -86,6 +95,7 @@ export type DraftState = {
     order: DraftOrderEntry[]
     budgets: DraftBudget[]
     nominations: Nomination[]
+    activeBids: AuctionBid[]
     openNomination: Nomination | null
     currentNominatorMemberId: string | null
 }
@@ -292,6 +302,24 @@ export async function getDraftState(draftId: string): Promise<DraftState | null>
     }))
 
     const openNomination = mappedNominations.find((n) => n.status === 'open') ?? null
+    let activeBids: AuctionBid[] = []
+    if (openNomination) {
+        const { data: bids, error: bidsError } = await supabase
+            .from('bids')
+            .select('id, nomination_id, member_id, amount, placed_at, league_members(team_name)')
+            .eq('nomination_id', openNomination.id)
+            .order('placed_at', { ascending: false })
+
+        if (bidsError) throw bidsError
+        activeBids = (bids ?? []).map((bid) => ({
+            id: bid.id,
+            nominationId: bid.nomination_id,
+            memberId: bid.member_id,
+            teamName: (bid.league_members as { team_name: string } | null)?.team_name ?? 'Unknown',
+            amount: bid.amount,
+            placedAt: bid.placed_at,
+        }))
+    }
 
     const numManagers = mappedOrder.length
     let currentNominatorMemberId: string | null = null
@@ -305,6 +333,7 @@ export async function getDraftState(draftId: string): Promise<DraftState | null>
         order: mappedOrder,
         budgets: mappedBudgets,
         nominations: mappedNominations,
+        activeBids,
         openNomination,
         currentNominatorMemberId,
     }

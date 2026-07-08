@@ -287,6 +287,9 @@ DECLARE
   v_budget draft_budgets%ROWTYPE;
   v_roster_size int;
   v_active_roster_count int;
+  v_required_reserve int := 0;
+  v_next_bid int;
+  v_can_outbid_exists boolean := true;
 BEGIN
   IF p_amount IS NULL OR p_amount < 1 THEN
     RAISE EXCEPTION 'Bid amount must be a positive integer';
@@ -407,6 +410,12 @@ BEGIN
     IF v_active_roster_count >= v_roster_size THEN
       RAISE EXCEPTION 'Your active roster is full (%)', v_roster_size;
     END IF;
+
+    v_required_reserve := GREATEST(v_roster_size - v_active_roster_count - 1, 0);
+    IF v_budget.remaining < p_amount + v_required_reserve THEN
+      RAISE EXCEPTION 'Bid must leave at least $1 for each remaining active roster slot.'
+        USING ERRCODE = 'P0001';
+    END IF;
   END IF;
 
   UPDATE nominations
@@ -417,6 +426,40 @@ BEGIN
 
   INSERT INTO bids (nomination_id, member_id, amount)
   VALUES (p_nomination_id, p_member_id, p_amount);
+
+  IF NOT v_draft.is_mock THEN
+    v_next_bid := p_amount + 1;
+    SELECT EXISTS (
+      SELECT 1
+        FROM draft_budgets AS budget
+        JOIN league_members AS member
+          ON member.id = budget.member_id
+         AND member.league_id = v_draft.league_id
+        CROSS JOIN LATERAL (
+          SELECT count(*)::int AS active_count
+            FROM roster_players AS rostered
+           WHERE rostered.league_id = v_draft.league_id
+             AND rostered.league_season_id = v_draft.league_season_id
+             AND rostered.member_id = member.id
+             AND COALESCE(rostered.is_on_ir, false) = false
+             AND COALESCE(rostered.is_on_taxi, false) = false
+        ) AS roster
+       WHERE budget.draft_id = p_draft_id
+         AND budget.member_id <> p_member_id
+         AND roster.active_count < v_roster_size
+         AND budget.remaining >= v_next_bid + GREATEST(v_roster_size - roster.active_count - 1, 0)
+    )
+      INTO v_can_outbid_exists;
+
+    IF NOT v_can_outbid_exists THEN
+      UPDATE nominations
+         SET countdown_expires_at = now() - interval '1 millisecond'
+       WHERE id = p_nomination_id
+         AND status = 'open'::nomination_status;
+
+      PERFORM public.close_auction_nomination_atomic(p_nomination_id);
+    END IF;
+  END IF;
 END;
 $$;
 

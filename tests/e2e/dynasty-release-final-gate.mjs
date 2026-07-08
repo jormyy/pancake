@@ -455,6 +455,10 @@ async function main() {
       tieBidPlayer,
       expiredTradePlayer,
       reservedEditClaimPlayer,
+      zeroBidPlayer,
+      multiTradePlayerA,
+      multiTradePlayerB,
+      multiTradePlayerC,
     ] = fixture.players
 
     await step('commissioner settings', 'weekly add limit, FAAB mode, budget, and state RPC', async () => {
@@ -659,21 +663,46 @@ async function main() {
       if (tieLoserDueError) throw new Error(`tie loser due update: ${tieLoserDueError.message}`)
       await processWaiversUntil(admin, [tieWinner.id, tieLoser.id])
 
+      const zeroBidLogId = await createWaiverLog(admin, fixture.league.id, fixture.season.id, zeroBidPlayer.id)
+      await apiPost(env, managerThree.session.token, '/waivers/claims', {
+        memberId: managerThree.id,
+        leagueId: fixture.league.id,
+        playerId: zeroBidPlayer.id,
+        bidAmount: 0,
+      })
+      const zeroBidClaim = await findClaim(admin, managerThree.id, zeroBidPlayer.id)
+      assertCondition(zeroBidClaim.bid_amount === 0, `zero bid claim stored bid=${zeroBidClaim.bid_amount}`)
+      await makeClaimDue(admin, zeroBidClaim.id, zeroBidLogId)
+      await processWaiversUntil(admin, [zeroBidClaim.id])
+
       const highWinnerRow = await findClaim(admin, managerThree.id, highBidPlayer.id)
       const highLoserRow = await findClaim(admin, managerFour.id, highBidPlayer.id)
       const tieWinnerRow = await findClaim(admin, managerFour.id, tieBidPlayer.id)
       const tieLoserRow = await findClaim(admin, managerThree.id, tieBidPlayer.id)
+      const zeroBidRow = await findClaim(admin, managerThree.id, zeroBidPlayer.id)
       assertCondition(highWinnerRow.status === 'succeeded', `high bid winner status=${highWinnerRow.status}`)
       assertCondition(highLoserRow.status === 'failed_priority', `high bid loser status=${highLoserRow.status}`)
       assertCondition(tieWinnerRow.status === 'succeeded', `tie winner status=${tieWinnerRow.status}`)
       assertCondition(tieLoserRow.status === 'failed_priority', `tie loser status=${tieLoserRow.status}`)
+      assertCondition(zeroBidRow.status === 'succeeded', `zero bid status=${zeroBidRow.status}`)
       assertCondition(await rosterHas(admin, fixture.league.id, fixture.season.id, managerThree.id, highBidPlayer.id), 'high bid winner did not roster player')
       assertCondition(await rosterHas(admin, fixture.league.id, fixture.season.id, managerFour.id, tieBidPlayer.id), 'tie winner did not roster player')
+      assertCondition(await rosterHas(admin, fixture.league.id, fixture.season.id, managerThree.id, zeroBidPlayer.id), 'zero bid winner did not roster player')
+      const { data: zeroBidActivity, error: zeroBidActivityError } = await admin
+        .from('league_activity')
+        .select('id, event_type, body, metadata')
+        .eq('related_claim_id', zeroBidClaim.id)
+        .eq('event_type', 'faab_bid_won')
+        .maybeSingle()
+      if (zeroBidActivityError) throw new Error(`zero bid activity lookup: ${zeroBidActivityError.message}`)
+      assertCondition(Boolean(zeroBidActivity), 'zero bid win did not write FAAB history')
+      assertCondition(Number(zeroBidActivity?.metadata?.bid_amount ?? -1) === 0, `zero bid activity metadata=${JSON.stringify(zeroBidActivity?.metadata)}`)
+      assertCondition(String(zeroBidActivity?.body ?? '').includes('$0'), `zero bid activity body=${zeroBidActivity?.body}`)
       const managerThreeBalance = await getBalance(admin, fixture.league.id, fixture.season.id, managerThree.id)
       const managerFourBalance = await getBalance(admin, fixture.league.id, fixture.season.id, managerFour.id)
       assertCondition(managerThreeBalance === 70, `managerThree FAAB=${managerThreeBalance}; expected 70`)
       assertCondition(managerFourBalance === 89, `managerFour FAAB=${managerFourBalance}; expected 89`)
-      return 'bid $30 beat $20; equal $11 bids used waiver-priority tiebreaker; balances are $70 and $89'
+      return 'bid $30 beat $20; equal $11 bids used waiver-priority tiebreaker; $0 bid processed with history; balances are $70 and $89'
     })
 
     await step('commissioner controls', 'FAAB balance adjustment and weekly count override', async () => {
@@ -865,6 +894,114 @@ async function main() {
       assertCondition(managerThreeBalance === 60, `managerThree balance after trade=${managerThreeBalance}; expected 60`)
       assertCondition(managerFourBalance === 99, `managerFour balance after trade=${managerFourBalance}; expected 99`)
       return `block item ${block.tradeBlockItemId} produced trade ${makeOffer.tradeId}; reserved drop edit rejected with "${reservedEditMessage}"; claim log ${reservedEditLogId}`
+    })
+
+    await step('multi-team trades', 'three-team routed player, pick, and FAAB trade completes atomically', async () => {
+      const { error: rosterSeedError } = await admin
+        .from('roster_players')
+        .insert([
+          {
+            member_id: commissioner.id,
+            league_id: fixture.league.id,
+            league_season_id: fixture.season.id,
+            player_id: multiTradePlayerA.id,
+            acquired_via: 'e2e_release_gate',
+          },
+          {
+            member_id: managerTwo.id,
+            league_id: fixture.league.id,
+            league_season_id: fixture.season.id,
+            player_id: multiTradePlayerB.id,
+            acquired_via: 'e2e_release_gate',
+          },
+          {
+            member_id: managerThree.id,
+            league_id: fixture.league.id,
+            league_season_id: fixture.season.id,
+            player_id: multiTradePlayerC.id,
+            acquired_via: 'e2e_release_gate',
+          },
+        ])
+      if (rosterSeedError) throw new Error(`multi-team roster seed: ${rosterSeedError.message}`)
+
+      const { data: managerTwoPick, error: pickError } = await admin
+        .from('draft_picks')
+        .select('id, current_owner_id')
+        .eq('league_id', fixture.league.id)
+        .eq('current_owner_id', managerTwo.id)
+        .eq('is_used', false)
+        .order('season_year', { ascending: true })
+        .order('round', { ascending: true })
+        .limit(1)
+        .single()
+      if (pickError) throw new Error(`multi-team pick lookup: ${pickError.message}`)
+
+      const beforeCommissionerFaab = await getBalance(admin, fixture.league.id, fixture.season.id, commissioner.id)
+      const beforeManagerTwoFaab = await getBalance(admin, fixture.league.id, fixture.season.id, managerTwo.id)
+      const beforeManagerThreeFaab = await getBalance(admin, fixture.league.id, fixture.season.id, managerThree.id)
+      const proposed = await apiPost(env, commissioner.session.token, '/trades/propose-multi', {
+        memberId: commissioner.id,
+        leagueId: fixture.league.id,
+        leagueSeasonId: fixture.season.id,
+        participantMemberIds: [commissioner.id, managerTwo.id, managerThree.id],
+        items: [
+          { fromMemberId: commissioner.id, toMemberId: managerTwo.id, playerId: multiTradePlayerA.id },
+          { fromMemberId: commissioner.id, toMemberId: managerTwo.id, faabAmount: 2 },
+          { fromMemberId: managerTwo.id, toMemberId: managerThree.id, playerId: multiTradePlayerB.id },
+          { fromMemberId: managerTwo.id, toMemberId: managerThree.id, pickId: managerTwoPick.id },
+          { fromMemberId: managerThree.id, toMemberId: commissioner.id, playerId: multiTradePlayerC.id },
+          { fromMemberId: managerThree.id, toMemberId: commissioner.id, faabAmount: 4 },
+        ],
+        notes: 'release gate three-team trade',
+      })
+
+      await apiPost(env, managerTwo.session.token, `/trades/${proposed.tradeId}/accept`, {
+        memberId: managerTwo.id,
+        dropRosterPlayerIds: [],
+      })
+      const midTrade = await fetchTrade(admin, proposed.tradeId)
+      assertCondition(midTrade.status === 'pending', `multi-team mid status=${midTrade.status}`)
+
+      await apiPost(env, managerThree.session.token, `/trades/${proposed.tradeId}/accept`, {
+        memberId: managerThree.id,
+        dropRosterPlayerIds: [],
+      })
+      const acceptedTrade = await fetchTrade(admin, proposed.tradeId)
+      assertCondition(acceptedTrade.status === 'accepted', `multi-team accepted status=${acceptedTrade.status}`)
+
+      const { data: participants, error: participantError } = await admin
+        .from('trade_participants')
+        .select('member_id, accepted_at')
+        .eq('trade_id', proposed.tradeId)
+      if (participantError) throw new Error(`multi-team participants lookup: ${participantError.message}`)
+      assertCondition((participants ?? []).length === 3, `participant rows=${(participants ?? []).length}; expected 3`)
+      assertCondition((participants ?? []).every((row) => row.accepted_at), 'not every participant accepted')
+
+      const { error: windowError } = await admin
+        .from('trades')
+        .update({ veto_window_expires_at: pastIso() })
+        .eq('id', proposed.tradeId)
+      if (windowError) throw new Error(`multi-team veto window update: ${windowError.message}`)
+      const { error: processError } = await admin.rpc('process_due_accepted_trades_atomic', { p_limit: 20 })
+      if (processError) throw new Error(`multi-team process_due_accepted_trades_atomic: ${processError.message}`)
+
+      const completedTrade = await fetchTrade(admin, proposed.tradeId)
+      const { data: movedPick, error: movedPickError } = await admin
+        .from('draft_picks')
+        .select('current_owner_id')
+        .eq('id', managerTwoPick.id)
+        .single()
+      if (movedPickError) throw new Error(`multi-team moved pick lookup: ${movedPickError.message}`)
+
+      assertCondition(completedTrade.status === 'completed', `multi-team completed status=${completedTrade.status}`)
+      assertCondition(await rosterHas(admin, fixture.league.id, fixture.season.id, managerTwo.id, multiTradePlayerA.id), 'commissioner player did not move to manager two')
+      assertCondition(await rosterHas(admin, fixture.league.id, fixture.season.id, managerThree.id, multiTradePlayerB.id), 'manager two player did not move to manager three')
+      assertCondition(await rosterHas(admin, fixture.league.id, fixture.season.id, commissioner.id, multiTradePlayerC.id), 'manager three player did not move to commissioner')
+      assertCondition(movedPick.current_owner_id === managerThree.id, `multi-team pick owner=${movedPick.current_owner_id}`)
+      assertCondition(await getBalance(admin, fixture.league.id, fixture.season.id, commissioner.id) === beforeCommissionerFaab + 2, 'commissioner FAAB net did not match')
+      assertCondition(await getBalance(admin, fixture.league.id, fixture.season.id, managerTwo.id) === beforeManagerTwoFaab + 2, 'manager two FAAB net did not match')
+      assertCondition(await getBalance(admin, fixture.league.id, fixture.season.id, managerThree.id) === beforeManagerThreeFaab - 4, 'manager three FAAB net did not match')
+      return `completed trade ${proposed.tradeId} with 3 participants, routed players, one pick, and net FAAB movement`
     })
 
     await step('notification preferences', 'authenticated user can persist own preference toggles only', async () => {

@@ -2,16 +2,20 @@ import { View, Text, StyleSheet } from 'react-native'
 import { useState } from 'react'
 import { useRouter } from 'expo-router'
 import { TRADE_STATUS_COLORS, colors, fontSize, fontWeight, radii, spacing, uiColors } from '@/constants/tokens'
-import { Trade, TradeItem, acceptTrade, rejectTrade, vetoTrade, withdrawTrade } from '@/lib/trades'
+import { Trade, TradeItem, acceptTrade, needsMemberAcceptance, rejectTrade, vetoTrade, withdrawTrade } from '@/lib/trades'
 import { getRoster, RosterPlayer } from '@/lib/roster'
 import { DropPlayerPickerModal } from '@/components/DropPlayerPickerModal'
 import { showAlert, confirmAction, getErrorMessage } from '@/lib/alert'
 import { MotionPressable, MotionView } from '@/components/Motion'
 import { Avatar } from '@/components/Avatar'
 import { playerHeadshotUrl } from '@/lib/format'
-import { getPositionColor } from '@/constants/positions'
+import { playerEligiblePositions, playerSeasonContextText } from '@/lib/player-context'
+import { PosTag } from '@/components/PosTag'
+import { Badge } from '@/components/Badge'
+import { INJURY_COLORS } from '@/constants/tokens'
 
 export type TabKey = 'picks' | 'offers' | 'history' | 'block'
+type TradeVetoMode = 'disabled' | 'commissioner' | 'member_vote'
 
 const STATUS_LABELS: Record<string, string> = {
     pending: 'Pending',
@@ -29,6 +33,7 @@ const STATUS_COLORS = TRADE_STATUS_COLORS
 
 function TradeItemLine({ item }: { item: TradeItem }) {
     if (item.kind === 'player') {
+        const positions = playerEligiblePositions(item)
         return (
             <View style={styles.assetPlayerRow}>
                 <Avatar
@@ -40,12 +45,26 @@ function TradeItemLine({ item }: { item: TradeItem }) {
                 />
                 <View style={styles.assetPlayerCopy}>
                     <Text style={styles.assetPlayer} numberOfLines={1}>{item.playerName}</Text>
-                    <Text style={styles.assetPlayerMeta} numberOfLines={1}>
-                        {[item.nbaTeam, item.position].filter(Boolean).join(' · ')}
+                    <View style={styles.assetPlayerMetaRow}>
+                        {item.nbaTeam ? <Text style={styles.assetPlayerMeta}>{item.nbaTeam}</Text> : null}
+                        {positions.map((pos) => <PosTag key={pos} position={pos} />)}
+                        {item.injuryStatus ? (
+                            <Badge
+                                label={item.injuryStatus}
+                                color={INJURY_COLORS[item.injuryStatus] ?? colors.textMuted}
+                                variant="solid"
+                            />
+                        ) : null}
+                    </View>
+                    <Text style={styles.assetPlayerContext} numberOfLines={1}>
+                        {playerSeasonContextText(item)}
                     </Text>
                 </View>
             </View>
         )
+    }
+    if (item.kind === 'faab') {
+        return <Text style={styles.assetPlayer}>FAAB ${item.amount}</Text>
     }
     return (
         <Text style={styles.assetPick}>
@@ -56,15 +75,20 @@ function TradeItemLine({ item }: { item: TradeItem }) {
 }
 
 function AssetList({ items, label }: { items: TradeItem[]; label: string }) {
+    const keyForItem = (item: TradeItem, index: number) => {
+        if (item.kind === 'player') return `player:${item.playerId}:${index}`
+        if (item.kind === 'pick') return `pick:${item.pickId}:${index}`
+        return `faab:${item.fromMemberId ?? 'from'}:${item.toMemberId ?? 'to'}:${item.amount}:${index}`
+    }
     return (
         <View style={styles.assetBlock}>
             <Text style={styles.assetLabel}>{label}</Text>
             {items.length === 0 ? (
                 <Text style={styles.assetEmpty}>Nothing</Text>
             ) : (
-                items.map((item) => (
+                items.map((item, index) => (
                     <TradeItemLine
-                        key={item.kind === 'player' ? item.playerId : item.pickId}
+                        key={keyForItem(item, index)}
                         item={item}
                     />
                 ))
@@ -79,6 +103,8 @@ export function TradeCard({
     leagueId,
     rosterSize,
     tab,
+    tradeVetoMode = 'member_vote',
+    isCommissioner = false,
     onAction,
 }: {
     trade: Trade
@@ -86,22 +112,32 @@ export function TradeCard({
     leagueId: string
     rosterSize: number
     tab: TabKey
+    tradeVetoMode?: TradeVetoMode
+    isCommissioner?: boolean
     onAction: () => void
 }) {
     const { push } = useRouter()
     const isProposer = trade.proposerMemberId === myMemberId
     const isRecipient = trade.recipientMemberId === myMemberId
-    const isTradeParty = isProposer || isRecipient
-    const opponentName = isProposer
+    const isMultiParticipant = trade.participants.some((participant) => participant.memberId === myMemberId)
+    const isTradeParty = isProposer || isRecipient || isMultiParticipant
+    const participantNames = trade.participants.map((participant) => participant.teamName).join(' / ')
+    const opponentName = trade.isMultiTeam && participantNames
+        ? participantNames
+        : isProposer
         ? trade.recipientTeamName
         : isRecipient
             ? trade.proposerTeamName
             : `${trade.proposerTeamName} vs ${trade.recipientTeamName}`
 
-    const iReceive = isProposer ? trade.recipientGives : trade.proposerGives
-    const iGive = isProposer ? trade.proposerGives : trade.recipientGives
-    const iReceiveFaab = isProposer ? trade.recipientFaabAmount : trade.proposerFaabAmount
-    const iGiveFaab = isProposer ? trade.proposerFaabAmount : trade.recipientFaabAmount
+    const iReceive = trade.isMultiTeam
+        ? trade.routedItems.filter((item) => item.toMemberId === myMemberId)
+        : isProposer ? trade.recipientGives : trade.proposerGives
+    const iGive = trade.isMultiTeam
+        ? trade.routedItems.filter((item) => item.fromMemberId === myMemberId)
+        : isProposer ? trade.proposerGives : trade.recipientGives
+    const iReceiveFaab = trade.isMultiTeam ? 0 : isProposer ? trade.recipientFaabAmount : trade.proposerFaabAmount
+    const iGiveFaab = trade.isMultiTeam ? 0 : isProposer ? trade.proposerFaabAmount : trade.recipientFaabAmount
     const receiveLabel = isTradeParty
         ? 'You receive:'
         : `${trade.recipientTeamName} receives:`
@@ -110,8 +146,15 @@ export function TradeCard({
         : `${trade.proposerTeamName} receives:`
 
     const statusStyle = STATUS_COLORS[trade.status] ?? STATUS_COLORS.pending
-    const canVeto = tab === 'offers' && !isTradeParty && trade.status === 'accepted' && !trade.myVetoed
-    const alreadyVetoed = tab === 'offers' && !isTradeParty && trade.status === 'accepted' && trade.myVetoed
+    const canVetoBySettings =
+        tradeVetoMode === 'member_vote' ||
+        (tradeVetoMode === 'commissioner' && isCommissioner)
+    const canVeto = tab === 'offers' && !isTradeParty && trade.status === 'accepted' && !trade.myVetoed && canVetoBySettings
+    const alreadyVetoed = tab === 'offers' && !isTradeParty && trade.status === 'accepted' && trade.myVetoed && canVetoBySettings
+    const canRespond = tab === 'offers' && needsMemberAcceptance(trade, myMemberId)
+    const participantAcceptanceText = trade.isMultiTeam
+        ? `${trade.participants.filter((participant) => participant.acceptedAt != null).length}/${trade.participants.length} teams accepted`
+        : null
     const vetoWindowText = trade.status === 'accepted' && trade.vetoWindowExpiresAt
         ? `Veto window closes ${new Date(trade.vetoWindowExpiresAt).toLocaleString([], {
             month: 'short',
@@ -263,6 +306,7 @@ export function TradeCard({
             {vetoWindowText ? <Text style={styles.vetoWindowText}>{vetoWindowText}</Text> : null}
             {expiresText ? <Text style={styles.vetoWindowText}>{expiresText}</Text> : null}
             {trade.version > 1 ? <Text style={styles.vetoWindowText}>Version {trade.version}</Text> : null}
+            {participantAcceptanceText ? <Text style={styles.vetoWindowText}>{participantAcceptanceText}</Text> : null}
             {alreadyVetoed ? <Text style={styles.vetoWindowText}>Your veto has been recorded.</Text> : null}
 
             <AssetList items={iReceive} label={receiveLabel} />
@@ -272,7 +316,7 @@ export function TradeCard({
 
             {trade.notes ? <Text style={styles.cardNotes}>{trade.notes}</Text> : null}
 
-            {tab === 'offers' && !isProposer && trade.status === 'pending' && (
+            {canRespond && (
                 <View style={styles.cardActions}>
                     <MotionPressable
                         style={[styles.actionBtn, styles.actionBtnAccept]}
@@ -294,30 +338,34 @@ export function TradeCard({
                     >
                         <Text style={styles.actionBtnRejectText}>Reject</Text>
                     </MotionPressable>
-                    <MotionPressable
-                        style={[styles.actionBtn, styles.actionBtnReject]}
-                        onPress={() => push({ pathname: '/(modals)/propose-trade', params: { counterTradeId: trade.id } })}
-                        disabled={acting}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Counter trade with ${opponentName}`}
-                        pressedScale={0.94}
-                    >
-                        <Text style={styles.actionBtnRejectText}>Counter</Text>
-                    </MotionPressable>
+                    {!trade.isMultiTeam ? (
+                        <MotionPressable
+                            style={[styles.actionBtn, styles.actionBtnReject]}
+                            onPress={() => push({ pathname: '/(modals)/propose-trade', params: { counterTradeId: trade.id } })}
+                            disabled={acting}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Counter trade with ${opponentName}`}
+                            pressedScale={0.94}
+                        >
+                            <Text style={styles.actionBtnRejectText}>Counter</Text>
+                        </MotionPressable>
+                    ) : null}
                 </View>
             )}
             {tab === 'offers' && isProposer && trade.status === 'pending' && (
                 <View style={styles.cardActions}>
-                    <MotionPressable
-                        style={[styles.actionBtn, styles.actionBtnAccept]}
-                        onPress={() => push({ pathname: '/(modals)/propose-trade', params: { editTradeId: trade.id } })}
-                        disabled={acting}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Edit trade with ${opponentName}`}
-                        pressedScale={0.94}
-                    >
-                        <Text style={styles.actionBtnAcceptText}>Edit</Text>
-                    </MotionPressable>
+                    {!trade.isMultiTeam ? (
+                        <MotionPressable
+                            style={[styles.actionBtn, styles.actionBtnAccept]}
+                            onPress={() => push({ pathname: '/(modals)/propose-trade', params: { editTradeId: trade.id } })}
+                            disabled={acting}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Edit trade with ${opponentName}`}
+                            pressedScale={0.94}
+                        >
+                            <Text style={styles.actionBtnAcceptText}>Edit</Text>
+                        </MotionPressable>
+                    ) : null}
                     <MotionPressable
                         style={[styles.actionBtn, styles.actionBtnReject]}
                         onPress={handleWithdraw}
@@ -389,10 +437,12 @@ const styles = StyleSheet.create({
     assetBlock: { marginBottom: spacing.xs },
     assetLabel: { fontSize: 12, fontWeight: fontWeight.semibold, color: colors.textPrimary, marginBottom: spacing.xxs },
     assetEmpty: { fontSize: fontSize.sm, color: colors.textPlaceholder },
-    assetPlayerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: 2 },
+    assetPlayerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.xs },
     assetPlayerCopy: { flex: 1, minWidth: 0 },
     assetPlayer: { fontSize: fontSize.sm, color: colors.textSecondary },
     assetPlayerMeta: { fontSize: fontSize.xs, color: colors.textMuted },
+    assetPlayerMetaRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 4, marginTop: 1 },
+    assetPlayerContext: { fontSize: fontSize.xs, color: colors.primaryDark, fontWeight: fontWeight.bold, marginTop: 1 },
     assetPick: { fontSize: fontSize.sm, color: colors.textSecondary, fontStyle: 'italic' },
     assetPickVia: { fontSize: 12, color: colors.textMuted },
 

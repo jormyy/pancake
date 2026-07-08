@@ -1131,6 +1131,9 @@ export type Database = {
           status: Database["public"]["Enums"]["league_status"]
           taxi_slots: number
           trade_deadline: string | null
+          trade_veto_mode: string
+          trade_veto_threshold_percent: number
+          trade_veto_window_hours: number
           updated_at: string
           waiver_mode: string
           weekly_add_limit: number | null
@@ -1153,6 +1156,9 @@ export type Database = {
           status?: Database["public"]["Enums"]["league_status"]
           taxi_slots?: number
           trade_deadline?: string | null
+          trade_veto_mode?: string
+          trade_veto_threshold_percent?: number
+          trade_veto_window_hours?: number
           updated_at?: string
           waiver_mode?: string
           weekly_add_limit?: number | null
@@ -1175,6 +1181,9 @@ export type Database = {
           status?: Database["public"]["Enums"]["league_status"]
           taxi_slots?: number
           trade_deadline?: string | null
+          trade_veto_mode?: string
+          trade_veto_threshold_percent?: number
+          trade_veto_window_hours?: number
           updated_at?: string
           waiver_mode?: string
           weekly_add_limit?: number | null
@@ -2610,29 +2619,55 @@ export type Database = {
       trade_items: {
         Row: {
           created_at: string
+          faab_amount: number
+          from_member_id: string | null
           id: string
+          league_id: string
           pick_id: string | null
           player_id: string | null
           side: Database["public"]["Enums"]["trade_side"]
+          to_member_id: string | null
           trade_id: string
         }
         Insert: {
           created_at?: string
+          faab_amount?: number
+          from_member_id?: string | null
           id?: string
+          league_id?: string
           pick_id?: string | null
           player_id?: string | null
           side: Database["public"]["Enums"]["trade_side"]
+          to_member_id?: string | null
           trade_id: string
         }
         Update: {
           created_at?: string
+          faab_amount?: number
+          from_member_id?: string | null
           id?: string
+          league_id?: string
           pick_id?: string | null
           player_id?: string | null
           side?: Database["public"]["Enums"]["trade_side"]
+          to_member_id?: string | null
           trade_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "trade_items_from_member_id_fkey"
+            columns: ["from_member_id"]
+            isOneToOne: false
+            referencedRelation: "league_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trade_items_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "leagues"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "trade_items_pick_id_fkey"
             columns: ["pick_id"]
@@ -2648,7 +2683,66 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "trade_items_to_member_id_fkey"
+            columns: ["to_member_id"]
+            isOneToOne: false
+            referencedRelation: "league_members"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "trade_items_trade_id_fkey"
+            columns: ["trade_id"]
+            isOneToOne: false
+            referencedRelation: "trades"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      trade_participants: {
+        Row: {
+          accepted_at: string | null
+          created_at: string
+          is_initiator: boolean
+          league_id: string
+          member_id: string
+          sort_order: number
+          trade_id: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          created_at?: string
+          is_initiator?: boolean
+          league_id?: string
+          member_id: string
+          sort_order?: number
+          trade_id: string
+        }
+        Update: {
+          accepted_at?: string | null
+          created_at?: string
+          is_initiator?: boolean
+          league_id?: string
+          member_id?: string
+          sort_order?: number
+          trade_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trade_participants_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "leagues"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trade_participants_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "league_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trade_participants_trade_id_fkey"
             columns: ["trade_id"]
             isOneToOne: false
             referencedRelation: "trades"
@@ -2659,6 +2753,7 @@ export type Database = {
       trade_vetos: {
         Row: {
           id: string
+          league_id: string
           member_id: string
           trade_id: string
           veto_type: Database["public"]["Enums"]["veto_type"]
@@ -2666,6 +2761,7 @@ export type Database = {
         }
         Insert: {
           id?: string
+          league_id?: string
           member_id: string
           trade_id: string
           veto_type: Database["public"]["Enums"]["veto_type"]
@@ -2673,12 +2769,20 @@ export type Database = {
         }
         Update: {
           id?: string
+          league_id?: string
           member_id?: string
           trade_id?: string
           veto_type?: Database["public"]["Enums"]["veto_type"]
           vetoed_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "trade_vetos_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "leagues"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "trade_vetos_member_id_fkey"
             columns: ["member_id"]
@@ -2704,6 +2808,7 @@ export type Database = {
           edited_from_trade_id: string | null
           expires_at: string | null
           id: string
+          is_multi_team: boolean
           league_id: string
           league_season_id: string
           notes: string | null
@@ -2727,6 +2832,7 @@ export type Database = {
           edited_from_trade_id?: string | null
           expires_at?: string | null
           id?: string
+          is_multi_team?: boolean
           league_id: string
           league_season_id: string
           notes?: string | null
@@ -2750,6 +2856,7 @@ export type Database = {
           edited_from_trade_id?: string | null
           expires_at?: string | null
           id?: string
+          is_multi_team?: boolean
           league_id?: string
           league_season_id?: string
           notes?: string | null
@@ -3391,6 +3498,14 @@ export type Database = {
         }
         Returns: undefined
       }
+      accept_multi_team_trade_atomic: {
+        Args: {
+          p_accepting_member_id: string
+          p_drop_roster_player_ids?: string[]
+          p_trade_id: string
+        }
+        Returns: Json
+      }
       activate_rookie_draft_league_atomic: {
         Args: { p_draft_id: string }
         Returns: boolean
@@ -3925,6 +4040,18 @@ export type Database = {
           p_request_faab_amount?: number
           p_request_pick_ids: string[]
           p_request_player_ids: string[]
+        }
+        Returns: string
+      }
+      propose_multi_team_trade_atomic: {
+        Args: {
+          p_expires_at?: string
+          p_items: Json
+          p_league_id: string
+          p_league_season_id: string
+          p_notes?: string
+          p_participant_member_ids: string[]
+          p_proposer_member_id: string
         }
         Returns: string
       }

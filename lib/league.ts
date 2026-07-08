@@ -4,6 +4,7 @@ import type { LeagueInfo, LeagueMembership } from '@/types/app'
 import { todayET } from '@/lib/shared/dates'
 
 export type WaiverMode = 'rolling' | 'faab'
+export type TradeVetoMode = 'disabled' | 'commissioner' | 'member_vote'
 
 export type LeagueSettingsUpdate = {
     scoring_settings?: Record<string, number>
@@ -16,6 +17,9 @@ export type LeagueSettingsUpdate = {
     weekly_add_unlimited?: boolean
     waiver_mode?: WaiverMode
     faab_starting_budget?: number
+    trade_veto_mode?: TradeVetoMode
+    trade_veto_window_hours?: number
+    trade_veto_threshold_percent?: number
 }
 
 type LineupSlotUpdate = {
@@ -47,6 +51,9 @@ function leagueSettingsPayload(updates: LeagueSettingsUpdate): Json {
     if (updates.weekly_add_limit != null) payload.weekly_add_limit = updates.weekly_add_limit
     if (updates.waiver_mode != null) payload.waiver_mode = updates.waiver_mode
     if (updates.faab_starting_budget != null) payload.faab_starting_budget = updates.faab_starting_budget
+    if (updates.trade_veto_mode != null) payload.trade_veto_mode = updates.trade_veto_mode
+    if (updates.trade_veto_window_hours != null) payload.trade_veto_window_hours = updates.trade_veto_window_hours
+    if (updates.trade_veto_threshold_percent != null) payload.trade_veto_threshold_percent = updates.trade_veto_threshold_percent
     return payload
 }
 
@@ -129,7 +136,10 @@ export async function fetchUserLeagues(userId: string) {
         deleted_by,
         weekly_add_limit,
         waiver_mode,
-        faab_starting_budget
+        faab_starting_budget,
+        trade_veto_mode,
+        trade_veto_window_hours,
+        trade_veto_threshold_percent
       )
     `,
         )
@@ -140,16 +150,19 @@ export async function fetchUserLeagues(userId: string) {
     return (data ?? []) as LeagueMembershipQueryRow[]
 }
 
+const TRADE_OPEN_STATUSES = new Set<LeagueStatus>(['setup', 'drafting', 'active', 'playoffs', 'offseason'])
+
 /**
- * Dynasty trade window (mirrors propose_trade_atomic): trading is available
- * during active and playoff seasons, and closes after a configured deadline.
- * A null deadline never locks an otherwise tradable league.
+ * Dynasty trade window (mirrors trade RPCs): trading is open in setup,
+ * drafting, offseason, and pre-deadline active/playoff states. The deadline
+ * lock only applies during the current active/playoff season.
  */
 export function isTradingClosed(
     league: { status: LeagueStatus; trade_deadline?: string | null } | null | undefined,
 ): boolean {
     if (!league) return false
-    if (league.status !== 'active' && league.status !== 'playoffs') return true
+    if (!TRADE_OPEN_STATUSES.has(league.status)) return true
+    if (league.status !== 'active' && league.status !== 'playoffs') return false
     if (!league.trade_deadline) return false
     return league.trade_deadline < todayET()
 }

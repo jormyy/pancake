@@ -46,7 +46,6 @@ const EMPTY_NEWS: DynastyNewsItem[] = []
 type DynastyNewsCache = { news: DynastyNewsItem[]; myNews: DynastyNewsItem[] }
 type StatColumn = { key: StatKey; label: string; format?: 'integer' | 'pct' }
 const DYNASTY_NEWS_CACHE_PREFIX = 'pancake:dynasty-news:v1:'
-const DYNASTY_LOADING_ROWS = 8
 
 const dynastyNewsCacheKey = (memberId?: string, leagueId?: string) =>
     `${DYNASTY_NEWS_CACHE_PREFIX}${leagueId ?? 'none'}:${memberId ?? 'anon'}`
@@ -170,55 +169,6 @@ function RankingsTableHeader() {
                 ))}
             </View>
         </View>
-    )
-}
-
-function RankingsLoadingRows({ showStats }: { showStats: boolean }) {
-    return (
-        <View
-            role="status"
-            aria-busy
-            aria-label="Dynasty rankings loading"
-            accessibilityLabel="Dynasty rankings loading"
-            accessibilityState={{ busy: true }}
-        >
-            {Array.from({ length: DYNASTY_LOADING_ROWS }, (_, index) => (
-                <View key={index} style={styles.rankLoadingRow}>
-                    <View style={styles.rankLoadingNumber} />
-                    <View style={styles.rankLoadingAvatar} />
-                    <View style={styles.rankLoadingMain}>
-                        <View style={styles.rankLoadingName} />
-                        <View style={styles.rankLoadingMeta} />
-                        {!showStats ? <View style={styles.rankLoadingCompactStats} /> : null}
-                    </View>
-                    {showStats ? (
-                        <View style={styles.rankLoadingStats}>
-                            {STAT_COLUMNS.map((stat) => (
-                                <View key={stat.key} style={styles.rankLoadingStat} />
-                            ))}
-                        </View>
-                    ) : null}
-                </View>
-            ))}
-        </View>
-    )
-}
-
-function NewsLoadingRows() {
-    return (
-        <>
-            {Array.from({ length: 4 }, (_, index) => (
-                <View key={index}>
-                    <View style={styles.newsLoadingRow}>
-                        <View style={styles.newsLoadingTop} />
-                        <View style={styles.newsLoadingTitle} />
-                        <View style={styles.newsLoadingSummary} />
-                        <View style={styles.newsLoadingPlayer} />
-                    </View>
-                    {index < 3 ? <View style={styles.separator} /> : null}
-                </View>
-            ))}
-        </>
     )
 }
 
@@ -442,7 +392,7 @@ export default function DynastyScreen() {
                                     />
                                 )}
                                 ListEmptyComponent={rankings.loading
-                                    ? <RankingsLoadingRows showStats={showStats} />
+                                    ? <EmptyState message="Loading dynasty rankings…" fullScreen={false} />
                                     : <EmptyState message="No ranked players found." fullScreen={false} />}
                                 ListFooterComponent={rankingFooter}
                                 onEndReached={rankings.loadMore}
@@ -456,7 +406,7 @@ export default function DynastyScreen() {
                     >
                         <Card padding="md" radius="md" elevated="none" style={styles.listCard}>
                             {!activeNewsHydrated ? (
-                                <NewsLoadingRows />
+                                <EmptyState message="Loading dynasty news…" fullScreen={false} />
                             ) : activeNews.length === 0 ? (
                                 <EmptyState message={emptyNewsMessage} fullScreen={false} />
                             ) : (
@@ -641,68 +591,6 @@ const styles = StyleSheet.create({
         letterSpacing: 0.6,
         textTransform: 'uppercase',
     },
-    rankLoadingRow: {
-        minHeight: 76,
-        flexDirection: 'row',
-        alignItems: 'flex-start',
-        gap: spacing.lg,
-        paddingVertical: spacing.lg,
-        paddingHorizontal: spacing.lg,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.separator,
-    },
-    rankLoadingNumber: {
-        width: RANK_COL_WIDTH,
-        height: 18,
-        borderRadius: radii.xs,
-        backgroundColor: colors.bgMuted,
-    },
-    rankLoadingAvatar: {
-        width: HEADSHOT_SIZE,
-        height: HEADSHOT_SIZE,
-        borderRadius: HEADSHOT_SIZE / 2,
-        backgroundColor: colors.bgMuted,
-        borderWidth: 1,
-        borderColor: colors.borderLight,
-    },
-    rankLoadingMain: {
-        flex: 1,
-        minWidth: 0,
-        gap: spacing.sm,
-    },
-    rankLoadingName: {
-        width: '54%',
-        maxWidth: 220,
-        height: 16,
-        borderRadius: radii.xs,
-        backgroundColor: colors.bgMuted,
-    },
-    rankLoadingMeta: {
-        width: '38%',
-        maxWidth: 170,
-        height: 12,
-        borderRadius: radii.xs,
-        backgroundColor: colors.bgSubtle,
-    },
-    rankLoadingCompactStats: {
-        width: '72%',
-        maxWidth: 280,
-        height: 16,
-        borderRadius: radii.xs,
-        backgroundColor: colors.bgSubtle,
-    },
-    rankLoadingStats: {
-        width: STAT_GRID_WIDTH,
-        flexDirection: 'row',
-        justifyContent: 'flex-end',
-        gap: 20,
-    },
-    rankLoadingStat: {
-        width: 34,
-        height: 12,
-        borderRadius: radii.xs,
-        backgroundColor: colors.bgMuted,
-    },
     compactStats: {
         flexDirection: 'row',
         flexWrap: 'wrap',
@@ -716,38 +604,6 @@ const styles = StyleSheet.create({
     newsContent: { paddingBottom: spacing.xl },
     listCard: { overflow: 'hidden' },
     newsRow: { paddingVertical: spacing.lg, paddingHorizontal: spacing.md, gap: spacing.sm },
-    newsLoadingRow: {
-        minHeight: 132,
-        paddingVertical: spacing.lg,
-        paddingHorizontal: spacing.md,
-        gap: spacing.sm,
-    },
-    newsLoadingTop: {
-        width: 144,
-        height: 11,
-        borderRadius: radii.xs,
-        backgroundColor: colors.bgSubtle,
-    },
-    newsLoadingTitle: {
-        width: '74%',
-        maxWidth: 420,
-        height: 17,
-        borderRadius: radii.xs,
-        backgroundColor: colors.bgMuted,
-    },
-    newsLoadingSummary: {
-        width: '92%',
-        maxWidth: 620,
-        height: 38,
-        borderRadius: radii.xs,
-        backgroundColor: colors.bgSubtle,
-    },
-    newsLoadingPlayer: {
-        width: 190,
-        height: 28,
-        borderRadius: radii.md,
-        backgroundColor: colors.bgSubtle,
-    },
     newsTopLine: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing.lg },
     newsSource: { fontSize: fontSize.xs, fontWeight: fontWeight.extrabold, color: colors.primaryDark, textTransform: 'uppercase' },
     newsDate: { fontSize: fontSize.xs, fontWeight: fontWeight.semibold, color: colors.textMuted },

@@ -109,6 +109,24 @@ describe('fantasy draft and auction experience goals', () => {
         expect(draftSetupPanels).toContain('aria-label={startRookieAccessibilityLabel}')
     })
 
+    it('supports low preset and custom draft timers end to end', () => {
+        expect(draftChips).toContain('const DRAFT_TIMER_OPTIONS = [15, 30] as const')
+        expect(draftChips).toContain('export type DraftTimerOption = number')
+        expect(draftChips).toContain('export const DRAFT_TIMER_MIN_SECONDS = 5')
+        expect(draftChips).toContain('export const DRAFT_TIMER_MAX_SECONDS = 3600')
+        expect(draftChips).toContain('export function normalizeDraftTimerSeconds(value: number)')
+        expect(draftChips).toContain('export function DraftTimerControl')
+        expect(draftChips).toContain('keyboardType="number-pad"')
+        expect(draftSetupPanels).toContain('<DraftTimerControl')
+        expect(mockRoomsPanel).toContain('<DraftTimerControl')
+        expect(leagueScreenState).toContain('setDraftTimerSecondsState(normalizeDraftTimerSeconds(value))')
+        expect(draftApi).toContain("optionalIntegerField(body, 'timerSeconds', { min: 5, max: 3600 })")
+        expect(latestFunctionDefinition('start_auction_draft_atomic')).toContain('p_pick_timer_seconds int DEFAULT 30')
+        expect(latestFunctionDefinition('start_auction_draft_atomic')).toContain('p_pick_timer_seconds < 5 OR p_pick_timer_seconds > 3600')
+        expect(latestFunctionDefinition('create_mock_draft_room_atomic')).toContain('p_pick_timer_seconds int DEFAULT 30')
+        expect(latestFunctionDefinition('create_mock_draft_room_atomic')).toContain('p_pick_timer_seconds < 5 OR p_pick_timer_seconds > 3600')
+    })
+
     it('keeps irreversible draft-start confirmations configuration-aware', () => {
         expect(leagueScreenState).toContain('function auctionDraftConfirmationMessage')
         expect(leagueScreenState).toContain('with a ${draftTimerSeconds}-second timer and ${NOMINATION_ORDER_MODE_LABELS[nominationMode].toLowerCase()} nomination order')
@@ -185,14 +203,14 @@ describe('fantasy draft and auction experience goals', () => {
         expect(leagueTabBar).not.toContain('accessibilityLabel="League sections"')
     })
 
-    it('keeps League loading distinct from no-league empty state', () => {
+    it('keeps League loading distinct from no-league empty state without a placeholder shell', () => {
         expect(leagueScreenState).toContain('loading: leagueLoading')
         expect(leagueScreenState).toContain('leagueLoading,')
         expect(leagueScreen).toContain('if (screen.leagueLoading)')
-        expect(leagueScreen).toContain('function LeagueLoadingShell')
-        expect(leagueScreen).toContain('function LeagueTabPlaceholder')
-        expect(leagueScreen).toContain('return <LeagueLoadingShell tab={screen.tab} />')
-        expect(leagueScreen).toContain('aria-busy')
+        expect(leagueScreen).toContain('function LeagueLoadingState')
+        expect(leagueScreen).toContain('message="Loading league"')
+        expect(leagueScreen).not.toContain('function LeagueLoadingShell')
+        expect(leagueScreen).not.toContain('function LeagueTabPlaceholder')
         // No-league state now shows the full NoLeagueState welcome (Create/Join CTAs),
         // matching Home and Trades, instead of a bare one-line EmptyState.
         expect(leagueScreen).toContain('return <NoLeagueState />')
@@ -267,7 +285,7 @@ describe('fantasy draft and auction experience goals', () => {
         expect(draftPrepNotice).toContain('Future rookie picks remain visible during the live season for trades and long-term planning.')
     })
 
-    it('keeps active draft loading reserved without visible checking copy', () => {
+    it('keeps active draft loading as a readable status instead of placeholder bars', () => {
         const loadingNotice = draftActiveState.slice(
             draftActiveState.indexOf('function ActiveDraftLoadingNotice'),
             draftActiveState.indexOf('function ActiveDraftEntry'),
@@ -275,8 +293,10 @@ describe('fantasy draft and auction experience goals', () => {
         expect(loadingNotice).toContain("const accessibilityLabel = 'Draft status updating.'")
         expect(loadingNotice).toContain('aria-label={accessibilityLabel}')
         expect(loadingNotice).toContain('accessibilityLabel={accessibilityLabel}')
-        expect(loadingNotice).toContain('draftLoadingTitlePlaceholder')
-        expect(loadingNotice).toContain('draftLoadingTextPlaceholder')
+        expect(loadingNotice).toContain('Draft status updating</Text>')
+        expect(loadingNotice).toContain('Checking whether an auction or rookie draft is ready to join.')
+        expect(loadingNotice).not.toContain('draftLoadingTitlePlaceholder')
+        expect(loadingNotice).not.toContain('draftLoadingTextPlaceholder')
         expect(draftActiveState).not.toContain('Checking for live auction draft')
         expect(draftActiveState).not.toContain('Checking for live rookie draft')
     })

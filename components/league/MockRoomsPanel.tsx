@@ -8,12 +8,11 @@ import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens
 import { countLabel } from '@/lib/format'
 import {
     DraftChips,
-    DRAFT_TIMER_CHIPS,
+    DraftTimerControl,
     MOCK_ROOM_TYPE_CHIPS,
     NOMINATION_ORDER_CHIPS,
     ROOKIE_ROUND_CHIPS,
     ROOKIE_TIMER_EXPIRY_CHIPS,
-    draftTimerChipLabel,
     mockRoomTypeChipLabel,
     rookieRoundChipLabel,
     type DraftControlProps,
@@ -408,12 +407,10 @@ export function MockRoomsPanel({
                             accessibilityLabel="Mock room start time"
                         />
                         <Text style={panelStyles.nominationModeLabel}>Timer</Text>
-                        <DraftChips
-                            options={DRAFT_TIMER_CHIPS}
+                        <DraftTimerControl
                             selectedValue={draftTimerSeconds}
                             onSelect={onDraftTimerSecondsChange}
                             groupLabel="Mock draft timer"
-                            accessibilityLabelForOption={draftTimerChipLabel}
                         />
                     </>
                 )}

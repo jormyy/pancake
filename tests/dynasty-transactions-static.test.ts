@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
+import { latestFunctionDefinition } from './source-guard'
 
 const read = (path: string) => readFileSync(path, 'utf8')
 
@@ -81,7 +82,8 @@ describe('dynasty transaction release contracts', () => {
     })
 
     it('keeps trade negotiation and trade block actions behind RPCs', () => {
-        const trades = read('supabase/migrations/20260701000005_dynasty_trade_negotiation.sql')
+        const trades = read('supabase/sql/functions/trade-negotiation.sql')
+        const tradeNegotiationMigration = read('supabase/migrations/20260701000005_dynasty_trade_negotiation.sql')
         const api = read('supabase/functions/api/trades.ts')
 
         expect(trades).toContain('counter_trade_atomic')
@@ -96,41 +98,20 @@ describe('dynasty transaction release contracts', () => {
         expect(trades).toContain('proposer_faab_amount')
         expect(trades).toContain('recipient_faab_amount')
         expect(trades).toContain('clear_trade_block_listing_on_inactive_roster')
-        const createTradeOffer = sqlBetween(
-            trades,
-            'CREATE OR REPLACE FUNCTION private.create_trade_offer',
-            'DROP FUNCTION IF EXISTS public.propose_trade_atomic',
-        )
-        expect(createTradeOffer).toContain("v_league.status IN ('active'::league_status, 'playoffs'::league_status)")
+        const createTradeOffer = latestFunctionDefinition('create_trade_offer', 'private')
+        expect(createTradeOffer).toContain("'setup'::league_status")
+        expect(createTradeOffer).toContain("'drafting'::league_status")
+        expect(createTradeOffer).toContain("'offseason'::league_status")
+        expect(createTradeOffer).toContain("v_league.status = 'archived'::league_status")
+        expect(createTradeOffer).toContain('v_champion_finalized')
+        expect(createTradeOffer).toContain("Trades are locked from the trade deadline until the champion is finalized.")
         expect(createTradeOffer).toContain("RAISE EXCEPTION 'Trade expiration must be before the trade deadline.'")
-        const replaceTradeOffer = sqlBetween(
-            trades,
-            'CREATE OR REPLACE FUNCTION private.replace_trade_offer',
-            'CREATE OR REPLACE FUNCTION public.counter_trade_atomic',
-        )
-        const completeAcceptedTradeAtomic = sqlBetween(
-            trades,
-            'CREATE OR REPLACE FUNCTION public.complete_accepted_trade_atomic',
-            'CREATE OR REPLACE FUNCTION public.add_trade_block_item_atomic',
-        )
-        const addTradeBlockItemAtomic = sqlBetween(
-            trades,
-            'CREATE OR REPLACE FUNCTION public.add_trade_block_item_atomic',
-            'CREATE OR REPLACE FUNCTION public.remove_trade_block_item_atomic',
-        )
-        const counterTradeAtomic = sqlBetween(
-            trades,
-            'CREATE OR REPLACE FUNCTION public.counter_trade_atomic',
-            'CREATE OR REPLACE FUNCTION public.edit_trade_atomic',
-        )
-        const editTradeAtomic = sqlBetween(
-            trades,
-            'CREATE OR REPLACE FUNCTION public.edit_trade_atomic',
-            'CREATE OR REPLACE FUNCTION private.prevent_expired_or_unfunded_trade_accept',
-        )
-        expect(createTradeOffer).toContain("v_league.status NOT IN ('active'::league_status, 'playoffs'::league_status)")
-        expect(createTradeOffer).not.toContain("'drafting'::league_status")
-        expect(createTradeOffer).not.toContain("'offseason'::league_status")
+        const replaceTradeOffer = latestFunctionDefinition('replace_trade_offer', 'private')
+        const completeAcceptedTradeAtomic = latestFunctionDefinition('complete_accepted_trade_atomic')
+        const addTradeBlockItemAtomic = latestFunctionDefinition('add_trade_block_item_atomic')
+        const counterTradeAtomic = latestFunctionDefinition('counter_trade_atomic')
+        const editTradeAtomic = latestFunctionDefinition('edit_trade_atomic')
+        expect(createTradeOffer).not.toContain("v_league.status NOT IN ('active'::league_status, 'playoffs'::league_status)")
         expect(createTradeOffer).toMatch(/player_id = ANY\(v_offer_player_ids\)[\s\S]*AND is_on_ir = false[\s\S]*AND is_on_taxi = false/)
         expect(createTradeOffer).toMatch(/player_id = ANY\(v_request_player_ids\)[\s\S]*AND is_on_ir = false[\s\S]*AND is_on_taxi = false/)
         expect(replaceTradeOffer).toContain('v_trade.expires_at IS NOT NULL AND v_trade.expires_at <= now()')
@@ -143,7 +124,8 @@ describe('dynasty transaction release contracts', () => {
         expect(completeAcceptedTradeAtomic).toContain('private.clear_trade_block_listing_for_asset')
         expect(completeAcceptedTradeAtomic).toContain('v_item.player_id')
         expect(completeAcceptedTradeAtomic).toContain('v_item.pick_id')
-        expect(trades).toContain('AFTER UPDATE OF is_on_ir, is_on_taxi ON public.roster_players')
+        expect(completeAcceptedTradeAtomic).toContain("v_league.status = 'archived'::league_status")
+        expect(tradeNegotiationMigration).toContain('AFTER UPDATE OF is_on_ir, is_on_taxi ON public.roster_players')
         expect(addTradeBlockItemAtomic).toContain('AND is_on_ir = false')
         expect(addTradeBlockItemAtomic).toContain('AND is_on_taxi = false')
         expect(addTradeBlockItemAtomic).toContain('Only active roster players can be listed on the trade block.')
@@ -166,11 +148,15 @@ describe('dynasty transaction release contracts', () => {
     it('keeps trade and waiver UI entry points aligned with server guards', () => {
         const league = read('lib/league.ts')
         const proposeModal = read('app/(modals)/propose-trade.tsx')
+        const multiTeamComposer = read('hooks/use-multi-team-trade-composer.ts')
         const tradesScreen = read('app/(tabs)/trades.tsx')
         const playersScreen = read('app/(tabs)/players.tsx')
 
-        expect(league).toContain("if (league.status !== 'active' && league.status !== 'playoffs') return true")
-        expect(proposeModal).toContain('const isTradeableRosterPlayer')
+        expect(league).toContain("const TRADE_OPEN_STATUSES = new Set<LeagueStatus>(['setup', 'drafting', 'active', 'playoffs', 'offseason'])")
+        expect(league).toContain('if (!TRADE_OPEN_STATUSES.has(league.status)) return true')
+        expect(league).toContain("if (league.status !== 'active' && league.status !== 'playoffs') return false")
+        expect(multiTeamComposer).toContain('export const isTradeableRosterPlayer')
+        expect(proposeModal).toContain('isTradeableRosterPlayer')
         expect(proposeModal).toContain('theirData.filter(isTradeableRosterPlayer)')
         expect(proposeModal).toContain('myData.filter(isTradeableRosterPlayer)')
         expect(tradesScreen).toContain('roster.filter((player) => !player.is_on_ir && !player.is_on_taxi)')

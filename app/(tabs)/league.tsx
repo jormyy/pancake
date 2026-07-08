@@ -4,8 +4,9 @@ import {
     StyleSheet,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { colors, fontSize, fontWeight, radii, spacing, layout } from '@/constants/tokens'
+import { colors, fontSize, fontWeight, spacing, layout } from '@/constants/tokens'
 import { ErrorBanner } from '@/components/ui'
+import { EmptyState } from '@/components/EmptyState'
 import { NoLeagueState } from '@/components/NoLeagueState'
 import { StandingsTable } from '@/components/league/LeagueStandings'
 import { ActivityFeed } from '@/components/league/LeagueActivityFeed'
@@ -15,67 +16,30 @@ import { SettingsPanel } from '@/components/league/SettingsPanel'
 import { LeagueTabBar } from '@/components/league/LeagueTabBar'
 import { useLeagueScreenState } from '@/hooks/use-league-screen-state'
 import { LEAGUE_TABS } from '@/lib/league/tabs'
-import type { LeagueStatus } from '@/types/database'
 
 const LEAGUE_TAB_LABELS = Object.fromEntries(
     LEAGUE_TABS.map((tab) => [tab.key, tab.label]),
 ) as Record<(typeof LEAGUE_TABS)[number]['key'], string>
-const PLACEHOLDER_ROWS = 7
 
 
-function LeagueTabPlaceholder({ tab }: { tab: (typeof LEAGUE_TABS)[number]['key'] }) {
-    const wideRows = tab === 'results' || tab === 'draftBoard'
-    return (
-        <View
-            style={styles.tabPlaceholder}
-            role="status"
-            aria-busy
-            aria-label={`${LEAGUE_TAB_LABELS[tab]} content loading`}
-            accessibilityLabel={`${LEAGUE_TAB_LABELS[tab]} content loading`}
-            accessibilityState={{ busy: true }}
-        >
-            <View style={styles.placeholderHeader}>
-                <View style={styles.placeholderTitle} />
-                <View style={styles.placeholderAction} />
-            </View>
-            {Array.from({ length: wideRows ? PLACEHOLDER_ROWS : 4 }, (_, index) => (
-                <View key={index} style={[styles.placeholderRow, wideRows && styles.placeholderRowWide]}>
-                    <View style={styles.placeholderAvatar} />
-                    <View style={styles.placeholderRowBody}>
-                        <View style={styles.placeholderLineStrong} />
-                        <View style={styles.placeholderLine} />
-                    </View>
-                    {wideRows ? (
-                        <View style={styles.placeholderValueGroup}>
-                            <View style={styles.placeholderValue} />
-                            <View style={styles.placeholderValue} />
-                            <View style={styles.placeholderValue} />
-                        </View>
-                    ) : null}
-                </View>
-            ))}
-        </View>
-    )
-}
-
-function LeagueLoadingShell({ tab }: { tab: (typeof LEAGUE_TABS)[number]['key'] }) {
-    const activePanelId = `league-panel-${tab}`
-    const activeTabId = `league-tab-${tab}`
-    const activeTabLabel = LEAGUE_TAB_LABELS[tab]
-
+function LeagueLoadingState() {
     return (
         <SafeAreaView style={styles.container}>
             <View style={styles.contentWrap}>
-                <LeagueTabBar activeTab={tab} onTabChange={() => {}} />
-                <View
-                    nativeID={activePanelId}
-                    style={styles.contentScroll}
-                    role="tabpanel"
-                    aria-label={`${activeTabLabel} league section`}
-                    aria-labelledby={activeTabId}
-                    accessibilityLabel={`${activeTabLabel} league section`}
-                >
-                    <LeagueTabPlaceholder tab={tab} />
+                <View style={[styles.header, styles.headerCompact]}>
+                    <Text style={styles.compactLeagueName} role="heading" aria-level={1}>
+                        League
+                    </Text>
+                    <Text style={styles.loadingStatusText}>
+                        Loading your league and team context.
+                    </Text>
+                </View>
+                <View style={styles.contentScroll}>
+                    <EmptyState
+                        fullScreen={false}
+                        message="Loading league"
+                        description="Cached league content appears immediately when available; fresh data updates in place."
+                    />
                 </View>
             </View>
         </SafeAreaView>
@@ -91,7 +55,7 @@ export default function LeagueScreen() {
 
     if (!screen.current) {
         if (screen.leagueLoading) {
-            return <LeagueLoadingShell tab={screen.tab} />
+            return <LeagueLoadingState />
         }
         return <NoLeagueState />
     }
@@ -101,10 +65,6 @@ export default function LeagueScreen() {
     const compactIdentityLabel = `${currentLeagueName}, ${currentTeamName}`
 
     function renderTabContent() {
-        if (screen.isTabLoading && !screen.isCurrentTabHydrated) {
-            return <LeagueTabPlaceholder tab={screen.tab} />
-        }
-
         if (screen.tabErr && !screen.isTabLoading) {
             return (
                 <ErrorBanner
@@ -301,91 +261,9 @@ const styles = StyleSheet.create({
         fontSize: fontSize.sm,
         fontWeight: fontWeight.medium,
     },
-    tabPlaceholder: {
-        flex: 1,
-        padding: spacing.xl,
-        gap: spacing.md,
-        width: '100%',
-        maxWidth: 760,
-        alignSelf: 'center',
-    },
-    placeholderHeader: {
-        minHeight: 52,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: spacing.lg,
-        paddingHorizontal: spacing.lg,
-        borderWidth: 1,
-        borderColor: colors.borderLight,
-        borderRadius: radii.lg,
-        backgroundColor: colors.bgCard,
-    },
-    placeholderTitle: {
-        width: 172,
-        height: 16,
-        borderRadius: radii.xs,
-        backgroundColor: colors.bgMuted,
-    },
-    placeholderAction: {
-        width: 112,
-        height: 32,
-        borderRadius: radii.md,
-        backgroundColor: colors.bgSubtle,
-        borderWidth: 1,
-        borderColor: colors.borderLight,
-    },
-    placeholderRow: {
-        minHeight: 76,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: spacing.lg,
-        paddingHorizontal: spacing.lg,
-        borderWidth: 1,
-        borderColor: colors.borderLight,
-        borderRadius: radii.lg,
-        backgroundColor: colors.bgCard,
-    },
-    placeholderRowWide: {
-        minHeight: 58,
-    },
-    placeholderAvatar: {
-        width: 34,
-        height: 34,
-        borderRadius: 17,
-        backgroundColor: colors.bgMuted,
-        borderWidth: 1,
-        borderColor: colors.borderLight,
-    },
-    placeholderRowBody: {
-        flex: 1,
-        minWidth: 0,
-        gap: spacing.sm,
-    },
-    placeholderLineStrong: {
-        width: '52%',
-        maxWidth: 220,
-        height: 14,
-        borderRadius: radii.xs,
-        backgroundColor: colors.bgMuted,
-    },
-    placeholderLine: {
-        width: '38%',
-        maxWidth: 170,
-        height: 11,
-        borderRadius: radii.xs,
-        backgroundColor: colors.bgSubtle,
-    },
-    placeholderValueGroup: {
-        width: 172,
-        flexDirection: 'row',
-        justifyContent: 'flex-end',
-        gap: spacing.md,
-    },
-    placeholderValue: {
-        width: 42,
-        height: 12,
-        borderRadius: radii.xs,
-        backgroundColor: colors.bgMuted,
+    loadingStatusText: {
+        color: colors.textMuted,
+        fontSize: fontSize.sm,
+        lineHeight: 18,
     },
 })
