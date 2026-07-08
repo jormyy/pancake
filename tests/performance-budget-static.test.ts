@@ -105,6 +105,7 @@ describe('instant-loading performance budget contract', () => {
         const playersScreen = read('app/(tabs)/players.tsx')
         const homeScreen = read('app/(tabs)/index.tsx')
         const draftRoomTab = read('app/(tabs)/draft-room.tsx')
+        const dynastyScreen = read('app/(tabs)/dynasty.tsx')
         const draftActiveState = read('components/league/DraftActiveState.tsx')
         const playerSearchHook = read('hooks/use-player-search.ts')
 
@@ -115,6 +116,7 @@ describe('instant-loading performance budget contract', () => {
             playersScreen,
             homeScreen,
             draftRoomTab,
+            dynastyScreen,
             draftActiveState,
         })) {
             expect(source, name).not.toContain('LoadingShell')
@@ -130,6 +132,11 @@ describe('instant-loading performance budget contract', () => {
         expect(draftActiveState).toContain('Draft status updating</Text>')
         expect(draftActiveState).not.toContain('draftLoadingTitlePlaceholder')
         expect(homeScreen).not.toContain('matchupPlaceholderRow')
+        // Dynasty rankings/news use text loading states, not grey skeleton rows.
+        expect(dynastyScreen).not.toContain('RankingsLoadingRows')
+        expect(dynastyScreen).not.toContain('NewsLoadingRows')
+        expect(dynastyScreen).not.toContain('rankLoadingRow')
+        expect(dynastyScreen).not.toContain('newsLoadingRow')
         expect(playerSearchHook).toContain('lastLeagueIdRef')
         expect(playerSearchHook).not.toContain('isFirstLeagueRunRef')
     })
