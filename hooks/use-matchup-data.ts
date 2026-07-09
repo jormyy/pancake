@@ -3,12 +3,25 @@ import { useFocusEffect } from '@react-navigation/native'
 import { getLeagueWeekMatchups, getMyMatchup, LeagueWeekMatchup, Matchup } from '@/lib/scoring'
 import { clampDateToWeek, getWeekDays, getWeeklyLineup, LineupSlot, LineupPlayer, WeekDay } from '@/lib/lineup'
 import { todayET } from '@/lib/shared/dates'
-import { supabase } from '@/lib/supabase'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
-import { debounceRealtimeRefresh } from '@/lib/realtime'
+import {
+    debounceRealtimeRefresh,
+    disposeTableChangeSubscription,
+    subscribeToTableChanges,
+} from '@/lib/realtime'
 
 type LineupData = { starters: LineupSlot[]; bench: LineupPlayer[]; ir: LineupPlayer[]; taxi: LineupPlayer[] }
 type LineupPair = { mine: LineupData; opp: LineupData }
+type MatchupRealtimeRow = {
+    id: string
+    week_number: number
+    home_member_id: string
+    home_points: number | null
+    away_points: number | null
+    is_finalized: boolean
+    winner_member_id: string | null
+}
+type WeeklyLineupRealtimeRow = { week_number: number; game_date: string; member_id: string }
 type MatchupScreenCache = {
     today: string
     selectedDate: string
@@ -20,6 +33,22 @@ type MatchupScreenCache = {
 }
 
 const MATCHUP_CACHE_PREFIX = 'pancake:home-matchup:v1:'
+
+function isMatchupRealtimeRow(row: object): row is MatchupRealtimeRow {
+    return 'id' in row && typeof row.id === 'string'
+        && 'week_number' in row && typeof row.week_number === 'number'
+        && 'home_member_id' in row && typeof row.home_member_id === 'string'
+        && 'home_points' in row && (typeof row.home_points === 'number' || row.home_points === null)
+        && 'away_points' in row && (typeof row.away_points === 'number' || row.away_points === null)
+        && 'is_finalized' in row && typeof row.is_finalized === 'boolean'
+        && 'winner_member_id' in row && (typeof row.winner_member_id === 'string' || row.winner_member_id === null)
+}
+
+function isWeeklyLineupRealtimeRow(row: object): row is WeeklyLineupRealtimeRow {
+    return 'week_number' in row && typeof row.week_number === 'number'
+        && 'game_date' in row && typeof row.game_date === 'string'
+        && 'member_id' in row && typeof row.member_id === 'string'
+}
 
 function matchupCacheKey(memberId: string, leagueId: string) {
     return `${MATCHUP_CACHE_PREFIX}${leagueId}:${memberId}`
@@ -217,59 +246,62 @@ export function useMatchupData(
         if (!matchup?.id) return
         const refreshVisibleLineups = debounceRealtimeRefresh(() => { void refreshSilently() }, 200)
         const visibleMemberIds = new Set([matchup.myMemberId, matchup.opponentMemberId])
-        const channel = supabase
-            .channel(`league_matchups_${matchup.seasonId}_${matchup.weekNumber}`)
-            .on('postgres_changes', {
-                event: 'UPDATE',
-                schema: 'public',
-                table: 'matchups',
-                filter: `league_season_id=eq.${matchup.seasonId}`,
-            }, (payload) => {
-                const { home_points, away_points, is_finalized, winner_member_id } = payload.new
-                if (payload.new.week_number !== matchup.weekNumber) return
-                if (payload.new.id === matchup.id) {
-                    setMatchup((prev) => {
-                        if (!prev) return prev
-                        const isHome = prev.myMemberId === payload.new.home_member_id
-                        return {
-                            ...prev,
-                            myPoints: isHome ? home_points : away_points,
-                            opponentPoints: isHome ? away_points : home_points,
-                            isFinalized: is_finalized,
-                            iWon: winner_member_id ? winner_member_id === prev.myMemberId : null,
+        const channel = subscribeToTableChanges(
+            `league-matchups:${matchup.seasonId}:${matchup.weekNumber}`,
+            {
+                mode: 'per-watch',
+                watches: [{
+                    event: 'UPDATE',
+                    table: 'matchups',
+                    filter: `league_season_id=eq.${matchup.seasonId}`,
+                    onChange: (payload) => {
+                        if (!isMatchupRealtimeRow(payload.new)) return
+                        const row = payload.new
+                        const { home_points, away_points, is_finalized, winner_member_id } = row
+                        if (row.week_number !== matchup.weekNumber) return
+                        if (row.id === matchup.id) {
+                            setMatchup((prev) => {
+                                if (!prev) return prev
+                                const isHome = prev.myMemberId === row.home_member_id
+                                return {
+                                    ...prev,
+                                    myPoints: isHome ? home_points : away_points,
+                                    opponentPoints: isHome ? away_points : home_points,
+                                    isFinalized: is_finalized,
+                                    iWon: winner_member_id ? winner_member_id === prev.myMemberId : null,
+                                }
+                            })
                         }
-                    })
-                }
-                setLeagueMatchups((prev) =>
-                    prev.map((item) =>
-                        item.id === payload.new.id
-                            ? {
-                                  ...item,
-                                  homePoints: home_points != null ? Number(home_points) : null,
-                                  awayPoints: away_points != null ? Number(away_points) : null,
-                                  isFinalized: is_finalized,
-                              }
-                            : item,
-                    ),
-                )
-            })
-            .on('postgres_changes', {
-                event: '*',
-                schema: 'public',
-                table: 'weekly_lineups',
-                filter: `league_season_id=eq.${matchup.seasonId}`,
-            }, (payload) => {
-                const row = payload.eventType === 'DELETE' ? payload.old : payload.new
-                if (row.week_number !== matchup.weekNumber) return
-                if (row.game_date !== selectedDate) return
-                if (!visibleMemberIds.has(row.member_id)) return
-                refreshVisibleLineups.trigger()
-            })
-            .subscribe()
+                        setLeagueMatchups((prev) =>
+                            prev.map((item) =>
+                                item.id === row.id
+                                    ? {
+                                          ...item,
+                                          homePoints: home_points != null ? Number(home_points) : null,
+                                          awayPoints: away_points != null ? Number(away_points) : null,
+                                          isFinalized: is_finalized,
+                                      }
+                                    : item,
+                            ),
+                        )
+                    },
+                }, {
+                    table: 'weekly_lineups',
+                    filter: `league_season_id=eq.${matchup.seasonId}`,
+                    onChange: (payload) => {
+                        const row = payload.eventType === 'DELETE' ? payload.old : payload.new
+                        if (!isWeeklyLineupRealtimeRow(row)) return
+                        if (row.week_number !== matchup.weekNumber) return
+                        if (row.game_date !== selectedDate) return
+                        if (!visibleMemberIds.has(row.member_id)) return
+                        refreshVisibleLineups.trigger()
+                    },
+                }],
+            },
+        )
 
         return () => {
-            refreshVisibleLineups.cancel()
-            supabase.removeChannel(channel)
+            disposeTableChangeSubscription(channel, [refreshVisibleLineups])
         }
     }, [matchup?.id, matchup?.seasonId, matchup?.weekNumber, matchup?.myMemberId, matchup?.opponentMemberId, refreshSilently, selectedDate])
 

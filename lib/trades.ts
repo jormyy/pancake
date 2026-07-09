@@ -95,6 +95,7 @@ type TradePickQueryRow = {
     round: number
     original_owner: TeamNameRow
 }
+type MemberTradePickQueryRow = TradePickQueryRow & { current_owner_id: string }
 type TradePlayerQueryRow = {
     display_name: string | null
     position: string | null
@@ -190,15 +191,27 @@ export type TradeBlockItem = {
 }
 
 export async function getPicksForMember(memberId: string, leagueId: string): Promise<TradePickItem[]> {
+    const picks = await getPicksForMembers([memberId], leagueId)
+    return picks[memberId] ?? []
+}
+
+export async function getPicksForMembers(
+    memberIds: string[],
+    leagueId: string,
+): Promise<Record<string, TradePickItem[]>> {
+    const uniqueMemberIds = [...new Set(memberIds)]
+    const picks = Object.fromEntries(uniqueMemberIds.map((memberId) => [memberId, [] as TradePickItem[]]))
+    if (uniqueMemberIds.length === 0) return picks
     const { data, error } = await supabase
         .from('draft_picks')
         .select(`
             id,
+            current_owner_id,
             season_year,
             round,
             original_owner:league_members!draft_picks_original_owner_id_fkey ( team_name )
         `)
-        .eq('current_owner_id', memberId)
+        .in('current_owner_id', uniqueMemberIds)
         .eq('league_id', leagueId)
         .eq('is_used', false)
         .order('season_year', { ascending: true })
@@ -206,13 +219,16 @@ export async function getPicksForMember(memberId: string, leagueId: string): Pro
 
     if (error) throw error
 
-    return ((data ?? []) as TradePickQueryRow[]).map((row) => ({
-        kind: 'pick' as const,
-        pickId: row.id,
-        seasonYear: row.season_year,
-        round: row.round,
-        originalTeamName: row.original_owner?.team_name ?? 'Unknown',
-    }))
+    for (const row of (data ?? []) as MemberTradePickQueryRow[]) {
+        picks[row.current_owner_id]?.push({
+            kind: 'pick',
+            pickId: row.id,
+            seasonYear: row.season_year,
+            round: row.round,
+            originalTeamName: row.original_owner?.team_name ?? 'Unknown',
+        })
+    }
+    return picks
 }
 
 export async function proposeTrade(

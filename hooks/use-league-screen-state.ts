@@ -109,7 +109,9 @@ export function useLeagueScreenState() {
     const loadedTabs = useRef<Set<LeagueTab>>(new Set())
     const tabRequestIds = useRef(new Map<LeagueTab, number>())
     const activeLeagueIdRef = useRef<string | undefined>(undefined)
+    const activeTabRef = useRef(tab)
     activeLeagueIdRef.current = currentLeague?.id
+    activeTabRef.current = tab
 
     useEffect(() => {
         setTab(parseLeagueTab(params.tab))
@@ -222,20 +224,23 @@ export function useLeagueScreenState() {
         }, [currentLeague?.id, fetchTab, fetchActiveDraft, tab]),
     )
 
-    const currentDraftIds = useMemo(() => [...new Set([
+    const currentDraftKey = useMemo(() => [...new Set([
             activeDraft?.id,
             ...mockRooms.map((room) => room.id),
-        ].filter((id): id is string => Boolean(id)))].sort(), [activeDraft?.id, mockRooms])
-    const currentDraftKey = currentDraftIds.join(',')
+        ].filter((id): id is string => Boolean(id)))].sort().join(','), [activeDraft?.id, mockRooms])
 
     useEffect(() => {
         const lid = currentLeague?.id
         if (!lid) return
-        const refreshResults = debounceRealtimeRefresh(() => { void fetchTab('results', lid) })
-        const refreshHistory = debounceRealtimeRefresh(() => { void fetchTab('history', lid) })
-        const refreshSettings = debounceRealtimeRefresh(() => { void fetchTab('settings', lid) })
-        const refreshDraftBoard = debounceRealtimeRefresh(() => { void fetchTab('draftBoard', lid) })
-        const refreshMockRooms = debounceRealtimeRefresh(() => { void fetchTab('mockRooms', lid) })
+        const invalidateTab = (nextTab: LeagueTab) => {
+            loadedTabs.current.delete(nextTab)
+            if (activeTabRef.current === nextTab) void fetchTab(nextTab, lid)
+        }
+        const refreshResults = debounceRealtimeRefresh(() => { invalidateTab('results') })
+        const refreshHistory = debounceRealtimeRefresh(() => { invalidateTab('history') })
+        const refreshSettings = debounceRealtimeRefresh(() => { invalidateTab('settings') })
+        const refreshDraftBoard = debounceRealtimeRefresh(() => { invalidateTab('draftBoard') })
+        const refreshMockRooms = debounceRealtimeRefresh(() => { invalidateTab('mockRooms') })
         const refreshDraftState = debounceRealtimeRefresh(() => { void fetchActiveDraft(lid) })
 
         const leagueWatches = leagueScreenWatches(lid, {
@@ -251,7 +256,8 @@ export function useLeagueScreenState() {
                 refreshMockRooms.trigger()
             },
         })
-        const draftFilter = currentDraftIds.length > 0 ? `draft_id=in.(${currentDraftIds.join(',')})` : null
+        const currentDraftIds = currentDraftKey ? currentDraftKey.split(',') : []
+        const draftFilter = currentDraftIds.length > 0 ? `draft_id=in.(${currentDraftKey})` : null
         const draftWatches: TableChangeWatch[] = draftFilter ? [
             { table: 'draft_room_members', filter: draftFilter, onChange: () => {
                 refreshDraftState.trigger()
@@ -277,7 +283,7 @@ export function useLeagueScreenState() {
                 refreshDraftState,
             ])
         }
-    }, [currentDraftIds, currentDraftKey, currentLeague?.id, fetchActiveDraft, fetchTab])
+    }, [currentDraftKey, currentLeague?.id, fetchActiveDraft, fetchTab])
 
     function handleTabChange(nextTab: LeagueTab) {
         setTab(nextTab)

@@ -10,6 +10,38 @@ export type TradePerspectiveInput = {
     participants: TradePerspectiveParticipant[]
 }
 
+type RoutedTradeAsset = { fromMemberId: string; toMemberId: string }
+
+type TradeDisplayInput<Item extends RoutedTradeAsset> = Pick<
+    TradePerspectiveInput,
+    'proposerMemberId' | 'recipientMemberId' | 'participants'
+> & {
+    proposerTeamName: string
+    recipientTeamName: string
+    routedItems: Item[]
+}
+
+export function tradeDisplayPerspective<Item extends RoutedTradeAsset>(
+    trade: TradeDisplayInput<Item>,
+    memberId: string,
+) {
+    if (isTradeParticipant(trade, memberId)) {
+        return {
+            receives: trade.routedItems.filter((item) => item.toMemberId === memberId),
+            gives: trade.routedItems.filter((item) => item.fromMemberId === memberId),
+            receiveLabel: 'You receive:',
+            giveLabel: 'You give:',
+        }
+    }
+
+    return {
+        receives: trade.routedItems.filter((item) => item.toMemberId === trade.recipientMemberId),
+        gives: trade.routedItems.filter((item) => item.toMemberId === trade.proposerMemberId),
+        receiveLabel: `${trade.recipientTeamName} receives:`,
+        giveLabel: `${trade.proposerTeamName} receives:`,
+    }
+}
+
 export function tradeParticipantIds(
     trade: Pick<TradePerspectiveInput, 'proposerMemberId' | 'recipientMemberId' | 'participants'>,
 ): string[] {

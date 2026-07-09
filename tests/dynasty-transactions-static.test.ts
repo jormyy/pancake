@@ -166,16 +166,13 @@ describe('dynasty transaction release contracts', () => {
     it('keeps trade and waiver UI entry points aligned with server guards', () => {
         const league = read('lib/league.ts')
         const proposeModal = read('app/(modals)/propose-trade.tsx')
-        const multiTeamComposer = read('hooks/use-multi-team-trade-composer.ts')
         const tradesScreen = read('app/(tabs)/trades.tsx')
         const playersScreen = read('app/(tabs)/players.tsx')
 
         expect(league).toContain("const TRADE_OPEN_STATUSES = new Set<LeagueStatus>(['setup', 'drafting', 'active', 'playoffs', 'offseason'])")
         expect(league).toContain('if (!TRADE_OPEN_STATUSES.has(league.status)) return true')
         expect(league).toContain("if (league.status !== 'active' && league.status !== 'playoffs') return false")
-        expect(multiTeamComposer).toContain('export const isTradeableRosterPlayer')
         expect(proposeModal).toContain('useMultiTeamTradeComposer')
-        expect(multiTeamComposer).toContain('roster.filter(isTradeableRosterPlayer)')
         expect(tradesScreen).toContain('roster.filter((player) => !player.is_on_ir && !player.is_on_taxi)')
         expect(playersScreen).toContain('push(`/(modals)/claim-player?playerId=${player.id}`)')
         expect(playersScreen).not.toContain('onAdd={quickAdd.handleAdd}')

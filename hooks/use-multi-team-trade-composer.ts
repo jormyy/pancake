@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
-import { getRoster, type RosterPlayer } from '@/lib/roster'
+import { getRostersForMembers, type RosterPlayer } from '@/lib/roster'
 import { EMPTY_AVG_MAP, EMPTY_STATS_MAP, getRosterStatsMaps } from '@/lib/roster-stats'
-import { getPicksForMember, type Trade, type TradePickItem } from '@/lib/trades'
+import { getPicksForMembers, type Trade, type TradePickItem } from '@/lib/trades'
 import { getErrorMessage } from '@/lib/alert'
 import {
     buildMultiTeamTradeItems,
@@ -10,13 +10,12 @@ import {
     multiTeamTradeStateFromTrade,
     resolvedDestination,
 } from '@/lib/multi-team-trade-state'
+import { isTradeableRosterPlayer } from '@/lib/trade-assets'
 
 export type TradeComposerMember = {
     id: string
     team_name: string | null
 }
-
-export const isTradeableRosterPlayer = (player: RosterPlayer) => !player.is_on_ir && !player.is_on_taxi
 
 export type TradeParticipantView = {
     memberId: string
@@ -87,6 +86,7 @@ export function useMultiTeamTradeComposer({
     }), [composerState, participantIds, participantPicks, participantRosters])
 
     const reset = useCallback(() => {
+        rosterLoadSeqRef.current += 1
         dispatch({ type: 'reset', actorMemberId: myMemberId })
         setParticipantRosters({})
         setParticipantPicks({})
@@ -159,44 +159,35 @@ export function useMultiTeamTradeComposer({
     const retry = useCallback(() => setRetryToken((value) => value + 1), [])
 
     useEffect(() => {
+        const requestId = ++rosterLoadSeqRef.current
         if (!enabled || !leagueId || !myMemberId) {
-            if (!enabled) setRosterLoading(false)
+            setRosterLoading(false)
             return
         }
 
-        const requestId = ++rosterLoadSeqRef.current
         setRosterLoading(true)
         setRosterError(null)
         setLoadedParticipantKey('')
 
         async function loadParticipantAssets() {
             try {
-                const rows = await Promise.all(participantIds.map(async (memberId) => {
-                    const [roster, picks] = await Promise.all([
-                        getRoster(memberId, leagueId),
-                        getPicksForMember(memberId, leagueId),
-                    ])
-                    return {
-                        memberId,
-                        roster: roster.filter(isTradeableRosterPlayer),
-                        picks,
-                    }
-                }))
+                const [rosters, picks] = await Promise.all([
+                    getRostersForMembers(participantIds, leagueId),
+                    getPicksForMembers(participantIds, leagueId),
+                ])
                 if (rosterLoadSeqRef.current !== requestId) return
 
-                const nextRosters: Record<string, RosterPlayer[]> = {}
-                const nextPicks: Record<string, TradePickItem[]> = {}
-                for (const row of rows) {
-                    nextRosters[row.memberId] = row.roster
-                    nextPicks[row.memberId] = row.picks
-                }
+                const nextRosters = Object.fromEntries(participantIds.map((memberId) => [
+                    memberId,
+                    (rosters[memberId] ?? []).filter(isTradeableRosterPlayer),
+                ]))
                 const stats = await getRosterStatsMaps(
-                    rows.flatMap((row) => row.roster.map((player) => player.players.id)),
+                    Object.values(nextRosters).flatMap((roster) => roster.map((player) => player.players.id)),
                     leagueId,
                 )
                 if (rosterLoadSeqRef.current !== requestId) return
                 setParticipantRosters(nextRosters)
-                setParticipantPicks(nextPicks)
+                setParticipantPicks(picks)
                 setAvgMap(stats.avgMap)
                 setAvgStatsMap(stats.avgStatsMap)
                 setLoadedParticipantKey(selectedParticipantKey)
@@ -210,6 +201,9 @@ export function useMultiTeamTradeComposer({
         }
 
         loadParticipantAssets()
+        return () => {
+            if (rosterLoadSeqRef.current === requestId) rosterLoadSeqRef.current += 1
+        }
     }, [enabled, leagueId, myMemberId, participantIds, retryToken, selectedParticipantKey])
 
     return {

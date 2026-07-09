@@ -6,6 +6,7 @@ import {
     isTradeParticipant,
     isVetoableTradeForMember,
     needsMemberAcceptance,
+    tradeDisplayPerspective,
     tradeParticipantIds,
     type TradePerspectiveInput,
 } from '@/lib/trade-perspective'
@@ -107,5 +108,30 @@ describe('trade perspective helpers', () => {
         expect(isTradeHistoryForMember(input, 'delta')).toBe(false)
         expect(isVetoableTradeForMember(input, 'delta')).toBe(true)
         expect(isVetoableTradeForMember(input, 'charlie')).toBe(false)
+    })
+
+    it('shows routed assets from a participant or veto-observer perspective', () => {
+        const input = {
+            ...trade({ status: 'accepted' }),
+            proposerTeamName: 'Alpha Team',
+            recipientTeamName: 'Bravo Team',
+            routedItems: [
+                { id: 'a', fromMemberId: 'alpha', toMemberId: 'bravo' },
+                { id: 'b', fromMemberId: 'bravo', toMemberId: 'alpha' },
+            ],
+        }
+
+        expect(tradeDisplayPerspective(input, 'bravo')).toEqual({
+            receives: [input.routedItems[0]],
+            gives: [input.routedItems[1]],
+            receiveLabel: 'You receive:',
+            giveLabel: 'You give:',
+        })
+        expect(tradeDisplayPerspective(input, 'observer')).toEqual({
+            receives: [input.routedItems[0]],
+            gives: [input.routedItems[1]],
+            receiveLabel: 'Bravo Team receives:',
+            giveLabel: 'Alpha Team receives:',
+        })
     })
 })

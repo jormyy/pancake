@@ -13,6 +13,7 @@ import { playerEligiblePositions, playerSeasonContextText } from '@/lib/player-c
 import { PosTag } from '@/components/PosTag'
 import { Badge } from '@/components/Badge'
 import { MultiTeamTradeOverview, type TradeFlowItem } from '@/components/trades/MultiTeamTradeOverview'
+import { tradeDisplayPerspective } from '@/lib/trade-perspective'
 
 export type TabKey = 'picks' | 'offers' | 'history' | 'block' | 'leagueBlock'
 type TradeVetoMode = 'disabled' | 'commissioner' | 'member_vote'
@@ -159,16 +160,13 @@ export function TradeCard({
             ? trade.proposerTeamName
             : `${trade.proposerTeamName} vs ${trade.recipientTeamName}`
 
-    const iReceive = trade.routedItems.filter((item) => item.toMemberId === myMemberId)
-    const iGive = trade.routedItems.filter((item) => item.fromMemberId === myMemberId)
+    const perspective = tradeDisplayPerspective(trade, myMemberId)
+    const iReceive = perspective.receives
+    const iGive = perspective.gives
     const iReceiveFaab = 0
     const iGiveFaab = 0
-    const receiveLabel = isTradeParty
-        ? 'You receive:'
-        : `${trade.recipientTeamName} receives:`
-    const giveLabel = isTradeParty
-        ? 'You give:'
-        : `${trade.proposerTeamName} receives:`
+    const receiveLabel = perspective.receiveLabel
+    const giveLabel = perspective.giveLabel
 
     const statusStyle = STATUS_COLORS[trade.status] ?? STATUS_COLORS.pending
     const canVetoBySettings =
