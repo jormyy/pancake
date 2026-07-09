@@ -58,7 +58,8 @@ describe('shared realtime subscription coverage', () => {
         expect(leagueScreenState).toContain("const refreshDraftBoard = debounceRealtimeRefresh")
         expect(leagueScreenState).toContain("const refreshMockRooms = debounceRealtimeRefresh")
         expect(leagueScreenState).toContain('leagueScreenWatches(lid')
-        expect(leagueScreenState).toContain('currentDraftIdsRef.current.has(draftId)')
+        expect(leagueScreenState).toContain('draft_id=in.(')
+        expect(leagueScreenState).toContain("currentDraftKey || 'none'")
         expect(leagueScreenState).toContain("table: 'snake_draft_picks'")
 
         expect(tradesScreen).toContain('trades-screen:${leagueId}:${myMemberId}')

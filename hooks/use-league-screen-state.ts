@@ -1,6 +1,6 @@
 import { Share } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useFocusEffect } from '@react-navigation/native'
 import { useLeagueContext } from '@/contexts/league-context'
 import { getLeagueStandings, type StandingRow } from '@/lib/scoring'
@@ -109,7 +109,6 @@ export function useLeagueScreenState() {
 
     const loadedTabs = useRef<Set<LeagueTab>>(new Set())
     const activeLeagueIdRef = useRef<string | undefined>(undefined)
-    const currentDraftIdsRef = useRef<Set<string>>(new Set())
     activeLeagueIdRef.current = currentLeague?.id
 
     useEffect(() => {
@@ -218,20 +217,15 @@ export function useLeagueScreenState() {
         }, [currentLeague?.id, fetchTab, fetchActiveDraft]),
     )
 
-    useEffect(() => {
-        currentDraftIdsRef.current = new Set([
+    const currentDraftIds = useMemo(() => [...new Set([
             activeDraft?.id,
             ...mockRooms.map((room) => room.id),
-        ].filter((id): id is string => Boolean(id)))
-    }, [activeDraft?.id, mockRooms])
+        ].filter((id): id is string => Boolean(id)))].sort(), [activeDraft?.id, mockRooms])
+    const currentDraftKey = currentDraftIds.join(',')
 
     useEffect(() => {
         const lid = currentLeague?.id
         if (!lid) return
-        const changedDraftId = (payload: { eventType: string; new: Record<string, unknown>; old: Record<string, unknown> }) => {
-            const row = payload.eventType === 'DELETE' ? payload.old : payload.new
-            return typeof row.draft_id === 'string' ? row.draft_id : null
-        }
         const refreshResults = debounceRealtimeRefresh(() => { void fetchTab('results', lid) })
         const refreshHistory = debounceRealtimeRefresh(() => { void fetchTab('history', lid) })
         const refreshSettings = debounceRealtimeRefresh(() => { void fetchTab('settings', lid) })
@@ -252,21 +246,21 @@ export function useLeagueScreenState() {
                 refreshMockRooms.trigger()
             },
         })
-        const draftWatches: TableChangeWatch[] = [
-            { table: 'draft_room_members', onChange: (payload) => {
-                const draftId = changedDraftId(payload)
-                if (!draftId || !currentDraftIdsRef.current.has(draftId)) return
+        const draftFilter = currentDraftIds.length > 0 ? `draft_id=in.(${currentDraftIds.join(',')})` : null
+        const draftWatches: TableChangeWatch[] = draftFilter ? [
+            { table: 'draft_room_members', filter: draftFilter, onChange: () => {
                 refreshDraftState.trigger()
                 refreshMockRooms.trigger()
             } },
-            { table: 'snake_draft_picks', onChange: (payload) => {
-                const draftId = changedDraftId(payload)
-                if (!draftId || !currentDraftIdsRef.current.has(draftId)) return
+            { table: 'snake_draft_picks', filter: draftFilter, onChange: () => {
                 refreshDraftBoard.trigger()
                 refreshDraftState.trigger()
             } },
-        ]
-        const channel = subscribeToTableChanges(`league-screen:${lid}`, [...leagueWatches, ...draftWatches])
+        ] : []
+        const channel = subscribeToTableChanges(`league-screen:${lid}:${currentDraftKey || 'none'}`, {
+            mode: 'per-watch',
+            watches: [...leagueWatches, ...draftWatches],
+        })
 
         return () => {
             disposeTableChangeSubscription(channel, [
@@ -278,7 +272,7 @@ export function useLeagueScreenState() {
                 refreshDraftState,
             ])
         }
-    }, [currentLeague?.id, fetchActiveDraft, fetchTab])
+    }, [currentDraftIds, currentDraftKey, currentLeague?.id, fetchActiveDraft, fetchTab])
 
     function handleTabChange(nextTab: LeagueTab) {
         setTab(nextTab)

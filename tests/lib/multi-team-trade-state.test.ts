@@ -56,6 +56,24 @@ function routedTrade(items: TradeItem[]): Trade {
 }
 
 describe('multi-team trade state', () => {
+    it('sets an exact two-team specialization without discarding selected assets', () => {
+        let state = multiTeamTradeReducer(createMultiTeamTradeState('A'), {
+            type: 'set-participants',
+            actorMemberId: 'A',
+            participantIds: ['A', 'B'],
+        })
+        state = multiTeamTradeReducer(state, { type: 'select-asset', asset: 'player', memberId: 'A', assetId: 'player-1' })
+        state = multiTeamTradeReducer(state, {
+            type: 'set-participants',
+            actorMemberId: 'A',
+            participantIds: ['A', 'B'],
+        })
+
+        expect(state.participantOrder).toEqual(['A', 'B'])
+        expect(buildMultiTeamTradeItems(state, false)).toEqual([
+            { fromMemberId: 'A', toMemberId: 'B', playerId: 'player-1' },
+        ])
+    })
     it('keeps selected assets on the current default route until explicitly overridden', () => {
         let state = addParticipant(addParticipant(createMultiTeamTradeState('A'), 'B'), 'C')
         state = multiTeamTradeReducer(state, { type: 'toggle-asset', asset: 'player', memberId: 'A', assetId: 'player-1' })

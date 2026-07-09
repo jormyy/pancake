@@ -1,15 +1,18 @@
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
-import { type TableChangeWatch } from '@/lib/realtime-config'
-export { scopeWatchesToLeague, type TableChangeWatch } from '@/lib/realtime-config'
+import { type FallbackTableChangeWatch, type TableChangeWatch } from '@/lib/realtime-config'
+export { scopeWatchesToLeague, type FallbackTableChangeWatch, type TableChangeWatch } from '@/lib/realtime-config'
+
+type TableChangeSubscription =
+    | { mode: 'per-watch'; watches: TableChangeWatch[] }
+    | { mode: 'fallback'; watches: FallbackTableChangeWatch[]; onChange: () => void }
 
 export function subscribeToTableChanges(
     channelName: string,
-    watches: TableChangeWatch[],
-    onChange?: () => void,
+    subscription: TableChangeSubscription,
 ): RealtimeChannel {
     const channel = supabase.channel(channelName, { config: { private: true } })
-    for (const watch of watches) {
+    const register = (watch: FallbackTableChangeWatch, onChange: TableChangeWatch['onChange']) => {
         channel.on(
             'postgres_changes',
             {
@@ -18,8 +21,13 @@ export function subscribeToTableChanges(
                 table: watch.table,
                 ...(watch.filter ? { filter: watch.filter } : {}),
             },
-            watch.onChange ?? onChange ?? (() => {}),
+            onChange,
         )
+    }
+    if (subscription.mode === 'per-watch') {
+        for (const watch of subscription.watches) register(watch, watch.onChange)
+    } else {
+        for (const watch of subscription.watches) register(watch, subscription.onChange)
     }
     return channel.subscribe()
 }

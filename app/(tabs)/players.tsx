@@ -218,14 +218,13 @@ export default function PlayersScreen() {
         const refreshSupport = debounceRealtimeRefresh(() => { void refreshPlayerSupport() })
         const channel = subscribeToTableChanges(
             `players-screen:${leagueId}`,
-            [
+            { mode: 'fallback', watches: [
                 { table: 'roster_players', filter: `league_id=eq.${leagueId}` },
                 { table: 'waiver_wire_log', filter: `league_id=eq.${leagueId}` },
                 { table: 'waiver_claims', filter: `league_id=eq.${leagueId}` },
                 { table: 'waiver_priorities', filter: `league_id=eq.${leagueId}` },
                 { table: 'league_members', filter: `league_id=eq.${leagueId}` },
-            ],
-            refreshSupport.trigger,
+            ], onChange: refreshSupport.trigger },
         )
 
         return () => {

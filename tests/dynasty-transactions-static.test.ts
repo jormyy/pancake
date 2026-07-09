@@ -158,7 +158,7 @@ describe('dynasty transaction release contracts', () => {
     it('keeps trade composer prefill markers out of render state', () => {
         const modal = read('app/(modals)/propose-trade.tsx')
 
-        expect(modal).toContain('const prefillAppliedToRef = useRef<string | null>(null)')
+        expect(modal).toContain('const routePrefillKeyRef = useRef<string | null>(null)')
         expect(modal).not.toContain('setPrefillAppliedTo')
         expect(modal).not.toContain('[prefillAppliedTo,')
     })
@@ -174,9 +174,8 @@ describe('dynasty transaction release contracts', () => {
         expect(league).toContain('if (!TRADE_OPEN_STATUSES.has(league.status)) return true')
         expect(league).toContain("if (league.status !== 'active' && league.status !== 'playoffs') return false")
         expect(multiTeamComposer).toContain('export const isTradeableRosterPlayer')
-        expect(proposeModal).toContain('isTradeableRosterPlayer')
-        expect(proposeModal).toContain('theirData.filter(isTradeableRosterPlayer)')
-        expect(proposeModal).toContain('myData.filter(isTradeableRosterPlayer)')
+        expect(proposeModal).toContain('useMultiTeamTradeComposer')
+        expect(multiTeamComposer).toContain('roster.filter(isTradeableRosterPlayer)')
         expect(tradesScreen).toContain('roster.filter((player) => !player.is_on_ir && !player.is_on_taxi)')
         expect(playersScreen).toContain('push(`/(modals)/claim-player?playerId=${player.id}`)')
         expect(playersScreen).not.toContain('onAdd={quickAdd.handleAdd}')

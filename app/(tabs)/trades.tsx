@@ -14,9 +14,8 @@ import { EmptyState } from '@/components/EmptyState'
 import { isTradingClosed } from '@/lib/league'
 import {
     addTradeBlockItem,
-    getMyTrades,
+    getTradesForScreen,
     getTradeBlockItems,
-    getVetoableTrades,
     isIncomingTradeForMember,
     isOutgoingTradeForMember,
     isTradeHistoryForMember,
@@ -130,6 +129,12 @@ export default function TradesScreen() {
     const [blockLoading, setBlockLoading] = useState(!cachedBlock)
     const [blockError, setBlockError] = useState<string | null>(null)
     const [blockBusyId, setBlockBusyId] = useState<string | null>(null)
+    const listedPlayerIds = useMemo(() => new Set(blockItems.flatMap((block) =>
+        block.memberId === myMemberId && block.asset.kind === 'player' ? [block.asset.playerId] : [],
+    )), [blockItems, myMemberId])
+    const listedPickIds = useMemo(() => new Set(blockItems.flatMap((block) =>
+        block.memberId === myMemberId && block.asset.kind === 'pick' ? [block.asset.pickId] : [],
+    )), [blockItems, myMemberId])
     const tradesLoadSeqRef = useRef(0)
     const blockLoadSeqRef = useRef(0)
 
@@ -152,12 +157,8 @@ export default function TradesScreen() {
         }
         setTradesError(null)
         try {
-            const [myTradeData, vetoableTradeData] = await Promise.all([
-                getMyTrades(memberId, currentLeagueId),
-                getVetoableTrades(memberId, currentLeagueId),
-            ])
+            const result = await getTradesForScreen(memberId, currentLeagueId)
             if (tradesLoadSeqRef.current !== requestId) return
-            const result = [...vetoableTradeData, ...myTradeData]
             setTrades(result)
             writePersistentCache(tradesCacheKey(memberId, currentLeagueId), result)
         } catch (e) {
@@ -218,11 +219,11 @@ export default function TradesScreen() {
         const refreshDraftPicks = debounceRealtimeRefresh(() => { void refreshPicks() })
         const channel = subscribeToTableChanges(
             `trades-screen:${leagueId}:${myMemberId}`,
-            tradeScreenWatches(leagueId, {
+            { mode: 'per-watch', watches: tradeScreenWatches(leagueId, {
                 trades: refreshTrades.trigger,
                 tradeBlock: refreshTradeBlock.trigger,
                 draftPicks: refreshDraftPicks.trigger,
-            }),
+            }) },
         )
 
         return () => {
@@ -433,7 +434,7 @@ export default function TradesScreen() {
             )
         }
         if (item._type === 'blockPlayer') {
-            const listed = blockItems.some((block) => block.memberId === myMemberId && block.asset.kind === 'player' && block.asset.playerId === item.player.players.id)
+            const listed = listedPlayerIds.has(item.player.players.id)
             const player = item.player.players
             const positions = playerEligiblePositions({
                 position: player.position,
@@ -482,7 +483,7 @@ export default function TradesScreen() {
             )
         }
         if (item._type === 'blockPick') {
-            const listed = blockItems.some((block) => block.memberId === myMemberId && block.asset.kind === 'pick' && block.asset.pickId === item.pick.pickId)
+            const listed = listedPickIds.has(item.pick.pickId)
             return (
                 <View style={styles.blockRow}>
                     <View style={styles.blockInfo}>
@@ -523,7 +524,8 @@ export default function TradesScreen() {
         currentLeague?.trade_veto_mode,
         isCommissioner,
         load,
-        blockItems,
+        listedPickIds,
+        listedPlayerIds,
         blockBusyId,
         blockAvgMap,
         blockAvgStatsMap,

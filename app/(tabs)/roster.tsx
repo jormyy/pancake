@@ -244,14 +244,13 @@ export default function RosterScreen() {
 
         const channel = subscribeToTableChanges(
             `roster-screen:${leagueId}:${current.id}`,
-            [
+            { mode: 'fallback', watches: [
                 { table: 'roster_players', filter: `member_id=eq.${current.id}` },
                 { table: 'draft_picks', filter: `league_id=eq.${leagueId}` },
                 { table: 'waiver_claims', filter: `member_id=eq.${current.id}` },
                 { table: 'waiver_priorities', filter: `member_id=eq.${current.id}` },
                 { table: 'waiver_wire_log', filter: `league_id=eq.${leagueId}` },
-            ],
-            () => { void refresh() },
+            ], onChange: () => { void refresh() } },
         )
 
         return () => unsubscribeFromTableChanges(channel)

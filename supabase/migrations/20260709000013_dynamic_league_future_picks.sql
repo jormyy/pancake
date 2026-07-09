@@ -1,7 +1,4 @@
--- Canonical SQL source for public.create_league.
--- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
--- npm run check:db-function-sources verifies every latest migration function has exact source parity.
-
+-- Keep creator and joining-manager rookie pick banks on the same rolling horizon.
 CREATE OR REPLACE FUNCTION public.create_league(
   p_name           text,
   p_team_name      text,
@@ -85,3 +82,6 @@ BEGIN
   );
 END;
 $$;
+
+REVOKE ALL ON FUNCTION public.create_league(text, text, int) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.create_league(text, text, int) TO authenticated, service_role;

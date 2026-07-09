@@ -1,4 +1,5 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
+import { useMemo } from 'react'
 import { StyleSheet, Text, useWindowDimensions, View } from 'react-native'
 import { breakpoints, colors, fontSize, fontWeight, radii, spacing, uiColors } from '@/constants/tokens'
 
@@ -26,7 +27,18 @@ type MultiTeamTradeOverviewProps = {
 export function MultiTeamTradeOverview({ participants, items, compact = false }: MultiTeamTradeOverviewProps) {
     const { width } = useWindowDimensions()
     const useColumns = width >= breakpoints.roster
-    const participantLabels = new Map(participants.map((participant) => [participant.memberId, participant.label]))
+    const { incomingByMember, outgoingCountByMember, participantLabels } = useMemo(() => {
+        const labels = new Map(participants.map((participant) => [participant.memberId, participant.label]))
+        const incoming = new Map<string, TradeFlowItem[]>()
+        const outgoing = new Map<string, number>()
+        for (const item of items) {
+            const bucket = incoming.get(item.toMemberId)
+            if (bucket) bucket.push(item)
+            else incoming.set(item.toMemberId, [item])
+            outgoing.set(item.fromMemberId, (outgoing.get(item.fromMemberId) ?? 0) + 1)
+        }
+        return { incomingByMember: incoming, outgoingCountByMember: outgoing, participantLabels: labels }
+    }, [items, participants])
 
     return (
         <View style={[styles.container, compact && styles.containerCompact]}>
@@ -36,8 +48,8 @@ export function MultiTeamTradeOverview({ participants, items, compact = false }:
             </View>
             <View style={styles.teamGrid}>
                 {participants.map((participant) => {
-                    const incoming = items.filter((item) => item.toMemberId === participant.memberId)
-                    const outgoingCount = items.filter((item) => item.fromMemberId === participant.memberId).length
+                    const incoming = incomingByMember.get(participant.memberId) ?? []
+                    const outgoingCount = outgoingCountByMember.get(participant.memberId) ?? 0
 
                     return (
                         <View

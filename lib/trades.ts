@@ -522,33 +522,31 @@ async function enrichTradesWithStats(trades: Trade[], leagueId: string): Promise
     }))
 }
 
-export async function getMyTrades(memberId: string, leagueId: string): Promise<Trade[]> {
-    const { data: participantRows, error: participantError } = await supabase
-        .from('trade_participants')
-        .select('trade_id')
-        .eq('member_id', memberId)
-        .eq('league_id', leagueId)
-    if (participantError) throw participantError
-    const participantTradeIds = [...new Set((participantRows ?? []).map((row) => row.trade_id))]
-    const visibilityFilters = [
-        `proposer_member_id.eq.${memberId}`,
-        `recipient_member_id.eq.${memberId}`,
-        ...(participantTradeIds.length > 0 ? [`id.in.(${participantTradeIds.join(',')})`] : []),
-    ].join(',')
+export async function getTradesForScreen(memberId: string, leagueId: string): Promise<Trade[]> {
     const { data, error } = await supabase
         .from('trades')
         .select(TRADE_SELECT)
-        .or(visibilityFilters)
         .eq('league_id', leagueId)
         .order('proposed_at', { ascending: false })
-        .limit(20)
+        .limit(40)
 
     if (error) throw error
 
-    return enrichTradesWithStats(
-        ((data ?? []) as TradeQueryRow[]).map((row) => mapTradeRow(row, memberId)),
-        leagueId,
-    )
+    const visible = ((data ?? []) as TradeQueryRow[])
+        .map((row) => mapTradeRow(row, memberId))
+        .filter((trade) => isTradeVisibleOnScreen(trade, memberId))
+
+    return enrichTradesWithStats(visible, leagueId)
+}
+
+export function isTradeVisibleOnScreen(trade: Trade, memberId: string, nowMs = Date.now()): boolean {
+    const isParticipant = trade.proposerMemberId === memberId ||
+        trade.recipientMemberId === memberId ||
+        trade.participants.some((participant) => participant.memberId === memberId)
+    if (isParticipant) return true
+    return trade.status === 'accepted' &&
+        trade.vetoWindowExpiresAt != null &&
+        Date.parse(trade.vetoWindowExpiresAt) > nowMs
 }
 
 export async function getPendingIncomingTradeCount(memberId: string, leagueId: string): Promise<number> {
@@ -577,41 +575,6 @@ export async function getPendingIncomingTradeCount(memberId: string, leagueId: s
 
     if (error) throw error
     return count ?? 0
-}
-
-export async function getVetoableTrades(memberId: string, leagueId: string): Promise<Trade[]> {
-    const { data: participantRows, error: participantError } = await supabase
-        .from('trade_participants')
-        .select('trade_id')
-        .eq('member_id', memberId)
-        .eq('league_id', leagueId)
-    if (participantError) throw participantError
-    const participantTradeIds = [...new Set((participantRows ?? []).map((row) => row.trade_id))]
-
-    let query = supabase
-        .from('trades')
-        .select(TRADE_SELECT)
-        .eq('league_id', leagueId)
-        .eq('status', 'accepted')
-        .neq('proposer_member_id', memberId)
-        .neq('recipient_member_id', memberId)
-        .gt('veto_window_expires_at', new Date().toISOString())
-        .order('accepted_at', { ascending: false })
-        .limit(20)
-    if (participantTradeIds.length > 0) {
-        query = query.not('id', 'in', `(${participantTradeIds.join(',')})`)
-    }
-
-    const { data, error } = await query
-    if (error) throw error
-
-    const trades = ((data ?? []) as TradeQueryRow[]).map((row) => mapTradeRow(row, memberId))
-        .filter((trade) => !trade.participants.some((participant) => participant.memberId === memberId))
-
-    return enrichTradesWithStats(
-        trades,
-        leagueId,
-    )
 }
 
 export async function getTradeById(tradeId: string, memberId: string): Promise<Trade | null> {

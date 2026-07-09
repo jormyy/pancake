@@ -5,7 +5,7 @@ describe('async route and league switch guards', () => {
     it('drops stale trades and trade-block loads before committing state', () => {
         const source = read('app/(tabs)/trades.tsx')
         const tradeRequestIndex = source.indexOf('const requestId = ++tradesLoadSeqRef.current')
-        const tradeFetchIndex = source.indexOf('await Promise.all', tradeRequestIndex)
+        const tradeFetchIndex = source.indexOf('await getTradesForScreen', tradeRequestIndex)
         const tradeGuardIndex = source.indexOf('if (tradesLoadSeqRef.current !== requestId) return', tradeFetchIndex)
         const tradeCommitIndex = source.indexOf('setTrades(result)', tradeGuardIndex)
 

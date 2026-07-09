@@ -126,7 +126,9 @@ describe('Supabase Edge API cutover', () => {
             rootPackage.scripts?.['test:db:dynasty-ranking'] ?? '',
         ].join('\n')
 
-        expect(workflow).not.toContain('supabase start')
+        expect(workflow).toContain('supabase start')
+        expect(workflow).toContain('supabase migration list --local --agent yes')
+        expect(workflow).toContain('npm run test:db:multi-team-trade')
         expect(workflow).not.toContain('supabase db reset')
         expect(workflow).not.toContain('supabase stop')
         expect(dbScripts).toContain('SUPABASE_DB_URL:?SUPABASE_DB_URL is required')

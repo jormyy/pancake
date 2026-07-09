@@ -1254,20 +1254,28 @@ export async function runBrowserTradeScenario({
       session,
       [
         'Propose Trade',
-        'YOU RECEIVE',
-        'YOU GIVE',
-        fixture.recipientPlayer.display_name,
+        'DEAL OVERVIEW',
+        'BUILD THE DEAL',
+        'You send',
+        `${fixture.recipient.team_name} sends`,
         fixture.proposerPlayer.display_name,
       ],
       'trade proposal before submit',
     )
     await browser(session, ['screenshot', path.join(artifactDir, 'trade-before-submit.png')], { timeout: 60_000 })
 
+    const recipientTabClick = await clickButton(
+      session,
+      `Edit assets sent by ${fixture.recipient.team_name}`,
+      'recipient sender tab',
+    )
+    await assertPageText(session, [fixture.recipientPlayer.display_name], 'recipient trade assets')
     const requestClick = await clickButton(
       session,
       `Select ${fixture.recipientPlayer.display_name} for trade`,
       'recipient player selection',
     )
+    const proposerTabClick = await clickButton(session, 'Edit assets sent by you', 'proposer sender tab')
     const offerClick = await clickButton(
       session,
       `Select ${fixture.proposerPlayer.display_name} for trade`,
@@ -1277,7 +1285,7 @@ export async function runBrowserTradeScenario({
     await browser(session, ['screenshot', path.join(artifactDir, 'trade-selected.png')], { timeout: 60_000 })
     const submitClick = await clickButton(session, 'Send trade proposal', 'trade proposal submit')
     const tradeProposal = await waitForTradeProposal(fixture)
-    debug = { ...debug, requestClick, offerClick, submitClick, tradeProposal }
+    debug = { ...debug, recipientTabClick, proposerTabClick, requestClick, offerClick, submitClick, tradeProposal }
     if (tradeProposal.failures.length > 0) {
       throw new Error(`trade proposal did not persist: ${tradeProposal.failures.join('; ')}`)
     }
@@ -1385,9 +1393,10 @@ export async function runBrowserTradePostDeadlineScenario({
       session,
       [
         'Propose Trade',
-        'YOU RECEIVE',
-        'YOU GIVE',
-        fixture.recipientPlayer.display_name,
+        'DEAL OVERVIEW',
+        'BUILD THE DEAL',
+        'You send',
+        `${fixture.recipient.team_name} sends`,
         fixture.proposerPlayer.display_name,
         'Trades are locked only from the trade deadline until the champion is finalized.',
       ],
@@ -1395,11 +1404,17 @@ export async function runBrowserTradePostDeadlineScenario({
     )
     await browser(session, ['screenshot', path.join(artifactDir, 'post-deadline-before-submit.png')], { timeout: 60_000 })
 
+    const recipientTabClick = await clickButton(
+      session,
+      `Edit assets sent by ${fixture.recipient.team_name}`,
+      'post-deadline recipient sender tab',
+    )
     const requestClick = await clickButton(
       session,
       `Select ${fixture.recipientPlayer.display_name} for trade`,
       'post-deadline recipient player selection',
     )
+    const proposerTabClick = await clickButton(session, 'Edit assets sent by you', 'post-deadline proposer sender tab')
     const offerClick = await clickButton(
       session,
       `Select ${fixture.proposerPlayer.display_name} for trade`,
@@ -1411,7 +1426,7 @@ export async function runBrowserTradePostDeadlineScenario({
 
     const alerts = await readBrowserAlerts(session)
     const rejected = await verifyPostDeadlineTradeRejected(fixture)
-    debug = { ...debug, requestClick, offerClick, submitState, alerts, rejected }
+    debug = { ...debug, recipientTabClick, proposerTabClick, requestClick, offerClick, submitState, alerts, rejected }
     const failures = [...rejected.failures]
     if (submitState.disabled !== true && submitState.ariaDisabled !== 'true') {
       failures.push(`send button was not disabled after deadline; state=${JSON.stringify(submitState)}`)
@@ -1641,24 +1656,29 @@ export async function runBrowserTradeFuturePickScenario({
       session,
       [
         'Propose Trade',
-        'YOU RECEIVE',
-        'YOU GIVE',
+        'DEAL OVERVIEW',
+        'BUILD THE DEAL',
         'DRAFT PICKS',
         String(fixture.targetFuturePickYear),
-        fixture.recipientFuturePick.originalTeamName,
         fixture.proposerFuturePick.originalTeamName,
       ],
       'future-pick trade before submit',
     )
     await browser(session, ['screenshot', path.join(artifactDir, 'future-pick-before-submit.png')], { timeout: 60_000 })
 
+    const recipientTabClick = await clickButton(
+      session,
+      `Edit assets sent by ${fixture.recipient.team_name}`,
+      'future-pick recipient sender tab',
+    )
     const requestPickClick = await clickButton(session, recipientPickLabel, 'recipient future pick selection')
+    const proposerTabClick = await clickButton(session, 'Edit assets sent by you', 'future-pick proposer sender tab')
     const offerPickClick = await clickButton(session, proposerPickLabel, 'proposer future pick selection')
     await browser(session, ['wait', '500'])
     await browser(session, ['screenshot', path.join(artifactDir, 'future-pick-selected.png')], { timeout: 60_000 })
     const submitClick = await clickButton(session, 'Send trade proposal', 'future-pick trade proposal submit')
     const tradeProposal = await waitForFuturePickTradeProposal(fixture)
-    debug = { ...debug, requestPickClick, offerPickClick, submitClick, tradeProposal }
+    debug = { ...debug, recipientTabClick, proposerTabClick, requestPickClick, offerPickClick, submitClick, tradeProposal }
     if (tradeProposal.failures.length > 0) {
       throw new Error(`future-pick trade proposal did not persist: ${tradeProposal.failures.join('; ')}`)
     }

@@ -27,6 +27,7 @@ const MIGRATIONS = path.resolve(__dirname, '../supabase/migrations')
 const SERVICE_ROLE_ONLY_RPCS = [
     'propose_trade_atomic',
     'accept_trade_atomic',
+    'accept_multi_team_trade_atomic',
     'reject_trade_atomic',
     'withdraw_trade_atomic',
     'complete_accepted_trade_atomic',
@@ -283,6 +284,13 @@ describe('waiver intent oracle closure', () => {
 })
 
 describe('trade privacy policies', () => {
+    it('allows authenticated participant reads through RLS without exposing them anonymously', () => {
+        const privileges = tablePrivilegeStatements('trade_participants').join('\n')
+
+        expect(privileges).toContain('GRANT SELECT ON public.trade_participants TO authenticated')
+        expect(privileges).toContain('REVOKE SELECT ON public.trade_participants FROM anon')
+    })
+
     it('keeps pending trade rows visible only to the proposing or receiving managers', () => {
         const tradePolicy = latestPolicyDefinition('trades_select_parties_or_accepted', 'trades')
         const visibilityHelper = latestFunctionDefinition('can_read_trade', 'private')

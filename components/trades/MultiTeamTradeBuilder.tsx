@@ -1,26 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native'
 import { MultiTeamTradeOverview, type TradeFlowItem } from '@/components/trades/MultiTeamTradeOverview'
-import { TradeAssetColumn } from '@/components/trades/TradeAssetColumn'
+import { ParticipantTradePanel } from '@/components/trades/ParticipantTradePanel'
 import { breakpoints, colors, fontSize, fontWeight, radii, spacing, uiColors } from '@/constants/tokens'
-import type { RosterPlayer } from '@/lib/roster'
-import type { TradePickItem } from '@/lib/trades'
+import type { TradeParticipantView } from '@/hooks/use-multi-team-trade-composer'
 
 type MultiTeamTradeBuilderProps = {
-    participantIds: string[]
+    participants: TradeParticipantView[]
     myMemberId: string
     faabEnabled: boolean
     notes: string
     expirationDays: string
     rosterError: string | null
-    participantRosters: Record<string, RosterPlayer[]>
-    participantPicks: Record<string, TradePickItem[]>
-    participantPlayerIds: Record<string, Set<string>>
-    participantPickIds: Record<string, Set<string>>
-    participantDestinationIds: Record<string, string>
-    participantPlayerDestinationIds: Record<string, Record<string, string>>
-    participantPickDestinationIds: Record<string, Record<string, string>>
-    participantFaabInputs: Record<string, string>
     avgMap: Map<string, number>
     avgStatsMap: Map<string, { avg_minutes_played: number | null }>
     participantName: (memberId: string) => string
@@ -36,20 +27,12 @@ type MultiTeamTradeBuilderProps = {
 }
 
 export function MultiTeamTradeBuilder({
-    participantIds,
+    participants,
     myMemberId,
     faabEnabled,
     notes,
     expirationDays,
     rosterError,
-    participantRosters,
-    participantPicks,
-    participantPlayerIds,
-    participantPickIds,
-    participantDestinationIds,
-    participantPlayerDestinationIds,
-    participantPickDestinationIds,
-    participantFaabInputs,
     avgMap,
     avgStatsMap,
     participantName,
@@ -64,67 +47,43 @@ export function MultiTeamTradeBuilder({
     onExpirationDaysChange,
 }: MultiTeamTradeBuilderProps) {
     const { width } = useWindowDimensions()
-    const useColumns = width >= breakpoints.roster && participantIds.length > 1
-    const [activeParticipantId, setActiveParticipantId] = useState(participantIds[0] ?? '')
+    const useColumns = width >= breakpoints.roster
+    const [activeParticipantId, setActiveParticipantId] = useState(participants[0]?.memberId ?? '')
 
     useEffect(() => {
-        if (!participantIds.includes(activeParticipantId)) {
-            setActiveParticipantId(participantIds[0] ?? '')
+        if (!participants.some((participant) => participant.memberId === activeParticipantId)) {
+            setActiveParticipantId(participants[0]?.memberId ?? '')
         }
-    }, [activeParticipantId, participantIds])
+    }, [activeParticipantId, participants])
 
-    const overviewItems = useMemo(() => participantIds.flatMap<TradeFlowItem>((memberId) => {
-        const destinationOptions = participantIds.filter((id) => id !== memberId)
-        const defaultDestinationId = participantDestinationIds[memberId] && destinationOptions.includes(participantDestinationIds[memberId])
-            ? participantDestinationIds[memberId]
-            : destinationOptions[0]
-        const playerDestinations = participantPlayerDestinationIds[memberId] ?? {}
-        const pickDestinations = participantPickDestinationIds[memberId] ?? {}
-        const selectedPlayerIds = participantPlayerIds[memberId] ?? new Set<string>()
-        const selectedPickIds = participantPickIds[memberId] ?? new Set<string>()
-        const players = (participantRosters[memberId] ?? []).flatMap<TradeFlowItem>((player) => {
-            const playerId = player.players.id
-            if (!selectedPlayerIds.has(playerId) || !defaultDestinationId) return []
-            return [{
-                key: `player:${memberId}:${playerId}`,
-                fromMemberId: memberId,
-                toMemberId: playerDestinations[playerId] ?? defaultDestinationId,
+    const overviewItems = useMemo<TradeFlowItem[]>(() => participants.flatMap((participant) => {
+        const players = participant.roster
+            .filter((player) => participant.selectedPlayerIds.has(player.players.id))
+            .map((player) => ({
+                key: `player:${participant.memberId}:${player.players.id}`,
+                fromMemberId: participant.memberId,
+                toMemberId: participant.playerDestinationIds[player.players.id],
                 label: player.players.display_name,
-                detail: player.players.position,
-            }]
-        })
-        const picks = (participantPicks[memberId] ?? []).flatMap<TradeFlowItem>((pick) => {
-            if (!selectedPickIds.has(pick.pickId) || !defaultDestinationId) return []
-            return [{
-                key: `pick:${memberId}:${pick.pickId}`,
-                fromMemberId: memberId,
-                toMemberId: pickDestinations[pick.pickId] ?? defaultDestinationId,
+            }))
+        const picks = participant.picks
+            .filter((pick) => participant.selectedPickIds.has(pick.pickId))
+            .map((pick) => ({
+                key: `pick:${participant.memberId}:${pick.pickId}`,
+                fromMemberId: participant.memberId,
+                toMemberId: participant.pickDestinationIds[pick.pickId],
                 label: `${pick.seasonYear} Round ${pick.round}`,
-                detail: `${pick.originalTeamName} pick`,
-            }]
-        })
-        const faabAmount = parseInt(participantFaabInputs[memberId] ?? '0', 10) || 0
-        const faab = faabEnabled && faabAmount > 0 && defaultDestinationId
+            }))
+        const faabAmount = parseInt(participant.faabInput || '0', 10) || 0
+        const faab = faabEnabled && faabAmount > 0 && participant.defaultDestinationId
             ? [{
-                key: `faab:${memberId}`,
-                fromMemberId: memberId,
-                toMemberId: defaultDestinationId,
+                key: `faab:${participant.memberId}`,
+                fromMemberId: participant.memberId,
+                toMemberId: participant.defaultDestinationId,
                 label: `$${faabAmount} FAAB`,
             }]
             : []
         return [...players, ...picks, ...faab]
-    }), [
-        faabEnabled,
-        participantDestinationIds,
-        participantFaabInputs,
-        participantIds,
-        participantPickDestinationIds,
-        participantPickIds,
-        participantPicks,
-        participantPlayerDestinationIds,
-        participantPlayerIds,
-        participantRosters,
-    ])
+    }), [faabEnabled, participants])
 
     if (rosterError) {
         return (
@@ -139,180 +98,31 @@ export function MultiTeamTradeBuilder({
         )
     }
 
-    const panels = participantIds.map((memberId) => {
-        const destinationOptions = participantIds.filter((id) => id !== memberId)
-        const toMemberId = participantDestinationIds[memberId] && destinationOptions.includes(participantDestinationIds[memberId])
-            ? participantDestinationIds[memberId]
-            : destinationOptions[0]
-        const roster = participantRosters[memberId] ?? []
-        const picks = participantPicks[memberId] ?? []
-        const selectedPlayerIds = participantPlayerIds[memberId] ?? new Set<string>()
-        const selectedPickIds = participantPickIds[memberId] ?? new Set<string>()
-        const playerDestinations = participantPlayerDestinationIds[memberId] ?? {}
-        const pickDestinations = participantPickDestinationIds[memberId] ?? {}
-        const destinationForPlayer = (playerId: string) => {
-            const destinationId = playerDestinations[playerId]
-            if (destinationId && destinationOptions.includes(destinationId)) return destinationId
-            return toMemberId
-        }
-        const destinationForPick = (pickId: string) => {
-            const destinationId = pickDestinations[pickId]
-            if (destinationId && destinationOptions.includes(destinationId)) return destinationId
-            return toMemberId
-        }
-        const selectedPlayers = roster.filter((player) => selectedPlayerIds.has(player.players.id))
-        const selectedPicks = picks.filter((pick) => selectedPickIds.has(pick.pickId))
-
-        return (
-            <View
-                key={memberId}
-                style={[
-                    styles.multiTeamPanel,
-                    useColumns ? styles.multiTeamPanelColumn : styles.multiTeamPanelStacked,
-                ]}
-            >
-                <View style={styles.routePicker}>
-                    <Text style={styles.routePickerLabel}>DEFAULT SEND TO</Text>
-                    <View style={styles.routeOptions}>
-                        {destinationOptions.map((destinationId) => {
-                            const active = destinationId === toMemberId
-                            return (
-                                <Pressable
-                                    key={destinationId}
-                                    style={[styles.routeOption, active && styles.routeOptionActive]}
-                                    onPress={() => onDestinationChange(memberId, destinationId)}
-                                    accessibilityRole="button"
-                                    accessibilityLabel={`${participantName(memberId)} sends selected assets to ${participantName(destinationId)}`}
-                                >
-                                    <Text
-                                        style={[
-                                            styles.routeOptionText,
-                                            active && styles.routeOptionTextActive,
-                                        ]}
-                                        numberOfLines={1}
-                                    >
-                                        {participantName(destinationId)}
-                                    </Text>
-                                </Pressable>
-                            )
-                        })}
-                    </View>
-                </View>
-                <TradeAssetColumn
-                    title={memberId === myMemberId ? 'YOU SEND' : `${participantName(memberId).toUpperCase()} SENDS`}
-                    subtitle={toMemberId ? `To ${participantName(toMemberId)}` : 'Choose a destination'}
-                    side="give"
-                    twoColumn={useColumns}
-                    roster={roster}
-                    picks={picks}
-                    avgMap={avgMap}
-                    avgStatsMap={avgStatsMap}
-                    selectedPlayerIds={selectedPlayerIds}
-                    selectedPickIds={selectedPickIds}
-                    playerDestinationLabel={(playerId) => participantName(destinationForPlayer(playerId))}
-                    pickDestinationLabel={(pickId) => participantName(destinationForPick(pickId))}
-                    onTogglePlayer={(playerId) => onTogglePlayer(memberId, playerId)}
-                    onTogglePick={(pickId) => onTogglePick(memberId, pickId)}
-                    emptyText="No tradeable active players."
-                />
-                {selectedPlayers.length > 0 || selectedPicks.length > 0 ? (
-                    <View style={styles.selectedRoutes}>
-                        <Text style={styles.routePickerLabel}>SELECTED ROUTES</Text>
-                        {selectedPlayers.map((player) => {
-                            const playerId = player.players.id
-                            const selectedDestinationId = destinationForPlayer(playerId)
-                            return (
-                                <View key={`player:${playerId}`} style={styles.selectedRouteRow}>
-                                    <Text style={styles.selectedRouteName} numberOfLines={2}>
-                                        {player.players.display_name}
-                                    </Text>
-                                    <View style={styles.routeOptions}>
-                                        {destinationOptions.map((destinationId) => {
-                                            const active = destinationId === selectedDestinationId
-                                            return (
-                                                <Pressable
-                                                    key={destinationId}
-                                                    style={[styles.routeOption, active && styles.routeOptionActive]}
-                                                    onPress={() => onPlayerDestinationChange(memberId, playerId, destinationId)}
-                                                    accessibilityRole="button"
-                                                    accessibilityLabel={`Route ${player.players.display_name} to ${participantName(destinationId)}`}
-                                                >
-                                                    <Text
-                                                        style={[
-                                                            styles.routeOptionText,
-                                                            active && styles.routeOptionTextActive,
-                                                        ]}
-                                                        numberOfLines={1}
-                                                    >
-                                                        {participantName(destinationId)}
-                                                    </Text>
-                                                </Pressable>
-                                            )
-                                        })}
-                                    </View>
-                                </View>
-                            )
-                        })}
-                        {selectedPicks.map((pick) => {
-                            const selectedDestinationId = destinationForPick(pick.pickId)
-                            const label = `${pick.seasonYear} Round ${pick.round}`
-                            return (
-                                <View key={`pick:${pick.pickId}`} style={styles.selectedRouteRow}>
-                                    <Text style={styles.selectedRouteName} numberOfLines={2}>
-                                        {label}
-                                    </Text>
-                                    <View style={styles.routeOptions}>
-                                        {destinationOptions.map((destinationId) => {
-                                            const active = destinationId === selectedDestinationId
-                                            return (
-                                                <Pressable
-                                                    key={destinationId}
-                                                    style={[styles.routeOption, active && styles.routeOptionActive]}
-                                                    onPress={() => onPickDestinationChange(memberId, pick.pickId, destinationId)}
-                                                    accessibilityRole="button"
-                                                    accessibilityLabel={`Route ${label} pick to ${participantName(destinationId)}`}
-                                                >
-                                                    <Text
-                                                        style={[
-                                                            styles.routeOptionText,
-                                                            active && styles.routeOptionTextActive,
-                                                        ]}
-                                                        numberOfLines={1}
-                                                    >
-                                                        {participantName(destinationId)}
-                                                    </Text>
-                                                </Pressable>
-                                            )
-                                        })}
-                                    </View>
-                                </View>
-                            )
-                        })}
-                    </View>
-                ) : null}
-                {faabEnabled ? (
-                    <View style={styles.multiFaabRow}>
-                        <Text style={styles.termLabel}>
-                            FAAB to {toMemberId ? participantName(toMemberId) : 'destination'}
-                        </Text>
-                        <TextInput
-                            style={styles.termInput}
-                            value={participantFaabInputs[memberId] ?? '0'}
-                            onChangeText={(value) => onFaabChange(memberId, value)}
-                            keyboardType="numeric"
-                        />
-                    </View>
-                ) : null}
-            </View>
-        )
-    })
+    const panels = participants.map((participant) => (
+        <ParticipantTradePanel
+            key={participant.memberId}
+            participant={participant}
+            myMemberId={myMemberId}
+            faabEnabled={faabEnabled}
+            useColumns={useColumns}
+            avgMap={avgMap}
+            avgStatsMap={avgStatsMap}
+            participantName={participantName}
+            onTogglePlayer={onTogglePlayer}
+            onTogglePick={onTogglePick}
+            onDestinationChange={onDestinationChange}
+            onPlayerDestinationChange={onPlayerDestinationChange}
+            onPickDestinationChange={onPickDestinationChange}
+            onFaabChange={onFaabChange}
+        />
+    ))
 
     return (
         <>
             <MultiTeamTradeOverview
-                participants={participantIds.map((memberId) => ({
-                    memberId,
-                    label: memberId === myMemberId ? 'You' : participantName(memberId),
+                participants={participants.map((participant) => ({
+                    memberId: participant.memberId,
+                    label: participant.memberId === myMemberId ? 'You' : participantName(participant.memberId),
                 }))}
                 items={overviewItems}
             />
@@ -324,19 +134,19 @@ export function MultiTeamTradeBuilder({
                     contentContainerStyle={styles.senderTabs}
                     accessibilityRole="tablist"
                 >
-                    {participantIds.map((memberId) => {
-                        const active = memberId === activeParticipantId
+                    {participants.map((participant) => {
+                        const active = participant.memberId === activeParticipantId
                         return (
                             <Pressable
-                                key={memberId}
+                                key={participant.memberId}
                                 style={[styles.senderTab, active && styles.senderTabActive]}
-                                onPress={() => setActiveParticipantId(memberId)}
+                                onPress={() => setActiveParticipantId(participant.memberId)}
                                 accessibilityRole="tab"
                                 accessibilityState={{ selected: active }}
-                                accessibilityLabel={`Edit assets sent by ${memberId === myMemberId ? 'you' : participantName(memberId)}`}
+                                accessibilityLabel={`Edit assets sent by ${participant.memberId === myMemberId ? 'you' : participantName(participant.memberId)}`}
                             >
                                 <Text style={[styles.senderTabText, active && styles.senderTabTextActive]} numberOfLines={1}>
-                                    {memberId === myMemberId ? 'You send' : `${participantName(memberId)} sends`}
+                                    {participant.memberId === myMemberId ? 'You send' : `${participantName(participant.memberId)} sends`}
                                 </Text>
                             </Pressable>
                         )
@@ -347,13 +157,13 @@ export function MultiTeamTradeBuilder({
                 <ScrollView
                     horizontal
                     showsHorizontalScrollIndicator={false}
-                    style={styles.multiTeamScroller}
-                    contentContainerStyle={styles.multiTeamColumns}
+                    style={styles.scroller}
+                    contentContainerStyle={styles.columns}
                 >
                     {panels}
                 </ScrollView>
             ) : (
-                <View style={styles.multiTeamStack}>
+                <View style={styles.stack}>
                     {panels.find((panel) => panel.key === activeParticipantId) ?? panels[0]}
                 </View>
             )}
@@ -395,35 +205,10 @@ const styles = StyleSheet.create({
         paddingTop: spacing['2xl'],
         paddingBottom: spacing.md,
     },
-    multiTeamStack: { gap: spacing.lg, marginBottom: spacing.lg },
-    multiTeamScroller: { marginBottom: spacing.lg },
-    multiTeamColumns: {
-        flexDirection: 'row',
-        gap: spacing.md,
-        paddingHorizontal: spacing.xl,
-        paddingBottom: spacing.sm,
-    },
-    multiTeamPanel: {
-        borderWidth: 1,
-        borderColor: colors.borderLight,
-        borderRadius: radii.md,
-        borderCurve: 'continuous' as const,
-        backgroundColor: colors.bgScreen,
-        overflow: 'hidden',
-    },
-    multiTeamPanelColumn: {
-        flexGrow: 1,
-        flexShrink: 0,
-        flexBasis: 280,
-        minWidth: 280,
-        maxWidth: 340,
-    },
-    multiTeamPanelStacked: { width: '100%' },
-    senderTabs: {
-        gap: spacing.sm,
-        paddingHorizontal: spacing.xl,
-        paddingBottom: spacing.md,
-    },
+    stack: { gap: spacing.lg, marginBottom: spacing.lg },
+    scroller: { marginBottom: spacing.lg },
+    columns: { flexDirection: 'row', gap: spacing.md, paddingHorizontal: spacing.xl, paddingBottom: spacing.sm },
+    senderTabs: { gap: spacing.sm, paddingHorizontal: spacing.xl, paddingBottom: spacing.md },
     senderTab: {
         minWidth: 112,
         maxWidth: 200,
@@ -435,67 +220,8 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     senderTabActive: { borderBottomColor: colors.primary },
-    senderTabText: {
-        fontSize: fontSize.sm,
-        fontWeight: fontWeight.semibold,
-        color: colors.textMuted,
-    },
+    senderTabText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textMuted },
     senderTabTextActive: { color: colors.textPrimary },
-    routePicker: {
-        paddingHorizontal: spacing.xl,
-        paddingTop: spacing.lg,
-        gap: spacing.xs,
-    },
-    routePickerLabel: {
-        fontSize: 10,
-        fontWeight: fontWeight.bold,
-        color: colors.textMuted,
-        letterSpacing: 0,
-    },
-    routeOptions: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: spacing.xs,
-    },
-    routeOption: {
-        minHeight: 36,
-        maxWidth: 180,
-        borderWidth: 1,
-        borderColor: uiColors.borderNeutral,
-        borderRadius: radii.md,
-        borderCurve: 'continuous' as const,
-        paddingHorizontal: spacing.md,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    routeOptionActive: {
-        borderColor: colors.primary,
-        backgroundColor: colors.primary,
-    },
-    routeOptionText: {
-        fontSize: fontSize.sm,
-        fontWeight: fontWeight.semibold,
-        color: colors.textSecondary,
-    },
-    routeOptionTextActive: { color: colors.textWhite },
-    selectedRoutes: {
-        paddingHorizontal: spacing.xl,
-        paddingTop: spacing.md,
-        paddingBottom: spacing.sm,
-        gap: spacing.sm,
-    },
-    selectedRouteRow: { gap: spacing.xs },
-    selectedRouteName: {
-        fontSize: fontSize.sm,
-        fontWeight: fontWeight.semibold,
-        color: colors.textPrimary,
-    },
-    multiFaabRow: {
-        marginHorizontal: spacing.xl,
-        marginBottom: spacing.lg,
-        gap: spacing.xs,
-        maxWidth: 220,
-    },
     notesInput: {
         marginHorizontal: spacing.xl,
         borderWidth: 1,
@@ -509,24 +235,9 @@ const styles = StyleSheet.create({
         minHeight: 80,
         textAlignVertical: 'top',
     },
-    termsRow: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: spacing.md,
-        marginHorizontal: spacing.xl,
-    },
-    termField: {
-        flexGrow: 1,
-        flexBasis: 150,
-        minWidth: 150,
-        gap: spacing.xs,
-    },
-    termLabel: {
-        fontSize: 10,
-        fontWeight: fontWeight.bold,
-        color: colors.textMuted,
-        letterSpacing: 0,
-    },
+    termsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, marginHorizontal: spacing.xl },
+    termField: { flexGrow: 1, flexBasis: 150, minWidth: 150, gap: spacing.xs },
+    termLabel: { fontSize: 10, fontWeight: fontWeight.bold, color: colors.textMuted, letterSpacing: 0 },
     termInput: {
         minHeight: 44,
         borderWidth: 1,
@@ -538,16 +249,6 @@ const styles = StyleSheet.create({
         fontWeight: fontWeight.bold,
         color: colors.textPrimary,
     },
-    rosterErrorRow: {
-        paddingHorizontal: spacing.xl,
-        paddingVertical: spacing.lg,
-        minHeight: 44,
-        alignItems: 'center',
-    },
-    rosterErrorText: {
-        color: colors.dangerDark,
-        fontSize: fontSize.md,
-        fontWeight: fontWeight.semibold,
-        textAlign: 'center',
-    },
+    rosterErrorRow: { paddingHorizontal: spacing.xl, paddingVertical: spacing.lg, minHeight: 44, alignItems: 'center' },
+    rosterErrorText: { color: colors.dangerDark, fontSize: fontSize.md, fontWeight: fontWeight.semibold, textAlign: 'center' },
 })

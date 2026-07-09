@@ -180,7 +180,7 @@ describe('multi-team trade UI and client mapping', () => {
         const pendingTradeCount = read('hooks/use-pending-trade-count.ts')
         const pendingTradeCountQuery = clientTrades.slice(
             clientTrades.indexOf('export async function getPendingIncomingTradeCount'),
-            clientTrades.indexOf('export async function getVetoableTrades'),
+            clientTrades.indexOf('export async function getTradeById'),
         )
 
         expect(tradesScreen).toContain('isIncomingTradeForMember(trade, myMemberId)')
@@ -190,7 +190,7 @@ describe('multi-team trade UI and client mapping', () => {
         expect(pendingTradeCount).toContain('getPendingIncomingTradeCount(memberId, leagueId)')
         expect(pendingTradeCount).not.toContain(".eq('recipient_member_id', memberId)")
         expect(clientTrades).toContain('and(is_multi_team.eq.false,recipient_member_id.eq.${memberId})')
-        expect(clientTrades).toContain("query.not('id', 'in'")
+        expect(clientTrades).toContain('isTradeVisibleOnScreen(trade, memberId)')
         expect(pendingTradeCountQuery).not.toContain(".neq('proposer_member_id', memberId)")
         expect(tradePerspective).toContain('if (participant) return participant.acceptedAt == null')
         expect(tradePerspective).not.toContain("trade.proposerMemberId === memberId || !isTradeParticipant")

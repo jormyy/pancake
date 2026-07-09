@@ -81,14 +81,13 @@ export function useLeagues() {
         const leagueIds = leagueRealtimeKey ? leagueRealtimeKey.split(':') : []
         const channel = subscribeToTableChanges(
             `league-context:${userId}:${leagueRealtimeKey || 'none'}`,
-            [
+            { mode: 'fallback', watches: [
                 { table: 'league_members', filter: `user_id=eq.${userId}` },
                 ...leagueIds.flatMap((leagueId) => [
                     { table: 'leagues', filter: `id=eq.${leagueId}` },
                     { table: 'league_members', filter: `league_id=eq.${leagueId}` },
                 ]),
-            ],
-            refresh,
+            ], onChange: refresh },
         )
 
         return () => unsubscribeFromTableChanges(channel)

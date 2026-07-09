@@ -190,12 +190,12 @@ describe('logic hardening source guards - lineup and roster locks', () => {
     })
 
     it('drops stale async results before committing trade and lineup state', () => {
-        const trade = read('app/(modals)/propose-trade.tsx')
+        const trade = read('hooks/use-multi-team-trade-composer.ts')
         const lineup = read('app/(modals)/lineup.tsx')
 
         const tradeRequestIndex = trade.indexOf('const requestId = ++rosterLoadSeqRef.current')
         const tradeCommitGuardIndex = trade.indexOf('if (rosterLoadSeqRef.current !== requestId) return', trade.indexOf('Promise.all'))
-        const tradeCommitIndex = trade.indexOf('setTheirRoster(theirActiveRoster)')
+        const tradeCommitIndex = trade.indexOf('setParticipantRosters(nextRosters)')
         expect(tradeRequestIndex).toBeGreaterThan(-1)
         expect(tradeCommitGuardIndex).toBeGreaterThan(tradeRequestIndex)
         expect(tradeCommitGuardIndex).toBeLessThan(tradeCommitIndex)

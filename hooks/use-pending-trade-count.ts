@@ -35,11 +35,10 @@ export function usePendingTradeCount(): number {
         fetchCount()
         const channel = subscribeToTableChanges(
             `pending-trade-count:${leagueId}:${memberId}`,
-            [
+            { mode: 'fallback', watches: [
                 { table: 'trades', filter: `league_id=eq.${leagueId}` },
                 { table: 'trade_participants', filter: `league_id=eq.${leagueId}` },
-            ],
-            fetchCount,
+            ], onChange: fetchCount },
         )
         if (typeof window !== 'undefined') {
             window.addEventListener('focus', fetchCount)

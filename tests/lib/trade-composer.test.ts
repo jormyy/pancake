@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
     buildTradeComposerPayload,
+    buildTwoTeamTradeComposerPayload,
     getTradeComposerMode,
     prefillTradeComposerFromTrade,
     submitMultiTeamTradeComposer,
@@ -90,6 +91,27 @@ describe('prefillTradeComposerFromTrade', () => {
 })
 
 describe('buildTradeComposerPayload', () => {
+    it('derives a two-team payload from the canonical routed model', () => {
+        const draft = buildTwoTeamTradeComposerPayload([
+            { fromMemberId: 'me', toMemberId: 'them', playerId: 'player-1' },
+            { fromMemberId: 'me', toMemberId: 'them', faabAmount: 7 },
+            { fromMemberId: 'them', toMemberId: 'me', pickId: 'pick-1' },
+            { fromMemberId: 'them', toMemberId: 'me', faabAmount: 3 },
+        ], 'me', 'them', {
+            notes: ' routed ',
+            expirationDaysInput: '3',
+        }, NOW_MS)
+
+        expect(draft.hasOffer).toBe(true)
+        expect(draft.hasRequest).toBe(true)
+        expect(draft.payload).toMatchObject({
+            offerPlayerIds: ['player-1'],
+            requestPickIds: ['pick-1'],
+            offerFaabAmount: 7,
+            requestFaabAmount: 3,
+            notes: 'routed',
+        })
+    })
     it('parses assets, FAAB, notes, and expiration deterministically', () => {
         const draft = buildTradeComposerPayload({
             offerPlayerIds: new Set(['p1']),

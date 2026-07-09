@@ -1234,7 +1234,7 @@ $$;
 
 REVOKE ALL ON FUNCTION private.accept_trade_participant_atomic(uuid, uuid, uuid[], boolean) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION private.accept_trade_participant_atomic(uuid, uuid, uuid[], boolean) TO service_role;
-REVOKE ALL ON FUNCTION public.accept_trade_atomic(uuid, uuid, uuid[]) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.accept_trade_atomic(uuid, uuid, uuid[]) TO authenticated, service_role;
-REVOKE ALL ON FUNCTION public.accept_multi_team_trade_atomic(uuid, uuid, uuid[]) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.accept_multi_team_trade_atomic(uuid, uuid, uuid[]) TO authenticated, service_role;
+REVOKE ALL ON FUNCTION public.accept_trade_atomic(uuid, uuid, uuid[]) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.accept_trade_atomic(uuid, uuid, uuid[]) TO service_role;
+REVOKE ALL ON FUNCTION public.accept_multi_team_trade_atomic(uuid, uuid, uuid[]) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.accept_multi_team_trade_atomic(uuid, uuid, uuid[]) TO service_role;

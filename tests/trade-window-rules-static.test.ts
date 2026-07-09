@@ -4,7 +4,7 @@ import { latestFunctionDefinition, read } from './source-guard'
 describe('trade window feedback rules', () => {
     it('opens trades outside the deadline-to-champion lock', () => {
         const createTradeOffer = latestFunctionDefinition('create_trade_offer', 'private')
-        const acceptTrade = latestFunctionDefinition('accept_trade_atomic')
+        const acceptTrade = latestFunctionDefinition('accept_trade_participant_atomic', 'private')
         const processDueTrades = latestFunctionDefinition('process_due_accepted_trades_atomic')
         const acceptDeadlineGuard = latestFunctionDefinition('prevent_trade_acceptance_after_deadline')
         const proposeTrade = read('app/(modals)/propose-trade.tsx')

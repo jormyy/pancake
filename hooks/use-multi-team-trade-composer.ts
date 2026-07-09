@@ -6,10 +6,9 @@ import { getErrorMessage } from '@/lib/alert'
 import {
     buildMultiTeamTradeItems,
     createMultiTeamTradeState,
-    explicitAssetDestinations,
     multiTeamTradeReducer,
     multiTeamTradeStateFromTrade,
-    selectedAssetIds,
+    resolvedDestination,
 } from '@/lib/multi-team-trade-state'
 
 export type TradeComposerMember = {
@@ -18,6 +17,19 @@ export type TradeComposerMember = {
 }
 
 export const isTradeableRosterPlayer = (player: RosterPlayer) => !player.is_on_ir && !player.is_on_taxi
+
+export type TradeParticipantView = {
+    memberId: string
+    destinationIds: string[]
+    defaultDestinationId: string
+    roster: RosterPlayer[]
+    picks: TradePickItem[]
+    selectedPlayerIds: Set<string>
+    selectedPickIds: Set<string>
+    playerDestinationIds: Record<string, string>
+    pickDestinationIds: Record<string, string>
+    faabInput: string
+}
 
 type UseMultiTeamTradeComposerArgs = {
     enabled: boolean
@@ -43,28 +55,36 @@ export function useMultiTeamTradeComposer({
     const [avgStatsMap, setAvgStatsMap] = useState(EMPTY_STATS_MAP)
     const [rosterLoading, setRosterLoading] = useState(false)
     const [rosterError, setRosterError] = useState<string | null>(null)
+    const [loadedParticipantKey, setLoadedParticipantKey] = useState('')
     const [retryToken, setRetryToken] = useState(0)
     const rosterLoadSeqRef = useRef(0)
 
     const selectedParticipantIds = composerState.selectedParticipantIds
     const participantIds = composerState.participantOrder
     const selectedParticipantKey = participantIds.join(',')
-    const participantPlayerIds = useMemo(() => selectedAssetIds(composerState, 'player'), [composerState])
-    const participantPickIds = useMemo(() => selectedAssetIds(composerState, 'pick'), [composerState])
-    const participantDestinationIds = useMemo(() => Object.fromEntries(
-        participantIds.map((memberId) => [memberId, composerState.participants[memberId].defaultDestinationId]),
-    ), [composerState, participantIds])
-    const participantPlayerDestinationIds = useMemo(
-        () => explicitAssetDestinations(composerState, 'player'),
-        [composerState],
-    )
-    const participantPickDestinationIds = useMemo(
-        () => explicitAssetDestinations(composerState, 'pick'),
-        [composerState],
-    )
-    const participantFaabInputs = useMemo(() => Object.fromEntries(
-        participantIds.map((memberId) => [memberId, composerState.participants[memberId].faabInput]),
-    ), [composerState, participantIds])
+    const participantViews = useMemo<TradeParticipantView[]>(() => participantIds.map((memberId) => {
+        const participant = composerState.participants[memberId]
+        const selectedPlayerIds = new Set(Object.keys(participant.playerDestinations))
+        const selectedPickIds = new Set(Object.keys(participant.pickDestinations))
+        return {
+            memberId,
+            destinationIds: participantIds.filter((participantId) => participantId !== memberId),
+            defaultDestinationId: participant.defaultDestinationId,
+            roster: participantRosters[memberId] ?? [],
+            picks: participantPicks[memberId] ?? [],
+            selectedPlayerIds,
+            selectedPickIds,
+            playerDestinationIds: Object.fromEntries([...selectedPlayerIds].map((playerId) => [
+                playerId,
+                resolvedDestination(composerState, memberId, 'player', playerId),
+            ])),
+            pickDestinationIds: Object.fromEntries([...selectedPickIds].map((pickId) => [
+                pickId,
+                resolvedDestination(composerState, memberId, 'pick', pickId),
+            ])),
+            faabInput: participant.faabInput,
+        }
+    }), [composerState, participantIds, participantPicks, participantRosters])
 
     const reset = useCallback(() => {
         dispatch({ type: 'reset', actorMemberId: myMemberId })
@@ -73,6 +93,7 @@ export function useMultiTeamTradeComposer({
         setAvgMap(EMPTY_AVG_MAP)
         setAvgStatsMap(EMPTY_STATS_MAP)
         setRosterError(null)
+        setLoadedParticipantKey('')
         setRosterLoading(false)
     }, [myMemberId])
 
@@ -85,12 +106,24 @@ export function useMultiTeamTradeComposer({
         })
     }, [members, myMemberId])
 
+    const setParticipantIds = useCallback((participantIds: string[]) => {
+        dispatch({ type: 'set-participants', actorMemberId: myMemberId, participantIds })
+    }, [myMemberId])
+
     const toggleParticipantPlayer = useCallback((memberId: string, playerId: string) => {
         dispatch({ type: 'toggle-asset', asset: 'player', memberId, assetId: playerId })
     }, [])
 
     const toggleParticipantPick = useCallback((memberId: string, pickId: string) => {
         dispatch({ type: 'toggle-asset', asset: 'pick', memberId, assetId: pickId })
+    }, [])
+
+    const selectParticipantAsset = useCallback((
+        memberId: string,
+        asset: 'player' | 'pick',
+        assetId: string,
+    ) => {
+        dispatch({ type: 'select-asset', asset, memberId, assetId })
     }, [])
 
     const setParticipantFaab = useCallback((memberId: string, value: string) => {
@@ -134,6 +167,7 @@ export function useMultiTeamTradeComposer({
         const requestId = ++rosterLoadSeqRef.current
         setRosterLoading(true)
         setRosterError(null)
+        setLoadedParticipantKey('')
 
         async function loadParticipantAssets() {
             try {
@@ -165,6 +199,7 @@ export function useMultiTeamTradeComposer({
                 setParticipantPicks(nextPicks)
                 setAvgMap(stats.avgMap)
                 setAvgStatsMap(stats.avgStatsMap)
+                setLoadedParticipantKey(selectedParticipantKey)
             } catch (error) {
                 if (rosterLoadSeqRef.current !== requestId) return
                 console.error(error)
@@ -182,22 +217,20 @@ export function useMultiTeamTradeComposer({
         participantIds,
         participantRosters,
         participantPicks,
-        participantPlayerIds,
-        participantPickIds,
-        participantDestinationIds,
-        participantPlayerDestinationIds,
-        participantPickDestinationIds,
-        participantFaabInputs,
+        participantViews,
         avgMap,
         avgStatsMap,
         rosterLoading,
         rosterError,
+        loadedParticipantKey,
         reset,
         prefillFromTrade,
         retry,
         toggleParticipant,
+        setParticipantIds,
         toggleParticipantPlayer,
         toggleParticipantPick,
+        selectParticipantAsset,
         setParticipantDestination,
         setParticipantPlayerDestination,
         setParticipantPickDestination,

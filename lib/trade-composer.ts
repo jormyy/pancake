@@ -251,6 +251,29 @@ export function buildTradeComposerPayload(input: ComposerPayloadInput, nowMs = D
     }
 }
 
+export function buildTwoTeamTradeComposerPayload(
+    items: MultiTeamTradeItemPayload[],
+    myMemberId: string,
+    recipientMemberId: string,
+    terms: Pick<ComposerPayloadInput, 'notes' | 'expirationDaysInput' | 'leagueStatus' | 'tradeDeadline'>,
+    nowMs = Date.now(),
+): ComposerPayloadDraft {
+    const fromMe = items.filter((item) => item.fromMemberId === myMemberId && item.toMemberId === recipientMemberId)
+    const fromRecipient = items.filter((item) => item.fromMemberId === recipientMemberId && item.toMemberId === myMemberId)
+    return buildTradeComposerPayload({
+        offerPlayerIds: fromMe.flatMap((item) => item.playerId ? [item.playerId] : []),
+        requestPlayerIds: fromRecipient.flatMap((item) => item.playerId ? [item.playerId] : []),
+        offerPickIds: fromMe.flatMap((item) => item.pickId ? [item.pickId] : []),
+        requestPickIds: fromRecipient.flatMap((item) => item.pickId ? [item.pickId] : []),
+        notes: terms.notes,
+        offerFaabInput: String(fromMe.reduce((total, item) => total + (item.faabAmount ?? 0), 0)),
+        requestFaabInput: String(fromRecipient.reduce((total, item) => total + (item.faabAmount ?? 0), 0)),
+        expirationDaysInput: terms.expirationDaysInput,
+        leagueStatus: terms.leagueStatus,
+        tradeDeadline: terms.tradeDeadline,
+    }, nowMs)
+}
+
 export async function submitTradeComposer(
     input: SubmitComposerInput,
     deps: SubmitComposerDeps,
