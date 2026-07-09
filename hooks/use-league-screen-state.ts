@@ -3,7 +3,6 @@ import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useFocusEffect } from '@react-navigation/native'
 import { useLeagueContext } from '@/contexts/league-context'
-import { getLeagueStandings, type StandingRow } from '@/lib/scoring'
 import {
     getJoinableDraft,
     NOMINATION_ORDER_MODE_LABELS,
@@ -13,18 +12,13 @@ import {
     type NominationOrderMode,
     type RookieTimerExpiryBehavior,
 } from '@/lib/draft'
-import { getWaiverPriorityOrder, type WaiverPriorityRow } from '@/lib/waivers'
-import { getLeagueTransactions, type TransactionRow } from '@/lib/transactions'
 import {
     getActiveRookieDraft,
     startRookieDraft,
-    getAllLeaguePicks,
     reseedRookieDraftPicks,
-    type LeaguePickItem,
 } from '@/lib/rookieDraft'
 import {
     createMockDraftRoom,
-    getMockDraftRooms,
     joinMockDraftRoom,
     leaveMockDraftRoom,
     startMockDraftRoom,
@@ -45,8 +39,8 @@ import {
     type TableChangeWatch,
 } from '@/lib/realtime'
 import { leagueScreenWatches } from '@/lib/league/realtime'
+import { useLeagueTabResources } from '@/hooks/use-league-tab-resources'
 
-const ACTIVITY_LIMIT = 50
 const OPEN_DRAFT_STATUSES = new Set(['pending', 'in_progress', 'paused'])
 
 function defaultRoomDateInput(): string {
@@ -93,25 +87,12 @@ export function useLeagueScreenState() {
     const [roomDraftType, setRoomDraftType] = useState<MockDraftRoomKind>('auction')
     const [roomScheduledAt, setRoomScheduledAt] = useState(defaultRoomDateInput)
     const [roomSubmitting, setRoomSubmitting] = useState(false)
-    const [standings, setStandings] = useState<StandingRow[]>([])
-    const [transactions, setTransactions] = useState<TransactionRow[]>([])
-    const [waiverOrder, setWaiverOrder] = useState<WaiverPriorityRow[]>([])
-    const [currentLeaguePicks, setCurrentLeaguePicks] = useState<LeaguePickItem[]>([])
-    const [mockRooms, setMockRooms] = useState<MockDraftRoom[]>([])
-    const [activityOffset, setActivityOffset] = useState(0)
-    const [activityHasMore, setActivityHasMore] = useState(false)
-    const [activityLoadingMore, setActivityLoadingMore] = useState(false)
-    const [activityLoadMoreError, setActivityLoadMoreError] = useState<string | null>(null)
-    const [tabLoading, setTabLoading] = useState<Partial<Record<LeagueTab, boolean>>>({ results: true })
-    const [tabError, setTabError] = useState<Partial<Record<LeagueTab, string>>>({})
     const [sharing, setSharing] = useState(false)
 
-    const loadedTabs = useRef<Set<LeagueTab>>(new Set())
-    const tabRequestIds = useRef(new Map<LeagueTab, number>())
     const activeLeagueIdRef = useRef<string | undefined>(undefined)
-    const activeTabRef = useRef(tab)
     activeLeagueIdRef.current = currentLeague?.id
-    activeTabRef.current = tab
+    const tabResources = useLeagueTabResources(currentLeague?.id, current?.id, tab)
+    const { invalidateTab, mockRooms } = tabResources
 
     useEffect(() => {
         setTab(parseLeagueTab(params.tab))
@@ -122,22 +103,9 @@ export function useLeagueScreenState() {
     }, [])
 
     useEffect(() => {
-        loadedTabs.current.clear()
-        tabRequestIds.current.clear()
-        setStandings([])
-        setTransactions([])
-        setWaiverOrder([])
-        setCurrentLeaguePicks([])
-        setMockRooms([])
         setActiveDraft(null)
         setActiveDraftError(null)
         setActiveDraftLoading(Boolean(currentLeague?.id))
-        setActivityOffset(0)
-        setActivityHasMore(false)
-        setActivityLoadingMore(false)
-        setActivityLoadMoreError(null)
-        setTabError({})
-        setTabLoading({ results: true })
     }, [currentLeague?.id])
 
     const fetchActiveDraft = useCallback(async (lid: string) => {
@@ -157,71 +125,12 @@ export function useLeagueScreenState() {
         }
     }, [])
 
-    const fetchTab = useCallback(async (nextTab: LeagueTab, lid: string) => {
-        const requestId = (tabRequestIds.current.get(nextTab) ?? 0) + 1
-        tabRequestIds.current.set(nextTab, requestId)
-        setTabLoading((prev) => ({ ...prev, [nextTab]: true }))
-        setTabError((prev) => { const next = { ...prev }; delete next[nextTab]; return next })
-        try {
-            let commit: () => void = () => {}
-            switch (nextTab) {
-                case 'results': {
-                    const data = await getLeagueStandings(lid)
-                    commit = () => setStandings(data)
-                    break
-                }
-                case 'history': {
-                    const data = await getLeagueTransactions(lid, ACTIVITY_LIMIT, 0)
-                    commit = () => {
-                        setTransactions(data)
-                        setActivityOffset(0)
-                        setActivityHasMore(data.length === ACTIVITY_LIMIT)
-                    }
-                    break
-                }
-                case 'settings': {
-                    const data = await getWaiverPriorityOrder(lid)
-                    commit = () => setWaiverOrder(data)
-                    break
-                }
-                case 'draftBoard': {
-                    const data = await getAllLeaguePicks(lid)
-                    commit = () => setCurrentLeaguePicks(data)
-                    break
-                }
-                case 'mockRooms': {
-                    if (!current?.id) break
-                    const data = await getMockDraftRooms(lid, current.id)
-                    commit = () => setMockRooms(data)
-                    break
-                }
-                case 'auctions': {
-                    break
-                }
-            }
-            if (activeLeagueIdRef.current !== lid || tabRequestIds.current.get(nextTab) !== requestId) return
-            commit()
-            loadedTabs.current.add(nextTab)
-        } catch (e: unknown) {
-            if (activeLeagueIdRef.current === lid && tabRequestIds.current.get(nextTab) === requestId) {
-                setTabError((prev) => ({ ...prev, [nextTab]: e instanceof Error ? e.message : 'Unknown error' }))
-            }
-        } finally {
-            if (activeLeagueIdRef.current === lid && tabRequestIds.current.get(nextTab) === requestId) {
-                setTabLoading((prev) => ({ ...prev, [nextTab]: false }))
-            }
-        }
-    }, [current?.id])
-
     useFocusEffect(
         useCallback(() => {
             const lid = currentLeague?.id
             if (!lid) return
-            if (!loadedTabs.current.has(tab)) {
-                void fetchTab(tab, lid)
-            }
             void fetchActiveDraft(lid)
-        }, [currentLeague?.id, fetchTab, fetchActiveDraft, tab]),
+        }, [currentLeague?.id, fetchActiveDraft]),
     )
 
     const currentDraftKey = useMemo(() => [...new Set([
@@ -232,10 +141,6 @@ export function useLeagueScreenState() {
     useEffect(() => {
         const lid = currentLeague?.id
         if (!lid) return
-        const invalidateTab = (nextTab: LeagueTab) => {
-            loadedTabs.current.delete(nextTab)
-            if (activeTabRef.current === nextTab) void fetchTab(nextTab, lid)
-        }
         const refreshResults = debounceRealtimeRefresh(() => { invalidateTab('results') })
         const refreshHistory = debounceRealtimeRefresh(() => { invalidateTab('history') })
         const refreshSettings = debounceRealtimeRefresh(() => { invalidateTab('settings') })
@@ -283,33 +188,12 @@ export function useLeagueScreenState() {
                 refreshDraftState,
             ])
         }
-    }, [currentDraftKey, currentLeague?.id, fetchActiveDraft, fetchTab])
+    }, [currentDraftKey, currentLeague?.id, fetchActiveDraft, invalidateTab])
 
     function handleTabChange(nextTab: LeagueTab) {
         setTab(nextTab)
         router.push(`/league?tab=${nextTab}`)
-        const lid = currentLeague?.id
-        if (lid && !loadedTabs.current.has(nextTab)) {
-            fetchTab(nextTab, lid)
-        }
-    }
-
-    async function handleLoadMoreActivity() {
-        const lid = currentLeague?.id
-        if (!lid || activityLoadingMore) return
-        setActivityLoadingMore(true)
-        try {
-            const nextOffset = activityOffset + ACTIVITY_LIMIT
-            const data = await getLeagueTransactions(lid, ACTIVITY_LIMIT, nextOffset)
-            setTransactions((prev) => [...prev, ...data])
-            setActivityOffset(nextOffset)
-            setActivityHasMore(data.length === ACTIVITY_LIMIT)
-            setActivityLoadMoreError(null)
-        } catch (e: unknown) {
-            setActivityLoadMoreError(e instanceof Error ? e.message : 'Could not load more activity')
-        } finally {
-            setActivityLoadingMore(false)
-        }
+        tabResources.ensureTab(nextTab)
     }
 
     async function handleStartDraft() {
@@ -399,13 +283,6 @@ export function useLeagueScreenState() {
         }
     }
 
-    async function reloadMockRooms() {
-        if (!currentLeague?.id || !current?.id) return
-        const rooms = await getMockDraftRooms(currentLeague.id, current.id)
-        setMockRooms(rooms)
-        loadedTabs.current.add('mockRooms')
-    }
-
     async function handleCreateMockRoom() {
         if (!currentLeague?.id || !current?.id) return
         const scheduledAt = parseRoomDateInput(roomScheduledAt)
@@ -428,7 +305,7 @@ export function useLeagueScreenState() {
             })
             setRoomName('')
             setRoomScheduledAt(defaultRoomDateInput())
-            await reloadMockRooms()
+            await tabResources.refreshMockRooms()
         } catch (e: unknown) {
             showAlert('Could not create room', e instanceof Error ? e.message : undefined)
         } finally {
@@ -448,7 +325,7 @@ export function useLeagueScreenState() {
         setDraftLoading(true)
         try {
             await joinMockDraftRoom(room.id, current.id)
-            await reloadMockRooms()
+            await tabResources.refreshMockRooms()
         } catch (e: unknown) {
             showAlert('Could not join room', e instanceof Error ? e.message : undefined)
         } finally {
@@ -461,7 +338,7 @@ export function useLeagueScreenState() {
         setDraftLoading(true)
         try {
             await leaveMockDraftRoom(room.id, current.id)
-            await reloadMockRooms()
+            await tabResources.refreshMockRooms()
         } catch (e: unknown) {
             showAlert('Could not leave room', e instanceof Error ? e.message : undefined)
         } finally {
@@ -498,19 +375,19 @@ export function useLeagueScreenState() {
         activeDraft,
         activeDraftError,
         activeDraftLoading,
-        activityHasMore,
-        activityLoadMoreError,
-        activityLoadingMore,
+        activityHasMore: tabResources.activityHasMore,
+        activityLoadMoreError: tabResources.activityLoadMoreError,
+        activityLoadingMore: tabResources.activityLoadingMore,
         current,
         currentLeague,
-        currentLeaguePicks,
+        currentLeaguePicks: tabResources.currentLeaguePicks,
         draftLoading,
         draftTimerSeconds,
         handleCreateMockRoom,
         handleJoinDraftRoom,
         handleJoinMockRoom,
         handleLeaveMockRoom,
-        handleLoadMoreActivity,
+        handleLoadMoreActivity: tabResources.loadMoreActivity,
         handleReseedRookiePicks,
         handleStartDraft,
         handleStartMockRoom,
@@ -518,8 +395,8 @@ export function useLeagueScreenState() {
         handleTabChange,
         isCommissioner,
         leagueLoading,
-        isTabLoading: tabLoading[tab] === true,
-        mockRooms,
+        isTabLoading: tabResources.isTabLoading,
+        mockRooms: tabResources.mockRooms,
         nominationMode,
         openBracket: () => push('/(modals)/bracket'),
         openCommissionerSettings: () => push('/(modals)/commissioner-settings'),
@@ -527,7 +404,7 @@ export function useLeagueScreenState() {
         openTeamRoster: (memberId: string, teamName: string) =>
             push({ pathname: '/(modals)/team-roster', params: { memberId, teamName } }),
         retryActiveDraft: () => currentLeague?.id && fetchActiveDraft(currentLeague.id),
-        retryCurrentTab: () => currentLeague?.id && fetchTab(tab, currentLeague.id),
+        retryCurrentTab: () => currentLeague?.id && tabResources.fetchTab(tab, currentLeague.id),
         rookieRounds,
         rookieTimerExpiryBehavior,
         roomDraftType,
@@ -542,10 +419,10 @@ export function useLeagueScreenState() {
         setRoomName,
         setRoomScheduledAt,
         shareInviteCode,
-        standings,
+        standings: tabResources.standings,
         tab,
-        tabErr: tabError[tab],
-        transactions,
-        waiverOrder,
+        tabErr: tabResources.tabError,
+        transactions: tabResources.transactions,
+        waiverOrder: tabResources.waiverOrder,
     }
 }

@@ -18,7 +18,6 @@ import {
     getLineupSlots,
     overrideWeeklyAddCount,
     updateLeagueConfiguration,
-    type LeagueSettingsUpdate,
     type TradeVetoMode,
     type WaiverMode,
 } from '@/lib/league'
@@ -35,6 +34,13 @@ import {
 } from '@/components/commissioner/settings-policy'
 import { LINEUP_SLOT_TYPES } from '@pancake/core'
 import { styles } from '@/components/commissioner/settings-styles'
+import {
+    EMPTY_COMMISSIONER_SETTINGS_DRAFT,
+    buildCommissionerSettingsChange,
+    tradeVetoModeFromValue,
+    waiverModeFromValue,
+    type CommissionerSettingsDraft,
+} from '@/components/commissioner/settings-draft'
 
 async function adminCall(
     path: string,
@@ -70,9 +76,6 @@ const SCORING_FIELDS: { key: string; label: string }[] = [
 
 const SLOT_TYPES = LINEUP_SLOT_TYPES
 
-type SlotMap = Record<string, number>
-type ScoringMap = Record<string, string> // string for TextInput, parsed on save
-
 export default function CommissionerSettingsScreen() {
     const { currentLeague, isCommissioner, refresh } = useLeagueContext()
     const router = useRouter()
@@ -82,39 +85,47 @@ export default function CommissionerSettingsScreen() {
     const league = currentLeague
     const hydratedLeagueId = useRef<string | null>(null)
 
-    const [scoring, setScoring] = useState<ScoringMap>({})
-    const [slots, setSlots] = useState<SlotMap>({})
-    const [initialSlots, setInitialSlots] = useState<SlotMap>({})
-    const [rosterSize, setRosterSize] = useState('')
-    const [irSlots, setIrSlots] = useState('')
-    const [taxiSlots, setTaxiSlots] = useState('')
-    const [auctionBudget, setAuctionBudget] = useState('')
-    const [playoffWeek, setPlayoffWeek] = useState('')
-    const [weeklyAddLimit, setWeeklyAddLimit] = useState('')
-    const [waiverMode, setWaiverMode] = useState<WaiverMode>('faab')
-    const [faabBudget, setFaabBudget] = useState('')
-    const [tradeVetoMode, setTradeVetoMode] = useState<TradeVetoMode>('member_vote')
-    const [tradeVetoWindowHours, setTradeVetoWindowHours] = useState('')
-    const [tradeVetoThresholdPercent, setTradeVetoThresholdPercent] = useState('')
+    const [draft, setDraft] = useState<CommissionerSettingsDraft>(EMPTY_COMMISSIONER_SETTINGS_DRAFT)
+    const [initialDraft, setInitialDraft] = useState<CommissionerSettingsDraft>(EMPTY_COMMISSIONER_SETTINGS_DRAFT)
+    const {
+        scoring,
+        slots,
+        rosterSize,
+        irSlots,
+        taxiSlots,
+        auctionBudget,
+        playoffWeek,
+        weeklyAddLimit,
+        waiverMode,
+        faabBudget,
+        tradeVetoMode,
+        tradeVetoWindowHours,
+        tradeVetoThresholdPercent,
+    } = draft
+    const setDraftField = <Key extends keyof CommissionerSettingsDraft>(
+        key: Key,
+        value: CommissionerSettingsDraft[Key],
+    ) => setDraft((current) => ({ ...current, [key]: value }))
+    const setScoring = (update: (current: Record<string, string>) => Record<string, string>) =>
+        setDraft((current) => ({ ...current, scoring: update(current.scoring) }))
+    const setSlots = (update: (current: Record<string, number>) => Record<string, number>) =>
+        setDraft((current) => ({ ...current, slots: update(current.slots) }))
+    const setRosterSize = (value: string) => setDraftField('rosterSize', value)
+    const setIrSlots = (value: string) => setDraftField('irSlots', value)
+    const setTaxiSlots = (value: string) => setDraftField('taxiSlots', value)
+    const setAuctionBudget = (value: string) => setDraftField('auctionBudget', value)
+    const setPlayoffWeek = (value: string) => setDraftField('playoffWeek', value)
+    const setWeeklyAddLimit = (value: string) => setDraftField('weeklyAddLimit', value)
+    const setWaiverMode = (value: WaiverMode) => setDraftField('waiverMode', value)
+    const setFaabBudget = (value: string) => setDraftField('faabBudget', value)
+    const setTradeVetoMode = (value: TradeVetoMode) => setDraftField('tradeVetoMode', value)
+    const setTradeVetoWindowHours = (value: string) => setDraftField('tradeVetoWindowHours', value)
+    const setTradeVetoThresholdPercent = (value: string) => setDraftField('tradeVetoThresholdPercent', value)
     const [members, setMembers] = useState<{ id: string; team_name: string | null }[]>([])
     const [overrideMemberId, setOverrideMemberId] = useState<string | null>(null)
     const [overrideFaab, setOverrideFaab] = useState('')
     const [overrideAdds, setOverrideAdds] = useState('')
     const [overrideSaving, setOverrideSaving] = useState(false)
-    const [initialScoring, setInitialScoring] = useState<ScoringMap>({})
-    const [initialGeneral, setInitialGeneral] = useState({
-        rosterSize: '',
-        irSlots: '',
-        taxiSlots: '',
-        auctionBudget: '',
-        playoffWeek: '',
-        weeklyAddLimit: '',
-        waiverMode: 'faab' as WaiverMode,
-        faabBudget: '',
-        tradeVetoMode: 'member_vote' as TradeVetoMode,
-        tradeVetoWindowHours: '',
-        tradeVetoThresholdPercent: '',
-    })
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
     const [busyAction, setBusyAction] = useState<CommissionerActionId | null>(null)
@@ -139,10 +150,8 @@ export default function CommissionerSettingsScreen() {
                     getLeagueMembers(league.id),
                 ])
                 if (cancelled) return
-                const slotMap: SlotMap = {}
+                const slotMap: Record<string, number> = {}
                 for (const s of slotData) slotMap[s.slot_type] = s.slot_count
-                setSlots(slotMap)
-                setInitialSlots(slotMap)
                 setMembers(memberData)
                 setOverrideMemberId((prev) => prev ?? memberData[0]?.id ?? null)
 
@@ -152,13 +161,10 @@ export default function CommissionerSettingsScreen() {
                     !Array.isArray(league.scoring_settings)
                         ? league.scoring_settings as Record<string, unknown>
                         : {}
-                const scoreMap: ScoringMap = {}
+                const scoreMap: Record<string, string> = {}
                 for (const { key } of SCORING_FIELDS) {
                     scoreMap[key] = s[key] != null ? String(s[key]) : '0'
                 }
-                setScoring(scoreMap)
-                setInitialScoring(scoreMap)
-
                 const general = {
                     rosterSize: String(league.roster_size ?? 20),
                     irSlots: String(league.ir_slots ?? 2),
@@ -166,24 +172,15 @@ export default function CommissionerSettingsScreen() {
                     auctionBudget: String(league.auction_budget ?? 200),
                     playoffWeek: String(league.playoff_start_week ?? 20),
                     weeklyAddLimit: String(league.weekly_add_limit ?? 0),
-                    waiverMode: (league.waiver_mode ?? 'faab') as WaiverMode,
+                    waiverMode: waiverModeFromValue(league.waiver_mode),
                     faabBudget: String(league.faab_starting_budget ?? 100),
-                    tradeVetoMode: (league.trade_veto_mode ?? 'member_vote') as TradeVetoMode,
+                    tradeVetoMode: tradeVetoModeFromValue(league.trade_veto_mode),
                     tradeVetoWindowHours: String(league.trade_veto_window_hours ?? 24),
                     tradeVetoThresholdPercent: String(league.trade_veto_threshold_percent ?? 50),
                 }
-                setRosterSize(general.rosterSize)
-                setIrSlots(general.irSlots)
-                setTaxiSlots(general.taxiSlots)
-                setAuctionBudget(general.auctionBudget)
-                setPlayoffWeek(general.playoffWeek)
-                setWeeklyAddLimit(general.weeklyAddLimit)
-                setWaiverMode(general.waiverMode)
-                setFaabBudget(general.faabBudget)
-                setTradeVetoMode(general.tradeVetoMode)
-                setTradeVetoWindowHours(general.tradeVetoWindowHours)
-                setTradeVetoThresholdPercent(general.tradeVetoThresholdPercent)
-                setInitialGeneral(general)
+                const nextDraft = { ...general, scoring: scoreMap, slots: slotMap }
+                setDraft(nextDraft)
+                setInitialDraft(nextDraft)
                 hydratedLeagueId.current = league.id
             } catch (e) {
                 console.error(e)
@@ -208,92 +205,18 @@ export default function CommissionerSettingsScreen() {
     async function save() {
         if (!league) return
 
-        const parsedRoster = parseInt(rosterSize)
-        const parsedIR = parseInt(irSlots)
-        const parsedTaxi = parseInt(taxiSlots)
-        const parsedBudget = parseInt(auctionBudget)
-        const parsedPlayoff = parseInt(playoffWeek)
-        const parsedWeeklyAddLimit = parseInt(weeklyAddLimit)
-        const parsedFaabBudget = parseInt(faabBudget)
-        const parsedVetoWindowHours = parseInt(tradeVetoWindowHours)
-        const parsedVetoThresholdPercent = parseInt(tradeVetoThresholdPercent)
-
-        if (isNaN(parsedRoster) || parsedRoster < 1) {
-            showAlert('Invalid', 'Roster size must be at least 1.')
+        const change = buildCommissionerSettingsChange(
+            draft,
+            initialDraft,
+            league.status as LeagueStatus,
+            SCORING_FIELDS.map(({ key }) => key),
+            SLOT_TYPES,
+        )
+        if ('error' in change) {
+            showAlert('Invalid', change.error)
             return
         }
-        if (isNaN(parsedIR) || parsedIR < 0) {
-            showAlert('Invalid', 'IR slots must be 0 or more.')
-            return
-        }
-        if (isNaN(parsedTaxi) || parsedTaxi < 0) {
-            showAlert('Invalid', 'Taxi squad slots must be 0 or more.')
-            return
-        }
-        if (isNaN(parsedBudget) || parsedBudget < 1) {
-            showAlert('Invalid', 'Auction budget must be at least 1.')
-            return
-        }
-        if (isNaN(parsedPlayoff) || parsedPlayoff < 18 || parsedPlayoff > 24) {
-            showAlert('Invalid', 'Playoff start week must be between 18 and 24.')
-            return
-        }
-        if (isNaN(parsedWeeklyAddLimit) || parsedWeeklyAddLimit < 0) {
-            showAlert('Invalid', 'Weekly add limit must be 0 or more.')
-            return
-        }
-        if (isNaN(parsedFaabBudget) || parsedFaabBudget < 0) {
-            showAlert('Invalid', 'FAAB starting budget must be 0 or more.')
-            return
-        }
-        if (!['disabled', 'commissioner', 'member_vote'].includes(tradeVetoMode)) {
-            showAlert('Invalid', 'Choose a valid trade veto mode.')
-            return
-        }
-        if (tradeVetoMode === 'disabled') {
-            if (isNaN(parsedVetoWindowHours) || parsedVetoWindowHours < 0 || parsedVetoWindowHours > 168) {
-                showAlert('Invalid', 'Veto window must be between 0 and 168 hours.')
-                return
-            }
-        } else if (isNaN(parsedVetoWindowHours) || parsedVetoWindowHours < 1 || parsedVetoWindowHours > 168) {
-            showAlert('Invalid', 'Veto window must be between 1 and 168 hours.')
-            return
-        }
-        if (isNaN(parsedVetoThresholdPercent) || parsedVetoThresholdPercent < 1 || parsedVetoThresholdPercent > 100) {
-            showAlert('Invalid', 'Member veto threshold must be between 1% and 100%.')
-            return
-        }
-
-        const scoringSettings: Record<string, number> = {}
-        for (const { key } of SCORING_FIELDS) {
-            const val = parseFloat(scoring[key] ?? '0')
-            scoringSettings[key] = isNaN(val) ? 0 : val
-        }
-
-        const slotsChanged = SLOT_TYPES.some((type) => (slots[type] ?? 0) !== (initialSlots[type] ?? 0))
-        const canUpdateSlots = (league.status as LeagueStatus) === 'setup'
-        if (slotsChanged && !canUpdateSlots) {
-            showAlert('Invalid', 'Lineup slots can only be changed during league setup.')
-            return
-        }
-
-        const scoringChanged = SCORING_FIELDS.some(({ key }) => scoring[key] !== initialScoring[key])
-        const updates: LeagueSettingsUpdate = {}
-        if (scoringChanged) updates.scoring_settings = scoringSettings
-        if (rosterSize !== initialGeneral.rosterSize) updates.roster_size = parsedRoster
-        if (irSlots !== initialGeneral.irSlots) updates.ir_slots = parsedIR
-        if (taxiSlots !== initialGeneral.taxiSlots) updates.taxi_slots = parsedTaxi
-        if (auctionBudget !== initialGeneral.auctionBudget) updates.auction_budget = parsedBudget
-        if (playoffWeek !== initialGeneral.playoffWeek) updates.playoff_start_week = parsedPlayoff
-        if (weeklyAddLimit !== initialGeneral.weeklyAddLimit) {
-            updates.weekly_add_unlimited = parsedWeeklyAddLimit === 0
-            if (parsedWeeklyAddLimit > 0) updates.weekly_add_limit = parsedWeeklyAddLimit
-        }
-        if (waiverMode !== initialGeneral.waiverMode) updates.waiver_mode = waiverMode
-        if (faabBudget !== initialGeneral.faabBudget) updates.faab_starting_budget = parsedFaabBudget
-        if (tradeVetoMode !== initialGeneral.tradeVetoMode) updates.trade_veto_mode = tradeVetoMode
-        if (tradeVetoWindowHours !== initialGeneral.tradeVetoWindowHours) updates.trade_veto_window_hours = parsedVetoWindowHours
-        if (tradeVetoThresholdPercent !== initialGeneral.tradeVetoThresholdPercent) updates.trade_veto_threshold_percent = parsedVetoThresholdPercent
+        const { updates, slotsChanged, slotUpdates } = change
 
         setSaving(true)
         try {
@@ -302,29 +225,13 @@ export default function CommissionerSettingsScreen() {
                 await updateLeagueConfiguration(
                     league.id,
                     updates,
-                    slotsChanged
-                        ? SLOT_TYPES.map((type) => ({ slot_type: type, slot_count: slots[type] ?? 0 }))
-                        : null,
+                    slotUpdates,
                 )
             }
             if (generalChanged) {
-                setInitialScoring(scoring)
-                setInitialGeneral({
-                    rosterSize,
-                    irSlots,
-                    taxiSlots,
-                    auctionBudget,
-                    playoffWeek,
-                    weeklyAddLimit,
-                    waiverMode,
-                    faabBudget,
-                    tradeVetoMode,
-                    tradeVetoWindowHours,
-                    tradeVetoThresholdPercent,
-                })
-            }
-            if (slotsChanged) {
-                setInitialSlots(slots)
+                setInitialDraft(draft)
+            } else if (slotsChanged) {
+                setInitialDraft((current) => ({ ...current, slots }))
             }
             await refresh()
             back()
