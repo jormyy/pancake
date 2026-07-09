@@ -1,6 +1,5 @@
--- Canonical SQL source for public.get_league_projection_rows.
--- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
--- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+-- Constrain projection candidate scans to the requested player set.
+-- Keep this migration in parity with supabase/sql/functions/by-name via npm run check:db-function-sources.
 
 CREATE OR REPLACE FUNCTION public.get_league_projection_rows(
   p_league_id uuid,
