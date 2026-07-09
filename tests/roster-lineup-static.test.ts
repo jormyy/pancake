@@ -162,13 +162,18 @@ describe('logic hardening source guards - lineup and roster locks', () => {
 
     it('uses one transaction when activating IR or taxi players into lineup slots', () => {
         const hook = read('hooks/use-lineup-actions.ts')
+        const movePlan = read('lib/lineup/movePlan.ts')
         const roster = read('lib/roster.ts')
         const rpc = latestFunctionDefinition('activate_roster_player_with_lineup_atomic')
 
         expect(hook).toContain('activateRosterPlayerWithLineup')
-        expect(hook).toContain('slotType: getActivationSlotType(actSel, irPlayer)')
-        expect(hook).toContain('slotType: getActivationSlotType(actSel, taxiPlayer)')
+        expect(hook).toContain('planLineupMove')
+        expect(hook).toContain('slotType: plan.slotType')
         expect(hook).toContain('slotType: activationOverflowPending.slotType')
+        expect(movePlan).toContain("activateSource: 'ir'")
+        expect(movePlan).toContain("activateSource: 'taxi'")
+        expect(movePlan).toContain('slotType: activationSlotType(lineup, activeSelection, irPlayer)')
+        expect(movePlan).toContain('slotType: activationSlotType(lineup, activeSelection, taxiPlayer)')
         expect(hook).not.toContain('await setPlayerSlot(')
         expect(hook).not.toContain('await toggleIR(irPlayer.rosterPlayerId, false)')
         expect(hook).not.toContain('await toggleTaxi(taxiPlayer.rosterPlayerId, false)')
