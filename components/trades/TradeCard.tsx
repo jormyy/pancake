@@ -30,6 +30,12 @@ const STATUS_LABELS: Record<string, string> = {
 
 const STATUS_COLORS = TRADE_STATUS_COLORS
 
+function tradeItemKey(item: TradeItem, index: number) {
+    if (item.kind === 'player') return `player:${item.playerId}:${index}`
+    if (item.kind === 'pick') return `pick:${item.pickId}:${index}`
+    return `faab:${item.fromMemberId ?? 'from'}:${item.toMemberId ?? 'to'}:${item.amount}:${index}`
+}
+
 function TradeItemLine({ item }: { item: TradeItem }) {
     if (item.kind === 'player') {
         const positions = playerEligiblePositions(item)
@@ -74,11 +80,6 @@ function TradeItemLine({ item }: { item: TradeItem }) {
 }
 
 function AssetList({ items, label }: { items: TradeItem[]; label: string }) {
-    const keyForItem = (item: TradeItem, index: number) => {
-        if (item.kind === 'player') return `player:${item.playerId}:${index}`
-        if (item.kind === 'pick') return `pick:${item.pickId}:${index}`
-        return `faab:${item.fromMemberId ?? 'from'}:${item.toMemberId ?? 'to'}:${item.amount}:${index}`
-    }
     return (
         <View style={styles.assetBlock}>
             <Text style={styles.assetLabel}>{label}</Text>
@@ -87,9 +88,102 @@ function AssetList({ items, label }: { items: TradeItem[]; label: string }) {
             ) : (
                 items.map((item, index) => (
                     <TradeItemLine
-                        key={keyForItem(item, index)}
+                        key={tradeItemKey(item, index)}
                         item={item}
                     />
+                ))
+            )}
+        </View>
+    )
+}
+
+type RoutedTradeGroup = {
+    fromMemberId: string | null
+    toMemberId: string | null
+    fromLabel: string
+    toLabel: string
+    fromSort: number
+    toSort: number
+    items: TradeItem[]
+}
+
+function tradeMemberLabel(trade: Trade, memberId: string | null | undefined, myMemberId: string) {
+    if (!memberId) return 'Unknown team'
+    if (memberId === myMemberId) return 'You'
+
+    const participant = trade.participants.find((entry) => entry.memberId === memberId)
+    if (participant) return participant.teamName
+    if (memberId === trade.proposerMemberId) return trade.proposerTeamName
+    if (memberId === trade.recipientMemberId) return trade.recipientTeamName
+    return 'Unknown team'
+}
+
+function tradeMemberSort(trade: Trade, memberId: string | null | undefined) {
+    if (!memberId) return Number.MAX_SAFE_INTEGER
+    const participant = trade.participants.find((entry) => entry.memberId === memberId)
+    if (participant) return participant.sortOrder
+    if (memberId === trade.proposerMemberId) return 0
+    if (memberId === trade.recipientMemberId) return 1
+    return Number.MAX_SAFE_INTEGER
+}
+
+function routedTradeGroups(trade: Trade, myMemberId: string): RoutedTradeGroup[] {
+    const groups = new Map<string, RoutedTradeGroup>()
+
+    for (const item of trade.routedItems) {
+        const fromMemberId = item.fromMemberId ?? null
+        const toMemberId = item.toMemberId ?? null
+        const key = `${fromMemberId ?? 'unknown'}:${toMemberId ?? 'unknown'}`
+        const current = groups.get(key)
+
+        if (current) {
+            current.items.push(item)
+            continue
+        }
+
+        groups.set(key, {
+            fromMemberId,
+            toMemberId,
+            fromLabel: tradeMemberLabel(trade, fromMemberId, myMemberId),
+            toLabel: tradeMemberLabel(trade, toMemberId, myMemberId),
+            fromSort: tradeMemberSort(trade, fromMemberId),
+            toSort: tradeMemberSort(trade, toMemberId),
+            items: [item],
+        })
+    }
+
+    return [...groups.values()].sort((a, b) =>
+        a.fromSort - b.fromSort ||
+        a.toSort - b.toSort ||
+        a.fromLabel.localeCompare(b.fromLabel) ||
+        a.toLabel.localeCompare(b.toLabel)
+    )
+}
+
+function MultiTeamRouteList({ trade, myMemberId }: { trade: Trade; myMemberId: string }) {
+    const groups = routedTradeGroups(trade, myMemberId)
+
+    return (
+        <View style={styles.multiRouteList}>
+            <Text style={styles.assetLabel}>Routed assets</Text>
+            {groups.length === 0 ? (
+                <Text style={styles.assetEmpty}>Nothing</Text>
+            ) : (
+                groups.map((group) => (
+                    <View
+                        key={`${group.fromMemberId ?? 'unknown'}:${group.toMemberId ?? 'unknown'}`}
+                        style={styles.routeGroup}
+                    >
+                        <Text style={styles.routeTitle} numberOfLines={2}>
+                            {group.fromLabel} sends to {group.toLabel}
+                        </Text>
+                        {group.items.map((item, index) => (
+                            <TradeItemLine
+                                key={tradeItemKey(item, index)}
+                                item={item}
+                            />
+                        ))}
+                    </View>
                 ))
             )}
         </View>
@@ -309,10 +403,16 @@ export function TradeCard({
             {participantAcceptanceText ? <Text style={styles.vetoWindowText}>{participantAcceptanceText}</Text> : null}
             {alreadyVetoed ? <Text style={styles.vetoWindowText}>Your veto has been recorded.</Text> : null}
 
-            <AssetList items={iReceive} label={receiveLabel} />
-            {iReceiveFaab > 0 ? <Text style={styles.assetPlayer}>FAAB ${iReceiveFaab}</Text> : null}
-            <AssetList items={iGive} label={giveLabel} />
-            {iGiveFaab > 0 ? <Text style={styles.assetPlayer}>FAAB ${iGiveFaab}</Text> : null}
+            {trade.isMultiTeam ? (
+                <MultiTeamRouteList trade={trade} myMemberId={myMemberId} />
+            ) : (
+                <>
+                    <AssetList items={iReceive} label={receiveLabel} />
+                    {iReceiveFaab > 0 ? <Text style={styles.assetPlayer}>FAAB ${iReceiveFaab}</Text> : null}
+                    <AssetList items={iGive} label={giveLabel} />
+                    {iGiveFaab > 0 ? <Text style={styles.assetPlayer}>FAAB ${iGiveFaab}</Text> : null}
+                </>
+            )}
 
             {trade.notes ? <Text style={styles.cardNotes}>{trade.notes}</Text> : null}
 
@@ -445,6 +545,14 @@ const styles = StyleSheet.create({
     assetPlayerContext: { fontSize: fontSize.xs, color: colors.primaryDark, fontWeight: fontWeight.bold, marginTop: 1 },
     assetPick: { fontSize: fontSize.sm, color: colors.textSecondary, fontStyle: 'italic' },
     assetPickVia: { fontSize: 12, color: colors.textMuted },
+    multiRouteList: { marginBottom: spacing.xs, gap: spacing.xs },
+    routeGroup: {
+        borderLeftWidth: 2,
+        borderLeftColor: colors.primary,
+        paddingLeft: spacing.sm,
+        paddingVertical: spacing.xxs,
+    },
+    routeTitle: { fontSize: fontSize.sm, color: colors.textPrimary, fontWeight: fontWeight.semibold },
 
     vetoWindowText: { fontSize: 12, color: colors.textMuted, marginBottom: spacing.xs },
     cardNotes: { fontSize: 12, color: colors.textMuted, fontStyle: 'italic', marginTop: spacing.xxs },
