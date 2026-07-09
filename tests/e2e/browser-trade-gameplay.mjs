@@ -76,7 +76,7 @@ const sortedLeagueMembers = async (admin, leagueId) => {
   return data ?? []
 }
 
-const findAvailablePlayers = async (admin, leagueId, leagueSeasonId, count) => {
+export const findAvailablePlayers = async (admin, leagueId, leagueSeasonId, count) => {
   const [{ data: rosterRows, error: rosterError }, { data: players, error: playersError }] = await Promise.all([
     admin
       .from('roster_players')

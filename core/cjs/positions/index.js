@@ -22,7 +22,7 @@ function normalizedPositions(position, eligiblePositions) {
         : position ? [position] : [];
 }
 function canPlayLineupSlot(position, eligiblePositions, slotType) {
-    if (!(slotType in exports.LINEUP_SLOT_ALLOWED_POSITIONS))
+    if (!Object.hasOwn(exports.LINEUP_SLOT_ALLOWED_POSITIONS, slotType))
         return false;
     const allPositions = normalizedPositions(position, eligiblePositions);
     if (allPositions.length === 0)

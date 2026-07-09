@@ -345,7 +345,10 @@ BEGIN
   UPDATE trades
      SET status = 'accepted',
          accepted_at = now(),
-         veto_window_expires_at = now() + make_interval(hours => v_veto_window_hours),
+         veto_window_expires_at = CASE
+           WHEN v_veto_window_hours = 0 THEN now() - interval '1 microsecond'
+           ELSE now() + make_interval(hours => v_veto_window_hours)
+         END,
          completed_at = NULL,
          vetoed_at = NULL
    WHERE id = p_trade_id

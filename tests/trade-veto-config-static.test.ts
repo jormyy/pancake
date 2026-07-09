@@ -25,13 +25,17 @@ describe('configurable trade veto settings', () => {
 
     it('drives accept and veto behavior from league veto config', () => {
         const acceptTrade = latestFunctionDefinition('accept_trade_atomic')
+        const setVetoWindow = latestFunctionDefinition('set_veto_window')
         const vetoTrade = latestFunctionDefinition('veto_trade_atomic')
         const api = read('supabase/functions/api/trades.ts')
 
         expect(acceptTrade).toContain("COALESCE(v_league.trade_veto_mode, 'member_vote') = 'disabled'")
-        expect(acceptTrade).toContain('veto_window_expires_at = now() + make_interval(hours => v_veto_window_hours)')
+        expect(acceptTrade).toContain("WHEN v_veto_window_hours = 0 THEN now() - interval '1 microsecond'")
+        expect(acceptTrade).toContain('ELSE now() + make_interval(hours => v_veto_window_hours)')
         expect(acceptTrade).toContain('PERFORM public.complete_accepted_trade_atomic(p_trade_id)')
         expect(acceptTrade).not.toContain("veto_window_expires_at = now() + INTERVAL '24 hours'")
+        expect(setVetoWindow).toContain('NEW.veto_window_expires_at = COALESCE(')
+        expect(setVetoWindow).toContain("NEW.accepted_at + INTERVAL '24 hours'")
 
         expect(vetoTrade).toContain('Trade vetoes are disabled for this league.')
         expect(vetoTrade).toContain('Only commissioners can veto trades in this league.')

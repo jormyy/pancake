@@ -1,6 +1,4 @@
--- Canonical SQL source for public.set_veto_window.
--- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
--- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+-- Preserve RPC-provided veto deadlines while retaining the legacy default.
 
 CREATE OR REPLACE FUNCTION set_veto_window()
 RETURNS trigger
