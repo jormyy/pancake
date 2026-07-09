@@ -55,10 +55,12 @@ export function clampDateToWeek(date: string, days: WeekDay[]): string {
 
 // Returns the set of NBA team abbreviations whose game has already started on the given date.
 export async function getStartedTeams(gameDate: string): Promise<Set<string>> {
-    const { data } = await supabase
+    const { data, error } = await supabase
         .from('nba_games')
         .select('home_team, away_team, status, game_time')
         .eq('game_date', gameDate)
+    if (error) throw error
+
     const teams = new Set<string>()
     const now = new Date().toISOString()
     for (const g of data ?? []) {
@@ -74,10 +76,12 @@ export async function getStartedTeams(gameDate: string): Promise<Set<string>> {
 
 // Returns a map of team abbreviation → { opponent, isHome } for all games on the given date.
 export async function getTeamMatchups(gameDate: string): Promise<Map<string, { opponent: string; isHome: boolean }>> {
-    const { data } = await supabase
+    const { data, error } = await supabase
         .from('nba_games')
         .select('home_team, away_team')
         .eq('game_date', gameDate)
+    if (error) throw error
+
     const map = new Map<string, { opponent: string; isHome: boolean }>()
     for (const g of data ?? []) {
         const home = g.home_team
@@ -106,12 +110,13 @@ export async function getWeekDays(weekNumber: number, seasonYear: number): Promi
     // Fetch week boundaries first, then query games by date range.
     // Querying by week_number on nba_games is unreliable — rows can have stale/incorrect
     // week_number values if the schedule was synced out of order or re-seeded.
-    const { data: weekData } = await supabase
+    const { data: weekData, error: weekError } = await supabase
         .from('season_weeks')
         .select('week_start')
         .eq('season_year', seasonYear)
         .eq('week_number', weekNumber)
         .maybeSingle()
+    if (weekError) throw weekError
 
     const today = todayET()
     const DAY_CHARS = ['S', 'M', 'T', 'W', 'R', 'F', 'S']
@@ -128,12 +133,13 @@ export async function getWeekDays(weekNumber: number, seasonYear: number): Promi
         const startStr = start.toISOString().split('T')[0]
         const endStr = end.toISOString().split('T')[0]
 
-        const { data: games } = await supabase
+        const { data: games, error: gamesError } = await supabase
             .from('nba_games')
             .select('game_date, home_team, away_team')
             .eq('season_year', seasonYear)
             .gte('game_date', startStr)
             .lte('game_date', endStr)
+        if (gamesError) throw gamesError
 
         for (const g of games ?? []) {
             const date = g.game_date
@@ -158,11 +164,12 @@ export async function getWeekDays(weekNumber: number, seasonYear: number): Promi
         }
     } else {
         // Fallback: week_start unknown — fall back to week_number query
-        const { data: games } = await supabase
+        const { data: games, error: gamesError } = await supabase
             .from('nba_games')
             .select('game_date, home_team, away_team')
             .eq('season_year', seasonYear)
             .eq('week_number', weekNumber)
+        if (gamesError) throw gamesError
 
         for (const g of games ?? []) {
             const date = g.game_date
@@ -200,7 +207,7 @@ export async function getWeeklyLineup(
     // slate as "past" (or vice versa) during the 0–3h skew.
     const isPastDate = gameDate < todayET()
 
-    const [{ data: templates }, { data: roster }, { data: assignments }] = await Promise.all([
+    const [templatesResult, rosterResult, assignmentsResult] = await Promise.all([
         supabase
             .from('lineup_slot_templates')
             .select('slot_type, slot_count')
@@ -219,20 +226,27 @@ export async function getWeeklyLineup(
             .eq('league_season_id', seasonId)
             .eq('game_date', gameDate),
     ])
+    if (templatesResult.error) throw templatesResult.error
+    if (rosterResult.error) throw rosterResult.error
+    if (assignmentsResult.error) throw assignmentsResult.error
+
+    const templates = templatesResult.data ?? []
+    const roster = rosterResult.data ?? []
+    const assignments = assignmentsResult.data ?? []
 
     const assignmentMap = new Map<string, string>(
-        (assignments ?? []).map((a) => [a.player_id, a.slot_type]),
+        assignments.map((a) => [a.player_id, a.slot_type]),
     )
 
     const irPlayerIds = new Set<string>(
-        (roster ?? []).filter((r) => r.is_on_ir).map((r) => r.player_id),
+        roster.filter((r) => r.is_on_ir).map((r) => r.player_id),
     )
     const taxiPlayerIds = new Set<string>(
-        (roster ?? []).filter((r) => r.is_on_taxi).map((r) => r.player_id),
+        roster.filter((r) => r.is_on_taxi).map((r) => r.player_id),
     )
 
     const rosterByPlayerId = new Map<string, LineupPlayer>()
-    for (const r of roster ?? []) {
+    for (const r of roster) {
         // Supabase types `players` as a possible array | object | null depending on relationship inference.
         // The join is one-to-one, so we normalize to a single record.
         const playersRel = r.players
@@ -262,7 +276,7 @@ export async function getWeeklyLineup(
                     .from('players')
                     .select('id, display_name, position, eligible_positions, nba_team, injury_status, nba_id')
                     .in('id', missingPlayerIds)
-                : Promise.resolve({ data: [] as ExtraPlayer[] }),
+                : Promise.resolve({ data: [] as ExtraPlayer[], error: null }),
             supabase
                 .from('roster_transactions')
                 .select('player_id')
@@ -274,6 +288,8 @@ export async function getWeeklyLineup(
                 // so DST does not shift post-slate transaction history by an hour.
                 .gt('occurred_at', endOfETDayUTC(gameDate)),
         ])
+        if (extraPlayersResult.error) throw extraPlayersResult.error
+        if (laterAddsResult.error) throw laterAddsResult.error
 
         for (const p of extraPlayersResult.data ?? []) {
             rosterByPlayerId.set(p.id, {
@@ -293,7 +309,7 @@ export async function getWeeklyLineup(
 
     // Taxi slots are tracked via `roster_players.is_on_taxi`, not as a slot template type,
     // so the enum doesn't include 'TX'. Only BE/IR are excluded here.
-    const starterTemplates = (templates ?? []).filter(
+    const starterTemplates = templates.filter(
         (t) => t.slot_type !== 'BE' && t.slot_type !== 'IR',
     )
 
@@ -320,17 +336,17 @@ export async function getWeeklyLineup(
     const starterPlayerIds = new Set(
         starters.map((s) => s.player?.playerId).filter(Boolean) as string[],
     )
-    const bench: LineupPlayer[] = (roster ?? [])
+    const bench: LineupPlayer[] = roster
         .filter((r) => !r.is_on_ir && !r.is_on_taxi && !starterPlayerIds.has(r.player_id) && !addedAfterDate.has(r.player_id))
         .map((r) => rosterByPlayerId.get(r.player_id)!)
         .filter(Boolean)
 
-    const ir: LineupPlayer[] = (roster ?? [])
+    const ir: LineupPlayer[] = roster
         .filter((r) => r.is_on_ir)
         .map((r) => rosterByPlayerId.get(r.player_id)!)
         .filter(Boolean)
 
-    const taxi: LineupPlayer[] = (roster ?? [])
+    const taxi: LineupPlayer[] = roster
         .filter((r) => r.is_on_taxi)
         .map((r) => rosterByPlayerId.get(r.player_id)!)
         .filter(Boolean)

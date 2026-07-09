@@ -205,7 +205,7 @@ export async function getJoinableDraft(
 }
 
 export async function getDraftState(draftId: string): Promise<DraftState | null> {
-    const [{ data: draft }, { data: orders }, { data: budgets }, { data: nominations }] =
+    const [draftResult, ordersResult, budgetsResult, nominationsResult] =
         await Promise.all([
             supabase
                 .from('drafts')
@@ -236,8 +236,16 @@ export async function getDraftState(draftId: string): Promise<DraftState | null>
                 .eq('draft_id', draftId)
                 .order('nomination_order'),
         ])
+    if (draftResult.error) throw draftResult.error
+    if (ordersResult.error) throw ordersResult.error
+    if (budgetsResult.error) throw budgetsResult.error
+    if (nominationsResult.error) throw nominationsResult.error
 
+    const draft = draftResult.data
     if (!draft) return null
+    const orders = ordersResult.data ?? []
+    const budgets = budgetsResult.data ?? []
+    const nominations = nominationsResult.data ?? []
 
     const mappedDraft: Draft = {
         id: draft.id,
@@ -262,24 +270,24 @@ export async function getDraftState(draftId: string): Promise<DraftState | null>
         pausedRemainingSeconds: draft.timer_paused_remaining_seconds,
     }
 
-    const mappedOrder: DraftOrderEntry[] = (orders ?? []).map((o) => ({
+    const mappedOrder: DraftOrderEntry[] = orders.map((o) => ({
         position: o.position,
         memberId: o.member_id,
         teamName: (o.league_members as { team_name: string } | null)?.team_name ?? 'Unknown',
     }))
 
-    const mappedBudgets: DraftBudget[] = (budgets ?? []).map((b) => ({
+    const mappedBudgets: DraftBudget[] = budgets.map((b) => ({
         memberId: b.member_id,
         teamName: (b.league_members as { team_name: string } | null)?.team_name ?? 'Unknown',
         remaining: b.remaining,
         initialBudget: b.initial_budget,
     }))
 
-    const playerIds = [...new Set((nominations ?? []).map((n) => n.player_id).filter(Boolean))]
+    const playerIds = [...new Set(nominations.map((n) => n.player_id).filter(Boolean))]
     const ageByPlayerId = await getLatestDynastyAges(playerIds)
 
     type PlayerRef = { display_name: string | null; nba_team: string | null; position: string | null; nba_id: string | null }
-    const mappedNominations: Nomination[] = (nominations ?? []).map((n) => ({
+    const mappedNominations: Nomination[] = nominations.map((n) => ({
         id: n.id,
         status: n.status,
         nominatingMemberId: n.nominating_member_id,
@@ -346,10 +354,11 @@ export async function searchPlayers(
     mode: NominationOrderMode = 'user_nominated',
 ): Promise<DraftSearchPlayer[]> {
     // Get already-nominated player IDs to filter out
-    const { data: nominated } = await supabase
+    const { data: nominated, error: nominatedError } = await supabase
         .from('nominations')
         .select('player_id')
         .eq('draft_id', draftId)
+    if (nominatedError) throw nominatedError
 
     const nominatedIds = new Set((nominated ?? []).map((n) => n.player_id))
 
@@ -372,7 +381,7 @@ export async function searchPlayers(
 
     const { data, error } = await playerQuery
 
-    if (error) console.error('[searchPlayers]', error)
+    if (error) throw error
     const rows = (data ?? []) as Omit<DraftSearchPlayer, 'age'>[]
     const ageByPlayerId = await getLatestDynastyAges(rows.map((row) => row.id))
     return rows.map((row) => ({
@@ -396,10 +405,7 @@ async function getLatestDynastyAges(playerIds: string[]): Promise<Map<string, nu
         .not('age', 'is', null)
         .order('fetched_at', { ascending: false })
 
-    if (error) {
-        console.error('[getLatestDynastyAges]', error)
-        return new Map()
-    }
+    if (error) throw error
 
     const ages = new Map<string, number>()
     for (const row of (data ?? []) as { player_id: string | null; age: number | string | null }[]) {
