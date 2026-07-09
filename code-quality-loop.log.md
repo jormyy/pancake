@@ -5,3 +5,4 @@ notes: aggressiveness=aggressive; scope=entire repo including Supabase database 
 
 | # | verdict | findings | commits | loc_delta | tests | notes |
 |---|---|---|---|---|---|---|
+| 1 | BLOCK | 0/16/1 | 9 | 8365 | pass | Cycle-1 repo-wide fresh audits fixed: DB function source ownership, stale core enum contracts, centralized week policy, waiver DB eligibility/indexing, commissioner settings decomposition, repository error surfacing, realtime debounce/scope, lineup move planner extraction. Full broad gate passed. |
