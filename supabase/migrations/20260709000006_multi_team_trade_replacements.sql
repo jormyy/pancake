@@ -244,4 +244,3 @@ GRANT EXECUTE ON FUNCTION public.counter_multi_team_trade_atomic(uuid, uuid, uui
 REVOKE ALL ON FUNCTION public.edit_multi_team_trade_atomic(uuid, uuid, uuid, uuid[], jsonb, text, timestamptz) FROM PUBLIC, anon, authenticated;
 
 GRANT EXECUTE ON FUNCTION public.edit_multi_team_trade_atomic(uuid, uuid, uuid, uuid[], jsonb, text, timestamptz) TO service_role;
-

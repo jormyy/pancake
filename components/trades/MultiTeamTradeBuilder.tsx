@@ -1,4 +1,6 @@
+import { useEffect, useMemo, useState } from 'react'
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native'
+import { MultiTeamTradeOverview, type TradeFlowItem } from '@/components/trades/MultiTeamTradeOverview'
 import { TradeAssetColumn } from '@/components/trades/TradeAssetColumn'
 import { breakpoints, colors, fontSize, fontWeight, radii, spacing, uiColors } from '@/constants/tokens'
 import type { RosterPlayer } from '@/lib/roster'
@@ -63,6 +65,66 @@ export function MultiTeamTradeBuilder({
 }: MultiTeamTradeBuilderProps) {
     const { width } = useWindowDimensions()
     const useColumns = width >= breakpoints.roster && participantIds.length > 1
+    const [activeParticipantId, setActiveParticipantId] = useState(participantIds[0] ?? '')
+
+    useEffect(() => {
+        if (!participantIds.includes(activeParticipantId)) {
+            setActiveParticipantId(participantIds[0] ?? '')
+        }
+    }, [activeParticipantId, participantIds])
+
+    const overviewItems = useMemo(() => participantIds.flatMap<TradeFlowItem>((memberId) => {
+        const destinationOptions = participantIds.filter((id) => id !== memberId)
+        const defaultDestinationId = participantDestinationIds[memberId] && destinationOptions.includes(participantDestinationIds[memberId])
+            ? participantDestinationIds[memberId]
+            : destinationOptions[0]
+        const playerDestinations = participantPlayerDestinationIds[memberId] ?? {}
+        const pickDestinations = participantPickDestinationIds[memberId] ?? {}
+        const selectedPlayerIds = participantPlayerIds[memberId] ?? new Set<string>()
+        const selectedPickIds = participantPickIds[memberId] ?? new Set<string>()
+        const players = (participantRosters[memberId] ?? []).flatMap<TradeFlowItem>((player) => {
+            const playerId = player.players.id
+            if (!selectedPlayerIds.has(playerId) || !defaultDestinationId) return []
+            return [{
+                key: `player:${memberId}:${playerId}`,
+                fromMemberId: memberId,
+                toMemberId: playerDestinations[playerId] ?? defaultDestinationId,
+                label: player.players.display_name,
+                detail: player.players.position,
+            }]
+        })
+        const picks = (participantPicks[memberId] ?? []).flatMap<TradeFlowItem>((pick) => {
+            if (!selectedPickIds.has(pick.pickId) || !defaultDestinationId) return []
+            return [{
+                key: `pick:${memberId}:${pick.pickId}`,
+                fromMemberId: memberId,
+                toMemberId: pickDestinations[pick.pickId] ?? defaultDestinationId,
+                label: `${pick.seasonYear} Round ${pick.round}`,
+                detail: `${pick.originalTeamName} pick`,
+            }]
+        })
+        const faabAmount = parseInt(participantFaabInputs[memberId] ?? '0', 10) || 0
+        const faab = faabEnabled && faabAmount > 0 && defaultDestinationId
+            ? [{
+                key: `faab:${memberId}`,
+                fromMemberId: memberId,
+                toMemberId: defaultDestinationId,
+                label: `$${faabAmount} FAAB`,
+            }]
+            : []
+        return [...players, ...picks, ...faab]
+    }), [
+        faabEnabled,
+        participantDestinationIds,
+        participantFaabInputs,
+        participantIds,
+        participantPickDestinationIds,
+        participantPickIds,
+        participantPicks,
+        participantPlayerDestinationIds,
+        participantPlayerIds,
+        participantRosters,
+    ])
 
     if (rosterError) {
         return (
@@ -137,7 +199,7 @@ export function MultiTeamTradeBuilder({
                     </View>
                 </View>
                 <TradeAssetColumn
-                    title={`${memberId === myMemberId ? 'YOU' : participantName(memberId).toUpperCase()} SENDS`}
+                    title={memberId === myMemberId ? 'YOU SEND' : `${participantName(memberId).toUpperCase()} SENDS`}
                     subtitle={toMemberId ? `To ${participantName(toMemberId)}` : 'Choose a destination'}
                     side="give"
                     twoColumn={useColumns}
@@ -247,7 +309,40 @@ export function MultiTeamTradeBuilder({
 
     return (
         <>
-            <Text style={styles.sectionLabel}>MULTI-TEAM BUILDER</Text>
+            <MultiTeamTradeOverview
+                participants={participantIds.map((memberId) => ({
+                    memberId,
+                    label: memberId === myMemberId ? 'You' : participantName(memberId),
+                }))}
+                items={overviewItems}
+            />
+            <Text style={styles.sectionLabel}>BUILD THE DEAL</Text>
+            {!useColumns ? (
+                <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.senderTabs}
+                    accessibilityRole="tablist"
+                >
+                    {participantIds.map((memberId) => {
+                        const active = memberId === activeParticipantId
+                        return (
+                            <Pressable
+                                key={memberId}
+                                style={[styles.senderTab, active && styles.senderTabActive]}
+                                onPress={() => setActiveParticipantId(memberId)}
+                                accessibilityRole="tab"
+                                accessibilityState={{ selected: active }}
+                                accessibilityLabel={`Edit assets sent by ${memberId === myMemberId ? 'you' : participantName(memberId)}`}
+                            >
+                                <Text style={[styles.senderTabText, active && styles.senderTabTextActive]} numberOfLines={1}>
+                                    {memberId === myMemberId ? 'You send' : `${participantName(memberId)} sends`}
+                                </Text>
+                            </Pressable>
+                        )
+                    })}
+                </ScrollView>
+            ) : null}
             {useColumns ? (
                 <ScrollView
                     horizontal
@@ -258,7 +353,9 @@ export function MultiTeamTradeBuilder({
                     {panels}
                 </ScrollView>
             ) : (
-                <View style={styles.multiTeamStack}>{panels}</View>
+                <View style={styles.multiTeamStack}>
+                    {panels.find((panel) => panel.key === activeParticipantId) ?? panels[0]}
+                </View>
             )}
             <Text style={styles.sectionLabel}>NOTES (optional)</Text>
             <TextInput
@@ -322,6 +419,28 @@ const styles = StyleSheet.create({
         maxWidth: 340,
     },
     multiTeamPanelStacked: { width: '100%' },
+    senderTabs: {
+        gap: spacing.sm,
+        paddingHorizontal: spacing.xl,
+        paddingBottom: spacing.md,
+    },
+    senderTab: {
+        minWidth: 112,
+        maxWidth: 200,
+        minHeight: 40,
+        paddingHorizontal: spacing.md,
+        borderBottomWidth: 2,
+        borderBottomColor: colors.borderLight,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    senderTabActive: { borderBottomColor: colors.primary },
+    senderTabText: {
+        fontSize: fontSize.sm,
+        fontWeight: fontWeight.semibold,
+        color: colors.textMuted,
+    },
+    senderTabTextActive: { color: colors.textPrimary },
     routePicker: {
         paddingHorizontal: spacing.xl,
         paddingTop: spacing.lg,

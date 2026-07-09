@@ -1590,8 +1590,8 @@ export async function runBrowserMultiTeamTradeScenario({
     await assertPageText(
       session,
       [
-        'MULTI-TEAM BUILDER',
-        'YOU SENDS',
+      'DEAL OVERVIEW',
+      'YOU SEND',
         `${fixture.recipient.team_name.toUpperCase()} SENDS`,
         `${fixture.observer.team_name.toUpperCase()} SENDS`,
         fixture.proposerPlayer.display_name,
@@ -1602,25 +1602,60 @@ export async function runBrowserMultiTeamTradeScenario({
     )
     await browser(session, ['screenshot', path.join(artifactDir, 'multi-team-builder.png')], { timeout: 60_000 })
 
+    await browser(session, ['set', 'viewport', '390', '844']).catch(() => {})
+    await browser(session, ['wait', '500'])
+    await assertPageText(
+      session,
+      ['DEAL OVERVIEW', 'You send', `${fixture.recipient.team_name} sends`, `${fixture.observer.team_name} sends`],
+      'mobile multi-team sender tabs',
+    )
+    await browser(session, ['screenshot', path.join(artifactDir, 'multi-team-builder-mobile.png')], { timeout: 60_000 })
+
+    const recipientTabClick = await clickButton(
+      session,
+      `Edit assets sent by ${fixture.recipient.team_name}`,
+      'mobile recipient sender tab',
+    )
+
     const routeClick = await clickButton(
       session,
       `${fixture.recipient.team_name} sends selected assets to ${fixture.observer.team_name}`,
       'multi-team recipient route selection',
+    )
+    const proposerTabClick = await clickButton(
+      session,
+      'Edit assets sent by you',
+      'mobile proposer sender tab',
     )
     const proposerPlayerClick = await clickButton(
       session,
       `Select ${fixture.proposerPlayer.display_name} for trade`,
       'multi-team proposer player selection',
     )
+    await clickButton(
+      session,
+      `Edit assets sent by ${fixture.recipient.team_name}`,
+      'mobile recipient sender tab after proposer selection',
+    )
     const recipientPlayerClick = await clickButton(
       session,
       `Select ${fixture.recipientPlayer.display_name} for trade`,
       'multi-team recipient player selection',
     )
+    const observerTabClick = await clickButton(
+      session,
+      `Edit assets sent by ${fixture.observer.team_name}`,
+      'mobile observer sender tab',
+    )
     const observerPlayerClick = await clickButton(
       session,
       `Select ${fixture.observerPlayer.display_name} for trade`,
       'multi-team observer player selection',
+    )
+    await clickButton(
+      session,
+      'Edit assets sent by you',
+      'mobile proposer sender tab for route override',
     )
     const proposerPlayerRouteClick = await clickButton(
       session,
@@ -1636,6 +1671,9 @@ export async function runBrowserMultiTeamTradeScenario({
       modeClick,
       recipientClick,
       observerClick,
+      recipientTabClick,
+      proposerTabClick,
+      observerTabClick,
       routeClick,
       proposerPlayerClick,
       recipientPlayerClick,
@@ -1651,6 +1689,24 @@ export async function runBrowserMultiTeamTradeScenario({
     await browser(session, ['wait', '1000'])
     await browser(session, ['screenshot', path.join(artifactDir, 'multi-team-after-submit.png')], { timeout: 60_000 })
 
+    await openOffersTab(session, env)
+    await assertPageText(
+      session,
+      [
+        'Deal overview',
+        'You receive',
+        `${fixture.recipient.team_name} receives`,
+        `${fixture.observer.team_name} receives`,
+        'Accepted',
+        'Waiting',
+        fixture.proposerPlayer.display_name,
+        fixture.recipientPlayer.display_name,
+        fixture.observerPlayer.display_name,
+      ],
+      'mobile multi-team offer overview',
+    )
+    await browser(session, ['screenshot', path.join(artifactDir, 'multi-team-offer-mobile.png')], { timeout: 60_000 })
+
     await browser(session, ['open', joinUrl(env.frontendUrl, `/propose-trade?editTradeId=${tradeProposal.trade.id}`)])
     await installBrowserHooks(session, env)
     await browser(session, ['wait', '4500'])
@@ -1658,7 +1714,7 @@ export async function runBrowserMultiTeamTradeScenario({
       session,
       [
         'Edit Trade',
-        'MULTI-TEAM BUILDER',
+        'DEAL OVERVIEW',
         'SELECTED ROUTES',
         fixture.proposerPlayer.display_name,
         fixture.recipientPlayer.display_name,
@@ -1688,7 +1744,7 @@ export async function runBrowserMultiTeamTradeScenario({
       counterSession,
       [
         'Counter Trade',
-        'MULTI-TEAM BUILDER',
+        'DEAL OVERVIEW',
         'SELECTED ROUTES',
         fixture.proposerPlayer.display_name,
         fixture.recipientPlayer.display_name,

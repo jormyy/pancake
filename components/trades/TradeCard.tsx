@@ -97,16 +97,6 @@ function AssetList({ items, label }: { items: TradeItem[]; label: string }) {
     )
 }
 
-type RoutedTradeGroup = {
-    fromMemberId: string | null
-    toMemberId: string | null
-    fromLabel: string
-    toLabel: string
-    fromSort: number
-    toSort: number
-    items: TradeItem[]
-}
-
 function tradeMemberLabel(trade: Trade, memberId: string | null | undefined, myMemberId: string) {
     if (!memberId) return 'Unknown team'
     if (memberId === myMemberId) return 'You'
@@ -118,73 +108,43 @@ function tradeMemberLabel(trade: Trade, memberId: string | null | undefined, myM
     return 'Unknown team'
 }
 
-function tradeMemberSort(trade: Trade, memberId: string | null | undefined) {
-    if (!memberId) return Number.MAX_SAFE_INTEGER
-    const participant = trade.participants.find((entry) => entry.memberId === memberId)
-    if (participant) return participant.sortOrder
-    if (memberId === trade.proposerMemberId) return 0
-    if (memberId === trade.recipientMemberId) return 1
-    return Number.MAX_SAFE_INTEGER
-}
-
-function routedTradeGroups(trade: Trade, myMemberId: string): RoutedTradeGroup[] {
-    const groups = new Map<string, RoutedTradeGroup>()
-
-    for (const item of trade.routedItems) {
-        const fromMemberId = item.fromMemberId ?? null
-        const toMemberId = item.toMemberId ?? null
-        const key = `${fromMemberId ?? 'unknown'}:${toMemberId ?? 'unknown'}`
-        const current = groups.get(key)
-
-        if (current) {
-            current.items.push(item)
-            continue
-        }
-
-        groups.set(key, {
-            fromMemberId,
-            toMemberId,
-            fromLabel: tradeMemberLabel(trade, fromMemberId, myMemberId),
-            toLabel: tradeMemberLabel(trade, toMemberId, myMemberId),
-            fromSort: tradeMemberSort(trade, fromMemberId),
-            toSort: tradeMemberSort(trade, toMemberId),
-            items: [item],
-        })
-    }
-
-    return [...groups.values()].sort((a, b) =>
-        a.fromSort - b.fromSort ||
-        a.toSort - b.toSort ||
-        a.fromLabel.localeCompare(b.fromLabel) ||
-        a.toLabel.localeCompare(b.toLabel)
-    )
-}
-
 function MultiTeamRouteList({ trade, myMemberId }: { trade: Trade; myMemberId: string }) {
-    const groups = routedTradeGroups(trade, myMemberId)
-
     return (
         <View style={styles.multiRouteList}>
-            <Text style={styles.assetLabel}>Routed assets</Text>
-            {groups.length === 0 ? (
+            <Text style={styles.assetLabel}>Deal overview</Text>
+            {trade.participants.length === 0 ? (
                 <Text style={styles.assetEmpty}>Nothing</Text>
             ) : (
-                groups.map((group) => (
+                trade.participants.map((participant) => {
+                    const incoming = trade.routedItems.filter((item) => item.toMemberId === participant.memberId)
+                    return (
                     <View
-                        key={`${group.fromMemberId ?? 'unknown'}:${group.toMemberId ?? 'unknown'}`}
+                        key={participant.memberId}
                         style={styles.routeGroup}
                     >
-                        <Text style={styles.routeTitle} numberOfLines={2}>
-                            {group.fromLabel} sends to {group.toLabel}
-                        </Text>
-                        {group.items.map((item, index) => (
-                            <TradeItemLine
-                                key={tradeItemKey(item, index)}
-                                item={item}
-                            />
+                        <View style={styles.routeTitleRow}>
+                            <Text style={styles.routeTitle} numberOfLines={1}>
+                                {participant.memberId === myMemberId
+                                    ? 'You receive'
+                                    : `${tradeMemberLabel(trade, participant.memberId, myMemberId)} receives`}
+                            </Text>
+                            <Text style={[styles.routeAcceptance, participant.acceptedAt && styles.routeAcceptanceComplete]}>
+                                {participant.acceptedAt ? 'Accepted' : 'Waiting'}
+                            </Text>
+                        </View>
+                        {incoming.length === 0 ? (
+                            <Text style={styles.assetEmpty}>No incoming assets</Text>
+                        ) : incoming.map((item, index) => (
+                            <View key={tradeItemKey(item, index)} style={styles.routedAsset}>
+                                <TradeItemLine item={item} />
+                                <Text style={styles.routeSource} numberOfLines={1}>
+                                    From {tradeMemberLabel(trade, item.fromMemberId, myMemberId)}
+                                </Text>
+                            </View>
                         ))}
                     </View>
-                ))
+                    )
+                })
             )}
         </View>
     )
@@ -215,9 +175,8 @@ export function TradeCard({
     const participants = trade.participants ?? []
     const isMultiParticipant = participants.some((participant) => participant.memberId === myMemberId)
     const isTradeParty = isProposer || isRecipient || isMultiParticipant
-    const participantNames = participants.map((participant) => participant.teamName).join(' / ')
-    const opponentName = trade.isMultiTeam && participantNames
-        ? participantNames
+    const opponentName = trade.isMultiTeam && participants.length > 0
+        ? `${participants.length}-team trade`
         : isProposer
         ? trade.recipientTeamName
         : isRecipient
@@ -544,14 +503,24 @@ const styles = StyleSheet.create({
     assetPlayerContext: { fontSize: fontSize.xs, color: colors.primaryDark, fontWeight: fontWeight.bold, marginTop: 1 },
     assetPick: { fontSize: fontSize.sm, color: colors.textSecondary, fontStyle: 'italic' },
     assetPickVia: { fontSize: 12, color: colors.textMuted },
-    multiRouteList: { marginBottom: spacing.xs, gap: spacing.xs },
+    multiRouteList: { marginBottom: spacing.xs, gap: spacing.sm },
     routeGroup: {
-        borderLeftWidth: 2,
-        borderLeftColor: colors.primary,
-        paddingLeft: spacing.sm,
-        paddingVertical: spacing.xxs,
+        borderTopWidth: 1,
+        borderTopColor: colors.borderLight,
+        paddingTop: spacing.sm,
+        gap: spacing.xs,
     },
-    routeTitle: { fontSize: fontSize.sm, color: colors.textPrimary, fontWeight: fontWeight.semibold },
+    routeTitleRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: spacing.sm,
+    },
+    routeTitle: { flex: 1, fontSize: fontSize.sm, color: colors.textPrimary, fontWeight: fontWeight.bold },
+    routeAcceptance: { fontSize: fontSize.xs, color: colors.textMuted, fontWeight: fontWeight.semibold },
+    routeAcceptanceComplete: { color: uiColors.successText },
+    routedAsset: { paddingLeft: spacing.sm },
+    routeSource: { marginTop: 2, fontSize: fontSize.xs, color: colors.textMuted },
 
     vetoWindowText: { fontSize: 12, color: colors.textMuted, marginBottom: spacing.xs },
     cardNotes: { fontSize: 12, color: colors.textMuted, fontStyle: 'italic', marginTop: spacing.xxs },
