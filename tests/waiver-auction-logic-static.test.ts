@@ -1,14 +1,37 @@
 import { describe, expect, it } from 'vitest'
-import { read } from './source-guard'
+import { read, readFunctionSources } from './source-guard'
 
 // The waiver and auction engines are SQL-only, so their load-bearing
 // inequalities and ORDER BYs are guarded as exact source text: flipping a
 // comparison operator or reordering a tiebreak key fails these expectations.
-// tests/db-function-source-parity.test.ts keeps these files in sync with the
-// deployed migrations.
-const waivers = read('supabase/sql/functions/waivers-and-adds.sql')
-const auction = read('supabase/sql/functions/auction-lifecycle.sql')
-const dynastyTx = read('supabase/sql/functions/dynasty-transactions.sql')
+// tests/db-function-source-parity.test.ts keeps these per-function sources in
+// sync with the deployed migrations.
+const waivers = readFunctionSources([
+    ['clear_future_unlocked_lineups', 'private'],
+    ['clear_trade_block_listing_for_asset', 'private'],
+    ['validate_waiver_claim_drop_player', 'private'],
+    ['release_roster_player_to_waivers', 'private'],
+    'add_free_agent_atomic',
+    'create_waiver_claim_atomic',
+    'edit_waiver_claim_atomic',
+    'cancel_waiver_claim_atomic',
+    'reorder_waiver_claim_atomic',
+    ['fail_waiver_claim', 'private'],
+    'process_next_waiver_claim_atomic',
+    'process_due_waiver_claims_atomic',
+    'expire_waiver_wire_logs',
+])
+const auction = readFunctionSources([
+    'start_auction_draft_atomic',
+    'create_auction_nomination_atomic',
+    'place_auction_bid_atomic',
+    'close_auction_nomination_atomic',
+    'withdraw_auction_nomination_atomic',
+])
+const dynastyTx = readFunctionSources([
+    ['weekly_add_limit_message', 'private'],
+    ['assert_weekly_add_available', 'private'],
+])
 const waiverApi = read('supabase/functions/api/waivers.ts')
 const claimPlayerModal = read('app/(modals)/claim-player.tsx')
 

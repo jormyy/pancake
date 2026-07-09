@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { latestFunctionDefinition } from './source-guard'
+import { latestFunctionDefinition, readFunctionSources } from './source-guard'
 
 const read = (path: string) => readFileSync(path, 'utf8')
 
@@ -82,7 +82,25 @@ describe('dynasty transaction release contracts', () => {
     })
 
     it('keeps trade negotiation and trade block actions behind RPCs', () => {
-        const trades = read('supabase/sql/functions/trade-negotiation.sql')
+        const trades = readFunctionSources([
+            ['clear_trade_block_listing_on_inactive_roster', 'private'],
+            ['create_trade_offer', 'private'],
+            'propose_trade_atomic',
+            ['create_multi_team_trade_offer', 'private'],
+            'propose_multi_team_trade_atomic',
+            ['replace_trade_offer', 'private'],
+            'counter_trade_atomic',
+            'edit_trade_atomic',
+            ['prevent_expired_or_unfunded_trade_accept', 'private'],
+            'expire_pending_trades_atomic',
+            'complete_accepted_trade_atomic',
+            'accept_multi_team_trade_atomic',
+            'reject_trade_atomic',
+            'withdraw_trade_atomic',
+            'process_due_accepted_trades_atomic',
+            'add_trade_block_item_atomic',
+            'remove_trade_block_item_atomic',
+        ])
         const tradeNegotiationMigration = read('supabase/migrations/20260701000005_dynasty_trade_negotiation.sql')
         const api = read('supabase/functions/api/trades.ts')
 

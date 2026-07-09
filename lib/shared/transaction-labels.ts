@@ -19,10 +19,9 @@ export const TRANSACTION_LABELS: Record<string, string> = {
     carry_over: 'Carried Over',
 }
 
-// Human category chips for system `league_activity` events (League History
-// feed). Covers every event_type written by the SQL functions in
-// supabase/sql/functions (trade-negotiation, waivers-and-adds,
-// dynasty-transactions); unknown types fall back to 'Activity'.
+// Human category chips for system `league_activity` events. Covers every
+// event_type written by the canonical SQL function sources; unknown types fall
+// back to 'Activity'.
 const ACTIVITY_EVENT_CATEGORIES: Record<string, string> = {
     trade_block_updated: 'Trade',
     trade_offered: 'Trade',

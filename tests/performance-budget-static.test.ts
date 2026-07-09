@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { read } from './source-guard'
+import { read, readFunctionSource } from './source-guard'
 
 const manifest = JSON.parse(readFileSync(path.join(process.cwd(), 'tests/e2e/performance-budgets.json'), 'utf8'))
 
@@ -77,7 +77,7 @@ describe('instant-loading performance budget contract', () => {
 
     it('never dresses plain points up as fantasy points', () => {
         const fpHonestyMigration = read('supabase/migrations/20260703000002_search_players_fp_no_pts_fallback.sql')
-        const canonicalSearch = read('supabase/sql/functions/dynasty-projections-search.sql')
+        const canonicalSearch = readFunctionSource('search_players')
         const searchItem = read('components/PlayerSearchItem.tsx')
 
         expect(fpHonestyMigration).not.toContain('COALESCE(fp.avg_fantasy_points, avg.avg_points)')
