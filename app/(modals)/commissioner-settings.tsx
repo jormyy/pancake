@@ -33,8 +33,8 @@ import {
     type CommissionerAction,
     type CommissionerActionId,
     type LeagueStatus,
-} from './commissioner-settings.policy'
-import { styles } from './commissioner-settings.styles'
+} from '@/components/commissioner/settings-policy'
+import { styles } from '@/components/commissioner/settings-styles'
 
 async function adminCall(
     path: string,

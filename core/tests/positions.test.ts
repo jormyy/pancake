@@ -47,6 +47,12 @@ describe('canPlayLineupSlot', () => {
         expect(canPlayLineupSlot('PG', [], 'IR')).toBe(false)
     })
 
+    it('returns false for arbitrary and inherited property names', () => {
+        expect(canPlayLineupSlot('PG', [], 'unknown')).toBe(false)
+        expect(canPlayLineupSlot('PG', [], 'constructor')).toBe(false)
+        expect(canPlayLineupSlot('PG', [], 'toString')).toBe(false)
+    })
+
     it('uses eligiblePositions when available', () => {
         expect(canPlayLineupSlot('C', ['PG', 'SG'], 'PG')).toBe(true)
         expect(canPlayLineupSlot('PG', ['SF', 'PF'], 'F')).toBe(true)

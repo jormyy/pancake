@@ -1559,7 +1559,7 @@ export async function runBrowserMultiTeamTradeScenario({
 
   try {
     await signInBrowser(session, env, fixture.users[0], fixture.password)
-    await browser(session, ['set', 'viewport', '1180', '900']).catch(() => {})
+    await browser(session, ['set', 'viewport', '1180', '900'])
     await browser(session, ['open', joinUrl(env.frontendUrl, '/propose-trade')])
     await installBrowserHooks(session, env)
     await browser(session, ['wait', '2500'])
@@ -1602,7 +1602,7 @@ export async function runBrowserMultiTeamTradeScenario({
     )
     await browser(session, ['screenshot', path.join(artifactDir, 'multi-team-builder.png')], { timeout: 60_000 })
 
-    await browser(session, ['set', 'viewport', '390', '844']).catch(() => {})
+    await browser(session, ['set', 'viewport', '390', '844'])
     await browser(session, ['wait', '500'])
     await assertPageText(
       session,
@@ -1736,7 +1736,7 @@ export async function runBrowserMultiTeamTradeScenario({
     }
 
     await signInBrowser(counterSession, env, fixture.users[1], fixture.password)
-    await browser(counterSession, ['set', 'viewport', '1180', '900']).catch(() => {})
+    await browser(counterSession, ['set', 'viewport', '1180', '900'])
     await browser(counterSession, ['open', joinUrl(env.frontendUrl, `/propose-trade?counterTradeId=${editReplacement.replacement.id}`)])
     await installBrowserHooks(counterSession, env)
     await browser(counterSession, ['wait', '4500'])

@@ -1,6 +1,6 @@
 import type { TradeVetoMode } from '@/lib/league'
-
-export type LeagueStatus = 'setup' | 'drafting' | 'active' | 'playoffs' | 'offseason' | string
+export type { LeagueStatus } from '@/types/database'
+import type { LeagueStatus } from '@/types/database'
 
 export type CommissionerActionId =
     | 'generate-playoffs'
@@ -32,24 +32,31 @@ type ActionGroups = {
 }
 
 export function commissionerLifecyclePolicy(status: LeagueStatus, groups: ActionGroups) {
-    const lifecycle =
-        status === 'playoffs'
-            ? {
-                  label: 'Playoff Controls',
-                  detail: 'Generate the bracket or advance after each playoff round is finalized.',
-                  actions: groups.playoffActions,
-              }
-            : status === 'offseason'
-              ? {
-                    label: 'Annual Cycle',
-                    detail: 'Create the next season when rosters and results are ready to roll forward.',
-                    actions: groups.annualCycleActions,
-                }
-              : {
-                    label: 'Schedule Controls',
-                    detail: 'Build or reset the regular-season schedule before managers rely on matchups.',
-                    actions: groups.scheduleActions,
-                }
+    const lifecycle = (() => {
+      switch (status) {
+        case 'playoffs':
+            return {
+                label: 'Playoff Controls',
+                detail: 'Generate the bracket or advance after each playoff round is finalized.',
+                actions: groups.playoffActions,
+            }
+        case 'offseason':
+            return {
+                label: 'Annual Cycle',
+                detail: 'Create the next season when rosters and results are ready to roll forward.',
+                actions: groups.annualCycleActions,
+            }
+        case 'setup':
+        case 'drafting':
+        case 'active':
+        case 'archived':
+            return {
+                label: 'Schedule Controls',
+                detail: 'Build or reset the regular-season schedule before managers rely on matchups.',
+                actions: groups.scheduleActions,
+            }
+      }
+    })()
 
     const lowerPriorityActions = [...groups.utilityActions]
     if (status !== 'playoffs') lowerPriorityActions.push(...groups.playoffActions)

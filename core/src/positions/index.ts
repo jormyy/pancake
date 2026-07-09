@@ -25,7 +25,7 @@ export function canPlayLineupSlot(
     eligiblePositions: readonly string[],
     slotType: string,
 ): boolean {
-    if (!(slotType in LINEUP_SLOT_ALLOWED_POSITIONS)) return false
+    if (!Object.hasOwn(LINEUP_SLOT_ALLOWED_POSITIONS, slotType)) return false
 
     const allPositions = normalizedPositions(position, eligiblePositions)
 

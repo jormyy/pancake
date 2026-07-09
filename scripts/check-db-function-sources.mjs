@@ -1,4 +1,4 @@
-import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
@@ -25,7 +25,7 @@ const dollarQuotedStatement = (source) => {
 }
 
 const normalizeSql = (source) => source.replace(/\r\n/g, '\n').trim()
-const sourcePathForFunction = (schema, name) => path.join(FUNCTION_SOURCES_DIR, schema, `${name}.sql`)
+const sourcePathForFunction = (schema, name, root = FUNCTION_SOURCES_DIR) => path.join(root, schema, `${name}.sql`)
 const isLineCommented = (source, index) => {
   const lineStart = source.lastIndexOf('\n', index - 1) + 1
   const commentIndex = source.indexOf('--', lineStart)
@@ -121,20 +121,36 @@ export const latestFunctionDefinition = async (schema, name) => {
 
 export const writeFunctionSources = async () => {
   const definitions = await latestFunctionDefinitions()
-  await rm(FUNCTION_SOURCES_DIR, { recursive: true, force: true })
+  const parent = path.dirname(FUNCTION_SOURCES_DIR)
+  const generatedDir = await mkdtemp(path.join(parent, '.by-name-generated-'))
+  const backupDir = path.join(parent, '.by-name-backup')
 
-  for (const [key, definition] of definitions) {
-    const [schema, name] = key.split('.')
-    const target = sourcePathForFunction(schema, name)
-    await mkdir(path.dirname(target), { recursive: true })
-    await writeFile(target, [
-      `-- Canonical SQL source for ${key}.`,
-      '-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.',
-      '-- npm run check:db-function-sources verifies every latest migration function has exact source parity.',
-      '',
-      normalizeSql(definition),
-      '',
-    ].join('\n'), 'utf8')
+  try {
+    await Promise.all([...definitions].map(async ([key, definition]) => {
+      const [schema, name] = key.split('.')
+      const target = sourcePathForFunction(schema, name, generatedDir)
+      await mkdir(path.dirname(target), { recursive: true })
+      await writeFile(target, [
+        `-- Canonical SQL source for ${key}.`,
+        '-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.',
+        '-- npm run check:db-function-sources verifies every latest migration function has exact source parity.',
+        '',
+        normalizeSql(definition),
+        '',
+      ].join('\n'), 'utf8')
+    }))
+
+    await rm(backupDir, { recursive: true, force: true })
+    await rename(FUNCTION_SOURCES_DIR, backupDir)
+    try {
+      await rename(generatedDir, FUNCTION_SOURCES_DIR)
+    } catch (error) {
+      await rename(backupDir, FUNCTION_SOURCES_DIR)
+      throw error
+    }
+    await rm(backupDir, { recursive: true, force: true })
+  } finally {
+    await rm(generatedDir, { recursive: true, force: true })
   }
 }
 
