@@ -29,10 +29,10 @@ BEGIN
        AND item.player_id = NEW.player_id
        AND trade.league_id = v_trade.league_id
        AND trade.league_season_id = v_trade.league_season_id
-       AND CASE
-         WHEN item.side = 'proposer'::trade_side THEN trade.proposer_member_id
-         ELSE trade.recipient_member_id
-       END = NEW.member_id
+       AND COALESCE(
+         item.from_member_id,
+         CASE WHEN item.side = 'proposer'::trade_side THEN trade.proposer_member_id ELSE trade.recipient_member_id END
+       ) = NEW.member_id
   ) THEN
     RAISE EXCEPTION 'Trade drop player is reserved as an accepted trade asset.'
       USING ERRCODE = 'P0001';

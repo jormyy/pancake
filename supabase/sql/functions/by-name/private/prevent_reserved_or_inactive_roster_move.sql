@@ -36,10 +36,10 @@ BEGIN
      WHERE trade.league_id = OLD.league_id
        AND trade.league_season_id = OLD.league_season_id
        AND item.player_id = OLD.player_id
-       AND CASE
-         WHEN item.side = 'proposer'::trade_side THEN trade.proposer_member_id
-         ELSE trade.recipient_member_id
-       END = OLD.member_id
+       AND COALESCE(
+         item.from_member_id,
+         CASE WHEN item.side = 'proposer'::trade_side THEN trade.proposer_member_id ELSE trade.recipient_member_id END
+       ) = OLD.member_id
   ) THEN
     RAISE EXCEPTION 'This roster player is reserved as an accepted trade asset.'
       USING ERRCODE = 'P0001';

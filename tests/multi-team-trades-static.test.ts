@@ -68,6 +68,37 @@ describe('multi-team trade RPC lifecycle', () => {
         expect(reject).toContain('participant.accepted_at IS NULL')
     })
 
+    it('uses routed multi-team ownership for reservation guards and roster mutations', () => {
+        const guardSources = [
+            latestFunctionDefinition('prevent_reserved_or_inactive_trade_accept', 'private'),
+            latestFunctionDefinition('prevent_trade_drop_reserved_asset', 'private'),
+            latestFunctionDefinition('validate_waiver_claim_drop_player', 'private'),
+            latestFunctionDefinition('prevent_reserved_or_inactive_roster_move', 'private'),
+            latestFunctionDefinition('prevent_reserved_drop_roster_delete', 'private'),
+            latestFunctionDefinition('drop_player_atomic'),
+            latestFunctionDefinition('toggle_ir_atomic'),
+            latestFunctionDefinition('toggle_taxi_atomic'),
+        ].join('\n')
+
+        expect(guardSources).toContain('COALESCE(')
+        expect(guardSources).toContain('from_member_id')
+        expect(guardSources).toContain("CASE WHEN item.side = 'proposer'::trade_side THEN trade.proposer_member_id ELSE trade.recipient_member_id END")
+        expect(guardSources).not.toContain("(item.side = 'proposer' AND trade.proposer_member_id")
+        expect(guardSources).not.toContain("(item.side = 'recipient' AND trade.recipient_member_id")
+    })
+
+    it('cleans partial multi-team drop reservations when pending trades become terminal', () => {
+        const cleanup = latestFunctionDefinition('cleanup_trade_drop_reservations_on_terminal_trade', 'private')
+
+        expect(cleanup).toContain("NEW.status IN (\n    'rejected'::trade_status,")
+        expect(cleanup).toContain("'withdrawn'::trade_status")
+        expect(cleanup).toContain("'expired'::trade_status")
+        expect(cleanup).toContain("'vetoed'::trade_status")
+        expect(cleanup).toContain("'completed'::trade_status")
+        expect(cleanup).toContain('OLD.status IS DISTINCT FROM NEW.status')
+        expect(cleanup).not.toContain("OLD.status = 'accepted'::trade_status")
+    })
+
     it('keeps Edge API calls behind service-role RPCs', () => {
         expect(api).toContain("path === '/trades/propose-multi'")
         expect(api).toContain("supabase.rpc('propose_multi_team_trade_atomic'")

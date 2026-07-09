@@ -15,10 +15,10 @@ BEGIN
         ON rp.league_id = NEW.league_id
        AND rp.league_season_id = NEW.league_season_id
        AND rp.player_id = ti.player_id
-       AND rp.member_id = CASE
-         WHEN ti.side = 'proposer'::trade_side THEN NEW.proposer_member_id
-         ELSE NEW.recipient_member_id
-       END
+       AND rp.member_id = COALESCE(
+         ti.from_member_id,
+         CASE WHEN ti.side = 'proposer'::trade_side THEN NEW.proposer_member_id ELSE NEW.recipient_member_id END
+       )
      WHERE ti.trade_id = NEW.id
        AND ti.player_id IS NOT NULL
      FOR UPDATE OF rp;
@@ -35,10 +35,10 @@ BEGIN
       WITH player_assets AS (
         SELECT
           ti.player_id,
-          CASE
-            WHEN ti.side = 'proposer'::trade_side THEN NEW.proposer_member_id
-            ELSE NEW.recipient_member_id
-          END AS member_id
+          COALESCE(
+            ti.from_member_id,
+            CASE WHEN ti.side = 'proposer'::trade_side THEN NEW.proposer_member_id ELSE NEW.recipient_member_id END
+          ) AS member_id
         FROM trade_items AS ti
         WHERE ti.trade_id = NEW.id
           AND ti.player_id IS NOT NULL
@@ -71,10 +71,13 @@ BEGIN
                AND other_trade.league_id = NEW.league_id
                AND other_trade.league_season_id = NEW.league_season_id
                AND other_item.player_id = rp.player_id
-               AND CASE
-                 WHEN other_item.side = 'proposer'::trade_side THEN other_trade.proposer_member_id
-                 ELSE other_trade.recipient_member_id
-               END = rp.member_id
+               AND COALESCE(
+                 other_item.from_member_id,
+                 CASE
+                   WHEN other_item.side = 'proposer'::trade_side THEN other_trade.proposer_member_id
+                   ELSE other_trade.recipient_member_id
+                 END
+               ) = rp.member_id
           )
     ) THEN
       RAISE EXCEPTION 'Trade player assets must be active and unreserved roster players.'
@@ -85,10 +88,10 @@ BEGIN
       WITH pick_assets AS (
         SELECT
           ti.pick_id,
-          CASE
-            WHEN ti.side = 'proposer'::trade_side THEN NEW.proposer_member_id
-            ELSE NEW.recipient_member_id
-          END AS member_id
+          COALESCE(
+            ti.from_member_id,
+            CASE WHEN ti.side = 'proposer'::trade_side THEN NEW.proposer_member_id ELSE NEW.recipient_member_id END
+          ) AS member_id
         FROM trade_items AS ti
         WHERE ti.trade_id = NEW.id
           AND ti.pick_id IS NOT NULL
@@ -107,10 +110,13 @@ BEGIN
             AND other_trade.league_id = NEW.league_id
             AND other_trade.league_season_id = NEW.league_season_id
             AND other_item.pick_id = asset.pick_id
-            AND CASE
-              WHEN other_item.side = 'proposer'::trade_side THEN other_trade.proposer_member_id
-              ELSE other_trade.recipient_member_id
-            END = asset.member_id
+            AND COALESCE(
+              other_item.from_member_id,
+              CASE
+                WHEN other_item.side = 'proposer'::trade_side THEN other_trade.proposer_member_id
+                ELSE other_trade.recipient_member_id
+              END
+            ) = asset.member_id
        )
     ) THEN
       RAISE EXCEPTION 'Trade draft-pick assets must be unreserved.'
