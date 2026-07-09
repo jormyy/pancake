@@ -166,22 +166,6 @@ BEGIN
     END IF;
   END LOOP;
 
-  IF v_trade.proposer_faab_amount > 0 THEN
-    v_balance := private.ensure_faab_balance(v_trade.league_id, v_trade.league_season_id, v_trade.proposer_member_id);
-    IF v_balance < v_trade.proposer_faab_amount THEN
-      RAISE EXCEPTION 'Proposer no longer has enough FAAB for this trade.'
-        USING ERRCODE = 'PT001';
-    END IF;
-  END IF;
-
-  IF v_trade.recipient_faab_amount > 0 THEN
-    v_balance := private.ensure_faab_balance(v_trade.league_id, v_trade.league_season_id, v_trade.recipient_member_id);
-    IF v_balance < v_trade.recipient_faab_amount THEN
-      RAISE EXCEPTION 'Recipient no longer has enough FAAB for this trade.'
-        USING ERRCODE = 'PT001';
-    END IF;
-  END IF;
-
   FOR v_drop IN
     SELECT *
       FROM trade_drop_reservations
@@ -336,56 +320,6 @@ BEGIN
              updated_at = now();
     END IF;
   END LOOP;
-
-  IF v_trade.proposer_faab_amount > 0 THEN
-    UPDATE faab_balances
-       SET balance = balance - v_trade.proposer_faab_amount,
-           updated_at = now()
-     WHERE league_id = v_trade.league_id
-       AND league_season_id = v_trade.league_season_id
-       AND member_id = v_trade.proposer_member_id;
-
-    INSERT INTO faab_balances (
-      league_id,
-      league_season_id,
-      member_id,
-      balance
-    )
-    VALUES (
-      v_trade.league_id,
-      v_trade.league_season_id,
-      v_trade.recipient_member_id,
-      v_trade.proposer_faab_amount
-    )
-    ON CONFLICT (league_id, league_season_id, member_id) DO UPDATE
-       SET balance = faab_balances.balance + EXCLUDED.balance,
-           updated_at = now();
-  END IF;
-
-  IF v_trade.recipient_faab_amount > 0 THEN
-    UPDATE faab_balances
-       SET balance = balance - v_trade.recipient_faab_amount,
-           updated_at = now()
-     WHERE league_id = v_trade.league_id
-       AND league_season_id = v_trade.league_season_id
-       AND member_id = v_trade.recipient_member_id;
-
-    INSERT INTO faab_balances (
-      league_id,
-      league_season_id,
-      member_id,
-      balance
-    )
-    VALUES (
-      v_trade.league_id,
-      v_trade.league_season_id,
-      v_trade.proposer_member_id,
-      v_trade.recipient_faab_amount
-    )
-    ON CONFLICT (league_id, league_season_id, member_id) DO UPDATE
-       SET balance = faab_balances.balance + EXCLUDED.balance,
-           updated_at = now();
-  END IF;
 
   FOR v_to_member IN
     SELECT v_trade.proposer_member_id

@@ -282,6 +282,65 @@ const assertConcurrentAcceptanceCompletesOnce = async (fixture) => {
   assert.equal(await balanceFor(fixture, fixture.observer.id), 40)
 }
 
+const assertTwoTeamUsesCanonicalRoutes = async (fixture) => {
+  await setLeagueRules(fixture, {
+    status: 'active',
+    waiver_mode: 'faab',
+    trade_veto_mode: 'disabled',
+    trade_veto_window_hours: 0,
+  })
+  await setBalances(fixture, [
+    [fixture.proposer.id, 100],
+    [fixture.recipient.id, 100],
+  ])
+  const tradeId = await rpc(fixture.admin, 'propose_trade_atomic', {
+    p_league_id: fixture.league.id,
+    p_league_season_id: fixture.currentSeason.id,
+    p_proposer_member_id: fixture.proposer.id,
+    p_recipient_member_id: fixture.recipient.id,
+    p_offer_player_ids: [],
+    p_request_player_ids: [],
+    p_offer_pick_ids: [],
+    p_request_pick_ids: [],
+    p_offer_faab_amount: 10,
+    p_request_faab_amount: 1,
+    p_notes: 'DB canonical two-team FAAB route',
+    p_expires_at: null,
+  })
+  const result = await rpc(fixture.admin, 'accept_trade_atomic', {
+    p_trade_id: tradeId,
+    p_accepting_member_id: fixture.recipient.id,
+    p_drop_roster_player_ids: [],
+  })
+  assert.equal(result.expired, false)
+  assert.equal(result.allAccepted, true)
+  assert.deepEqual(new Set(result.participantMemberIds), new Set([
+    fixture.proposer.id,
+    fixture.recipient.id,
+  ]))
+  assert.equal((await fetchTrade(fixture, tradeId)).status, 'completed')
+  assert.equal(await balanceFor(fixture, fixture.proposer.id), 91)
+  assert.equal(await balanceFor(fixture, fixture.recipient.id), 109)
+
+  const { data: items, error: itemError } = await fixture.admin
+    .from('trade_items')
+    .select('from_member_id, to_member_id, faab_amount')
+    .eq('trade_id', tradeId)
+  if (itemError) throw new Error(`canonical two-team item lookup: ${itemError.message}`)
+  assert.deepEqual(new Set(items.map((item) => JSON.stringify(item))), new Set([
+    JSON.stringify({
+      from_member_id: fixture.proposer.id,
+      to_member_id: fixture.recipient.id,
+      faab_amount: 10,
+    }),
+    JSON.stringify({
+      from_member_id: fixture.recipient.id,
+      to_member_id: fixture.proposer.id,
+      faab_amount: 1,
+    }),
+  ]))
+}
+
 const assertCompletionFailureIsTerminal = async (fixture) => {
   await setLeagueRules(fixture, {
     status: 'offseason',
@@ -352,6 +411,7 @@ const run = async () => {
   await assertExpiredAcceptanceCommits(fixture)
   await assertReplacementAndDropLifecycle(fixture)
   await assertConcurrentAcceptanceCompletesOnce(fixture)
+  await assertTwoTeamUsesCanonicalRoutes(fixture)
   await assertCompletionFailureIsTerminal(fixture)
   console.log('PASS multi-team trade DB atomicity: aggregate FAAB, reservations, replacement, concurrency, terminal failures')
 }

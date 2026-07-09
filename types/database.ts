@@ -3496,7 +3496,7 @@ export type Database = {
           p_drop_roster_player_ids?: string[]
           p_trade_id: string
         }
-        Returns: undefined
+        Returns: Json
       }
       accept_multi_team_trade_atomic: {
         Args: {

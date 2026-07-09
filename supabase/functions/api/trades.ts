@@ -423,29 +423,24 @@ async function acceptTrade(userId: string, tradeId: string, body: Record<string,
     return
   }
 
-  const { error } = await supabase.rpc('accept_trade_atomic', {
+  const { data, error } = await supabase.rpc('accept_trade_atomic', {
     p_trade_id: tradeId,
     p_accepting_member_id: memberId,
     p_drop_roster_player_ids: optionalUuidArrayField(body, 'dropRosterPlayerIds'),
   })
   if (error) throwDb(error)
+  const result = parseMultiTeamAcceptResult(data)
+  if (result.expired) throw new ValidationError('This trade offer has expired.')
 
-  Promise.all([
-    notifyMember(
-      trade.proposer_member_id,
+  Promise.all(
+    result.participantMemberIds.map((participantMemberId) => notifyMember(
+      participantMemberId,
       'Trade Accepted',
-      'Your trade was accepted. Completion will follow your league veto settings.',
+      'The trade was accepted. Completion will follow your league veto settings.',
       { tradeId },
       'trade',
-    ),
-    notifyMember(
-      trade.recipient_member_id,
-      'Trade Acceptance Recorded',
-      'Your acceptance was recorded. Completion will follow your league veto settings.',
-      { tradeId },
-      'trade',
-    ),
-  ]).catch((error) => console.error('[api/trades] acceptance notification failed', error))
+    )),
+  ).catch((error) => console.error('[api/trades] acceptance notification failed', error))
 }
 
 async function rejectTrade(userId: string, tradeId: string, body: Record<string, unknown>): Promise<void> {

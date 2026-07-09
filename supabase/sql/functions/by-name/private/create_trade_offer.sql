@@ -270,18 +270,29 @@ BEGIN
   )
   RETURNING id INTO v_trade_id;
 
-  INSERT INTO trade_items (trade_id, side, player_id, pick_id, from_member_id, to_member_id)
-  SELECT v_trade_id, 'proposer'::trade_side, player_id, NULL::uuid, p_proposer_member_id, p_recipient_member_id
+  INSERT INTO trade_items (trade_id, side, player_id, pick_id, from_member_id, to_member_id, faab_amount)
+  SELECT v_trade_id, 'proposer'::trade_side, player_id, NULL::uuid, p_proposer_member_id, p_recipient_member_id, 0
     FROM unnest(v_offer_player_ids) AS player_id
   UNION ALL
-  SELECT v_trade_id, 'recipient'::trade_side, player_id, NULL::uuid, p_recipient_member_id, p_proposer_member_id
+  SELECT v_trade_id, 'recipient'::trade_side, player_id, NULL::uuid, p_recipient_member_id, p_proposer_member_id, 0
     FROM unnest(v_request_player_ids) AS player_id
   UNION ALL
-  SELECT v_trade_id, 'proposer'::trade_side, NULL::uuid, pick_id, p_proposer_member_id, p_recipient_member_id
+  SELECT v_trade_id, 'proposer'::trade_side, NULL::uuid, pick_id, p_proposer_member_id, p_recipient_member_id, 0
     FROM unnest(v_offer_pick_ids) AS pick_id
   UNION ALL
-  SELECT v_trade_id, 'recipient'::trade_side, NULL::uuid, pick_id, p_recipient_member_id, p_proposer_member_id
-    FROM unnest(v_request_pick_ids) AS pick_id;
+  SELECT v_trade_id, 'recipient'::trade_side, NULL::uuid, pick_id, p_recipient_member_id, p_proposer_member_id, 0
+    FROM unnest(v_request_pick_ids) AS pick_id
+  UNION ALL
+  SELECT v_trade_id, 'proposer'::trade_side, NULL::uuid, NULL::uuid, p_proposer_member_id, p_recipient_member_id, v_offer_faab_amount
+   WHERE v_offer_faab_amount > 0
+  UNION ALL
+  SELECT v_trade_id, 'recipient'::trade_side, NULL::uuid, NULL::uuid, p_recipient_member_id, p_proposer_member_id, v_request_faab_amount
+   WHERE v_request_faab_amount > 0;
+
+  INSERT INTO trade_participants (trade_id, member_id, sort_order, is_initiator, accepted_at)
+  VALUES
+    (v_trade_id, p_proposer_member_id, 0, true, now()),
+    (v_trade_id, p_recipient_member_id, 1, false, NULL);
 
   PERFORM private.log_league_activity(
     p_league_id,
