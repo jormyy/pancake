@@ -5,6 +5,7 @@ import { clampDateToWeek, getWeekDays, getWeeklyLineup, LineupSlot, LineupPlayer
 import { todayET } from '@/lib/shared/dates'
 import { supabase } from '@/lib/supabase'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
+import { debounceRealtimeRefresh } from '@/lib/realtime'
 
 type LineupData = { starters: LineupSlot[]; bench: LineupPlayer[]; ir: LineupPlayer[]; taxi: LineupPlayer[] }
 type LineupPair = { mine: LineupData; opp: LineupData }
@@ -214,6 +215,8 @@ export function useMatchupData(
 
     useEffect(() => {
         if (!matchup?.id) return
+        const refreshVisibleLineups = debounceRealtimeRefresh(() => { void refreshSilently() }, 200)
+        const visibleMemberIds = new Set([matchup.myMemberId, matchup.opponentMemberId])
         const channel = supabase
             .channel(`league_matchups_${matchup.seasonId}_${matchup.weekNumber}`)
             .on('postgres_changes', {
@@ -255,13 +258,20 @@ export function useMatchupData(
                 schema: 'public',
                 table: 'weekly_lineups',
                 filter: `league_season_id=eq.${matchup.seasonId}`,
-            }, () => {
-                void refreshSilently()
+            }, (payload) => {
+                const row = payload.eventType === 'DELETE' ? payload.old : payload.new
+                if (row.week_number !== matchup.weekNumber) return
+                if (row.game_date !== selectedDate) return
+                if (!visibleMemberIds.has(row.member_id)) return
+                refreshVisibleLineups.trigger()
             })
             .subscribe()
 
-        return () => { supabase.removeChannel(channel) }
-    }, [matchup?.id, matchup?.seasonId, matchup?.weekNumber, refreshSilently])
+        return () => {
+            refreshVisibleLineups.cancel()
+            supabase.removeChannel(channel)
+        }
+    }, [matchup?.id, matchup?.seasonId, matchup?.weekNumber, matchup?.myMemberId, matchup?.opponentMemberId, refreshSilently, selectedDate])
 
     return {
         matchup,

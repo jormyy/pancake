@@ -31,7 +31,7 @@ import { getMemberTransactionState } from '@/lib/league'
 import { PlayerRow } from '@/lib/players'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { getPlayerAvailabilitySnapshot } from '@/lib/player-availability'
-import { subscribeToTableChanges, unsubscribeFromTableChanges } from '@/lib/realtime'
+import { debounceRealtimeRefresh, subscribeToTableChanges, unsubscribeFromTableChanges } from '@/lib/realtime'
 
 const POSITIONS = [
     { key: 'ALL', label: 'All' },
@@ -215,6 +215,7 @@ export default function PlayersScreen() {
     useEffect(() => {
         if (!leagueId) return
 
+        const refreshSupport = debounceRealtimeRefresh(() => { void refreshPlayerSupport() })
         const channel = subscribeToTableChanges(
             `players-screen:${leagueId}`,
             [
@@ -224,10 +225,13 @@ export default function PlayersScreen() {
                 { table: 'waiver_priorities', filter: `league_id=eq.${leagueId}` },
                 { table: 'league_members', filter: `league_id=eq.${leagueId}` },
             ],
-            () => { void refreshPlayerSupport() },
+            refreshSupport.trigger,
         )
 
-        return () => unsubscribeFromTableChanges(channel)
+        return () => {
+            refreshSupport.cancel()
+            unsubscribeFromTableChanges(channel)
+        }
     }, [leagueId, refreshPlayerSupport])
 
     const playerSupportForLeague = playerSupport?.leagueId === leagueId ? playerSupport : null

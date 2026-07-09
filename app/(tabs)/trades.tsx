@@ -43,7 +43,7 @@ import { EMPTY_AVG_MAP, EMPTY_STATS_MAP, getRosterStatsMaps } from '@/lib/roster
 import { Avatar } from '@/components/Avatar'
 import { PosTag } from '@/components/PosTag'
 import { Badge } from '@/components/Badge'
-import { subscribeToTableChanges, unsubscribeFromTableChanges } from '@/lib/realtime'
+import { debounceRealtimeRefresh, subscribeToTableChanges, unsubscribeFromTableChanges } from '@/lib/realtime'
 
 // Contain a render crash to this screen (recoverable) instead of blanking the whole app.
 export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFallback'
@@ -207,11 +207,11 @@ export default function TradesScreen() {
     useEffect(() => {
         if (!myMemberId || !leagueId) return
 
-        const refreshTradesSurface = () => {
+        const refreshTradesSurface = debounceRealtimeRefresh(() => {
             void load()
             void refreshPicks()
             void loadBlock()
-        }
+        })
         const channel = subscribeToTableChanges(
             `trades-screen:${leagueId}:${myMemberId}`,
             [
@@ -222,10 +222,13 @@ export default function TradesScreen() {
                 { table: 'trade_block_items', filter: `league_id=eq.${leagueId}` },
                 { table: 'draft_picks', filter: `league_id=eq.${leagueId}` },
             ],
-            refreshTradesSurface,
+            refreshTradesSurface.trigger,
         )
 
-        return () => unsubscribeFromTableChanges(channel)
+        return () => {
+            refreshTradesSurface.cancel()
+            unsubscribeFromTableChanges(channel)
+        }
     }, [leagueId, load, loadBlock, myMemberId, refreshPicks])
 
     // Clear stale trades + show loading immediately when league/member changes,

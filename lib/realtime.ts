@@ -30,6 +30,23 @@ export function subscribeToTableChanges(
     return channel.subscribe()
 }
 
+export function debounceRealtimeRefresh(onChange: () => void, delayMs = 250) {
+    let timer: ReturnType<typeof setTimeout> | null = null
+    const trigger = () => {
+        if (timer) clearTimeout(timer)
+        timer = setTimeout(() => {
+            timer = null
+            onChange()
+        }, delayMs)
+    }
+    const cancel = () => {
+        if (!timer) return
+        clearTimeout(timer)
+        timer = null
+    }
+    return { trigger, cancel }
+}
+
 export function unsubscribeFromTableChanges(channel: RealtimeChannel) {
     supabase.removeChannel(channel)
 }
