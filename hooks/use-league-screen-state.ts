@@ -38,7 +38,8 @@ import {
     type DraftTimerOption,
     type RookieRoundOption,
 } from '@/components/league/DraftChips'
-import { subscribeToTableChanges, unsubscribeFromTableChanges } from '@/lib/realtime'
+import { debounceRealtimeRefresh } from '@/lib/realtime'
+import { supabase } from '@/lib/supabase'
 
 const ACTIVITY_LIMIT = 50
 const OPEN_DRAFT_STATUSES = new Set(['pending', 'in_progress', 'paused'])
@@ -211,35 +212,94 @@ export function useLeagueScreenState() {
         }, [currentLeague?.id, fetchTab, fetchActiveDraft]),
     )
 
-    const refreshLeaguePanels = useCallback(() => {
-        const lid = currentLeague?.id
-        if (!lid) return
-        for (const prefetchTab of PREFETCH_TABS) {
-            fetchTab(prefetchTab, lid)
-        }
-        fetchActiveDraft(lid)
-    }, [currentLeague?.id, fetchActiveDraft, fetchTab])
-
     useEffect(() => {
         const lid = currentLeague?.id
         if (!lid) return
+        const currentDraftIds = new Set([
+            activeDraft?.id,
+            ...mockRooms.map((room) => room.id),
+        ].filter((id): id is string => Boolean(id)))
+        const changedDraftId = (payload: { eventType: string; new: Record<string, unknown>; old: Record<string, unknown> }) => {
+            const row = payload.eventType === 'DELETE' ? payload.old : payload.new
+            return typeof row.draft_id === 'string' ? row.draft_id : null
+        }
+        const refreshResults = debounceRealtimeRefresh(() => { void fetchTab('results', lid) })
+        const refreshHistory = debounceRealtimeRefresh(() => { void fetchTab('history', lid) })
+        const refreshSettings = debounceRealtimeRefresh(() => { void fetchTab('settings', lid) })
+        const refreshDraftBoard = debounceRealtimeRefresh(() => { void fetchTab('draftBoard', lid) })
+        const refreshMockRooms = debounceRealtimeRefresh(() => { void fetchTab('mockRooms', lid) })
+        const refreshDraftState = debounceRealtimeRefresh(() => { void fetchActiveDraft(lid) })
 
-        const channel = subscribeToTableChanges(
-            `league-screen:${lid}`,
-            [
-                { table: 'league_members', filter: `league_id=eq.${lid}` },
-                { table: 'roster_transactions', filter: `league_id=eq.${lid}` },
-                { table: 'waiver_priorities', filter: `league_id=eq.${lid}` },
-                { table: 'draft_picks', filter: `league_id=eq.${lid}` },
-                { table: 'drafts', filter: `league_id=eq.${lid}` },
-                { table: 'draft_room_members' },
-                { table: 'snake_draft_picks' },
-            ],
-            refreshLeaguePanels,
-        )
+        const channel = supabase
+            .channel(`league-screen:${lid}`, { config: { private: true } })
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'league_members',
+                filter: `league_id=eq.${lid}`,
+            }, () => {
+                refreshResults.trigger()
+                refreshMockRooms.trigger()
+            })
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'roster_transactions',
+                filter: `league_id=eq.${lid}`,
+            }, refreshHistory.trigger)
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'waiver_priorities',
+                filter: `league_id=eq.${lid}`,
+            }, refreshSettings.trigger)
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'draft_picks',
+                filter: `league_id=eq.${lid}`,
+            }, refreshDraftBoard.trigger)
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'drafts',
+                filter: `league_id=eq.${lid}`,
+            }, () => {
+                refreshDraftState.trigger()
+                refreshMockRooms.trigger()
+            })
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'draft_room_members',
+            }, (payload) => {
+                const draftId = changedDraftId(payload)
+                if (!draftId || !currentDraftIds.has(draftId)) return
+                refreshDraftState.trigger()
+                refreshMockRooms.trigger()
+            })
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'snake_draft_picks',
+            }, (payload) => {
+                const draftId = changedDraftId(payload)
+                if (!draftId || !currentDraftIds.has(draftId)) return
+                refreshDraftBoard.trigger()
+                refreshDraftState.trigger()
+            })
+            .subscribe()
 
-        return () => unsubscribeFromTableChanges(channel)
-    }, [currentLeague?.id, refreshLeaguePanels])
+        return () => {
+            refreshResults.cancel()
+            refreshHistory.cancel()
+            refreshSettings.cancel()
+            refreshDraftBoard.cancel()
+            refreshMockRooms.cancel()
+            refreshDraftState.cancel()
+            supabase.removeChannel(channel)
+        }
+    }, [activeDraft?.id, currentLeague?.id, fetchActiveDraft, fetchTab, mockRooms])
 
     function handleTabChange(nextTab: LeagueTab) {
         setTab(nextTab)

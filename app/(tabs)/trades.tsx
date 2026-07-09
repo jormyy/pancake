@@ -43,7 +43,8 @@ import { EMPTY_AVG_MAP, EMPTY_STATS_MAP, getRosterStatsMaps } from '@/lib/roster
 import { Avatar } from '@/components/Avatar'
 import { PosTag } from '@/components/PosTag'
 import { Badge } from '@/components/Badge'
-import { debounceRealtimeRefresh, subscribeToTableChanges, unsubscribeFromTableChanges } from '@/lib/realtime'
+import { debounceRealtimeRefresh } from '@/lib/realtime'
+import { supabase } from '@/lib/supabase'
 
 // Contain a render crash to this screen (recoverable) instead of blanking the whole app.
 export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFallback'
@@ -207,27 +208,54 @@ export default function TradesScreen() {
     useEffect(() => {
         if (!myMemberId || !leagueId) return
 
-        const refreshTradesSurface = debounceRealtimeRefresh(() => {
-            void load()
-            void refreshPicks()
-            void loadBlock()
-        })
-        const channel = subscribeToTableChanges(
-            `trades-screen:${leagueId}:${myMemberId}`,
-            [
-                { table: 'trades', filter: `league_id=eq.${leagueId}` },
-                { table: 'trade_items', filter: `league_id=eq.${leagueId}` },
-                { table: 'trade_participants', filter: `league_id=eq.${leagueId}` },
-                { table: 'trade_vetos', filter: `league_id=eq.${leagueId}` },
-                { table: 'trade_block_items', filter: `league_id=eq.${leagueId}` },
-                { table: 'draft_picks', filter: `league_id=eq.${leagueId}` },
-            ],
-            refreshTradesSurface.trigger,
-        )
+        const refreshTrades = debounceRealtimeRefresh(() => { void load() })
+        const refreshTradeBlock = debounceRealtimeRefresh(() => { void loadBlock() })
+        const refreshDraftPicks = debounceRealtimeRefresh(() => { void refreshPicks() })
+        const channel = supabase
+            .channel(`trades-screen:${leagueId}:${myMemberId}`, { config: { private: true } })
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'trades',
+                filter: `league_id=eq.${leagueId}`,
+            }, refreshTrades.trigger)
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'trade_items',
+                filter: `league_id=eq.${leagueId}`,
+            }, refreshTrades.trigger)
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'trade_participants',
+                filter: `league_id=eq.${leagueId}`,
+            }, refreshTrades.trigger)
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'trade_vetos',
+                filter: `league_id=eq.${leagueId}`,
+            }, refreshTrades.trigger)
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'trade_block_items',
+                filter: `league_id=eq.${leagueId}`,
+            }, refreshTradeBlock.trigger)
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'draft_picks',
+                filter: `league_id=eq.${leagueId}`,
+            }, refreshDraftPicks.trigger)
+            .subscribe()
 
         return () => {
-            refreshTradesSurface.cancel()
-            unsubscribeFromTableChanges(channel)
+            refreshTrades.cancel()
+            refreshTradeBlock.cancel()
+            refreshDraftPicks.cancel()
+            supabase.removeChannel(channel)
         }
     }, [leagueId, load, loadBlock, myMemberId, refreshPicks])
 
