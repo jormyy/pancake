@@ -1,3 +1,9 @@
+/**
+ * @param {(session: string, args: string[]) => Promise<unknown>} browser
+ * @param {string} session
+ * @param {{ frontendUrl: string; apiBaseUrl: string; supabaseUrl: string; anonKey: string }} env
+ * @param {{ openBeforeSet?: boolean; reloadAfterSet?: boolean; alerts?: boolean; confirm?: boolean }} [options]
+ */
 export const installRuntimeOverrides = async (browser, session, env, options = {}) => {
   const overrideUrl = new URL(env.frontendUrl)
   overrideUrl.searchParams.set('pancake_api_url', env.apiBaseUrl)
@@ -40,6 +46,7 @@ export const installRuntimeOverrides = async (browser, session, env, options = {
   }
 }
 
+/** @param {string} output */
 export const normalizeBrowserErrors = (output) => output
   .split(/\r?\n/)
   .map((line) => line.trim())

@@ -3,6 +3,7 @@ import path from 'node:path'
 import process from 'node:process'
 import { createClient } from '@supabase/supabase-js'
 import { cleanMessage, describeEndpoint } from './env.mjs'
+import { createFixtureResourceOwner } from './trade-fixture.mjs'
 
 export const ROOT = process.cwd()
 export const REPORT_PATH = path.join(ROOT, 'tests/e2e-dynasty-release-final-gate-report.md')
@@ -352,8 +353,14 @@ export async function setupFixture(env, admin) {
     teamName: label,
   }))
 
+  const resources = createFixtureResourceOwner(admin)
+  try {
   const users = []
-  for (const user of baseUsers) users.push(await createConfirmedUser(admin, user))
+  for (const user of baseUsers) {
+    const createdUser = await createConfirmedUser(admin, user)
+    users.push(createdUser)
+    resources.registerUser(createdUser.id)
+  }
   const { error: profileError } = await admin.from('profiles').upsert(
     users.map((user) => ({
       id: user.id,
@@ -373,6 +380,7 @@ export async function setupFixture(env, admin) {
     p_auction_budget: 200,
   })
   if (createError) throw new Error(`create_league: ${createError.message}`)
+  resources.registerLeague(league.id)
 
   const { error: settingsError } = await sessions[0].client.rpc('update_league_settings_atomic', {
     p_league_id: league.id,
@@ -419,5 +427,13 @@ export async function setupFixture(env, admin) {
       user: users.find((user) => user.id === member.user_id),
     })),
     players,
+    dispose: async () => {
+      await Promise.all(sessions.map((session) => session.client.auth.signOut()))
+      await resources.dispose()
+    },
+  }
+  } catch (error) {
+    await resources.dispose().catch(() => {})
+    throw error
   }
 }

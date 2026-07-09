@@ -2,7 +2,7 @@ import type { MultiTeamTradeItemPayload, Trade } from '@/lib/trades'
 
 type AssetDestinations = Record<string, string | null>
 
-export type ParticipantTradeDraft = {
+type ParticipantTradeDraft = {
     defaultDestinationId: string
     playerDestinations: AssetDestinations
     pickDestinations: AssetDestinations
@@ -42,7 +42,7 @@ export function createMultiTeamTradeState(actorMemberId: string): MultiTeamTrade
     }
 }
 
-export function defaultDestinationFor(memberId: string, participantIds: string[]): string {
+function defaultDestinationFor(memberId: string, participantIds: string[]): string {
     if (participantIds.length < 2) return ''
     const currentIndex = participantIds.indexOf(memberId)
     if (currentIndex < 0) return participantIds.find((id) => id !== memberId) ?? ''

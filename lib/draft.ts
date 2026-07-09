@@ -3,20 +3,20 @@ import { RealtimeChannel } from '@supabase/supabase-js'
 import { apiPost as sharedApiPost } from '@/lib/shared/api'
 import { subscribeToTableChanges } from '@/lib/realtime'
 
-export type DraftOrderEntry = {
+type DraftOrderEntry = {
     position: number
     memberId: string
     teamName: string
 }
 
-export type DraftBudget = {
+type DraftBudget = {
     memberId: string
     teamName: string
     remaining: number
     initialBudget: number
 }
 
-export type Nomination = {
+type Nomination = {
     id: string
     status: 'open' | 'sold' | 'no_bid' | 'withdrawn'
     nominatingMemberId: string
@@ -36,7 +36,7 @@ export type Nomination = {
     } | null
 }
 
-export type AuctionBid = {
+type AuctionBid = {
     id: string
     nominationId: string
     memberId: string
@@ -49,7 +49,7 @@ export const NOMINATION_ORDER_MODES = ['user_nominated', 'by_projection', 'alpha
 export type NominationOrderMode = (typeof NOMINATION_ORDER_MODES)[number]
 export const ROOKIE_TIMER_EXPIRY_BEHAVIORS = ['auto_pick', 'skip_pick', 'pause_draft', 'commissioner_pick'] as const
 export type RookieTimerExpiryBehavior = (typeof ROOKIE_TIMER_EXPIRY_BEHAVIORS)[number]
-export type DraftTimerExpiryBehavior = RookieTimerExpiryBehavior | 'auction_no_bid'
+type DraftTimerExpiryBehavior = RookieTimerExpiryBehavior | 'auction_no_bid'
 
 export const NOMINATION_ORDER_MODE_LABELS: Record<NominationOrderMode, string> = {
     user_nominated: "Manager's choice",

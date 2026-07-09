@@ -391,12 +391,18 @@ export const writeCoverageReport = async ({ status, startedAt, finishedAt, seaso
       status: status === 'PASS' && seasons >= 20 ? 'PASS' : status === 'FAIL' ? 'FAIL' : seasons >= 20 ? 'PARTIAL' : 'PENDING',
       evidence: `Current run status is ${status} for target ${seasons} season(s); PARTIAL means enabled season rows passed but full gameplay coverage is still pending.`,
     },
-    {
-      requirement: 'Production-ready exit criteria',
-      status: 'FAIL',
-      evidence: 'Production exit remains blocked by P0/P1 operational follow-ups and focused-slice coverage rows that do not yet prove one literal monolithic 10-user season loop for every gameplay requirement.',
-    },
   ]
+  const prerequisiteStatuses = coverage.map((row) => row.status)
+  const productionStatus = prerequisiteStatuses.every((item) => item === 'PASS')
+    ? 'PASS'
+    : prerequisiteStatuses.some((item) => item === 'FAIL' || item === 'BLOCKED') ? 'FAIL' : 'PENDING'
+  coverage.push({
+    requirement: 'Production-ready exit criteria',
+    status: productionStatus,
+    evidence: productionStatus === 'PASS'
+      ? 'Every required release row has passing structural evidence.'
+      : 'Production exit requires every coverage row to report PASS in release-gate mode.',
+  })
 
   const lines = [
     '# E2E Coverage Checklist',
@@ -417,4 +423,5 @@ export const writeCoverageReport = async ({ status, startedAt, finishedAt, seaso
     ...notes.map((note) => `- ${note}`),
   ]
   await writeFile(COVERAGE_PATH, `${lines.join('\n')}\n`)
+  return { status: productionStatus, coverage }
 }

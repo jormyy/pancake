@@ -1,4 +1,4 @@
-export type TradePerspectiveParticipant = {
+type TradePerspectiveParticipant = {
     memberId: string
     acceptedAt: string | null
 }

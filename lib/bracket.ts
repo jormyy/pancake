@@ -1,7 +1,7 @@
 import { supabase } from '@/lib/supabase'
 import { getCurrentSeasonId } from '@/lib/shared/season'
 
-export type BracketRound = 'quarterfinal' | 'semifinal' | 'final'
+type BracketRound = 'quarterfinal' | 'semifinal' | 'final'
 
 export type BracketMatchup = {
     id: string

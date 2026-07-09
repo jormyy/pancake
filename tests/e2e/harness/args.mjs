@@ -49,5 +49,6 @@ export const parseArgs = () => {
     tradeVeto: args.get('trade-veto') === 'true' || process.env.E2E_ENABLE_TRADE_VETO === '1',
     rookieDraft: args.get('rookie-draft') === 'true' || process.env.E2E_ENABLE_ROOKIE_DRAFT === '1',
     seasonReset: args.get('season-reset') === 'true' || process.env.E2E_ENABLE_SEASON_RESET === '1',
+    releaseGate: args.get('release-gate') === 'true' || process.env.E2E_RELEASE_GATE === '1',
   }
 }

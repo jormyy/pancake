@@ -15,9 +15,9 @@ export type LineupMoveData = {
     taxi?: LineupPlayer[]
 }
 
-export type ActivationSource = 'ir' | 'taxi'
+type ActivationSource = 'ir' | 'taxi'
 
-export type LineupMovePlan =
+type LineupMovePlan =
     | { kind: 'invalid'; title: string; message: string }
     | { kind: 'overflow'; rosterPlayerId: string; source: ActivationSource; slotType: string | null }
     | {

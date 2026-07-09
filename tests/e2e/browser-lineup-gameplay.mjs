@@ -5,6 +5,7 @@ import { createClient } from '@supabase/supabase-js'
 import { resolvedEnv, requireEnv, describeEndpoint } from './env.mjs'
 import { installRuntimeOverrides, normalizeBrowserErrors } from './browser-runtime-overrides.mjs'
 import { captureBrowserScreenshot, clickButtonByName, createBrowser, fillSignInCredentials, listBrowserSessions } from './browser-agent.mjs'
+import { createFixtureResourceOwner } from './trade-fixture.mjs'
 
 const ROOT = process.cwd()
 const ARTIFACT_ROOT = path.join(ROOT, 'tests/artifacts')
@@ -175,7 +176,10 @@ const setupLineupFixture = async (env, season) => {
   }
 
   const admin = createClient(env.supabaseUrl, env.serviceRoleKey, { auth: { persistSession: false } })
+  const resources = createFixtureResourceOwner(admin)
+  try {
   const createdUser = await createConfirmedUser(admin, user)
+  resources.registerUser(createdUser.id)
   const { error: profileError } = await admin.from('profiles').upsert({
     id: createdUser.id,
     username: createdUser.username,
@@ -190,6 +194,7 @@ const setupLineupFixture = async (env, season) => {
     p_auction_budget: 200,
   })
   if (createError) throw new Error(`create_league: ${createError.message}`)
+  resources.registerLeague(league.id)
 
   const { data: currentSeason, error: seasonError } = await admin
     .from('league_seasons')
@@ -247,6 +252,14 @@ const setupLineupFixture = async (env, season) => {
     week,
     player,
     rosterRow,
+    dispose: async () => {
+      await resources.dispose()
+      await admin.from('season_weeks').delete().eq('season_year', syntheticSeason.season_year)
+    },
+  }
+  } catch (error) {
+    await resources.dispose().catch(() => {})
+    throw error
   }
 }
 
@@ -717,6 +730,7 @@ export async function runBrowserLineupScenario({
     throw error
   } finally {
     await browser(session, ['close']).catch(() => {})
+    await fixture.dispose()
   }
 }
 
@@ -849,6 +863,7 @@ export async function runBrowserLineupLockedScenario({
     throw error
   } finally {
     await browser(session, ['close']).catch(() => {})
+    await fixture.dispose()
   }
 }
 
@@ -953,6 +968,7 @@ export async function runBrowserLineupAutoSetScenario({
     throw error
   } finally {
     await browser(session, ['close']).catch(() => {})
+    await fixture.dispose()
   }
 }
 

@@ -3,7 +3,7 @@ import { useMemo } from 'react'
 import { StyleSheet, Text, useWindowDimensions, View } from 'react-native'
 import { breakpoints, colors, fontSize, fontWeight, radii, spacing, uiColors } from '@/constants/tokens'
 
-export type TradeFlowParticipant = {
+type TradeFlowParticipant = {
     memberId: string
     label: string
     statusLabel?: string | null

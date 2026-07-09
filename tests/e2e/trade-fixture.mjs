@@ -91,7 +91,7 @@ const findFuturePickForMember = async (admin, leagueId, memberId, seasonYear, ro
   }
 }
 
-const disposeFixture = async (admin, leagueId, userIds) => {
+export const disposeFixtureResources = async (admin, leagueId, userIds) => {
   if (leagueId) {
     const { error } = await admin.from('leagues').delete().eq('id', leagueId)
     if (error) throw new Error(`fixture league cleanup: ${error.message}`)
@@ -99,6 +99,21 @@ const disposeFixture = async (admin, leagueId, userIds) => {
   const results = await Promise.all(userIds.map((userId) => admin.auth.admin.deleteUser(userId)))
   const failure = results.find((result) => result.error)
   if (failure?.error) throw new Error(`fixture user cleanup: ${failure.error.message}`)
+}
+
+export const createFixtureResourceOwner = (admin) => {
+  let leagueId = null
+  const userIds = []
+  let disposed = false
+  return {
+    registerLeague: (id) => { leagueId = id },
+    registerUser: (id) => { userIds.push(id) },
+    dispose: async () => {
+      if (disposed) return
+      disposed = true
+      await disposeFixtureResources(admin, leagueId, userIds)
+    },
+  }
 }
 
 export const setupTradeGameplayFixture = async (
@@ -176,11 +191,11 @@ export const setupTradeGameplayFixture = async (
       dispose: async () => {
         if (disposed) return
         disposed = true
-        await disposeFixture(admin, league.id, createdUsers.map((user) => user.id))
+        await disposeFixtureResources(admin, league.id, createdUsers.map((user) => user.id))
       },
     }
   } catch (error) {
-    await disposeFixture(admin, leagueId, createdUsers.map((user) => user.id)).catch(() => {})
+    await disposeFixtureResources(admin, leagueId, createdUsers.map((user) => user.id)).catch(() => {})
     throw error
   }
 }

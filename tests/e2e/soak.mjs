@@ -633,7 +633,7 @@ const main = async () => {
       rows,
       notes,
     })
-    await writeCoverageReport({
+    const coverage = await writeCoverageReport({
       status,
       startedAt,
       finishedAt: timestamp(),
@@ -645,7 +645,7 @@ const main = async () => {
       notes,
     })
 
-    if (status !== 'PASS') process.exitCode = 1
+    if (status !== 'PASS' || (args.releaseGate && coverage.status !== 'PASS')) process.exitCode = 1
   } catch (error) {
     const finishedAt = timestamp()
     const errorRows = [{ season: 0, status: 'ERROR', notes: errorMessage(error) }]

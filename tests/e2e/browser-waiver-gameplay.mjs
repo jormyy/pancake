@@ -5,6 +5,7 @@ import { createClient } from '@supabase/supabase-js'
 import { resolvedEnv, requireEnv, describeEndpoint } from './env.mjs'
 import { installRuntimeOverrides, normalizeBrowserErrors } from './browser-runtime-overrides.mjs'
 import { clickButtonByName, createBrowser, fillSignInCredentials, listBrowserSessions } from './browser-agent.mjs'
+import { createFixtureResourceOwner } from './trade-fixture.mjs'
 
 const ROOT = process.cwd()
 const ARTIFACT_ROOT = path.join(ROOT, 'tests/artifacts')
@@ -59,7 +60,7 @@ const fetchCurrentSeason = async (admin, leagueId) => {
   return data
 }
 
-const findAvailablePlayers = async (admin, leagueId, leagueSeasonId, count = 1) => {
+const findAvailablePlayers = async (admin, leagueId, leagueSeasonId, count = 1, runId = 'manual') => {
   const [{ data: rosterRows, error: rosterError }, { data: players, error: playersError }] = await Promise.all([
     admin
       .from('roster_players')
@@ -77,8 +78,23 @@ const findAvailablePlayers = async (admin, leagueId, leagueSeasonId, count = 1) 
   if (playersError) throw new Error(`players lookup: ${playersError.message}`)
   const rosteredIds = new Set((rosterRows ?? []).map((row) => row.player_id))
   const available = (players ?? []).filter((row) => row.display_name && !rosteredIds.has(row.id))
-  if (available.length < count) throw new Error(`D.SEA.2 browser waiver: only ${available.length} available players found; need ${count}`)
-  return available.slice(0, count)
+  if (available.length >= count) return available.slice(0, count)
+  const fallbackRows = Array.from({ length: count - available.length }, (_, index) => ({
+    sportsdata_id: `e2e-waiver-${runId}-${index + 1}`,
+    first_name: 'E2E',
+    last_name: `Waiver ${runId} ${index + 1}`,
+    nba_team: 'FA',
+    position: 'PG',
+    eligible_positions: ['PG'],
+    status: 'Active',
+    years_exp: 1,
+  }))
+  const { data: fallbackPlayers, error: fallbackError } = await admin
+    .from('players')
+    .insert(fallbackRows)
+    .select('id, display_name, sportsdata_id')
+  if (fallbackError) throw new Error(`waiver fallback player insert: ${fallbackError.message}`)
+  return [...available, ...(fallbackPlayers ?? [])].slice(0, count)
 }
 
 const setupWaiverGameplayFixture = async (env, season, { requiresDrop = false, hasIneligibleIR = false } = {}) => {
@@ -93,7 +109,10 @@ const setupWaiverGameplayFixture = async (env, season, { requiresDrop = false, h
   }
 
   const admin = createClient(env.supabaseUrl, env.serviceRoleKey, { auth: { persistSession: false } })
+  const resources = createFixtureResourceOwner(admin)
+  try {
   const createdUser = await createConfirmedUser(admin, user)
+  resources.registerUser(createdUser.id)
 
   const { error: profileError } = await admin.from('profiles').upsert({
     id: createdUser.id,
@@ -109,6 +128,7 @@ const setupWaiverGameplayFixture = async (env, season, { requiresDrop = false, h
     p_auction_budget: 200,
   })
   if (createError) throw new Error(`create_league: ${createError.message}`)
+  resources.registerLeague(league.id)
 
   const { error: activeLeagueError } = await admin
     .from('leagues')
@@ -144,7 +164,7 @@ const setupWaiverGameplayFixture = async (env, season, { requiresDrop = false, h
   }
 
   const requiredPlayerCount = 1 + (requiresDrop ? 1 : 0) + (hasIneligibleIR ? 1 : 0)
-  const availablePlayers = await findAvailablePlayers(admin, league.id, currentSeason.id, requiredPlayerCount)
+  const availablePlayers = await findAvailablePlayers(admin, league.id, currentSeason.id, requiredPlayerCount, runId)
   const player = availablePlayers[0]
   const dropPlayer = requiresDrop ? availablePlayers[1] : null
   const irPlayer = hasIneligibleIR ? availablePlayers[requiresDrop ? 2 : 1] : null
@@ -223,6 +243,15 @@ const setupWaiverGameplayFixture = async (env, season, { requiresDrop = false, h
     irPlayer: irPlayer ?? null,
     irRosterPlayer,
     waiverLog,
+    dispose: async () => {
+      if (irPlayer) await admin.from('players').update({ injury_status: null }).eq('id', irPlayer.id)
+      await resources.dispose()
+      await admin.from('players').delete().like('sportsdata_id', `e2e-waiver-${runId}-%`)
+    },
+  }
+  } catch (error) {
+    await resources.dispose().catch(() => {})
+    throw error
   }
 }
 
@@ -427,6 +456,7 @@ export async function runBrowserWaiverScenario({
     throw error
   } finally {
     await browser(session, ['close']).catch(() => {})
+    await fixture.dispose()
   }
 }
 
@@ -534,6 +564,7 @@ export async function runBrowserWaiverDropScenario({
     throw error
   } finally {
     await browser(session, ['close']).catch(() => {})
+    await fixture.dispose()
   }
 }
 
@@ -637,6 +668,7 @@ export async function runBrowserWaiverIrBlockScenario({
     throw error
   } finally {
     await browser(session, ['close']).catch(() => {})
+    await fixture.dispose()
   }
 }
 

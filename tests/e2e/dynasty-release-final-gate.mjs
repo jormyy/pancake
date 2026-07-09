@@ -33,13 +33,13 @@ async function main() {
   const admin = createSupabaseClient(env.supabaseUrl, env.serviceRoleKey)
   const context = { supabaseUrl: env.supabaseUrl, apiBaseUrl: env.apiBaseUrl }
   await mkdir(ARTIFACT_DIR, { recursive: true })
+  let fixture
 
   try {
     const health = await fetch(`${env.apiBaseUrl}/health`).then((res) => res.json())
     assertCondition(health?.ok === true, 'Edge API health check did not return ok=true')
     record('environment', 'edge api health', 'PASS', 'GET /health returned ok=true')
 
-    let fixture
     try {
       fixture = await setupFixture(env, admin)
       context.runId = fixture.runId
@@ -732,6 +732,8 @@ async function main() {
     await writeReport(context)
     console.error(error instanceof Error ? error.stack ?? error.message : String(error))
     process.exitCode = 1
+  } finally {
+    await fixture?.dispose()
   }
 }
 

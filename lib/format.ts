@@ -16,7 +16,7 @@ export function getInitials(name: string | null | undefined): string {
     return (safe.replace(/[^a-zA-Z0-9]/g, '').slice(0, 2) || '?').toUpperCase()
 }
 
-export const shortDateFmt = new Intl.DateTimeFormat('en-US', {
+const shortDateFmt = new Intl.DateTimeFormat('en-US', {
     month: 'short',
     day: 'numeric',
 })

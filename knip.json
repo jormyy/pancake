@@ -2,11 +2,6 @@
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "entry": [
     "app/**/*.{ts,tsx}",
-    "components/**/*.{ts,tsx}",
-    "constants/**/*.{ts,tsx}",
-    "contexts/**/*.{ts,tsx}",
-    "hooks/**/*.{ts,tsx}",
-    "lib/**/*.{ts,tsx}",
     "scripts/**/*.mjs",
     "tests/**/*.test.ts",
     "tests/e2e/**/*.mjs",
@@ -38,6 +33,7 @@
     "types/database.ts"
   ],
   "ignoreDependencies": [
+    "agent-browser",
     "cheerio",
     "expo-symbols",
     "expo-updates",

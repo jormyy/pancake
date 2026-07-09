@@ -6,13 +6,11 @@ export {
     isIncomingTradeForMember,
     isOutgoingTradeForMember,
     isTradeHistoryForMember,
-    isTradeParticipant,
     isVetoableTradeForMember,
     needsMemberAcceptance,
-    tradeParticipantIds,
 } from '@/lib/trade-perspective'
 
-export type TradePlayerItem = {
+type TradePlayerItem = {
     kind: 'player'
     playerId: string
     playerName: string
@@ -38,7 +36,7 @@ export type TradePickItem = {
     toMemberId?: string | null
 }
 
-export type TradeFaabItem = {
+type TradeFaabItem = {
     kind: 'faab'
     amount: number
     fromMemberId?: string | null
@@ -48,7 +46,7 @@ export type TradeFaabItem = {
 export type TradeItem = TradePlayerItem | TradePickItem | TradeFaabItem
 export type RoutedTradeItem = TradeItem & { fromMemberId: string; toMemberId: string }
 
-export type TradeParticipant = {
+type TradeParticipant = {
     memberId: string
     teamName: string
     sortOrder: number

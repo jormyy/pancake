@@ -1,7 +1,7 @@
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import { type FallbackTableChangeWatch, type TableChangeWatch } from '@/lib/realtime-config'
-export { scopeWatchesToLeague, type FallbackTableChangeWatch, type TableChangeWatch } from '@/lib/realtime-config'
+export { type TableChangeWatch } from '@/lib/realtime-config'
 
 type TableChangeSubscription =
     | { mode: 'per-watch'; watches: TableChangeWatch[] }

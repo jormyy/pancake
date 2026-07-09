@@ -5,7 +5,7 @@ import type { Draft, NominationOrderMode, RookieTimerExpiryBehavior } from '@/li
 export type MockDraftRoomKind = 'auction' | 'snake'
 export type MockDraftRoomStatus = 'active' | 'scheduled' | 'live' | 'completed'
 
-export type MockDraftRoomParticipant = {
+type MockDraftRoomParticipant = {
     memberId: string
     teamName: string
     joinedAt: string

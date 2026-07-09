@@ -26,11 +26,61 @@ export const dollarQuotedStatement = (source) => {
 
 const normalizeSql = (source) => source.replace(/\r\n/g, '\n').trim()
 const sourcePathForFunction = (schema, name, root = FUNCTION_SOURCES_DIR) => path.join(root, schema, `${name}.sql`)
-const isLineCommented = (source, index) => {
-  const lineStart = source.lastIndexOf('\n', index - 1) + 1
-  const commentIndex = source.indexOf('--', lineStart)
-  return commentIndex !== -1 && commentIndex < index
+
+export const maskSqlNonCode = (source) => {
+  const chars = [...source]
+  const mask = (index) => { if (chars[index] !== '\n') chars[index] = ' ' }
+  let index = 0
+  while (index < source.length) {
+    if (source.startsWith('--', index)) {
+      while (index < source.length && source[index] !== '\n') mask(index++)
+      continue
+    }
+    if (source.startsWith('/*', index)) {
+      let depth = 0
+      while (index < source.length) {
+        if (source.startsWith('/*', index)) {
+          mask(index++); mask(index++); depth += 1
+        } else if (source.startsWith('*/', index)) {
+          mask(index++); mask(index++); depth -= 1
+          if (depth === 0) break
+        } else {
+          mask(index++)
+        }
+      }
+      continue
+    }
+    if (source[index] === "'") {
+      mask(index++)
+      while (index < source.length) {
+        mask(index)
+        if (source[index] === "'" && source[index + 1] === "'") {
+          index += 2
+        } else if (source[index++] === "'") {
+          break
+        }
+      }
+      continue
+    }
+    if (source[index] === '$') {
+      const delimiter = /^\$[A-Za-z0-9_]*\$/.exec(source.slice(index))?.[0]
+      if (delimiter) {
+        const end = source.indexOf(delimiter, index + delimiter.length)
+        const through = end === -1 ? source.length : end + delimiter.length
+        while (index < through) mask(index++)
+        continue
+      }
+    }
+    index += 1
+  }
+  return chars.join('')
 }
+
+const IDENTIFIER = '(?:"(?:[^"]|"")+"|[A-Za-z_][A-Za-z0-9_]*)'
+const unquoteIdentifier = (identifier) => identifier.startsWith('"')
+  ? identifier.slice(1, -1).replaceAll('""', '"')
+  : identifier.toLowerCase()
+const functionKey = (schema, name) => `${unquoteIdentifier(schema ?? 'public')}.${unquoteIdentifier(name)}`
 
 const migrationFiles = async () =>
   (await readdir(MIGRATIONS_DIR))
@@ -46,37 +96,35 @@ const allMigrations = async () => {
 }
 
 export const functionDefinitionsInSource = (source) => {
-  const pattern = /CREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\s+(?:(public|private|analytics)\.)?([A-Za-z_][A-Za-z0-9_]*)\s*\(/gi
+  const searchable = maskSqlNonCode(source)
+  const pattern = new RegExp(`CREATE\\s+(?:OR\\s+REPLACE\\s+)?FUNCTION\\s+(?:(${IDENTIFIER})\\s*\\.\\s*)?(${IDENTIFIER})\\s*\\(`, 'gi')
   const definitions = new Map()
   let match
 
-  while ((match = pattern.exec(source)) !== null) {
-    if (isLineCommented(source, match.index)) continue
-    const schema = match[1] ?? 'public'
-    const name = match[2]
-    definitions.set(`${schema}.${name}`, dollarQuotedStatement(source.slice(match.index)))
+  while ((match = pattern.exec(searchable)) !== null) {
+    definitions.set(functionKey(match[1], match[2]), dollarQuotedStatement(source.slice(match.index)))
   }
 
   return definitions
 }
 
 export const functionLifecycleEventsInSource = (source) => {
-  const pattern = /\b(?:(CREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION)\s+(?:(public|private|analytics)\.)?([A-Za-z_][A-Za-z0-9_]*)\s*\(|(DROP\s+FUNCTION(?:\s+IF\s+EXISTS)?)\s+(?:(public|private|analytics)\.)?([A-Za-z_][A-Za-z0-9_]*)\s*\()/gi
+  const searchable = maskSqlNonCode(source)
+  const pattern = new RegExp(`\\b(?:(CREATE\\s+(?:OR\\s+REPLACE\\s+)?FUNCTION)\\s+(?:(${IDENTIFIER})\\s*\\.\\s*)?(${IDENTIFIER})\\s*\\(|(DROP\\s+FUNCTION(?:\\s+IF\\s+EXISTS)?)\\s+(?:(${IDENTIFIER})\\s*\\.\\s*)?(${IDENTIFIER})\\s*\\()`, 'gi')
   const events = []
   let match
 
-  while ((match = pattern.exec(source)) !== null) {
-    if (isLineCommented(source, match.index)) continue
+  while ((match = pattern.exec(searchable)) !== null) {
     if (match[1]) {
       events.push({
         type: 'create',
-        key: `${match[2] ?? 'public'}.${match[3]}`,
+        key: functionKey(match[2], match[3]),
         definition: dollarQuotedStatement(source.slice(match.index)),
       })
     } else {
       events.push({
         type: 'drop',
-        key: `${match[5] ?? 'public'}.${match[6]}`,
+        key: functionKey(match[5], match[6]),
       })
     }
   }
