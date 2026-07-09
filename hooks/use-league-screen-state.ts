@@ -48,7 +48,6 @@ import { leagueScreenWatches } from '@/lib/league/realtime'
 
 const ACTIVITY_LIMIT = 50
 const OPEN_DRAFT_STATUSES = new Set(['pending', 'in_progress', 'paused'])
-const PREFETCH_TABS: LeagueTab[] = ['results', 'auctions', 'mockRooms', 'draftBoard', 'settings', 'history']
 
 function defaultRoomDateInput(): string {
     const date = new Date(Date.now() + 30 * 60 * 1000)
@@ -108,6 +107,7 @@ export function useLeagueScreenState() {
     const [sharing, setSharing] = useState(false)
 
     const loadedTabs = useRef<Set<LeagueTab>>(new Set())
+    const tabRequestIds = useRef(new Map<LeagueTab, number>())
     const activeLeagueIdRef = useRef<string | undefined>(undefined)
     activeLeagueIdRef.current = currentLeague?.id
 
@@ -121,6 +121,7 @@ export function useLeagueScreenState() {
 
     useEffect(() => {
         loadedTabs.current.clear()
+        tabRequestIds.current.clear()
         setStandings([])
         setTransactions([])
         setWaiverOrder([])
@@ -155,6 +156,8 @@ export function useLeagueScreenState() {
     }, [])
 
     const fetchTab = useCallback(async (nextTab: LeagueTab, lid: string) => {
+        const requestId = (tabRequestIds.current.get(nextTab) ?? 0) + 1
+        tabRequestIds.current.set(nextTab, requestId)
         setTabLoading((prev) => ({ ...prev, [nextTab]: true }))
         setTabError((prev) => { const next = { ...prev }; delete next[nextTab]; return next })
         try {
@@ -194,13 +197,17 @@ export function useLeagueScreenState() {
                     break
                 }
             }
-            if (activeLeagueIdRef.current !== lid) return
+            if (activeLeagueIdRef.current !== lid || tabRequestIds.current.get(nextTab) !== requestId) return
             commit()
             loadedTabs.current.add(nextTab)
         } catch (e: unknown) {
-            setTabError((prev) => ({ ...prev, [nextTab]: e instanceof Error ? e.message : 'Unknown error' }))
+            if (activeLeagueIdRef.current === lid && tabRequestIds.current.get(nextTab) === requestId) {
+                setTabError((prev) => ({ ...prev, [nextTab]: e instanceof Error ? e.message : 'Unknown error' }))
+            }
         } finally {
-            setTabLoading((prev) => ({ ...prev, [nextTab]: false }))
+            if (activeLeagueIdRef.current === lid && tabRequestIds.current.get(nextTab) === requestId) {
+                setTabLoading((prev) => ({ ...prev, [nextTab]: false }))
+            }
         }
     }, [current?.id])
 
@@ -208,13 +215,11 @@ export function useLeagueScreenState() {
         useCallback(() => {
             const lid = currentLeague?.id
             if (!lid) return
-            for (const prefetchTab of PREFETCH_TABS) {
-                if (!loadedTabs.current.has(prefetchTab)) {
-                    fetchTab(prefetchTab, lid)
-                }
+            if (!loadedTabs.current.has(tab)) {
+                void fetchTab(tab, lid)
             }
-            fetchActiveDraft(lid)
-        }, [currentLeague?.id, fetchTab, fetchActiveDraft]),
+            void fetchActiveDraft(lid)
+        }, [currentLeague?.id, fetchTab, fetchActiveDraft, tab]),
     )
 
     const currentDraftIds = useMemo(() => [...new Set([

@@ -319,8 +319,18 @@ function WebSidebar() {
 
     useEffect(() => {
         if (!user) return
-        getProfile(user.id).then((p) => setAvatarUrl(p.avatar_url ?? null)).catch(() => {})
-    }, [user, pathname])
+        let cancelled = false
+        getProfile(user.id)
+            .then((profile) => {
+                if (!cancelled) setAvatarUrl(profile.avatar_url ?? null)
+            })
+            .catch((error) => {
+                if (!cancelled) console.error('Could not load sidebar profile', error)
+            })
+        return () => {
+            cancelled = true
+        }
+    }, [user])
 
     return (
         <View style={styles.sidebar} role="navigation" aria-label="Primary">

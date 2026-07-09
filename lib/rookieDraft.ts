@@ -2,6 +2,7 @@ import { supabase } from '@/lib/supabase'
 import { RealtimeChannel } from '@supabase/supabase-js'
 import { apiPost as sharedApiPost } from '@/lib/shared/api'
 import type { RookieTimerExpiryBehavior } from '@/lib/draft'
+import { subscribeToTableChanges, unsubscribeFromTableChanges } from '@/lib/realtime'
 
 
 export type SnakePick = {
@@ -267,26 +268,16 @@ export async function advanceSeason(leagueId: string) {
 
 
 export function subscribeToRookieDraft(draftId: string, onChange: () => void): RealtimeChannel {
-    return supabase
-        .channel(`rookie-draft:${draftId}`, { config: { private: true } })
-        .on(
-            'postgres_changes',
-            {
-                event: '*',
-                schema: 'public',
-                table: 'snake_draft_picks',
-                filter: `draft_id=eq.${draftId}`,
-            },
-            onChange,
-        )
-        .on(
-            'postgres_changes',
-            { event: 'UPDATE', schema: 'public', table: 'drafts', filter: `id=eq.${draftId}` },
-            onChange,
-        )
-        .subscribe()
+    return subscribeToTableChanges(`rookie-draft:${draftId}`, {
+        mode: 'fallback',
+        watches: [
+            { table: 'snake_draft_picks', filter: `draft_id=eq.${draftId}` },
+            { table: 'drafts', event: 'UPDATE', filter: `id=eq.${draftId}` },
+        ],
+        onChange,
+    })
 }
 
 export function unsubscribeFromRookieDraft(channel: RealtimeChannel) {
-    supabase.removeChannel(channel)
+    unsubscribeFromTableChanges(channel)
 }

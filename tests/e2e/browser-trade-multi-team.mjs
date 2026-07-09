@@ -13,10 +13,10 @@ import {
   joinUrl,
   listSessions,
   openOffersTab,
-  setupMultiTeamTradeGameplayFixture,
   signInBrowser,
   tradeSessionName,
-} from './browser-trade-gameplay.mjs'
+} from './trade-browser-harness.mjs'
+import { setupMultiTeamTradeGameplayFixture } from './trade-fixture.mjs'
 
 const verifyMultiTeamTradeProposal = async (fixture) => {
   const { data: trades, error: tradesError } = await fixture.admin
@@ -517,5 +517,6 @@ export async function runBrowserMultiTeamTradeScenario({
   } finally {
     await browser(session, ['close']).catch(() => {})
     await browser(counterSession, ['close']).catch(() => {})
+    await fixture.dispose()
   }
 }

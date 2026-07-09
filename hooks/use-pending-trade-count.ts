@@ -38,7 +38,6 @@ export function usePendingTradeCount(): number {
             setCount(0)
             return
         }
-        fetchCount()
         const channel = subscribeToTableChanges(
             `pending-trade-count:${leagueId}:${memberId}`,
             { mode: 'fallback', watches: [

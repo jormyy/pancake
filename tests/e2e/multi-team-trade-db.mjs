@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
 import process from 'node:process'
 import { resolvedEnv, requireEnv } from './env.mjs'
-import { findAvailablePlayers, setupMultiTeamTradeGameplayFixture } from './browser-trade-gameplay.mjs'
+import { findAvailablePlayers, setupMultiTeamTradeGameplayFixture } from './trade-fixture.mjs'
 
 const env = resolvedEnv()
 requireEnv(env, ['supabaseUrl', 'dbUrl', 'serviceRoleKey', 'anonKey'])
@@ -416,13 +416,17 @@ const assertCompletionFailureIsTerminal = async (fixture) => {
 
 const run = async () => {
   const fixture = await setupMultiTeamTradeGameplayFixture(env, 0)
-  await assertAggregateFaabRejectionIsAtomic(fixture)
-  await assertExpiredAcceptanceCommits(fixture)
-  await assertReplacementAndDropLifecycle(fixture)
-  await assertConcurrentAcceptanceCompletesOnce(fixture)
-  await assertTwoTeamUsesCanonicalRoutes(fixture)
-  await assertCompletionFailureIsTerminal(fixture)
-  console.log('PASS multi-team trade DB atomicity: aggregate FAAB, reservations, replacement, concurrency, terminal failures')
+  try {
+    await assertAggregateFaabRejectionIsAtomic(fixture)
+    await assertExpiredAcceptanceCommits(fixture)
+    await assertReplacementAndDropLifecycle(fixture)
+    await assertConcurrentAcceptanceCompletesOnce(fixture)
+    await assertTwoTeamUsesCanonicalRoutes(fixture)
+    await assertCompletionFailureIsTerminal(fixture)
+    console.log('PASS multi-team trade DB atomicity: aggregate FAAB, reservations, replacement, concurrency, terminal failures')
+  } finally {
+    await fixture.dispose()
+  }
 }
 
 run().catch((error) => {

@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase'
 import { RealtimeChannel } from '@supabase/supabase-js'
 import { apiPost as sharedApiPost } from '@/lib/shared/api'
+import { subscribeToTableChanges } from '@/lib/realtime'
 
 export type DraftOrderEntry = {
     position: number
@@ -506,43 +507,16 @@ export async function resumeIfAbsent(draftId: string): Promise<void> {
 }
 
 export function subscribeToDraft(draftId: string, leagueId: string | null | undefined, onChange: () => void): RealtimeChannel {
-    let channel = supabase
-        .channel(`draft:${draftId}`, { config: { private: true } })
-        .on(
-            'postgres_changes',
-            {
-                event: '*',
-                schema: 'public',
-                table: 'nominations',
-                filter: `draft_id=eq.${draftId}`,
-            },
-            onChange,
-        )
-        .on(
-            'postgres_changes',
-            {
-                event: '*',
-                schema: 'public',
-                table: 'draft_budgets',
-                filter: `draft_id=eq.${draftId}`,
-            },
-            onChange,
-        )
-        .on(
-            'postgres_changes',
-            { event: 'UPDATE', schema: 'public', table: 'drafts', filter: `id=eq.${draftId}` },
-            onChange,
-        )
-    if (leagueId) {
-        channel = channel.on(
-            'postgres_changes',
-            { event: '*', schema: 'public', table: 'bids', filter: `league_id=eq.${leagueId}` },
-            onChange,
-        )
-    }
-    channel = channel.subscribe()
-
-    return channel
+    return subscribeToTableChanges(`draft:${draftId}`, {
+        mode: 'fallback',
+        watches: [
+            { table: 'nominations', filter: `draft_id=eq.${draftId}` },
+            { table: 'draft_budgets', filter: `draft_id=eq.${draftId}` },
+            { table: 'drafts', event: 'UPDATE', filter: `id=eq.${draftId}` },
+            ...(leagueId ? [{ table: 'bids', filter: `league_id=eq.${leagueId}` }] : []),
+        ],
+        onChange,
+    })
 }
 
 // Presence uses a separate public channel because private channels require
