@@ -116,15 +116,20 @@ export const functionLifecycleEventsInSource = (source) => {
 
   while ((match = pattern.exec(searchable)) !== null) {
     if (match[1]) {
+      const definition = dollarQuotedStatement(source.slice(match.index))
       events.push({
         type: 'create',
         key: functionKey(match[2], match[3]),
-        definition: dollarQuotedStatement(source.slice(match.index)),
+        definition,
+        start: match.index,
+        end: match.index + definition.length,
       })
     } else {
       events.push({
         type: 'drop',
         key: functionKey(match[5], match[6]),
+        start: match.index,
+        end: pattern.lastIndex,
       })
     }
   }
