@@ -15,12 +15,14 @@ function PlayerRow({
     avgFpts,
     avgMinutes,
     selected,
+    destinationLabel,
     onToggle,
 }: {
     player: RosterPlayer
     avgFpts?: number
     avgMinutes?: number | null
     selected: boolean
+    destinationLabel?: string | null
     onToggle: () => void
 }) {
     const p = player.players
@@ -64,6 +66,11 @@ function PlayerRow({
                 <Text style={styles.playerContext} numberOfLines={1}>
                     {statText}
                 </Text>
+                {selected && destinationLabel ? (
+                    <Text style={styles.routeMeta} numberOfLines={1}>
+                        To {destinationLabel}
+                    </Text>
+                ) : null}
             </View>
             {selected && (
                 <View style={styles.checkBadge}>
@@ -77,10 +84,12 @@ function PlayerRow({
 function PickRow({
     pick,
     selected,
+    destinationLabel,
     onToggle,
 }: {
     pick: TradePickItem
     selected: boolean
+    destinationLabel?: string | null
     onToggle: () => void
 }) {
     const action = selected ? 'Remove' : 'Select'
@@ -99,6 +108,11 @@ function PickRow({
                     {pick.seasonYear} Round {pick.round}
                 </Text>
                 <Text style={styles.playerMeta}>via {pick.originalTeamName}</Text>
+                {selected && destinationLabel ? (
+                    <Text style={styles.routeMeta} numberOfLines={1}>
+                        To {destinationLabel}
+                    </Text>
+                ) : null}
             </View>
             {selected && (
                 <View style={styles.checkBadge}>
@@ -120,6 +134,8 @@ export function TradeAssetColumn({
     avgStatsMap,
     selectedPlayerIds,
     selectedPickIds,
+    playerDestinationLabel,
+    pickDestinationLabel,
     onTogglePlayer,
     onTogglePick,
     emptyText,
@@ -134,6 +150,8 @@ export function TradeAssetColumn({
     avgStatsMap: Map<string, { avg_minutes_played: number | null }>
     selectedPlayerIds: Set<string>
     selectedPickIds: Set<string>
+    playerDestinationLabel?: (id: string) => string | null
+    pickDestinationLabel?: (id: string) => string | null
     onTogglePlayer: (id: string) => void
     onTogglePick: (id: string) => void
     emptyText: string
@@ -166,6 +184,7 @@ export function TradeAssetColumn({
                         avgFpts={avgMap.get(rp.players.id)}
                         avgMinutes={avgStatsMap.get(rp.players.id)?.avg_minutes_played}
                         selected={selectedPlayerIds.has(rp.players.id)}
+                        destinationLabel={playerDestinationLabel?.(rp.players.id)}
                         onToggle={() => onTogglePlayer(rp.players.id)}
                     />
                 ))
@@ -179,6 +198,7 @@ export function TradeAssetColumn({
                             key={pick.pickId}
                             pick={pick}
                             selected={selectedPickIds.has(pick.pickId)}
+                            destinationLabel={pickDestinationLabel?.(pick.pickId)}
                             onToggle={() => onTogglePick(pick.pickId)}
                         />
                     ))}
@@ -250,6 +270,7 @@ const styles = StyleSheet.create({
     playerMetaRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 4 },
     playerMeta: { fontSize: 12, color: colors.textMuted },
     playerContext: { fontSize: 11, color: colors.primaryDark, fontWeight: fontWeight.bold },
+    routeMeta: { fontSize: 11, color: colors.textSecondary, fontWeight: fontWeight.semibold },
     checkBadge: {
         width: 24,
         height: 24,

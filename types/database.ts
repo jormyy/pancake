@@ -3651,6 +3651,18 @@ export type Database = {
         }
         Returns: string
       }
+      counter_multi_team_trade_atomic: {
+        Args: {
+          p_expires_at?: string
+          p_items: Json
+          p_member_id: string
+          p_notes?: string
+          p_participant_member_ids: string[]
+          p_trade_id: string
+          p_user_id: string
+        }
+        Returns: string
+      }
       create_auction_nomination_atomic: {
         Args: {
           p_countdown_seconds?: number
@@ -3767,6 +3779,18 @@ export type Database = {
           p_request_faab_amount?: number
           p_request_pick_ids: string[]
           p_request_player_ids: string[]
+          p_trade_id: string
+          p_user_id: string
+        }
+        Returns: string
+      }
+      edit_multi_team_trade_atomic: {
+        Args: {
+          p_expires_at?: string
+          p_items: Json
+          p_member_id: string
+          p_notes?: string
+          p_participant_member_ids: string[]
           p_trade_id: string
           p_user_id: string
         }

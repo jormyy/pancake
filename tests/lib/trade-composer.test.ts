@@ -250,6 +250,8 @@ describe('submitMultiTeamTradeComposer', () => {
         vi.setSystemTime(new Date(NOW_MS))
         const getCurrentSeasonId = vi.fn().mockResolvedValue('season-1')
         const proposeMultiTeamTrade = vi.fn().mockResolvedValue('trade-2')
+        const counterMultiTeamTrade = vi.fn()
+        const editMultiTeamTrade = vi.fn()
         const deadline = '2026-01-02'
         const items = [
             { fromMemberId: 'me', toMemberId: 'them', playerId: 'player-1' },
@@ -257,6 +259,9 @@ describe('submitMultiTeamTradeComposer', () => {
         ]
 
         await submitMultiTeamTradeComposer({
+            mode: 'propose',
+            editTradeId: null,
+            counterTradeId: null,
             myMemberId: 'me',
             leagueId: 'league-1',
             participantMemberIds: ['me', 'them', 'third'],
@@ -265,7 +270,7 @@ describe('submitMultiTeamTradeComposer', () => {
             expirationDays: '7',
             leagueStatus: 'active',
             tradeDeadline: deadline,
-        }, { getCurrentSeasonId, proposeMultiTeamTrade })
+        }, { getCurrentSeasonId, proposeMultiTeamTrade, counterMultiTeamTrade, editMultiTeamTrade })
 
         expect(getCurrentSeasonId).toHaveBeenCalledWith('league-1')
         expect(proposeMultiTeamTrade).toHaveBeenCalledWith('me', 'league-1', 'season-1', {
@@ -274,21 +279,79 @@ describe('submitMultiTeamTradeComposer', () => {
             notes: 'multi team deal',
             expiresAt: new Date(Date.parse(endOfETDayUTC(deadline)) - 1).toISOString(),
         })
+        expect(counterMultiTeamTrade).not.toHaveBeenCalled()
+        expect(editMultiTeamTrade).not.toHaveBeenCalled()
     })
 
     it('does not submit a multi-team offer without an active season', async () => {
         const getCurrentSeasonId = vi.fn().mockResolvedValue(null)
         const proposeMultiTeamTrade = vi.fn().mockResolvedValue('trade-2')
+        const counterMultiTeamTrade = vi.fn()
+        const editMultiTeamTrade = vi.fn()
 
         await expect(submitMultiTeamTradeComposer({
+            mode: 'propose',
+            editTradeId: null,
+            counterTradeId: null,
             myMemberId: 'me',
             leagueId: 'league-1',
             participantMemberIds: ['me', 'them'],
             items: [{ fromMemberId: 'me', toMemberId: 'them', pickId: 'pick-1' }],
             notes: '',
             expirationDays: '3',
-        }, { getCurrentSeasonId, proposeMultiTeamTrade })).rejects.toThrow('No active season found.')
+        }, { getCurrentSeasonId, proposeMultiTeamTrade, counterMultiTeamTrade, editMultiTeamTrade })).rejects.toThrow('No active season found.')
 
         expect(proposeMultiTeamTrade).not.toHaveBeenCalled()
+        expect(counterMultiTeamTrade).not.toHaveBeenCalled()
+        expect(editMultiTeamTrade).not.toHaveBeenCalled()
+    })
+
+    it('submits multi-team counters and edits without looking up the current season', async () => {
+        vi.useFakeTimers()
+        vi.setSystemTime(new Date(NOW_MS))
+        const getCurrentSeasonId = vi.fn()
+        const proposeMultiTeamTrade = vi.fn()
+        const counterMultiTeamTrade = vi.fn().mockResolvedValue('counter-2')
+        const editMultiTeamTrade = vi.fn().mockResolvedValue('edit-2')
+        const items = [{ fromMemberId: 'me', toMemberId: 'them', playerId: 'player-1' }]
+
+        await submitMultiTeamTradeComposer({
+            mode: 'counter',
+            editTradeId: null,
+            counterTradeId: 'trade-1',
+            myMemberId: 'me',
+            leagueId: 'league-1',
+            participantMemberIds: ['me', 'them'],
+            items,
+            notes: ' counter ',
+            expirationDays: '3',
+        }, { getCurrentSeasonId, proposeMultiTeamTrade, counterMultiTeamTrade, editMultiTeamTrade })
+
+        await submitMultiTeamTradeComposer({
+            mode: 'edit',
+            editTradeId: 'trade-2',
+            counterTradeId: null,
+            myMemberId: 'me',
+            leagueId: 'league-1',
+            participantMemberIds: ['me', 'them'],
+            items,
+            notes: ' edit ',
+            expirationDays: '3',
+        }, { getCurrentSeasonId, proposeMultiTeamTrade, counterMultiTeamTrade, editMultiTeamTrade })
+
+        expect(getCurrentSeasonId).not.toHaveBeenCalled()
+        expect(proposeMultiTeamTrade).not.toHaveBeenCalled()
+        expect(counterMultiTeamTrade).toHaveBeenCalledWith('trade-1', 'me', {
+            participantMemberIds: ['me', 'them'],
+            items,
+            notes: 'counter',
+            expiresAt: new Date(NOW_MS + 3 * 24 * 60 * 60 * 1000).toISOString(),
+        })
+        expect(editMultiTeamTrade).toHaveBeenCalledWith('trade-2', 'me', {
+            participantMemberIds: ['me', 'them'],
+            items,
+            notes: 'edit',
+            expiresAt: new Date(NOW_MS + 3 * 24 * 60 * 60 * 1000).toISOString(),
+        })
     })
 })

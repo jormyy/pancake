@@ -17,7 +17,9 @@ import { getRoster, RosterPlayer } from '@/lib/roster'
 import { getRosterStatsMaps, EMPTY_AVG_MAP, EMPTY_STATS_MAP } from '@/lib/roster-stats'
 import {
     counterTrade,
+    counterMultiTeamTrade,
     editTrade,
+    editMultiTeamTrade,
     getTradeById,
     proposeTrade,
     proposeMultiTeamTrade,
@@ -105,6 +107,7 @@ export default function ProposeTradeScreen() {
         members,
         faabEnabled,
     })
+    const prefillMultiTeamTrade = multiTeam.prefillFromTrade
 
     // Load league members (excluding self)
     useEffect(() => {
@@ -125,7 +128,13 @@ export default function ProposeTradeScreen() {
                 if (cancelled || !trade) return
                 const prefill = prefillTradeComposerFromTrade(mode, trade)
                 setPrefillTrade(trade)
-                setSelectedRecipientId(prefill.selectedRecipientId)
+                if (trade.isMultiTeam) {
+                    setMultiTeamMode(true)
+                    prefillMultiTeamTrade(trade, myMemberId)
+                    setSelectedRecipientId(null)
+                } else {
+                    setSelectedRecipientId(prefill.selectedRecipientId)
+                }
                 setNotes(prefill.notes)
                 setExpirationDays(prefill.expirationDays)
             })
@@ -133,7 +142,7 @@ export default function ProposeTradeScreen() {
         return () => {
             cancelled = true
         }
-    }, [sourceTradeId, myMemberId, mode])
+    }, [sourceTradeId, myMemberId, mode, prefillMultiTeamTrade])
 
     // Load rosters and picks when recipient changes
     const loadRosters = useCallback(async () => {
@@ -271,6 +280,9 @@ export default function ProposeTradeScreen() {
             setSubmitting(true)
             try {
                 await submitMultiTeamTradeComposer({
+                    mode,
+                    editTradeId,
+                    counterTradeId,
                     myMemberId,
                     leagueId,
                     participantMemberIds: participantIds,
@@ -279,8 +291,9 @@ export default function ProposeTradeScreen() {
                     expirationDays,
                     leagueStatus: currentLeague?.status,
                     tradeDeadline: currentLeague?.trade_deadline,
-                }, { getCurrentSeasonId, proposeMultiTeamTrade })
-                showSuccess('Trade Proposed', 'Your multi-team trade offer has been sent.')
+                }, { getCurrentSeasonId, proposeMultiTeamTrade, counterMultiTeamTrade, editMultiTeamTrade })
+                const successCopy = tradeComposerSuccessCopy(mode)
+                showSuccess(successCopy.title, successCopy.message)
                 back()
             } catch (e) {
                 showAlert('Error', getErrorMessage(e) ?? 'Could not propose trade.')
@@ -470,6 +483,8 @@ export default function ProposeTradeScreen() {
                         participantPlayerIds={multiTeam.participantPlayerIds}
                         participantPickIds={multiTeam.participantPickIds}
                         participantDestinationIds={multiTeam.participantDestinationIds}
+                        participantPlayerDestinationIds={multiTeam.participantPlayerDestinationIds}
+                        participantPickDestinationIds={multiTeam.participantPickDestinationIds}
                         participantFaabInputs={multiTeam.participantFaabInputs}
                         avgMap={multiTeam.avgMap}
                         avgStatsMap={multiTeam.avgStatsMap}
@@ -478,6 +493,8 @@ export default function ProposeTradeScreen() {
                         onTogglePlayer={multiTeam.toggleParticipantPlayer}
                         onTogglePick={multiTeam.toggleParticipantPick}
                         onDestinationChange={multiTeam.setParticipantDestination}
+                        onPlayerDestinationChange={multiTeam.setParticipantPlayerDestination}
+                        onPickDestinationChange={multiTeam.setParticipantPickDestination}
                         onFaabChange={multiTeam.setParticipantFaab}
                         onNotesChange={setNotes}
                         onExpirationDaysChange={setExpirationDays}

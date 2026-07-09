@@ -11,6 +11,8 @@ BEGIN
   IF NEW.status IN (
     'rejected'::trade_status,
     'withdrawn'::trade_status,
+    'countered'::trade_status,
+    'edited'::trade_status,
     'expired'::trade_status,
     'vetoed'::trade_status,
     'completed'::trade_status

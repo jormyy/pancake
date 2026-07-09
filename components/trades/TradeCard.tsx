@@ -441,34 +441,30 @@ export function TradeCard({
                             <Text style={styles.actionBtnRejectText}>Reject</Text>
                         </MotionPressable>
                     ) : null}
-                    {!trade.isMultiTeam ? (
-                        <MotionPressable
-                            style={[styles.actionBtn, styles.actionBtnReject]}
-                            onPress={() => push({ pathname: '/(modals)/propose-trade', params: { counterTradeId: trade.id } })}
-                            disabled={acting}
-                            accessibilityRole="button"
-                            accessibilityLabel={`Counter trade with ${opponentName}`}
-                            pressedScale={0.94}
-                        >
-                            <Text style={styles.actionBtnRejectText}>Counter</Text>
-                        </MotionPressable>
-                    ) : null}
+                    <MotionPressable
+                        style={[styles.actionBtn, styles.actionBtnReject]}
+                        onPress={() => push({ pathname: '/(modals)/propose-trade', params: { counterTradeId: trade.id } })}
+                        disabled={acting}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Counter trade with ${opponentName}`}
+                        pressedScale={0.94}
+                    >
+                        <Text style={styles.actionBtnRejectText}>Counter</Text>
+                    </MotionPressable>
                 </View>
             )}
             {tab === 'offers' && isProposer && trade.status === 'pending' && (
                 <View style={styles.cardActions}>
-                    {!trade.isMultiTeam ? (
-                        <MotionPressable
-                            style={[styles.actionBtn, styles.actionBtnAccept]}
-                            onPress={() => push({ pathname: '/(modals)/propose-trade', params: { editTradeId: trade.id } })}
-                            disabled={acting}
-                            accessibilityRole="button"
-                            accessibilityLabel={`Edit trade with ${opponentName}`}
-                            pressedScale={0.94}
-                        >
-                            <Text style={styles.actionBtnAcceptText}>Edit</Text>
-                        </MotionPressable>
-                    ) : null}
+                    <MotionPressable
+                        style={[styles.actionBtn, styles.actionBtnAccept]}
+                        onPress={() => push({ pathname: '/(modals)/propose-trade', params: { editTradeId: trade.id } })}
+                        disabled={acting}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Edit trade with ${opponentName}`}
+                        pressedScale={0.94}
+                    >
+                        <Text style={styles.actionBtnAcceptText}>Edit</Text>
+                    </MotionPressable>
                     <MotionPressable
                         style={[styles.actionBtn, styles.actionBtnReject]}
                         onPress={handleWithdraw}

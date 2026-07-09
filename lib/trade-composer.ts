@@ -86,6 +86,9 @@ type SubmitComposerDeps = {
 }
 
 type SubmitMultiTeamComposerInput = {
+    mode: TradeComposerMode
+    editTradeId: string | null
+    counterTradeId: string | null
     myMemberId: string
     leagueId: string
     participantMemberIds: string[]
@@ -102,6 +105,26 @@ type SubmitMultiTeamComposerDeps = {
         memberId: string,
         leagueId: string,
         seasonId: string,
+        payload: {
+            participantMemberIds: string[]
+            items: MultiTeamTradeItemPayload[]
+            notes?: string | null
+            expiresAt?: string | null
+        },
+    ) => Promise<string>
+    counterMultiTeamTrade: (
+        tradeId: string,
+        memberId: string,
+        payload: {
+            participantMemberIds: string[]
+            items: MultiTeamTradeItemPayload[]
+            notes?: string | null
+            expiresAt?: string | null
+        },
+    ) => Promise<string>
+    editMultiTeamTrade: (
+        tradeId: string,
+        memberId: string,
         payload: {
             participantMemberIds: string[]
             items: MultiTeamTradeItemPayload[]
@@ -279,15 +302,27 @@ export async function submitMultiTeamTradeComposer(
         leagueStatus: input.leagueStatus,
         tradeDeadline: input.tradeDeadline,
     })
-    const seasonId = await deps.getCurrentSeasonId(input.leagueId)
-    if (!seasonId) throw new Error('No active season found.')
-
-    await deps.proposeMultiTeamTrade(input.myMemberId, input.leagueId, seasonId, {
+    const payload = {
         participantMemberIds: input.participantMemberIds,
         items: input.items,
         notes: input.notes.trim() || undefined,
         expiresAt: draft.payload.expiresAt,
-    })
+    }
+
+    if (input.mode === 'counter' && input.counterTradeId) {
+        await deps.counterMultiTeamTrade(input.counterTradeId, input.myMemberId, payload)
+        return
+    }
+
+    if (input.mode === 'edit' && input.editTradeId) {
+        await deps.editMultiTeamTrade(input.editTradeId, input.myMemberId, payload)
+        return
+    }
+
+    const seasonId = await deps.getCurrentSeasonId(input.leagueId)
+    if (!seasonId) throw new Error('No active season found.')
+
+    await deps.proposeMultiTeamTrade(input.myMemberId, input.leagueId, seasonId, payload)
 }
 
 export function tradeComposerTitle(mode: TradeComposerMode): string {

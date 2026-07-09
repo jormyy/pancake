@@ -82,6 +82,14 @@ type ReplaceTradeAction = {
   logLabel: string
 }
 
+type ReplaceMultiTeamTradeAction = {
+  rpc: 'counter_multi_team_trade_atomic' | 'edit_multi_team_trade_atomic'
+  notificationTitle: string
+  notificationMessage: string
+  sourceTradeMetadataKey: 'counteredFromTradeId' | 'editedFromTradeId'
+  logLabel: string
+}
+
 const REPLACE_TRADE_ACTIONS: Record<'counter' | 'edit', ReplaceTradeAction> = {
   counter: {
     rpc: 'counter_trade_atomic',
@@ -100,6 +108,23 @@ const REPLACE_TRADE_ACTIONS: Record<'counter' | 'edit', ReplaceTradeAction> = {
     notificationMessage: 'A pending trade offer was updated.',
     sourceTradeMetadataKey: 'editedFromTradeId',
     logLabel: 'edit',
+  },
+}
+
+const REPLACE_MULTI_TEAM_TRADE_ACTIONS: Record<'counter' | 'edit', ReplaceMultiTeamTradeAction> = {
+  counter: {
+    rpc: 'counter_multi_team_trade_atomic',
+    notificationTitle: 'Multi-Team Trade Countered',
+    notificationMessage: 'A multi-team counteroffer is waiting for your review.',
+    sourceTradeMetadataKey: 'counteredFromTradeId',
+    logLabel: 'multi-team counter',
+  },
+  edit: {
+    rpc: 'edit_multi_team_trade_atomic',
+    notificationTitle: 'Multi-Team Trade Edited',
+    notificationMessage: 'A pending multi-team trade offer was updated.',
+    sourceTradeMetadataKey: 'editedFromTradeId',
+    logLabel: 'multi-team edit',
   },
 }
 
@@ -334,6 +359,40 @@ async function fetchPendingTradeForAction(
   return data
 }
 
+async function fetchPendingMultiTeamTradeForAction(
+  tradeId: string,
+  memberId: string,
+  action: 'counter' | 'edit',
+): Promise<{ proposer_member_id: string; recipient_member_id: string }> {
+  const { data, error } = await supabase
+    .from('trades')
+    .select('id, proposer_member_id, recipient_member_id, status, is_multi_team')
+    .eq('id', tradeId)
+    .maybeSingle()
+
+  if (error) throwDb(error)
+  if (!data) throw new NotFoundError('Trade not found.')
+  if (!data.is_multi_team) throw new ValidationError('This action only supports multi-team trades.')
+  if (data.status !== 'pending') throw new ValidationError('This trade is no longer pending.')
+
+  if (action === 'edit') {
+    if (data.proposer_member_id !== memberId) throw new NotFoundError('Trade not found.')
+    return data
+  }
+
+  if (data.proposer_member_id === memberId) throw new NotFoundError('Trade not found.')
+  const { data: participant, error: participantError } = await supabase
+    .from('trade_participants')
+    .select('member_id, accepted_at')
+    .eq('trade_id', tradeId)
+    .eq('member_id', memberId)
+    .maybeSingle()
+  if (participantError) throwDb(participantError)
+  if (!participant || participant.accepted_at != null) throw new NotFoundError('Trade not found.')
+
+  return data
+}
+
 async function fetchPendingTradeForAccept(tradeId: string, memberId: string): Promise<PendingTradeForAccept> {
   const { data, error } = await supabase
     .from('trades')
@@ -468,6 +527,14 @@ async function editTrade(userId: string, tradeId: string, body: Record<string, u
   return replaceTrade(userId, tradeId, body, REPLACE_TRADE_ACTIONS.edit)
 }
 
+async function counterMultiTeamTrade(userId: string, tradeId: string, body: Record<string, unknown>): Promise<{ tradeId: string }> {
+  return replaceMultiTeamTrade(userId, tradeId, body, 'counter', REPLACE_MULTI_TEAM_TRADE_ACTIONS.counter)
+}
+
+async function editMultiTeamTrade(userId: string, tradeId: string, body: Record<string, unknown>): Promise<{ tradeId: string }> {
+  return replaceMultiTeamTrade(userId, tradeId, body, 'edit', REPLACE_MULTI_TEAM_TRADE_ACTIONS.edit)
+}
+
 async function replaceTrade(
   userId: string,
   tradeId: string,
@@ -497,6 +564,50 @@ async function replaceTrade(
     action.notificationMessage,
     { tradeId: newTradeIdString, [action.sourceTradeMetadataKey]: tradeId },
     'trade',
+  ).catch((error) => console.error(`[api/trades] ${action.logLabel} notification failed`, error))
+
+  return { tradeId: newTradeIdString }
+}
+
+async function replaceMultiTeamTrade(
+  userId: string,
+  tradeId: string,
+  body: Record<string, unknown>,
+  actionName: 'counter' | 'edit',
+  action: ReplaceMultiTeamTradeAction,
+): Promise<{ tradeId: string }> {
+  const memberId = uuidField(body, 'memberId')
+  await requireOwnMember(userId, memberId)
+  await fetchPendingMultiTeamTradeForAction(tradeId, memberId, actionName)
+  const payload = multiTeamTradePayload(body)
+
+  const { data: newTradeId, error } = await supabase.rpc(action.rpc, {
+    p_trade_id: tradeId,
+    p_member_id: memberId,
+    p_user_id: userId,
+    p_participant_member_ids: payload.participantMemberIds,
+    p_items: multiTeamTradeItemsJson(payload.items),
+    p_notes: payload.notes ?? undefined,
+    p_expires_at: payload.expiresAt ?? undefined,
+  })
+  if (error || !newTradeId) {
+    if (error) throwDb(error)
+    throw new ValidationError('This trade offer has expired.')
+  }
+
+  const newTradeIdString = String(newTradeId)
+  Promise.all(
+    [...new Set([memberId, ...payload.participantMemberIds])]
+      .filter((participantId) => participantId !== memberId)
+      .map((participantId) =>
+        notifyMember(
+          participantId,
+          action.notificationTitle,
+          action.notificationMessage,
+          { tradeId: newTradeIdString, [action.sourceTradeMetadataKey]: tradeId },
+          'trade',
+        ),
+      ),
   ).catch((error) => console.error(`[api/trades] ${action.logLabel} notification failed`, error))
 
   return { tradeId: newTradeIdString }
@@ -628,6 +739,12 @@ export async function handleTradeRoute(req: Request, path: string): Promise<Resp
   }
   if (action.action === 'edit') {
     return json({ ok: true, ...await editTrade(userId, action.tradeId, body) })
+  }
+  if (action.action === 'counter-multi') {
+    return json({ ok: true, ...await counterMultiTeamTrade(userId, action.tradeId, body) })
+  }
+  if (action.action === 'edit-multi') {
+    return json({ ok: true, ...await editMultiTeamTrade(userId, action.tradeId, body) })
   }
   if (action.action === 'veto') {
     return json({ ok: true, ...await vetoTrade(userId, action.tradeId, body) })

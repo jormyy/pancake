@@ -262,6 +262,38 @@ export async function proposeMultiTeamTrade(
     return result.tradeId
 }
 
+export async function counterMultiTeamTrade(
+    tradeId: string,
+    memberId: string,
+    payload: MultiTeamTradeProposalPayload,
+): Promise<string> {
+    const result = await apiPost<{ tradeId: string }>(`/trades/${tradeId}/counter-multi`, {
+        memberId,
+        participantMemberIds: payload.participantMemberIds,
+        items: payload.items,
+        notes: payload.notes ?? '',
+        expiresAt: payload.expiresAt ?? null,
+    })
+
+    return result.tradeId
+}
+
+export async function editMultiTeamTrade(
+    tradeId: string,
+    memberId: string,
+    payload: MultiTeamTradeProposalPayload,
+): Promise<string> {
+    const result = await apiPost<{ tradeId: string }>(`/trades/${tradeId}/edit-multi`, {
+        memberId,
+        participantMemberIds: payload.participantMemberIds,
+        items: payload.items,
+        notes: payload.notes ?? '',
+        expiresAt: payload.expiresAt ?? null,
+    })
+
+    return result.tradeId
+}
+
 export async function counterTrade(
     tradeId: string,
     memberId: string,

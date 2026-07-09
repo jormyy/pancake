@@ -16,6 +16,8 @@ type MultiTeamTradeBuilderProps = {
     participantPlayerIds: Record<string, Set<string>>
     participantPickIds: Record<string, Set<string>>
     participantDestinationIds: Record<string, string>
+    participantPlayerDestinationIds: Record<string, Record<string, string>>
+    participantPickDestinationIds: Record<string, Record<string, string>>
     participantFaabInputs: Record<string, string>
     avgMap: Map<string, number>
     avgStatsMap: Map<string, { avg_minutes_played: number | null }>
@@ -24,6 +26,8 @@ type MultiTeamTradeBuilderProps = {
     onTogglePlayer: (memberId: string, playerId: string) => void
     onTogglePick: (memberId: string, pickId: string) => void
     onDestinationChange: (memberId: string, toMemberId: string) => void
+    onPlayerDestinationChange: (memberId: string, playerId: string, toMemberId: string) => void
+    onPickDestinationChange: (memberId: string, pickId: string, toMemberId: string) => void
     onFaabChange: (memberId: string, value: string) => void
     onNotesChange: (value: string) => void
     onExpirationDaysChange: (value: string) => void
@@ -41,6 +45,8 @@ export function MultiTeamTradeBuilder({
     participantPlayerIds,
     participantPickIds,
     participantDestinationIds,
+    participantPlayerDestinationIds,
+    participantPickDestinationIds,
     participantFaabInputs,
     avgMap,
     avgStatsMap,
@@ -49,6 +55,8 @@ export function MultiTeamTradeBuilder({
     onTogglePlayer,
     onTogglePick,
     onDestinationChange,
+    onPlayerDestinationChange,
+    onPickDestinationChange,
     onFaabChange,
     onNotesChange,
     onExpirationDaysChange,
@@ -76,6 +84,23 @@ export function MultiTeamTradeBuilder({
             : destinationOptions[0]
         const roster = participantRosters[memberId] ?? []
         const picks = participantPicks[memberId] ?? []
+        const selectedPlayerIds = participantPlayerIds[memberId] ?? new Set<string>()
+        const selectedPickIds = participantPickIds[memberId] ?? new Set<string>()
+        const playerDestinations = participantPlayerDestinationIds[memberId] ?? {}
+        const pickDestinations = participantPickDestinationIds[memberId] ?? {}
+        const destinationForPlayer = (playerId: string) => {
+            const destinationId = playerDestinations[playerId]
+            if (destinationId && destinationOptions.includes(destinationId)) return destinationId
+            return toMemberId
+        }
+        const destinationForPick = (pickId: string) => {
+            const destinationId = pickDestinations[pickId]
+            if (destinationId && destinationOptions.includes(destinationId)) return destinationId
+            return toMemberId
+        }
+        const selectedPlayers = roster.filter((player) => selectedPlayerIds.has(player.players.id))
+        const selectedPicks = picks.filter((pick) => selectedPickIds.has(pick.pickId))
+
         return (
             <View
                 key={memberId}
@@ -85,7 +110,7 @@ export function MultiTeamTradeBuilder({
                 ]}
             >
                 <View style={styles.routePicker}>
-                    <Text style={styles.routePickerLabel}>SEND TO</Text>
+                    <Text style={styles.routePickerLabel}>DEFAULT SEND TO</Text>
                     <View style={styles.routeOptions}>
                         {destinationOptions.map((destinationId) => {
                             const active = destinationId === toMemberId
@@ -120,12 +145,89 @@ export function MultiTeamTradeBuilder({
                     picks={picks}
                     avgMap={avgMap}
                     avgStatsMap={avgStatsMap}
-                    selectedPlayerIds={participantPlayerIds[memberId] ?? new Set()}
-                    selectedPickIds={participantPickIds[memberId] ?? new Set()}
+                    selectedPlayerIds={selectedPlayerIds}
+                    selectedPickIds={selectedPickIds}
+                    playerDestinationLabel={(playerId) => participantName(destinationForPlayer(playerId))}
+                    pickDestinationLabel={(pickId) => participantName(destinationForPick(pickId))}
                     onTogglePlayer={(playerId) => onTogglePlayer(memberId, playerId)}
                     onTogglePick={(pickId) => onTogglePick(memberId, pickId)}
                     emptyText="No tradeable active players."
                 />
+                {selectedPlayers.length > 0 || selectedPicks.length > 0 ? (
+                    <View style={styles.selectedRoutes}>
+                        <Text style={styles.routePickerLabel}>SELECTED ROUTES</Text>
+                        {selectedPlayers.map((player) => {
+                            const playerId = player.players.id
+                            const selectedDestinationId = destinationForPlayer(playerId)
+                            return (
+                                <View key={`player:${playerId}`} style={styles.selectedRouteRow}>
+                                    <Text style={styles.selectedRouteName} numberOfLines={2}>
+                                        {player.players.display_name}
+                                    </Text>
+                                    <View style={styles.routeOptions}>
+                                        {destinationOptions.map((destinationId) => {
+                                            const active = destinationId === selectedDestinationId
+                                            return (
+                                                <Pressable
+                                                    key={destinationId}
+                                                    style={[styles.routeOption, active && styles.routeOptionActive]}
+                                                    onPress={() => onPlayerDestinationChange(memberId, playerId, destinationId)}
+                                                    accessibilityRole="button"
+                                                    accessibilityLabel={`Route ${player.players.display_name} to ${participantName(destinationId)}`}
+                                                >
+                                                    <Text
+                                                        style={[
+                                                            styles.routeOptionText,
+                                                            active && styles.routeOptionTextActive,
+                                                        ]}
+                                                        numberOfLines={1}
+                                                    >
+                                                        {participantName(destinationId)}
+                                                    </Text>
+                                                </Pressable>
+                                            )
+                                        })}
+                                    </View>
+                                </View>
+                            )
+                        })}
+                        {selectedPicks.map((pick) => {
+                            const selectedDestinationId = destinationForPick(pick.pickId)
+                            const label = `${pick.seasonYear} Round ${pick.round}`
+                            return (
+                                <View key={`pick:${pick.pickId}`} style={styles.selectedRouteRow}>
+                                    <Text style={styles.selectedRouteName} numberOfLines={2}>
+                                        {label}
+                                    </Text>
+                                    <View style={styles.routeOptions}>
+                                        {destinationOptions.map((destinationId) => {
+                                            const active = destinationId === selectedDestinationId
+                                            return (
+                                                <Pressable
+                                                    key={destinationId}
+                                                    style={[styles.routeOption, active && styles.routeOptionActive]}
+                                                    onPress={() => onPickDestinationChange(memberId, pick.pickId, destinationId)}
+                                                    accessibilityRole="button"
+                                                    accessibilityLabel={`Route ${label} pick to ${participantName(destinationId)}`}
+                                                >
+                                                    <Text
+                                                        style={[
+                                                            styles.routeOptionText,
+                                                            active && styles.routeOptionTextActive,
+                                                        ]}
+                                                        numberOfLines={1}
+                                                    >
+                                                        {participantName(destinationId)}
+                                                    </Text>
+                                                </Pressable>
+                                            )
+                                        })}
+                                    </View>
+                                </View>
+                            )
+                        })}
+                    </View>
+                ) : null}
                 {faabEnabled ? (
                     <View style={styles.multiFaabRow}>
                         <Text style={styles.termLabel}>
@@ -257,6 +359,18 @@ const styles = StyleSheet.create({
         color: colors.textSecondary,
     },
     routeOptionTextActive: { color: colors.textWhite },
+    selectedRoutes: {
+        paddingHorizontal: spacing.xl,
+        paddingTop: spacing.md,
+        paddingBottom: spacing.sm,
+        gap: spacing.sm,
+    },
+    selectedRouteRow: { gap: spacing.xs },
+    selectedRouteName: {
+        fontSize: fontSize.sm,
+        fontWeight: fontWeight.semibold,
+        color: colors.textPrimary,
+    },
     multiFaabRow: {
         marginHorizontal: spacing.xl,
         marginBottom: spacing.lg,
