@@ -33,6 +33,7 @@ export async function runBrowserTradeScenario({
 } = {}) {
   const env = resolvedEnv()
   requireEnv(env, ['supabaseUrl', 'serviceRoleKey', 'anonKey'])
+  if (!env.frontendUrl) throw new Error('Missing E2E_FRONTEND_URL')
   const fixture = await setupTradeGameplayFixture(env, season)
   const sessionList = await listSessions().catch((error) => `session list unavailable: ${error.message}`)
   const session = sessionName ?? tradeSessionName('tr', fixture.runId)
@@ -166,6 +167,7 @@ export async function runBrowserTradePostDeadlineScenario({
 } = {}) {
   const env = resolvedEnv()
   requireEnv(env, ['supabaseUrl', 'serviceRoleKey', 'anonKey'])
+  if (!env.frontendUrl) throw new Error('Missing E2E_FRONTEND_URL')
   const fixture = await setupTradePostDeadlineGameplayFixture(env, season)
   const sessionList = await listSessions().catch((error) => `session list unavailable: ${error.message}`)
   const session = sessionName ?? tradeSessionName('pd', fixture.runId)

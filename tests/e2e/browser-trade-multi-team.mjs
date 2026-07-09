@@ -18,6 +18,18 @@ import {
 } from './trade-browser-harness.mjs'
 import { setupMultiTeamTradeGameplayFixture } from './trade-fixture.mjs'
 
+/** @typedef {Awaited<ReturnType<typeof setupMultiTeamTradeGameplayFixture>>} MultiTeamFixture */
+/**
+ * @typedef {object} ReplacementOptions
+ * @property {string} initialTradeId
+ * @property {'countered' | 'edited'} sourceStatus
+ * @property {'countered_from_trade_id' | 'edited_from_trade_id'} sourceColumn
+ * @property {string} expectedProposerId
+ * @property {string} expectedRecipientId
+ * @property {number} expectedVersion
+ */
+
+/** @param {MultiTeamFixture} fixture */
 const verifyMultiTeamTradeProposal = async (fixture) => {
   const { data: trades, error: tradesError } = await fixture.admin
     .from('trades')
@@ -86,6 +98,7 @@ const verifyMultiTeamTradeProposal = async (fixture) => {
   return { trade, items, participants, failures }
 }
 
+/** @param {MultiTeamFixture} fixture @param {number} [timeoutMs] */
 const waitForMultiTeamTradeProposal = async (fixture, timeoutMs = 10_000) => {
   const startedAt = Date.now()
   let last = await verifyMultiTeamTradeProposal(fixture)
@@ -96,12 +109,18 @@ const waitForMultiTeamTradeProposal = async (fixture, timeoutMs = 10_000) => {
   return last
 }
 
+/** @param {MultiTeamFixture} fixture */
 const multiTeamExpectedRoutes = (fixture) => new Map([
   [fixture.proposerPlayer.id, { from: fixture.proposer.id, to: fixture.observer.id }],
   [fixture.recipientPlayer.id, { from: fixture.recipient.id, to: fixture.observer.id }],
   [fixture.observerPlayer.id, { from: fixture.observer.id, to: fixture.proposer.id }],
 ])
 
+/**
+ * @param {MultiTeamFixture} fixture
+ * @param {string} sourceTradeId
+ * @param {ReplacementOptions} options
+ */
 const verifyMultiTeamReplacement = async (fixture, sourceTradeId, {
   initialTradeId,
   sourceStatus,
@@ -195,6 +214,12 @@ const verifyMultiTeamReplacement = async (fixture, sourceTradeId, {
   return { source, replacement, items, participants, failures }
 }
 
+/**
+ * @param {MultiTeamFixture} fixture
+ * @param {string} sourceTradeId
+ * @param {ReplacementOptions} options
+ * @param {number} [timeoutMs]
+ */
 const waitForMultiTeamReplacement = async (fixture, sourceTradeId, options, timeoutMs = 10_000) => {
   const startedAt = Date.now()
   let last = await verifyMultiTeamReplacement(fixture, sourceTradeId, options)
@@ -211,7 +236,13 @@ export async function runBrowserMultiTeamTradeScenario({
 } = {}) {
   const env = resolvedEnv()
   requireEnv(env, ['supabaseUrl', 'serviceRoleKey', 'anonKey'])
+  if (!env.frontendUrl) throw new Error('Missing E2E_FRONTEND_URL')
   const fixture = await setupMultiTeamTradeGameplayFixture(env, season)
+  if (!fixture.recipient.team_name || !fixture.observer.team_name) {
+    throw new Error('Multi-team fixture members must have team names')
+  }
+  const recipientTeamName = fixture.recipient.team_name
+  const observerTeamName = fixture.observer.team_name
   const sessionList = await listSessions().catch((error) => `session list unavailable: ${error.message}`)
   const session = sessionName ?? tradeSessionName('mt', fixture.runId)
   const counterSession = `${session}-counter`
@@ -240,8 +271,8 @@ export async function runBrowserMultiTeamTradeScenario({
         'Propose Trade',
         '2-Team',
         'Multi-Team',
-        fixture.recipient.team_name,
-        fixture.observer.team_name,
+        recipientTeamName,
+        observerTeamName,
       ],
       'multi-team trade proposal initial screen',
     )
@@ -249,12 +280,12 @@ export async function runBrowserMultiTeamTradeScenario({
     const modeClick = await clickButton(session, 'Use multi-team trade mode', 'multi-team mode toggle')
     const recipientClick = await clickButton(
       session,
-      `Trade with ${fixture.recipient.team_name}`,
+      `Trade with ${recipientTeamName}`,
       'multi-team recipient team selection',
     )
     const observerClick = await clickButton(
       session,
-      `Trade with ${fixture.observer.team_name}`,
+      `Trade with ${observerTeamName}`,
       'multi-team third team selection',
     )
     await browser(session, ['wait', '4500'])
@@ -263,8 +294,8 @@ export async function runBrowserMultiTeamTradeScenario({
       [
       'DEAL OVERVIEW',
       'YOU SEND',
-        `${fixture.recipient.team_name.toUpperCase()} SENDS`,
-        `${fixture.observer.team_name.toUpperCase()} SENDS`,
+        `${recipientTeamName.toUpperCase()} SENDS`,
+        `${observerTeamName.toUpperCase()} SENDS`,
         fixture.proposerPlayer.display_name,
         fixture.recipientPlayer.display_name,
         fixture.observerPlayer.display_name,
@@ -277,20 +308,20 @@ export async function runBrowserMultiTeamTradeScenario({
     await browser(session, ['wait', '500'])
     await assertPageText(
       session,
-      ['DEAL OVERVIEW', 'You send', `${fixture.recipient.team_name} sends`, `${fixture.observer.team_name} sends`],
+      ['DEAL OVERVIEW', 'You send', `${recipientTeamName} sends`, `${observerTeamName} sends`],
       'mobile multi-team sender tabs',
     )
     await browser(session, ['screenshot', path.join(artifactDir, 'multi-team-builder-mobile.png')], { timeout: 60_000 })
 
     const recipientTabClick = await clickButton(
       session,
-      `Edit assets sent by ${fixture.recipient.team_name}`,
+      `Edit assets sent by ${recipientTeamName}`,
       'mobile recipient sender tab',
     )
 
     const routeClick = await clickButton(
       session,
-      `${fixture.recipient.team_name} sends selected assets to ${fixture.observer.team_name}`,
+      `${recipientTeamName} sends selected assets to ${observerTeamName}`,
       'multi-team recipient route selection',
     )
     const proposerTabClick = await clickButton(
@@ -305,7 +336,7 @@ export async function runBrowserMultiTeamTradeScenario({
     )
     await clickButton(
       session,
-      `Edit assets sent by ${fixture.recipient.team_name}`,
+      `Edit assets sent by ${recipientTeamName}`,
       'mobile recipient sender tab after proposer selection',
     )
     const recipientPlayerClick = await clickButton(
@@ -315,7 +346,7 @@ export async function runBrowserMultiTeamTradeScenario({
     )
     const observerTabClick = await clickButton(
       session,
-      `Edit assets sent by ${fixture.observer.team_name}`,
+      `Edit assets sent by ${observerTeamName}`,
       'mobile observer sender tab',
     )
     const observerPlayerClick = await clickButton(
@@ -330,7 +361,7 @@ export async function runBrowserMultiTeamTradeScenario({
     )
     const proposerPlayerRouteClick = await clickButton(
       session,
-      `Route ${fixture.proposerPlayer.display_name} to ${fixture.observer.team_name}`,
+      `Route ${fixture.proposerPlayer.display_name} to ${observerTeamName}`,
       'multi-team proposer player per-asset route selection',
     )
     await browser(session, ['wait', '500'])
@@ -364,8 +395,8 @@ export async function runBrowserMultiTeamTradeScenario({
       session,
       [
         'DEAL OVERVIEW',
-        fixture.recipient.team_name,
-        fixture.observer.team_name,
+        recipientTeamName,
+        observerTeamName,
         'RECEIVES',
         'Accepted',
         'Waiting',

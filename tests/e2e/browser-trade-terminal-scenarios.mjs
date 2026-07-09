@@ -34,6 +34,9 @@ export async function runBrowserTradeVetoScenario({
   const env = resolvedEnv()
   requireEnv(env, ['supabaseUrl', 'serviceRoleKey', 'anonKey'])
   const fixture = await setupTradeVetoGameplayFixture(env, season)
+  if (!fixture.proposer.team_name || !fixture.recipient.team_name) {
+    throw new Error('Veto fixture members must have team names')
+  }
   const sessionList = await listSessions().catch((error) => `session list unavailable: ${error.message}`)
   const session = sessionName ?? tradeSessionName('vt', fixture.runId)
   const artifactDir = path.join(ARTIFACT_ROOT, `season-${season}`, 'browser-trade-veto')
@@ -153,7 +156,21 @@ export async function runBrowserTradeTerminalScenario({
   const env = resolvedEnv()
   requireEnv(env, ['supabaseUrl', 'serviceRoleKey', 'anonKey'])
   const rejectFixture = await setupTradeAcceptGameplayFixture(env, season)
-  const withdrawFixture = await setupTradeAcceptGameplayFixture(env, season)
+  let withdrawFixture
+  try {
+    withdrawFixture = await setupTradeAcceptGameplayFixture(env, season)
+  } catch (error) {
+    try {
+      await rejectFixture.dispose()
+    } catch (cleanupError) {
+      throw new AggregateError([error, cleanupError], 'Terminal fixture acquisition and cleanup failed')
+    }
+    throw error
+  }
+  if (!rejectFixture.proposer.team_name || !withdrawFixture.recipient.team_name) {
+    await Promise.allSettled([rejectFixture.dispose(), withdrawFixture.dispose()])
+    throw new Error('Terminal trade fixture members must have team names')
+  }
   const sessionList = await listSessions().catch((error) => `session list unavailable: ${error.message}`)
   const rejectSession = sessionName
     ? `${safeName(sessionName)}-reject`

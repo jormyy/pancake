@@ -91,27 +91,39 @@ const findFuturePickForMember = async (admin, leagueId, memberId, seasonYear, ro
   }
 }
 
-const disposeFixtureResources = async (admin, leagueId, userIds) => {
-  if (leagueId) {
-    const { error } = await admin.from('leagues').delete().eq('id', leagueId)
-    if (error) throw new Error(`fixture league cleanup: ${error.message}`)
-  }
-  const results = await Promise.all(userIds.map((userId) => admin.auth.admin.deleteUser(userId)))
-  const failure = results.find((result) => result.error)
-  if (failure?.error) throw new Error(`fixture user cleanup: ${failure.error.message}`)
-}
-
 export const createFixtureResourceOwner = (admin) => {
   let leagueId = null
-  const userIds = []
+  const userIds = new Set()
   let disposed = false
   return {
     registerLeague: (id) => { leagueId = id },
-    registerUser: (id) => { userIds.push(id) },
+    registerUser: (id) => { userIds.add(id) },
     dispose: async () => {
       if (disposed) return
-      disposed = true
-      await disposeFixtureResources(admin, leagueId, userIds)
+      const failures = []
+      if (leagueId) {
+        const { error: terminalError } = await admin
+          .from('trades')
+          .update({ status: 'vetoed', vetoed_at: new Date().toISOString() })
+          .eq('league_id', leagueId)
+          .eq('status', 'accepted')
+        const { error } = await admin.from('leagues').delete().eq('id', leagueId)
+        if (error) {
+          if (terminalError) failures.push(new Error(`fixture accepted-trade cleanup: ${terminalError.message}`))
+          failures.push(new Error(`fixture league cleanup: ${error.message}`))
+        }
+        else leagueId = null
+      }
+      const results = await Promise.all([...userIds].map(async (userId) => ({
+        userId,
+        result: await admin.auth.admin.deleteUser(userId),
+      })))
+      for (const { userId, result } of results) {
+        if (result.error) failures.push(new Error(`fixture user cleanup ${userId}: ${result.error.message}`))
+        else userIds.delete(userId)
+      }
+      disposed = leagueId === null && userIds.size === 0
+      if (failures.length > 0) throw new AggregateError(failures, 'Fixture cleanup failed')
     },
   }
 }
@@ -132,11 +144,15 @@ export const setupTradeGameplayFixture = async (
     teamName: `Trade Team ${n}`,
   }))
   const admin = createClient(env.supabaseUrl, env.serviceRoleKey, { auth: { persistSession: false } })
+  const resources = createFixtureResourceOwner(admin)
   const createdUsers = []
-  let leagueId = null
 
   try {
-    for (const user of users) createdUsers.push(await createConfirmedUser(admin, user))
+    for (const user of users) {
+      const createdUser = await createConfirmedUser(admin, user)
+      createdUsers.push(createdUser)
+      resources.registerUser(createdUser.id)
+    }
     const { error: profileError } = await admin.from('profiles').upsert(createdUsers.map((user) => ({
       id: user.id,
       username: user.username,
@@ -151,7 +167,7 @@ export const setupTradeGameplayFixture = async (
       p_auction_budget: 200,
     })
     if (createError) throw new Error(`create_league: ${createError.message}`)
-    leagueId = league.id
+    resources.registerLeague(league.id)
     for (const user of createdUsers.slice(1)) {
       const memberClient = await signInClient(env, user.email, password)
       const { error: joinError } = await memberClient.rpc('join_league_by_invite_code', {
@@ -184,37 +200,42 @@ export const setupTradeGameplayFixture = async (
     const { error: statusError } = await admin.from('leagues').update({ status: 'active' }).eq('id', league.id)
     if (statusError) throw new Error(`trade fixture status flip: ${statusError.message}`)
 
-    let disposed = false
     return {
       admin, runId, password, users: createdUsers, league, currentSeason, proposer, recipient, observer,
       proposerPlayer, recipientPlayer, targetFuturePickYear, proposerFuturePick, recipientFuturePick,
-      dispose: async () => {
-        if (disposed) return
-        disposed = true
-        await disposeFixtureResources(admin, league.id, createdUsers.map((user) => user.id))
-      },
+      dispose: resources.dispose,
     }
   } catch (error) {
-    await disposeFixtureResources(admin, leagueId, createdUsers.map((user) => user.id)).catch(() => {})
+    try {
+      await resources.dispose()
+    } catch (cleanupError) {
+      throw new AggregateError([error, cleanupError], 'Trade fixture setup and cleanup failed')
+    }
     throw error
   }
 }
 
 export const setupMultiTeamTradeGameplayFixture = async (env, season) => {
   const fixture = await setupTradeGameplayFixture(env, season, { memberCount: 3, includeFuturePicks: false })
-  if (!fixture.observer) throw new Error('browser multi-team trade fixture did not create a third member')
-  const [observerPlayer] = await findAvailablePlayers(fixture.admin, fixture.league.id, fixture.currentSeason.id, 1)
-  const { error } = await fixture.admin.from('roster_players').insert({
-    league_id: fixture.league.id,
-    league_season_id: fixture.currentSeason.id,
-    member_id: fixture.observer.id,
-    player_id: observerPlayer.id,
-    acquired_via: 'draft',
-    acquisition_cost: 1,
-  })
-  if (error) {
-    await fixture.dispose().catch(() => {})
-    throw new Error(`multi-team observer roster seed insert: ${error.message}`)
+  try {
+    if (!fixture.observer) throw new Error('browser multi-team trade fixture did not create a third member')
+    const [observerPlayer] = await findAvailablePlayers(fixture.admin, fixture.league.id, fixture.currentSeason.id, 1)
+    const { error } = await fixture.admin.from('roster_players').insert({
+      league_id: fixture.league.id,
+      league_season_id: fixture.currentSeason.id,
+      member_id: fixture.observer.id,
+      player_id: observerPlayer.id,
+      acquired_via: 'draft',
+      acquisition_cost: 1,
+    })
+    if (error) throw new Error(`multi-team observer roster seed insert: ${error.message}`)
+    return { ...fixture, observer: fixture.observer, observerPlayer }
+  } catch (error) {
+    try {
+      await fixture.dispose()
+    } catch (cleanupError) {
+      throw new AggregateError([error, cleanupError], 'Multi-team fixture setup and cleanup failed')
+    }
+    throw error
   }
-  return { ...fixture, observer: fixture.observer, observerPlayer }
 }

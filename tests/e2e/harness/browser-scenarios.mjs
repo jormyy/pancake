@@ -24,9 +24,12 @@ import {
   runBrowserTradeOverflowAcceptScenario,
   runBrowserTradePostDeadlineScenario,
   runBrowserTradeVetoScenario,
+  runBrowserMultiTeamTradeScenario,
 } from '../browser-trade-gameplay.mjs'
 
 const ONE_TIME_BROWSER_SCENARIOS = [
+  { flag: 'browser', resultKey: 'browserCheck', run: ({ args, season }) => runBrowserSmoke({ season, fullSweep: args.browserFullSweep }) },
+  { flag: 'browserAuth', resultKey: 'browserAuthCheck', run: ({ season }) => runBrowserAuthScenario({ season }) },
   { flag: 'browserPerf', resultKey: 'browserPerfCheck', run: ({ season }) => runBrowserPerfSmoke({ season }) },
   { flag: 'browserGameplay', resultKey: 'browserGameplayCheck', run: ({ season }) => runBrowserGameplayScenario({ season }) },
   { flag: 'browserLineup', resultKey: 'browserLineupCheck', run: ({ season }) => runBrowserLineupScenario({ season }) },
@@ -45,6 +48,7 @@ const ONE_TIME_BROWSER_SCENARIOS = [
   { flag: 'browserTradeOverflowAccept', resultKey: 'browserTradeOverflowAcceptCheck', run: ({ season }) => runBrowserTradeOverflowAcceptScenario({ season }) },
   { flag: 'browserTradePostDeadline', resultKey: 'browserTradePostDeadlineCheck', run: ({ season }) => runBrowserTradePostDeadlineScenario({ season }) },
   { flag: 'browserTradeVeto', resultKey: 'browserTradeVetoCheck', run: ({ season }) => runBrowserTradeVetoScenario({ season }) },
+  { flag: 'browserTradeMultiTeam', resultKey: 'browserTradeMultiTeamCheck', run: ({ season }) => runBrowserMultiTeamTradeScenario({ season }) },
   { flag: 'browserLeagueLifecycle', resultKey: 'browserLeagueLifecycleCheck', run: ({ season }) => runBrowserLeagueLifecycleScenario({ season }) },
 ]
 
@@ -53,16 +57,9 @@ export async function runBrowserScenarios({ args, season, shouldRun }) {
     ONE_TIME_BROWSER_SCENARIOS.map((scenario) => [scenario.resultKey, null]),
   )
 
-  if (args.browser) {
-    await runBrowserSmoke({ season, fullSweep: args.browserFullSweep })
-  }
-  if (args.browserAuth) {
-    await runBrowserAuthScenario({ season })
-  }
-
   for (const scenario of ONE_TIME_BROWSER_SCENARIOS) {
     if (args[scenario.flag] && shouldRun(args, season)) {
-      results[scenario.resultKey] = await scenario.run({ season })
+      results[scenario.resultKey] = await scenario.run({ args, season })
     }
   }
 

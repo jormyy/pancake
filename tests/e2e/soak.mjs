@@ -388,6 +388,8 @@ const main = async () => {
         }
 
         const {
+          browserCheck,
+          browserAuthCheck,
           browserPerfCheck,
           browserGameplayCheck,
           browserLineupCheck,
@@ -406,6 +408,7 @@ const main = async () => {
           browserTradeOverflowAcceptCheck,
           browserTradePostDeadlineCheck,
           browserTradeVetoCheck,
+          browserTradeMultiTeamCheck,
           browserLeagueLifecycleCheck,
         } = await runBrowserScenarios({ args, season, shouldRun: shouldRunScenario })
         const backendScenarioResults = await runBackendScenarios({
@@ -450,6 +453,7 @@ const main = async () => {
           tradeVetoCheck,
           waiverProcessingCheck,
         } = backendScenarioResults
+        let realtimeCheck = false
         if (args.realtime) {
           await assertRealtimeDelivery({
             supabase,
@@ -458,7 +462,9 @@ const main = async () => {
             leagueId: targetLeagueId,
             season,
           })
+          realtimeCheck = true
         }
+        let pushCheck = false
         if (args.push) {
           await assertPushNotifications({
             supabase,
@@ -468,6 +474,7 @@ const main = async () => {
             season,
             fakePort: args.fakePort,
           })
+          pushCheck = true
         }
 
         if (env.backendTicksEnabled) {
@@ -560,6 +567,54 @@ const main = async () => {
           rows.push({
             season,
             status: 'PASS',
+            evidenceIds: [
+              'invariants.boundary',
+              browserCheck ? 'browser.smoke' : null,
+              browserAuthCheck ? 'browser.auth' : null,
+              browserPerfCheck ? 'browser.performance' : null,
+              browserGameplayCheck ? 'browser.auction' : null,
+              browserLineupCheck ? 'browser.lineup' : null,
+              browserLineupAutoSetCheck ? 'browser.lineup_auto_set' : null,
+              browserLineupLockedCheck ? 'browser.lineup_locked' : null,
+              browserPlayoffCheck ? 'browser.playoffs' : null,
+              browserRookieDraftCheck ? 'browser.rookie_draft' : null,
+              browserWaiverCheck ? 'browser.waiver' : null,
+              browserWaiverDropCheck ? 'browser.waiver_drop' : null,
+              browserWaiverIrBlockCheck ? 'browser.waiver_ir_block' : null,
+              browserTradeCheck ? 'browser.trade_proposal' : null,
+              browserTradeAcceptCheck ? 'browser.trade_accept' : null,
+              browserTradeTerminalCheck ? 'browser.trade_terminal' : null,
+              browserTradeFuturePickCheck ? 'browser.trade_future_pick' : null,
+              browserTradeFuturePickAcceptCheck ? 'browser.trade_future_pick_accept' : null,
+              browserTradeOverflowAcceptCheck ? 'browser.trade_overflow_accept' : null,
+              browserTradePostDeadlineCheck ? 'browser.trade_post_deadline' : null,
+              browserTradeVetoCheck ? 'browser.trade_veto' : null,
+              browserTradeMultiTeamCheck ? 'browser.trade_multi_team' : null,
+              browserLeagueLifecycleCheck ? 'browser.league_lifecycle' : null,
+              leagueLifecycleCheck ? 'backend.league_lifecycle' : null,
+              realtimeCheck ? 'realtime.delivery' : null,
+              pushCheck ? 'push.trade_waiver' : null,
+              draftPushCheck ? 'push.draft' : null,
+              midlifeMigrationReport ? 'migration.midlife' : null,
+              auctionValidation ? 'backend.auction' : null,
+              playoffCheck ? 'backend.playoffs' : null,
+              tiebreakerCheck ? 'backend.tiebreakers' : null,
+              settingsCheck ? 'backend.settings' : null,
+              scoringCheck ? 'backend.scoring' : null,
+              waiverProcessingCheck ? 'backend.waiver_processing' : null,
+              injuryFilterCheck ? 'backend.injury_filter' : null,
+              tradeAcceptCheck ? 'backend.trade_accept' : null,
+              tradeVetoCheck ? 'backend.trade_veto' : null,
+              rookieDraftCheck ? 'backend.rookie_draft' : null,
+              seasonResetCheck ? 'backend.season_reset' : null,
+              env.backendTicksEnabled ? 'matchups.idempotent' : null,
+              args.pickChain ? 'picks.long_horizon' : null,
+              rookieDraftPickChainCheck ? 'picks.rookie_materialization' : null,
+              historyCheck ? 'history.retained' : null,
+              hadPreviousSnapshot ? 'snapshots.no_shrink' : null,
+              args.seasons >= 10 && season >= 10 ? 'runtime.drift' : null,
+              args.seasons >= 10 && season >= 10 ? 'memory.drift' : null,
+            ].filter(Boolean),
             notes: [
               seasonNotes,
               args.browser ? 'browser smoke passed' : null,
@@ -583,6 +638,7 @@ const main = async () => {
               browserTradeOverflowAcceptCheck ? 'browser trade overflow accept gameplay passed' : null,
               browserTradePostDeadlineCheck ? 'browser post-deadline trade gameplay passed' : null,
               browserTradeVetoCheck ? 'browser trade veto gameplay passed' : null,
+              browserTradeMultiTeamCheck ? 'browser multi-team trade gameplay passed' : null,
               browserLeagueLifecycleCheck ? 'browser league lifecycle passed' : null,
               leagueLifecycleCheck ? 'league lifecycle passed' : null,
               args.realtime ? 'realtime matchup and bid updates delivered' : null,

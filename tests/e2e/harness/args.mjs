@@ -30,6 +30,7 @@ export const parseArgs = () => {
     browserTradeOverflowAccept: args.get('browser-trade-overflow-accept') === 'true' || process.env.E2E_ENABLE_BROWSER_TRADE_OVERFLOW_ACCEPT === '1',
     browserTradePostDeadline: args.get('browser-trade-post-deadline') === 'true' || process.env.E2E_ENABLE_BROWSER_TRADE_POST_DEADLINE === '1',
     browserTradeVeto: args.get('browser-trade-veto') === 'true' || process.env.E2E_ENABLE_BROWSER_TRADE_VETO === '1',
+    browserTradeMultiTeam: args.get('browser-trade-multi-team') === 'true' || process.env.E2E_ENABLE_BROWSER_TRADE_MULTI_TEAM === '1',
     browserLeagueLifecycle: args.get('browser-league-lifecycle') === 'true' || process.env.E2E_ENABLE_BROWSER_LEAGUE_LIFECYCLE === '1',
     leagueLifecycle: args.get('league-lifecycle') === 'true' || process.env.E2E_ENABLE_LEAGUE_LIFECYCLE === '1',
     pickChain: args.get('pick-chain') === 'true' || process.env.E2E_ENABLE_PICK_CHAIN === '1',

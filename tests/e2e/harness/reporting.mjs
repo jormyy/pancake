@@ -5,7 +5,7 @@ const ROOT = process.cwd()
 const REPORT_PATH = path.join(ROOT, 'tests/e2e-report.md')
 const COVERAGE_PATH = path.join(ROOT, 'tests/e2e-coverage.md')
 
-/** @typedef {{ season: number, status: string, notes: string }} SoakRow */
+/** @typedef {{ season: number, status: string, notes: string, evidenceIds?: string[] }} SoakRow */
 /** @typedef {{ status: string, startedAt: string, finishedAt: string, seasons: number, rows: SoakRow[], notes: string[] }} ReportInput */
 /**
  * @typedef {{
@@ -16,6 +16,7 @@ const COVERAGE_PATH = path.join(ROOT, 'tests/e2e-coverage.md')
  *   browserTradeAccept: boolean, browserTradeFuturePick: boolean,
  *   browserTradeFuturePickAccept: boolean, browserTradeOverflowAccept: boolean,
  *   browserTradePostDeadline: boolean, browserTradeTerminal: boolean, browserTradeVeto: boolean,
+ *   browserTradeMultiTeam: boolean,
  *   browserWaiver: boolean, browserWaiverDrop: boolean, browserWaiverIrBlock: boolean,
  *   draftPush: boolean, fakePort: number, history: boolean, injuryFilter: boolean,
  *   leagueLifecycle: boolean, midlifeMigration: boolean, pickChain: boolean, playoffs: boolean,
@@ -50,26 +51,18 @@ export const writeReport = async ({ status, startedAt, finishedAt, seasons, rows
   await writeFile(REPORT_PATH, `${lines.join('\n')}\n`)
 }
 
-/** @param {SoakRow[]} rows @param {RegExp} pattern */
-const hasPassingNote = (rows, pattern) => rows.some((row) => row.status === 'PASS' && pattern.test(row.notes))
-/** @param {SoakRow[]} rows @param {RegExp} pattern */
-const hasFailingNote = (rows, pattern) => rows.some((row) => row.status === 'FAIL' && pattern.test(row.notes))
-/** @param {SoakRow[]} rows @param {RegExp} pattern */
-const hasProblemNote = (rows, pattern) => rows.some((row) => (
-  (row.status === 'FAIL' || row.status === 'ERROR' || row.status === 'BLOCKED') &&
-  pattern.test(row.notes)
-))
+/** @param {SoakRow[]} rows @param {string} evidenceId */
+const hasEvidence = (rows, evidenceId) => rows.some((row) => row.status === 'PASS' && row.evidenceIds?.includes(evidenceId))
 /** @param {string} status */
 const hasEvidencePass = (status) => status === 'PASS'
 /** @param {boolean} enabled @param {string} status */
 const hasEnabledEvidencePass = (enabled, status) => enabled && hasEvidencePass(status)
 /** @param {{ enabled: boolean, status: string }[]} items */
 const allEnabledEvidencePass = (items) => items.every(({ enabled, status }) => enabled && hasEvidencePass(status))
-/** @param {{ requirement: string, status: string }[]} coverage */
+/** @param {{ id: string, status: string, requiredForRelease: boolean }[]} coverage */
 export const productionCoverageStatus = (coverage) => {
-  const documentationRequirements = new Set(['Phase A audit report', 'P0/P1 findings resolved'])
   const prerequisiteStatuses = coverage
-    .filter((row) => !documentationRequirements.has(row.requirement))
+    .filter((row) => row.requiredForRelease)
     .map((row) => row.status)
   if (prerequisiteStatuses.length === 0) return 'PENDING'
   return prerequisiteStatuses.every((item) => item === 'PASS')
@@ -85,146 +78,81 @@ export const writeCoverageReport = async ({ status, startedAt, finishedAt, seaso
     ? 'FAIL'
     : rows.length > 0 ? 'PARTIAL' : 'PENDING'
   const producedTenSeasons = rows.some((row) => Number(row.season) >= 10)
-  const invariantStatus = rows.length === 0
+  const runFailed = status === 'ERROR' || rowStatus === 'FAIL'
+  /** @param {boolean} enabled @param {string} evidenceId */
+  const evidenceStatus = (enabled, evidenceId) => !enabled
     ? 'PENDING'
-    : hasFailingNote(rows, /\bI[0-7]:|D\.SET\.2/)
-      ? 'FAIL'
-      : hasPassingNote(rows, /D\.0 invariant boundary checks passed/) ? 'PASS' : 'PARTIAL'
-  const runtimeStatus = hasFailingNote(rows, /D\.LONG\.6/)
-    ? 'FAIL'
-    : producedTenSeasons ? 'PASS' : 'PENDING'
-  const memoryStatus = hasFailingNote(rows, /D\.LONG\.7/)
-    ? 'FAIL'
-    : producedTenSeasons ? 'PASS' : 'PENDING'
+    : hasEvidence(rows, evidenceId) ? 'PASS' : runFailed ? 'FAIL' : 'PENDING'
+  const invariantStatus = evidenceStatus(rows.length > 0, 'invariants.boundary')
+  const runtimeStatus = evidenceStatus(producedTenSeasons, 'runtime.drift')
+  const memoryStatus = evidenceStatus(producedTenSeasons, 'memory.drift')
   const resetStatus = args.seasonReset
-    ? hasFailingNote(rows, /D\.SEA\.6/) ? 'FAIL' : hasPassingNote(rows, /season reset carryover passed/) ? 'PASS' : 'PENDING'
+    ? evidenceStatus(true, 'backend.season_reset')
     : env.backendTicksEnabled
-      ? hasFailingNote(rows, /\bI[0-7]:|D\.SET\.2|advance-season|season reset/i) ? 'FAIL' : 'PARTIAL'
+      ? runFailed ? 'FAIL' : 'PARTIAL'
       : 'PENDING'
-  const snapshotStatus = hasPassingNote(rows, /snapshot row-count diff passed/) ? 'PASS' : rows.length > 1 ? rowStatus : 'PENDING'
-  const matchupStatus = env.backendTicksEnabled && hasPassingNote(rows, /matchup generation idempotency passed/) ? 'PASS' : 'PENDING'
-  const pickChainStatus = args.pickChain
-    ? hasFailingNote(rows, /D\.LONG\.1|D\.LONG\.2/) ? 'FAIL' : hasPassingNote(rows, /multi-hop future-pick owner resolved/) ? 'PASS' : 'PENDING'
-    : 'PENDING'
+  const snapshotStatus = evidenceStatus(rows.length > 1, 'snapshots.no_shrink')
+  const matchupStatus = evidenceStatus(env.backendTicksEnabled, 'matchups.idempotent')
+  const pickChainStatus = evidenceStatus(args.pickChain, 'picks.long_horizon')
+  const browserSmokeStatus = evidenceStatus(args.browser, 'browser.smoke')
+  const browserAuthStatus = evidenceStatus(args.browserAuth, 'browser.auth')
   const browserStatus = args.browser && args.browserAuth && args.browserFullSweep
-    ? 'PASS'
-    : args.browser || args.browserAuth ? 'PARTIAL' : 'PENDING'
-  const browserPerfStatus = args.browserPerf
-    ? hasFailingNote(rows, /D\.X\.4/) ? 'FAIL' : hasPassingNote(rows, /browser perf smoke passed/) ? 'PASS' : 'PENDING'
-    : 'PENDING'
-  const browserWaiverStatus = args.browserWaiver
-    ? hasFailingNote(rows, /browser waiver/) ? 'FAIL' : hasPassingNote(rows, /browser waiver claim gameplay passed/) ? 'PASS' : 'PENDING'
-    : 'PENDING'
-  const browserLineupStatus = args.browserLineup
-    ? hasFailingNote(rows, /browser lineup/) ? 'FAIL' : hasPassingNote(rows, /browser lineup gameplay passed/) ? 'PASS' : 'PENDING'
-    : 'PENDING'
-  const browserLineupAutoSetStatus = args.browserLineupAutoSet
-    ? hasFailingNote(rows, /browser lineup auto-set/) ? 'FAIL' : hasPassingNote(rows, /browser lineup auto-set gameplay passed/) ? 'PASS' : 'PENDING'
-    : 'PENDING'
-  const browserLineupLockedStatus = args.browserLineupLocked
-    ? hasFailingNote(rows, /browser lineup locked/) ? 'FAIL' : hasPassingNote(rows, /browser lineup locked gameplay passed/) ? 'PASS' : 'PENDING'
-    : 'PENDING'
-  const browserWaiverDropStatus = args.browserWaiverDrop
-    ? hasFailingNote(rows, /browser waiver drop/) ? 'FAIL' : hasPassingNote(rows, /browser waiver drop claim gameplay passed/) ? 'PASS' : 'PENDING'
-    : 'PENDING'
-  const browserWaiverIrBlockStatus = args.browserWaiverIrBlock
-    ? hasFailingNote(rows, /browser waiver IR block/) ? 'FAIL' : hasPassingNote(rows, /browser waiver IR block gameplay passed/) ? 'PASS' : 'PENDING'
-    : 'PENDING'
-  const browserTradeStatus = args.browserTrade
-    ? hasFailingNote(rows, /browser trade/) ? 'FAIL' : hasPassingNote(rows, /browser trade proposal gameplay passed/) ? 'PASS' : 'PENDING'
-    : 'PENDING'
-  const browserTradeAcceptStatus = args.browserTradeAccept
-    ? hasFailingNote(rows, /browser trade accept/) ? 'FAIL' : hasPassingNote(rows, /browser trade accept gameplay passed/) ? 'PASS' : 'PENDING'
-    : 'PENDING'
-  const browserTradeTerminalStatus = args.browserTradeTerminal
-    ? hasFailingNote(rows, /browser trade terminal/) ? 'FAIL' : hasPassingNote(rows, /browser trade reject\/withdraw gameplay passed/) ? 'PASS' : 'PENDING'
-    : 'PENDING'
-  const browserTradeFuturePickStatus = args.browserTradeFuturePick
-    ? hasFailingNote(rows, /browser future-pick trade/) ? 'FAIL' : hasPassingNote(rows, /browser future-pick trade gameplay passed/) ? 'PASS' : 'PENDING'
-    : 'PENDING'
-  const browserTradeFuturePickAcceptStatus = args.browserTradeFuturePickAccept
-    ? hasFailingNote(rows, /browser future-pick trade accept/) ? 'FAIL' : hasPassingNote(rows, /browser future-pick trade accept gameplay passed/) ? 'PASS' : 'PENDING'
-    : 'PENDING'
-  const browserTradeOverflowAcceptStatus = args.browserTradeOverflowAccept
-    ? hasFailingNote(rows, /browser trade overflow accept/) ? 'FAIL' : hasPassingNote(rows, /browser trade overflow accept gameplay passed/) ? 'PASS' : 'PENDING'
-    : 'PENDING'
-  const browserTradePostDeadlineStatus = args.browserTradePostDeadline
-    ? hasFailingNote(rows, /browser post-deadline trade/) ? 'FAIL' : hasPassingNote(rows, /browser post-deadline trade gameplay passed/) ? 'PASS' : 'PENDING'
-    : 'PENDING'
-  const browserTradeVetoStatus = args.browserTradeVeto
-    ? hasFailingNote(rows, /browser trade veto/) ? 'FAIL' : hasPassingNote(rows, /browser trade veto gameplay passed/) ? 'PASS' : 'PENDING'
-    : 'PENDING'
-  const leagueLifecyclePassed = hasPassingNote(rows, /league lifecycle passed/)
-  const browserLeagueLifecyclePassed = hasPassingNote(rows, /browser league lifecycle passed/)
+    ? browserSmokeStatus === 'PASS' && browserAuthStatus === 'PASS' ? 'PASS' : runFailed ? 'FAIL' : 'PARTIAL'
+    : args.browser || args.browserAuth ? runFailed ? 'FAIL' : 'PARTIAL' : 'PENDING'
+  const browserPerfStatus = evidenceStatus(args.browserPerf, 'browser.performance')
+  const browserWaiverStatus = evidenceStatus(args.browserWaiver, 'browser.waiver')
+  const browserLineupStatus = evidenceStatus(args.browserLineup, 'browser.lineup')
+  const browserLineupAutoSetStatus = evidenceStatus(args.browserLineupAutoSet, 'browser.lineup_auto_set')
+  const browserLineupLockedStatus = evidenceStatus(args.browserLineupLocked, 'browser.lineup_locked')
+  const browserWaiverDropStatus = evidenceStatus(args.browserWaiverDrop, 'browser.waiver_drop')
+  const browserWaiverIrBlockStatus = evidenceStatus(args.browserWaiverIrBlock, 'browser.waiver_ir_block')
+  const browserTradeStatus = evidenceStatus(args.browserTrade, 'browser.trade_proposal')
+  const browserTradeAcceptStatus = evidenceStatus(args.browserTradeAccept, 'browser.trade_accept')
+  const browserTradeTerminalStatus = evidenceStatus(args.browserTradeTerminal, 'browser.trade_terminal')
+  const browserTradeFuturePickStatus = evidenceStatus(args.browserTradeFuturePick, 'browser.trade_future_pick')
+  const browserTradeFuturePickAcceptStatus = evidenceStatus(args.browserTradeFuturePickAccept, 'browser.trade_future_pick_accept')
+  const browserTradeOverflowAcceptStatus = evidenceStatus(args.browserTradeOverflowAccept, 'browser.trade_overflow_accept')
+  const browserTradePostDeadlineStatus = evidenceStatus(args.browserTradePostDeadline, 'browser.trade_post_deadline')
+  const browserTradeVetoStatus = evidenceStatus(args.browserTradeVeto, 'browser.trade_veto')
+  const browserTradeMultiTeamStatus = evidenceStatus(args.browserTradeMultiTeam, 'browser.trade_multi_team')
+  const leagueLifecyclePassed = hasEvidence(rows, 'backend.league_lifecycle')
+  const browserLeagueLifecyclePassed = hasEvidence(rows, 'browser.league_lifecycle')
   const leagueLifecycleStatus = args.leagueLifecycle || args.browserLeagueLifecycle
-    ? hasFailingNote(rows, /D\.SET\.2|browser league lifecycle/)
-      ? 'FAIL'
-      : leagueLifecyclePassed && browserLeagueLifecyclePassed
+    ? leagueLifecyclePassed && browserLeagueLifecyclePassed
         ? 'PASS'
         : leagueLifecyclePassed || browserLeagueLifecyclePassed
           ? 'PARTIAL'
-          : 'PENDING'
+          : runFailed ? 'FAIL' : 'PENDING'
     : targetLeagueId ? 'PARTIAL' : 'PENDING'
-  const tradeWaiverPushPassed = hasPassingNote(rows, /trade and waiver push notification intercepts passed|push notification intercepts passed/)
-  const draftPushPassed = hasPassingNote(rows, /draft push notification intercept passed/)
+  const tradeWaiverPushPassed = hasEvidence(rows, 'push.trade_waiver')
+  const draftPushPassed = hasEvidence(rows, 'push.draft')
   const pushStatus = args.push || args.draftPush
-    ? status === 'ERROR' || hasFailingNote(rows, /D\.X\.1|push|waiver/i)
-      ? 'FAIL'
-      : args.push && args.draftPush && tradeWaiverPushPassed && draftPushPassed
+    ? args.push && args.draftPush && tradeWaiverPushPassed && draftPushPassed
         ? 'PASS'
         : tradeWaiverPushPassed || draftPushPassed
           ? 'PARTIAL'
-          : 'PENDING'
+          : runFailed ? 'FAIL' : 'PENDING'
     : 'PENDING'
-  const historyStatus = args.history
-    ? hasFailingNote(rows, /D\.LONG\.3|D\.LONG\.4/) ? 'FAIL' : hasPassingNote(rows, /standings\/champion history retained/) ? 'PASS' : 'PENDING'
-    : 'PENDING'
-  const realtimeStatus = args.realtime
-    ? hasProblemNote(rows, /D\.X\.2/) ? 'FAIL' : hasPassingNote(rows, /realtime matchup and bid updates delivered/) ? 'PASS' : 'PARTIAL'
-    : 'PENDING'
-  const midlifeMigrationStatus = args.midlifeMigration
-    ? hasFailingNote(rows, /D\.LONG\.5/) ? 'FAIL' : hasPassingNote(rows, /mid-life migration applied/) ? 'PASS' : 'PENDING'
-    : 'PENDING'
+  const historyStatus = evidenceStatus(args.history, 'history.retained')
+  const realtimeStatus = evidenceStatus(args.realtime, 'realtime.delivery')
+  const midlifeMigrationStatus = evidenceStatus(args.midlifeMigration, 'migration.midlife')
+  const auctionBackendStatus = evidenceStatus(args.auction, 'backend.auction')
+  const auctionBrowserStatus = evidenceStatus(args.browserGameplay, 'browser.auction')
   const auctionStatus = args.auction || args.browserGameplay
-    ? hasFailingNote(rows, /D\.SET\.4|browser auction/) ? 'FAIL' : (
-      args.auction && args.browserGameplay &&
-      hasPassingNote(rows, /auction bid validation passed/) &&
-      hasPassingNote(rows, /browser auction bid gameplay passed/)
-    ) ? 'PASS' : hasPassingNote(rows, /auction bid validation passed|browser auction bid gameplay passed/) ? 'PARTIAL' : 'PENDING'
+    ? args.auction && args.browserGameplay && auctionBackendStatus === 'PASS' && auctionBrowserStatus === 'PASS'
+      ? 'PASS' : auctionBackendStatus === 'PASS' || auctionBrowserStatus === 'PASS' ? 'PARTIAL' : runFailed ? 'FAIL' : 'PENDING'
     : 'PENDING'
-  const playoffsStatus = args.playoffs
-    ? hasFailingNote(rows, /D\.SEA\.4/) ? 'FAIL' : hasPassingNote(rows, /playoff bracket scenario passed/) ? 'PASS' : 'PENDING'
-    : 'PENDING'
-  const browserPlayoffStatus = args.browserPlayoff
-    ? hasFailingNote(rows, /browser playoff/) ? 'FAIL' : hasPassingNote(rows, /browser playoff champion passed/) ? 'PASS' : 'PENDING'
-    : 'PENDING'
-  const tiebreakerStatus = args.tiebreakers
-    ? hasFailingNote(rows, /D\.SEA\.3/) ? 'FAIL' : hasPassingNote(rows, /standings tiebreaker scenario passed/) ? 'PASS' : 'PENDING'
-    : 'PENDING'
-  const settingsStatus = args.settings
-    ? hasFailingNote(rows, /D\.SET\.3/) ? 'FAIL' : hasPassingNote(rows, /commissioner settings propagation passed/) ? 'PASS' : 'PENDING'
-    : 'PENDING'
-  const scoringStatus = args.scoring
-    ? hasFailingNote(rows, /D\.SEA\.2/) ? 'FAIL' : hasPassingNote(rows, /weekly scoring finalization passed/) ? 'PASS' : 'PENDING'
-    : 'PENDING'
-  const waiverProcessingStatus = args.waiverProcessing
-    ? hasFailingNote(rows, /D\.SEA\.2 waiver processing/) ? 'FAIL' : hasPassingNote(rows, /waiver priority processing passed/) ? 'PASS' : 'PENDING'
-    : 'PENDING'
-  const injuryFilterStatus = args.injuryFilter
-    ? hasFailingNote(rows, /D\.SEA\.2 injury/) ? 'FAIL' : hasPassingNote(rows, /injury status filter passed/) ? 'PASS' : 'PENDING'
-    : 'PENDING'
-  const tradeAcceptStatus = args.tradeAccept
-    ? hasFailingNote(rows, /D\.SEA\.2 trade/) ? 'FAIL' : hasPassingNote(rows, /trade acceptance atomicity passed/) ? 'PASS' : 'PENDING'
-    : 'PENDING'
-  const tradeVetoStatus = args.tradeVeto
-    ? hasFailingNote(rows, /D\.SEA\.2 trade veto/) ? 'FAIL' : hasPassingNote(rows, /trade veto threshold passed/) ? 'PASS' : 'PENDING'
-    : 'PENDING'
-  const rookieDraftStatus = args.rookieDraft
-    ? hasFailingNote(rows, /D\.SEA\.5/) ? 'FAIL' : hasPassingNote(rows, /rookie draft auto-pick passed/) ? 'PASS' : 'PENDING'
-    : pickChainStatus
-  const browserRookieDraftStatus = args.browserRookieDraft
-    ? hasFailingNote(rows, /browser rookie draft/) ? 'FAIL' : hasPassingNote(rows, /browser rookie draft auto-pick passed/) ? 'PASS' : 'PENDING'
-    : 'PENDING'
+  const playoffsStatus = evidenceStatus(args.playoffs, 'backend.playoffs')
+  const browserPlayoffStatus = evidenceStatus(args.browserPlayoff, 'browser.playoffs')
+  const tiebreakerStatus = evidenceStatus(args.tiebreakers, 'backend.tiebreakers')
+  const settingsStatus = evidenceStatus(args.settings, 'backend.settings')
+  const scoringStatus = evidenceStatus(args.scoring, 'backend.scoring')
+  const waiverProcessingStatus = evidenceStatus(args.waiverProcessing, 'backend.waiver_processing')
+  const injuryFilterStatus = evidenceStatus(args.injuryFilter, 'backend.injury_filter')
+  const tradeAcceptStatus = evidenceStatus(args.tradeAccept, 'backend.trade_accept')
+  const tradeVetoStatus = evidenceStatus(args.tradeVeto, 'backend.trade_veto')
+  const rookieDraftStatus = args.rookieDraft ? evidenceStatus(true, 'backend.rookie_draft') : pickChainStatus
+  const browserRookieDraftStatus = evidenceStatus(args.browserRookieDraft, 'browser.rookie_draft')
 
   const weeklyLoopStatus = allEnabledEvidencePass([
     { enabled: args.browserLineup, status: browserLineupStatus },
@@ -242,6 +170,7 @@ export const writeCoverageReport = async ({ status, startedAt, finishedAt, seaso
     { enabled: args.browserTradeVeto, status: browserTradeVetoStatus },
     { enabled: args.browserTradeAccept, status: browserTradeAcceptStatus },
     { enabled: args.browserTradeTerminal, status: browserTradeTerminalStatus },
+    { enabled: args.browserTradeMultiTeam, status: browserTradeMultiTeamStatus },
     { enabled: args.tradeVeto, status: tradeVetoStatus },
     { enabled: args.scoring, status: scoringStatus },
   ])
@@ -250,7 +179,7 @@ export const writeCoverageReport = async ({ status, startedAt, finishedAt, seaso
       args.browserWaiverDrop || args.browserWaiverIrBlock || args.waiverProcessing || args.browserTrade ||
       args.browserTradeFuturePick || args.browserTradeFuturePickAccept || args.browserTradeOverflowAccept ||
       args.browserTradePostDeadline || args.browserTradeVeto || args.browserTradeAccept ||
-      args.browserTradeTerminal || args.tradeVeto || args.scoring
+      args.browserTradeTerminal || args.browserTradeMultiTeam || args.tradeVeto || args.scoring
       ? 'PARTIAL'
       : 'PENDING'
 
@@ -287,146 +216,181 @@ export const writeCoverageReport = async ({ status, startedAt, finishedAt, seaso
 
   const coverage = [
     {
+      id: 'documentation.audit', requiredForRelease: false,
       requirement: 'Phase A audit report',
       status: auditExists ? 'PASS' : 'PENDING',
       evidence: auditExists ? 'tests/audit-report.md exists.' : 'tests/audit-report.md missing.',
     },
     {
+      id: 'documentation.findings', requiredForRelease: false,
       requirement: 'P0/P1 findings resolved',
       status: 'PARTIAL',
       evidence: 'P0/P1 source fixes are documented; service-role JWT literals were purged from reachable local and remote branch history, Edge Functions prefer Supabase secret keys from the platform-provided SUPABASE_SECRET_KEYS dictionary, and local app/E2E env resolves to modern sb_publishable_/sb_secret_ keys. Hosted Supabase Edge API uses modern secret keys, remote legacy JWTs are disabled, and linked DB migration access is verified.',
     },
     {
+      id: 'environment.supabase', requiredForRelease: true,
       requirement: 'Real test Supabase project',
       status: env.supabaseUrl && env.serviceRoleKey ? 'PASS' : 'BLOCKED',
       evidence: env.supabaseUrl && env.serviceRoleKey ? 'Supabase URL/admin credentials loaded from E2E/app env.' : 'Missing Supabase admin credentials.',
     },
     {
+      id: 'environment.fake_upstream', requiredForRelease: true,
       requirement: 'Fake NBA CDN/Sleeper upstream',
       status: rows.length > 0 ? 'PASS' : 'PENDING',
       evidence: `Fake upstream configured for http://127.0.0.1:${args.fakePort}.`,
     },
     {
+      id: 'setup.auth', requiredForRelease: true,
       requirement: 'D.SET.1 auth/session/sign-out',
       status: args.browserAuth ? 'PASS' : 'PENDING',
       evidence: args.browserAuth ? 'Browser auth scenario was enabled for this run.' : 'Enable E2E_ENABLE_BROWSER_AUTH=1 or use prior browser-auth artifact.',
     },
     {
+      id: 'setup.league_lifecycle', requiredForRelease: true,
       requirement: 'D.SET.2 league create/join/pick bank',
       status: leagueLifecycleStatus,
       evidence: args.leagueLifecycle && args.browserLeagueLifecycle ? 'League-lifecycle mode verifies the 10-user auth/RPC lifecycle, and browser league lifecycle drives the real Expo create/join forms before verifying invite, members, lineup slots, current season, and five-year pick bank.' : args.browserLeagueLifecycle ? 'Browser league lifecycle drives the real Expo create/join forms before verifying invite, members, lineup slots, current season, and five-year pick bank.' : args.leagueLifecycle ? 'League-lifecycle mode signs in seeded users, calls create_league and join_league_by_invite_code through anon Supabase clients, then verifies invite code, members, lineup slots, current season, and five-year pick bank.' : targetLeagueId ? `Seeded target league ${targetLeagueId}; invite, lineup slots, members, and 5y pick-bank proof lives in tests/e2e-seed-report.md.` : 'No target league configured.',
     },
     {
+      id: 'setup.settings', requiredForRelease: true,
       requirement: 'D.SET.3 commissioner settings propagation',
       status: settingsStatus,
       evidence: args.settings ? 'Settings mode creates a disposable setup league, updates league/scoring settings and lineup slots through authenticated commissioner-only RPCs, verifies a manager can read them, and checks manager RPC attempts do not mutate commissioner-only settings.' : 'No commissioner settings propagation scenario implemented; enable E2E_ENABLE_SETTINGS=1.',
     },
     {
+      id: 'setup.auction', requiredForRelease: true,
       requirement: 'D.SET.4 initial auction draft',
       status: auctionStatus,
       evidence: auctionEvidence,
     },
     {
+      id: 'invariants.boundary', requiredForRelease: true,
       requirement: 'D.0 invariant boundary checks',
       status: invariantStatus,
       evidence: rows.length > 0 ? 'Season rows in tests/e2e-report.md include D.0 boundary checks or failure.' : 'No season rows produced.',
     },
     {
+      id: 'season.matchups', requiredForRelease: true,
       requirement: 'D.SEA.1 matchup generation idempotency',
       status: matchupStatus,
       evidence: env.backendTicksEnabled ? 'Edge E2E tick mode can call /e2e/generate-matchups twice and compare counts.' : 'Requires E2E_ENABLE_BACKEND_TICKS=1.',
     },
     {
+      id: 'season.weekly_loop', requiredForRelease: true,
       requirement: 'D.SEA.2 weekly lineup/scoring/waiver/trade loop',
       status: weeklyLoopStatus,
       evidence: weeklyLoopEvidence,
     },
     {
+      id: 'season.injury_filter', requiredForRelease: true,
       requirement: 'D.SEA.2 injury status filtering',
       status: injuryFilterStatus,
       evidence: args.injuryFilter ? 'Injury-filter mode mutates the fake Sleeper upstream, runs the real backend /e2e/sync-players path, and verifies junk injury_status values such as Scrambled are filtered while valid statuses persist.' : 'Enable E2E_ENABLE_INJURY_FILTER=1 to inject fake Sleeper injuries and verify Scrambled is filtered.',
     },
     {
+      id: 'season.trade_accept', requiredForRelease: true,
       requirement: 'D.SEA.2 multi-asset trade acceptance',
       status: tradeAcceptStatus,
       evidence: args.tradeAccept ? 'Trade-accept mode creates a disposable player+future-pick trade, verifies mismatched auth/member acceptance is rejected, accepts through the real /trades/:tradeId/accept route, checks assets stay put during the veto window, expires the window, runs /e2e/process-trades, and checks players, picks, trade status, and transaction rows.' : 'Enable E2E_ENABLE_TRADE_ACCEPT=1 to exercise authenticated multi-asset trade acceptance.',
     },
     {
+      id: 'season.trade_multi_team', requiredForRelease: true,
+      requirement: 'D.SEA.2 multi-team trade browser flow',
+      status: browserTradeMultiTeamStatus,
+      evidence: args.browserTradeMultiTeam ? 'Multi-team mode verifies proposal, edit, and counter flows through the real responsive browser UI and persisted routed assets.' : 'Enable E2E_ENABLE_BROWSER_TRADE_MULTI_TEAM=1.',
+    },
+    {
+      id: 'season.tiebreakers', requiredForRelease: true,
       requirement: 'D.SEA.3 standings tiebreakers',
       status: tiebreakerStatus,
       evidence: args.tiebreakers ? 'Tiebreaker mode seeds a disposable four-way tie and calls the real authenticated /playoffs/generate route to verify max-points/points-against/deterministic tiebreaker handling.' : 'No forced four-way tie scenario implemented; enable E2E_ENABLE_TIEBREAKERS=1 for standings tiebreaker coverage.',
     },
     {
+      id: 'season.playoffs', requiredForRelease: true,
       requirement: 'D.SEA.4 playoffs/champion',
       status: playoffRowStatus,
       evidence: playoffEvidence,
     },
     {
+      id: 'season.rookie_draft', requiredForRelease: true,
       requirement: 'D.SEA.5 rookie draft/traded picks',
       status: rookieDraftRowStatus,
       evidence: rookieDraftEvidence,
     },
     {
+      id: 'season.reset', requiredForRelease: true,
       requirement: 'D.SEA.6 season reset',
       status: resetStatus,
       evidence: args.seasonReset ? 'Season-reset mode creates a disposable league, calls the real /e2e/advance-season endpoint, and verifies current-season flip, roster carryover, waiver reseed, prior-season queryability, and rolling five-year pick horizon.' : env.backendTicksEnabled ? 'Edge E2E tick mode calls /e2e/advance-season and re-checks invariants.' : 'Requires E2E_ENABLE_BACKEND_TICKS=1 or E2E_ENABLE_SEASON_RESET=1.',
     },
     {
+      id: 'season.snapshots', requiredForRelease: true,
       requirement: 'D.SEA.7 snapshots/no shrink',
       status: snapshotStatus,
       evidence: 'Snapshot summaries are written under tests/snapshots/season-<N>/summary.json.',
     },
     {
+      id: 'cross.push', requiredForRelease: true,
       requirement: 'D.X.1 push notifications',
       status: pushStatus,
       evidence: args.push && args.draftPush ? 'Push mode verifies trade and waiver notifications through the fake Expo upstream; draft-push mode verifies rookie auto-pick notifications through the same fake Expo intercept.' : args.push ? 'Push mode verifies trade and waiver notifications through the fake Expo upstream; enable E2E_ENABLE_DRAFT_PUSH=1 for draft notifications.' : args.draftPush ? 'Draft-push mode runs a disposable rookie auto-pick and asserts the fake Expo upstream captured a draft notification; enable E2E_ENABLE_PUSH=1 for trade and waiver notifications.' : 'Enable E2E_ENABLE_PUSH=1 and E2E_ENABLE_DRAFT_PUSH=1 to cover trade, waiver, and draft push notifications.',
     },
     {
+      id: 'cross.realtime', requiredForRelease: true,
       requirement: 'D.X.2 realtime bid/score events',
       status: realtimeStatus,
       evidence: args.realtime ? 'Realtime mode opens multiple Supabase Realtime clients and asserts both matchup score updates and auction bid nomination updates reach every client within 2s.' : 'Enable E2E_ENABLE_REALTIME=1.',
     },
     {
+      id: 'cross.cors', requiredForRelease: true,
       requirement: 'D.X.3 CORS regression',
       status: env.backendTicksEnabled ? 'PASS' : 'PENDING',
       evidence: env.backendTicksEnabled ? 'Edge E2E tick mode runs OPTIONS preflight before the season loop.' : 'Requires Edge E2E tick mode.',
     },
     {
+      id: 'cross.performance', requiredForRelease: true,
       requirement: 'D.X.4 perf smoke under draft/live scoring load',
       status: browserPerfStatus,
       evidence: args.browserPerf ? 'Browser perf mode opens the real draft room and home scoreboard while applying continuous auction bids and matchup updates, then asserts responsiveness, screenshots, console output, and browser errors.' : 'Enable E2E_ENABLE_BROWSER_PERF=1 to run the continuous-bid/live-scoring browser perf smoke.',
     },
     {
+      id: 'cross.ui_sweep', requiredForRelease: true,
       requirement: 'D.X.5 UI sweep',
       status: browserStatus,
       evidence: args.browserFullSweep ? 'Browser full sweep visits auth, tabs, modals, player, auction-draft, and rookie-draft routes, with screenshots and console/error artifacts.' : browserStatus === 'PARTIAL' ? 'Browser smoke/auth covers auth and tab routes; enable E2E_BROWSER_FULL_SWEEP=1 for modal/player/draft route sweep.' : 'Enable browser smoke/auth; full app route sweep pending.',
     },
     {
+      id: 'long.pick_chain', requiredForRelease: true,
       requirement: 'D.LONG.1/D.LONG.2 long-horizon pick trades',
       status: pickChainStatus,
       evidence: args.pickChain ? 'Pick-chain mode creates a three-hop future-pick trade, verifies owner persistence every season, and checks the target rookie-draft slot belongs to the final owner when the pick year arrives.' : 'Enable E2E_ENABLE_PICK_CHAIN=1 to exercise multi-hop pick ownership and rookie-draft materialization.',
     },
     {
+      id: 'long.history', requiredForRelease: true,
       requirement: 'D.LONG.3/D.LONG.4 standings/champion history',
       status: historyStatus,
       evidence: args.history ? 'History mode seeds deterministic completed-season standings/champion fixtures and verifies them after season resets.' : 'Enable E2E_ENABLE_HISTORY=1 with Edge E2E tick mode.',
     },
     {
+      id: 'long.migration', requiredForRelease: true,
       requirement: 'D.LONG.5 mid-life migration',
       status: midlifeMigrationStatus,
       evidence: args.midlifeMigration ? 'Mid-life migration mode runs `npx supabase db push` against the configured local/linked/db-url target between seasons and records tests/artifacts/season-<N>/midlife-migration.json.' : 'Enable E2E_ENABLE_MIDLIFE_MIGRATION=1 to apply the no-op migration between seasons 5 and 6.',
     },
     {
+      id: 'long.runtime', requiredForRelease: true,
       requirement: 'D.LONG.6 runtime drift',
       status: runtimeStatus,
       evidence: 'Runtime metrics live in tests/artifacts/perf-metrics.json.',
     },
     {
+      id: 'long.memory', requiredForRelease: true,
       requirement: 'D.LONG.7 memory/connection leaks',
       status: memoryStatus,
       evidence: 'Harness memory metrics live in tests/artifacts/perf-metrics.json and 10+ season runs fail if RSS or heap exceeds the configured drift limit.',
     },
     {
+      id: 'long.twenty_seasons', requiredForRelease: true,
       requirement: '10 seasons and continue past 10 / 20 clean',
       status: status === 'PASS' && seasons >= 20 ? 'PASS' : status === 'FAIL' ? 'FAIL' : seasons >= 20 ? 'PARTIAL' : 'PENDING',
       evidence: `Current run status is ${status} for target ${seasons} season(s); PARTIAL means enabled season rows passed but full gameplay coverage is still pending.`,
@@ -434,6 +398,7 @@ export const writeCoverageReport = async ({ status, startedAt, finishedAt, seaso
   ]
   const productionStatus = productionCoverageStatus(coverage)
   coverage.push({
+    id: 'release.production', requiredForRelease: false,
     requirement: 'Production-ready exit criteria',
     status: productionStatus,
     evidence: productionStatus === 'PASS'

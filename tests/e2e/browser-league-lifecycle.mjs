@@ -165,7 +165,7 @@ const verifyLeagueState = async ({ admin, leagueId, commissionerUserId, managerU
 
 export async function runBrowserLeagueLifecycleScenario({ season = 0 } = {}) {
   const env = resolvedEnv()
-  requireEnv(env, ['supabaseUrl', 'serviceRoleKey', 'anonKey'])
+  requireEnv(env, ['supabaseUrl', 'serviceRoleKey', 'anonKey', 'apiBaseUrl'])
 
   const runId = process.env.E2E_BROWSER_LEAGUE_RUN_ID ?? new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)
   const password = `Pancake-browser-league-${runId}!`

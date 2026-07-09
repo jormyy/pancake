@@ -2,7 +2,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
 import { createClient } from '@supabase/supabase-js'
-import { resolvedEnv, describeEndpoint } from './env.mjs'
+import { resolvedEnv, requireEnv, describeEndpoint } from './env.mjs'
 import { installRuntimeOverrides, normalizeBrowserErrors } from './browser-runtime-overrides.mjs'
 import { captureBrowserScreenshot, createBrowser, listBrowserSessions } from './browser-agent.mjs'
 
@@ -355,6 +355,7 @@ export async function runBrowserSmoke({
   fullSweep = process.env.E2E_BROWSER_FULL_SWEEP === '1',
 } = {}) {
   const env = resolvedEnv()
+  requireEnv(env, ['supabaseUrl', 'anonKey', 'apiBaseUrl'])
   const state = await readState()
   const user = state.users[userIndex]
   if (!user) throw new Error(`No seeded user at index ${userIndex}`)

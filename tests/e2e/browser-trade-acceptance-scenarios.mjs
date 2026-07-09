@@ -43,6 +43,7 @@ export async function runBrowserTradeAcceptScenario({
   const env = resolvedEnv()
   requireEnv(env, ['supabaseUrl', 'serviceRoleKey', 'anonKey'])
   const fixture = await setupTradeAcceptGameplayFixture(env, season)
+  if (!fixture.proposer.team_name) throw new Error('Trade fixture proposer must have a team name')
   const sessionList = await listSessions().catch((error) => `session list unavailable: ${error.message}`)
   const session = sessionName ?? tradeSessionName('ac', fixture.runId)
   const artifactDir = path.join(ARTIFACT_ROOT, `season-${season}`, 'browser-trade-accept')
@@ -162,7 +163,11 @@ export async function runBrowserTradeFuturePickScenario({
 } = {}) {
   const env = resolvedEnv()
   requireEnv(env, ['supabaseUrl', 'serviceRoleKey', 'anonKey'])
+  if (!env.frontendUrl) throw new Error('Missing E2E_FRONTEND_URL')
   const fixture = await setupTradeGameplayFixture(env, season)
+  if (!fixture.proposerFuturePick || !fixture.recipientFuturePick) {
+    throw new Error('Future-pick fixture must provide both traded picks')
+  }
   const sessionList = await listSessions().catch((error) => `session list unavailable: ${error.message}`)
   const session = sessionName ?? tradeSessionName('fp', fixture.runId)
   const artifactDir = path.join(ARTIFACT_ROOT, `season-${season}`, 'browser-trade-future-pick')
@@ -293,6 +298,7 @@ export async function runBrowserTradeFuturePickAcceptScenario({
   const env = resolvedEnv()
   requireEnv(env, ['supabaseUrl', 'serviceRoleKey', 'anonKey'])
   const fixture = await setupTradeFuturePickAcceptGameplayFixture(env, season)
+  if (!fixture.proposer.team_name) throw new Error('Trade fixture proposer must have a team name')
   const sessionList = await listSessions().catch((error) => `session list unavailable: ${error.message}`)
   const session = sessionName ?? tradeSessionName('fpa', fixture.runId)
   const artifactDir = path.join(ARTIFACT_ROOT, `season-${season}`, 'browser-trade-future-pick-accept')
@@ -417,6 +423,7 @@ export async function runBrowserTradeOverflowAcceptScenario({
   const env = resolvedEnv()
   requireEnv(env, ['supabaseUrl', 'serviceRoleKey', 'anonKey'])
   const fixture = await setupTradeOverflowAcceptGameplayFixture(env, season)
+  if (!fixture.proposer.team_name) throw new Error('Trade fixture proposer must have a team name')
   const sessionList = await listSessions().catch((error) => `session list unavailable: ${error.message}`)
   const session = sessionName ?? tradeSessionName('oa', fixture.runId)
   const artifactDir = path.join(ARTIFACT_ROOT, `season-${season}`, 'browser-trade-overflow-accept')

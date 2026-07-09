@@ -36,7 +36,7 @@ describe('e2e harness args', () => {
 })
 
 describe('e2e browser scenario registry', () => {
-  it('runs always-on browser flows and gates registered checks by season policy', async () => {
+  it('gates every browser flow by the shared season policy', async () => {
     vi.resetModules()
     const smoke = vi.fn(async () => ({ ok: 'smoke' }))
     const auth = vi.fn(async () => ({ ok: 'auth' }))
@@ -57,17 +57,19 @@ describe('e2e browser scenario registry', () => {
 
     const skipped = await runBrowserScenarios({ args, season: 2, shouldRun })
 
-    expect(smoke).toHaveBeenCalledWith({ season: 2, fullSweep: true })
-    expect(auth).toHaveBeenCalledWith({ season: 2 })
+    expect(smoke).not.toHaveBeenCalled()
+    expect(auth).not.toHaveBeenCalled()
     expect(perf).not.toHaveBeenCalled()
     expect(trade).not.toHaveBeenCalled()
     expect(skipped.browserPerfCheck).toBeNull()
     expect(skipped.browserTradeCheck).toBeNull()
-    expect(shouldRun).toHaveBeenCalledTimes(2)
+    expect(shouldRun).toHaveBeenCalledTimes(4)
 
     shouldRun.mockReturnValue(true)
     const completed = await runBrowserScenarios({ args, season: 1, shouldRun })
 
+    expect(smoke).toHaveBeenCalledWith({ season: 1, fullSweep: true })
+    expect(auth).toHaveBeenCalledWith({ season: 1 })
     expect(perf).toHaveBeenCalledWith({ season: 1 })
     expect(trade).toHaveBeenCalledWith({ season: 1 })
     expect(completed.browserPerfCheck).toEqual({ ok: 'perf' })
@@ -177,5 +179,6 @@ const mockBrowserScenarioModules = ({ auth, perf, smoke, trade }: ScenarioMocks)
     runBrowserTradeScenario: trade,
     runBrowserTradeTerminalScenario: noopScenario,
     runBrowserTradeVetoScenario: noopScenario,
+    runBrowserMultiTeamTradeScenario: noopScenario,
   }))
 }

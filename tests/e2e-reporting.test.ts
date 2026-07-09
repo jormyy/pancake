@@ -5,17 +5,16 @@ describe('productionCoverageStatus', () => {
     it('ignores documentation evidence while requiring every operational row', () => {
         expect(productionCoverageStatus([])).toBe('PENDING')
         expect(productionCoverageStatus([
-            { requirement: 'Phase A audit report', status: 'PENDING' },
-            { requirement: 'P0/P1 findings resolved', status: 'PARTIAL' },
-            { requirement: 'Database replay', status: 'PASS' },
-            { requirement: 'Browser gameplay', status: 'PASS' },
+            { id: 'docs', status: 'PENDING', requiredForRelease: false },
+            { id: 'database', status: 'PASS', requiredForRelease: true },
+            { id: 'browser', status: 'PASS', requiredForRelease: true },
         ])).toBe('PASS')
         expect(productionCoverageStatus([
-            { requirement: 'Database replay', status: 'PASS' },
-            { requirement: 'Browser gameplay', status: 'PENDING' },
+            { id: 'database', status: 'PASS', requiredForRelease: true },
+            { id: 'browser', status: 'PENDING', requiredForRelease: true },
         ])).toBe('PENDING')
         expect(productionCoverageStatus([
-            { requirement: 'Database replay', status: 'BLOCKED' },
+            { id: 'database', status: 'BLOCKED', requiredForRelease: true },
         ])).toBe('FAIL')
     })
 })
