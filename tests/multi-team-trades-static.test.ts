@@ -12,6 +12,7 @@ const tradeAssetColumn = read('components/trades/TradeAssetColumn.tsx')
 const tradeCard = read('components/trades/TradeCard.tsx')
 const tradesScreen = read('app/(tabs)/trades.tsx')
 const browserTradeGameplay = read('tests/e2e/browser-trade-gameplay.mjs')
+const browserMultiTeamTradeGameplay = read('tests/e2e/browser-trade-multi-team.mjs')
 const playerContext = read('lib/player-context.ts')
 const tradePerspective = read('lib/trade-perspective.ts')
 
@@ -170,7 +171,7 @@ describe('multi-team trade UI and client mapping', () => {
         expect(tradeCard).toContain('compact')
         expect(browserTradeGameplay).toContain('runBrowserMultiTeamTradeScenario')
         expect(browserTradeGameplay).toContain("process.argv.includes('--multi-team')")
-        expect(browserTradeGameplay).toContain('mobile multi-team offer overview')
+        expect(browserMultiTeamTradeGameplay).toContain('mobile multi-team offer overview')
     })
 
     it('uses shared participant-aware perspective helpers in trade surfaces', () => {
