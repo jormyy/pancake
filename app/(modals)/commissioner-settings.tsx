@@ -110,7 +110,6 @@ export default function CommissionerSettingsScreen() {
                         </View>
                     </View>
 
-                    {/* ── Scoring ────────────────────────────────────── */}
                     <Text style={styles.sectionTitle}>SCORING</Text>
                     <View style={styles.card}>
                         {COMMISSIONER_SCORING_FIELDS.map(({ key, label }, i) => (
@@ -126,7 +125,6 @@ export default function CommissionerSettingsScreen() {
                                     style={styles.scoreInput}
                                     value={scoring[key] ?? ''}
                                     onChangeText={(v) => {
-                                        // Allow: leading minus, digits, one decimal point
                                         if (/^-?\d*\.?\d*$/.test(v) || v === '-') {
                                             updateScoring(key, v)
                                         }
@@ -138,7 +136,6 @@ export default function CommissionerSettingsScreen() {
                         ))}
                     </View>
 
-                    {/* ── Lineup Slots ───────────────────────────────── */}
                     <Text style={styles.sectionTitle}>LINEUP SLOTS</Text>
                     <View style={styles.card}>
                         {SLOT_TYPES.map((type, i) => (
@@ -172,7 +169,6 @@ export default function CommissionerSettingsScreen() {
                         ))}
                     </View>
 
-                    {/* ── General ───────────────────────────────────── */}
                     <Text style={styles.sectionTitle}>GENERAL</Text>
                     <View style={styles.card}>
                         {[
@@ -329,7 +325,6 @@ export default function CommissionerSettingsScreen() {
                         </View>
                     </View>
 
-                    {/* ── Save ──────────────────────────────────────── */}
                     <Pressable
                         style={styles.saveButton}
                         onPress={save}

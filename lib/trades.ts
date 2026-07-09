@@ -523,13 +523,18 @@ async function enrichTradesWithStats(trades: Trade[], leagueId: string): Promise
     })
 }
 
-export async function getTradesForScreen(memberId: string, leagueId: string): Promise<Trade[]> {
+export async function getTradesForScreen(
+    memberId: string,
+    leagueId: string,
+    limit = 40,
+    offset = 0,
+): Promise<Trade[]> {
     const { data, error } = await supabase
         .rpc('get_trades_for_member', {
             p_member_id: memberId,
             p_league_id: leagueId,
-            p_limit: 40,
-            p_offset: 0,
+            p_limit: limit,
+            p_offset: offset,
         })
         .select(TRADE_SELECT)
         .overrideTypes<TradeQueryRow[]>()

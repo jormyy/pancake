@@ -33,7 +33,8 @@ export function useTradeBlock(memberId: string, leagueId: string) {
     const [error, setError] = useState<string | null>(null)
     const [busyId, setBusyId] = useState<string | null>(null)
     const loadSequence = useRef(0)
-    const mutationSequence = useRef(0)
+    const mutationGeneration = useRef(0)
+    const mutationQueue = useRef<Promise<void>>(Promise.resolve())
 
     const refresh = useCallback(async () => {
         const requestId = ++loadSequence.current
@@ -73,7 +74,8 @@ export function useTradeBlock(memberId: string, leagueId: string) {
 
     useEffect(() => {
         loadSequence.current += 1
-        mutationSequence.current += 1
+        mutationGeneration.current += 1
+        mutationQueue.current = Promise.resolve()
         setItems(cached?.items ?? [])
         setRoster(cached?.roster ?? [])
         setAvgMap(EMPTY_AVG_MAP)
@@ -86,19 +88,23 @@ export function useTradeBlock(memberId: string, leagueId: string) {
     useEffect(() => () => { loadSequence.current += 1 }, [])
 
     const mutate = useCallback(async (id: string, operation: () => Promise<unknown>) => {
-        const requestId = ++mutationSequence.current
-        setBusyId(id)
-        try {
-            await operation()
-            if (mutationSequence.current !== requestId) return
-            await refresh()
-        } catch (cause) {
-            if (mutationSequence.current === requestId) {
-                setError(getErrorMessage(cause) ?? 'Could not update trade block.')
+        const generation = mutationGeneration.current
+        const task = mutationQueue.current.then(async () => {
+            if (mutationGeneration.current !== generation) return
+            setBusyId(id)
+            try {
+                await operation()
+                if (mutationGeneration.current === generation) await refresh()
+            } catch (cause) {
+                if (mutationGeneration.current === generation) {
+                    setError(getErrorMessage(cause) ?? 'Could not update trade block.')
+                }
+            } finally {
+                if (mutationGeneration.current === generation) setBusyId(null)
             }
-        } finally {
-            if (mutationSequence.current === requestId) setBusyId(null)
-        }
+        })
+        mutationQueue.current = task.catch(() => {})
+        return task
     }, [refresh])
 
     const addPlayer = useCallback((player: RosterPlayer) => {

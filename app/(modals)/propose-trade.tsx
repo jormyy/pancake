@@ -260,6 +260,7 @@ export default function ProposeTradeScreen() {
                         disabled={!canSubmit}
                         accessibilityRole="button"
                         accessibilityLabel="Send trade proposal"
+                        testID="trade-submit"
                     >
                         <Text style={[styles.submitText, !canSubmit && styles.submitTextDisabled]}>Send</Text>
                     </Pressable>
@@ -290,6 +291,7 @@ export default function ProposeTradeScreen() {
                                 onPress={() => selectTeam(member.id)}
                                 accessibilityRole="button"
                                 accessibilityLabel={`${active ? 'Remove' : 'Trade with'} ${member.team_name ?? 'Unnamed team'}`}
+                                testID={`trade-participant-${member.id}`}
                             >
                                 <Text style={[styles.teamChipText, active && styles.teamChipTextActive]}>
                                     {member.team_name ?? 'Unnamed'}
@@ -351,6 +353,7 @@ function ModeButton({ label, active, onPress }: { label: string; active: boolean
             onPress={onPress}
             accessibilityRole="button"
             accessibilityLabel={`Use ${label.toLowerCase()} trade mode`}
+            testID={label === 'Multi-Team' ? 'trade-mode-multi' : 'trade-mode-two'}
         >
             <Text style={[styles.modeButtonText, active && styles.modeButtonTextActive]}>{label}</Text>
         </Pressable>

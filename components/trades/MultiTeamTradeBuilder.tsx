@@ -144,6 +144,7 @@ export function MultiTeamTradeBuilder({
                                 accessibilityRole="tab"
                                 accessibilityState={{ selected: active }}
                                 accessibilityLabel={`Edit assets sent by ${participant.memberId === myMemberId ? 'you' : participantName(participant.memberId)}`}
+                                testID={`trade-sender-${participant.memberId}`}
                             >
                                 <Text style={[styles.senderTabText, active && styles.senderTabTextActive]} numberOfLines={1}>
                                     {participant.memberId === myMemberId ? 'You send' : `${participantName(participant.memberId)} sends`}

@@ -5,14 +5,15 @@ import { useTradeBlock } from '@/hooks/use-trade-block'
 import { useTradesFeed } from '@/hooks/use-trades-feed'
 import type { Trade, TradeBlockItem } from '@/lib/trades'
 
-const { getTradesForScreen, getTradeBlockItems, getRoster } = vi.hoisted(() => ({
+const { addTradeBlockItem, getTradesForScreen, getTradeBlockItems, getRoster } = vi.hoisted(() => ({
+    addTradeBlockItem: vi.fn(),
     getTradesForScreen: vi.fn(),
     getTradeBlockItems: vi.fn(),
     getRoster: vi.fn(),
 }))
 
 vi.mock('@/lib/trades', () => ({
-    addTradeBlockItem: vi.fn(),
+    addTradeBlockItem,
     getTradeBlockItems,
     getTradesForScreen,
     removeTradeBlockItem: vi.fn(),
@@ -111,5 +112,45 @@ describe('trade resource identity', () => {
         expect(latest.busyId).toBeNull()
         expect(latest.error).toBeNull()
         renderer.unmount()
+    })
+
+    it('serializes trade-block mutations so later writes cannot invalidate earlier refreshes', async () => {
+        const first = deferred<void>()
+        const second = deferred<void>()
+        addTradeBlockItem.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise)
+        getTradeBlockItems.mockResolvedValue([])
+        getRoster.mockResolvedValue([])
+        let latest!: ReturnType<typeof useTradeBlock>
+        const Probe = () => {
+            latest = useTradeBlock('member', 'league')
+            return null
+        }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe)) })
+        const player = (id: string) => ({
+            id: `roster-${id}`,
+            member_id: 'member',
+            is_on_ir: false,
+            is_on_taxi: false,
+            acquired_via: 'draft',
+            players: {
+                id, display_name: id, nba_team: null, position: 'PG' as const,
+                eligible_positions: ['PG'], injury_status: null, nba_id: null,
+                nba_draft_number: null, years_exp: 1,
+            },
+        })
+        let firstMutation!: Promise<void>
+        let secondMutation!: Promise<void>
+        await act(async () => {
+            firstMutation = latest.addPlayer(player('one'))
+            secondMutation = latest.addPlayer(player('two'))
+            await Promise.resolve()
+        })
+        expect(addTradeBlockItem).toHaveBeenCalledTimes(1)
+        await act(async () => { first.resolve(); await firstMutation })
+        expect(addTradeBlockItem).toHaveBeenCalledTimes(2)
+        await act(async () => { second.resolve(); await secondMutation })
+        expect(latest.busyId).toBeNull()
+        await act(async () => { renderer.unmount() })
     })
 })

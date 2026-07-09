@@ -58,7 +58,15 @@ export default function TradesScreen() {
         [leagueId, myMemberId],
     )
     const [tab, setTab] = useState<TabKey>('picks')
-    const { trades, loading, error: tradesError, refresh: load } = useTradesFeed(myMemberId, leagueId)
+    const {
+        trades,
+        loading,
+        loadingMore: tradesLoadingMore,
+        hasMore: tradesHaveMore,
+        error: tradesError,
+        refresh: load,
+        loadMore: loadMoreTrades,
+    } = useTradesFeed(myMemberId, leagueId)
     const {
         items: blockItems,
         roster: blockRoster,
@@ -151,6 +159,12 @@ export default function TradesScreen() {
     const activeError = activeResource === 'picks' ? picksError : activeResource === 'block' ? blockError : tradesError
     const retryActiveResource = activeResource === 'picks' ? refreshPicks : activeResource === 'block' ? loadBlock : load
 
+    useEffect(() => {
+        if (tab === 'history' && historyTrades.length === 0 && tradesHaveMore && !tradesLoadingMore) {
+            void loadMoreTrades()
+        }
+    }, [historyTrades.length, loadMoreTrades, tab, tradesHaveMore, tradesLoadingMore])
+
     if (memberships.length === 0 && leagueLoading) {
         return <SafeAreaView style={styles.container}><View style={styles.content}>
             <TradeHeader disabled onPropose={() => {}} />
@@ -170,7 +184,9 @@ export default function TradesScreen() {
             : tab === 'picks' && picksError ? <View style={styles.emptyState}><Text style={styles.emptyStateText}>Error: {picksError.message}</Text></View>
                 : tab === 'picks' && picksList.length === 0 ? <View style={styles.emptyState}><Text style={styles.emptyStateText}>No draft picks</Text></View>
                     : <FlashList data={listData} keyExtractor={tradeListKey} getItemType={tradeListItemType}
-                        ItemSeparatorComponent={ItemSeparator} renderItem={renderItem} />}
+                        ItemSeparatorComponent={ItemSeparator} renderItem={renderItem}
+                        onEndReached={tab === 'history' && tradesHaveMore ? loadMoreTrades : undefined}
+                        onEndReachedThreshold={0.4} />}
     </View></SafeAreaView>
 }
 

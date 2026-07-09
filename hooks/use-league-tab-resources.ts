@@ -112,14 +112,12 @@ export function useLeagueTabResources(
         if (existing?.leagueId === lid) return existing.promise
 
         const request = { leagueId: lid, promise: Promise.resolve() }
-        request.promise = runTabFetch(nextTab, lid).finally(() => {
+        request.promise = runTabFetch(nextTab, lid).finally(async () => {
             if (inFlightTabs.current.get(nextTab) !== request) return
             inFlightTabs.current.delete(nextTab)
             if (!invalidatedInFlightTabs.current.delete(nextTab)) return
             loadedTabs.current.delete(nextTab)
-            if (activeLeagueIdRef.current === lid && activeTabRef.current === nextTab) {
-                void fetchTab(nextTab, lid)
-            }
+            if (activeLeagueIdRef.current === lid) await fetchTab(nextTab, lid)
         })
         inFlightTabs.current.set(nextTab, request)
         return request.promise
@@ -137,6 +135,17 @@ export function useLeagueTabResources(
         }
         if (activeTabRef.current === nextTab) ensureTab(nextTab)
     }, [ensureTab])
+
+    const refreshTab = useCallback((nextTab: LeagueTab): Promise<void> => {
+        if (!leagueId) return Promise.resolve()
+        loadedTabs.current.delete(nextTab)
+        const existing = inFlightTabs.current.get(nextTab)
+        if (existing?.leagueId === leagueId) {
+            invalidatedInFlightTabs.current.add(nextTab)
+            return existing.promise
+        }
+        return fetchTab(nextTab, leagueId)
+    }, [fetchTab, leagueId])
 
     useFocusEffect(useCallback(() => {
         ensureTab(activeTab)
@@ -169,8 +178,8 @@ export function useLeagueTabResources(
 
     const refreshMockRooms = useCallback(async () => {
         if (!leagueId || !memberId) return
-        await fetchTab('mockRooms', leagueId)
-    }, [fetchTab, leagueId, memberId])
+        await refreshTab('mockRooms')
+    }, [leagueId, memberId, refreshTab])
 
     return {
         activityHasMore,
@@ -183,6 +192,7 @@ export function useLeagueTabResources(
         isTabLoading: tabLoading[activeTab] === true,
         loadMoreActivity,
         mockRooms,
+        refreshTab,
         refreshMockRooms,
         standings,
         tabError: tabError[activeTab],

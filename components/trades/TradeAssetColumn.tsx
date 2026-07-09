@@ -17,6 +17,7 @@ function PlayerRow({
     selected,
     destinationLabel,
     onToggle,
+    testID,
 }: {
     player: RosterPlayer
     avgFpts?: number
@@ -24,6 +25,7 @@ function PlayerRow({
     selected: boolean
     destinationLabel?: string | null
     onToggle: () => void
+    testID?: string
 }) {
     const p = player.players
     const positions = getEligiblePositions(p)
@@ -40,6 +42,7 @@ function PlayerRow({
             onPress={onToggle}
             accessibilityRole="button"
             accessibilityLabel={`${action} ${p.display_name} for trade`}
+            testID={testID}
         >
             <Avatar
                 name={p.display_name}
@@ -86,11 +89,13 @@ function PickRow({
     selected,
     destinationLabel,
     onToggle,
+    testID,
 }: {
     pick: TradePickItem
     selected: boolean
     destinationLabel?: string | null
     onToggle: () => void
+    testID?: string
 }) {
     const action = selected ? 'Remove' : 'Select'
     return (
@@ -99,6 +104,7 @@ function PickRow({
             onPress={onToggle}
             accessibilityRole="button"
             accessibilityLabel={`${action} ${pick.seasonYear} round ${pick.round} pick via ${pick.originalTeamName} for trade`}
+            testID={testID}
         >
             <View style={[styles.pickCircle, selected && styles.pickCircleSelected]}>
                 <Text style={styles.pickCircleText}>{yearShort(pick.seasonYear)}</Text>
@@ -139,6 +145,7 @@ export function TradeAssetColumn({
     onTogglePlayer,
     onTogglePick,
     emptyText,
+    testIdPrefix,
 }: {
     title: string
     subtitle: string
@@ -155,6 +162,7 @@ export function TradeAssetColumn({
     onTogglePlayer: (id: string) => void
     onTogglePick: (id: string) => void
     emptyText: string
+    testIdPrefix?: string
 }) {
     const selectedCount =
         roster.filter((rp) => selectedPlayerIds.has(rp.players.id)).length +
@@ -186,6 +194,7 @@ export function TradeAssetColumn({
                         selected={selectedPlayerIds.has(rp.players.id)}
                         destinationLabel={playerDestinationLabel?.(rp.players.id)}
                         onToggle={() => onTogglePlayer(rp.players.id)}
+                        testID={testIdPrefix ? `${testIdPrefix}-player-${rp.players.id}` : undefined}
                     />
                 ))
             )}
@@ -200,6 +209,7 @@ export function TradeAssetColumn({
                             selected={selectedPickIds.has(pick.pickId)}
                             destinationLabel={pickDestinationLabel?.(pick.pickId)}
                             onToggle={() => onTogglePick(pick.pickId)}
+                            testID={testIdPrefix ? `${testIdPrefix}-pick-${pick.pickId}` : undefined}
                         />
                     ))}
                 </>

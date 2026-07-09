@@ -156,28 +156,46 @@ export function useMultiTeamTradeComposer({
         [composerState, faabEnabled],
     )
 
-    const retry = useCallback(() => setRetryToken((value) => value + 1), [])
+    const retry = useCallback(() => {
+        rosterLoadSeqRef.current += 1
+        setParticipantRosters({})
+        setParticipantPicks({})
+        setAvgMap(EMPTY_AVG_MAP)
+        setAvgStatsMap(EMPTY_STATS_MAP)
+        setRetryToken((value) => value + 1)
+    }, [])
+
+    useEffect(() => {
+        reset()
+    }, [leagueId, myMemberId, reset])
 
     useEffect(() => {
         const requestId = ++rosterLoadSeqRef.current
-        if (!enabled || !leagueId || !myMemberId) {
+        if (!enabled || !leagueId || !myMemberId || participantIds[0] !== myMemberId) {
+            setRosterLoading(false)
+            return
+        }
+
+        const missingParticipantIds = participantIds.filter((memberId) =>
+            !(memberId in participantRosters) || !(memberId in participantPicks))
+        if (missingParticipantIds.length === 0) {
+            setLoadedParticipantKey(selectedParticipantKey)
             setRosterLoading(false)
             return
         }
 
         setRosterLoading(true)
         setRosterError(null)
-        setLoadedParticipantKey('')
 
         async function loadParticipantAssets() {
             try {
                 const [rosters, picks] = await Promise.all([
-                    getRostersForMembers(participantIds, leagueId),
-                    getPicksForMembers(participantIds, leagueId),
+                    getRostersForMembers(missingParticipantIds, leagueId),
+                    getPicksForMembers(missingParticipantIds, leagueId),
                 ])
                 if (rosterLoadSeqRef.current !== requestId) return
 
-                const nextRosters = Object.fromEntries(participantIds.map((memberId) => [
+                const nextRosters = Object.fromEntries(missingParticipantIds.map((memberId) => [
                     memberId,
                     (rosters[memberId] ?? []).filter(isTradeableRosterPlayer),
                 ]))
@@ -186,10 +204,10 @@ export function useMultiTeamTradeComposer({
                     leagueId,
                 )
                 if (rosterLoadSeqRef.current !== requestId) return
-                setParticipantRosters(nextRosters)
-                setParticipantPicks(picks)
-                setAvgMap(stats.avgMap)
-                setAvgStatsMap(stats.avgStatsMap)
+                setParticipantRosters((current) => ({ ...current, ...nextRosters }))
+                setParticipantPicks((current) => ({ ...current, ...picks }))
+                setAvgMap((current) => new Map([...current, ...stats.avgMap]))
+                setAvgStatsMap((current) => new Map([...current, ...stats.avgStatsMap]))
                 setLoadedParticipantKey(selectedParticipantKey)
             } catch (error) {
                 if (rosterLoadSeqRef.current !== requestId) return
@@ -204,7 +222,7 @@ export function useMultiTeamTradeComposer({
         return () => {
             if (rosterLoadSeqRef.current === requestId) rosterLoadSeqRef.current += 1
         }
-    }, [enabled, leagueId, myMemberId, participantIds, retryToken, selectedParticipantKey])
+    }, [enabled, leagueId, myMemberId, participantIds, participantPicks, participantRosters, retryToken, selectedParticipantKey])
 
     return {
         selectedParticipantIds,

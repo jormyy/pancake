@@ -362,6 +362,7 @@ export function TradeCard({
                         disabled={acting}
                         accessibilityRole="button"
                         accessibilityLabel={`Accept trade with ${opponentName}`}
+                        testID={`trade-accept-${trade.id}`}
                         pressedScale={0.94}
                     >
                         <Text style={styles.actionBtnAcceptText}>Accept</Text>
@@ -373,6 +374,7 @@ export function TradeCard({
                             disabled={acting}
                             accessibilityRole="button"
                             accessibilityLabel={`Reject trade with ${opponentName}`}
+                            testID={`trade-reject-${trade.id}`}
                             pressedScale={0.94}
                         >
                             <Text style={styles.actionBtnRejectText}>Reject</Text>
@@ -384,6 +386,7 @@ export function TradeCard({
                         disabled={acting}
                         accessibilityRole="button"
                         accessibilityLabel={`Counter trade with ${opponentName}`}
+                        testID={`trade-counter-${trade.id}`}
                         pressedScale={0.94}
                     >
                         <Text style={styles.actionBtnRejectText}>Counter</Text>
@@ -398,6 +401,7 @@ export function TradeCard({
                         disabled={acting}
                         accessibilityRole="button"
                         accessibilityLabel={`Edit trade with ${opponentName}`}
+                        testID={`trade-edit-${trade.id}`}
                         pressedScale={0.94}
                     >
                         <Text style={styles.actionBtnAcceptText}>Edit</Text>
@@ -408,6 +412,7 @@ export function TradeCard({
                         disabled={acting}
                         accessibilityRole="button"
                         accessibilityLabel={`Withdraw trade with ${opponentName}`}
+                        testID={`trade-withdraw-${trade.id}`}
                         pressedScale={0.94}
                     >
                         <Text style={styles.actionBtnRejectText}>Withdraw</Text>
@@ -422,6 +427,7 @@ export function TradeCard({
                         disabled={acting}
                         accessibilityRole="button"
                         accessibilityLabel={`Veto trade between ${trade.proposerTeamName} and ${trade.recipientTeamName}`}
+                        testID={`trade-veto-${trade.id}`}
                         pressedScale={0.94}
                     >
                         <Text style={styles.actionBtnRejectText}>Veto</Text>

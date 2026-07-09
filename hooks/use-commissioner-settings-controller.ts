@@ -63,9 +63,13 @@ async function adminCall(
 export function useCommissionerSettingsController() {
     const { currentLeague: league, isCommissioner, refresh } = useLeagueContext()
     const { back, replace } = useRouter()
-    const hydratedLeagueId = useRef<string | null>(null)
     const [draft, setDraft] = useState<CommissionerSettingsDraft>(EMPTY_COMMISSIONER_SETTINGS_DRAFT)
     const [initialDraft, setInitialDraft] = useState<CommissionerSettingsDraft>(EMPTY_COMMISSIONER_SETTINGS_DRAFT)
+    const draftRef = useRef(draft)
+    const initialDraftRef = useRef(initialDraft)
+    const forceHydrate = useRef(false)
+    draftRef.current = draft
+    initialDraftRef.current = initialDraft
     const [members, setMembers] = useState<{ id: string; team_name: string | null }[]>([])
     const [overrideMemberId, setOverrideMemberId] = useState<string | null>(null)
     const [overrideFaab, setOverrideFaab] = useState('')
@@ -87,10 +91,6 @@ export function useCommissionerSettingsController() {
             }
             if (!league) {
                 setLoadState('loading')
-                return
-            }
-            if (hydratedLeagueId.current === league.id) {
-                setLoadState('ready')
                 return
             }
             setLoadState('loading')
@@ -125,9 +125,16 @@ export function useCommissionerSettingsController() {
                 }
                 setMembers(memberData)
                 setOverrideMemberId(memberData[0]?.id ?? null)
+                const localDirty = JSON.stringify(draftRef.current) !== JSON.stringify(initialDraftRef.current)
+                const remoteChanged = JSON.stringify(nextDraft) !== JSON.stringify(initialDraftRef.current)
+                if (!forceHydrate.current && localDirty && remoteChanged) {
+                    setLoadError('League settings changed while you were editing. Reload before making more changes.')
+                    setLoadState('error')
+                    return
+                }
+                forceHydrate.current = false
                 setDraft(nextDraft)
                 setInitialDraft(nextDraft)
-                hydratedLeagueId.current = league.id
                 setLoadState('ready')
             } catch (error) {
                 if (!cancelled) {
@@ -345,7 +352,7 @@ export function useCommissionerSettingsController() {
         setOverrideFaab,
         setOverrideMemberId,
         retryLoad: () => {
-            hydratedLeagueId.current = null
+            forceHydrate.current = true
             setLoadAttempt((attempt) => attempt + 1)
         },
         tradeVetoModeDescription: tradeVetoDescription(draft.tradeVetoMode),

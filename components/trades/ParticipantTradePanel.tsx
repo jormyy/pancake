@@ -24,6 +24,7 @@ type RouteOptionsProps = {
     selectedId: string
     participantName: (memberId: string) => string
     accessibilityLabel: (destinationId: string) => string
+    testID?: (destinationId: string) => string
     onChange: (destinationId: string) => void
 }
 
@@ -32,6 +33,7 @@ function RouteOptions({
     selectedId,
     participantName,
     accessibilityLabel,
+    testID,
     onChange,
 }: RouteOptionsProps) {
     return (
@@ -45,6 +47,7 @@ function RouteOptions({
                         onPress={() => onChange(destinationId)}
                         accessibilityRole="button"
                         accessibilityLabel={accessibilityLabel(destinationId)}
+                        testID={testID?.(destinationId)}
                     >
                         <Text style={[styles.routeOptionText, active && styles.routeOptionTextActive]} numberOfLines={1}>
                             {participantName(destinationId)}
@@ -89,6 +92,7 @@ export function ParticipantTradePanel({
                         accessibilityLabel={(destinationId) =>
                             `${participantName(participant.memberId)} sends selected assets to ${participantName(destinationId)}`
                         }
+                        testID={(destinationId) => `trade-default-route-${participant.memberId}-${destinationId}`}
                         onChange={(destinationId) => onDestinationChange(participant.memberId, destinationId)}
                     />
                 </View>
@@ -109,6 +113,7 @@ export function ParticipantTradePanel({
                 onTogglePlayer={(playerId) => onTogglePlayer(participant.memberId, playerId)}
                 onTogglePick={(pickId) => onTogglePick(participant.memberId, pickId)}
                 emptyText="No tradeable active players."
+                testIdPrefix={`trade-${participant.memberId}`}
             />
             {participant.destinationIds.length > 1 && (selectedPlayers.length > 0 || selectedPicks.length > 0) ? (
                 <View style={styles.selectedRoutes}>
@@ -125,6 +130,7 @@ export function ParticipantTradePanel({
                                     accessibilityLabel={(destinationId) =>
                                         `Route ${player.players.display_name} to ${participantName(destinationId)}`
                                     }
+                                    testID={(destinationId) => `trade-player-route-${participant.memberId}-${playerId}-${destinationId}`}
                                     onChange={(destinationId) =>
                                         onPlayerDestinationChange(participant.memberId, playerId, destinationId)
                                     }
@@ -144,6 +150,7 @@ export function ParticipantTradePanel({
                                     accessibilityLabel={(destinationId) =>
                                         `Route ${label} pick to ${participantName(destinationId)}`
                                     }
+                                    testID={(destinationId) => `trade-pick-route-${participant.memberId}-${pick.pickId}-${destinationId}`}
                                     onChange={(destinationId) =>
                                         onPickDestinationChange(participant.memberId, pick.pickId, destinationId)
                                     }
