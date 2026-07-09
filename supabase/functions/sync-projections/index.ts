@@ -2,6 +2,7 @@ import { supabase } from '../_shared/supabase.ts'
 import { currentSeasonYear } from '../_shared/season.ts'
 import { fetchWithRetry } from '../_shared/retry.ts'
 import { serveInternal } from '../_shared/serve.ts'
+import { resolveSeasonWeekNumber, type SeasonWeekRange } from '../_shared/weekPolicy.ts'
 import type { Database, Json } from '../_shared/database.ts'
 import { parseFantasyProsProjectionHtml, type FantasyProsProjectionType } from './parser.ts'
 import {
@@ -413,27 +414,27 @@ function averageFlag(
 
 async function getCurrentRegularSeasonWeekNumber(date: Date, seasonYear: number): Promise<number | null> {
   const dateISO = date.toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
-  const { data: week, error: weekError } = await supabase
+  const { data: weeks, error: weekError } = await supabase
     .from('season_weeks')
-    .select('week_number')
+    .select('week_number, week_start, week_end')
     .eq('season_year', seasonYear)
-    .lte('week_start', dateISO)
-    .gte('week_end', dateISO)
-    .maybeSingle()
+    .order('week_number', { ascending: true })
   if (weekError) throw weekError
-  if (!week) return null
+
+  const weekNumber = resolveSeasonWeekNumber((weeks ?? []) as SeasonWeekRange[], dateISO, 'exact')
+  if (!weekNumber) return null
 
   const { data: game, error: gameError } = await supabase
     .from('nba_games')
     .select('id')
     .eq('season_year', seasonYear)
-    .eq('week_number', week.week_number)
+    .eq('week_number', weekNumber)
     .like('nba_game_id', '002%')
     .limit(1)
     .maybeSingle()
   if (gameError) throw gameError
 
-  return game ? week.week_number : null
+  return game ? weekNumber : null
 }
 
 function sleep(ms: number): Promise<void> {

@@ -6,6 +6,8 @@ export type { StatLine, ScoringSettings } from './scoring/types'
 export { currentSeasonYear } from './season/year'
 export { isRegularSeasonGameId } from './season/gameId'
 export { calculateWeekNumberFromDate } from './season/week'
+export { resolveSeasonWeekNumber } from './season/weekPolicy'
+export type { SeasonWeekRange, SeasonWeekResolutionMode } from './season/weekPolicy'
 export {
     assertScheduleFresh,
     buildScheduleSyncPlan,

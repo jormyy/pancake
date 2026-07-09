@@ -162,6 +162,7 @@ const outputs = [
   ['supabase/functions/_shared/gameId.ts', `${HEADER}${await read('core/src/season/gameId.ts')}`],
   ['supabase/functions/_shared/livePoll.ts', await livePollCore()],
   ['supabase/functions/_shared/schedule.ts', await scheduleCore()],
+  ['supabase/functions/_shared/weekPolicy.ts', `${HEADER}${await read('core/src/season/weekPolicy.ts')}`],
   ['supabase/functions/_shared/scoreLineups.ts', await scoreLineups()],
   ['supabase/functions/_shared/scoreShared.ts', await scoreShared()],
   ['supabase/functions/_shared/scoringCore.ts', await scoringCore()],

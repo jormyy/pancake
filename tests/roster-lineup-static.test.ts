@@ -24,11 +24,10 @@ const {
 describe('logic hardening source guards - lineup and roster locks', () => {
     it('caps Edge scoring week lookup to the last seeded week after the schedule ends', () => {
         const scoring = read('supabase/functions/_shared/scoring.ts')
-        expect(scoring).toContain('if (dateISO > last.week_end)')
-        expect(scoring).toContain('return last.week_number')
-        expect(scoring).toContain('if (exactErr) throw exactErr')
-        expect(scoring).toContain('if (lastErr) throw lastErr')
-        expect(scoring).not.toContain('return last.week_number + 1')
+        expect(scoring).toContain("from './weekPolicy.ts'")
+        expect(scoring).toContain('resolveSeasonWeekNumber')
+        expect(scoring).toContain("'current-or-previous'")
+        expect(scoring).toContain("select('week_number, week_start, week_end')")
 
         const edgeScores = read('supabase/functions/_shared/syncScores.ts')
         expect(edgeScores).toContain('error: weekErr')
