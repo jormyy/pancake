@@ -40,6 +40,9 @@ const TRADE_RUNNERS = {
   'multi-team': runBrowserMultiTeamTradeScenario,
 }
 
+/** @typedef {{ args: { browserFullSweep?: boolean, [key: string]: unknown }, season: number }} BrowserScenarioInput */
+/** @typedef {{ flag: string, resultKey: string, run: (input: BrowserScenarioInput) => Promise<unknown> }} BrowserScenario */
+/** @type {BrowserScenario[]} */
 const ONE_TIME_BROWSER_SCENARIOS = [
   { flag: 'browser', resultKey: 'browserCheck', run: ({ args, season }) => runBrowserSmoke({ season, fullSweep: args.browserFullSweep }) },
   { flag: 'browserAuth', resultKey: 'browserAuthCheck', run: ({ season }) => runBrowserAuthScenario({ season }) },

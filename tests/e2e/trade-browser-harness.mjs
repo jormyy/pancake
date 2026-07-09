@@ -112,37 +112,6 @@ export const assertPageText = async (session, required, label) => {
   return parsed
 }
 
-/** @param {string} session @param {string} name @param {string} label */
-export const clickButton = async (session, name, label) => {
-  const clickByDom = async () => {
-    const parsed = parseEvalJson(await browser(session, ['eval', `(() => {
-      const named = [...document.querySelectorAll('[aria-label], [role="button"], button')]
-        .find((element) => element.getAttribute('aria-label') === ${JSON.stringify(name)} || (element.textContent || '').trim() === ${JSON.stringify(name)});
-      const textNode = named || [...document.querySelectorAll('*')].reverse()
-        .find((element) => (element.textContent || '').trim() === ${JSON.stringify(name)});
-      const target = textNode?.closest?.('[role="button"], button, [tabindex]') || textNode;
-      if (!target) return JSON.stringify({ ok: false, body: (document.body?.innerText || '').slice(0, 1400) });
-      target.scrollIntoView({ block: 'center', inline: 'center' });
-      target.click();
-      return JSON.stringify({ ok: true, ariaLabel: target.getAttribute('aria-label'), text: target.textContent });
-    })()`]))
-    if (!parsed || typeof parsed !== 'object' || Reflect.get(parsed, 'ok') !== true) {
-      throw new Error(`${label}: button not found: ${name}. Body: ${String(parsed && typeof parsed === 'object' ? Reflect.get(parsed, 'body') : '')}`)
-    }
-    return parsed
-  }
-  try {
-    return await clickByDom()
-  } catch (domError) {
-    try {
-      await browser(session, ['find', 'role', 'button', 'click', '--name', name])
-      return { ok: true, method: 'agent-browser-find-role-button' }
-    } catch {
-      throw domError
-    }
-  }
-}
-
 /** @param {string} session @param {string} testID @param {string} label */
 export const clickTestId = async (session, testID, label) => {
   const result = parseEvalJson(await browser(session, ['eval', `(() => {
@@ -215,7 +184,7 @@ export const readBrowserAlerts = async (session) => {
 }
 
 /** @param {string} session @param {string} name */
-export const clickTab = async (session, name) => {
+const clickTab = async (session, name) => {
   const parsed = parseEvalJson(await browser(session, ['eval', `(() => {
     const norm = (value) => (value || '').trim();
     const target = [...document.querySelectorAll('[role="tab"], [role="button"], button, [tabindex]')]

@@ -63,7 +63,7 @@ export const waitForTradeProposal = async (fixture, timeoutMs = 10_000) => {
  * }} ReplacementExpectation
  */
 /** @param {BaseFixture} fixture @param {string} sourceTradeId @param {ReplacementExpectation} expected */
-export const verifyTradeReplacement = async (fixture, sourceTradeId, expected) => {
+const verifyTradeReplacement = async (fixture, sourceTradeId, expected) => {
   const { data: source, error: sourceError } = await fixture.admin.from('trades')
     .select('id, status, replaced_by_trade_id')
     .eq('id', sourceTradeId)

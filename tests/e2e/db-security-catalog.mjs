@@ -37,12 +37,14 @@ const parseJsonBody = (text) => {
   }
 }
 
+const optionalString = (value) => typeof value === 'string' ? value : undefined
+
 const authEndpoint = (target) => {
   if (target === 'local') {
     const status = localSupabaseStatus()
     return {
-      apiUrl: status.API_URL,
-      publicKey: status.PUBLISHABLE_KEY ?? status.ANON_KEY,
+      apiUrl: optionalString(status.API_URL),
+      publicKey: optionalString(status.PUBLISHABLE_KEY) ?? optionalString(status.ANON_KEY),
     }
   }
 

@@ -86,7 +86,7 @@ export function useTradesFeed(memberId: string, leagueId: string) {
         } finally {
             if (loadSequence.current === requestId) setLoadingMore(false)
         }
-    }, [hasMore, leagueId, loadingMore, memberId, trades.length])
+    }, [hasMore, leagueId, loadingMore, memberId, trades])
 
     return { trades, loading, loadingMore, hasMore, error, refresh, loadMore }
 }

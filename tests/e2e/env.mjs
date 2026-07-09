@@ -33,7 +33,7 @@ export const loadEnvFile = (filePath) => {
 
 loadEnvFile(path.join(ROOT, '.env'))
 
-/** @param {...string} names */
+/** @param {...string} names @returns {string | undefined} */
 export const envValue = (...names) => {
   for (const name of names) {
     if (process.env[name]) return process.env[name]

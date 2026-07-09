@@ -10,7 +10,6 @@ export {
   ARTIFACT_ROOT,
   assertPageText,
   browser,
-  clickButton,
   clickLastButton,
   clickTestId,
   installBrowserHooks,
