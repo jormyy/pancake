@@ -51,7 +51,7 @@ describe('trade perspective helpers', () => {
     it('uses per-participant acceptance rows for multi-team pending trades', () => {
         const input = trade({
             participants: [
-                { memberId: 'alpha', acceptedAt },
+                { memberId: 'alpha', acceptedAt: null },
                 { memberId: 'bravo', acceptedAt: null },
                 { memberId: 'charlie', acceptedAt },
                 { memberId: 'delta', acceptedAt: null },
@@ -61,7 +61,7 @@ describe('trade perspective helpers', () => {
         expect(needsMemberAcceptance(input, 'bravo')).toBe(true)
         expect(needsMemberAcceptance(input, 'delta')).toBe(true)
         expect(needsMemberAcceptance(input, 'charlie')).toBe(false)
-        expect(needsMemberAcceptance(input, 'alpha')).toBe(false)
+        expect(needsMemberAcceptance(input, 'alpha')).toBe(true)
     })
 
     it('classifies outgoing pending trades for proposers and already-accepted participants', () => {
@@ -77,6 +77,19 @@ describe('trade perspective helpers', () => {
         expect(isOutgoingTradeForMember(input, 'charlie')).toBe(true)
         expect(isOutgoingTradeForMember(input, 'bravo')).toBe(false)
         expect(isOutgoingTradeForMember(input, 'delta')).toBe(false)
+    })
+
+    it('keeps unaccepted multi-team proposers in the incoming acceptance queue', () => {
+        const input = trade({
+            participants: [
+                { memberId: 'alpha', acceptedAt: null },
+                { memberId: 'bravo', acceptedAt },
+                { memberId: 'charlie', acceptedAt },
+            ],
+        })
+
+        expect(isIncomingTradeForMember(input, 'alpha')).toBe(true)
+        expect(isOutgoingTradeForMember(input, 'alpha')).toBe(false)
     })
 
     it('shows accepted trades in participant history while reserving vetoes for non-participants', () => {

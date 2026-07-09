@@ -541,7 +541,6 @@ export async function getPendingIncomingTradeCount(memberId: string, leagueId: s
         .select('id', { count: 'exact', head: true })
         .eq('league_id', leagueId)
         .eq('status', 'pending')
-        .neq('proposer_member_id', memberId)
         .or(visibilityFilters)
 
     if (error) throw error

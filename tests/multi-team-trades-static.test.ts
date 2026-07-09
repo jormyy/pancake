@@ -11,6 +11,7 @@ const tradeAssetColumn = read('components/trades/TradeAssetColumn.tsx')
 const tradeCard = read('components/trades/TradeCard.tsx')
 const tradesScreen = read('app/(tabs)/trades.tsx')
 const playerContext = read('lib/player-context.ts')
+const tradePerspective = read('lib/trade-perspective.ts')
 
 describe('multi-team trade schema and privacy', () => {
     it('adds explicit participants and routed trade item assets', () => {
@@ -55,6 +56,8 @@ describe('multi-team trade RPC lifecycle', () => {
         expect(createMulti).toContain('from_member_id')
         expect(createMulti).toContain('to_member_id')
         expect(createMulti).toContain('faab_amount')
+        expect(createMulti).toContain('NULL::timestamptz')
+        expect(createMulti).not.toContain('CASE WHEN member_id = p_proposer_member_id THEN now() ELSE NULL END')
         expect(proposeMulti).toContain('private.create_multi_team_trade_offer')
         expect(acceptMulti).toContain('UPDATE trade_participants')
         expect(acceptMulti).toContain('accepted_at IS NULL')
@@ -124,17 +127,26 @@ describe('multi-team trade UI and client mapping', () => {
         expect(composer).toContain('multiTeamMode')
         expect(composer).toContain('useMultiTeamTradeComposer')
         expect(multiTeamComposer).toContain('selectedParticipantIds')
+        expect(multiTeamComposer).toContain('participantDestinationIds')
+        expect(multiTeamComposer).toContain('setParticipantDestination')
         expect(multiTeamComposer).toContain('buildMultiTeamItems')
+        expect(multiTeamComposer).toContain('destinationFor(memberId, ids)')
+        expect(multiTeamComposer).not.toContain('ids[(index + 1) % ids.length]')
         expect(multiTeamComposer).toContain('loadParticipantAssets')
         expect(composer).toContain('submitMultiTeamTradeComposer')
         expect(composer).toContain('MultiTeamTradeBuilder')
+        expect(composer).toContain('participantDestinationIds={multiTeam.participantDestinationIds}')
+        expect(composer).toContain('onDestinationChange={multiTeam.setParticipantDestination}')
         expect(composer).toContain('proposeMultiTeamTrade')
         expect(multiTeamBuilder).toContain('MULTI-TEAM BUILDER')
         expect(multiTeamBuilder).toContain('TradeAssetColumn')
+        expect(multiTeamBuilder).toContain('destinationOptions')
+        expect(multiTeamBuilder).toContain('onDestinationChange(memberId, destinationId)')
         expect(tradeCard).toContain('isMultiParticipant')
         expect(tradeCard).toContain('participantAcceptanceText')
         expect(tradeCard).toContain("item.kind === 'faab'")
         expect(tradeCard).toContain('needsMemberAcceptance(trade, myMemberId)')
+        expect(tradeCard).toContain('canReject')
         expect(tradeCard).toContain('acceptTrade(trade.id, myMemberId')
         expect(tradeCard).toContain("tab === 'offers' && isProposer && trade.status === 'pending'")
         expect(tradeCard).toContain('function MultiTeamRouteList')
@@ -149,6 +161,10 @@ describe('multi-team trade UI and client mapping', () => {
 
     it('uses shared participant-aware perspective helpers in trade surfaces', () => {
         const pendingTradeCount = read('hooks/use-pending-trade-count.ts')
+        const pendingTradeCountQuery = clientTrades.slice(
+            clientTrades.indexOf('export async function getPendingIncomingTradeCount'),
+            clientTrades.indexOf('export async function getVetoableTrades'),
+        )
 
         expect(tradesScreen).toContain('isIncomingTradeForMember(trade, myMemberId)')
         expect(tradesScreen).toContain('isOutgoingTradeForMember(trade, myMemberId)')
@@ -158,6 +174,9 @@ describe('multi-team trade UI and client mapping', () => {
         expect(pendingTradeCount).not.toContain(".eq('recipient_member_id', memberId)")
         expect(clientTrades).toContain('and(is_multi_team.eq.false,recipient_member_id.eq.${memberId})')
         expect(clientTrades).toContain("query.not('id', 'in'")
+        expect(pendingTradeCountQuery).not.toContain(".neq('proposer_member_id', memberId)")
+        expect(tradePerspective).toContain('if (participant) return participant.acceptedAt == null')
+        expect(tradePerspective).not.toContain("trade.proposerMemberId === memberId || !isTradeParticipant")
     })
 
     it('uses shared player context formatting in trade asset surfaces', () => {

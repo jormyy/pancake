@@ -246,6 +246,7 @@ export function TradeCard({
     const canVeto = tab === 'offers' && !isTradeParty && trade.status === 'accepted' && !trade.myVetoed && canVetoBySettings
     const alreadyVetoed = tab === 'offers' && !isTradeParty && trade.status === 'accepted' && trade.myVetoed && canVetoBySettings
     const canRespond = tab === 'offers' && needsMemberAcceptance(trade, myMemberId)
+    const canReject = canRespond && (!trade.isMultiTeam || !isProposer)
     const participantAcceptanceText = trade.isMultiTeam
         ? `${participants.filter((participant) => participant.acceptedAt != null).length}/${participants.length} teams accepted`
         : null
@@ -428,16 +429,18 @@ export function TradeCard({
                     >
                         <Text style={styles.actionBtnAcceptText}>Accept</Text>
                     </MotionPressable>
-                    <MotionPressable
-                        style={[styles.actionBtn, styles.actionBtnReject]}
-                        onPress={handleReject}
-                        disabled={acting}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Reject trade with ${opponentName}`}
-                        pressedScale={0.94}
-                    >
-                        <Text style={styles.actionBtnRejectText}>Reject</Text>
-                    </MotionPressable>
+                    {canReject ? (
+                        <MotionPressable
+                            style={[styles.actionBtn, styles.actionBtnReject]}
+                            onPress={handleReject}
+                            disabled={acting}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Reject trade with ${opponentName}`}
+                            pressedScale={0.94}
+                        >
+                            <Text style={styles.actionBtnRejectText}>Reject</Text>
+                        </MotionPressable>
+                    ) : null}
                     {!trade.isMultiTeam ? (
                         <MotionPressable
                             style={[styles.actionBtn, styles.actionBtnReject]}

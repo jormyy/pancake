@@ -32,14 +32,14 @@ export function needsMemberAcceptance(
     trade: Pick<TradePerspectiveInput, 'status' | 'proposerMemberId' | 'recipientMemberId' | 'participants'>,
     memberId: string,
 ): boolean {
-    if (trade.status !== 'pending' || trade.proposerMemberId === memberId || !isTradeParticipant(trade, memberId)) {
+    if (trade.status !== 'pending' || !isTradeParticipant(trade, memberId)) {
         return false
     }
 
     const participant = trade.participants.find((row) => row.memberId === memberId)
     if (participant) return participant.acceptedAt == null
 
-    return trade.recipientMemberId === memberId
+    return trade.recipientMemberId === memberId && trade.proposerMemberId !== memberId
 }
 
 export function isIncomingTradeForMember(

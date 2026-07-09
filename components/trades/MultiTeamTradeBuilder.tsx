@@ -15,6 +15,7 @@ type MultiTeamTradeBuilderProps = {
     participantPicks: Record<string, TradePickItem[]>
     participantPlayerIds: Record<string, Set<string>>
     participantPickIds: Record<string, Set<string>>
+    participantDestinationIds: Record<string, string>
     participantFaabInputs: Record<string, string>
     avgMap: Map<string, number>
     avgStatsMap: Map<string, { avg_minutes_played: number | null }>
@@ -22,6 +23,7 @@ type MultiTeamTradeBuilderProps = {
     onRetry: () => void
     onTogglePlayer: (memberId: string, playerId: string) => void
     onTogglePick: (memberId: string, pickId: string) => void
+    onDestinationChange: (memberId: string, toMemberId: string) => void
     onFaabChange: (memberId: string, value: string) => void
     onNotesChange: (value: string) => void
     onExpirationDaysChange: (value: string) => void
@@ -38,6 +40,7 @@ export function MultiTeamTradeBuilder({
     participantPicks,
     participantPlayerIds,
     participantPickIds,
+    participantDestinationIds,
     participantFaabInputs,
     avgMap,
     avgStatsMap,
@@ -45,6 +48,7 @@ export function MultiTeamTradeBuilder({
     onRetry,
     onTogglePlayer,
     onTogglePick,
+    onDestinationChange,
     onFaabChange,
     onNotesChange,
     onExpirationDaysChange,
@@ -66,15 +70,45 @@ export function MultiTeamTradeBuilder({
         <>
             <Text style={styles.sectionLabel}>MULTI-TEAM BUILDER</Text>
             <View style={styles.multiTeamStack}>
-                {participantIds.map((memberId, index) => {
-                    const toMemberId = participantIds[(index + 1) % participantIds.length]
+                {participantIds.map((memberId) => {
+                    const destinationOptions = participantIds.filter((id) => id !== memberId)
+                    const toMemberId = participantDestinationIds[memberId] && destinationOptions.includes(participantDestinationIds[memberId])
+                        ? participantDestinationIds[memberId]
+                        : destinationOptions[0]
                     const roster = participantRosters[memberId] ?? []
                     const picks = participantPicks[memberId] ?? []
                     return (
                         <View key={memberId} style={styles.multiTeamPanel}>
+                            <View style={styles.routePicker}>
+                                <Text style={styles.routePickerLabel}>SEND TO</Text>
+                                <View style={styles.routeOptions}>
+                                    {destinationOptions.map((destinationId) => {
+                                        const active = destinationId === toMemberId
+                                        return (
+                                            <Pressable
+                                                key={destinationId}
+                                                style={[styles.routeOption, active && styles.routeOptionActive]}
+                                                onPress={() => onDestinationChange(memberId, destinationId)}
+                                                accessibilityRole="button"
+                                                accessibilityLabel={`${participantName(memberId)} sends selected assets to ${participantName(destinationId)}`}
+                                            >
+                                                <Text
+                                                    style={[
+                                                        styles.routeOptionText,
+                                                        active && styles.routeOptionTextActive,
+                                                    ]}
+                                                    numberOfLines={1}
+                                                >
+                                                    {participantName(destinationId)}
+                                                </Text>
+                                            </Pressable>
+                                        )
+                                    })}
+                                </View>
+                            </View>
                             <TradeAssetColumn
                                 title={`${memberId === myMemberId ? 'YOU' : participantName(memberId).toUpperCase()} SENDS`}
-                                subtitle={`To ${participantName(toMemberId)}`}
+                                subtitle={toMemberId ? `To ${participantName(toMemberId)}` : 'Choose a destination'}
                                 side="give"
                                 twoColumn={false}
                                 roster={roster}
@@ -89,7 +123,9 @@ export function MultiTeamTradeBuilder({
                             />
                             {faabEnabled ? (
                                 <View style={styles.multiFaabRow}>
-                                    <Text style={styles.termLabel}>FAAB to {participantName(toMemberId)}</Text>
+                                    <Text style={styles.termLabel}>
+                                        FAAB to {toMemberId ? participantName(toMemberId) : 'destination'}
+                                    </Text>
                                     <TextInput
                                         style={styles.termInput}
                                         value={participantFaabInputs[memberId] ?? '0'}
@@ -147,6 +183,43 @@ const styles = StyleSheet.create({
         borderColor: colors.borderLight,
         backgroundColor: colors.bgScreen,
     },
+    routePicker: {
+        paddingHorizontal: spacing.xl,
+        paddingTop: spacing.lg,
+        gap: spacing.xs,
+    },
+    routePickerLabel: {
+        fontSize: 10,
+        fontWeight: fontWeight.bold,
+        color: colors.textMuted,
+        letterSpacing: 0,
+    },
+    routeOptions: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: spacing.xs,
+    },
+    routeOption: {
+        minHeight: 36,
+        maxWidth: 180,
+        borderWidth: 1,
+        borderColor: uiColors.borderNeutral,
+        borderRadius: radii.md,
+        borderCurve: 'continuous' as const,
+        paddingHorizontal: spacing.md,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    routeOptionActive: {
+        borderColor: colors.primary,
+        backgroundColor: colors.primary,
+    },
+    routeOptionText: {
+        fontSize: fontSize.sm,
+        fontWeight: fontWeight.semibold,
+        color: colors.textSecondary,
+    },
+    routeOptionTextActive: { color: colors.textWhite },
     multiFaabRow: {
         marginHorizontal: spacing.xl,
         marginBottom: spacing.lg,

@@ -33,6 +33,7 @@ export function useMultiTeamTradeComposer({
     const [participantPicks, setParticipantPicks] = useState<Record<string, TradePickItem[]>>({})
     const [participantPlayerIds, setParticipantPlayerIds] = useState<Record<string, Set<string>>>({})
     const [participantPickIds, setParticipantPickIds] = useState<Record<string, Set<string>>>({})
+    const [participantDestinationIds, setParticipantDestinationIds] = useState<Record<string, string>>({})
     const [participantFaabInputs, setParticipantFaabInputs] = useState<Record<string, string>>({})
     const [avgMap, setAvgMap] = useState(EMPTY_AVG_MAP)
     const [avgStatsMap, setAvgStatsMap] = useState(EMPTY_STATS_MAP)
@@ -56,6 +57,7 @@ export function useMultiTeamTradeComposer({
         setParticipantPicks({})
         setParticipantPlayerIds({})
         setParticipantPickIds({})
+        setParticipantDestinationIds({})
         setParticipantFaabInputs({})
         setAvgMap(EMPTY_AVG_MAP)
         setAvgStatsMap(EMPTY_STATS_MAP)
@@ -95,15 +97,30 @@ export function useMultiTeamTradeComposer({
         setParticipantFaabInputs((prev) => ({ ...prev, [memberId]: value }))
     }, [])
 
+    const setParticipantDestination = useCallback((memberId: string, toMemberId: string) => {
+        if (memberId === toMemberId || !participantIds.includes(memberId) || !participantIds.includes(toMemberId)) return
+        setParticipantDestinationIds((prev) => ({ ...prev, [memberId]: toMemberId }))
+    }, [participantIds])
+
     const participantName = useCallback((memberId: string): string => {
         if (memberId === myMemberId) return myTeamName
         return members.find((member) => member.id === memberId)?.team_name ?? 'Unnamed'
     }, [members, myMemberId, myTeamName])
 
+    const defaultDestinationFor = useCallback((memberId: string, ids = participantIds) => (
+        ids.find((id) => id !== memberId) ?? ''
+    ), [participantIds])
+
+    const destinationFor = useCallback((memberId: string, ids = participantIds) => {
+        const current = participantDestinationIds[memberId]
+        if (current && current !== memberId && ids.includes(current)) return current
+        return defaultDestinationFor(memberId, ids)
+    }, [defaultDestinationFor, participantDestinationIds, participantIds])
+
     const buildMultiTeamItems = useCallback((ids = participantIds): MultiTeamTradeItemPayload[] => (
-        ids.flatMap((memberId, index) => {
-            const toMemberId = ids[(index + 1) % ids.length]
-            if (!toMemberId) return []
+        ids.flatMap((memberId) => {
+            const toMemberId = destinationFor(memberId, ids)
+            if (!toMemberId || toMemberId === memberId) return []
 
             const playerItems = [...(participantPlayerIds[memberId] ?? new Set<string>())].map((playerId) => ({
                 fromMemberId: memberId,
@@ -121,9 +138,29 @@ export function useMultiTeamTradeComposer({
                 : []
             return [...playerItems, ...pickItems, ...faabItems]
         })
-    ), [faabEnabled, participantFaabInputs, participantIds, participantPickIds, participantPlayerIds])
+    ), [destinationFor, faabEnabled, participantFaabInputs, participantIds, participantPickIds, participantPlayerIds])
 
     const retry = useCallback(() => setRetryToken((value) => value + 1), [])
+
+    useEffect(() => {
+        if (!enabled) return
+
+        setParticipantDestinationIds((prev) => {
+            const next: Record<string, string> = {}
+            let changed = Object.keys(prev).length !== participantIds.length
+
+            for (const memberId of participantIds) {
+                const options = participantIds.filter((id) => id !== memberId)
+                if (options.length === 0) continue
+
+                const current = prev[memberId]
+                next[memberId] = current && options.includes(current) ? current : options[0]
+                if (prev[memberId] !== next[memberId]) changed = true
+            }
+
+            return changed ? next : prev
+        })
+    }, [enabled, participantIds])
 
     useEffect(() => {
         if (!enabled || !leagueId || !myMemberId) {
@@ -184,6 +221,7 @@ export function useMultiTeamTradeComposer({
         participantPicks,
         participantPlayerIds,
         participantPickIds,
+        participantDestinationIds,
         participantFaabInputs,
         avgMap,
         avgStatsMap,
@@ -194,6 +232,7 @@ export function useMultiTeamTradeComposer({
         toggleParticipant,
         toggleParticipantPlayer,
         toggleParticipantPick,
+        setParticipantDestination,
         setParticipantFaab,
         participantName,
         buildMultiTeamItems,

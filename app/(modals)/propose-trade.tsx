@@ -469,6 +469,7 @@ export default function ProposeTradeScreen() {
                         participantPicks={multiTeam.participantPicks}
                         participantPlayerIds={multiTeam.participantPlayerIds}
                         participantPickIds={multiTeam.participantPickIds}
+                        participantDestinationIds={multiTeam.participantDestinationIds}
                         participantFaabInputs={multiTeam.participantFaabInputs}
                         avgMap={multiTeam.avgMap}
                         avgStatsMap={multiTeam.avgStatsMap}
@@ -476,6 +477,7 @@ export default function ProposeTradeScreen() {
                         onRetry={multiTeam.retry}
                         onTogglePlayer={multiTeam.toggleParticipantPlayer}
                         onTogglePick={multiTeam.toggleParticipantPick}
+                        onDestinationChange={multiTeam.setParticipantDestination}
                         onFaabChange={multiTeam.setParticipantFaab}
                         onNotesChange={setNotes}
                         onExpirationDaysChange={setExpirationDays}
