@@ -10,3 +10,4 @@ notes: aggressiveness=aggressive; scope=entire repo including Supabase database 
 | 3 | BLOCK | 0/2/0 | 1 | 503 | pass | Cycle-3 fresh audits fixed multi-team proposer acceptance/drop reservations by requiring initiator acceptance, exposed explicit per-sender multi-team destinations instead of ring routing, and aligned pending-count/perspective/UI actions. Full broad gate passed. |
 | 4 | APPROVE | 0/0/0 | 0 | 0 | pass | Cycle-4 fresh DB/core/app audits approved HEAD after multi-team proposer acceptance and explicit routing fixes. Full broad gate passed. |
 | 5 | BLOCK | 0/1/0 | 1 | -2 | pass | Cycle-5 DB/core audits approved, app audit caught git diff --check blank-line-at-EOF issues. Removed trailing blank lines, verified git diff --check main...HEAD and full broad gate passed. |
+| 6 | APPROVE | 0/0/0 | 0 | 0 | pass | Cycle-6 fresh DB/core/app audits approved HEAD after whitespace cleanup. Full broad gate and git diff --check main...HEAD passed. |
