@@ -107,9 +107,12 @@ export function useMultiTeamTradeComposer({
         return members.find((member) => member.id === memberId)?.team_name ?? 'Unnamed'
     }, [members, myMemberId, myTeamName])
 
-    const defaultDestinationFor = useCallback((memberId: string, ids = participantIds) => (
-        ids.find((id) => id !== memberId) ?? ''
-    ), [participantIds])
+    const defaultDestinationFor = useCallback((memberId: string, ids = participantIds) => {
+        if (ids.length < 2) return ''
+        const currentIndex = ids.indexOf(memberId)
+        if (currentIndex < 0) return ids.find((id) => id !== memberId) ?? ''
+        return ids[(currentIndex + 1) % ids.length] ?? ''
+    }, [participantIds])
 
     const destinationFor = useCallback((memberId: string, ids = participantIds) => {
         const current = participantDestinationIds[memberId]
@@ -154,13 +157,15 @@ export function useMultiTeamTradeComposer({
                 if (options.length === 0) continue
 
                 const current = prev[memberId]
-                next[memberId] = current && options.includes(current) ? current : options[0]
+                next[memberId] = current && options.includes(current)
+                    ? current
+                    : defaultDestinationFor(memberId, participantIds)
                 if (prev[memberId] !== next[memberId]) changed = true
             }
 
             return changed ? next : prev
         })
-    }, [enabled, participantIds])
+    }, [defaultDestinationFor, enabled, participantIds])
 
     useEffect(() => {
         if (!enabled || !leagueId || !myMemberId) {
