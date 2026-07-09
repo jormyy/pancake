@@ -41,8 +41,15 @@ export { isIREligible, isDTD, isTaxiEligible } from './roster/eligibility'
 export { isRosterFull, hasTaxiSpace } from './roster/limits'
 
 // Positions
-export { canPlaySlot, SLOT_TYPES } from './positions'
-export type { SlotType } from './positions'
+export {
+    canOccupyRosterSlot,
+    canPlayLineupSlot,
+    canPlaySlot,
+    LINEUP_SLOT_ALLOWED_POSITIONS,
+    LINEUP_SLOT_TYPES,
+    SLOT_TYPES,
+} from './positions'
+export type { LineupSlotType, SlotType } from './positions'
 
 // Types
 export {

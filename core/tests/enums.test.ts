@@ -11,38 +11,25 @@ import {
     TRADE_STATUSES,
     WAIVER_CLAIM_STATUSES,
 } from '../src/types/enums'
-import type { Database } from '../../types/database'
+import { Constants } from '../../types/database'
 
-type DbEnums = Database['public']['Enums']
+const DB_ENUMS = Constants.public.Enums
 
-function expectEnumValues<K extends keyof DbEnums>(
-    actual: readonly DbEnums[K][],
-    expected: readonly DbEnums[K][],
-) {
+function expectEnumValues(actual: readonly string[], expected: readonly string[]) {
     expect([...actual].sort()).toEqual([...expected].sort())
 }
 
 describe('core enum mirrors', () => {
     it('match the generated database enum states used by shared callers', () => {
-        expectEnumValues(LEAGUE_STATUSES, ['setup', 'drafting', 'active', 'playoffs', 'offseason', 'archived'])
-        expectEnumValues(DRAFT_STATUSES, ['pending', 'in_progress', 'paused', 'completed', 'cancelled'])
-        expectEnumValues(DRAFT_TYPES, ['auction', 'snake'])
-        expectEnumValues(NOMINATION_STATUSES, ['open', 'sold', 'no_bid', 'withdrawn'])
-        expectEnumValues(TRADE_STATUSES, [
-            'pending',
-            'accepted',
-            'rejected',
-            'withdrawn',
-            'vetoed',
-            'completed',
-            'expired',
-            'countered',
-            'edited',
-        ])
-        expectEnumValues(TRADE_SIDES, ['proposer', 'recipient'])
-        expectEnumValues(MATCHUP_TYPES, ['regular_season', 'playoff_quarterfinal', 'playoff_semifinal', 'playoff_final'])
-        expectEnumValues(WAIVER_CLAIM_STATUSES, ['pending', 'succeeded', 'failed_priority', 'failed_roster', 'cancelled'])
-        expectEnumValues(ROSTER_SLOT_TYPES, ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F', 'UTIL', 'BE', 'IR'])
-        expectEnumValues(NBA_POSITIONS, ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F'])
+        expectEnumValues(LEAGUE_STATUSES, DB_ENUMS.league_status)
+        expectEnumValues(DRAFT_STATUSES, DB_ENUMS.draft_status)
+        expectEnumValues(DRAFT_TYPES, DB_ENUMS.draft_type)
+        expectEnumValues(NOMINATION_STATUSES, DB_ENUMS.nomination_status)
+        expectEnumValues(TRADE_STATUSES, DB_ENUMS.trade_status)
+        expectEnumValues(TRADE_SIDES, DB_ENUMS.trade_side)
+        expectEnumValues(MATCHUP_TYPES, DB_ENUMS.matchup_type)
+        expectEnumValues(WAIVER_CLAIM_STATUSES, DB_ENUMS.waiver_claim_status)
+        expectEnumValues(ROSTER_SLOT_TYPES, DB_ENUMS.roster_slot_type)
+        expectEnumValues(NBA_POSITIONS, DB_ENUMS.nba_position)
     })
 })
