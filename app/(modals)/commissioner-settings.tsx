@@ -4,7 +4,6 @@ import {
     TextInput,
     Pressable,
     ScrollView,
-    StyleSheet,
     useWindowDimensions,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -26,8 +25,16 @@ import {
 } from '@/lib/league'
 import { advanceSeason } from '@/lib/rookieDraft'
 import { apiPost } from '@/lib/shared/api'
-import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { colors } from '@/constants/tokens'
 import { showAlert, showSuccess, confirmAction, getErrorMessage } from '@/lib/alert'
+import {
+    commissionerLifecyclePolicy,
+    tradeVetoDescription,
+    type CommissionerAction,
+    type CommissionerActionId,
+    type LeagueStatus,
+} from './commissioner-settings.policy'
+import { styles } from './commissioner-settings.styles'
 
 async function adminCall(
     path: string,
@@ -65,27 +72,6 @@ const SLOT_TYPES = ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F', 'UTIL', 'BE']
 
 type SlotMap = Record<string, number>
 type ScoringMap = Record<string, string> // string for TextInput, parsed on save
-type LeagueStatus = 'setup' | 'drafting' | 'active' | 'playoffs' | 'offseason' | string
-type CommissionerActionId =
-    | 'generate-playoffs'
-    | 'advance-playoffs'
-    | 'process-waivers'
-    | 'sync-stats'
-    | 'sync-scores'
-    | 'sync-rankings'
-    | 'sync-projections'
-    | 'sync-games'
-    | 'generate-schedule'
-    | 'reset-schedule'
-    | 'advance-season'
-    | 'delete-league'
-type CommissionerAction = {
-    id: CommissionerActionId
-    label: string
-    onPress: () => void | Promise<void>
-    color?: string
-    description?: string
-}
 
 export default function CommissionerSettingsScreen() {
     const { currentLeague, isCommissioner, refresh } = useLeagueContext()
@@ -530,36 +516,13 @@ export default function CommissionerSettingsScreen() {
     ]
 
     const status = (league?.status as LeagueStatus | undefined) ?? 'setup'
-    const lifecycle =
-        status === 'playoffs'
-            ? {
-                  label: 'Playoff Controls',
-                  detail: 'Generate the bracket or advance after each playoff round is finalized.',
-                  actions: playoffActions,
-              }
-            : status === 'offseason'
-              ? {
-                    label: 'Annual Cycle',
-                    detail: 'Create the next season when rosters and results are ready to roll forward.',
-                    actions: annualCycleActions,
-                }
-              : {
-                    label: 'Schedule Controls',
-                    detail: 'Build or reset the regular-season schedule before managers rely on matchups.',
-                    actions: scheduleActions,
-                }
-
-    const lowerPriorityActions = [...utilityActions]
-    if (status !== 'playoffs') lowerPriorityActions.push(...playoffActions)
-    if (status !== 'offseason') lowerPriorityActions.push(...annualCycleActions)
-    if (status === 'playoffs' || status === 'offseason') lowerPriorityActions.push(...scheduleActions)
-
-    const tradeVetoModeDescription =
-        tradeVetoMode === 'disabled'
-            ? 'Accepted trades complete immediately with no veto period.'
-            : tradeVetoMode === 'commissioner'
-              ? 'Accepted trades wait through the window; only commissioners can veto.'
-              : 'Accepted trades wait through the window; non-party member votes can veto at the configured threshold.'
+    const { lifecycle, lowerPriorityActions } = commissionerLifecyclePolicy(status, {
+        playoffActions,
+        annualCycleActions,
+        scheduleActions,
+        utilityActions,
+    })
+    const tradeVetoModeDescription = tradeVetoDescription(tradeVetoMode)
 
     function renderAction(action: CommissionerAction, grid = false) {
         const color = action.color ?? colors.primary
@@ -868,236 +831,3 @@ export default function CommissionerSettingsScreen() {
         </>
     )
 }
-
-const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: colors.bgSubtle },
-    scroll: { padding: spacing['2xl'], gap: spacing.md, paddingBottom: 96, width: '100%', maxWidth: 760, alignSelf: 'center' },
-    scrollCompact: { paddingHorizontal: spacing.md, paddingTop: spacing.md, gap: spacing.sm, paddingBottom: spacing['5xl'] },
-
-    screenHeader: {
-        minHeight: 56,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: spacing.md,
-        paddingHorizontal: spacing.md,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.borderLight,
-        backgroundColor: colors.bgCard,
-    },
-    headerBack: {
-        width: 44,
-        height: 44,
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderRadius: radii.md,
-        borderCurve: 'continuous' as const,
-        backgroundColor: colors.bgMuted,
-    },
-    screenTitle: {
-        flex: 1,
-        color: colors.textPrimary,
-        fontSize: fontSize.lg,
-        fontWeight: fontWeight.extrabold,
-    },
-
-    lifecycleCard: {
-        backgroundColor: colors.bgScreen,
-        borderRadius: radii.md,
-        borderCurve: 'continuous' as const,
-        borderWidth: 1,
-        borderColor: colors.borderLight,
-        padding: spacing.xl,
-        gap: spacing.lg,
-    },
-    lifecycleCardCompact: {
-        padding: spacing.md,
-        gap: spacing.md,
-    },
-    lifecycleCopy: {
-        gap: spacing.xs,
-    },
-    lifecycleTitle: {
-        fontSize: fontSize.lg,
-        fontWeight: fontWeight.extrabold,
-        color: colors.textPrimary,
-    },
-    lifecycleDetail: {
-        fontSize: fontSize.sm,
-        lineHeight: 18,
-        color: colors.textSecondary,
-    },
-    lifecycleActions: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: spacing.md,
-    },
-    lifecycleActionsCompact: {
-        gap: spacing.sm,
-    },
-
-    sectionTitle: {
-        fontSize: fontSize.xs,
-        fontWeight: fontWeight.bold,
-        color: colors.textPlaceholder,
-        letterSpacing: 0,
-        marginTop: spacing.lg,
-        marginBottom: spacing.xs,
-        marginLeft: spacing.xs,
-    },
-
-    card: {
-        backgroundColor: colors.bgScreen,
-        borderRadius: radii.md,
-        borderCurve: 'continuous' as const,
-        borderWidth: 1,
-        borderColor: colors.borderLight,
-        overflow: 'hidden',
-    },
-    row: { minHeight: 44, flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.xl, paddingVertical: spacing.lg },
-    rowBorder: { borderBottomWidth: 1, borderBottomColor: colors.separator },
-    rowLabel: { flex: 1, fontSize: 15, color: colors.textPrimary },
-    settingHint: {
-        paddingHorizontal: spacing.xl,
-        paddingVertical: spacing.md,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.separator,
-        fontSize: fontSize.sm,
-        lineHeight: 18,
-        color: colors.textMuted,
-    },
-
-    scoreInput: {
-        width: 72,
-        minHeight: 44,
-        textAlign: 'right',
-        fontSize: 15,
-        fontWeight: fontWeight.semibold,
-        color: colors.primaryDark,
-        padding: 0,
-    },
-    segmentRow: {
-        flexDirection: 'row',
-        gap: spacing.sm,
-    },
-    segmentButton: {
-        minWidth: 76,
-        minHeight: 44,
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderWidth: 1,
-        borderColor: colors.borderLight,
-        borderRadius: radii.md,
-        borderCurve: 'continuous' as const,
-        paddingHorizontal: spacing.md,
-        backgroundColor: colors.bgMuted,
-    },
-    segmentButtonActive: {
-        borderColor: colors.primary,
-        backgroundColor: colors.primary,
-    },
-    segmentButtonText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.textSecondary },
-    segmentButtonTextActive: { color: colors.textWhite },
-    memberChipRow: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: spacing.sm,
-        padding: spacing.lg,
-        paddingBottom: spacing.sm,
-    },
-    memberChip: {
-        minHeight: 44,
-        justifyContent: 'center',
-        borderRadius: radii.md,
-        borderCurve: 'continuous' as const,
-        backgroundColor: colors.bgMuted,
-        paddingHorizontal: spacing.md,
-    },
-    memberChipActive: { backgroundColor: colors.primary },
-    memberChipText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.textSecondary },
-    memberChipTextActive: { color: colors.textWhite },
-    overrideRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: spacing.md,
-        paddingHorizontal: spacing.lg,
-        paddingVertical: spacing.sm,
-    },
-    overrideInput: {
-        flex: 1,
-        minHeight: 44,
-        borderWidth: 1,
-        borderColor: colors.borderLight,
-        borderRadius: radii.md,
-        borderCurve: 'continuous' as const,
-        paddingHorizontal: spacing.md,
-        fontSize: fontSize.md,
-        color: colors.textPrimary,
-    },
-    overrideButton: {
-        minWidth: 92,
-        minHeight: 44,
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderRadius: radii.md,
-        borderCurve: 'continuous' as const,
-        backgroundColor: colors.primary,
-        paddingHorizontal: spacing.md,
-    },
-    overrideButtonText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.textWhite },
-
-    stepper: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg },
-    stepBtn: {
-        width: 44,
-        height: 44,
-        borderRadius: radii.md,
-        borderCurve: 'continuous' as const,
-        backgroundColor: colors.bgMuted,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    stepBtnText: { fontSize: 20, color: colors.textPrimary, lineHeight: 24 },
-    stepValue: {
-        fontSize: fontSize.lg,
-        fontWeight: fontWeight.bold,
-        color: colors.textPrimary,
-        minWidth: 20,
-        textAlign: 'center',
-    },
-
-    saveButton: {
-        marginTop: spacing.xl,
-        backgroundColor: colors.primary,
-        borderRadius: radii.md,
-        borderCurve: 'continuous' as const,
-        height: 52,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    saveButtonDisabled: { opacity: 0.55 },
-    saveButtonText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.lg },
-
-    actionButton: {
-        backgroundColor: colors.bgScreen,
-        borderRadius: radii.md,
-        borderCurve: 'continuous' as const,
-        borderWidth: 1.5,
-        borderColor: colors.primary,
-        minHeight: 44,
-        height: 52,
-        justifyContent: 'center',
-        alignItems: 'center',
-        paddingHorizontal: spacing.lg,
-    },
-    actionButtonGrid: {
-        flexGrow: 1,
-        flexBasis: 184,
-    },
-    actionButtonText: { color: colors.primaryDark, fontWeight: fontWeight.bold, fontSize: fontSize.lg },
-    actionWrap: { gap: spacing.xs },
-    actionDescription: {
-        fontSize: fontSize.xs,
-        lineHeight: 16,
-        color: colors.textMuted,
-        paddingHorizontal: spacing.xs,
-    },
-})

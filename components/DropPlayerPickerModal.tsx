@@ -8,7 +8,6 @@ import {
 } from 'react-native'
 import type { RosterPlayer } from '@/lib/roster'
 import { getEligiblePositions } from '@/lib/players'
-import { getPositionColor } from '@/constants/positions'
 import { colors, fontSize, fontWeight, radii, scrim, spacing } from '@/constants/tokens'
 import { Avatar } from '@/components/Avatar'
 import { PosTag } from '@/components/PosTag'

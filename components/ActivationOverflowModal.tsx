@@ -2,7 +2,6 @@ import { View, Text, Pressable, StyleSheet, Modal, ScrollView } from 'react-nati
 import { colors, fontSize, fontWeight, scrim, tints, uiColors } from '@/constants/tokens'
 import { LineupPlayer } from '@/lib/lineup'
 import { isIREligible } from '@/lib/roster'
-import { getPositionColor } from '@/constants/positions'
 import { playerHeadshotUrl } from '@/lib/format'
 import { Avatar } from '@/components/Avatar'
 

@@ -7,7 +7,6 @@ import {
 } from 'react-native'
 import { useState } from 'react'
 import type { PlayerRosterStatus } from '@/lib/roster'
-import { getPositionColor } from '@/constants/positions'
 import { INJURY_COLORS, colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 import { Avatar } from '@/components/Avatar'
 import { Badge } from '@/components/Badge'
@@ -51,7 +50,6 @@ export function PlayerHeader({
 }: Props) {
     const [headshotError, setHeadshotError] = useState(false)
     const eligiblePositions = getEligiblePositions(player)
-    const posColor = getPositionColor(eligiblePositions[0], colors.textMuted)
     const headshotUri = playerHeadshotUrl(player.nba_id)
 
     const metaParts = [

@@ -22,7 +22,6 @@ import { getMemberTransactionState, type MemberTransactionState } from '@/lib/le
 import { colors, fontSize, fontWeight, radii, spacing, uiColors } from '@/constants/tokens'
 import { showAlert, showSuccess, getErrorMessage } from '@/lib/alert'
 import { Avatar } from '@/components/Avatar'
-import { getPositionColor } from '@/constants/positions'
 
 export default function ClaimPlayerScreen() {
     const { playerId } = useLocalSearchParams<{ playerId: string }>()

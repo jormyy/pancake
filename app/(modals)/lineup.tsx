@@ -2,7 +2,6 @@ import { AutoSetModal } from '@/components/AutoSetModal'
 import { Avatar } from '@/components/Avatar'
 import { DaySelector } from '@/components/DaySelector'
 import { PosTag } from '@/components/PosTag'
-import { getPositionColor } from "@/constants/positions"
 import { colors, fontSize, fontWeight, radii, scrim, spacing, uiColors } from '@/constants/tokens'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useAuth } from '@/hooks/use-auth'
