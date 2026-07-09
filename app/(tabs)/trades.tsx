@@ -87,7 +87,8 @@ const listGetItemType = (item: ListItem) => item._type
 
 function tradeLoadingMessage(tab: TabKey) {
     if (tab === 'picks') return 'Loading draft picks'
-    if (tab === 'block') return 'Loading trade block'
+    if (tab === 'block') return 'Loading your trade block'
+    if (tab === 'leagueBlock') return 'Loading league trade block'
     if (tab === 'history') return 'Loading trade history'
     return 'Loading trade offers'
 }
@@ -283,7 +284,7 @@ export default function TradesScreen() {
     }, [load])
 
     useEffect(() => {
-        if (tab === 'block') void loadBlock()
+        if (tab === 'block' || tab === 'leagueBlock') void loadBlock()
     }, [tab, loadBlock])
 
     const handleListPlayer = useCallback(async (player: RosterPlayer) => {
@@ -343,11 +344,6 @@ export default function TradesScreen() {
         () => blockItems.filter((item) => item.memberId === myMemberId),
         [blockItems, myMemberId],
     )
-    const publicBlockItems = useMemo(
-        () => blockItems.filter((item) => item.memberId !== myMemberId),
-        [blockItems, myMemberId],
-    )
-
     const renderItem = useCallback(({ item }: { item: ListItem }) => {
         if (item._type === 'header') {
             return item.label ? <SectionHeader label={item.label} /> : null
@@ -428,7 +424,15 @@ export default function TradesScreen() {
                         )}
                         {block.note ? <Text style={styles.blockNote}>{block.note}</Text> : null}
                     </View>
-                    {mine ? (
+                    {mine && tab === 'leagueBlock' ? (
+                        <View
+                            style={[styles.blockAction, styles.blockActionDisabled]}
+                            accessibilityLabel={`${label} is your listing`}
+                            accessibilityRole="text"
+                        >
+                            <Text style={styles.blockActionText}>Yours</Text>
+                        </View>
+                    ) : mine ? (
                         <Pressable
                             style={styles.blockAction}
                             onPress={() => handleRemoveBlockItem(block)}
@@ -600,9 +604,10 @@ export default function TradesScreen() {
             blockRoster.forEach((player) => result.push({ _type: 'blockPlayer', player }))
             result.push({ _type: 'header', label: 'List Your Picks' })
             picksList.forEach((pick) => result.push({ _type: 'blockPick', pick }))
+        } else if (tab === 'leagueBlock') {
             result.push({ _type: 'header', label: 'League Trade Block' })
-            publicBlockItems.forEach((item) => result.push({ _type: 'blockItem', item }))
-            if (publicBlockItems.length === 0 && !blockLoading) {
+            blockItems.forEach((item) => result.push({ _type: 'blockItem', item }))
+            if (blockItems.length === 0 && !blockLoading) {
                 result.push({ _type: 'empty', key: 'league-block-listings', message: 'No league listings yet.' })
             }
         } else {
@@ -614,18 +619,20 @@ export default function TradesScreen() {
         }
 
         return result
-    }, [tab, vetoableTrades, incomingTrades, outgoingTrades, historyTrades, picksList, loading, myBlockItems, blockLoading, blockRoster, publicBlockItems])
+    }, [tab, vetoableTrades, incomingTrades, outgoingTrades, historyTrades, picksList, loading, myBlockItems, blockLoading, blockRoster, blockItems])
 
     const pendingInboxCount = incomingTrades.length
     const activeTabLoading =
         tab === 'picks' ? picksLoading && picksList.length === 0
         : tab === 'block' ? blockLoading && blockItems.length === 0 && blockRoster.length === 0 && picksList.length === 0
+        : tab === 'leagueBlock' ? blockLoading && blockItems.length === 0
         : loading && trades.length === 0
 
     const tabOptions: SegmentOption<TabKey>[] = [
         { label: 'Picks', value: 'picks' },
         { label: 'Offers', value: 'offers', badge: pendingInboxCount > 0 ? pendingInboxCount : undefined },
-        { label: 'Block', value: 'block' },
+        { label: 'Your Block', value: 'block' },
+        { label: 'League Block', value: 'leagueBlock' },
         { label: 'History', value: 'history' },
     ]
 
@@ -691,7 +698,7 @@ export default function TradesScreen() {
             {(tradesError || picksError || blockError) ? (
                 <ErrorBanner
                     message="Failed to load trades. Tap to retry."
-                    onRetry={() => { void load(); if (tab === 'block') void loadBlock() }}
+                    onRetry={() => { void load(); if (tab === 'block' || tab === 'leagueBlock') void loadBlock() }}
                 />
             ) : null}
 

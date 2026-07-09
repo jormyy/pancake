@@ -16,6 +16,7 @@ const FUTURE_PICK_ACCEPT_REPORT_PATH = path.join(ROOT, 'tests/e2e-browser-trade-
 const OVERFLOW_ACCEPT_REPORT_PATH = path.join(ROOT, 'tests/e2e-browser-trade-overflow-accept-report.md')
 const POST_DEADLINE_REPORT_PATH = path.join(ROOT, 'tests/e2e-browser-trade-post-deadline-report.md')
 const VETO_REPORT_PATH = path.join(ROOT, 'tests/e2e-browser-trade-veto-report.md')
+const MULTI_TEAM_REPORT_PATH = path.join(ROOT, 'tests/e2e-browser-trade-multi-team-report.md')
 
 const browser = createBrowser({ cwd: ROOT })
 
@@ -93,10 +94,35 @@ const findAvailablePlayers = async (admin, leagueId, leagueSeasonId, count) => {
   if (playersError) throw new Error(`players lookup: ${playersError.message}`)
   const rosteredIds = new Set((rosterRows ?? []).map((row) => row.player_id))
   const available = (players ?? []).filter((player) => player.display_name && !rosteredIds.has(player.id))
-  if (available.length < count) {
-    throw new Error(`D.SEA.2 browser trade: only ${available.length} available players found; need ${count}`)
+
+  if (available.length >= count) return available.slice(0, count)
+
+  const needed = count - available.length
+  const positions = ['PG', 'SG', 'SF', 'PF', 'C']
+  const createdAt = Date.now()
+  const fallbackRows = Array.from({ length: needed }, (_, index) => {
+    const position = positions[(available.length + index) % positions.length]
+    return {
+      first_name: 'E2E',
+      last_name: `Trade ${createdAt} ${index + 1}`,
+      nba_team: 'FA',
+      position,
+      status: 'Active',
+      eligible_positions: [position],
+      years_exp: 1,
+    }
+  })
+  const { data: fallbackPlayers, error: fallbackError } = await admin
+    .from('players')
+    .insert(fallbackRows)
+    .select('id, display_name, position, nba_team')
+  if (fallbackError) throw new Error(`fallback player seed insert: ${fallbackError.message}`)
+
+  const combined = [...available, ...(fallbackPlayers ?? [])]
+  if (combined.length < count) {
+    throw new Error(`D.SEA.2 browser trade: only ${combined.length} available players found after fallback seed; need ${count}`)
   }
-  return available.slice(0, count)
+  return combined.slice(0, count)
 }
 
 const findFuturePickForMember = async (admin, leagueId, memberId, seasonYear, round = 1) => {
@@ -127,7 +153,7 @@ const findFuturePickForMember = async (admin, leagueId, memberId, seasonYear, ro
   }
 }
 
-const setupTradeGameplayFixture = async (env, season, { memberCount = 2 } = {}) => {
+const setupTradeGameplayFixture = async (env, season, { memberCount = 2, includeFuturePicks = true } = {}) => {
   tradeFixtureSequence += 1
   const runId = `${new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)}-${process.pid}-${season}-${tradeFixtureSequence}`
   const password = `Pancake-trade-${runId}!`
@@ -184,10 +210,12 @@ const setupTradeGameplayFixture = async (env, season, { memberCount = 2 } = {}) 
 
   const [proposerPlayer, recipientPlayer] = await findAvailablePlayers(admin, league.id, currentSeason.id, 2)
   const targetFuturePickYear = currentSeason.season_year + 5
-  const [proposerFuturePick, recipientFuturePick] = await Promise.all([
-    findFuturePickForMember(admin, league.id, proposer.id, targetFuturePickYear, 1),
-    findFuturePickForMember(admin, league.id, recipient.id, targetFuturePickYear, 1),
-  ])
+  const [proposerFuturePick, recipientFuturePick] = includeFuturePicks
+    ? await Promise.all([
+      findFuturePickForMember(admin, league.id, proposer.id, targetFuturePickYear, 1),
+      findFuturePickForMember(admin, league.id, recipient.id, targetFuturePickYear, 1),
+    ])
+    : [null, null]
   const { error: rosterError } = await admin.from('roster_players').insert([
     {
       league_id: league.id,
@@ -230,6 +258,24 @@ const setupTradeGameplayFixture = async (env, season, { memberCount = 2 } = {}) 
     proposerFuturePick,
     recipientFuturePick,
   }
+}
+
+const setupMultiTeamTradeGameplayFixture = async (env, season) => {
+  const fixture = await setupTradeGameplayFixture(env, season, { memberCount: 3, includeFuturePicks: false })
+  if (!fixture.observer) throw new Error('browser multi-team trade fixture did not create a third member')
+
+  const [observerPlayer] = await findAvailablePlayers(fixture.admin, fixture.league.id, fixture.currentSeason.id, 1)
+  const { error: rosterError } = await fixture.admin.from('roster_players').insert({
+    league_id: fixture.league.id,
+    league_season_id: fixture.currentSeason.id,
+    member_id: fixture.observer.id,
+    player_id: observerPlayer.id,
+    acquired_via: 'draft',
+    acquisition_cost: 1,
+  })
+  if (rosterError) throw new Error(`multi-team observer roster seed insert: ${rosterError.message}`)
+
+  return { ...fixture, observer: fixture.observer, observerPlayer }
 }
 
 const setupTradeAcceptGameplayFixture = async (env, season) => {
@@ -661,6 +707,88 @@ const waitForTradeProposal = async (fixture, timeoutMs = 10_000) => {
   while (last.failures.length > 0 && Date.now() - startedAt < timeoutMs) {
     await new Promise((resolve) => setTimeout(resolve, 500))
     last = await verifyTradeProposal(fixture)
+  }
+  return last
+}
+
+const verifyMultiTeamTradeProposal = async (fixture) => {
+  const { data: trades, error: tradesError } = await fixture.admin
+    .from('trades')
+    .select('id, league_id, league_season_id, proposer_member_id, recipient_member_id, status, notes, is_multi_team')
+    .eq('league_id', fixture.league.id)
+    .eq('league_season_id', fixture.currentSeason.id)
+    .eq('proposer_member_id', fixture.proposer.id)
+    .eq('is_multi_team', true)
+    .eq('status', 'pending')
+  if (tradesError) throw new Error(`multi-team trade verify: ${tradesError.message}`)
+
+  const failures = []
+  if ((trades ?? []).length !== 1) {
+    failures.push(`multi-team pending trade rows=${(trades ?? []).length}; expected 1`)
+  }
+  const trade = trades?.[0] ?? null
+  if (!trade) return { trade, items: [], participants: [], failures }
+
+  const [itemsResult, participantsResult] = await Promise.all([
+    fixture.admin
+      .from('trade_items')
+      .select('id, trade_id, side, player_id, pick_id, from_member_id, to_member_id, faab_amount')
+      .eq('trade_id', trade.id),
+    fixture.admin
+      .from('trade_participants')
+      .select('trade_id, member_id, sort_order, is_initiator, accepted_at')
+      .eq('trade_id', trade.id)
+      .order('sort_order', { ascending: true }),
+  ])
+  if (itemsResult.error) throw new Error(`multi-team trade item verify: ${itemsResult.error.message}`)
+  if (participantsResult.error) throw new Error(`multi-team participant verify: ${participantsResult.error.message}`)
+
+  const items = itemsResult.data ?? []
+  const participants = participantsResult.data ?? []
+  const participantIds = new Set(participants.map((participant) => participant.member_id))
+  const expectedParticipantIds = [fixture.proposer.id, fixture.recipient.id, fixture.observer.id]
+  const expectedRoutes = new Map([
+    [fixture.proposerPlayer.id, { from: fixture.proposer.id, to: fixture.recipient.id }],
+    [fixture.recipientPlayer.id, { from: fixture.recipient.id, to: fixture.observer.id }],
+    [fixture.observerPlayer.id, { from: fixture.observer.id, to: fixture.proposer.id }],
+  ])
+
+  if (trade.recipient_member_id !== fixture.recipient.id) {
+    failures.push(`multi-team recipient_member_id=${trade.recipient_member_id}; expected first selected recipient ${fixture.recipient.id}`)
+  }
+  if (participants.length !== expectedParticipantIds.length) {
+    failures.push(`trade_participants rows=${participants.length}; expected ${expectedParticipantIds.length}`)
+  }
+  for (const memberId of expectedParticipantIds) {
+    if (!participantIds.has(memberId)) failures.push(`missing trade_participants row for ${memberId}`)
+  }
+  const proposerParticipant = participants.find((participant) => participant.member_id === fixture.proposer.id)
+  if (!proposerParticipant?.is_initiator) failures.push('proposer participant is not marked as initiator')
+  if (!proposerParticipant?.accepted_at) failures.push('proposer participant was not auto-accepted for no-drop proposal')
+
+  if (items.length !== expectedRoutes.size) failures.push(`trade_items rows=${items.length}; expected ${expectedRoutes.size}`)
+  for (const [playerId, expected] of expectedRoutes) {
+    const item = items.find((row) => row.player_id === playerId)
+    if (!item) {
+      failures.push(`missing routed player item ${playerId}`)
+      continue
+    }
+    if (item.from_member_id !== expected.from || item.to_member_id !== expected.to) {
+      failures.push(`player ${playerId} route=${item.from_member_id}->${item.to_member_id}; expected ${expected.from}->${expected.to}`)
+    }
+    if (item.pick_id != null) failures.push(`player ${playerId} item unexpectedly has pick_id=${item.pick_id}`)
+    if (item.faab_amount !== 0) failures.push(`player ${playerId} item unexpectedly has faab_amount=${item.faab_amount}`)
+  }
+
+  return { trade, items, participants, failures }
+}
+
+const waitForMultiTeamTradeProposal = async (fixture, timeoutMs = 10_000) => {
+  const startedAt = Date.now()
+  let last = await verifyMultiTeamTradeProposal(fixture)
+  while (last.failures.length > 0 && Date.now() - startedAt < timeoutMs) {
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    last = await verifyMultiTeamTradeProposal(fixture)
   }
   return last
 }
@@ -1296,6 +1424,183 @@ export async function runBrowserTradeScenario({
       notes,
     }
     await writeFile(REPORT_PATH, `${JSON.stringify(report, null, 2)}\n`).catch(() => {})
+    throw error
+  } finally {
+    await browser(session, ['close']).catch(() => {})
+  }
+}
+
+export async function runBrowserMultiTeamTradeScenario({
+  season = 0,
+  sessionName,
+} = {}) {
+  const env = resolvedEnv()
+  requireEnv(env, ['supabaseUrl', 'serviceRoleKey', 'anonKey'])
+  const fixture = await setupMultiTeamTradeGameplayFixture(env, season)
+  const sessionList = await listSessions().catch((error) => `session list unavailable: ${error.message}`)
+  const session = sessionName ?? tradeSessionName('mt', fixture.runId)
+  const artifactDir = path.join(ARTIFACT_ROOT, `season-${season}`, 'browser-trade-multi-team')
+  await mkdir(artifactDir, { recursive: true })
+
+  const notes = [
+    `Frontend: ${describeEndpoint(env.frontendUrl)}`,
+    `Session: ${session}`,
+    `Proposer: ${fixture.users[0].email}`,
+    `Recipient member: ${fixture.recipient.id}`,
+    `Observer member: ${fixture.observer.id}`,
+    sessionList,
+  ]
+  let debug = {}
+
+  try {
+    await signInBrowser(session, env, fixture.users[0], fixture.password)
+    await browser(session, ['set', 'viewport', '1180', '900']).catch(() => {})
+    await browser(session, ['open', joinUrl(env.frontendUrl, '/propose-trade')])
+    await installBrowserHooks(session, env)
+    await browser(session, ['wait', '2500'])
+    await assertPageText(
+      session,
+      [
+        'Propose Trade',
+        '2-Team',
+        'Multi-Team',
+        fixture.recipient.team_name,
+        fixture.observer.team_name,
+      ],
+      'multi-team trade proposal initial screen',
+    )
+
+    const modeClick = await clickButton(session, 'Use multi-team trade mode', 'multi-team mode toggle')
+    const recipientClick = await clickButton(
+      session,
+      `Trade with ${fixture.recipient.team_name}`,
+      'multi-team recipient team selection',
+    )
+    const observerClick = await clickButton(
+      session,
+      `Trade with ${fixture.observer.team_name}`,
+      'multi-team third team selection',
+    )
+    await browser(session, ['wait', '4500'])
+    await assertPageText(
+      session,
+      [
+        'MULTI-TEAM BUILDER',
+        'YOU SENDS',
+        `${fixture.recipient.team_name.toUpperCase()} SENDS`,
+        `${fixture.observer.team_name.toUpperCase()} SENDS`,
+        fixture.proposerPlayer.display_name,
+        fixture.recipientPlayer.display_name,
+        fixture.observerPlayer.display_name,
+      ],
+      'multi-team trade builder loaded',
+    )
+    await browser(session, ['screenshot', path.join(artifactDir, 'multi-team-builder.png')], { timeout: 60_000 })
+
+    const routeClick = await clickButton(
+      session,
+      `${fixture.recipient.team_name} sends selected assets to ${fixture.observer.team_name}`,
+      'multi-team recipient route selection',
+    )
+    const proposerPlayerClick = await clickButton(
+      session,
+      `Select ${fixture.proposerPlayer.display_name} for trade`,
+      'multi-team proposer player selection',
+    )
+    const recipientPlayerClick = await clickButton(
+      session,
+      `Select ${fixture.recipientPlayer.display_name} for trade`,
+      'multi-team recipient player selection',
+    )
+    const observerPlayerClick = await clickButton(
+      session,
+      `Select ${fixture.observerPlayer.display_name} for trade`,
+      'multi-team observer player selection',
+    )
+    await browser(session, ['wait', '500'])
+    await browser(session, ['screenshot', path.join(artifactDir, 'multi-team-selected.png')], { timeout: 60_000 })
+    const submitClick = await clickButton(session, 'Send trade proposal', 'multi-team trade proposal submit')
+    const tradeProposal = await waitForMultiTeamTradeProposal(fixture)
+    debug = {
+      ...debug,
+      modeClick,
+      recipientClick,
+      observerClick,
+      routeClick,
+      proposerPlayerClick,
+      recipientPlayerClick,
+      observerPlayerClick,
+      submitClick,
+      tradeProposal,
+    }
+    if (tradeProposal.failures.length > 0) {
+      throw new Error(`multi-team trade proposal did not persist: ${tradeProposal.failures.join('; ')}`)
+    }
+    await browser(session, ['wait', '1000'])
+    await browser(session, ['screenshot', path.join(artifactDir, 'multi-team-after-submit.png')], { timeout: 60_000 })
+
+    const consoleOutput = await browser(session, ['console']).catch((error) => `console unavailable: ${error.message}`)
+    const errorOutput = await browser(session, ['errors']).catch((error) => `errors unavailable: ${error.message}`)
+    await writeFile(path.join(artifactDir, 'console.txt'), `${consoleOutput}\n`)
+    await writeFile(path.join(artifactDir, 'errors.txt'), `${errorOutput}\n`)
+
+    const failures = [...tradeProposal.failures]
+    if (normalizeBrowserErrors(errorOutput)) failures.push(`browser errors present; see ${path.relative(ROOT, path.join(artifactDir, 'errors.txt'))}`)
+    const report = {
+      status: failures.length === 0 ? 'PASS' : 'FAIL',
+      season,
+      artifactDir,
+      fixture: {
+        runId: fixture.runId,
+        leagueId: fixture.league.id,
+        leagueSeasonId: fixture.currentSeason.id,
+        proposerMemberId: fixture.proposer.id,
+        recipientMemberId: fixture.recipient.id,
+        observerMemberId: fixture.observer.id,
+        proposerPlayerId: fixture.proposerPlayer.id,
+        recipientPlayerId: fixture.recipientPlayer.id,
+        observerPlayerId: fixture.observerPlayer.id,
+      },
+      tradeProposal,
+      notes,
+      failures,
+    }
+    await writeFile(MULTI_TEAM_REPORT_PATH, `${JSON.stringify(report, null, 2)}\n`)
+    await writeFile(path.join(artifactDir, 'summary.json'), `${JSON.stringify(report, null, 2)}\n`)
+    if (failures.length > 0) throw new Error(`Browser multi-team trade scenario failed: ${failures.join('; ')}`)
+    return report
+  } catch (error) {
+    await browser(session, ['screenshot', path.join(artifactDir, 'failure.png')], { timeout: 60_000 }).catch(() => {})
+    const consoleOutput = await browser(session, ['console']).catch((consoleError) => `console unavailable: ${consoleError.message}`)
+    const errorOutput = await browser(session, ['errors']).catch((errorError) => `errors unavailable: ${errorError.message}`)
+    const networkOutput = await browser(session, ['network', 'requests']).catch((networkError) => `network unavailable: ${networkError.message}`)
+    await writeFile(path.join(artifactDir, 'console.txt'), `${consoleOutput}\n`).catch(() => {})
+    await writeFile(path.join(artifactDir, 'errors.txt'), `${errorOutput}\n`).catch(() => {})
+    await writeFile(path.join(artifactDir, 'network.txt'), `${networkOutput}\n`).catch(() => {})
+    const tradeProposal = await verifyMultiTeamTradeProposal(fixture).catch((verifyError) => ({
+      failures: [`verify unavailable: ${verifyError.message}`],
+    }))
+    debug = { ...debug, tradeProposal, consoleOutput, errorOutput, networkOutput }
+    const report = {
+      status: 'FAIL',
+      season,
+      artifactDir,
+      fixture: {
+        runId: fixture.runId,
+        leagueId: fixture.league.id,
+        leagueSeasonId: fixture.currentSeason.id,
+        proposerMemberId: fixture.proposer.id,
+        recipientMemberId: fixture.recipient.id,
+        observerMemberId: fixture.observer.id,
+        proposerPlayerId: fixture.proposerPlayer.id,
+        recipientPlayerId: fixture.recipientPlayer.id,
+        observerPlayerId: fixture.observerPlayer.id,
+      },
+      error: error instanceof Error ? error.message : String(error),
+      debug,
+      notes,
+    }
+    await writeFile(MULTI_TEAM_REPORT_PATH, `${JSON.stringify(report, null, 2)}\n`).catch(() => {})
     throw error
   } finally {
     await browser(session, ['close']).catch(() => {})
@@ -2242,6 +2547,8 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     ? runBrowserTradeTerminalScenario
     : process.argv.includes('--veto')
       ? runBrowserTradeVetoScenario
+    : process.argv.includes('--multi-team')
+      ? runBrowserMultiTeamTradeScenario
     : process.argv.includes('--overflow-accept')
       ? runBrowserTradeOverflowAcceptScenario
     : process.argv.includes('--post-deadline')

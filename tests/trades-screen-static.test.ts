@@ -5,16 +5,18 @@ const tradesScreen = read('app/(tabs)/trades.tsx')
 const tradesApi = read('supabase/functions/api/trades.ts')
 
 describe('trades screen static behavior', () => {
-    it('separates owned trade-block listings from the public league block', () => {
+    it('separates owned trade-block management from the league block tab', () => {
         expect(tradesScreen).toContain("const myBlockItems = useMemo(")
         expect(tradesScreen).toContain('blockItems.filter((item) => item.memberId === myMemberId)')
-        expect(tradesScreen).toContain("const publicBlockItems = useMemo(")
-        expect(tradesScreen).toContain('blockItems.filter((item) => item.memberId !== myMemberId)')
+        expect(tradesScreen).toContain("{ label: 'Your Block', value: 'block' }")
+        expect(tradesScreen).toContain("{ label: 'League Block', value: 'leagueBlock' }")
         expect(tradesScreen).toContain("result.push({ _type: 'header', label: 'Your Listings' })")
         expect(tradesScreen).toContain("result.push({ _type: 'header', label: 'League Trade Block' })")
         expect(tradesScreen).toContain("result.push({ _type: 'empty', key: 'my-block-listings', message: 'No listings yet.' })")
         expect(tradesScreen).toContain("result.push({ _type: 'empty', key: 'league-block-listings', message: 'No league listings yet.' })")
-        expect(tradesScreen.indexOf("label: 'Your Listings'")).toBeLessThan(tradesScreen.indexOf("label: 'League Trade Block'"))
+        expect(tradesScreen).toContain("tab === 'leagueBlock'")
+        expect(tradesScreen).toContain('blockItems.forEach((item) => result.push({ _type: \'blockItem\', item }))')
+        expect(tradesScreen).toContain("<Text style={styles.blockActionText}>Yours</Text>")
     })
 
     it('keeps trade-block mutations owner-only through API and RPC guards', () => {

@@ -1,6 +1,6 @@
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native'
 import { TradeAssetColumn } from '@/components/trades/TradeAssetColumn'
-import { colors, fontSize, fontWeight, radii, spacing, uiColors } from '@/constants/tokens'
+import { breakpoints, colors, fontSize, fontWeight, radii, spacing, uiColors } from '@/constants/tokens'
 import type { RosterPlayer } from '@/lib/roster'
 import type { TradePickItem } from '@/lib/trades'
 
@@ -53,6 +53,9 @@ export function MultiTeamTradeBuilder({
     onNotesChange,
     onExpirationDaysChange,
 }: MultiTeamTradeBuilderProps) {
+    const { width } = useWindowDimensions()
+    const useColumns = width >= breakpoints.roster && participantIds.length > 1
+
     if (rosterError) {
         return (
             <Pressable
@@ -66,78 +69,95 @@ export function MultiTeamTradeBuilder({
         )
     }
 
+    const panels = participantIds.map((memberId) => {
+        const destinationOptions = participantIds.filter((id) => id !== memberId)
+        const toMemberId = participantDestinationIds[memberId] && destinationOptions.includes(participantDestinationIds[memberId])
+            ? participantDestinationIds[memberId]
+            : destinationOptions[0]
+        const roster = participantRosters[memberId] ?? []
+        const picks = participantPicks[memberId] ?? []
+        return (
+            <View
+                key={memberId}
+                style={[
+                    styles.multiTeamPanel,
+                    useColumns ? styles.multiTeamPanelColumn : styles.multiTeamPanelStacked,
+                ]}
+            >
+                <View style={styles.routePicker}>
+                    <Text style={styles.routePickerLabel}>SEND TO</Text>
+                    <View style={styles.routeOptions}>
+                        {destinationOptions.map((destinationId) => {
+                            const active = destinationId === toMemberId
+                            return (
+                                <Pressable
+                                    key={destinationId}
+                                    style={[styles.routeOption, active && styles.routeOptionActive]}
+                                    onPress={() => onDestinationChange(memberId, destinationId)}
+                                    accessibilityRole="button"
+                                    accessibilityLabel={`${participantName(memberId)} sends selected assets to ${participantName(destinationId)}`}
+                                >
+                                    <Text
+                                        style={[
+                                            styles.routeOptionText,
+                                            active && styles.routeOptionTextActive,
+                                        ]}
+                                        numberOfLines={1}
+                                    >
+                                        {participantName(destinationId)}
+                                    </Text>
+                                </Pressable>
+                            )
+                        })}
+                    </View>
+                </View>
+                <TradeAssetColumn
+                    title={`${memberId === myMemberId ? 'YOU' : participantName(memberId).toUpperCase()} SENDS`}
+                    subtitle={toMemberId ? `To ${participantName(toMemberId)}` : 'Choose a destination'}
+                    side="give"
+                    twoColumn={useColumns}
+                    roster={roster}
+                    picks={picks}
+                    avgMap={avgMap}
+                    avgStatsMap={avgStatsMap}
+                    selectedPlayerIds={participantPlayerIds[memberId] ?? new Set()}
+                    selectedPickIds={participantPickIds[memberId] ?? new Set()}
+                    onTogglePlayer={(playerId) => onTogglePlayer(memberId, playerId)}
+                    onTogglePick={(pickId) => onTogglePick(memberId, pickId)}
+                    emptyText="No tradeable active players."
+                />
+                {faabEnabled ? (
+                    <View style={styles.multiFaabRow}>
+                        <Text style={styles.termLabel}>
+                            FAAB to {toMemberId ? participantName(toMemberId) : 'destination'}
+                        </Text>
+                        <TextInput
+                            style={styles.termInput}
+                            value={participantFaabInputs[memberId] ?? '0'}
+                            onChangeText={(value) => onFaabChange(memberId, value)}
+                            keyboardType="numeric"
+                        />
+                    </View>
+                ) : null}
+            </View>
+        )
+    })
+
     return (
         <>
             <Text style={styles.sectionLabel}>MULTI-TEAM BUILDER</Text>
-            <View style={styles.multiTeamStack}>
-                {participantIds.map((memberId) => {
-                    const destinationOptions = participantIds.filter((id) => id !== memberId)
-                    const toMemberId = participantDestinationIds[memberId] && destinationOptions.includes(participantDestinationIds[memberId])
-                        ? participantDestinationIds[memberId]
-                        : destinationOptions[0]
-                    const roster = participantRosters[memberId] ?? []
-                    const picks = participantPicks[memberId] ?? []
-                    return (
-                        <View key={memberId} style={styles.multiTeamPanel}>
-                            <View style={styles.routePicker}>
-                                <Text style={styles.routePickerLabel}>SEND TO</Text>
-                                <View style={styles.routeOptions}>
-                                    {destinationOptions.map((destinationId) => {
-                                        const active = destinationId === toMemberId
-                                        return (
-                                            <Pressable
-                                                key={destinationId}
-                                                style={[styles.routeOption, active && styles.routeOptionActive]}
-                                                onPress={() => onDestinationChange(memberId, destinationId)}
-                                                accessibilityRole="button"
-                                                accessibilityLabel={`${participantName(memberId)} sends selected assets to ${participantName(destinationId)}`}
-                                            >
-                                                <Text
-                                                    style={[
-                                                        styles.routeOptionText,
-                                                        active && styles.routeOptionTextActive,
-                                                    ]}
-                                                    numberOfLines={1}
-                                                >
-                                                    {participantName(destinationId)}
-                                                </Text>
-                                            </Pressable>
-                                        )
-                                    })}
-                                </View>
-                            </View>
-                            <TradeAssetColumn
-                                title={`${memberId === myMemberId ? 'YOU' : participantName(memberId).toUpperCase()} SENDS`}
-                                subtitle={toMemberId ? `To ${participantName(toMemberId)}` : 'Choose a destination'}
-                                side="give"
-                                twoColumn={false}
-                                roster={roster}
-                                picks={picks}
-                                avgMap={avgMap}
-                                avgStatsMap={avgStatsMap}
-                                selectedPlayerIds={participantPlayerIds[memberId] ?? new Set()}
-                                selectedPickIds={participantPickIds[memberId] ?? new Set()}
-                                onTogglePlayer={(playerId) => onTogglePlayer(memberId, playerId)}
-                                onTogglePick={(pickId) => onTogglePick(memberId, pickId)}
-                                emptyText="No tradeable active players."
-                            />
-                            {faabEnabled ? (
-                                <View style={styles.multiFaabRow}>
-                                    <Text style={styles.termLabel}>
-                                        FAAB to {toMemberId ? participantName(toMemberId) : 'destination'}
-                                    </Text>
-                                    <TextInput
-                                        style={styles.termInput}
-                                        value={participantFaabInputs[memberId] ?? '0'}
-                                        onChangeText={(value) => onFaabChange(memberId, value)}
-                                        keyboardType="numeric"
-                                    />
-                                </View>
-                            ) : null}
-                        </View>
-                    )
-                })}
-            </View>
+            {useColumns ? (
+                <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={styles.multiTeamScroller}
+                    contentContainerStyle={styles.multiTeamColumns}
+                >
+                    {panels}
+                </ScrollView>
+            ) : (
+                <View style={styles.multiTeamStack}>{panels}</View>
+            )}
             <Text style={styles.sectionLabel}>NOTES (optional)</Text>
             <TextInput
                 style={styles.notesInput}
@@ -177,12 +197,29 @@ const styles = StyleSheet.create({
         paddingBottom: spacing.md,
     },
     multiTeamStack: { gap: spacing.lg, marginBottom: spacing.lg },
-    multiTeamPanel: {
-        borderTopWidth: 1,
-        borderBottomWidth: 1,
-        borderColor: colors.borderLight,
-        backgroundColor: colors.bgScreen,
+    multiTeamScroller: { marginBottom: spacing.lg },
+    multiTeamColumns: {
+        flexDirection: 'row',
+        gap: spacing.md,
+        paddingHorizontal: spacing.xl,
+        paddingBottom: spacing.sm,
     },
+    multiTeamPanel: {
+        borderWidth: 1,
+        borderColor: colors.borderLight,
+        borderRadius: radii.md,
+        borderCurve: 'continuous' as const,
+        backgroundColor: colors.bgScreen,
+        overflow: 'hidden',
+    },
+    multiTeamPanelColumn: {
+        flexGrow: 1,
+        flexShrink: 0,
+        flexBasis: 280,
+        minWidth: 280,
+        maxWidth: 340,
+    },
+    multiTeamPanelStacked: { width: '100%' },
     routePicker: {
         paddingHorizontal: spacing.xl,
         paddingTop: spacing.lg,

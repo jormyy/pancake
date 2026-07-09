@@ -10,6 +10,7 @@ const multiTeamBuilder = read('components/trades/MultiTeamTradeBuilder.tsx')
 const tradeAssetColumn = read('components/trades/TradeAssetColumn.tsx')
 const tradeCard = read('components/trades/TradeCard.tsx')
 const tradesScreen = read('app/(tabs)/trades.tsx')
+const browserTradeGameplay = read('tests/e2e/browser-trade-gameplay.mjs')
 const playerContext = read('lib/player-context.ts')
 const tradePerspective = read('lib/trade-perspective.ts')
 
@@ -140,6 +141,9 @@ describe('multi-team trade UI and client mapping', () => {
         expect(composer).toContain('onDestinationChange={multiTeam.setParticipantDestination}')
         expect(composer).toContain('proposeMultiTeamTrade')
         expect(multiTeamBuilder).toContain('MULTI-TEAM BUILDER')
+        expect(multiTeamBuilder).toContain('const useColumns = width >= breakpoints.roster')
+        expect(multiTeamBuilder).toContain('<ScrollView')
+        expect(multiTeamBuilder).toContain('styles.multiTeamPanelColumn')
         expect(multiTeamBuilder).toContain('TradeAssetColumn')
         expect(multiTeamBuilder).toContain('destinationOptions')
         expect(multiTeamBuilder).toContain('onDestinationChange(memberId, destinationId)')
@@ -158,6 +162,9 @@ describe('multi-team trade UI and client mapping', () => {
         expect(tradeCard).toContain('item.toMemberId')
         expect(tradeCard).toContain('!trade.isMultiTeam ? (')
         expect(tradeCard).toContain('onPress={handleWithdraw}')
+        expect(browserTradeGameplay).toContain('runBrowserMultiTeamTradeScenario')
+        expect(browserTradeGameplay).toContain("process.argv.includes('--multi-team')")
+        expect(browserTradeGameplay).toContain('waitForMultiTeamTradeProposal')
     })
 
     it('uses shared participant-aware perspective helpers in trade surfaces', () => {

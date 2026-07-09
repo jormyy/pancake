@@ -13,7 +13,7 @@ import { playerEligiblePositions, playerSeasonContextText } from '@/lib/player-c
 import { PosTag } from '@/components/PosTag'
 import { Badge } from '@/components/Badge'
 
-export type TabKey = 'picks' | 'offers' | 'history' | 'block'
+export type TabKey = 'picks' | 'offers' | 'history' | 'block' | 'leagueBlock'
 type TradeVetoMode = 'disabled' | 'commissioner' | 'member_vote'
 
 const STATUS_LABELS: Record<string, string> = {
