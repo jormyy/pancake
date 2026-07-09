@@ -57,11 +57,30 @@ type PlayerTableRow = Database['public']['Tables']['players']['Row']
 type PlayerGameStatsRow = Database['public']['Tables']['player_game_stats']['Row']
 type NbaGameRow = Database['public']['Tables']['nba_games']['Row']
 type FantasyPointsRow = Database['public']['Views']['v_fantasy_points']['Row']
+type PlayerSeasonAverageRow = Database['public']['Views']['mv_player_season_averages']['Row']
 type FantasyPointValueRow = Pick<FantasyPointsRow, 'stat_id' | 'fantasy_points'>
 type RosterTransactionRow = Database['public']['Tables']['roster_transactions']['Row']
 type SearchPlayersRow = Database['public']['Functions']['search_players']['Returns'][number]
 
-export type PlayerDetailRow = PlayerTableRow & {
+type PlayerDetailSourceRow = Pick<
+    PlayerTableRow,
+    | 'id'
+    | 'display_name'
+    | 'first_name'
+    | 'last_name'
+    | 'nba_team'
+    | 'position'
+    | 'eligible_positions'
+    | 'jersey_number'
+    | 'injury_status'
+    | 'dynasty_rank'
+    | 'headshot_url'
+    | 'nba_id'
+    | 'years_exp'
+    | 'status'
+>
+
+export type PlayerDetailRow = PlayerDetailSourceRow & {
     display_name: string
 }
 
@@ -98,6 +117,59 @@ type TransactionHistoryRow = Pick<
 > & {
     league_members: { team_name: string | null } | null
 }
+type PlayerSeasonAverageSourceRow = Pick<
+    PlayerSeasonAverageRow,
+    | 'games_played'
+    | 'avg_points'
+    | 'avg_rebounds'
+    | 'avg_assists'
+    | 'avg_steals'
+    | 'avg_blocks'
+    | 'avg_turnovers'
+    | 'avg_three_pointers_made'
+    | 'avg_field_goals_made'
+    | 'avg_field_goals_attempted'
+    | 'avg_free_throws_made'
+    | 'avg_free_throws_attempted'
+    | 'avg_minutes_played'
+    | 'double_doubles'
+    | 'triple_doubles'
+>
+
+const PLAYER_DETAIL_SELECT = `
+    id,
+    display_name,
+    first_name,
+    last_name,
+    nba_team,
+    position,
+    eligible_positions,
+    jersey_number,
+    injury_status,
+    dynasty_rank,
+    headshot_url,
+    nba_id,
+    years_exp,
+    status
+`
+
+const PLAYER_SEASON_AVERAGE_SELECT = `
+    games_played,
+    avg_points,
+    avg_rebounds,
+    avg_assists,
+    avg_steals,
+    avg_blocks,
+    avg_turnovers,
+    avg_three_pointers_made,
+    avg_field_goals_made,
+    avg_field_goals_attempted,
+    avg_free_throws_made,
+    avg_free_throws_attempted,
+    avg_minutes_played,
+    double_doubles,
+    triple_doubles
+`
 
 export type PlayerSeasonAverages = {
     gamesPlayed: number
@@ -172,11 +244,31 @@ function mapSearchPlayer(row: SearchPlayersRow): PlayerRow {
     return { ...row }
 }
 
-function mapPlayerDetail(row: PlayerTableRow): PlayerDetailRow {
+function mapPlayerDetail(row: PlayerDetailSourceRow): PlayerDetailRow {
     const fallbackName = `${row.first_name} ${row.last_name}`.trim() || 'Unknown Player'
     return {
         ...row,
         display_name: row.display_name ?? fallbackName,
+    }
+}
+
+function mapPlayerSeasonAverages(row: PlayerSeasonAverageSourceRow): PlayerSeasonAverages {
+    return {
+        gamesPlayed: Number(row.games_played) || 0,
+        avgPoints: Number(row.avg_points) || 0,
+        avgRebounds: Number(row.avg_rebounds) || 0,
+        avgAssists: Number(row.avg_assists) || 0,
+        avgSteals: Number(row.avg_steals) || 0,
+        avgBlocks: Number(row.avg_blocks) || 0,
+        avgTurnovers: Number(row.avg_turnovers) || 0,
+        avgThreePointersMade: Number(row.avg_three_pointers_made) || 0,
+        avgFieldGoalsMade: Number(row.avg_field_goals_made) || 0,
+        avgFieldGoalsAttempted: Number(row.avg_field_goals_attempted) || 0,
+        avgFreeThrowsMade: Number(row.avg_free_throws_made) || 0,
+        avgFreeThrowsAttempted: Number(row.avg_free_throws_attempted) || 0,
+        avgMinutesPlayed: Number(row.avg_minutes_played) || 0,
+        doubleDoubles: Number(row.double_doubles) || 0,
+        tripleDoubles: Number(row.triple_doubles) || 0,
     }
 }
 
@@ -227,7 +319,11 @@ export async function searchPlayers(
 
 
 export async function getPlayer(id: string): Promise<PlayerDetailRow> {
-    const { data, error } = await supabase.from('players').select('*').eq('id', id).single()
+    const { data, error } = await supabase
+        .from('players')
+        .select(PLAYER_DETAIL_SELECT)
+        .eq('id', id)
+        .single()
     if (error) throw error
     return mapPlayerDetail(data)
 }
@@ -251,31 +347,13 @@ export async function getPlayerSeasonAveragesFromView(
 ): Promise<PlayerSeasonAverages | null> {
     const { data, error } = await supabase
         .from('mv_player_season_averages')
-        .select('*')
+        .select(PLAYER_SEASON_AVERAGE_SELECT)
         .eq('player_id', playerId)
         .eq('season_year', seasonYear)
         .single()
 
     if (error || !data) return null
-    const row = data
-
-    return {
-        gamesPlayed: Number(row.games_played) || 0,
-        avgPoints: Number(row.avg_points) || 0,
-        avgRebounds: Number(row.avg_rebounds) || 0,
-        avgAssists: Number(row.avg_assists) || 0,
-        avgSteals: Number(row.avg_steals) || 0,
-        avgBlocks: Number(row.avg_blocks) || 0,
-        avgTurnovers: Number(row.avg_turnovers) || 0,
-        avgThreePointersMade: Number(row.avg_three_pointers_made) || 0,
-        avgFieldGoalsMade: Number(row.avg_field_goals_made) || 0,
-        avgFieldGoalsAttempted: Number(row.avg_field_goals_attempted) || 0,
-        avgFreeThrowsMade: Number(row.avg_free_throws_made) || 0,
-        avgFreeThrowsAttempted: Number(row.avg_free_throws_attempted) || 0,
-        avgMinutesPlayed: Number(row.avg_minutes_played) || 0,
-        doubleDoubles: Number(row.double_doubles) || 0,
-        tripleDoubles: Number(row.triple_doubles) || 0,
-    }
+    return mapPlayerSeasonAverages(data)
 }
 
 export async function getPlayerGameLog(
