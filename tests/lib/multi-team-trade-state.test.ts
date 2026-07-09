@@ -5,7 +5,7 @@ import {
     multiTeamTradeReducer,
     multiTeamTradeStateFromTrade,
 } from '@/lib/multi-team-trade-state'
-import type { Trade, TradeItem } from '@/lib/trades'
+import type { RoutedTradeItem, Trade } from '@/lib/trades'
 
 const members = ['B', 'C']
 
@@ -18,7 +18,7 @@ function addParticipant(state: ReturnType<typeof createMultiTeamTradeState>, mem
     })
 }
 
-function routedTrade(items: TradeItem[]): Trade {
+function routedTrade(items: RoutedTradeItem[]): Trade {
     return {
         id: 'trade',
         status: 'pending',

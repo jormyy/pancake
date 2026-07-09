@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase'
 import { apiPost } from '@/lib/shared/api'
 import { getRosterStatsMaps } from '@/lib/roster-stats'
+import type { TradeStatus } from '@pancake/core'
 export {
     isIncomingTradeForMember,
     isOutgoingTradeForMember,
@@ -45,6 +46,7 @@ export type TradeFaabItem = {
 }
 
 export type TradeItem = TradePlayerItem | TradePickItem | TradeFaabItem
+export type RoutedTradeItem = TradeItem & { fromMemberId: string; toMemberId: string }
 
 export type TradeParticipant = {
     memberId: string
@@ -56,7 +58,7 @@ export type TradeParticipant = {
 
 export type Trade = {
     id: string
-    status: string
+    status: TradeStatus
     proposedAt: string
     acceptedAt: string | null
     vetoWindowExpiresAt: string | null
@@ -83,7 +85,7 @@ export type Trade = {
     // Items the recipient is giving (proposer receives)
     recipientGives: TradeItem[]
     // Explicitly routed items for multi-team displays and audits.
-    routedItems: TradeItem[]
+    routedItems: RoutedTradeItem[]
 }
 
 type TeamNameRow = { team_name: string | null } | null
@@ -126,7 +128,7 @@ type TradeParticipantQueryRow = {
 type TradeQueryRow = {
     id: string
     league_id: string
-    status: string
+    status: TradeStatus
     proposed_at: string
     accepted_at: string | null
     veto_window_expires_at: string | null
@@ -395,12 +397,14 @@ const TRADE_SELECT = `
         `
 
 function mapTradeRow(row: TradeQueryRow, memberId: string): Trade {
-    const proposerGives: TradeItem[] = []
-    const recipientGives: TradeItem[] = []
-    const routedItems: TradeItem[] = []
+    const routedItems: RoutedTradeItem[] = []
 
     for (const item of row.trade_items ?? []) {
-        let tradeItem: TradeItem | null = null
+        const fromMemberId = item.from_member_id ?? (item.side === 'proposer' ? row.proposer_member_id : row.recipient_member_id)
+        const toMemberId = item.to_member_id ?? (fromMemberId === row.proposer_member_id
+            ? row.recipient_member_id
+            : row.proposer_member_id)
+        let tradeItem: RoutedTradeItem | null = null
 
         if (item.player_id != null && item.players) {
             tradeItem = {
@@ -413,9 +417,9 @@ function mapTradeRow(row: TradeQueryRow, memberId: string): Trade {
                 nbaId: item.players?.nba_id ?? null,
                 injuryStatus: item.players?.injury_status ?? null,
                 yearsExp: item.players?.years_exp ?? null,
-                fromMemberId: item.from_member_id ?? null,
-                toMemberId: item.to_member_id ?? null,
-            } satisfies TradePlayerItem
+                fromMemberId,
+                toMemberId,
+            } satisfies RoutedTradeItem
         } else if (item.pick_id != null && item.draft_picks) {
             tradeItem = {
                 kind: 'pick',
@@ -423,29 +427,24 @@ function mapTradeRow(row: TradeQueryRow, memberId: string): Trade {
                 seasonYear: item.draft_picks?.season_year,
                 round: item.draft_picks?.round,
                 originalTeamName: item.draft_picks?.original_owner?.team_name ?? 'Unknown',
-                fromMemberId: item.from_member_id ?? null,
-                toMemberId: item.to_member_id ?? null,
-            } satisfies TradePickItem
+                fromMemberId,
+                toMemberId,
+            } satisfies RoutedTradeItem
         } else if ((item.faab_amount ?? 0) > 0) {
             tradeItem = {
                 kind: 'faab',
                 amount: item.faab_amount ?? 0,
-                fromMemberId: item.from_member_id ?? null,
-                toMemberId: item.to_member_id ?? null,
-            } satisfies TradeFaabItem
+                fromMemberId,
+                toMemberId,
+            } satisfies RoutedTradeItem
         }
 
         if (tradeItem) {
             routedItems.push(tradeItem)
-            const fromMemberId = item.from_member_id ?? (item.side === 'proposer' ? row.proposer_member_id : row.recipient_member_id)
-            if (fromMemberId === row.proposer_member_id) {
-                proposerGives.push(tradeItem)
-            }
-            if (fromMemberId === row.recipient_member_id) {
-                recipientGives.push(tradeItem)
-            }
         }
     }
+    const proposerGives = routedItems.filter((item) => item.fromMemberId === row.proposer_member_id)
+    const recipientGives = routedItems.filter((item) => item.fromMemberId === row.recipient_member_id)
     const participants = (row.trade_participants ?? [])
         .map((participant) => ({
             memberId: participant.member_id,
@@ -506,29 +505,38 @@ function enrichItemsWithStats(
 }
 
 async function enrichTradesWithStats(trades: Trade[], leagueId: string): Promise<Trade[]> {
-    const playerIds = trades.flatMap((trade) => [
-        ...playerIdsFromItems(trade.proposerGives),
-        ...playerIdsFromItems(trade.recipientGives),
-        ...playerIdsFromItems(trade.routedItems),
-    ])
+    const playerIds = trades.flatMap((trade) => playerIdsFromItems(trade.routedItems))
     if (playerIds.length === 0) return trades
 
     const { avgMap, avgStatsMap } = await getRosterStatsMaps(playerIds, leagueId)
-    return trades.map((trade) => ({
-        ...trade,
-        proposerGives: enrichItemsWithStats(trade.proposerGives, avgMap, avgStatsMap),
-        recipientGives: enrichItemsWithStats(trade.recipientGives, avgMap, avgStatsMap),
-        routedItems: enrichItemsWithStats(trade.routedItems, avgMap, avgStatsMap),
-    }))
+    return trades.map((trade) => {
+        const routedItems = enrichItemsWithStats(trade.routedItems, avgMap, avgStatsMap) as RoutedTradeItem[]
+        return {
+            ...trade,
+            routedItems,
+            proposerGives: routedItems.filter((item) => item.fromMemberId === trade.proposerMemberId),
+            recipientGives: routedItems.filter((item) => item.fromMemberId === trade.recipientMemberId),
+        }
+    })
 }
 
 export async function getTradesForScreen(memberId: string, leagueId: string): Promise<Trade[]> {
+    const { data: visibleRows, error: visibilityError } = await supabase
+        .rpc('get_trades_for_member', {
+            p_member_id: memberId,
+            p_league_id: leagueId,
+            p_limit: 40,
+            p_offset: 0,
+        })
+    if (visibilityError) throw visibilityError
+    const visibleIds = visibleRows.map((row) => row.id)
+    if (visibleIds.length === 0) return []
+
     const { data, error } = await supabase
         .from('trades')
         .select(TRADE_SELECT)
-        .eq('league_id', leagueId)
+        .in('id', visibleIds)
         .order('proposed_at', { ascending: false })
-        .limit(40)
 
     if (error) throw error
 
@@ -550,31 +558,13 @@ export function isTradeVisibleOnScreen(trade: Trade, memberId: string, nowMs = D
 }
 
 export async function getPendingIncomingTradeCount(memberId: string, leagueId: string): Promise<number> {
-    const { data: participantRows, error: participantError } = await supabase
-        .from('trade_participants')
-        .select('trade_id, accepted_at')
-        .eq('member_id', memberId)
-        .eq('league_id', leagueId)
-    if (participantError) throw participantError
-
-    const participantTradeIds = [...new Set(
-        (participantRows ?? [])
-            .filter((row) => row.accepted_at == null)
-            .map((row) => row.trade_id),
-    )]
-    const visibilityFilters = [
-        `and(is_multi_team.eq.false,recipient_member_id.eq.${memberId})`,
-        ...(participantTradeIds.length > 0 ? [`id.in.(${participantTradeIds.join(',')})`] : []),
-    ].join(',')
-    const { count, error } = await supabase
-        .from('trades')
-        .select('id', { count: 'exact', head: true })
-        .eq('league_id', leagueId)
-        .eq('status', 'pending')
-        .or(visibilityFilters)
+    const { data, error } = await supabase.rpc('get_pending_trade_count', {
+        p_member_id: memberId,
+        p_league_id: leagueId,
+    })
 
     if (error) throw error
-    return count ?? 0
+    return data ?? 0
 }
 
 export async function getTradeById(tradeId: string, memberId: string): Promise<Trade | null> {

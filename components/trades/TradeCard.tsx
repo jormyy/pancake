@@ -159,14 +159,10 @@ export function TradeCard({
             ? trade.proposerTeamName
             : `${trade.proposerTeamName} vs ${trade.recipientTeamName}`
 
-    const iReceive = trade.isMultiTeam
-        ? trade.routedItems.filter((item) => item.toMemberId === myMemberId)
-        : isProposer ? trade.recipientGives : trade.proposerGives
-    const iGive = trade.isMultiTeam
-        ? trade.routedItems.filter((item) => item.fromMemberId === myMemberId)
-        : isProposer ? trade.proposerGives : trade.recipientGives
-    const iReceiveFaab = trade.isMultiTeam ? 0 : isProposer ? trade.recipientFaabAmount : trade.proposerFaabAmount
-    const iGiveFaab = trade.isMultiTeam ? 0 : isProposer ? trade.proposerFaabAmount : trade.recipientFaabAmount
+    const iReceive = trade.routedItems.filter((item) => item.toMemberId === myMemberId)
+    const iGive = trade.routedItems.filter((item) => item.fromMemberId === myMemberId)
+    const iReceiveFaab = 0
+    const iGiveFaab = 0
     const receiveLabel = isTradeParty
         ? 'You receive:'
         : `${trade.recipientTeamName} receives:`

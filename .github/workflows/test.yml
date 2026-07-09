@@ -24,23 +24,11 @@ jobs:
       - name: Dependency audit (high+)
         run: npm audit --audit-level=high
 
-      - name: Lint
-        run: npm run lint:all
+      - name: Repository quality gates
+        run: npm run check:quality
 
-      - name: Typecheck app
-        run: npm run typecheck
-
-      - name: Typecheck tests
-        run: npm run typecheck:tests
-
-      - name: Run tests (incl. scoring-parity + RLS-grant security guards)
-        run: npm test
-
-      - name: Typecheck core
-        run: npm run typecheck --workspace core
-
-      - name: Run core tests
-        run: npm test --workspace core
+      - name: Run app and core tests
+        run: npm run test:workspaces
 
   test-edge:
     name: Supabase Edge checks
@@ -82,7 +70,7 @@ jobs:
 
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 2.109.1
 
       - name: Start Supabase from repository migrations
         run: supabase start
@@ -97,4 +85,4 @@ jobs:
           SUPABASE_DB_URL="$DB_URL" \
           E2E_PANCAKE_SUPABASE_SECRET_KEY="$SECRET_KEY" \
           E2E_SUPABASE_PUBLISHABLE_KEY="$PUBLISHABLE_KEY" \
-          npm run test:db:multi-team-trade
+          npm run test:db

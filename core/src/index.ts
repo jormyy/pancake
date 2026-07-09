@@ -44,7 +44,6 @@ export { isRosterFull, hasTaxiSpace } from './roster/limits'
 export {
     canOccupyRosterSlot,
     canPlayLineupSlot,
-    canPlaySlot,
     LINEUP_SLOT_ALLOWED_POSITIONS,
     LINEUP_SLOT_TYPES,
     SLOT_TYPES,

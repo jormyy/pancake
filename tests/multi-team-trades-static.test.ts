@@ -15,6 +15,7 @@ const browserTradeGameplay = read('tests/e2e/browser-trade-gameplay.mjs')
 const browserMultiTeamTradeGameplay = read('tests/e2e/browser-trade-multi-team.mjs')
 const playerContext = read('lib/player-context.ts')
 const tradePerspective = read('lib/trade-perspective.ts')
+const tradeScreenQueries = read('supabase/migrations/20260709000015_trade_screen_queries.sql')
 
 describe('multi-team trade schema and privacy', () => {
     it('adds explicit participants and routed trade item assets', () => {
@@ -150,9 +151,10 @@ describe('multi-team trade UI and client mapping', () => {
         expect(clientTrades).toContain("'/trades/propose-multi'")
         expect(clientTrades).toContain('counter-multi')
         expect(clientTrades).toContain('edit-multi')
-        expect(clientTrades).toContain("from('trade_participants')")
+        expect(clientTrades).toContain("rpc('get_trades_for_member'")
+        expect(clientTrades).toContain("rpc('get_pending_trade_count'")
         expect(clientTrades).toContain('function getPendingIncomingTradeCount')
-        expect(clientTrades).toContain('accepted_at')
+        expect(tradeScreenQueries).toContain('participant.accepted_at IS NULL')
     })
 
     it('exposes a multi-team composer and participant-aware trade card actions', () => {
@@ -189,7 +191,9 @@ describe('multi-team trade UI and client mapping', () => {
         expect(tradesScreen).toContain('isTradeHistoryForMember(trade, myMemberId)')
         expect(pendingTradeCount).toContain('getPendingIncomingTradeCount(memberId, leagueId)')
         expect(pendingTradeCount).not.toContain(".eq('recipient_member_id', memberId)")
-        expect(clientTrades).toContain('and(is_multi_team.eq.false,recipient_member_id.eq.${memberId})')
+        expect(tradeScreenQueries).toContain('RETURNS SETOF public.trades')
+        expect(tradeScreenQueries).toContain('trade.proposer_member_id = p_member_id')
+        expect(tradeScreenQueries).toContain('LIMIT LEAST(GREATEST(p_limit, 1), 100)')
         expect(clientTrades).toContain('isTradeVisibleOnScreen(trade, memberId)')
         expect(pendingTradeCountQuery).not.toContain(".neq('proposer_member_id', memberId)")
         expect(tradePerspective).toContain('if (participant) return participant.acceptedAt == null')

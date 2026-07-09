@@ -132,6 +132,7 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null) {
     const seasonCacheRef = useRef(new Map<string, SeasonCacheEntry>(seasonCacheEntries(initialCache)))
     const playerRequestRef = useRef(0)
     const seasonRequestRef = useRef(0)
+    const gameLogRequestRef = useRef(0)
     const transactionRequestRef = useRef(0)
 
     const persistScreenCache = useCallback(() => {
@@ -182,6 +183,7 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null) {
     useEffect(() => {
         const requestId = ++playerRequestRef.current
         seasonRequestRef.current += 1
+        gameLogRequestRef.current += 1
         const cached = readPlayerScreenCache(playerId, leagueId)
         applyScreenCache(cached)
         const hasVisiblePlayer = cached?.player != null
@@ -247,6 +249,9 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null) {
         if (loadedPlayerId !== playerId) return
         const key = seasonCacheKey(playerId, leagueId, selectedSeason)
         const requestId = ++seasonRequestRef.current
+        gameLogRequestRef.current += 1
+        setGameLogLoading(false)
+        setGameLogError(null)
         const cached = seasonCacheRef.current.get(key)
         if (cached) {
             setSeasonAverages(cached.seasonAverages)
@@ -295,7 +300,7 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null) {
                 setAvgFantasyPoints(avgFantasy)
                 setSeasonError(null)
             } catch (e) {
-                setSeasonError(errorMessage(e))
+                if (seasonRequestRef.current === requestId) setSeasonError(errorMessage(e))
             } finally {
                 if (seasonRequestRef.current === requestId) setSeasonLoading(false)
             }
@@ -356,6 +361,7 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null) {
 
     const loadMoreGames = useCallback(async () => {
         if (gameLogLoading || !hasMoreGames || !player) return
+        const requestId = ++gameLogRequestRef.current
         setGameLogLoading(true)
         try {
             const result = await getPlayerGameLog(
@@ -365,6 +371,7 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null) {
                 GAME_LOG_PAGE,
                 gameLogOffset,
             )
+            if (gameLogRequestRef.current !== requestId) return
             setGameLog((prev) => {
                 const merged = [...prev, ...result.games]
                 const key = seasonCacheKey(playerId, leagueId, selectedSeason)
@@ -384,9 +391,9 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null) {
             setHasMoreGames(result.hasMore)
             setGameLogError(null)
         } catch (e) {
-            setGameLogError(errorMessage(e))
+            if (gameLogRequestRef.current === requestId) setGameLogError(errorMessage(e))
         } finally {
-            setGameLogLoading(false)
+            if (gameLogRequestRef.current === requestId) setGameLogLoading(false)
         }
     }, [playerId, leagueId, player, selectedSeason, gameLogOffset, gameLogLoading, hasMoreGames, persistScreenCache])
 

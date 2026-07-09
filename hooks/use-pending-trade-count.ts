@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { usePathname } from 'expo-router'
 import { useLeagueContext } from '@/contexts/league-context'
 import { subscribeToTableChanges, unsubscribeFromTableChanges } from '@/lib/realtime'
@@ -17,20 +17,26 @@ export function usePendingTradeCount(): number {
     const [count, setCount] = useState(0)
     const memberId = current?.id
     const leagueId = currentLeague?.id
+    const requestRef = useRef(0)
+
+    const fetchCount = useCallback(async () => {
+        const requestId = ++requestRef.current
+        if (!memberId || !leagueId) {
+            setCount(0)
+            return
+        }
+        try {
+            const pending = await getPendingIncomingTradeCount(memberId, leagueId)
+            if (requestRef.current === requestId) setCount(pending)
+        } catch (error) {
+            if (requestRef.current === requestId) console.error(error)
+        }
+    }, [leagueId, memberId])
 
     useEffect(() => {
         if (!memberId || !leagueId) {
             setCount(0)
             return
-        }
-        let cancelled = false
-        const fetchCount = async () => {
-            try {
-                const pending = await getPendingIncomingTradeCount(memberId, leagueId)
-                if (!cancelled) setCount(pending)
-            } catch (error) {
-                if (!cancelled) console.error(error)
-            }
         }
         fetchCount()
         const channel = subscribeToTableChanges(
@@ -43,16 +49,20 @@ export function usePendingTradeCount(): number {
         if (typeof window !== 'undefined') {
             window.addEventListener('focus', fetchCount)
             return () => {
-                cancelled = true
+                requestRef.current += 1
                 window.removeEventListener('focus', fetchCount)
                 unsubscribeFromTableChanges(channel)
             }
         }
         return () => {
-            cancelled = true
+            requestRef.current += 1
             unsubscribeFromTableChanges(channel)
         }
-    }, [memberId, leagueId, pathname])
+    }, [fetchCount, memberId, leagueId])
+
+    useEffect(() => {
+        void fetchCount()
+    }, [fetchCount, pathname])
 
     return count
 }

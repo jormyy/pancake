@@ -3882,6 +3882,19 @@ export type Database = {
           projection_week_number: number
         }[]
       }
+      get_pending_trade_count: {
+        Args: { p_league_id: string; p_member_id: string }
+        Returns: number
+      }
+      get_trades_for_member: {
+        Args: {
+          p_league_id: string
+          p_limit?: number
+          p_member_id: string
+          p_offset?: number
+        }
+        Returns: Database["public"]["Tables"]["trades"]["Row"][]
+      }
       get_league_activity_feed: {
         Args: { p_league_id: string; p_limit?: number; p_offset?: number }
         Returns: {

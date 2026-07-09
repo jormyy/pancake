@@ -16,7 +16,7 @@ module.exports = defineConfig([
         },
     },
     {
-        files: ['tests/**/*.{ts,tsx,js,mjs}'],
+        files: ['tests/lib/*.test.ts'],
         rules: {
             'import/first': 'off',
         },

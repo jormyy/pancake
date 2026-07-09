@@ -190,6 +190,19 @@ describe('trusted server table grants', () => {
     })
 })
 
+describe('storage policy restoration', () => {
+    const sql = allMigrationSql()
+
+    it.each(['avatars_read_public', 'avatars_insert_own', 'avatars_update_own', 'avatars_delete_own'])(
+        'restores %s after the remote snapshot',
+        (policy) => {
+            expect(sql.lastIndexOf(`CREATE POLICY "${policy}" ON storage.objects`)).toBeGreaterThan(
+                sql.lastIndexOf(`drop policy "${policy}" on "storage"."objects"`),
+            )
+        },
+    )
+})
+
 describe('waiver privacy policies', () => {
     it('does not allow league-wide reads of other managers pending waiver claims', () => {
         const claimPolicy = latestPolicyDefinition(

@@ -17,6 +17,18 @@ const {
 } = sources
 
 describe('logic hardening source guards - scoring and security', () => {
+    it('keeps due waiver players unavailable and deleted leagues inert', () => {
+        const migration = read('supabase/migrations/20260709000014_catalog_and_lifecycle_guards.sql')
+
+        expect(migration).toContain("NEW.acquired_via = 'free_agent'")
+        expect(migration).toContain('waiver.cleared_at IS NULL')
+        expect(migration).toContain("Waiver wins")
+        expect(migration).toContain('league.deleted_at IS NOT NULL')
+        expect(migration).toContain('idx_trades_due_accepted_queue')
+        expect(migration).toContain('DROP INDEX IF EXISTS public.idx_trade_vetos_trade_member')
+        expect(migration).toContain('RESET check_function_bodies')
+    })
+
     it('rounds SQL scoring at both compute_fantasy_points and v_fantasy_points sites', () => {
         const fnBody = latestFunctionDefinition('compute_fantasy_points')
         const viewBody = latestViewDefinition('v_fantasy_points')

@@ -33,6 +33,7 @@ import {
     type CommissionerActionId,
     type LeagueStatus,
 } from '@/components/commissioner/settings-policy'
+import { LINEUP_SLOT_TYPES } from '@pancake/core'
 import { styles } from '@/components/commissioner/settings-styles'
 
 async function adminCall(
@@ -67,7 +68,7 @@ const SCORING_FIELDS: { key: string; label: string }[] = [
     { key: 'free_throws_made', label: 'Free Throws Made' },
 ]
 
-const SLOT_TYPES = ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F', 'UTIL', 'BE']
+const SLOT_TYPES = LINEUP_SLOT_TYPES
 
 type SlotMap = Record<string, number>
 type ScoringMap = Record<string, string> // string for TextInput, parsed on save

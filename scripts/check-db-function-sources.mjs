@@ -6,7 +6,7 @@ const ROOT = process.cwd()
 const MIGRATIONS_DIR = path.join(ROOT, 'supabase/migrations')
 const FUNCTION_SOURCES_DIR = path.join(ROOT, 'supabase/sql/functions/by-name')
 
-const dollarQuotedStatement = (source) => {
+export const dollarQuotedStatement = (source) => {
   const asMatch = /\bAS\s+(\$[A-Za-z0-9_]*\$)/i.exec(source)
   const semicolonIndex = source.indexOf(';')
   if (!asMatch || (semicolonIndex !== -1 && semicolonIndex < asMatch.index)) {
