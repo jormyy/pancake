@@ -9,6 +9,7 @@ RETURNS TABLE (
   trade_id uuid,
   proposer_member_id uuid,
   recipient_member_id uuid,
+  participant_member_ids uuid[],
   status text,
   error_code text,
   error_message text
@@ -27,7 +28,13 @@ BEGIN
     SELECT
       trade.id,
       trade.proposer_member_id,
-      trade.recipient_member_id
+      trade.recipient_member_id,
+      ARRAY(
+        SELECT participant.member_id
+          FROM public.trade_participants AS participant
+         WHERE participant.trade_id = trade.id
+         ORDER BY participant.sort_order, participant.member_id
+      ) AS participant_member_ids
     FROM public.trades AS trade
     JOIN public.league_seasons AS season
       ON season.id = trade.league_season_id
@@ -49,6 +56,10 @@ BEGIN
         v_trade.id,
         v_trade.proposer_member_id,
         v_trade.recipient_member_id,
+        CASE
+          WHEN cardinality(v_trade.participant_member_ids) > 0 THEN v_trade.participant_member_ids
+          ELSE ARRAY[v_trade.proposer_member_id, v_trade.recipient_member_id]
+        END,
         'completed'::text,
         NULL::text,
         NULL::text;
@@ -64,6 +75,10 @@ BEGIN
           v_trade.id,
           v_trade.proposer_member_id,
           v_trade.recipient_member_id,
+          CASE
+            WHEN cardinality(v_trade.participant_member_ids) > 0 THEN v_trade.participant_member_ids
+            ELSE ARRAY[v_trade.proposer_member_id, v_trade.recipient_member_id]
+          END,
           'expired_terminal_failure'::text,
           v_error_code,
           v_error_message;
@@ -73,6 +88,10 @@ BEGIN
           v_trade.id,
           v_trade.proposer_member_id,
           v_trade.recipient_member_id,
+          CASE
+            WHEN cardinality(v_trade.participant_member_ids) > 0 THEN v_trade.participant_member_ids
+            ELSE ARRAY[v_trade.proposer_member_id, v_trade.recipient_member_id]
+          END,
           'failed_retryable'::text,
           v_error_code,
           v_error_message;

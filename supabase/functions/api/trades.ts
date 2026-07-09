@@ -24,6 +24,7 @@ type TradeVetoResult = {
   threshold: number
   proposerMemberId: string
   recipientMemberId: string
+  participantMemberIds: string[]
 }
 
 type TradeActionResult = {
@@ -66,6 +67,7 @@ type PendingTradeForAccept = {
 }
 
 type MultiTeamAcceptResult = {
+  expired: boolean
   allAccepted: boolean
   proposerMemberId: string
   recipientMemberId: string
@@ -168,6 +170,7 @@ function parseTradeActionResult(value: Json | null): TradeActionResult {
 function parseMultiTeamAcceptResult(value: Json | null): MultiTeamAcceptResult {
   const result = jsonObject(value ?? undefined, 'Multi-team trade accept result')
   return {
+    expired: jsonBoolean(result.expired, 'expired'),
     allAccepted: jsonBoolean(result.allAccepted, 'allAccepted'),
     proposerMemberId: jsonString(result.proposerMemberId, 'proposerMemberId'),
     recipientMemberId: jsonString(result.recipientMemberId, 'recipientMemberId'),
@@ -183,6 +186,7 @@ function parseTradeVetoResult(value: Json | null): TradeVetoResult {
     threshold: jsonNumber(result.threshold, 'threshold'),
     proposerMemberId: jsonString(result.proposerMemberId, 'proposerMemberId'),
     recipientMemberId: jsonString(result.recipientMemberId, 'recipientMemberId'),
+    participantMemberIds: jsonStringArray(result.participantMemberIds, 'participantMemberIds'),
   }
 }
 
@@ -399,6 +403,7 @@ async function acceptTrade(userId: string, tradeId: string, body: Record<string,
     })
     if (error) throwDb(error)
     const result = parseMultiTeamAcceptResult(data)
+    if (result.expired) throw new ValidationError('This trade offer has expired.')
     const notifyTargets = result.allAccepted
       ? result.participantMemberIds
       : [result.proposerMemberId]
@@ -577,7 +582,11 @@ async function replaceMultiTeamTrade(
   return { tradeId: newTradeIdString }
 }
 
-async function vetoTrade(userId: string, tradeId: string, body: Record<string, unknown>): Promise<Omit<TradeVetoResult, 'proposerMemberId' | 'recipientMemberId'>> {
+async function vetoTrade(
+  userId: string,
+  tradeId: string,
+  body: Record<string, unknown>,
+): Promise<Omit<TradeVetoResult, 'proposerMemberId' | 'recipientMemberId' | 'participantMemberIds'>> {
   const memberId = uuidField(body, 'memberId')
   const { leagueId } = await requireOwnMember(userId, memberId)
   const { data: trade, error: tradeError } = await supabase
@@ -597,22 +606,15 @@ async function vetoTrade(userId: string, tradeId: string, body: Record<string, u
 
   const result = parseTradeVetoResult(data)
   if (result.vetoed) {
-    Promise.all([
-      notifyMember(
-        result.proposerMemberId,
+    Promise.all(
+      result.participantMemberIds.map((participantMemberId) => notifyMember(
+        participantMemberId,
         'Trade Vetoed',
         'An accepted trade was vetoed before completion.',
         { tradeId },
         'trade',
-      ),
-      notifyMember(
-        result.recipientMemberId,
-        'Trade Vetoed',
-        'An accepted trade was vetoed before completion.',
-        { tradeId },
-        'trade',
-      ),
-    ]).catch((error) => console.error('[api/trades] veto notification failed', error))
+      )),
+    ).catch((error) => console.error('[api/trades] veto notification failed', error))
   }
 
   return {

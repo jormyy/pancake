@@ -89,7 +89,7 @@ BEGIN
     'invite_code',     v_invite_code,
     'commissioner_id', v_user_id,
     'auction_budget',  p_auction_budget,
-    'status',          'setup'
+    'status',          'pre_draft'
   );
 END;
 $$;

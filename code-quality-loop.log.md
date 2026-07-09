@@ -6,3 +6,4 @@ notes: Post Sleeper-parity multi-team trade loop. aggressiveness=aggressive; sco
 | # | verdict | findings | commits | loc_delta | tests | notes |
 |---|---|---|---|---|---|---|
 | 1 | BLOCK | 1 critical, 14 important | 6 | 2673 | pass | Fixed all app/core/database audit findings; live DB harness added for aggregate FAAB, drop reservations, replacements, concurrent acceptance, terminal failure classification; browser desktop/mobile proposal-edit-counter passed; legacy veto trigger defect found during verification and fixed. |
+| 2 | BLOCK | 1 critical, 18 important, 4 optional | 0 | 2673 | pass | Fresh app/core/database audit reset streak. Findings span terminal trade lifecycle, immutable migrations, multi-party notification, canonical settlement/composer models, realtime/read efficiency, E2E decomposition/lifecycle, source-guard replacement, and missing JS/DB CI gates. |

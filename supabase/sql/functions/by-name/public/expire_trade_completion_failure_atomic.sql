@@ -53,8 +53,8 @@ BEGIN
     RAISE EXCEPTION 'Trades require the current season.';
   END IF;
 
-  IF v_league_status NOT IN ('active', 'playoffs') THEN
-    RAISE EXCEPTION 'Trades require an active or playoff season.';
+  IF v_league_status = 'archived' THEN
+    RAISE EXCEPTION 'Archived leagues are read-only.';
   END IF;
 
   DELETE FROM trade_drop_reservations

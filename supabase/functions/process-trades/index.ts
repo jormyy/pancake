@@ -10,6 +10,7 @@ type ExpiredTradeRow = {
   trade_id: string
   proposer_member_id: string
   recipient_member_id: string
+  participant_member_ids: string[]
 }
 
 serveInternal('process-trades', async () => {
@@ -40,22 +41,15 @@ async function processAcceptedTrades(): Promise<{ processed: number; failed: num
     }
 
     processed += 1
-    await Promise.all([
-      notifyMember(
-        result.proposer_member_id,
+    await Promise.all(
+      result.participant_member_ids.map((participantMemberId) => notifyMember(
+        participantMemberId,
         'Trade Completed',
         'Assets have moved. Check your roster.',
         { tradeId: result.trade_id },
         'trade',
-      ),
-      notifyMember(
-        result.recipient_member_id,
-        'Trade Completed',
-        'Assets have moved. Check your roster.',
-        { tradeId: result.trade_id },
-        'trade',
-      ),
-    ]).catch((notifyError) => console.error('[process-trades] notification failed', notifyError))
+      )),
+    ).catch((notifyError) => console.error('[process-trades] notification failed', notifyError))
   }
 
   return { processed, failed, failures }
@@ -71,20 +65,13 @@ async function expirePendingTrades(): Promise<ExpiredTradeRow[]> {
 
 async function notifyExpiredTrades(rows: ExpiredTradeRow[]): Promise<void> {
   if (rows.length === 0) return
-  await Promise.all(rows.flatMap((row) => [
+  await Promise.all(rows.flatMap((row) => row.participant_member_ids.map((participantMemberId) =>
     notifyMember(
-      row.proposer_member_id,
+      participantMemberId,
       'Trade Expired',
       'One of your pending trade offers expired.',
       { tradeId: row.trade_id },
       'trade',
     ),
-    notifyMember(
-      row.recipient_member_id,
-      'Trade Expired',
-      'A pending trade offer expired.',
-      { tradeId: row.trade_id },
-      'trade',
-    ),
-  ])).catch((notifyError) => console.error('[process-trades] expiration notification failed', notifyError))
+  ))).catch((notifyError) => console.error('[process-trades] expiration notification failed', notifyError))
 }

@@ -123,6 +123,31 @@ const assertAggregateFaabRejectionIsAtomic = async (fixture) => {
   assert.equal((await fetchTrade(fixture, tradeId)).status, 'pending')
 }
 
+const assertExpiredAcceptanceCommits = async (fixture) => {
+  await setLeagueRules(fixture, { waiver_mode: 'faab', trade_veto_mode: 'commissioner', trade_veto_window_hours: 1 })
+  await setBalances(fixture, [
+    [fixture.proposer.id, 100],
+    [fixture.recipient.id, 0],
+    [fixture.observer.id, 0],
+  ])
+  const tradeId = await propose(fixture, faabRoutes(fixture, 1), 'DB expired acceptance transition')
+  const { error: expiryError } = await fixture.admin
+    .from('trades')
+    .update({ expires_at: new Date(Date.now() - 60_000).toISOString() })
+    .eq('id', tradeId)
+  if (expiryError) throw new Error(`trade expiry update: ${expiryError.message}`)
+
+  const result = await accept(fixture, tradeId, fixture.recipient.id)
+  assert.equal(result.expired, true)
+  assert.equal(result.allAccepted, false)
+  assert.deepEqual(new Set(result.participantMemberIds), new Set([
+    fixture.proposer.id,
+    fixture.recipient.id,
+    fixture.observer.id,
+  ]))
+  assert.equal((await fetchTrade(fixture, tradeId)).status, 'expired')
+}
+
 const assertReplacementAndDropLifecycle = async (fixture) => {
   await setLeagueRules(fixture, {
     roster_size: 2,
@@ -259,26 +284,50 @@ const assertConcurrentAcceptanceCompletesOnce = async (fixture) => {
 
 const assertCompletionFailureIsTerminal = async (fixture) => {
   await setLeagueRules(fixture, {
+    status: 'offseason',
     waiver_mode: 'faab',
     trade_veto_mode: 'commissioner',
     trade_veto_window_hours: 1,
   })
   await setBalances(fixture, [
-    [fixture.proposer.id, 100],
+    [fixture.proposer.id, 60],
     [fixture.recipient.id, 0],
     [fixture.observer.id, 0],
   ])
-  const tradeId = await propose(fixture, faabRoutes(fixture), 'DB terminal completion failure')
-  await accept(fixture, tradeId, fixture.recipient.id)
-  await accept(fixture, tradeId, fixture.observer.id)
-  assert.equal((await fetchTrade(fixture, tradeId)).status, 'accepted')
-
-  await setBalances(fixture, [[fixture.proposer.id, 60]])
-  const { error: windowError } = await fixture.admin
+  const past = new Date(Date.now() - 60_000).toISOString()
+  const { data: trade, error: tradeError } = await fixture.admin
     .from('trades')
-    .update({ veto_window_expires_at: new Date(Date.now() - 60_000).toISOString() })
-    .eq('id', tradeId)
-  if (windowError) throw new Error(`veto window update: ${windowError.message}`)
+    .insert({
+      league_id: fixture.league.id,
+      league_season_id: fixture.currentSeason.id,
+      proposer_member_id: fixture.proposer.id,
+      recipient_member_id: fixture.recipient.id,
+      status: 'accepted',
+      accepted_at: past,
+      veto_window_expires_at: past,
+      is_multi_team: true,
+      notes: 'DB offseason terminal completion failure',
+    })
+    .select('id')
+    .single()
+  if (tradeError) throw new Error(`offseason accepted trade insert: ${tradeError.message}`)
+  const tradeId = trade.id
+  const { error: itemError } = await fixture.admin.from('trade_items').insert(
+    faabRoutes(fixture).map((item) => ({
+      trade_id: tradeId,
+      side: 'proposer',
+      from_member_id: item.fromMemberId,
+      to_member_id: item.toMemberId,
+      faab_amount: item.faabAmount,
+    })),
+  )
+  if (itemError) throw new Error(`offseason trade item insert: ${itemError.message}`)
+  const { error: participantError } = await fixture.admin.from('trade_participants').insert([
+    { trade_id: tradeId, member_id: fixture.proposer.id, sort_order: 0, is_initiator: true, accepted_at: past },
+    { trade_id: tradeId, member_id: fixture.recipient.id, sort_order: 1, is_initiator: false, accepted_at: past },
+    { trade_id: tradeId, member_id: fixture.observer.id, sort_order: 2, is_initiator: false, accepted_at: past },
+  ])
+  if (participantError) throw new Error(`offseason participant insert: ${participantError.message}`)
 
   const processed = await rpc(fixture.admin, 'process_due_accepted_trades_atomic', { p_limit: 50 })
   const result = processed.find((row) => row.trade_id === tradeId)
@@ -286,15 +335,21 @@ const assertCompletionFailureIsTerminal = async (fixture) => {
   assert.equal(result.status, 'expired_terminal_failure')
   assert.equal(result.error_code, 'PT001')
   assert.match(result.error_message, /enough FAAB/i)
+  assert.deepEqual(new Set(result.participant_member_ids), new Set([
+    fixture.proposer.id,
+    fixture.recipient.id,
+    fixture.observer.id,
+  ]))
 
-  const trade = await fetchTrade(fixture, tradeId)
-  assert.equal(trade.status, 'expired')
-  assert.match(trade.completion_failure_reason, /enough FAAB/i)
+  const completedTrade = await fetchTrade(fixture, tradeId)
+  assert.equal(completedTrade.status, 'expired')
+  assert.match(completedTrade.completion_failure_reason, /enough FAAB/i)
 }
 
 const run = async () => {
   const fixture = await setupMultiTeamTradeGameplayFixture(env, 0)
   await assertAggregateFaabRejectionIsAtomic(fixture)
+  await assertExpiredAcceptanceCommits(fixture)
   await assertReplacementAndDropLifecycle(fixture)
   await assertConcurrentAcceptanceCompletesOnce(fixture)
   await assertCompletionFailureIsTerminal(fixture)

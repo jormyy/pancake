@@ -3810,6 +3810,7 @@ export type Database = {
       expire_pending_trades_atomic: {
         Args: { p_limit?: number }
         Returns: {
+          participant_member_ids: string[]
           proposer_member_id: string
           recipient_member_id: string
           trade_id: string
@@ -3979,6 +3980,7 @@ export type Database = {
         Returns: {
           error_code: string
           error_message: string
+          participant_member_ids: string[]
           proposer_member_id: string
           recipient_member_id: string
           status: string

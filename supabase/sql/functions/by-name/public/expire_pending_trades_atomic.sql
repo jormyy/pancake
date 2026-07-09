@@ -8,7 +8,8 @@ CREATE OR REPLACE FUNCTION public.expire_pending_trades_atomic(
 RETURNS TABLE (
   trade_id uuid,
   proposer_member_id uuid,
-  recipient_member_id uuid
+  recipient_member_id uuid,
+  participant_member_ids uuid[]
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -54,7 +55,21 @@ BEGIN
     FROM expired
     RETURNING id
   )
-  SELECT expired.id, expired.proposer_member_id, expired.recipient_member_id
+  SELECT
+    expired.id,
+    expired.proposer_member_id,
+    expired.recipient_member_id,
+    CASE
+      WHEN EXISTS (
+        SELECT 1 FROM trade_participants AS participant WHERE participant.trade_id = expired.id
+      ) THEN ARRAY(
+        SELECT participant.member_id
+          FROM trade_participants AS participant
+         WHERE participant.trade_id = expired.id
+         ORDER BY participant.sort_order, participant.member_id
+      )
+      ELSE ARRAY[expired.proposer_member_id, expired.recipient_member_id]
+    END
     FROM expired;
 END;
 $$;

@@ -54,8 +54,17 @@ BEGIN
 
   IF v_trade.expires_at IS NOT NULL AND v_trade.expires_at <= now() THEN
     UPDATE trades SET status = 'expired'::trade_status WHERE id = p_trade_id;
-    RAISE EXCEPTION 'This trade offer has expired.'
-      USING ERRCODE = 'P0001';
+    RETURN jsonb_build_object(
+      'expired', true,
+      'allAccepted', false,
+      'proposerMemberId', v_trade.proposer_member_id,
+      'recipientMemberId', v_trade.recipient_member_id,
+      'participantMemberIds', (
+        SELECT jsonb_agg(participant.member_id ORDER BY participant.sort_order, participant.member_id)
+          FROM trade_participants AS participant
+         WHERE participant.trade_id = p_trade_id
+      )
+    );
   END IF;
 
   PERFORM 1
@@ -376,6 +385,7 @@ BEGIN
   END IF;
 
   RETURN jsonb_build_object(
+    'expired', false,
     'allAccepted', v_all_accepted,
     'proposerMemberId', v_trade.proposer_member_id,
     'recipientMemberId', v_trade.recipient_member_id,
