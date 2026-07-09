@@ -43,8 +43,12 @@ import { EMPTY_AVG_MAP, EMPTY_STATS_MAP, getRosterStatsMaps } from '@/lib/roster
 import { Avatar } from '@/components/Avatar'
 import { PosTag } from '@/components/PosTag'
 import { Badge } from '@/components/Badge'
-import { debounceRealtimeRefresh } from '@/lib/realtime'
-import { supabase } from '@/lib/supabase'
+import {
+    debounceRealtimeRefresh,
+    disposeTableChangeSubscription,
+    subscribeToTableChanges,
+} from '@/lib/realtime'
+import { tradeScreenWatches } from '@/lib/trades-realtime'
 
 // Contain a render crash to this screen (recoverable) instead of blanking the whole app.
 export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFallback'
@@ -212,51 +216,17 @@ export default function TradesScreen() {
         const refreshTrades = debounceRealtimeRefresh(() => { void load() })
         const refreshTradeBlock = debounceRealtimeRefresh(() => { void loadBlock() })
         const refreshDraftPicks = debounceRealtimeRefresh(() => { void refreshPicks() })
-        const channel = supabase
-            .channel(`trades-screen:${leagueId}:${myMemberId}`, { config: { private: true } })
-            .on('postgres_changes', {
-                event: '*',
-                schema: 'public',
-                table: 'trades',
-                filter: `league_id=eq.${leagueId}`,
-            }, refreshTrades.trigger)
-            .on('postgres_changes', {
-                event: '*',
-                schema: 'public',
-                table: 'trade_items',
-                filter: `league_id=eq.${leagueId}`,
-            }, refreshTrades.trigger)
-            .on('postgres_changes', {
-                event: '*',
-                schema: 'public',
-                table: 'trade_participants',
-                filter: `league_id=eq.${leagueId}`,
-            }, refreshTrades.trigger)
-            .on('postgres_changes', {
-                event: '*',
-                schema: 'public',
-                table: 'trade_vetos',
-                filter: `league_id=eq.${leagueId}`,
-            }, refreshTrades.trigger)
-            .on('postgres_changes', {
-                event: '*',
-                schema: 'public',
-                table: 'trade_block_items',
-                filter: `league_id=eq.${leagueId}`,
-            }, refreshTradeBlock.trigger)
-            .on('postgres_changes', {
-                event: '*',
-                schema: 'public',
-                table: 'draft_picks',
-                filter: `league_id=eq.${leagueId}`,
-            }, refreshDraftPicks.trigger)
-            .subscribe()
+        const channel = subscribeToTableChanges(
+            `trades-screen:${leagueId}:${myMemberId}`,
+            tradeScreenWatches(leagueId, {
+                trades: refreshTrades.trigger,
+                tradeBlock: refreshTradeBlock.trigger,
+                draftPicks: refreshDraftPicks.trigger,
+            }),
+        )
 
         return () => {
-            refreshTrades.cancel()
-            refreshTradeBlock.cancel()
-            refreshDraftPicks.cancel()
-            supabase.removeChannel(channel)
+            disposeTableChangeSubscription(channel, [refreshTrades, refreshTradeBlock, refreshDraftPicks])
         }
     }, [leagueId, load, loadBlock, myMemberId, refreshPicks])
 

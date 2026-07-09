@@ -1,18 +1,12 @@
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
-
-type RealtimeEvent = '*' | 'INSERT' | 'UPDATE' | 'DELETE'
-
-export type TableChangeWatch = {
-    table: string
-    filter?: string
-    event?: RealtimeEvent
-}
+import { type TableChangeWatch } from '@/lib/realtime-config'
+export { scopeWatchesToLeague, type TableChangeWatch } from '@/lib/realtime-config'
 
 export function subscribeToTableChanges(
     channelName: string,
     watches: TableChangeWatch[],
-    onChange: () => void,
+    onChange?: () => void,
 ): RealtimeChannel {
     const channel = supabase.channel(channelName, { config: { private: true } })
     for (const watch of watches) {
@@ -24,7 +18,7 @@ export function subscribeToTableChanges(
                 table: watch.table,
                 ...(watch.filter ? { filter: watch.filter } : {}),
             },
-            onChange,
+            watch.onChange ?? onChange ?? (() => {}),
         )
     }
     return channel.subscribe()
@@ -49,4 +43,12 @@ export function debounceRealtimeRefresh(onChange: () => void, delayMs = 250) {
 
 export function unsubscribeFromTableChanges(channel: RealtimeChannel) {
     supabase.removeChannel(channel)
+}
+
+export function disposeTableChangeSubscription(
+    channel: RealtimeChannel,
+    refreshes: Array<{ cancel: () => void }>,
+) {
+    for (const refresh of refreshes) refresh.cancel()
+    unsubscribeFromTableChanges(channel)
 }

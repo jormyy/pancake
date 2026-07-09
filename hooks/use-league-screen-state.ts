@@ -38,8 +38,13 @@ import {
     type DraftTimerOption,
     type RookieRoundOption,
 } from '@/components/league/DraftChips'
-import { debounceRealtimeRefresh } from '@/lib/realtime'
-import { supabase } from '@/lib/supabase'
+import {
+    debounceRealtimeRefresh,
+    disposeTableChangeSubscription,
+    subscribeToTableChanges,
+    type TableChangeWatch,
+} from '@/lib/realtime'
+import { leagueScreenWatches } from '@/lib/league/realtime'
 
 const ACTIVITY_LIMIT = 50
 const OPEN_DRAFT_STATUSES = new Set(['pending', 'in_progress', 'paused'])
@@ -104,6 +109,7 @@ export function useLeagueScreenState() {
 
     const loadedTabs = useRef<Set<LeagueTab>>(new Set())
     const activeLeagueIdRef = useRef<string | undefined>(undefined)
+    const currentDraftIdsRef = useRef<Set<string>>(new Set())
     activeLeagueIdRef.current = currentLeague?.id
 
     useEffect(() => {
@@ -213,12 +219,15 @@ export function useLeagueScreenState() {
     )
 
     useEffect(() => {
-        const lid = currentLeague?.id
-        if (!lid) return
-        const currentDraftIds = new Set([
+        currentDraftIdsRef.current = new Set([
             activeDraft?.id,
             ...mockRooms.map((room) => room.id),
         ].filter((id): id is string => Boolean(id)))
+    }, [activeDraft?.id, mockRooms])
+
+    useEffect(() => {
+        const lid = currentLeague?.id
+        if (!lid) return
         const changedDraftId = (payload: { eventType: string; new: Record<string, unknown>; old: Record<string, unknown> }) => {
             const row = payload.eventType === 'DELETE' ? payload.old : payload.new
             return typeof row.draft_id === 'string' ? row.draft_id : null
@@ -230,76 +239,46 @@ export function useLeagueScreenState() {
         const refreshMockRooms = debounceRealtimeRefresh(() => { void fetchTab('mockRooms', lid) })
         const refreshDraftState = debounceRealtimeRefresh(() => { void fetchActiveDraft(lid) })
 
-        const channel = supabase
-            .channel(`league-screen:${lid}`, { config: { private: true } })
-            .on('postgres_changes', {
-                event: '*',
-                schema: 'public',
-                table: 'league_members',
-                filter: `league_id=eq.${lid}`,
-            }, () => {
+        const leagueWatches = leagueScreenWatches(lid, {
+            members: () => {
                 refreshResults.trigger()
                 refreshMockRooms.trigger()
-            })
-            .on('postgres_changes', {
-                event: '*',
-                schema: 'public',
-                table: 'roster_transactions',
-                filter: `league_id=eq.${lid}`,
-            }, refreshHistory.trigger)
-            .on('postgres_changes', {
-                event: '*',
-                schema: 'public',
-                table: 'waiver_priorities',
-                filter: `league_id=eq.${lid}`,
-            }, refreshSettings.trigger)
-            .on('postgres_changes', {
-                event: '*',
-                schema: 'public',
-                table: 'draft_picks',
-                filter: `league_id=eq.${lid}`,
-            }, refreshDraftBoard.trigger)
-            .on('postgres_changes', {
-                event: '*',
-                schema: 'public',
-                table: 'drafts',
-                filter: `league_id=eq.${lid}`,
-            }, () => {
+            },
+            history: refreshHistory.trigger,
+            settings: refreshSettings.trigger,
+            draftBoard: refreshDraftBoard.trigger,
+            drafts: () => {
                 refreshDraftState.trigger()
                 refreshMockRooms.trigger()
-            })
-            .on('postgres_changes', {
-                event: '*',
-                schema: 'public',
-                table: 'draft_room_members',
-            }, (payload) => {
+            },
+        })
+        const draftWatches: TableChangeWatch[] = [
+            { table: 'draft_room_members', onChange: (payload) => {
                 const draftId = changedDraftId(payload)
-                if (!draftId || !currentDraftIds.has(draftId)) return
+                if (!draftId || !currentDraftIdsRef.current.has(draftId)) return
                 refreshDraftState.trigger()
                 refreshMockRooms.trigger()
-            })
-            .on('postgres_changes', {
-                event: '*',
-                schema: 'public',
-                table: 'snake_draft_picks',
-            }, (payload) => {
+            } },
+            { table: 'snake_draft_picks', onChange: (payload) => {
                 const draftId = changedDraftId(payload)
-                if (!draftId || !currentDraftIds.has(draftId)) return
+                if (!draftId || !currentDraftIdsRef.current.has(draftId)) return
                 refreshDraftBoard.trigger()
                 refreshDraftState.trigger()
-            })
-            .subscribe()
+            } },
+        ]
+        const channel = subscribeToTableChanges(`league-screen:${lid}`, [...leagueWatches, ...draftWatches])
 
         return () => {
-            refreshResults.cancel()
-            refreshHistory.cancel()
-            refreshSettings.cancel()
-            refreshDraftBoard.cancel()
-            refreshMockRooms.cancel()
-            refreshDraftState.cancel()
-            supabase.removeChannel(channel)
+            disposeTableChangeSubscription(channel, [
+                refreshResults,
+                refreshHistory,
+                refreshSettings,
+                refreshDraftBoard,
+                refreshMockRooms,
+                refreshDraftState,
+            ])
         }
-    }, [activeDraft?.id, currentLeague?.id, fetchActiveDraft, fetchTab, mockRooms])
+    }, [currentLeague?.id, fetchActiveDraft, fetchTab])
 
     function handleTabChange(nextTab: LeagueTab) {
         setTab(nextTab)
