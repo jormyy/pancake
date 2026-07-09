@@ -7,6 +7,8 @@ import { read, readFunctionSources } from './source-guard'
 // tests/db-function-source-parity.test.ts keeps these per-function sources in
 // sync with the deployed migrations.
 const waivers = readFunctionSources([
+    ['ineligible_ir_player_names', 'private'],
+    ['prevent_pending_waiver_claim_with_ineligible_ir', 'private'],
     ['clear_future_unlocked_lineups', 'private'],
     ['clear_trade_block_listing_for_asset', 'private'],
     ['validate_waiver_claim_drop_player', 'private'],
@@ -32,6 +34,7 @@ const dynastyTx = readFunctionSources([
     ['weekly_add_limit_message', 'private'],
     ['assert_weekly_add_available', 'private'],
 ])
+const waiverPolicyMigration = read('supabase/migrations/20260708000012_waiver_submission_policy_and_index.sql')
 const waiverApi = read('supabase/functions/api/waivers.ts')
 const claimPlayerModal = read('app/(modals)/claim-player.tsx')
 
@@ -77,6 +80,25 @@ describe('auction bid guards (place_auction_bid_atomic / settlement)', () => {
 })
 
 describe('waiver claim resolution ordering (process_waiver_claim internals)', () => {
+    it('keeps pending-claim IR eligibility in the database boundary', () => {
+        expect(waivers).toContain('private.ineligible_ir_player_names')
+        expect(waivers).toContain('prevent_pending_waiver_claim_with_ineligible_ir')
+        expect(waiverPolicyMigration).toContain('CREATE TRIGGER waiver_claims_pending_ir_guard')
+        expect(waiverPolicyMigration).toContain('BEFORE INSERT OR UPDATE OF status, member_id, league_id, league_season_id')
+        expect(waiverApi).not.toContain("from('roster_players')")
+        expect(waiverApi).not.toContain('isIREligible')
+    })
+
+    it('indexes the due-claim processor by its pending batch shape', () => {
+        expect(waiverPolicyMigration).toContain('idx_waiver_claims_pending_due_processing')
+        expect(waiverPolicyMigration).toContain('league_id')
+        expect(waiverPolicyMigration).toContain('league_season_id')
+        expect(waiverPolicyMigration).toContain('player_id')
+        expect(waiverPolicyMigration).toContain('process_date')
+        expect(waiverPolicyMigration).toContain('bid_amount DESC')
+        expect(waiverPolicyMigration).toContain("WHERE status = 'pending'::public.waiver_claim_status")
+    })
+
     it('picks the next claim by FAAB bid DESC, then priority, claim order, submit time, id', () => {
         expect(waivers).toContain(
             '     ORDER BY\n' +
