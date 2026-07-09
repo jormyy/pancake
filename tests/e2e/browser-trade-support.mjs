@@ -21,7 +21,6 @@ export const FUTURE_PICK_ACCEPT_REPORT_PATH = path.join(ROOT, 'tests/e2e-browser
 export const OVERFLOW_ACCEPT_REPORT_PATH = path.join(ROOT, 'tests/e2e-browser-trade-overflow-accept-report.md')
 export const POST_DEADLINE_REPORT_PATH = path.join(ROOT, 'tests/e2e-browser-trade-post-deadline-report.md')
 export const VETO_REPORT_PATH = path.join(ROOT, 'tests/e2e-browser-trade-veto-report.md')
-export const MULTI_TEAM_REPORT_PATH = path.join(ROOT, 'tests/e2e-browser-trade-multi-team-report.md')
 
 export const browser = createBrowser({ cwd: ROOT })
 
@@ -30,7 +29,7 @@ export const listSessions = () => listBrowserSessions({ cwd: ROOT })
 export const safeName = (value) => value.replace(/[^a-zA-Z0-9._-]/g, '-')
 export const tradeSessionName = (code, runId) => safeName(`pc-${code}-${runId}-${process.pid}`)
 export const joinUrl = (base, pathname) => new URL(pathname, base.endsWith('/') ? base : `${base}/`).toString()
-export const parseEvalJson = (output) => {
+const parseEvalJson = (output) => {
   const line = output.split('\n').filter(Boolean).at(-1)
   const value = JSON.parse(line)
   return typeof value === 'string' ? JSON.parse(value) : value
@@ -110,7 +109,7 @@ export const readButtonState = async (session, name, label) => {
   return parsed
 }
 
-export const clickTab = async (session, namePrefix, label) => {
+const clickTab = async (session, namePrefix, label) => {
   const output = await browser(session, [
     'eval',
     `(() => {

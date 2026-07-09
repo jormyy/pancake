@@ -12,14 +12,14 @@ import {
   backendJson,
 } from './soak-backend-support.mjs'
 
-export const scoringFixtureSeasonYear = () => 6000 + Number(Date.now().toString().slice(-6))
-export const scoringFixtureWeekNumber = (season) => 700 + season
-export const scoringFixtureDate = (season, offsetDays = 0) => {
+const scoringFixtureSeasonYear = () => 6000 + Number(Date.now().toString().slice(-6))
+const scoringFixtureWeekNumber = (season) => 700 + season
+const scoringFixtureDate = (season, offsetDays = 0) => {
   const date = new Date(Date.UTC(2040, 0, 1 + season * 7 + offsetDays))
   return date.toISOString().split('T')[0]
 }
 
-export const calculateFixturePoints = (stats, settings) => {
+const calculateFixturePoints = (stats, settings) => {
   if (stats.did_not_play) return 0
   return Number((
     stats.points * (settings.points ?? 0) +
@@ -38,14 +38,14 @@ export const calculateFixturePoints = (stats, settings) => {
   ).toFixed(2))
 }
 
-export const assertNumberEquals = (failures, label, actual, expected) => {
+const assertNumberEquals = (failures, label, actual, expected) => {
   const actualNumber = Number(actual ?? 0)
   if (Math.abs(actualNumber - expected) > 0.001) {
     failures.push(`${label}: ${actualNumber}; expected ${expected}`)
   }
 }
 
-export const readScoringMatchup = async (supabase, matchupId, label) => {
+const readScoringMatchup = async (supabase, matchupId, label) => {
   const { data, error } = await supabase
     .from('matchups')
     .select('id, home_points, away_points, home_max_possible_points, away_max_possible_points, winner_member_id, is_finalized, finalized_at')
@@ -404,7 +404,7 @@ export const assertWeeklyScoringFinalizationScenario = async ({ supabase, env, s
   return { failures, artifact }
 }
 
-export const resetFixtureSeasonYear = () => 9000 + Number(Date.now().toString().slice(-6))
+const resetFixtureSeasonYear = () => 9000 + Number(Date.now().toString().slice(-6))
 
 export const assertSeasonResetScenario = async ({ supabase, env, state, season }) => {
   const failures = []

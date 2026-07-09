@@ -160,11 +160,6 @@ export async function runBrowserTradeScenario({
   }
 }
 
-export async function runBrowserMultiTeamTradeScenario(options = {}) {
-  const { runBrowserMultiTeamTradeScenario: run } = await import('./browser-trade-multi-team.mjs')
-  return run(options)
-}
-
 export async function runBrowserTradePostDeadlineScenario({
   season = 0,
   sessionName = undefined,

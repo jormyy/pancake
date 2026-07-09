@@ -5,13 +5,13 @@ import { createClient } from '@supabase/supabase-js'
 import { cleanMessage, describeEndpoint } from './env.mjs'
 import { createFixtureResourceOwner } from './trade-fixture.mjs'
 
-export const ROOT = process.cwd()
-export const REPORT_PATH = path.join(ROOT, 'tests/e2e-dynasty-release-final-gate-report.md')
+const ROOT = process.cwd()
+const REPORT_PATH = path.join(ROOT, 'tests/e2e-dynasty-release-final-gate-report.md')
 export const ARTIFACT_DIR = path.join(ROOT, 'tests/artifacts/dynasty-release-final-gate')
-export const E2E_PLAYER_PREFIX = 'e2e-player-'
+const E2E_PLAYER_PREFIX = 'e2e-player-'
 
-export const positions = ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F']
-export const teams = ['ATL', 'BOS', 'CHI', 'DAL', 'DEN', 'GSW', 'LAL', 'MIA']
+const positions = ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F']
+const teams = ['ATL', 'BOS', 'CHI', 'DAL', 'DEN', 'GSW', 'LAL', 'MIA']
 
 export const rows = []
 
@@ -34,11 +34,11 @@ export function pastIso() {
   return new Date(Date.now() - 5 * 60 * 1000).toISOString()
 }
 
-export function futureIso() {
+function futureIso() {
   return new Date(Date.now() + 60 * 60 * 1000).toISOString()
 }
 
-export function safeCell(value) {
+function safeCell(value) {
   return String(value ?? '')
     .replaceAll('\\', '\\\\')
     .replaceAll('|', '\\|')
@@ -106,7 +106,7 @@ export function createSupabaseClient(url, key) {
   })
 }
 
-export async function createConfirmedUser(admin, user) {
+async function createConfirmedUser(admin, user) {
   const { data, error } = await admin.auth.admin.createUser({
     email: user.email,
     password: user.password,
@@ -121,7 +121,7 @@ export async function createConfirmedUser(admin, user) {
   return { ...user, id: data.user.id }
 }
 
-export async function signIn(env, email, password) {
+async function signIn(env, email, password) {
   const client = createSupabaseClient(env.supabaseUrl, env.anonKey)
   const { data, error } = await client.auth.signInWithPassword({ email, password })
   if (error) throw new Error(`signIn ${email}: ${error.message}`)
@@ -147,7 +147,7 @@ export async function apiPost(env, token, route, body) {
   return json
 }
 
-export async function seedPlayerFixtures(admin) {
+async function seedPlayerFixtures(admin) {
   const players = Array.from({ length: 100 }, (_, index) => {
     const n = index + 1
     const position = positions[index % positions.length]
@@ -182,7 +182,7 @@ export async function seedPlayerFixtures(admin) {
   return data
 }
 
-export async function fetchCurrentSeason(admin, leagueId) {
+async function fetchCurrentSeason(admin, leagueId) {
   const { data, error } = await admin
     .from('league_seasons')
     .select('id, season_year')
@@ -193,7 +193,7 @@ export async function fetchCurrentSeason(admin, leagueId) {
   return data
 }
 
-export async function fetchMembers(admin, leagueId) {
+async function fetchMembers(admin, leagueId) {
   const { data, error } = await admin
     .from('league_members')
     .select('id, user_id, role, team_name')
@@ -203,7 +203,7 @@ export async function fetchMembers(admin, leagueId) {
   return data ?? []
 }
 
-export async function ensureWaiverPriority(admin, leagueId, seasonId, members) {
+async function ensureWaiverPriority(admin, leagueId, seasonId, members) {
   const rows = members.map((member, index) => ({
     league_id: leagueId,
     league_season_id: seasonId,
@@ -216,7 +216,7 @@ export async function ensureWaiverPriority(admin, leagueId, seasonId, members) {
   if (error) throw new Error(`waiver priority upsert: ${error.message}`)
 }
 
-export async function ensureFaabBalances(admin, leagueId, seasonId, members, balance = 100) {
+async function ensureFaabBalances(admin, leagueId, seasonId, members, balance = 100) {
   const rows = members.map((member) => ({
     league_id: leagueId,
     league_season_id: seasonId,

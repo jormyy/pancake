@@ -193,7 +193,6 @@ export function useLeagueScreenState() {
     function handleTabChange(nextTab: LeagueTab) {
         setTab(nextTab)
         router.push(`/league?tab=${nextTab}`)
-        tabResources.ensureTab(nextTab)
     }
 
     async function handleStartDraft() {

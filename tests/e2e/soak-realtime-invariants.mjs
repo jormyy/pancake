@@ -28,7 +28,7 @@ import {
   signInForAccessToken,
 } from './soak-backend-support.mjs'
 
-export const withTimeout = (promise, timeoutMs, message) => {
+const withTimeout = (promise, timeoutMs, message) => {
   let timeout
   const timer = new Promise((_, reject) => {
     timeout = setTimeout(() => reject(new Error(message)), timeoutMs)
@@ -36,7 +36,7 @@ export const withTimeout = (promise, timeoutMs, message) => {
   return Promise.race([promise, timer]).finally(() => clearTimeout(timeout))
 }
 
-export const waitForRealtimeSubscribe = (channel, label) => withTimeout(
+const waitForRealtimeSubscribe = (channel, label) => withTimeout(
   new Promise((resolve, reject) => {
     channel.subscribe((status, error) => {
       if (status === 'SUBSCRIBED') resolve()
@@ -49,7 +49,7 @@ export const waitForRealtimeSubscribe = (channel, label) => withTimeout(
   `D.X.2: realtime ${label} did not subscribe within ${REALTIME_SUBSCRIBE_TIMEOUT_MS}ms`,
 )
 
-export const insertRealtimeTargetMatchup = async (supabase, leagueId, season, runSeason) => {
+const insertRealtimeTargetMatchup = async (supabase, leagueId, season, runSeason) => {
   const currentSeason = await fetchSingle(
     supabase,
     'league_seasons',
@@ -83,7 +83,7 @@ export const insertRealtimeTargetMatchup = async (supabase, leagueId, season, ru
   throw new Error('D.X.2 realtime target matchup insert: exhausted unique week_number attempts')
 }
 
-export const insertRealtimeAuctionTarget = async (supabase, leagueId, season) => {
+const insertRealtimeAuctionTarget = async (supabase, leagueId, season) => {
   const currentSeason = await fetchSingle(
     supabase,
     'league_seasons',

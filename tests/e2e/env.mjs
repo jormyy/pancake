@@ -35,7 +35,7 @@ export const envValue = (...names) => {
   return undefined
 }
 
-export const commandText = (command, args) => [command, ...args].join(' ')
+const commandText = (command, args) => [command, ...args].join(' ')
 
 export const runCommand = (command, args, options = {}) => {
   const result = spawnSync(command, args, {
@@ -68,7 +68,7 @@ export const cleanMessage = (text, { maxLines = 10 } = {}) => String(text ?? '')
   .slice(0, maxLines)
   .join(' / ')
 
-export const extractJson = (text) => {
+const extractJson = (text) => {
   const start = text.indexOf('{')
   const end = text.lastIndexOf('}')
   if (start < 0 || end < start) throw new Error(`Could not parse Supabase JSON output: ${cleanMessage(text)}`)
@@ -118,7 +118,7 @@ export const writeMarkdownReport = async ({ reportPath, title, rows, columns }) 
   return blockers
 }
 
-export const normalizeGeneratedAt = (text) => text.replace(/^- Generated: .+$/m, '- Generated: [generated]')
+const normalizeGeneratedAt = (text) => text.replace(/^- Generated: .+$/m, '- Generated: [generated]')
 
 export const writeReportIfChanged = async (reportPath, report) => {
   if (existsSync(reportPath)) {

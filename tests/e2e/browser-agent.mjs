@@ -100,7 +100,7 @@ const refForRoleByName = async (browser, session, role, name) => {
   return match[1]
 }
 
-export const fillTextboxByName = async (browser, session, name, value) => {
+const fillTextboxByName = async (browser, session, name, value) => {
   await browser(session, ['fill', await refForRoleByName(browser, session, 'textbox', name), value])
 }
 

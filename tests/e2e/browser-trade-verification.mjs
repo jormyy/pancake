@@ -69,7 +69,7 @@ export const verifyPostDeadlineTradeRejected = async (fixture) => {
   return { trades, items, failures }
 }
 
-export const waitForTradeStatus = async (fixture, status, timeoutMs = 10_000) => {
+const waitForTradeStatus = async (fixture, status, timeoutMs = 10_000) => {
   const startedAt = Date.now()
   let last = null
   while (Date.now() - startedAt < timeoutMs) {

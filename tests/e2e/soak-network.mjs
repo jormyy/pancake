@@ -87,7 +87,7 @@ export const signInForAccessToken = async (env, email, password, label = 'E2E si
 export const todayET = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
 
 
-export const isTransientSupabaseError = (error) => {
+const isTransientSupabaseError = (error) => {
   const message = String(error?.message ?? error ?? '')
   return /connection timeout|disconnect\/reset|upstream connect|fetch failed|network|ECONNRESET|ETIMEDOUT/i.test(message)
 }

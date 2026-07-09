@@ -120,17 +120,18 @@ PUBLIC EXECUTE revoked, service-role read grants preserved),
 stay RLS-gated, invite-join error stays generic, invite-code generation stays server-only,
 no anon writes on gameplay tables — each checks the current effective state so a later
 migration can't silently reopen the hole),
-`tests/performance-budget-static.test.ts` (instant-loading workflow and budget
-contract), and Edge/API static guards.
+`tests/performance-budget.test.ts` (instant-loading workflow and budget
+contract), plus behavioral Edge/API checks.
 
 Deterministic-core battery: `supabase/functions/api/matchups.test.ts` (round-robin
 invariants over team counts 2–14 + a mutation-proof), `tests/lib/standings-tiebreak.test.ts`
 (6-key precedence + shuffle stability), `core/tests/scoring-properties.test.ts`
-(DNP⇒0, additivity, per-stat monotonicity), `tests/waiver-auction-logic-static.test.ts`
-(auction/waiver SQL inequality + resolution ORDER BY guards), and `tests/no-llm-guard.test.ts`
+(DNP⇒0, additivity, per-stat monotonicity), the database integration suite
+(auction/waiver ordering and atomicity), and `tests/no-llm-guard.test.ts`
 (no model SDK in runtime logic).
 Browser E2E flows live in `tests/e2e/` (see [tests/e2e/README.md](./tests/e2e/README.md));
-the multi-season soak is `npm run e2e:soak`. E2E reports, screenshots,
+the exploratory multi-season soak is `npm run e2e:soak`; the coverage-enforcing release run is
+`npm run e2e:soak:release`. E2E reports, screenshots,
 snapshots, loop logs, and web export output are generated artifacts and are
 ignored; regenerate them for the run you are validating instead of committing
 stale outputs.

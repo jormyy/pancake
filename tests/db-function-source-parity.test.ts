@@ -29,11 +29,11 @@ describe('canonical database function sources', () => {
             DROP FUNCTION IF EXISTS "Custom"."QuotedName"(text);
         `)
 
-        expect(events.map(({ type, key }) => ({ type, key }))).toEqual([
-            { type: 'create', key: 'Custom.QuotedName' },
-            { type: 'create', key: 'public.repeated' },
-            { type: 'create', key: 'public.repeated' },
-            { type: 'drop', key: 'Custom.QuotedName' },
+        expect(events.map(({ type, key, identityKey }) => ({ type, key, identityKey }))).toEqual([
+            { type: 'create', key: 'Custom.QuotedName', identityKey: 'Custom.QuotedName(text)' },
+            { type: 'create', key: 'public.repeated', identityKey: 'public.repeated(integer)' },
+            { type: 'create', key: 'public.repeated', identityKey: 'public.repeated(text)' },
+            { type: 'drop', key: 'Custom.QuotedName', identityKey: 'Custom.QuotedName(text)' },
         ])
     })
 })

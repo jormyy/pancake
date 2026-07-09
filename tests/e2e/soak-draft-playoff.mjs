@@ -13,7 +13,7 @@ import {
   signInForAccessToken,
 } from './soak-backend-support.mjs'
 
-export const rookieFixtureSeasonYear = () => 7000 + Number(Date.now().toString().slice(-6))
+const rookieFixtureSeasonYear = () => 7000 + Number(Date.now().toString().slice(-6))
 
 export const expectAuthedBackendError = async ({ env, path, token, body, label, pattern }) => {
   try {
@@ -25,7 +25,7 @@ export const expectAuthedBackendError = async ({ env, path, token, body, label, 
   }
 }
 
-export const findRookieDraftCandidates = async ({ supabase, leagueId, leagueSeasonId, draftId, count, label }) => {
+const findRookieDraftCandidates = async ({ supabase, leagueId, leagueSeasonId, draftId, count, label }) => {
   const [{ data: players, error: playersError }, rosterRows, pickedRows] = await Promise.all([
     supabase
       .from('players')
@@ -264,7 +264,7 @@ export const assertRookieDraftAutoPickScenario = async ({ supabase, env, state, 
   return { failures, artifact }
 }
 
-export const createDisposablePlayoffLeague = async ({ supabase, state, season }) => {
+const createDisposablePlayoffLeague = async ({ supabase, state, season }) => {
   const playoffStartWeek = 20
   const fixture = await createDisposableLeagueFromSeedUsers({
     supabase,
@@ -309,7 +309,7 @@ export const createDisposablePlayoffLeague = async ({ supabase, state, season })
   }
 }
 
-export const playoffPairExists = (rows, homeId, awayId) => rows.some((row) => (
+const playoffPairExists = (rows, homeId, awayId) => rows.some((row) => (
   row.home_member_id === homeId &&
   row.away_member_id === awayId
 ))
@@ -403,7 +403,7 @@ export const assertPlayoffBracketScenario = async ({ supabase, env, state, seaso
   return { failures, artifact }
 }
 
-export const insertTiebreakerRows = async (supabase, fixture) => {
+const insertTiebreakerRows = async (supabase, fixture) => {
   const [seed1, seed2, seed3, seed4] = fixture.members
   const rows = [
     {
@@ -472,7 +472,7 @@ export const insertTiebreakerRows = async (supabase, fixture) => {
   return rows
 }
 
-export const insertFullRpsTieRows = async (supabase, fixture) => {
+const insertFullRpsTieRows = async (supabase, fixture) => {
   const [seed1, seed2, seed3, seed4] = fixture.members
   const baseRows = [
     [seed1, seed2, seed1, 1],

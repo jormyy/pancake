@@ -11,6 +11,8 @@
   },
   "include": [
     "tests/e2e/browser-runtime-overrides.mjs",
-    "tests/e2e/harness/args.mjs"
+    "tests/e2e/harness/args.mjs",
+    "tests/e2e/harness/reporting.mjs",
+    "scripts/check-db-function-sources.mjs"
   ]
 }

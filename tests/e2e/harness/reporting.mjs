@@ -5,6 +5,28 @@ const ROOT = process.cwd()
 const REPORT_PATH = path.join(ROOT, 'tests/e2e-report.md')
 const COVERAGE_PATH = path.join(ROOT, 'tests/e2e-coverage.md')
 
+/** @typedef {{ season: number, status: string, notes: string }} SoakRow */
+/** @typedef {{ status: string, startedAt: string, finishedAt: string, seasons: number, rows: SoakRow[], notes: string[] }} ReportInput */
+/**
+ * @typedef {{
+ *   auction: boolean, browser: boolean, browserAuth: boolean, browserFullSweep: boolean,
+ *   browserGameplay: boolean, browserLeagueLifecycle: boolean, browserLineup: boolean,
+ *   browserLineupAutoSet: boolean, browserLineupLocked: boolean, browserPerf: boolean,
+ *   browserPlayoff: boolean, browserRookieDraft: boolean, browserTrade: boolean,
+ *   browserTradeAccept: boolean, browserTradeFuturePick: boolean,
+ *   browserTradeFuturePickAccept: boolean, browserTradeOverflowAccept: boolean,
+ *   browserTradePostDeadline: boolean, browserTradeTerminal: boolean, browserTradeVeto: boolean,
+ *   browserWaiver: boolean, browserWaiverDrop: boolean, browserWaiverIrBlock: boolean,
+ *   draftPush: boolean, fakePort: number, history: boolean, injuryFilter: boolean,
+ *   leagueLifecycle: boolean, midlifeMigration: boolean, pickChain: boolean, playoffs: boolean,
+ *   push: boolean, realtime: boolean, rookieDraft: boolean, scoring: boolean,
+ *   seasonReset: boolean, settings: boolean, tiebreakers: boolean, tradeAccept: boolean,
+ *   tradeVeto: boolean, waiverProcessing: boolean
+ * }} CoverageArgs
+ */
+/** @typedef {ReportInput & { args: CoverageArgs, env: { backendTicksEnabled: boolean, serviceRoleKey?: string, supabaseUrl?: string }, targetLeagueId: string | null }} CoverageInput */
+
+/** @param {ReportInput} input */
 export const writeReport = async ({ status, startedAt, finishedAt, seasons, rows, notes }) => {
   const lines = [
     '# Multi-Season E2E Soak Report',
@@ -28,15 +50,22 @@ export const writeReport = async ({ status, startedAt, finishedAt, seasons, rows
   await writeFile(REPORT_PATH, `${lines.join('\n')}\n`)
 }
 
+/** @param {SoakRow[]} rows @param {RegExp} pattern */
 const hasPassingNote = (rows, pattern) => rows.some((row) => row.status === 'PASS' && pattern.test(row.notes))
+/** @param {SoakRow[]} rows @param {RegExp} pattern */
 const hasFailingNote = (rows, pattern) => rows.some((row) => row.status === 'FAIL' && pattern.test(row.notes))
+/** @param {SoakRow[]} rows @param {RegExp} pattern */
 const hasProblemNote = (rows, pattern) => rows.some((row) => (
   (row.status === 'FAIL' || row.status === 'ERROR' || row.status === 'BLOCKED') &&
   pattern.test(row.notes)
 ))
+/** @param {string} status */
 const hasEvidencePass = (status) => status === 'PASS'
+/** @param {boolean} enabled @param {string} status */
 const hasEnabledEvidencePass = (enabled, status) => enabled && hasEvidencePass(status)
+/** @param {{ enabled: boolean, status: string }[]} items */
 const allEnabledEvidencePass = (items) => items.every(({ enabled, status }) => enabled && hasEvidencePass(status))
+/** @param {CoverageInput} input */
 export const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, args, env, targetLeagueId, rows, notes }) => {
   const auditExists = await readFile(path.join(ROOT, 'tests/audit-report.md'), 'utf8')
     .then(() => true)

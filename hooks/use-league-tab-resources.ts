@@ -26,7 +26,11 @@ export function useLeagueTabResources(
     const [tabLoading, setTabLoading] = useState<Partial<Record<LeagueTab, boolean>>>({ results: true })
     const [tabError, setTabError] = useState<Partial<Record<LeagueTab, string>>>({})
     const loadedTabs = useRef<Set<LeagueTab>>(new Set())
+    const inFlightTabs = useRef(new Map<LeagueTab, { leagueId: string; promise: Promise<void> }>())
+    const invalidatedInFlightTabs = useRef(new Set<LeagueTab>())
     const requestIds = useRef(new Map<LeagueTab, number>())
+    const activityRequest = useRef<{ leagueId: string; requestId: number } | null>(null)
+    const nextActivityRequestId = useRef(0)
     const activeTabRef = useRef(activeTab)
     const activeLeagueIdRef = useRef(leagueId)
     activeTabRef.current = activeTab
@@ -34,7 +38,11 @@ export function useLeagueTabResources(
 
     useEffect(() => {
         loadedTabs.current.clear()
+        inFlightTabs.current.clear()
+        invalidatedInFlightTabs.current.clear()
         requestIds.current.clear()
+        activityRequest.current = null
+        nextActivityRequestId.current += 1
         setStandings([])
         setTransactions([])
         setWaiverOrder([])
@@ -48,7 +56,7 @@ export function useLeagueTabResources(
         setTabLoading({ results: true })
     }, [leagueId])
 
-    const fetchTab = useCallback(async (nextTab: LeagueTab, lid: string) => {
+    const runTabFetch = useCallback(async (nextTab: LeagueTab, lid: string) => {
         const requestId = (requestIds.current.get(nextTab) ?? 0) + 1
         requestIds.current.set(nextTab, requestId)
         setTabLoading((prev) => ({ ...prev, [nextTab]: true }))
@@ -96,12 +104,34 @@ export function useLeagueTabResources(
         }
     }, [memberId])
 
+    const fetchTab = useCallback((nextTab: LeagueTab, lid: string): Promise<void> => {
+        const existing = inFlightTabs.current.get(nextTab)
+        if (existing?.leagueId === lid) return existing.promise
+
+        const request = { leagueId: lid, promise: Promise.resolve() }
+        request.promise = runTabFetch(nextTab, lid).finally(() => {
+            if (inFlightTabs.current.get(nextTab) !== request) return
+            inFlightTabs.current.delete(nextTab)
+            if (!invalidatedInFlightTabs.current.delete(nextTab)) return
+            loadedTabs.current.delete(nextTab)
+            if (activeLeagueIdRef.current === lid && activeTabRef.current === nextTab) {
+                void fetchTab(nextTab, lid)
+            }
+        })
+        inFlightTabs.current.set(nextTab, request)
+        return request.promise
+    }, [runTabFetch])
+
     const ensureTab = useCallback((nextTab: LeagueTab) => {
         if (leagueId && !loadedTabs.current.has(nextTab)) void fetchTab(nextTab, leagueId)
     }, [fetchTab, leagueId])
 
     const invalidateTab = useCallback((nextTab: LeagueTab) => {
         loadedTabs.current.delete(nextTab)
+        if (inFlightTabs.current.has(nextTab)) {
+            invalidatedInFlightTabs.current.add(nextTab)
+            return
+        }
         if (activeTabRef.current === nextTab) ensureTab(nextTab)
     }, [ensureTab])
 
@@ -110,21 +140,29 @@ export function useLeagueTabResources(
     }, [activeTab, ensureTab]))
 
     const loadMoreActivity = useCallback(async () => {
-        if (!leagueId || activityLoadingMore) return
+        if (!leagueId || activityRequest.current) return
+        const request = { leagueId, requestId: ++nextActivityRequestId.current }
+        activityRequest.current = request
         setActivityLoadingMore(true)
         try {
             const nextOffset = activityOffset + ACTIVITY_LIMIT
             const data = await getLeagueTransactions(leagueId, ACTIVITY_LIMIT, nextOffset)
+            if (activeLeagueIdRef.current !== leagueId || activityRequest.current !== request) return
             setTransactions((prev) => [...prev, ...data])
             setActivityOffset(nextOffset)
             setActivityHasMore(data.length === ACTIVITY_LIMIT)
             setActivityLoadMoreError(null)
         } catch (error) {
-            setActivityLoadMoreError(error instanceof Error ? error.message : 'Could not load more activity')
+            if (activeLeagueIdRef.current === leagueId && activityRequest.current === request) {
+                setActivityLoadMoreError(error instanceof Error ? error.message : 'Could not load more activity')
+            }
         } finally {
-            setActivityLoadingMore(false)
+            if (activityRequest.current === request) {
+                activityRequest.current = null
+                if (activeLeagueIdRef.current === leagueId) setActivityLoadingMore(false)
+            }
         }
-    }, [activityLoadingMore, activityOffset, leagueId])
+    }, [activityOffset, leagueId])
 
     const refreshMockRooms = useCallback(async () => {
         if (!leagueId || !memberId) return

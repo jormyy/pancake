@@ -6,7 +6,6 @@ import { promisify } from 'node:util'
 import v8 from 'node:v8'
 import vm from 'node:vm'
 import { createClient } from '@supabase/supabase-js'
-import WebSocket from 'ws'
 import { createFakeUpstreamServer } from './fake-upstream.mjs'
 import { resolvedEnv, describeEndpoint } from './env.mjs'
 import { parseArgs } from './harness/args.mjs'
@@ -17,12 +16,9 @@ import { backendJson, withSupabaseRetry } from './soak-network.mjs'
 
 export {
   mkdir,
-  readFile,
   writeFile,
   path,
-  process,
   createClient,
-  WebSocket,
   createFakeUpstreamServer,
   resolvedEnv,
   describeEndpoint,
@@ -32,14 +28,12 @@ export {
   runBackendScenarios,
   writeCoverageReport,
   writeReport,
-  backendJson,
-  withSupabaseRetry,
 }
 
 export const execFileAsync = promisify(execFile)
 export const ROOT = process.cwd()
-export const STATE_PATH = path.join(ROOT, 'tests/e2e-state.json')
-export const SNAPSHOT_ROOT = path.join(ROOT, 'tests/snapshots')
+const STATE_PATH = path.join(ROOT, 'tests/e2e-state.json')
+const SNAPSHOT_ROOT = path.join(ROOT, 'tests/snapshots')
 export const ARTIFACT_ROOT = path.join(ROOT, 'tests/artifacts')
 export const PERF_METRICS_PATH = path.join(ARTIFACT_ROOT, 'perf-metrics.json')
 export const PERF_DRIFT_LIMIT = Number(process.env.E2E_PERF_DRIFT_LIMIT ?? 1.2)
@@ -53,7 +47,7 @@ export const REALTIME_SETTLE_MS = Number(process.env.E2E_REALTIME_SETTLE_MS ?? 1
 export const REALTIME_WARMUP_ATTEMPTS = Number(process.env.E2E_REALTIME_WARMUP_ATTEMPTS ?? 5)
 export const MIDLIFE_MIGRATION_AFTER_SEASON = Number(process.env.E2E_MIDLIFE_MIGRATION_AFTER_SEASON ?? 5)
 
-export const SNAPSHOT_TABLES = [
+const SNAPSHOT_TABLES = [
   'roster_players',
   'draft_picks',
   'standings',
@@ -68,8 +62,8 @@ export const nowMs = () => Number(process.hrtime.bigint()) / 1_000_000
 
 export const roundedMs = (value) => Math.round(value)
 export const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
-export const bytesToMiB = (value) => Math.round((value / 1024 / 1024) * 10) / 10
-export const median = (values) => {
+const bytesToMiB = (value) => Math.round((value / 1024 / 1024) * 10) / 10
+const median = (values) => {
   const sorted = values.filter((value) => Number.isFinite(value)).toSorted((left, right) => left - right)
   if (sorted.length === 0) return null
   const midpoint = Math.floor(sorted.length / 2)
@@ -78,7 +72,7 @@ export const median = (values) => {
     : sorted[midpoint]
 }
 
-export const runGarbageCollector = () => {
+const runGarbageCollector = () => {
   if (typeof globalThis.gc !== 'function') {
     try {
       v8.setFlagsFromString('--expose_gc')
@@ -139,7 +133,7 @@ export const assertEnv = async (seasons) => {
   throw new Error(`Missing required soak environment: ${missing.join(', ')}`)
 }
 
-export const isMissingSchemaError = (error) => {
+const isMissingSchemaError = (error) => {
   const message = error?.message ?? ''
   return (
     error?.code === 'PGRST202' ||
@@ -150,14 +144,14 @@ export const isMissingSchemaError = (error) => {
   )
 }
 
-export const requireRpc = async (supabase, name, args, okErrorPattern) => {
+const requireRpc = async (supabase, name, args, okErrorPattern) => {
   const { error } = await supabase.rpc(name, args)
   if (!error || okErrorPattern?.test(error.message ?? '')) return null
   if (isMissingSchemaError(error)) return `${name}: ${error.message}`
   return null
 }
 
-export const requireColumn = async (supabase, table, column) => {
+const requireColumn = async (supabase, table, column) => {
   const { error } = await supabase
     .from(table)
     .select(column)
@@ -295,7 +289,7 @@ export const writeSnapshots = async (supabase, season, leagueId) => {
 
 export const indexById = (rows) => new Map(rows.map((row) => [row.id, row]))
 
-export const RESET_GROWTH_TABLES = [
+const RESET_GROWTH_TABLES = [
   'draft_picks',
   'league_seasons',
   'waiver_priorities',
@@ -432,7 +426,7 @@ export const assertMatchupGenerationIdempotent = async (supabase, env, leagueId)
   return failures
 }
 
-export const createAndAcceptPickTrade = async (supabase, leagueId, seasonId, proposerId, recipientId, proposerPickId) => {
+const createAndAcceptPickTrade = async (supabase, leagueId, seasonId, proposerId, recipientId, proposerPickId) => {
   const completedAt = new Date().toISOString()
   const { data: trade, error: tradeError } = await withSupabaseRetry('trades insert', () => supabase
       .from('trades')
@@ -598,7 +592,7 @@ export const assertFuturePickMaterializedInRookieDraft = async (supabase, env, l
   return artifact
 }
 
-export const HISTORY_WEEK_NUMBER = 99
+const HISTORY_WEEK_NUMBER = 99
 
 export const sortedLeagueMembers = async (supabase, leagueId) => {
   const members = await fetchAll(supabase, 'league_members', 'id, user_id, team_name, joined_at', { league_id: leagueId })
@@ -610,7 +604,7 @@ export const sortedLeagueMembers = async (supabase, leagueId) => {
   return members
 }
 
-export const buildHistoryFixture = (leagueId, leagueSeason, members) => {
+const buildHistoryFixture = (leagueId, leagueSeason, members) => {
   const offset = Number(leagueSeason.season_year) % members.length
   const ranked = [...members.slice(offset), ...members.slice(0, offset)]
   const standings = ranked.map((member, index) => ({
@@ -639,7 +633,7 @@ export const buildHistoryFixture = (leagueId, leagueSeason, members) => {
   }
 }
 
-export const assertStandingMatchesFixture = (actual, expected, failures) => {
+const assertStandingMatchesFixture = (actual, expected, failures) => {
   for (const key of ['wins', 'losses', 'ties', 'waiver_priority']) {
     if (Number(actual[key]) !== Number(expected[key])) {
       failures.push(`D.LONG.3: standing ${actual.id} ${key}=${actual[key]}; expected ${expected[key]}`)
@@ -764,7 +758,7 @@ export const assertHistoryRetained = async (supabase, fixtures, runSeason) => {
   return failures
 }
 
-export const e2eCode = () => Math.random().toString(36).replace(/[^a-z0-9]/g, '').slice(2, 18).toUpperCase().padEnd(16, '0')
+const e2eCode = () => Math.random().toString(36).replace(/[^a-z0-9]/g, '').slice(2, 18).toUpperCase().padEnd(16, '0')
 
 export const EXPECTED_DEFAULT_LINEUP_SLOTS = {
   PG: 1,

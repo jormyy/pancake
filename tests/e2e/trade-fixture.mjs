@@ -91,7 +91,7 @@ const findFuturePickForMember = async (admin, leagueId, memberId, seasonYear, ro
   }
 }
 
-export const disposeFixtureResources = async (admin, leagueId, userIds) => {
+const disposeFixtureResources = async (admin, leagueId, userIds) => {
   if (leagueId) {
     const { error } = await admin.from('leagues').delete().eq('id', leagueId)
     if (error) throw new Error(`fixture league cleanup: ${error.message}`)

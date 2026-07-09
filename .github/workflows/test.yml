@@ -85,9 +85,21 @@ jobs:
           npm run test:db
 
   test-browser:
-    name: Browser trade smoke
+    name: Browser trade (${{ matrix.mode }})
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - mode: proposal
+            script: e2e:browser-trade
+          - mode: multi-team
+            script: e2e:browser-trade-multi-team
+          - mode: accept
+            script: e2e:browser-trade-accept
+          - mode: terminal
+            script: e2e:browser-trade-terminal
     steps:
       - uses: actions/checkout@v4
 
@@ -115,7 +127,7 @@ jobs:
           cat /tmp/pancake-web.log
           exit 1
 
-      - name: Run standard trade browser flow
+      - name: Run trade browser flow
         shell: bash
         run: |
           source <(supabase status -o env)
@@ -124,4 +136,4 @@ jobs:
           E2E_SUPABASE_PUBLISHABLE_KEY="$PUBLISHABLE_KEY" \
           E2E_API_BASE_URL="$API_URL/functions/v1/api" \
           E2E_FRONTEND_URL="http://127.0.0.1:8082" \
-          npm run e2e:browser-trade
+          npm run ${{ matrix.script }}

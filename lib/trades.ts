@@ -494,18 +494,18 @@ function playerIdsFromItems(items: TradeItem[]): string[] {
     return items.flatMap((item) => item.kind === 'player' ? [item.playerId] : [])
 }
 
-function enrichItemsWithStats(
-    items: TradeItem[],
+function enrichItemsWithStats<Item extends TradeItem>(
+    items: Item[],
     avgMap: Map<string, number>,
     avgStatsMap: Map<string, { avg_minutes_played: number | null }>,
-): TradeItem[] {
+): Item[] {
     return items.map((item) => {
         if (item.kind !== 'player') return item
         return {
             ...item,
             avgFantasyPoints: avgMap.get(item.playerId) ?? null,
             avgMinutesPlayed: avgStatsMap.get(item.playerId)?.avg_minutes_played ?? null,
-        }
+        } as Item
     })
 }
 
@@ -515,7 +515,7 @@ async function enrichTradesWithStats(trades: Trade[], leagueId: string): Promise
 
     const { avgMap, avgStatsMap } = await getRosterStatsMaps(playerIds, leagueId)
     return trades.map((trade) => {
-        const routedItems = enrichItemsWithStats(trade.routedItems, avgMap, avgStatsMap) as RoutedTradeItem[]
+        const routedItems = enrichItemsWithStats(trade.routedItems, avgMap, avgStatsMap)
         return {
             ...trade,
             routedItems,

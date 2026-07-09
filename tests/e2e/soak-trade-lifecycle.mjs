@@ -107,7 +107,7 @@ export const assertInjuryStatusFilterScenario = async ({ supabase, env, season, 
   return { failures, artifact }
 }
 
-export const tradeAcceptFixtureSeasonYear = () => 8100 + Number(Date.now().toString().slice(-6))
+const tradeAcceptFixtureSeasonYear = () => 8100 + Number(Date.now().toString().slice(-6))
 
 export const assertTradeAcceptanceAtomicityScenario = async ({ supabase, env, state, season }) => {
   const failures = []

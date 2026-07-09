@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
 import process from 'node:process'
+import { createClient } from '@supabase/supabase-js'
 import { resolvedEnv, requireEnv } from './env.mjs'
 import { findAvailablePlayers, setupMultiTeamTradeGameplayFixture } from './trade-fixture.mjs'
 
@@ -414,6 +415,57 @@ const assertCompletionFailureIsTerminal = async (fixture) => {
   assert.match(completedTrade.completion_failure_reason, /enough FAAB/i)
 }
 
+const assertVetoRowsSurviveMemberHistoryPagination = async (fixture) => {
+  const personalRows = Array.from({ length: 41 }, (_, index) => ({
+    league_id: fixture.league.id,
+    league_season_id: fixture.currentSeason.id,
+    proposer_member_id: fixture.observer.id,
+    recipient_member_id: fixture.recipient.id,
+    status: 'completed',
+    proposed_at: new Date(Date.now() + index * 1000).toISOString(),
+    completed_at: new Date().toISOString(),
+    notes: `pagination history ${index}`,
+  }))
+  const { error: historyError } = await fixture.admin.from('trades').insert(personalRows)
+  if (historyError) throw new Error(`pagination history insert: ${historyError.message}`)
+
+  const { data: vetoTrade, error: vetoTradeError } = await fixture.admin.from('trades').insert({
+    league_id: fixture.league.id,
+    league_season_id: fixture.currentSeason.id,
+    proposer_member_id: fixture.proposer.id,
+    recipient_member_id: fixture.recipient.id,
+    status: 'accepted',
+    proposed_at: '2000-01-01T00:00:00.000Z',
+    accepted_at: new Date().toISOString(),
+    veto_window_expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+    notes: 'observer veto row must bypass member history pagination',
+  }).select('id').single()
+  if (vetoTradeError) throw new Error(`observer veto trade insert: ${vetoTradeError.message}`)
+
+  const observerUser = fixture.users[2]
+  const observerClient = createClient(env.supabaseUrl, env.anonKey, { auth: { persistSession: false } })
+  const { error: signInError } = await observerClient.auth.signInWithPassword({
+    email: observerUser.email,
+    password: observerUser.password,
+  })
+  if (signInError) throw new Error(`observer sign in: ${signInError.message}`)
+  const { data, error } = await observerClient.rpc('get_trades_for_member', {
+    p_member_id: fixture.observer.id,
+    p_league_id: fixture.league.id,
+    p_limit: 40,
+    p_offset: 0,
+  }).select('id')
+  if (error) throw new Error(`get_trades_for_member pagination: ${error.message}`)
+  const rows = Array.isArray(data) ? data : data ? [data] : []
+  assert.equal(rows.length, 41)
+  assert(rows.some((trade) => trade.id === vetoTrade.id), 'vetoable observer trade was displaced by personal history')
+  const { error: terminalError } = await fixture.admin
+    .from('trades')
+    .update({ status: 'vetoed', vetoed_at: new Date().toISOString() })
+    .eq('id', vetoTrade.id)
+  if (terminalError) throw new Error(`observer veto trade cleanup: ${terminalError.message}`)
+}
+
 const run = async () => {
   const fixture = await setupMultiTeamTradeGameplayFixture(env, 0)
   try {
@@ -422,6 +474,7 @@ const run = async () => {
     await assertReplacementAndDropLifecycle(fixture)
     await assertConcurrentAcceptanceCompletesOnce(fixture)
     await assertTwoTeamUsesCanonicalRoutes(fixture)
+    await assertVetoRowsSurviveMemberHistoryPagination(fixture)
     await assertCompletionFailureIsTerminal(fixture)
     console.log('PASS multi-team trade DB atomicity: aggregate FAAB, reservations, replacement, concurrency, terminal failures')
   } finally {

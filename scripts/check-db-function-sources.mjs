@@ -6,6 +6,7 @@ const ROOT = process.cwd()
 const MIGRATIONS_DIR = path.join(ROOT, 'supabase/migrations')
 const FUNCTION_SOURCES_DIR = path.join(ROOT, 'supabase/sql/functions/by-name')
 
+/** @param {string} source */
 export const dollarQuotedStatement = (source) => {
   const asMatch = /\bAS\s+(\$[A-Za-z0-9_]*\$)/i.exec(source)
   const semicolonIndex = source.indexOf(';')
@@ -24,11 +25,15 @@ export const dollarQuotedStatement = (source) => {
   return source.slice(0, functionTerminator + 1)
 }
 
+/** @param {string} source */
 const normalizeSql = (source) => source.replace(/\r\n/g, '\n').trim()
+/** @param {string} schema @param {string} name @param {string} [root] */
 const sourcePathForFunction = (schema, name, root = FUNCTION_SOURCES_DIR) => path.join(root, schema, `${name}.sql`)
 
+/** @param {string} source */
 export const maskSqlNonCode = (source) => {
   const chars = [...source]
+  /** @param {number} index */
   const mask = (index) => { if (chars[index] !== '\n') chars[index] = ' ' }
   let index = 0
   while (index < source.length) {
@@ -77,10 +82,73 @@ export const maskSqlNonCode = (source) => {
 }
 
 const IDENTIFIER = '(?:"(?:[^"]|"")+"|[A-Za-z_][A-Za-z0-9_]*)'
+/** @param {string} identifier */
 const unquoteIdentifier = (identifier) => identifier.startsWith('"')
   ? identifier.slice(1, -1).replaceAll('""', '"')
   : identifier.toLowerCase()
+/** @param {string | undefined} schema @param {string} name */
 const functionKey = (schema, name) => `${unquoteIdentifier(schema ?? 'public')}.${unquoteIdentifier(name)}`
+
+const TYPE_LEADS = new Set([
+  'bigint', 'bigserial', 'bit', 'boolean', 'box', 'bytea', 'character', 'cidr', 'date',
+  'decimal', 'double', 'inet', 'integer', 'interval', 'json', 'jsonb', 'macaddr',
+  'money', 'numeric', 'real', 'smallint', 'smallserial', 'text', 'time', 'timestamp',
+  'uuid', 'varchar', 'xml', 'anyarray', 'anyelement', 'anyenum', 'anynonarray',
+])
+
+/** @param {string} value */
+const normalizeIdentityType = (value) => value
+  .replace(/\bpg_catalog\./gi, '')
+  .replace(/\bint2\b/gi, 'smallint')
+  .replace(/\bint4\b|\bint\b/gi, 'integer')
+  .replace(/\bint8\b/gi, 'bigint')
+  .replace(/\bbool\b/gi, 'boolean')
+  .replace(/\bfloat8\b/gi, 'double precision')
+  .replace(/\bfloat4\b/gi, 'real')
+  .replace(/\btimestamptz\b/gi, 'timestamp with time zone')
+  .replace(/\btimetz\b/gi, 'time with time zone')
+  .replace(/\s+/g, ' ')
+  .trim()
+  .toLowerCase()
+
+/** @param {string} source @param {number} openIndex @param {string} [maskedSource] */
+export const functionIdentityArguments = (source, openIndex, maskedSource) => {
+  const searchable = maskedSource ?? maskSqlNonCode(source)
+  let depth = 0
+  let segmentStart = openIndex + 1
+  /** @type {string[]} */
+  const segments = []
+  for (let index = openIndex; index < searchable.length; index += 1) {
+    if (searchable[index] === '(') depth += 1
+    else if (searchable[index] === ')') {
+      depth -= 1
+      if (depth === 0) {
+        segments.push(source.slice(segmentStart, index))
+        break
+      }
+    } else if (searchable[index] === ',' && depth === 1) {
+      segments.push(source.slice(segmentStart, index))
+      segmentStart = index + 1
+    }
+  }
+
+  return segments.flatMap((segment) => {
+    const declaration = segment
+      .replace(/\s+DEFAULT\s+[\s\S]*$/i, '')
+      .replace(/\s*=\s*[\s\S]*$/, '')
+      .trim()
+    if (!declaration) return []
+    const tokens = declaration.split(/\s+/)
+    const mode = tokens[0]?.toUpperCase()
+    if (mode === 'OUT') return []
+    if (mode === 'IN' || mode === 'INOUT' || mode === 'VARIADIC') tokens.shift()
+    const first = tokens[0]?.replace(/^"|"$/g, '').toLowerCase() ?? ''
+    if (tokens.length > 1 && !TYPE_LEADS.has(first) && !first.includes('.') && !first.endsWith('[]')) {
+      tokens.shift()
+    }
+    return [normalizeIdentityType(tokens.join(' '))]
+  })
+}
 
 const migrationFiles = async () =>
   (await readdir(MIGRATIONS_DIR))
@@ -95,6 +163,7 @@ const allMigrations = async () => {
   return chunks.join('\n')
 }
 
+/** @param {string} source */
 export const functionDefinitionsInSource = (source) => {
   const searchable = maskSqlNonCode(source)
   const pattern = new RegExp(`CREATE\\s+(?:OR\\s+REPLACE\\s+)?FUNCTION\\s+(?:(${IDENTIFIER})\\s*\\.\\s*)?(${IDENTIFIER})\\s*\\(`, 'gi')
@@ -108,6 +177,7 @@ export const functionDefinitionsInSource = (source) => {
   return definitions
 }
 
+/** @param {string} source */
 export const functionLifecycleEventsInSource = (source) => {
   const searchable = maskSqlNonCode(source)
   const pattern = new RegExp(`\\b(?:(CREATE\\s+(?:OR\\s+REPLACE\\s+)?FUNCTION)\\s+(?:(${IDENTIFIER})\\s*\\.\\s*)?(${IDENTIFIER})\\s*\\(|(DROP\\s+FUNCTION(?:\\s+IF\\s+EXISTS)?)\\s+(?:(${IDENTIFIER})\\s*\\.\\s*)?(${IDENTIFIER})\\s*\\()`, 'gi')
@@ -117,17 +187,23 @@ export const functionLifecycleEventsInSource = (source) => {
   while ((match = pattern.exec(searchable)) !== null) {
     if (match[1]) {
       const definition = dollarQuotedStatement(source.slice(match.index))
+      const key = functionKey(match[2], match[3])
+      const identityArguments = functionIdentityArguments(source, pattern.lastIndex - 1, searchable)
       events.push({
         type: 'create',
-        key: functionKey(match[2], match[3]),
+        key,
+        identityKey: `${key}(${identityArguments.join(',')})`,
         definition,
         start: match.index,
         end: match.index + definition.length,
       })
     } else {
+      const key = functionKey(match[5], match[6])
+      const identityArguments = functionIdentityArguments(source, pattern.lastIndex - 1, searchable)
       events.push({
         type: 'drop',
-        key: functionKey(match[5], match[6]),
+        key,
+        identityKey: `${key}(${identityArguments.join(',')})`,
         start: match.index,
         end: pattern.lastIndex,
       })
@@ -141,29 +217,45 @@ export const latestFunctionDefinitions = async () => {
   const migrations = await allMigrations()
   const definitions = new Map()
   for (const event of functionLifecycleEventsInSource(migrations)) {
-    if (event.type === 'create') definitions.set(event.key, event.definition)
-    else definitions.delete(event.key)
+    if (event.type === 'create') definitions.set(event.identityKey, { key: event.key, definition: event.definition })
+    else definitions.delete(event.identityKey)
   }
-  return new Map([...definitions.entries()].sort(([left], [right]) => left.localeCompare(right)))
+  const definitionCounts = new Map()
+  for (const entry of definitions.values()) {
+    definitionCounts.set(entry.key, (definitionCounts.get(entry.key) ?? 0) + 1)
+  }
+  const output = new Map()
+  for (const [identityKey, entry] of definitions) {
+    output.set(definitionCounts.get(entry.key) === 1 ? entry.key : identityKey, entry.definition)
+  }
+  return new Map([...output.entries()].sort(([left], [right]) => left.localeCompare(right)))
 }
 
+/** @param {string} schema @param {string} name */
 export const latestFunctionDefinition = async (schema, name) => {
   const migrations = await allMigrations()
   const key = `${schema}.${name}`
   let wasDefined = false
   let wasDroppedAfterDefinition = false
+  /** @type {string | null} */
   let definition = null
+  /** @type {string | null} */
+  let activeIdentityKey = null
 
   for (const event of functionLifecycleEventsInSource(migrations)) {
     if (event.key !== key) continue
     if (event.type === 'create') {
       wasDefined = true
       wasDroppedAfterDefinition = false
-      definition = event.definition
+      definition = event.definition ?? null
+      activeIdentityKey = event.identityKey
       continue
     }
-    if (wasDefined) wasDroppedAfterDefinition = true
-    definition = null
+    if (activeIdentityKey === event.identityKey) {
+      if (wasDefined) wasDroppedAfterDefinition = true
+      definition = null
+      activeIdentityKey = null
+    }
   }
 
   if (!definition) {
@@ -207,6 +299,7 @@ export const writeFunctionSources = async () => {
   }
 }
 
+/** @param {string} key @param {string} migrationDefinition */
 export const checkFunctionSource = async (key, migrationDefinition) => {
   const [schema, name] = key.split('.')
   const sourcePath = sourcePathForFunction(schema, name)
@@ -231,6 +324,7 @@ export const checkFunctionSource = async (key, migrationDefinition) => {
   return failures
 }
 
+/** @param {string} dir @returns {Promise<string[]>} */
 const sqlFilesUnder = async (dir) => {
   const entries = await readdir(dir, { withFileTypes: true }).catch((error) => {
     if (error?.code === 'ENOENT') return []

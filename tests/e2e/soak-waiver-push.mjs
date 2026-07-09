@@ -229,7 +229,7 @@ export const assertWaiverProcessingScenario = async ({ supabase, env, state, sea
   return artifact
 }
 
-export const expectAuctionRpcError = async ({ supabase, label, args, pattern }) => {
+const expectAuctionRpcError = async ({ supabase, label, args, pattern }) => {
   const { error } = await supabase.rpc('place_auction_bid_atomic', args)
   if (!error) {
     throw new Error(`D.SET.4: expected ${label} to fail`)
@@ -392,7 +392,7 @@ export const assertAuctionBidValidation = async ({ supabase, leagueId, season })
   return artifact
 }
 
-export const assertWaiverPushNotification = async ({ supabase, env, state, leagueId, season, fakePort }) => {
+const assertWaiverPushNotification = async ({ supabase, env, state, leagueId, season, fakePort }) => {
   if (!state?.runId || !Array.isArray(state.users) || state.users.length < 3) {
     throw new Error('D.X.1: waiver push scenario requires tests/e2e-state.json from npm run e2e:seed')
   }

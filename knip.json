@@ -4,7 +4,7 @@
     "app/**/*.{ts,tsx}",
     "scripts/**/*.mjs",
     "tests/**/*.test.ts",
-    "tests/e2e/**/*.mjs",
+    "tests/e2e/{seed-league,data-latency-bench,soak,browser-smoke,browser-auth,browser-perf-smoke,browser-gameplay,browser-league-lifecycle,browser-lineup-gameplay,browser-playoff-gameplay,browser-rookie-draft-gameplay,browser-waiver-gameplay,browser-trade-gameplay,dynasty-release-final-gate,dynasty-ranking-rpc,static-web-server,fake-upstream,performance-budgets,multi-team-trade-db,production-readiness,prod-data-source-health,db-security-catalog,edge-internal-auth,local-secret-scan}.mjs",
     "tests/source-guard.ts",
     "vitest.config.ts",
     "app.json",
