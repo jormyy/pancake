@@ -62,3 +62,36 @@ jobs:
 
       - name: Check generated Edge shared code
         run: npm run check:edge-shared
+
+  test-database:
+    name: Supabase migration and trade integration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Start Supabase from repository migrations
+        run: supabase start
+
+      - name: Verify migration head and multi-team trade behavior
+        shell: bash
+        run: |
+          source <(supabase status -o env)
+          supabase migration list --local --agent yes \
+            | jq -e '.migrations | length > 0 and all(.[]; .local == .remote)'
+          E2E_SUPABASE_URL="$API_URL" \
+          SUPABASE_DB_URL="$DB_URL" \
+          E2E_PANCAKE_SUPABASE_SECRET_KEY="$SECRET_KEY" \
+          E2E_SUPABASE_PUBLISHABLE_KEY="$PUBLISHABLE_KEY" \
+          npm run test:db:multi-team-trade

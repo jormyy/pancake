@@ -92,6 +92,9 @@ describe('waiver claim resolution ordering (process_waiver_claim internals)', ()
 
     it('indexes the due-claim processor by its pending batch shape', () => {
         expect(waiverQueryShapeMigration).toContain('DROP INDEX IF EXISTS public.idx_waiver_claims_pending_due_processing')
+        expect(waiverQueryShapeMigration).toContain("SET lock_timeout = '5s'")
+        expect(waiverQueryShapeMigration.indexOf('idx_waiver_claims_pending_due_groups'))
+            .toBeLessThan(waiverQueryShapeMigration.indexOf('DROP INDEX IF EXISTS'))
         expect(waiverQueryShapeMigration).toContain('idx_waiver_claims_pending_due_groups')
         expect(waiverQueryShapeMigration).toContain('(process_date, league_id, league_season_id, player_id)')
         expect(waiverQueryShapeMigration).toContain('idx_waiver_claims_pending_player_candidates')

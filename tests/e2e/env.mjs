@@ -130,6 +130,7 @@ export const writeReportIfChanged = async (reportPath, report) => {
 
 export const resolvedEnv = () => ({
   supabaseUrl: envValue('E2E_SUPABASE_URL', 'SUPABASE_URL', 'EXPO_PUBLIC_SUPABASE_URL'),
+  dbUrl: envValue('SUPABASE_DB_URL', 'E2E_SUPABASE_DB_URL'),
   serviceRoleKey: envValue(
     'E2E_PANCAKE_SUPABASE_SECRET_KEY',
     'PANCAKE_SUPABASE_SECRET_KEY',

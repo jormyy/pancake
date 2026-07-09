@@ -1,15 +1,22 @@
 import assert from 'node:assert/strict'
+import { execFileSync } from 'node:child_process'
 import process from 'node:process'
 import { resolvedEnv, requireEnv } from './env.mjs'
 import { findAvailablePlayers, setupMultiTeamTradeGameplayFixture } from './browser-trade-gameplay.mjs'
 
 const env = resolvedEnv()
-requireEnv(env, ['supabaseUrl', 'serviceRoleKey', 'anonKey'])
+requireEnv(env, ['supabaseUrl', 'dbUrl', 'serviceRoleKey', 'anonKey'])
 
 const rpc = async (admin, name, args) => {
   const { data, error } = await admin.rpc(name, args)
   if (error) throw new Error(`${name}: ${error.message}`)
   return data
+}
+
+const executeRecoverySql = (sql) => {
+  execFileSync('psql', [env.dbUrl, '--set', 'ON_ERROR_STOP=1', '--command', sql], {
+    stdio: ['ignore', 'ignore', 'pipe'],
+  })
 }
 
 const expectRpcError = async (admin, name, args, messagePart) => {
@@ -381,12 +388,14 @@ const assertCompletionFailureIsTerminal = async (fixture) => {
     })),
   )
   if (itemError) throw new Error(`offseason trade item insert: ${itemError.message}`)
-  const { error: participantError } = await fixture.admin.from('trade_participants').insert([
-    { trade_id: tradeId, member_id: fixture.proposer.id, sort_order: 0, is_initiator: true, accepted_at: past },
-    { trade_id: tradeId, member_id: fixture.recipient.id, sort_order: 1, is_initiator: false, accepted_at: past },
-    { trade_id: tradeId, member_id: fixture.observer.id, sort_order: 2, is_initiator: false, accepted_at: past },
-  ])
-  if (participantError) throw new Error(`offseason participant insert: ${participantError.message}`)
+  executeRecoverySql(`
+    INSERT INTO public.trade_participants
+      (trade_id, member_id, sort_order, is_initiator, accepted_at)
+    VALUES
+      ('${tradeId}', '${fixture.proposer.id}', 0, true, '${past}'),
+      ('${tradeId}', '${fixture.recipient.id}', 1, false, '${past}'),
+      ('${tradeId}', '${fixture.observer.id}', 2, false, '${past}');
+  `)
 
   const processed = await rpc(fixture.admin, 'process_due_accepted_trades_atomic', { p_limit: 50 })
   const result = processed.find((row) => row.trade_id === tradeId)
