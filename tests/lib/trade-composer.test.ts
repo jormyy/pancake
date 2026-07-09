@@ -42,14 +42,11 @@ function trade(overrides: Partial<Trade> = {}): Trade {
         myVetoed: false,
         isMultiTeam: false,
         participants: [],
-        routedItems: [],
-        proposerGives: [
-            { kind: 'player', playerId: 'p-offer', playerName: 'Offer Player', position: 'G', nbaTeam: 'LAL' },
-            { kind: 'pick', pickId: 'pick-offer', seasonYear: 2028, round: 1, originalTeamName: 'A' },
-        ],
-        recipientGives: [
-            { kind: 'player', playerId: 'p-request', playerName: 'Request Player', position: 'F', nbaTeam: 'BOS' },
-            { kind: 'pick', pickId: 'pick-request', seasonYear: 2029, round: 2, originalTeamName: 'B' },
+        routedItems: [
+            { kind: 'player', playerId: 'p-offer', playerName: 'Offer Player', position: 'G', nbaTeam: 'LAL', fromMemberId: 'proposer', toMemberId: 'recipient' },
+            { kind: 'pick', pickId: 'pick-offer', seasonYear: 2028, round: 1, originalTeamName: 'A', fromMemberId: 'proposer', toMemberId: 'recipient' },
+            { kind: 'player', playerId: 'p-request', playerName: 'Request Player', position: 'F', nbaTeam: 'BOS', fromMemberId: 'recipient', toMemberId: 'proposer' },
+            { kind: 'pick', pickId: 'pick-request', seasonYear: 2029, round: 2, originalTeamName: 'B', fromMemberId: 'recipient', toMemberId: 'proposer' },
         ],
         ...overrides,
     }

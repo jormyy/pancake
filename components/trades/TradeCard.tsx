@@ -14,10 +14,9 @@ import { PosTag } from '@/components/PosTag'
 import { Badge } from '@/components/Badge'
 import { MultiTeamTradeOverview, type TradeFlowItem } from '@/components/trades/MultiTeamTradeOverview'
 import { tradeDisplayPerspective } from '@/lib/trade-perspective'
+import type { TradeVetoMode } from '@/types/app'
 
 export type TabKey = 'picks' | 'offers' | 'history' | 'block' | 'leagueBlock'
-type TradeVetoMode = 'disabled' | 'commissioner' | 'member_vote'
-
 const STATUS_LABELS: Record<string, string> = {
     pending: 'Pending',
     accepted: 'Accepted',

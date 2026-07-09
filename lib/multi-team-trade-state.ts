@@ -235,27 +235,3 @@ export function multiTeamTradeStateFromTrade(trade: Trade, actorMemberId: string
     }
     return state
 }
-
-export function selectedAssetIds(
-    state: MultiTeamTradeState,
-    asset: 'player' | 'pick',
-): Record<string, Set<string>> {
-    return Object.fromEntries(state.participantOrder.map((memberId) => {
-        const participant = state.participants[memberId]
-        const destinations = asset === 'player' ? participant.playerDestinations : participant.pickDestinations
-        return [memberId, new Set(Object.keys(destinations))]
-    }))
-}
-
-export function explicitAssetDestinations(
-    state: MultiTeamTradeState,
-    asset: 'player' | 'pick',
-): Record<string, Record<string, string>> {
-    return Object.fromEntries(state.participantOrder.map((memberId) => {
-        const participant = state.participants[memberId]
-        const destinations = asset === 'player' ? participant.playerDestinations : participant.pickDestinations
-        return [memberId, Object.fromEntries(
-            Object.entries(destinations).filter((entry): entry is [string, string] => entry[1] != null),
-        )]
-    }))
-}

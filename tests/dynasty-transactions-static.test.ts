@@ -173,7 +173,6 @@ describe('dynasty transaction release contracts', () => {
         expect(league).toContain('if (!TRADE_OPEN_STATUSES.has(league.status)) return true')
         expect(league).toContain("if (league.status !== 'active' && league.status !== 'playoffs') return false")
         expect(proposeModal).toContain('useMultiTeamTradeComposer')
-        expect(tradesScreen).toContain('roster.filter((player) => !player.is_on_ir && !player.is_on_taxi)')
         expect(playersScreen).toContain('push(`/(modals)/claim-player?playerId=${player.id}`)')
         expect(playersScreen).not.toContain('onAdd={quickAdd.handleAdd}')
     })

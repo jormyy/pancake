@@ -80,11 +80,6 @@ export type Trade = {
     proposerFaabAmount: number
     recipientFaabAmount: number
     myVetoed: boolean
-    // Items the proposer is giving (recipient receives)
-    proposerGives: TradeItem[]
-    // Items the recipient is giving (proposer receives)
-    recipientGives: TradeItem[]
-    // Explicitly routed items for multi-team displays and audits.
     routedItems: RoutedTradeItem[]
 }
 
@@ -459,8 +454,6 @@ function mapTradeRow(row: TradeQueryRow, memberId: string): Trade {
             routedItems.push(tradeItem)
         }
     }
-    const proposerGives = routedItems.filter((item) => item.fromMemberId === row.proposer_member_id)
-    const recipientGives = routedItems.filter((item) => item.fromMemberId === row.recipient_member_id)
     const participants = (row.trade_participants ?? [])
         .map((participant) => ({
             memberId: participant.member_id,
@@ -495,8 +488,6 @@ function mapTradeRow(row: TradeQueryRow, memberId: string): Trade {
         proposerFaabAmount: row.proposer_faab_amount ?? 0,
         recipientFaabAmount: row.recipient_faab_amount ?? 0,
         myVetoed: (row.trade_vetos ?? []).some((veto: { member_id: string | null }) => veto.member_id === memberId),
-        proposerGives,
-        recipientGives,
         routedItems,
     } satisfies Trade
 }
@@ -530,33 +521,24 @@ async function enrichTradesWithStats(trades: Trade[], leagueId: string): Promise
         return {
             ...trade,
             routedItems,
-            proposerGives: routedItems.filter((item) => item.fromMemberId === trade.proposerMemberId),
-            recipientGives: routedItems.filter((item) => item.fromMemberId === trade.recipientMemberId),
         }
     })
 }
 
 export async function getTradesForScreen(memberId: string, leagueId: string): Promise<Trade[]> {
-    const { data: visibleRows, error: visibilityError } = await supabase
+    const { data, error } = await supabase
         .rpc('get_trades_for_member', {
             p_member_id: memberId,
             p_league_id: leagueId,
             p_limit: 40,
             p_offset: 0,
         })
-    if (visibilityError) throw visibilityError
-    const visibleIds = visibleRows.map((row) => row.id)
-    if (visibleIds.length === 0) return []
-
-    const { data, error } = await supabase
-        .from('trades')
         .select(TRADE_SELECT)
-        .in('id', visibleIds)
-        .order('proposed_at', { ascending: false })
+        .overrideTypes<TradeQueryRow[]>()
 
     if (error) throw error
 
-    const visible = ((data ?? []) as TradeQueryRow[])
+    const visible = (data ?? [])
         .map((row) => mapTradeRow(row, memberId))
         .filter((trade) => isTradeVisibleOnScreen(trade, memberId))
 

@@ -49,8 +49,6 @@ function routedTrade(items: RoutedTradeItem[]): Trade {
         proposerFaabAmount: 0,
         recipientFaabAmount: 0,
         myVetoed: false,
-        proposerGives: [],
-        recipientGives: [],
         routedItems: items,
     }
 }

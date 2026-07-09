@@ -1,0 +1,116 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+    addTradeBlockItem,
+    getTradeBlockItems,
+    removeTradeBlockItem,
+    type TradeBlockItem,
+    type TradePickItem,
+} from '@/lib/trades'
+import { getRoster, type RosterPlayer } from '@/lib/roster'
+import { getErrorMessage } from '@/lib/alert'
+import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
+import { EMPTY_AVG_MAP, EMPTY_STATS_MAP, getRosterStatsMaps } from '@/lib/roster-stats'
+import { isTradeableRosterPlayer } from '@/lib/trade-assets'
+
+type TradeBlockCache = { items: TradeBlockItem[]; roster: RosterPlayer[] }
+
+const TRADE_BLOCK_CACHE_PREFIX = 'pancake:trade-block:v1:'
+const tradeBlockCacheKey = (memberId: string, leagueId: string) =>
+    `${TRADE_BLOCK_CACHE_PREFIX}${leagueId}:${memberId}`
+
+export function useTradeBlock(memberId: string, leagueId: string) {
+    const cached = useMemo(
+        () => memberId && leagueId
+            ? readPersistentCache<TradeBlockCache>(tradeBlockCacheKey(memberId, leagueId))
+            : null,
+        [memberId, leagueId],
+    )
+    const [items, setItems] = useState<TradeBlockItem[]>(cached?.items ?? [])
+    const [roster, setRoster] = useState<RosterPlayer[]>(cached?.roster ?? [])
+    const [avgMap, setAvgMap] = useState(EMPTY_AVG_MAP)
+    const [avgStatsMap, setAvgStatsMap] = useState(EMPTY_STATS_MAP)
+    const [loading, setLoading] = useState(!cached)
+    const [error, setError] = useState<string | null>(null)
+    const [busyId, setBusyId] = useState<string | null>(null)
+    const loadSequence = useRef(0)
+
+    const refresh = useCallback(async () => {
+        const requestId = ++loadSequence.current
+        if (!memberId || !leagueId) {
+            setItems([])
+            setRoster([])
+            setAvgMap(EMPTY_AVG_MAP)
+            setAvgStatsMap(EMPTY_STATS_MAP)
+            setError(null)
+            setLoading(false)
+            return
+        }
+        setLoading(true)
+        setError(null)
+        try {
+            const [nextItems, memberRoster] = await Promise.all([
+                getTradeBlockItems(leagueId),
+                getRoster(memberId, leagueId),
+            ])
+            if (loadSequence.current !== requestId) return
+            const nextRoster = memberRoster.filter(isTradeableRosterPlayer)
+            const stats = await getRosterStatsMaps(nextRoster.map((player) => player.players.id), leagueId)
+            if (loadSequence.current !== requestId) return
+            setItems(nextItems)
+            setRoster(nextRoster)
+            setAvgMap(stats.avgMap)
+            setAvgStatsMap(stats.avgStatsMap)
+            writePersistentCache(tradeBlockCacheKey(memberId, leagueId), { items: nextItems, roster: nextRoster })
+        } catch (cause) {
+            if (loadSequence.current !== requestId) return
+            console.error(cause)
+            setError(getErrorMessage(cause) ?? 'Unknown error')
+        } finally {
+            if (loadSequence.current === requestId) setLoading(false)
+        }
+    }, [memberId, leagueId])
+
+    useEffect(() => {
+        loadSequence.current += 1
+        setItems(cached?.items ?? [])
+        setRoster(cached?.roster ?? [])
+        setAvgMap(EMPTY_AVG_MAP)
+        setAvgStatsMap(EMPTY_STATS_MAP)
+        setLoading(!cached)
+    }, [cached])
+
+    useEffect(() => () => { loadSequence.current += 1 }, [])
+
+    const mutate = useCallback(async (id: string, operation: () => Promise<unknown>) => {
+        setBusyId(id)
+        try {
+            await operation()
+            await refresh()
+        } catch (cause) {
+            setError(getErrorMessage(cause) ?? 'Could not update trade block.')
+        } finally {
+            setBusyId(null)
+        }
+    }, [refresh])
+
+    const addPlayer = useCallback((player: RosterPlayer) => {
+        if (!memberId || !leagueId) return Promise.resolve()
+        return mutate(player.players.id, () => addTradeBlockItem({
+            memberId,
+            leagueId,
+            playerId: player.players.id,
+        }))
+    }, [memberId, leagueId, mutate])
+
+    const addPick = useCallback((pick: TradePickItem) => {
+        if (!memberId || !leagueId) return Promise.resolve()
+        return mutate(pick.pickId, () => addTradeBlockItem({ memberId, leagueId, pickId: pick.pickId }))
+    }, [memberId, leagueId, mutate])
+
+    const removeItem = useCallback((item: TradeBlockItem) => {
+        if (!memberId) return Promise.resolve()
+        return mutate(item.id, () => removeTradeBlockItem(item.id, memberId))
+    }, [memberId, mutate])
+
+    return { items, roster, avgMap, avgStatsMap, loading, error, busyId, refresh, addPlayer, addPick, removeItem }
+}

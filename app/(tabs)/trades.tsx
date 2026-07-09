@@ -7,26 +7,22 @@ import {
 import { FlashList } from '@shopify/flash-list'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
 import { NoLeagueState } from '@/components/NoLeagueState'
 import { EmptyState } from '@/components/EmptyState'
 import { isTradingClosed } from '@/lib/league'
 import {
-    addTradeBlockItem,
-    getTradesForScreen,
-    getTradeBlockItems,
     isIncomingTradeForMember,
     isOutgoingTradeForMember,
     isTradeHistoryForMember,
     isVetoableTradeForMember,
-    removeTradeBlockItem,
     Trade,
     TradeBlockItem,
     TradePickItem,
     getPicksForMember,
 } from '@/lib/trades'
-import { getRoster, RosterPlayer } from '@/lib/roster'
+import { type RosterPlayer } from '@/lib/roster'
 import { colors, fontSize, fontWeight, radii, spacing, layout, uiColors, INJURY_COLORS } from '@/constants/tokens'
 import { SegmentedControl, type SegmentOption } from '@/components/ui/SegmentedControl'
 import { ItemSeparator } from '@/components/ItemSeparator'
@@ -36,9 +32,7 @@ import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
 import { playerHeadshotUrl, yearShort } from '@/lib/format'
 import { playerEligiblePositions, playerSeasonContextText } from '@/lib/player-context'
 import { TradeCard, TabKey } from '@/components/trades/TradeCard'
-import { getErrorMessage } from '@/lib/alert'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
-import { EMPTY_AVG_MAP, EMPTY_STATS_MAP, getRosterStatsMaps } from '@/lib/roster-stats'
 import { Avatar } from '@/components/Avatar'
 import { PosTag } from '@/components/PosTag'
 import { Badge } from '@/components/Badge'
@@ -48,6 +42,8 @@ import {
     subscribeToTableChanges,
 } from '@/lib/realtime'
 import { tradeScreenWatches } from '@/lib/trades-realtime'
+import { useTradesFeed } from '@/hooks/use-trades-feed'
+import { useTradeBlock } from '@/hooks/use-trade-block'
 
 // Contain a render crash to this screen (recoverable) instead of blanking the whole app.
 export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFallback'
@@ -61,19 +57,9 @@ type ListItem =
     | { _type: 'blockPlayer'; player: RosterPlayer }
     | { _type: 'blockPick'; pick: TradePickItem }
 
-type TradeBlockCache = {
-    items: TradeBlockItem[]
-    roster: RosterPlayer[]
-}
-// v2: the Trade shape gained participants/routedItems/isMultiTeam with multi-team
-// trades; bump so pre-deploy v1 blobs (missing those fields) are never read back.
-const TRADES_CACHE_PREFIX = 'pancake:trades:v2:'
 const PICKS_CACHE_PREFIX = 'pancake:trade-picks:v1:'
-const TRADE_BLOCK_CACHE_PREFIX = 'pancake:trade-block:v1:'
 
-const tradesCacheKey = (memberId: string, leagueId: string) => `${TRADES_CACHE_PREFIX}${leagueId}:${memberId}`
 const picksCacheKey = (memberId: string, leagueId: string) => `${PICKS_CACHE_PREFIX}${leagueId}:${memberId}`
-const tradeBlockCacheKey = (memberId: string, leagueId: string) => `${TRADE_BLOCK_CACHE_PREFIX}${leagueId}:${memberId}`
 
 // Module-level: these are pure functions of the row, no closures needed.
 const listKeyExtractor = (item: ListItem, index: number) => {
@@ -105,38 +91,32 @@ export default function TradesScreen() {
     const rosterSize: number = currentLeague?.roster_size ?? 20
     const myTeamName = current?.team_name ?? ''
     const tradingClosed = isTradingClosed(currentLeague)
-    const cachedTrades = useMemo(
-        () => myMemberId && leagueId ? readPersistentCache<Trade[]>(tradesCacheKey(myMemberId, leagueId)) : null,
-        [myMemberId, leagueId],
-    )
     const cachedPicks = useMemo(
         () => myMemberId && leagueId ? readPersistentCache<TradePickItem[]>(picksCacheKey(myMemberId, leagueId)) : null,
         [myMemberId, leagueId],
     )
-    const cachedBlock = useMemo(
-        () => myMemberId && leagueId ? readPersistentCache<TradeBlockCache>(tradeBlockCacheKey(myMemberId, leagueId)) : null,
-        [myMemberId, leagueId],
-    )
 
     const [tab, setTab] = useState<TabKey>('picks')
-    const [trades, setTrades] = useState<Trade[]>(cachedTrades ?? [])
-    const [loading, setLoading] = useState(!cachedTrades)
-    const [tradesError, setTradesError] = useState<string | null>(null)
-    const [blockItems, setBlockItems] = useState<TradeBlockItem[]>(cachedBlock?.items ?? [])
-    const [blockRoster, setBlockRoster] = useState<RosterPlayer[]>(cachedBlock?.roster ?? [])
-    const [blockAvgMap, setBlockAvgMap] = useState(EMPTY_AVG_MAP)
-    const [blockAvgStatsMap, setBlockAvgStatsMap] = useState(EMPTY_STATS_MAP)
-    const [blockLoading, setBlockLoading] = useState(!cachedBlock)
-    const [blockError, setBlockError] = useState<string | null>(null)
-    const [blockBusyId, setBlockBusyId] = useState<string | null>(null)
+    const { trades, loading, error: tradesError, refresh: load } = useTradesFeed(myMemberId, leagueId)
+    const {
+        items: blockItems,
+        roster: blockRoster,
+        avgMap: blockAvgMap,
+        avgStatsMap: blockAvgStatsMap,
+        loading: blockLoading,
+        error: blockError,
+        busyId: blockBusyId,
+        refresh: loadBlock,
+        addPlayer: handleListPlayer,
+        addPick: handleListPick,
+        removeItem: handleRemoveBlockItem,
+    } = useTradeBlock(myMemberId, leagueId)
     const listedPlayerIds = useMemo(() => new Set(blockItems.flatMap((block) =>
         block.memberId === myMemberId && block.asset.kind === 'player' ? [block.asset.playerId] : [],
     )), [blockItems, myMemberId])
     const listedPickIds = useMemo(() => new Set(blockItems.flatMap((block) =>
         block.memberId === myMemberId && block.asset.kind === 'pick' ? [block.asset.pickId] : [],
     )), [blockItems, myMemberId])
-    const tradesLoadSeqRef = useRef(0)
-    const blockLoadSeqRef = useRef(0)
 
     const { data: picks, loading: picksLoading, error: picksError, refresh: refreshPicks } = useFocusAsyncData(async () => {
         if (!current || !leagueId) return [] as TradePickItem[]
@@ -144,72 +124,6 @@ export default function TradesScreen() {
         writePersistentCache(picksCacheKey(current.id, leagueId), result)
         return result
     }, [current?.id, leagueId], { initialData: cachedPicks ?? undefined })
-
-    const load = useCallback(async () => {
-        const requestId = ++tradesLoadSeqRef.current
-        const memberId = myMemberId
-        const currentLeagueId = leagueId
-        if (!memberId || !currentLeagueId) {
-            setTrades([])
-            setTradesError(null)
-            setLoading(false)
-            return
-        }
-        setTradesError(null)
-        try {
-            const result = await getTradesForScreen(memberId, currentLeagueId)
-            if (tradesLoadSeqRef.current !== requestId) return
-            setTrades(result)
-            writePersistentCache(tradesCacheKey(memberId, currentLeagueId), result)
-        } catch (e) {
-            if (tradesLoadSeqRef.current !== requestId) return
-            console.error(e)
-            setTradesError(getErrorMessage(e) ?? 'Unknown error')
-        } finally {
-            if (tradesLoadSeqRef.current === requestId) setLoading(false)
-        }
-    }, [myMemberId, leagueId])
-
-    const loadBlock = useCallback(async () => {
-        const requestId = ++blockLoadSeqRef.current
-        const memberId = myMemberId
-        const currentLeagueId = leagueId
-        if (!memberId || !currentLeagueId) {
-            setBlockItems([])
-            setBlockRoster([])
-            setBlockAvgMap(EMPTY_AVG_MAP)
-            setBlockAvgStatsMap(EMPTY_STATS_MAP)
-            setBlockError(null)
-            setBlockLoading(false)
-            return
-        }
-        setBlockLoading(true)
-        setBlockError(null)
-        try {
-            const [items, roster] = await Promise.all([
-                getTradeBlockItems(currentLeagueId),
-                getRoster(memberId, currentLeagueId),
-            ])
-            if (blockLoadSeqRef.current !== requestId) return
-            const activeRoster = roster.filter((player) => !player.is_on_ir && !player.is_on_taxi)
-            const stats = await getRosterStatsMaps(activeRoster.map((player) => player.players.id), currentLeagueId)
-            if (blockLoadSeqRef.current !== requestId) return
-            setBlockItems(items)
-            setBlockRoster(activeRoster)
-            setBlockAvgMap(stats.avgMap)
-            setBlockAvgStatsMap(stats.avgStatsMap)
-            writePersistentCache(tradeBlockCacheKey(memberId, currentLeagueId), {
-                items,
-                roster: activeRoster,
-            })
-        } catch (e) {
-            if (blockLoadSeqRef.current !== requestId) return
-            console.error(e)
-            setBlockError(getErrorMessage(e) ?? 'Unknown error')
-        } finally {
-            if (blockLoadSeqRef.current === requestId) setBlockLoading(false)
-        }
-    }, [myMemberId, leagueId])
 
     useEffect(() => {
         if (!myMemberId || !leagueId) return
@@ -231,71 +145,9 @@ export default function TradesScreen() {
         }
     }, [leagueId, load, loadBlock, myMemberId, refreshPicks])
 
-    // Clear stale trades + show loading immediately when league/member changes,
-    // so the previous league's accepted trades don't flash in the Veto Window
-    // section while the new fetch is in-flight.
-    useEffect(() => {
-        const nextCachedTrades = myMemberId && leagueId
-            ? readPersistentCache<Trade[]>(tradesCacheKey(myMemberId, leagueId))
-            : null
-        setTrades(nextCachedTrades ?? [])
-        setLoading(!nextCachedTrades)
-        const nextCachedBlock = myMemberId && leagueId
-            ? readPersistentCache<TradeBlockCache>(tradeBlockCacheKey(myMemberId, leagueId))
-            : null
-        setBlockItems(nextCachedBlock?.items ?? [])
-        setBlockRoster(nextCachedBlock?.roster ?? [])
-        setBlockAvgMap(EMPTY_AVG_MAP)
-        setBlockAvgStatsMap(EMPTY_STATS_MAP)
-        setBlockLoading(!nextCachedBlock)
-    }, [myMemberId, leagueId])
-
-    useEffect(() => {
-        load()
-    }, [load])
-
     useEffect(() => {
         if (tab === 'block' || tab === 'leagueBlock') void loadBlock()
     }, [tab, loadBlock])
-
-    const handleListPlayer = useCallback(async (player: RosterPlayer) => {
-        if (!myMemberId || !leagueId) return
-        setBlockBusyId(player.players.id)
-        try {
-            await addTradeBlockItem({ memberId: myMemberId, leagueId, playerId: player.players.id })
-            await loadBlock()
-        } catch (e) {
-            setBlockError(getErrorMessage(e) ?? 'Could not update trade block.')
-        } finally {
-            setBlockBusyId(null)
-        }
-    }, [myMemberId, leagueId, loadBlock])
-
-    const handleListPick = useCallback(async (pick: TradePickItem) => {
-        if (!myMemberId || !leagueId) return
-        setBlockBusyId(pick.pickId)
-        try {
-            await addTradeBlockItem({ memberId: myMemberId, leagueId, pickId: pick.pickId })
-            await loadBlock()
-        } catch (e) {
-            setBlockError(getErrorMessage(e) ?? 'Could not update trade block.')
-        } finally {
-            setBlockBusyId(null)
-        }
-    }, [myMemberId, leagueId, loadBlock])
-
-    const handleRemoveBlockItem = useCallback(async (item: TradeBlockItem) => {
-        if (!myMemberId) return
-        setBlockBusyId(item.id)
-        try {
-            await removeTradeBlockItem(item.id, myMemberId)
-            await loadBlock()
-        } catch (e) {
-            setBlockError(getErrorMessage(e) ?? 'Could not update trade block.')
-        } finally {
-            setBlockBusyId(null)
-        }
-    }, [myMemberId, loadBlock])
 
     const incomingTrades = useMemo(() => trades.filter(
         (trade) => isIncomingTradeForMember(trade, myMemberId),

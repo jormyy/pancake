@@ -28,12 +28,6 @@ export type TradeComposerPrefill = {
     expirationDays: string
 }
 
-export type RouteTradePrefill = {
-    key: string
-    requestPlayerIds: string[]
-    requestPickIds: string[]
-}
-
 type ComposerPayloadInput = {
     offerPlayerIds: Iterable<string>
     requestPlayerIds: Iterable<string>
@@ -163,8 +157,10 @@ export function prefillTradeComposerFromTrade(
     trade: Trade,
     nowMs = Date.now(),
 ): TradeComposerPrefill {
-    const mySide = mode === 'counter' ? trade.recipientGives : trade.proposerGives
-    const theirSide = mode === 'counter' ? trade.proposerGives : trade.recipientGives
+    const myMemberId = mode === 'counter' ? trade.recipientMemberId : trade.proposerMemberId
+    const theirMemberId = mode === 'counter' ? trade.proposerMemberId : trade.recipientMemberId
+    const mySide = trade.routedItems.filter((item) => item.fromMemberId === myMemberId)
+    const theirSide = trade.routedItems.filter((item) => item.fromMemberId === theirMemberId)
     const expiresAt = trade.expiresAt ? new Date(trade.expiresAt).getTime() : null
     const expirationDays = expiresAt
         ? Math.max(1, Math.ceil((expiresAt - nowMs) / DAY_MS))
@@ -180,20 +176,6 @@ export function prefillTradeComposerFromTrade(
         offerFaabInput: String(mode === 'counter' ? trade.recipientFaabAmount : trade.proposerFaabAmount),
         requestFaabInput: String(mode === 'counter' ? trade.proposerFaabAmount : trade.recipientFaabAmount),
         expirationDays: String(expirationDays),
-    }
-}
-
-export function prefillTradeComposerFromRoute(
-    selectedRecipientId: string | null,
-    params: { requestPlayerId?: string | null; requestPickId?: string | null },
-): RouteTradePrefill {
-    const requestPlayerId = params.requestPlayerId ?? null
-    const requestPickId = params.requestPickId ?? null
-
-    return {
-        key: `params:${selectedRecipientId ?? ''}:${requestPlayerId ?? ''}:${requestPickId ?? ''}`,
-        requestPlayerIds: requestPlayerId ? [requestPlayerId] : [],
-        requestPickIds: requestPickId ? [requestPickId] : [],
     }
 }
 

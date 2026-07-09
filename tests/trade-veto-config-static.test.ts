@@ -13,7 +13,6 @@ describe('configurable trade veto settings', () => {
         expect(migration).toContain("CHECK (trade_veto_mode IN ('disabled', 'commissioner', 'member_vote'))")
         expect(migration).toContain('CHECK (trade_veto_window_hours BETWEEN 0 AND 168)')
         expect(migration).toContain('CHECK (trade_veto_threshold_percent BETWEEN 1 AND 100)')
-        expect(league).toContain("export type TradeVetoMode = 'disabled' | 'commissioner' | 'member_vote'")
         expect(league).toContain('trade_veto_mode,')
         expect(league).toContain('payload.trade_veto_window_hours')
         expect(appTypes).toContain('trade_veto_mode?: TradeVetoMode')

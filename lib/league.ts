@@ -1,10 +1,10 @@
 import { supabase } from '@/lib/supabase'
 import type { Json, League, LeagueStatus } from '@/types/database'
-import type { LeagueInfo, LeagueMembership } from '@/types/app'
+import type { LeagueInfo, LeagueMembership, TradeVetoMode } from '@/types/app'
 import { todayET } from '@/lib/shared/dates'
 
 export type WaiverMode = 'rolling' | 'faab'
-export type TradeVetoMode = 'disabled' | 'commissioner' | 'member_vote'
+export type { TradeVetoMode } from '@/types/app'
 
 export type LeagueSettingsUpdate = {
     scoring_settings?: Record<string, number>

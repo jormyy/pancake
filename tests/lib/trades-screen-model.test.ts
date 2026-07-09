@@ -30,8 +30,6 @@ function trade(overrides: Partial<Trade> = {}): Trade {
         proposerFaabAmount: 0,
         recipientFaabAmount: 0,
         myVetoed: false,
-        proposerGives: [],
-        recipientGives: [],
         routedItems: [],
         ...overrides,
     }
