@@ -6,14 +6,6 @@ const ROOT = process.cwd()
 const MIGRATIONS_DIR = path.join(ROOT, 'supabase/migrations')
 const FUNCTION_SOURCES_DIR = path.join(ROOT, 'supabase/sql/functions/by-name')
 
-const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-
-const objectNamePattern = (name, schema) => {
-  const escapedName = escapeRegExp(name)
-  if (schema === 'public') return `(?:${escapeRegExp(schema)}\\.)?${escapedName}`
-  return `${escapeRegExp(schema)}\\.${escapedName}`
-}
-
 const dollarQuotedStatement = (source) => {
   const asMatch = /\bAS\s+(\$[A-Za-z0-9_]*\$)/i.exec(source)
   const semicolonIndex = source.indexOf(';')
@@ -33,8 +25,12 @@ const dollarQuotedStatement = (source) => {
 }
 
 const normalizeSql = (source) => source.replace(/\r\n/g, '\n').trim()
-const functionKey = ([schema, name]) => `${schema}.${name}`
 const sourcePathForFunction = (schema, name) => path.join(FUNCTION_SOURCES_DIR, schema, `${name}.sql`)
+const isLineCommented = (source, index) => {
+  const lineStart = source.lastIndexOf('\n', index - 1) + 1
+  const commentIndex = source.indexOf('--', lineStart)
+  return commentIndex !== -1 && commentIndex < index
+}
 
 const migrationFiles = async () =>
   (await readdir(MIGRATIONS_DIR))
@@ -55,6 +51,7 @@ export const functionDefinitionsInSource = (source) => {
   let match
 
   while ((match = pattern.exec(source)) !== null) {
+    if (isLineCommented(source, match.index)) continue
     const schema = match[1] ?? 'public'
     const name = match[2]
     definitions.set(`${schema}.${name}`, dollarQuotedStatement(source.slice(match.index)))
@@ -63,28 +60,63 @@ export const functionDefinitionsInSource = (source) => {
   return definitions
 }
 
+export const functionLifecycleEventsInSource = (source) => {
+  const pattern = /\b(?:(CREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION)\s+(?:(public|private|analytics)\.)?([A-Za-z_][A-Za-z0-9_]*)\s*\(|(DROP\s+FUNCTION(?:\s+IF\s+EXISTS)?)\s+(?:(public|private|analytics)\.)?([A-Za-z_][A-Za-z0-9_]*)\s*\()/gi
+  const events = []
+  let match
+
+  while ((match = pattern.exec(source)) !== null) {
+    if (isLineCommented(source, match.index)) continue
+    if (match[1]) {
+      events.push({
+        type: 'create',
+        key: `${match[2] ?? 'public'}.${match[3]}`,
+        definition: dollarQuotedStatement(source.slice(match.index)),
+      })
+    } else {
+      events.push({
+        type: 'drop',
+        key: `${match[5] ?? 'public'}.${match[6]}`,
+      })
+    }
+  }
+
+  return events
+}
+
 export const latestFunctionDefinitions = async () => {
   const migrations = await allMigrations()
-  const definitions = functionDefinitionsInSource(migrations)
+  const definitions = new Map()
+  for (const event of functionLifecycleEventsInSource(migrations)) {
+    if (event.type === 'create') definitions.set(event.key, event.definition)
+    else definitions.delete(event.key)
+  }
   return new Map([...definitions.entries()].sort(([left], [right]) => left.localeCompare(right)))
 }
 
 export const latestFunctionDefinition = async (schema, name) => {
   const migrations = await allMigrations()
-  const qualifiedName = objectNamePattern(name, schema)
-  const createPattern = new RegExp(`CREATE\\s+(?:OR\\s+REPLACE\\s+)?FUNCTION\\s+${qualifiedName}\\s*\\(`, 'gi')
-  let createMatch
-  let latestCreateIndex = -1
+  const key = `${schema}.${name}`
+  let wasDefined = false
+  let wasDroppedAfterDefinition = false
+  let definition = null
 
-  while ((createMatch = createPattern.exec(migrations)) !== null) {
-    latestCreateIndex = createMatch.index
+  for (const event of functionLifecycleEventsInSource(migrations)) {
+    if (event.key !== key) continue
+    if (event.type === 'create') {
+      wasDefined = true
+      wasDroppedAfterDefinition = false
+      definition = event.definition
+      continue
+    }
+    if (wasDefined) wasDroppedAfterDefinition = true
+    definition = null
   }
 
-  if (latestCreateIndex === -1) {
-    throw new Error(`No migration defines ${schema}.${name}`)
+  if (!definition) {
+    throw new Error(wasDroppedAfterDefinition ? `${schema}.${name} is dropped after its latest definition` : `No migration defines ${schema}.${name}`)
   }
-
-  return dollarQuotedStatement(migrations.slice(latestCreateIndex))
+  return definition
 }
 
 export const writeFunctionSources = async () => {
