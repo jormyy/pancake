@@ -295,7 +295,7 @@ const setupBrowserPlayoffFixture = async (env, season) => {
 
 export async function runBrowserPlayoffChampionScenario({
   season = 0,
-  sessionName,
+  sessionName = undefined,
 } = {}) {
   const env = resolvedEnv()
   requireEnv(env, ['supabaseUrl', 'serviceRoleKey', 'anonKey', 'apiBaseUrl'])

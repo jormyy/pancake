@@ -294,7 +294,7 @@ const waitForAutoPick = async (fixture, timeoutMs = 12_000) => {
 
 export async function runBrowserRookieDraftAutoPickScenario({
   season = 0,
-  sessionName,
+  sessionName = undefined,
 } = {}) {
   const env = resolvedEnv()
   requireEnv(env, ['supabaseUrl', 'serviceRoleKey', 'anonKey', 'apiBaseUrl', 'e2eAdminSecret'])

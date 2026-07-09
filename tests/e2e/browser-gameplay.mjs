@@ -330,7 +330,7 @@ const closeTestNomination = async (fixture) => {
 
 export async function runBrowserGameplayScenario({
   season = 0,
-  sessionName,
+  sessionName = undefined,
 } = {}) {
   const env = resolvedEnv()
   requireEnv(env, ['supabaseUrl', 'serviceRoleKey', 'anonKey'])

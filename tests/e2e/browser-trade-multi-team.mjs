@@ -103,6 +103,7 @@ const multiTeamExpectedRoutes = (fixture) => new Map([
 ])
 
 const verifyMultiTeamReplacement = async (fixture, sourceTradeId, {
+  initialTradeId,
   sourceStatus,
   sourceColumn,
   expectedProposerId,
@@ -163,8 +164,8 @@ const verifyMultiTeamReplacement = async (fixture, sourceTradeId, {
   if (replacement.version !== expectedVersion) {
     failures.push(`replacement version=${replacement.version}; expected ${expectedVersion}`)
   }
-  if (replacement.parent_trade_id !== fixture.initialMultiTeamTradeId) {
-    failures.push(`replacement parent=${replacement.parent_trade_id}; expected ${fixture.initialMultiTeamTradeId}`)
+  if (replacement.parent_trade_id !== initialTradeId) {
+    failures.push(`replacement parent=${replacement.parent_trade_id}; expected ${initialTradeId}`)
   }
   if (replacement[sourceColumn] !== sourceTradeId) {
     failures.push(`replacement ${sourceColumn}=${replacement[sourceColumn]}; expected ${sourceTradeId}`)
@@ -206,7 +207,7 @@ const waitForMultiTeamReplacement = async (fixture, sourceTradeId, options, time
 
 export async function runBrowserMultiTeamTradeScenario({
   season = 0,
-  sessionName,
+  sessionName = undefined,
 } = {}) {
   const env = resolvedEnv()
   requireEnv(env, ['supabaseUrl', 'serviceRoleKey', 'anonKey'])
@@ -355,7 +356,6 @@ export async function runBrowserMultiTeamTradeScenario({
     if (tradeProposal.failures.length > 0) {
       throw new Error(`multi-team trade proposal did not persist: ${tradeProposal.failures.join('; ')}`)
     }
-    fixture.initialMultiTeamTradeId = tradeProposal.trade.id
     await browser(session, ['wait', '1000'])
     await browser(session, ['screenshot', path.join(artifactDir, 'multi-team-after-submit.png')], { timeout: 60_000 })
 
@@ -395,6 +395,7 @@ export async function runBrowserMultiTeamTradeScenario({
     await browser(session, ['screenshot', path.join(artifactDir, 'multi-team-edit-prefill.png')], { timeout: 60_000 })
     const editSubmitClick = await clickButton(session, 'Send trade proposal', 'multi-team edit submit')
     const editReplacement = await waitForMultiTeamReplacement(fixture, tradeProposal.trade.id, {
+      initialTradeId: tradeProposal.trade.id,
       sourceStatus: 'edited',
       sourceColumn: 'edited_from_trade_id',
       expectedProposerId: fixture.proposer.id,
@@ -425,6 +426,7 @@ export async function runBrowserMultiTeamTradeScenario({
     await browser(counterSession, ['screenshot', path.join(artifactDir, 'multi-team-counter-prefill.png')], { timeout: 60_000 })
     const counterSubmitClick = await clickButton(counterSession, 'Send trade proposal', 'multi-team counter submit')
     const counterReplacement = await waitForMultiTeamReplacement(fixture, editReplacement.replacement.id, {
+      initialTradeId: tradeProposal.trade.id,
       sourceStatus: 'countered',
       sourceColumn: 'countered_from_trade_id',
       expectedProposerId: fixture.recipient.id,

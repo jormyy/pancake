@@ -334,7 +334,7 @@ const verifyNoWaiverClaim = async (fixture) => {
 
 export async function runBrowserWaiverScenario({
   season = 0,
-  sessionName,
+  sessionName = undefined,
 } = {}) {
   const env = resolvedEnv()
   requireEnv(env, ['supabaseUrl', 'serviceRoleKey', 'anonKey'])
@@ -432,7 +432,7 @@ export async function runBrowserWaiverScenario({
 
 export async function runBrowserWaiverDropScenario({
   season = 0,
-  sessionName,
+  sessionName = undefined,
 } = {}) {
   const env = resolvedEnv()
   requireEnv(env, ['supabaseUrl', 'serviceRoleKey', 'anonKey'])
@@ -539,7 +539,7 @@ export async function runBrowserWaiverDropScenario({
 
 export async function runBrowserWaiverIrBlockScenario({
   season = 0,
-  sessionName,
+  sessionName = undefined,
 } = {}) {
   const env = resolvedEnv()
   requireEnv(env, ['supabaseUrl', 'serviceRoleKey', 'anonKey'])

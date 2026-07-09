@@ -620,7 +620,7 @@ const verifyForgedLockedMovesRpc = async (env, fixture) => {
 
 export async function runBrowserLineupScenario({
   season = 0,
-  sessionName,
+  sessionName = undefined,
 } = {}) {
   const env = resolvedEnv()
   requireEnv(env, ['supabaseUrl', 'serviceRoleKey', 'anonKey'])
@@ -722,7 +722,7 @@ export async function runBrowserLineupScenario({
 
 export async function runBrowserLineupLockedScenario({
   season = 0,
-  sessionName,
+  sessionName = undefined,
 } = {}) {
   const env = resolvedEnv()
   requireEnv(env, ['supabaseUrl', 'serviceRoleKey', 'anonKey'])
@@ -854,7 +854,7 @@ export async function runBrowserLineupLockedScenario({
 
 export async function runBrowserLineupAutoSetScenario({
   season = 0,
-  sessionName,
+  sessionName = undefined,
 } = {}) {
   const env = resolvedEnv()
   requireEnv(env, ['supabaseUrl', 'serviceRoleKey', 'anonKey'])

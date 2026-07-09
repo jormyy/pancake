@@ -390,7 +390,7 @@ const closePerfNomination = async (supabase, auction) => {
 
 export async function runBrowserPerfSmoke({
   season = 0,
-  sessionName,
+  sessionName = undefined,
 } = {}) {
   const env = resolvedEnv()
   const state = await readState()

@@ -351,7 +351,7 @@ export async function runBrowserSmoke({
   season = 0,
   scenario = 'smoke',
   userIndex = 0,
-  sessionName,
+  sessionName = undefined,
   fullSweep = process.env.E2E_BROWSER_FULL_SWEEP === '1',
 } = {}) {
   const env = resolvedEnv()
