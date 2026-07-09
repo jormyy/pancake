@@ -213,7 +213,7 @@ function optionalTimestampField(body: Record<string, unknown>, key: string): str
 }
 
 function tradeAssetPayload(body: Record<string, unknown>): TradeAssetPayload {
-  return {
+  const payload = {
     offerPlayerIds: optionalUuidArrayField(body, 'offerPlayerIds'),
     requestPlayerIds: optionalUuidArrayField(body, 'requestPlayerIds'),
     offerPickIds: optionalUuidArrayField(body, 'offerPickIds'),
@@ -223,11 +223,17 @@ function tradeAssetPayload(body: Record<string, unknown>): TradeAssetPayload {
     offerFaabAmount: optionalIntegerField(body, 'offerFaabAmount', { min: 0 }) ?? 0,
     requestFaabAmount: optionalIntegerField(body, 'requestFaabAmount', { min: 0 }) ?? 0,
   }
+  const itemCount = payload.offerPlayerIds.length + payload.requestPlayerIds.length +
+    payload.offerPickIds.length + payload.requestPickIds.length +
+    (payload.offerFaabAmount > 0 ? 1 : 0) + (payload.requestFaabAmount > 0 ? 1 : 0)
+  if (itemCount > 100) throw new ValidationError('A trade cannot include more than 100 items.')
+  return payload
 }
 
 function multiTeamTradePayload(body: Record<string, unknown>): MultiTeamTradePayload {
   const rawItems = body.items
   if (!Array.isArray(rawItems)) throw new ValidationError('items must be an array.')
+  if (rawItems.length > 100) throw new ValidationError('A trade cannot include more than 100 items.')
 
   const items = rawItems.map((raw, index): MultiTeamTradeItemPayload => {
     if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
@@ -249,8 +255,13 @@ function multiTeamTradePayload(body: Record<string, unknown>): MultiTeamTradePay
     return { fromMemberId, toMemberId, playerId, pickId, faabAmount }
   })
 
+  const participantMemberIds = optionalUuidArrayField(body, 'participantMemberIds')
+  if (participantMemberIds.length > 12) {
+    throw new ValidationError('A trade cannot include more than 12 teams.')
+  }
+
   return {
-    participantMemberIds: optionalUuidArrayField(body, 'participantMemberIds'),
+    participantMemberIds,
     items,
     notes: optionalStringField(body, 'notes'),
     expiresAt: optionalTimestampField(body, 'expiresAt'),

@@ -131,6 +131,22 @@ const assertAggregateFaabRejectionIsAtomic = async (fixture) => {
   assert.equal((await fetchTrade(fixture, tradeId)).status, 'pending')
 }
 
+const assertMultiTeamPayloadBounds = async (fixture) => {
+  await expectRpcError(fixture.admin, 'propose_multi_team_trade_atomic', {
+    p_league_id: fixture.league.id,
+    p_league_season_id: fixture.currentSeason.id,
+    p_proposer_member_id: fixture.proposer.id,
+    p_participant_member_ids: [fixture.proposer.id, fixture.recipient.id],
+    p_items: Array.from({ length: 101 }, () => ({
+      fromMemberId: fixture.proposer.id,
+      toMemberId: fixture.recipient.id,
+      faabAmount: 1,
+    })),
+    p_notes: 'DB oversized multi-team payload',
+    p_expires_at: null,
+  }, 'between 1 and 100 items')
+}
+
 const assertExpiredAcceptanceCommits = async (fixture) => {
   await setLeagueRules(fixture, { waiver_mode: 'faab', trade_veto_mode: 'commissioner', trade_veto_window_hours: 1 })
   await setBalances(fixture, [
@@ -168,6 +184,7 @@ const assertReplacementAndDropLifecycle = async (fixture) => {
     fixture.league.id,
     fixture.currentSeason.id,
     1,
+    fixture.registerCreatedPlayer,
   )
   const { data: extraRoster, error: rosterError } = await fixture.admin
     .from('roster_players')
@@ -288,6 +305,84 @@ const assertConcurrentAcceptanceCompletesOnce = async (fixture) => {
   assert.equal(await balanceFor(fixture, fixture.proposer.id), 20)
   assert.equal(await balanceFor(fixture, fixture.recipient.id), 40)
   assert.equal(await balanceFor(fixture, fixture.observer.id), 40)
+}
+
+const assertCompetingStandardAndMultiTeamTradesSerialize = async (fixture) => {
+  await setLeagueRules(fixture, {
+    roster_size: 20,
+    waiver_mode: 'faab',
+    trade_veto_mode: 'disabled',
+    trade_veto_window_hours: 0,
+  })
+  const [player] = await findAvailablePlayers(
+    fixture.admin,
+    fixture.league.id,
+    fixture.currentSeason.id,
+    1,
+    fixture.registerCreatedPlayer,
+  )
+  const { error: rosterError } = await fixture.admin.from('roster_players').insert({
+    league_id: fixture.league.id,
+    league_season_id: fixture.currentSeason.id,
+    member_id: fixture.proposer.id,
+    player_id: player.id,
+    acquired_via: 'e2e_db_trade_race',
+  })
+  if (rosterError) throw new Error(`trade race roster insert: ${rosterError.message}`)
+
+  const standardTradeId = await rpc(fixture.admin, 'propose_trade_atomic', {
+    p_league_id: fixture.league.id,
+    p_league_season_id: fixture.currentSeason.id,
+    p_proposer_member_id: fixture.proposer.id,
+    p_recipient_member_id: fixture.recipient.id,
+    p_offer_player_ids: [player.id],
+    p_request_player_ids: [],
+    p_offer_pick_ids: [],
+    p_request_pick_ids: [],
+    p_offer_faab_amount: 0,
+    p_request_faab_amount: 1,
+    p_notes: 'DB standard versus multi-team race',
+    p_expires_at: null,
+  })
+  const multiTradeId = await rpc(fixture.admin, 'propose_multi_team_trade_atomic', {
+    p_league_id: fixture.league.id,
+    p_league_season_id: fixture.currentSeason.id,
+    p_proposer_member_id: fixture.proposer.id,
+    p_participant_member_ids: [fixture.proposer.id, fixture.observer.id],
+    p_items: [{
+      fromMemberId: fixture.proposer.id,
+      toMemberId: fixture.observer.id,
+      playerId: player.id,
+    }],
+    p_notes: 'DB multi-team versus standard race',
+    p_expires_at: null,
+  })
+
+  const results = await Promise.allSettled([
+    rpc(fixture.admin, 'accept_trade_atomic', {
+      p_trade_id: standardTradeId,
+      p_accepting_member_id: fixture.recipient.id,
+      p_drop_roster_player_ids: [],
+    }),
+    accept(fixture, multiTradeId, fixture.observer.id),
+  ])
+  assert.equal(results.filter((result) => result.status === 'fulfilled').length, 1)
+  assert.equal(results.filter((result) => result.status === 'rejected').length, 1)
+
+  const [standardTrade, multiTrade] = await Promise.all([
+    fetchTrade(fixture, standardTradeId),
+    fetchTrade(fixture, multiTradeId),
+  ])
+  assert.equal([standardTrade, multiTrade].filter((trade) => trade.status === 'completed').length, 1)
+  const { data: owner, error: ownerError } = await fixture.admin
+    .from('roster_players')
+    .select('member_id')
+    .eq('league_id', fixture.league.id)
+    .eq('league_season_id', fixture.currentSeason.id)
+    .eq('player_id', player.id)
+    .single()
+  if (ownerError) throw new Error(`trade race owner lookup: ${ownerError.message}`)
+  assert([fixture.recipient.id, fixture.observer.id].includes(owner.member_id))
 }
 
 const assertTwoTeamUsesCanonicalRoutes = async (fixture) => {
@@ -449,16 +544,33 @@ const assertVetoRowsSurviveMemberHistoryPagination = async (fixture) => {
     password: observerUser.password,
   })
   if (signInError) throw new Error(`observer sign in: ${signInError.message}`)
-  const { data, error } = await observerClient.rpc('get_trades_for_member', {
+  const { data, error } = await observerClient.rpc('get_trades_for_member_page', {
     p_member_id: fixture.observer.id,
     p_league_id: fixture.league.id,
     p_limit: 40,
-    p_offset: 0,
-  }).select('id')
-  if (error) throw new Error(`get_trades_for_member pagination: ${error.message}`)
+  }).select('id, proposed_at, notes')
+  if (error) throw new Error(`get_trades_for_member_page pagination: ${error.message}`)
   const rows = Array.isArray(data) ? data : data ? [data] : []
   assert.equal(rows.length, 40)
   assert(rows.some((trade) => trade.id === vetoTrade.id), 'vetoable observer trade was displaced by personal history')
+  const cursor = rows.at(-1)
+  const { data: nextData, error: nextError } = await observerClient.rpc('get_trades_for_member_page', {
+    p_member_id: fixture.observer.id,
+    p_league_id: fixture.league.id,
+    p_limit: 40,
+    p_before_actionable: false,
+    p_before_participant: true,
+    p_before_proposed_at: cursor.proposed_at,
+    p_before_id: cursor.id,
+  }).select('id, notes')
+  if (nextError) throw new Error(`get_trades_for_member_page next page: ${nextError.message}`)
+  const nextRows = Array.isArray(nextData) ? nextData : nextData ? [nextData] : []
+  assert(nextRows.length >= 2)
+  assert.equal(nextRows.some((trade) => rows.some((firstPage) => firstPage.id === trade.id)), false)
+  assert.equal(
+    [...rows, ...nextRows].filter((trade) => trade.notes?.startsWith('pagination history ')).length,
+    41,
+  )
   const { error: terminalError } = await fixture.admin
     .from('trades')
     .update({ status: 'vetoed', vetoed_at: new Date().toISOString() })
@@ -469,14 +581,16 @@ const assertVetoRowsSurviveMemberHistoryPagination = async (fixture) => {
 const run = async () => {
   const fixture = await setupMultiTeamTradeGameplayFixture(env, 0)
   try {
+    await assertMultiTeamPayloadBounds(fixture)
     await assertAggregateFaabRejectionIsAtomic(fixture)
     await assertExpiredAcceptanceCommits(fixture)
     await assertReplacementAndDropLifecycle(fixture)
     await assertConcurrentAcceptanceCompletesOnce(fixture)
+    await assertCompetingStandardAndMultiTeamTradesSerialize(fixture)
     await assertTwoTeamUsesCanonicalRoutes(fixture)
     await assertVetoRowsSurviveMemberHistoryPagination(fixture)
     await assertCompletionFailureIsTerminal(fixture)
-    console.log('PASS multi-team trade DB atomicity: aggregate FAAB, reservations, replacement, concurrency, terminal failures')
+    console.log('PASS multi-team trade DB: payload bounds, canonical routes, keyset pages, mixed-trade races, and terminal failures')
   } finally {
     await fixture.dispose()
   }

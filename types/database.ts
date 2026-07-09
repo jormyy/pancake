@@ -3895,6 +3895,18 @@ export type Database = {
         }
         Returns: Database["public"]["Tables"]["trades"]["Row"][]
       }
+      get_trades_for_member_page: {
+        Args: {
+          p_before_actionable?: boolean
+          p_before_id?: string
+          p_before_participant?: boolean
+          p_before_proposed_at?: string
+          p_league_id: string
+          p_limit?: number
+          p_member_id: string
+        }
+        Returns: Database["public"]["Tables"]["trades"]["Row"][]
+      }
       get_league_activity_feed: {
         Args: { p_league_id: string; p_limit?: number; p_offset?: number }
         Returns: {

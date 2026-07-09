@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { getTradesForScreen, type Trade } from '@/lib/trades'
+import { getTradesForScreen, tradePageCursor, type Trade } from '@/lib/trades'
 import { getErrorMessage } from '@/lib/alert'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 
@@ -30,7 +30,7 @@ export function useTradesFeed(memberId: string, leagueId: string) {
         }
         setError(null)
         try {
-            const result = await getTradesForScreen(memberId, leagueId, TRADES_PAGE_SIZE, 0)
+            const result = await getTradesForScreen(memberId, leagueId, TRADES_PAGE_SIZE)
             if (loadSequence.current !== requestId) return
             setTrades(result)
             setHasMore(result.length === TRADES_PAGE_SIZE)
@@ -63,7 +63,14 @@ export function useTradesFeed(memberId: string, leagueId: string) {
         const requestId = loadSequence.current
         setLoadingMore(true)
         try {
-            const result = await getTradesForScreen(memberId, leagueId, TRADES_PAGE_SIZE, trades.length)
+            const lastTrade = trades.at(-1)
+            if (!lastTrade) return
+            const result = await getTradesForScreen(
+                memberId,
+                leagueId,
+                TRADES_PAGE_SIZE,
+                tradePageCursor(lastTrade, memberId),
+            )
             if (loadSequence.current !== requestId) return
             setTrades((current) => {
                 const known = new Set(current.map((trade) => trade.id))

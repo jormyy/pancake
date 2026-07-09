@@ -155,10 +155,7 @@ BEGIN
 
   FOR v_from_member, v_item_faab_amount IN
     SELECT
-      COALESCE(item.from_member_id, CASE
-        WHEN item.side = 'proposer' THEN v_trade.proposer_member_id
-        ELSE v_trade.recipient_member_id
-      END),
+      item.from_member_id,
       sum(item.faab_amount)::int
       FROM trade_items AS item
      WHERE item.trade_id = p_trade_id
@@ -174,10 +171,7 @@ BEGIN
   FOR v_item IN
     SELECT * FROM trade_items WHERE trade_id = p_trade_id ORDER BY created_at, id
   LOOP
-    v_from_member := COALESCE(v_item.from_member_id, CASE
-      WHEN v_item.side = 'proposer' THEN v_trade.proposer_member_id
-      ELSE v_trade.recipient_member_id
-    END);
+    v_from_member := v_item.from_member_id;
 
     IF v_item.player_id IS NOT NULL THEN
       PERFORM 1
@@ -301,14 +295,14 @@ BEGIN
     INTO v_incoming_players
     FROM trade_items
    WHERE trade_id = p_trade_id
-     AND COALESCE(to_member_id, CASE WHEN side = 'proposer' THEN v_trade.recipient_member_id ELSE v_trade.proposer_member_id END) = p_accepting_member_id
+     AND to_member_id = p_accepting_member_id
      AND player_id IS NOT NULL;
 
   SELECT count(*)
     INTO v_outgoing_players
     FROM trade_items
    WHERE trade_id = p_trade_id
-     AND COALESCE(from_member_id, CASE WHEN side = 'proposer' THEN v_trade.proposer_member_id ELSE v_trade.recipient_member_id END) = p_accepting_member_id
+     AND from_member_id = p_accepting_member_id
      AND player_id IS NOT NULL;
 
   v_required_drops := GREATEST(v_active_count - v_outgoing_players + v_incoming_players - COALESCE(v_league.roster_size, 0), 0);

@@ -81,6 +81,13 @@ export type Trade = {
     routedItems: RoutedTradeItem[]
 }
 
+export type TradePageCursor = {
+    actionable: boolean
+    participant: boolean
+    proposedAt: string
+    id: string
+}
+
 type TeamNameRow = { team_name: string | null } | null
 type TradePickQueryRow = {
     id: string
@@ -527,14 +534,17 @@ export async function getTradesForScreen(
     memberId: string,
     leagueId: string,
     limit = 40,
-    offset = 0,
+    cursor: TradePageCursor | null = null,
 ): Promise<Trade[]> {
     const { data, error } = await supabase
-        .rpc('get_trades_for_member', {
+        .rpc('get_trades_for_member_page', {
             p_member_id: memberId,
             p_league_id: leagueId,
             p_limit: limit,
-            p_offset: offset,
+            p_before_actionable: cursor?.actionable,
+            p_before_participant: cursor?.participant,
+            p_before_proposed_at: cursor?.proposedAt,
+            p_before_id: cursor?.id,
         })
         .select(TRADE_SELECT)
         .overrideTypes<TradeQueryRow[]>()
@@ -546,6 +556,17 @@ export async function getTradesForScreen(
         .filter((trade) => isTradeVisibleOnScreen(trade, memberId))
 
     return enrichTradesWithStats(visible, leagueId)
+}
+
+export function tradePageCursor(trade: Trade, memberId: string): TradePageCursor {
+    const participant = trade.proposerMemberId === memberId ||
+        trade.recipientMemberId === memberId ||
+        trade.participants.some((entry) => entry.memberId === memberId)
+    const actionable = (!participant && trade.status === 'accepted') ||
+        (trade.status === 'pending' && trade.participants.some(
+            (entry) => entry.memberId === memberId && entry.acceptedAt === null,
+        ))
+    return { actionable, participant, proposedAt: trade.proposedAt, id: trade.id }
 }
 
 export function isTradeVisibleOnScreen(trade: Trade, memberId: string, nowMs = Date.now()): boolean {

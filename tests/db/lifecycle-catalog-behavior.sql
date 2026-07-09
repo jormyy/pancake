@@ -110,9 +110,9 @@ BEGIN
 
   SELECT count(*), count(*) FILTER (WHERE recipient_member_id = '00000000-0000-0000-0000-000000030201')
     INTO v_visible_count, v_personal_count
-    FROM public.get_trades_for_member(
+    FROM public.get_trades_for_member_page(
       '00000000-0000-0000-0000-000000030201',
-      '00000000-0000-0000-0000-000000030101', 40, 0
+      '00000000-0000-0000-0000-000000030101', 40
     );
   SELECT public.get_pending_trade_count(
     '00000000-0000-0000-0000-000000030201',
@@ -188,6 +188,64 @@ BEGIN
   END IF;
   IF to_regclass('public.idx_trade_vetos_trade_member') IS NOT NULL THEN
     RAISE EXCEPTION 'Duplicate trade veto index still exists';
+  END IF;
+END $$;
+
+DO $$
+DECLARE
+  v_page_oid regprocedure := 'public.get_trades_for_member_page(uuid,uuid,integer,boolean,boolean,timestamp with time zone,uuid)'::regprocedure;
+  v_accept_definition text;
+  v_complete_definition text;
+  v_create_definition text;
+BEGIN
+  IF EXISTS (
+    SELECT 1
+      FROM pg_attribute
+     WHERE attrelid = 'public.trade_items'::regclass
+       AND attname IN ('from_member_id', 'to_member_id')
+       AND NOT attnotnull
+  ) THEN
+    RAISE EXCEPTION 'Trade item routes must be non-null catalog invariants';
+  END IF;
+
+  IF to_regprocedure('public.get_trades_for_member(uuid,uuid,integer,integer)') IS NOT NULL THEN
+    RAISE EXCEPTION 'Offset-based trade feed function still exists';
+  END IF;
+  IF has_function_privilege('anon', v_page_oid, 'EXECUTE')
+     OR NOT has_function_privilege('authenticated', v_page_oid, 'EXECUTE') THEN
+    RAISE EXCEPTION 'Trade feed function grants are incorrect';
+  END IF;
+  IF EXISTS (
+    SELECT 1
+      FROM pg_proc
+     WHERE oid = v_page_oid
+       AND (prosecdef OR NOT proconfig @> ARRAY['search_path=public'])
+  ) THEN
+    RAISE EXCEPTION 'Trade feed must remain invoker security with an explicit search path';
+  END IF;
+  IF has_function_privilege('anon', 'private.parse_multi_team_trade_items(jsonb)', 'EXECUTE')
+     OR has_function_privilege('authenticated', 'private.parse_multi_team_trade_items(jsonb)', 'EXECUTE')
+     OR has_function_privilege('service_role', 'private.parse_multi_team_trade_items(jsonb)', 'EXECUTE')
+     OR has_function_privilege('anon', 'private.multi_team_trade_participants(uuid,uuid[])', 'EXECUTE')
+     OR has_function_privilege('authenticated', 'private.multi_team_trade_participants(uuid,uuid[])', 'EXECUTE')
+     OR has_function_privilege('service_role', 'private.multi_team_trade_participants(uuid,uuid[])', 'EXECUTE') THEN
+    RAISE EXCEPTION 'Private trade parsing helpers are client executable';
+  END IF;
+
+  SELECT pg_get_functiondef('private.accept_trade_participant_atomic(uuid,uuid,uuid[],boolean)'::regprocedure)
+    INTO v_accept_definition;
+  SELECT pg_get_functiondef('public.complete_accepted_trade_atomic(uuid)'::regprocedure)
+    INTO v_complete_definition;
+  SELECT pg_get_functiondef('private.create_multi_team_trade_offer(uuid,uuid,uuid,uuid[],jsonb,text,timestamptz)'::regprocedure)
+    INTO v_create_definition;
+  IF v_accept_definition ILIKE '%COALESCE(item.from_member_id%'
+     OR v_complete_definition ILIKE '%COALESCE(item.from_member_id%'
+     OR v_complete_definition ILIKE '%COALESCE(v_item.to_member_id%' THEN
+    RAISE EXCEPTION 'Trade execution still has legacy side-based route fallback';
+  END IF;
+  IF v_create_definition ILIKE '%CREATE TEMP TABLE%'
+     OR v_create_definition NOT ILIKE '%jsonb_array_length(p_items) > 100%' THEN
+    RAISE EXCEPTION 'Multi-team trade creation is not bounded and temp-table free';
   END IF;
 END $$;
 

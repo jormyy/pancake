@@ -103,10 +103,7 @@ BEGIN
 
   FOR v_from_member, v_item_faab_amount IN
     SELECT
-      COALESCE(item.from_member_id, CASE
-        WHEN item.side = 'proposer' THEN v_trade.proposer_member_id
-        ELSE v_trade.recipient_member_id
-      END),
+      item.from_member_id,
       sum(item.faab_amount)::int
       FROM trade_items AS item
      WHERE item.trade_id = p_trade_id
@@ -123,10 +120,7 @@ BEGIN
   FOR v_item IN
     SELECT * FROM trade_items WHERE trade_id = p_trade_id ORDER BY created_at, id
   LOOP
-    v_from_member := COALESCE(v_item.from_member_id, CASE
-      WHEN v_item.side = 'proposer' THEN v_trade.proposer_member_id
-      ELSE v_trade.recipient_member_id
-    END);
+    v_from_member := v_item.from_member_id;
 
     IF v_item.player_id IS NOT NULL THEN
       PERFORM 1
@@ -205,10 +199,7 @@ BEGIN
 
   FOR v_from_member, v_item_faab_amount IN
     SELECT
-      COALESCE(item.from_member_id, CASE
-        WHEN item.side = 'proposer' THEN v_trade.proposer_member_id
-        ELSE v_trade.recipient_member_id
-      END),
+      item.from_member_id,
       sum(item.faab_amount)::int
       FROM trade_items AS item
      WHERE item.trade_id = p_trade_id
@@ -233,14 +224,8 @@ BEGIN
   FOR v_item IN
     SELECT * FROM trade_items WHERE trade_id = p_trade_id ORDER BY created_at, id
   LOOP
-    v_from_member := COALESCE(v_item.from_member_id, CASE
-      WHEN v_item.side = 'proposer' THEN v_trade.proposer_member_id
-      ELSE v_trade.recipient_member_id
-    END);
-    v_to_member := COALESCE(v_item.to_member_id, CASE
-      WHEN v_item.side = 'proposer' THEN v_trade.recipient_member_id
-      ELSE v_trade.proposer_member_id
-    END);
+    v_from_member := v_item.from_member_id;
+    v_to_member := v_item.to_member_id;
 
     IF v_item.player_id IS NOT NULL THEN
       UPDATE roster_players

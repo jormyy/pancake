@@ -217,6 +217,45 @@ Deno.test({
 })
 
 Deno.test({
+  name: 'trade proposal payloads enforce item and participant caps before RPC execution',
+  sanitizeOps: false,
+  sanitizeResources: false,
+  fn: async () => {
+    const otherMemberId = '77777777-7777-4777-8777-777777777777'
+    const baseBody = {
+      leagueId: LEAGUE_ID,
+      leagueSeasonId: '88888888-8888-4888-8888-888888888888',
+      memberId: MEMBER_ID,
+      participantMemberIds: [MEMBER_ID, otherMemberId],
+    }
+    const item = { fromMemberId: MEMBER_ID, toMemberId: otherMemberId, playerId: PLAYER_ID }
+
+    const oversizedItems = await handleApiRoute(authedRequest('POST', '/trades/propose-multi', {
+      ...baseBody,
+      items: Array.from({ length: 101 }, () => item),
+    }))
+    const oversizedItemsBody = await oversizedItems.json()
+    if (oversizedItems.status !== 400 || oversizedItemsBody.error !== 'A trade cannot include more than 100 items.') {
+      throw new Error(`expected trade item cap rejection, got ${oversizedItems.status}: ${JSON.stringify(oversizedItemsBody)}`)
+    }
+
+    const participantMemberIds = Array.from(
+      { length: 13 },
+      (_, index) => `aaaaaaaa-aaaa-4aaa-8aaa-${String(index + 1).padStart(12, '0')}`,
+    )
+    const oversizedParticipants = await handleApiRoute(authedRequest('POST', '/trades/propose-multi', {
+      ...baseBody,
+      participantMemberIds,
+      items: [item],
+    }))
+    const oversizedParticipantsBody = await oversizedParticipants.json()
+    if (oversizedParticipants.status !== 400 || oversizedParticipantsBody.error !== 'A trade cannot include more than 12 teams.') {
+      throw new Error(`expected trade participant cap rejection, got ${oversizedParticipants.status}: ${JSON.stringify(oversizedParticipantsBody)}`)
+    }
+  },
+})
+
+Deno.test({
   name: 'close API router test server',
   sanitizeOps: false,
   sanitizeResources: false,

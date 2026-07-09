@@ -34,62 +34,27 @@ BEGIN
       USING ERRCODE = '22023';
   END IF;
 
-  DROP TABLE IF EXISTS pg_temp.multi_trade_participants_stage;
-  CREATE TEMP TABLE multi_trade_participants_stage (
-    sort_order int NOT NULL,
-    member_id uuid PRIMARY KEY
-  ) ON COMMIT DROP;
+  IF jsonb_array_length(p_items) = 0 OR jsonb_array_length(p_items) > 100 THEN
+    RAISE EXCEPTION 'A multi-team trade must include between 1 and 100 items.'
+      USING ERRCODE = '22023';
+  END IF;
 
-  INSERT INTO multi_trade_participants_stage (sort_order, member_id)
-  VALUES (0, p_proposer_member_id);
-
-  INSERT INTO multi_trade_participants_stage (sort_order, member_id)
-  SELECT ordinality::int, member_id
-    FROM unnest(COALESCE(p_participant_member_ids, ARRAY[]::uuid[])) WITH ORDINALITY AS participant(member_id, ordinality)
-   WHERE member_id <> p_proposer_member_id
-  ON CONFLICT (member_id) DO NOTHING;
-
-  SELECT count(*) INTO v_participant_count FROM multi_trade_participants_stage;
+  SELECT count(*)
+    INTO v_participant_count
+    FROM private.multi_team_trade_participants(p_proposer_member_id, p_participant_member_ids);
   IF v_participant_count < 2 THEN
     RAISE EXCEPTION 'A multi-team trade requires at least two participating teams.'
       USING ERRCODE = '22023';
   END IF;
 
-  DROP TABLE IF EXISTS pg_temp.multi_trade_items_stage;
-  CREATE TEMP TABLE multi_trade_items_stage (
-    sort_order int NOT NULL,
-    from_member_id uuid NOT NULL,
-    to_member_id uuid NOT NULL,
-    player_id uuid,
-    pick_id uuid,
-    faab_amount int NOT NULL DEFAULT 0
-  ) ON COMMIT DROP;
-
-  INSERT INTO multi_trade_items_stage (
-    sort_order,
-    from_member_id,
-    to_member_id,
-    player_id,
-    pick_id,
-    faab_amount
-  )
-  SELECT
-    ordinality::int,
-    NULLIF(item->>'fromMemberId', '')::uuid,
-    NULLIF(item->>'toMemberId', '')::uuid,
-    NULLIF(item->>'playerId', '')::uuid,
-    NULLIF(item->>'pickId', '')::uuid,
-    COALESCE(NULLIF(item->>'faabAmount', '')::int, 0)
-  FROM jsonb_array_elements(p_items) WITH ORDINALITY AS entry(item, ordinality);
-
-  IF NOT EXISTS (SELECT 1 FROM multi_trade_items_stage) THEN
-    RAISE EXCEPTION 'A trade must include at least one asset.'
+  IF v_participant_count > 12 THEN
+    RAISE EXCEPTION 'A multi-team trade cannot include more than 12 teams.'
       USING ERRCODE = '22023';
   END IF;
 
   IF EXISTS (
     SELECT 1
-      FROM multi_trade_items_stage
+      FROM private.parse_multi_team_trade_items(p_items)
      WHERE from_member_id = to_member_id
         OR faab_amount < 0
         OR ((player_id IS NOT NULL)::int + (pick_id IS NOT NULL)::int + (faab_amount > 0)::int) <> 1
@@ -100,12 +65,12 @@ BEGIN
 
   IF EXISTS (
     SELECT 1
-      FROM multi_trade_items_stage AS item
+      FROM private.parse_multi_team_trade_items(p_items) AS item
      WHERE NOT EXISTS (
-       SELECT 1 FROM multi_trade_participants_stage AS participant WHERE participant.member_id = item.from_member_id
+       SELECT 1 FROM private.multi_team_trade_participants(p_proposer_member_id, p_participant_member_ids) AS participant WHERE participant.member_id = item.from_member_id
      )
         OR NOT EXISTS (
-       SELECT 1 FROM multi_trade_participants_stage AS participant WHERE participant.member_id = item.to_member_id
+       SELECT 1 FROM private.multi_team_trade_participants(p_proposer_member_id, p_participant_member_ids) AS participant WHERE participant.member_id = item.to_member_id
      )
   ) THEN
     RAISE EXCEPTION 'Every item source and destination must be a trade participant.'
@@ -114,10 +79,10 @@ BEGIN
 
   IF EXISTS (
     SELECT 1
-      FROM multi_trade_participants_stage AS participant
+      FROM private.multi_team_trade_participants(p_proposer_member_id, p_participant_member_ids) AS participant
      WHERE NOT EXISTS (
        SELECT 1
-         FROM multi_trade_items_stage AS item
+         FROM private.parse_multi_team_trade_items(p_items) AS item
         WHERE item.from_member_id = participant.member_id
            OR item.to_member_id = participant.member_id
      )
@@ -126,13 +91,13 @@ BEGIN
       USING ERRCODE = '22023';
   END IF;
 
-  IF (SELECT count(player_id) FROM multi_trade_items_stage WHERE player_id IS NOT NULL) <>
-     (SELECT count(DISTINCT player_id) FROM multi_trade_items_stage WHERE player_id IS NOT NULL) THEN
+  IF (SELECT count(player_id) FROM private.parse_multi_team_trade_items(p_items) WHERE player_id IS NOT NULL) <>
+     (SELECT count(DISTINCT player_id) FROM private.parse_multi_team_trade_items(p_items) WHERE player_id IS NOT NULL) THEN
     RAISE EXCEPTION 'Duplicate traded players are not allowed.';
   END IF;
 
-  IF (SELECT count(pick_id) FROM multi_trade_items_stage WHERE pick_id IS NOT NULL) <>
-     (SELECT count(DISTINCT pick_id) FROM multi_trade_items_stage WHERE pick_id IS NOT NULL) THEN
+  IF (SELECT count(pick_id) FROM private.parse_multi_team_trade_items(p_items) WHERE pick_id IS NOT NULL) <>
+     (SELECT count(DISTINCT pick_id) FROM private.parse_multi_team_trade_items(p_items) WHERE pick_id IS NOT NULL) THEN
     RAISE EXCEPTION 'Duplicate traded picks are not allowed.';
   END IF;
 
@@ -196,7 +161,7 @@ BEGIN
     END IF;
   END IF;
 
-  IF EXISTS (SELECT 1 FROM multi_trade_items_stage WHERE faab_amount > 0)
+  IF EXISTS (SELECT 1 FROM private.parse_multi_team_trade_items(p_items) WHERE faab_amount > 0)
      AND v_league.waiver_mode <> 'faab' THEN
     RAISE EXCEPTION 'FAAB can only be traded in FAAB waiver leagues.'
       USING ERRCODE = 'P0001';
@@ -216,7 +181,7 @@ BEGIN
   SELECT count(*)
     INTO v_rows
     FROM league_members AS member
-    JOIN multi_trade_participants_stage AS participant
+    JOIN private.multi_team_trade_participants(p_proposer_member_id, p_participant_member_ids) AS participant
       ON participant.member_id = member.id
    WHERE member.league_id = p_league_id;
 
@@ -226,7 +191,7 @@ BEGIN
 
   WITH locked AS (
     SELECT item.player_id
-      FROM multi_trade_items_stage AS item
+      FROM private.parse_multi_team_trade_items(p_items) AS item
       JOIN roster_players AS roster
         ON roster.league_id = p_league_id
        AND roster.league_season_id = p_league_season_id
@@ -238,13 +203,13 @@ BEGIN
      FOR SHARE OF roster
   )
   SELECT count(*) INTO v_rows FROM locked;
-  IF v_rows <> (SELECT count(*) FROM multi_trade_items_stage WHERE player_id IS NOT NULL) THEN
+  IF v_rows <> (SELECT count(*) FROM private.parse_multi_team_trade_items(p_items) WHERE player_id IS NOT NULL) THEN
     RAISE EXCEPTION 'A player asset is no longer owned by the expected active roster side.';
   END IF;
 
   WITH locked AS (
     SELECT item.pick_id
-      FROM multi_trade_items_stage AS item
+      FROM private.parse_multi_team_trade_items(p_items) AS item
       JOIN draft_picks AS pick
         ON pick.id = item.pick_id
        AND pick.league_id = p_league_id
@@ -254,13 +219,13 @@ BEGIN
      FOR SHARE OF pick
   )
   SELECT count(*) INTO v_rows FROM locked;
-  IF v_rows <> (SELECT count(*) FROM multi_trade_items_stage WHERE pick_id IS NOT NULL) THEN
+  IF v_rows <> (SELECT count(*) FROM private.parse_multi_team_trade_items(p_items) WHERE pick_id IS NOT NULL) THEN
     RAISE EXCEPTION 'A draft pick asset is no longer owned by the expected team.';
   END IF;
 
   FOR v_faab IN
     SELECT from_member_id, sum(faab_amount)::int AS amount
-      FROM multi_trade_items_stage
+      FROM private.parse_multi_team_trade_items(p_items)
      WHERE faab_amount > 0
      GROUP BY from_member_id
   LOOP
@@ -282,13 +247,13 @@ BEGIN
 
   SELECT count(*)
     INTO v_proposer_incoming_players
-    FROM multi_trade_items_stage
+    FROM private.parse_multi_team_trade_items(p_items)
    WHERE to_member_id = p_proposer_member_id
      AND player_id IS NOT NULL;
 
   SELECT count(*)
     INTO v_proposer_outgoing_players
-    FROM multi_trade_items_stage
+    FROM private.parse_multi_team_trade_items(p_items)
    WHERE from_member_id = p_proposer_member_id
      AND player_id IS NOT NULL;
 
@@ -299,7 +264,7 @@ BEGIN
 
   SELECT member_id
     INTO v_first_recipient_member_id
-    FROM multi_trade_participants_stage
+    FROM private.multi_team_trade_participants(p_proposer_member_id, p_participant_member_ids)
    WHERE member_id <> p_proposer_member_id
    ORDER BY sort_order, member_id
    LIMIT 1;
@@ -339,7 +304,7 @@ BEGIN
     sort_order,
     member_id = p_proposer_member_id,
     CASE WHEN member_id = p_proposer_member_id AND v_proposer_required_drops = 0 THEN now() ELSE NULL END
-  FROM multi_trade_participants_stage
+  FROM private.multi_team_trade_participants(p_proposer_member_id, p_participant_member_ids)
   ORDER BY sort_order, member_id;
 
   INSERT INTO trade_items (
@@ -359,7 +324,7 @@ BEGIN
     from_member_id,
     to_member_id,
     faab_amount
-  FROM multi_trade_items_stage
+  FROM private.parse_multi_team_trade_items(p_items)
   ORDER BY sort_order;
 
   PERFORM private.log_league_activity(
@@ -376,7 +341,7 @@ BEGIN
     jsonb_build_object(
       'is_multi_team', true,
       'participant_count', v_participant_count,
-      'item_count', (SELECT count(*) FROM multi_trade_items_stage)
+      'item_count', jsonb_array_length(p_items)
     )
   );
 
