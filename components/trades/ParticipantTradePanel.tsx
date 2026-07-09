@@ -48,6 +48,7 @@ function RouteOptions({
                         accessibilityRole="button"
                         accessibilityLabel={accessibilityLabel(destinationId)}
                         testID={testID?.(destinationId)}
+                        id={testID?.(destinationId)}
                     >
                         <Text style={[styles.routeOptionText, active && styles.routeOptionTextActive]} numberOfLines={1}>
                             {participantName(destinationId)}

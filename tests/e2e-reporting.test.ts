@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { productionCoverageStatus } from './e2e/harness/reporting.mjs'
+import { evidenceStatusForRows, productionCoverageStatus } from './e2e/harness/reporting.mjs'
 
 describe('productionCoverageStatus', () => {
     it('ignores documentation evidence while requiring every operational row', () => {
@@ -16,5 +16,15 @@ describe('productionCoverageStatus', () => {
         expect(productionCoverageStatus([
             { id: 'database', status: 'BLOCKED', requiredForRelease: true },
         ])).toBe('FAIL')
+    })
+})
+
+describe('evidenceStatusForRows', () => {
+    it('does not turn an enabled switch into passing evidence', () => {
+        expect(evidenceStatusForRows([], false, true, 'browser.auth')).toBe('PENDING')
+        expect(evidenceStatusForRows([], true, true, 'browser.auth')).toBe('FAIL')
+        expect(evidenceStatusForRows([
+            { season: 1, status: 'PASS', notes: '', evidenceIds: ['browser.auth'] },
+        ], false, true, 'browser.auth')).toBe('PASS')
     })
 })

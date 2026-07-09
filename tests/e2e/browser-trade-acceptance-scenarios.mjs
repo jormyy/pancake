@@ -7,7 +7,7 @@ import {
   ROOT,
   assertPageText,
   browser,
-  clickButton,
+  clickTestId,
   describeEndpoint,
   expireAndCompleteAcceptedTrade,
   installBrowserHooks,
@@ -17,8 +17,7 @@ import {
   normalizeBrowserErrors,
   openOffersTab,
   path,
-  requireEnv,
-  resolvedEnv,
+  resolvedTradeEnv,
   setupTradeAcceptGameplayFixture,
   setupTradeFuturePickAcceptGameplayFixture,
   setupTradeGameplayFixture,
@@ -40,8 +39,7 @@ export async function runBrowserTradeAcceptScenario({
   season = 0,
   sessionName = undefined,
 } = {}) {
-  const env = resolvedEnv()
-  requireEnv(env, ['supabaseUrl', 'serviceRoleKey', 'anonKey'])
+  const env = resolvedTradeEnv()
   const fixture = await setupTradeAcceptGameplayFixture(env, season)
   if (!fixture.proposer.team_name) throw new Error('Trade fixture proposer must have a team name')
   const sessionList = await listSessions().catch((error) => `session list unavailable: ${error.message}`)
@@ -76,11 +74,7 @@ export async function runBrowserTradeAcceptScenario({
     )
     await browser(session, ['screenshot', path.join(artifactDir, 'trade-accept-before.png')], { timeout: 60_000 })
 
-    const acceptClick = await clickButton(
-      session,
-      `Accept trade with ${fixture.proposer.team_name}`,
-      'trade accept button',
-    )
+    const acceptClick = await clickTestId(session, `trade-accept-${fixture.trade.id}`, 'trade accept button')
     await expireAndCompleteAcceptedTrade(fixture)
     const accepted = await waitForTradeAccepted(fixture)
     debug = { ...debug, acceptClick, accepted }
@@ -161,20 +155,21 @@ export async function runBrowserTradeFuturePickScenario({
   season = 0,
   sessionName = undefined,
 } = {}) {
-  const env = resolvedEnv()
-  requireEnv(env, ['supabaseUrl', 'serviceRoleKey', 'anonKey'])
-  if (!env.frontendUrl) throw new Error('Missing E2E_FRONTEND_URL')
+  const env = resolvedTradeEnv()
   const fixture = await setupTradeGameplayFixture(env, season)
   if (!fixture.proposerFuturePick || !fixture.recipientFuturePick) {
     throw new Error('Future-pick fixture must provide both traded picks')
+  }
+  const futureFixture = {
+    ...fixture,
+    proposerFuturePick: fixture.proposerFuturePick,
+    recipientFuturePick: fixture.recipientFuturePick,
   }
   const sessionList = await listSessions().catch((error) => `session list unavailable: ${error.message}`)
   const session = sessionName ?? tradeSessionName('fp', fixture.runId)
   const artifactDir = path.join(ARTIFACT_ROOT, `season-${season}`, 'browser-trade-future-pick')
   await mkdir(artifactDir, { recursive: true })
 
-  const recipientPickLabel = `Select ${fixture.recipientFuturePick.seasonYear} round ${fixture.recipientFuturePick.round} pick via ${fixture.recipientFuturePick.originalTeamName} for trade`
-  const proposerPickLabel = `Select ${fixture.proposerFuturePick.seasonYear} round ${fixture.proposerFuturePick.round} pick via ${fixture.proposerFuturePick.originalTeamName} for trade`
   const notes = [
     `Frontend: ${describeEndpoint(env.frontendUrl)}`,
     `Session: ${session}`,
@@ -205,18 +200,14 @@ export async function runBrowserTradeFuturePickScenario({
     )
     await browser(session, ['screenshot', path.join(artifactDir, 'future-pick-before-submit.png')], { timeout: 60_000 })
 
-    const recipientTabClick = await clickButton(
-      session,
-      `Edit assets sent by ${fixture.recipient.team_name}`,
-      'future-pick recipient sender tab',
-    )
-    const requestPickClick = await clickButton(session, recipientPickLabel, 'recipient future pick selection')
-    const proposerTabClick = await clickButton(session, 'Edit assets sent by you', 'future-pick proposer sender tab')
-    const offerPickClick = await clickButton(session, proposerPickLabel, 'proposer future pick selection')
+    const recipientTabClick = await clickTestId(session, `trade-sender-${fixture.recipient.id}`, 'future-pick recipient sender tab')
+    const requestPickClick = await clickTestId(session, `trade-${fixture.recipient.id}-pick-${fixture.recipientFuturePick.id}`, 'recipient future pick selection')
+    const proposerTabClick = await clickTestId(session, `trade-sender-${fixture.proposer.id}`, 'future-pick proposer sender tab')
+    const offerPickClick = await clickTestId(session, `trade-${fixture.proposer.id}-pick-${fixture.proposerFuturePick.id}`, 'proposer future pick selection')
     await browser(session, ['wait', '500'])
     await browser(session, ['screenshot', path.join(artifactDir, 'future-pick-selected.png')], { timeout: 60_000 })
-    const submitClick = await clickButton(session, 'Send trade proposal', 'future-pick trade proposal submit')
-    const tradeProposal = await waitForFuturePickTradeProposal(fixture)
+    const submitClick = await clickTestId(session, 'trade-submit', 'future-pick trade proposal submit')
+    const tradeProposal = await waitForFuturePickTradeProposal(futureFixture)
     debug = { ...debug, recipientTabClick, proposerTabClick, requestPickClick, offerPickClick, submitClick, tradeProposal }
     if (tradeProposal.failures.length > 0) {
       throw new Error(`future-pick trade proposal did not persist: ${tradeProposal.failures.join('; ')}`)
@@ -261,7 +252,7 @@ export async function runBrowserTradeFuturePickScenario({
     await writeFile(path.join(artifactDir, 'console.txt'), `${consoleOutput}\n`).catch(() => {})
     await writeFile(path.join(artifactDir, 'errors.txt'), `${errorOutput}\n`).catch(() => {})
     await writeFile(path.join(artifactDir, 'network.txt'), `${networkOutput}\n`).catch(() => {})
-    const tradeProposal = await verifyFuturePickTradeProposal(fixture).catch((verifyError) => ({
+    const tradeProposal = await verifyFuturePickTradeProposal(futureFixture).catch((verifyError) => ({
       failures: [`verify unavailable: ${verifyError.message}`],
     }))
     debug = { ...debug, tradeProposal, consoleOutput, errorOutput, networkOutput }
@@ -295,8 +286,7 @@ export async function runBrowserTradeFuturePickAcceptScenario({
   season = 0,
   sessionName = undefined,
 } = {}) {
-  const env = resolvedEnv()
-  requireEnv(env, ['supabaseUrl', 'serviceRoleKey', 'anonKey'])
+  const env = resolvedTradeEnv()
   const fixture = await setupTradeFuturePickAcceptGameplayFixture(env, season)
   if (!fixture.proposer.team_name) throw new Error('Trade fixture proposer must have a team name')
   const sessionList = await listSessions().catch((error) => `session list unavailable: ${error.message}`)
@@ -333,11 +323,7 @@ export async function runBrowserTradeFuturePickAcceptScenario({
     )
     await browser(session, ['screenshot', path.join(artifactDir, 'future-pick-accept-before.png')], { timeout: 60_000 })
 
-    const acceptClick = await clickButton(
-      session,
-      `Accept trade with ${fixture.proposer.team_name}`,
-      'future-pick trade accept button',
-    )
+    const acceptClick = await clickTestId(session, `trade-accept-${fixture.trade.id}`, 'future-pick trade accept button')
     await expireAndCompleteAcceptedTrade(fixture)
     const accepted = await waitForFuturePickTradeAccepted(fixture)
     debug = { ...debug, acceptClick, accepted }
@@ -420,8 +406,7 @@ export async function runBrowserTradeOverflowAcceptScenario({
   season = 0,
   sessionName = undefined,
 } = {}) {
-  const env = resolvedEnv()
-  requireEnv(env, ['supabaseUrl', 'serviceRoleKey', 'anonKey'])
+  const env = resolvedTradeEnv()
   const fixture = await setupTradeOverflowAcceptGameplayFixture(env, season)
   if (!fixture.proposer.team_name) throw new Error('Trade fixture proposer must have a team name')
   const sessionList = await listSessions().catch((error) => `session list unavailable: ${error.message}`)
@@ -457,11 +442,7 @@ export async function runBrowserTradeOverflowAcceptScenario({
     )
     await browser(session, ['screenshot', path.join(artifactDir, 'overflow-accept-before.png')], { timeout: 60_000 })
 
-    const acceptClick = await clickButton(
-      session,
-      `Accept trade with ${fixture.proposer.team_name}`,
-      'overflow trade accept button',
-    )
+    const acceptClick = await clickTestId(session, `trade-accept-${fixture.trade.id}`, 'overflow trade accept button')
     await browser(session, ['wait', '750'])
     await assertPageText(
       session,
@@ -474,11 +455,7 @@ export async function runBrowserTradeOverflowAcceptScenario({
     )
     await browser(session, ['screenshot', path.join(artifactDir, 'overflow-drop-picker.png')], { timeout: 60_000 })
 
-    const dropClick = await clickButton(
-      session,
-      `Drop ${fixture.recipientPlayer.display_name}`,
-      'overflow drop candidate button',
-    )
+    const dropClick = await clickTestId(session, `drop-roster-player-${fixture.dropCandidateRosterId}`, 'overflow drop candidate button')
     await expireAndCompleteAcceptedTrade(fixture)
     const accepted = await waitForOverflowTradeAccepted(fixture)
     debug = { ...debug, acceptClick, dropClick, accepted }

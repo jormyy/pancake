@@ -56,6 +56,7 @@ export function DropPlayerPickerModal({ visible, title, subtitle, roster, droppi
                                         accessibilityRole="button"
                                         accessibilityLabel={`Drop ${p.display_name}`}
                                         testID={`drop-roster-player-${rp.id}`}
+                                        id={`drop-roster-player-${rp.id}`}
                                     >
                                         <Text style={styles.dropBtnText}>Drop</Text>
                                     </Pressable>

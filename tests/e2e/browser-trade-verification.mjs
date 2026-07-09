@@ -1,3 +1,11 @@
+/** @typedef {Awaited<ReturnType<typeof import('./trade-fixture.mjs').setupTradeGameplayFixture>>} BaseFixture */
+/** @typedef {BaseFixture & { trade: { id: string } }} TradeFixture */
+/** @typedef {BaseFixture & { proposerFuturePick: NonNullable<BaseFixture['proposerFuturePick']>, recipientFuturePick: NonNullable<BaseFixture['recipientFuturePick']> }} FuturePickFixture */
+/** @typedef {TradeFixture & FuturePickFixture} FuturePickTradeFixture */
+/** @typedef {TradeFixture & { recipientFuturePick: NonNullable<BaseFixture['recipientFuturePick']>, rosterSize: number }} OverflowTradeFixture */
+/** @typedef {TradeFixture & { observer: NonNullable<BaseFixture['observer']> }} VetoTradeFixture */
+
+/** @param {BaseFixture} fixture */
 export const verifyTradeProposal = async (fixture) => {
   const { data: trades, error: tradesError } = await fixture.admin
     .from('trades')
@@ -36,6 +44,7 @@ export const verifyTradeProposal = async (fixture) => {
   return { trade, items: items ?? [], failures }
 }
 
+/** @param {BaseFixture} fixture @param {number} [timeoutMs] */
 export const waitForTradeProposal = async (fixture, timeoutMs = 10_000) => {
   const startedAt = Date.now()
   let last = await verifyTradeProposal(fixture)
@@ -46,6 +55,59 @@ export const waitForTradeProposal = async (fixture, timeoutMs = 10_000) => {
   return last
 }
 
+/**
+ * @typedef {{
+ *   initialTradeId: string, sourceStatus: 'edited' | 'countered',
+ *   sourceColumn: 'edited_from_trade_id' | 'countered_from_trade_id',
+ *   expectedProposerId: string, expectedRecipientId: string, expectedVersion: number
+ * }} ReplacementExpectation
+ */
+/** @param {BaseFixture} fixture @param {string} sourceTradeId @param {ReplacementExpectation} expected */
+export const verifyTradeReplacement = async (fixture, sourceTradeId, expected) => {
+  const { data: source, error: sourceError } = await fixture.admin.from('trades')
+    .select('id, status, replaced_by_trade_id')
+    .eq('id', sourceTradeId)
+    .single()
+  if (sourceError) throw new Error(`trade replacement source verify: ${sourceError.message}`)
+  const failures = []
+  if (source.status !== expected.sourceStatus) failures.push(`source status=${source.status}; expected ${expected.sourceStatus}`)
+  if (!source.replaced_by_trade_id) {
+    failures.push('source trade is missing replaced_by_trade_id')
+    return { source, replacement: null, items: [], failures }
+  }
+  const [{ data: replacement, error: replacementError }, { data: items, error: itemsError }] = await Promise.all([
+    fixture.admin.from('trades')
+      .select('id, status, proposer_member_id, recipient_member_id, parent_trade_id, countered_from_trade_id, edited_from_trade_id, version')
+      .eq('id', source.replaced_by_trade_id)
+      .single(),
+    fixture.admin.from('trade_items')
+      .select('id, side, player_id, pick_id')
+      .eq('trade_id', source.replaced_by_trade_id),
+  ])
+  if (replacementError) throw new Error(`trade replacement verify: ${replacementError.message}`)
+  if (itemsError) throw new Error(`trade replacement item verify: ${itemsError.message}`)
+  if (replacement.status !== 'pending') failures.push(`replacement status=${replacement.status}; expected pending`)
+  if (replacement.proposer_member_id !== expected.expectedProposerId) failures.push(`replacement proposer=${replacement.proposer_member_id}; expected ${expected.expectedProposerId}`)
+  if (replacement.recipient_member_id !== expected.expectedRecipientId) failures.push(`replacement recipient=${replacement.recipient_member_id}; expected ${expected.expectedRecipientId}`)
+  if (replacement.parent_trade_id !== expected.initialTradeId) failures.push(`replacement parent=${replacement.parent_trade_id}; expected ${expected.initialTradeId}`)
+  if (replacement[expected.sourceColumn] !== sourceTradeId) failures.push(`replacement ${expected.sourceColumn}=${replacement[expected.sourceColumn]}; expected ${sourceTradeId}`)
+  if (replacement.version !== expected.expectedVersion) failures.push(`replacement version=${replacement.version}; expected ${expected.expectedVersion}`)
+  if ((items ?? []).length !== 2) failures.push(`replacement items=${items?.length ?? 0}; expected 2`)
+  return { source, replacement, items: items ?? [], failures }
+}
+
+/** @param {BaseFixture} fixture @param {string} sourceTradeId @param {ReplacementExpectation} expected @param {number} [timeoutMs] */
+export const waitForTradeReplacement = async (fixture, sourceTradeId, expected, timeoutMs = 10_000) => {
+  const startedAt = Date.now()
+  let last = await verifyTradeReplacement(fixture, sourceTradeId, expected)
+  while (last.failures.length > 0 && Date.now() - startedAt < timeoutMs) {
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    last = await verifyTradeReplacement(fixture, sourceTradeId, expected)
+  }
+  return last
+}
+
+/** @param {BaseFixture} fixture */
 export const verifyPostDeadlineTradeRejected = async (fixture) => {
   const [tradesResult, itemsResult] = await Promise.all([
     fixture.admin
@@ -69,6 +131,7 @@ export const verifyPostDeadlineTradeRejected = async (fixture) => {
   return { trades, items, failures }
 }
 
+/** @param {TradeFixture} fixture @param {string} status @param {number} [timeoutMs] */
 const waitForTradeStatus = async (fixture, status, timeoutMs = 10_000) => {
   const startedAt = Date.now()
   let last = null
@@ -86,6 +149,7 @@ const waitForTradeStatus = async (fixture, status, timeoutMs = 10_000) => {
   throw new Error(`trade ${fixture.trade.id} status=${last?.status ?? '<missing>'}; expected ${status}`)
 }
 
+/** @param {TradeFixture} fixture */
 export const expireAndCompleteAcceptedTrade = async (fixture) => {
   await waitForTradeStatus(fixture, 'accepted')
   const { error: expireError } = await fixture.admin
@@ -100,6 +164,7 @@ export const expireAndCompleteAcceptedTrade = async (fixture) => {
   if (completeError) throw new Error(`trade completion failed: ${completeError.message}`)
 }
 
+/** @param {FuturePickFixture} fixture */
 export const verifyFuturePickTradeProposal = async (fixture) => {
   const { data: trades, error: tradesError } = await fixture.admin
     .from('trades')
@@ -158,6 +223,7 @@ export const verifyFuturePickTradeProposal = async (fixture) => {
   return { trade, items: items ?? [], picks: picks ?? [], failures }
 }
 
+/** @param {FuturePickFixture} fixture @param {number} [timeoutMs] */
 export const waitForFuturePickTradeProposal = async (fixture, timeoutMs = 10_000) => {
   const startedAt = Date.now()
   let last = await verifyFuturePickTradeProposal(fixture)
@@ -168,6 +234,7 @@ export const waitForFuturePickTradeProposal = async (fixture, timeoutMs = 10_000
   return last
 }
 
+/** @param {TradeFixture} fixture */
 export const verifyTradeAccepted = async (fixture) => {
   const [tradeResult, rosterResult, transactionResult] = await Promise.all([
     fixture.admin
@@ -216,6 +283,7 @@ export const verifyTradeAccepted = async (fixture) => {
   return { trade, roster, transactions, failures }
 }
 
+/** @param {TradeFixture} fixture @param {number} [timeoutMs] */
 export const waitForTradeAccepted = async (fixture, timeoutMs = 10_000) => {
   const startedAt = Date.now()
   let last = await verifyTradeAccepted(fixture)
@@ -226,6 +294,7 @@ export const waitForTradeAccepted = async (fixture, timeoutMs = 10_000) => {
   return last
 }
 
+/** @param {FuturePickTradeFixture} fixture */
 export const verifyFuturePickTradeAccepted = async (fixture) => {
   const [tradeResult, picksResult, rosterResult, transactionResult] = await Promise.all([
     fixture.admin
@@ -285,6 +354,7 @@ export const verifyFuturePickTradeAccepted = async (fixture) => {
   return { trade, picks, roster, transactions, failures }
 }
 
+/** @param {FuturePickTradeFixture} fixture @param {number} [timeoutMs] */
 export const waitForFuturePickTradeAccepted = async (fixture, timeoutMs = 10_000) => {
   const startedAt = Date.now()
   let last = await verifyFuturePickTradeAccepted(fixture)
@@ -295,6 +365,7 @@ export const waitForFuturePickTradeAccepted = async (fixture, timeoutMs = 10_000
   return last
 }
 
+/** @param {OverflowTradeFixture} fixture */
 export const verifyOverflowTradeAccepted = async (fixture) => {
   const [tradeResult, rosterResult, picksResult, tradeTransactionResult, dropTransactionResult, waiverResult] = await Promise.all([
     fixture.admin
@@ -391,6 +462,7 @@ export const verifyOverflowTradeAccepted = async (fixture) => {
   }
 }
 
+/** @param {OverflowTradeFixture} fixture @param {number} [timeoutMs] */
 export const waitForOverflowTradeAccepted = async (fixture, timeoutMs = 10_000) => {
   const startedAt = Date.now()
   let last = await verifyOverflowTradeAccepted(fixture)
@@ -401,6 +473,7 @@ export const waitForOverflowTradeAccepted = async (fixture, timeoutMs = 10_000) 
   return last
 }
 
+/** @param {TradeFixture} fixture @param {string} expectedStatus */
 export const verifyTradeTerminalStatus = async (fixture, expectedStatus) => {
   const [tradeResult, rosterResult, transactionResult] = await Promise.all([
     fixture.admin
@@ -449,6 +522,7 @@ export const verifyTradeTerminalStatus = async (fixture, expectedStatus) => {
   return { trade, roster, transactions, failures }
 }
 
+/** @param {TradeFixture} fixture @param {string} expectedStatus @param {number} [timeoutMs] */
 export const waitForTradeTerminalStatus = async (fixture, expectedStatus, timeoutMs = 10_000) => {
   const startedAt = Date.now()
   let last = await verifyTradeTerminalStatus(fixture, expectedStatus)
@@ -459,6 +533,7 @@ export const waitForTradeTerminalStatus = async (fixture, expectedStatus, timeou
   return last
 }
 
+/** @param {VetoTradeFixture} fixture */
 export const verifyTradeVetoed = async (fixture) => {
   const [tradeResult, vetoResult, rosterResult, transactionResult] = await Promise.all([
     fixture.admin
@@ -509,6 +584,7 @@ export const verifyTradeVetoed = async (fixture) => {
   return { trade, vetoRows, roster, transactions, failures }
 }
 
+/** @param {VetoTradeFixture} fixture @param {number} [timeoutMs] */
 export const waitForTradeVetoed = async (fixture, timeoutMs = 10_000) => {
   const startedAt = Date.now()
   let last = await verifyTradeVetoed(fixture)
@@ -518,4 +594,3 @@ export const waitForTradeVetoed = async (fixture, timeoutMs = 10_000) => {
   }
   return last
 }
-

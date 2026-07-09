@@ -56,6 +56,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify published migrations are immutable
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -o pipefail
+          git ls-tree -r --name-only "origin/${{ github.base_ref }}" supabase/migrations |
+            while read -r migration; do
+              git diff --quiet "origin/${{ github.base_ref }}" -- "$migration" || {
+                echo "Published migration changed: $migration"
+                exit 1
+              }
+            done
 
       - uses: actions/setup-node@v4
         with:
@@ -76,9 +91,9 @@ jobs:
         shell: bash
         run: |
           source <(supabase status -o env)
-          expected_migrations="$(find supabase/migrations -maxdepth 1 -name '*.sql' | wc -l | tr -d ' ')"
-          applied_migrations="$(psql "$DB_URL" -Atc 'select count(*) from supabase_migrations.schema_migrations')"
-          test "$applied_migrations" = "$expected_migrations"
+          find supabase/migrations -maxdepth 1 -name '*.sql' -exec basename {} .sql \; | sort > /tmp/expected-migrations
+          psql "$DB_URL" -Atc "select version || '_' || name from supabase_migrations.schema_migrations order by version" > /tmp/applied-migrations
+          diff -u /tmp/expected-migrations /tmp/applied-migrations
           E2E_SUPABASE_URL="$API_URL" \
           SUPABASE_DB_URL="$DB_URL" \
           E2E_PANCAKE_SUPABASE_SECRET_KEY="$SECRET_KEY" \
@@ -94,13 +109,14 @@ jobs:
       matrix:
         include:
           - mode: proposal
-            script: e2e:browser-trade
           - mode: multi-team
-            script: e2e:browser-trade-multi-team
           - mode: accept
-            script: e2e:browser-trade-accept
           - mode: terminal
-            script: e2e:browser-trade-terminal
+          - mode: future-pick
+          - mode: future-pick-accept
+          - mode: overflow-accept
+          - mode: post-deadline
+          - mode: veto
     steps:
       - uses: actions/checkout@v4
 
@@ -137,4 +153,4 @@ jobs:
           E2E_SUPABASE_PUBLISHABLE_KEY="$PUBLISHABLE_KEY" \
           E2E_API_BASE_URL="$API_URL/functions/v1/api" \
           E2E_FRONTEND_URL="http://127.0.0.1:8082" \
-          npm run ${{ matrix.script }}
+          node tests/e2e/browser-trade-gameplay.mjs --scenario=${{ matrix.mode }}

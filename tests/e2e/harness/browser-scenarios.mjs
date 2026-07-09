@@ -26,6 +26,19 @@ import {
   runBrowserTradeVetoScenario,
   runBrowserMultiTeamTradeScenario,
 } from '../browser-trade-gameplay.mjs'
+import { TRADE_SCENARIOS } from '../trade-scenario-registry.mjs'
+
+const TRADE_RUNNERS = {
+  proposal: runBrowserTradeScenario,
+  accept: runBrowserTradeAcceptScenario,
+  terminal: runBrowserTradeTerminalScenario,
+  'future-pick': runBrowserTradeFuturePickScenario,
+  'future-pick-accept': runBrowserTradeFuturePickAcceptScenario,
+  'overflow-accept': runBrowserTradeOverflowAcceptScenario,
+  'post-deadline': runBrowserTradePostDeadlineScenario,
+  veto: runBrowserTradeVetoScenario,
+  'multi-team': runBrowserMultiTeamTradeScenario,
+}
 
 const ONE_TIME_BROWSER_SCENARIOS = [
   { flag: 'browser', resultKey: 'browserCheck', run: ({ args, season }) => runBrowserSmoke({ season, fullSweep: args.browserFullSweep }) },
@@ -40,15 +53,11 @@ const ONE_TIME_BROWSER_SCENARIOS = [
   { flag: 'browserWaiver', resultKey: 'browserWaiverCheck', run: ({ season }) => runBrowserWaiverScenario({ season }) },
   { flag: 'browserWaiverDrop', resultKey: 'browserWaiverDropCheck', run: ({ season }) => runBrowserWaiverDropScenario({ season }) },
   { flag: 'browserWaiverIrBlock', resultKey: 'browserWaiverIrBlockCheck', run: ({ season }) => runBrowserWaiverIrBlockScenario({ season }) },
-  { flag: 'browserTrade', resultKey: 'browserTradeCheck', run: ({ season }) => runBrowserTradeScenario({ season }) },
-  { flag: 'browserTradeAccept', resultKey: 'browserTradeAcceptCheck', run: ({ season }) => runBrowserTradeAcceptScenario({ season }) },
-  { flag: 'browserTradeTerminal', resultKey: 'browserTradeTerminalCheck', run: ({ season }) => runBrowserTradeTerminalScenario({ season }) },
-  { flag: 'browserTradeFuturePick', resultKey: 'browserTradeFuturePickCheck', run: ({ season }) => runBrowserTradeFuturePickScenario({ season }) },
-  { flag: 'browserTradeFuturePickAccept', resultKey: 'browserTradeFuturePickAcceptCheck', run: ({ season }) => runBrowserTradeFuturePickAcceptScenario({ season }) },
-  { flag: 'browserTradeOverflowAccept', resultKey: 'browserTradeOverflowAcceptCheck', run: ({ season }) => runBrowserTradeOverflowAcceptScenario({ season }) },
-  { flag: 'browserTradePostDeadline', resultKey: 'browserTradePostDeadlineCheck', run: ({ season }) => runBrowserTradePostDeadlineScenario({ season }) },
-  { flag: 'browserTradeVeto', resultKey: 'browserTradeVetoCheck', run: ({ season }) => runBrowserTradeVetoScenario({ season }) },
-  { flag: 'browserTradeMultiTeam', resultKey: 'browserTradeMultiTeamCheck', run: ({ season }) => runBrowserMultiTeamTradeScenario({ season }) },
+  ...TRADE_SCENARIOS.map((scenario) => ({
+    flag: scenario.flag,
+    resultKey: scenario.resultKey,
+    run: ({ season }) => TRADE_RUNNERS[scenario.id]({ season }),
+  })),
   { flag: 'browserLeagueLifecycle', resultKey: 'browserLeagueLifecycleCheck', run: ({ season }) => runBrowserLeagueLifecycleScenario({ season }) },
 ]
 

@@ -5,7 +5,7 @@ import {
   ROOT,
   assertPageText,
   browser,
-  clickButton,
+  clickTestId,
   describeEndpoint,
   installBrowserHooks,
   joinUrl,
@@ -15,8 +15,7 @@ import {
   path,
   readBrowserAlerts,
   readButtonState,
-  requireEnv,
-  resolvedEnv,
+  resolvedTradeEnv,
   setupTradeGameplayFixture,
   setupTradePostDeadlineGameplayFixture,
   signInBrowser,
@@ -24,6 +23,7 @@ import {
   verifyPostDeadlineTradeRejected,
   verifyTradeProposal,
   waitForTradeProposal,
+  waitForTradeReplacement,
   writeFile,
 } from './browser-trade-support.mjs'
 
@@ -31,12 +31,11 @@ export async function runBrowserTradeScenario({
   season = 0,
   sessionName = undefined,
 } = {}) {
-  const env = resolvedEnv()
-  requireEnv(env, ['supabaseUrl', 'serviceRoleKey', 'anonKey'])
-  if (!env.frontendUrl) throw new Error('Missing E2E_FRONTEND_URL')
+  const env = resolvedTradeEnv()
   const fixture = await setupTradeGameplayFixture(env, season)
   const sessionList = await listSessions().catch((error) => `session list unavailable: ${error.message}`)
   const session = sessionName ?? tradeSessionName('tr', fixture.runId)
+  const counterSession = `${session}-counter`
   const artifactDir = path.join(ARTIFACT_ROOT, `season-${season}`, 'browser-trade')
   await mkdir(artifactDir, { recursive: true })
 
@@ -68,26 +67,14 @@ export async function runBrowserTradeScenario({
     )
     await browser(session, ['screenshot', path.join(artifactDir, 'trade-before-submit.png')], { timeout: 60_000 })
 
-    const recipientTabClick = await clickButton(
-      session,
-      `Edit assets sent by ${fixture.recipient.team_name}`,
-      'recipient sender tab',
-    )
+    const recipientTabClick = await clickTestId(session, `trade-sender-${fixture.recipient.id}`, 'recipient sender tab')
     await assertPageText(session, [fixture.recipientPlayer.display_name], 'recipient trade assets')
-    const requestClick = await clickButton(
-      session,
-      `Select ${fixture.recipientPlayer.display_name} for trade`,
-      'recipient player selection',
-    )
-    const proposerTabClick = await clickButton(session, 'Edit assets sent by you', 'proposer sender tab')
-    const offerClick = await clickButton(
-      session,
-      `Select ${fixture.proposerPlayer.display_name} for trade`,
-      'proposer player selection',
-    )
+    const requestClick = await clickTestId(session, `trade-${fixture.recipient.id}-player-${fixture.recipientPlayer.id}`, 'recipient player selection')
+    const proposerTabClick = await clickTestId(session, `trade-sender-${fixture.proposer.id}`, 'proposer sender tab')
+    const offerClick = await clickTestId(session, `trade-${fixture.proposer.id}-player-${fixture.proposerPlayer.id}`, 'proposer player selection')
     await browser(session, ['wait', '500'])
     await browser(session, ['screenshot', path.join(artifactDir, 'trade-selected.png')], { timeout: 60_000 })
-    const submitClick = await clickButton(session, 'Send trade proposal', 'trade proposal submit')
+    const submitClick = await clickTestId(session, 'trade-submit', 'trade proposal submit')
     const tradeProposal = await waitForTradeProposal(fixture)
     debug = { ...debug, recipientTabClick, proposerTabClick, requestClick, offerClick, submitClick, tradeProposal }
     if (tradeProposal.failures.length > 0) {
@@ -95,6 +82,50 @@ export async function runBrowserTradeScenario({
     }
     await browser(session, ['wait', '1000'])
     await browser(session, ['screenshot', path.join(artifactDir, 'trade-after-submit.png')], { timeout: 60_000 })
+
+    await browser(session, ['open', joinUrl(env.frontendUrl, `/propose-trade?editTradeId=${tradeProposal.trade.id}`)])
+    await installBrowserHooks(session, env)
+    await browser(session, ['wait', '3500'])
+    await assertPageText(session, [
+      'Edit Trade',
+      fixture.proposerPlayer.display_name,
+      fixture.recipientPlayer.display_name,
+    ], 'two-team edit composer prefilled')
+    const editSubmitClick = await clickTestId(session, 'trade-submit', 'two-team edit submit')
+    const editReplacement = await waitForTradeReplacement(fixture, tradeProposal.trade.id, {
+      initialTradeId: tradeProposal.trade.id,
+      sourceStatus: 'edited',
+      sourceColumn: 'edited_from_trade_id',
+      expectedProposerId: fixture.proposer.id,
+      expectedRecipientId: fixture.recipient.id,
+      expectedVersion: 2,
+    })
+    if (editReplacement.failures.length > 0 || !editReplacement.replacement) {
+      throw new Error(`two-team edit replacement failed: ${editReplacement.failures.join('; ')}`)
+    }
+
+    await signInBrowser(counterSession, env, fixture.users[1], fixture.password)
+    await browser(counterSession, ['open', joinUrl(env.frontendUrl, `/propose-trade?counterTradeId=${editReplacement.replacement.id}`)])
+    await installBrowserHooks(counterSession, env)
+    await browser(counterSession, ['wait', '3500'])
+    await assertPageText(counterSession, [
+      'Counter Trade',
+      fixture.proposerPlayer.display_name,
+      fixture.recipientPlayer.display_name,
+    ], 'two-team counter composer prefilled')
+    const counterSubmitClick = await clickTestId(counterSession, 'trade-submit', 'two-team counter submit')
+    const counterReplacement = await waitForTradeReplacement(fixture, editReplacement.replacement.id, {
+      initialTradeId: tradeProposal.trade.id,
+      sourceStatus: 'countered',
+      sourceColumn: 'countered_from_trade_id',
+      expectedProposerId: fixture.recipient.id,
+      expectedRecipientId: fixture.proposer.id,
+      expectedVersion: 3,
+    })
+    if (counterReplacement.failures.length > 0) {
+      throw new Error(`two-team counter replacement failed: ${counterReplacement.failures.join('; ')}`)
+    }
+    debug = { ...debug, editSubmitClick, editReplacement, counterSubmitClick, counterReplacement }
 
     const consoleOutput = await browser(session, ['console']).catch((error) => `console unavailable: ${error.message}`)
     const errorOutput = await browser(session, ['errors']).catch((error) => `errors unavailable: ${error.message}`)
@@ -117,6 +148,8 @@ export async function runBrowserTradeScenario({
         recipientPlayerId: fixture.recipientPlayer.id,
       },
       tradeProposal,
+      editReplacement,
+      counterReplacement,
       notes,
       failures,
     }
@@ -157,6 +190,7 @@ export async function runBrowserTradeScenario({
     throw error
   } finally {
     await browser(session, ['close']).catch(() => {})
+    await browser(counterSession, ['close']).catch(() => {})
     await fixture.dispose()
   }
 }
@@ -165,9 +199,7 @@ export async function runBrowserTradePostDeadlineScenario({
   season = 0,
   sessionName = undefined,
 } = {}) {
-  const env = resolvedEnv()
-  requireEnv(env, ['supabaseUrl', 'serviceRoleKey', 'anonKey'])
-  if (!env.frontendUrl) throw new Error('Missing E2E_FRONTEND_URL')
+  const env = resolvedTradeEnv()
   const fixture = await setupTradePostDeadlineGameplayFixture(env, season)
   const sessionList = await listSessions().catch((error) => `session list unavailable: ${error.message}`)
   const session = sessionName ?? tradeSessionName('pd', fixture.runId)
@@ -205,22 +237,10 @@ export async function runBrowserTradePostDeadlineScenario({
     )
     await browser(session, ['screenshot', path.join(artifactDir, 'post-deadline-before-submit.png')], { timeout: 60_000 })
 
-    const recipientTabClick = await clickButton(
-      session,
-      `Edit assets sent by ${fixture.recipient.team_name}`,
-      'post-deadline recipient sender tab',
-    )
-    const requestClick = await clickButton(
-      session,
-      `Select ${fixture.recipientPlayer.display_name} for trade`,
-      'post-deadline recipient player selection',
-    )
-    const proposerTabClick = await clickButton(session, 'Edit assets sent by you', 'post-deadline proposer sender tab')
-    const offerClick = await clickButton(
-      session,
-      `Select ${fixture.proposerPlayer.display_name} for trade`,
-      'post-deadline proposer player selection',
-    )
+    const recipientTabClick = await clickTestId(session, `trade-sender-${fixture.recipient.id}`, 'post-deadline recipient sender tab')
+    const requestClick = await clickTestId(session, `trade-${fixture.recipient.id}-player-${fixture.recipientPlayer.id}`, 'post-deadline recipient player selection')
+    const proposerTabClick = await clickTestId(session, `trade-sender-${fixture.proposer.id}`, 'post-deadline proposer sender tab')
+    const offerClick = await clickTestId(session, `trade-${fixture.proposer.id}-player-${fixture.proposerPlayer.id}`, 'post-deadline proposer player selection')
     await browser(session, ['wait', '500'])
     await browser(session, ['screenshot', path.join(artifactDir, 'post-deadline-selected.png')], { timeout: 60_000 })
     const submitState = await readButtonState(session, 'Send trade proposal', 'post-deadline trade proposal submit')

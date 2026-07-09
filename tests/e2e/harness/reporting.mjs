@@ -53,6 +53,10 @@ export const writeReport = async ({ status, startedAt, finishedAt, seasons, rows
 
 /** @param {SoakRow[]} rows @param {string} evidenceId */
 const hasEvidence = (rows, evidenceId) => rows.some((row) => row.status === 'PASS' && row.evidenceIds?.includes(evidenceId))
+/** @param {SoakRow[]} rows @param {boolean} runFailed @param {boolean} enabled @param {string} evidenceId */
+export const evidenceStatusForRows = (rows, runFailed, enabled, evidenceId) => !enabled
+  ? 'PENDING'
+  : hasEvidence(rows, evidenceId) ? 'PASS' : runFailed ? 'FAIL' : 'PENDING'
 /** @param {string} status */
 const hasEvidencePass = (status) => status === 'PASS'
 /** @param {boolean} enabled @param {string} status */
@@ -80,9 +84,7 @@ export const writeCoverageReport = async ({ status, startedAt, finishedAt, seaso
   const producedTenSeasons = rows.some((row) => Number(row.season) >= 10)
   const runFailed = status === 'ERROR' || rowStatus === 'FAIL'
   /** @param {boolean} enabled @param {string} evidenceId */
-  const evidenceStatus = (enabled, evidenceId) => !enabled
-    ? 'PENDING'
-    : hasEvidence(rows, evidenceId) ? 'PASS' : runFailed ? 'FAIL' : 'PENDING'
+  const evidenceStatus = (enabled, evidenceId) => evidenceStatusForRows(rows, runFailed, enabled, evidenceId)
   const invariantStatus = evidenceStatus(rows.length > 0, 'invariants.boundary')
   const runtimeStatus = evidenceStatus(producedTenSeasons, 'runtime.drift')
   const memoryStatus = evidenceStatus(producedTenSeasons, 'memory.drift')
@@ -96,6 +98,8 @@ export const writeCoverageReport = async ({ status, startedAt, finishedAt, seaso
   const pickChainStatus = evidenceStatus(args.pickChain, 'picks.long_horizon')
   const browserSmokeStatus = evidenceStatus(args.browser, 'browser.smoke')
   const browserAuthStatus = evidenceStatus(args.browserAuth, 'browser.auth')
+  const fakeUpstreamStatus = evidenceStatus(rows.length > 0, 'environment.fake_upstream')
+  const corsStatus = evidenceStatus(env.backendTicksEnabled, 'cross.cors')
   const browserStatus = args.browser && args.browserAuth && args.browserFullSweep
     ? browserSmokeStatus === 'PASS' && browserAuthStatus === 'PASS' ? 'PASS' : runFailed ? 'FAIL' : 'PARTIAL'
     : args.browser || args.browserAuth ? runFailed ? 'FAIL' : 'PARTIAL' : 'PENDING'
@@ -236,13 +240,13 @@ export const writeCoverageReport = async ({ status, startedAt, finishedAt, seaso
     {
       id: 'environment.fake_upstream', requiredForRelease: true,
       requirement: 'Fake NBA CDN/Sleeper upstream',
-      status: rows.length > 0 ? 'PASS' : 'PENDING',
+      status: fakeUpstreamStatus,
       evidence: `Fake upstream configured for http://127.0.0.1:${args.fakePort}.`,
     },
     {
       id: 'setup.auth', requiredForRelease: true,
       requirement: 'D.SET.1 auth/session/sign-out',
-      status: args.browserAuth ? 'PASS' : 'PENDING',
+      status: browserAuthStatus,
       evidence: args.browserAuth ? 'Browser auth scenario was enabled for this run.' : 'Enable E2E_ENABLE_BROWSER_AUTH=1 or use prior browser-auth artifact.',
     },
     {
@@ -344,7 +348,7 @@ export const writeCoverageReport = async ({ status, startedAt, finishedAt, seaso
     {
       id: 'cross.cors', requiredForRelease: true,
       requirement: 'D.X.3 CORS regression',
-      status: env.backendTicksEnabled ? 'PASS' : 'PENDING',
+      status: corsStatus,
       evidence: env.backendTicksEnabled ? 'Edge E2E tick mode runs OPTIONS preflight before the season loop.' : 'Requires Edge E2E tick mode.',
     },
     {

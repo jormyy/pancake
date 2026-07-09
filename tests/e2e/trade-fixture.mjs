@@ -1,8 +1,16 @@
 import process from 'node:process'
 import { createClient } from '@supabase/supabase-js'
 
+const fixtureCreatedPlayerIds = new Set()
+
+/** @typedef {import('@supabase/supabase-js').SupabaseClient<import('../../types/database.js').Database>} AdminClient */
+/** @typedef {{ supabaseUrl: string, serviceRoleKey: string, anonKey: string, frontendUrl?: string, apiBaseUrl?: string }} FixtureEnv */
+/** @typedef {{ id?: string, email: string, password: string, username: string, displayName: string, teamName: string }} FixtureUser */
+/** @typedef {{ registerLeague: (id: string) => void, registerUser: (id: string) => void, registerPlayer: (id: string) => void, dispose: () => Promise<void> }} FixtureResourceOwner */
+
 let fixtureSequence = 0
 
+/** @param {AdminClient} admin @param {FixtureUser} user */
 const createConfirmedUser = async (admin, user) => {
   const { data, error } = await admin.auth.admin.createUser({
     email: user.email,
@@ -15,6 +23,7 @@ const createConfirmedUser = async (admin, user) => {
   return { ...user, id: data.user.id }
 }
 
+/** @param {FixtureEnv} env @param {string} email @param {string} password */
 const signInClient = async (env, email, password) => {
   const client = createClient(env.supabaseUrl, env.anonKey, { auth: { persistSession: false } })
   const { error } = await client.auth.signInWithPassword({ email, password })
@@ -22,6 +31,7 @@ const signInClient = async (env, email, password) => {
   return client
 }
 
+/** @param {AdminClient} admin @param {string} leagueId */
 const fetchCurrentSeason = async (admin, leagueId) => {
   const { data, error } = await admin
     .from('league_seasons')
@@ -33,6 +43,7 @@ const fetchCurrentSeason = async (admin, leagueId) => {
   return data
 }
 
+/** @param {AdminClient} admin @param {string} leagueId */
 const sortedLeagueMembers = async (admin, leagueId) => {
   const { data, error } = await admin
     .from('league_members')
@@ -43,7 +54,14 @@ const sortedLeagueMembers = async (admin, leagueId) => {
   return data ?? []
 }
 
-export const findAvailablePlayers = async (admin, leagueId, leagueSeasonId, count) => {
+/**
+ * @param {AdminClient} admin
+ * @param {string} leagueId
+ * @param {string} leagueSeasonId
+ * @param {number} count
+ * @param {(id: string) => void} [registerCreatedPlayer]
+ */
+export const findAvailablePlayers = async (admin, leagueId, leagueSeasonId, count, registerCreatedPlayer = () => {}) => {
   const [{ data: rosterRows, error: rosterError }, { data: players, error: playersError }] = await Promise.all([
     admin.from('roster_players').select('player_id').eq('league_id', leagueId).eq('league_season_id', leagueSeasonId),
     admin.from('players').select('id, display_name, position, nba_team').not('display_name', 'is', null)
@@ -53,8 +71,18 @@ export const findAvailablePlayers = async (admin, leagueId, leagueSeasonId, coun
   if (playersError) throw new Error(`players lookup: ${playersError.message}`)
   const rosteredIds = new Set((rosterRows ?? []).map((row) => row.player_id))
   const available = (players ?? []).filter((player) => player.display_name && !rosteredIds.has(player.id))
-  if (available.length >= count) return available.slice(0, count)
+  if (available.length >= count) {
+    const selected = available.slice(0, count)
+    for (const player of selected) {
+      if (fixtureCreatedPlayerIds.has(player.id)) registerCreatedPlayer(player.id)
+    }
+    return selected
+  }
+  for (const player of available) {
+    if (fixtureCreatedPlayerIds.has(player.id)) registerCreatedPlayer(player.id)
+  }
 
+  /** @type {('PG' | 'SG' | 'SF' | 'PF' | 'C')[]} */
   const positions = ['PG', 'SG', 'SF', 'PF', 'C']
   const fallbackRows = Array.from({ length: count - available.length }, (_, index) => {
     const position = positions[(available.length + index) % positions.length]
@@ -71,9 +99,14 @@ export const findAvailablePlayers = async (admin, leagueId, leagueSeasonId, coun
   const { data: fallbackPlayers, error: fallbackError } = await admin
     .from('players').insert(fallbackRows).select('id, display_name, position, nba_team')
   if (fallbackError) throw new Error(`fallback player seed insert: ${fallbackError.message}`)
+  for (const player of fallbackPlayers ?? []) {
+    fixtureCreatedPlayerIds.add(player.id)
+    registerCreatedPlayer(player.id)
+  }
   return [...available, ...(fallbackPlayers ?? [])].slice(0, count)
 }
 
+/** @param {AdminClient} admin @param {string} leagueId @param {string} memberId @param {number} seasonYear @param {number} [round] */
 const findFuturePickForMember = async (admin, leagueId, memberId, seasonYear, round = 1) => {
   const { data, error } = await admin.from('draft_picks').select(`
       id, season_year, round, original_owner_id, current_owner_id,
@@ -91,13 +124,19 @@ const findFuturePickForMember = async (admin, leagueId, memberId, seasonYear, ro
   }
 }
 
+/** @param {AdminClient} admin @returns {FixtureResourceOwner} */
 export const createFixtureResourceOwner = (admin) => {
+  /** @type {string | null} */
   let leagueId = null
+  /** @type {Set<string>} */
   const userIds = new Set()
+  /** @type {Set<string>} */
+  const playerIds = new Set()
   let disposed = false
   return {
     registerLeague: (id) => { leagueId = id },
     registerUser: (id) => { userIds.add(id) },
+    registerPlayer: (id) => { playerIds.add(id) },
     dispose: async () => {
       if (disposed) return
       const failures = []
@@ -122,12 +161,26 @@ export const createFixtureResourceOwner = (admin) => {
         if (result.error) failures.push(new Error(`fixture user cleanup ${userId}: ${result.error.message}`))
         else userIds.delete(userId)
       }
-      disposed = leagueId === null && userIds.size === 0
+      for (const playerId of [...playerIds]) {
+        const { error: playerError } = await admin.from('players').delete().eq('id', playerId)
+        if (playerError && playerError.code !== '23503') {
+          failures.push(new Error(`fixture player cleanup ${playerId}: ${playerError.message}`))
+          continue
+        }
+        if (!playerError) fixtureCreatedPlayerIds.delete(playerId)
+        playerIds.delete(playerId)
+      }
+      disposed = leagueId === null && userIds.size === 0 && playerIds.size === 0
       if (failures.length > 0) throw new AggregateError(failures, 'Fixture cleanup failed')
     },
   }
 }
 
+/**
+ * @param {FixtureEnv} env
+ * @param {number} season
+ * @param {{ memberCount?: number, includeFuturePicks?: boolean }} [options]
+ */
 export const setupTradeGameplayFixture = async (
   env,
   season,
@@ -145,6 +198,7 @@ export const setupTradeGameplayFixture = async (
   }))
   const admin = createClient(env.supabaseUrl, env.serviceRoleKey, { auth: { persistSession: false } })
   const resources = createFixtureResourceOwner(admin)
+  /** @type {(FixtureUser & { id: string })[]} */
   const createdUsers = []
 
   try {
@@ -184,7 +238,25 @@ export const setupTradeGameplayFixture = async (
     const recipient = members.find((member) => member.user_id === createdUsers[1].id)
     const observer = memberCount > 2 ? members.find((member) => member.user_id === createdUsers[2].id) : null
     if (!proposer || !recipient) throw new Error('trade fixture member lookup failed')
-    const [proposerPlayer, recipientPlayer] = await findAvailablePlayers(admin, league.id, currentSeason.id, 2)
+    if (!proposer.team_name || !recipient.team_name) throw new Error('trade fixture members require team names')
+    /** @type {Omit<typeof proposer, 'team_name'> & { team_name: string }} */
+    const namedProposer = { ...proposer, team_name: proposer.team_name }
+    /** @type {Omit<typeof recipient, 'team_name'> & { team_name: string }} */
+    const namedRecipient = { ...recipient, team_name: recipient.team_name }
+    const [proposerPlayer, recipientPlayer] = await findAvailablePlayers(
+      admin,
+      league.id,
+      currentSeason.id,
+      2,
+      resources.registerPlayer,
+    )
+    if (!proposerPlayer?.display_name || !recipientPlayer?.display_name) {
+      throw new Error('trade fixture players require display names')
+    }
+    /** @type {Omit<typeof proposerPlayer, 'display_name'> & { display_name: string }} */
+    const namedProposerPlayer = { ...proposerPlayer, display_name: proposerPlayer.display_name }
+    /** @type {Omit<typeof recipientPlayer, 'display_name'> & { display_name: string }} */
+    const namedRecipientPlayer = { ...recipientPlayer, display_name: recipientPlayer.display_name }
     const targetFuturePickYear = currentSeason.season_year + 5
     const [proposerFuturePick, recipientFuturePick] = includeFuturePicks
       ? await Promise.all([
@@ -201,9 +273,12 @@ export const setupTradeGameplayFixture = async (
     if (statusError) throw new Error(`trade fixture status flip: ${statusError.message}`)
 
     return {
-      admin, runId, password, users: createdUsers, league, currentSeason, proposer, recipient, observer,
-      proposerPlayer, recipientPlayer, targetFuturePickYear, proposerFuturePick, recipientFuturePick,
+      admin, runId, password, users: createdUsers, league, currentSeason,
+      proposer: namedProposer, recipient: namedRecipient, observer,
+      proposerPlayer: namedProposerPlayer, recipientPlayer: namedRecipientPlayer,
+      targetFuturePickYear, proposerFuturePick, recipientFuturePick,
       dispose: resources.dispose,
+      registerCreatedPlayer: resources.registerPlayer,
     }
   } catch (error) {
     try {
@@ -215,21 +290,33 @@ export const setupTradeGameplayFixture = async (
   }
 }
 
+/** @param {FixtureEnv} env @param {number} season */
 export const setupMultiTeamTradeGameplayFixture = async (env, season) => {
   const fixture = await setupTradeGameplayFixture(env, season, { memberCount: 3, includeFuturePicks: false })
   try {
-    if (!fixture.observer) throw new Error('browser multi-team trade fixture did not create a third member')
-    const [observerPlayer] = await findAvailablePlayers(fixture.admin, fixture.league.id, fixture.currentSeason.id, 1)
+    if (!fixture.observer?.team_name) throw new Error('browser multi-team trade fixture requires a named third member')
+    /** @type {Omit<typeof fixture.observer, 'team_name'> & { team_name: string }} */
+    const namedObserver = { ...fixture.observer, team_name: fixture.observer.team_name }
+    const [observerPlayer] = await findAvailablePlayers(
+      fixture.admin,
+      fixture.league.id,
+      fixture.currentSeason.id,
+      1,
+      fixture.registerCreatedPlayer,
+    )
+    if (!observerPlayer?.display_name) throw new Error('multi-team fixture player requires a display name')
+    /** @type {Omit<typeof observerPlayer, 'display_name'> & { display_name: string }} */
+    const namedObserverPlayer = { ...observerPlayer, display_name: observerPlayer.display_name }
     const { error } = await fixture.admin.from('roster_players').insert({
       league_id: fixture.league.id,
       league_season_id: fixture.currentSeason.id,
-      member_id: fixture.observer.id,
-      player_id: observerPlayer.id,
+      member_id: namedObserver.id,
+      player_id: namedObserverPlayer.id,
       acquired_via: 'draft',
       acquisition_cost: 1,
     })
     if (error) throw new Error(`multi-team observer roster seed insert: ${error.message}`)
-    return { ...fixture, observer: fixture.observer, observerPlayer }
+    return { ...fixture, observer: namedObserver, observerPlayer: namedObserverPlayer }
   } catch (error) {
     try {
       await fixture.dispose()

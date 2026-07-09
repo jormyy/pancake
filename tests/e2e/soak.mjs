@@ -569,6 +569,8 @@ const main = async () => {
             status: 'PASS',
             evidenceIds: [
               'invariants.boundary',
+              'environment.fake_upstream',
+              env.backendTicksEnabled ? 'cross.cors' : null,
               browserCheck ? 'browser.smoke' : null,
               browserAuthCheck ? 'browser.auth' : null,
               browserPerfCheck ? 'browser.performance' : null,

@@ -11,8 +11,13 @@ const DEFAULT_LIST_MAX_BUFFER = 1024 * 1024
 const SCREENSHOT_SKIP_MESSAGE =
   'screenshot skipped because E2E_BROWSER_SKIP_SCREENSHOTS=1'
 
+/** @typedef {{ timeout?: number, maxBuffer?: number }} BrowserCallOptions */
+/** @typedef {(session: string, args: string[], options?: BrowserCallOptions) => Promise<string>} Browser */
+/** @typedef {{ cwd: string, timeout: number | undefined, maxBuffer: number, session: string, args: string[] }} BrowserCommand */
+
 const screenshotsSkipped = () => process.env.E2E_BROWSER_SKIP_SCREENSHOTS === '1'
 
+/** @param {number | undefined} firstTimeout */
 const screenshotTimeoutsMs = (firstTimeout) => {
   const parsed = (process.env.E2E_BROWSER_SCREENSHOT_TIMEOUTS_MS ?? '')
     .split(',')
@@ -22,10 +27,12 @@ const screenshotTimeoutsMs = (firstTimeout) => {
   return firstTimeout ? [firstTimeout, firstTimeout * 2] : [60_000, 120_000]
 }
 
+/** @param {string} outputPath @param {string} message */
 const writeScreenshotError = async (outputPath, message) => {
   await writeFile(`${outputPath}.error.txt`, `${message}\n`).catch(() => {})
 }
 
+/** @param {BrowserCommand} command */
 const runAgentBrowser = async ({ cwd, timeout, maxBuffer, session, args }) => {
   const { stdout, stderr } = await execFileAsync('agent-browser', ['--session', session, ...args], {
     cwd,
@@ -35,6 +42,7 @@ const runAgentBrowser = async ({ cwd, timeout, maxBuffer, session, args }) => {
   return [stdout, stderr].filter(Boolean).join('\n').trim()
 }
 
+/** @param {BrowserCommand} command */
 const runScreenshot = async ({ cwd, maxBuffer, session, args, timeout }) => {
   const outputPath = args[1]
   if (screenshotsSkipped()) {
@@ -58,6 +66,10 @@ const runScreenshot = async ({ cwd, maxBuffer, session, args, timeout }) => {
   throw lastError instanceof Error ? lastError : new Error(message)
 }
 
+/**
+ * @param {{ cwd?: string, defaultTimeout?: number, maxBuffer?: number }} [config]
+ * @returns {Browser}
+ */
 export const createBrowser = ({
   cwd = process.cwd(),
   defaultTimeout = DEFAULT_COMMAND_TIMEOUT_MS,
@@ -77,6 +89,7 @@ export const createBrowser = ({
   })
 }
 
+/** @param {{ cwd?: string, timeout?: number, maxBuffer?: number }} [config] */
 export const listBrowserSessions = async ({
   cwd = process.cwd(),
   timeout = DEFAULT_LIST_TIMEOUT_MS,
@@ -90,8 +103,10 @@ export const listBrowserSessions = async ({
   return [stdout, stderr].filter(Boolean).join('\n').trim()
 }
 
+/** @param {string} value */
 const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
+/** @param {Browser} browser @param {string} session @param {string} role @param {string} name */
 const refForRoleByName = async (browser, session, role, name) => {
   const snapshot = await browser(session, ['snapshot'])
   const pattern = new RegExp(`${escapeRegExp(role)} "${escapeRegExp(name)}" \\[ref=([^\\]]+)\\]`)
@@ -100,19 +115,23 @@ const refForRoleByName = async (browser, session, role, name) => {
   return match[1]
 }
 
+/** @param {Browser} browser @param {string} session @param {string} name @param {string} value */
 const fillTextboxByName = async (browser, session, name, value) => {
   await browser(session, ['fill', await refForRoleByName(browser, session, 'textbox', name), value])
 }
 
+/** @param {Browser} browser @param {string} session @param {string} name */
 export const clickButtonByName = async (browser, session, name) => {
   await browser(session, ['click', await refForRoleByName(browser, session, 'button', name)])
 }
 
+/** @param {Browser} browser @param {string} session @param {string} email @param {string} password */
 export const fillSignInCredentials = async (browser, session, email, password) => {
   await fillTextboxByName(browser, session, 'Email', email)
   await fillTextboxByName(browser, session, 'Password', password)
 }
 
+/** @param {Browser} browser @param {string} session @param {string} artifactDir @param {string} filename */
 export const captureBrowserScreenshot = async (browser, session, artifactDir, filename) => {
   const outputPath = path.join(artifactDir, filename)
   if (screenshotsSkipped()) {

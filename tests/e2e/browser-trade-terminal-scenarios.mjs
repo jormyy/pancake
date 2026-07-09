@@ -5,7 +5,7 @@ import {
   VETO_REPORT_PATH,
   assertPageText,
   browser,
-  clickButton,
+  clickTestId,
   clickLastButton,
   describeEndpoint,
   listSessions,
@@ -13,8 +13,7 @@ import {
   normalizeBrowserErrors,
   openOffersTab,
   path,
-  requireEnv,
-  resolvedEnv,
+  resolvedTradeEnv,
   safeName,
   setupTradeAcceptGameplayFixture,
   setupTradeVetoGameplayFixture,
@@ -31,8 +30,7 @@ export async function runBrowserTradeVetoScenario({
   season = 0,
   sessionName = undefined,
 } = {}) {
-  const env = resolvedEnv()
-  requireEnv(env, ['supabaseUrl', 'serviceRoleKey', 'anonKey'])
+  const env = resolvedTradeEnv()
   const fixture = await setupTradeVetoGameplayFixture(env, season)
   if (!fixture.proposer.team_name || !fixture.recipient.team_name) {
     throw new Error('Veto fixture members must have team names')
@@ -69,11 +67,7 @@ export async function runBrowserTradeVetoScenario({
       'trade veto before submit',
     )
     await browser(session, ['screenshot', path.join(artifactDir, 'trade-veto-before.png')], { timeout: 60_000 })
-    const vetoClick = await clickButton(
-      session,
-      `Veto trade between ${fixture.proposer.team_name} and ${fixture.recipient.team_name}`,
-      'trade veto button',
-    )
+    const vetoClick = await clickTestId(session, `trade-veto-${fixture.trade.id}`, 'trade veto button')
     await browser(session, ['wait', '300'])
     const vetoConfirmClick = await clickLastButton(session, 'Veto', 'trade veto confirmation')
     const vetoed = await waitForTradeVetoed(fixture)
@@ -153,8 +147,7 @@ export async function runBrowserTradeTerminalScenario({
   season = 0,
   sessionName = undefined,
 } = {}) {
-  const env = resolvedEnv()
-  requireEnv(env, ['supabaseUrl', 'serviceRoleKey', 'anonKey'])
+  const env = resolvedTradeEnv()
   const rejectFixture = await setupTradeAcceptGameplayFixture(env, season)
   let withdrawFixture
   try {
@@ -206,11 +199,7 @@ export async function runBrowserTradeTerminalScenario({
       'trade reject before submit',
     )
     await browser(rejectSession, ['screenshot', path.join(artifactDir, 'trade-reject-before.png')], { timeout: 60_000 })
-    const rejectClick = await clickButton(
-      rejectSession,
-      `Reject trade with ${rejectFixture.proposer.team_name}`,
-      'trade reject button',
-    )
+    const rejectClick = await clickTestId(rejectSession, `trade-reject-${rejectFixture.trade.id}`, 'trade reject button')
     await browser(rejectSession, ['wait', '300'])
     const rejectConfirmClick = await clickLastButton(rejectSession, 'Reject', 'trade reject confirmation')
     debug = { ...debug, rejectClick, rejectConfirmClick }
@@ -237,11 +226,7 @@ export async function runBrowserTradeTerminalScenario({
       'trade withdraw before submit',
     )
     await browser(withdrawSession, ['screenshot', path.join(artifactDir, 'trade-withdraw-before.png')], { timeout: 60_000 })
-    const withdrawClick = await clickButton(
-      withdrawSession,
-      `Withdraw trade with ${withdrawFixture.recipient.team_name}`,
-      'trade withdraw button',
-    )
+    const withdrawClick = await clickTestId(withdrawSession, `trade-withdraw-${withdrawFixture.trade.id}`, 'trade withdraw button')
     await browser(withdrawSession, ['wait', '300'])
     const withdrawConfirmClick = await clickLastButton(withdrawSession, 'Withdraw', 'trade withdraw confirmation')
     debug = { ...debug, withdrawClick, withdrawConfirmClick }

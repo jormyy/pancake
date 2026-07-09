@@ -43,6 +43,7 @@ function PlayerRow({
             accessibilityRole="button"
             accessibilityLabel={`${action} ${p.display_name} for trade`}
             testID={testID}
+            id={testID}
         >
             <Avatar
                 name={p.display_name}
@@ -105,6 +106,7 @@ function PickRow({
             accessibilityRole="button"
             accessibilityLabel={`${action} ${pick.seasonYear} round ${pick.round} pick via ${pick.originalTeamName} for trade`}
             testID={testID}
+            id={testID}
         >
             <View style={[styles.pickCircle, selected && styles.pickCircleSelected]}>
                 <Text style={styles.pickCircleText}>{yearShort(pick.seasonYear)}</Text>

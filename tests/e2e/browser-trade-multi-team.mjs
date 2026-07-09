@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import { resolvedEnv, requireEnv, describeEndpoint } from './env.mjs'
+import { resolvedTradeEnv, describeEndpoint } from './env.mjs'
 import { normalizeBrowserErrors } from './browser-runtime-overrides.mjs'
 import {
   ROOT,
@@ -8,7 +8,7 @@ import {
   MULTI_TEAM_REPORT_PATH,
   assertPageText,
   browser,
-  clickButton,
+  clickTestId,
   installBrowserHooks,
   joinUrl,
   listSessions,
@@ -234,9 +234,7 @@ export async function runBrowserMultiTeamTradeScenario({
   season = 0,
   sessionName = undefined,
 } = {}) {
-  const env = resolvedEnv()
-  requireEnv(env, ['supabaseUrl', 'serviceRoleKey', 'anonKey'])
-  if (!env.frontendUrl) throw new Error('Missing E2E_FRONTEND_URL')
+  const env = resolvedTradeEnv()
   const fixture = await setupMultiTeamTradeGameplayFixture(env, season)
   if (!fixture.recipient.team_name || !fixture.observer.team_name) {
     throw new Error('Multi-team fixture members must have team names')
@@ -277,17 +275,9 @@ export async function runBrowserMultiTeamTradeScenario({
       'multi-team trade proposal initial screen',
     )
 
-    const modeClick = await clickButton(session, 'Use multi-team trade mode', 'multi-team mode toggle')
-    const recipientClick = await clickButton(
-      session,
-      `Trade with ${recipientTeamName}`,
-      'multi-team recipient team selection',
-    )
-    const observerClick = await clickButton(
-      session,
-      `Trade with ${observerTeamName}`,
-      'multi-team third team selection',
-    )
+    const modeClick = await clickTestId(session, 'trade-mode-multi', 'multi-team mode toggle')
+    const recipientClick = await clickTestId(session, `trade-participant-${fixture.recipient.id}`, 'multi-team recipient team selection')
+    const observerClick = await clickTestId(session, `trade-participant-${fixture.observer.id}`, 'multi-team third team selection')
     await browser(session, ['wait', '4500'])
     await assertPageText(
       session,
@@ -313,60 +303,20 @@ export async function runBrowserMultiTeamTradeScenario({
     )
     await browser(session, ['screenshot', path.join(artifactDir, 'multi-team-builder-mobile.png')], { timeout: 60_000 })
 
-    const recipientTabClick = await clickButton(
-      session,
-      `Edit assets sent by ${recipientTeamName}`,
-      'mobile recipient sender tab',
-    )
+    const recipientTabClick = await clickTestId(session, `trade-sender-${fixture.recipient.id}`, 'mobile recipient sender tab')
 
-    const routeClick = await clickButton(
-      session,
-      `${recipientTeamName} sends selected assets to ${observerTeamName}`,
-      'multi-team recipient route selection',
-    )
-    const proposerTabClick = await clickButton(
-      session,
-      'Edit assets sent by you',
-      'mobile proposer sender tab',
-    )
-    const proposerPlayerClick = await clickButton(
-      session,
-      `Select ${fixture.proposerPlayer.display_name} for trade`,
-      'multi-team proposer player selection',
-    )
-    await clickButton(
-      session,
-      `Edit assets sent by ${recipientTeamName}`,
-      'mobile recipient sender tab after proposer selection',
-    )
-    const recipientPlayerClick = await clickButton(
-      session,
-      `Select ${fixture.recipientPlayer.display_name} for trade`,
-      'multi-team recipient player selection',
-    )
-    const observerTabClick = await clickButton(
-      session,
-      `Edit assets sent by ${observerTeamName}`,
-      'mobile observer sender tab',
-    )
-    const observerPlayerClick = await clickButton(
-      session,
-      `Select ${fixture.observerPlayer.display_name} for trade`,
-      'multi-team observer player selection',
-    )
-    await clickButton(
-      session,
-      'Edit assets sent by you',
-      'mobile proposer sender tab for route override',
-    )
-    const proposerPlayerRouteClick = await clickButton(
-      session,
-      `Route ${fixture.proposerPlayer.display_name} to ${observerTeamName}`,
-      'multi-team proposer player per-asset route selection',
-    )
+    const routeClick = await clickTestId(session, `trade-default-route-${fixture.recipient.id}-${fixture.observer.id}`, 'multi-team recipient route selection')
+    const proposerTabClick = await clickTestId(session, `trade-sender-${fixture.proposer.id}`, 'mobile proposer sender tab')
+    const proposerPlayerClick = await clickTestId(session, `trade-${fixture.proposer.id}-player-${fixture.proposerPlayer.id}`, 'multi-team proposer player selection')
+    await clickTestId(session, `trade-sender-${fixture.recipient.id}`, 'mobile recipient sender tab after proposer selection')
+    const recipientPlayerClick = await clickTestId(session, `trade-${fixture.recipient.id}-player-${fixture.recipientPlayer.id}`, 'multi-team recipient player selection')
+    const observerTabClick = await clickTestId(session, `trade-sender-${fixture.observer.id}`, 'mobile observer sender tab')
+    const observerPlayerClick = await clickTestId(session, `trade-${fixture.observer.id}-player-${fixture.observerPlayer.id}`, 'multi-team observer player selection')
+    await clickTestId(session, `trade-sender-${fixture.proposer.id}`, 'mobile proposer sender tab for route override')
+    const proposerPlayerRouteClick = await clickTestId(session, `trade-player-route-${fixture.proposer.id}-${fixture.proposerPlayer.id}-${fixture.observer.id}`, 'multi-team proposer player per-asset route selection')
     await browser(session, ['wait', '500'])
     await browser(session, ['screenshot', path.join(artifactDir, 'multi-team-selected.png')], { timeout: 60_000 })
-    const submitClick = await clickButton(session, 'Send trade proposal', 'multi-team trade proposal submit')
+    const submitClick = await clickTestId(session, 'trade-submit', 'multi-team trade proposal submit')
     const tradeProposal = await waitForMultiTeamTradeProposal(fixture)
     debug = {
       ...debug,
@@ -424,7 +374,7 @@ export async function runBrowserMultiTeamTradeScenario({
       'multi-team edit composer prefilled',
     )
     await browser(session, ['screenshot', path.join(artifactDir, 'multi-team-edit-prefill.png')], { timeout: 60_000 })
-    const editSubmitClick = await clickButton(session, 'Send trade proposal', 'multi-team edit submit')
+    const editSubmitClick = await clickTestId(session, 'trade-submit', 'multi-team edit submit')
     const editReplacement = await waitForMultiTeamReplacement(fixture, tradeProposal.trade.id, {
       initialTradeId: tradeProposal.trade.id,
       sourceStatus: 'edited',
@@ -436,6 +386,7 @@ export async function runBrowserMultiTeamTradeScenario({
     if (editReplacement.failures.length > 0) {
       throw new Error(`multi-team trade edit replacement failed: ${editReplacement.failures.join('; ')}`)
     }
+    if (!editReplacement.replacement) throw new Error('multi-team edit replacement was not created')
 
     await signInBrowser(counterSession, env, fixture.users[1], fixture.password)
     await browser(counterSession, ['set', 'viewport', '1180', '900'])
@@ -455,7 +406,7 @@ export async function runBrowserMultiTeamTradeScenario({
       'multi-team counter composer prefilled',
     )
     await browser(counterSession, ['screenshot', path.join(artifactDir, 'multi-team-counter-prefill.png')], { timeout: 60_000 })
-    const counterSubmitClick = await clickButton(counterSession, 'Send trade proposal', 'multi-team counter submit')
+    const counterSubmitClick = await clickTestId(counterSession, 'trade-submit', 'multi-team counter submit')
     const counterReplacement = await waitForMultiTeamReplacement(fixture, editReplacement.replacement.id, {
       initialTradeId: tradeProposal.trade.id,
       sourceStatus: 'countered',

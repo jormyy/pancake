@@ -10,15 +10,14 @@
     "target": "ES2022"
   },
   "include": [
+    "tests/e2e/browser-agent.mjs",
     "tests/e2e/browser-runtime-overrides.mjs",
-    "tests/e2e/browser-trade-fixtures.mjs",
-    "tests/e2e/browser-trade-gameplay.mjs",
-    "tests/e2e/browser-trade-proposal-scenarios.mjs",
-    "tests/e2e/browser-trade-acceptance-scenarios.mjs",
-    "tests/e2e/browser-trade-terminal-scenarios.mjs",
-    "tests/e2e/browser-trade-multi-team.mjs",
+    "tests/e2e/browser-trade*.mjs",
+    "tests/e2e/env.mjs",
     "tests/e2e/harness/args.mjs",
     "tests/e2e/harness/reporting.mjs",
+    "tests/e2e/trade-browser-harness.mjs",
+    "tests/e2e/trade-fixture.mjs",
     "scripts/check-db-function-sources.mjs"
   ]
 }
