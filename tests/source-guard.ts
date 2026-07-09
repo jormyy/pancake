@@ -6,7 +6,7 @@ export const ROOT = path.resolve(__dirname, '..')
 export const read = (rel: string): string => readFileSync(path.join(ROOT, rel), 'utf8')
 export const readFunctionSource = (functionName: string, schema = 'public'): string =>
     read(`supabase/sql/functions/by-name/${schema}/${functionName}.sql`)
-export const readFunctionSources = (functions: Array<string | [string, string]>): string =>
+export const readFunctionSources = (functions: (string | [string, string])[]): string =>
     functions.map((entry) => {
         const [functionName, schema] = Array.isArray(entry) ? entry : [entry, 'public']
         return readFunctionSource(functionName, schema)

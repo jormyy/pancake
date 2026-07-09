@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import type { RosterSlotType } from '@/types/database'
-import { canPlaySlot, SLOT_ELIGIBLE } from '@/constants/slots'
+import { SLOT_ELIGIBLE } from '@/constants/slots'
 import { todayET } from '@/lib/shared/dates'
 import { isIREligible } from '@/lib/roster'
 import { getEligiblePositions } from '@/lib/players'

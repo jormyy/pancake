@@ -22,7 +22,7 @@ const TS_SCORERS: Record<string, string> = {
 }
 
 // statField -> scoring_settings key. Order is irrelevant; presence is enforced.
-const CATEGORY_PAIRS: Array<[string, string]> = [
+const CATEGORY_PAIRS: [string, string][] = [
     ['stats.points', 'points'],
     ['stats.rebounds', 'rebounds'],
     ['stats.assists', 'assists'],

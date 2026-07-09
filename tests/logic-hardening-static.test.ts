@@ -12,11 +12,8 @@ import {
 
 const {
     etSeasonYearMigration,
-    auctionAuthLockMigration,
     inviteCodeSecurityMigration,
     rpcArrayCapsMigration,
-    internalEdgeTokenMigration,
-    integrationLintMigration,
 } = sources
 
 describe('logic hardening source guards - scoring and security', () => {

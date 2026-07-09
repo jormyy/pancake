@@ -87,37 +87,6 @@ const openPage = async (session, url, label, attempts = 3) => {
   throw new Error(`${label}: navigation failed after ${attempts} attempts: ${lastError?.message ?? 'unknown error'}`)
 }
 
-const clickExactText = async (session, text, label) => {
-  const result = await browser(session, [
-    'eval',
-    `(() => {
-      const target = [...document.querySelectorAll('*')]
-        .reverse()
-        .find((element) => (element.textContent || '').trim() === ${JSON.stringify(text)});
-      if (!target) return JSON.stringify({ ok: false });
-      target.click();
-      return JSON.stringify({
-        ok: true,
-        tagName: target.tagName,
-        role: target.getAttribute('role') || null,
-        text: target.textContent
-      });
-    })()`,
-  ])
-  const parsed = parseEvalJson(result)
-  if (!parsed.ok) throw new Error(`${label}: text not found: ${text}`)
-}
-
-const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-
-const clickLastButtonByName = async (session, name, label) => {
-  const snapshot = await browser(session, ['snapshot'])
-  const matches = [...snapshot.matchAll(new RegExp(`button "${escapeRegExp(name)}" \\[ref=([^\\]]+)\\]`, 'g'))]
-  const ref = matches.at(-1)?.[1]
-  if (!ref) throw new Error(`${label}: button not found: ${name}`)
-  await browser(session, ['click', ref])
-}
-
 const pressLastDomButtonByName = async (session, name, label) => {
   const result = await browser(session, [
     'eval',

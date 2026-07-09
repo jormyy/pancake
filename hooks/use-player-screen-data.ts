@@ -240,9 +240,11 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null) {
         load()
     }, [playerId, leagueId, applyScreenCache, persistScreenCache])
 
+    const loadedPlayerId = player?.id
+    const playerTeam = player?.nba_team ?? null
+
     useEffect(() => {
-        if (!player || player.id !== playerId) return
-        const playerTeam = player.nba_team
+        if (loadedPlayerId !== playerId) return
         const key = seasonCacheKey(playerId, leagueId, selectedSeason)
         const requestId = ++seasonRequestRef.current
         const cached = seasonCacheRef.current.get(key)
@@ -299,7 +301,7 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null) {
             }
         }
         loadSeasonData()
-    }, [playerId, leagueId, selectedSeason, player?.nba_team, persistScreenCache])
+    }, [playerId, leagueId, selectedSeason, loadedPlayerId, playerTeam, persistScreenCache])
 
     // Load transaction history
     useEffect(() => {

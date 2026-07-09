@@ -8,7 +8,9 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "lint": "expo lint",
+    "lint:all": "eslint app components constants contexts hooks lib types core/src core/tests scripts tests --max-warnings=0",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck:tests": "tsc -p tsconfig.tests.json --noEmit",
     "typecheck:core": "npm run typecheck --workspace core",
     "check:core-cjs": "node scripts/check-core-cjs.mjs",
     "check:dead-code": "knip --no-progress --no-config-hints",
@@ -95,6 +97,7 @@
   },
   "devDependencies": {
     "@types/react": "~19.1.0",
+    "@types/node": "^24.0.0",
     "eslint": "^9.25.0",
     "eslint-config-expo": "~10.0.0",
     "knip": "^6.24.0",

@@ -59,7 +59,7 @@ function q(data: any = null, error: any = null, count: number | null = null) {
  * Smart weekly_lineups chain. Detects whether it's being used for a select or
  * a delete/insert by tracking the first method called on the chain.
  */
-function makeLUChain(existingEntries: any[], insertSpy: ReturnType<typeof vi.fn>) {
+function makeLUChain(existingEntries: any[], insertSpy: (rows: unknown) => unknown) {
     let callType: 'select' | 'write' = 'select'
     const chain: any = {
         select: () => { callType = 'select'; return chain },
@@ -127,8 +127,8 @@ interface MockOpts {
     roster: ReturnType<typeof rp>[]
     avgs: ReturnType<typeof avg>[]
     games: ReturnType<typeof game>[]
-    templates?: Array<{ slot_type: string; slot_count: number }>
-    existingEntries?: Array<{ player_id: string; slot_type: string }>
+    templates?: { slot_type: string; slot_count: number }[]
+    existingEntries?: { player_id: string; slot_type: string }[]
     seasonWeeks?: any   // single object for getWeekDays (weekly), array for getRemainingSeasonDates (season)
     weekGames?: ReturnType<typeof game>[] // override nba_games for the first (week-level) query
 }

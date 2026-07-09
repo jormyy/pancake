@@ -1,25 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { latestFunctionDefinition, read, sources } from './source-guard'
-
-const {
-    scoringCronAuctionMigration,
-    etSeasonYearMigration,
-    auctionLifecycleMigration,
-    auctionAuthLockMigration,
-    auctionWithdrawAuthMigration,
-    inviteTradeLineupMigration,
-    rosterOwnershipHistoryMigration,
-    rookieDraftLedgerMigration,
-    lineupCurrentSeasonMigration,
-    playoffWaiverSeasonMigration,
-    playoffBracketFreezeMigration,
-    playoffScheduleTradeDeadlineMigration,
-    integrationLintMigration,
-    inviteCodeSecurityMigration,
-    rpcArrayCapsMigration,
-    internalEdgeTokenMigration,
-    waiverMigration,
-} = sources
+import { latestFunctionDefinition, read } from './source-guard'
 
 describe('logic hardening source guards - lineup and roster locks', () => {
     it('caps Edge scoring week lookup to the last seeded week after the schedule ends', () => {
@@ -111,6 +91,7 @@ describe('logic hardening source guards - lineup and roster locks', () => {
     })
 
     it('preserves already-started lineup rows during roster drop, waiver, IR, and taxi cleanup', () => {
+        const waiverMigration = read('supabase/migrations/20260606000020_waiver_clears_live_poll_cdn_ledger.sql')
         for (const rel of [
             'supabase/migrations/20260606000022_roster_toggles_lock_order.sql',
             'supabase/migrations/20260606000023_drop_player_lock_order.sql',

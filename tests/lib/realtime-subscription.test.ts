@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const realtime = vi.hoisted(() => {
-    const callbacks: Array<{ config: Record<string, unknown>; callback: (payload: unknown) => void }> = []
+    const callbacks: { config: Record<string, unknown>; callback: (payload: unknown) => void }[] = []
     const channel = {
         on: vi.fn((_kind, config, callback) => {
             callbacks.push({ config, callback })
@@ -72,6 +72,11 @@ describe('realtime subscriptions', () => {
         vi.useFakeTimers()
         const refresh = vi.fn()
         const debounced = debounceRealtimeRefresh(refresh, 100)
+        const channel = subscribeToTableChanges('dispose-test', {
+            mode: 'fallback',
+            watches: [],
+            onChange: refresh,
+        })
         debounced.trigger()
         debounced.trigger()
         vi.advanceTimersByTime(99)
@@ -80,9 +85,9 @@ describe('realtime subscriptions', () => {
         expect(refresh).toHaveBeenCalledTimes(1)
 
         debounced.trigger()
-        disposeTableChangeSubscription(realtime.channel, [debounced])
+        disposeTableChangeSubscription(channel, [debounced])
         vi.runAllTimers()
         expect(refresh).toHaveBeenCalledTimes(1)
-        expect(realtime.removeChannel).toHaveBeenCalledWith(realtime.channel)
+        expect(realtime.removeChannel).toHaveBeenCalledWith(channel)
     })
 })

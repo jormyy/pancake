@@ -55,7 +55,7 @@ export function unsubscribeFromTableChanges(channel: RealtimeChannel) {
 
 export function disposeTableChangeSubscription(
     channel: RealtimeChannel,
-    refreshes: Array<{ cancel: () => void }>,
+    refreshes: { cancel: () => void }[],
 ) {
     for (const refresh of refreshes) refresh.cancel()
     unsubscribeFromTableChanges(channel)

@@ -18,9 +18,11 @@ Notifications.setNotificationHandler({
 
 export function usePushNotifications() {
     const { user } = useAuth()
+    const userId = user?.id
 
     useEffect(() => {
-        if (!user) return
+        if (!userId) return
+        const registeredUserId = userId
 
         async function register() {
             // Push notifications only work on physical devices
@@ -55,13 +57,12 @@ export function usePushNotifications() {
             }
 
             // Save to Supabase profile
-            if (!user) return
             await supabase
                 .from('profiles')
-                .update({ push_token: token } as any)
-                .eq('id', user.id)
+                .update({ push_token: token })
+                .eq('id', registeredUserId)
         }
 
         register().catch(console.error)
-    }, [user?.id])
+    }, [userId])
 }

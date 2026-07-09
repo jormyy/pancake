@@ -40,6 +40,9 @@ function trade(overrides: Partial<Trade> = {}): Trade {
         proposerFaabAmount: 7,
         recipientFaabAmount: 3,
         myVetoed: false,
+        isMultiTeam: false,
+        participants: [],
+        routedItems: [],
         proposerGives: [
             { kind: 'player', playerId: 'p-offer', playerName: 'Offer Player', position: 'G', nbaTeam: 'LAL' },
             { kind: 'pick', pickId: 'pick-offer', seasonYear: 2028, round: 1, originalTeamName: 'A' },

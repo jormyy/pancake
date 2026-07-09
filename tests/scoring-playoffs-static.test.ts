@@ -2,23 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { latestFunctionDefinition, latestTriggerStatement, read, sources } from './source-guard'
 
 const {
-    scoringCronAuctionMigration,
-    etSeasonYearMigration,
-    auctionLifecycleMigration,
-    auctionAuthLockMigration,
-    auctionWithdrawAuthMigration,
-    inviteTradeLineupMigration,
-    rosterOwnershipHistoryMigration,
-    rookieDraftLedgerMigration,
-    lineupCurrentSeasonMigration,
     playoffWaiverSeasonMigration,
-    playoffBracketFreezeMigration,
-    playoffScheduleTradeDeadlineMigration,
-    integrationLintMigration,
-    inviteCodeSecurityMigration,
-    rpcArrayCapsMigration,
-    internalEdgeTokenMigration,
-    waiverMigration,
 } = sources
 
 describe('logic hardening source guards - scoring, playoffs, schedule', () => {

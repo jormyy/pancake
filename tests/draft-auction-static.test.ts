@@ -4,21 +4,10 @@ import { functionPrivilegeStatements, latestFunctionDefinition, migrationsFrom, 
 const {
     scoringCronAuctionMigration,
     etSeasonYearMigration,
-    auctionLifecycleMigration,
-    auctionAuthLockMigration,
-    auctionWithdrawAuthMigration,
-    inviteTradeLineupMigration,
     rosterOwnershipHistoryMigration,
     rookieDraftLedgerMigration,
     lineupCurrentSeasonMigration,
     playoffWaiverSeasonMigration,
-    playoffBracketFreezeMigration,
-    playoffScheduleTradeDeadlineMigration,
-    integrationLintMigration,
-    inviteCodeSecurityMigration,
-    rpcArrayCapsMigration,
-    internalEdgeTokenMigration,
-    waiverMigration,
     rookieDraftTimerMigration,
     draftConfigMockMigration,
 } = sources
@@ -282,7 +271,6 @@ describe('logic hardening source guards - draft, auction, roster history', () =>
         const resetBody = latestFunctionDefinition('reset_draft_atomic')
         const resumeBody = latestFunctionDefinition('resume_draft_atomic')
         const stopBody = latestFunctionDefinition('stop_draft_atomic')
-        const activateBody = latestFunctionDefinition('activate_rookie_draft_league_atomic')
         const activationHelperBody = latestFunctionDefinition('activate_rookie_draft_league_if_ready', 'private')
         const completeHelperBody = latestFunctionDefinition('complete_rookie_draft_if_ready', 'private')
         const autoPickBody = latestFunctionDefinition('auto_pick_snake_pick_atomic')

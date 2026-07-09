@@ -22,7 +22,7 @@ describe('player screen season cache guards', () => {
         )
 
         expect(playerLoadEffect).toContain('seasonRequestRef.current += 1')
-        expect(source).toContain('if (!player || player.id !== playerId) return')
+        expect(source).toContain('if (loadedPlayerId !== playerId) return')
     })
 
     it('clears season-bound state on uncached season changes before loading new data', () => {

@@ -25,10 +25,13 @@ jobs:
         run: npm audit --audit-level=high
 
       - name: Lint
-        run: npm run lint
+        run: npm run lint:all
 
       - name: Typecheck app
         run: npm run typecheck
+
+      - name: Typecheck tests
+        run: npm run typecheck:tests
 
       - name: Run tests (incl. scoring-parity + RLS-grant security guards)
         run: npm test
