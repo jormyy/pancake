@@ -20,15 +20,16 @@ export type TradeFlowItem = {
 type MultiTeamTradeOverviewProps = {
     participants: TradeFlowParticipant[]
     items: TradeFlowItem[]
+    compact?: boolean
 }
 
-export function MultiTeamTradeOverview({ participants, items }: MultiTeamTradeOverviewProps) {
+export function MultiTeamTradeOverview({ participants, items, compact = false }: MultiTeamTradeOverviewProps) {
     const { width } = useWindowDimensions()
     const useColumns = width >= breakpoints.roster
     const participantLabels = new Map(participants.map((participant) => [participant.memberId, participant.label]))
 
     return (
-        <View style={styles.container}>
+        <View style={[styles.container, compact && styles.containerCompact]}>
             <View style={styles.headingRow}>
                 <Text style={styles.heading}>DEAL OVERVIEW</Text>
                 <Text style={styles.teamCount}>{participants.length} teams</Text>
@@ -41,7 +42,7 @@ export function MultiTeamTradeOverview({ participants, items }: MultiTeamTradeOv
                     return (
                         <View
                             key={participant.memberId}
-                            style={[styles.team, useColumns && styles.teamColumn]}
+                            style={[styles.team, useColumns && !compact && styles.teamColumn, compact && styles.teamCompact]}
                         >
                             <View style={styles.teamHeader}>
                                 <View style={styles.teamIdentity}>
@@ -103,6 +104,7 @@ const styles = StyleSheet.create({
         paddingTop: spacing.xl,
         gap: spacing.md,
     },
+    containerCompact: { paddingHorizontal: 0, paddingTop: spacing.sm },
     headingRow: {
         minHeight: 24,
         flexDirection: 'row',
@@ -141,6 +143,12 @@ const styles = StyleSheet.create({
         flexGrow: 1,
         flexBasis: 280,
         width: 'auto',
+    },
+    teamCompact: {
+        borderWidth: 0,
+        borderTopWidth: 1,
+        borderRadius: 0,
+        paddingHorizontal: 0,
     },
     teamHeader: {
         minHeight: 36,

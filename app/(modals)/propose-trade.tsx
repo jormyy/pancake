@@ -274,7 +274,7 @@ export default function ProposeTradeScreen() {
                 return
             }
             const participantIds = multiTeam.participantIds
-            const items = multiTeam.buildMultiTeamItems(participantIds)
+            const items = multiTeam.buildMultiTeamItems()
             if (participantIds.length < 2 || items.length === 0) return
             submittingRef.current = true
             setSubmitting(true)
@@ -365,7 +365,7 @@ export default function ProposeTradeScreen() {
     })
     const tradingClosed = isTradingClosed(currentLeague)
     const multiIds = multiTeam.participantIds
-    const multiItems = multiTeamMode ? multiTeam.buildMultiTeamItems(multiIds) : []
+    const multiItems = multiTeamMode ? multiTeam.buildMultiTeamItems() : []
     const activeRosterLoading = multiTeamMode ? multiTeam.rosterLoading : rosterLoading
     const canSubmit =
         multiTeamMode

@@ -1,0 +1,242 @@
+import type { MultiTeamTradeItemPayload, Trade } from '@/lib/trades'
+
+type AssetDestinations = Record<string, string | null>
+
+export type ParticipantTradeDraft = {
+    defaultDestinationId: string
+    playerDestinations: AssetDestinations
+    pickDestinations: AssetDestinations
+    faabInput: string
+}
+
+export type MultiTeamTradeState = {
+    selectedParticipantIds: Set<string>
+    participantOrder: string[]
+    participants: Record<string, ParticipantTradeDraft>
+}
+
+export type MultiTeamTradeAction =
+    | { type: 'toggle-participant'; memberId: string; actorMemberId: string; availableMemberIds: string[] }
+    | { type: 'toggle-asset'; asset: 'player' | 'pick'; memberId: string; assetId: string }
+    | { type: 'set-default-destination'; memberId: string; toMemberId: string }
+    | { type: 'set-asset-destination'; asset: 'player' | 'pick'; memberId: string; assetId: string; toMemberId: string }
+    | { type: 'set-faab'; memberId: string; value: string }
+    | { type: 'prefill'; state: MultiTeamTradeState }
+    | { type: 'reset'; actorMemberId: string }
+
+const emptyParticipant = (memberId: string, participantIds: string[]): ParticipantTradeDraft => ({
+    defaultDestinationId: defaultDestinationFor(memberId, participantIds),
+    playerDestinations: {},
+    pickDestinations: {},
+    faabInput: '0',
+})
+
+export function createMultiTeamTradeState(actorMemberId: string): MultiTeamTradeState {
+    const participantOrder = actorMemberId ? [actorMemberId] : []
+    return {
+        selectedParticipantIds: new Set(),
+        participantOrder,
+        participants: actorMemberId ? { [actorMemberId]: emptyParticipant(actorMemberId, participantOrder) } : {},
+    }
+}
+
+export function defaultDestinationFor(memberId: string, participantIds: string[]): string {
+    if (participantIds.length < 2) return ''
+    const currentIndex = participantIds.indexOf(memberId)
+    if (currentIndex < 0) return participantIds.find((id) => id !== memberId) ?? ''
+    return participantIds[(currentIndex + 1) % participantIds.length] ?? ''
+}
+
+function cleanDestinations(
+    destinations: AssetDestinations,
+    memberId: string,
+    participantIds: string[],
+): AssetDestinations {
+    return Object.fromEntries(Object.entries(destinations).map(([assetId, destinationId]) => [
+        assetId,
+        destinationId && destinationId !== memberId && participantIds.includes(destinationId)
+            ? destinationId
+            : null,
+    ]))
+}
+
+function reconcileParticipants(state: MultiTeamTradeState, participantIds: string[]): MultiTeamTradeState {
+    const participants: Record<string, ParticipantTradeDraft> = {}
+    for (const memberId of participantIds) {
+        const current = state.participants[memberId] ?? emptyParticipant(memberId, participantIds)
+        const defaultDestinationId = current.defaultDestinationId !== memberId && participantIds.includes(current.defaultDestinationId)
+            ? current.defaultDestinationId
+            : defaultDestinationFor(memberId, participantIds)
+        participants[memberId] = {
+            ...current,
+            defaultDestinationId,
+            playerDestinations: cleanDestinations(current.playerDestinations, memberId, participantIds),
+            pickDestinations: cleanDestinations(current.pickDestinations, memberId, participantIds),
+        }
+    }
+    return { ...state, participantOrder: participantIds, participants }
+}
+
+function updateParticipant(
+    state: MultiTeamTradeState,
+    memberId: string,
+    update: (participant: ParticipantTradeDraft) => ParticipantTradeDraft,
+): MultiTeamTradeState {
+    const participant = state.participants[memberId]
+    if (!participant) return state
+    return {
+        ...state,
+        participants: { ...state.participants, [memberId]: update(participant) },
+    }
+}
+
+export function multiTeamTradeReducer(
+    state: MultiTeamTradeState,
+    action: MultiTeamTradeAction,
+): MultiTeamTradeState {
+    switch (action.type) {
+        case 'toggle-participant': {
+            const selectedParticipantIds = new Set(state.selectedParticipantIds)
+            if (selectedParticipantIds.has(action.memberId)) selectedParticipantIds.delete(action.memberId)
+            else selectedParticipantIds.add(action.memberId)
+            const participantOrder = [
+                action.actorMemberId,
+                ...action.availableMemberIds.filter((memberId) => selectedParticipantIds.has(memberId)),
+            ].filter(Boolean)
+            return reconcileParticipants({ ...state, selectedParticipantIds }, participantOrder)
+        }
+        case 'toggle-asset': {
+            return updateParticipant(state, action.memberId, (participant) => {
+                const key = action.asset === 'player' ? 'playerDestinations' : 'pickDestinations'
+                const destinations = { ...participant[key] }
+                if (action.assetId in destinations) delete destinations[action.assetId]
+                else destinations[action.assetId] = null
+                return { ...participant, [key]: destinations }
+            })
+        }
+        case 'set-default-destination': {
+            if (action.memberId === action.toMemberId || !state.participantOrder.includes(action.toMemberId)) return state
+            return updateParticipant(state, action.memberId, (participant) => ({
+                ...participant,
+                defaultDestinationId: action.toMemberId,
+            }))
+        }
+        case 'set-asset-destination': {
+            if (action.memberId === action.toMemberId || !state.participantOrder.includes(action.toMemberId)) return state
+            return updateParticipant(state, action.memberId, (participant) => {
+                const key = action.asset === 'player' ? 'playerDestinations' : 'pickDestinations'
+                if (!(action.assetId in participant[key])) return participant
+                return {
+                    ...participant,
+                    [key]: {
+                        ...participant[key],
+                        [action.assetId]: action.toMemberId === participant.defaultDestinationId ? null : action.toMemberId,
+                    },
+                }
+            })
+        }
+        case 'set-faab':
+            if (!/^\d*$/.test(action.value)) return state
+            return updateParticipant(state, action.memberId, (participant) => ({ ...participant, faabInput: action.value }))
+        case 'prefill':
+            return action.state
+        case 'reset':
+            return createMultiTeamTradeState(action.actorMemberId)
+    }
+}
+
+export function resolvedDestination(
+    state: MultiTeamTradeState,
+    memberId: string,
+    asset: 'player' | 'pick',
+    assetId: string,
+): string {
+    const participant = state.participants[memberId]
+    if (!participant) return ''
+    const destinations = asset === 'player' ? participant.playerDestinations : participant.pickDestinations
+    return destinations[assetId] ?? participant.defaultDestinationId
+}
+
+export function buildMultiTeamTradeItems(
+    state: MultiTeamTradeState,
+    faabEnabled: boolean,
+): MultiTeamTradeItemPayload[] {
+    return state.participantOrder.flatMap((memberId) => {
+        const participant = state.participants[memberId]
+        if (!participant?.defaultDestinationId) return []
+        const players = Object.keys(participant.playerDestinations).map((playerId) => ({
+            fromMemberId: memberId,
+            toMemberId: resolvedDestination(state, memberId, 'player', playerId),
+            playerId,
+        }))
+        const picks = Object.keys(participant.pickDestinations).map((pickId) => ({
+            fromMemberId: memberId,
+            toMemberId: resolvedDestination(state, memberId, 'pick', pickId),
+            pickId,
+        }))
+        const faabAmount = parseInt(participant.faabInput || '0', 10) || 0
+        const faab = faabEnabled && faabAmount > 0
+            ? [{ fromMemberId: memberId, toMemberId: participant.defaultDestinationId, faabAmount }]
+            : []
+        return [...players, ...picks, ...faab]
+    })
+}
+
+export function multiTeamTradeStateFromTrade(trade: Trade, actorMemberId: string): MultiTeamTradeState {
+    const tradeParticipantIds = trade.participants.length > 0
+        ? trade.participants.map((participant) => participant.memberId)
+        : [trade.proposerMemberId, trade.recipientMemberId].filter(Boolean)
+    const participantOrder = [actorMemberId, ...tradeParticipantIds.filter((memberId) => memberId !== actorMemberId)]
+    const state: MultiTeamTradeState = {
+        selectedParticipantIds: new Set(participantOrder.filter((memberId) => memberId !== actorMemberId)),
+        participantOrder,
+        participants: Object.fromEntries(participantOrder.map((memberId) => [memberId, {
+            ...emptyParticipant(memberId, participantOrder),
+            defaultDestinationId: '',
+        }])),
+    }
+
+    for (const item of trade.routedItems) {
+        if (!item.fromMemberId || !item.toMemberId || item.fromMemberId === item.toMemberId) continue
+        const participant = state.participants[item.fromMemberId]
+        if (!participant) continue
+        if (!participant.defaultDestinationId) participant.defaultDestinationId = item.toMemberId
+        if (item.kind === 'player') participant.playerDestinations[item.playerId] = item.toMemberId
+        else if (item.kind === 'pick') participant.pickDestinations[item.pickId] = item.toMemberId
+        else participant.faabInput = String((parseInt(participant.faabInput, 10) || 0) + item.amount)
+    }
+
+    for (const [memberId, participant] of Object.entries(state.participants)) {
+        participant.defaultDestinationId ||= defaultDestinationFor(memberId, participantOrder)
+        for (const destinations of [participant.playerDestinations, participant.pickDestinations]) {
+            for (const [assetId, destinationId] of Object.entries(destinations)) {
+                if (destinationId === participant.defaultDestinationId) destinations[assetId] = null
+            }
+        }
+    }
+    return state
+}
+
+export function selectedAssetIds(
+    state: MultiTeamTradeState,
+    asset: 'player' | 'pick',
+): Record<string, Set<string>> {
+    return Object.fromEntries(state.participantOrder.map((memberId) => {
+        const participant = state.participants[memberId]
+        const destinations = asset === 'player' ? participant.playerDestinations : participant.pickDestinations
+        return [memberId, new Set(Object.keys(destinations))]
+    }))
+}
+
+export function explicitAssetDestinations(
+    state: MultiTeamTradeState,
+    asset: 'player' | 'pick',
+): Record<string, Record<string, string>> {
+    return Object.fromEntries(state.participantOrder.map((memberId) => {
+        const participant = state.participants[memberId]
+        const destinations = asset === 'player' ? participant.playerDestinations : participant.pickDestinations
+        return [memberId, Object.fromEntries(
+            Object.entries(destinations).filter((entry): entry is [string, string] => entry[1] != null),
+        )]
+    }))
+}

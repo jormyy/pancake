@@ -12,6 +12,7 @@ import { playerHeadshotUrl } from '@/lib/format'
 import { playerEligiblePositions, playerSeasonContextText } from '@/lib/player-context'
 import { PosTag } from '@/components/PosTag'
 import { Badge } from '@/components/Badge'
+import { MultiTeamTradeOverview, type TradeFlowItem } from '@/components/trades/MultiTeamTradeOverview'
 
 export type TabKey = 'picks' | 'offers' | 'history' | 'block' | 'leagueBlock'
 type TradeVetoMode = 'disabled' | 'commissioner' | 'member_vote'
@@ -97,57 +98,32 @@ function AssetList({ items, label }: { items: TradeItem[]; label: string }) {
     )
 }
 
-function tradeMemberLabel(trade: Trade, memberId: string | null | undefined, myMemberId: string) {
-    if (!memberId) return 'Unknown team'
-    if (memberId === myMemberId) return 'You'
-
-    const participant = trade.participants.find((entry) => entry.memberId === memberId)
-    if (participant) return participant.teamName
-    if (memberId === trade.proposerMemberId) return trade.proposerTeamName
-    if (memberId === trade.recipientMemberId) return trade.recipientTeamName
-    return 'Unknown team'
-}
-
-function MultiTeamRouteList({ trade, myMemberId }: { trade: Trade; myMemberId: string }) {
-    return (
-        <View style={styles.multiRouteList}>
-            <Text style={styles.assetLabel}>Deal overview</Text>
-            {trade.participants.length === 0 ? (
-                <Text style={styles.assetEmpty}>Nothing</Text>
-            ) : (
-                trade.participants.map((participant) => {
-                    const incoming = trade.routedItems.filter((item) => item.toMemberId === participant.memberId)
-                    return (
-                    <View
-                        key={participant.memberId}
-                        style={styles.routeGroup}
-                    >
-                        <View style={styles.routeTitleRow}>
-                            <Text style={styles.routeTitle} numberOfLines={1}>
-                                {participant.memberId === myMemberId
-                                    ? 'You receive'
-                                    : `${tradeMemberLabel(trade, participant.memberId, myMemberId)} receives`}
-                            </Text>
-                            <Text style={[styles.routeAcceptance, participant.acceptedAt && styles.routeAcceptanceComplete]}>
-                                {participant.acceptedAt ? 'Accepted' : 'Waiting'}
-                            </Text>
-                        </View>
-                        {incoming.length === 0 ? (
-                            <Text style={styles.assetEmpty}>No incoming assets</Text>
-                        ) : incoming.map((item, index) => (
-                            <View key={tradeItemKey(item, index)} style={styles.routedAsset}>
-                                <TradeItemLine item={item} />
-                                <Text style={styles.routeSource} numberOfLines={1}>
-                                    From {tradeMemberLabel(trade, item.fromMemberId, myMemberId)}
-                                </Text>
-                            </View>
-                        ))}
-                    </View>
-                    )
-                })
-            )}
-        </View>
-    )
+function tradeFlowItem(item: TradeItem, index: number): TradeFlowItem | null {
+    if (!item.fromMemberId || !item.toMemberId) return null
+    if (item.kind === 'player') {
+        return {
+            key: tradeItemKey(item, index),
+            fromMemberId: item.fromMemberId,
+            toMemberId: item.toMemberId,
+            label: item.playerName,
+            detail: [item.nbaTeam, ...playerEligiblePositions(item)].filter(Boolean).join(' · '),
+        }
+    }
+    if (item.kind === 'pick') {
+        return {
+            key: tradeItemKey(item, index),
+            fromMemberId: item.fromMemberId,
+            toMemberId: item.toMemberId,
+            label: `${item.seasonYear} Round ${item.round}`,
+            detail: `${item.originalTeamName} pick`,
+        }
+    }
+    return {
+        key: tradeItemKey(item, index),
+        fromMemberId: item.fromMemberId,
+        toMemberId: item.toMemberId,
+        label: `$${item.amount} FAAB`,
+    }
 }
 
 export function TradeCard({
@@ -364,7 +340,16 @@ export function TradeCard({
             {alreadyVetoed ? <Text style={styles.vetoWindowText}>Your veto has been recorded.</Text> : null}
 
             {trade.isMultiTeam ? (
-                <MultiTeamRouteList trade={trade} myMemberId={myMemberId} />
+                <MultiTeamTradeOverview
+                    compact
+                    participants={participants.map((participant) => ({
+                        memberId: participant.memberId,
+                        label: participant.memberId === myMemberId ? 'You' : participant.teamName,
+                        statusLabel: participant.acceptedAt ? 'Accepted' : 'Waiting',
+                        statusComplete: participant.acceptedAt != null,
+                    }))}
+                    items={trade.routedItems.flatMap((item, index) => tradeFlowItem(item, index) ?? [])}
+                />
             ) : (
                 <>
                     <AssetList items={iReceive} label={receiveLabel} />
@@ -503,25 +488,6 @@ const styles = StyleSheet.create({
     assetPlayerContext: { fontSize: fontSize.xs, color: colors.primaryDark, fontWeight: fontWeight.bold, marginTop: 1 },
     assetPick: { fontSize: fontSize.sm, color: colors.textSecondary, fontStyle: 'italic' },
     assetPickVia: { fontSize: 12, color: colors.textMuted },
-    multiRouteList: { marginBottom: spacing.xs, gap: spacing.sm },
-    routeGroup: {
-        borderTopWidth: 1,
-        borderTopColor: colors.borderLight,
-        paddingTop: spacing.sm,
-        gap: spacing.xs,
-    },
-    routeTitleRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: spacing.sm,
-    },
-    routeTitle: { flex: 1, fontSize: fontSize.sm, color: colors.textPrimary, fontWeight: fontWeight.bold },
-    routeAcceptance: { fontSize: fontSize.xs, color: colors.textMuted, fontWeight: fontWeight.semibold },
-    routeAcceptanceComplete: { color: uiColors.successText },
-    routedAsset: { paddingLeft: spacing.sm },
-    routeSource: { marginTop: 2, fontSize: fontSize.xs, color: colors.textMuted },
-
     vetoWindowText: { fontSize: 12, color: colors.textMuted, marginBottom: spacing.xs },
     cardNotes: { fontSize: 12, color: colors.textMuted, fontStyle: 'italic', marginTop: spacing.xxs },
 

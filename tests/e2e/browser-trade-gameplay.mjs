@@ -1693,10 +1693,10 @@ export async function runBrowserMultiTeamTradeScenario({
     await assertPageText(
       session,
       [
-        'Deal overview',
-        'You receive',
-        `${fixture.recipient.team_name} receives`,
-        `${fixture.observer.team_name} receives`,
+        'DEAL OVERVIEW',
+        fixture.recipient.team_name,
+        fixture.observer.team_name,
+        'RECEIVES',
         'Accepted',
         'Waiting',
         fixture.proposerPlayer.display_name,
