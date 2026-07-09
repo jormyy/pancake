@@ -70,12 +70,35 @@ const SERVICE_ROLE_ONLY_RPCS = [
     'count_final_games_missing_stats',
 ]
 
+const ANON_SELECT_TABLE_ALLOWLIST = new Set([
+    'dynasty_news',
+    'dynasty_rankings',
+    'nba_games',
+    'player_game_stats',
+    'players',
+    'season_weeks',
+])
+
 const allMigrationSql = (): string =>
     readdirSync(MIGRATIONS)
         .filter((f) => f.endsWith('.sql'))
         .sort()
         .map((f) => readFileSync(path.join(MIGRATIONS, f), 'utf8'))
         .join('\n')
+
+function finalAnonSelectTables(sql: string): string[] {
+    const selectedTables = new Set<string>()
+    const statementPattern = /\b(GRANT|REVOKE)\s+SELECT\s+ON\s+TABLE\s+(?:"public"\."([^"]+)"|public\.([a-z_][a-z0-9_]*))\s+(TO|FROM)\s+([^;]+);/gi
+    for (const match of sql.matchAll(statementPattern)) {
+        const action = match[1].toUpperCase()
+        const table = match[2] ?? match[3]
+        const roles = match[5].toLowerCase()
+        if (!/\banon\b/.test(roles)) continue
+        if (action === 'GRANT') selectedTables.add(table)
+        else selectedTables.delete(table)
+    }
+    return [...selectedTables].sort()
+}
 
 describe('service-role-only RPCs are never granted to client roles', () => {
     const sql = allMigrationSql()
@@ -157,6 +180,12 @@ describe('trusted server table grants', () => {
         expect(sql).not.toMatch(
             /GRANT\s+SELECT\s+ON\s+ALL\s+TABLES\s+IN\s+SCHEMA\s+public\s+TO\s+[^;]*\b(?:anon|authenticated|public)\b/i,
         )
+    })
+
+    it('keeps anon table reads limited to public reference data', () => {
+        const finalAnonTables = finalAnonSelectTables(sql)
+
+        expect(finalAnonTables).toEqual([...ANON_SELECT_TABLE_ALLOWLIST].sort())
     })
 })
 
