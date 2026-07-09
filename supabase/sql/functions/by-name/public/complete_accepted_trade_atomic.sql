@@ -101,6 +101,25 @@ BEGIN
       USING ERRCODE = 'P0001';
   END IF;
 
+  FOR v_from_member, v_item_faab_amount IN
+    SELECT
+      COALESCE(item.from_member_id, CASE
+        WHEN item.side = 'proposer' THEN v_trade.proposer_member_id
+        ELSE v_trade.recipient_member_id
+      END),
+      sum(item.faab_amount)::int
+      FROM trade_items AS item
+     WHERE item.trade_id = p_trade_id
+       AND item.faab_amount > 0
+     GROUP BY 1
+  LOOP
+    v_balance := private.ensure_faab_balance(v_trade.league_id, v_trade.league_season_id, v_from_member);
+    IF v_balance < v_item_faab_amount THEN
+      RAISE EXCEPTION 'Trade participant no longer has enough FAAB for this trade.'
+        USING ERRCODE = 'PT001';
+    END IF;
+  END LOOP;
+
   FOR v_item IN
     SELECT * FROM trade_items WHERE trade_id = p_trade_id ORDER BY created_at, id
   LOOP
@@ -144,11 +163,6 @@ BEGIN
           USING ERRCODE = 'PT001';
       END IF;
 
-      v_balance := private.ensure_faab_balance(v_trade.league_id, v_trade.league_season_id, v_from_member);
-      IF v_balance < v_item_faab_amount THEN
-        RAISE EXCEPTION 'Trade participant no longer has enough FAAB for this trade.'
-          USING ERRCODE = 'PT001';
-      END IF;
     END IF;
   END LOOP;
 
@@ -203,6 +217,33 @@ BEGIN
       v_trade.league_season_id,
       v_clear_player_id
     );
+  END LOOP;
+
+  FOR v_from_member, v_item_faab_amount IN
+    SELECT
+      COALESCE(item.from_member_id, CASE
+        WHEN item.side = 'proposer' THEN v_trade.proposer_member_id
+        ELSE v_trade.recipient_member_id
+      END),
+      sum(item.faab_amount)::int
+      FROM trade_items AS item
+     WHERE item.trade_id = p_trade_id
+       AND item.faab_amount > 0
+     GROUP BY 1
+  LOOP
+    UPDATE faab_balances
+       SET balance = balance - v_item_faab_amount,
+           updated_at = now()
+     WHERE league_id = v_trade.league_id
+       AND league_season_id = v_trade.league_season_id
+       AND member_id = v_from_member
+       AND balance >= v_item_faab_amount;
+
+    GET DIAGNOSTICS v_rows = ROW_COUNT;
+    IF v_rows <> 1 THEN
+      RAISE EXCEPTION 'Trade participant no longer has enough FAAB for this trade.'
+        USING ERRCODE = 'PT001';
+    END IF;
   END LOOP;
 
   FOR v_item IN
@@ -277,13 +318,6 @@ BEGIN
         RAISE EXCEPTION 'Trade item must include a player, pick, or positive FAAB amount'
           USING ERRCODE = 'PT001';
       END IF;
-
-      UPDATE faab_balances
-         SET balance = balance - v_item_faab_amount,
-             updated_at = now()
-       WHERE league_id = v_trade.league_id
-         AND league_season_id = v_trade.league_season_id
-         AND member_id = v_from_member;
 
       INSERT INTO faab_balances (
         league_id,

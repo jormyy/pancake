@@ -44,10 +44,6 @@ BEGIN
   FOR v_candidate IN
     SELECT candidate.league_id, candidate.league_season_id, candidate.player_id
       FROM waiver_claims AS candidate
-      JOIN waiver_priorities AS wp
-        ON wp.league_id = candidate.league_id
-       AND wp.league_season_id = candidate.league_season_id
-       AND wp.member_id = candidate.member_id
       JOIN waiver_wire_log AS due_wwl
         ON due_wwl.league_id = candidate.league_id
        AND due_wwl.league_season_id = candidate.league_season_id
@@ -63,13 +59,10 @@ BEGIN
      WHERE candidate.status = 'pending'
        AND candidate.process_date <= p_process_date
      ORDER BY
+       candidate.process_date,
        candidate.league_id,
        candidate.league_season_id,
-       CASE WHEN claim_league.waiver_mode = 'faab' THEN candidate.bid_amount END DESC NULLS LAST,
-       wp.priority ASC,
-       candidate.claim_order ASC,
-       candidate.submitted_at ASC,
-       candidate.id ASC
+       candidate.player_id
   LOOP
     IF pg_try_advisory_xact_lock(hashtext(v_candidate.league_id::text), hashtext(v_candidate.league_season_id::text)) THEN
       v_target_league_id := v_candidate.league_id;

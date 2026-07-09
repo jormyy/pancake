@@ -359,40 +359,6 @@ async function fetchPendingTradeForAction(
   return data
 }
 
-async function fetchPendingMultiTeamTradeForAction(
-  tradeId: string,
-  memberId: string,
-  action: 'counter' | 'edit',
-): Promise<{ proposer_member_id: string; recipient_member_id: string }> {
-  const { data, error } = await supabase
-    .from('trades')
-    .select('id, proposer_member_id, recipient_member_id, status, is_multi_team')
-    .eq('id', tradeId)
-    .maybeSingle()
-
-  if (error) throwDb(error)
-  if (!data) throw new NotFoundError('Trade not found.')
-  if (!data.is_multi_team) throw new ValidationError('This action only supports multi-team trades.')
-  if (data.status !== 'pending') throw new ValidationError('This trade is no longer pending.')
-
-  if (action === 'edit') {
-    if (data.proposer_member_id !== memberId) throw new NotFoundError('Trade not found.')
-    return data
-  }
-
-  if (data.proposer_member_id === memberId) throw new NotFoundError('Trade not found.')
-  const { data: participant, error: participantError } = await supabase
-    .from('trade_participants')
-    .select('member_id, accepted_at')
-    .eq('trade_id', tradeId)
-    .eq('member_id', memberId)
-    .maybeSingle()
-  if (participantError) throwDb(participantError)
-  if (!participant || participant.accepted_at != null) throw new NotFoundError('Trade not found.')
-
-  return data
-}
-
 async function fetchPendingTradeForAccept(tradeId: string, memberId: string): Promise<PendingTradeForAccept> {
   const { data, error } = await supabase
     .from('trades')
@@ -528,11 +494,11 @@ async function editTrade(userId: string, tradeId: string, body: Record<string, u
 }
 
 async function counterMultiTeamTrade(userId: string, tradeId: string, body: Record<string, unknown>): Promise<{ tradeId: string }> {
-  return replaceMultiTeamTrade(userId, tradeId, body, 'counter', REPLACE_MULTI_TEAM_TRADE_ACTIONS.counter)
+  return replaceMultiTeamTrade(userId, tradeId, body, REPLACE_MULTI_TEAM_TRADE_ACTIONS.counter)
 }
 
 async function editMultiTeamTrade(userId: string, tradeId: string, body: Record<string, unknown>): Promise<{ tradeId: string }> {
-  return replaceMultiTeamTrade(userId, tradeId, body, 'edit', REPLACE_MULTI_TEAM_TRADE_ACTIONS.edit)
+  return replaceMultiTeamTrade(userId, tradeId, body, REPLACE_MULTI_TEAM_TRADE_ACTIONS.edit)
 }
 
 async function replaceTrade(
@@ -573,12 +539,10 @@ async function replaceMultiTeamTrade(
   userId: string,
   tradeId: string,
   body: Record<string, unknown>,
-  actionName: 'counter' | 'edit',
   action: ReplaceMultiTeamTradeAction,
 ): Promise<{ tradeId: string }> {
   const memberId = uuidField(body, 'memberId')
   await requireOwnMember(userId, memberId)
-  await fetchPendingMultiTeamTradeForAction(tradeId, memberId, actionName)
   const payload = multiTeamTradePayload(body)
 
   const { data: newTradeId, error } = await supabase.rpc(action.rpc, {

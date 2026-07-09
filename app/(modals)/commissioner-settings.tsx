@@ -17,8 +17,7 @@ import {
     getLeagueMembers,
     getLineupSlots,
     overrideWeeklyAddCount,
-    updateLeague,
-    updateLineupSlots,
+    updateLeagueConfiguration,
     type LeagueSettingsUpdate,
     type TradeVetoMode,
     type WaiverMode,
@@ -297,8 +296,17 @@ export default function CommissionerSettingsScreen() {
 
         setSaving(true)
         try {
-            if (Object.keys(updates).length > 0) {
-                await updateLeague(league.id, updates)
+            const generalChanged = Object.keys(updates).length > 0
+            if (generalChanged || slotsChanged) {
+                await updateLeagueConfiguration(
+                    league.id,
+                    updates,
+                    slotsChanged
+                        ? SLOT_TYPES.map((type) => ({ slot_type: type, slot_count: slots[type] ?? 0 }))
+                        : null,
+                )
+            }
+            if (generalChanged) {
                 setInitialScoring(scoring)
                 setInitialGeneral({
                     rosterSize,
@@ -315,10 +323,6 @@ export default function CommissionerSettingsScreen() {
                 })
             }
             if (slotsChanged) {
-                await updateLineupSlots(
-                    league.id,
-                    SLOT_TYPES.map((t) => ({ slot_type: t, slot_count: slots[t] ?? 0 })),
-                )
                 setInitialSlots(slots)
             }
             await refresh()

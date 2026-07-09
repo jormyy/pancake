@@ -35,6 +35,7 @@ const dynastyTx = readFunctionSources([
     ['assert_weekly_add_available', 'private'],
 ])
 const waiverPolicyMigration = read('supabase/migrations/20260708000012_waiver_submission_policy_and_index.sql')
+const waiverQueryShapeMigration = read('supabase/migrations/20260709000007_cycle1_atomicity_and_query_shapes.sql')
 const waiverApi = read('supabase/functions/api/waivers.ts')
 const claimPlayerModal = read('app/(modals)/claim-player.tsx')
 
@@ -90,25 +91,21 @@ describe('waiver claim resolution ordering (process_waiver_claim internals)', ()
     })
 
     it('indexes the due-claim processor by its pending batch shape', () => {
-        expect(waiverPolicyMigration).toContain('idx_waiver_claims_pending_due_processing')
-        expect(waiverPolicyMigration).toContain('league_id')
-        expect(waiverPolicyMigration).toContain('league_season_id')
-        expect(waiverPolicyMigration).toContain('player_id')
-        expect(waiverPolicyMigration).toContain('process_date')
-        expect(waiverPolicyMigration).toContain('bid_amount DESC')
-        expect(waiverPolicyMigration).toContain("WHERE status = 'pending'::public.waiver_claim_status")
+        expect(waiverQueryShapeMigration).toContain('DROP INDEX IF EXISTS public.idx_waiver_claims_pending_due_processing')
+        expect(waiverQueryShapeMigration).toContain('idx_waiver_claims_pending_due_groups')
+        expect(waiverQueryShapeMigration).toContain('(process_date, league_id, league_season_id, player_id)')
+        expect(waiverQueryShapeMigration).toContain('idx_waiver_claims_pending_player_candidates')
+        expect(waiverQueryShapeMigration).toContain('(league_id, league_season_id, player_id, process_date)')
+        expect(waiverQueryShapeMigration).toContain("WHERE status = 'pending'::public.waiver_claim_status")
     })
 
-    it('picks the next claim by FAAB bid DESC, then priority, claim order, submit time, id', () => {
+    it('picks a deterministic due player group before ranking that group under lock', () => {
         expect(waivers).toContain(
             '     ORDER BY\n' +
+            '       candidate.process_date,\n' +
             '       candidate.league_id,\n' +
             '       candidate.league_season_id,\n' +
-            "       CASE WHEN claim_league.waiver_mode = 'faab' THEN candidate.bid_amount END DESC NULLS LAST,\n" +
-            '       wp.priority ASC,\n' +
-            '       candidate.claim_order ASC,\n' +
-            '       candidate.submitted_at ASC,\n' +
-            '       candidate.id ASC',
+            '       candidate.player_id',
         )
     })
 

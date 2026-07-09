@@ -196,26 +196,15 @@ export async function getLineupSlots(leagueId: string) {
     return data ?? []
 }
 
-export async function updateLeague(
+export async function updateLeagueConfiguration(
     leagueId: string,
     updates: LeagueSettingsUpdate,
+    slots: LineupSlotUpdate[] | null,
 ) {
-    // The RPC enforces commissioner authority and setup-only structural edits.
-    const { error } = await supabase.rpc('update_league_settings_atomic', {
+    const { error } = await supabase.rpc('update_league_configuration_atomic', {
         p_league_id: leagueId,
         p_settings: leagueSettingsPayload(updates),
-    })
-    if (error) throw error
-}
-
-export async function updateLineupSlots(
-    leagueId: string,
-    slots: LineupSlotUpdate[],
-) {
-    // The RPC locks the league and keeps lineup templates setup-only.
-    const { error } = await supabase.rpc('update_lineup_slots_atomic', {
-        p_league_id: leagueId,
-        p_slots: lineupSlotsPayload(slots),
+        p_slots: slots ? lineupSlotsPayload(slots) : undefined,
     })
     if (error) throw error
 }

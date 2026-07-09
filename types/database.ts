@@ -4335,6 +4335,10 @@ export type Database = {
         Args: { p_league_id: string; p_settings: Json }
         Returns: undefined
       }
+      update_league_configuration_atomic: {
+        Args: { p_league_id: string; p_settings: Json; p_slots?: Json }
+        Returns: undefined
+      }
       update_lineup_slots_atomic: {
         Args: { p_league_id: string; p_slots: Json }
         Returns: undefined
