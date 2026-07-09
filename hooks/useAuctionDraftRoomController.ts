@@ -74,6 +74,7 @@ export function useAuctionDraftRoomController({
     const channelRef = useRef<RealtimeChannel | null>(null)
     const presenceChannelRef = useRef<RealtimeChannel | null>(null)
     const countdownNomination = state?.openNomination
+    const draftLeagueId = state?.draft.leagueId ?? null
 
     const load = useCallback(async () => {
         if (!draftId) return
@@ -119,13 +120,13 @@ export function useAuctionDraftRoomController({
     useEffect(() => {
         if (!draftId) return
         load()
-        channelRef.current = subscribeToDraft(draftId, load)
+        channelRef.current = subscribeToDraft(draftId, draftLeagueId, load)
         const poll = setInterval(load, 5000)
         return () => {
             if (channelRef.current) unsubscribeFromDraft(channelRef.current)
             clearInterval(poll)
         }
-    }, [draftId, load])
+    }, [draftId, draftLeagueId, load])
 
     // Presence — separate public channel so it works without realtime.messages RLS
     useEffect(() => {

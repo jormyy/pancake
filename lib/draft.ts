@@ -505,8 +505,8 @@ export async function resumeIfAbsent(draftId: string): Promise<void> {
     await sharedApiPost(`/draft/${draftId}/resume-if-absent`, {})
 }
 
-export function subscribeToDraft(draftId: string, onChange: () => void): RealtimeChannel {
-    const channel = supabase
+export function subscribeToDraft(draftId: string, leagueId: string | null | undefined, onChange: () => void): RealtimeChannel {
+    let channel = supabase
         .channel(`draft:${draftId}`, { config: { private: true } })
         .on(
             'postgres_changes',
@@ -518,7 +518,6 @@ export function subscribeToDraft(draftId: string, onChange: () => void): Realtim
             },
             onChange,
         )
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'bids' }, onChange)
         .on(
             'postgres_changes',
             {
@@ -534,7 +533,14 @@ export function subscribeToDraft(draftId: string, onChange: () => void): Realtim
             { event: 'UPDATE', schema: 'public', table: 'drafts', filter: `id=eq.${draftId}` },
             onChange,
         )
-        .subscribe()
+    if (leagueId) {
+        channel = channel.on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'bids', filter: `league_id=eq.${leagueId}` },
+            onChange,
+        )
+    }
+    channel = channel.subscribe()
 
     return channel
 }
