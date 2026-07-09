@@ -5,7 +5,7 @@ import {
     tradeVetoModeFromValue,
     waiverModeFromValue,
     type CommissionerSettingsDraft,
-} from '@/components/commissioner/settings-draft'
+} from '@/lib/commissioner-settings-draft'
 
 function draft(overrides: Partial<CommissionerSettingsDraft> = {}): CommissionerSettingsDraft {
     return {

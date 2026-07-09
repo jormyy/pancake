@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/supabase', () => ({ supabase: {} }))
-import { isTradeVisibleOnScreen, type Trade } from '@/lib/trades'
+import { isTradeVisibleOnScreen, type Trade, type TradePickItem } from '@/lib/trades'
+import { buildTradeList } from '@/lib/trades-screen-model'
 
 const NOW = Date.parse('2026-07-09T12:00:00Z')
 
@@ -35,6 +36,16 @@ function trade(overrides: Partial<Trade> = {}): Trade {
     }
 }
 
+const pick = (id: string, year: number, round: number): TradePickItem => ({
+    kind: 'pick', pickId: id, seasonYear: year, round, originalTeamName: 'Team',
+})
+
+const listBase = {
+    vetoableTrades: [], incomingTrades: [], outgoingTrades: [], historyTrades: [],
+    picks: [], tradesLoading: false, myBlockItems: [], blockLoading: false,
+    blockRoster: [], leagueBlockItems: [],
+}
+
 describe('trade screen read model', () => {
     it('keeps every trade involving the current member', () => {
         expect(isTradeVisibleOnScreen(trade(), 'proposer', NOW)).toBe(true)
@@ -54,5 +65,29 @@ describe('trade screen read model', () => {
             vetoWindowExpiresAt: '2026-07-09T11:00:00Z',
         }), 'observer', NOW)).toBe(false)
         expect(isTradeVisibleOnScreen(trade(), 'observer', NOW)).toBe(false)
+    })
+
+    it('keeps actionable veto trades ahead of incoming and outgoing sections', () => {
+        const rows = buildTradeList({
+            ...listBase,
+            tab: 'offers',
+            vetoableTrades: [trade({ id: 'veto' })],
+            incomingTrades: [trade({ id: 'incoming' })],
+            outgoingTrades: [trade({ id: 'outgoing' })],
+        })
+        expect(rows.map((row) => row._type === 'trade' ? row.trade.id : row._type === 'header' ? row.label : row._type)).toEqual([
+            'Veto Window', 'veto', 'Incoming', 'incoming', 'Outgoing', 'outgoing',
+        ])
+    })
+
+    it('sorts and groups picks by season', () => {
+        const rows = buildTradeList({
+            ...listBase,
+            tab: 'picks',
+            picks: [pick('late', 2028, 2), pick('early', 2027, 1)],
+        })
+        expect(rows.map((row) => row._type === 'header' ? row.label : row._type === 'pick' ? row.pick.pickId : row._type)).toEqual([
+            '2027 Picks', 'early', '2028 Picks', 'late',
+        ])
     })
 })
