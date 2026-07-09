@@ -52,19 +52,27 @@ AS $$
          AND trade.veto_window_expires_at > now()
        )
       )
-  ), member_page AS (
-    SELECT visible.*
+  ), prioritized AS (
+    SELECT visible.*,
+      (
+        (NOT visible.is_participant AND (visible.trade_row).status = 'accepted'::public.trade_status)
+        OR EXISTS (
+          SELECT 1
+            FROM public.trade_participants AS participant
+           WHERE participant.trade_id = (visible.trade_row).id
+             AND participant.member_id = p_member_id
+             AND participant.accepted_at IS NULL
+             AND (visible.trade_row).status = 'pending'::public.trade_status
+        )
+      ) AS is_actionable
       FROM visible
-     WHERE visible.is_participant
-     ORDER BY (visible.trade_row).proposed_at DESC, (visible.trade_row).id DESC
-     LIMIT LEAST(GREATEST(p_limit, 1), 100)
-    OFFSET GREATEST(p_offset, 0)
   )
-  SELECT (visible.trade_row).*
-    FROM visible
-   WHERE NOT visible.is_participant
-  UNION ALL
-  SELECT (member_page.trade_row).*
-    FROM member_page
-   ORDER BY proposed_at DESC, id DESC;
+  SELECT (prioritized.trade_row).*
+    FROM prioritized
+   ORDER BY prioritized.is_actionable DESC,
+            prioritized.is_participant DESC,
+            (prioritized.trade_row).proposed_at DESC,
+            (prioritized.trade_row).id DESC
+   LIMIT LEAST(GREATEST(p_limit, 1), 100)
+  OFFSET GREATEST(p_offset, 0);
 $$;

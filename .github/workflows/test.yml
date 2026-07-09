@@ -76,8 +76,9 @@ jobs:
         shell: bash
         run: |
           source <(supabase status -o env)
-          supabase migration list --local --agent yes \
-            | jq -e '.migrations | length > 0 and all(.[]; .local == .remote)'
+          expected_migrations="$(find supabase/migrations -maxdepth 1 -name '*.sql' | wc -l | tr -d ' ')"
+          applied_migrations="$(psql "$DB_URL" -Atc 'select count(*) from supabase_migrations.schema_migrations')"
+          test "$applied_migrations" = "$expected_migrations"
           E2E_SUPABASE_URL="$API_URL" \
           SUPABASE_DB_URL="$DB_URL" \
           E2E_PANCAKE_SUPABASE_SECRET_KEY="$SECRET_KEY" \

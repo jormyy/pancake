@@ -457,7 +457,7 @@ const assertVetoRowsSurviveMemberHistoryPagination = async (fixture) => {
   }).select('id')
   if (error) throw new Error(`get_trades_for_member pagination: ${error.message}`)
   const rows = Array.isArray(data) ? data : data ? [data] : []
-  assert.equal(rows.length, 41)
+  assert.equal(rows.length, 40)
   assert(rows.some((trade) => trade.id === vetoTrade.id), 'vetoable observer trade was displaced by personal history')
   const { error: terminalError } = await fixture.admin
     .from('trades')
