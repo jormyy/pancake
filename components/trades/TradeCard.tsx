@@ -15,6 +15,7 @@ import { Badge } from '@/components/Badge'
 import { MultiTeamTradeOverview, type TradeFlowItem } from '@/components/trades/MultiTeamTradeOverview'
 import { tradeDisplayPerspective } from '@/lib/trade-perspective'
 import type { TradeVetoMode } from '@/types/app'
+import { rollbackTradeDrop, selectTradeDrop } from '@/lib/trade-drop-selection'
 
 export type TabKey = 'picks' | 'offers' | 'history' | 'block' | 'leagueBlock'
 const STATUS_LABELS: Record<string, string> = {
@@ -240,10 +241,8 @@ export function TradeCard({
     }
 
     async function handleDropAndAccept(rosterPlayerId: string) {
-        const next = new Set(droppedIds)
-        next.add(rosterPlayerId)
+        const next = selectTradeDrop(droppedIds, rosterPlayerId)
         setDroppedIds(next)
-        setMyRoster((prev) => prev.filter((p) => p.id !== rosterPlayerId))
 
         if (next.size < neededDrops) return
 
@@ -253,6 +252,7 @@ export function TradeCard({
             setDropPickerVisible(false)
             onAction()
         } catch (e) {
+            setDroppedIds((current) => rollbackTradeDrop(current, rosterPlayerId))
             showAlert('Error', getErrorMessage(e) ?? 'Could not accept trade.')
         } finally {
             setDropping(null)
@@ -433,7 +433,7 @@ export function TradeCard({
                 visible={dropPickerVisible}
                 title={`Drop ${remainingDrops} player${remainingDrops !== 1 ? 's' : ''} to make room`}
                 subtitle={`Select ${remainingDrops} player${remainingDrops !== 1 ? 's' : ''} to drop, then the trade will be accepted atomically.`}
-                roster={myRoster}
+                roster={myRoster.filter((player) => !droppedIds.has(player.id))}
                 dropping={dropping}
                 onDrop={(rp) => handleDropAndAccept(rp.id)}
                 onCancel={handleCancelDropPicker}

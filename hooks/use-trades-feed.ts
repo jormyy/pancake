@@ -42,8 +42,9 @@ export function useTradesFeed(memberId: string, leagueId: string) {
     useEffect(() => {
         loadSequence.current += 1
         setTrades(cached ?? [])
+        setError(null)
         setLoading(!cached)
-    }, [cached])
+    }, [cached, leagueId, memberId])
 
     useEffect(() => {
         void refresh()

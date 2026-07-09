@@ -14,6 +14,8 @@ import { colors } from '@/constants/tokens'
 import type { CommissionerAction } from '@/components/commissioner/settings-policy'
 import { LINEUP_SLOT_TYPES } from '@pancake/core'
 import { styles } from '@/components/commissioner/settings-styles'
+import { EmptyState } from '@/components/EmptyState'
+import { ErrorBanner } from '@/components/ui'
 import {
     COMMISSIONER_SCORING_FIELDS,
     useCommissionerSettingsController,
@@ -24,11 +26,12 @@ const SLOT_TYPES = LINEUP_SLOT_TYPES
 export default function CommissionerSettingsScreen() {
     const { width, height } = useWindowDimensions()
     const compactLandscape = width >= 600 && height < 500
+    const compactMobile = width <= 400
     const {
         adjustSlot, busyAction, draft, handleAddCountOverride, handleDeleteLeague,
-        handleFaabOverride, isCommissioner, lifecycle, loading, lowerPriorityActions,
+        handleFaabOverride, isCommissioner, lifecycle, loadError, loadState, lowerPriorityActions,
         members, navigateBack, overrideAdds, overrideFaab, overrideMemberId,
-        overrideSaving, save, saving, setOverrideAdds, setOverrideFaab,
+        overrideSaving, retryLoad, save, saving, setOverrideAdds, setOverrideFaab,
         setOverrideMemberId, tradeVetoModeDescription, updateField, updateScoring,
     } = useCommissionerSettingsController()
     const {
@@ -36,6 +39,29 @@ export default function CommissionerSettingsScreen() {
         weeklyAddLimit, waiverMode, faabBudget, tradeVetoMode, tradeVetoWindowHours,
         tradeVetoThresholdPercent,
     } = draft
+
+    const screenHeader = (
+        <View style={styles.screenHeader}>
+            <Pressable onPress={navigateBack} style={styles.headerBack} role="link"
+                aria-label="Back to league settings" accessibilityRole="link" accessibilityLabel="Back to league settings">
+                <MaterialIcons name="arrow-back" size={22} color={colors.textPrimary} />
+            </Pressable>
+            <Text style={styles.screenTitle}>League Settings</Text>
+        </View>
+    )
+
+    if (loadState !== 'ready') {
+        return <>
+            <Stack.Screen options={{ title: 'League Settings', presentation: 'modal', headerShown: false }} />
+            <SafeAreaView style={styles.container} edges={['bottom']}>
+                {screenHeader}
+                {loadState === 'error' ? <ErrorBanner message={loadError ?? 'Could not load league settings.'} onRetry={retryLoad} /> : null}
+                <EmptyState fullScreen={false}
+                    message={loadState === 'unauthorized' ? 'Commissioner access required' : loadState === 'error' ? 'Settings unavailable' : 'Loading league settings'}
+                    description={loadState === 'unauthorized' ? 'Only league commissioners can manage these settings.' : 'League controls will appear when the current configuration is ready.'} />
+            </SafeAreaView>
+        </>
+    }
 
     function renderAction(action: CommissionerAction, grid = false) {
         const color = action.color ?? colors.primary
@@ -69,19 +95,7 @@ export default function CommissionerSettingsScreen() {
         <>
             <Stack.Screen options={{ title: 'League Settings', presentation: 'modal', headerShown: false }} />
             <SafeAreaView style={styles.container} edges={['bottom']}>
-                <View style={styles.screenHeader}>
-                    <Pressable
-                        onPress={navigateBack}
-                        style={styles.headerBack}
-                        role="link"
-                        aria-label="Back to league settings"
-                        accessibilityRole="link"
-                        accessibilityLabel="Back to league settings"
-                    >
-                        <MaterialIcons name="arrow-back" size={22} color={colors.textPrimary} />
-                    </Pressable>
-                    <Text style={styles.screenTitle}>League Settings</Text>
-                </View>
+                {screenHeader}
                 <ScrollView
                     contentContainerStyle={[styles.scroll, compactLandscape && styles.scrollCompact]}
                     keyboardShouldPersistTaps="handled"
@@ -223,9 +237,9 @@ export default function CommissionerSettingsScreen() {
 
                     <Text style={styles.sectionTitle}>TRADE VETO</Text>
                     <View style={styles.card}>
-                        <View style={[styles.row, styles.rowBorder]}>
+                        <View style={[styles.row, styles.rowBorder, compactMobile && styles.rowStacked]}>
                             <Text style={styles.rowLabel}>Veto Mode</Text>
-                            <View style={styles.segmentRow}>
+                            <View style={[styles.segmentRow, compactMobile && styles.segmentRowCompact]}>
                                 {([
                                     { value: 'member_vote', label: 'Members' },
                                     { value: 'commissioner', label: 'Commish' },
@@ -235,7 +249,7 @@ export default function CommissionerSettingsScreen() {
                                     return (
                                         <Pressable
                                             key={mode.value}
-                                            style={[styles.segmentButton, active && styles.segmentButtonActive]}
+                                            style={[styles.segmentButton, compactMobile && styles.segmentButtonCompact, active && styles.segmentButtonActive]}
                                             onPress={() => updateField('tradeVetoMode', mode.value)}
                                         >
                                             <Text style={[styles.segmentButtonText, active && styles.segmentButtonTextActive]}>
@@ -317,9 +331,9 @@ export default function CommissionerSettingsScreen() {
 
                     {/* ── Save ──────────────────────────────────────── */}
                     <Pressable
-                        style={[styles.saveButton, loading && styles.saveButtonDisabled]}
+                        style={styles.saveButton}
                         onPress={save}
-                        disabled={saving || loading}
+                        disabled={saving}
                     >
                         <Text style={styles.saveButtonText}>Save Settings</Text>
                     </Pressable>

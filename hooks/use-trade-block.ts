@@ -33,6 +33,7 @@ export function useTradeBlock(memberId: string, leagueId: string) {
     const [error, setError] = useState<string | null>(null)
     const [busyId, setBusyId] = useState<string | null>(null)
     const loadSequence = useRef(0)
+    const mutationSequence = useRef(0)
 
     const refresh = useCallback(async () => {
         const requestId = ++loadSequence.current
@@ -72,24 +73,31 @@ export function useTradeBlock(memberId: string, leagueId: string) {
 
     useEffect(() => {
         loadSequence.current += 1
+        mutationSequence.current += 1
         setItems(cached?.items ?? [])
         setRoster(cached?.roster ?? [])
         setAvgMap(EMPTY_AVG_MAP)
         setAvgStatsMap(EMPTY_STATS_MAP)
+        setError(null)
+        setBusyId(null)
         setLoading(!cached)
-    }, [cached])
+    }, [cached, leagueId, memberId])
 
     useEffect(() => () => { loadSequence.current += 1 }, [])
 
     const mutate = useCallback(async (id: string, operation: () => Promise<unknown>) => {
+        const requestId = ++mutationSequence.current
         setBusyId(id)
         try {
             await operation()
+            if (mutationSequence.current !== requestId) return
             await refresh()
         } catch (cause) {
-            setError(getErrorMessage(cause) ?? 'Could not update trade block.')
+            if (mutationSequence.current === requestId) {
+                setError(getErrorMessage(cause) ?? 'Could not update trade block.')
+            }
         } finally {
-            setBusyId(null)
+            if (mutationSequence.current === requestId) setBusyId(null)
         }
     }, [refresh])
 

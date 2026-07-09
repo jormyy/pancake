@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/supabase', () => ({ supabase: {} }))
 import { isTradeVisibleOnScreen, type Trade, type TradePickItem } from '@/lib/trades'
-import { buildTradeList } from '@/lib/trades-screen-model'
+import { buildTradeList, tradeScreenResource } from '@/lib/trades-screen-model'
 
 const NOW = Date.parse('2026-07-09T12:00:00Z')
 
@@ -89,5 +89,13 @@ describe('trade screen read model', () => {
         expect(rows.map((row) => row._type === 'header' ? row.label : row._type === 'pick' ? row.pick.pickId : row._type)).toEqual([
             '2027 Picks', 'early', '2028 Picks', 'late',
         ])
+    })
+
+    it('assigns each tab to exactly one retryable resource owner', () => {
+        expect(tradeScreenResource('picks')).toBe('picks')
+        expect(tradeScreenResource('block')).toBe('block')
+        expect(tradeScreenResource('leagueBlock')).toBe('block')
+        expect(tradeScreenResource('offers')).toBe('trades')
+        expect(tradeScreenResource('history')).toBe('trades')
     })
 })

@@ -36,6 +36,7 @@ import {
     tradeListItemType,
     tradeListKey,
     tradeLoadingMessage,
+    tradeScreenResource,
     type TradeListItem,
 } from '@/lib/trades-screen-model'
 
@@ -146,6 +147,9 @@ export default function TradesScreen() {
         { label: 'League Block', value: 'leagueBlock' },
         { label: 'History', value: 'history' },
     ]
+    const activeResource = tradeScreenResource(tab)
+    const activeError = activeResource === 'picks' ? picksError : activeResource === 'block' ? blockError : tradesError
+    const retryActiveResource = activeResource === 'picks' ? refreshPicks : activeResource === 'block' ? loadBlock : load
 
     if (memberships.length === 0 && leagueLoading) {
         return <SafeAreaView style={styles.container}><View style={styles.content}>
@@ -159,8 +163,8 @@ export default function TradesScreen() {
     return <SafeAreaView style={styles.container}><View style={styles.content}>
         <TradeHeader disabled={tradingClosed} onPropose={() => push('/(modals)/propose-trade')} />
         <TradeTabs options={tabOptions} tab={tab} setTab={setTab} />
-        {tradesError || picksError || blockError ? <ErrorBanner message="Failed to load trades. Tap to retry."
-            onRetry={() => { void load(); if (tab === 'block' || tab === 'leagueBlock') void loadBlock() }} /> : null}
+        {activeError ? <ErrorBanner message={`Failed to load ${activeResource === 'picks' ? 'draft picks' : activeResource === 'block' ? 'trade block' : 'trades'}. Tap to retry.`}
+            onRetry={() => { void retryActiveResource() }} /> : null}
         {activeTabLoading ? <EmptyState fullScreen={false} message={tradeLoadingMessage(tab)}
             description="Cached trade content stays visible while fresh data updates in place." />
             : tab === 'picks' && picksError ? <View style={styles.emptyState}><Text style={styles.emptyStateText}>Error: {picksError.message}</Text></View>

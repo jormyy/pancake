@@ -33,8 +33,10 @@ export function useLeagueTabResources(
     const nextActivityRequestId = useRef(0)
     const activeTabRef = useRef(activeTab)
     const activeLeagueIdRef = useRef(leagueId)
+    const activeMemberIdRef = useRef(memberId)
     activeTabRef.current = activeTab
     activeLeagueIdRef.current = leagueId
+    activeMemberIdRef.current = memberId
 
     useEffect(() => {
         loadedTabs.current.clear()
@@ -54,9 +56,10 @@ export function useLeagueTabResources(
         setActivityLoadMoreError(null)
         setTabError({})
         setTabLoading({ results: true })
-    }, [leagueId])
+    }, [leagueId, memberId])
 
     const runTabFetch = useCallback(async (nextTab: LeagueTab, lid: string) => {
+        const requestedMemberId = memberId
         const requestId = (requestIds.current.get(nextTab) ?? 0) + 1
         requestIds.current.set(nextTab, requestId)
         setTabLoading((prev) => ({ ...prev, [nextTab]: true }))
@@ -87,18 +90,18 @@ export function useLeagueTabResources(
                 const data = await getMockDraftRooms(lid, memberId)
                 commit = () => setMockRooms(data)
             }
-            if (activeLeagueIdRef.current !== lid || requestIds.current.get(nextTab) !== requestId) return
+            if (activeLeagueIdRef.current !== lid || activeMemberIdRef.current !== requestedMemberId || requestIds.current.get(nextTab) !== requestId) return
             commit()
             loadedTabs.current.add(nextTab)
         } catch (error) {
-            if (activeLeagueIdRef.current === lid && requestIds.current.get(nextTab) === requestId) {
+            if (activeLeagueIdRef.current === lid && activeMemberIdRef.current === requestedMemberId && requestIds.current.get(nextTab) === requestId) {
                 setTabError((prev) => ({
                     ...prev,
                     [nextTab]: error instanceof Error ? error.message : 'Unknown error',
                 }))
             }
         } finally {
-            if (activeLeagueIdRef.current === lid && requestIds.current.get(nextTab) === requestId) {
+            if (activeLeagueIdRef.current === lid && activeMemberIdRef.current === requestedMemberId && requestIds.current.get(nextTab) === requestId) {
                 setTabLoading((prev) => ({ ...prev, [nextTab]: false }))
             }
         }

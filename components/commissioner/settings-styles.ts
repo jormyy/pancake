@@ -86,6 +86,7 @@ export const styles = StyleSheet.create({
         overflow: 'hidden',
     },
     row: { minHeight: 44, flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.xl, paddingVertical: spacing.lg },
+    rowStacked: { flexDirection: 'column', alignItems: 'stretch', gap: spacing.sm },
     rowBorder: { borderBottomWidth: 1, borderBottomColor: colors.separator },
     rowLabel: { flex: 1, fontSize: 15, color: colors.textPrimary },
     settingHint: {
@@ -111,6 +112,7 @@ export const styles = StyleSheet.create({
         flexDirection: 'row',
         gap: spacing.sm,
     },
+    segmentRowCompact: { width: '100%' },
     segmentButton: {
         minWidth: 76,
         minHeight: 44,
@@ -123,6 +125,7 @@ export const styles = StyleSheet.create({
         paddingHorizontal: spacing.md,
         backgroundColor: colors.bgMuted,
     },
+    segmentButtonCompact: { flex: 1, minWidth: 0, paddingHorizontal: spacing.xs },
     segmentButtonActive: {
         borderColor: colors.primary,
         backgroundColor: colors.primary,

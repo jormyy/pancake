@@ -3,6 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { EmptyState } from '@/components/EmptyState'
+import { ErrorBanner } from '@/components/ui'
 import { MultiTeamTradeBuilder } from '@/components/trades/MultiTeamTradeBuilder'
 import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 import { useLeagueContext } from '@/contexts/league-context'
@@ -47,9 +48,11 @@ export default function ProposeTradeScreen() {
     const [notes, setNotes] = useState('')
     const [expirationDays, setExpirationDays] = useState('3')
     const [loading, setLoading] = useState(true)
+    const [membersError, setMembersError] = useState<string | null>(null)
     const [submitting, setSubmitting] = useState(false)
     const submittingRef = useRef(false)
     const routePrefillKeyRef = useRef<string | null>(null)
+    const membersRequestRef = useRef(0)
     const { mode, editTradeId, counterTradeId, sourceTradeId } = getTradeComposerMode(params)
     const canUseMultiTeamMode = mode === 'propose'
     const faabEnabled = currentLeague?.waiver_mode === 'faab'
@@ -72,21 +75,33 @@ export default function ProposeTradeScreen() {
         toggleParticipant,
     } = composer
 
-    useEffect(() => {
-        if (!leagueId) return
-        let cancelled = false
-        getLeagueMembers(leagueId)
-            .then((all) => {
-                if (!cancelled) setMembers(all.filter((member) => member.id !== myMemberId))
-            })
-            .catch(console.error)
-            .finally(() => {
-                if (!cancelled) setLoading(false)
-            })
-        return () => {
-            cancelled = true
+    const loadMembers = useCallback(async () => {
+        const requestId = ++membersRequestRef.current
+        if (!leagueId) {
+            setMembers([])
+            setMembersError(null)
+            setLoading(false)
+            return
+        }
+        setLoading(true)
+        setMembersError(null)
+        try {
+            const all = await getLeagueMembers(leagueId)
+            if (membersRequestRef.current !== requestId) return
+            setMembers(all.filter((member) => member.id !== myMemberId))
+        } catch (error) {
+            if (membersRequestRef.current !== requestId) return
+            setMembers([])
+            setMembersError(getErrorMessage(error) ?? 'Could not load league members.')
+        } finally {
+            if (membersRequestRef.current === requestId) setLoading(false)
         }
     }, [leagueId, myMemberId])
+
+    useEffect(() => {
+        void loadMembers()
+        return () => { membersRequestRef.current += 1 }
+    }, [loadMembers])
 
     useEffect(() => {
         if (multiTeamMode || !selectedRecipientId || !myMemberId) return
@@ -283,7 +298,14 @@ export default function ProposeTradeScreen() {
                         )
                     })}
                 </View>
-                {composer.participantViews.length >= 2 ? (
+                {membersError ? (
+                    <>
+                        <ErrorBanner message={membersError} onRetry={() => { void loadMembers() }} />
+                        <EmptyState icon="error-outline" message="Teams unavailable"
+                            description="Retry to load the league members available for this trade."
+                            fullScreen={false} framed />
+                    </>
+                ) : composer.participantViews.length >= 2 ? (
                     <MultiTeamTradeBuilder
                         participants={composer.participantViews}
                         myMemberId={myMemberId}

@@ -71,18 +71,30 @@ export function useCommissionerSettingsController() {
     const [overrideFaab, setOverrideFaab] = useState('')
     const [overrideAdds, setOverrideAdds] = useState('')
     const [overrideSaving, setOverrideSaving] = useState(false)
-    const [loading, setLoading] = useState(true)
+    const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error' | 'unauthorized'>('loading')
+    const [loadError, setLoadError] = useState<string | null>(null)
+    const [loadAttempt, setLoadAttempt] = useState(0)
     const [saving, setSaving] = useState(false)
     const [busyAction, setBusyAction] = useState<CommissionerActionId | null>(null)
 
     useEffect(() => {
         let cancelled = false
         async function load() {
-            if (!league || hydratedLeagueId.current === league.id) {
-                setLoading(false)
+            if (!isCommissioner) {
+                setLoadState('unauthorized')
+                setLoadError(null)
                 return
             }
-            setLoading(true)
+            if (!league) {
+                setLoadState('loading')
+                return
+            }
+            if (hydratedLeagueId.current === league.id) {
+                setLoadState('ready')
+                return
+            }
+            setLoadState('loading')
+            setLoadError(null)
             try {
                 const [slotData, memberData] = await Promise.all([
                     getLineupSlots(league.id),
@@ -116,15 +128,17 @@ export function useCommissionerSettingsController() {
                 setDraft(nextDraft)
                 setInitialDraft(nextDraft)
                 hydratedLeagueId.current = league.id
+                setLoadState('ready')
             } catch (error) {
-                showAlert('Could not load league settings', getErrorMessage(error))
-            } finally {
-                if (!cancelled) setLoading(false)
+                if (!cancelled) {
+                    setLoadError(getErrorMessage(error) ?? 'Could not load league settings.')
+                    setLoadState('error')
+                }
             }
         }
         void load()
         return () => { cancelled = true }
-    }, [league])
+    }, [isCommissioner, league, loadAttempt])
 
     const updateField = <Key extends keyof CommissionerSettingsDraft>(
         key: Key,
@@ -316,7 +330,8 @@ export function useCommissionerSettingsController() {
         handleFaabOverride,
         isCommissioner,
         lifecycle,
-        loading,
+        loadError,
+        loadState,
         lowerPriorityActions,
         members,
         navigateBack: () => replace('/league?tab=settings'),
@@ -329,6 +344,10 @@ export function useCommissionerSettingsController() {
         setOverrideAdds,
         setOverrideFaab,
         setOverrideMemberId,
+        retryLoad: () => {
+            hydratedLeagueId.current = null
+            setLoadAttempt((attempt) => attempt + 1)
+        },
         tradeVetoModeDescription: tradeVetoDescription(draft.tradeVetoMode),
         updateField,
         updateScoring,

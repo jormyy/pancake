@@ -23,6 +23,9 @@ const OPEN_DRAFT_STATUSES = new Set(['pending', 'in_progress', 'paused'])
 export function useLeagueDraftController(leagueId: string | undefined) {
     const { push } = useRouter()
     const activeLeagueIdRef = useRef(leagueId)
+    const requestSequence = useRef(0)
+    const inFlightRequest = useRef<{ leagueId: string; promise: Promise<void> } | null>(null)
+    const refreshQueued = useRef(false)
     activeLeagueIdRef.current = leagueId
     const [draftLoading, setDraftLoading] = useState(false)
     const [nominationMode, setNominationMode] = useState<NominationOrderMode>('user_nominated')
@@ -35,26 +38,47 @@ export function useLeagueDraftController(leagueId: string | undefined) {
     const [activeDraftError, setActiveDraftError] = useState<string | null>(null)
 
     useEffect(() => {
+        requestSequence.current += 1
+        inFlightRequest.current = null
+        refreshQueued.current = false
         setActiveDraft(null)
         setActiveDraftError(null)
         setActiveDraftLoading(Boolean(leagueId))
     }, [leagueId])
 
-    const fetchActiveDraft = useCallback(async (lid: string) => {
+    const fetchActiveDraft = useCallback((lid: string): Promise<void> => {
+        const existing = inFlightRequest.current
+        if (existing?.leagueId === lid) {
+            refreshQueued.current = true
+            return existing.promise
+        }
+        const requestId = ++requestSequence.current
+        const request = { leagueId: lid, promise: Promise.resolve() }
         setActiveDraftLoading(true)
-        try {
-            const draft = await getJoinableDraft(lid, { includeCompletedRookie: true })
-            if (activeLeagueIdRef.current !== lid) return
-            setActiveDraft(draft)
-            setActiveDraftError(null)
-        } catch (error) {
-            if (activeLeagueIdRef.current === lid) {
+        request.promise = getJoinableDraft(lid, { includeCompletedRookie: true })
+            .then((nextDraft) => {
+                if (activeLeagueIdRef.current !== lid || requestSequence.current !== requestId) return
+                setActiveDraft(nextDraft)
+                setActiveDraftError(null)
+            })
+            .catch((error: unknown) => {
+                if (activeLeagueIdRef.current !== lid || requestSequence.current !== requestId) return
                 setActiveDraft(null)
                 setActiveDraftError(error instanceof Error ? error.message : 'Could not load active draft')
-            }
-        } finally {
-            if (activeLeagueIdRef.current === lid) setActiveDraftLoading(false)
-        }
+            })
+            .finally(() => {
+                if (inFlightRequest.current !== request) return
+                inFlightRequest.current = null
+                if (activeLeagueIdRef.current !== lid || requestSequence.current !== requestId) return
+                if (refreshQueued.current) {
+                    refreshQueued.current = false
+                    void fetchActiveDraft(lid)
+                } else {
+                    setActiveDraftLoading(false)
+                }
+            })
+        inFlightRequest.current = request
+        return request.promise
     }, [])
 
     useFocusEffect(useCallback(() => {

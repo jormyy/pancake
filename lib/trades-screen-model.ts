@@ -37,6 +37,14 @@ export function tradeListKey(item: TradeListItem, index: number): string {
 
 export const tradeListItemType = (item: TradeListItem) => item._type
 
+export type TradeScreenResource = 'picks' | 'block' | 'trades'
+
+export function tradeScreenResource(tab: TabKey): TradeScreenResource {
+    if (tab === 'picks') return 'picks'
+    if (tab === 'block' || tab === 'leagueBlock') return 'block'
+    return 'trades'
+}
+
 export function tradeLoadingMessage(tab: TabKey): string {
     if (tab === 'picks') return 'Loading draft picks'
     if (tab === 'block') return 'Loading your trade block'
