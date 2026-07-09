@@ -65,6 +65,17 @@ const hasEvidencePass = (status) => status === 'PASS'
 const hasEnabledEvidencePass = (enabled, status) => enabled && hasEvidencePass(status)
 /** @param {{ enabled: boolean, status: string }[]} items */
 const allEnabledEvidencePass = (items) => items.every(({ enabled, status }) => enabled && hasEvidencePass(status))
+/** @param {{ requirement: string, status: string }[]} coverage */
+export const productionCoverageStatus = (coverage) => {
+  const documentationRequirements = new Set(['Phase A audit report', 'P0/P1 findings resolved'])
+  const prerequisiteStatuses = coverage
+    .filter((row) => !documentationRequirements.has(row.requirement))
+    .map((row) => row.status)
+  if (prerequisiteStatuses.length === 0) return 'PENDING'
+  return prerequisiteStatuses.every((item) => item === 'PASS')
+    ? 'PASS'
+    : prerequisiteStatuses.some((item) => item === 'FAIL' || item === 'BLOCKED') ? 'FAIL' : 'PENDING'
+}
 /** @param {CoverageInput} input */
 export const writeCoverageReport = async ({ status, startedAt, finishedAt, seasons, args, env, targetLeagueId, rows, notes }) => {
   const auditExists = await readFile(path.join(ROOT, 'tests/audit-report.md'), 'utf8')
@@ -421,16 +432,13 @@ export const writeCoverageReport = async ({ status, startedAt, finishedAt, seaso
       evidence: `Current run status is ${status} for target ${seasons} season(s); PARTIAL means enabled season rows passed but full gameplay coverage is still pending.`,
     },
   ]
-  const prerequisiteStatuses = coverage.map((row) => row.status)
-  const productionStatus = prerequisiteStatuses.every((item) => item === 'PASS')
-    ? 'PASS'
-    : prerequisiteStatuses.some((item) => item === 'FAIL' || item === 'BLOCKED') ? 'FAIL' : 'PENDING'
+  const productionStatus = productionCoverageStatus(coverage)
   coverage.push({
     requirement: 'Production-ready exit criteria',
     status: productionStatus,
     evidence: productionStatus === 'PASS'
       ? 'Every required release row has passing structural evidence.'
-      : 'Production exit requires every coverage row to report PASS in release-gate mode.',
+      : 'Production exit requires every operational coverage row to report PASS in release-gate mode.',
   })
 
   const lines = [

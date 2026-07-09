@@ -34,6 +34,13 @@ jobs:
           printf 'E2E_ADMIN_SECRET=local-release-soak-secret\n' > /tmp/pancake-edge.env
           supabase functions serve --env-file /tmp/pancake-edge.env > /tmp/pancake-edge.log 2>&1 &
           CI=1 npx expo start --web --port 8082 > /tmp/pancake-web.log 2>&1 &
+          for attempt in {1..60}; do
+            curl --fail --silent http://127.0.0.1:8082 >/dev/null && exit 0
+            sleep 2
+          done
+          cat /tmp/pancake-web.log
+          cat /tmp/pancake-edge.log
+          exit 1
       - name: Seed release fixture
         run: npm run e2e:seed
       - name: Run coverage-enforcing soak
