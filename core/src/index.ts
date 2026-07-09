@@ -43,6 +43,18 @@ export { canPlaySlot, SLOT_TYPES } from './positions'
 export type { SlotType } from './positions'
 
 // Types
+export {
+    LEAGUE_STATUSES,
+    DRAFT_STATUSES,
+    DRAFT_TYPES,
+    NOMINATION_STATUSES,
+    TRADE_STATUSES,
+    TRADE_SIDES,
+    MATCHUP_TYPES,
+    WAIVER_CLAIM_STATUSES,
+    ROSTER_SLOT_TYPES,
+    NBA_POSITIONS,
+} from './types/enums'
 export type {
     LeagueStatus,
     DraftStatus,
