@@ -1,6 +1,5 @@
--- Canonical SQL source for private.prevent_conflicting_or_inactive_trade_accept.
--- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
--- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+SET lock_timeout = '5s';
+SET statement_timeout = '2min';
 
 CREATE OR REPLACE FUNCTION private.prevent_conflicting_or_inactive_trade_accept()
 RETURNS trigger
@@ -20,3 +19,9 @@ BEGIN
   RETURN NEW;
 END;
 $$;
+
+REVOKE ALL ON FUNCTION private.prevent_conflicting_or_inactive_trade_accept()
+  FROM PUBLIC, anon, authenticated, service_role;
+
+RESET statement_timeout;
+RESET lock_timeout;

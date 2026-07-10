@@ -26,6 +26,25 @@ const onlineRouteConstraintSequence = (source: string, route: 'from' | 'to') => 
     const setNotNull = source.indexOf(`ALTER COLUMN ${column} SET NOT NULL`)
     return notValid >= 0 && validate > notValid && setNotNull > validate
 }
+const occurrences = (source: string, pattern: string) => source.split(pattern).length - 1
+const canonicalAssetAssertionContract = (source: string) => {
+    const helperStart = source.indexOf('CREATE OR REPLACE FUNCTION private.assert_trade_assets_acceptance_ready')
+    const triggerStart = source.indexOf('CREATE OR REPLACE FUNCTION private.prevent_conflicting_or_inactive_trade_accept')
+    const acceptStart = source.indexOf('CREATE OR REPLACE FUNCTION private.accept_trade_participant_atomic')
+    if (helperStart < 0 || triggerStart <= helperStart || acceptStart <= triggerStart) return false
+    const helper = source.slice(helperStart, triggerStart)
+    return helper.includes('roster.is_on_ir = false') &&
+        helper.includes('roster.is_on_taxi = false') &&
+        occurrences(helper, 'pick.current_owner_id = item.from_member_id') === 2 &&
+        occurrences(helper, 'pick.is_used = false') === 2 &&
+        helper.includes('accepted_item.pick_id = item.pick_id') &&
+        helper.includes('accepted_trade.status = \'accepted\'::trade_status')
+}
+const canonicalAssetTriggerContract = (source: string) => source.includes(
+    'CREATE OR REPLACE FUNCTION private.prevent_conflicting_or_inactive_trade_accept()',
+) && source.includes('SECURITY DEFINER') && source.includes(
+    'private.assert_trade_assets_acceptance_ready(\n      NEW.id,',
+)
 
 describe('branch migration deployment safety', () => {
     it('bounds every blocking migration from the trade hardening series onward', () => {
@@ -85,5 +104,25 @@ describe('branch migration deployment safety', () => {
             'idx_trades_recipient_proposed',
             'idx_trades_vetoable_recent',
         ]) expect(additive).toContain(`DROP INDEX IF EXISTS public.${index};`)
+    })
+
+    it('mutation-proves every canonical asset assertion branch and direct trigger wiring', () => {
+        const migration = read('20260709100032_canonical_trade_asset_acceptance_assertion.sql')
+        const triggerMigration = read('20260709100033_secure_trade_asset_acceptance_trigger.sql')
+        expect(canonicalAssetAssertionContract(migration)).toBe(true)
+        expect(canonicalAssetTriggerContract(triggerMigration)).toBe(true)
+
+        const mutations = [
+            migration.replace('AND roster.is_on_ir = false', ''),
+            migration.replace('AND roster.is_on_taxi = false', ''),
+            migration.replaceAll('AND pick.current_owner_id = item.from_member_id', ''),
+            migration.replaceAll('AND pick.is_used = false', ''),
+            migration.replace('ON accepted_item.pick_id = item.pick_id', 'ON accepted_item.pick_id IS NOT NULL'),
+        ]
+        for (const mutation of mutations) expect(canonicalAssetAssertionContract(mutation)).toBe(false)
+        for (const mutation of [
+            triggerMigration.replace('SECURITY DEFINER', 'SECURITY INVOKER'),
+            triggerMigration.replace('NEW.id,', 'OLD.id,'),
+        ]) expect(canonicalAssetTriggerContract(mutation)).toBe(false)
     })
 })

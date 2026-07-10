@@ -453,6 +453,189 @@ const assertCompetingStandardAndMultiTeamTradesSerialize = async (fixture) => {
   assert([fixture.recipient.id, fixture.observer.id].includes(owner.member_id))
 }
 
+/** @param {any} fixture @param {{ playerId?: string, pickId?: string, notes: string }} asset */
+const proposeStandardAssetTrade = (fixture, { playerId, pickId, notes }) => rpc(fixture.admin, 'propose_trade_atomic', {
+  p_league_id: fixture.league.id,
+  p_league_season_id: fixture.currentSeason.id,
+  p_proposer_member_id: fixture.proposer.id,
+  p_recipient_member_id: fixture.recipient.id,
+  p_offer_player_ids: playerId ? [playerId] : [],
+  p_request_player_ids: [],
+  p_offer_pick_ids: pickId ? [pickId] : [],
+  p_request_pick_ids: [],
+  p_offer_faab_amount: 0,
+  p_request_faab_amount: 1,
+  p_notes: notes,
+  p_expires_at: null,
+})
+
+const assertInactivePlayerAcceptanceAndDirectTriggerReject = async (fixture) => {
+  await setLeagueRules(fixture, {
+    roster_size: 20,
+    waiver_mode: 'faab',
+    trade_veto_mode: 'commissioner',
+    trade_veto_window_hours: 1,
+  })
+  await setBalances(fixture, [
+    [fixture.proposer.id, 100],
+    [fixture.recipient.id, 100],
+  ])
+  const [player] = await findAvailablePlayers(
+    fixture.admin,
+    fixture.league.id,
+    fixture.currentSeason.id,
+    1,
+    fixture.registerCreatedPlayer,
+  )
+  const { error: insertError } = await fixture.admin.from('roster_players').insert({
+    league_id: fixture.league.id,
+    league_season_id: fixture.currentSeason.id,
+    member_id: fixture.proposer.id,
+    player_id: player.id,
+    acquired_via: 'e2e_db_inactive_acceptance',
+  })
+  if (insertError) throw new Error(`inactive acceptance roster insert: ${insertError.message}`)
+  const { data: roster, error: rosterError } = await fixture.admin.from('roster_players')
+    .select('id').eq('league_id', fixture.league.id).eq('league_season_id', fixture.currentSeason.id)
+    .eq('member_id', fixture.proposer.id).eq('player_id', player.id).single()
+  if (rosterError) throw new Error(`inactive acceptance roster lookup: ${rosterError.message}`)
+
+  for (const inactiveColumn of ['is_on_ir', 'is_on_taxi']) {
+    const tradeId = await proposeStandardAssetTrade(fixture, {
+      playerId: player.id,
+      notes: `DB ${inactiveColumn} acceptance assertion`,
+    })
+    const { error: inactiveError } = await fixture.admin.from('roster_players')
+      .update({ [inactiveColumn]: true }).eq('id', roster.id)
+    if (inactiveError) throw new Error(`${inactiveColumn} setup: ${inactiveError.message}`)
+
+    await expectRpcError(fixture.admin, 'accept_trade_atomic', {
+      p_trade_id: tradeId,
+      p_accepting_member_id: fixture.recipient.id,
+    }, 'active roster side')
+    assert.equal((await fetchTrade(fixture, tradeId)).status, 'pending')
+
+    const { error: restoreError } = await fixture.admin.from('roster_players')
+      .update({ [inactiveColumn]: false }).eq('id', roster.id)
+    if (restoreError) throw new Error(`${inactiveColumn} restore: ${restoreError.message}`)
+  }
+
+  const triggerTradeId = await proposeStandardAssetTrade(fixture, {
+    playerId: player.id,
+    notes: 'DB direct accepted-status trigger assertion',
+  })
+  const { error: taxiError } = await fixture.admin.from('roster_players').update({ is_on_taxi: true }).eq('id', roster.id)
+  if (taxiError) throw new Error(`direct trigger taxi setup: ${taxiError.message}`)
+  const { error: triggerError } = await fixture.admin.from('trades')
+    .update({ status: 'accepted', accepted_at: new Date().toISOString() })
+    .eq('id', triggerTradeId)
+  assert(triggerError, 'direct accepted-status update bypassed the canonical asset assertion trigger')
+  assert.match(triggerError.message, /active roster side/i)
+  assert.equal((await fetchTrade(fixture, triggerTradeId)).status, 'pending')
+  const { error: restoreError } = await fixture.admin.from('roster_players').update({ is_on_taxi: false }).eq('id', roster.id)
+  if (restoreError) throw new Error(`direct trigger taxi restore: ${restoreError.message}`)
+}
+
+const proposerAvailablePick = async (fixture) => {
+  const { data, error } = await fixture.admin.from('draft_picks')
+    .select('id, current_owner_id, is_used')
+    .eq('league_id', fixture.league.id)
+    .eq('current_owner_id', fixture.proposer.id)
+    .eq('is_used', false)
+    .order('season_year', { ascending: false })
+    .order('round', { ascending: true })
+    .limit(1)
+    .single()
+  if (error) throw new Error(`proposer available pick lookup: ${error.message}`)
+  return data
+}
+
+const assertStaleAndUsedPickAcceptanceReject = async (fixture) => {
+  await setLeagueRules(fixture, {
+    waiver_mode: 'faab',
+    trade_veto_mode: 'commissioner',
+    trade_veto_window_hours: 1,
+  })
+  await setBalances(fixture, [[fixture.recipient.id, 100]])
+  const pick = await proposerAvailablePick(fixture)
+  const tradeId = await proposeStandardAssetTrade(fixture, {
+    pickId: pick.id,
+    notes: 'DB stale and used pick acceptance assertion',
+  })
+
+  const { error: usedError } = await fixture.admin.from('draft_picks').update({ is_used: true }).eq('id', pick.id)
+  if (usedError) throw new Error(`used pick setup: ${usedError.message}`)
+  await expectRpcError(fixture.admin, 'accept_trade_atomic', {
+    p_trade_id: tradeId,
+    p_accepting_member_id: fixture.recipient.id,
+  }, 'Draft-pick asset is no longer owned')
+  assert.equal((await fetchTrade(fixture, tradeId)).status, 'pending')
+
+  const { error: staleError } = await fixture.admin.from('draft_picks')
+    .update({ is_used: false, current_owner_id: fixture.recipient.id }).eq('id', pick.id)
+  if (staleError) throw new Error(`stale pick setup: ${staleError.message}`)
+  await expectRpcError(fixture.admin, 'accept_trade_atomic', {
+    p_trade_id: tradeId,
+    p_accepting_member_id: fixture.recipient.id,
+  }, 'Draft-pick asset is no longer owned')
+  assert.equal((await fetchTrade(fixture, tradeId)).status, 'pending')
+
+  const { error: restoreError } = await fixture.admin.from('draft_picks')
+    .update({ current_owner_id: fixture.proposer.id }).eq('id', pick.id)
+  if (restoreError) throw new Error(`stale pick restore: ${restoreError.message}`)
+}
+
+const assertCompetingAcceptedPickTradesSerialize = async (fixture) => {
+  await setLeagueRules(fixture, {
+    waiver_mode: 'faab',
+    trade_veto_mode: 'commissioner',
+    trade_veto_window_hours: 1,
+  })
+  await setBalances(fixture, [
+    [fixture.recipient.id, 100],
+    [fixture.observer.id, 100],
+  ])
+  const pick = await proposerAvailablePick(fixture)
+  const standardTradeId = await proposeStandardAssetTrade(fixture, {
+    pickId: pick.id,
+    notes: 'DB competing standard accepted-pick reservation',
+  })
+  const multiTradeId = await rpc(fixture.admin, 'propose_multi_team_trade_atomic', {
+    p_league_id: fixture.league.id,
+    p_league_season_id: fixture.currentSeason.id,
+    p_proposer_member_id: fixture.proposer.id,
+    p_participant_member_ids: [fixture.proposer.id, fixture.observer.id],
+    p_items: [{
+      fromMemberId: fixture.proposer.id,
+      toMemberId: fixture.observer.id,
+      pickId: pick.id,
+    }],
+    p_notes: 'DB competing multi-team accepted-pick reservation',
+    p_expires_at: null,
+  })
+
+  const results = await Promise.allSettled([
+    accept(fixture, standardTradeId, fixture.recipient.id),
+    accept(fixture, multiTradeId, fixture.observer.id),
+  ])
+  assert.equal(results.filter((result) => result.status === 'fulfilled').length, 1)
+  assert.equal(results.filter((result) => result.status === 'rejected').length, 1)
+  const trades = await Promise.all([fetchTrade(fixture, standardTradeId), fetchTrade(fixture, multiTradeId)])
+  assert.equal(trades.filter((trade) => trade.status === 'accepted').length, 1)
+  assert.equal(trades.filter((trade) => trade.status === 'pending').length, 1)
+
+  const { data: persistedPick, error: pickError } = await fixture.admin.from('draft_picks')
+    .select('current_owner_id, is_used').eq('id', pick.id).single()
+  if (pickError) throw new Error(`reserved pick lookup: ${pickError.message}`)
+  assert.equal(persistedPick.current_owner_id, fixture.proposer.id)
+  assert.equal(persistedPick.is_used, false)
+
+  const acceptedTrade = trades.find((trade) => trade.status === 'accepted')
+  const { error: cleanupError } = await fixture.admin.from('trades')
+    .update({ status: 'vetoed', vetoed_at: new Date().toISOString() }).eq('id', acceptedTrade.id)
+  if (cleanupError) throw new Error(`accepted pick reservation cleanup: ${cleanupError.message}`)
+}
+
 const assertTwoTeamUsesCanonicalRoutes = async (fixture) => {
   await setLeagueRules(fixture, {
     status: 'active',
@@ -674,10 +857,13 @@ const run = async () => {
   await assertLazyRosterEnforcement(fixture)
   await assertConcurrentAcceptanceCompletesOnce(fixture)
   await assertCompetingStandardAndMultiTeamTradesSerialize(fixture)
+  await assertInactivePlayerAcceptanceAndDirectTriggerReject(fixture)
+  await assertStaleAndUsedPickAcceptanceReject(fixture)
+  await assertCompetingAcceptedPickTradesSerialize(fixture)
   await assertTwoTeamUsesCanonicalRoutes(fixture)
   await assertVetoRowsSurviveMemberHistoryPagination(fixture)
   await assertCompletionFailureIsTerminal(fixture)
-  console.log('PASS multi-team trade DB: lazy roster limits, canonical routes, keyset pages, mixed-trade races, and terminal failures')
+  console.log('PASS multi-team trade DB: canonical asset assertions, lazy roster limits, keyset pages, mixed-trade races, and terminal failures')
 }
 
 runWithScenarioResourceOwner('multi-team trade DB', run).catch((error) => {
