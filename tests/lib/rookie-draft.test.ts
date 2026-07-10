@@ -11,7 +11,7 @@ function query(result: { data: unknown; error: unknown }) {
     const chain: Record<string, unknown> & PromiseLike<typeof result> = {
         then: (resolve) => Promise.resolve(result).then(resolve),
     }
-    for (const method of ['select', 'eq', 'not', 'order', 'limit', 'ilike']) {
+    for (const method of ['select', 'eq', 'is', 'not', 'order', 'limit', 'ilike']) {
         chain[method] = vi.fn(() => chain)
     }
     chain.single = vi.fn(async () => result)
@@ -24,14 +24,17 @@ beforeEach(() => vi.clearAllMocks())
 describe('rookie draft reads', () => {
     it('polls a constant-size draft revision without reading the full board', async () => {
         const draft = query({ data: { status: 'in_progress' }, error: null })
-        const latestPick = query({ data: { overall_pick: 12, player_id: 'player' }, error: null })
-        mocks.from.mockImplementation((table: string) => table === 'drafts' ? draft : latestPick)
+        const nextPick = query({ data: { overall_pick: 12, player_id: null }, error: null })
+        mocks.from.mockImplementation((table: string) => table === 'drafts' ? draft : nextPick)
 
         const revision = await getRookieDraftPollRevision('draft')
 
         expect(revision).toContain('in_progress')
         expect(mocks.from.mock.calls.map(([table]) => table)).toEqual(['drafts', 'snake_draft_picks'])
-        expect(latestPick.limit).toHaveBeenCalledWith(1)
+        expect(nextPick.is).toHaveBeenNthCalledWith(1, 'player_id', null)
+        expect(nextPick.is).toHaveBeenNthCalledWith(2, 'skipped_at', null)
+        expect(nextPick.order).toHaveBeenCalledWith('overall_pick', { ascending: true })
+        expect(nextPick.limit).toHaveBeenCalledWith(1)
         expect(mocks.from).not.toHaveBeenCalledWith('draft_orders')
         expect(mocks.from).not.toHaveBeenCalledWith('players')
     })

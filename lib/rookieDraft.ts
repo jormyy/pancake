@@ -180,7 +180,9 @@ export async function getRookieDraftPollRevision(draftId: string): Promise<strin
             .from('snake_draft_picks')
             .select('overall_pick, player_id, picked_at, skipped_at, timer_expires_at')
             .eq('draft_id', draftId)
-            .order('overall_pick', { ascending: false })
+            .is('player_id', null)
+            .is('skipped_at', null)
+            .order('overall_pick', { ascending: true })
             .limit(1)
             .maybeSingle(),
     ])
