@@ -22,11 +22,18 @@ jobs:
       - name: Start release stack
         shell: bash
         run: |
-          probe_migration="supabase/migrations/20260709100026_index_pending_trade_feed.sql"
-          mv "$probe_migration" /tmp/20260709100026_index_pending_trade_feed.sql
-          trap 'mv /tmp/20260709100026_index_pending_trade_feed.sql "$probe_migration"' EXIT
+          probe_name="$(node -p "require('./tests/e2e/midlife-migration.json').filename")"
+          head_name="$(find supabase/migrations -maxdepth 1 -name '*.sql' -exec basename {} \; | sort | tail -1)"
+          test "$probe_name" = "$head_name" || {
+            echo "Mid-life probe $probe_name is not repository head $head_name"
+            exit 1
+          }
+          probe_version="${probe_name%%_*}"
+          probe_migration="supabase/migrations/$probe_name"
+          mv "$probe_migration" "/tmp/$probe_name"
+          trap 'mv "/tmp/$probe_name" "$probe_migration"' EXIT
           supabase start
-          mv /tmp/20260709100026_index_pending_trade_feed.sql "$probe_migration"
+          mv "/tmp/$probe_name" "$probe_migration"
           trap - EXIT
           source <(supabase status -o env)
           export EXPO_PUBLIC_SUPABASE_URL="$API_URL"
@@ -39,7 +46,7 @@ jobs:
           printf 'E2E_API_BASE_URL=%s/functions/v1/api\n' "$API_URL" >> "$GITHUB_ENV"
           printf 'E2E_FRONTEND_URL=http://127.0.0.1:8082\n' >> "$GITHUB_ENV"
           printf 'E2E_ADMIN_SECRET=local-release-soak-secret\n' >> "$GITHUB_ENV"
-          printf 'E2E_MIDLIFE_EXPECTED_VERSION=20260709100026\n' >> "$GITHUB_ENV"
+          printf 'E2E_MIDLIFE_EXPECTED_VERSION=%s\n' "$probe_version" >> "$GITHUB_ENV"
           printf 'FAKE_UPSTREAM_PORT=4555\n' >> "$GITHUB_ENV"
           cat > /tmp/pancake-edge.env <<'EOF'
           E2E_ADMIN_SECRET=local-release-soak-secret

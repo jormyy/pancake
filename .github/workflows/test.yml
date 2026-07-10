@@ -130,7 +130,7 @@ jobs:
           cache: npm
       - run: npm ci
       - id: matrix
-        run: echo "matrix=$(node tests/e2e/browser-scenario-registry.mjs --ci-matrix)" >> "$GITHUB_OUTPUT"
+        run: echo "matrix=$(node tests/e2e/browser-scenario-manifest.mjs --ci-matrix)" >> "$GITHUB_OUTPUT"
 
   test-browser:
     name: Browser (${{ matrix.scenario }})
@@ -189,3 +189,14 @@ jobs:
 
       - name: Run browser scenario
         run: node tests/e2e/browser-ci-scenario.mjs --scenario=${{ matrix.scenario }}
+
+      - name: Retain browser diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-${{ matrix.scenario }}-evidence
+          path: |
+            tests/e2e-browser-*-report.md
+            tests/e2e-browser-*-report.json
+            tests/artifacts/
+          if-no-files-found: ignore

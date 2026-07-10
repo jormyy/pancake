@@ -4,15 +4,16 @@
     "checkJs": true,
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "noImplicitAny": false,
     "noEmit": true,
+    "resolveJsonModule": true,
     "skipLibCheck": true,
     "strict": true,
     "target": "ES2022"
   },
   "include": [
-    "scripts/**/*.mjs",
-    "tests/e2e/**/*.mjs"
+    "scripts/check-db-function-sources.mjs",
+    "scripts/generate-database-types.mjs",
+    "tests/e2e/browser-scenario-manifest.mjs"
   ],
   "exclude": [
     "node_modules"

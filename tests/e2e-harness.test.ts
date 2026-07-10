@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { parseArgs } from './e2e/harness/args.mjs'
+import {
+  BROWSER_SCENARIO_MANIFEST,
+  browserEvidenceIds,
+  browserPassNotes,
+  fastBrowserScenarioMatrix,
+} from './e2e/browser-scenario-manifest.mjs'
 
 const originalArgv = process.argv
 
@@ -36,6 +42,26 @@ describe('e2e harness args', () => {
 })
 
 describe('e2e browser scenario registry', () => {
+  it('owns unique executable contracts and seeded auth prerequisites', () => {
+    expect(new Set(BROWSER_SCENARIO_MANIFEST.map(({ id }) => id)).size).toBe(BROWSER_SCENARIO_MANIFEST.length)
+    expect(new Set(BROWSER_SCENARIO_MANIFEST.map(({ flag }) => flag)).size).toBe(BROWSER_SCENARIO_MANIFEST.length)
+    expect(new Set(BROWSER_SCENARIO_MANIFEST.map(({ resultKey }) => resultKey)).size).toBe(BROWSER_SCENARIO_MANIFEST.length)
+    expect(fastBrowserScenarioMatrix().include.find(({ scenario }) => scenario === 'auth')).toEqual({
+      scenario: 'auth',
+      seed: true,
+    })
+  })
+
+  it('enables every release scenario and derives evidence from the same manifest', () => {
+    process.argv = ['node', 'tests/e2e/soak.mjs', '--release-gate=true']
+    const args = parseArgs()
+    for (const scenario of BROWSER_SCENARIO_MANIFEST) expect(args[scenario.flag]).toBe(true)
+
+    const results = Object.fromEntries(BROWSER_SCENARIO_MANIFEST.map(({ resultKey }) => [resultKey, { status: 'PASS' }]))
+    expect(browserEvidenceIds(results)).toEqual(BROWSER_SCENARIO_MANIFEST.map(({ evidenceId }) => evidenceId))
+    expect(browserPassNotes(results)).toEqual(BROWSER_SCENARIO_MANIFEST.map(({ passNote }) => passNote))
+  })
+
   it('gates every browser flow by the shared season policy', async () => {
     vi.resetModules()
     const smoke = vi.fn(async () => ({ ok: 'smoke' }))

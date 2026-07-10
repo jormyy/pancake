@@ -74,6 +74,7 @@ import {
   assertSeasonResetScenario,
   assertWeeklyScoringFinalizationScenario,
 } from './soak-scoring-reset.mjs'
+import { browserEvidenceIds, browserPassNotes } from './browser-scenario-manifest.mjs'
 
 const main = async () => {
   const args = parseArgs()
@@ -362,6 +363,7 @@ const main = async () => {
       let previousSnapshot = null
       const perfMetrics = []
       for (let season = 1; season <= args.seasons; season += 1) {
+        const upstreamHitsAtSeasonStart = { ...fake.state.hits }
         let midlifeMigrationReport = null
         if (args.midlifeMigration && season === MIDLIFE_MIGRATION_AFTER_SEASON + 1) {
           midlifeMigrationReport = await applyMidlifeMigration(season)
@@ -385,30 +387,7 @@ const main = async () => {
           await backendJson(env, '/e2e/generate-matchups', { force: false, leagueId: targetLeagueId })
         }
 
-        const {
-          browserCheck,
-          browserAuthCheck,
-          browserPerfCheck,
-          browserGameplayCheck,
-          browserLineupCheck,
-          browserLineupAutoSetCheck,
-          browserLineupLockedCheck,
-          browserPlayoffCheck,
-          browserRookieDraftCheck,
-          browserWaiverCheck,
-          browserWaiverDropCheck,
-          browserWaiverIrBlockCheck,
-          browserTradeCheck,
-          browserTradeAcceptCheck,
-          browserTradeTerminalCheck,
-          browserTradeFuturePickCheck,
-          browserTradeFuturePickAcceptCheck,
-          browserTradeOverflowAcceptCheck,
-          browserTradePostDeadlineCheck,
-          browserTradeVetoCheck,
-          browserTradeMultiTeamCheck,
-          browserLeagueLifecycleCheck,
-        } = await runBrowserScenarios({ args, season, shouldRun: shouldRunScenario })
+        const browserScenarioResults = await runBrowserScenarios({ args, season, shouldRun: shouldRunScenario })
         const backendScenarioResults = await runBackendScenarios({
           args,
           shouldRun: shouldRunScenario,
@@ -544,10 +523,15 @@ const main = async () => {
         }, null, 2)}\n`)
         const perfFailures = validatePerfDrift(perfMetrics, args.seasons)
         const memoryFailures = validateMemoryDrift(perfMetrics, args.seasons)
-        const fakeUpstreamObserved = fake.state.hits.nbaCdn > 0 && fake.state.hits.sleeper > 0
+        const upstreamHitDelta = {
+          nbaCdn: fake.state.hits.nbaCdn - upstreamHitsAtSeasonStart.nbaCdn,
+          sleeper: fake.state.hits.sleeper - upstreamHitsAtSeasonStart.sleeper,
+          push: fake.state.hits.push - upstreamHitsAtSeasonStart.push,
+        }
+        const fakeUpstreamObserved = upstreamHitDelta.nbaCdn > 0 && upstreamHitDelta.sleeper > 0
         await writeFile(
           path.join(ARTIFACT_ROOT, `season-${season}`, 'fake-upstream.json'),
-          `${JSON.stringify({ observed: fakeUpstreamObserved, hits: fake.state.hits }, null, 2)}\n`,
+          `${JSON.stringify({ observed: fakeUpstreamObserved, delta: upstreamHitDelta, totals: fake.state.hits }, null, 2)}\n`,
         )
         const failures = [
           ...failuresAtStart,
@@ -559,7 +543,7 @@ const main = async () => {
           ...perfFailures,
           ...memoryFailures,
           ...(env.backendTicksEnabled && !fakeUpstreamObserved
-            ? [`fake upstream traffic incomplete: NBA CDN=${fake.state.hits.nbaCdn}, Sleeper=${fake.state.hits.sleeper}`]
+            ? [`fake upstream traffic incomplete: NBA CDN delta=${upstreamHitDelta.nbaCdn}, Sleeper delta=${upstreamHitDelta.sleeper}`]
             : []),
         ]
 
@@ -577,28 +561,7 @@ const main = async () => {
               'invariants.boundary',
               fakeUpstreamObserved ? 'environment.fake_upstream' : null,
               env.backendTicksEnabled ? 'cross.cors' : null,
-              browserCheck ? 'browser.smoke' : null,
-              browserAuthCheck ? 'browser.auth' : null,
-              browserPerfCheck ? 'browser.performance' : null,
-              browserGameplayCheck ? 'browser.auction' : null,
-              browserLineupCheck ? 'browser.lineup' : null,
-              browserLineupAutoSetCheck ? 'browser.lineup_auto_set' : null,
-              browserLineupLockedCheck ? 'browser.lineup_locked' : null,
-              browserPlayoffCheck ? 'browser.playoffs' : null,
-              browserRookieDraftCheck ? 'browser.rookie_draft' : null,
-              browserWaiverCheck ? 'browser.waiver' : null,
-              browserWaiverDropCheck ? 'browser.waiver_drop' : null,
-              browserWaiverIrBlockCheck ? 'browser.waiver_ir_block' : null,
-              browserTradeCheck ? 'browser.trade_proposal' : null,
-              browserTradeAcceptCheck ? 'browser.trade_accept' : null,
-              browserTradeTerminalCheck ? 'browser.trade_terminal' : null,
-              browserTradeFuturePickCheck ? 'browser.trade_future_pick' : null,
-              browserTradeFuturePickAcceptCheck ? 'browser.trade_future_pick_accept' : null,
-              browserTradeOverflowAcceptCheck ? 'browser.trade_overflow_accept' : null,
-              browserTradePostDeadlineCheck ? 'browser.trade_post_deadline' : null,
-              browserTradeVetoCheck ? 'browser.trade_veto' : null,
-              browserTradeMultiTeamCheck ? 'browser.trade_multi_team' : null,
-              browserLeagueLifecycleCheck ? 'browser.league_lifecycle' : null,
+              ...browserEvidenceIds(browserScenarioResults),
               leagueLifecycleCheck ? 'backend.league_lifecycle' : null,
               realtimeCheck ? 'realtime.delivery' : null,
               pushCheck ? 'push.trade_waiver' : null,
@@ -627,29 +590,8 @@ const main = async () => {
             ].filter((value) => typeof value === 'string'),
             notes: [
               seasonNotes,
-              args.browser ? 'browser smoke passed' : null,
-              args.browserAuth ? 'browser auth scenario passed' : null,
-              browserPerfCheck ? 'browser perf smoke passed' : null,
-              browserGameplayCheck ? 'browser auction bid gameplay passed' : null,
-              browserLineupCheck ? 'browser lineup gameplay passed' : null,
-              browserLineupAutoSetCheck ? 'browser lineup auto-set gameplay passed' : null,
-              browserLineupLockedCheck ? 'browser lineup locked gameplay passed' : null,
-              browserPlayoffCheck ? 'browser playoff champion passed' : null,
-              browserRookieDraftCheck ? 'browser rookie draft auto-pick passed' : null,
-              browserWaiverCheck ? 'browser waiver claim gameplay passed' : null,
-              browserWaiverDropCheck ? 'browser waiver drop claim gameplay passed' : null,
-              browserWaiverIrBlockCheck ? 'browser waiver IR block gameplay passed' : null,
+              ...browserPassNotes(browserScenarioResults),
               waiverProcessingCheck ? 'waiver priority processing passed' : null,
-              browserTradeCheck ? 'browser trade proposal gameplay passed' : null,
-              browserTradeAcceptCheck ? 'browser trade accept gameplay passed' : null,
-              browserTradeTerminalCheck ? 'browser trade reject/withdraw gameplay passed' : null,
-              browserTradeFuturePickCheck ? 'browser future-pick trade gameplay passed' : null,
-              browserTradeFuturePickAcceptCheck ? 'browser future-pick trade accept gameplay passed' : null,
-              browserTradeOverflowAcceptCheck ? 'browser trade overflow accept gameplay passed' : null,
-              browserTradePostDeadlineCheck ? 'browser post-deadline trade gameplay passed' : null,
-              browserTradeVetoCheck ? 'browser trade veto gameplay passed' : null,
-              browserTradeMultiTeamCheck ? 'browser multi-team trade gameplay passed' : null,
-              browserLeagueLifecycleCheck ? 'browser league lifecycle passed' : null,
               leagueLifecycleCheck ? 'league lifecycle passed' : null,
               args.realtime ? 'realtime matchup and bid updates delivered' : null,
               args.push ? 'trade and waiver push notification intercepts passed' : null,

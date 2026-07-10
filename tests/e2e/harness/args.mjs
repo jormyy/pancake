@@ -1,4 +1,4 @@
-import { tradeScenarioArgs } from '../trade-scenario-registry.mjs'
+import { browserScenarioArgs } from '../browser-scenario-manifest.mjs'
 
 export const parseArgs = () => {
   const args = new Map()
@@ -6,26 +6,14 @@ export const parseArgs = () => {
     const match = arg.match(/^--([^=]+)=(.*)$/)
     if (match) args.set(match[1], match[2])
   }
+  const releaseGate = args.get('release-gate') === 'true' || process.env.E2E_RELEASE_GATE === '1'
   return {
     seasons: Number(args.get('seasons') ?? process.env.E2E_SEASONS ?? 10),
     keepGoing: args.get('keep-going') === 'true' || process.env.E2E_KEEP_GOING === '1',
     repeatScenariosEverySeason: args.get('repeat-scenarios-every-season') === 'true' || process.env.E2E_REPEAT_SCENARIOS_EVERY_SEASON === '1',
     fakePort: Number(args.get('fake-port') ?? process.env.FAKE_UPSTREAM_PORT ?? 4555),
-    browser: args.get('browser') === 'true' || process.env.E2E_ENABLE_BROWSER === '1',
     browserFullSweep: args.get('browser-full-sweep') === 'true' || process.env.E2E_BROWSER_FULL_SWEEP === '1',
-    browserAuth: args.get('browser-auth') === 'true' || process.env.E2E_ENABLE_BROWSER_AUTH === '1',
-    browserPerf: args.get('browser-perf') === 'true' || process.env.E2E_ENABLE_BROWSER_PERF === '1',
-    browserGameplay: args.get('browser-gameplay') === 'true' || process.env.E2E_ENABLE_BROWSER_GAMEPLAY === '1',
-    browserLineup: args.get('browser-lineup') === 'true' || process.env.E2E_ENABLE_BROWSER_LINEUP === '1',
-    browserLineupAutoSet: args.get('browser-lineup-auto-set') === 'true' || process.env.E2E_ENABLE_BROWSER_LINEUP_AUTO_SET === '1',
-    browserLineupLocked: args.get('browser-lineup-locked') === 'true' || process.env.E2E_ENABLE_BROWSER_LINEUP_LOCKED === '1',
-    browserPlayoff: args.get('browser-playoff') === 'true' || process.env.E2E_ENABLE_BROWSER_PLAYOFF === '1',
-    browserRookieDraft: args.get('browser-rookie-draft') === 'true' || process.env.E2E_ENABLE_BROWSER_ROOKIE_DRAFT === '1',
-    browserWaiver: args.get('browser-waiver') === 'true' || process.env.E2E_ENABLE_BROWSER_WAIVER === '1',
-    browserWaiverDrop: args.get('browser-waiver-drop') === 'true' || process.env.E2E_ENABLE_BROWSER_WAIVER_DROP === '1',
-    browserWaiverIrBlock: args.get('browser-waiver-ir-block') === 'true' || process.env.E2E_ENABLE_BROWSER_WAIVER_IR_BLOCK === '1',
-    ...tradeScenarioArgs(args),
-    browserLeagueLifecycle: args.get('browser-league-lifecycle') === 'true' || process.env.E2E_ENABLE_BROWSER_LEAGUE_LIFECYCLE === '1',
+    ...browserScenarioArgs(args, { releaseEnabled: releaseGate }),
     leagueLifecycle: args.get('league-lifecycle') === 'true' || process.env.E2E_ENABLE_LEAGUE_LIFECYCLE === '1',
     pickChain: args.get('pick-chain') === 'true' || process.env.E2E_ENABLE_PICK_CHAIN === '1',
     push: args.get('push') === 'true' || process.env.E2E_ENABLE_PUSH === '1',
@@ -44,6 +32,6 @@ export const parseArgs = () => {
     tradeVeto: args.get('trade-veto') === 'true' || process.env.E2E_ENABLE_TRADE_VETO === '1',
     rookieDraft: args.get('rookie-draft') === 'true' || process.env.E2E_ENABLE_ROOKIE_DRAFT === '1',
     seasonReset: args.get('season-reset') === 'true' || process.env.E2E_ENABLE_SEASON_RESET === '1',
-    releaseGate: args.get('release-gate') === 'true' || process.env.E2E_RELEASE_GATE === '1',
+    releaseGate,
   }
 }

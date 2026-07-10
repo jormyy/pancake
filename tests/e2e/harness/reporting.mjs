@@ -1,6 +1,6 @@
 import { readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import { TRADE_SCENARIOS } from '../trade-scenario-registry.mjs'
+import { BROWSER_SCENARIO_MANIFEST as BROWSER_SCENARIOS } from '../browser-scenario-manifest.mjs'
 
 const ROOT = process.cwd()
 const REPORT_PATH = path.join(ROOT, 'tests/e2e-report.md')
@@ -97,25 +97,20 @@ export const writeCoverageReport = async ({ status, startedAt, finishedAt, seaso
   const snapshotStatus = evidenceStatus(rows.length > 1, 'snapshots.no_shrink')
   const matchupStatus = evidenceStatus(env.backendTicksEnabled, 'matchups.idempotent')
   const pickChainStatus = evidenceStatus(args.pickChain, 'picks.long_horizon')
-  const browserSmokeStatus = evidenceStatus(args.browser, 'browser.smoke')
-  const browserAuthStatus = evidenceStatus(args.browserAuth, 'browser.auth')
+  const browserStatusById = new Map(BROWSER_SCENARIOS.map((scenario) => [
+    scenario.id,
+    evidenceStatus(Boolean(args[scenario.flag]), scenario.evidenceId),
+  ]))
+  const browserScenarioStatus = (id) => browserStatusById.get(id) ?? 'PENDING'
+  const browserSmokeStatus = browserScenarioStatus('smoke')
+  const browserAuthStatus = browserScenarioStatus('auth')
   const fakeUpstreamStatus = evidenceStatus(env.backendTicksEnabled, 'environment.fake_upstream')
   const corsStatus = evidenceStatus(env.backendTicksEnabled, 'cross.cors')
   const browserStatus = args.browser && args.browserAuth && args.browserFullSweep
     ? browserSmokeStatus === 'PASS' && browserAuthStatus === 'PASS' ? 'PASS' : runFailed ? 'FAIL' : 'PARTIAL'
     : args.browser || args.browserAuth ? runFailed ? 'FAIL' : 'PARTIAL' : 'PENDING'
-  const browserPerfStatus = evidenceStatus(args.browserPerf, 'browser.performance')
-  const browserWaiverStatus = evidenceStatus(args.browserWaiver, 'browser.waiver')
-  const browserLineupStatus = evidenceStatus(args.browserLineup, 'browser.lineup')
-  const browserLineupAutoSetStatus = evidenceStatus(args.browserLineupAutoSet, 'browser.lineup_auto_set')
-  const browserLineupLockedStatus = evidenceStatus(args.browserLineupLocked, 'browser.lineup_locked')
-  const browserWaiverDropStatus = evidenceStatus(args.browserWaiverDrop, 'browser.waiver_drop')
-  const browserWaiverIrBlockStatus = evidenceStatus(args.browserWaiverIrBlock, 'browser.waiver_ir_block')
-  const tradeStatusById = new Map(TRADE_SCENARIOS.map((scenario) => [
-    scenario.id,
-    evidenceStatus(Boolean(args[scenario.flag]), scenario.evidenceId),
-  ]))
-  const browserTradeMultiTeamStatus = tradeStatusById.get('multi-team') ?? 'PENDING'
+  const browserPerfStatus = browserScenarioStatus('performance')
+  const browserTradeMultiTeamStatus = browserScenarioStatus('trade-multi-team')
   const leagueLifecyclePassed = hasEvidence(rows, 'backend.league_lifecycle')
   const browserLeagueLifecyclePassed = hasEvidence(rows, 'browser.league_lifecycle')
   const leagueLifecycleStatus = args.leagueLifecycle || args.browserLeagueLifecycle
@@ -144,7 +139,7 @@ export const writeCoverageReport = async ({ status, startedAt, finishedAt, seaso
       ? 'PASS' : auctionBackendStatus === 'PASS' || auctionBrowserStatus === 'PASS' ? 'PARTIAL' : runFailed ? 'FAIL' : 'PENDING'
     : 'PENDING'
   const playoffsStatus = evidenceStatus(args.playoffs, 'backend.playoffs')
-  const browserPlayoffStatus = evidenceStatus(args.browserPlayoff, 'browser.playoffs')
+  const browserPlayoffStatus = browserScenarioStatus('playoffs')
   const tiebreakerStatus = evidenceStatus(args.tiebreakers, 'backend.tiebreakers')
   const settingsStatus = evidenceStatus(args.settings, 'backend.settings')
   const scoringStatus = evidenceStatus(args.scoring, 'backend.scoring')
@@ -153,29 +148,20 @@ export const writeCoverageReport = async ({ status, startedAt, finishedAt, seaso
   const tradeAcceptStatus = evidenceStatus(args.tradeAccept, 'backend.trade_accept')
   const tradeVetoStatus = evidenceStatus(args.tradeVeto, 'backend.trade_veto')
   const rookieDraftStatus = args.rookieDraft ? evidenceStatus(true, 'backend.rookie_draft') : pickChainStatus
-  const browserRookieDraftStatus = evidenceStatus(args.browserRookieDraft, 'browser.rookie_draft')
+  const browserRookieDraftStatus = browserScenarioStatus('rookie-draft')
 
   const weeklyLoopStatus = allEnabledEvidencePass([
-    { enabled: args.browserLineup, status: browserLineupStatus },
-    { enabled: args.browserLineupAutoSet, status: browserLineupAutoSetStatus },
-    { enabled: args.browserLineupLocked, status: browserLineupLockedStatus },
-    { enabled: args.browserWaiver, status: browserWaiverStatus },
-    { enabled: args.browserWaiverDrop, status: browserWaiverDropStatus },
-    { enabled: args.browserWaiverIrBlock, status: browserWaiverIrBlockStatus },
-    { enabled: args.waiverProcessing, status: waiverProcessingStatus },
-    ...TRADE_SCENARIOS.map((scenario) => ({
+    ...BROWSER_SCENARIOS.filter(({ weekly }) => weekly).map((scenario) => ({
       enabled: Boolean(args[scenario.flag]),
-      status: tradeStatusById.get(scenario.id) ?? 'PENDING',
+      status: browserScenarioStatus(scenario.id),
     })),
+    { enabled: args.waiverProcessing, status: waiverProcessingStatus },
     { enabled: args.tradeVeto, status: tradeVetoStatus },
     { enabled: args.scoring, status: scoringStatus },
   ])
     ? 'PASS'
-    : args.browserLineup || args.browserLineupAutoSet || args.browserLineupLocked || args.browserWaiver ||
-      args.browserWaiverDrop || args.browserWaiverIrBlock || args.waiverProcessing || args.browserTrade ||
-      args.browserTradeFuturePick || args.browserTradeFuturePickAccept || args.browserTradeOverflowAccept ||
-      args.browserTradePostDeadline || args.browserTradeVeto || args.browserTradeAccept ||
-      args.browserTradeTerminal || args.browserTradeMultiTeam || args.tradeVeto || args.scoring
+    : BROWSER_SCENARIOS.some((scenario) => scenario.weekly && args[scenario.flag]) ||
+      args.waiverProcessing || args.tradeVeto || args.scoring
       ? 'PARTIAL'
       : 'PENDING'
 
@@ -383,7 +369,7 @@ export const writeCoverageReport = async ({ status, startedAt, finishedAt, seaso
     },
     {
       id: 'long.memory', requiredForRelease: true,
-      requirement: 'D.LONG.7 memory/connection leaks',
+      requirement: 'D.LONG.7 Node harness memory drift',
       status: memoryStatus,
       evidence: 'Harness memory metrics live in tests/artifacts/perf-metrics.json and 10+ season runs fail if RSS or heap exceeds the configured drift limit.',
     },

@@ -226,7 +226,7 @@ const runOneAuthUser = async ({ state, env, season, userIndex, sessionList }) =>
       notes,
     }
   } finally {
-    await browser(session, ['close'], { timeout: 10_000 }).catch(() => {})
+    await browser(session, ['close'], { timeout: 10_000 })
   }
 }
 
