@@ -1,6 +1,5 @@
--- Canonical SQL source for public.handle_new_auth_user.
--- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
--- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+SET lock_timeout = '5s';
+SET statement_timeout = '2min';
 
 CREATE OR REPLACE FUNCTION public.handle_new_auth_user()
 RETURNS trigger
@@ -52,3 +51,11 @@ BEGIN
   RETURN NEW;
 END;
 $$;
+
+DROP TRIGGER IF EXISTS trg_on_auth_user_created ON auth.users;
+CREATE TRIGGER trg_on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_auth_user();
+
+RESET statement_timeout;
+RESET lock_timeout;

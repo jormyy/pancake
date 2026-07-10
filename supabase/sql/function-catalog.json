@@ -29,6 +29,7 @@
     "private.multi_team_trade_participants(uuid,uuid[])": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.my_league_ids()": {"acl":["PUBLIC|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.my_member_ids()": {"acl":["PUBLIC|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres"],"owner":"postgres"},
+    "private.normalize_legacy_push_token_write()": {"acl":["PUBLIC|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.parse_multi_team_trade_items(jsonb)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.playoff_seed_rankings(uuid,uuid,integer)": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.prevent_accepted_or_inactive_roster_move()": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
