@@ -4,12 +4,15 @@ import { tradeVetoDescription } from '@/lib/commissioner-settings-policy'
 import { useCommissionerAdminActions } from '@/hooks/use-commissioner-admin-actions'
 import { useCommissionerOverrides } from '@/hooks/use-commissioner-overrides'
 import { useCommissionerSettingsResource } from '@/hooks/use-commissioner-settings-resource'
+import { useAuth } from '@/hooks/use-auth'
 
 export function useCommissionerSettingsController() {
     const { currentLeague: league, isCommissioner, refresh } = useLeagueContext()
+    const { user } = useAuth()
     const { back, replace } = useRouter()
     const settings = useCommissionerSettingsResource({
         league,
+        ownerId: user?.id ?? null,
         isCommissioner,
         refresh,
         onSaved: back,

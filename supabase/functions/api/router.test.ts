@@ -1,10 +1,14 @@
 const USER_ID = '22222222-2222-4222-8222-222222222222'
+const OTHER_USER_ID = '99999999-9999-4999-8999-999999999999'
 const MEMBER_ID = '33333333-3333-4333-8333-333333333333'
 const DRAFT_ID = '44444444-4444-4444-8444-444444444444'
 const PLAYER_ID = '55555555-5555-4555-8555-555555555555'
 const LEAGUE_ID = '66666666-6666-4666-8666-666666666666'
 
 const postgrestRequests: string[] = []
+const profileMutations: { query: string; body: unknown }[] = []
+let commissionerRole: string | null = 'commissioner'
+let authenticatedUserId = USER_ID
 
 const postgrest = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, async (req) => {
   const url = new URL(req.url)
@@ -13,7 +17,7 @@ const postgrest = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, 
   let body: unknown = []
   if (url.pathname === '/auth/v1/user') {
     body = {
-      id: USER_ID,
+      id: authenticatedUserId,
       aud: 'authenticated',
       role: 'authenticated',
       email: 'mock-snake-pick@example.com',
@@ -21,7 +25,9 @@ const postgrest = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, 
   } else if (url.pathname === '/rest/v1/league_members' && url.searchParams.get('select') === 'league_id') {
     body = { league_id: LEAGUE_ID }
   } else if (url.pathname === '/rest/v1/league_members' && url.searchParams.get('select') === 'role') {
-    body = { role: 'commissioner' }
+    body = commissionerRole ? { role: commissionerRole } : null
+  } else if (url.pathname === '/rest/v1/profiles' && req.method === 'PATCH') {
+    profileMutations.push({ query: url.searchParams.toString(), body: await req.json() })
   } else if (url.pathname === '/rest/v1/rpc/make_snake_pick_atomic') {
     body = {
       pick: {
@@ -110,6 +116,7 @@ Deno.test({
     const routes = [
       ['GET', '/games/today'],
       ['GET', '/players/headshot/1641705'],
+      ['POST', '/profile/push-token'],
       ['POST', '/league/roster/ir'],
       ['POST', '/league/roster/taxi'],
       ['POST', '/league/advance-season'],
@@ -278,6 +285,133 @@ Deno.test({
     const oversizedBodyJson = await oversizedBody.json()
     if (oversizedBody.status !== 400 || oversizedBodyJson.error !== 'Request body must not exceed 64 KB') {
       throw new Error(`expected request byte cap rejection, got ${oversizedBody.status}: ${JSON.stringify(oversizedBodyJson)}`)
+    }
+  },
+})
+
+Deno.test({
+  name: 'push token registration transfers one device between account owners',
+  sanitizeOps: false,
+  sanitizeResources: false,
+  fn: async () => {
+    profileMutations.length = 0
+    authenticatedUserId = USER_ID
+    const first = await handleApiRoute(authedRequest('POST', '/profile/push-token', {
+      token: 'ExponentPushToken[test-device]',
+      active: true,
+    }))
+    authenticatedUserId = OTHER_USER_ID
+    const second = await handleApiRoute(authedRequest('POST', '/profile/push-token', {
+      token: 'ExponentPushToken[test-device]',
+      active: true,
+    }))
+    authenticatedUserId = USER_ID
+
+    if (first.status !== 200 || second.status !== 200) {
+      throw new Error(`expected successful push transfer, got ${first.status}/${second.status}`)
+    }
+    const secondClear = profileMutations[2]
+    const secondSet = profileMutations[3]
+    if (!secondClear?.query.includes('push_token=eq.ExponentPushToken%5Btest-device%5D') ||
+        !secondClear.query.includes(`id=neq.${OTHER_USER_ID}`) ||
+        JSON.stringify(secondClear.body) !== JSON.stringify({ push_token: null })) {
+      throw new Error(`second owner did not clear the prior token owner: ${JSON.stringify(secondClear)}`)
+    }
+    if (!secondSet?.query.includes(`id=eq.${OTHER_USER_ID}`) ||
+        JSON.stringify(secondSet.body) !== JSON.stringify({ push_token: 'ExponentPushToken[test-device]' })) {
+      throw new Error(`second owner did not receive the token: ${JSON.stringify(secondSet)}`)
+    }
+  },
+})
+
+Deno.test({
+  name: 'push token unregister only clears the requesting owner when the device token still matches',
+  sanitizeOps: false,
+  sanitizeResources: false,
+  fn: async () => {
+    profileMutations.length = 0
+    authenticatedUserId = USER_ID
+    const res = await handleApiRoute(authedRequest('POST', '/profile/push-token', {
+      token: 'ExponentPushToken[test-device]',
+      active: false,
+    }))
+
+    if (res.status !== 200 || profileMutations.length !== 1) {
+      throw new Error(`expected one unregister mutation, got ${res.status}/${profileMutations.length}`)
+    }
+    const mutation = profileMutations[0]
+    if (!mutation.query.includes(`id=eq.${USER_ID}`) ||
+        !mutation.query.includes('push_token=eq.ExponentPushToken%5Btest-device%5D')) {
+      throw new Error(`unregister was not owner/token constrained: ${mutation.query}`)
+    }
+  },
+})
+
+Deno.test({
+  name: 'ordinary commissioners can generate only their requested league schedule',
+  sanitizeOps: false,
+  sanitizeResources: false,
+  fn: async () => {
+    Deno.env.delete('ADMIN_USER_IDS')
+    commissionerRole = 'commissioner'
+    postgrestRequests.length = 0
+
+    const res = await handleApiRoute(authedRequest('POST', '/sync/matchups', {
+      leagueId: LEAGUE_ID,
+      force: true,
+    }))
+
+    if (res.status !== 200) throw new Error(`expected commissioner schedule request 200, got ${res.status}`)
+    const seasonQuery = postgrestRequests.find((entry) => entry.includes('/rest/v1/league_seasons'))
+    if (!seasonQuery?.includes(`league_id=eq.${LEAGUE_ID}`)) {
+      throw new Error(`schedule query was not league-scoped: ${seasonQuery ?? 'missing'}`)
+    }
+  },
+})
+
+Deno.test({
+  name: 'platform admins remain league-scoped and do not require league membership',
+  sanitizeOps: false,
+  sanitizeResources: false,
+  fn: async () => {
+    Deno.env.set('ADMIN_USER_IDS', USER_ID)
+    commissionerRole = null
+    postgrestRequests.length = 0
+
+    const res = await handleApiRoute(authedRequest('POST', '/sync/matchups', {
+      leagueId: LEAGUE_ID,
+      force: true,
+    }))
+
+    Deno.env.delete('ADMIN_USER_IDS')
+    commissionerRole = 'commissioner'
+    if (res.status !== 200) throw new Error(`expected platform-admin schedule request 200, got ${res.status}`)
+    if (postgrestRequests.some((entry) => entry.includes('/rest/v1/league_members'))) {
+      throw new Error('platform admin unexpectedly required league membership')
+    }
+    const seasonQuery = postgrestRequests.find((entry) => entry.includes('/rest/v1/league_seasons'))
+    if (!seasonQuery?.includes(`league_id=eq.${LEAGUE_ID}`)) {
+      throw new Error(`admin schedule query was not league-scoped: ${seasonQuery ?? 'missing'}`)
+    }
+  },
+})
+
+Deno.test({
+  name: 'schedule generation rejects missing league scope',
+  sanitizeOps: false,
+  sanitizeResources: false,
+  fn: async () => {
+    Deno.env.set('ADMIN_USER_IDS', USER_ID)
+    postgrestRequests.length = 0
+    const res = await handleApiRoute(authedRequest('POST', '/sync/matchups', { force: true }))
+    Deno.env.delete('ADMIN_USER_IDS')
+    const body = await res.json()
+
+    if (res.status !== 400 || body.error !== 'leagueId is required') {
+      throw new Error(`expected missing scope rejection, got ${res.status}: ${JSON.stringify(body)}`)
+    }
+    if (postgrestRequests.some((entry) => entry.includes('/rest/v1/league_seasons'))) {
+      throw new Error('missing-scope request reached schedule generation')
     }
   },
 })

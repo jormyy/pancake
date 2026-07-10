@@ -44,11 +44,13 @@ function remoteDraft(
 
 export function useCommissionerSettingsResource({
     league,
+    ownerId,
     isCommissioner,
     refresh,
     onSaved,
 }: {
     league: LeagueInfo | null
+    ownerId: string | null
     isCommissioner: boolean
     refresh: () => Promise<void>
     onSaved: () => void
@@ -65,7 +67,11 @@ export function useCommissionerSettingsResource({
     const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error' | 'unauthorized'>('loading')
     const [loadError, setLoadError] = useState<string | null>(null)
     const [loadAttempt, setLoadAttempt] = useState(0)
-    const [saving, setSaving] = useState(false)
+    const ownerKey = league && ownerId && isCommissioner ? `${ownerId}:${league.id}` : null
+    const activeOwnerKey = useRef(ownerKey)
+    const mutation = useRef<{ ownerKey: string; token: symbol } | null>(null)
+    const [savingOwnerKey, setSavingOwnerKey] = useState<string | null>(null)
+    activeOwnerKey.current = ownerKey
 
     useEffect(() => {
         let cancelled = false
@@ -132,30 +138,40 @@ export function useCommissionerSettingsResource({
     }
 
     const save = async () => {
-        if (!league) return
+        if (!league || !ownerKey || mutation.current?.ownerKey === ownerKey) return
+        const mutationOwnerKey = ownerKey
+        const mutationToken = Symbol('commissioner-settings-save')
+        const submittedDraft = draft
+        mutation.current = { ownerKey: mutationOwnerKey, token: mutationToken }
         const change = buildCommissionerSettingsChange(
-            draft,
+            submittedDraft,
             baseline,
             league.status,
             COMMISSIONER_SCORING_FIELDS.map(({ key }) => key),
             LINEUP_SLOT_TYPES,
         )
         if ('error' in change) {
+            mutation.current = null
             showAlert('Invalid', change.error)
             return
         }
-        setSaving(true)
+        setSavingOwnerKey(mutationOwnerKey)
         try {
             if (Object.keys(change.updates).length > 0 || change.slotsChanged) {
                 await updateLeagueConfiguration(league.id, change.updates, change.slotUpdates)
             }
-            setBaseline(draft)
+            if (activeOwnerKey.current !== mutationOwnerKey) return
+            setBaseline(submittedDraft)
             await refresh()
+            if (activeOwnerKey.current !== mutationOwnerKey) return
             onSaved()
         } catch (error) {
-            showAlert('Error', getErrorMessage(error))
+            if (activeOwnerKey.current === mutationOwnerKey) showAlert('Error', getErrorMessage(error))
         } finally {
-            setSaving(false)
+            if (mutation.current?.token === mutationToken) {
+                mutation.current = null
+                if (activeOwnerKey.current === mutationOwnerKey) setSavingOwnerKey(null)
+            }
         }
     }
 
@@ -170,7 +186,7 @@ export function useCommissionerSettingsResource({
             setLoadAttempt((attempt) => attempt + 1)
         },
         save,
-        saving,
+        saving: savingOwnerKey === ownerKey,
         updateField,
         updateScoring,
     }

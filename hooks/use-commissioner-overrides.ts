@@ -21,8 +21,9 @@ export function useCommissionerOverrides(
         update: (numericValue: number) => Promise<unknown>,
         clear: () => void,
     ) => {
-        const numericValue = Number.parseInt(value, 10)
-        if (!Number.isInteger(numericValue) || numericValue < 0) {
+        const normalized = value.trim()
+        const numericValue = /^\d+$/.test(normalized) ? Number(normalized) : Number.NaN
+        if (!Number.isSafeInteger(numericValue) || numericValue < 0) {
             showAlert('Invalid', `${label} must be 0 or more.`)
             return
         }

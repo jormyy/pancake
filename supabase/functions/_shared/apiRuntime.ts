@@ -294,14 +294,21 @@ export async function requireCommissionerForDraft(userId: string, draftId: strin
   if (!data) throw new NotFoundError('Draft not found')
 }
 
-export function requireAdmin(userId: string): void {
-  const allowlist = (Deno.env.get('ADMIN_USER_IDS') ?? '')
+function adminUserIds(): string[] {
+  return (Deno.env.get('ADMIN_USER_IDS') ?? '')
     .split(',')
-    .map((s) => s.trim())
+    .map((value) => value.trim())
     .filter(Boolean)
+}
 
+export function requireAdmin(userId: string): void {
+  const allowlist = adminUserIds()
   if (allowlist.length === 0) throw new ApiError('Admin access not configured', 503)
   if (!allowlist.includes(userId)) throw new ApiError('Admin access required', 403)
+}
+
+export function isAdmin(userId: string): boolean {
+  return adminUserIds().includes(userId)
 }
 
 export function requireE2eSecret(req: Request): void {

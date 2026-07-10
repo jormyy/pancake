@@ -4,20 +4,25 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LeagueInfo } from '@/types/app'
 import { useCommissionerAdminActions } from '@/hooks/use-commissioner-admin-actions'
 import { useCommissionerSettingsResource } from '@/hooks/use-commissioner-settings-resource'
+import { useCommissionerOverrides } from '@/hooks/use-commissioner-overrides'
 
 const mocks = vi.hoisted(() => ({
     apiPost: vi.fn(),
     getLeagueMembers: vi.fn(),
     getLineupSlots: vi.fn(),
     updateLeagueConfiguration: vi.fn(),
+    adjustFaabBalance: vi.fn(),
+    overrideWeeklyAddCount: vi.fn(),
+    showAlert: vi.fn(),
+    showSuccess: vi.fn(),
 }))
 
 vi.mock('@/lib/league', () => ({
-    adjustFaabBalance: vi.fn(),
+    adjustFaabBalance: mocks.adjustFaabBalance,
     deleteLeague: vi.fn(),
     getLeagueMembers: mocks.getLeagueMembers,
     getLineupSlots: mocks.getLineupSlots,
-    overrideWeeklyAddCount: vi.fn(),
+    overrideWeeklyAddCount: mocks.overrideWeeklyAddCount,
     updateLeagueConfiguration: mocks.updateLeagueConfiguration,
 }))
 vi.mock('@/lib/shared/api', () => ({ apiPost: mocks.apiPost }))
@@ -26,8 +31,8 @@ vi.mock('@/constants/tokens', () => ({ colors: { danger: '#f00', primaryDark: '#
 vi.mock('@/lib/alert', () => ({
     confirmAction: vi.fn(),
     getErrorMessage: (error: unknown) => error instanceof Error ? error.message : String(error),
-    showAlert: vi.fn(),
-    showSuccess: vi.fn(),
+    showAlert: mocks.showAlert,
+    showSuccess: mocks.showSuccess,
 }))
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -74,6 +79,7 @@ describe('commissioner settings resource', () => {
         const Probe = ({ value }: { value: LeagueInfo }) => {
             latest = useCommissionerSettingsResource({
                 league: value,
+                ownerId: 'user',
                 isCommissioner: true,
                 refresh: vi.fn(),
                 onSaved: vi.fn(),
@@ -99,6 +105,7 @@ describe('commissioner settings resource', () => {
         const Probe = () => {
             latest = useCommissionerSettingsResource({
                 league: testLeague,
+                ownerId: 'user',
                 isCommissioner: true,
                 refresh,
                 onSaved,
@@ -116,6 +123,48 @@ describe('commissioner settings resource', () => {
         )
         expect(refresh).toHaveBeenCalledOnce()
         expect(onSaved).toHaveBeenCalledOnce()
+        await act(async () => { renderer.unmount() })
+    })
+
+    it('synchronously serializes saves and ignores completion after owner identity changes', async () => {
+        mocks.getLineupSlots.mockResolvedValue([])
+        const update = deferred<void>()
+        mocks.updateLeagueConfiguration.mockReturnValue(update.promise)
+        const refresh = vi.fn(async () => undefined)
+        const onSaved = vi.fn()
+        let latest!: ReturnType<typeof useCommissionerSettingsResource>
+        const Probe = ({ ownerId, value }: { ownerId: string; value: LeagueInfo }) => {
+            latest = useCommissionerSettingsResource({
+                league: value,
+                ownerId,
+                isCommissioner: true,
+                refresh,
+                onSaved,
+            })
+            return null
+        }
+        let renderer!: ReactTestRenderer
+        await act(async () => {
+            renderer = create(React.createElement(Probe, { ownerId: 'user-a', value: league('a') }))
+            await Promise.resolve()
+        })
+        await act(async () => { latest.updateField('rosterSize', '22') })
+        let first!: Promise<void>
+        await act(async () => {
+            first = latest.save()
+            void latest.save()
+            await Promise.resolve()
+        })
+        expect(mocks.updateLeagueConfiguration).toHaveBeenCalledOnce()
+
+        await act(async () => {
+            renderer.update(React.createElement(Probe, { ownerId: 'user-b', value: league('b') }))
+        })
+        expect(latest.saving).toBe(false)
+        await act(async () => { update.resolve(); await first })
+        expect(refresh).not.toHaveBeenCalled()
+        expect(onSaved).not.toHaveBeenCalled()
+        expect(latest.saving).toBe(false)
         await act(async () => { renderer.unmount() })
     })
 })
@@ -140,6 +189,63 @@ describe('commissioner admin actions', () => {
         expect(mocks.apiPost).toHaveBeenCalledWith('/waivers/process', {})
         await act(async () => { request.resolve(); await pending })
         expect(latest.busyAction).toBeNull()
+        await act(async () => { renderer.unmount() })
+    })
+
+    it('always scopes schedule generation to the active league', async () => {
+        mocks.apiPost.mockResolvedValue(undefined)
+        let latest!: ReturnType<typeof useCommissionerAdminActions>
+        const Probe = () => {
+            latest = useCommissionerAdminActions({ league: league('league-a'), refresh: vi.fn(), onDeleted: vi.fn() })
+            return null
+        }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe)) })
+        const generate = latest.lifecycle.actions.find((action) => action.id === 'generate-schedule')
+
+        await act(async () => { await generate?.onPress() })
+
+        expect(mocks.apiPost).toHaveBeenCalledWith('/sync/matchups', {
+            force: false,
+            leagueId: 'league-a',
+        })
+        await act(async () => { renderer.unmount() })
+    })
+})
+
+describe('commissioner overrides', () => {
+    it('rejects partial and unsafe integer strings without mutating league state', async () => {
+        let latest!: ReturnType<typeof useCommissionerOverrides>
+        const Probe = () => {
+            latest = useCommissionerOverrides('league', [{ id: 'member' }])
+            return null
+        }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe)) })
+
+        for (const malformed of ['12abc', '1.5', '9007199254740992']) {
+            await act(async () => { latest.setOverrideFaab(malformed) })
+            await act(async () => { await latest.handleFaabOverride() })
+        }
+
+        expect(mocks.adjustFaabBalance).not.toHaveBeenCalled()
+        expect(mocks.showAlert).toHaveBeenCalledTimes(3)
+        await act(async () => { renderer.unmount() })
+    })
+
+    it('accepts a full non-negative integer string', async () => {
+        mocks.adjustFaabBalance.mockResolvedValue(undefined)
+        let latest!: ReturnType<typeof useCommissionerOverrides>
+        const Probe = () => {
+            latest = useCommissionerOverrides('league', [{ id: 'member' }])
+            return null
+        }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe)) })
+        await act(async () => { latest.setOverrideFaab('12') })
+        await act(async () => { await latest.handleFaabOverride() })
+
+        expect(mocks.adjustFaabBalance).toHaveBeenCalledWith('league', 'member', 12)
         await act(async () => { renderer.unmount() })
     })
 })

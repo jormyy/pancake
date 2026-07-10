@@ -9,9 +9,11 @@ vi.mock('@/lib/supabase', () => ({
         from: vi.fn(),
     },
 }))
+vi.mock('@/lib/push-token', () => ({ unregisterCurrentDevicePushToken: vi.fn() }))
 
 import { signOut, signUp } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
+import { unregisterCurrentDevicePushToken } from '@/lib/push-token'
 
 const mockAuth = vi.mocked(supabase.auth)
 const mockFrom = vi.mocked(supabase.from)
@@ -30,6 +32,7 @@ describe('signOut', () => {
 
         expect(mockAuth.signOut).toHaveBeenNthCalledWith(1)
         expect(mockAuth.signOut).toHaveBeenNthCalledWith(2, { scope: 'local' })
+        expect(unregisterCurrentDevicePushToken).toHaveBeenCalledOnce()
     })
 
     it('does not run the local fallback after a successful server sign-out', async () => {
@@ -38,6 +41,21 @@ describe('signOut', () => {
         await signOut()
 
         expect(mockAuth.signOut).toHaveBeenCalledOnce()
+        expect(unregisterCurrentDevicePushToken).toHaveBeenCalledOnce()
+    })
+
+    it('still signs out when push-token cleanup fails', async () => {
+        vi.mocked(unregisterCurrentDevicePushToken).mockRejectedValueOnce(new Error('offline'))
+        vi.spyOn(console, 'error').mockImplementation(() => undefined)
+        mockAuth.signOut.mockResolvedValueOnce({ error: null } as never)
+
+        await signOut()
+
+        expect(mockAuth.signOut).toHaveBeenCalledOnce()
+        expect(console.error).toHaveBeenCalledWith(
+            'Could not unregister this device from push notifications.',
+            expect.any(Error),
+        )
     })
 })
 

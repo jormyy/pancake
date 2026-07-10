@@ -2,10 +2,12 @@ import {
   invokeInternalFunction,
   assertUuid,
   json,
+  isAdmin,
   optionalIntegerField,
   optionalStringField,
   readJsonObject,
   requireAdmin,
+  requireCommissioner,
   requireUser,
   throwDb,
   uuidField,
@@ -56,6 +58,15 @@ async function backfillProgress(jobId: string): Promise<unknown> {
 export async function handleSyncRoute(req: Request, path: string): Promise<Response | null> {
   if (!path.startsWith('/sync/')) return null
 
+  if (req.method === 'POST' && path === '/sync/matchups') {
+    const body = await readJsonObject(req)
+    const leagueId = uuidField(body, 'leagueId')
+    const userId = await requireUser(req)
+    if (!isAdmin(userId)) await requireCommissioner(userId, leagueId)
+    await generateAllMatchups(Boolean(body.force), leagueId)
+    return json({ ok: true })
+  }
+
   await requireAdminUser(req)
 
   if (req.method === 'GET') {
@@ -100,11 +111,5 @@ export async function handleSyncRoute(req: Request, path: string): Promise<Respo
   if (path === '/sync/validate-db') {
     return json(await invokeInternalFunction('verify', { action: 'validate-db', seasonYear: body.seasonYear }))
   }
-  if (path === '/sync/matchups') {
-    const leagueId = typeof body.leagueId === 'string' ? uuidField(body, 'leagueId') : undefined
-    await generateAllMatchups(Boolean(body.force), leagueId)
-    return json({ ok: true })
-  }
-
   return null
 }

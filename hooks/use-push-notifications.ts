@@ -2,8 +2,8 @@ import { useEffect } from 'react'
 import * as Notifications from 'expo-notifications'
 import * as Device from 'expo-device'
 import { Platform } from 'react-native'
-import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/use-auth'
+import { registerPushToken } from '@/lib/push-token'
 
 // Show notifications as banners while the app is in foreground
 Notifications.setNotificationHandler({
@@ -29,7 +29,6 @@ export function usePushNotifications() {
 
     useEffect(() => {
         if (!userId) return
-        const registeredUserId = userId
         let active = true
         let retryTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -54,11 +53,7 @@ export function usePushNotifications() {
             }
 
             if (!active) return
-            const { error } = await supabase
-                .from('profiles')
-                .update({ push_token: token })
-                .eq('id', registeredUserId)
-            if (error) throw error
+            await registerPushToken(token, () => active)
         }
 
         async function register() {

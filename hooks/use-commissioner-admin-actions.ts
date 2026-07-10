@@ -39,12 +39,12 @@ export function useCommissionerAdminActions({
     }
 
     const actions = useMemo(() => {
-        const generateSchedule = (force: boolean) => runAdmin(
+        const generateSchedule = (force: boolean) => league ? runAdmin(
             '/sync/matchups',
             force ? 'Schedule reset and regenerated.' : 'Schedule generated successfully.',
             force ? 'reset-schedule' : 'generate-schedule',
-            { force },
-        )
+            { force, leagueId: league.id },
+        ) : undefined
         const scheduleActions: CommissionerAction[] = [
             { id: 'generate-schedule', label: 'Generate Season Schedule', onPress: () => generateSchedule(false) },
             {
