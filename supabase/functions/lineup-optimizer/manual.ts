@@ -13,7 +13,7 @@ export type ManualDateContext = {
   seasonYear: number
 }
 
-export type ManualDateResult = {
+type ManualDateResult = {
   date: string
   status: 'optimized' | 'skipped' | 'failed'
   reason?: 'outside_season' | 'optimization_failed'

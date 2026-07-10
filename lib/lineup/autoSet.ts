@@ -59,7 +59,7 @@ type AssignmentResult = {
     score: AssignmentScore
 }
 
-export type AutoSetSeasonResult = {
+type AutoSetSeasonResult = {
     dates: number
     optimized: number
     skipped: number
