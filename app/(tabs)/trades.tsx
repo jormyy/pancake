@@ -27,17 +27,11 @@ import {
 } from '@/components/trades/TradeListRow'
 import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
-import {
-    debounceRealtimeRefresh,
-    disposeTableChangeSubscription,
-    reportRealtimeCleanup,
-    subscribeToTableChanges,
-} from '@/lib/realtime'
-import { tradeScreenWatches } from '@/lib/trades-realtime'
 import { useTradesFeed } from '@/hooks/use-trades-feed'
 import { useTradeHistoryFeed } from '@/hooks/use-trade-history-feed'
 import { useTradeBlock } from '@/hooks/use-trade-block'
 import { useTradeActions } from '@/hooks/use-trade-actions'
+import { useTradeScreenRealtime } from '@/hooks/use-trade-screen-realtime'
 import {
     buildTradeScreenModel,
     tradeListItemType,
@@ -112,30 +106,15 @@ export default function TradesScreen() {
         return result
     }, [current?.id, leagueId], { initialData: cachedPicks ?? undefined })
 
-    useEffect(() => {
-        if (!myMemberId || !leagueId) return
-        const refreshTrades = debounceRealtimeRefresh(() => { void load() })
-        const refreshHistory = debounceRealtimeRefresh(() => {
-            if (tab === 'history') void refreshHistoryFeed()
-        })
-        const refreshTradeBlock = debounceRealtimeRefresh(() => { void loadBlock() })
-        const refreshDraftPicks = debounceRealtimeRefresh(() => { void refreshPicks() })
-        const channel = subscribeToTableChanges(`trades-screen:${leagueId}:${myMemberId}`, {
-            mode: 'per-watch',
-            watches: tradeScreenWatches(leagueId, {
-                trades: () => {
-                    refreshTrades.trigger()
-                    refreshHistory.trigger()
-                },
-                tradeBlock: refreshTradeBlock.trigger,
-                draftPicks: refreshDraftPicks.trigger,
-            }),
-        })
-        return () => reportRealtimeCleanup(
-            'trades',
-            disposeTableChangeSubscription(channel, [refreshTrades, refreshHistory, refreshTradeBlock, refreshDraftPicks]),
-        )
-    }, [leagueId, load, loadBlock, myMemberId, refreshHistoryFeed, refreshPicks, tab])
+    useTradeScreenRealtime({
+        leagueId,
+        memberId: myMemberId,
+        activeTab: tab,
+        refreshTrades: load,
+        refreshHistory: refreshHistoryFeed,
+        refreshTradeBlock: loadBlock,
+        refreshDraftPicks: refreshPicks,
+    })
 
     useEffect(() => {
         if (tab === 'block' || tab === 'leagueBlock') void loadBlock()
