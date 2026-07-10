@@ -5,7 +5,7 @@ import { createClient } from '@supabase/supabase-js'
 import { resolvedEnv, requireEnv, describeEndpoint } from './env.mjs'
 import { installRuntimeOverrides, normalizeBrowserErrors } from './browser-runtime-overrides.mjs'
 import { clickButtonByName, createBrowser, fillSignInCredentials, listBrowserSessions } from './browser-agent.mjs'
-import { cleanupBrowserResources } from './browser-scenario-lifecycle.mjs'
+import { ownScenarioResource, releaseScenarioResource } from './scenario-resource-owner.mjs'
 
 const ROOT = process.cwd()
 const STATE_PATH = path.join(ROOT, 'tests/e2e-state.json')
@@ -51,6 +51,7 @@ const browserNavigationTiming = async (session) => {
       const fullLoadMs = Math.round(nav.loadEventEnd || nav.domContentLoadedEventEnd || nav.responseEnd || 0);
       return JSON.stringify({
         fullLoadMs,
+        cachedRequestMs: Math.round(Math.max(0, nav.responseEnd - nav.requestStart)),
         domContentLoadedMs: Math.round(nav.domContentLoadedEventEnd || 0),
         responseEndMs: Math.round(nav.responseEnd || 0),
         transferSize: Math.round(nav.transferSize || 0),
@@ -59,6 +60,18 @@ const browserNavigationTiming = async (session) => {
     })()`,
   ])
   return parseOptionalEvalJson(output)
+}
+
+const browserFrameFeedbackTiming = async (session) => {
+  const output = await browser(session, [
+    'eval',
+    `(async () => {
+      const started = performance.now();
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+      return JSON.stringify({ feedbackMs: Math.round((performance.now() - started) * 10) / 10 });
+    })()`,
+  ])
+  return parseEvalJson(output)
 }
 
 const bidPressFeedbackTiming = async (session) => {
@@ -400,6 +413,14 @@ export async function runBrowserPerfSmoke({
   if (!state.password) throw new Error('D.X.4: tests/e2e-state.json is missing the seeded user password')
   const supabase = createClient(env.supabaseUrl, env.serviceRoleKey, { auth: { persistSession: false } })
   const auction = await ensurePerfAuction(supabase, state)
+  const nominationResourceKey = `perf-nomination:${auction.nominationId}`
+  let nominationNeedsCleanup = true
+  const disposeNomination = async () => {
+    if (!nominationNeedsCleanup) return
+    await closePerfNomination(supabase, auction)
+    nominationNeedsCleanup = false
+  }
+  ownScenarioResource(nominationResourceKey, `performance nomination ${auction.nominationId}`, disposeNomination)
   const matchup = await ensurePerfMatchup(supabase, state, auction.leagueSeasonId, auction.members)
   const sessionList = await listSessions().catch((error) => `session list unavailable: ${error.message}`)
   const session = sessionName ?? safeName(`pancake-perf-${state.runId ?? 'run'}-s${season}-${process.pid}`)
@@ -433,6 +454,7 @@ export async function runBrowserPerfSmoke({
     await browser(session, ['open', joinUrl(env.frontendUrl, '/')])
     await browser(session, ['wait', String(BROWSER_SETTLE_MS)])
     const homeLoadTiming = await browserNavigationTiming(session).catch(() => null)
+    const homeFeedback = await browserFrameFeedbackTiming(session).catch(() => null)
     await installHeartbeat(session)
     await runLoadMutations({ supabase, auction: null, matchup })
     await browser(session, ['wait', '2500'])
@@ -450,9 +472,12 @@ export async function runBrowserPerfSmoke({
     if (homePerf.maxLagMs > MAX_HEARTBEAT_LAG_MS) failures.push(`home heartbeat lag ${homePerf.maxLagMs}ms exceeded ${MAX_HEARTBEAT_LAG_MS}ms`)
     if (load.durationMs > MAX_SCRIPT_MS) failures.push(`mutation loop took ${load.durationMs}ms exceeded ${MAX_SCRIPT_MS}ms`)
     if (draftFeedback?.feedbackMs == null) failures.push(`draft bid feedback measurement missing${draftFeedback?.error ? `: ${draftFeedback.error}` : ''}`)
+    if (!Number.isFinite(draftLoadTiming?.cachedRequestMs) || !Number.isFinite(draftLoadTiming?.fullLoadMs)) failures.push('draft navigation timing measurement missing')
+    if (!Number.isFinite(homeFeedback?.feedbackMs) || !Number.isFinite(homeLoadTiming?.cachedRequestMs) || !Number.isFinite(homeLoadTiming?.fullLoadMs)) failures.push('home workflow timing measurement missing')
     if (draftFeedback?.feedbackMs > MAX_FEEDBACK_MS) failures.push(`draft bid feedback ${draftFeedback.feedbackMs}ms exceeded ${MAX_FEEDBACK_MS}ms`)
     if (draftPerf.ticks < 10 || homePerf.ticks < 10) failures.push('browser heartbeat did not collect enough samples')
-    await closePerfNomination(supabase, auction)
+    await disposeNomination()
+    releaseScenarioResource(nominationResourceKey)
 
     const report = {
       status: failures.length === 0 ? 'PASS' : 'FAIL',
@@ -478,6 +503,7 @@ export async function runBrowserPerfSmoke({
         {
           id: 'home-live-lineup',
           route: '/',
+          feedbackMs: homeFeedback?.feedbackMs,
           ...homeLoadTiming,
         },
       ],
@@ -495,7 +521,6 @@ export async function runBrowserPerfSmoke({
     return report
   } catch (error) {
     await browser(session, ['screenshot', path.join(artifactDir, 'failure.png')], { timeout: 60_000 }).catch(() => {})
-    await closePerfNomination(supabase, auction).catch(() => {})
     const report = {
       status: 'FAIL',
       season,
@@ -505,15 +530,15 @@ export async function runBrowserPerfSmoke({
     }
     await writeFile(REPORT_PATH, `${JSON.stringify(report, null, 2)}\n`).catch(() => {})
     throw error
-  } finally {
-    await cleanupBrowserResources({ browser, sessions: [session] })
   }
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const seasonArg = process.argv.find((arg) => arg.startsWith('--season='))
   const season = seasonArg ? Number(seasonArg.split('=')[1]) : 0
-  runBrowserPerfSmoke({ season }).catch((error) => {
+  import('./browser-scenario-registry.mjs').then(({ browserScenarioById }) => (
+    browserScenarioById('performance').run({ args: { browserFullSweep: false }, season })
+  )).catch((error) => {
     console.error(error)
     process.exitCode = 1
   })

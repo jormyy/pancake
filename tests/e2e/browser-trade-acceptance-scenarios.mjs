@@ -7,7 +7,6 @@ import {
   ROOT,
   assertPageText,
   browser,
-  cleanupBrowserResources,
   clickTestId,
   describeEndpoint,
   expireAndCompleteAcceptedTrade,
@@ -203,8 +202,6 @@ export async function runBrowserTradeAcceptScenario({
     }
     await writeFile(ACCEPT_REPORT_PATH, `${JSON.stringify(report, null, 2)}\n`).catch(() => {})
     throw error
-  } finally {
-    await cleanupBrowserResources({ browser, sessions: [session], disposers: [fixture.dispose] })
   }
 }
 
@@ -333,8 +330,6 @@ export async function runBrowserTradeFuturePickScenario({
     }
     await writeFile(FUTURE_PICK_REPORT_PATH, `${JSON.stringify(report, null, 2)}\n`).catch(() => {})
     throw error
-  } finally {
-    await cleanupBrowserResources({ browser, sessions: [session], disposers: [fixture.dispose] })
   }
 }
 
@@ -452,8 +447,6 @@ export async function runBrowserTradeFuturePickAcceptScenario({
     }
     await writeFile(FUTURE_PICK_ACCEPT_REPORT_PATH, `${JSON.stringify(report, null, 2)}\n`).catch(() => {})
     throw error
-  } finally {
-    await cleanupBrowserResources({ browser, sessions: [session], disposers: [fixture.dispose] })
   }
 }
 
@@ -577,7 +570,5 @@ export async function runBrowserTradeOverflowAcceptScenario({
     }
     await writeFile(OVERFLOW_ACCEPT_REPORT_PATH, `${JSON.stringify(report, null, 2)}\n`).catch(() => {})
     throw error
-  } finally {
-    await cleanupBrowserResources({ browser, sessions: [session], disposers: [fixture.dispose] })
   }
 }

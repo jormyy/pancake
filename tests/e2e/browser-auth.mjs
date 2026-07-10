@@ -4,7 +4,6 @@ import process from 'node:process'
 import { resolvedEnv, describeEndpoint } from './env.mjs'
 import { installRuntimeOverrides, normalizeBrowserErrors } from './browser-runtime-overrides.mjs'
 import { clickButtonByName, createBrowser, fillSignInCredentials, listBrowserSessions } from './browser-agent.mjs'
-import { cleanupBrowserResources } from './browser-scenario-lifecycle.mjs'
 
 const ROOT = process.cwd()
 const STATE_PATH = path.join(ROOT, 'tests/e2e-state.json')
@@ -226,8 +225,6 @@ const runOneAuthUser = async ({ state, env, season, userIndex, sessionList }) =>
       error: error instanceof Error ? error.message : String(error),
       notes,
     }
-  } finally {
-    await cleanupBrowserResources({ browser, sessions: [session] })
   }
 }
 
@@ -290,10 +287,11 @@ export async function runBrowserAuthScenario({
 if (import.meta.url === `file://${process.argv[1]}`) {
   const seasonArg = process.argv.find((arg) => arg.startsWith('--season='))
   const usersArg = process.argv.find((arg) => arg.startsWith('--users='))
-  runBrowserAuthScenario({
-    season: seasonArg ? Number(seasonArg.split('=')[1]) : 0,
-    userCount: usersArg ? Number(usersArg.split('=')[1]) : undefined,
-  }).catch((error) => {
+  const season = seasonArg ? Number(seasonArg.split('=')[1]) : 0
+  if (usersArg) process.env.E2E_BROWSER_AUTH_USERS = usersArg.split('=')[1]
+  import('./browser-scenario-registry.mjs').then(({ browserScenarioById }) => (
+    browserScenarioById('auth').run({ args: { browserFullSweep: false }, season })
+  )).catch((error) => {
     console.error(error)
     process.exitCode = 1
   })

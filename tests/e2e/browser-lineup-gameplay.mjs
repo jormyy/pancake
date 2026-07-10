@@ -5,6 +5,7 @@ import { resolvedEnv, requireEnv, describeEndpoint } from './env.mjs'
 import { installRuntimeOverrides } from './browser-runtime-overrides.mjs'
 import { captureBrowserScreenshot, clickButtonByName, createBrowser, fillSignInCredentials, listBrowserSessions } from './browser-agent.mjs'
 import { createFixtureResourceOwner } from './trade-fixture.mjs'
+import { ownScenarioResource } from './scenario-resource-owner.mjs'
 import { runBrowserScenarioLifecycle } from './browser-scenario-lifecycle.mjs'
 
 const ROOT = process.cwd()
@@ -177,7 +178,6 @@ const setupLineupFixture = async (env, season) => {
 
   const admin = createClient(env.supabaseUrl, env.serviceRoleKey, { auth: { persistSession: false } })
   const resources = createFixtureResourceOwner(admin)
-  try {
   const createdUser = await createConfirmedUser(admin, user)
   resources.registerUser(createdUser.id)
   const { error: profileError } = await admin.from('profiles').upsert({
@@ -241,6 +241,17 @@ const setupLineupFixture = async (env, season) => {
     .eq('id', league.id)
   if (statusError) throw new Error(`lineup fixture status flip: ${statusError.message}`)
 
+  const dispose = async () => {
+    const cleanup = await Promise.allSettled([
+      resources.dispose(),
+      admin.from('season_weeks').delete().eq('season_year', syntheticSeason.season_year).then(({ error }) => {
+        if (error) throw new Error(error.message)
+      }),
+    ])
+    const failures = cleanup.flatMap((result) => result.status === 'rejected' ? [result.reason] : [])
+    if (failures.length > 0) throw new AggregateError(failures, 'Lineup fixture cleanup failed')
+  }
+  ownScenarioResource(`lineup-fixture:${runId}`, `lineup fixture ${runId}`, dispose)
   return {
     admin,
     runId,
@@ -252,30 +263,12 @@ const setupLineupFixture = async (env, season) => {
     week,
     player,
     rosterRow,
-    dispose: async () => {
-      const cleanup = await Promise.allSettled([
-        resources.dispose(),
-        admin.from('season_weeks').delete().eq('season_year', syntheticSeason.season_year).then(({ error }) => {
-          if (error) throw new Error(error.message)
-        }),
-      ])
-      const failures = cleanup.flatMap((result) => result.status === 'rejected' ? [result.reason] : [])
-      if (failures.length > 0) throw new AggregateError(failures, 'Lineup fixture cleanup failed')
-    },
-  }
-  } catch (error) {
-    try {
-      await resources.dispose()
-    } catch (cleanupError) {
-      throw new AggregateError([error, cleanupError], 'Lineup fixture setup and cleanup failed')
-    }
-    throw error
+    dispose,
   }
 }
 
 const setupLockedLineupFixture = async (env, season) => {
   const fixture = await setupLineupFixture(env, season)
-  try {
   const [lockedPlayer, benchPlayer] = await findPgPlayersWithNbaTeams(
     fixture.admin,
     fixture.league.id,
@@ -349,14 +342,6 @@ const setupLockedLineupFixture = async (env, season) => {
     lockedRosterRow: (rosterRows ?? []).find((row) => row.player_id === lockedPlayer.id),
     benchRosterRow: (rosterRows ?? []).find((row) => row.player_id === benchPlayer.id),
     lockedLineup: lineup,
-  }
-  } catch (error) {
-    try {
-      await fixture.dispose()
-    } catch (cleanupError) {
-      throw new AggregateError([error, cleanupError], 'Locked lineup fixture setup and cleanup failed')
-    }
-    throw error
   }
 }
 
@@ -829,12 +814,14 @@ export async function runBrowserLineupAutoSetScenario({
 if (import.meta.url === `file://${process.argv[1]}`) {
   const seasonArg = process.argv.find((arg) => arg.startsWith('--season='))
   const season = seasonArg ? Number(seasonArg.split('=')[1]) : 0
-  const runner = process.argv.includes('--locked')
-    ? runBrowserLineupLockedScenario
+  const scenarioId = process.argv.includes('--locked')
+    ? 'lineup-locked'
     : process.argv.includes('--auto-set')
-    ? runBrowserLineupAutoSetScenario
-    : runBrowserLineupScenario
-  runner({ season }).catch((error) => {
+    ? 'lineup-auto-set'
+    : 'lineup'
+  import('./browser-scenario-registry.mjs').then(({ browserScenarioById }) => (
+    browserScenarioById(scenarioId).run({ args: { browserFullSweep: false }, season })
+  )).catch((error) => {
     console.error(error)
     process.exitCode = 1
   })

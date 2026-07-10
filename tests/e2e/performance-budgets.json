@@ -37,6 +37,8 @@
         "report": "tests/e2e-browser-perf-report.md",
         "reportKeys": [
           "homePerf.maxLagMs",
+          "workflowMeasurements.home-live-lineup.feedbackMs",
+          "workflowMeasurements.home-live-lineup.cachedRequestMs",
           "workflowMeasurements.home-live-lineup.fullLoadMs"
         ]
       }
@@ -61,8 +63,13 @@
         "fullLoadMs": 1000
       },
       "measurement": {
-        "primary": "npm run e2e:browser-lineup",
-        "report": "tests/e2e-browser-lineup-report.md"
+        "primary": "E2E_BROWSER_FULL_SWEEP=1 npm run e2e:browser-smoke",
+        "report": "tests/e2e-browser-report.md",
+        "reportKeys": [
+          "workflowMeasurements.lineup-day-change.feedbackMs",
+          "workflowMeasurements.lineup-day-change.cachedRequestMs",
+          "workflowMeasurements.lineup-day-change.fullLoadMs"
+        ]
       }
     },
     {
@@ -89,7 +96,9 @@
         "report": "tests/e2e-browser-report.md",
         "reportKeys": [
           "visited.players",
-          "workflowMeasurements.player-search-filter.feedbackMs"
+          "workflowMeasurements.player-search-filter.feedbackMs",
+          "workflowMeasurements.player-search-filter.cachedRequestMs",
+          "workflowMeasurements.player-search-filter.fullLoadMs"
         ]
       }
     },
@@ -116,7 +125,10 @@
         "primary": "E2E_BROWSER_FULL_SWEEP=1 npm run e2e:browser-smoke",
         "report": "tests/e2e-browser-report.md",
         "reportKeys": [
-          "visited.player-detail"
+          "visited.player-detail",
+          "workflowMeasurements.player-detail-open.feedbackMs",
+          "workflowMeasurements.player-detail-open.cachedRequestMs",
+          "workflowMeasurements.player-detail-open.fullLoadMs"
         ]
       }
     },
@@ -144,7 +156,10 @@
         "primary": "npm run e2e:browser-smoke",
         "report": "tests/e2e-browser-report.md",
         "reportKeys": [
-          "visited.roster"
+          "visited.roster",
+          "workflowMeasurements.roster-review-manage.feedbackMs",
+          "workflowMeasurements.roster-review-manage.cachedRequestMs",
+          "workflowMeasurements.roster-review-manage.fullLoadMs"
         ]
       }
     },
@@ -168,8 +183,13 @@
         "fullLoadMs": 1000
       },
       "measurement": {
-        "primary": "npm run e2e:browser-waiver",
-        "report": "tests/e2e-browser-waiver-report.md"
+        "primary": "E2E_BROWSER_FULL_SWEEP=1 npm run e2e:browser-smoke",
+        "report": "tests/e2e-browser-report.md",
+        "reportKeys": [
+          "workflowMeasurements.waiver-add-claim.feedbackMs",
+          "workflowMeasurements.waiver-add-claim.cachedRequestMs",
+          "workflowMeasurements.waiver-add-claim.fullLoadMs"
+        ]
       }
     },
     {
@@ -192,8 +212,13 @@
         "fullLoadMs": 1000
       },
       "measurement": {
-        "primary": "npm run e2e:browser-trade",
-        "report": "tests/e2e-browser-trade-report.md"
+        "primary": "E2E_BROWSER_FULL_SWEEP=1 npm run e2e:browser-smoke",
+        "report": "tests/e2e-browser-report.md",
+        "reportKeys": [
+          "workflowMeasurements.trade-review-act.feedbackMs",
+          "workflowMeasurements.trade-review-act.cachedRequestMs",
+          "workflowMeasurements.trade-review-act.fullLoadMs"
+        ]
       }
     },
     {
@@ -221,6 +246,7 @@
         "report": "tests/e2e-browser-perf-report.md",
         "reportKeys": [
           "draftPerf.maxLagMs",
+          "workflowMeasurements.auction-draft-room.cachedRequestMs",
           "workflowMeasurements.auction-draft-room.fullLoadMs",
           "workflowMeasurements.auction-draft-room.feedbackMs"
         ]
@@ -247,8 +273,13 @@
         "fullLoadMs": 1000
       },
       "measurement": {
-        "primary": "npm run e2e:browser-rookie-draft",
-        "report": "tests/e2e-browser-rookie-draft-report.md"
+        "primary": "E2E_BROWSER_FULL_SWEEP=1 npm run e2e:browser-smoke",
+        "report": "tests/e2e-browser-report.md",
+        "reportKeys": [
+          "workflowMeasurements.rookie-draft-room.feedbackMs",
+          "workflowMeasurements.rookie-draft-room.cachedRequestMs",
+          "workflowMeasurements.rookie-draft-room.fullLoadMs"
+        ]
       }
     },
     {
@@ -274,7 +305,10 @@
         "primary": "npm run e2e:browser-smoke",
         "report": "tests/e2e-browser-report.md",
         "reportKeys": [
-          "visited.dynasty"
+          "visited.dynasty",
+          "workflowMeasurements.dynasty-hub.feedbackMs",
+          "workflowMeasurements.dynasty-hub.cachedRequestMs",
+          "workflowMeasurements.dynasty-hub.fullLoadMs"
         ]
       }
     }

@@ -29,6 +29,12 @@ jobs:
             exit 1
           }
           probe_version="${probe_name%%_*}"
+          base_name="$(find supabase/migrations -maxdepth 1 -name '*.sql' -exec basename {} \; | sort | tail -2 | head -1)"
+          base_version="${base_name%%_*}"
+          test "$base_version" \< "$probe_version" || {
+            echo "Mid-life base $base_name does not precede probe $probe_name"
+            exit 1
+          }
           probe_migration="supabase/migrations/$probe_name"
           mv "$probe_migration" "/tmp/$probe_name"
           trap 'mv "/tmp/$probe_name" "$probe_migration"' EXIT
@@ -47,6 +53,7 @@ jobs:
           printf 'E2E_FRONTEND_URL=http://127.0.0.1:8082\n' >> "$GITHUB_ENV"
           printf 'E2E_ADMIN_SECRET=local-release-soak-secret\n' >> "$GITHUB_ENV"
           printf 'E2E_MIDLIFE_EXPECTED_VERSION=%s\n' "$probe_version" >> "$GITHUB_ENV"
+          printf 'E2E_MIDLIFE_EXPECTED_BASE_VERSION=%s\n' "$base_version" >> "$GITHUB_ENV"
           printf 'FAKE_UPSTREAM_PORT=4555\n' >> "$GITHUB_ENV"
           cat > /tmp/pancake-edge.env <<'EOF'
           E2E_ADMIN_SECRET=local-release-soak-secret

@@ -6,7 +6,6 @@ import { resolvedEnv, requireEnv, describeEndpoint } from './env.mjs'
 import { installRuntimeOverrides, normalizeBrowserErrors } from './browser-runtime-overrides.mjs'
 import { clickButtonByName, createBrowser, fillSignInCredentials, listBrowserSessions } from './browser-agent.mjs'
 import { createFixtureResourceOwner } from './trade-fixture.mjs'
-import { cleanupBrowserResources } from './browser-scenario-lifecycle.mjs'
 
 const ROOT = process.cwd()
 const ARTIFACT_ROOT = path.join(ROOT, 'tests/artifacts')
@@ -107,7 +106,6 @@ const setupBrowserRookieDraftFixture = async (env, season) => {
 
   const admin = createClient(env.supabaseUrl, env.serviceRoleKey, { auth: { persistSession: false } })
   const resources = createFixtureResourceOwner(admin)
-  try {
   const createdUsers = []
   for (const user of users) {
     const createdUser = await createConfirmedUser(admin, user)
@@ -252,14 +250,6 @@ const setupBrowserRookieDraftFixture = async (env, season) => {
     rookies,
     expectedAutoPickPlayer: rookies[0],
     dispose: resources.dispose,
-  }
-  } catch (error) {
-    try {
-      await resources.dispose()
-    } catch (cleanupError) {
-      throw new AggregateError([error, cleanupError], 'Rookie draft fixture setup and cleanup failed')
-    }
-    throw error
   }
 }
 
@@ -415,15 +405,15 @@ export async function runBrowserRookieDraftAutoPickScenario({
     }
     await writeFile(REPORT_PATH, `${JSON.stringify(report, null, 2)}\n`).catch(() => {})
     throw error
-  } finally {
-    await cleanupBrowserResources({ browser, sessions: [session], disposers: [fixture.dispose] })
   }
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const seasonArg = process.argv.find((arg) => arg.startsWith('--season='))
   const season = seasonArg ? Number(seasonArg.split('=')[1]) : 0
-  runBrowserRookieDraftAutoPickScenario({ season }).catch((error) => {
+  import('./browser-scenario-registry.mjs').then(({ browserScenarioById }) => (
+    browserScenarioById('rookie-draft').run({ args: { browserFullSweep: false }, season })
+  )).catch((error) => {
     console.error(error)
     process.exitCode = 1
   })

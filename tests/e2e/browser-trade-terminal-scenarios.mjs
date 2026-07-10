@@ -5,7 +5,6 @@ import {
   VETO_REPORT_PATH,
   assertPageText,
   browser,
-  cleanupBrowserResources,
   clickTestId,
   clickLastButton,
   describeEndpoint,
@@ -138,8 +137,6 @@ export async function runBrowserTradeVetoScenario({
     }
     await writeFile(VETO_REPORT_PATH, `${JSON.stringify(report, null, 2)}\n`).catch(() => {})
     throw error
-  } finally {
-    await cleanupBrowserResources({ browser, sessions: [session], disposers: [fixture.dispose] })
   }
 }
 
@@ -149,19 +146,8 @@ export async function runBrowserTradeTerminalScenario({
 } = {}) {
   const env = resolvedTradeEnv()
   const rejectFixture = await setupTradeAcceptGameplayFixture(env, season)
-  let withdrawFixture
-  try {
-    withdrawFixture = await setupTradeAcceptGameplayFixture(env, season)
-  } catch (error) {
-    try {
-      await rejectFixture.dispose()
-    } catch (cleanupError) {
-      throw new AggregateError([error, cleanupError], 'Terminal fixture acquisition and cleanup failed')
-    }
-    throw error
-  }
+  const withdrawFixture = await setupTradeAcceptGameplayFixture(env, season)
   if (!rejectFixture.proposer.team_name || !withdrawFixture.recipient.team_name) {
-    await Promise.allSettled([rejectFixture.dispose(), withdrawFixture.dispose()])
     throw new Error('Terminal trade fixture members must have team names')
   }
   const sessionList = await listSessions().catch((error) => `session list unavailable: ${error.message}`)
@@ -313,11 +299,5 @@ export async function runBrowserTradeTerminalScenario({
     }
     await writeFile(TERMINAL_REPORT_PATH, `${JSON.stringify(report, null, 2)}\n`).catch(() => {})
     throw error
-  } finally {
-    await cleanupBrowserResources({
-      browser,
-      sessions: [rejectSession, withdrawSession],
-      disposers: [rejectFixture.dispose, withdrawFixture.dispose],
-    })
   }
 }

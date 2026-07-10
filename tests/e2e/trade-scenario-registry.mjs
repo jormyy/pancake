@@ -43,9 +43,3 @@ export const requestedTradeScenarioId = (argv) => {
   const legacy = TRADE_SCENARIOS.find((scenario) => scenario.id !== 'proposal' && argv.includes(`--${scenario.id}`))
   return legacy?.id ?? 'proposal'
 }
-
-export const tradeScenarioById = (scenarioId) => {
-  const scenario = TRADE_SCENARIOS.find(({ id }) => id === scenarioId)
-  if (!scenario) throw new Error(`Unknown trade browser scenario: ${scenarioId}`)
-  return scenario
-}

@@ -5,7 +5,6 @@ import {
   ROOT,
   assertPageText,
   browser,
-  cleanupBrowserResources,
   clickTestId,
   describeEndpoint,
   installBrowserHooks,
@@ -200,8 +199,6 @@ export async function runBrowserTradeScenario({
     }
     await writeFile(REPORT_PATH, `${JSON.stringify(report, null, 2)}\n`).catch(() => {})
     throw error
-  } finally {
-    await cleanupBrowserResources({ browser, sessions: [session, counterSession], disposers: [fixture.dispose] })
   }
 }
 
@@ -329,7 +326,5 @@ export async function runBrowserTradePostDeadlineScenario({
     }
     await writeFile(POST_DEADLINE_REPORT_PATH, `${JSON.stringify(report, null, 2)}\n`).catch(() => {})
     throw error
-  } finally {
-    await cleanupBrowserResources({ browser, sessions: [session], disposers: [fixture.dispose] })
   }
 }

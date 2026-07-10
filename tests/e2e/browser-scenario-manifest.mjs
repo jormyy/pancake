@@ -85,13 +85,16 @@ export const browserScenarioArgs = (args, { releaseEnabled = false } = {}) => /*
   ]),
 ))
 
+/** @param {unknown} result */
+const isPassingResult = (result) => result != null && typeof result === 'object' && 'status' in result && result.status === 'PASS'
+
 /** @param {Record<string, unknown>} results */
 export const browserEvidenceIds = (results) => BROWSER_SCENARIO_MANIFEST
-  .flatMap((scenario) => results[scenario.resultKey] ? [scenario.evidenceId] : [])
+  .flatMap((scenario) => isPassingResult(results[scenario.resultKey]) ? [scenario.evidenceId] : [])
 
 /** @param {Record<string, unknown>} results */
 export const browserPassNotes = (results) => BROWSER_SCENARIO_MANIFEST
-  .flatMap((scenario) => results[scenario.resultKey] ? [scenario.passNote] : [])
+  .flatMap((scenario) => isPassingResult(results[scenario.resultKey]) ? [scenario.passNote] : [])
 
 export const fastBrowserScenarioMatrix = () => ({
   include: BROWSER_SCENARIO_MANIFEST

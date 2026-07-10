@@ -207,7 +207,6 @@ export const setupTradeGameplayFixture = async (
   /** @type {(FixtureUser & { id: string })[]} */
   const createdUsers = []
 
-  try {
     for (const user of users) {
       const createdUser = await createConfirmedUser(admin, user)
       createdUsers.push(createdUser)
@@ -286,20 +285,11 @@ export const setupTradeGameplayFixture = async (
       dispose: resources.dispose,
       registerCreatedPlayer: resources.registerPlayer,
     }
-  } catch (error) {
-    try {
-      await resources.dispose()
-    } catch (cleanupError) {
-      throw new AggregateError([error, cleanupError], 'Trade fixture setup and cleanup failed')
-    }
-    throw error
-  }
 }
 
 /** @param {FixtureEnv} env @param {number} season */
 export const setupMultiTeamTradeGameplayFixture = async (env, season) => {
   const fixture = await setupTradeGameplayFixture(env, season, { memberCount: 3, includeFuturePicks: false })
-  try {
     if (!fixture.observer?.team_name) throw new Error('browser multi-team trade fixture requires a named third member')
     /** @type {Omit<typeof fixture.observer, 'team_name'> & { team_name: string }} */
     const namedObserver = { ...fixture.observer, team_name: fixture.observer.team_name }
@@ -323,12 +313,4 @@ export const setupMultiTeamTradeGameplayFixture = async (env, season) => {
     })
     if (error) throw new Error(`multi-team observer roster seed insert: ${error.message}`)
     return { ...fixture, observer: namedObserver, observerPlayer: namedObserverPlayer }
-  } catch (error) {
-    try {
-      await fixture.dispose()
-    } catch (cleanupError) {
-      throw new AggregateError([error, cleanupError], 'Multi-team fixture setup and cleanup failed')
-    }
-    throw error
-  }
 }

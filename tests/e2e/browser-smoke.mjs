@@ -5,7 +5,6 @@ import { createClient } from '@supabase/supabase-js'
 import { resolvedEnv, requireEnv, describeEndpoint } from './env.mjs'
 import { installRuntimeOverrides, normalizeBrowserErrors } from './browser-runtime-overrides.mjs'
 import { captureBrowserScreenshot, createBrowser, listBrowserSessions } from './browser-agent.mjs'
-import { cleanupBrowserResources } from './browser-scenario-lifecycle.mjs'
 
 const ROOT = process.cwd()
 const STATE_PATH = path.join(ROOT, 'tests/e2e-state.json')
@@ -36,6 +35,20 @@ const routeWorkflowIds = new Map([
   ['rookie-draft-room', 'rookie-draft-room'],
 ])
 
+export const REQUIRED_FULL_SWEEP_LABELS = [
+  'auth-sign-in', 'auth-sign-up',
+  'home', 'players', 'roster', 'trades', 'league', 'dynasty',
+  'create-league', 'join-league', 'commissioner-settings', 'lineup', 'bracket',
+  'claim-player', 'player-detail', 'propose-trade', 'team-roster',
+  'draft-room', 'rookie-draft-room',
+]
+
+export const assertFullSweepRoutes = (visited) => {
+  const visitedSet = new Set(visited)
+  const missing = REQUIRED_FULL_SWEEP_LABELS.filter((label) => !visitedSet.has(label))
+  if (missing.length > 0) throw new Error(`Full sweep omitted required routes: ${missing.join(', ')}`)
+}
+
 const parseEvalJson = (output) => {
   const line = output.split('\n').filter(Boolean).at(-1)
   const value = JSON.parse(line)
@@ -50,11 +63,24 @@ const browserNavigationTiming = async (session) => {
       if (!nav) return JSON.stringify(null);
       return JSON.stringify({
         fullLoadMs: Math.round(nav.loadEventEnd || nav.domContentLoadedEventEnd || nav.responseEnd || 0),
+        cachedRequestMs: Math.round(Math.max(0, nav.responseEnd - nav.requestStart)),
         domContentLoadedMs: Math.round(nav.domContentLoadedEventEnd || 0),
         responseEndMs: Math.round(nav.responseEnd || 0),
         transferSize: Math.round(nav.transferSize || 0),
         encodedBodySize: Math.round(nav.encodedBodySize || 0)
       });
+    })()`,
+  ])
+  return parseEvalJson(output)
+}
+
+const browserFrameFeedbackTiming = async (session) => {
+  const output = await browser(session, [
+    'eval',
+    `(async () => {
+      const started = performance.now();
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+      return JSON.stringify({ feedbackMs: Math.round((performance.now() - started) * 10) / 10 });
     })()`,
   ])
   return parseEvalJson(output)
@@ -277,7 +303,7 @@ const ensureSweepDrafts = async (supabase, state, members) => {
 
 const fetchSweepContext = async (env, state, user) => {
   if (!env.serviceRoleKey || !state.leagueId) {
-    return { routes: [], notes: ['Full sweep skipped DB-param routes: missing service role key or seeded league id.'] }
+    throw new Error('Full sweep requires a service role key and seeded league id')
   }
 
   const supabase = createClient(env.supabaseUrl, env.serviceRoleKey, { auth: { persistSession: false } })
@@ -323,7 +349,7 @@ const fetchSweepContext = async (env, state, user) => {
     routes.push(['claim-player', encodeQuery('/claim-player', { playerId })])
     routes.push(['player-detail', `/player/${playerId}`])
   } else {
-    notes.push('Full sweep skipped player detail and claim-player: no player id found.')
+    throw new Error('Full sweep requires a player for player-detail and claim-player routes')
   }
   if (otherMember) {
     routes.push(['propose-trade', encodeQuery('/propose-trade', { recipientMemberId: otherMember.id })])
@@ -332,17 +358,17 @@ const fetchSweepContext = async (env, state, user) => {
       teamName: otherMember.team_name ?? 'Team',
     })])
   } else {
-    notes.push('Full sweep skipped propose-trade/team-roster: no league member found.')
+    throw new Error('Full sweep requires another league member for propose-trade and team-roster routes')
   }
   if (auctionDraft?.id) {
     routes.push(['draft-room', encodeQuery('/draft-room', { draftId: auctionDraft.id })])
   } else {
-    notes.push('Full sweep skipped draft-room: no auction draft found.')
+    throw new Error('Full sweep requires an auction draft')
   }
   if (rookieDraft?.id) {
     routes.push(['rookie-draft-room', encodeQuery('/rookie-draft-room', { draftId: rookieDraft.id })])
   } else {
-    notes.push('Full sweep skipped rookie-draft-room: no rookie draft found.')
+    throw new Error('Full sweep requires a rookie draft')
   }
 
   return { routes, notes }
@@ -421,20 +447,23 @@ export async function runBrowserSmoke({
         const timing = await browserNavigationTiming(session).catch(() => null)
         const feedback = label === 'players'
           ? await playerSearchFeedbackTiming(session).catch(() => null)
-          : null
-        if (timing) {
+          : await browserFrameFeedbackTiming(session).catch(() => null)
+        if (timing && feedback?.feedbackMs != null) {
           workflowMeasurements.push({
             id: workflowId,
             label,
             route,
             ...timing,
-            ...(feedback?.feedbackMs != null ? { feedbackMs: feedback.feedbackMs } : {}),
+            feedbackMs: feedback.feedbackMs,
           })
+        } else {
+          throw new Error(`Performance measurement missing for ${workflowId}`)
         }
       }
       await captureBrowserScreenshot(browser, session, artifactDir, `${label}.png`)
       visited.push(label)
     }
+    if (fullSweep) assertFullSweepRoutes(visited)
 
     const consoleOutput = await browser(session, ['console']).catch((error) => `console unavailable: ${error.message}`)
     const errorOutput = await browser(session, ['errors']).catch((error) => `errors unavailable: ${error.message}`)
@@ -475,15 +504,15 @@ export async function runBrowserSmoke({
     await writeFile(REPORT_PATH, `${JSON.stringify(report, null, 2)}\n`)
     await writeFile(path.join(artifactDir, 'summary.json'), `${JSON.stringify(report, null, 2)}\n`)
     throw error
-  } finally {
-    await cleanupBrowserResources({ browser, sessions: [session] })
   }
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const seasonArg = process.argv.find((arg) => arg.startsWith('--season='))
   const season = seasonArg ? Number(seasonArg.split('=')[1]) : 0
-  runBrowserSmoke({ season }).catch((error) => {
+  import('./browser-scenario-registry.mjs').then(({ browserScenarioById }) => (
+    browserScenarioById('smoke').run({ args: { browserFullSweep: process.env.E2E_BROWSER_FULL_SWEEP === '1' }, season })
+  )).catch((error) => {
     console.error(error)
     process.exitCode = 1
   })

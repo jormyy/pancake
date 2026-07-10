@@ -205,4 +205,4 @@ jobs:
             tests/e2e-browser-*-report.json
             tests/performance-budget-report.md
             tests/artifacts/
-          if-no-files-found: ignore
+          if-no-files-found: error

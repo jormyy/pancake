@@ -5,6 +5,7 @@ import { resolvedEnv, requireEnv, describeEndpoint } from './env.mjs'
 import { installRuntimeOverrides } from './browser-runtime-overrides.mjs'
 import { clickButtonByName, createBrowser, fillSignInCredentials, listBrowserSessions } from './browser-agent.mjs'
 import { createFixtureResourceOwner } from './trade-fixture.mjs'
+import { ownScenarioResource } from './scenario-resource-owner.mjs'
 import { runBrowserScenarioLifecycle } from './browser-scenario-lifecycle.mjs'
 
 const ROOT = process.cwd()
@@ -110,7 +111,6 @@ const setupWaiverGameplayFixture = async (env, season, { requiresDrop = false, h
 
   const admin = createClient(env.supabaseUrl, env.serviceRoleKey, { auth: { persistSession: false } })
   const resources = createFixtureResourceOwner(admin)
-  try {
   const createdUser = await createConfirmedUser(admin, user)
   resources.registerUser(createdUser.id)
 
@@ -229,6 +229,22 @@ const setupWaiverGameplayFixture = async (env, season, { requiresDrop = false, h
     .single()
   if (waiverLogError) throw new Error(`waiver log insert: ${waiverLogError.message}`)
 
+  const dispose = async () => {
+    const cleanup = await Promise.allSettled([
+      resources.dispose(),
+      irPlayer
+        ? admin.from('players').update({ injury_status: null }).eq('id', irPlayer.id).then(({ error }) => {
+            if (error) throw new Error(error.message)
+          })
+        : Promise.resolve(),
+      admin.from('players').delete().like('sportsdata_id', `e2e-waiver-${runId}-%`).then(({ error }) => {
+        if (error) throw new Error(error.message)
+      }),
+    ])
+    const failures = cleanup.flatMap((result) => result.status === 'rejected' ? [result.reason] : [])
+    if (failures.length > 0) throw new AggregateError(failures, 'Waiver fixture cleanup failed')
+  }
+  ownScenarioResource(`waiver-fixture:${runId}`, `waiver fixture ${runId}`, dispose)
   return {
     admin,
     runId,
@@ -243,29 +259,7 @@ const setupWaiverGameplayFixture = async (env, season, { requiresDrop = false, h
     irPlayer: irPlayer ?? null,
     irRosterPlayer,
     waiverLog,
-    dispose: async () => {
-      const cleanup = await Promise.allSettled([
-        resources.dispose(),
-        irPlayer
-          ? admin.from('players').update({ injury_status: null }).eq('id', irPlayer.id).then(({ error }) => {
-              if (error) throw new Error(error.message)
-            })
-          : Promise.resolve(),
-        admin.from('players').delete().like('sportsdata_id', `e2e-waiver-${runId}-%`).then(({ error }) => {
-          if (error) throw new Error(error.message)
-        }),
-      ])
-      const failures = cleanup.flatMap((result) => result.status === 'rejected' ? [result.reason] : [])
-      if (failures.length > 0) throw new AggregateError(failures, 'Waiver fixture cleanup failed')
-    },
-  }
-  } catch (error) {
-    try {
-      await resources.dispose()
-    } catch (cleanupError) {
-      throw new AggregateError([error, cleanupError], 'Waiver fixture setup and cleanup failed')
-    }
-    throw error
+    dispose,
   }
 }
 
@@ -545,12 +539,14 @@ export async function runBrowserWaiverIrBlockScenario({
 if (import.meta.url === `file://${process.argv[1]}`) {
   const seasonArg = process.argv.find((arg) => arg.startsWith('--season='))
   const season = seasonArg ? Number(seasonArg.split('=')[1]) : 0
-  const runner = process.argv.includes('--ir-block')
-    ? runBrowserWaiverIrBlockScenario
+  const scenarioId = process.argv.includes('--ir-block')
+    ? 'waiver-ir-block'
     : process.argv.includes('--drop')
-    ? runBrowserWaiverDropScenario
-    : runBrowserWaiverScenario
-  runner({ season }).catch((error) => {
+    ? 'waiver-drop'
+    : 'waiver'
+  import('./browser-scenario-registry.mjs').then(({ browserScenarioById }) => (
+    browserScenarioById(scenarioId).run({ args: { browserFullSweep: false }, season })
+  )).catch((error) => {
     console.error(error)
     process.exitCode = 1
   })

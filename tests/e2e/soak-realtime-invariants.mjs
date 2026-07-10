@@ -392,8 +392,10 @@ export const applyMidlifeMigration = async (season) => {
   const env = resolvedEnv()
   const dbUrl = process.env.E2E_MIDLIFE_MIGRATION_DB_URL ?? env.dbUrl
   const expectedVersion = process.env.E2E_MIDLIFE_EXPECTED_VERSION
+  const expectedBaseVersion = process.env.E2E_MIDLIFE_EXPECTED_BASE_VERSION
   if (!dbUrl) throw new Error('D.LONG.5 requires E2E_MIDLIFE_MIGRATION_DB_URL or SUPABASE_DB_URL for migration evidence')
   if (!expectedVersion) throw new Error('D.LONG.5 requires E2E_MIDLIFE_EXPECTED_VERSION')
+  if (!expectedBaseVersion) throw new Error('D.LONG.5 requires E2E_MIDLIFE_EXPECTED_BASE_VERSION')
   const isLocalSupabase = /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/i.test(env.supabaseUrl ?? '')
   const command = process.env.E2E_MIDLIFE_MIGRATION_DB_URL
     ? ['db', 'push', '--db-url', process.env.E2E_MIDLIFE_MIGRATION_DB_URL, '--yes']
@@ -415,6 +417,7 @@ export const applyMidlifeMigration = async (season) => {
     command: `supabase ${command.join(' ')}`,
     target: process.env.E2E_MIDLIFE_MIGRATION_DB_URL ? 'db-url' : target || (isLocalSupabase ? 'local' : 'linked'),
     expectedVersion,
+    expectedBaseVersion,
     beforeVersions,
     afterVersions: /** @type {string[]} */ ([]),
     appliedVersions: /** @type {string[]} */ ([]),
@@ -429,6 +432,9 @@ export const applyMidlifeMigration = async (season) => {
     if (beforeVersions.includes(expectedVersion)) {
       throw new Error(`expected migration ${expectedVersion} was already applied before the mid-life boundary`)
     }
+    if (beforeVersions.at(-1) !== expectedBaseVersion) {
+      throw new Error(`mid-life base head ${beforeVersions.at(-1) ?? '<empty>'} did not match expected ${expectedBaseVersion}`)
+    }
     const { stdout, stderr } = await execFileAsync('supabase', command, {
       cwd: ROOT,
       timeout: 120_000,
@@ -441,6 +447,9 @@ export const applyMidlifeMigration = async (season) => {
     if (report.appliedVersions.length === 0) throw new Error('database applied no migrations at the mid-life boundary')
     if (!report.appliedVersions.includes(expectedVersion)) {
       throw new Error(`mid-life migration delta did not include expected version ${expectedVersion}`)
+    }
+    if (report.afterVersions.at(-1) !== expectedVersion) {
+      throw new Error(`mid-life final head ${report.afterVersions.at(-1) ?? '<empty>'} did not match expected ${expectedVersion}`)
     }
     const beforeHead = beforeVersions.at(-1)
     if (beforeHead && report.appliedVersions.some((version) => version <= beforeHead)) {

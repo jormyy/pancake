@@ -100,7 +100,13 @@ const validateBrowserPerfReport = (manifest, report) => {
   return failures
 }
 
-const validateWorkflowReportKeys = (manifest, report, reportPath) => {
+const budgetMeasurementKeys = {
+  feedbackMs: 'feedbackMs',
+  cachedRequestMs: 'cachedRequestMs',
+  fullLoadMs: 'fullLoadMs',
+}
+
+export const validateWorkflowReportKeys = (manifest, report, reportPath) => {
   const failures = []
   if (report.status !== 'PASS') {
     failures.push(`${reportPath} status is ${report.status ?? 'missing'}`)
@@ -117,7 +123,16 @@ const validateWorkflowReportKeys = (manifest, report, reportPath) => {
   const byWorkflow = new Map(measurements.map((measurement) => [measurement.id, measurement]))
   for (const workflow of manifest.workflows.filter((item) => item.measurement?.report === reportPath)) {
     const measurement = byWorkflow.get(workflow.id)
-    if (!measurement) continue
+    if (!measurement) {
+      failures.push(`${workflow.id}: ${reportPath} is missing workflow measurement`)
+      continue
+    }
+
+    for (const [budgetKey, measurementKey] of Object.entries(budgetMeasurementKeys)) {
+      if (workflow.budgets?.[budgetKey] != null && !Number.isFinite(measurement[measurementKey])) {
+        failures.push(`${workflow.id}: ${reportPath} is missing numeric ${measurementKey}`)
+      }
+    }
 
     if (measurement.feedbackMs != null && measurement.feedbackMs > workflow.budgets.feedbackMs) {
       failures.push(`${workflow.id}: ${reportPath} feedback ${measurement.feedbackMs}ms exceeds ${workflow.budgets.feedbackMs}ms`)
@@ -250,7 +265,9 @@ const main = async () => {
   if (failures.length > 0) process.exitCode = 1
 }
 
-main().catch((error) => {
-  console.error(error instanceof Error ? error.message : String(error))
-  process.exit(1)
-})
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main().catch((error) => {
+    console.error(error instanceof Error ? error.message : String(error))
+    process.exit(1)
+  })
+}

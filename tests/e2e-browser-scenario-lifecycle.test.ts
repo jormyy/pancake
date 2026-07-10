@@ -24,7 +24,7 @@ const browserOutput = (command: string[]) => {
 }
 
 describe('browser scenario lifecycle', () => {
-    it('writes identical canonical reports and releases both resource owners', async () => {
+    it('writes identical scenario-detail reports for the registry owner', async () => {
         const { artifactDir, reportPath } = await createTempPaths()
         const browser = vi.fn(async (_session: string, command: string[]) => browserOutput(command))
         const dispose = vi.fn(async () => undefined)
@@ -49,16 +49,13 @@ describe('browser scenario lifecycle', () => {
         expect(report).toMatchObject({ status: 'PASS', season: 4, persisted: true })
         expect(JSON.parse(await readFile(reportPath, 'utf8'))).toEqual(report)
         expect(JSON.parse(await readFile(path.join(artifactDir, 'summary.json'), 'utf8'))).toEqual(report)
-        expect(browser).toHaveBeenCalledWith('session', ['close'], { timeout: 10_000 })
-        expect(dispose).toHaveBeenCalledOnce()
+        expect(browser).not.toHaveBeenCalledWith('session', ['close'], expect.anything())
+        expect(dispose).not.toHaveBeenCalled()
     })
 
-    it('fails the scenario when browser cleanup leaks even after assertions pass', async () => {
+    it('preserves the primary scenario failure in both detail reports', async () => {
         const { artifactDir, reportPath } = await createTempPaths()
-        const browser = vi.fn(async (_session: string, command: string[]) => {
-            if (command[0] === 'close') throw new Error('session still owned')
-            return browserOutput(command)
-        })
+        const browser = vi.fn(async (_session: string, command: string[]) => browserOutput(command))
 
         await expect(runBrowserScenarioLifecycle({
             browser,
@@ -70,36 +67,15 @@ describe('browser scenario lifecycle', () => {
             fixtureSummary: () => ({}),
             notes: [],
             failureLabel: 'scenario failed',
-            run: async () => ({ fields: {}, failures: [] }),
+            run: async () => { throw new Error('scenario assertion failed') },
             verifyFailure: async () => ({}),
-        })).rejects.toThrow('cleanup was not clean')
+        })).rejects.toThrow('scenario assertion failed')
         expect(JSON.parse(await readFile(reportPath, 'utf8'))).toMatchObject({
             status: 'FAIL',
-            cleanupError: expect.stringContaining('session still owned'),
+            error: 'scenario assertion failed',
         })
-    })
-
-    it('still disposes the fixture when browser close fails', async () => {
-        const { artifactDir, reportPath } = await createTempPaths()
-        const dispose = vi.fn(async () => undefined)
-        const browser = vi.fn(async (_session: string, command: string[]) => {
-            if (command[0] === 'close') throw new Error('close failed')
-            return browserOutput(command)
-        })
-
-        await expect(runBrowserScenarioLifecycle({
-            browser,
-            session: 'session',
-            artifactDir,
-            reportPath,
-            season: 1,
-            fixture: { dispose },
-            fixtureSummary: () => ({}),
-            notes: [],
-            failureLabel: 'scenario failed',
-            run: async () => ({ fields: {}, failures: [] }),
-            verifyFailure: async () => ({}),
-        })).rejects.toThrow('cleanup was not clean')
-        expect(dispose).toHaveBeenCalledOnce()
+        expect(JSON.parse(await readFile(path.join(artifactDir, 'summary.json'), 'utf8'))).toEqual(
+            JSON.parse(await readFile(reportPath, 'utf8')),
+        )
     })
 })

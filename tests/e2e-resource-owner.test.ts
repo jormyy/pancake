@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createScenarioResourceOwner } from './e2e/scenario-resource-owner.mjs'
+import {
+    createScenarioResourceOwner,
+    ownScenarioResource,
+    runWithScenarioResourceOwner,
+} from './e2e/scenario-resource-owner.mjs'
 import { createDisposableLeagueFromSeedUsers } from './e2e/soak-fixtures.mjs'
 
 describe('scenario resource ownership', () => {
@@ -32,5 +36,17 @@ describe('scenario resource ownership', () => {
             resourceOwner: undefined,
         })).rejects.toThrow('requires a scenario resource owner')
         expect(from).not.toHaveBeenCalled()
+    })
+
+    it('makes the ambient owner the only cleanup executor for registered scenarios', async () => {
+        const calls: string[] = []
+        await runWithScenarioResourceOwner('browser scenario', async () => {
+            ownScenarioResource('browser:session', 'browser session', async () => { calls.push('owned browser close') })
+            ownScenarioResource('fixture:1', 'fixture', async () => { calls.push('owned fixture dispose') })
+            expect(calls).toEqual([])
+            return { status: 'PASS' }
+        })
+
+        expect(calls).toEqual(['owned fixture dispose', 'owned browser close'])
     })
 })

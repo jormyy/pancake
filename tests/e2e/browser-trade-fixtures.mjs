@@ -1,22 +1,11 @@
 import { findAvailablePlayers, setupTradeGameplayFixture } from './trade-fixture.mjs'
 
 /**
- * @template {{ dispose: () => Promise<void> }} Fixture
  * @template Result
- * @param {Fixture} fixture
  * @param {() => Promise<Result>} build
  */
-const extendFixture = async (fixture, build) => {
-  try {
-    return await build()
-  } catch (error) {
-    try {
-      await fixture.dispose()
-    } catch (cleanupError) {
-      throw new AggregateError([error, cleanupError], 'Trade child fixture setup and cleanup failed')
-    }
-    throw error
-  }
+const extendFixture = async (build) => {
+  return build()
 }
 
 /**
@@ -81,7 +70,7 @@ const seedTrade = async (fixture, seed) => {
 /** @param {Parameters<typeof setupTradeGameplayFixture>[0]} env @param {number} season */
 export const setupTradeAcceptGameplayFixture = async (env, season) => {
   const fixture = await setupTradeGameplayFixture(env, season)
-  return extendFixture(fixture, async () => {
+  return extendFixture(async () => {
     if (!fixture.proposerFuturePick || !fixture.recipientFuturePick) {
       throw new Error('future-pick fixture requires both teams to own a future pick')
     }
@@ -104,7 +93,7 @@ export const setupTradeAcceptGameplayFixture = async (env, season) => {
 /** @param {Parameters<typeof setupTradeGameplayFixture>[0]} env @param {number} season */
 export const setupTradeFuturePickAcceptGameplayFixture = async (env, season) => {
   const fixture = await setupTradeGameplayFixture(env, season)
-  return extendFixture(fixture, async () => {
+  return extendFixture(async () => {
     if (!fixture.proposerFuturePick || !fixture.recipientFuturePick) {
       throw new Error('future-pick fixture requires both teams to own a future pick')
     }
@@ -127,7 +116,7 @@ export const setupTradeFuturePickAcceptGameplayFixture = async (env, season) => 
 /** @param {Parameters<typeof setupTradeGameplayFixture>[0]} env @param {number} season */
 export const setupTradeOverflowAcceptGameplayFixture = async (env, season) => {
   const fixture = await setupTradeGameplayFixture(env, season)
-  return extendFixture(fixture, async () => {
+  return extendFixture(async () => {
     if (!fixture.recipientFuturePick) throw new Error('overflow fixture requires a recipient future pick')
     const [freeAgentPlayer] = await findAvailablePlayers(
       fixture.admin,
@@ -173,7 +162,7 @@ export const setupTradeOverflowAcceptGameplayFixture = async (env, season) => {
 /** @param {Parameters<typeof setupTradeGameplayFixture>[0]} env @param {number} season */
 export const setupTradeVetoGameplayFixture = async (env, season) => {
   const fixture = await setupTradeGameplayFixture(env, season, { memberCount: 3 })
-  return extendFixture(fixture, async () => {
+  return extendFixture(async () => {
     if (!fixture.observer) throw new Error('browser trade veto fixture did not create observer member')
     const acceptedAt = new Date().toISOString()
     const trade = await seedTrade(fixture, {
@@ -194,7 +183,7 @@ export const setupTradeVetoGameplayFixture = async (env, season) => {
 /** @param {Parameters<typeof setupTradeGameplayFixture>[0]} env @param {number} season */
 export const setupTradePostDeadlineGameplayFixture = async (env, season) => {
   const fixture = await setupTradeGameplayFixture(env, season)
-  return extendFixture(fixture, async () => {
+  return extendFixture(async () => {
     const tradeDeadline = '2000-01-01'
     const { error } = await fixture.admin
       .from('leagues')

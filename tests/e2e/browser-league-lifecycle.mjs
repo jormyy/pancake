@@ -6,7 +6,6 @@ import { resolvedEnv, requireEnv, describeEndpoint } from './env.mjs'
 import { installRuntimeOverrides, normalizeBrowserErrors } from './browser-runtime-overrides.mjs'
 import { clickButtonByName, createBrowser, fillSignInCredentials, listBrowserSessions } from './browser-agent.mjs'
 import { createFixtureResourceOwner } from './trade-fixture.mjs'
-import { cleanupBrowserResources } from './browser-scenario-lifecycle.mjs'
 
 const ROOT = process.cwd()
 const ARTIFACT_ROOT = path.join(ROOT, 'tests/artifacts')
@@ -292,16 +291,15 @@ export async function runBrowserLeagueLifecycleScenario({ season = 0 } = {}) {
     }
     await writeFile(REPORT_PATH, `${JSON.stringify(report, null, 2)}\n`).catch(() => {})
     throw error
-  } finally {
-    await cleanupBrowserResources({ browser, sessions: [session], disposers: [resources.dispose] })
   }
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const seasonArg = process.argv.find((arg) => arg.startsWith('--season='))
-  runBrowserLeagueLifecycleScenario({
-    season: seasonArg ? Number(seasonArg.split('=')[1]) : 0,
-  }).catch((error) => {
+  const season = seasonArg ? Number(seasonArg.split('=')[1]) : 0
+  import('./browser-scenario-registry.mjs').then(({ browserScenarioById }) => (
+    browserScenarioById('league-lifecycle').run({ args: { browserFullSweep: false }, season })
+  )).catch((error) => {
     console.error(error)
     process.exitCode = 1
   })

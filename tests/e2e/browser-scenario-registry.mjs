@@ -18,28 +18,36 @@ import {
 import { TRADE_SCENARIOS } from './trade-scenario-registry.mjs'
 import { BROWSER_SCENARIO_MANIFEST } from './browser-scenario-manifest.mjs'
 import { runWithScenarioResourceOwner } from './scenario-resource-owner.mjs'
-import { writeFile } from 'node:fs/promises'
+import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { bindBrowserScenarioRunners } from './browser-scenario-contract.mjs'
 
 /** @param {unknown} error */
 const errorText = (error) => error instanceof Error ? error.message : error == null ? null : String(error)
+const REGISTRY_ARTIFACT_ROOT = path.join(process.cwd(), 'tests/artifacts/registry')
 
-const writeRegisteredScenarioReport = async (scenario, { outcome, primaryError, cleanupError }) => {
+export const writeRegisteredScenarioReport = async (scenario, context, { outcome, primaryError, cleanupError }) => {
   const result = outcome.ok ? outcome.value : null
-  if (!result?.artifactDir) return
   const report = {
     status: primaryError || cleanupError ? 'FAIL' : result?.status ?? 'PASS',
     scenario: scenario.id,
     evidenceId: scenario.evidenceId,
     evidence: scenario.evidence,
+    season: context.season,
     error: errorText(primaryError),
     cleanupError: errorText(cleanupError),
     result,
   }
+  const registryRoot = context.registryArtifactRoot ?? REGISTRY_ARTIFACT_ROOT
+  await mkdir(registryRoot, { recursive: true })
+  const registryPath = path.join(registryRoot, `${scenario.id}-season-${context.season}.json`)
+  const serialized = `${JSON.stringify(report, null, 2)}\n`
+  await writeFile(registryPath, serialized)
+  if (!result?.artifactDir) return
+  await mkdir(result.artifactDir, { recursive: true })
   await writeFile(
     path.join(result.artifactDir, 'registry-summary.json'),
-    `${JSON.stringify(report, null, 2)}\n`,
+    serialized,
   )
 }
 
@@ -70,7 +78,7 @@ export const BROWSER_SCENARIOS = bindBrowserScenarioRunners(BROWSER_SCENARIO_MAN
     run: (context) => runWithScenarioResourceOwner(
       `browser ${scenario.id}`,
       () => scenario.run(context),
-      { onComplete: (result) => writeRegisteredScenarioReport(scenario, result) },
+      { onComplete: (result) => writeRegisteredScenarioReport(scenario, context, result) },
     ),
   }))
 

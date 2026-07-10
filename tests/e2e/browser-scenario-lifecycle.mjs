@@ -44,22 +44,6 @@ const captureDiagnostics = async ({ browser, session, artifactDir, screenshot })
   return { consoleOutput, errorOutput, networkOutput }
 }
 
-/** @param {{ browser: Browser, sessions: string[], disposers?: (() => Promise<void>)[] }} input */
-export const cleanupBrowserResources = async ({ browser, sessions, disposers = [] }) => {
-  const results = await Promise.allSettled([
-    ...sessions.map((session) => browser(session, ['close'], { timeout: 10_000 })),
-    ...disposers.map((dispose) => dispose()),
-  ])
-  const failures = results.flatMap((result, index) => {
-    if (result.status !== 'rejected') return []
-    const resource = index < sessions.length
-      ? `browser close ${sessions[index]}`
-      : `fixture disposal ${index - sessions.length + 1}`
-    return [new Error(`${resource} failed: ${errorText(result.reason)}`)]
-  })
-  if (failures.length > 0) throw new AggregateError(failures, 'Browser resources were not released')
-}
-
 /**
  * @param {{
  *   browser: Browser,
@@ -138,21 +122,6 @@ export async function runBrowserScenarioLifecycle({
     }
   }
 
-  let cleanupError = null
-  try {
-    await cleanupBrowserResources({ browser, sessions: [session], disposers: [fixture.dispose] })
-  } catch (error) {
-    cleanupError = error
-  }
-
-  if (cleanupError) {
-    report = {
-      ...report,
-      status: 'FAIL',
-      cleanupError: errorText(cleanupError),
-    }
-  }
-
   let writeError = null
   try {
     const serialized = `${JSON.stringify(report, null, 2)}\n`
@@ -164,13 +133,10 @@ export async function runBrowserScenarioLifecycle({
     writeError = error
   }
 
-  const errors = [primaryError, cleanupError, writeError].filter((error) => error != null)
-  if (errors.length === 1) {
-    if (cleanupError) throw new AggregateError(errors, `${failureLabel}; cleanup was not clean`)
-    throw errors[0]
-  }
+  const errors = [primaryError, writeError].filter((error) => error != null)
+  if (errors.length === 1) throw errors[0]
   if (errors.length > 1) {
-    throw new AggregateError(errors, `${failureLabel}; ${cleanupError ? 'cleanup was not clean' : 'evidence writing failed'}`)
+    throw new AggregateError(errors, `${failureLabel}; evidence writing failed`)
   }
   return report
 }
