@@ -137,7 +137,10 @@ jobs:
           printf 'E2E_CANDIDATE_EDGE_DIGEST=%s\n' "$candidate_edge_digest" >> "$GITHUB_ENV"
           supabase functions serve --env-file /tmp/pancake-edge.env > tests/artifacts/stack/edge.log 2>&1 &
           echo "$!" > /tmp/pancake-edge.pid
-          EXPO_UNSTABLE_METRO_OPTIMIZE_GRAPH=1 npm run build:web:release > tests/artifacts/stack/web-build.log 2>&1
+          PANCAKE_RELEASE_SHA="$E2E_RELEASE_SHA" \
+            EXPO_UNSTABLE_METRO_OPTIMIZE_GRAPH=1 \
+            npm run build:web:release > tests/artifacts/stack/web-build.log 2>&1
+          test "$(node -e "process.stdout.write(require('./dist/release-provenance.json').commitSha)")" = "$E2E_RELEASE_SHA"
           candidate_frontend_digest="$(node -e "process.stdout.write(require('./dist/release-provenance.json').bundleDigest)")"
           printf 'E2E_CANDIDATE_FRONTEND_DIGEST=%s\n' "$candidate_frontend_digest" >> "$GITHUB_ENV"
           node tests/e2e/static-web-server.mjs --root=dist --port=8082 > tests/artifacts/stack/web.log 2>&1 &

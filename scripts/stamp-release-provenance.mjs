@@ -14,7 +14,8 @@ const repositoryCommit = (root) => execFileSync('git', ['rev-parse', 'HEAD'], {
 
 export const stampReleaseProvenance = async ({
   root = process.cwd(),
-  commitSha = process.env.E2E_EXPECTED_RELEASE_SHA || process.env.PANCAKE_RELEASE_SHA || process.env.GITHUB_SHA || repositoryCommit(root),
+  commitSha = process.env.E2E_EXPECTED_RELEASE_SHA || process.env.PANCAKE_RELEASE_SHA ||
+    process.env.E2E_RELEASE_SHA || process.env.GITHUB_SHA || repositoryCommit(root),
 } = {}) => {
   if (!fullSha(commitSha)) throw new Error('Release marker requires a full commit SHA')
   const marker = {

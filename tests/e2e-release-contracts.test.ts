@@ -10,7 +10,7 @@ import { browserCiContext } from './e2e/browser-ci-scenario.mjs'
 import { BROWSER_SCENARIO_MANIFEST, fastBrowserScenarioMatrix } from './e2e/browser-scenario-manifest.mjs'
 import { validateDataLatencyReport, validateManifest, validateRetainedSeasonReports, validateWorkflowReportKeys } from './e2e/performance-budgets.mjs'
 import { readAppliedSchemaVersion } from './e2e/schema-provenance.mjs'
-import { digestReleaseBundle } from './e2e/release-provenance.mjs'
+import { digestReleaseBundle, selectRepositoryCommit } from './e2e/release-provenance.mjs'
 import { planReleaseMigrations, planReleaseMigrationsFromHistory, validateAppliedMigrationDelta } from './e2e/release-soak-migration-plan.mjs'
 import { stampReleaseProvenance } from '../scripts/stamp-release-provenance.mjs'
 import { digestEdgeArtifact, stampEdgeReleaseProvenance } from '../scripts/stamp-edge-release-provenance.mjs'
@@ -229,6 +229,13 @@ describe('release E2E contracts', () => {
     expect(routingDigest).not.toBe(marker.bundleDigest)
     await writeFile(path.join(root, 'package-lock.json'), '{"lockfileVersion":3}\n')
     expect(await digestReleaseBundle(root)).not.toBe(routingDigest)
+  })
+
+  it('rejects release provenance for a SHA other than the checked-out commit', () => {
+    const headCommit = 'a'.repeat(40)
+    expect(selectRepositoryCommit({ headCommit, expectedCommit: headCommit })).toBe(headCommit)
+    expect(() => selectRepositoryCommit({ headCommit, expectedCommit: 'b'.repeat(40) }))
+      .toThrow(`expected ${'b'.repeat(40)} but HEAD is ${headCommit}`)
   })
 
   it('bakes Edge provenance from source rather than mutable environment values', async () => {

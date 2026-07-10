@@ -24,15 +24,26 @@ const listFiles = async (directory) => {
   return files.flat().sort()
 }
 
+export const selectRepositoryCommit = ({ headCommit, expectedCommit }) => {
+  if (!/^[a-f0-9]{40}$/i.test(headCommit)) throw new Error('Release provenance requires a full checked-out commit SHA')
+  if (expectedCommit && !/^[a-f0-9]{40}$/i.test(expectedCommit)) {
+    throw new Error('Release provenance requires a full expected commit SHA')
+  }
+  if (expectedCommit && expectedCommit.toLowerCase() !== headCommit.toLowerCase()) {
+    throw new Error(`Release provenance expected ${expectedCommit.toLowerCase()} but HEAD is ${headCommit.toLowerCase()}`)
+  }
+  return headCommit.toLowerCase()
+}
+
 const repositoryCommit = (root) => {
-  const fromEnvironment = process.env.GITHUB_SHA
-  const commit = fromEnvironment || execFileSync('git', ['rev-parse', 'HEAD'], {
+  const headCommit = execFileSync('git', ['rev-parse', 'HEAD'], {
     cwd: root,
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'ignore'],
   }).trim()
-  if (!/^[a-f0-9]{40}$/i.test(commit)) throw new Error('Release provenance requires a full commit SHA')
-  return commit.toLowerCase()
+  const expectedCommit = process.env.E2E_EXPECTED_RELEASE_SHA || process.env.PANCAKE_RELEASE_SHA ||
+    process.env.E2E_RELEASE_SHA || process.env.GITHUB_SHA
+  return selectRepositoryCommit({ headCommit, expectedCommit })
 }
 
 export const digestReleaseBundle = async (root) => {
