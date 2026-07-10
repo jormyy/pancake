@@ -25,6 +25,7 @@ const MAX_ROOKIE_DRAFT_ROUNDS = 3
 const DEFAULT_ROSTER_SIZE = 20
 const DEFAULT_TAXI_SLOTS = 2
 const DEFAULT_DRAFT_TIMER_SECONDS = 30
+const PRESENCE_CLAIM_TTL_SECONDS = 10 * 60
 const NOMINATION_ORDER_MODES = ['user_nominated', 'by_projection', 'alphabetical'] as const
 const ROOKIE_TIMER_EXPIRY_BEHAVIORS = ['auto_pick', 'skip_pick', 'pause_draft', 'commissioner_pick'] as const
 type NominationOrderMode = (typeof NOMINATION_ORDER_MODES)[number]
@@ -506,7 +507,7 @@ async function processExpiredSnakePick(draftId: string, memberId: string): Promi
   }
 }
 
-async function requireDraftLeagueMember(userId: string, draftId: string): Promise<void> {
+async function requireDraftLeagueMember(userId: string, draftId: string): Promise<string> {
   const { data: draft, error: draftError } = await supabase
     .from('drafts')
     .select('league_id')
@@ -523,6 +524,77 @@ async function requireDraftLeagueMember(userId: string, draftId: string): Promis
     .maybeSingle()
   if (membershipError) throwDb(membershipError)
   if (!membership) throw new NotFoundError('Draft not found')
+  return membership.id
+}
+
+type PresenceClaim = { v: 1; draftId: string; memberId: string; expiresAt: number }
+
+function presenceSigningSecret(): string {
+  const secret = Deno.env.get('PANCAKE_SUPABASE_SECRET_KEY') ?? Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+  if (!secret) throw new Error('Presence claim signing is not configured.')
+  return secret
+}
+
+function base64Url(bytes: Uint8Array): string {
+  let binary = ''
+  for (const byte of bytes) binary += String.fromCharCode(byte)
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')
+}
+
+function decodeBase64Url(value: string): Uint8Array {
+  const normalized = value.replace(/-/g, '+').replace(/_/g, '/')
+  const binary = atob(normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '='))
+  return Uint8Array.from(binary, (character) => character.charCodeAt(0))
+}
+
+async function presenceSignature(payload: string): Promise<Uint8Array> {
+  const key = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(presenceSigningSecret()),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  )
+  return new Uint8Array(await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(payload)))
+}
+
+async function issuePresenceClaim(userId: string, draftId: string): Promise<string> {
+  const memberId = await requireDraftLeagueMember(userId, draftId)
+  const claim: PresenceClaim = {
+    v: 1,
+    draftId,
+    memberId,
+    expiresAt: Math.floor(Date.now() / 1000) + PRESENCE_CLAIM_TTL_SECONDS,
+  }
+  const payload = base64Url(new TextEncoder().encode(JSON.stringify(claim)))
+  return `${payload}.${base64Url(await presenceSignature(payload))}`
+}
+
+async function verifyPresenceClaim(value: string, draftId: string): Promise<string | null> {
+  try {
+    const [payload, signature, extra] = value.split('.')
+    if (!payload || !signature || extra) return null
+    const expected = await presenceSignature(payload)
+    const actual = decodeBase64Url(signature)
+    if (actual.length !== expected.length) return null
+    let mismatch = 0
+    for (let index = 0; index < actual.length; index += 1) mismatch |= actual[index] ^ expected[index]
+    if (mismatch !== 0) return null
+    const claim = JSON.parse(new TextDecoder().decode(decodeBase64Url(payload))) as Partial<PresenceClaim>
+    if (claim.v !== 1 || claim.draftId !== draftId || typeof claim.memberId !== 'string' ||
+        typeof claim.expiresAt !== 'number' || claim.expiresAt <= Math.floor(Date.now() / 1000)) return null
+    return claim.memberId
+  } catch {
+    return null
+  }
+}
+
+async function resolvePresenceClaims(draftId: string, claims: unknown): Promise<string[]> {
+  if (!Array.isArray(claims) || claims.length > 50 || claims.some((claim) => typeof claim !== 'string')) {
+    throw new ValidationError('claims must be an array of at most 50 strings')
+  }
+  const resolved = await Promise.all(claims.map((claim) => verifyPresenceClaim(claim, draftId)))
+  return [...new Set(resolved.filter((memberId): memberId is string => memberId !== null))]
 }
 
 async function activateRookieDraftLeague(draftId: string, userId: string): Promise<{ activated: boolean }> {
@@ -586,6 +658,15 @@ export async function handleDraftRoute(req: Request, path: string): Promise<Resp
   const { draftId } = action
   const body = await readJsonObject(req)
   const userId = await requireUser(req)
+
+  if (action.action === 'presence-claim') {
+    return json({ ok: true, claim: await issuePresenceClaim(userId, draftId) })
+  }
+
+  if (action.action === 'resolve-presence') {
+    await requireDraftLeagueMember(userId, draftId)
+    return json({ ok: true, memberIds: await resolvePresenceClaims(draftId, body.claims) })
+  }
 
   if (action.action === 'stop') {
     await requireCommissionerForDraft(userId, draftId)

@@ -16,6 +16,7 @@ import {
     type NominationOrderMode,
 } from '@/lib/draft'
 import { getErrorMessage, showAlert } from '@/lib/alert'
+import { reportRealtimeCleanup } from '@/lib/realtime'
 
 export type DraftTab = 'budgets' | 'history'
 
@@ -39,6 +40,7 @@ export function useAuctionDraftRoomController({
     // Presence — who is currently in the draft room
     const [presentMemberIds, setPresentMemberIds] = useState<string[]>([])
     const [presenceSynced, setPresenceSynced] = useState(false)
+    const [presenceError, setPresenceError] = useState<string | null>(null)
     const [presenceOwnerKey, setPresenceOwnerKey] = useState<string | null>(null)
     const resumeDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const activePresenceKeyRef = useRef<string | null>(null)
@@ -105,6 +107,7 @@ export function useAuctionDraftRoomController({
     useEffect(() => {
         setPresentMemberIds([])
         setPresenceSynced(false)
+        setPresenceError(null)
         setPresenceOwnerKey(null)
         return () => {
             if (resumeDebounceRef.current) clearTimeout(resumeDebounceRef.current)
@@ -163,7 +166,7 @@ export function useAuctionDraftRoomController({
         const channel = subscribeToDraft(draftId, draftLeagueId, load)
         const poll = setInterval(load, 5000)
         return () => {
-            unsubscribeFromDraft(channel)
+            reportRealtimeCleanup('auction draft', unsubscribeFromDraft(channel))
             clearInterval(poll)
         }
     }, [draftId, draftLeagueId, load])
@@ -172,16 +175,38 @@ export function useAuctionDraftRoomController({
     useEffect(() => {
         if (!draftId || !memberId || !presenceKey) return
         const ownerKey = presenceKey
-        const channel = subscribeToPresence(draftId, memberId, (ids) => {
-            if (activePresenceKeyRef.current !== ownerKey) return
+        let disposed = false
+        let subscription: Awaited<ReturnType<typeof subscribeToPresence>> | null = null
+        void subscribeToPresence(draftId, (ids) => {
+            if (disposed || activePresenceKeyRef.current !== ownerKey) return
             if (resumeDebounceRef.current) clearTimeout(resumeDebounceRef.current)
             resumeDebounceRef.current = null
             setPresentMemberIds(ids)
             setPresenceSynced(true)
+            setPresenceError(null)
             setPresenceOwnerKey(ownerKey)
+        }, (error) => {
+            if (disposed || activePresenceKeyRef.current !== ownerKey) return
+            console.error('Could not verify auction presence.', error)
+            setPresenceSynced(false)
+            setPresenceError('Could not verify who is present in the draft room.')
+        }).then((nextSubscription) => {
+            if (disposed || activePresenceKeyRef.current !== ownerKey) {
+                void nextSubscription.dispose().catch((error) => console.error('Could not clean up stale auction presence.', error))
+                return
+            }
+            subscription = nextSubscription
+        }).catch((error) => {
+            if (disposed || activePresenceKeyRef.current !== ownerKey) return
+            console.error('Could not start auction presence.', error)
+            setPresenceSynced(false)
+            setPresenceError('Could not verify who is present in the draft room.')
         })
         return () => {
-            unsubscribeFromDraft(channel)
+            disposed = true
+            if (subscription) {
+                void subscription.dispose().catch((error) => console.error('Could not clean up auction presence.', error))
+            }
         }
     }, [draftId, memberId, presenceKey])
 
@@ -290,6 +315,10 @@ export function useAuctionDraftRoomController({
 
     async function handleBid() {
         if (!state?.openNomination || !memberId || !draftId) return
+        if (state.draft.draftType === 'auction' && !allMembersPresent) {
+            showAlert('Presence not verified', 'Wait until every manager is verified in the draft room before bidding.')
+            return
+        }
         const ownerKey = `${draftId}:${memberId}`
         // Guard the typed bid only at submit time: must be a whole-dollar amount
         // at least the minimum and within remaining budget.
@@ -335,14 +364,14 @@ export function useAuctionDraftRoomController({
     async function handleNominate(playerId: string) {
         if (!memberId || !draftId) return
         const ownerKey = `${draftId}:${memberId}`
-        if (presenceSynced && state?.draft.draftType === 'auction') {
+        if (state?.draft.draftType === 'auction' && !allMembersPresent) {
             const presentSet = new Set(presentMemberIds)
             const missing = (state?.order ?? []).filter((o) => !presentSet.has(o.memberId))
-            if (missing.length > 0) {
-                const names = missing.map((o) => o.teamName).join(', ')
-                showAlert('Not everyone is here', `${names} hasn't joined the draft room yet.`)
-                return
-            }
+            const names = missing.map((o) => o.teamName).join(', ')
+            showAlert('Not everyone is here', names
+                ? `${names} hasn't joined the draft room yet.`
+                : 'Manager presence is still being verified.')
+            return
         }
         setSubmittingNom(true)
         try {
@@ -374,7 +403,7 @@ export function useAuctionDraftRoomController({
         return state.order.filter((o) => !presentSet.has(o.memberId))
     }, [presenceKey, presenceOwnerKey, state, presentMemberIds, presenceSynced])
 
-    const allMembersPresent = presenceSynced && presenceOwnerKey === presenceKey ? absentMembers.length === 0 : true
+    const allMembersPresent = presenceSynced && presenceOwnerKey === presenceKey && absentMembers.length === 0
 
     // Memoize O(N) derivations from state so we don't recompute them every render
     // (poll fires every 5s; without memos every parent re-render rebuilds these arrays/maps).
@@ -402,7 +431,7 @@ export function useAuctionDraftRoomController({
         state,
         tab,
         setTab,
-        loadError,
+        loadError: loadError ?? presenceError,
         bidText,
         setBidText,
         bidding,

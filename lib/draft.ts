@@ -522,35 +522,70 @@ export function subscribeToDraft(draftId: string, leagueId: string | null | unde
 // Presence uses a separate public channel because private channels require
 // additional RLS setup on realtime.messages for broadcast/presence to work.
 // postgres_changes (handled by subscribeToDraft) works fine on private channels.
-export function subscribeToPresence(
-    draftId: string,
-    memberId: string,
-    onSync: (presentMemberIds: string[]) => void,
-): RealtimeChannel {
-    const channel = supabase.channel(`draft-presence:${draftId}`)
+export type DraftPresenceSubscription = {
+    channel: RealtimeChannel
+    dispose: () => Promise<void>
+}
 
-    const snapshot = () => {
-        const state = channel.presenceState<{ memberId: string }>()
-        const ids = [...new Set(Object.values(state).flat().map((p) => p.memberId))]
-        onSync(ids)
+const PRESENCE_CLAIM_REFRESH_MS = 4 * 60 * 1000
+
+export async function subscribeToPresence(
+    draftId: string,
+    onSync: (presentMemberIds: string[]) => void,
+    onError: (error: unknown) => void,
+): Promise<DraftPresenceSubscription> {
+    let claim = (await sharedApiPost<{ claim: string }>(`/draft/${draftId}/presence-claim`, {})).claim
+    const channel = supabase.channel(`draft-presence:${draftId}`)
+    let disposed = false
+    let snapshotSequence = 0
+
+    const snapshot = async () => {
+        const sequence = ++snapshotSequence
+        const state = channel.presenceState<{ claim?: string }>()
+        const claims = [...new Set(Object.values(state).flat().flatMap((entry) =>
+            typeof entry.claim === 'string' ? [entry.claim] : []))]
+        try {
+            const result = await sharedApiPost<{ memberIds: string[] }>(`/draft/${draftId}/resolve-presence`, { claims })
+            if (!disposed && sequence === snapshotSequence) onSync(result.memberIds)
+        } catch (error) {
+            if (!disposed && sequence === snapshotSequence) onError(error)
+        }
     }
 
     // Listen to both 'sync' and 'join' so that rejoining members are detected
     // reliably. 'sync' fires for the initial state and after leaves; 'join' fires
     // specifically when new presences are added, which is the event we need for
     // auto-resume to work.
-    channel.on('presence', { event: 'sync' }, snapshot)
-    channel.on('presence', { event: 'join' }, snapshot)
+    channel.on('presence', { event: 'sync' }, () => { void snapshot() })
+    channel.on('presence', { event: 'join' }, () => { void snapshot() })
 
     channel.subscribe((status) => {
         if (status === 'SUBSCRIBED') {
-            channel.track({ memberId })
+            void channel.track({ claim }).catch(onError)
         }
     })
 
-    return channel
+    const refresh = setInterval(() => {
+        void sharedApiPost<{ claim: string }>(`/draft/${draftId}/presence-claim`, {})
+            .then((result) => {
+                if (disposed) return
+                claim = result.claim
+                return channel.track({ claim })
+            })
+            .catch((error) => { if (!disposed) onError(error) })
+    }, PRESENCE_CLAIM_REFRESH_MS)
+
+    return {
+        channel,
+        dispose: async () => {
+            disposed = true
+            snapshotSequence += 1
+            clearInterval(refresh)
+            await supabase.removeChannel(channel)
+        },
+    }
 }
 
-export function unsubscribeFromDraft(channel: RealtimeChannel) {
-    supabase.removeChannel(channel)
+export async function unsubscribeFromDraft(channel: RealtimeChannel): Promise<void> {
+    await supabase.removeChannel(channel)
 }

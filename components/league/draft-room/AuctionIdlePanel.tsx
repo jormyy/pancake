@@ -41,7 +41,9 @@ export function AuctionIdlePanel({
         const absentNames = controller.absentMembers.map((member) => member.teamName).join(', ')
         content = <View style={styles.waitingRow}>
             <Text style={styles.waitingTeam}>Waiting for everyone to join</Text>
-            <Text style={styles.waitingText}>{absentNames} hasn&apos;t joined the draft room yet.</Text>
+            <Text style={styles.waitingText}>{absentNames
+                ? `${absentNames} hasn't joined the draft room yet.`
+                : 'Verifying manager presence...'}</Text>
         </View>
     } else if (!isMyTurn) {
         content = <View style={styles.waitingRow}>

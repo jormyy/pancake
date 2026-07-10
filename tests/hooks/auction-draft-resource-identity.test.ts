@@ -9,7 +9,9 @@ const mocks = vi.hoisted(() => ({
     placeBid: vi.fn(),
     resumeIfAbsent: vi.fn(),
     presenceCallback: null as ((ids: string[]) => void) | null,
-    unsubscribeFromDraft: vi.fn(),
+    presenceErrorCallback: null as ((error: unknown) => void) | null,
+    unsubscribeFromDraft: vi.fn(async () => undefined),
+    disposePresence: vi.fn(async () => undefined),
 }))
 
 vi.mock('@/lib/draft', () => ({
@@ -21,14 +23,20 @@ vi.mock('@/lib/draft', () => ({
     resumeIfAbsent: mocks.resumeIfAbsent,
     searchPlayers: vi.fn(async () => []),
     subscribeToDraft: vi.fn(() => ({ topic: 'draft' })),
-    subscribeToPresence: vi.fn((_draftId: string, _memberId: string, callback: (ids: string[]) => void) => {
+    subscribeToPresence: vi.fn(async (
+        _draftId: string,
+        callback: (ids: string[]) => void,
+        onError: (error: unknown) => void,
+    ) => {
         mocks.presenceCallback = callback
-        return { topic: 'presence' }
+        mocks.presenceErrorCallback = onError
+        return { channel: { topic: 'presence' }, dispose: mocks.disposePresence }
     }),
     unsubscribeFromDraft: mocks.unsubscribeFromDraft,
     withdrawNomination: vi.fn(),
 }))
 vi.mock('@/lib/alert', () => ({ getErrorMessage: String, showAlert: vi.fn() }))
+vi.mock('@/lib/realtime', () => ({ reportRealtimeCleanup: vi.fn() }))
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -85,6 +93,7 @@ afterEach(() => {
     vi.useRealTimers()
     vi.clearAllMocks()
     mocks.presenceCallback = null
+    mocks.presenceErrorCallback = null
 })
 
 describe('auction draft resource identity', () => {
@@ -137,6 +146,7 @@ describe('auction draft resource identity', () => {
         }
         let renderer!: ReactTestRenderer
         await act(async () => { renderer = create(React.createElement(Probe, { draftId: 'draft-a' })); await Promise.resolve() })
+        await act(async () => { mocks.presenceCallback?.(['member']); await Promise.resolve() })
         let pending!: Promise<void>
         await act(async () => { pending = latest.handleBid(); await Promise.resolve() })
         await act(async () => { renderer.update(React.createElement(Probe, { draftId: 'draft-b' })); await Promise.resolve() })
@@ -146,6 +156,30 @@ describe('auction draft resource identity', () => {
         expect(mocks.getDraftState).toHaveBeenCalledTimes(readsAfterSwitch)
         expect(latest.state?.draft.id).toBe('draft-b')
         expect(latest.bidding).toBe(false)
+        await act(async () => { renderer.unmount() })
+    })
+
+    it('fails closed until authenticated presence has synchronized', async () => {
+        const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+        mocks.getDraftState.mockResolvedValue(liveState('draft-a'))
+        const Probe = () => {
+            latest = useAuctionDraftRoomController({ draftId: 'draft-a', memberId: 'member' })
+            return null
+        }
+        let latest!: ReturnType<typeof useAuctionDraftRoomController>
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe)); await Promise.resolve() })
+
+        await act(async () => { await latest.handleBid() })
+        expect(mocks.placeBid).not.toHaveBeenCalled()
+        expect(latest.allMembersPresent).toBe(false)
+
+        await act(async () => { mocks.presenceCallback?.(['member']); await Promise.resolve() })
+        expect(latest.allMembersPresent).toBe(true)
+        await act(async () => { mocks.presenceErrorCallback?.(new Error('presence offline')); await Promise.resolve() })
+        expect(latest.allMembersPresent).toBe(false)
+        expect(latest.loadError).toBe('Could not verify who is present in the draft room.')
+        expect(consoleError).toHaveBeenCalledWith('Could not verify auction presence.', expect.any(Error))
         await act(async () => { renderer.unmount() })
     })
 })
