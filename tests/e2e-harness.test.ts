@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
+import { mkdtemp, rm } from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
 
 import { parseArgs } from './e2e/harness/args.mjs'
 import {
@@ -11,12 +14,14 @@ import {
 import { BACKEND_SCENARIO_MANIFEST, backendEvidenceIds } from './e2e/backend-scenario-manifest.mjs'
 
 const originalArgv = process.argv
+const tempDirs: string[] = []
 
-afterEach(() => {
+afterEach(async () => {
   process.argv = originalArgv
   vi.unstubAllEnvs()
   vi.restoreAllMocks()
   vi.resetModules()
+  await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })))
 })
 
 describe('e2e harness args', () => {
@@ -82,8 +87,14 @@ describe('e2e browser scenario registry', () => {
       browserWaiver: false,
     }
     const shouldRun = vi.fn(() => false)
+    const registryArtifactRoot = await mkdtemp(path.join(os.tmpdir(), 'pancake-harness-registry-'))
+    tempDirs.push(registryArtifactRoot)
+    const scenarioContext = {
+      provenance: { commitSha: 'test', runId: 'test', bundleDigest: 'test' },
+      registryArtifactRoot,
+    }
 
-    const skipped = await runBrowserScenarios({ args, season: 2, shouldRun })
+    const skipped = await runBrowserScenarios({ args, season: 2, shouldRun, scenarioContext })
 
     expect(smoke).not.toHaveBeenCalled()
     expect(auth).not.toHaveBeenCalled()
@@ -94,7 +105,7 @@ describe('e2e browser scenario registry', () => {
     expect(shouldRun).toHaveBeenCalledTimes(4)
 
     shouldRun.mockReturnValue(true)
-    const completed = await runBrowserScenarios({ args, season: 1, shouldRun })
+    const completed = await runBrowserScenarios({ args, season: 1, shouldRun, scenarioContext })
 
     expect(smoke).toHaveBeenCalledWith({ season: 1, fullSweep: true })
     expect(auth).toHaveBeenCalledWith({ season: 1 })
