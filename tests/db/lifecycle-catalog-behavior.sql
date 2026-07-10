@@ -133,13 +133,18 @@ RESET ROLE;
 DO $$
 DECLARE
   v_accept_definition text;
+  v_asset_assertion_definition text;
   v_missing text[];
   v_superseded text[];
 BEGIN
   SELECT pg_get_functiondef('private.accept_trade_participant_atomic(uuid,uuid)'::regprocedure)
     INTO v_accept_definition;
-  IF v_accept_definition NOT ILIKE '%accepted_item.from_member_id = v_from_member%'
-     OR v_accept_definition ILIKE '%accepted_item.side%' THEN
+  SELECT pg_get_functiondef('private.assert_trade_assets_acceptance_ready(uuid,uuid,uuid)'::regprocedure)
+    INTO v_asset_assertion_definition;
+  IF v_accept_definition NOT ILIKE '%private.assert_trade_assets_acceptance_ready%'
+     OR v_accept_definition ILIKE '%accepted_item.side%'
+     OR v_asset_assertion_definition NOT ILIKE '%accepted_item.from_member_id = item.from_member_id%'
+     OR v_asset_assertion_definition ILIKE '%accepted_item.side%' THEN
     RAISE EXCEPTION 'Trade acceptance does not exclusively use canonical participant-owned routes';
   END IF;
 
@@ -332,6 +337,8 @@ DO $$
 DECLARE
   v_page_oid regprocedure := 'public.get_trade_page_refs(uuid,uuid,integer,text)'::regprocedure;
   v_accept_definition text;
+  v_asset_assertion_definition text;
+  v_accept_trigger_definition text;
   v_complete_definition text;
   v_create_definition text;
 BEGIN
@@ -384,6 +391,10 @@ BEGIN
 
   SELECT pg_get_functiondef('private.accept_trade_participant_atomic(uuid,uuid)'::regprocedure)
     INTO v_accept_definition;
+  SELECT pg_get_functiondef('private.assert_trade_assets_acceptance_ready(uuid,uuid,uuid)'::regprocedure)
+    INTO v_asset_assertion_definition;
+  SELECT pg_get_functiondef('private.prevent_conflicting_or_inactive_trade_accept()'::regprocedure)
+    INTO v_accept_trigger_definition;
   SELECT pg_get_functiondef('public.complete_accepted_trade_atomic(uuid)'::regprocedure)
     INTO v_complete_definition;
   SELECT pg_get_functiondef('private.create_multi_team_trade_offer(uuid,uuid,uuid,uuid[],jsonb,text,timestamptz)'::regprocedure)
@@ -392,6 +403,18 @@ BEGIN
      OR v_complete_definition ILIKE '%COALESCE(item.from_member_id%'
      OR v_complete_definition ILIKE '%COALESCE(v_item.to_member_id%' THEN
     RAISE EXCEPTION 'Trade execution still has legacy side-based route fallback';
+  END IF;
+  IF v_accept_definition NOT ILIKE '%private.assert_trade_assets_acceptance_ready%'
+     OR v_accept_trigger_definition NOT ILIKE '%private.assert_trade_assets_acceptance_ready%'
+     OR v_accept_definition ILIKE '%accepted_item.player_id%'
+     OR v_accept_definition ILIKE '%accepted_item.pick_id%'
+     OR v_asset_assertion_definition NOT ILIKE '%accepted_item.from_member_id = item.from_member_id%' THEN
+    RAISE EXCEPTION 'Trade acceptance does not use one canonical set-based asset assertion';
+  END IF;
+  IF has_function_privilege('anon', 'private.assert_trade_assets_acceptance_ready(uuid,uuid,uuid)', 'EXECUTE')
+     OR has_function_privilege('authenticated', 'private.assert_trade_assets_acceptance_ready(uuid,uuid,uuid)', 'EXECUTE')
+     OR has_function_privilege('service_role', 'private.assert_trade_assets_acceptance_ready(uuid,uuid,uuid)', 'EXECUTE') THEN
+    RAISE EXCEPTION 'Private trade asset assertion is externally executable';
   END IF;
   IF EXISTS (
     SELECT 1

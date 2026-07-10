@@ -9,89 +9,11 @@ SET search_path = public, private
 AS $$
 BEGIN
   IF NEW.status = 'accepted'::trade_status AND OLD.status IS DISTINCT FROM NEW.status THEN
-    PERFORM 1
-      FROM trade_items AS ti
-      JOIN roster_players AS rp
-        ON rp.league_id = NEW.league_id
-       AND rp.league_season_id = NEW.league_season_id
-       AND rp.player_id = ti.player_id
-       AND rp.member_id = ti.from_member_id
-     WHERE ti.trade_id = NEW.id
-       AND ti.player_id IS NOT NULL
-     FOR UPDATE OF rp;
-
-    PERFORM 1
-      FROM trade_items AS ti
-      JOIN draft_picks AS pick
-        ON pick.id = ti.pick_id
-     WHERE ti.trade_id = NEW.id
-       AND ti.pick_id IS NOT NULL
-     FOR UPDATE OF pick;
-
-    IF EXISTS (
-      WITH player_assets AS (
-        SELECT
-          ti.player_id,
-          ti.from_member_id AS member_id
-        FROM trade_items AS ti
-        WHERE ti.trade_id = NEW.id
-          AND ti.player_id IS NOT NULL
-      )
-      SELECT 1
-        FROM player_assets AS asset
-        JOIN roster_players AS rp
-          ON rp.league_id = NEW.league_id
-         AND rp.league_season_id = NEW.league_season_id
-         AND rp.member_id = asset.member_id
-         AND rp.player_id = asset.player_id
-       WHERE rp.is_on_ir = true
-          OR rp.is_on_taxi = true
-          OR EXISTS (
-            SELECT 1
-              FROM trade_items AS other_item
-              JOIN trades AS other_trade
-                ON other_trade.id = other_item.trade_id
-               AND other_trade.status = 'accepted'::trade_status
-             WHERE other_trade.id <> NEW.id
-               AND other_trade.league_id = NEW.league_id
-               AND other_trade.league_season_id = NEW.league_season_id
-               AND other_item.player_id = rp.player_id
-               AND other_item.from_member_id = rp.member_id
-          )
-    ) THEN
-      RAISE EXCEPTION 'Trade player assets must be active and unreserved roster players.'
-        USING ERRCODE = 'P0001';
-    END IF;
-
-    IF EXISTS (
-      WITH pick_assets AS (
-        SELECT
-          ti.pick_id,
-          ti.from_member_id AS member_id
-        FROM trade_items AS ti
-        WHERE ti.trade_id = NEW.id
-          AND ti.pick_id IS NOT NULL
-      )
-      SELECT 1
-        FROM pick_assets AS asset
-        JOIN draft_picks AS pick
-          ON pick.id = asset.pick_id
-       WHERE EXISTS (
-         SELECT 1
-           FROM trade_items AS other_item
-           JOIN trades AS other_trade
-             ON other_trade.id = other_item.trade_id
-            AND other_trade.status = 'accepted'::trade_status
-          WHERE other_trade.id <> NEW.id
-            AND other_trade.league_id = NEW.league_id
-            AND other_trade.league_season_id = NEW.league_season_id
-            AND other_item.pick_id = asset.pick_id
-            AND other_item.from_member_id = asset.member_id
-       )
-    ) THEN
-      RAISE EXCEPTION 'Trade draft-pick assets must be unreserved.'
-        USING ERRCODE = 'P0001';
-    END IF;
+    PERFORM private.assert_trade_assets_acceptance_ready(
+      NEW.id,
+      NEW.league_id,
+      NEW.league_season_id
+    );
   END IF;
 
   RETURN NEW;

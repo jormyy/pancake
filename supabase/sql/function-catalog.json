@@ -6,6 +6,7 @@
     "private.activate_rookie_draft_league_if_ready(uuid)": {"acl":["PUBLIC|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.arm_next_snake_pick_timer(uuid,timestamp with time zone)": {"acl":["PUBLIC|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.assert_roster_within_active_limit(uuid,uuid,uuid)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
+    "private.assert_trade_assets_acceptance_ready(uuid,uuid,uuid)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.assert_weekly_add_available(uuid,uuid,uuid)": {"acl":["PUBLIC|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.can_read_trade(uuid)": {"acl":["PUBLIC|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.clear_future_unlocked_lineups(uuid,uuid,uuid,uuid)": {"acl":["PUBLIC|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres"],"owner":"postgres"},
