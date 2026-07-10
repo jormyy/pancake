@@ -39,6 +39,11 @@ BEGIN
       USING ERRCODE = '22023';
   END IF;
 
+  IF octet_length(COALESCE(p_notes, '')) > 2000 THEN
+    RAISE EXCEPTION 'Trade notes must not exceed 2000 bytes.'
+      USING ERRCODE = '22023';
+  END IF;
+
   SELECT count(*)
     INTO v_participant_count
     FROM private.multi_team_trade_participants(p_proposer_member_id, p_participant_member_ids);

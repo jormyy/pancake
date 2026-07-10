@@ -99,7 +99,7 @@ function dbErrorStatus(error: unknown): number {
   const code = (error as { code?: unknown }).code
   if (code === '42501') return 403
   if (code === 'P0002' || code === 'PGRST116') return 404
-  if (code === 'P0001' || code === '23505' || code === '23514' || code === '22023') return 400
+  if (code === 'P0001' || code === '23505' || code === '23514' || code === '22003' || code === '22023') return 400
   return 500
 }
 
@@ -107,8 +107,17 @@ export function throwDb(error: unknown): never {
   throw new ApiError(errorMessage(error), dbErrorStatus(error))
 }
 
+const MAX_JSON_BODY_BYTES = 64 * 1024
+
 export async function readJsonObject(req: Request): Promise<Record<string, unknown>> {
+  const declaredLength = Number(req.headers.get('content-length'))
+  if (Number.isFinite(declaredLength) && declaredLength > MAX_JSON_BODY_BYTES) {
+    throw new ValidationError('Request body must not exceed 64 KB')
+  }
   const text = await req.text()
+  if (new TextEncoder().encode(text).byteLength > MAX_JSON_BODY_BYTES) {
+    throw new ValidationError('Request body must not exceed 64 KB')
+  }
   if (!text.trim()) return {}
 
   let value: unknown
@@ -130,10 +139,17 @@ export function stringField(body: Record<string, unknown>, key: string): string 
   return value
 }
 
-export function optionalStringField(body: Record<string, unknown>, key: string): string | null {
+export function optionalStringField(
+  body: Record<string, unknown>,
+  key: string,
+  { maxLength }: { maxLength?: number } = {},
+): string | null {
   const value = body[key]
   if (value == null || value === '') return null
   if (typeof value !== 'string') throw new ValidationError(`${key} must be a string`)
+  if (maxLength != null && value.length > maxLength) {
+    throw new ValidationError(`${key} must contain at most ${maxLength} characters`)
+  }
   return value
 }
 

@@ -21,6 +21,11 @@ AS $$
     NULLIF(item->>'toMemberId', '')::uuid,
     NULLIF(item->>'playerId', '')::uuid,
     NULLIF(item->>'pickId', '')::uuid,
-    COALESCE(NULLIF(item->>'faabAmount', '')::int, 0)
+    CASE
+      WHEN COALESCE(item->>'faabAmount', '') = '' THEN 0
+      WHEN item->>'faabAmount' ~ '^\d{1,7}$' AND (item->>'faabAmount')::int <= 1000000
+        THEN (item->>'faabAmount')::int
+      ELSE -1
+    END
     FROM jsonb_array_elements(p_items) WITH ORDINALITY AS entry(item, ordinality);
 $$;

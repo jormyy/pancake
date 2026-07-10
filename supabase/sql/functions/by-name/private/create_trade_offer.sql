@@ -37,12 +37,26 @@ DECLARE
   v_balance int;
   v_champion_finalized boolean := false;
 BEGIN
+  IF cardinality(v_offer_player_ids) + cardinality(v_request_player_ids) +
+     cardinality(v_offer_pick_ids) + cardinality(v_request_pick_ids) +
+     (CASE WHEN v_offer_faab_amount > 0 THEN 1 ELSE 0 END) +
+     (CASE WHEN v_request_faab_amount > 0 THEN 1 ELSE 0 END) > 100 THEN
+    RAISE EXCEPTION 'A trade cannot include more than 100 items.'
+      USING ERRCODE = '22023';
+  END IF;
+
+  IF octet_length(COALESCE(p_notes, '')) > 2000 THEN
+    RAISE EXCEPTION 'Trade notes must not exceed 2000 bytes.'
+      USING ERRCODE = '22023';
+  END IF;
+
   IF p_proposer_member_id = p_recipient_member_id THEN
     RAISE EXCEPTION 'You cannot trade with yourself.';
   END IF;
 
-  IF v_offer_faab_amount < 0 OR v_request_faab_amount < 0 THEN
-    RAISE EXCEPTION 'FAAB trade amounts must be non-negative integers.'
+  IF v_offer_faab_amount < 0 OR v_offer_faab_amount > 1000000 OR
+     v_request_faab_amount < 0 OR v_request_faab_amount > 1000000 THEN
+    RAISE EXCEPTION 'FAAB trade amounts must be between 0 and 1000000.'
       USING ERRCODE = '22023';
   END IF;
 

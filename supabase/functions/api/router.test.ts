@@ -252,6 +252,33 @@ Deno.test({
     if (oversizedParticipants.status !== 400 || oversizedParticipantsBody.error !== 'A trade cannot include more than 12 teams.') {
       throw new Error(`expected trade participant cap rejection, got ${oversizedParticipants.status}: ${JSON.stringify(oversizedParticipantsBody)}`)
     }
+
+    for (const [field, value, expected] of [
+      ['notes', 'x'.repeat(2001), 'notes must contain at most 2000 characters'],
+      ['offerFaabAmount', 1_000_001, 'offerFaabAmount must be at most 1000000'],
+    ] as const) {
+      const response = await handleApiRoute(authedRequest('POST', '/trades/propose', {
+        leagueId: LEAGUE_ID,
+        leagueSeasonId: baseBody.leagueSeasonId,
+        memberId: MEMBER_ID,
+        recipientMemberId: otherMemberId,
+        offerPlayerIds: [PLAYER_ID],
+        requestPlayerIds: [PLAYER_ID],
+        [field]: value,
+      }))
+      const responseBody = await response.json()
+      if (response.status !== 400 || responseBody.error !== expected) {
+        throw new Error(`expected ${field} cap rejection, got ${response.status}: ${JSON.stringify(responseBody)}`)
+      }
+    }
+
+    const oversizedBody = await handleApiRoute(authedRequest('POST', '/trades/propose', {
+      padding: 'x'.repeat(70_000),
+    }))
+    const oversizedBodyJson = await oversizedBody.json()
+    if (oversizedBody.status !== 400 || oversizedBodyJson.error !== 'Request body must not exceed 64 KB') {
+      throw new Error(`expected request byte cap rejection, got ${oversizedBody.status}: ${JSON.stringify(oversizedBodyJson)}`)
+    }
   },
 })
 

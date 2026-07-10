@@ -58,6 +58,9 @@ type MultiTeamTradePayload = {
   expiresAt: string | null
 }
 
+const MAX_TRADE_FAAB = 1_000_000
+const MAX_TRADE_NOTES_LENGTH = 2_000
+
 type JsonObject = { [key: string]: Json | undefined }
 
 type PendingTradeForAccept = {
@@ -218,10 +221,10 @@ function tradeAssetPayload(body: Record<string, unknown>): TradeAssetPayload {
     requestPlayerIds: optionalUuidArrayField(body, 'requestPlayerIds'),
     offerPickIds: optionalUuidArrayField(body, 'offerPickIds'),
     requestPickIds: optionalUuidArrayField(body, 'requestPickIds'),
-    notes: optionalStringField(body, 'notes'),
+    notes: optionalStringField(body, 'notes', { maxLength: MAX_TRADE_NOTES_LENGTH }),
     expiresAt: optionalTimestampField(body, 'expiresAt'),
-    offerFaabAmount: optionalIntegerField(body, 'offerFaabAmount', { min: 0 }) ?? 0,
-    requestFaabAmount: optionalIntegerField(body, 'requestFaabAmount', { min: 0 }) ?? 0,
+    offerFaabAmount: optionalIntegerField(body, 'offerFaabAmount', { min: 0, max: MAX_TRADE_FAAB }) ?? 0,
+    requestFaabAmount: optionalIntegerField(body, 'requestFaabAmount', { min: 0, max: MAX_TRADE_FAAB }) ?? 0,
   }
   const itemCount = payload.offerPlayerIds.length + payload.requestPlayerIds.length +
     payload.offerPickIds.length + payload.requestPickIds.length +
@@ -244,7 +247,7 @@ function multiTeamTradePayload(body: Record<string, unknown>): MultiTeamTradePay
     const toMemberId = uuidField(item, 'toMemberId')
     const playerId = optionalUuidField(item, 'playerId')
     const pickId = optionalUuidField(item, 'pickId')
-    const faabAmount = optionalIntegerField(item, 'faabAmount', { min: 0 }) ?? 0
+    const faabAmount = optionalIntegerField(item, 'faabAmount', { min: 0, max: MAX_TRADE_FAAB }) ?? 0
     const assetCount = (playerId ? 1 : 0) + (pickId ? 1 : 0) + (faabAmount > 0 ? 1 : 0)
     if (assetCount !== 1) {
       throw new ValidationError(`items[${index}] must include exactly one playerId, pickId, or positive faabAmount.`)
@@ -263,7 +266,7 @@ function multiTeamTradePayload(body: Record<string, unknown>): MultiTeamTradePay
   return {
     participantMemberIds,
     items,
-    notes: optionalStringField(body, 'notes'),
+    notes: optionalStringField(body, 'notes', { maxLength: MAX_TRADE_NOTES_LENGTH }),
     expiresAt: optionalTimestampField(body, 'expiresAt'),
   }
 }
@@ -641,7 +644,7 @@ async function addTradeBlockItem(userId: string, body: Record<string, unknown>):
     p_league_id: requestedLeagueId,
     p_player_id: optionalUuidField(body, 'playerId') ?? undefined,
     p_pick_id: optionalUuidField(body, 'pickId') ?? undefined,
-    p_note: optionalStringField(body, 'note') ?? undefined,
+    p_note: optionalStringField(body, 'note', { maxLength: 500 }) ?? undefined,
     p_user_id: userId,
   })
   if (error || !itemId) {

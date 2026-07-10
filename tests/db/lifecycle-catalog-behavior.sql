@@ -110,10 +110,11 @@ BEGIN
 
   SELECT count(*), count(*) FILTER (WHERE recipient_member_id = '00000000-0000-0000-0000-000000030201')
     INTO v_visible_count, v_personal_count
-    FROM public.get_trades_for_member_page(
+    FROM public.get_trade_page_refs(
       '00000000-0000-0000-0000-000000030201',
       '00000000-0000-0000-0000-000000030101', 40
-    );
+    ) AS ref
+    JOIN public.trades AS trade ON trade.id = ref.trade_id;
   SELECT public.get_pending_trade_count(
     '00000000-0000-0000-0000-000000030201',
     '00000000-0000-0000-0000-000000030101'
@@ -193,7 +194,7 @@ END $$;
 
 DO $$
 DECLARE
-  v_page_oid regprocedure := 'public.get_trades_for_member_page(uuid,uuid,integer,boolean,boolean,timestamp with time zone,uuid)'::regprocedure;
+  v_page_oid regprocedure := 'public.get_trade_page_refs(uuid,uuid,integer,text)'::regprocedure;
   v_accept_definition text;
   v_complete_definition text;
   v_create_definition text;
@@ -208,8 +209,9 @@ BEGIN
     RAISE EXCEPTION 'Trade item routes must be non-null catalog invariants';
   END IF;
 
-  IF to_regprocedure('public.get_trades_for_member(uuid,uuid,integer,integer)') IS NOT NULL THEN
-    RAISE EXCEPTION 'Offset-based trade feed function still exists';
+  IF to_regprocedure('public.get_trades_for_member(uuid,uuid,integer,integer)') IS NOT NULL
+     OR to_regprocedure('public.get_trades_for_member_page(uuid,uuid,integer,boolean,boolean,timestamp with time zone,uuid)') IS NOT NULL THEN
+    RAISE EXCEPTION 'Superseded trade feed function still exists';
   END IF;
   IF has_function_privilege('anon', v_page_oid, 'EXECUTE')
      OR NOT has_function_privilege('authenticated', v_page_oid, 'EXECUTE') THEN
@@ -247,6 +249,69 @@ BEGIN
      OR v_create_definition NOT ILIKE '%jsonb_array_length(p_items) > 100%' THEN
     RAISE EXCEPTION 'Multi-team trade creation is not bounded and temp-table free';
   END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+      FROM pg_constraint
+     WHERE conrelid = 'public.trade_items'::regclass
+       AND conname IN ('trade_items_from_participant_fkey', 'trade_items_to_participant_fkey')
+       AND contype = 'f'
+       AND condeferrable
+    GROUP BY conrelid
+    HAVING count(*) = 2
+  ) THEN
+    RAISE EXCEPTION 'Trade routes are not deferred participant foreign keys';
+  END IF;
+
+  BEGIN
+    INSERT INTO public.trade_items (trade_id, side, from_member_id, to_member_id, faab_amount)
+    SELECT trade.id, 'proposer',
+      '00000000-0000-0000-0000-000000030202',
+      '00000000-0000-0000-0000-000000030203', 1
+      FROM public.trades AS trade
+     WHERE trade.recipient_member_id = '00000000-0000-0000-0000-000000030201'
+     LIMIT 1;
+    SET CONSTRAINTS trade_items_to_participant_fkey IMMEDIATE;
+    RAISE EXCEPTION 'Trade item accepted a route to a nonparticipant';
+  EXCEPTION WHEN foreign_key_violation THEN
+    SET CONSTRAINTS trade_items_to_participant_fkey DEFERRED;
+  END;
+END $$;
+
+DO $$
+DECLARE
+  v_function record;
+BEGIN
+  FOR v_function IN
+    SELECT procedure.oid, procedure.proname
+      FROM pg_proc AS procedure
+      JOIN pg_namespace AS namespace ON namespace.oid = procedure.pronamespace
+     WHERE namespace.nspname = 'public'
+       AND procedure.proname = ANY(ARRAY[
+         'propose_trade_atomic', 'accept_trade_atomic', 'accept_multi_team_trade_atomic',
+         'reject_trade_atomic', 'withdraw_trade_atomic', 'complete_accepted_trade_atomic',
+         'veto_trade_atomic', 'expire_trade_completion_failure_atomic', 'process_due_accepted_trades_atomic',
+         'add_trade_block_item_atomic', 'remove_trade_block_item_atomic', 'create_waiver_claim_atomic',
+         'cancel_waiver_claim_atomic', 'process_next_waiver_claim_atomic', 'process_due_waiver_claims_atomic',
+         'create_auction_nomination_atomic', 'start_auction_draft_atomic', 'place_auction_bid_atomic',
+         'close_auction_nomination_atomic', 'close_expired_auction_nominations_atomic',
+         'process_expired_snake_picks_atomic', 'process_expired_snake_pick_atomic',
+         'withdraw_auction_nomination_atomic', 'make_snake_pick_atomic', 'auto_pick_snake_pick_atomic',
+         'commissioner_snake_pick_atomic', 'start_rookie_draft_atomic', 'reseed_rookie_draft_picks_atomic',
+         'advance_season_atomic', 'toggle_ir_atomic', 'toggle_taxi_atomic', 'expire_waiver_wire_logs',
+         'clear_ineligible_taxi_players', 'replace_regular_season_matchups_atomic',
+         'generate_playoff_bracket_atomic', 'advance_playoff_bracket_atomic', 'try_live_poll_lease',
+         'release_live_poll_lease', 'invoke_edge_function', 'invoke_edge_function_at_et_time',
+         'invoke_projection_sync_if_due', 'merge_players', 'merge_duplicate_players',
+         'count_final_games_missing_stats'
+       ])
+  LOOP
+    IF has_function_privilege('anon', v_function.oid, 'EXECUTE')
+       OR has_function_privilege('authenticated', v_function.oid, 'EXECUTE')
+       OR NOT has_function_privilege('service_role', v_function.oid, 'EXECUTE') THEN
+      RAISE EXCEPTION 'Service-only function % has incorrect final privileges', v_function.proname;
+    END IF;
+  END LOOP;
 END $$;
 
 ROLLBACK;

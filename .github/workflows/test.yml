@@ -72,6 +72,20 @@ jobs:
               }
             done
 
+      - name: Verify new migration versions advance the base head
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          base_head="$(git ls-tree -r --name-only "origin/${{ github.base_ref }}" supabase/migrations |
+            sed -E 's#^.*/([0-9]+)_.*#\1#' | sort | tail -1)"
+          while read -r migration; do
+            version="$(basename "$migration" | sed -E 's/^([0-9]+)_.*/\1/')"
+            test "$version" \> "$base_head" || {
+              echo "New migration $migration does not advance base head $base_head"
+              exit 1
+            }
+          done < <(git diff --name-only --diff-filter=A "origin/${{ github.base_ref }}" -- supabase/migrations)
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -86,6 +100,9 @@ jobs:
 
       - name: Start Supabase from repository migrations
         run: supabase start
+
+      - name: Verify generated database types
+        run: npm run check:database-types
 
       - name: Verify migration head and multi-team trade behavior
         shell: bash

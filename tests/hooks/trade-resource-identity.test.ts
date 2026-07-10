@@ -3,7 +3,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useTradeBlock } from '@/hooks/use-trade-block'
 import { useTradesFeed } from '@/hooks/use-trades-feed'
-import type { Trade, TradeBlockItem } from '@/lib/trades'
+import type { Trade, TradeBlockItem, TradePage } from '@/lib/trades'
 
 const { addTradeBlockItem, getTradesForScreen, getTradeBlockItems, getRoster } = vi.hoisted(() => ({
     addTradeBlockItem: vi.fn(),
@@ -17,7 +17,6 @@ vi.mock('@/lib/trades', () => ({
     getTradeBlockItems,
     getTradesForScreen,
     removeTradeBlockItem: vi.fn(),
-    tradePageCursor: vi.fn(() => ({ actionable: false, participant: true, proposedAt: '2026-07-09T10:00:00Z', id: 'cursor' })),
 }))
 vi.mock('@/lib/alert', () => ({ getErrorMessage: (error: unknown) => error instanceof Error ? error.message : String(error) }))
 vi.mock('@/lib/roster', () => ({ getRoster }))
@@ -72,8 +71,8 @@ beforeEach(() => {
 
 describe('trade resource identity', () => {
     it('clears old trades and rejects stale completion after an uncached identity switch', async () => {
-        const first = deferred<Trade[]>()
-        const second = deferred<Trade[]>()
+        const first = deferred<TradePage>()
+        const second = deferred<TradePage>()
         getTradesForScreen.mockImplementation((memberId: string) => memberId === 'member-a' ? first.promise : second.promise)
         let latest!: ReturnType<typeof useTradesFeed>
         const Probe = ({ memberId, leagueId }: { memberId: string; leagueId: string }) => {
@@ -87,18 +86,19 @@ describe('trade resource identity', () => {
             expect(latest.trades).toEqual([])
         })
         expect(latest.trades).toEqual([])
-        await act(async () => { first.resolve([trade('stale')]); await first.promise })
+        await act(async () => { first.resolve({ trades: [trade('stale')], nextCursor: null }); await first.promise })
         expect(latest.trades).toEqual([])
-        await act(async () => { second.resolve([trade('current')]); await second.promise })
+        await act(async () => { second.resolve({ trades: [trade('current')], nextCursor: null }); await second.promise })
         expect(latest.trades.map((item) => item.id)).toEqual(['current'])
         renderer.unmount()
     })
 
     it('cancels pagination on refresh and synchronously rejects duplicate page requests', async () => {
-        const page = deferred<Trade[]>()
-        const refreshed = deferred<Trade[]>()
+        const page = deferred<TradePage>()
+        const refreshed = deferred<TradePage>()
         const initial = Array.from({ length: 40 }, (_, index) => trade(`initial-${index}`))
-        getTradesForScreen.mockResolvedValueOnce(initial).mockReturnValueOnce(page.promise).mockReturnValueOnce(refreshed.promise)
+        getTradesForScreen.mockResolvedValueOnce({ trades: initial, nextCursor: { token: 'next' } })
+            .mockReturnValueOnce(page.promise).mockReturnValueOnce(refreshed.promise)
         let latest!: ReturnType<typeof useTradesFeed>
         const Probe = () => {
             latest = useTradesFeed('member-a', 'league-a')
@@ -116,9 +116,9 @@ describe('trade resource identity', () => {
         let refresh!: Promise<void>
         await act(async () => { refresh = latest.refresh(); await Promise.resolve() })
         expect(latest.loadingMore).toBe(false)
-        await act(async () => { page.resolve([trade('stale-page')]); await firstPage })
+        await act(async () => { page.resolve({ trades: [trade('stale-page')], nextCursor: null }); await firstPage })
         expect(latest.trades.some((item) => item.id === 'stale-page')).toBe(false)
-        await act(async () => { refreshed.resolve([trade('fresh')]); await refresh })
+        await act(async () => { refreshed.resolve({ trades: [trade('fresh')], nextCursor: null }); await refresh })
         expect(latest.trades.map((item) => item.id)).toEqual(['fresh'])
         await act(async () => { renderer.unmount() })
     })

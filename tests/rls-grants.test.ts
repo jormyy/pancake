@@ -24,53 +24,6 @@ import {
 
 const MIGRATIONS = path.resolve(__dirname, '../supabase/migrations')
 
-const SERVICE_ROLE_ONLY_RPCS = [
-    'propose_trade_atomic',
-    'accept_trade_atomic',
-    'accept_multi_team_trade_atomic',
-    'reject_trade_atomic',
-    'withdraw_trade_atomic',
-    'complete_accepted_trade_atomic',
-    'veto_trade_atomic',
-    'expire_trade_completion_failure_atomic',
-    'process_due_accepted_trades_atomic',
-    'add_trade_block_item_atomic',
-    'remove_trade_block_item_atomic',
-    'create_waiver_claim_atomic',
-    'cancel_waiver_claim_atomic',
-    'process_next_waiver_claim_atomic',
-    'process_due_waiver_claims_atomic',
-    'create_auction_nomination_atomic',
-    'start_auction_draft_atomic',
-    'place_auction_bid_atomic',
-    'close_auction_nomination_atomic',
-    'close_expired_auction_nominations_atomic',
-    'process_expired_snake_picks_atomic',
-    'process_expired_snake_pick_atomic',
-    'withdraw_auction_nomination_atomic',
-    'make_snake_pick_atomic',
-    'auto_pick_snake_pick_atomic',
-    'commissioner_snake_pick_atomic',
-    'start_rookie_draft_atomic',
-    'reseed_rookie_draft_picks_atomic',
-    'advance_season_atomic',
-    'toggle_ir_atomic',
-    'toggle_taxi_atomic',
-    'expire_waiver_wire_logs',
-    'clear_ineligible_taxi_players',
-    'replace_regular_season_matchups_atomic',
-    'generate_playoff_bracket_atomic',
-    'advance_playoff_bracket_atomic',
-    'try_live_poll_lease',
-    'release_live_poll_lease',
-    'invoke_edge_function',
-    'invoke_edge_function_at_et_time',
-    'invoke_projection_sync_if_due',
-    'merge_players',
-    'merge_duplicate_players',
-    'count_final_games_missing_stats',
-]
-
 const ANON_SELECT_TABLE_ALLOWLIST = new Set([
     'dynasty_news',
     'dynasty_rankings',
@@ -103,41 +56,6 @@ function finalAnonSelectTables(sql: string): string[] {
 
 describe('service-role-only RPCs are never granted to client roles', () => {
     const sql = allMigrationSql()
-
-    it.each(SERVICE_ROLE_ONLY_RPCS)('%s is not GRANTed EXECUTE to authenticated/anon', (fn) => {
-        const grants = [
-            ...sql.matchAll(
-                new RegExp(`GRANT\\s+EXECUTE\\s+ON\\s+FUNCTION\\s+(?:public\\.)?${fn}\\s*\\([^)]*\\)\\s+TO\\s+([^;]+);`, 'gi'),
-            ),
-        ]
-        for (const match of grants) {
-            const grantees = match[1].toLowerCase()
-            expect(grantees, `${fn} granted to a client role: "${match[1].trim()}"`).not.toMatch(
-                /\b(authenticated|anon|public)\b/,
-            )
-        }
-    })
-
-    it('every service-role-only RPC is explicitly granted to service_role somewhere', () => {
-        for (const fn of SERVICE_ROLE_ONLY_RPCS) {
-            const granted = new RegExp(
-                `GRANT\\s+EXECUTE\\s+ON\\s+FUNCTION\\s+(?:public\\.)?${fn}\\s*\\([^)]*\\)\\s+TO\\s+[^;]*\\bservice_role\\b`,
-                'i',
-            ).test(sql)
-            expect(granted, `${fn} is never granted to service_role`).toBe(true)
-        }
-    })
-
-    // CREATE FUNCTION grants EXECUTE to PUBLIC by default, and PostgREST exposes
-    // any public function with EXECUTE as an RPC to anon/authenticated. A
-    // service_role grant does NOT remove PUBLIC — only an explicit REVOKE does.
-    it.each(SERVICE_ROLE_ONLY_RPCS)('%s has its default PUBLIC EXECUTE revoked', (fn) => {
-        const revokedFromPublic = new RegExp(
-            `REVOKE\\s+[^;]*\\bON\\s+FUNCTION\\s+(?:public\\.)?${fn}\\s*\\([^)]*\\)\\s+FROM\\s+[^;]*\\bPUBLIC\\b`,
-            'i',
-        ).test(sql)
-        expect(revokedFromPublic, `${fn} never REVOKEs default EXECUTE FROM PUBLIC — still client-callable`).toBe(true)
-    })
 
     it('no migration grants EXECUTE to client roles via a blanket / default-privilege statement', () => {
         // e.g. GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO authenticated;

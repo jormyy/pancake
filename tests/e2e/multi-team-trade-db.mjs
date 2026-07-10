@@ -20,6 +20,17 @@ const executeRecoverySql = (sql) => {
   })
 }
 
+const queryRecoveryJson = (sql) => {
+  const output = execFileSync('psql', [env.dbUrl, '--quiet', '--tuples-only', '--no-align', '--set', 'ON_ERROR_STOP=1', '--command', sql], {
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  })
+  const start = output.indexOf('[')
+  const end = output.lastIndexOf(']')
+  if (start < 0 || end < start) throw new Error(`SQL JSON output missing: ${output}`)
+  return JSON.parse(output.slice(start, end + 1))
+}
+
 const expectRpcError = async (admin, name, args, messagePart) => {
   const { error } = await admin.rpc(name, args)
   assert(error, `${name} unexpectedly succeeded`)
@@ -145,6 +156,28 @@ const assertMultiTeamPayloadBounds = async (fixture) => {
     p_notes: 'DB oversized multi-team payload',
     p_expires_at: null,
   }, 'between 1 and 100 items')
+  await expectRpcError(fixture.admin, 'propose_multi_team_trade_atomic', {
+    p_league_id: fixture.league.id,
+    p_league_season_id: fixture.currentSeason.id,
+    p_proposer_member_id: fixture.proposer.id,
+    p_participant_member_ids: [fixture.proposer.id, fixture.recipient.id],
+    p_items: [{
+      fromMemberId: fixture.proposer.id,
+      toMemberId: fixture.recipient.id,
+      faabAmount: '999999999999999999999999',
+    }],
+    p_notes: 'DB oversized FAAB payload',
+    p_expires_at: null,
+  }, 'exactly one player, pick, or positive FAAB')
+  await expectRpcError(fixture.admin, 'propose_multi_team_trade_atomic', {
+    p_league_id: fixture.league.id,
+    p_league_season_id: fixture.currentSeason.id,
+    p_proposer_member_id: fixture.proposer.id,
+    p_participant_member_ids: [fixture.proposer.id, fixture.recipient.id],
+    p_items: [{ fromMemberId: fixture.proposer.id, toMemberId: fixture.recipient.id, faabAmount: 1 }],
+    p_notes: 'x'.repeat(2001),
+    p_expires_at: null,
+  }, 'notes must not exceed 2000 bytes')
 }
 
 const assertExpiredAcceptanceCommits = async (fixture) => {
@@ -474,6 +507,14 @@ const assertCompletionFailureIsTerminal = async (fixture) => {
     .single()
   if (tradeError) throw new Error(`offseason accepted trade insert: ${tradeError.message}`)
   const tradeId = trade.id
+  executeRecoverySql(`
+    INSERT INTO public.trade_participants
+      (trade_id, member_id, sort_order, is_initiator, accepted_at)
+    VALUES
+      ('${tradeId}', '${fixture.proposer.id}', 0, true, '${past}'),
+      ('${tradeId}', '${fixture.recipient.id}', 1, false, '${past}'),
+      ('${tradeId}', '${fixture.observer.id}', 2, false, '${past}');
+  `)
   const { error: itemError } = await fixture.admin.from('trade_items').insert(
     faabRoutes(fixture).map((item) => ({
       trade_id: tradeId,
@@ -484,14 +525,6 @@ const assertCompletionFailureIsTerminal = async (fixture) => {
     })),
   )
   if (itemError) throw new Error(`offseason trade item insert: ${itemError.message}`)
-  executeRecoverySql(`
-    INSERT INTO public.trade_participants
-      (trade_id, member_id, sort_order, is_initiator, accepted_at)
-    VALUES
-      ('${tradeId}', '${fixture.proposer.id}', 0, true, '${past}'),
-      ('${tradeId}', '${fixture.recipient.id}', 1, false, '${past}'),
-      ('${tradeId}', '${fixture.observer.id}', 2, false, '${past}');
-  `)
 
   const processed = await rpc(fixture.admin, 'process_due_accepted_trades_atomic', { p_limit: 50 })
   const result = processed.find((row) => row.trade_id === tradeId)
@@ -511,7 +544,7 @@ const assertCompletionFailureIsTerminal = async (fixture) => {
 }
 
 const assertVetoRowsSurviveMemberHistoryPagination = async (fixture) => {
-  const personalRows = Array.from({ length: 41 }, (_, index) => ({
+  const personalRows = Array.from({ length: 2_000 }, (_, index) => ({
     league_id: fixture.league.id,
     league_season_id: fixture.currentSeason.id,
     proposer_member_id: fixture.observer.id,
@@ -521,8 +554,15 @@ const assertVetoRowsSurviveMemberHistoryPagination = async (fixture) => {
     completed_at: new Date().toISOString(),
     notes: `pagination history ${index}`,
   }))
-  const { error: historyError } = await fixture.admin.from('trades').insert(personalRows)
+  const { data: personalTrades, error: historyError } = await fixture.admin.from('trades').insert(personalRows).select('id')
   if (historyError) throw new Error(`pagination history insert: ${historyError.message}`)
+  const { error: historyParticipantError } = await fixture.admin.from('trade_participants').insert(
+    personalTrades.flatMap((trade) => [
+      { trade_id: trade.id, member_id: fixture.observer.id, sort_order: 0, is_initiator: true, accepted_at: new Date().toISOString() },
+      { trade_id: trade.id, member_id: fixture.recipient.id, sort_order: 1, is_initiator: false, accepted_at: new Date().toISOString() },
+    ]),
+  )
+  if (historyParticipantError) throw new Error(`pagination participant insert: ${historyParticipantError.message}`)
 
   const { data: vetoTrade, error: vetoTradeError } = await fixture.admin.from('trades').insert({
     league_id: fixture.league.id,
@@ -536,6 +576,11 @@ const assertVetoRowsSurviveMemberHistoryPagination = async (fixture) => {
     notes: 'observer veto row must bypass member history pagination',
   }).select('id').single()
   if (vetoTradeError) throw new Error(`observer veto trade insert: ${vetoTradeError.message}`)
+  const { error: vetoParticipantError } = await fixture.admin.from('trade_participants').insert([
+    { trade_id: vetoTrade.id, member_id: fixture.proposer.id, sort_order: 0, is_initiator: true, accepted_at: new Date().toISOString() },
+    { trade_id: vetoTrade.id, member_id: fixture.recipient.id, sort_order: 1, is_initiator: false, accepted_at: new Date().toISOString() },
+  ])
+  if (vetoParticipantError) throw new Error(`observer veto participant insert: ${vetoParticipantError.message}`)
 
   const observerUser = fixture.users[2]
   const observerClient = createClient(env.supabaseUrl, env.anonKey, { auth: { persistSession: false } })
@@ -544,33 +589,39 @@ const assertVetoRowsSurviveMemberHistoryPagination = async (fixture) => {
     password: observerUser.password,
   })
   if (signInError) throw new Error(`observer sign in: ${signInError.message}`)
-  const { data, error } = await observerClient.rpc('get_trades_for_member_page', {
-    p_member_id: fixture.observer.id,
-    p_league_id: fixture.league.id,
-    p_limit: 40,
-  }).select('id, proposed_at, notes')
-  if (error) throw new Error(`get_trades_for_member_page pagination: ${error.message}`)
-  const rows = Array.isArray(data) ? data : data ? [data] : []
+  const fetchPage = async (cursor = null) => {
+    const { data: refs, error: refsError } = await observerClient.rpc('get_trade_page_refs', {
+      p_member_id: fixture.observer.id,
+      p_league_id: fixture.league.id,
+      p_limit: 40,
+      p_cursor: cursor,
+    })
+    if (refsError) throw new Error(`get_trade_page_refs pagination: ${refsError.message}`)
+    const { data: trades, error: tradesError } = await observerClient.from('trades')
+      .select('id, notes').in('id', refs.map((ref) => ref.trade_id))
+    if (tradesError) throw new Error(`trade page rows: ${tradesError.message}`)
+    const byId = new Map(trades.map((trade) => [trade.id, trade]))
+    return { refs, rows: refs.map((ref) => byId.get(ref.trade_id)).filter(Boolean) }
+  }
+  const firstPage = await fetchPage()
+  const rows = firstPage.rows
   assert.equal(rows.length, 40)
   assert(rows.some((trade) => trade.id === vetoTrade.id), 'vetoable observer trade was displaced by personal history')
-  const cursor = rows.at(-1)
-  const { data: nextData, error: nextError } = await observerClient.rpc('get_trades_for_member_page', {
-    p_member_id: fixture.observer.id,
-    p_league_id: fixture.league.id,
-    p_limit: 40,
-    p_before_actionable: false,
-    p_before_participant: true,
-    p_before_proposed_at: cursor.proposed_at,
-    p_before_id: cursor.id,
-  }).select('id, notes')
-  if (nextError) throw new Error(`get_trades_for_member_page next page: ${nextError.message}`)
-  const nextRows = Array.isArray(nextData) ? nextData : nextData ? [nextData] : []
-  assert(nextRows.length >= 2)
+  const nextPage = await fetchPage(firstPage.refs.at(-1).cursor_token)
+  const nextRows = nextPage.rows
+  assert.equal(nextRows.length, 40)
   assert.equal(nextRows.some((trade) => rows.some((firstPage) => firstPage.id === trade.id)), false)
-  assert.equal(
-    [...rows, ...nextRows].filter((trade) => trade.notes?.startsWith('pagination history ')).length,
-    41,
-  )
+  assert([...rows, ...nextRows].some((trade) => trade.notes?.startsWith('pagination history ')))
+
+  const explain = queryRecoveryJson(`
+    SELECT set_config('request.jwt.claim.sub', '${observerUser.id}', false);
+    EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)
+      SELECT * FROM public.get_trade_page_refs('${fixture.observer.id}', '${fixture.league.id}', 40, NULL);
+  `)
+  const plan = explain[0].Plan
+  assert.equal(plan['Actual Rows'], 40)
+  assert(plan['Shared Hit Blocks'] < 2_500, `trade page read ${plan['Shared Hit Blocks']} shared blocks`)
+  assert(plan['Actual Total Time'] < 100, `trade page took ${plan['Actual Total Time']} ms`)
   const { error: terminalError } = await fixture.admin
     .from('trades')
     .update({ status: 'vetoed', vetoed_at: new Date().toISOString() })

@@ -10,8 +10,9 @@ SET search_path = public
 AS $$
 DECLARE
   v_league_id uuid;
+  v_proposed_at timestamptz;
 BEGIN
-  SELECT league_id INTO v_league_id
+  SELECT league_id, proposed_at INTO v_league_id, v_proposed_at
     FROM public.trades
    WHERE id = NEW.trade_id;
 
@@ -24,6 +25,9 @@ BEGIN
   END IF;
 
   NEW.league_id := v_league_id;
+  IF TG_TABLE_NAME = 'trade_participants' THEN
+    NEW.proposed_at := v_proposed_at;
+  END IF;
   RETURN NEW;
 END;
 $$;

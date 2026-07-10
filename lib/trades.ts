@@ -82,11 +82,10 @@ export type Trade = {
 }
 
 export type TradePageCursor = {
-    actionable: boolean
-    participant: boolean
-    proposedAt: string
-    id: string
+    token: string
 }
+
+export type TradePage = { trades: Trade[]; nextCursor: TradePageCursor | null }
 
 type TeamNameRow = { team_name: string | null } | null
 type TradePickQueryRow = {
@@ -109,8 +108,8 @@ type TradeItemQueryRow = {
     side: 'proposer' | 'recipient'
     player_id: string | null
     pick_id: string | null
-    from_member_id: string | null
-    to_member_id: string | null
+    from_member_id: string
+    to_member_id: string
     faab_amount: number | null
     players: TradePlayerQueryRow
     draft_picks: {
@@ -416,10 +415,8 @@ function mapTradeRow(row: TradeQueryRow, memberId: string): Trade {
     const routedItems: RoutedTradeItem[] = []
 
     for (const item of row.trade_items ?? []) {
-        const fromMemberId = item.from_member_id ?? (item.side === 'proposer' ? row.proposer_member_id : row.recipient_member_id)
-        const toMemberId = item.to_member_id ?? (fromMemberId === row.proposer_member_id
-            ? row.recipient_member_id
-            : row.proposer_member_id)
+        const fromMemberId = item.from_member_id
+        const toMemberId = item.to_member_id
         let tradeItem: RoutedTradeItem | null = null
 
         if (item.player_id != null && item.players) {
@@ -535,38 +532,37 @@ export async function getTradesForScreen(
     leagueId: string,
     limit = 40,
     cursor: TradePageCursor | null = null,
-): Promise<Trade[]> {
-    const { data, error } = await supabase
-        .rpc('get_trades_for_member_page', {
+): Promise<TradePage> {
+    const { data: refs, error: refsError } = await supabase
+        .rpc('get_trade_page_refs', {
             p_member_id: memberId,
             p_league_id: leagueId,
             p_limit: limit,
-            p_before_actionable: cursor?.actionable,
-            p_before_participant: cursor?.participant,
-            p_before_proposed_at: cursor?.proposedAt,
-            p_before_id: cursor?.id,
+            p_cursor: cursor?.token,
         })
+
+    if (refsError) throw refsError
+    if (!refs || refs.length === 0) return { trades: [], nextCursor: null }
+
+    const { data, error } = await supabase
+        .from('trades')
         .select(TRADE_SELECT)
+        .in('id', refs.map((ref) => ref.trade_id))
         .overrideTypes<TradeQueryRow[]>()
 
     if (error) throw error
 
-    const visible = (data ?? [])
+    const rowsById = new Map((data ?? []).map((row) => [row.id, row]))
+    const visible = refs
+        .map((ref) => rowsById.get(ref.trade_id))
+        .filter((row): row is TradeQueryRow => row != null)
         .map((row) => mapTradeRow(row, memberId))
         .filter((trade) => isTradeVisibleOnScreen(trade, memberId))
 
-    return enrichTradesWithStats(visible, leagueId)
-}
-
-export function tradePageCursor(trade: Trade, memberId: string): TradePageCursor {
-    const participant = trade.proposerMemberId === memberId ||
-        trade.recipientMemberId === memberId ||
-        trade.participants.some((entry) => entry.memberId === memberId)
-    const actionable = (!participant && trade.status === 'accepted') ||
-        (trade.status === 'pending' && trade.participants.some(
-            (entry) => entry.memberId === memberId && entry.acceptedAt === null,
-        ))
-    return { actionable, participant, proposedAt: trade.proposedAt, id: trade.id }
+    return {
+        trades: await enrichTradesWithStats(visible, leagueId),
+        nextCursor: { token: refs.at(-1)!.cursor_token },
+    }
 }
 
 export function isTradeVisibleOnScreen(trade: Trade, memberId: string, nowMs = Date.now()): boolean {

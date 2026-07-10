@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { getTradesForScreen, tradePageCursor, type Trade } from '@/lib/trades'
+import { getTradesForScreen, type Trade, type TradePageCursor } from '@/lib/trades'
 import { getErrorMessage } from '@/lib/alert'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 
@@ -25,11 +25,14 @@ export function useTradesFeed(memberId: string, leagueId: string) {
     const [loadingMore, setLoadingMore] = useState(false)
     const loadSequence = useRef(0)
     const paginationRequest = useRef<symbol | null>(null)
+    const nextCursor = useRef<TradePageCursor | null>(null)
 
     const refresh = useCallback(async () => {
         const requestId = ++loadSequence.current
         paginationRequest.current = null
+        nextCursor.current = null
         setLoadingMore(false)
+        setHasMore(false)
         if (!memberId || !leagueId) {
             setResource({ key: null, trades: [] })
             setError(null)
@@ -41,9 +44,10 @@ export function useTradesFeed(memberId: string, leagueId: string) {
         try {
             const result = await getTradesForScreen(memberId, leagueId, TRADES_PAGE_SIZE)
             if (loadSequence.current !== requestId) return
-            setResource({ key: resourceKey, trades: result })
-            setHasMore(result.length === TRADES_PAGE_SIZE)
-            writePersistentCache(tradesCacheKey(memberId, leagueId), result)
+            nextCursor.current = result.nextCursor
+            setResource({ key: resourceKey, trades: result.trades })
+            setHasMore(result.trades.length === TRADES_PAGE_SIZE && result.nextCursor != null)
+            writePersistentCache(tradesCacheKey(memberId, leagueId), result.trades)
         } catch (cause) {
             if (loadSequence.current !== requestId) return
             console.error(cause)
@@ -56,6 +60,7 @@ export function useTradesFeed(memberId: string, leagueId: string) {
     useEffect(() => {
         loadSequence.current += 1
         paginationRequest.current = null
+        nextCursor.current = null
         setResource({ key: resourceKey, trades: cached ?? [] })
         setError(null)
         setLoading(!cached)
@@ -75,23 +80,24 @@ export function useTradesFeed(memberId: string, leagueId: string) {
         paginationRequest.current = paginationToken
         setLoadingMore(true)
         try {
-            const lastTrade = trades.at(-1)
-            if (!lastTrade) return
+            const cursor = nextCursor.current
+            if (!cursor) return
             const result = await getTradesForScreen(
                 memberId,
                 leagueId,
                 TRADES_PAGE_SIZE,
-                tradePageCursor(lastTrade, memberId),
+                cursor,
             )
             if (loadSequence.current !== requestId) return
             setResource((current) => {
                 if (current.key !== resourceKey) return current
                 const known = new Set(current.trades.map((trade) => trade.id))
-                const next = [...current.trades, ...result.filter((trade) => !known.has(trade.id))]
+                const next = [...current.trades, ...result.trades.filter((trade) => !known.has(trade.id))]
                 writePersistentCache(tradesCacheKey(memberId, leagueId), next)
                 return { key: resourceKey, trades: next }
             })
-            setHasMore(result.length === TRADES_PAGE_SIZE)
+            nextCursor.current = result.nextCursor
+            setHasMore(result.trades.length === TRADES_PAGE_SIZE && result.nextCursor != null)
         } catch (cause) {
             if (loadSequence.current === requestId) {
                 setError(getErrorMessage(cause) ?? 'Could not load more trades.')
@@ -102,7 +108,7 @@ export function useTradesFeed(memberId: string, leagueId: string) {
                 if (loadSequence.current === requestId) setLoadingMore(false)
             }
         }
-    }, [hasMore, leagueId, memberId, resourceKey, trades])
+    }, [hasMore, leagueId, memberId, resourceKey])
 
     const ownsResource = resource.key === resourceKey
     return {

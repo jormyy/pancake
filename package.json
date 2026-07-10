@@ -17,6 +17,8 @@
     "check:core-cjs": "node scripts/check-core-cjs.mjs",
     "check:dead-code": "knip --no-progress --no-config-hints",
     "generate:edge-shared": "node scripts/generate-edge-shared.mjs",
+    "generate:database-types": "node scripts/generate-database-types.mjs",
+    "check:database-types": "node scripts/generate-database-types.mjs --check",
     "check:edge-shared": "node scripts/generate-edge-shared.mjs --check",
     "check:db-function-sources": "node scripts/check-db-function-sources.mjs --check",
     "check:edge-functions": "deno check supabase/functions/api/index.ts supabase/functions/sync-scores/index.ts supabase/functions/sync-rankings/index.ts supabase/functions/sync-projections/index.ts supabase/functions/process-waivers/index.ts supabase/functions/process-trades/index.ts supabase/functions/close-expired-nominations/index.ts supabase/functions/lineup-optimizer/index.ts && deno test --allow-env --allow-net --allow-read supabase/functions/api/router.test.ts supabase/functions/api/matchups.test.ts supabase/functions/sync-rankings/parser.test.ts supabase/functions/sync-rankings/match.test.ts supabase/functions/sync-projections/parser.test.ts supabase/functions/sync-projections/match.test.ts",
