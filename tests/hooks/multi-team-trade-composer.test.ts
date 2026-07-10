@@ -1,0 +1,238 @@
+import React from 'react'
+import { act, create, type ReactTestRenderer } from 'react-test-renderer'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { useMultiTeamTradeComposer } from '@/hooks/use-multi-team-trade-composer'
+import type { RosterStatsMaps } from '@/lib/roster-stats'
+
+const { getPicksForMembers, getRostersForMembers, getRosterStatsMaps } = vi.hoisted(() => ({
+    getPicksForMembers: vi.fn(),
+    getRostersForMembers: vi.fn(),
+    getRosterStatsMaps: vi.fn(),
+}))
+
+const deferred = <T,>() => {
+    let resolve!: (value: T) => void
+    const promise = new Promise<T>((done) => { resolve = done })
+    return { promise, resolve }
+}
+
+const rosterPlayer = (id: string) => ({
+    id: `roster-${id}`,
+    member_id: 'member',
+    is_on_ir: false,
+    is_on_taxi: false,
+    acquired_via: 'draft',
+    players: {
+        id,
+        display_name: id,
+        nba_team: null,
+        position: 'PG' as const,
+        eligible_positions: ['PG'],
+        injury_status: null,
+        nba_id: null,
+        nba_draft_number: null,
+        years_exp: 1,
+    },
+})
+
+vi.mock('@/lib/trades', () => ({ getPicksForMembers }))
+vi.mock('@/lib/roster', () => ({ getRostersForMembers }))
+vi.mock('@/lib/roster-stats', () => ({
+    EMPTY_AVG_MAP: new Map(),
+    EMPTY_STATS_MAP: new Map(),
+    getRosterStatsMaps,
+}))
+vi.mock('@/lib/alert', () => ({ getErrorMessage: (error: unknown) => String(error) }))
+
+;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+
+beforeEach(() => {
+    vi.clearAllMocks()
+    getRostersForMembers.mockImplementation(async (memberIds: string[]) =>
+        Object.fromEntries(memberIds.map((memberId) => [memberId, []])))
+    getPicksForMembers.mockImplementation(async (memberIds: string[]) =>
+        Object.fromEntries(memberIds.map((memberId) => [memberId, []])))
+    getRosterStatsMaps.mockResolvedValue({ avgMap: new Map(), avgStatsMap: new Map() })
+})
+
+describe('useMultiTeamTradeComposer', () => {
+    it('resets participants, assets, routes, and FAAB when league/member identity changes', async () => {
+        let latest!: ReturnType<typeof useMultiTeamTradeComposer>
+        const Probe = ({ leagueId, memberId }: { leagueId: string; memberId: string }) => {
+            latest = useMultiTeamTradeComposer({
+                enabled: false,
+                leagueId,
+                myMemberId: memberId,
+                myTeamName: memberId,
+                members: [],
+                faabEnabled: true,
+            })
+            return null
+        }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe, { leagueId: 'league-a', memberId: 'member-a' })) })
+        await act(async () => {
+            latest.setParticipantIds(['member-a', 'member-other'])
+            latest.selectParticipantAsset('member-a', 'player', 'player-a')
+            latest.setParticipantFaab('member-a', 'member-other', '25')
+        })
+        expect(latest.participantIds).toEqual(['member-a', 'member-other'])
+        expect(latest.buildMultiTeamItems()).toHaveLength(2)
+        await act(async () => { renderer.update(React.createElement(Probe, { leagueId: 'league-b', memberId: 'member-b' })) })
+        expect(latest.participantIds).toEqual(['member-b'])
+        expect(latest.selectedParticipantIds.size).toBe(0)
+        expect(latest.buildMultiTeamItems()).toEqual([])
+        await act(async () => { renderer.unmount() })
+    })
+
+    it('requires a successful owned asset snapshot before reporting ready', async () => {
+        let latest!: ReturnType<typeof useMultiTeamTradeComposer>
+        const Probe = ({ enabled }: { enabled: boolean }) => {
+            latest = useMultiTeamTradeComposer({
+                enabled,
+                leagueId: 'league',
+                myMemberId: 'member-a',
+                myTeamName: 'A',
+                members: [{ id: 'member-b', team_name: 'B' }],
+                faabEnabled: true,
+            })
+            return null
+        }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe, { enabled: false })) })
+        await act(async () => { latest.setParticipantIds(['member-a', 'member-b']) })
+        getRostersForMembers.mockRejectedValueOnce(new Error('offline'))
+        await act(async () => {
+            renderer.update(React.createElement(Probe, { enabled: true }))
+            await Promise.resolve()
+            await Promise.resolve()
+        })
+        expect(latest.rosterError).toContain('offline')
+        expect(latest.assetsReady).toBe(false)
+
+        await act(async () => { latest.retry(); await Promise.resolve(); await Promise.resolve() })
+        expect(latest.rosterError).toBeNull()
+        expect(latest.assetsReady).toBe(true)
+        await act(async () => { renderer.unmount() })
+    })
+
+    it('reports canonical assets ready when optional averages fail', async () => {
+        getRosterStatsMaps.mockRejectedValueOnce(new Error('averages offline'))
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+        let latest!: ReturnType<typeof useMultiTeamTradeComposer>
+        const Probe = () => {
+            latest = useMultiTeamTradeComposer({
+                enabled: true,
+                leagueId: 'league',
+                myMemberId: 'member-a',
+                myTeamName: 'A',
+                members: [{ id: 'member-b', team_name: 'B' }],
+                faabEnabled: true,
+            })
+            return null
+        }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe)); await Promise.resolve() })
+        await act(async () => { latest.setParticipantIds(['member-a', 'member-b']); await Promise.resolve(); await Promise.resolve() })
+
+        expect(latest.assetsReady).toBe(true)
+        expect(latest.rosterError).toBeNull()
+        expect(warn).toHaveBeenCalledWith('Could not load optional trade player averages.', expect.any(Error))
+        await act(async () => { renderer.unmount() })
+    })
+
+    it('retains a deferred successful averages response after committing participant assets', async () => {
+        const stats = deferred<RosterStatsMaps>()
+        getRostersForMembers.mockImplementation(async (memberIds: string[]) =>
+            Object.fromEntries(memberIds.map((memberId) => [memberId, [rosterPlayer(`player-${memberId}`)]])))
+        getRosterStatsMaps.mockReturnValueOnce(stats.promise)
+        let latest!: ReturnType<typeof useMultiTeamTradeComposer>
+        const Probe = () => {
+            latest = useMultiTeamTradeComposer({
+                enabled: true,
+                leagueId: 'league',
+                myMemberId: 'member-a',
+                myTeamName: 'A',
+                members: [],
+                faabEnabled: true,
+            })
+            return null
+        }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe)); await Promise.resolve(); await Promise.resolve() })
+        expect(latest.assetsReady).toBe(true)
+
+        await act(async () => {
+            stats.resolve({ avgMap: new Map([['player-member-a', 42]]), avgStatsMap: new Map() })
+            await stats.promise
+        })
+
+        expect(latest.avgMap.get('player-member-a')).toBe(42)
+        await act(async () => { renderer.unmount() })
+    })
+
+    it('discards deferred averages after league identity changes', async () => {
+        const firstStats = deferred<RosterStatsMaps>()
+        const secondStats = deferred<RosterStatsMaps>()
+        getRostersForMembers.mockImplementation(async (memberIds: string[], leagueId: string) =>
+            Object.fromEntries(memberIds.map((memberId) => [memberId, [rosterPlayer(`player-${leagueId}`)]])))
+        getRosterStatsMaps
+            .mockReturnValueOnce(firstStats.promise)
+            .mockReturnValue(secondStats.promise)
+        let latest!: ReturnType<typeof useMultiTeamTradeComposer>
+        const Probe = ({ leagueId }: { leagueId: string }) => {
+            latest = useMultiTeamTradeComposer({
+                enabled: true,
+                leagueId,
+                myMemberId: 'member-a',
+                myTeamName: 'A',
+                members: [],
+                faabEnabled: true,
+            })
+            return null
+        }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe, { leagueId: 'league-a' })); await Promise.resolve(); await Promise.resolve() })
+        await act(async () => { renderer.update(React.createElement(Probe, { leagueId: 'league-b' })); await Promise.resolve(); await Promise.resolve() })
+        expect(latest.avgMap.size).toBe(0)
+
+        await act(async () => {
+            firstStats.resolve({ avgMap: new Map([['player-league-a', 99]]), avgStatsMap: new Map() })
+            await firstStats.promise
+        })
+
+        expect(latest.avgMap.get('player-league-a')).toBeUndefined()
+        expect(getRosterStatsMaps).toHaveBeenCalledWith(['player-league-b'], 'league-b')
+        await act(async () => {
+            secondStats.resolve({ avgMap: new Map([['player-league-b', 7]]), avgStatsMap: new Map() })
+            await secondStats.promise
+        })
+        expect(latest.avgMap.get('player-league-b')).toBe(7)
+        await act(async () => { renderer.unmount() })
+    })
+
+    it('invalidates a removed participant snapshot before that participant is re-added', async () => {
+        let latest!: ReturnType<typeof useMultiTeamTradeComposer>
+        const Probe = () => {
+            latest = useMultiTeamTradeComposer({
+                enabled: true,
+                leagueId: 'league',
+                myMemberId: 'member-a',
+                myTeamName: 'A',
+                members: [{ id: 'member-b', team_name: 'B' }],
+                faabEnabled: true,
+            })
+            return null
+        }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe)); await Promise.resolve(); await Promise.resolve() })
+        await act(async () => { latest.setParticipantIds(['member-a', 'member-b']); await Promise.resolve(); await Promise.resolve() })
+        const loadsBeforeRemoval = getRostersForMembers.mock.calls.filter(([memberIds]) => memberIds.includes('member-b')).length
+        await act(async () => { latest.setParticipantIds(['member-a']); await Promise.resolve() })
+        await act(async () => { latest.setParticipantIds(['member-a', 'member-b']); await Promise.resolve(); await Promise.resolve() })
+
+        const loadsContainingB = getRostersForMembers.mock.calls.filter(([memberIds]) => memberIds.includes('member-b'))
+        expect(loadsContainingB.length).toBeGreaterThan(loadsBeforeRemoval)
+        await act(async () => { renderer.unmount() })
+    })
+})

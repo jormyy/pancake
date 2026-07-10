@@ -1,10 +1,10 @@
 import { supabase } from '@/lib/supabase'
 import type { Json, League, LeagueStatus } from '@/types/database'
-import type { LeagueInfo, LeagueMembership } from '@/types/app'
+import type { LeagueInfo, LeagueMembership, TradeVetoMode } from '@/types/app'
 import { todayET } from '@/lib/shared/dates'
 
 export type WaiverMode = 'rolling' | 'faab'
-export type TradeVetoMode = 'disabled' | 'commissioner' | 'member_vote'
+export type { TradeVetoMode } from '@/types/app'
 
 export type LeagueSettingsUpdate = {
     scoring_settings?: Record<string, number>
@@ -196,26 +196,15 @@ export async function getLineupSlots(leagueId: string) {
     return data ?? []
 }
 
-export async function updateLeague(
+export async function updateLeagueConfiguration(
     leagueId: string,
     updates: LeagueSettingsUpdate,
+    slots: LineupSlotUpdate[] | null,
 ) {
-    // The RPC enforces commissioner authority and setup-only structural edits.
-    const { error } = await supabase.rpc('update_league_settings_atomic', {
+    const { error } = await supabase.rpc('update_league_configuration_atomic', {
         p_league_id: leagueId,
         p_settings: leagueSettingsPayload(updates),
-    })
-    if (error) throw error
-}
-
-export async function updateLineupSlots(
-    leagueId: string,
-    slots: LineupSlotUpdate[],
-) {
-    // The RPC locks the league and keeps lineup templates setup-only.
-    const { error } = await supabase.rpc('update_lineup_slots_atomic', {
-        p_league_id: leagueId,
-        p_slots: lineupSlotsPayload(slots),
+        p_slots: slots ? lineupSlotsPayload(slots) : undefined,
     })
     if (error) throw error
 }

@@ -37,8 +37,10 @@ function stat(overrides: Partial<LiveStatLine> = {}): LiveStatLine {
         fgAttempted: 0,
         ftMade: 0,
         ftAttempted: 0,
+        fouls: 0,
         doubleDouble: false,
         tripleDouble: false,
+        minutesPlayed: 0,
         didNotPlay: false,
         ...overrides,
     }

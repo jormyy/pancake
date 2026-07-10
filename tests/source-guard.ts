@@ -1,9 +1,17 @@
 import { readFileSync, readdirSync } from 'node:fs'
 import path from 'node:path'
+import { functionLifecycleEventsInSource, dollarQuotedStatement } from '../scripts/check-db-function-sources.mjs'
 
 export const ROOT = path.resolve(__dirname, '..')
 
 export const read = (rel: string): string => readFileSync(path.join(ROOT, rel), 'utf8')
+export const readFunctionSource = (functionName: string, schema = 'public'): string =>
+    read(`supabase/sql/functions/by-name/${schema}/${functionName}.sql`)
+export const readFunctionSources = (functions: (string | [string, string])[]): string =>
+    functions.map((entry) => {
+        const [functionName, schema] = Array.isArray(entry) ? entry : [entry, 'public']
+        return readFunctionSource(functionName, schema)
+    }).join('\n')
 export const migrationFiles = readdirSync(path.join(ROOT, 'supabase/migrations'))
     .filter((file) => /^\d+_.+\.sql$/.test(file))
     .sort()
@@ -26,48 +34,23 @@ const objectNamePattern = (name: string, schema: string): string =>
 const identifierPattern = (identifier: string): string =>
     `(?:"${escapeRegExp(identifier.replaceAll('"', '""'))}"|${escapeRegExp(identifier)})`
 
-const dollarQuotedStatement = (source: string): string => {
-    const asMatch = /\bAS\s+(\$[A-Za-z0-9_]*\$)/i.exec(source)
-    const semicolonIndex = source.indexOf(';')
-    if (!asMatch || (semicolonIndex !== -1 && semicolonIndex < asMatch.index)) {
-        if (semicolonIndex === -1) throw new Error('Could not find SQL statement terminator')
-        return source.slice(0, semicolonIndex + 1)
-    }
-
-    const delimiter = asMatch[1]
-    const openIndex = asMatch.index + asMatch[0].lastIndexOf(delimiter)
-    const closeIndex = source.indexOf(delimiter, openIndex + delimiter.length)
-    if (closeIndex === -1) throw new Error(`Could not find closing ${delimiter} delimiter`)
-
-    const functionTerminator = source.indexOf(';', closeIndex + delimiter.length)
-    if (functionTerminator === -1) throw new Error('Could not find SQL function terminator')
-    return source.slice(0, functionTerminator + 1)
-}
-
 export const latestFunctionDefinition = (functionName: string, schema = 'public'): string => {
-    const migrations = allMigrations()
-    const qualifiedName = objectNamePattern(functionName, schema)
-    const createPattern = new RegExp(`CREATE\\s+(?:OR\\s+REPLACE\\s+)?FUNCTION\\s+${qualifiedName}\\s*\\(`, 'gi')
-    let createMatch: RegExpExecArray | null
-    let latestCreateIndex = -1
-
-    while ((createMatch = createPattern.exec(migrations)) !== null) {
-        latestCreateIndex = createMatch.index
+    const key = `${schema}.${functionName}`
+    let definition: string | null = null
+    let wasDefined = false
+    for (const event of functionLifecycleEventsInSource(allMigrations())) {
+        if (event.key !== key) continue
+        if (event.type === 'create' && 'definition' in event) {
+            if (!event.definition) throw new Error(`Missing CREATE definition for ${key}`)
+            definition = event.definition
+            wasDefined = true
+        } else {
+            definition = null
+        }
     }
-
-    if (latestCreateIndex === -1) {
-        throw new Error(`No migration defines ${schema}.${functionName}`)
-    }
-
-    const definition = dollarQuotedStatement(migrations.slice(latestCreateIndex))
-    const laterSql = migrations.slice(latestCreateIndex + definition.length)
-    const dropPattern = new RegExp(`DROP\\s+FUNCTION(?:\\s+IF\\s+EXISTS)?\\s+${qualifiedName}\\b`, 'i')
-
-    if (dropPattern.test(laterSql)) {
-        throw new Error(`${schema}.${functionName} is dropped after its latest definition`)
-    }
-
-    return definition
+    if (definition) return definition
+    if (wasDefined) throw new Error(`${key} is dropped after its latest definition`)
+    throw new Error(`No migration defines ${key}`)
 }
 
 export const latestViewDefinition = (viewName: string, schema = 'public'): string => {

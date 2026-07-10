@@ -203,7 +203,9 @@ export const styles = StyleSheet.create({
     sideNavItem: {
         display: 'flex',
         width: '100%',
+        height: 44,
         minHeight: 44,
+        flexShrink: 0,
         flexDirection: 'row',
         alignItems: 'center',
         gap: spacing.lg,

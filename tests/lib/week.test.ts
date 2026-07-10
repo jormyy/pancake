@@ -18,7 +18,7 @@ function seasonWeekQuery(data: unknown, error: unknown = null) {
         eq: vi.fn(() => chain),
         lte: vi.fn(() => chain),
         gte: vi.fn(() => chain),
-        order: vi.fn(() => chain),
+        order: vi.fn().mockResolvedValue({ data, error }),
         limit: vi.fn(() => chain),
         maybeSingle: vi.fn().mockResolvedValue({ data, error }),
     }
@@ -78,28 +78,26 @@ describe('getCurrentWeekNumber', () => {
     })
 
     it('uses the ET date key when querying season weeks', async () => {
-        const query = seasonWeekQuery({ week_number: 22, week_start: '2026-04-20', week_end: '2026-04-26' })
+        const query = seasonWeekQuery([{ week_number: 22, week_start: '2026-04-20', week_end: '2026-04-26' }])
         mockFrom.mockReturnValue(query)
 
         await expect(getCurrentWeekNumber(2026)).resolves.toBe(22)
 
-        expect(query.lte).toHaveBeenCalledWith('week_start', '2026-04-22')
-        expect(query.gte).toHaveBeenCalledWith('week_end', '2026-04-22')
+        expect(query.eq).toHaveBeenCalledWith('season_year', 2026)
+        expect(query.order).toHaveBeenCalledWith('week_number', { ascending: true })
     })
 
     it('returns the last seeded week after the schedule ends', async () => {
         mockTodayET.mockReturnValue('2026-09-15')
-        const todayQuery = seasonWeekQuery(null)
-        const futureQuery = seasonWeekQuery(null)
-        const lastQuery = seasonWeekQuery({ week_number: 25, week_start: '2026-04-06', week_end: '2026-04-12' })
-        mockFrom
-            .mockReturnValueOnce(todayQuery)
-            .mockReturnValueOnce(futureQuery)
-            .mockReturnValueOnce(lastQuery)
+        const query = seasonWeekQuery([
+            { week_number: 1, week_start: '2025-10-21', week_end: '2025-10-26' },
+            { week_number: 25, week_start: '2026-04-06', week_end: '2026-04-12' },
+        ])
+        mockFrom.mockReturnValue(query)
 
         await expect(getCurrentWeekNumber(2026)).resolves.toBe(25)
 
-        expect(lastQuery.order).toHaveBeenCalledWith('week_number', { ascending: false })
+        expect(query.order).toHaveBeenCalledWith('week_number', { ascending: true })
     })
 
     it('surfaces season week lookup errors instead of falling back to stale week math', async () => {

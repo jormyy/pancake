@@ -5,6 +5,7 @@ import { createClient } from '@supabase/supabase-js'
 import { resolvedEnv, requireEnv, describeEndpoint } from './env.mjs'
 import { installRuntimeOverrides, normalizeBrowserErrors } from './browser-runtime-overrides.mjs'
 import { captureBrowserScreenshot, clickButtonByName, createBrowser, fillSignInCredentials, listBrowserSessions } from './browser-agent.mjs'
+import { createFixtureResourceOwner } from './trade-fixture.mjs'
 
 const ROOT = process.cwd()
 const ARTIFACT_ROOT = path.join(ROOT, 'tests/artifacts')
@@ -98,9 +99,12 @@ const setupAuctionGameplayFixture = async (env, season) => {
   }))
 
   const admin = createClient(env.supabaseUrl, env.serviceRoleKey, { auth: { persistSession: false } })
+  const resources = createFixtureResourceOwner(admin)
   const createdUsers = []
   for (const user of users) {
-    createdUsers.push(await createConfirmedUser(admin, user))
+    const createdUser = await createConfirmedUser(admin, user)
+    resources.registerUser(createdUser.id)
+    createdUsers.push(createdUser)
   }
 
   const { error: profileError } = await admin.from('profiles').upsert(
@@ -120,6 +124,7 @@ const setupAuctionGameplayFixture = async (env, season) => {
     p_auction_budget: 200,
   })
   if (createError) throw new Error(`create_league: ${createError.message}`)
+  resources.registerLeague(league.id)
 
   const bidderClient = await signInClient(env, createdUsers[1].email, password)
   const { error: joinError } = await bidderClient.rpc('join_league_by_invite_code', {
@@ -196,6 +201,7 @@ const setupAuctionGameplayFixture = async (env, season) => {
     nomination,
     player,
     bidder,
+    dispose: resources.dispose,
   }
 }
 
@@ -330,7 +336,7 @@ const closeTestNomination = async (fixture) => {
 
 export async function runBrowserGameplayScenario({
   season = 0,
-  sessionName,
+  sessionName = undefined,
 } = {}) {
   const env = resolvedEnv()
   requireEnv(env, ['supabaseUrl', 'serviceRoleKey', 'anonKey'])
@@ -350,7 +356,7 @@ export async function runBrowserGameplayScenario({
 
   try {
     await signInBrowser(session, env, fixture.users[1], fixture.password)
-    await browser(session, ['set', 'viewport', '390', '844']).catch(() => {})
+    await browser(session, ['set', 'viewport', '390', '844'])
     await browser(session, ['open', joinUrl(env.frontendUrl, `/draft-room?draftId=${fixture.draft.id}`)])
     await browser(session, ['wait', '2500'])
     await assertPageText(session, ['Auction Draft', fixture.player.display_name, 'Bid $2'], 'auction draft room before bid')
@@ -429,15 +435,15 @@ export async function runBrowserGameplayScenario({
     }
     await writeFile(REPORT_PATH, `${JSON.stringify(report, null, 2)}\n`).catch(() => {})
     throw error
-  } finally {
-    await browser(session, ['close']).catch(() => {})
   }
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const seasonArg = process.argv.find((arg) => arg.startsWith('--season='))
   const season = seasonArg ? Number(seasonArg.split('=')[1]) : 0
-  runBrowserGameplayScenario({ season }).catch((error) => {
+  import('./browser-scenario-registry.mjs').then(({ browserScenarioById }) => (
+    browserScenarioById('auction').run({ args: { browserFullSweep: false }, season })
+  )).catch((error) => {
     console.error(error)
     process.exitCode = 1
   })

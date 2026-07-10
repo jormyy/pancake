@@ -1,8 +1,9 @@
-import { writeFile } from 'node:fs/promises'
+import { readFile, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
 import { createClient } from '@supabase/supabase-js'
 import { resolvedEnv, requireEnv } from './env.mjs'
+import { createScenarioResourceOwner } from './scenario-resource-owner.mjs'
 
 const ROOT = process.cwd()
 const REPORT_PATH = path.join(ROOT, 'tests/e2e-seed-report.md')
@@ -64,7 +65,7 @@ const seedPlayerFixtures = async (admin) => {
   return count ?? 0
 }
 
-const writeReport = async ({ runId, league, users, checks }) => {
+const writeReport = async ({ runId, league, users, checks, cleanupError = null }) => {
   const lines = [
     '# E2E Seed Report',
     '',
@@ -72,6 +73,7 @@ const writeReport = async ({ runId, league, users, checks }) => {
     `- League ID: ${league?.id ?? '<not-created>'}`,
     `- Invite Code: ${league?.invite_code ?? '<not-created>'}`,
     `- Users: ${users.length}`,
+    `- Cleanup: ${cleanupError ?? 'clean'}`,
     '',
     '## Checks',
     '',
@@ -80,6 +82,80 @@ const writeReport = async ({ runId, league, users, checks }) => {
     ...checks.map((check) => `| ${check.name} | ${check.status} | ${check.detail} |`),
   ]
   await writeFile(REPORT_PATH, `${lines.join('\n')}\n`)
+}
+
+const errorText = (error) => error instanceof AggregateError
+  ? `${error.message}: ${error.errors.map(errorText).join('; ')}`
+  : error instanceof Error ? error.message : String(error)
+
+const LEAGUE_MEMBER_DEPENDENT_TABLES = [
+  'bids',
+  'trades',
+  'drafts',
+  'draft_picks',
+  'matchups',
+  'roster_transactions',
+  'roster_players',
+  'rps_challenges',
+  'standings',
+  'waiver_claims',
+  'waiver_priorities',
+  'waiver_wire_log',
+  'weekly_lineups',
+]
+
+const deleteLeague = async (admin, leagueId, label) => {
+  const { error: terminalError } = await admin.from('trades')
+    .update({ status: 'vetoed', vetoed_at: new Date().toISOString() })
+    .eq('league_id', leagueId)
+    .eq('status', 'accepted')
+  const childFailures = []
+  for (const table of LEAGUE_MEMBER_DEPENDENT_TABLES) {
+    const { error } = await admin.from(table).delete().eq('league_id', leagueId)
+    if (error) childFailures.push(new Error(`${table}: ${error.message}`))
+  }
+  const { error: deleteError } = await admin.from('leagues').delete().eq('id', leagueId)
+  const failures = [
+    ...[terminalError, deleteError].filter(Boolean).map((error) => new Error(error.message)),
+    ...childFailures,
+  ]
+  if (failures.length > 0) throw new AggregateError(failures, `${label} league cleanup failed`)
+}
+
+const deleteUser = async (admin, userId, label) => {
+  const { error } = await admin.auth.admin.deleteUser(userId)
+  if (error && !/not found/i.test(error.message)) throw new Error(`${label} user cleanup ${userId}: ${error.message}`)
+}
+
+const readPreviousState = async (statePath) => {
+  try {
+    return JSON.parse(await readFile(statePath, 'utf8'))
+  } catch (error) {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') return null
+    throw error
+  }
+}
+
+export const cleanupPreviousSeed = async (admin, statePath = STATE_PATH) => {
+  const previous = await readPreviousState(statePath)
+  if (!previous) return
+  const failures = []
+  if (previous.leagueId) {
+    try {
+      await deleteLeague(admin, previous.leagueId, 'previous seed')
+    } catch (error) {
+      failures.push(error)
+    }
+  }
+  for (const user of previous.users ?? []) {
+    try {
+      await deleteUser(admin, user.id, 'previous seed')
+    } catch (error) {
+      failures.push(error)
+    }
+  }
+  if (failures.length > 0) throw new AggregateError(failures, 'Previous E2E seed cleanup failed')
+  await rm(statePath, { force: true })
 }
 
 const writeState = async ({ runId, league, users, password }) => {
@@ -122,9 +198,89 @@ const signInClient = async (env, email, password) => {
   return client
 }
 
+const seedLatencyFixtures = async (admin, leagueId, members) => {
+  const { data: season, error: seasonError } = await admin
+    .from('league_seasons')
+    .select('id')
+    .eq('league_id', leagueId)
+    .eq('is_current', true)
+    .single()
+  if (seasonError) throw new Error(`latency fixture season: ${seasonError.message}`)
+
+  const { error: matchupError } = await admin.from('matchups').insert({
+    league_id: leagueId,
+    league_season_id: season.id,
+    week_number: 1,
+    home_member_id: members[0].id,
+    away_member_id: members[1].id,
+    home_points: 0,
+    away_points: 0,
+  })
+  if (matchupError) throw new Error(`latency fixture matchup: ${matchupError.message}`)
+
+  const startedAt = new Date().toISOString()
+  const { data: drafts, error: draftError } = await admin
+    .from('drafts')
+    .insert([
+      {
+        league_id: leagueId,
+        league_season_id: season.id,
+        draft_type: 'auction',
+        status: 'in_progress',
+        budget_per_team: 200,
+        started_at: startedAt,
+      },
+      {
+        league_id: leagueId,
+        league_season_id: season.id,
+        draft_type: 'snake',
+        status: 'in_progress',
+        started_at: startedAt,
+      },
+    ])
+    .select('id, draft_type')
+  if (draftError) throw new Error(`latency fixture drafts: ${draftError.message}`)
+
+  const auctionDraft = drafts?.find((draft) => draft.draft_type === 'auction')
+  const rookieDraft = drafts?.find((draft) => draft.draft_type === 'snake')
+  if (!auctionDraft || !rookieDraft) throw new Error('latency fixture drafts were not returned')
+
+  const orderRows = [auctionDraft, rookieDraft].flatMap((draft) => members.map((member, index) => ({
+    draft_id: draft.id,
+    member_id: member.id,
+    position: index + 1,
+  })))
+  const budgetRows = members.map((member) => ({
+    draft_id: auctionDraft.id,
+    member_id: member.id,
+    initial_budget: 200,
+    remaining: 200,
+  }))
+  const pickRows = Array.from({ length: 3 }, (_, roundIndex) => {
+    const round = roundIndex + 1
+    const order = round % 2 === 0 ? [...members].reverse() : members
+    return order.map((member, index) => ({
+      draft_id: rookieDraft.id,
+      overall_pick: roundIndex * members.length + index + 1,
+      round,
+      pick_in_round: index + 1,
+      member_id: member.id,
+    }))
+  }).flat()
+  const [{ error: orderError }, { error: budgetError }, { error: pickError }] = await Promise.all([
+    admin.from('draft_orders').insert(orderRows),
+    admin.from('draft_budgets').insert(budgetRows),
+    admin.from('snake_draft_picks').insert(pickRows),
+  ])
+  if (orderError) throw new Error(`latency fixture draft orders: ${orderError.message}`)
+  if (budgetError) throw new Error(`latency fixture draft budgets: ${budgetError.message}`)
+  if (pickError) throw new Error(`latency fixture rookie picks: ${pickError.message}`)
+
+  return { matchups: 1, drafts: drafts.length, draftOrders: orderRows.length, rookiePicks: pickRows.length }
+}
+
 const main = async () => {
-  const env = resolvedEnv()
-  requireEnv(env, ['supabaseUrl', 'serviceRoleKey', 'anonKey'])
+  const env = requireEnv(resolvedEnv(), ['supabaseUrl', 'serviceRoleKey', 'anonKey'])
 
   const runId = process.env.E2E_SEED_RUN_ID ?? new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)
   const password = `Pancake-e2e-${runId}!`
@@ -140,13 +296,21 @@ const main = async () => {
   })
 
   const admin = createClient(env.supabaseUrl, env.serviceRoleKey, { auth: { persistSession: false } })
+  const resources = createScenarioResourceOwner(`E2E seed ${runId}`)
+  const resourceKeys = []
   const checks = []
   let league = null
+  let previousSeedCleaned = false
 
   try {
+    await cleanupPreviousSeed(admin)
+    previousSeedCleaned = true
     const createdUsers = []
     for (const user of users) {
       const authUser = await createConfirmedUser(admin, user)
+      const resourceKey = `user:${authUser.id}`
+      resources.registerOnce(resourceKey, `seed user ${authUser.id}`, () => deleteUser(admin, authUser.id, 'failed seed'))
+      resourceKeys.push(resourceKey)
       createdUsers.push({ ...user, id: authUser.id })
     }
 
@@ -173,6 +337,9 @@ const main = async () => {
     })
     if (createError) throw new Error(`create_league: ${createError.message}`)
     league = createdLeague
+    const leagueResourceKey = `league:${league.id}`
+    resources.registerOnce(leagueResourceKey, `seed league ${league.id}`, () => deleteLeague(admin, league.id, 'failed seed'))
+    resourceKeys.push(leagueResourceKey)
     checks.push({
       name: 'invite_code',
       status: /^[A-Z0-9]{16}$/.test(league?.invite_code ?? '') ? 'PASS' : 'FAIL',
@@ -197,6 +364,13 @@ const main = async () => {
       name: 'league_members',
       status: members?.length === 10 ? 'PASS' : 'FAIL',
       detail: `${members?.length ?? 0} rows`,
+    })
+
+    const latencyFixtures = await seedLatencyFixtures(admin, league.id, members)
+    checks.push({
+      name: 'ranked_workflow_latency_fixtures',
+      status: latencyFixtures.drafts === 2 && latencyFixtures.rookiePicks === 30 ? 'PASS' : 'FAIL',
+      detail: `${latencyFixtures.matchups} matchup, ${latencyFixtures.drafts} drafts, ${latencyFixtures.draftOrders} orders, ${latencyFixtures.rookiePicks} rookie picks`,
     })
 
     const seasonYear = currentSeasonYear()
@@ -233,19 +407,28 @@ const main = async () => {
     })
 
     const failures = checks.filter((check) => check.status !== 'PASS')
+    if (failures.length > 0) throw new Error(`Seed validation failed: ${failures.map((failure) => failure.name).join(', ')}`)
+    await writeState({ runId, league, users: createdUsers, password })
     await writeReport({ runId, league, users: createdUsers, checks })
-    if (failures.length === 0) {
-      await writeState({ runId, league, users: createdUsers, password })
-    }
-    if (failures.length > 0) process.exitCode = 1
+    for (const resourceKey of resourceKeys) resources.release(resourceKey)
   } catch (error) {
-    checks.push({ name: 'seed', status: 'ERROR', detail: error instanceof Error ? error.message : String(error) })
-    await writeReport({ runId, league, users, checks })
+    checks.push({ name: 'seed', status: 'ERROR', detail: errorText(error) })
+    let cleanupError = null
+    try {
+      await resources.dispose()
+    } catch (resourceError) {
+      cleanupError = resourceError
+    }
+    if (previousSeedCleaned) await rm(STATE_PATH, { force: true })
+    await writeReport({ runId, league, users, checks, cleanupError: cleanupError ? errorText(cleanupError) : null })
+    if (cleanupError) throw new AggregateError([error, cleanupError], 'E2E seed and rollback failed')
     throw error
   }
 }
 
-main().catch((error) => {
-  console.error(error)
-  process.exitCode = 1
-})
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main().catch((error) => {
+    console.error(error)
+    process.exitCode = 1
+  })
+}

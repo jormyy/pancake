@@ -1,3 +1,9 @@
+/**
+ * @param {(session: string, args: string[]) => Promise<unknown>} browser
+ * @param {string} session
+ * @param {{ frontendUrl: string; apiBaseUrl: string; supabaseUrl: string; anonKey: string }} env
+ * @param {{ openBeforeSet?: boolean; reloadAfterSet?: boolean; alerts?: boolean; confirm?: boolean }} [options]
+ */
 export const installRuntimeOverrides = async (browser, session, env, options = {}) => {
   const overrideUrl = new URL(env.frontendUrl)
   overrideUrl.searchParams.set('pancake_api_url', env.apiBaseUrl)
@@ -40,9 +46,38 @@ export const installRuntimeOverrides = async (browser, session, env, options = {
   }
 }
 
+/** @param {string} output */
 export const normalizeBrowserErrors = (output) => output
   .split(/\r?\n/)
   .map((line) => line.trim())
   .filter(Boolean)
   .filter((line) => !/^[\u2713\u2717\s]+$/.test(line))
   .join('\n')
+
+const consoleErrorPattern = /(?:^\[error\]|console\.error|uncaught|unhandled|hydration failed|hydrated but|server rendered html.*did not match)/i
+const allowedConsoleErrorPatterns = [
+  /favicon\.ico.*(?:404|not found)/i,
+]
+
+/** @param {{ consoleOutput: string; errorOutput: string; networkOutput?: string }} output */
+export const browserDiagnosticFailures = ({ consoleOutput, errorOutput, networkOutput = undefined }) => {
+  /** @type {string[]} */
+  const failures = []
+  for (const [label, output] of Object.entries({ console: consoleOutput, errors: errorOutput })) {
+    if (typeof output !== 'string' || output.includes(`${label} unavailable:`)) {
+      failures.push(`${label} diagnostics unavailable`)
+    }
+  }
+  if (networkOutput !== undefined && (typeof networkOutput !== 'string' || networkOutput.includes('network unavailable:'))) {
+    failures.push('network diagnostics unavailable')
+  }
+  const browserErrors = normalizeBrowserErrors(errorOutput)
+  if (browserErrors) failures.push(`browser errors: ${browserErrors}`)
+  const consoleErrors = consoleOutput
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => consoleErrorPattern.test(line))
+    .filter((line) => !allowedConsoleErrorPatterns.some((pattern) => pattern.test(line)))
+  if (consoleErrors.length > 0) failures.push(`console errors: ${consoleErrors.join(' | ')}`)
+  return failures
+}

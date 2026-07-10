@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { read } from './source-guard'
+import { read, readFunctionSource } from './source-guard'
 
 const manifest = JSON.parse(readFileSync(path.join(process.cwd(), 'tests/e2e/performance-budgets.json'), 'utf8'))
 
@@ -9,6 +9,7 @@ describe('instant-loading performance budget contract', () => {
     it('ranks exactly 10 workflows with budgets matching the instant-loading goal', () => {
         expect(manifest.version).toBe(1)
         expect(manifest.workflows).toHaveLength(10)
+        expect(manifest.globalBudgets.minHeartbeatSamples).toBe(10)
 
         const ranks = manifest.workflows.map((workflow: any) => workflow.rank).sort((a: number, b: number) => a - b)
         expect(ranks).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
@@ -77,7 +78,7 @@ describe('instant-loading performance budget contract', () => {
 
     it('never dresses plain points up as fantasy points', () => {
         const fpHonestyMigration = read('supabase/migrations/20260703000002_search_players_fp_no_pts_fallback.sql')
-        const canonicalSearch = read('supabase/sql/functions/dynasty-projections-search.sql')
+        const canonicalSearch = readFunctionSource('search_players')
         const searchItem = read('components/PlayerSearchItem.tsx')
 
         expect(fpHonestyMigration).not.toContain('COALESCE(fp.avg_fantasy_points, avg.avg_points)')
@@ -90,12 +91,22 @@ describe('instant-loading performance budget contract', () => {
         const readme = read('README.md')
         const e2eReadme = read('tests/e2e/README.md')
         const productionReadiness = read('tests/e2e/production-readiness.mjs')
+        const seedLeague = read('tests/e2e/seed-league.mjs')
+        const releaseWorkflow = read('.github/workflows/release-soak.yml')
+        const testWorkflow = read('.github/workflows/test.yml')
 
         expect(packageJson.scripts['perf:budget']).toBe('node tests/e2e/performance-budgets.mjs')
         expect(packageJson.scripts['e2e:data-latency']).toBe('node tests/e2e/data-latency-bench.mjs')
         expect(readme).toContain('npm run perf:budget')
         expect(e2eReadme).toContain('performance-budgets.json')
-        expect(productionReadiness).toContain("run('npm', ['run', 'perf:budget']")
+        expect(productionReadiness).not.toContain("run('npm', ['run', 'perf:budget']")
+        expect(seedLeague).toContain('seedLatencyFixtures')
+        expect(seedLeague).toContain("admin.from('matchups').insert")
+        expect(seedLeague).toContain("admin.from('snake_draft_picks').insert")
+        expect(releaseWorkflow).toContain('npm run e2e:data-latency')
+        expect(releaseWorkflow).toContain('npm run perf:budget -- --require-report --require-data-report --require-workflow-reports')
+        expect(releaseWorkflow).toContain('tests/snapshots/')
+        expect(testWorkflow).toContain('npm run perf:budget -- --require-report')
     })
 
     it('keeps major app screens free of generic skeleton loading surfaces', () => {

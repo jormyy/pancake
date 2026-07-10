@@ -1,4 +1,4 @@
-export type TradePerspectiveParticipant = {
+type TradePerspectiveParticipant = {
     memberId: string
     acceptedAt: string | null
 }
@@ -8,6 +8,38 @@ export type TradePerspectiveInput = {
     proposerMemberId: string
     recipientMemberId: string
     participants: TradePerspectiveParticipant[]
+}
+
+type RoutedTradeAsset = { fromMemberId: string; toMemberId: string }
+
+type TradeDisplayInput<Item extends RoutedTradeAsset> = Pick<
+    TradePerspectiveInput,
+    'proposerMemberId' | 'recipientMemberId' | 'participants'
+> & {
+    proposerTeamName: string
+    recipientTeamName: string
+    routedItems: Item[]
+}
+
+export function tradeDisplayPerspective<Item extends RoutedTradeAsset>(
+    trade: TradeDisplayInput<Item>,
+    memberId: string,
+) {
+    if (isTradeParticipant(trade, memberId)) {
+        return {
+            receives: trade.routedItems.filter((item) => item.toMemberId === memberId),
+            gives: trade.routedItems.filter((item) => item.fromMemberId === memberId),
+            receiveLabel: 'You receive:',
+            giveLabel: 'You give:',
+        }
+    }
+
+    return {
+        receives: trade.routedItems.filter((item) => item.toMemberId === trade.recipientMemberId),
+        gives: trade.routedItems.filter((item) => item.toMemberId === trade.proposerMemberId),
+        receiveLabel: `${trade.recipientTeamName} receives:`,
+        giveLabel: `${trade.proposerTeamName} receives:`,
+    }
 }
 
 export function tradeParticipantIds(
@@ -32,14 +64,14 @@ export function needsMemberAcceptance(
     trade: Pick<TradePerspectiveInput, 'status' | 'proposerMemberId' | 'recipientMemberId' | 'participants'>,
     memberId: string,
 ): boolean {
-    if (trade.status !== 'pending' || trade.proposerMemberId === memberId || !isTradeParticipant(trade, memberId)) {
+    if (trade.status !== 'pending' || !isTradeParticipant(trade, memberId)) {
         return false
     }
 
     const participant = trade.participants.find((row) => row.memberId === memberId)
     if (participant) return participant.acceptedAt == null
 
-    return trade.recipientMemberId === memberId
+    return trade.recipientMemberId === memberId && trade.proposerMemberId !== memberId
 }
 
 export function isIncomingTradeForMember(

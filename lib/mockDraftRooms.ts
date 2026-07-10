@@ -5,7 +5,7 @@ import type { Draft, NominationOrderMode, RookieTimerExpiryBehavior } from '@/li
 export type MockDraftRoomKind = 'auction' | 'snake'
 export type MockDraftRoomStatus = 'active' | 'scheduled' | 'live' | 'completed'
 
-export type MockDraftRoomParticipant = {
+type MockDraftRoomParticipant = {
     memberId: string
     teamName: string
     joinedAt: string
@@ -47,11 +47,11 @@ type RoomDraftRow = {
     nomination_order_mode: string | null
     timer_expiry_behavior: string | null
     created_by?: { team_name: string | null } | null
-    draft_room_members?: Array<{
+    draft_room_members?: {
         member_id: string
         joined_at: string
         league_members?: { team_name: string | null } | null
-    }>
+    }[]
 }
 
 export type CreateMockDraftRoomOptions = {

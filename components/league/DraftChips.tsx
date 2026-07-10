@@ -11,6 +11,13 @@ import {
 import type { MockDraftRoomKind } from '@/lib/mockDraftRooms'
 import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 import { nextRovingIndex } from '@/components/ui/rovingFocus'
+import {
+    DRAFT_TIMER_MAX_SECONDS,
+    DRAFT_TIMER_MIN_SECONDS,
+    normalizeDraftTimerSeconds,
+    type DraftTimerOption,
+    type RookieRoundOption,
+} from '@/lib/draft-options'
 
 type ChipValue = string | number
 export type ChipOption<T extends ChipValue> = {
@@ -27,16 +34,12 @@ type WebKeyDownProps = {
 
 const DRAFT_TIMER_OPTIONS = [15, 30] as const
 const ROOKIE_ROUND_OPTIONS = [2, 3] as const
-export type DraftTimerOption = number
-export type RookieRoundOption = (typeof ROOKIE_ROUND_OPTIONS)[number]
-export const DRAFT_TIMER_MIN_SECONDS = 5
-export const DRAFT_TIMER_MAX_SECONDS = 3600
 
 export const MOCK_ROOM_TYPE_CHIPS: readonly ChipOption<MockDraftRoomKind>[] = [
     { value: 'auction', label: 'Auction' },
     { value: 'snake', label: 'Rookie' },
 ]
-export const DRAFT_TIMER_CHIPS: readonly ChipOption<DraftTimerOption>[] =
+const DRAFT_TIMER_CHIPS: readonly ChipOption<DraftTimerOption>[] =
     DRAFT_TIMER_OPTIONS.map((value) => ({ value, label: `${value}s` }))
 export const ROOKIE_ROUND_CHIPS: readonly ChipOption<RookieRoundOption>[] =
     ROOKIE_ROUND_OPTIONS.map((value) => ({ value, label: String(value) }))
@@ -72,12 +75,6 @@ export type DraftControlProps = {
 
 function isDraftTimerPreset(value: DraftTimerOption) {
     return DRAFT_TIMER_OPTIONS.some((preset) => preset === value)
-}
-
-export function normalizeDraftTimerSeconds(value: number): DraftTimerOption {
-    if (!Number.isFinite(value)) return 30
-    const rounded = Math.floor(value)
-    return Math.min(DRAFT_TIMER_MAX_SECONDS, Math.max(DRAFT_TIMER_MIN_SECONDS, rounded))
 }
 
 function draftChipId(idBase: string, value: ChipValue) {
@@ -193,7 +190,7 @@ export function DraftChips<T extends ChipValue>({
     )
 }
 
-export const draftTimerChipLabel = (option: ChipOption<DraftTimerOption>) => `${option.value} seconds`
+const draftTimerChipLabel = (option: ChipOption<DraftTimerOption>) => `${option.value} seconds`
 export const rookieRoundChipLabel = (option: ChipOption<RookieRoundOption>) => `${option.value} rounds`
 export const mockRoomTypeChipLabel = (option: ChipOption<MockDraftRoomKind>) => `${option.label} room`
 

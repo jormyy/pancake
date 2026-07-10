@@ -2,6 +2,7 @@ import { createContext, createElement, ReactNode, useContext, useEffect, useMemo
 import { AppState, AppStateStatus } from 'react-native'
 import { Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
+import { clearPersistentCaches } from '@/lib/persistent-cache'
 
 type AuthContextValue = {
     session: Session | null
@@ -16,16 +17,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const [loading, setLoading] = useState(true)
 
     useEffect(() => {
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            setSession(session)
+        let active = true
+        let authEventSequence = 0
+        let cacheOwnerId: string | null = null
+
+        const commitSession = (nextSession: Session | null, forceCacheClear = false) => {
+            if (!active) return
+            const nextOwnerId = nextSession?.user.id ?? null
+            if (forceCacheClear || (cacheOwnerId !== null && cacheOwnerId !== nextOwnerId)) {
+                clearPersistentCaches()
+            }
+            cacheOwnerId = nextOwnerId
+            setSession(nextSession)
             setLoading(false)
-        })
+        }
 
         const {
             data: { subscription },
-        } = supabase.auth.onAuthStateChange((_event, session) => {
-            setSession(session)
+        } = supabase.auth.onAuthStateChange((event, session) => {
+            authEventSequence += 1
+            commitSession(session, event === 'SIGNED_OUT')
         })
+
+        const bootstrapSequence = authEventSequence
+        void supabase.auth.getSession()
+            .then(({ data: { session }, error }) => {
+                if (error) throw error
+                if (authEventSequence === bootstrapSequence) commitSession(session)
+            })
+            .catch((error) => {
+                if (!active || authEventSequence !== bootstrapSequence) return
+                console.error('Could not restore the authenticated session.', error)
+                commitSession(null)
+            })
 
         // Restart auto-refresh when the app returns from background so the
         // JWT is always valid when the user resumes the app.
@@ -38,6 +62,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         })
 
         return () => {
+            active = false
             subscription.unsubscribe()
             appStateSub.remove()
         }

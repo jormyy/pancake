@@ -1,21 +1,17 @@
 import { View, Text, StyleSheet } from 'react-native'
-import { useState } from 'react'
 import { useRouter } from 'expo-router'
-import { TRADE_STATUS_COLORS, colors, fontSize, fontWeight, radii, spacing, uiColors } from '@/constants/tokens'
-import { Trade, TradeItem, acceptTrade, needsMemberAcceptance, rejectTrade, vetoTrade, withdrawTrade } from '@/lib/trades'
-import { getRoster, RosterPlayer } from '@/lib/roster'
-import { DropPlayerPickerModal } from '@/components/DropPlayerPickerModal'
-import { showAlert, confirmAction, getErrorMessage } from '@/lib/alert'
+import { INJURY_COLORS, TRADE_STATUS_COLORS, colors, fontSize, fontWeight, radii, spacing, uiColors } from '@/constants/tokens'
+import { Trade, TradeItem, needsMemberAcceptance } from '@/lib/trades'
 import { MotionPressable, MotionView } from '@/components/Motion'
 import { Avatar } from '@/components/Avatar'
 import { playerHeadshotUrl } from '@/lib/format'
 import { playerEligiblePositions, playerSeasonContextText } from '@/lib/player-context'
 import { PosTag } from '@/components/PosTag'
 import { Badge } from '@/components/Badge'
-import { INJURY_COLORS } from '@/constants/tokens'
-
-export type TabKey = 'picks' | 'offers' | 'history' | 'block'
-type TradeVetoMode = 'disabled' | 'commissioner' | 'member_vote'
+import { MultiTeamTradeOverview, type TradeFlowItem } from '@/components/trades/MultiTeamTradeOverview'
+import { tradeDisplayPerspective } from '@/lib/trade-perspective'
+import type { TradeVetoMode } from '@/types/app'
+import type { TradeTabKey } from '@/lib/trade-ui-model'
 
 const STATUS_LABELS: Record<string, string> = {
     pending: 'Pending',
@@ -30,6 +26,12 @@ const STATUS_LABELS: Record<string, string> = {
 }
 
 const STATUS_COLORS = TRADE_STATUS_COLORS
+
+function tradeItemKey(item: TradeItem, index: number) {
+    if (item.kind === 'player') return `player:${item.playerId}:${index}`
+    if (item.kind === 'pick') return `pick:${item.pickId}:${index}`
+    return `faab:${item.fromMemberId ?? 'from'}:${item.toMemberId ?? 'to'}:${item.amount}:${index}`
+}
 
 function TradeItemLine({ item }: { item: TradeItem }) {
     if (item.kind === 'player') {
@@ -75,11 +77,6 @@ function TradeItemLine({ item }: { item: TradeItem }) {
 }
 
 function AssetList({ items, label }: { items: TradeItem[]; label: string }) {
-    const keyForItem = (item: TradeItem, index: number) => {
-        if (item.kind === 'player') return `player:${item.playerId}:${index}`
-        if (item.kind === 'pick') return `pick:${item.pickId}:${index}`
-        return `faab:${item.fromMemberId ?? 'from'}:${item.toMemberId ?? 'to'}:${item.amount}:${index}`
-    }
     return (
         <View style={styles.assetBlock}>
             <Text style={styles.assetLabel}>{label}</Text>
@@ -88,7 +85,7 @@ function AssetList({ items, label }: { items: TradeItem[]; label: string }) {
             ) : (
                 items.map((item, index) => (
                     <TradeItemLine
-                        key={keyForItem(item, index)}
+                        key={tradeItemKey(item, index)}
                         item={item}
                     />
                 ))
@@ -97,54 +94,76 @@ function AssetList({ items, label }: { items: TradeItem[]; label: string }) {
     )
 }
 
+function tradeFlowItem(item: TradeItem, index: number): TradeFlowItem | null {
+    if (!item.fromMemberId || !item.toMemberId) return null
+    if (item.kind === 'player') {
+        return {
+            key: tradeItemKey(item, index),
+            fromMemberId: item.fromMemberId,
+            toMemberId: item.toMemberId,
+            label: item.playerName,
+            detail: [item.nbaTeam, ...playerEligiblePositions(item)].filter(Boolean).join(' · '),
+        }
+    }
+    if (item.kind === 'pick') {
+        return {
+            key: tradeItemKey(item, index),
+            fromMemberId: item.fromMemberId,
+            toMemberId: item.toMemberId,
+            label: `${item.seasonYear} Round ${item.round}`,
+            detail: `${item.originalTeamName} pick`,
+        }
+    }
+    return {
+        key: tradeItemKey(item, index),
+        fromMemberId: item.fromMemberId,
+        toMemberId: item.toMemberId,
+        label: `$${item.amount} FAAB`,
+    }
+}
+
 export function TradeCard({
     trade,
     myMemberId,
-    leagueId,
-    rosterSize,
     tab,
     tradeVetoMode = 'member_vote',
     isCommissioner = false,
-    onAction,
+    acting,
+    onAccept,
+    onReject,
+    onVeto,
+    onWithdraw,
 }: {
     trade: Trade
     myMemberId: string
-    leagueId: string
-    rosterSize: number
-    tab: TabKey
+    tab: TradeTabKey
     tradeVetoMode?: TradeVetoMode
     isCommissioner?: boolean
-    onAction: () => void
+    acting: boolean
+    onAccept: () => void
+    onReject: () => void
+    onVeto: () => void
+    onWithdraw: () => void
 }) {
     const { push } = useRouter()
     const isProposer = trade.proposerMemberId === myMemberId
     const isRecipient = trade.recipientMemberId === myMemberId
-    const participants = trade.participants ?? []
+    const participants = trade.participants
     const isMultiParticipant = participants.some((participant) => participant.memberId === myMemberId)
     const isTradeParty = isProposer || isRecipient || isMultiParticipant
-    const participantNames = participants.map((participant) => participant.teamName).join(' / ')
-    const opponentName = trade.isMultiTeam && participantNames
-        ? participantNames
+    const opponentName = trade.isMultiTeam && participants.length > 0
+        ? `${participants.length}-team trade`
         : isProposer
         ? trade.recipientTeamName
         : isRecipient
             ? trade.proposerTeamName
             : `${trade.proposerTeamName} vs ${trade.recipientTeamName}`
 
-    const iReceive = trade.isMultiTeam
-        ? trade.routedItems.filter((item) => item.toMemberId === myMemberId)
-        : isProposer ? trade.recipientGives : trade.proposerGives
-    const iGive = trade.isMultiTeam
-        ? trade.routedItems.filter((item) => item.fromMemberId === myMemberId)
-        : isProposer ? trade.proposerGives : trade.recipientGives
-    const iReceiveFaab = trade.isMultiTeam ? 0 : isProposer ? trade.recipientFaabAmount : trade.proposerFaabAmount
-    const iGiveFaab = trade.isMultiTeam ? 0 : isProposer ? trade.proposerFaabAmount : trade.recipientFaabAmount
-    const receiveLabel = isTradeParty
-        ? 'You receive:'
-        : `${trade.recipientTeamName} receives:`
-    const giveLabel = isTradeParty
-        ? 'You give:'
-        : `${trade.proposerTeamName} receives:`
+    const perspective = tradeDisplayPerspective(trade, myMemberId)
+    const iReceive = perspective.receives
+    const iGive = perspective.gives
+    const receiveLabel = perspective.receiveLabel
+    const giveLabel = perspective.giveLabel
 
     const statusStyle = STATUS_COLORS[trade.status] ?? STATUS_COLORS.pending
     const canVetoBySettings =
@@ -153,6 +172,7 @@ export function TradeCard({
     const canVeto = tab === 'offers' && !isTradeParty && trade.status === 'accepted' && !trade.myVetoed && canVetoBySettings
     const alreadyVetoed = tab === 'offers' && !isTradeParty && trade.status === 'accepted' && trade.myVetoed && canVetoBySettings
     const canRespond = tab === 'offers' && needsMemberAcceptance(trade, myMemberId)
+    const canReject = canRespond && (!trade.isMultiTeam || !isProposer)
     const participantAcceptanceText = trade.isMultiTeam
         ? `${participants.filter((participant) => participant.acceptedAt != null).length}/${participants.length} teams accepted`
         : null
@@ -173,126 +193,6 @@ export function TradeCard({
         })}`
         : null
 
-    const [acting, setActing] = useState(false)
-    const [dropPickerVisible, setDropPickerVisible] = useState(false)
-    const [myRoster, setMyRoster] = useState<RosterPlayer[]>([])
-    const [droppedIds, setDroppedIds] = useState<Set<string>>(new Set())
-    const [neededDrops, setNeededDrops] = useState(0)
-    const [dropping, setDropping] = useState<string | null>(null)
-
-    async function handleAccept() {
-        setActing(true)
-        try {
-            const roster = await getRoster(myMemberId, leagueId)
-            const activeCount = roster.filter((p) => !p.is_on_ir && !p.is_on_taxi).length
-            const incomingPlayers = iReceive.filter((i) => i.kind === 'player').length
-            const outgoingPlayers = iGive.filter((i) => i.kind === 'player').length
-            const newCount = activeCount - outgoingPlayers + incomingPlayers
-            const overflow = newCount - rosterSize
-
-            if (overflow > 0) {
-                const outgoingPlayerIds = new Set(
-                    iGive.filter((item) => item.kind === 'player').map((item) => item.playerId),
-                )
-                const activeRoster = roster.filter(
-                    (player) =>
-                        !player.is_on_ir &&
-                        !player.is_on_taxi &&
-                        !outgoingPlayerIds.has(player.players?.id ?? ''),
-                )
-                setMyRoster(activeRoster)
-                setNeededDrops(overflow)
-                setDroppedIds(new Set())
-                setActing(false)
-                setDropPickerVisible(true)
-                return
-            }
-
-            await acceptTrade(trade.id, myMemberId)
-            onAction()
-        } catch (e) {
-            showAlert('Error', getErrorMessage(e) ?? 'Could not accept trade.')
-        } finally {
-            setActing(false)
-        }
-    }
-
-    async function handleDropAndAccept(rosterPlayerId: string) {
-        const next = new Set(droppedIds)
-        next.add(rosterPlayerId)
-        setDroppedIds(next)
-        setMyRoster((prev) => prev.filter((p) => p.id !== rosterPlayerId))
-
-        if (next.size < neededDrops) return
-
-        setDropping(rosterPlayerId)
-        try {
-            await acceptTrade(trade.id, myMemberId, [...next])
-            setDropPickerVisible(false)
-            onAction()
-        } catch (e) {
-            showAlert('Error', getErrorMessage(e) ?? 'Could not accept trade.')
-        } finally {
-            setDropping(null)
-        }
-    }
-
-    function handleCancelDropPicker() {
-        setDropPickerVisible(false)
-        setDroppedIds(new Set())
-        setMyRoster([])
-    }
-
-    function handleReject() {
-        confirmAction('Reject Trade', 'Are you sure you want to reject this trade?', () => {
-            void (async () => {
-                setActing(true)
-                try {
-                    await rejectTrade(trade.id, myMemberId)
-                    onAction()
-                } catch (e) {
-                    showAlert('Error', getErrorMessage(e) ?? 'Could not reject trade.')
-                } finally {
-                    setActing(false)
-                }
-            })()
-        }, 'Reject')
-    }
-
-    function handleWithdraw() {
-        confirmAction('Withdraw Trade', 'Are you sure you want to withdraw this offer?', () => {
-            void (async () => {
-                setActing(true)
-                try {
-                    await withdrawTrade(trade.id, myMemberId)
-                    onAction()
-                } catch (e) {
-                    showAlert('Error', getErrorMessage(e) ?? 'Could not withdraw trade.')
-                } finally {
-                    setActing(false)
-                }
-            })()
-        }, 'Withdraw')
-    }
-
-    function handleVeto() {
-        confirmAction('Veto Trade', 'Are you sure you want to veto this accepted trade?', () => {
-            void (async () => {
-                setActing(true)
-                try {
-                    await vetoTrade(trade.id, myMemberId)
-                    onAction()
-                } catch (e) {
-                    showAlert('Error', getErrorMessage(e) ?? 'Could not veto trade.')
-                } finally {
-                    setActing(false)
-                }
-            })()
-        }, 'Veto')
-    }
-
-    const remainingDrops = neededDrops - droppedIds.size
-
     return (
         <MotionView style={styles.card} preset="rise">
             <View style={styles.cardHeader}>
@@ -310,69 +210,70 @@ export function TradeCard({
             {participantAcceptanceText ? <Text style={styles.vetoWindowText}>{participantAcceptanceText}</Text> : null}
             {alreadyVetoed ? <Text style={styles.vetoWindowText}>Your veto has been recorded.</Text> : null}
 
-            <AssetList items={iReceive} label={receiveLabel} />
-            {iReceiveFaab > 0 ? <Text style={styles.assetPlayer}>FAAB ${iReceiveFaab}</Text> : null}
-            <AssetList items={iGive} label={giveLabel} />
-            {iGiveFaab > 0 ? <Text style={styles.assetPlayer}>FAAB ${iGiveFaab}</Text> : null}
-
-            {trade.notes ? <Text style={styles.cardNotes}>{trade.notes}</Text> : null}
-
             {canRespond && (
                 <View style={styles.cardActions}>
                     <MotionPressable
                         style={[styles.actionBtn, styles.actionBtnAccept]}
-                        onPress={handleAccept}
+                        onPress={onAccept}
                         disabled={acting}
                         accessibilityRole="button"
                         accessibilityLabel={`Accept trade with ${opponentName}`}
+                        testID={`trade-accept-${trade.id}`}
+                        id={`trade-accept-${trade.id}`}
                         pressedScale={0.94}
                     >
                         <Text style={styles.actionBtnAcceptText}>Accept</Text>
                     </MotionPressable>
-                    <MotionPressable
-                        style={[styles.actionBtn, styles.actionBtnReject]}
-                        onPress={handleReject}
-                        disabled={acting}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Reject trade with ${opponentName}`}
-                        pressedScale={0.94}
-                    >
-                        <Text style={styles.actionBtnRejectText}>Reject</Text>
-                    </MotionPressable>
-                    {!trade.isMultiTeam ? (
+                    {canReject ? (
                         <MotionPressable
                             style={[styles.actionBtn, styles.actionBtnReject]}
-                            onPress={() => push({ pathname: '/(modals)/propose-trade', params: { counterTradeId: trade.id } })}
+                            onPress={onReject}
                             disabled={acting}
                             accessibilityRole="button"
-                            accessibilityLabel={`Counter trade with ${opponentName}`}
+                            accessibilityLabel={`Reject trade with ${opponentName}`}
+                            testID={`trade-reject-${trade.id}`}
+                            id={`trade-reject-${trade.id}`}
                             pressedScale={0.94}
                         >
-                            <Text style={styles.actionBtnRejectText}>Counter</Text>
+                            <Text style={styles.actionBtnRejectText}>Reject</Text>
                         </MotionPressable>
                     ) : null}
+                    <MotionPressable
+                        style={[styles.actionBtn, styles.actionBtnReject]}
+                        onPress={() => push({ pathname: '/(modals)/propose-trade', params: { counterTradeId: trade.id } })}
+                        disabled={acting}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Counter trade with ${opponentName}`}
+                        testID={`trade-counter-${trade.id}`}
+                        id={`trade-counter-${trade.id}`}
+                        pressedScale={0.94}
+                    >
+                        <Text style={styles.actionBtnRejectText}>Counter</Text>
+                    </MotionPressable>
                 </View>
             )}
             {tab === 'offers' && isProposer && trade.status === 'pending' && (
                 <View style={styles.cardActions}>
-                    {!trade.isMultiTeam ? (
-                        <MotionPressable
-                            style={[styles.actionBtn, styles.actionBtnAccept]}
-                            onPress={() => push({ pathname: '/(modals)/propose-trade', params: { editTradeId: trade.id } })}
-                            disabled={acting}
-                            accessibilityRole="button"
-                            accessibilityLabel={`Edit trade with ${opponentName}`}
-                            pressedScale={0.94}
-                        >
-                            <Text style={styles.actionBtnAcceptText}>Edit</Text>
-                        </MotionPressable>
-                    ) : null}
+                    <MotionPressable
+                        style={[styles.actionBtn, styles.actionBtnAccept]}
+                        onPress={() => push({ pathname: '/(modals)/propose-trade', params: { editTradeId: trade.id } })}
+                        disabled={acting}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Edit trade with ${opponentName}`}
+                        testID={`trade-edit-${trade.id}`}
+                        id={`trade-edit-${trade.id}`}
+                        pressedScale={0.94}
+                    >
+                        <Text style={styles.actionBtnAcceptText}>Edit</Text>
+                    </MotionPressable>
                     <MotionPressable
                         style={[styles.actionBtn, styles.actionBtnReject]}
-                        onPress={handleWithdraw}
+                        onPress={onWithdraw}
                         disabled={acting}
                         accessibilityRole="button"
                         accessibilityLabel={`Withdraw trade with ${opponentName}`}
+                        testID={`trade-withdraw-${trade.id}`}
+                        id={`trade-withdraw-${trade.id}`}
                         pressedScale={0.94}
                     >
                         <Text style={styles.actionBtnRejectText}>Withdraw</Text>
@@ -383,10 +284,12 @@ export function TradeCard({
                 <View style={styles.cardActions}>
                     <MotionPressable
                         style={[styles.actionBtn, styles.actionBtnReject]}
-                        onPress={handleVeto}
+                        onPress={onVeto}
                         disabled={acting}
                         accessibilityRole="button"
                         accessibilityLabel={`Veto trade between ${trade.proposerTeamName} and ${trade.recipientTeamName}`}
+                        testID={`trade-veto-${trade.id}`}
+                        id={`trade-veto-${trade.id}`}
                         pressedScale={0.94}
                     >
                         <Text style={styles.actionBtnRejectText}>Veto</Text>
@@ -394,15 +297,26 @@ export function TradeCard({
                 </View>
             )}
 
-            <DropPlayerPickerModal
-                visible={dropPickerVisible}
-                title={`Drop ${remainingDrops} player${remainingDrops !== 1 ? 's' : ''} to make room`}
-                subtitle={`Select ${remainingDrops} player${remainingDrops !== 1 ? 's' : ''} to drop, then the trade will be accepted atomically.`}
-                roster={myRoster}
-                dropping={dropping}
-                onDrop={(rp) => handleDropAndAccept(rp.id)}
-                onCancel={handleCancelDropPicker}
-            />
+            {trade.isMultiTeam ? (
+                <MultiTeamTradeOverview
+                    compact
+                    participants={participants.map((participant) => ({
+                        memberId: participant.memberId,
+                        label: participant.memberId === myMemberId ? 'You' : participant.teamName,
+                        statusLabel: participant.acceptedAt ? 'Accepted' : 'Waiting',
+                        statusComplete: participant.acceptedAt != null,
+                    }))}
+                    items={trade.routedItems.flatMap((item, index) => tradeFlowItem(item, index) ?? [])}
+                />
+            ) : (
+                <>
+                    <AssetList items={iReceive} label={receiveLabel} />
+                    <AssetList items={iGive} label={giveLabel} />
+                </>
+            )}
+
+            {trade.notes ? <Text style={styles.cardNotes}>{trade.notes}</Text> : null}
+
         </MotionView>
     )
 }
@@ -414,7 +328,7 @@ const styles = StyleSheet.create({
         borderRadius: radii.xl,
         borderCurve: 'continuous' as const,
         padding: 14,
-        backgroundColor: colors.bgScreen,
+        backgroundColor: uiColors.surfaceAlt,
         gap: spacing.xs,
         marginHorizontal: spacing.xl,
         marginTop: spacing.md,
@@ -446,7 +360,6 @@ const styles = StyleSheet.create({
     assetPlayerContext: { fontSize: fontSize.xs, color: colors.primaryDark, fontWeight: fontWeight.bold, marginTop: 1 },
     assetPick: { fontSize: fontSize.sm, color: colors.textSecondary, fontStyle: 'italic' },
     assetPickVia: { fontSize: 12, color: colors.textMuted },
-
     vetoWindowText: { fontSize: 12, color: colors.textMuted, marginBottom: spacing.xs },
     cardNotes: { fontSize: 12, color: colors.textMuted, fontStyle: 'italic', marginTop: spacing.xxs },
 
@@ -460,6 +373,7 @@ const styles = StyleSheet.create({
     },
     actionBtn: {
         flex: 1,
+        minHeight: 44,
         paddingVertical: 9,
         borderRadius: radii.md,
         borderCurve: 'continuous' as const,

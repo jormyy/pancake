@@ -27,7 +27,10 @@
         "npm:@react-navigation/native@^7.1.8",
         "npm:@shopify/flash-list@2.0.2",
         "npm:@supabase/supabase-js@^2.98.0",
+        "npm:@types/node@24",
+        "npm:@types/react-test-renderer@^19.1.0",
         "npm:@types/react@19.1",
+        "npm:agent-browser@~0.25.4",
         "npm:cheerio@^1.2.0",
         "npm:eslint-config-expo@10.0",
         "npm:eslint@^9.25.0",
@@ -57,10 +60,10 @@
         "npm:react-native-web@0.21",
         "npm:react-native-worklets@0.5.1",
         "npm:react-native@0.81.5",
+        "npm:react-test-renderer@^19.1.0",
         "npm:react@19.1.0",
         "npm:typescript@~5.9.2",
-        "npm:vitest@^4.1.9",
-        "npm:ws@^8.20.0"
+        "npm:vitest@^4.1.9"
       ],
       "overrides": {
         "@xmldom/xmldom": "0.8.13",

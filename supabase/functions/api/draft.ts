@@ -506,7 +506,7 @@ async function processExpiredSnakePick(draftId: string, memberId: string): Promi
   }
 }
 
-async function requireDraftLeagueMember(userId: string, draftId: string): Promise<void> {
+async function requireDraftLeagueMember(userId: string, draftId: string): Promise<string> {
   const { data: draft, error: draftError } = await supabase
     .from('drafts')
     .select('league_id')
@@ -523,6 +523,7 @@ async function requireDraftLeagueMember(userId: string, draftId: string): Promis
     .maybeSingle()
   if (membershipError) throwDb(membershipError)
   if (!membership) throw new NotFoundError('Draft not found')
+  return membership.id
 }
 
 async function activateRookieDraftLeague(draftId: string, userId: string): Promise<{ activated: boolean }> {
@@ -694,7 +695,7 @@ export async function handleDraftRoute(req: Request, path: string): Promise<Resp
   }
 
   if (action.action === 'pause-for-absence') {
-    await requireDraftLeagueMember(userId, draftId)
+    await requireCommissionerForDraft(userId, draftId)
     const { error } = await supabase.rpc('pause_draft_for_absence_atomic', {
       p_draft_id: draftId,
       p_actor_user_id: userId,
@@ -704,13 +705,13 @@ export async function handleDraftRoute(req: Request, path: string): Promise<Resp
   }
 
   if (action.action === 'resume-if-absent') {
-    await requireDraftLeagueMember(userId, draftId)
+    await requireCommissionerForDraft(userId, draftId)
     const { error } = await supabase.rpc('resume_draft_if_absent_atomic', {
       p_draft_id: draftId,
       p_actor_user_id: userId,
     })
     if (error) throwDb(error)
-    return json({ ok: true })
+    return json({ ok: true, resumed: true })
   }
 
   return null

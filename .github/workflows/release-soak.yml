@@ -1,0 +1,304 @@
+name: Release soak
+
+on:
+  workflow_call:
+    inputs:
+      release_sha:
+        description: Full main-branch Git SHA to soak
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      release_sha:
+        description: Full main-branch Git SHA to soak
+        required: true
+        type: string
+  schedule:
+    - cron: '17 9 * * 1'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-soak-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release-soak:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    environment: production
+    env:
+      E2E_RELEASE_SHA: ${{ inputs.release_sha || github.sha }}
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+      E2E_PRODUCTION_SUPABASE_REF: ceeytbfmwsnzalxlkalc
+      EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+      EXPO_PUBLIC_API_URL: ${{ secrets.PANCAKE_API_URL }}
+      E2E_PRODUCTION_FRONTEND_URL: ${{ secrets.PANCAKE_FRONTEND_URL }}
+      E2E_EXPECTED_FRONTEND_HOST: ${{ secrets.PANCAKE_PRODUCTION_FRONTEND_HOST }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ inputs.release_sha || github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: supabase/setup-cli@ab058987d8d6c725971f6cf9d0b5c98467e30bd1 # v1.7.1
+        with:
+          version: 2.109.1
+      - run: npm ci
+      - name: Resolve deployed production baseline
+        shell: bash
+        run: |
+          [[ "$E2E_RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$E2E_RELEASE_SHA"
+          git merge-base --is-ancestor HEAD origin/main
+          for name in SUPABASE_ACCESS_TOKEN SUPABASE_DB_PASSWORD SUPABASE_PROJECT_REF \
+            EXPO_PUBLIC_SUPABASE_URL EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY EXPO_PUBLIC_API_URL \
+            E2E_PRODUCTION_FRONTEND_URL E2E_EXPECTED_FRONTEND_HOST; do
+            test -n "${!name:-}" || { echo "Missing protected release-soak credential: $name"; exit 1; }
+          done
+          node tests/e2e/validate-production-target.mjs
+          node -e '
+            const [value, expected] = process.argv.slice(1)
+            const url = new URL(value)
+            if (url.protocol !== "https:" || url.hostname !== expected) process.exit(1)
+          ' "$E2E_PRODUCTION_FRONTEND_URL" "$E2E_EXPECTED_FRONTEND_HOST"
+          supabase link --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
+          supabase db query --linked -o json \
+            'select version::text, name::text from supabase_migrations.schema_migrations order by version' \
+            > /tmp/deployed-schema-history.json
+          node tests/e2e/release-baseline-provenance.mjs > /tmp/deployed-release.json
+          deployed_frontend_sha="$(node -e 'process.stdout.write(require("/tmp/deployed-release.json").frontend.commitSha)')"
+          deployed_frontend_digest="$(node -e 'process.stdout.write(require("/tmp/deployed-release.json").frontend.bundleDigest)')"
+          deployed_edge_sha="$(node -e 'process.stdout.write(require("/tmp/deployed-release.json").edge.commitSha)')"
+          deployed_edge_digest="$(node -e 'process.stdout.write(require("/tmp/deployed-release.json").edge.edgeArtifactDigest)')"
+          for deployed_sha in "$deployed_frontend_sha" "$deployed_edge_sha"; do
+            git cat-file -e "$deployed_sha^{commit}"
+            git merge-base --is-ancestor "$deployed_sha" "$E2E_RELEASE_SHA"
+          done
+          printf 'E2E_DEPLOYED_FRONTEND_SHA=%s\n' "$deployed_frontend_sha" >> "$GITHUB_ENV"
+          printf 'E2E_DEPLOYED_FRONTEND_DIGEST=%s\n' "$deployed_frontend_digest" >> "$GITHUB_ENV"
+          printf 'E2E_DEPLOYED_EDGE_SHA=%s\n' "$deployed_edge_sha" >> "$GITHUB_ENV"
+          printf 'E2E_DEPLOYED_EDGE_DIGEST=%s\n' "$deployed_edge_digest" >> "$GITHUB_ENV"
+      - name: Start release stack
+        shell: bash
+        run: |
+          mapfile -t migration_names < <(find supabase/migrations -maxdepth 1 -name '*.sql' -exec basename {} \; | sort)
+          plan="$(node tests/e2e/release-soak-migration-plan.mjs --history-file /tmp/deployed-schema-history.json "${migration_names[@]}")"
+          deployed_schema_version="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).deployedVersion)' "$plan")"
+          mapfile -t pending_names < <(node -e 'for (const value of JSON.parse(process.argv[1]).pendingFiles) console.log(value)' "$plan")
+          pending_versions="$(node -e 'process.stdout.write(JSON.stringify(JSON.parse(process.argv[1]).pendingVersions))' "$plan")"
+          repository_head="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).repositoryHead)' "$plan")"
+          printf 'E2E_DEPLOYED_SCHEMA_VERSION=%s\n' "$deployed_schema_version" >> "$GITHUB_ENV"
+          mkdir -p /tmp/pancake-pending-migrations
+          restore_pending() {
+            for name in "${pending_names[@]}"; do
+              test ! -f "/tmp/pancake-pending-migrations/$name" || mv "/tmp/pancake-pending-migrations/$name" "supabase/migrations/$name"
+            done
+          }
+          for name in "${pending_names[@]}"; do
+            mv "supabase/migrations/$name" "/tmp/pancake-pending-migrations/$name"
+          done
+          trap restore_pending EXIT
+          supabase start
+          restore_pending
+          trap - EXIT
+          source <(supabase status -o env)
+          export EXPO_PUBLIC_SUPABASE_URL="$API_URL"
+          export EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$PUBLISHABLE_KEY"
+          export EXPO_PUBLIC_API_URL="$API_URL/functions/v1/api"
+          mkdir -p tests/artifacts/stack
+          printf 'E2E_SUPABASE_URL=%s\n' "$API_URL" >> "$GITHUB_ENV"
+          printf 'E2E_PANCAKE_SUPABASE_SECRET_KEY=%s\n' "$SECRET_KEY" >> "$GITHUB_ENV"
+          printf 'E2E_SUPABASE_PUBLISHABLE_KEY=%s\n' "$PUBLISHABLE_KEY" >> "$GITHUB_ENV"
+          printf 'SUPABASE_DB_URL=%s\n' "$DB_URL" >> "$GITHUB_ENV"
+          printf 'E2E_API_BASE_URL=%s/functions/v1/api\n' "$API_URL" >> "$GITHUB_ENV"
+          printf 'E2E_FRONTEND_URL=http://127.0.0.1:8082\n' >> "$GITHUB_ENV"
+          printf 'E2E_ADMIN_SECRET=local-release-soak-secret\n' >> "$GITHUB_ENV"
+          printf 'E2E_MIDLIFE_EXPECTED_VERSION=%s\n' "$repository_head" >> "$GITHUB_ENV"
+          printf 'E2E_MIDLIFE_EXPECTED_BASE_VERSION=%s\n' "$deployed_schema_version" >> "$GITHUB_ENV"
+          printf 'E2E_MIDLIFE_EXPECTED_VERSIONS=%s\n' "$pending_versions" >> "$GITHUB_ENV"
+          printf 'E2E_ENABLE_MIDLIFE_MIGRATION=1\n' >> "$GITHUB_ENV"
+          printf 'FAKE_UPSTREAM_PORT=4555\n' >> "$GITHUB_ENV"
+          cat > /tmp/pancake-edge.env <<'EOF'
+          E2E_ADMIN_SECRET=local-release-soak-secret
+          NBA_CDN_BASE_URL=http://127.0.0.1:4555/static/json
+          SLEEPER_BASE_URL=http://127.0.0.1:4555/v1
+          EXPO_PUSH_URL=http://127.0.0.1:4555/--/api/v2/push/send
+          EOF
+          candidate_edge="$(PANCAKE_RELEASE_SHA="$E2E_RELEASE_SHA" node scripts/stamp-edge-release-provenance.mjs)"
+          candidate_edge_digest="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).edgeArtifactDigest)' "$candidate_edge")"
+          printf 'E2E_CANDIDATE_EDGE_DIGEST=%s\n' "$candidate_edge_digest" >> "$GITHUB_ENV"
+          supabase functions serve --env-file /tmp/pancake-edge.env > tests/artifacts/stack/edge.log 2>&1 &
+          echo "$!" > /tmp/pancake-edge.pid
+          PANCAKE_RELEASE_SHA="$E2E_RELEASE_SHA" \
+            EXPO_UNSTABLE_METRO_OPTIMIZE_GRAPH=1 \
+            npm run build:web:release > tests/artifacts/stack/web-build.log 2>&1
+          test "$(node -e "process.stdout.write(require('./dist/release-provenance.json').commitSha)")" = "$E2E_RELEASE_SHA"
+          candidate_frontend_digest="$(node -e "process.stdout.write(require('./dist/release-provenance.json').bundleDigest)")"
+          printf 'E2E_CANDIDATE_FRONTEND_DIGEST=%s\n' "$candidate_frontend_digest" >> "$GITHUB_ENV"
+          node tests/e2e/static-web-server.mjs --root=dist --port=8082 > tests/artifacts/stack/web.log 2>&1 &
+          for attempt in {1..60}; do
+            health="$(curl --fail --silent "$API_URL/functions/v1/api/health" 2>/dev/null || true)"
+            if curl --fail --silent http://127.0.0.1:8082 >/dev/null && node -e '
+              const health = JSON.parse(process.argv[1])
+              process.exit(health.commitSha === process.argv[2] && health.edgeArtifactDigest === process.argv[3] ? 0 : 1)
+            ' "$health" "$E2E_RELEASE_SHA" "$candidate_edge_digest" 2>/dev/null; then
+              npm run e2e:web-hydration
+              exit 0
+            fi
+            sleep 2
+          done
+          cat tests/artifacts/stack/web.log
+          cat tests/artifacts/stack/edge.log
+          exit 1
+      - name: Seed release fixture
+        run: npm run e2e:seed
+      - name: Run coverage-enforcing soak
+        run: npm run e2e:soak:release
+      - name: Verify cross-version runtime compatibility against upgraded schema
+        shell: bash
+        run: |
+          set -o pipefail
+          deployed_frontend_worktree=/tmp/pancake-deployed-frontend
+          deployed_edge_worktree=/tmp/pancake-deployed-edge
+          stop_edge() {
+            if test -f /tmp/pancake-edge.pid; then
+              kill "$(cat /tmp/pancake-edge.pid)" 2>/dev/null || true
+              wait "$(cat /tmp/pancake-edge.pid)" 2>/dev/null || true
+              rm -f /tmp/pancake-edge.pid
+            fi
+          }
+          stop_deployed_frontend() {
+            if test -f /tmp/pancake-deployed-frontend.pid; then
+              kill "$(cat /tmp/pancake-deployed-frontend.pid)" 2>/dev/null || true
+              wait "$(cat /tmp/pancake-deployed-frontend.pid)" 2>/dev/null || true
+              rm -f /tmp/pancake-deployed-frontend.pid
+            fi
+          }
+          cleanup() {
+            stop_edge
+            stop_deployed_frontend
+            git worktree remove --force "$deployed_frontend_worktree" 2>/dev/null || true
+            git worktree remove --force "$deployed_edge_worktree" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+          git worktree add --detach "$deployed_frontend_worktree" "$E2E_DEPLOYED_FRONTEND_SHA"
+          git worktree add --detach "$deployed_edge_worktree" "$E2E_DEPLOYED_EDGE_SHA"
+          npm ci --prefix "$deployed_frontend_worktree"
+          (
+            cd "$deployed_frontend_worktree"
+            PANCAKE_RELEASE_SHA="$E2E_DEPLOYED_FRONTEND_SHA" \
+              EXPO_PUBLIC_SUPABASE_URL="$EXPO_PUBLIC_SUPABASE_URL" \
+              EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY" \
+              EXPO_PUBLIC_API_URL="$EXPO_PUBLIC_API_URL" \
+              EXPO_UNSTABLE_METRO_OPTIMIZE_GRAPH=1 \
+              npm run build:web:release
+            marker_sha="$(node -e "process.stdout.write(require('./dist/release-provenance.json').commitSha)")"
+            marker_digest="$(node -e "process.stdout.write(require('./dist/release-provenance.json').bundleDigest)")"
+            test "$marker_sha" = "$E2E_DEPLOYED_FRONTEND_SHA"
+            test "$marker_digest" = "$E2E_DEPLOYED_FRONTEND_DIGEST"
+            PANCAKE_RELEASE_SHA="$E2E_DEPLOYED_FRONTEND_SHA" \
+              EXPO_PUBLIC_SUPABASE_URL="$E2E_SUPABASE_URL" \
+              EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$E2E_SUPABASE_PUBLISHABLE_KEY" \
+              EXPO_PUBLIC_API_URL="$E2E_API_BASE_URL" \
+              EXPO_UNSTABLE_METRO_OPTIMIZE_GRAPH=1 \
+              npm run build:web:release
+          ) > tests/artifacts/stack/deployed-frontend-build.log 2>&1
+          export E2E_DEPLOYED_FRONTEND_COMPATIBILITY_DIGEST="$(
+            node -e "process.stdout.write(require('$deployed_frontend_worktree/dist/release-provenance.json').bundleDigest)"
+          )"
+          node tests/e2e/static-web-server.mjs \
+            --root="$deployed_frontend_worktree/dist" --port=8083 \
+            > tests/artifacts/stack/deployed-frontend-web.log 2>&1 &
+          echo "$!" > /tmp/pancake-deployed-frontend.pid
+          for attempt in {1..60}; do
+            curl --fail --silent http://127.0.0.1:8083 >/dev/null && break
+            test "$attempt" -lt 60 || exit 1
+            sleep 1
+          done
+
+          E2E_FRONTEND_URL=http://127.0.0.1:8083 \
+            E2E_COMPAT_FRONTEND_SHA="$E2E_DEPLOYED_FRONTEND_SHA" \
+            E2E_COMPAT_FRONTEND_DIGEST="$E2E_DEPLOYED_FRONTEND_COMPATIBILITY_DIGEST" \
+            E2E_COMPAT_EDGE_SHA="$E2E_RELEASE_SHA" \
+            E2E_COMPAT_EDGE_DIGEST="$E2E_CANDIDATE_EDGE_DIGEST" \
+            node tests/e2e/release-mutation-compatibility.mjs \
+              --pair=deployed-frontend-candidate-edge
+
+          stop_edge
+          (
+            cd "$deployed_edge_worktree"
+            stamped="$(PANCAKE_RELEASE_SHA="$E2E_DEPLOYED_EDGE_SHA" node scripts/stamp-edge-release-provenance.mjs)"
+            test "$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).edgeArtifactDigest)' "$stamped")" = \
+              "$E2E_DEPLOYED_EDGE_DIGEST"
+            supabase functions serve --env-file /tmp/pancake-edge.env
+          ) > tests/artifacts/stack/deployed-edge.log 2>&1 &
+          echo "$!" > /tmp/pancake-edge.pid
+          for attempt in {1..60}; do
+            health="$(curl --fail --silent "$E2E_API_BASE_URL/health" 2>/dev/null || true)"
+            if node -e '
+              const health = JSON.parse(process.argv[1])
+              process.exit(health.commitSha === process.argv[2] && health.edgeArtifactDigest === process.argv[3] ? 0 : 1)
+            ' "$health" "$E2E_DEPLOYED_EDGE_SHA" "$E2E_DEPLOYED_EDGE_DIGEST" 2>/dev/null; then
+              break
+            fi
+            test "$attempt" -lt 60 || exit 1
+            sleep 2
+          done
+          E2E_FRONTEND_URL=http://127.0.0.1:8083 \
+            E2E_COMPAT_FRONTEND_SHA="$E2E_DEPLOYED_FRONTEND_SHA" \
+            E2E_COMPAT_FRONTEND_DIGEST="$E2E_DEPLOYED_FRONTEND_COMPATIBILITY_DIGEST" \
+            E2E_COMPAT_EDGE_SHA="$E2E_DEPLOYED_EDGE_SHA" \
+            E2E_COMPAT_EDGE_DIGEST="$E2E_DEPLOYED_EDGE_DIGEST" \
+            node tests/e2e/release-mutation-compatibility.mjs \
+              --pair=deployed-frontend-deployed-edge
+
+          E2E_FRONTEND_URL=http://127.0.0.1:8082 \
+            E2E_COMPAT_FRONTEND_SHA="$E2E_RELEASE_SHA" \
+            E2E_COMPAT_FRONTEND_DIGEST="$E2E_CANDIDATE_FRONTEND_DIGEST" \
+            E2E_COMPAT_EDGE_SHA="$E2E_DEPLOYED_EDGE_SHA" \
+            E2E_COMPAT_EDGE_DIGEST="$E2E_DEPLOYED_EDGE_DIGEST" \
+            node tests/e2e/release-mutation-compatibility.mjs \
+              --pair=candidate-frontend-deployed-edge
+
+          node tests/e2e/release-runtime-compatibility.mjs \
+            tests/artifacts/compatibility/deployed-frontend-candidate-edge/mutation-compatibility.json \
+            tests/artifacts/compatibility/deployed-frontend-deployed-edge/mutation-compatibility.json \
+            tests/artifacts/compatibility/candidate-frontend-deployed-edge/mutation-compatibility.json
+
+          stop_edge
+          stop_deployed_frontend
+          git worktree remove --force "$deployed_frontend_worktree"
+          git worktree remove --force "$deployed_edge_worktree"
+          trap - EXIT
+          supabase functions serve --env-file /tmp/pancake-edge.env \
+            > tests/artifacts/stack/edge-restored.log 2>&1 &
+          echo "$!" > /tmp/pancake-edge.pid
+      - name: Measure post-migration ranked workflow data latency
+        run: npm run e2e:data-latency
+      - name: Enforce browser and data performance budgets
+        run: npm run perf:budget -- --require-report --require-data-report --require-workflow-reports --require-season-reports=20
+      - name: Retain soak evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-soak-evidence
+          path: |
+            tests/e2e-report.md
+            tests/e2e-coverage.md
+            tests/e2e-browser-*-report.md
+            tests/e2e-browser-*-report.json
+            tests/e2e-data-latency-report.md
+            tests/e2e-seed-report.md
+            tests/performance-budget-report.md
+            tests/artifacts/
+            tests/snapshots/
+          if-no-files-found: error
+          retention-days: 30

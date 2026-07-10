@@ -24,51 +24,14 @@ import {
 
 const MIGRATIONS = path.resolve(__dirname, '../supabase/migrations')
 
-const SERVICE_ROLE_ONLY_RPCS = [
-    'propose_trade_atomic',
-    'accept_trade_atomic',
-    'reject_trade_atomic',
-    'withdraw_trade_atomic',
-    'complete_accepted_trade_atomic',
-    'veto_trade_atomic',
-    'expire_trade_completion_failure_atomic',
-    'process_due_accepted_trades_atomic',
-    'add_trade_block_item_atomic',
-    'remove_trade_block_item_atomic',
-    'create_waiver_claim_atomic',
-    'cancel_waiver_claim_atomic',
-    'process_next_waiver_claim_atomic',
-    'process_due_waiver_claims_atomic',
-    'create_auction_nomination_atomic',
-    'start_auction_draft_atomic',
-    'place_auction_bid_atomic',
-    'close_auction_nomination_atomic',
-    'close_expired_auction_nominations_atomic',
-    'process_expired_snake_picks_atomic',
-    'process_expired_snake_pick_atomic',
-    'withdraw_auction_nomination_atomic',
-    'make_snake_pick_atomic',
-    'auto_pick_snake_pick_atomic',
-    'commissioner_snake_pick_atomic',
-    'start_rookie_draft_atomic',
-    'reseed_rookie_draft_picks_atomic',
-    'advance_season_atomic',
-    'toggle_ir_atomic',
-    'toggle_taxi_atomic',
-    'expire_waiver_wire_logs',
-    'clear_ineligible_taxi_players',
-    'replace_regular_season_matchups_atomic',
-    'generate_playoff_bracket_atomic',
-    'advance_playoff_bracket_atomic',
-    'try_live_poll_lease',
-    'release_live_poll_lease',
-    'invoke_edge_function',
-    'invoke_edge_function_at_et_time',
-    'invoke_projection_sync_if_due',
-    'merge_players',
-    'merge_duplicate_players',
-    'count_final_games_missing_stats',
-]
+const ANON_SELECT_TABLE_ALLOWLIST = new Set([
+    'dynasty_news',
+    'dynasty_rankings',
+    'nba_games',
+    'player_game_stats',
+    'players',
+    'season_weeks',
+])
 
 const allMigrationSql = (): string =>
     readdirSync(MIGRATIONS)
@@ -77,43 +40,22 @@ const allMigrationSql = (): string =>
         .map((f) => readFileSync(path.join(MIGRATIONS, f), 'utf8'))
         .join('\n')
 
+function finalAnonSelectTables(sql: string): string[] {
+    const selectedTables = new Set<string>()
+    const statementPattern = /\b(GRANT|REVOKE)\s+SELECT\s+ON\s+TABLE\s+(?:"public"\."([^"]+)"|public\.([a-z_][a-z0-9_]*))\s+(TO|FROM)\s+([^;]+);/gi
+    for (const match of sql.matchAll(statementPattern)) {
+        const action = match[1].toUpperCase()
+        const table = match[2] ?? match[3]
+        const roles = match[5].toLowerCase()
+        if (!/\banon\b/.test(roles)) continue
+        if (action === 'GRANT') selectedTables.add(table)
+        else selectedTables.delete(table)
+    }
+    return [...selectedTables].sort()
+}
+
 describe('service-role-only RPCs are never granted to client roles', () => {
     const sql = allMigrationSql()
-
-    it.each(SERVICE_ROLE_ONLY_RPCS)('%s is not GRANTed EXECUTE to authenticated/anon', (fn) => {
-        const grants = [
-            ...sql.matchAll(
-                new RegExp(`GRANT\\s+EXECUTE\\s+ON\\s+FUNCTION\\s+(?:public\\.)?${fn}\\s*\\([^)]*\\)\\s+TO\\s+([^;]+);`, 'gi'),
-            ),
-        ]
-        for (const match of grants) {
-            const grantees = match[1].toLowerCase()
-            expect(grantees, `${fn} granted to a client role: "${match[1].trim()}"`).not.toMatch(
-                /\b(authenticated|anon|public)\b/,
-            )
-        }
-    })
-
-    it('every service-role-only RPC is explicitly granted to service_role somewhere', () => {
-        for (const fn of SERVICE_ROLE_ONLY_RPCS) {
-            const granted = new RegExp(
-                `GRANT\\s+EXECUTE\\s+ON\\s+FUNCTION\\s+(?:public\\.)?${fn}\\s*\\([^)]*\\)\\s+TO\\s+[^;]*\\bservice_role\\b`,
-                'i',
-            ).test(sql)
-            expect(granted, `${fn} is never granted to service_role`).toBe(true)
-        }
-    })
-
-    // CREATE FUNCTION grants EXECUTE to PUBLIC by default, and PostgREST exposes
-    // any public function with EXECUTE as an RPC to anon/authenticated. A
-    // service_role grant does NOT remove PUBLIC — only an explicit REVOKE does.
-    it.each(SERVICE_ROLE_ONLY_RPCS)('%s has its default PUBLIC EXECUTE revoked', (fn) => {
-        const revokedFromPublic = new RegExp(
-            `REVOKE\\s+[^;]*\\bON\\s+FUNCTION\\s+(?:public\\.)?${fn}\\s*\\([^)]*\\)\\s+FROM\\s+[^;]*\\bPUBLIC\\b`,
-            'i',
-        ).test(sql)
-        expect(revokedFromPublic, `${fn} never REVOKEs default EXECUTE FROM PUBLIC — still client-callable`).toBe(true)
-    })
 
     it('no migration grants EXECUTE to client roles via a blanket / default-privilege statement', () => {
         // e.g. GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO authenticated;
@@ -158,6 +100,25 @@ describe('trusted server table grants', () => {
             /GRANT\s+SELECT\s+ON\s+ALL\s+TABLES\s+IN\s+SCHEMA\s+public\s+TO\s+[^;]*\b(?:anon|authenticated|public)\b/i,
         )
     })
+
+    it('keeps anon table reads limited to public reference data', () => {
+        const finalAnonTables = finalAnonSelectTables(sql)
+
+        expect(finalAnonTables).toEqual([...ANON_SELECT_TABLE_ALLOWLIST].sort())
+    })
+})
+
+describe('storage policy restoration', () => {
+    const sql = allMigrationSql()
+
+    it.each(['avatars_read_public', 'avatars_insert_own', 'avatars_update_own', 'avatars_delete_own'])(
+        'restores %s after the remote snapshot',
+        (policy) => {
+            expect(sql.lastIndexOf(`CREATE POLICY "${policy}" ON storage.objects`)).toBeGreaterThan(
+                sql.lastIndexOf(`drop policy "${policy}" on "storage"."objects"`),
+            )
+        },
+    )
 })
 
 describe('waiver privacy policies', () => {
@@ -205,10 +166,13 @@ describe('profile privacy and invite capacity policies', () => {
         expect(profilePrivileges).toContain('GRANT SELECT (')
         expect(profilePrivileges).toContain('updated_at')
         expect(profilePrivileges).toContain('REVOKE SELECT (push_token) ON public.profiles FROM anon, authenticated')
+        expect(profilePrivileges).toContain('REVOKE SELECT (push_token_revocation_hash) ON public.profiles FROM PUBLIC, anon, authenticated')
+        expect(profilePrivileges).toContain('REVOKE UPDATE (push_token_revocation_hash) ON public.profiles FROM PUBLIC, anon, authenticated')
 
         const authenticatedGrant = profilePrivileges.match(/GRANT SELECT \([^;]*?\) ON public\.profiles TO authenticated;/i)?.[0]
         expect(authenticatedGrant).toEqual(expect.any(String))
         expect(authenticatedGrant).not.toContain('push_token')
+        expect(authenticatedGrant).not.toContain('push_token_revocation_hash')
     })
 
     it('does not keep a public username-availability oracle', () => {
@@ -216,6 +180,28 @@ describe('profile privacy and invite capacity policies', () => {
 
         expect(() => latestFunctionDefinition('is_username_available')).toThrow(/dropped after its latest definition/)
         expect(authSource).not.toContain('is_username_available')
+    })
+
+    it('keeps the auth profile trigger function non-executable outside its trigger', () => {
+        const privileges = functionPrivilegeStatements('handle_new_auth_user').join('\n').replace(/\s+/g, ' ')
+
+        expect(privileges).toContain(
+            'REVOKE ALL ON FUNCTION public.handle_new_auth_user() FROM PUBLIC, anon, authenticated, service_role',
+        )
+    })
+
+    it('keeps the legacy push-token compatibility trigger owner-scoped and non-executable', () => {
+        const definition = latestFunctionDefinition('normalize_legacy_push_token_write', 'private')
+        const privileges = functionPrivilegeStatements('normalize_legacy_push_token_write', 'private')
+            .join('\n')
+            .replace(/\s+/g, ' ')
+
+        expect(definition).toContain('SECURITY DEFINER')
+        expect(definition).toContain("SET search_path = ''")
+        expect(definition).toContain('UPDATE public.profiles')
+        expect(privileges).toContain(
+            'REVOKE ALL ON FUNCTION private.normalize_legacy_push_token_write() FROM PUBLIC, anon, authenticated, service_role',
+        )
     })
 })
 
@@ -254,6 +240,13 @@ describe('waiver intent oracle closure', () => {
 })
 
 describe('trade privacy policies', () => {
+    it('allows authenticated participant reads through RLS without exposing them anonymously', () => {
+        const privileges = tablePrivilegeStatements('trade_participants').join('\n')
+
+        expect(privileges).toContain('GRANT SELECT ON public.trade_participants TO authenticated')
+        expect(privileges).toContain('REVOKE SELECT ON public.trade_participants FROM anon')
+    })
+
     it('keeps pending trade rows visible only to the proposing or receiving managers', () => {
         const tradePolicy = latestPolicyDefinition('trades_select_parties_or_accepted', 'trades')
         const visibilityHelper = latestFunctionDefinition('can_read_trade', 'private')

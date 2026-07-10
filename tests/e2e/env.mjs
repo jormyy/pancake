@@ -7,6 +7,11 @@ import process from 'node:process'
 const ROOT = process.cwd()
 const DEFAULT_PRODUCTION_SUPABASE_REF = 'ceeytbfmwsnzalxlkalc'
 
+/** @typedef {{ cwd?: string, timeout?: number }} CommandOptions */
+/** @typedef {Record<string, string | number | boolean | null>} QueryRow */
+/** @typedef {{ status: string, [key: string]: unknown }} ReportRow */
+
+/** @param {string} filePath */
 export const loadEnvFile = (filePath) => {
   if (!existsSync(filePath)) return
   const contents = readFileSync(filePath, 'utf8')
@@ -28,6 +33,7 @@ export const loadEnvFile = (filePath) => {
 
 loadEnvFile(path.join(ROOT, '.env'))
 
+/** @param {...string} names @returns {string | undefined} */
 export const envValue = (...names) => {
   for (const name of names) {
     if (process.env[name]) return process.env[name]
@@ -35,8 +41,10 @@ export const envValue = (...names) => {
   return undefined
 }
 
-export const commandText = (command, args) => [command, ...args].join(' ')
+/** @param {string} command @param {string[]} args */
+const commandText = (command, args) => [command, ...args].join(' ')
 
+/** @param {string} command @param {string[]} args @param {CommandOptions} [options] */
 export const runCommand = (command, args, options = {}) => {
   const result = spawnSync(command, args, {
     cwd: options.cwd ?? ROOT,
@@ -55,8 +63,10 @@ export const runCommand = (command, args, options = {}) => {
   }
 }
 
+/** @param {unknown} condition @param {string} [blocked] */
 export const statusFrom = (condition, blocked = 'BLOCKED') => (condition ? 'PASS' : blocked)
 
+/** @param {unknown} text @param {{ maxLines?: number }} [options] */
 export const cleanMessage = (text, { maxLines = 10 } = {}) => String(text ?? '')
   .replaceAll(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, '[redacted-jwt]')
   .replaceAll(/\bsb_secret_[A-Za-z0-9_-]+\b/g, '[redacted-secret-key]')
@@ -68,13 +78,15 @@ export const cleanMessage = (text, { maxLines = 10 } = {}) => String(text ?? '')
   .slice(0, maxLines)
   .join(' / ')
 
-export const extractJson = (text) => {
+/** @param {string} text @returns {{ rows?: QueryRow[], [key: string]: unknown }} */
+const extractJson = (text) => {
   const start = text.indexOf('{')
   const end = text.lastIndexOf('}')
   if (start < 0 || end < start) throw new Error(`Could not parse Supabase JSON output: ${cleanMessage(text)}`)
   return JSON.parse(text.slice(start, end + 1))
 }
 
+/** @param {string} target @param {string} label @param {string} sql @param {number} [timeout] */
 export const querySupabaseDb = (target, label, sql, timeout = 45000) => {
   const args = ['db', 'query', '--output', 'json', '--agent', 'yes']
   if (target === 'linked') args.push('--linked')
@@ -96,8 +108,12 @@ export const localSupabaseStatus = () => {
   return extractJson(result.stdout)
 }
 
+/**
+ * @param {{ reportPath: string, title: string, rows: ReportRow[], columns: { header: string, value: (row: ReportRow) => unknown }[] }} input
+ */
 export const writeMarkdownReport = async ({ reportPath, title, rows, columns }) => {
   const blockers = rows.filter((row) => row.status !== 'PASS')
+  /** @param {unknown} value */
   const cell = (value) => String(value)
     .replaceAll('\\', '\\\\')
     .replaceAll('|', '\\|')
@@ -118,8 +134,10 @@ export const writeMarkdownReport = async ({ reportPath, title, rows, columns }) 
   return blockers
 }
 
-export const normalizeGeneratedAt = (text) => text.replace(/^- Generated: .+$/m, '- Generated: [generated]')
+/** @param {string} text */
+const normalizeGeneratedAt = (text) => text.replace(/^- Generated: .+$/m, '- Generated: [generated]')
 
+/** @param {string} reportPath @param {string} report */
 export const writeReportIfChanged = async (reportPath, report) => {
   if (existsSync(reportPath)) {
     const current = await readFile(reportPath, 'utf8')
@@ -130,6 +148,7 @@ export const writeReportIfChanged = async (reportPath, report) => {
 
 export const resolvedEnv = () => ({
   supabaseUrl: envValue('E2E_SUPABASE_URL', 'SUPABASE_URL', 'EXPO_PUBLIC_SUPABASE_URL'),
+  dbUrl: envValue('SUPABASE_DB_URL', 'E2E_SUPABASE_DB_URL'),
   serviceRoleKey: envValue(
     'E2E_PANCAKE_SUPABASE_SECRET_KEY',
     'PANCAKE_SUPABASE_SECRET_KEY',
@@ -147,6 +166,19 @@ export const resolvedEnv = () => ({
   backendTicksEnabled: envValue('E2E_ENABLE_EDGE_TICKS', 'E2E_ENABLE_BACKEND_TICKS') === '1',
 })
 
+export const resolvedTradeEnv = () => {
+  const env = resolvedEnv()
+  const { supabaseUrl, serviceRoleKey, anonKey, apiBaseUrl } = env
+  if (!supabaseUrl || !serviceRoleKey || !anonKey || !apiBaseUrl) {
+    throw new Error('Missing required trade E2E environment: supabaseUrl, serviceRoleKey, anonKey, apiBaseUrl')
+  }
+  if (isProductionSupabaseUrl(supabaseUrl) && process.env.E2E_ALLOW_PROD_WRITES !== '1') {
+    throw new Error('Refusing to run trade E2E writes against production.')
+  }
+  return { ...env, supabaseUrl, serviceRoleKey, anonKey, apiBaseUrl }
+}
+
+/** @param {string | undefined} supabaseUrl */
 const edgeApiUrl = (supabaseUrl) => {
   if (!supabaseUrl) return undefined
   try {
@@ -156,6 +188,7 @@ const edgeApiUrl = (supabaseUrl) => {
   }
 }
 
+/** @param {string | undefined} value */
 export const isProductionSupabaseUrl = (value) => {
   if (!value) return false
   const productionRef = envValue('E2E_PRODUCTION_SUPABASE_REF', 'PRODUCTION_SUPABASE_REF') ?? DEFAULT_PRODUCTION_SUPABASE_REF
@@ -167,14 +200,21 @@ export const isProductionSupabaseUrl = (value) => {
   }
 }
 
-export const requireEnv = (env, keys) => {
+/**
+ * @template {Record<string, unknown>} Env
+ * @template {keyof Env} Key
+ * @param {Env} env
+ * @param {Key[]} keys
+ * @returns {Env & { [Property in Key]-?: NonNullable<Env[Property]> }}
+ */
+export function requireEnv(env, keys) {
   const missing = keys.filter((key) => !env[key])
   if (missing.length > 0) {
     throw new Error(`Missing required E2E environment: ${missing.join(', ')}`)
   }
   if (
-    keys.includes('serviceRoleKey') &&
-    isProductionSupabaseUrl(env.supabaseUrl) &&
+    keys.map(String).includes('serviceRoleKey') &&
+    isProductionSupabaseUrl(typeof env.supabaseUrl === 'string' ? env.supabaseUrl : undefined) &&
     process.env.E2E_ALLOW_PROD_WRITES !== '1'
   ) {
     throw new Error(
@@ -182,10 +222,13 @@ export const requireEnv = (env, keys) => {
         'Use a local/test project, or set E2E_ALLOW_PROD_WRITES=1 only for an intentional, cleanup-backed production run.',
     )
   }
+  return /** @type {Env & { [Property in Key]-?: NonNullable<Env[Property]> }} */ (env)
 }
 
+/** @param {string | undefined} value */
 export const describeEndpoint = (value) => {
   try {
+    if (!value) return '<not configured>'
     const url = new URL(value)
     return ['127.0.0.1', 'localhost'].includes(url.hostname)
       ? url.origin

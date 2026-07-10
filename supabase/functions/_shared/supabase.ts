@@ -1,4 +1,4 @@
-import { createClient } from 'npm:@supabase/supabase-js@2'
+import { createClient } from 'npm:@supabase/supabase-js@2.98.0'
 import type { Database } from './database.ts'
 
 function defaultSecretKey(): string | undefined {

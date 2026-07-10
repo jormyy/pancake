@@ -188,36 +188,46 @@ export function RosterPlayerItem({
     const isBusy = togglingId === item.id || taxiingId === item.id || droppingId === item.id
     const headshotUri = playerHeadshotUrl(player.nba_id)
     return (
-        <MotionPressable style={styles.playerRow} onPress={onPress} onLongPress={onLongPress} delayLongPress={400} pressedScale={0.985}>
-            <Avatar
-                name={player.display_name}
-                color={colors.bgMuted}
-                textColor={colors.textSecondary}
-                uri={headshotUri ?? undefined}
-            />
+        <View style={styles.playerRow}>
+            <MotionPressable
+                style={styles.playerRowMain}
+                onPress={onPress}
+                onLongPress={onLongPress}
+                delayLongPress={400}
+                pressedScale={0.985}
+                accessibilityRole="button"
+                accessibilityLabel={`Open ${player.display_name}`}
+            >
+                <Avatar
+                    name={player.display_name}
+                    color={colors.bgMuted}
+                    textColor={colors.textSecondary}
+                    uri={headshotUri ?? undefined}
+                />
 
-            <View style={styles.info}>
-                <Text style={styles.playerName}>{player.display_name}</Text>
-                <View style={styles.playerMetaRow}>
-                    {player.nba_team ? <Text style={styles.playerMeta}>{player.nba_team}</Text> : null}
-                    {positions.map((pos) => <PosTag key={pos} position={pos} />)}
-                    {avgFpts != null ? (
-                        <Text style={styles.fptsText}>{formatPoints(avgFpts)} FPts</Text>
-                    ) : null}
-                    {avgMinutes != null ? (
-                        <Text style={styles.fptsText}>{formatPoints(avgMinutes)} MIN</Text>
+                <View style={styles.info}>
+                    <Text style={styles.playerName}>{player.display_name}</Text>
+                    <View style={styles.playerMetaRow}>
+                        {player.nba_team ? <Text style={styles.playerMeta}>{player.nba_team}</Text> : null}
+                        {positions.map((pos) => <PosTag key={pos} position={pos} />)}
+                        {avgFpts != null ? (
+                            <Text style={styles.fptsText}>{formatPoints(avgFpts)} FPts</Text>
+                        ) : null}
+                        {avgMinutes != null ? (
+                            <Text style={styles.fptsText}>{formatPoints(avgMinutes)} MIN</Text>
+                        ) : null}
+                    </View>
+                    {player.injury_status ? (
+                        <View style={{ alignSelf: 'flex-start', marginTop: 2 }}>
+                            <Badge
+                                label={player.injury_status}
+                                color={INJURY_COLORS[player.injury_status] ?? colors.textMuted}
+                                variant="solid"
+                            />
+                        </View>
                     ) : null}
                 </View>
-                {player.injury_status ? (
-                    <View style={{ alignSelf: 'flex-start', marginTop: 2 }}>
-                        <Badge
-                            label={player.injury_status}
-                            color={INJURY_COLORS[player.injury_status] ?? colors.textMuted}
-                            variant="solid"
-                        />
-                    </View>
-                ) : null}
-            </View>
+            </MotionPressable>
 
             <View style={styles.rowActions}>
                 {(item.is_on_ir || isIREligible(player.injury_status)) ? (
@@ -226,6 +236,8 @@ export function RosterPlayerItem({
                         onPress={() => onToggleIR(item)}
                         disabled={isBusy}
                         pressedScale={0.92}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${item.is_on_ir ? 'Activate' : 'Move'} ${player.display_name}${item.is_on_ir ? '' : ' to IR'}`}
                     >
                         <Text style={[styles.actionButtonText, item.is_on_ir && styles.actionButtonTextActive]}>
                             {item.is_on_ir ? 'Active' : 'IR'}
@@ -238,12 +250,14 @@ export function RosterPlayerItem({
                         onPress={() => onToggleTaxi(item)}
                         disabled={isBusy}
                         pressedScale={0.92}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Move ${player.display_name} to taxi`}
                     >
                         <Text style={styles.taxiButtonOutlineText}>Taxi</Text>
                     </MotionPressable>
                 ) : null}
             </View>
-        </MotionPressable>
+        </View>
     )
 }
 
@@ -324,37 +338,48 @@ export function TaxiPlayerItem({
     const positions = getEligiblePositions(player)
     const headshotUri = playerHeadshotUrl(player.nba_id)
     return (
-        <MotionPressable style={styles.playerRow} onPress={onPress} pressedScale={0.985}>
-            <Avatar
-                name={player.display_name}
-                color={colors.bgMuted}
-                textColor={colors.textSecondary}
-                uri={headshotUri ?? undefined}
-            />
+        <View style={styles.playerRow}>
+            <MotionPressable
+                style={styles.playerRowMain}
+                onPress={onPress}
+                pressedScale={0.985}
+                accessibilityRole="button"
+                accessibilityLabel={`Open ${player.display_name}`}
+            >
+                <Avatar
+                    name={player.display_name}
+                    color={colors.bgMuted}
+                    textColor={colors.textSecondary}
+                    uri={headshotUri ?? undefined}
+                />
 
-            <View style={styles.info}>
-                <Text style={styles.playerName}>{player.display_name}</Text>
-                <View style={styles.playerMetaRow}>
-                    {player.nba_team ? <Text style={styles.playerMeta}>{player.nba_team}</Text> : null}
-                    {positions.map((pos) => <PosTag key={pos} position={pos} />)}
-                    {avgFpts != null ? (
-                        <Text style={styles.fptsText}>{formatPoints(avgFpts)} FPts</Text>
-                    ) : null}
-                    {avgMinutes != null ? (
-                        <Text style={styles.fptsText}>{formatPoints(avgMinutes)} MIN</Text>
-                    ) : null}
+                <View style={styles.info}>
+                    <Text style={styles.playerName}>{player.display_name}</Text>
+                    <View style={styles.playerMetaRow}>
+                        {player.nba_team ? <Text style={styles.playerMeta}>{player.nba_team}</Text> : null}
+                        {positions.map((pos) => <PosTag key={pos} position={pos} />)}
+                        {avgFpts != null ? (
+                            <Text style={styles.fptsText}>{formatPoints(avgFpts)} FPts</Text>
+                        ) : null}
+                        {avgMinutes != null ? (
+                            <Text style={styles.fptsText}>{formatPoints(avgMinutes)} MIN</Text>
+                        ) : null}
+                    </View>
                 </View>
-            </View>
+            </MotionPressable>
 
             <MotionPressable
                 style={[styles.actionButton, styles.taxiButtonActive]}
                 onPress={() => onToggleTaxi(item)}
                 disabled={taxiingId === item.id}
                 pressedScale={0.92}
+                accessibilityRole="button"
+                accessibilityLabel={`Activate ${player.display_name}`}
+                accessibilityState={{ disabled: taxiingId === item.id }}
             >
                 <Text style={[styles.actionButtonText, styles.actionButtonTextActive]}>Activate</Text>
             </MotionPressable>
-        </MotionPressable>
+        </View>
     )
 }
 
@@ -366,6 +391,7 @@ const styles = StyleSheet.create({
         paddingVertical: spacing.lg,
         gap: spacing.lg,
     },
+    playerRowMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.lg },
 
     info: { flex: 1, gap: 2 },
     playerName: { fontSize: fontSize.lg, fontWeight: fontWeight.semibold, color: colors.textPrimary },

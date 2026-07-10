@@ -31,7 +31,12 @@ import { getMemberTransactionState } from '@/lib/league'
 import { PlayerRow } from '@/lib/players'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { getPlayerAvailabilitySnapshot } from '@/lib/player-availability'
-import { subscribeToTableChanges, unsubscribeFromTableChanges } from '@/lib/realtime'
+import {
+    debounceRealtimeRefresh,
+    reportRealtimeCleanup,
+    subscribeToTableChanges,
+    unsubscribeFromTableChanges,
+} from '@/lib/realtime'
 
 const POSITIONS = [
     { key: 'ALL', label: 'All' },
@@ -215,19 +220,22 @@ export default function PlayersScreen() {
     useEffect(() => {
         if (!leagueId) return
 
+        const refreshSupport = debounceRealtimeRefresh(() => { void refreshPlayerSupport() })
         const channel = subscribeToTableChanges(
             `players-screen:${leagueId}`,
-            [
+            { mode: 'fallback', watches: [
                 { table: 'roster_players', filter: `league_id=eq.${leagueId}` },
                 { table: 'waiver_wire_log', filter: `league_id=eq.${leagueId}` },
                 { table: 'waiver_claims', filter: `league_id=eq.${leagueId}` },
                 { table: 'waiver_priorities', filter: `league_id=eq.${leagueId}` },
                 { table: 'league_members', filter: `league_id=eq.${leagueId}` },
-            ],
-            () => { void refreshPlayerSupport() },
+            ], onChange: refreshSupport.trigger },
         )
 
-        return () => unsubscribeFromTableChanges(channel)
+        return () => {
+            refreshSupport.cancel()
+            reportRealtimeCleanup('players', unsubscribeFromTableChanges(channel))
+        }
     }, [leagueId, refreshPlayerSupport])
 
     const playerSupportForLeague = playerSupport?.leagueId === leagueId ? playerSupport : null
@@ -447,6 +455,8 @@ export default function PlayersScreen() {
                     ListEmptyComponent={
                         listIsInitialLoading
                             ? <EmptyState message="Loading players" description="Refreshing availability, waivers, and fantasy averages." fullScreen={false} />
+                            : search.results.error
+                              ? <EmptyState message="Players could not load." description={search.results.error.message} actionLabel="Retry" onAction={search.results.retry} fullScreen={false} />
                             : playerSupportError && playerSupportForLeague == null
                               ? <EmptyState message="Players could not load." description="Tap retry to reload roster and waiver state." actionLabel="Retry" onAction={() => void refreshPlayerSupport()} fullScreen={false} />
                             : <EmptyState message="No players found." fullScreen={false} />
@@ -499,5 +509,4 @@ const localStyles = StyleSheet.create({
     },
 })
 
-// Contain a render crash to this screen instead of blanking the whole app.
 export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFallback'

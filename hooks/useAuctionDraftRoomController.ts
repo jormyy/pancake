@@ -1,22 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
     closeExpiredNominations,
+    getDraftPollRevision,
     getDraftState,
     nominatePlayer,
-    pauseForAbsence,
     placeBid,
-    resumeIfAbsent,
     searchPlayers,
     subscribeToDraft,
-    subscribeToPresence,
     unsubscribeFromDraft,
     withdrawNomination,
     type DraftSearchPlayer,
     type DraftState,
     type NominationOrderMode,
 } from '@/lib/draft'
-import type { RealtimeChannel } from '@supabase/supabase-js'
 import { getErrorMessage, showAlert } from '@/lib/alert'
+import { reportRealtimeCleanup, type RealtimeSubscriptionStatus } from '@/lib/realtime'
 
 export type DraftTab = 'budgets' | 'history'
 
@@ -28,6 +26,7 @@ export function useAuctionDraftRoomController({
     memberId?: string
 }) {
     const [state, setState] = useState<DraftState | null>(null)
+    const [stateDraftId, setStateDraftId] = useState(draftId)
     const [tab, setTab] = useState<DraftTab>('budgets')
     const [loadError, setLoadError] = useState<string | null>(null)
 
@@ -37,10 +36,9 @@ export function useAuctionDraftRoomController({
     const [bidding, setBidding] = useState(false)
     const [withdrawing, setWithdrawing] = useState(false)
 
-    // Presence — who is currently in the draft room
-    const [presentMemberIds, setPresentMemberIds] = useState<string[]>([])
-    const [presenceSynced, setPresenceSynced] = useState(false)
-    const resumeDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const [realtimeStatus, setRealtimeStatus] =
+        useState<RealtimeSubscriptionStatus | 'CONNECTING'>('CONNECTING')
+    const activeDraftIdRef = useRef<string | undefined>(draftId)
 
     // Nomination / player search
     const [nominating, setNominating] = useState(false)
@@ -67,27 +65,60 @@ export function useAuctionDraftRoomController({
     // fire load() concurrently, so drop any result that a newer load supersedes.
     const loadSeqRef = useRef(0)
     const searchSeqRef = useRef(0)
+    const pollRevisionRef = useRef<string | null>(null)
+    const pollInFlightRef = useRef(false)
 
     // Keep bidTextRef in sync so load() can read current typed value without a dep.
     useEffect(() => { bidTextRef.current = bidText }, [bidText])
 
-    const channelRef = useRef<RealtimeChannel | null>(null)
-    const presenceChannelRef = useRef<RealtimeChannel | null>(null)
-    const countdownNomination = state?.openNomination
+    const visibleState = stateDraftId === draftId ? state : null
+    const countdownNomination = visibleState?.openNomination
+    const draftLeagueId = visibleState?.draft.leagueId ?? null
+    activeDraftIdRef.current = draftId
+
+    useEffect(() => {
+        loadSeqRef.current += 1
+        searchSeqRef.current += 1
+        setState(null)
+        setStateDraftId(draftId)
+        setLoadError(null)
+        setBidText('1')
+        setBidding(false)
+        setWithdrawing(false)
+        setNominating(false)
+        setSearchQuery('')
+        setSearchResults([])
+        setSearchLoading(false)
+        setSearchError(null)
+        setSubmittingNom(false)
+        setTimeLeft(0)
+        setRealtimeStatus('CONNECTING')
+        lastNomIdRef.current = null
+        closeTriggeredForNomRef.current = null
+        pollRevisionRef.current = null
+        pollInFlightRef.current = false
+        return () => {
+            loadSeqRef.current += 1
+            searchSeqRef.current += 1
+        }
+    }, [draftId])
 
     const load = useCallback(async () => {
         if (!draftId) return
+        const requestedDraftId = draftId
+        if (activeDraftIdRef.current !== requestedDraftId) return
         const seq = ++loadSeqRef.current
         try {
-            const s = await getDraftState(draftId)
+            const s = await getDraftState(requestedDraftId)
             // Ignore a stale, out-of-order result once a newer load has started.
-            if (seq !== loadSeqRef.current) return
+            if (seq !== loadSeqRef.current || activeDraftIdRef.current !== requestedDraftId) return
             setLoadError(null)
             // Only commit a DEFINITE state. getDraftState() returns null (not a
             // throw) on a transient fetch failure; committing null would blank the
             // whole live auction room for seconds during bidding,
             // and would also reseed the bid field on the next good poll.
             if (s) {
+                setStateDraftId(requestedDraftId)
                 setState(s)
                 nominationModeRef.current = s.draft.nominationOrderMode
                 const nom = s.openNomination ?? null
@@ -111,34 +142,49 @@ export function useAuctionDraftRoomController({
                 }
             }
         } catch (e) {
-            if (seq === loadSeqRef.current) setLoadError(getErrorMessage(e))
+            if (seq === loadSeqRef.current && activeDraftIdRef.current === requestedDraftId) {
+                setLoadError(getErrorMessage(e))
+            }
         }
     }, [draftId])
 
-    // Load + subscribe + poll fallback
+    // Load + subscribe. Mutations fail closed unless this channel is live.
     useEffect(() => {
         if (!draftId) return
+        let active = true
         load()
-        channelRef.current = subscribeToDraft(draftId, load)
-        const poll = setInterval(load, 5000)
-        return () => {
-            if (channelRef.current) unsubscribeFromDraft(channelRef.current)
-            clearInterval(poll)
-        }
-    }, [draftId, load])
-
-    // Presence — separate public channel so it works without realtime.messages RLS
-    useEffect(() => {
-        if (!draftId || !memberId) return
-        presenceChannelRef.current = subscribeToPresence(draftId, memberId, (ids) => {
-            setPresentMemberIds(ids)
-            setPresenceSynced(true)
+        const channel = subscribeToDraft(draftId, draftLeagueId, load, (status) => {
+            if (active) setRealtimeStatus(status)
         })
         return () => {
-            if (presenceChannelRef.current) unsubscribeFromDraft(presenceChannelRef.current)
-            presenceChannelRef.current = null
+            active = false
+            reportRealtimeCleanup('auction draft', unsubscribeFromDraft(channel))
         }
-    }, [draftId, memberId])
+    }, [draftId, draftLeagueId, load])
+
+    // Realtime is primary. The fallback probes only current mutable rows and
+    // reloads history/ages when their revision actually changes.
+    useEffect(() => {
+        if (!draftId) return
+        const poll = setInterval(async () => {
+            if (pollInFlightRef.current) return
+            pollInFlightRef.current = true
+            try {
+                const revision = await getDraftPollRevision(draftId)
+                if (activeDraftIdRef.current !== draftId) return
+                if (pollRevisionRef.current === revision) return
+                pollRevisionRef.current = revision
+                await load()
+            } catch (error) {
+                if (activeDraftIdRef.current === draftId) {
+                    console.error('Could not poll the live draft revision.', error)
+                }
+            } finally {
+                pollInFlightRef.current = false
+            }
+        }, realtimeStatus === 'SUBSCRIBED' ? 60_000 : 5_000)
+        return () => clearInterval(poll)
+    }, [draftId, load, realtimeStatus])
 
     // Countdown tick
     useEffect(() => {
@@ -152,15 +198,18 @@ export function useAuctionDraftRoomController({
             setTimeLeft(diff)
             // When the clock hits zero, trigger server-side close once per nomination.
             if (diff === 0 && draftId && closeTriggeredForNomRef.current !== countdownNomination.id) {
+                const requestedDraftId = draftId
                 closeTriggeredForNomRef.current = countdownNomination.id
-                closeExpiredNominations(draftId)
+                closeExpiredNominations(requestedDraftId)
                     .then(({ closed }) => {
+                        if (activeDraftIdRef.current !== requestedDraftId) return
                         // If the server closed nothing (clock skew — client hit 0 before
                         // the server expiry), reset so the next tick retries.
                         if (closed === 0) closeTriggeredForNomRef.current = null
                         else load()
                     })
                     .catch(() => {
+                        if (activeDraftIdRef.current !== requestedDraftId) return
                         // Network/auth failure — reset so the next tick can retry.
                         closeTriggeredForNomRef.current = null
                     })
@@ -175,38 +224,6 @@ export function useAuctionDraftRoomController({
             if (timerRef.current) clearInterval(timerRef.current)
         }
     }, [countdownNomination, draftId, load])
-
-    // Presence: auto-pause when a member leaves, auto-resume when all are back.
-    // Only auction drafts; only after presence has synced at least once so the
-    // initial empty-state doesn't trigger a spurious pause on mount.
-    useEffect(() => {
-        if (!presenceSynced || !state || !draftId || !memberId) return
-        if (state.draft.draftType !== 'auction') return
-
-        const requiredIds = state.order.map((o) => o.memberId)
-        const presentSet = new Set(presentMemberIds)
-        const allPresent = requiredIds.every((id) => presentSet.has(id))
-
-        if (!allPresent && state.draft.status === 'in_progress') {
-            // Multiple clients will race here — the RPC no-ops after the first wins.
-            pauseForAbsence(draftId).catch(() => {/* already paused or transient error */})
-        }
-
-        if (allPresent && state.draft.status === 'paused' && state.draft.pauseReason === 'member_absent') {
-            // Start the 2-second debounce only once — don't reset it on every
-            // poll-driven re-run. Clearing only happens if conditions stop being met
-            // (another member leaves), which is handled in the else branch below.
-            if (!resumeDebounceRef.current) {
-                resumeDebounceRef.current = setTimeout(() => {
-                    resumeDebounceRef.current = null
-                    resumeIfAbsent(draftId).catch(() => {/* ignore */}).then(() => load())
-                }, 2000)
-            }
-        } else if (resumeDebounceRef.current) {
-            clearTimeout(resumeDebounceRef.current)
-            resumeDebounceRef.current = null
-        }
-    }, [presenceSynced, presentMemberIds, state?.draft.status, state?.draft.pauseReason, state?.order, draftId, memberId]) // eslint-disable-line react-hooks/exhaustive-deps
 
     // Player search
     useEffect(() => {
@@ -239,12 +256,17 @@ export function useAuctionDraftRoomController({
     }, [searchQuery, draftId, nominating])
 
     async function handleBid() {
-        if (!state?.openNomination || !memberId || !draftId) return
+        if (!visibleState?.openNomination || !memberId || !draftId) return
+        if (!realtimeConnected) {
+            showAlert('Live connection unavailable', 'Reconnect to the live draft before bidding.')
+            return
+        }
+        const requestedDraftId = draftId
         // Guard the typed bid only at submit time: must be a whole-dollar amount
         // at least the minimum and within remaining budget.
-        const min = Math.max(1, (state.openNomination.currentBidAmount ?? 0) + 1)
+        const min = Math.max(1, (visibleState.openNomination.currentBidAmount ?? 0) + 1)
         // Match bidValid's fallback; the RPC is the authoritative budget check.
-        const remaining = state.budgets.find((b) => b.memberId === memberId)?.remaining ?? Infinity
+        const remaining = visibleState.budgets.find((b) => b.memberId === memberId)?.remaining ?? Infinity
         const amount = parseInt(bidText, 10)
         if (isNaN(amount) || amount < min) {
             showAlert('Invalid bid', `Enter a whole-dollar bid of at least $${min}.`)
@@ -256,51 +278,51 @@ export function useAuctionDraftRoomController({
         }
         setBidding(true)
         try {
-            await placeBid(draftId, memberId, state.openNomination.id, amount)
+            await placeBid(draftId, memberId, visibleState.openNomination.id, amount)
+            if (activeDraftIdRef.current !== requestedDraftId) return
             load()
         } catch (e) {
-            showAlert('Bid failed', getErrorMessage(e))
+            if (activeDraftIdRef.current === requestedDraftId) showAlert('Bid failed', getErrorMessage(e))
         } finally {
-            setBidding(false)
+            if (activeDraftIdRef.current === requestedDraftId) setBidding(false)
         }
     }
 
     async function handleWithdraw() {
-        if (!state?.openNomination || !memberId || !draftId) return
+        if (!visibleState?.openNomination || !memberId || !draftId) return
+        const requestedDraftId = draftId
         setWithdrawing(true)
         try {
-            await withdrawNomination(draftId, memberId, state.openNomination.id)
+            await withdrawNomination(draftId, memberId, visibleState.openNomination.id)
+            if (activeDraftIdRef.current !== requestedDraftId) return
             load()
         } catch (e) {
-            showAlert('Could not withdraw', getErrorMessage(e))
+            if (activeDraftIdRef.current === requestedDraftId) showAlert('Could not withdraw', getErrorMessage(e))
         } finally {
-            setWithdrawing(false)
+            if (activeDraftIdRef.current === requestedDraftId) setWithdrawing(false)
         }
     }
 
     async function handleNominate(playerId: string) {
         if (!memberId || !draftId) return
-        if (presenceSynced && state?.draft.draftType === 'auction') {
-            const presentSet = new Set(presentMemberIds)
-            const missing = (state?.order ?? []).filter((o) => !presentSet.has(o.memberId))
-            if (missing.length > 0) {
-                const names = missing.map((o) => o.teamName).join(', ')
-                showAlert('Not everyone is here', `${names} hasn't joined the draft room yet.`)
-                return
-            }
+        const requestedDraftId = draftId
+        if (!realtimeConnected) {
+            showAlert('Live connection unavailable', 'Reconnect to the live draft before nominating a player.')
+            return
         }
         setSubmittingNom(true)
         try {
             await nominatePlayer(draftId, memberId, playerId)
+            if (activeDraftIdRef.current !== requestedDraftId) return
             setNominating(false)
             setSearchQuery('')
             setSearchResults([])
             searchSeqRef.current += 1
             load()
         } catch (e) {
-            showAlert('Nomination failed', getErrorMessage(e))
+            if (activeDraftIdRef.current === requestedDraftId) showAlert('Nomination failed', getErrorMessage(e))
         } finally {
-            setSubmittingNom(false)
+            if (activeDraftIdRef.current === requestedDraftId) setSubmittingNom(false)
         }
     }
 
@@ -311,27 +333,20 @@ export function useAuctionDraftRoomController({
         searchSeqRef.current += 1
     }
 
-    // Presence-derived values
-    const absentMembers = useMemo(() => {
-        if (!state || !presenceSynced) return []
-        const presentSet = new Set(presentMemberIds)
-        return state.order.filter((o) => !presentSet.has(o.memberId))
-    }, [state, presentMemberIds, presenceSynced])
-
-    const allMembersPresent = presenceSynced ? absentMembers.length === 0 : true
+    const realtimeConnected = realtimeStatus === 'SUBSCRIBED'
 
     // Memoize O(N) derivations from state so we don't recompute them every render
     // (poll fires every 5s; without memos every parent re-render rebuilds these arrays/maps).
     const closedNominations = useMemo(
         () =>
-            state
-                ? state.nominations.filter((n) => n.status !== 'open').reverse()
+            visibleState
+                ? visibleState.nominations.filter((n) => n.status !== 'open').reverse()
                 : [],
-        [state],
+        [visibleState],
     )
     const budgetByMember = useMemo(
-        () => new Map((state?.budgets ?? []).map((b) => [b.memberId, b])),
-        [state],
+        () => new Map((visibleState?.budgets ?? []).map((b) => [b.memberId, b])),
+        [visibleState],
     )
     const wonCountByMember = useMemo(() => {
         const counts = new Map<string, number>()
@@ -343,10 +358,12 @@ export function useAuctionDraftRoomController({
     }, [closedNominations])
 
     return {
-        state,
+        state: visibleState,
         tab,
         setTab,
-        loadError,
+        loadError: loadError ?? (realtimeStatus !== 'SUBSCRIBED' && realtimeStatus !== 'CONNECTING'
+            ? 'Live draft connection lost. Tap to retry.'
+            : null),
         bidText,
         setBidText,
         bidding,
@@ -363,8 +380,7 @@ export function useAuctionDraftRoomController({
         closedNominations,
         budgetByMember,
         wonCountByMember,
-        allMembersPresent,
-        absentMembers,
+        realtimeConnected,
         refresh: load,
         handleBid,
         handleWithdraw,

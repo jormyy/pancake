@@ -28,7 +28,9 @@ import { RosterClaimItem, RosterPickItem, RosterPlayerItem, TaxiPlayerItem } fro
 import { getRosterStatusChangeLockMessage } from '@/lib/roster-locks'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 import { Avatar } from '@/components/Avatar'
-import { subscribeToTableChanges, unsubscribeFromTableChanges } from '@/lib/realtime'
+import { reportRealtimeCleanup, subscribeToTableChanges, unsubscribeFromTableChanges } from '@/lib/realtime'
+import { RosterTrimBanner } from '@/components/roster/RosterTrimBanner'
+import { activeRosterOverflow, createRosterRecoveryRunner } from '@/lib/roster-overflow'
 
 type RosterListItem =
     | { _isHeader: true; _section: string }
@@ -156,54 +158,66 @@ function RosterTablePlayerItem({
     const canTaxi = !item.is_on_ir && !item.is_on_taxi && taxiSlotsAvailable && isTaxiEligible(item.players)
 
     return (
-        <Pressable
-            style={styles.rosterTableRow}
-            onPress={onPress}
-            onLongPress={onLongPress}
-            disabled={isBusy}
-        >
-            <Text style={styles.rosterTableSlot}>{slot}</Text>
-            <View style={styles.rosterTablePlayerCell}>
-                <Avatar
-                    name={item.players.display_name}
-                    uri={playerHeadshotUrl(item.players.nba_id) ?? undefined}
-                    color={colors.bgMuted}
-                    textColor={colors.textSecondary}
-                    size={34}
-                />
-                <View style={styles.rosterTablePlayerInfo}>
-                    <Text style={styles.rosterTableName} numberOfLines={1}>{item.players.display_name}</Text>
-                    <Text style={styles.rosterTableMeta} numberOfLines={1}>
-                        {[item.players.nba_team, ...positions].filter(Boolean).join(' · ')}
-                    </Text>
+        <View style={styles.rosterTableRow}>
+            <Pressable
+                style={styles.rosterTableOpen}
+                onPress={onPress}
+                onLongPress={onLongPress}
+                disabled={isBusy}
+                accessibilityRole="button"
+                accessibilityLabel={`Open ${item.players.display_name}`}
+                accessibilityState={{ disabled: isBusy }}
+            >
+                <Text style={styles.rosterTableSlot}>{slot}</Text>
+                <View style={styles.rosterTablePlayerCell}>
+                    <Avatar
+                        name={item.players.display_name}
+                        uri={playerHeadshotUrl(item.players.nba_id) ?? undefined}
+                        color={colors.bgMuted}
+                        textColor={colors.textSecondary}
+                        size={34}
+                    />
+                    <View style={styles.rosterTablePlayerInfo}>
+                        <Text style={styles.rosterTableName} numberOfLines={1}>{item.players.display_name}</Text>
+                        <Text style={styles.rosterTableMeta} numberOfLines={1}>
+                            {[item.players.nba_team, ...positions].filter(Boolean).join(' · ')}
+                        </Text>
+                    </View>
                 </View>
-            </View>
-            <Text style={[styles.rosterTableStat, styles.rosterTableFp]}>{fmtStat(avgFpts)}</Text>
-            <Text style={styles.rosterTableStat}>{fmtStat(stats?.avg_minutes_played)}</Text>
-            <Text style={styles.rosterTableStat}>{fmtStat(stats?.avg_points)}</Text>
-            <Text style={styles.rosterTableStat}>{fmtStat(stats?.avg_rebounds)}</Text>
-            <Text style={styles.rosterTableStat}>{fmtStat(stats?.avg_assists)}</Text>
-            <Text style={styles.rosterTableStat}>{fmtStat(stats?.avg_steals)}</Text>
-            <Text style={styles.rosterTableStat}>{fmtStat(stats?.avg_blocks)}</Text>
-            <Text style={styles.rosterTableStat}>{fmtStat(stats?.avg_three_pointers_made)}</Text>
-            <Text style={styles.rosterTableStat}>{fmtStat(stats?.avg_turnovers)}</Text>
-            <Text style={styles.rosterTableStat}>{fmtStat(stats?.games_played, true)}</Text>
+                <Text style={[styles.rosterTableStat, styles.rosterTableFp]}>{fmtStat(avgFpts)}</Text>
+                <Text style={styles.rosterTableStat}>{fmtStat(stats?.avg_minutes_played)}</Text>
+                <Text style={styles.rosterTableStat}>{fmtStat(stats?.avg_points)}</Text>
+                <Text style={styles.rosterTableStat}>{fmtStat(stats?.avg_rebounds)}</Text>
+                <Text style={styles.rosterTableStat}>{fmtStat(stats?.avg_assists)}</Text>
+                <Text style={styles.rosterTableStat}>{fmtStat(stats?.avg_steals)}</Text>
+                <Text style={styles.rosterTableStat}>{fmtStat(stats?.avg_blocks)}</Text>
+                <Text style={styles.rosterTableStat}>{fmtStat(stats?.avg_three_pointers_made)}</Text>
+                <Text style={styles.rosterTableStat}>{fmtStat(stats?.avg_turnovers)}</Text>
+                <Text style={styles.rosterTableStat}>{fmtStat(stats?.games_played, true)}</Text>
+            </Pressable>
             <View style={styles.rosterTableActions}>
                 {section === 'taxi' ? (
-                    <Pressable style={styles.tableActionButton} onPress={() => onToggleTaxi(item)} disabled={isBusy}>
+                    <Pressable style={styles.tableActionButton} onPress={() => onToggleTaxi(item)} disabled={isBusy}
+                        accessibilityRole="button" accessibilityLabel={`Activate ${item.players.display_name}`}
+                        accessibilityState={{ disabled: isBusy }}>
                         <Text style={styles.tableActionText}>Activate</Text>
                     </Pressable>
                 ) : canIR ? (
-                    <Pressable style={styles.tableActionButton} onPress={() => onToggleIR(item)} disabled={isBusy}>
+                    <Pressable style={styles.tableActionButton} onPress={() => onToggleIR(item)} disabled={isBusy}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${item.is_on_ir ? 'Activate' : 'Move to IR'} ${item.players.display_name}`}
+                        accessibilityState={{ disabled: isBusy }}>
                         <Text style={styles.tableActionText}>{item.is_on_ir ? 'Active' : 'IR'}</Text>
                     </Pressable>
                 ) : canTaxi ? (
-                    <Pressable style={styles.tableActionButton} onPress={() => onToggleTaxi(item)} disabled={isBusy}>
+                    <Pressable style={styles.tableActionButton} onPress={() => onToggleTaxi(item)} disabled={isBusy}
+                        accessibilityRole="button" accessibilityLabel={`Move ${item.players.display_name} to taxi`}
+                        accessibilityState={{ disabled: isBusy }}>
                         <Text style={styles.tableActionText}>Taxi</Text>
                     </Pressable>
                 ) : null}
             </View>
-        </Pressable>
+        </View>
     )
 }
 
@@ -223,6 +237,26 @@ export default function RosterScreen() {
     const [taxiingId, setTaxiingId] = useState<string | null>(null)
     const [cancellingId, setCancellingId] = useState<string | null>(null)
     const [droppingId, setDroppingId] = useState<string | null>(null)
+    const rosterRecoveryRunnerRef = useRef(createRosterRecoveryRunner())
+    const ownerIdentity = current?.id && leagueId ? `${current.id}:${leagueId}` : null
+    const activeOwnerRef = useRef(ownerIdentity)
+    const renderedOwnerRef = useRef(ownerIdentity)
+    const actionGenerationRef = useRef(0)
+    activeOwnerRef.current = ownerIdentity
+    if (renderedOwnerRef.current !== ownerIdentity) {
+        renderedOwnerRef.current = ownerIdentity
+        actionGenerationRef.current += 1
+    }
+    const isCurrentAction = (generation: number, identity: string | null) =>
+        actionGenerationRef.current === generation && activeOwnerRef.current === identity
+
+    useEffect(() => {
+        rosterRecoveryRunnerRef.current = createRosterRecoveryRunner()
+        setTogglingId(null)
+        setTaxiingId(null)
+        setCancellingId(null)
+        setDroppingId(null)
+    }, [ownerIdentity])
 
     const { data, loading, error, refresh } = useFocusAsyncData<RosterScreenData | null>(async () => {
         if (!current || !user) return null
@@ -244,17 +278,16 @@ export default function RosterScreen() {
 
         const channel = subscribeToTableChanges(
             `roster-screen:${leagueId}:${current.id}`,
-            [
+            { mode: 'fallback', watches: [
                 { table: 'roster_players', filter: `member_id=eq.${current.id}` },
                 { table: 'draft_picks', filter: `league_id=eq.${leagueId}` },
                 { table: 'waiver_claims', filter: `member_id=eq.${current.id}` },
                 { table: 'waiver_priorities', filter: `member_id=eq.${current.id}` },
                 { table: 'waiver_wire_log', filter: `league_id=eq.${leagueId}` },
-            ],
-            () => { void refresh() },
+            ], onChange: () => { void refresh() } },
         )
 
-        return () => unsubscribeFromTableChanges(channel)
+        return () => reportRealtimeCleanup('roster', unsubscribeFromTableChanges(channel))
     }, [current?.id, leagueId, refresh])
 
     const roster = useMemo(() => data?.roster ?? EMPTY_ROSTER, [data?.roster])
@@ -273,6 +306,8 @@ export default function RosterScreen() {
     }, [roster])
     const ir = useMemo(() => [...roster.filter((p) => p.is_on_ir)].sort(compareRosterBySlot), [roster])
     const taxi = useMemo(() => [...roster.filter((p) => p.is_on_taxi)].sort(compareRosterBySlot), [roster])
+    const rosterSize = currentLeague?.roster_size ?? 20
+    const rosterOverflow = activeRosterOverflow(active.length, rosterSize)
 
     const listData = useMemo<RosterListItem[]>(() => {
         const result: RosterListItem[] = []
@@ -308,7 +343,11 @@ export default function RosterScreen() {
     }
 
     async function handleToggleIR(item: RosterPlayer) {
+        const generation = actionGenerationRef.current
+        const identity = ownerIdentity
+        if (!identity) return
         const lockMessage = await getRosterStatusChangeLockMessage(item)
+        if (!isCurrentAction(generation, identity)) return
         if (lockMessage) {
             showAlert('Roster locked', lockMessage)
             return
@@ -342,20 +381,28 @@ export default function RosterScreen() {
             : `Move ${name} to the injured reserve slot?`
 
         confirmAction(title, message, async () => {
-            setTogglingId(item.id)
-            try {
-                await toggleIR(item.id, !item.is_on_ir)
-                await load()
-            } catch (e) {
-                showAlert('Error', getErrorMessage(e))
-            } finally {
-                setTogglingId(null)
-            }
+            if (!isCurrentAction(generation, identity)) return
+            await rosterRecoveryRunnerRef.current(async () => {
+                if (!isCurrentAction(generation, identity)) return
+                setTogglingId(item.id)
+                try {
+                    await toggleIR(item.id, !item.is_on_ir)
+                    if (isCurrentAction(generation, identity)) await load()
+                } catch (e) {
+                    if (isCurrentAction(generation, identity)) showAlert('Error', getErrorMessage(e))
+                } finally {
+                    if (isCurrentAction(generation, identity)) setTogglingId(null)
+                }
+            })
         })
     }
 
     async function handleToggleTaxi(item: RosterPlayer) {
+        const generation = actionGenerationRef.current
+        const identity = ownerIdentity
+        if (!identity) return
         const lockMessage = await getRosterStatusChangeLockMessage(item)
+        if (!isCurrentAction(generation, identity)) return
         if (lockMessage) {
             showAlert('Roster locked', lockMessage)
             return
@@ -389,33 +436,44 @@ export default function RosterScreen() {
             : `Move ${name} to the taxi squad?`
 
         confirmAction(title, message, async () => {
-            setTaxiingId(item.id)
-            try {
-                await toggleTaxi(item.id, !item.is_on_taxi)
-                await load()
-            } catch (e) {
-                showAlert('Error', getErrorMessage(e))
-            } finally {
-                setTaxiingId(null)
-            }
+            if (!isCurrentAction(generation, identity)) return
+            await rosterRecoveryRunnerRef.current(async () => {
+                if (!isCurrentAction(generation, identity)) return
+                setTaxiingId(item.id)
+                try {
+                    await toggleTaxi(item.id, !item.is_on_taxi)
+                    if (isCurrentAction(generation, identity)) await load()
+                } catch (e) {
+                    if (isCurrentAction(generation, identity)) showAlert('Error', getErrorMessage(e))
+                } finally {
+                    if (isCurrentAction(generation, identity)) setTaxiingId(null)
+                }
+            })
         })
     }
 
     function handleDropPrompt(item: RosterPlayer) {
+        const generation = actionGenerationRef.current
+        const identity = ownerIdentity
+        if (!identity) return
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
         confirmAction(
             `Drop ${item.players.display_name}?`,
             'They will be placed on waivers for 48 hours.',
             async () => {
-                setDroppingId(item.id)
-                try {
-                    await dropPlayer(item.id)
-                    await load()
-                } catch (e) {
-                    showAlert('Error', getErrorMessage(e))
-                } finally {
-                    setDroppingId(null)
-                }
+                if (!isCurrentAction(generation, identity)) return
+                await rosterRecoveryRunnerRef.current(async () => {
+                    if (!isCurrentAction(generation, identity)) return
+                    setDroppingId(item.id)
+                    try {
+                        await dropPlayer(item.id)
+                        if (isCurrentAction(generation, identity)) await load()
+                    } catch (e) {
+                        if (isCurrentAction(generation, identity)) showAlert('Error', getErrorMessage(e))
+                    } finally {
+                        if (isCurrentAction(generation, identity)) setDroppingId(null)
+                    }
+                })
             },
             'Drop',
         )
@@ -423,38 +481,47 @@ export default function RosterScreen() {
 
     async function handleCancelClaim(claimId: string) {
         if (!current) return
+        const generation = actionGenerationRef.current
+        const identity = ownerIdentity
+        if (!identity) return
         setCancellingId(claimId)
         try {
             await cancelWaiverClaim(claimId, current.id)
-            await load()
+            if (isCurrentAction(generation, identity)) await load()
         } catch (e) {
-            showAlert('Error', getErrorMessage(e))
+            if (isCurrentAction(generation, identity)) showAlert('Error', getErrorMessage(e))
         } finally {
-            setCancellingId(null)
+            if (isCurrentAction(generation, identity)) setCancellingId(null)
         }
     }
 
     async function handleEditClaimBid(claim: WaiverClaim, bidAmount: number) {
         if (!current) return
+        const generation = actionGenerationRef.current
+        const identity = ownerIdentity
+        if (!identity) return
         try {
             await editWaiverClaim(claim.id, current.id, {
                 dropPlayerId: claim.dropPlayerId,
                 bidAmount,
                 claimOrder: claim.claimOrder,
             })
-            await load()
+            if (isCurrentAction(generation, identity)) await load()
         } catch (e) {
-            showAlert('Error', getErrorMessage(e))
+            if (isCurrentAction(generation, identity)) showAlert('Error', getErrorMessage(e))
         }
     }
 
     async function handleReorderClaim(claimId: string, direction: 'up' | 'down') {
         if (!current) return
+        const generation = actionGenerationRef.current
+        const identity = ownerIdentity
+        if (!identity) return
         try {
             await reorderWaiverClaim(claimId, current.id, direction)
-            await load()
+            if (isCurrentAction(generation, identity)) await load()
         } catch (e) {
-            showAlert('Error', getErrorMessage(e))
+            if (isCurrentAction(generation, identity)) showAlert('Error', getErrorMessage(e))
         }
     }
 
@@ -472,6 +539,7 @@ export default function RosterScreen() {
 
     const league = currentLeague
     const taxiSlots = league?.taxi_slots ?? 3
+    const trimBusyId = droppingId ?? togglingId ?? taxiingId
 
     return (
         <SafeAreaView style={styles.container}>
@@ -488,7 +556,7 @@ export default function RosterScreen() {
                     </Text>
                     <Text style={styles.teamName}>{current.team_name}</Text>
                     <Text style={styles.rosterCount}>
-                        {active.length}/{league?.roster_size ?? 20} active · {ir.length}/{league?.ir_slots ?? 2} IR · {taxi.length}/{taxiSlots} taxi
+                        {active.length}/{rosterSize} active · {ir.length}/{league?.ir_slots ?? 2} IR · {taxi.length}/{taxiSlots} taxi
                     </Text>
                     {claims.length > 0 ? (
                         <Pressable
@@ -505,10 +573,16 @@ export default function RosterScreen() {
                 </View>
                 {roster.length > 0 ? (
                     <Pressable
-                        style={styles.lineupButton}
-                        onPress={() => push('/(modals)/lineup')}
+                        style={[styles.lineupButton, rosterOverflow > 0 && styles.lineupButtonDisabled]}
+                        onPress={rosterOverflow > 0 ? undefined : () => push('/(modals)/lineup')}
+                        disabled={rosterOverflow > 0}
+                        accessibilityRole="button"
+                        accessibilityLabel={rosterOverflow > 0 ? 'Trim roster before setting lineup' : 'Set lineup'}
+                        accessibilityState={{ disabled: rosterOverflow > 0 }}
                     >
-                        <Text style={styles.lineupButtonText}>Set Lineup</Text>
+                        <Text style={[styles.lineupButtonText, rosterOverflow > 0 && styles.lineupButtonTextDisabled]}>
+                            {rosterOverflow > 0 ? 'Trim Roster First' : 'Set Lineup'}
+                        </Text>
                     </Pressable>
                 ) : null}
             </View>
@@ -517,6 +591,17 @@ export default function RosterScreen() {
             {error ? (
                 <ErrorBanner message="Failed to load roster. Tap to retry." onRetry={refresh} />
             ) : null}
+
+            <RosterTrimBanner
+                players={active}
+                excess={rosterOverflow}
+                irAvailable={ir.length < (league?.ir_slots ?? 2)}
+                taxiAvailable={taxi.length < taxiSlots}
+                busyId={trimBusyId}
+                onDrop={handleDropPrompt}
+                onMoveToIR={(player) => { void handleToggleIR(player) }}
+                onMoveToTaxi={(player) => { void handleToggleTaxi(player) }}
+            />
 
             {roster.length === 0 ? (
                 <EmptyState
@@ -678,6 +763,11 @@ const styles = StyleSheet.create({
         paddingHorizontal: spacing.xl,
         backgroundColor: colors.bgScreen,
     },
+    rosterTableOpen: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
     rosterTableSlot: {
         width: 46,
         fontSize: fontSize.xs,
@@ -773,6 +863,8 @@ const styles = StyleSheet.create({
         marginLeft: spacing.lg,
     },
     lineupButtonText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.sm },
+    lineupButtonDisabled: { backgroundColor: colors.bgMuted, borderWidth: 1, borderColor: colors.borderLight },
+    lineupButtonTextDisabled: { color: colors.textMuted },
     leagueName: { fontSize: fontSize['2lg'], fontWeight: fontWeight.extrabold, color: colors.textPrimary },
     teamName: { fontSize: fontSize.md, color: colors.textSecondary },
     rosterCount: { fontSize: fontSize['2sm'], color: colors.textPlaceholder, marginTop: spacing.xs },
@@ -828,5 +920,4 @@ const styles = StyleSheet.create({
     emptyText: { fontSize: fontSize.md, color: colors.textPlaceholder },
 })
 
-// Contain a render crash to this screen instead of blanking the whole app.
 export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFallback'

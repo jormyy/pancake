@@ -21,6 +21,7 @@ import Animated, {
 } from 'react-native-reanimated'
 
 const PRESS_SPRING = { damping: 16, stiffness: 360, mass: 0.42 }
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable)
 
 type MotionPreset = 'fade' | 'rise' | 'pop' | 'slide-left' | 'slide-right'
 
@@ -70,42 +71,38 @@ export function MotionPressable({
         ],
     }), [disabled, lift, pressedScale])
 
-    // Animated.View owns layout + animation; Pressable is an absoluteFill overlay
-    // so that static layout styles (flexDirection, padding, etc.) always apply
-    // correctly on web (createAnimatedComponent(Pressable) drops static styles on web).
     return (
-        <Animated.View style={[style, animatedStyle]}>
+        <AnimatedPressable
+            {...props}
+            disabled={disabled}
+            style={[style, animatedStyle]}
+            onHoverIn={(event) => {
+                if (!reduceMotion && !disabled) {
+                    hovered.value = withSpring(1, PRESS_SPRING)
+                }
+                onHoverIn?.(event)
+            }}
+            onHoverOut={(event) => {
+                if (!reduceMotion) {
+                    hovered.value = withSpring(0, PRESS_SPRING)
+                }
+                onHoverOut?.(event)
+            }}
+            onPressIn={(event) => {
+                if (!reduceMotion && !disabled) {
+                    pressed.value = withSpring(1, PRESS_SPRING)
+                }
+                onPressIn?.(event)
+            }}
+            onPressOut={(event) => {
+                if (!reduceMotion) {
+                    pressed.value = withSpring(0, PRESS_SPRING)
+                }
+                onPressOut?.(event)
+            }}
+        >
             {children}
-            <Pressable
-                {...props}
-                disabled={disabled}
-                style={StyleSheet.absoluteFill}
-                onHoverIn={(event) => {
-                    if (!reduceMotion && !disabled) {
-                        hovered.value = withSpring(1, PRESS_SPRING)
-                    }
-                    onHoverIn?.(event)
-                }}
-                onHoverOut={(event) => {
-                    if (!reduceMotion) {
-                        hovered.value = withSpring(0, PRESS_SPRING)
-                    }
-                    onHoverOut?.(event)
-                }}
-                onPressIn={(event) => {
-                    if (!reduceMotion && !disabled) {
-                        pressed.value = withSpring(1, PRESS_SPRING)
-                    }
-                    onPressIn?.(event)
-                }}
-                onPressOut={(event) => {
-                    if (!reduceMotion) {
-                        pressed.value = withSpring(0, PRESS_SPRING)
-                    }
-                    onPressOut?.(event)
-                }}
-            />
-        </Animated.View>
+        </AnimatedPressable>
     )
 }
 

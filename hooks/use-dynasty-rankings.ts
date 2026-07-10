@@ -22,7 +22,7 @@ const dynastyCacheKey = (query: string) => `${DYNASTY_CACHE_PREFIX}${query.trim(
 
 export function useDynastyRankings() {
     const [query, setQuery] = useState('')
-    const initialCache = readPersistentCache<DynastyRankingsCache>(dynastyCacheKey(''))
+    const [initialCache] = useState(() => readPersistentCache<DynastyRankingsCache>(dynastyCacheKey('')))
     const [players, setPlayers] = useState<DynastyRankPlayer[]>(initialCache?.players ?? [])
     const [loading, setLoading] = useState(!initialCache)
     const [refreshing, setRefreshing] = useState(false)

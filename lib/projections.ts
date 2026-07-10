@@ -2,7 +2,7 @@ import { supabase } from '@/lib/supabase'
 import { currentSeasonYear } from '@/lib/shared/season'
 import { todayET } from '@/lib/shared/dates'
 
-export type ProjectionView = 'today' | 'week_avg' | 'week_total'
+type ProjectionView = 'today' | 'week_avg' | 'week_total'
 
 export type LeagueProjectionRow = {
     player_id: string
@@ -38,7 +38,7 @@ export type LeagueProjectionRow = {
     projection_is_fresh: boolean | null
 }
 
-export async function getLeagueProjections({
+async function getLeagueProjections({
     leagueId,
     view = 'today',
     seasonYear = currentSeasonYear(),

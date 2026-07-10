@@ -12,10 +12,12 @@ vi.mock('@/lib/shared/week', () => ({
     calculateWeekNumberFromDate: vi.fn(),
 }))
 vi.mock('@/lib/shared/dates', () => ({ todayDateString: vi.fn(), todayET: vi.fn() }))
+vi.mock('@/lib/shared/api', () => ({ apiPost: vi.fn(async () => ({ ok: true, dates: 12, optimized: 12, skipped: 0 })) }))
 
 import { supabase } from '@/lib/supabase'
 import { todayDateString, todayET } from '@/lib/shared/dates'
 import { autoSetLineup } from '@/lib/lineup'
+import { apiPost } from '@/lib/shared/api'
 
 const mockFrom = vi.mocked(supabase.from)
 const mockRpc = vi.mocked(supabase.rpc)
@@ -59,7 +61,7 @@ function q(data: any = null, error: any = null, count: number | null = null) {
  * Smart weekly_lineups chain. Detects whether it's being used for a select or
  * a delete/insert by tracking the first method called on the chain.
  */
-function makeLUChain(existingEntries: any[], insertSpy: ReturnType<typeof vi.fn>) {
+function makeLUChain(existingEntries: any[], insertSpy: (rows: unknown) => unknown) {
     let callType: 'select' | 'write' = 'select'
     const chain: any = {
         select: () => { callType = 'select'; return chain },
@@ -127,8 +129,8 @@ interface MockOpts {
     roster: ReturnType<typeof rp>[]
     avgs: ReturnType<typeof avg>[]
     games: ReturnType<typeof game>[]
-    templates?: Array<{ slot_type: string; slot_count: number }>
-    existingEntries?: Array<{ player_id: string; slot_type: string }>
+    templates?: { slot_type: string; slot_count: number }[]
+    existingEntries?: { player_id: string; slot_type: string }[]
     seasonWeeks?: any   // single object for getWeekDays (weekly), array for getRemainingSeasonDates (season)
     weekGames?: ReturnType<typeof game>[] // override nba_games for the first (week-level) query
 }
@@ -351,27 +353,16 @@ describe('autoSetLineup — weekly', () => {
 // ── autoSetLineup — season ────────────────────────────────────────────────────
 
 describe('autoSetLineup — season', () => {
-    it('processes all remaining season dates across multiple weeks', async () => {
-        // 2 remaining weeks:
-        // Week 20: week_start=April 22 → Monday April 20 → filter to Apr 22-26 = 5 dates
-        // Week 21: week_start=April 29 → Monday April 27 → all 7 dates (Apr 27–May 3)
-        // Total: 12 dates
-        const roster = [rp('pPG', 'PG', ['PG', 'G'], 'LAL')]
-        const avgs   = [avg('pPG', 30)]
-        const games  = [game('LAL', 'GSW')]
-
-        const { insertSpy } = setupMocks({
-            roster, avgs, games,
-            templates: [{ slot_type: 'PG', slot_count: 1 }],
-            seasonWeeks: [
-                { week_number: 20, week_start: '2026-04-22' },
-                { week_number: 21, week_start: '2026-04-29' },
-            ],
-        })
-
+    it('uses one bounded authenticated server operation', async () => {
         await autoSetLineup('m1', 'lg1', 's1', 20, 2026, null, true)
 
-        expect(insertSpy).toHaveBeenCalledTimes(12)
+        expect(apiPost).toHaveBeenCalledOnce()
+        expect(apiPost).toHaveBeenCalledWith('/league/lineup/auto-set-season', {
+            memberId: 'm1',
+            leagueId: 'lg1',
+            leagueSeasonId: 's1',
+        })
+        expect(mockFrom).not.toHaveBeenCalled()
     })
 })
 
@@ -506,32 +497,11 @@ describe('autoSetLineup — locked lineup preservation', () => {
         }
     })
 
-    it('season: locked player is not moved; unlocked slots are re-optimized', async () => {
-        const roster = [
-            rp('pA', 'PG', ['PG', 'G'], 'LAL'),
-            rp('pB', 'SG', ['SG', 'G'], 'BOS'),
-        ]
-        const avgs = [avg('pA', 30), avg('pB', 25)]
-        const games = [
-            game('LAL', 'OKC', 'InProgress'),
-            game('BOS', 'MIA'),
-        ]
-        const existingEntries = [{ player_id: 'pA', slot_type: 'PG' }]
-
-        const { insertSpy } = setupMocks({
-            roster, avgs, games,
-            templates: [{ slot_type: 'PG', slot_count: 1 }, { slot_type: 'SG', slot_count: 1 }],
-            existingEntries,
-            seasonWeeks: [{ week_number: 20, week_start: '2026-04-22' }],
-        })
-
+    it('season mode never performs per-date client writes', async () => {
         await autoSetLineup('m1', 'lg1', 's1', 20, 2026, null, true)
 
-        for (const call of insertSpy.mock.calls) {
-            const rows: any[] = call[0]
-            expect(rows.find((r: any) => r.player_id === 'pA')).toBeUndefined()
-            expect(rows).toContainEqual(expect.objectContaining({ player_id: 'pB', slot_type: 'SG' }))
-        }
+        expect(mockRpc).not.toHaveBeenCalled()
+        expect(mockFrom).not.toHaveBeenCalled()
     })
 })
 

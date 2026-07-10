@@ -1,5 +1,6 @@
 import { supabase } from './supabase.ts'
 import { errorMessage } from './responses.ts'
+import { utf8ByteLength } from './tradeLimits.ts'
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -35,6 +36,18 @@ export class ValidationError extends ApiError {
 export class NotFoundError extends ApiError {
   constructor(message = 'Not found') {
     super(message, 404)
+  }
+}
+
+export class ServiceUnavailableError extends ApiError {
+  constructor(message: string) {
+    super(message, 503)
+  }
+}
+
+class GatewayTimeoutError extends ApiError {
+  constructor(message: string) {
+    super(message, 504)
   }
 }
 
@@ -99,7 +112,7 @@ function dbErrorStatus(error: unknown): number {
   const code = (error as { code?: unknown }).code
   if (code === '42501') return 403
   if (code === 'P0002' || code === 'PGRST116') return 404
-  if (code === 'P0001' || code === '23505' || code === '23514' || code === '22023') return 400
+  if (code === 'P0001' || code === '23505' || code === '23514' || code === '22003' || code === '22023') return 400
   return 500
 }
 
@@ -107,8 +120,17 @@ export function throwDb(error: unknown): never {
   throw new ApiError(errorMessage(error), dbErrorStatus(error))
 }
 
+const MAX_JSON_BODY_BYTES = 64 * 1024
+
 export async function readJsonObject(req: Request): Promise<Record<string, unknown>> {
+  const declaredLength = Number(req.headers.get('content-length'))
+  if (Number.isFinite(declaredLength) && declaredLength > MAX_JSON_BODY_BYTES) {
+    throw new ValidationError('Request body must not exceed 64 KB')
+  }
   const text = await req.text()
+  if (new TextEncoder().encode(text).byteLength > MAX_JSON_BODY_BYTES) {
+    throw new ValidationError('Request body must not exceed 64 KB')
+  }
   if (!text.trim()) return {}
 
   let value: unknown
@@ -130,10 +152,20 @@ export function stringField(body: Record<string, unknown>, key: string): string 
   return value
 }
 
-export function optionalStringField(body: Record<string, unknown>, key: string): string | null {
+export function optionalStringField(
+  body: Record<string, unknown>,
+  key: string,
+  { maxLength, maxUtf8Bytes }: { maxLength?: number; maxUtf8Bytes?: number } = {},
+): string | null {
   const value = body[key]
   if (value == null || value === '') return null
   if (typeof value !== 'string') throw new ValidationError(`${key} must be a string`)
+  if (maxLength != null && value.length > maxLength) {
+    throw new ValidationError(`${key} must contain at most ${maxLength} characters`)
+  }
+  if (maxUtf8Bytes != null && utf8ByteLength(value) > maxUtf8Bytes) {
+    throw new ValidationError(`${key} must contain at most ${maxUtf8Bytes} UTF-8 bytes`)
+  }
   return value
 }
 
@@ -278,14 +310,21 @@ export async function requireCommissionerForDraft(userId: string, draftId: strin
   if (!data) throw new NotFoundError('Draft not found')
 }
 
-export function requireAdmin(userId: string): void {
-  const allowlist = (Deno.env.get('ADMIN_USER_IDS') ?? '')
+function adminUserIds(): string[] {
+  return (Deno.env.get('ADMIN_USER_IDS') ?? '')
     .split(',')
-    .map((s) => s.trim())
+    .map((value) => value.trim())
     .filter(Boolean)
+}
 
+export function requireAdmin(userId: string): void {
+  const allowlist = adminUserIds()
   if (allowlist.length === 0) throw new ApiError('Admin access not configured', 503)
   if (!allowlist.includes(userId)) throw new ApiError('Admin access required', 403)
+}
+
+export function isAdmin(userId: string): boolean {
+  return adminUserIds().includes(userId)
 }
 
 export function requireE2eSecret(req: Request): void {
@@ -323,7 +362,11 @@ function serviceKey(): string | null {
 export async function invokeInternalFunction(
   functionName: string,
   body: Record<string, unknown> = {},
-  options: { method?: 'GET' | 'POST'; query?: Record<string, string | number | null | undefined> } = {},
+  options: {
+    method?: 'GET' | 'POST'
+    query?: Record<string, string | number | null | undefined>
+    timeoutMs?: number
+  } = {},
 ): Promise<unknown> {
   const baseUrl = Deno.env.get('SUPABASE_URL')
   if (!baseUrl) throw new ApiError('SUPABASE_URL is not configured', 500)
@@ -335,17 +378,35 @@ export async function invokeInternalFunction(
 
   const method = options.method ?? 'POST'
   const key = serviceKey()
-  const response = await fetch(url, {
-    method,
-    headers: {
-      'Content-Type': 'application/json',
-      'x-internal-function-token': internalToken(),
-      ...(key ? { Authorization: `Bearer ${key}`, apikey: key } : {}),
-    },
-    body: method === 'POST' ? JSON.stringify(body) : undefined,
-  })
+  const timeoutMs = options.timeoutMs ?? 30_000
+  if (!Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 120_000) {
+    throw new RangeError('Internal function timeout must be an integer between 1 and 120000 milliseconds')
+  }
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), timeoutMs)
+  let response: Response
+  let text: string
+  try {
+    response = await fetch(url, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        'x-internal-function-token': internalToken(),
+        ...(key ? { Authorization: `Bearer ${key}`, apikey: key } : {}),
+      },
+      body: method === 'POST' ? JSON.stringify(body) : undefined,
+      signal: controller.signal,
+    })
+    text = await response.text()
+  } catch (error) {
+    if (controller.signal.aborted) {
+      throw new GatewayTimeoutError(`Internal function ${functionName} timed out after ${timeoutMs}ms`)
+    }
+    throw error
+  } finally {
+    clearTimeout(timeout)
+  }
 
-  const text = await response.text()
   let payload: unknown = null
   if (text.trim()) {
     try {

@@ -5,6 +5,7 @@ import { createClient } from '@supabase/supabase-js'
 import { resolvedEnv, requireEnv, describeEndpoint } from './env.mjs'
 import { installRuntimeOverrides, normalizeBrowserErrors } from './browser-runtime-overrides.mjs'
 import { clickButtonByName, createBrowser, fillSignInCredentials, listBrowserSessions } from './browser-agent.mjs'
+import { createFixtureResourceOwner } from './trade-fixture.mjs'
 
 const ROOT = process.cwd()
 const ARTIFACT_ROOT = path.join(ROOT, 'tests/artifacts')
@@ -104,8 +105,13 @@ const setupBrowserRookieDraftFixture = async (env, season) => {
   }))
 
   const admin = createClient(env.supabaseUrl, env.serviceRoleKey, { auth: { persistSession: false } })
+  const resources = createFixtureResourceOwner(admin)
   const createdUsers = []
-  for (const user of users) createdUsers.push(await createConfirmedUser(admin, user))
+  for (const user of users) {
+    const createdUser = await createConfirmedUser(admin, user)
+    resources.registerUser(createdUser.id)
+    createdUsers.push(createdUser)
+  }
 
   const { error: profileError } = await admin.from('profiles').upsert(
     createdUsers.map((user) => ({
@@ -124,6 +130,7 @@ const setupBrowserRookieDraftFixture = async (env, season) => {
     p_auction_budget: 200,
   })
   if (createError) throw new Error(`create_league: ${createError.message}`)
+  resources.registerLeague(league.id)
 
   for (const user of createdUsers.slice(1)) {
     const memberClient = await signInClient(env, user.email, password)
@@ -242,6 +249,7 @@ const setupBrowserRookieDraftFixture = async (env, season) => {
     draft,
     rookies,
     expectedAutoPickPlayer: rookies[0],
+    dispose: resources.dispose,
   }
 }
 
@@ -294,7 +302,7 @@ const waitForAutoPick = async (fixture, timeoutMs = 12_000) => {
 
 export async function runBrowserRookieDraftAutoPickScenario({
   season = 0,
-  sessionName,
+  sessionName = undefined,
 } = {}) {
   const env = resolvedEnv()
   requireEnv(env, ['supabaseUrl', 'serviceRoleKey', 'anonKey', 'apiBaseUrl', 'e2eAdminSecret'])
@@ -314,7 +322,7 @@ export async function runBrowserRookieDraftAutoPickScenario({
 
   try {
     await signInBrowser(session, env, fixture.activeUser, fixture.password)
-    await browser(session, ['set', 'viewport', '390', '844']).catch(() => {})
+    await browser(session, ['set', 'viewport', '390', '844'])
     const fastTimerExpiresAt = new Date(Date.now() + 3_000).toISOString()
     const { error: draftClockError } = await fixture.admin
       .from('snake_draft_picks')
@@ -397,15 +405,15 @@ export async function runBrowserRookieDraftAutoPickScenario({
     }
     await writeFile(REPORT_PATH, `${JSON.stringify(report, null, 2)}\n`).catch(() => {})
     throw error
-  } finally {
-    await browser(session, ['close']).catch(() => {})
   }
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const seasonArg = process.argv.find((arg) => arg.startsWith('--season='))
   const season = seasonArg ? Number(seasonArg.split('=')[1]) : 0
-  runBrowserRookieDraftAutoPickScenario({ season }).catch((error) => {
+  import('./browser-scenario-registry.mjs').then(({ browserScenarioById }) => (
+    browserScenarioById('rookie-draft').run({ args: { browserFullSweep: false }, season })
+  )).catch((error) => {
     console.error(error)
     process.exitCode = 1
   })

@@ -1,0 +1,175 @@
+import React from 'react'
+import { act, create, type ReactTestRenderer } from 'react-test-renderer'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { useMatchupData } from '@/hooks/use-matchup-data'
+import type { Matchup } from '@/lib/scoring'
+
+const { getLeagueWeekMatchups, getMyMatchup, getWeekDays, getWeeklyLineup, readPersistentCache } = vi.hoisted(() => ({
+    getLeagueWeekMatchups: vi.fn(),
+    getMyMatchup: vi.fn(),
+    getWeekDays: vi.fn(),
+    getWeeklyLineup: vi.fn(),
+    readPersistentCache: vi.fn(),
+}))
+
+vi.mock('@react-navigation/native', () => ({ useFocusEffect: vi.fn() }))
+vi.mock('@/lib/scoring', () => ({ getLeagueWeekMatchups, getMyMatchup }))
+vi.mock('@/lib/lineup', () => ({
+    clampDateToWeek: (_date: string, days: { date: string }[]) => days[0]?.date ?? '2026-07-09',
+    getWeekDays,
+    getWeeklyLineup,
+}))
+vi.mock('@/lib/shared/dates', () => ({ todayET: () => '2026-07-09' }))
+vi.mock('@/lib/persistent-cache', () => ({ readPersistentCache, writePersistentCache: vi.fn() }))
+vi.mock('@/lib/realtime', () => ({
+    debounceRealtimeRefresh: () => ({ trigger: vi.fn(), cancel: vi.fn() }),
+    disposeTableChangeSubscription: vi.fn(),
+    reportRealtimeCleanup: vi.fn(),
+    subscribeToTableChanges: vi.fn(() => ({})),
+}))
+
+;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+
+const deferred = <Value,>() => {
+    let resolve!: (value: Value) => void
+    const promise = new Promise<Value>((done) => { resolve = done })
+    return { promise, resolve }
+}
+
+const matchup: Matchup = {
+    id: 'matchup', weekNumber: 1, myPoints: 0, opponentPoints: 0,
+    myTeamName: 'Mine', opponentTeamName: 'Theirs', myUsername: 'me', opponentUsername: 'them',
+    myWins: 0, myLosses: 0, opponentWins: 0, opponentLosses: 0, isFinalized: false,
+    iWon: null, myMemberId: 'member-a', opponentMemberId: 'member-b', seasonId: 'season', seasonYear: 2026,
+}
+const lineup = (id: string) => ({
+    starters: [], bench: [{
+        rosterPlayerId: `roster-${id}`, playerId: id, displayName: id, position: 'PG',
+        eligiblePositions: ['PG'], nbaTeam: 'LAL', injuryStatus: null, nbaId: null,
+    }], ir: [], taxi: [],
+})
+
+beforeEach(() => {
+    vi.clearAllMocks()
+    readPersistentCache.mockReturnValue(undefined)
+    getLeagueWeekMatchups.mockResolvedValue([])
+    getWeekDays.mockResolvedValue([{ date: '2026-07-09' }])
+})
+
+describe('useMatchupData date ownership', () => {
+    it('retains a cached matchup when a refresh fails', async () => {
+        readPersistentCache.mockReturnValue({
+            today: '2026-07-09', selectedDate: '2026-07-09', matchup, weekDays: [], leagueMatchups: [],
+            myLineup: lineup('cached-mine'), oppLineup: lineup('cached-opp'),
+        })
+        getMyMatchup.mockRejectedValue(new Error('offline'))
+        let latest!: ReturnType<typeof useMatchupData>
+        const Probe = () => {
+            latest = useMatchupData({ id: 'member-a' }, { id: 'user' }, { id: 'league' })
+            return null
+        }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe)) })
+
+        await act(async () => { await latest.refresh() })
+
+        expect(latest.matchup?.id).toBe('matchup')
+        expect(latest.myLineup?.bench[0]?.playerId).toBe('cached-mine')
+        expect(latest.error).toBe('Failed to load matchup')
+        await act(async () => { renderer.unmount() })
+    })
+
+    it('does not let an old action reload cancel or overwrite the selected day', async () => {
+        readPersistentCache.mockReturnValue({
+            today: '2026-07-09', selectedDate: '2026-07-09', matchup, weekDays: [], leagueMatchups: [],
+            myLineup: lineup('old-mine'), oppLineup: lineup('old-opp'),
+        })
+        const mine = deferred<ReturnType<typeof lineup>>()
+        const opponent = deferred<ReturnType<typeof lineup>>()
+        getWeeklyLineup.mockImplementation((memberId: string, _leagueId: string, _seasonId: string, _week: number, date: string) => {
+            expect(date).toBe('2026-07-10')
+            return memberId === 'member-a' ? mine.promise : opponent.promise
+        })
+        let latest!: ReturnType<typeof useMatchupData>
+        const Probe = () => {
+            latest = useMatchupData({ id: 'member-a' }, { id: 'user' }, { id: 'league' })
+            return null
+        }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe)) })
+        let currentLoad!: Promise<unknown>
+        await act(async () => {
+            latest.setSelectedDate('2026-07-10')
+            currentLoad = latest.loadLineups(matchup, '2026-07-10')
+            await latest.loadMyLineup(matchup, '2026-07-09')
+        })
+        expect(getWeeklyLineup).toHaveBeenCalledTimes(2)
+        await act(async () => {
+            mine.resolve(lineup('new-mine'))
+            opponent.resolve(lineup('new-opp'))
+            await currentLoad
+        })
+
+        expect(latest.selectedDate).toBe('2026-07-10')
+        expect(latest.myLineup?.bench[0]?.playerId).toBe('new-mine')
+        expect(latest.oppLineup?.bench[0]?.playerId).toBe('new-opp')
+        await act(async () => { renderer.unmount() })
+    })
+
+    it('invalidates an in-flight matchup read when the resource identity becomes empty', async () => {
+        const pending = deferred<Matchup | null>()
+        getMyMatchup.mockReturnValue(pending.promise)
+        let latest!: ReturnType<typeof useMatchupData>
+        const Probe = ({ active }: { active: boolean }) => {
+            latest = useMatchupData(
+                active ? { id: 'member-a' } : null,
+                active ? { id: 'user' } : null,
+                active ? { id: 'league' } : null,
+            )
+            return null
+        }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe, { active: true })) })
+        let request!: Promise<void>
+        await act(async () => { request = latest.refresh(); await Promise.resolve() })
+        await act(async () => { renderer.update(React.createElement(Probe, { active: false })) })
+        await act(async () => { pending.resolve(matchup); await request })
+
+        expect(latest.matchup).toBeUndefined()
+        expect(getWeekDays).not.toHaveBeenCalled()
+        await act(async () => { renderer.unmount() })
+    })
+
+    it('hides cached matchup state on the first render for a new owner key', async () => {
+        readPersistentCache.mockImplementation((key: string) => key.includes('league-a') ? {
+            today: '2026-07-09', selectedDate: '2026-07-09', matchup, weekDays: [], leagueMatchups: [],
+            myLineup: lineup('old-mine'), oppLineup: lineup('old-opp'),
+        } : undefined)
+        const snapshots: { requested: string; matchupId?: string; mine?: string; loading: boolean; refId?: string }[] = []
+        const Probe = ({ memberId, leagueId }: { memberId: string; leagueId: string }) => {
+            const value = useMatchupData({ id: memberId }, { id: `user-${leagueId}` }, { id: leagueId })
+            snapshots.push({
+                requested: leagueId,
+                matchupId: value.matchup?.id,
+                mine: value.myLineup?.bench[0]?.playerId,
+                loading: value.matchupLoading,
+                refId: value.matchupRef.current?.id,
+            })
+            return null
+        }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe, { memberId: 'member-a', leagueId: 'league-a' })) })
+        await act(async () => {
+            renderer.update(React.createElement(Probe, { memberId: 'member-b', leagueId: 'league-b' }))
+        })
+
+        expect(snapshots.find((snapshot) => snapshot.requested === 'league-b')).toEqual({
+            requested: 'league-b',
+            matchupId: undefined,
+            mine: undefined,
+            loading: true,
+            refId: undefined,
+        })
+        await act(async () => { renderer.unmount() })
+    })
+})

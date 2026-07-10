@@ -6,14 +6,22 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test-frontend:
     name: Frontend lib tests
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: npm
@@ -24,28 +32,20 @@ jobs:
       - name: Dependency audit (high+)
         run: npm audit --audit-level=high
 
-      - name: Lint
-        run: npm run lint
+      - name: Repository quality gates
+        run: npm run check:quality
 
-      - name: Typecheck app
-        run: npm run typecheck
-
-      - name: Run tests (incl. scoring-parity + RLS-grant security guards)
-        run: npm test
-
-      - name: Typecheck core
-        run: npm run typecheck --workspace core
-
-      - name: Run core tests
-        run: npm test --workspace core
+      - name: Run app and core tests
+        run: npm run test:workspaces
 
   test-edge:
     name: Supabase Edge checks
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: npm
@@ -53,12 +53,189 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - uses: denoland/setup-deno@v2
+      - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
         with:
-          deno-version: v2.x
+          deno-version: 2.7.14
 
       - name: Check Edge functions
         run: npm run check:edge-functions
 
-      - name: Check generated Edge shared code
-        run: npm run check:edge-shared
+  test-database:
+    name: Supabase migration and trade integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify published migrations are immutable
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -o pipefail
+          git ls-tree -r --name-only "origin/${{ github.base_ref }}" supabase/migrations |
+            while read -r migration; do
+              git diff --quiet "origin/${{ github.base_ref }}" -- "$migration" || {
+                echo "Published migration changed: $migration"
+                exit 1
+              }
+            done
+
+      - name: Verify new migration versions advance the base head
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          base_head="$(git ls-tree -r --name-only "origin/${{ github.base_ref }}" supabase/migrations |
+            sed -E 's#^.*/([0-9]+)_.*#\1#' | sort | tail -1)"
+          while read -r migration; do
+            version="$(basename "$migration" | sed -E 's/^([0-9]+)_.*/\1/')"
+            test "$version" \> "$base_head" || {
+              echo "New migration $migration does not advance base head $base_head"
+              exit 1
+            }
+          done < <(git diff --name-only --diff-filter=A "origin/${{ github.base_ref }}" -- supabase/migrations)
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - uses: supabase/setup-cli@ab058987d8d6c725971f6cf9d0b5c98467e30bd1 # v1.7.1
+        with:
+          version: 2.109.1
+
+      - name: Start Supabase from repository migrations
+        run: supabase start
+
+      - name: Verify generated database types
+        run: npm run check:database-types
+
+      - name: Verify migration head and multi-team trade behavior
+        shell: bash
+        run: |
+          source <(supabase status -o env)
+          printf 'PANCAKE_EDGE_INTERNAL_TOKEN=local-database-ci-token\n' > /tmp/pancake-database-edge.env
+          supabase functions serve --env-file /tmp/pancake-database-edge.env > /tmp/pancake-database-edge.log 2>&1 &
+          for attempt in {1..60}; do
+            if curl --fail --silent "$API_URL/functions/v1/api/health" >/dev/null; then
+              break
+            fi
+            if [ "$attempt" -eq 60 ]; then
+              cat /tmp/pancake-database-edge.log
+              exit 1
+            fi
+            sleep 2
+          done
+          SUPABASE_DB_URL="$DB_URL" npm run check:db-function-catalog
+          find supabase/migrations -maxdepth 1 -name '*.sql' -exec basename {} .sql \; | sort > /tmp/expected-migrations
+          psql "$DB_URL" -Atc "select version || '_' || name from supabase_migrations.schema_migrations order by version" > /tmp/applied-migrations
+          diff -u /tmp/expected-migrations /tmp/applied-migrations
+          E2E_SUPABASE_URL="$API_URL" \
+          SUPABASE_DB_URL="$DB_URL" \
+          E2E_PANCAKE_SUPABASE_SECRET_KEY="$SECRET_KEY" \
+          E2E_SUPABASE_PUBLISHABLE_KEY="$PUBLISHABLE_KEY" \
+          PANCAKE_EDGE_INTERNAL_TOKEN=local-database-ci-token \
+          npm run test:db
+
+  browser-matrix:
+    name: Browser scenario matrix
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - id: matrix
+        run: echo "matrix=$(node tests/e2e/browser-scenario-manifest.mjs --ci-matrix)" >> "$GITHUB_OUTPUT"
+
+  test-browser:
+    name: Browser (${{ matrix.scenario }})
+    needs: browser-matrix
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.browser-matrix.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - uses: supabase/setup-cli@ab058987d8d6c725971f6cf9d0b5c98467e30bd1 # v1.7.1
+        with:
+          version: 2.109.1
+
+      - name: Start local app stack
+        shell: bash
+        run: |
+          supabase start
+          source <(supabase status -o env)
+          export EXPO_PUBLIC_SUPABASE_URL="$API_URL"
+          export EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$PUBLISHABLE_KEY"
+          export EXPO_PUBLIC_API_URL="$API_URL/functions/v1/api"
+          mkdir -p tests/artifacts/stack
+          printf 'E2E_ADMIN_SECRET=local-browser-ci-secret\n' > /tmp/pancake-edge.env
+          supabase functions serve --env-file /tmp/pancake-edge.env > tests/artifacts/stack/edge.log 2>&1 &
+          EXPO_UNSTABLE_METRO_OPTIMIZE_GRAPH=1 npm run build:web:release > tests/artifacts/stack/web-build.log 2>&1
+          node tests/e2e/static-web-server.mjs --root=dist --port=8082 > tests/artifacts/stack/web.log 2>&1 &
+          for attempt in {1..60}; do
+            if curl --fail --silent http://127.0.0.1:8082 >/dev/null &&
+              curl --fail --silent "$API_URL/functions/v1/api/health" >/dev/null; then
+              printf 'E2E_SUPABASE_URL=%s\n' "$API_URL" >> "$GITHUB_ENV"
+              printf 'E2E_PANCAKE_SUPABASE_SECRET_KEY=%s\n' "$SECRET_KEY" >> "$GITHUB_ENV"
+              printf 'E2E_SUPABASE_PUBLISHABLE_KEY=%s\n' "$PUBLISHABLE_KEY" >> "$GITHUB_ENV"
+              printf 'SUPABASE_DB_URL=%s\n' "$DB_URL" >> "$GITHUB_ENV"
+              printf 'E2E_API_BASE_URL=%s/functions/v1/api\n' "$API_URL" >> "$GITHUB_ENV"
+              printf 'E2E_FRONTEND_URL=http://127.0.0.1:8082\n' >> "$GITHUB_ENV"
+              printf 'E2E_ADMIN_SECRET=local-browser-ci-secret\n' >> "$GITHUB_ENV"
+              npm run e2e:web-hydration
+              exit 0
+            fi
+            sleep 2
+          done
+          cat tests/artifacts/stack/web.log
+          cat tests/artifacts/stack/edge.log
+          exit 1
+
+      - name: Seed browser fixture
+        if: matrix.seed
+        run: npm run e2e:seed
+
+      - name: Run browser scenario
+        run: npm exec -- node tests/e2e/browser-ci-scenario.mjs --scenario=${{ matrix.scenario }}
+
+      - name: Enforce measured browser performance budgets
+        if: matrix.scenario == 'performance'
+        run: npm run perf:budget -- --require-report
+
+      - name: Enforce measured smoke workflow budgets
+        if: matrix.scenario == 'smoke'
+        run: npm run perf:budget -- --require-workflow-reports
+
+      - name: Retain browser diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: browser-${{ matrix.scenario }}-evidence
+          path: |
+            tests/e2e-browser-*-report.md
+            tests/e2e-browser-*-report.json
+            tests/e2e-seed-report.md
+            tests/performance-budget-report.md
+            tests/artifacts/
+          if-no-files-found: error

@@ -37,12 +37,14 @@ const parseJsonBody = (text) => {
   }
 }
 
+const optionalString = (value) => typeof value === 'string' ? value : undefined
+
 const authEndpoint = (target) => {
   if (target === 'local') {
     const status = localSupabaseStatus()
     return {
-      apiUrl: status.API_URL,
-      publicKey: status.PUBLISHABLE_KEY ?? status.ANON_KEY,
+      apiUrl: optionalString(status.API_URL),
+      publicKey: optionalString(status.PUBLISHABLE_KEY) ?? optionalString(status.ANON_KEY),
     }
   }
 
@@ -111,6 +113,12 @@ cron_wrapper AS (
     has_function_privilege('authenticated', 'public.invoke_edge_function_at_et_time(text,int,int)', 'EXECUTE') AS cron_auth_exec,
     has_function_privilege('service_role', 'public.invoke_edge_function_at_et_time(text,int,int)', 'EXECUTE') AS cron_service_exec
 ),
+auth_trigger AS (
+  SELECT
+    has_function_privilege('anon', 'public.handle_new_auth_user()', 'EXECUTE') AS anon_exec,
+    has_function_privilege('authenticated', 'public.handle_new_auth_user()', 'EXECUTE') AS auth_exec,
+    has_function_privilege('service_role', 'public.handle_new_auth_user()', 'EXECUTE') AS service_exec
+),
 waiver_policy AS (
   SELECT
     count(*) FILTER (WHERE policyname = 'waiver_wire_log_select_visible_league_rows') AS waiver_policy_count,
@@ -140,6 +148,23 @@ service_role_reads AS (
     JOIN pg_namespace n ON n.oid = c.relnamespace
    WHERE n.nspname = 'public'
      AND c.relkind IN ('r', 'p', 'v', 'm', 'f')
+),
+push_token_index AS (
+  SELECT
+    count(*) = 1 AS exists_once,
+    coalesce(bool_and(index_state.indisvalid), false) AS is_valid,
+    coalesce(bool_and(index_state.indisready), false) AS is_ready,
+    coalesce(
+      bool_and(pg_get_indexdef(index_class.oid) LIKE '%(push_token) WHERE (push_token IS NOT NULL)'),
+      false
+    ) AS is_expected_definition
+    FROM pg_class AS index_class
+    JOIN pg_namespace AS index_namespace
+      ON index_namespace.oid = index_class.relnamespace
+    JOIN pg_index AS index_state
+      ON index_state.indexrelid = index_class.oid
+   WHERE index_namespace.nspname = 'public'
+     AND index_class.relname = 'profiles_push_token_lookup'
 )
 SELECT
   expected.latest_version,
@@ -147,6 +172,9 @@ SELECT
   cron_wrapper.cron_anon_exec,
   cron_wrapper.cron_auth_exec,
   cron_wrapper.cron_service_exec,
+  auth_trigger.anon_exec AS auth_trigger_anon_exec,
+  auth_trigger.auth_exec AS auth_trigger_auth_exec,
+  auth_trigger.service_exec AS auth_trigger_service_exec,
   waiver_policy.waiver_policy_count,
   waiver_policy.waiver_policy_qual,
   waiver_policy.waiver_policy_qual ILIKE '%cleared_at IS NOT NULL%' AS waiver_policy_allows_cleared,
@@ -162,8 +190,12 @@ SELECT
   edge_invoker.function_def NOT ILIKE '%app.service_role_key%' AS edge_invoker_drops_service_role_key,
   edge_invoker.function_def NOT ILIKE '%Authorization%' AS edge_invoker_drops_authorization_header,
   rookie_activation.function_def ILIKE '%private.is_commissioner(v_draft.league_id)%' AS rookie_activation_checks_commissioner,
-  service_role_reads.missing_read_count AS service_role_missing_read_count
-FROM expected, migration, cron_wrapper, waiver_policy, drop_player, edge_invoker, rookie_activation, service_role_reads;
+  service_role_reads.missing_read_count AS service_role_missing_read_count,
+  push_token_index.exists_once AS push_token_index_exists_once,
+  push_token_index.is_valid AS push_token_index_valid,
+  push_token_index.is_ready AS push_token_index_ready,
+  push_token_index.is_expected_definition AS push_token_index_expected_definition
+FROM expected, migration, cron_wrapper, auth_trigger, waiver_policy, drop_player, edge_invoker, rookie_activation, service_role_reads, push_token_index;
 `
 
 const rows = []
@@ -183,6 +215,9 @@ for (const target of targets) {
     const cronLocked = catalog?.cron_anon_exec === false &&
       catalog?.cron_auth_exec === false &&
       catalog?.cron_service_exec === true
+    const authTriggerLocked = catalog?.auth_trigger_anon_exec === false &&
+      catalog?.auth_trigger_auth_exec === false &&
+      catalog?.auth_trigger_service_exec === false
     const waiverPolicySafe = Number(catalog?.waiver_policy_count ?? 0) === 1 &&
       catalog?.waiver_policy_allows_cleared === true &&
       catalog?.waiver_policy_allows_future === true
@@ -198,6 +233,10 @@ for (const target of targets) {
       catalog?.edge_invoker_drops_authorization_header === true
     const rookieActivationGuarded = catalog?.rookie_activation_checks_commissioner === true
     const serviceRoleReadsPublicRelations = Number(catalog?.service_role_missing_read_count ?? 0) === 0
+    const pushTokenIndexHealthy = catalog?.push_token_index_exists_once === true &&
+      catalog?.push_token_index_valid === true &&
+      catalog?.push_token_index_ready === true &&
+      catalog?.push_token_index_expected_definition === true
 
     addRow(
       target,
@@ -210,6 +249,12 @@ for (const target of targets) {
       'ET cron wrapper is service-role-only',
       cronLocked ? 'PASS' : 'BLOCKED',
       `anon=${catalog?.cron_anon_exec}; authenticated=${catalog?.cron_auth_exec}; service_role=${catalog?.cron_service_exec}.`,
+    )
+    addRow(
+      target,
+      'Auth profile trigger function is not externally executable',
+      authTriggerLocked ? 'PASS' : 'BLOCKED',
+      `anon=${catalog?.auth_trigger_anon_exec}; authenticated=${catalog?.auth_trigger_auth_exec}; service_role=${catalog?.auth_trigger_service_exec}.`,
     )
     addRow(
       target,
@@ -240,6 +285,12 @@ for (const target of targets) {
       'Trusted service_role can read public relations',
       serviceRoleReadsPublicRelations ? 'PASS' : 'BLOCKED',
       `missing_read_count=${catalog?.service_role_missing_read_count}.`,
+    )
+    addRow(
+      target,
+      'Push-token lookup index is valid, ready, and partial',
+      pushTokenIndexHealthy ? 'PASS' : 'BLOCKED',
+      `exists_once=${catalog?.push_token_index_exists_once}; valid=${catalog?.push_token_index_valid}; ready=${catalog?.push_token_index_ready}; expected_definition=${catalog?.push_token_index_expected_definition}.`,
     )
   } catch (error) {
     addRow(target, 'DB security catalog query', 'BLOCKED', error instanceof Error ? error.message : String(error))

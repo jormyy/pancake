@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "noEmit": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "target": "ES2022"
+  },
+  "include": [
+    "tests/e2e/browser-agent.mjs",
+    "tests/e2e/browser-scenario-contract.mjs",
+    "tests/e2e/browser-scenario-manifest.mjs",
+    "tests/e2e/browser-scenario-lifecycle.mjs",
+    "tests/e2e/harness/args.mjs",
+    "tests/e2e/harness/reporting.mjs",
+    "tests/e2e/scenario-resource-owner.mjs",
+    "tests/e2e/trade-fixture.mjs"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}

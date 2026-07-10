@@ -2,32 +2,41 @@ import {
   invokeInternalFunction,
   assertUuid,
   json,
+  isAdmin,
   optionalIntegerField,
   optionalStringField,
   readJsonObject,
   requireAdmin,
+  requireCommissioner,
   requireUser,
   throwDb,
   uuidField,
 } from '../_shared/apiRuntime.ts'
 import { supabase } from '../_shared/supabase.ts'
 import { generateAllMatchups } from './matchups.ts'
-
-function dateStringForDaysAgo(daysAgo: number): string {
-  const date = new Date()
-  date.setDate(date.getDate() - daysAgo)
-  return date.toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
-}
+import { todayET } from '../_shared/date.ts'
+import { statsSyncRange } from '../_shared/statsSyncJob.ts'
 
 async function requireAdminUser(req: Request): Promise<void> {
   const userId = await requireUser(req)
   requireAdmin(userId)
 }
 
-async function syncStats(body: Record<string, unknown>): Promise<void> {
+async function syncStats(body: Record<string, unknown>): Promise<Record<string, unknown>> {
   const days = optionalIntegerField(body, 'days', { min: 1, max: 365 }) ?? 1
-  for (let i = days - 1; i >= 0; i -= 1) {
-    await invokeInternalFunction('sync-stats', { date: dateStringForDaysAgo(i) })
+  const range = statsSyncRange(todayET(), days)
+  const { data: jobId, error } = await supabase.rpc('create_or_resume_stats_sync_job_atomic', {
+    p_start_date: range.startDate,
+    p_end_date: range.endDate,
+  })
+  if (error) throwDb(error)
+  if (!jobId) throw new Error('Stats sync job creation returned no id')
+
+  const result = await invokeInternalFunction('sync-stats', { jobId })
+  return {
+    jobId,
+    days,
+    ...(result && typeof result === 'object' && !Array.isArray(result) ? result : {}),
   }
 }
 
@@ -56,6 +65,15 @@ async function backfillProgress(jobId: string): Promise<unknown> {
 export async function handleSyncRoute(req: Request, path: string): Promise<Response | null> {
   if (!path.startsWith('/sync/')) return null
 
+  if (req.method === 'POST' && path === '/sync/matchups') {
+    const body = await readJsonObject(req)
+    const leagueId = uuidField(body, 'leagueId')
+    const userId = await requireUser(req)
+    if (!isAdmin(userId)) await requireCommissioner(userId, leagueId)
+    await generateAllMatchups(Boolean(body.force), leagueId)
+    return json({ ok: true })
+  }
+
   await requireAdminUser(req)
 
   if (req.method === 'GET') {
@@ -81,8 +99,7 @@ export async function handleSyncRoute(req: Request, path: string): Promise<Respo
   const body = await readJsonObject(req)
 
   if (path === '/sync/stats') {
-    await syncStats(body)
-    return json({ ok: true })
+    return json({ ok: true, ...await syncStats(body) })
   }
   if (path === '/sync/scores') return json(await invokeInternalFunction('sync-scores'))
   if (path === '/sync/schedule') return json(await invokeInternalFunction('sync-schedule'))
@@ -100,11 +117,5 @@ export async function handleSyncRoute(req: Request, path: string): Promise<Respo
   if (path === '/sync/validate-db') {
     return json(await invokeInternalFunction('verify', { action: 'validate-db', seasonYear: body.seasonYear }))
   }
-  if (path === '/sync/matchups') {
-    const leagueId = typeof body.leagueId === 'string' ? uuidField(body, 'leagueId') : undefined
-    await generateAllMatchups(Boolean(body.force), leagueId)
-    return json({ ok: true })
-  }
-
   return null
 }

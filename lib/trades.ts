@@ -1,17 +1,13 @@
 import { supabase } from '@/lib/supabase'
 import { apiPost } from '@/lib/shared/api'
 import { getRosterStatsMaps } from '@/lib/roster-stats'
+import type { TradeStatus } from '@pancake/core'
+import { isTradeHistoryForMember } from '@/lib/trade-perspective'
 export {
-    isIncomingTradeForMember,
-    isOutgoingTradeForMember,
-    isTradeHistoryForMember,
-    isTradeParticipant,
-    isVetoableTradeForMember,
     needsMemberAcceptance,
-    tradeParticipantIds,
 } from '@/lib/trade-perspective'
 
-export type TradePlayerItem = {
+type TradePlayerItem = {
     kind: 'player'
     playerId: string
     playerName: string
@@ -37,7 +33,7 @@ export type TradePickItem = {
     toMemberId?: string | null
 }
 
-export type TradeFaabItem = {
+type TradeFaabItem = {
     kind: 'faab'
     amount: number
     fromMemberId?: string | null
@@ -45,8 +41,9 @@ export type TradeFaabItem = {
 }
 
 export type TradeItem = TradePlayerItem | TradePickItem | TradeFaabItem
+export type RoutedTradeItem = TradeItem & { fromMemberId: string; toMemberId: string }
 
-export type TradeParticipant = {
+type TradeParticipant = {
     memberId: string
     teamName: string
     sortOrder: number
@@ -56,7 +53,7 @@ export type TradeParticipant = {
 
 export type Trade = {
     id: string
-    status: string
+    status: TradeStatus
     proposedAt: string
     acceptedAt: string | null
     vetoWindowExpiresAt: string | null
@@ -78,12 +75,41 @@ export type Trade = {
     proposerFaabAmount: number
     recipientFaabAmount: number
     myVetoed: boolean
-    // Items the proposer is giving (recipient receives)
-    proposerGives: TradeItem[]
-    // Items the recipient is giving (proposer receives)
-    recipientGives: TradeItem[]
-    // Explicitly routed items for multi-team displays and audits.
-    routedItems: TradeItem[]
+    routedItems: RoutedTradeItem[]
+}
+
+export type TradePageCursor = {
+    token: string
+}
+
+type TradeHistoryCursor = { proposedAt: string; tradeId: string }
+
+export function tradeHistoryCursorToken(cursor: TradeHistoryCursor): string {
+    return encodeURIComponent(JSON.stringify(cursor))
+}
+
+export function parseTradeHistoryCursor(cursor: TradePageCursor | null): TradeHistoryCursor | null {
+    if (!cursor) return null
+    try {
+        const parsed = JSON.parse(decodeURIComponent(cursor.token)) as Partial<TradeHistoryCursor>
+        if (typeof parsed.proposedAt !== 'string' || !Number.isFinite(Date.parse(parsed.proposedAt)) ||
+            typeof parsed.tradeId !== 'string' || parsed.tradeId.length === 0) {
+            throw new Error('invalid fields')
+        }
+        return { proposedAt: parsed.proposedAt, tradeId: parsed.tradeId }
+    } catch {
+        throw new Error('Trade history cursor is invalid.')
+    }
+}
+
+export function tradeHistoryCursorFilter(cursor: TradeHistoryCursor): string {
+    return `proposed_at.lt.${cursor.proposedAt},and(proposed_at.eq.${cursor.proposedAt},trade_id.lt.${cursor.tradeId})`
+}
+
+export type TradePage = { trades: Trade[]; nextCursor: TradePageCursor | null; hasMore: boolean }
+
+function normalizedTradePageSize(limit: number): number {
+    return Math.min(Math.max(Math.trunc(limit), 1), 99)
 }
 
 type TeamNameRow = { team_name: string | null } | null
@@ -93,6 +119,7 @@ type TradePickQueryRow = {
     round: number
     original_owner: TeamNameRow
 }
+type MemberTradePickQueryRow = TradePickQueryRow & { current_owner_id: string }
 type TradePlayerQueryRow = {
     display_name: string | null
     position: string | null
@@ -106,8 +133,8 @@ type TradeItemQueryRow = {
     side: 'proposer' | 'recipient'
     player_id: string | null
     pick_id: string | null
-    from_member_id: string | null
-    to_member_id: string | null
+    from_member_id: string
+    to_member_id: string
     faab_amount: number | null
     players: TradePlayerQueryRow
     draft_picks: {
@@ -126,7 +153,7 @@ type TradeParticipantQueryRow = {
 type TradeQueryRow = {
     id: string
     league_id: string
-    status: string
+    status: TradeStatus
     proposed_at: string
     accepted_at: string | null
     veto_window_expires_at: string | null
@@ -165,18 +192,30 @@ export type TradeProposalPayload = {
     requestPickIds: string[]
 } & TradeProposalOptions
 
-export type MultiTeamTradeItemPayload = {
+type MultiTeamTradeRoute = {
     fromMemberId: string
     toMemberId: string
-    playerId?: string | null
-    pickId?: string | null
-    faabAmount?: number
 }
+
+export type MultiTeamTradeItemPayload = MultiTeamTradeRoute & (
+    | { kind: 'player'; playerId: string }
+    | { kind: 'pick'; pickId: string }
+    | { kind: 'faab'; faabAmount: number }
+)
 
 export type MultiTeamTradeProposalPayload = {
     participantMemberIds: string[]
     items: MultiTeamTradeItemPayload[]
 } & Pick<TradeProposalOptions, 'notes' | 'expiresAt'>
+
+function multiTeamTradeWireItems(items: MultiTeamTradeItemPayload[]) {
+    return items.map((item) => {
+        const route = { fromMemberId: item.fromMemberId, toMemberId: item.toMemberId }
+        if (item.kind === 'player') return { ...route, playerId: item.playerId }
+        if (item.kind === 'pick') return { ...route, pickId: item.pickId }
+        return { ...route, faabAmount: item.faabAmount }
+    })
+}
 
 export type TradeBlockItem = {
     id: string
@@ -188,15 +227,27 @@ export type TradeBlockItem = {
 }
 
 export async function getPicksForMember(memberId: string, leagueId: string): Promise<TradePickItem[]> {
+    const picks = await getPicksForMembers([memberId], leagueId)
+    return picks[memberId] ?? []
+}
+
+export async function getPicksForMembers(
+    memberIds: string[],
+    leagueId: string,
+): Promise<Record<string, TradePickItem[]>> {
+    const uniqueMemberIds = [...new Set(memberIds)]
+    const picks = Object.fromEntries(uniqueMemberIds.map((memberId) => [memberId, [] as TradePickItem[]]))
+    if (uniqueMemberIds.length === 0) return picks
     const { data, error } = await supabase
         .from('draft_picks')
         .select(`
             id,
+            current_owner_id,
             season_year,
             round,
             original_owner:league_members!draft_picks_original_owner_id_fkey ( team_name )
         `)
-        .eq('current_owner_id', memberId)
+        .in('current_owner_id', uniqueMemberIds)
         .eq('league_id', leagueId)
         .eq('is_used', false)
         .order('season_year', { ascending: true })
@@ -204,13 +255,16 @@ export async function getPicksForMember(memberId: string, leagueId: string): Pro
 
     if (error) throw error
 
-    return ((data ?? []) as TradePickQueryRow[]).map((row) => ({
-        kind: 'pick' as const,
-        pickId: row.id,
-        seasonYear: row.season_year,
-        round: row.round,
-        originalTeamName: row.original_owner?.team_name ?? 'Unknown',
-    }))
+    for (const row of (data ?? []) as MemberTradePickQueryRow[]) {
+        picks[row.current_owner_id]?.push({
+            kind: 'pick',
+            pickId: row.id,
+            seasonYear: row.season_year,
+            round: row.round,
+            originalTeamName: row.original_owner?.team_name ?? 'Unknown',
+        })
+    }
+    return picks
 }
 
 export async function proposeTrade(
@@ -254,7 +308,39 @@ export async function proposeMultiTeamTrade(
         leagueId,
         leagueSeasonId: seasonId,
         participantMemberIds: payload.participantMemberIds,
-        items: payload.items,
+        items: multiTeamTradeWireItems(payload.items),
+        notes: payload.notes ?? '',
+        expiresAt: payload.expiresAt ?? null,
+    })
+
+    return result.tradeId
+}
+
+export async function counterMultiTeamTrade(
+    tradeId: string,
+    memberId: string,
+    payload: MultiTeamTradeProposalPayload,
+): Promise<string> {
+    const result = await apiPost<{ tradeId: string }>(`/trades/${tradeId}/counter-multi`, {
+        memberId,
+        participantMemberIds: payload.participantMemberIds,
+        items: multiTeamTradeWireItems(payload.items),
+        notes: payload.notes ?? '',
+        expiresAt: payload.expiresAt ?? null,
+    })
+
+    return result.tradeId
+}
+
+export async function editMultiTeamTrade(
+    tradeId: string,
+    memberId: string,
+    payload: MultiTeamTradeProposalPayload,
+): Promise<string> {
+    const result = await apiPost<{ tradeId: string }>(`/trades/${tradeId}/edit-multi`, {
+        memberId,
+        participantMemberIds: payload.participantMemberIds,
+        items: multiTeamTradeWireItems(payload.items),
         notes: payload.notes ?? '',
         expiresAt: payload.expiresAt ?? null,
     })
@@ -297,9 +383,8 @@ export async function editTrade(
 export async function acceptTrade(
     tradeId: string,
     memberId: string,
-    dropRosterPlayerIds: string[] = [],
 ): Promise<void> {
-    await apiPost(`/trades/${tradeId}/accept`, { memberId, dropRosterPlayerIds })
+    await apiPost(`/trades/${tradeId}/accept`, { memberId })
 }
 
 export async function rejectTrade(tradeId: string, memberId: string): Promise<void> {
@@ -363,12 +448,12 @@ const TRADE_SELECT = `
         `
 
 function mapTradeRow(row: TradeQueryRow, memberId: string): Trade {
-    const proposerGives: TradeItem[] = []
-    const recipientGives: TradeItem[] = []
-    const routedItems: TradeItem[] = []
+    const routedItems: RoutedTradeItem[] = []
 
     for (const item of row.trade_items ?? []) {
-        let tradeItem: TradeItem | null = null
+        const fromMemberId = item.from_member_id
+        const toMemberId = item.to_member_id
+        let tradeItem: RoutedTradeItem | null = null
 
         if (item.player_id != null && item.players) {
             tradeItem = {
@@ -381,9 +466,9 @@ function mapTradeRow(row: TradeQueryRow, memberId: string): Trade {
                 nbaId: item.players?.nba_id ?? null,
                 injuryStatus: item.players?.injury_status ?? null,
                 yearsExp: item.players?.years_exp ?? null,
-                fromMemberId: item.from_member_id ?? null,
-                toMemberId: item.to_member_id ?? null,
-            } satisfies TradePlayerItem
+                fromMemberId,
+                toMemberId,
+            } satisfies RoutedTradeItem
         } else if (item.pick_id != null && item.draft_picks) {
             tradeItem = {
                 kind: 'pick',
@@ -391,27 +476,20 @@ function mapTradeRow(row: TradeQueryRow, memberId: string): Trade {
                 seasonYear: item.draft_picks?.season_year,
                 round: item.draft_picks?.round,
                 originalTeamName: item.draft_picks?.original_owner?.team_name ?? 'Unknown',
-                fromMemberId: item.from_member_id ?? null,
-                toMemberId: item.to_member_id ?? null,
-            } satisfies TradePickItem
+                fromMemberId,
+                toMemberId,
+            } satisfies RoutedTradeItem
         } else if ((item.faab_amount ?? 0) > 0) {
             tradeItem = {
                 kind: 'faab',
                 amount: item.faab_amount ?? 0,
-                fromMemberId: item.from_member_id ?? null,
-                toMemberId: item.to_member_id ?? null,
-            } satisfies TradeFaabItem
+                fromMemberId,
+                toMemberId,
+            } satisfies RoutedTradeItem
         }
 
         if (tradeItem) {
             routedItems.push(tradeItem)
-            const fromMemberId = item.from_member_id ?? (item.side === 'proposer' ? row.proposer_member_id : row.recipient_member_id)
-            if (fromMemberId === row.proposer_member_id) {
-                proposerGives.push(tradeItem)
-            }
-            if (fromMemberId === row.recipient_member_id) {
-                recipientGives.push(tradeItem)
-            }
         }
     }
     const participants = (row.trade_participants ?? [])
@@ -448,8 +526,6 @@ function mapTradeRow(row: TradeQueryRow, memberId: string): Trade {
         proposerFaabAmount: row.proposer_faab_amount ?? 0,
         recipientFaabAmount: row.recipient_faab_amount ?? 0,
         myVetoed: (row.trade_vetos ?? []).some((veto: { member_id: string | null }) => veto.member_id === memberId),
-        proposerGives,
-        recipientGives,
         routedItems,
     } satisfies Trade
 }
@@ -458,129 +534,157 @@ function playerIdsFromItems(items: TradeItem[]): string[] {
     return items.flatMap((item) => item.kind === 'player' ? [item.playerId] : [])
 }
 
-function enrichItemsWithStats(
-    items: TradeItem[],
+function enrichItemsWithStats<Item extends TradeItem>(
+    items: Item[],
     avgMap: Map<string, number>,
     avgStatsMap: Map<string, { avg_minutes_played: number | null }>,
-): TradeItem[] {
+): Item[] {
     return items.map((item) => {
         if (item.kind !== 'player') return item
         return {
             ...item,
             avgFantasyPoints: avgMap.get(item.playerId) ?? null,
             avgMinutesPlayed: avgStatsMap.get(item.playerId)?.avg_minutes_played ?? null,
-        }
+        } as Item
     })
 }
 
 async function enrichTradesWithStats(trades: Trade[], leagueId: string): Promise<Trade[]> {
-    const playerIds = trades.flatMap((trade) => [
-        ...playerIdsFromItems(trade.proposerGives),
-        ...playerIdsFromItems(trade.recipientGives),
-        ...playerIdsFromItems(trade.routedItems),
-    ])
+    const playerIds = trades.flatMap((trade) => playerIdsFromItems(trade.routedItems))
     if (playerIds.length === 0) return trades
 
-    const { avgMap, avgStatsMap } = await getRosterStatsMaps(playerIds, leagueId)
-    return trades.map((trade) => ({
-        ...trade,
-        proposerGives: enrichItemsWithStats(trade.proposerGives, avgMap, avgStatsMap),
-        recipientGives: enrichItemsWithStats(trade.recipientGives, avgMap, avgStatsMap),
-        routedItems: enrichItemsWithStats(trade.routedItems, avgMap, avgStatsMap),
-    }))
+    let avgMap: Map<string, number>
+    let avgStatsMap: Map<string, { avg_minutes_played: number | null }>
+    try {
+        const stats = await getRosterStatsMaps(playerIds, leagueId)
+        avgMap = stats.avgMap
+        avgStatsMap = stats.avgStatsMap
+    } catch (error) {
+        console.warn('Could not load optional trade player averages.', error)
+        return trades
+    }
+    return trades.map((trade) => {
+        const routedItems = enrichItemsWithStats(trade.routedItems, avgMap, avgStatsMap)
+        return {
+            ...trade,
+            routedItems,
+        }
+    })
 }
 
-export async function getMyTrades(memberId: string, leagueId: string): Promise<Trade[]> {
-    const { data: participantRows, error: participantError } = await supabase
-        .from('trade_participants')
-        .select('trade_id')
-        .eq('member_id', memberId)
-        .eq('league_id', leagueId)
-    if (participantError) throw participantError
-    const participantTradeIds = [...new Set((participantRows ?? []).map((row) => row.trade_id))]
-    const visibilityFilters = [
-        `proposer_member_id.eq.${memberId}`,
-        `recipient_member_id.eq.${memberId}`,
-        ...(participantTradeIds.length > 0 ? [`id.in.(${participantTradeIds.join(',')})`] : []),
-    ].join(',')
+export async function getTradesForScreen(
+    memberId: string,
+    leagueId: string,
+    limit = 40,
+    cursor: TradePageCursor | null = null,
+): Promise<TradePage> {
+    const pageSize = normalizedTradePageSize(limit)
+    const { data: refs, error: refsError } = await supabase
+        .rpc('get_trade_page_refs', {
+            p_member_id: memberId,
+            p_league_id: leagueId,
+            p_limit: pageSize + 1,
+            p_cursor: cursor?.token,
+        })
+
+    if (refsError) throw refsError
+    if (!refs || refs.length === 0) return { trades: [], nextCursor: null, hasMore: false }
+    const hasMore = refs.length > pageSize
+    const pageRefs = refs.slice(0, pageSize)
+
     const { data, error } = await supabase
         .from('trades')
         .select(TRADE_SELECT)
-        .or(visibilityFilters)
-        .eq('league_id', leagueId)
-        .order('proposed_at', { ascending: false })
-        .limit(20)
+        .in('id', pageRefs.map((ref) => ref.trade_id))
+        .overrideTypes<TradeQueryRow[]>()
 
     if (error) throw error
 
-    return enrichTradesWithStats(
-        ((data ?? []) as TradeQueryRow[]).map((row) => mapTradeRow(row, memberId)),
-        leagueId,
-    )
+    const rowsById = new Map((data ?? []).map((row) => [row.id, row]))
+    const visible = pageRefs
+        .map((ref) => rowsById.get(ref.trade_id))
+        .filter((row): row is TradeQueryRow => row != null)
+        .map((row) => mapTradeRow(row, memberId))
+        .filter((trade) => isTradeVisibleOnScreen(trade, memberId))
+
+    return {
+        trades: await enrichTradesWithStats(visible, leagueId),
+        nextCursor: hasMore ? { token: pageRefs.at(-1)!.cursor_token } : null,
+        hasMore,
+    }
+}
+
+export async function getTradeHistoryForScreen(
+    memberId: string,
+    leagueId: string,
+    limit = 40,
+    cursor: TradePageCursor | null = null,
+): Promise<TradePage> {
+    const pageSize = normalizedTradePageSize(limit)
+    const parsedCursor = parseTradeHistoryCursor(cursor)
+    let query = supabase
+        .from('trade_participants')
+        .select('trade_id, proposed_at, trades!inner(status)')
+        .eq('league_id', leagueId)
+        .eq('member_id', memberId)
+        .neq('trades.status', 'pending')
+    if (parsedCursor) query = query.or(tradeHistoryCursorFilter(parsedCursor))
+    const { data: refs, error: refsError } = await query
+        .order('proposed_at', { ascending: false })
+        .order('trade_id', { ascending: false })
+        .limit(pageSize + 1)
+        .overrideTypes<{ trade_id: string; proposed_at: string }[]>()
+
+    if (refsError) throw refsError
+    if (!refs || refs.length === 0) return { trades: [], nextCursor: null, hasMore: false }
+    const hasMore = refs.length > pageSize
+    const pageRefs = refs.slice(0, pageSize)
+
+    const { data, error } = await supabase
+        .from('trades')
+        .select(TRADE_SELECT)
+        .in('id', pageRefs.map((ref) => ref.trade_id))
+        .overrideTypes<TradeQueryRow[]>()
+
+    if (error) throw error
+
+    const rowsById = new Map((data ?? []).map((row) => [row.id, row]))
+    const history = pageRefs
+        .map((ref) => rowsById.get(ref.trade_id))
+        .filter((row): row is TradeQueryRow => row != null)
+        .map((row) => mapTradeRow(row, memberId))
+        .filter((trade) => isTradeHistoryForMember(trade, memberId))
+
+    return {
+        trades: await enrichTradesWithStats(history, leagueId),
+        nextCursor: hasMore ? {
+            token: tradeHistoryCursorToken({
+                proposedAt: pageRefs.at(-1)!.proposed_at,
+                tradeId: pageRefs.at(-1)!.trade_id,
+            }),
+        } : null,
+        hasMore,
+    }
+}
+
+export function isTradeVisibleOnScreen(trade: Trade, memberId: string, nowMs = Date.now()): boolean {
+    const isParticipant = trade.proposerMemberId === memberId ||
+        trade.recipientMemberId === memberId ||
+        trade.participants.some((participant) => participant.memberId === memberId)
+    if (isParticipant) return true
+    return trade.status === 'accepted' &&
+        trade.vetoWindowExpiresAt != null &&
+        Date.parse(trade.vetoWindowExpiresAt) > nowMs
 }
 
 export async function getPendingIncomingTradeCount(memberId: string, leagueId: string): Promise<number> {
-    const { data: participantRows, error: participantError } = await supabase
-        .from('trade_participants')
-        .select('trade_id, accepted_at')
-        .eq('member_id', memberId)
-        .eq('league_id', leagueId)
-    if (participantError) throw participantError
-
-    const participantTradeIds = [...new Set(
-        (participantRows ?? [])
-            .filter((row) => row.accepted_at == null)
-            .map((row) => row.trade_id),
-    )]
-    const visibilityFilters = [
-        `and(is_multi_team.eq.false,recipient_member_id.eq.${memberId})`,
-        ...(participantTradeIds.length > 0 ? [`id.in.(${participantTradeIds.join(',')})`] : []),
-    ].join(',')
-    const { count, error } = await supabase
-        .from('trades')
-        .select('id', { count: 'exact', head: true })
-        .eq('league_id', leagueId)
-        .eq('status', 'pending')
-        .neq('proposer_member_id', memberId)
-        .or(visibilityFilters)
+    const { data, error } = await supabase.rpc('get_pending_trade_count', {
+        p_member_id: memberId,
+        p_league_id: leagueId,
+    })
 
     if (error) throw error
-    return count ?? 0
-}
-
-export async function getVetoableTrades(memberId: string, leagueId: string): Promise<Trade[]> {
-    const { data: participantRows, error: participantError } = await supabase
-        .from('trade_participants')
-        .select('trade_id')
-        .eq('member_id', memberId)
-        .eq('league_id', leagueId)
-    if (participantError) throw participantError
-    const participantTradeIds = [...new Set((participantRows ?? []).map((row) => row.trade_id))]
-
-    let query = supabase
-        .from('trades')
-        .select(TRADE_SELECT)
-        .eq('league_id', leagueId)
-        .eq('status', 'accepted')
-        .neq('proposer_member_id', memberId)
-        .neq('recipient_member_id', memberId)
-        .gt('veto_window_expires_at', new Date().toISOString())
-        .order('accepted_at', { ascending: false })
-        .limit(20)
-    if (participantTradeIds.length > 0) {
-        query = query.not('id', 'in', `(${participantTradeIds.join(',')})`)
-    }
-
-    const { data, error } = await query
-    if (error) throw error
-
-    const trades = ((data ?? []) as TradeQueryRow[]).map((row) => mapTradeRow(row, memberId))
-        .filter((trade) => !trade.participants.some((participant) => participant.memberId === memberId))
-
-    return enrichTradesWithStats(
-        trades,
-        leagueId,
-    )
+    return data ?? 0
 }
 
 export async function getTradeById(tradeId: string, memberId: string): Promise<Trade | null> {

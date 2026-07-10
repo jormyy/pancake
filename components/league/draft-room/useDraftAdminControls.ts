@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { pauseDraft, resetDraft, resumeDraft, stopDraft } from '@/lib/draft'
 import { confirmAction, getErrorMessage, showAlert } from '@/lib/alert'
 
@@ -21,18 +22,41 @@ export function useDraftAdminControls({
     onStopped: () => void
     onReset?: () => void
 }) {
+    const activeDraftIdRef = useRef(draftId)
+    const generationRef = useRef(0)
+    if (activeDraftIdRef.current !== draftId) {
+        activeDraftIdRef.current = draftId
+        generationRef.current += 1
+    }
+    useEffect(() => {
+        activeDraftIdRef.current = draftId
+        return () => {
+            if (activeDraftIdRef.current === draftId) {
+                activeDraftIdRef.current = undefined
+                generationRef.current += 1
+            }
+        }
+    }, [draftId])
+    const ownsDraft = (capturedDraftId: string, generation: number) =>
+        activeDraftIdRef.current === capturedDraftId && generationRef.current === generation
+
     function handleStopDraft() {
         if (!draftId) return
+        const capturedDraftId = draftId
+        const generation = generationRef.current
         confirmAction(
             'Stop draft?',
             confirmCopy.stop,
             () => {
                 void (async () => {
+                    if (!ownsDraft(capturedDraftId, generation)) return
                     try {
-                        await stopDraft(draftId)
-                        onStopped()
+                        await stopDraft(capturedDraftId)
+                        if (ownsDraft(capturedDraftId, generation)) onStopped()
                     } catch (e) {
-                        showAlert('Could not stop draft', getErrorMessage(e))
+                        if (ownsDraft(capturedDraftId, generation)) {
+                            showAlert('Could not stop draft', getErrorMessage(e))
+                        }
                     }
                 })()
             },
@@ -42,17 +66,23 @@ export function useDraftAdminControls({
 
     function handleResetDraft() {
         if (!draftId) return
+        const capturedDraftId = draftId
+        const generation = generationRef.current
         confirmAction(
             'Reset draft?',
             confirmCopy.reset,
             () => {
                 void (async () => {
+                    if (!ownsDraft(capturedDraftId, generation)) return
                     try {
-                        await resetDraft(draftId)
+                        await resetDraft(capturedDraftId)
+                        if (!ownsDraft(capturedDraftId, generation)) return
                         await refresh()
-                        onReset?.()
+                        if (ownsDraft(capturedDraftId, generation)) onReset?.()
                     } catch (e) {
-                        showAlert('Could not reset draft', getErrorMessage(e))
+                        if (ownsDraft(capturedDraftId, generation)) {
+                            showAlert('Could not reset draft', getErrorMessage(e))
+                        }
                     }
                 })()
             },
@@ -62,16 +92,22 @@ export function useDraftAdminControls({
 
     function handlePauseDraft() {
         if (!draftId) return
+        const capturedDraftId = draftId
+        const generation = generationRef.current
         confirmAction(
             'Pause draft?',
             confirmCopy.pause,
             () => {
                 void (async () => {
+                    if (!ownsDraft(capturedDraftId, generation)) return
                     try {
-                        await pauseDraft(draftId)
+                        await pauseDraft(capturedDraftId)
+                        if (!ownsDraft(capturedDraftId, generation)) return
                         await refresh()
                     } catch (e) {
-                        showAlert('Could not pause draft', getErrorMessage(e))
+                        if (ownsDraft(capturedDraftId, generation)) {
+                            showAlert('Could not pause draft', getErrorMessage(e))
+                        }
                     }
                 })()
             },
@@ -81,16 +117,22 @@ export function useDraftAdminControls({
 
     function handleResumeDraft() {
         if (!draftId) return
+        const capturedDraftId = draftId
+        const generation = generationRef.current
         confirmAction(
             'Resume draft?',
             confirmCopy.resume,
             () => {
                 void (async () => {
+                    if (!ownsDraft(capturedDraftId, generation)) return
                     try {
-                        await resumeDraft(draftId)
+                        await resumeDraft(capturedDraftId)
+                        if (!ownsDraft(capturedDraftId, generation)) return
                         await refresh()
                     } catch (e) {
-                        showAlert('Could not resume draft', getErrorMessage(e))
+                        if (ownsDraft(capturedDraftId, generation)) {
+                            showAlert('Could not resume draft', getErrorMessage(e))
+                        }
                     }
                 })()
             },

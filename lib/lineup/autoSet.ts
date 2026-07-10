@@ -1,11 +1,12 @@
 import { supabase } from '@/lib/supabase'
 import type { RosterSlotType } from '@/types/database'
-import { canPlaySlot, SLOT_ELIGIBLE } from '@/constants/slots'
+import { SLOT_ELIGIBLE } from '@/constants/slots'
 import { todayET } from '@/lib/shared/dates'
 import { isIREligible } from '@/lib/roster'
 import { getEligiblePositions } from '@/lib/players'
 import { getProjectionMap } from '@/lib/projections'
 import { getWeekDays } from './read'
+import { apiPost } from '@/lib/shared/api'
 
 type LineupAssignment = {
     player_id: string
@@ -14,10 +15,6 @@ type LineupAssignment = {
     week_number: number
 }
 
-type SeasonWeekRow = {
-    week_number: number
-    week_start: string
-}
 type RosterPlayerRow = {
     player_id: string
     players: {
@@ -62,38 +59,17 @@ type AssignmentResult = {
     score: AssignmentScore
 }
 
-async function getRemainingSeasonDates(
-    fromWeek: number,
-    seasonYear: number,
-): Promise<{ date: string; weekNumber: number }[]> {
-    // `today` filters dates that flow into autoSetForDate, where they're
-    // compared against nba_games.game_date / weekly_lineups.game_date (both
-    // ET-keyed). Use todayET so non-ET clients don't include already-past
-    // ET dates and silently wipe scored weekly_lineups rows.
-    const today = todayET()
-    const { data: weeks, error: weeksErr } = await supabase
-        .from('season_weeks')
-        .select('week_number, week_start')
-        .eq('season_year', seasonYear)
-        .gte('week_number', fromWeek)
-        .order('week_number', { ascending: true })
-    if (weeksErr) throw weeksErr
-
-    const result: { date: string; weekNumber: number }[] = []
-    for (const w of (weeks ?? []) as SeasonWeekRow[]) {
-        const start = new Date(w.week_start + 'T12:00:00Z')
-        const dow = start.getUTCDay()
-        start.setUTCDate(start.getUTCDate() + (dow === 0 ? -6 : 1 - dow))
-        for (let i = 0; i < 7; i++) {
-            const d = new Date(start)
-            d.setUTCDate(d.getUTCDate() + i)
-            const dateStr = d.toISOString().split('T')[0]
-            if (dateStr >= today) {
-                result.push({ date: dateStr, weekNumber: w.week_number })
-            }
-        }
-    }
-    return result
+type AutoSetSeasonResult = {
+    dates: number
+    optimized: number
+    skipped: number
+    failed: number
+    results: {
+        date: string
+        status: 'optimized' | 'skipped' | 'failed'
+        reason?: string
+    }[]
+    metadataUpdated?: boolean
 }
 
 // Auto-set lineup for a single day or the full week.
@@ -107,7 +83,15 @@ export async function autoSetLineup(
     seasonYear: number,
     gameDate: string | null, // null = whole week
     restOfSeason?: boolean,
-): Promise<void> {
+): Promise<AutoSetSeasonResult | null> {
+    if (restOfSeason) {
+        return apiPost<AutoSetSeasonResult>('/league/lineup/auto-set-season', {
+            memberId,
+            leagueId,
+            leagueSeasonId: seasonId,
+        })
+    }
+
     const [{ data: roster, error: rosterErr }, { data: templates, error: templatesErr }] = await Promise.all([
         supabase
             .from('roster_players')
@@ -151,16 +135,12 @@ export async function autoSetLineup(
     const today = todayET()
     let datesToProcess: { date: string; weekNumber: number }[]
 
-    if (restOfSeason) {
-        datesToProcess = await getRemainingSeasonDates(weekNumber, seasonYear)
-    } else {
-        const allDates = gameDate
-            ? [gameDate]
-            : (await getWeekDays(weekNumber, seasonYear)).map((d) => d.date)
-        datesToProcess = allDates
-            .filter((d) => d >= today)
-            .map((d) => ({ date: d, weekNumber }))
-    }
+    const allDates = gameDate
+        ? [gameDate]
+        : (await getWeekDays(weekNumber, seasonYear)).map((d) => d.date)
+    datesToProcess = allDates
+        .filter((d) => d >= today)
+        .map((d) => ({ date: d, weekNumber }))
 
     // Each date's writes target a distinct game_date and use only read-only inputs
     // (players, starterTemplates) — safe to parallelize. Chunk to bound concurrent
@@ -178,6 +158,7 @@ export async function autoSetLineup(
             ),
         )
     }
+    return null
 }
 
 async function autoSetForDate(

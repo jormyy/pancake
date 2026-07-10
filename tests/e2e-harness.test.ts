@@ -1,14 +1,27 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { mkdtemp, rm } from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
 
 import { parseArgs } from './e2e/harness/args.mjs'
+import {
+  BROWSER_SCENARIO_MANIFEST,
+  browserEvidenceIds,
+  browserPassNotes,
+  fastBrowserScenarioMatrix,
+} from './e2e/browser-scenario-manifest.mjs'
+import { BACKEND_SCENARIO_MANIFEST, backendEvidenceIds } from './e2e/backend-scenario-manifest.mjs'
 
 const originalArgv = process.argv
+const tempDirs: string[] = []
 
-afterEach(() => {
+afterEach(async () => {
   process.argv = originalArgv
   vi.unstubAllEnvs()
   vi.restoreAllMocks()
   vi.resetModules()
+  await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })))
 })
 
 describe('e2e harness args', () => {
@@ -36,12 +49,32 @@ describe('e2e harness args', () => {
 })
 
 describe('e2e browser scenario registry', () => {
-  it('runs always-on browser flows and gates registered checks by season policy', async () => {
+  it('owns unique executable contracts and seeded auth prerequisites', () => {
+    expect(new Set(BROWSER_SCENARIO_MANIFEST.map(({ id }) => id)).size).toBe(BROWSER_SCENARIO_MANIFEST.length)
+    expect(new Set(BROWSER_SCENARIO_MANIFEST.map(({ flag }) => flag)).size).toBe(BROWSER_SCENARIO_MANIFEST.length)
+    expect(new Set(BROWSER_SCENARIO_MANIFEST.map(({ resultKey }) => resultKey)).size).toBe(BROWSER_SCENARIO_MANIFEST.length)
+    expect(fastBrowserScenarioMatrix().include.find(({ scenario }) => scenario === 'auth')).toEqual({
+      scenario: 'auth',
+      seed: true,
+    })
+  })
+
+  it('enables every release scenario and derives evidence from the same manifest', () => {
+    process.argv = ['node', 'tests/e2e/soak.mjs', '--release-gate=true']
+    const args = parseArgs()
+    for (const scenario of BROWSER_SCENARIO_MANIFEST) expect(args[scenario.flag]).toBe(true)
+
+    const results = Object.fromEntries(BROWSER_SCENARIO_MANIFEST.map(({ resultKey }) => [resultKey, { status: 'PASS' }]))
+    expect(browserEvidenceIds(results)).toEqual(BROWSER_SCENARIO_MANIFEST.map(({ evidenceId }) => evidenceId))
+    expect(browserPassNotes(results)).toEqual(BROWSER_SCENARIO_MANIFEST.map(({ passNote }) => passNote))
+  })
+
+  it('gates every browser flow by the shared season policy', async () => {
     vi.resetModules()
-    const smoke = vi.fn(async () => ({ ok: 'smoke' }))
-    const auth = vi.fn(async () => ({ ok: 'auth' }))
-    const perf = vi.fn(async () => ({ ok: 'perf' }))
-    const trade = vi.fn(async () => ({ ok: 'trade' }))
+    const smoke = vi.fn(async () => ({ status: 'PASS', ok: 'smoke' }))
+    const auth = vi.fn(async () => ({ status: 'PASS', ok: 'auth' }))
+    const perf = vi.fn(async () => ({ status: 'PASS', ok: 'perf' }))
+    const trade = vi.fn(async () => ({ status: 'PASS', ok: 'trade' }))
 
     mockBrowserScenarioModules({ smoke, auth, perf, trade })
     const { runBrowserScenarios } = await import('./e2e/harness/browser-scenarios.mjs')
@@ -54,29 +87,58 @@ describe('e2e browser scenario registry', () => {
       browserWaiver: false,
     }
     const shouldRun = vi.fn(() => false)
+    const registryArtifactRoot = await mkdtemp(path.join(os.tmpdir(), 'pancake-harness-registry-'))
+    tempDirs.push(registryArtifactRoot)
+    const scenarioContext = {
+      provenance: { commitSha: 'test', runId: 'test', bundleDigest: 'test' },
+      registryArtifactRoot,
+    }
 
-    const skipped = await runBrowserScenarios({ args, season: 2, shouldRun })
+    const skipped = await runBrowserScenarios({ args, season: 2, shouldRun, scenarioContext })
 
-    expect(smoke).toHaveBeenCalledWith({ season: 2, fullSweep: true })
-    expect(auth).toHaveBeenCalledWith({ season: 2 })
+    expect(smoke).not.toHaveBeenCalled()
+    expect(auth).not.toHaveBeenCalled()
     expect(perf).not.toHaveBeenCalled()
     expect(trade).not.toHaveBeenCalled()
     expect(skipped.browserPerfCheck).toBeNull()
     expect(skipped.browserTradeCheck).toBeNull()
-    expect(shouldRun).toHaveBeenCalledTimes(2)
+    expect(shouldRun).toHaveBeenCalledTimes(4)
 
     shouldRun.mockReturnValue(true)
-    const completed = await runBrowserScenarios({ args, season: 1, shouldRun })
+    const completed = await runBrowserScenarios({ args, season: 1, shouldRun, scenarioContext })
 
-    expect(perf).toHaveBeenCalledWith({ season: 1 })
+    expect(smoke).toHaveBeenCalledWith({ season: 1, fullSweep: true })
+    expect(auth).toHaveBeenCalledWith({ season: 1 })
+    expect(perf).toHaveBeenCalledWith(expect.objectContaining({
+      season: 1,
+      resourceOwner: expect.objectContaining({ register: expect.any(Function) }),
+    }))
     expect(trade).toHaveBeenCalledWith({ season: 1 })
-    expect(completed.browserPerfCheck).toEqual({ ok: 'perf' })
-    expect(completed.browserTradeCheck).toEqual({ ok: 'trade' })
+    expect(completed.browserPerfCheck).toEqual({ status: 'PASS', ok: 'perf' })
+    expect(completed.browserTradeCheck).toEqual({ status: 'PASS', ok: 'trade' })
     expect(completed.browserWaiverCheck).toBeNull()
   })
 })
 
 describe('e2e backend scenario registry', () => {
+  it('owns backend enablement, results, failures, and release evidence in one manifest', () => {
+    expect(new Set(BACKEND_SCENARIO_MANIFEST.map(({ id }) => id)).size).toBe(BACKEND_SCENARIO_MANIFEST.length)
+    expect(new Set(BACKEND_SCENARIO_MANIFEST.map(({ flag }) => flag)).size).toBe(BACKEND_SCENARIO_MANIFEST.length)
+    expect(new Set(BACKEND_SCENARIO_MANIFEST.map(({ resultKey }) => resultKey)).size).toBe(BACKEND_SCENARIO_MANIFEST.length)
+    expect(new Set(BACKEND_SCENARIO_MANIFEST.map(({ envFlag }) => envFlag)).size).toBe(BACKEND_SCENARIO_MANIFEST.length)
+    expect(new Set(BACKEND_SCENARIO_MANIFEST.map(({ evidenceId }) => evidenceId)).size).toBe(BACKEND_SCENARIO_MANIFEST.length)
+
+    process.argv = ['node', 'tests/e2e/soak.mjs', '--release-gate=true']
+    const args = parseArgs()
+    for (const scenario of BACKEND_SCENARIO_MANIFEST) expect(args[scenario.flag]).toBe(true)
+
+    const results = Object.fromEntries(BACKEND_SCENARIO_MANIFEST.map(({ resultKey }) => [resultKey, { ok: true }]))
+    expect(backendEvidenceIds(results)).toEqual(BACKEND_SCENARIO_MANIFEST.map(({ evidenceId }) => evidenceId))
+
+    const releaseScript = JSON.parse(readFileSync('package.json', 'utf8')).scripts['e2e:soak:release']
+    for (const scenario of BACKEND_SCENARIO_MANIFEST) expect(releaseScript).not.toContain(`${scenario.envFlag}=`)
+  })
+
   it('runs enabled scenarios through shared context and collects failures', async () => {
     const { backendScenarioFailures, runBackendScenarios } = await import('./e2e/harness/backend-scenarios.mjs')
     const context = {
@@ -113,22 +175,90 @@ describe('e2e backend scenario registry', () => {
 
     const results = await runBackendScenarios({ args, context, runners, shouldRun })
 
-    expect(runners.assertLeagueLifecycleScenario).toHaveBeenCalledWith(context)
-    expect(runners.assertAuctionBidValidation).toHaveBeenCalledWith({
+    expect(runners.assertLeagueLifecycleScenario).toHaveBeenCalledWith(expect.objectContaining(context))
+    expect(runners.assertAuctionBidValidation).toHaveBeenCalledWith(expect.objectContaining({
       supabase: context.supabase,
       leagueId: context.leagueId,
       season: context.season,
-    })
-    expect(runners.assertInjuryStatusFilterScenario).toHaveBeenCalledWith({
+    }))
+    expect(runners.assertInjuryStatusFilterScenario).toHaveBeenCalledWith(expect.objectContaining({
       supabase: context.supabase,
       env: context.env,
       season: context.season,
       fakePort: context.fakePort,
-    })
+    }))
     expect(runners.assertPlayoffBracketScenario).not.toHaveBeenCalled()
     expect(results.auctionValidation).toEqual({ ok: 'auction' })
     expect(backendScenarioFailures(results)).toEqual(['league failed', 'draft push failed'])
     expect(shouldRun).toHaveBeenCalledTimes(4)
+  })
+
+  it('aggregates scenario and cleanup failures', async () => {
+    const { runBackendScenarios } = await import('./e2e/harness/backend-scenarios.mjs')
+    const dispose = vi.fn(async () => { throw new Error('fixture leaked') })
+    const runners = {
+      assertLeagueLifecycleScenario: vi.fn(async (context) => {
+        context.resourceOwner.register('fixture', dispose)
+        throw new Error('scenario failed')
+      }),
+    }
+
+    await expect(runBackendScenarios({
+      args: { leagueLifecycle: true },
+      context: { season: 1 },
+      runners,
+      shouldRun: () => true,
+    })).rejects.toThrow('backend leagueLifecycle and cleanup failed')
+    expect(dispose).toHaveBeenCalledOnce()
+  })
+})
+
+describe('scenario resource ownership', () => {
+  it('retries only resources whose cleanup failed', async () => {
+    const { createScenarioResourceOwner } = await import('./e2e/scenario-resource-owner.mjs')
+    const owner = createScenarioResourceOwner('retryable')
+    const released = vi.fn(async () => undefined)
+    const retryable = vi.fn()
+      .mockRejectedValueOnce(new Error('busy'))
+      .mockResolvedValueOnce(undefined)
+    owner.register('released', released)
+    owner.register('retryable', retryable)
+
+    await expect(owner.dispose()).rejects.toThrow('resource cleanup failed')
+    await expect(owner.dispose()).resolves.toBeUndefined()
+
+    expect(released).toHaveBeenCalledOnce()
+    expect(retryable).toHaveBeenCalledTimes(2)
+  })
+
+  it('releases keyed resources independently of unkeyed acquisition order', async () => {
+    const { createScenarioResourceOwner } = await import('./e2e/scenario-resource-owner.mjs')
+    const owner = createScenarioResourceOwner('mixed')
+    const fixtureDispose = vi.fn(async () => undefined)
+    const browserClose = vi.fn(async () => undefined)
+    owner.register('fixture', fixtureDispose)
+    owner.registerOnce('browser:session', 'browser session', browserClose)
+
+    owner.release('browser:session')
+    await owner.dispose()
+
+    expect(fixtureDispose).toHaveBeenCalledOnce()
+    expect(browserClose).not.toHaveBeenCalled()
+  })
+
+  it('owns a new resource when a released key is acquired again', async () => {
+    const { createScenarioResourceOwner } = await import('./e2e/scenario-resource-owner.mjs')
+    const owner = createScenarioResourceOwner('reacquire')
+    const firstClose = vi.fn(async () => undefined)
+    const secondClose = vi.fn(async () => undefined)
+    owner.registerOnce('browser:session', 'first browser session', firstClose)
+    owner.release('browser:session')
+    owner.registerOnce('browser:session', 'second browser session', secondClose)
+
+    await owner.dispose()
+
+    expect(firstClose).not.toHaveBeenCalled()
+    expect(secondClose).toHaveBeenCalledOnce()
   })
 })
 
@@ -148,7 +278,7 @@ type ScenarioMocks = {
   trade: ReturnType<typeof vi.fn>
 }
 
-const noopScenario = vi.fn(async () => ({ ok: 'unused' }))
+const noopScenario = vi.fn(async () => ({ status: 'PASS', ok: 'unused' }))
 
 const mockBrowserScenarioModules = ({ auth, perf, smoke, trade }: ScenarioMocks) => {
   vi.doMock('./e2e/browser-smoke.mjs', () => ({ runBrowserSmoke: smoke }))
@@ -168,14 +298,21 @@ const mockBrowserScenarioModules = ({ auth, perf, smoke, trade }: ScenarioMocks)
     runBrowserWaiverIrBlockScenario: noopScenario,
     runBrowserWaiverScenario: noopScenario,
   }))
-  vi.doMock('./e2e/browser-trade-gameplay.mjs', () => ({
+  vi.doMock('./e2e/browser-trade-acceptance-scenarios.mjs', () => ({
     runBrowserTradeAcceptScenario: noopScenario,
     runBrowserTradeFuturePickAcceptScenario: noopScenario,
     runBrowserTradeFuturePickScenario: noopScenario,
     runBrowserTradeOverflowAcceptScenario: noopScenario,
+  }))
+  vi.doMock('./e2e/browser-trade-proposal-scenarios.mjs', () => ({
     runBrowserTradePostDeadlineScenario: noopScenario,
     runBrowserTradeScenario: trade,
+  }))
+  vi.doMock('./e2e/browser-trade-terminal-scenarios.mjs', () => ({
     runBrowserTradeTerminalScenario: noopScenario,
     runBrowserTradeVetoScenario: noopScenario,
+  }))
+  vi.doMock('./e2e/browser-trade-multi-team.mjs', () => ({
+    runBrowserMultiTeamTradeScenario: noopScenario,
   }))
 }

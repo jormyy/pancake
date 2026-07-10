@@ -67,18 +67,6 @@ export interface ApiRequestOptions {
     timeoutMs?: number
 }
 
-function buildAbortSignal(timeoutMs: number): AbortSignal {
-    // Prefer the standard `AbortSignal.timeout` when available. Fall back to
-    // a manual AbortController for older runtimes (some RN/Hermes builds).
-    const ctor = (AbortSignal as unknown as { timeout?: (ms: number) => AbortSignal })
-    if (typeof ctor.timeout === 'function') {
-        return ctor.timeout(timeoutMs)
-    }
-    const controller = new AbortController()
-    setTimeout(() => controller.abort(), timeoutMs)
-    return controller.signal
-}
-
 function isAbortError(err: unknown): boolean {
     if (!err || typeof err !== 'object') return false
     const name = (err as { name?: unknown }).name
@@ -98,21 +86,38 @@ export async function apiPost<T = unknown>(
     options: ApiRequestOptions = {},
 ): Promise<T> {
     const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
-    let res: Response
-    try {
-        res = await fetch(`${apiUrl()}${path}`, {
-            method: 'POST',
-            headers: await authHeaders(),
-            body: JSON.stringify(body),
-            signal: buildAbortSignal(timeoutMs),
-        })
-    } catch (err) {
-        wrapAbortAsTimeout(err, timeoutMs)
+    const controller = new AbortController()
+    let timeoutHandle: ReturnType<typeof setTimeout> | undefined
+    const timeout = new Promise<never>((_, reject) => {
+        timeoutHandle = setTimeout(() => {
+            controller.abort()
+            reject(new Error(`Request timed out after ${timeoutMs}ms`))
+        }, timeoutMs)
+    })
+
+    const request = async (): Promise<T> => {
+        let res: Response
+        try {
+            res = await fetch(`${apiUrl()}${path}`, {
+                method: 'POST',
+                headers: await authHeaders(),
+                body: JSON.stringify(body),
+                signal: controller.signal,
+            })
+        } catch (err) {
+            wrapAbortAsTimeout(err, timeoutMs)
+        }
+
+        const json = await res!.json()
+        if (!res!.ok || json?.ok === false) {
+            throw new Error(apiErrorMessage(json, res!.status))
+        }
+        return json as T
     }
 
-    const json = await res!.json()
-    if (!res!.ok || json?.ok === false) {
-        throw new Error(apiErrorMessage(json, res!.status))
+    try {
+        return await Promise.race([request(), timeout])
+    } finally {
+        if (timeoutHandle !== undefined) clearTimeout(timeoutHandle)
     }
-    return json as T
 }

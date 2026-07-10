@@ -8,7 +8,6 @@ import {
 } from 'react-native'
 import { useState } from 'react'
 import type { RosterPlayer } from '@/lib/roster'
-import { getPositionColor } from '@/constants/positions'
 import {
     colors,
     fontSize,

@@ -1,8 +1,10 @@
 import { supabase } from '@/lib/supabase'
 import { RealtimeChannel } from '@supabase/supabase-js'
 import { apiPost as sharedApiPost } from '@/lib/shared/api'
+import { subscribeToTableChanges } from '@/lib/realtime'
+import type { RealtimeSubscriptionStatus } from '@/lib/realtime'
 
-export type DraftOrderEntry = {
+type DraftOrderEntry = {
     position: number
     memberId: string
     teamName: string
@@ -15,7 +17,7 @@ export type DraftBudget = {
     initialBudget: number
 }
 
-export type Nomination = {
+export type DraftNomination = {
     id: string
     status: 'open' | 'sold' | 'no_bid' | 'withdrawn'
     nominatingMemberId: string
@@ -35,7 +37,7 @@ export type Nomination = {
     } | null
 }
 
-export type AuctionBid = {
+type AuctionBid = {
     id: string
     nominationId: string
     memberId: string
@@ -48,7 +50,7 @@ export const NOMINATION_ORDER_MODES = ['user_nominated', 'by_projection', 'alpha
 export type NominationOrderMode = (typeof NOMINATION_ORDER_MODES)[number]
 export const ROOKIE_TIMER_EXPIRY_BEHAVIORS = ['auto_pick', 'skip_pick', 'pause_draft', 'commissioner_pick'] as const
 export type RookieTimerExpiryBehavior = (typeof ROOKIE_TIMER_EXPIRY_BEHAVIORS)[number]
-export type DraftTimerExpiryBehavior = RookieTimerExpiryBehavior | 'auction_no_bid'
+type DraftTimerExpiryBehavior = RookieTimerExpiryBehavior | 'auction_no_bid'
 
 export const NOMINATION_ORDER_MODE_LABELS: Record<NominationOrderMode, string> = {
     user_nominated: "Manager's choice",
@@ -94,10 +96,26 @@ export type DraftState = {
     draft: Draft
     order: DraftOrderEntry[]
     budgets: DraftBudget[]
-    nominations: Nomination[]
+    nominations: DraftNomination[]
     activeBids: AuctionBid[]
-    openNomination: Nomination | null
+    openNomination: DraftNomination | null
     currentNominatorMemberId: string | null
+}
+
+type DraftPollRow = {
+    status: string
+    current_nomination_order: number
+    pause_reason: string | null
+    paused_at: string | null
+}
+
+type NominationPollRow = {
+    id: string
+    status: string
+    current_bid_amount: number
+    current_bidder_id: string | null
+    countdown_expires_at: string | null
+    closed_at: string | null
 }
 
 export type DraftSearchPlayer = {
@@ -205,7 +223,7 @@ export async function getJoinableDraft(
 }
 
 export async function getDraftState(draftId: string): Promise<DraftState | null> {
-    const [{ data: draft }, { data: orders }, { data: budgets }, { data: nominations }] =
+    const [draftResult, ordersResult, budgetsResult, nominationsResult] =
         await Promise.all([
             supabase
                 .from('drafts')
@@ -234,10 +252,19 @@ export async function getDraftState(draftId: string): Promise<DraftState | null>
       `,
                 )
                 .eq('draft_id', draftId)
-                .order('nomination_order'),
+                .order('nomination_order', { ascending: false })
+                .limit(500),
         ])
+    if (draftResult.error) throw draftResult.error
+    if (ordersResult.error) throw ordersResult.error
+    if (budgetsResult.error) throw budgetsResult.error
+    if (nominationsResult.error) throw nominationsResult.error
 
+    const draft = draftResult.data
     if (!draft) return null
+    const orders = ordersResult.data ?? []
+    const budgets = budgetsResult.data ?? []
+    const nominations = [...(nominationsResult.data ?? [])].reverse()
 
     const mappedDraft: Draft = {
         id: draft.id,
@@ -262,24 +289,24 @@ export async function getDraftState(draftId: string): Promise<DraftState | null>
         pausedRemainingSeconds: draft.timer_paused_remaining_seconds,
     }
 
-    const mappedOrder: DraftOrderEntry[] = (orders ?? []).map((o) => ({
+    const mappedOrder: DraftOrderEntry[] = orders.map((o) => ({
         position: o.position,
         memberId: o.member_id,
         teamName: (o.league_members as { team_name: string } | null)?.team_name ?? 'Unknown',
     }))
 
-    const mappedBudgets: DraftBudget[] = (budgets ?? []).map((b) => ({
+    const mappedBudgets: DraftBudget[] = budgets.map((b) => ({
         memberId: b.member_id,
         teamName: (b.league_members as { team_name: string } | null)?.team_name ?? 'Unknown',
         remaining: b.remaining,
         initialBudget: b.initial_budget,
     }))
 
-    const playerIds = [...new Set((nominations ?? []).map((n) => n.player_id).filter(Boolean))]
+    const playerIds = [...new Set(nominations.map((n) => n.player_id).filter(Boolean))]
     const ageByPlayerId = await getLatestDynastyAges(playerIds)
 
     type PlayerRef = { display_name: string | null; nba_team: string | null; position: string | null; nba_id: string | null }
-    const mappedNominations: Nomination[] = (nominations ?? []).map((n) => ({
+    const mappedNominations: DraftNomination[] = nominations.map((n) => ({
         id: n.id,
         status: n.status,
         nominatingMemberId: n.nominating_member_id,
@@ -309,6 +336,7 @@ export async function getDraftState(draftId: string): Promise<DraftState | null>
             .select('id, nomination_id, member_id, amount, placed_at, league_members(team_name)')
             .eq('nomination_id', openNomination.id)
             .order('placed_at', { ascending: false })
+            .limit(100)
 
         if (bidsError) throw bidsError
         activeBids = (bids ?? []).map((bid) => ({
@@ -339,6 +367,29 @@ export async function getDraftState(draftId: string): Promise<DraftState | null>
     }
 }
 
+export async function getDraftPollRevision(draftId: string): Promise<string | null> {
+    const [draftResult, nominationResult] = await Promise.all([
+        supabase
+            .from('drafts')
+            .select('status, current_nomination_order, pause_reason, paused_at')
+            .eq('id', draftId)
+            .maybeSingle(),
+        supabase
+            .from('nominations')
+            .select('id, status, current_bid_amount, current_bidder_id, countdown_expires_at, closed_at')
+            .eq('draft_id', draftId)
+            .order('nomination_order', { ascending: false })
+            .limit(1)
+            .maybeSingle(),
+    ])
+    if (draftResult.error) throw draftResult.error
+    if (nominationResult.error) throw nominationResult.error
+    if (!draftResult.data) return null
+    const draft = draftResult.data as DraftPollRow
+    const nomination = nominationResult.data as NominationPollRow | null
+    return JSON.stringify({ draft, nomination })
+}
+
 
 export async function searchPlayers(
     query: string,
@@ -346,10 +397,11 @@ export async function searchPlayers(
     mode: NominationOrderMode = 'user_nominated',
 ): Promise<DraftSearchPlayer[]> {
     // Get already-nominated player IDs to filter out
-    const { data: nominated } = await supabase
+    const { data: nominated, error: nominatedError } = await supabase
         .from('nominations')
         .select('player_id')
         .eq('draft_id', draftId)
+    if (nominatedError) throw nominatedError
 
     const nominatedIds = new Set((nominated ?? []).map((n) => n.player_id))
 
@@ -372,7 +424,7 @@ export async function searchPlayers(
 
     const { data, error } = await playerQuery
 
-    if (error) console.error('[searchPlayers]', error)
+    if (error) throw error
     const rows = (data ?? []) as Omit<DraftSearchPlayer, 'age'>[]
     const ageByPlayerId = await getLatestDynastyAges(rows.map((row) => row.id))
     return rows.map((row) => ({
@@ -396,10 +448,7 @@ async function getLatestDynastyAges(playerIds: string[]): Promise<Map<string, nu
         .not('age', 'is', null)
         .order('fetched_at', { ascending: false })
 
-    if (error) {
-        console.error('[getLatestDynastyAges]', error)
-        return new Map()
-    }
+    if (error) throw error
 
     const ages = new Map<string, number>()
     for (const row of (data ?? []) as { player_id: string | null; age: number | string | null }[]) {
@@ -491,80 +540,25 @@ export async function closeExpiredNominations(draftId: string): Promise<{ closed
     return { closed: res?.closed ?? 0 }
 }
 
-export async function pauseForAbsence(draftId: string): Promise<void> {
-    await sharedApiPost(`/draft/${draftId}/pause-for-absence`, {})
-}
-
-export async function resumeIfAbsent(draftId: string): Promise<void> {
-    await sharedApiPost(`/draft/${draftId}/resume-if-absent`, {})
-}
-
-export function subscribeToDraft(draftId: string, onChange: () => void): RealtimeChannel {
-    const channel = supabase
-        .channel(`draft:${draftId}`, { config: { private: true } })
-        .on(
-            'postgres_changes',
-            {
-                event: '*',
-                schema: 'public',
-                table: 'nominations',
-                filter: `draft_id=eq.${draftId}`,
-            },
-            onChange,
-        )
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'bids' }, onChange)
-        .on(
-            'postgres_changes',
-            {
-                event: '*',
-                schema: 'public',
-                table: 'draft_budgets',
-                filter: `draft_id=eq.${draftId}`,
-            },
-            onChange,
-        )
-        .on(
-            'postgres_changes',
-            { event: 'UPDATE', schema: 'public', table: 'drafts', filter: `id=eq.${draftId}` },
-            onChange,
-        )
-        .subscribe()
-
-    return channel
-}
-
-// Presence uses a separate public channel because private channels require
-// additional RLS setup on realtime.messages for broadcast/presence to work.
-// postgres_changes (handled by subscribeToDraft) works fine on private channels.
-export function subscribeToPresence(
+export function subscribeToDraft(
     draftId: string,
-    memberId: string,
-    onSync: (presentMemberIds: string[]) => void,
+    leagueId: string | null | undefined,
+    onChange: () => void,
+    onStatus?: (status: RealtimeSubscriptionStatus) => void,
 ): RealtimeChannel {
-    const channel = supabase.channel(`draft-presence:${draftId}`)
-
-    const snapshot = () => {
-        const state = channel.presenceState<{ memberId: string }>()
-        const ids = [...new Set(Object.values(state).flat().map((p) => p.memberId))]
-        onSync(ids)
-    }
-
-    // Listen to both 'sync' and 'join' so that rejoining members are detected
-    // reliably. 'sync' fires for the initial state and after leaves; 'join' fires
-    // specifically when new presences are added, which is the event we need for
-    // auto-resume to work.
-    channel.on('presence', { event: 'sync' }, snapshot)
-    channel.on('presence', { event: 'join' }, snapshot)
-
-    channel.subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-            channel.track({ memberId })
-        }
+    return subscribeToTableChanges(`draft:${draftId}`, {
+        mode: 'fallback',
+        watches: [
+            { table: 'nominations', filter: `draft_id=eq.${draftId}` },
+            { table: 'draft_budgets', filter: `draft_id=eq.${draftId}` },
+            { table: 'drafts', event: 'UPDATE', filter: `id=eq.${draftId}` },
+            ...(leagueId ? [{ table: 'bids', filter: `league_id=eq.${leagueId}` }] : []),
+        ],
+        onChange,
+        onStatus,
     })
-
-    return channel
 }
 
-export function unsubscribeFromDraft(channel: RealtimeChannel) {
-    supabase.removeChannel(channel)
+export async function unsubscribeFromDraft(channel: RealtimeChannel): Promise<void> {
+    await supabase.removeChannel(channel)
 }

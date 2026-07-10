@@ -1,7 +1,7 @@
 import type { LeagueStatus, LeagueMemberRole, Json } from './database'
 
 type WaiverMode = 'rolling' | 'faab'
-type TradeVetoMode = 'disabled' | 'commissioner' | 'member_vote'
+export type TradeVetoMode = 'disabled' | 'commissioner' | 'member_vote'
 
 /**
  * League data as returned from Supabase nested select.

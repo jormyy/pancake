@@ -2,6 +2,13 @@ import { supabase } from './supabase.ts'
 import { fetchBoxScore, parseNBAMinutes, NBABoxScorePlayer } from './nba.ts'
 import { errorMessage } from './responses.ts'
 import { loadCdnPlayerResolver, persistNbaIdUpdates, resolveCdnPlayer } from './playerResolver.ts'
+import type { Database } from './database.ts'
+
+export type StatsSyncGame = Pick<
+  Database['public']['Tables']['nba_games']['Row'],
+  'id' | 'nba_game_id' | 'week_number' | 'season_year' | 'status'
+>
+type PlayerGameStatsInsert = Database['public']['Tables']['player_game_stats']['Insert']
 
 // Returns YYYY-MM-DD for the given Date in America/New_York (ET).
 // nba_games.game_date is ET-keyed; using UTC here misses prime-time games
@@ -15,15 +22,7 @@ export async function syncStatsByDate(date: Date): Promise<number> {
   console.log(`[sync-stats] Fetching stats for ${dateStr}...`)
 
   const isPast = dateStr < toETDate(new Date())
-  let query = supabase
-    .from('nba_games')
-    .select('id, nba_game_id, week_number, season_year, status')
-    .eq('game_date', dateStr)
-    .like('nba_game_id', '002%')
-  if (!isPast) query = query.neq('status', 'Scheduled')
-  const { data: games, error: gErr } = await query
-
-  if (gErr) throw gErr
+  const games = await statsGamesForDate(dateStr)
   if (!games?.length) {
     console.log(`[sync-stats] No completed/live games for ${dateStr}.`)
     return 0
@@ -35,40 +34,7 @@ export async function syncStatsByDate(date: Date): Promise<number> {
 
   for (const game of games) {
     try {
-      const boxScore = await fetchBoxScore(game.nba_game_id!)
-      if (isPast && boxScore.gameStatus === 1) continue
-
-      const allPlayers = [
-        ...(boxScore.homeTeam?.players ?? []),
-        ...(boxScore.awayTeam?.players ?? []),
-      ]
-
-      const stats: any[] = []
-
-      for (const p of allPlayers) {
-        const personId = String(p.personId)
-        const playerId = await resolveCdnPlayer(resolver, personId, p.name ?? '')
-        if (!playerId) continue
-        if (!p.statistics) continue
-
-        stats.push(buildStatRow(p, playerId, game.id, game.season_year, game.week_number))
-      }
-
-      if (stats.length) {
-        const { error } = await supabase
-          .from('player_game_stats')
-          .upsert(stats, { onConflict: 'player_id,game_id' })
-        if (error) throw error
-        statCount += stats.length
-      }
-
-      if (boxScore.gameStatus === 3 && game.status !== 'Final') {
-        const { error: statusError } = await supabase
-          .from('nba_games')
-          .update({ status: 'Final', updated_at: new Date().toISOString() })
-          .eq('id', game.id)
-        if (statusError) throw statusError
-      }
+      statCount += await syncStatsGameWithResolver(game, resolver, isPast)
     } catch (e) {
       console.error(`[sync-stats] Error for ${game.nba_game_id}:`, errorMessage(e))
       syncFailures.push(`${game.nba_game_id}: ${errorMessage(e)}`)
@@ -88,13 +54,78 @@ export async function syncStatsByDate(date: Date): Promise<number> {
   return statCount
 }
 
+export async function findNextStatsGame(dateStr: string, afterGameId?: string): Promise<StatsSyncGame | null> {
+  const games = await statsGamesForDate(dateStr, afterGameId, 1)
+  return games[0] ?? null
+}
+
+export async function syncStatsGame(game: StatsSyncGame): Promise<number> {
+  const resolver = await loadCdnPlayerResolver()
+  const statLines = await syncStatsGameWithResolver(game, resolver, true)
+  await persistNbaIdUpdates(resolver.nbaIdUpdates)
+  return statLines
+}
+
+async function statsGamesForDate(dateStr: string, afterGameId?: string, limit?: number): Promise<StatsSyncGame[]> {
+  const isPast = dateStr < toETDate(new Date())
+  let query = supabase
+    .from('nba_games')
+    .select('id, nba_game_id, week_number, season_year, status')
+    .eq('game_date', dateStr)
+    .like('nba_game_id', '002%')
+    .order('id', { ascending: true })
+  if (!isPast) query = query.neq('status', 'Scheduled')
+  if (afterGameId) query = query.gt('id', afterGameId)
+  if (limit !== undefined) query = query.limit(limit)
+  const { data, error } = await query
+  if (error) throw error
+  return data ?? []
+}
+
+async function syncStatsGameWithResolver(
+  game: StatsSyncGame,
+  resolver: Awaited<ReturnType<typeof loadCdnPlayerResolver>>,
+  skipScheduled: boolean,
+): Promise<number> {
+  if (!game.nba_game_id) throw new Error(`NBA game ${game.id} is missing its provider id`)
+  const boxScore = await fetchBoxScore(game.nba_game_id)
+  if (skipScheduled && boxScore.gameStatus === 1) return 0
+
+  const allPlayers = [
+    ...(boxScore.homeTeam?.players ?? []),
+    ...(boxScore.awayTeam?.players ?? []),
+  ]
+  const stats: PlayerGameStatsInsert[] = []
+  for (const player of allPlayers) {
+    const playerId = await resolveCdnPlayer(resolver, String(player.personId), player.name ?? '')
+    if (playerId && player.statistics) {
+      stats.push(buildStatRow(player, playerId, game.id, game.season_year, game.week_number))
+    }
+  }
+
+  if (stats.length > 0) {
+    const { error } = await supabase
+      .from('player_game_stats')
+      .upsert(stats, { onConflict: 'player_id,game_id' })
+    if (error) throw error
+  }
+  if (boxScore.gameStatus === 3 && game.status !== 'Final') {
+    const { error } = await supabase
+      .from('nba_games')
+      .update({ status: 'Final', updated_at: new Date().toISOString() })
+      .eq('id', game.id)
+    if (error) throw error
+  }
+  return stats.length
+}
+
 export function buildStatRow(
   p: NBABoxScorePlayer,
   playerId: string,
   gameId: string,
   seasonYear: number,
-  weekNumber: number | null,
-): Record<string, unknown> {
+  weekNumber: number,
+): PlayerGameStatsInsert {
   const s = p.statistics
   const minutesPlayed = parseNBAMinutes(s.minutes)
   const dnp = minutesPlayed == null

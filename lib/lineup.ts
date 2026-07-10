@@ -1,4 +1,3 @@
-export { canPlaySlot } from '@/constants/slots'
 export type { LineupPlayer, LineupSlot, LineupContext, WeekDay } from './lineup/read'
 export {
     clampDateToWeek,
@@ -10,3 +9,5 @@ export {
     setPlayerSlotMoves,
 } from './lineup/read'
 export { autoSetLineup } from './lineup/autoSet'
+export { planLineupMove } from './lineup/movePlan'
+export type { LineupSelection } from './lineup/movePlan'

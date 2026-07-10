@@ -13,6 +13,7 @@ type MockSeason = {
 const membersByLeague: Record<string, { id: string }[]> = {}
 let seasons: MockSeason[] = []
 const rpcCalls: { name: string; body: Record<string, unknown> }[] = []
+const seasonQueries: URLSearchParams[] = []
 
 const postgrest = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, async (req) => {
   const url = new URL(req.url)
@@ -22,6 +23,7 @@ const postgrest = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, 
     const leagueId = url.searchParams.get('league_id')?.replace(/^eq\./, '') ?? ''
     body = membersByLeague[leagueId] ?? []
   } else if (url.pathname === '/rest/v1/league_seasons') {
+    seasonQueries.push(new URLSearchParams(url.searchParams))
     const leagueId = url.searchParams.get('league_id')?.replace(/^eq\./, '')
     body = leagueId ? seasons.filter((season) => season.league_id === leagueId) : seasons
   } else if (url.pathname.startsWith('/rest/v1/rpc/')) {
@@ -305,9 +307,14 @@ Deno.test({
       { id: 'season-b', league_id: 'league-b', leagues: null },
     ]
     rpcCalls.length = 0
+    seasonQueries.length = 0
 
     await generateAllMatchups(true)
 
+    assert(
+      seasonQueries[0]?.get('select')?.includes('leagues!league_seasons_league_id_fkey') === true,
+      `league season query must disambiguate its leagues relationship: ${seasonQueries[0]?.get('select')}`,
+    )
     assert(rpcCalls.length === 2, `expected 2 rpc calls, got ${rpcCalls.length}`)
     const byLeague = new Map(rpcCalls.map((call) => [call.body.p_league_id as string, call.body]))
 

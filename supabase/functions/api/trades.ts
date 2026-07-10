@@ -1,6 +1,12 @@
-import { notifyMember } from '../_shared/notifications.ts'
 import type { Json } from '../_shared/database.ts'
 import { supabase } from '../_shared/supabase.ts'
+import {
+  MAX_TRADE_EXPIRATION_DAYS,
+  MAX_TRADE_FAAB_AMOUNT,
+  MAX_TRADE_ITEMS,
+  MAX_TRADE_NOTES_BYTES,
+  MAX_TRADE_PARTICIPANTS,
+} from '../_shared/tradeLimits.ts'
 import {
   json,
   NotFoundError,
@@ -22,13 +28,6 @@ type TradeVetoResult = {
   vetoed: boolean
   vetoCount: number
   threshold: number
-  proposerMemberId: string
-  recipientMemberId: string
-}
-
-type TradeActionResult = {
-  proposerMemberId: string
-  recipientMemberId: string
 }
 
 type MultiTeamTradeItemPayload = {
@@ -57,49 +56,37 @@ type MultiTeamTradePayload = {
   expiresAt: string | null
 }
 
+const DAY_MS = 24 * 60 * 60 * 1_000
+
 type JsonObject = { [key: string]: Json | undefined }
 
-type PendingTradeForAccept = {
-  proposer_member_id: string
-  recipient_member_id: string
-  is_multi_team: boolean
-}
-
 type MultiTeamAcceptResult = {
-  allAccepted: boolean
-  proposerMemberId: string
-  recipientMemberId: string
-  participantMemberIds: string[]
+  expired: boolean
 }
 
 type ReplaceTradeAction = {
   rpc: 'counter_trade_atomic' | 'edit_trade_atomic'
-  actorColumn: 'recipient_member_id' | 'proposer_member_id'
-  notifyMemberColumn: 'proposer_member_id' | 'recipient_member_id'
-  notificationTitle: string
-  notificationMessage: string
-  sourceTradeMetadataKey: 'counteredFromTradeId' | 'editedFromTradeId'
-  logLabel: string
+}
+
+type ReplaceMultiTeamTradeAction = {
+  rpc: 'counter_multi_team_trade_atomic' | 'edit_multi_team_trade_atomic'
 }
 
 const REPLACE_TRADE_ACTIONS: Record<'counter' | 'edit', ReplaceTradeAction> = {
   counter: {
     rpc: 'counter_trade_atomic',
-    actorColumn: 'recipient_member_id',
-    notifyMemberColumn: 'proposer_member_id',
-    notificationTitle: 'Trade Countered',
-    notificationMessage: 'A trade offer was countered and is waiting for your review.',
-    sourceTradeMetadataKey: 'counteredFromTradeId',
-    logLabel: 'counter',
   },
   edit: {
     rpc: 'edit_trade_atomic',
-    actorColumn: 'proposer_member_id',
-    notifyMemberColumn: 'recipient_member_id',
-    notificationTitle: 'Trade Edited',
-    notificationMessage: 'A pending trade offer was updated.',
-    sourceTradeMetadataKey: 'editedFromTradeId',
-    logLabel: 'edit',
+  },
+}
+
+const REPLACE_MULTI_TEAM_TRADE_ACTIONS: Record<'counter' | 'edit', ReplaceMultiTeamTradeAction> = {
+  counter: {
+    rpc: 'counter_multi_team_trade_atomic',
+  },
+  edit: {
+    rpc: 'edit_multi_team_trade_atomic',
   },
 }
 
@@ -107,11 +94,6 @@ function jsonObject(value: Json | undefined, label: string): { [key: string]: Js
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     throw new Error(`${label} must be a JSON object.`)
   }
-  return value
-}
-
-function jsonString(value: Json | undefined, label: string): string {
-  if (typeof value !== 'string') throw new Error(`${label} must be a string.`)
   return value
 }
 
@@ -125,28 +107,10 @@ function jsonBoolean(value: Json | undefined, label: string): boolean {
   return value
 }
 
-function jsonStringArray(value: Json | undefined, label: string): string[] {
-  if (!Array.isArray(value) || value.some((item) => typeof item !== 'string')) {
-    throw new Error(`${label} must be a string array.`)
-  }
-  return value as string[]
-}
-
-function parseTradeActionResult(value: Json | null): TradeActionResult {
-  const result = jsonObject(value ?? undefined, 'Trade action result')
-  return {
-    proposerMemberId: jsonString(result.proposerMemberId, 'proposerMemberId'),
-    recipientMemberId: jsonString(result.recipientMemberId, 'recipientMemberId'),
-  }
-}
-
 function parseMultiTeamAcceptResult(value: Json | null): MultiTeamAcceptResult {
   const result = jsonObject(value ?? undefined, 'Multi-team trade accept result')
   return {
-    allAccepted: jsonBoolean(result.allAccepted, 'allAccepted'),
-    proposerMemberId: jsonString(result.proposerMemberId, 'proposerMemberId'),
-    recipientMemberId: jsonString(result.recipientMemberId, 'recipientMemberId'),
-    participantMemberIds: jsonStringArray(result.participantMemberIds, 'participantMemberIds'),
+    expired: jsonBoolean(result.expired, 'expired'),
   }
 }
 
@@ -156,8 +120,6 @@ function parseTradeVetoResult(value: Json | null): TradeVetoResult {
     vetoed: jsonBoolean(result.vetoed, 'vetoed'),
     vetoCount: jsonNumber(result.vetoCount, 'vetoCount'),
     threshold: jsonNumber(result.threshold, 'threshold'),
-    proposerMemberId: jsonString(result.proposerMemberId, 'proposerMemberId'),
-    recipientMemberId: jsonString(result.recipientMemberId, 'recipientMemberId'),
   }
 }
 
@@ -175,30 +137,43 @@ function splitTradeBlockRemove(path: string): { itemId: string } | null {
   return { itemId: match[1] }
 }
 
-function optionalTimestampField(body: Record<string, unknown>, key: string): string | null {
+function optionalTradeExpirationField(body: Record<string, unknown>, key: string): string | null {
   const value = optionalStringField(body, key)
   if (!value) return null
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) throw new ValidationError(`${key} must be a valid timestamp.`)
+  if (date.getTime() - Date.now() > MAX_TRADE_EXPIRATION_DAYS * DAY_MS) {
+    throw new ValidationError(`${key} must be no more than ${MAX_TRADE_EXPIRATION_DAYS} days in the future.`)
+  }
   return date.toISOString()
 }
 
 function tradeAssetPayload(body: Record<string, unknown>): TradeAssetPayload {
-  return {
+  const payload = {
     offerPlayerIds: optionalUuidArrayField(body, 'offerPlayerIds'),
     requestPlayerIds: optionalUuidArrayField(body, 'requestPlayerIds'),
     offerPickIds: optionalUuidArrayField(body, 'offerPickIds'),
     requestPickIds: optionalUuidArrayField(body, 'requestPickIds'),
-    notes: optionalStringField(body, 'notes'),
-    expiresAt: optionalTimestampField(body, 'expiresAt'),
-    offerFaabAmount: optionalIntegerField(body, 'offerFaabAmount', { min: 0 }) ?? 0,
-    requestFaabAmount: optionalIntegerField(body, 'requestFaabAmount', { min: 0 }) ?? 0,
+    notes: optionalStringField(body, 'notes', { maxUtf8Bytes: MAX_TRADE_NOTES_BYTES }),
+    expiresAt: optionalTradeExpirationField(body, 'expiresAt'),
+    offerFaabAmount: optionalIntegerField(body, 'offerFaabAmount', { min: 0, max: MAX_TRADE_FAAB_AMOUNT }) ?? 0,
+    requestFaabAmount: optionalIntegerField(body, 'requestFaabAmount', { min: 0, max: MAX_TRADE_FAAB_AMOUNT }) ?? 0,
   }
+  const itemCount = payload.offerPlayerIds.length + payload.requestPlayerIds.length +
+    payload.offerPickIds.length + payload.requestPickIds.length +
+    (payload.offerFaabAmount > 0 ? 1 : 0) + (payload.requestFaabAmount > 0 ? 1 : 0)
+  if (itemCount > MAX_TRADE_ITEMS) {
+    throw new ValidationError(`A trade cannot include more than ${MAX_TRADE_ITEMS} items.`)
+  }
+  return payload
 }
 
-function multiTeamTradePayload(body: Record<string, unknown>): MultiTeamTradePayload {
+function multiTeamTradePayload(body: Record<string, unknown>, proposerMemberId: string): MultiTeamTradePayload {
   const rawItems = body.items
   if (!Array.isArray(rawItems)) throw new ValidationError('items must be an array.')
+  if (rawItems.length > MAX_TRADE_ITEMS) {
+    throw new ValidationError(`A trade cannot include more than ${MAX_TRADE_ITEMS} items.`)
+  }
 
   const items = rawItems.map((raw, index): MultiTeamTradeItemPayload => {
     if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
@@ -209,7 +184,7 @@ function multiTeamTradePayload(body: Record<string, unknown>): MultiTeamTradePay
     const toMemberId = uuidField(item, 'toMemberId')
     const playerId = optionalUuidField(item, 'playerId')
     const pickId = optionalUuidField(item, 'pickId')
-    const faabAmount = optionalIntegerField(item, 'faabAmount', { min: 0 }) ?? 0
+    const faabAmount = optionalIntegerField(item, 'faabAmount', { min: 0, max: MAX_TRADE_FAAB_AMOUNT }) ?? 0
     const assetCount = (playerId ? 1 : 0) + (pickId ? 1 : 0) + (faabAmount > 0 ? 1 : 0)
     if (assetCount !== 1) {
       throw new ValidationError(`items[${index}] must include exactly one playerId, pickId, or positive faabAmount.`)
@@ -220,11 +195,20 @@ function multiTeamTradePayload(body: Record<string, unknown>): MultiTeamTradePay
     return { fromMemberId, toMemberId, playerId, pickId, faabAmount }
   })
 
+  const participantMemberIds = optionalUuidArrayField(body, 'participantMemberIds')
+  const participantCount = new Set([proposerMemberId, ...participantMemberIds]).size
+  if (participantCount < 3) {
+    throw new ValidationError('A multi-team trade requires at least 3 teams.')
+  }
+  if (participantCount > MAX_TRADE_PARTICIPANTS) {
+    throw new ValidationError(`A trade cannot include more than ${MAX_TRADE_PARTICIPANTS} teams.`)
+  }
+
   return {
-    participantMemberIds: optionalUuidArrayField(body, 'participantMemberIds'),
+    participantMemberIds,
     items,
-    notes: optionalStringField(body, 'notes'),
-    expiresAt: optionalTimestampField(body, 'expiresAt'),
+    notes: optionalStringField(body, 'notes', { maxUtf8Bytes: MAX_TRADE_NOTES_BYTES }),
+    expiresAt: optionalTradeExpirationField(body, 'expiresAt'),
   }
 }
 
@@ -269,22 +253,13 @@ async function proposeTrade(userId: string, body: Record<string, unknown>): Prom
     throw new Error('Could not create trade.')
   }
 
-  const recipientMemberId = uuidField(body, 'recipientMemberId')
-  notifyMember(
-    recipientMemberId,
-    'New Trade Offer',
-    'You have a new trade offer waiting for your review.',
-    { tradeId },
-    'trade',
-  ).catch((error) => console.error('[api/trades] proposal notification failed', error))
-
   return { tradeId: String(tradeId) }
 }
 
 async function proposeMultiTeamTrade(userId: string, body: Record<string, unknown>): Promise<{ tradeId: string }> {
   const memberId = uuidField(body, 'memberId')
   await verifyOwnMember(userId, memberId)
-  const payload = multiTeamTradePayload(body)
+  const payload = multiTeamTradePayload(body, memberId)
 
   const { data: tradeId, error } = await supabase.rpc('propose_multi_team_trade_atomic', {
     p_league_id: uuidField(body, 'leagueId'),
@@ -300,164 +275,44 @@ async function proposeMultiTeamTrade(userId: string, body: Record<string, unknow
     throw new Error('Could not create multi-team trade.')
   }
 
-  const tradeIdString = String(tradeId)
-  Promise.all(
-    [...new Set(payload.participantMemberIds)].filter((participantId) => participantId !== memberId).map((participantId) =>
-      notifyMember(
-        participantId,
-        'New Multi-Team Trade',
-        'A multi-team trade offer is waiting for your review.',
-        { tradeId: tradeIdString },
-        'trade',
-      ),
-    ),
-  ).catch((error) => console.error('[api/trades] multi-team proposal notification failed', error))
-
-  return { tradeId: tradeIdString }
-}
-
-async function fetchPendingTradeForAction(
-  tradeId: string,
-  memberId: string,
-  column: 'recipient_member_id' | 'proposer_member_id',
-): Promise<{ proposer_member_id: string; recipient_member_id: string }> {
-  const { data, error } = await supabase
-    .from('trades')
-    .select('id, proposer_member_id, recipient_member_id, status')
-    .eq('id', tradeId)
-    .eq(column, memberId)
-    .maybeSingle()
-
-  if (error) throwDb(error)
-  if (!data) throw new NotFoundError('Trade not found.')
-  if (data.status !== 'pending') throw new ValidationError('This trade is no longer pending.')
-  return data
-}
-
-async function fetchPendingTradeForAccept(tradeId: string, memberId: string): Promise<PendingTradeForAccept> {
-  const { data, error } = await supabase
-    .from('trades')
-    .select('id, proposer_member_id, recipient_member_id, status, is_multi_team')
-    .eq('id', tradeId)
-    .maybeSingle()
-
-  if (error) throwDb(error)
-  if (!data) throw new NotFoundError('Trade not found.')
-  if (data.status !== 'pending') throw new ValidationError('This trade is no longer pending.')
-
-  if (data.is_multi_team) {
-    const { data: participant, error: participantError } = await supabase
-      .from('trade_participants')
-      .select('member_id')
-      .eq('trade_id', tradeId)
-      .eq('member_id', memberId)
-      .maybeSingle()
-    if (participantError) throwDb(participantError)
-    if (!participant) throw new NotFoundError('Trade not found.')
-  } else if (data.recipient_member_id !== memberId) {
-    throw new NotFoundError('Trade not found.')
-  }
-
-  return data as PendingTradeForAccept
+  return { tradeId: String(tradeId) }
 }
 
 async function acceptTrade(userId: string, tradeId: string, body: Record<string, unknown>): Promise<void> {
   const memberId = uuidField(body, 'memberId')
   await requireOwnMember(userId, memberId)
-  const trade = await fetchPendingTradeForAccept(tradeId, memberId)
 
-  if (trade.is_multi_team) {
-    const { data, error } = await supabase.rpc('accept_multi_team_trade_atomic', {
-      p_trade_id: tradeId,
-      p_accepting_member_id: memberId,
-      p_drop_roster_player_ids: optionalUuidArrayField(body, 'dropRosterPlayerIds'),
-    })
-    if (error) throwDb(error)
-    const result = parseMultiTeamAcceptResult(data)
-    const notifyTargets = result.allAccepted
-      ? result.participantMemberIds
-      : [result.proposerMemberId]
-    Promise.all(
-      notifyTargets.filter((targetMemberId) => targetMemberId !== memberId).map((targetMemberId) =>
-        notifyMember(
-          targetMemberId,
-          result.allAccepted ? 'Multi-Team Trade Accepted' : 'Trade Participant Accepted',
-          result.allAccepted
-            ? 'Every participant accepted the multi-team trade. Completion will follow your league veto settings.'
-            : 'A participant accepted the multi-team trade offer.',
-          { tradeId },
-          'trade',
-        ),
-      ),
-    ).catch((notifyError) => console.error('[api/trades] multi-team acceptance notification failed', notifyError))
-    return
-  }
-
-  const { error } = await supabase.rpc('accept_trade_atomic', {
+  const { data, error } = await supabase.rpc('accept_trade_atomic', {
     p_trade_id: tradeId,
     p_accepting_member_id: memberId,
-    p_drop_roster_player_ids: optionalUuidArrayField(body, 'dropRosterPlayerIds'),
   })
   if (error) throwDb(error)
-
-  Promise.all([
-    notifyMember(
-      trade.proposer_member_id,
-      'Trade Accepted',
-      'Your trade was accepted. Completion will follow your league veto settings.',
-      { tradeId },
-      'trade',
-    ),
-    notifyMember(
-      trade.recipient_member_id,
-      'Trade Acceptance Recorded',
-      'Your acceptance was recorded. Completion will follow your league veto settings.',
-      { tradeId },
-      'trade',
-    ),
-  ]).catch((error) => console.error('[api/trades] acceptance notification failed', error))
+  const result = parseMultiTeamAcceptResult(data)
+  if (result.expired) throw new ValidationError('This trade offer has expired.')
 }
 
 async function rejectTrade(userId: string, tradeId: string, body: Record<string, unknown>): Promise<void> {
   const memberId = uuidField(body, 'memberId')
   await requireOwnMember(userId, memberId)
 
-  const { data, error } = await supabase.rpc('reject_trade_atomic', {
+  const { error } = await supabase.rpc('reject_trade_atomic', {
     p_trade_id: tradeId,
     p_member_id: memberId,
     p_user_id: userId,
   })
   if (error) throwDb(error)
-  const trade = parseTradeActionResult(data)
-
-  notifyMember(
-    trade.proposerMemberId,
-    'Trade Rejected',
-    'Your trade offer was declined.',
-    { tradeId },
-    'trade',
-  ).catch((error) => console.error('[api/trades] rejection notification failed', error))
 }
 
 async function withdrawTrade(userId: string, tradeId: string, body: Record<string, unknown>): Promise<void> {
   const memberId = uuidField(body, 'memberId')
   await requireOwnMember(userId, memberId)
 
-  const { data, error } = await supabase.rpc('withdraw_trade_atomic', {
+  const { error } = await supabase.rpc('withdraw_trade_atomic', {
     p_trade_id: tradeId,
     p_member_id: memberId,
     p_user_id: userId,
   })
   if (error) throwDb(error)
-  const trade = parseTradeActionResult(data)
-
-  notifyMember(
-    trade.recipientMemberId,
-    'Trade Withdrawn',
-    'A trade offer sent to you has been withdrawn.',
-    { tradeId },
-    'trade',
-  ).catch((error) => console.error('[api/trades] withdrawal notification failed', error))
 }
 
 async function counterTrade(userId: string, tradeId: string, body: Record<string, unknown>): Promise<{ tradeId: string }> {
@@ -468,6 +323,14 @@ async function editTrade(userId: string, tradeId: string, body: Record<string, u
   return replaceTrade(userId, tradeId, body, REPLACE_TRADE_ACTIONS.edit)
 }
 
+async function counterMultiTeamTrade(userId: string, tradeId: string, body: Record<string, unknown>): Promise<{ tradeId: string }> {
+  return replaceMultiTeamTrade(userId, tradeId, body, REPLACE_MULTI_TEAM_TRADE_ACTIONS.counter)
+}
+
+async function editMultiTeamTrade(userId: string, tradeId: string, body: Record<string, unknown>): Promise<{ tradeId: string }> {
+  return replaceMultiTeamTrade(userId, tradeId, body, REPLACE_MULTI_TEAM_TRADE_ACTIONS.edit)
+}
+
 async function replaceTrade(
   userId: string,
   tradeId: string,
@@ -476,7 +339,6 @@ async function replaceTrade(
 ): Promise<{ tradeId: string }> {
   const memberId = uuidField(body, 'memberId')
   await requireOwnMember(userId, memberId)
-  const originalTrade = await fetchPendingTradeForAction(tradeId, memberId, action.actorColumn)
   const payload = tradeAssetPayload(body)
 
   const { data: newTradeId, error } = await supabase.rpc(action.rpc, {
@@ -490,19 +352,41 @@ async function replaceTrade(
     throw new ValidationError('This trade offer has expired.')
   }
 
-  const newTradeIdString = String(newTradeId)
-  notifyMember(
-    originalTrade[action.notifyMemberColumn],
-    action.notificationTitle,
-    action.notificationMessage,
-    { tradeId: newTradeIdString, [action.sourceTradeMetadataKey]: tradeId },
-    'trade',
-  ).catch((error) => console.error(`[api/trades] ${action.logLabel} notification failed`, error))
-
-  return { tradeId: newTradeIdString }
+  return { tradeId: String(newTradeId) }
 }
 
-async function vetoTrade(userId: string, tradeId: string, body: Record<string, unknown>): Promise<Omit<TradeVetoResult, 'proposerMemberId' | 'recipientMemberId'>> {
+async function replaceMultiTeamTrade(
+  userId: string,
+  tradeId: string,
+  body: Record<string, unknown>,
+  action: ReplaceMultiTeamTradeAction,
+): Promise<{ tradeId: string }> {
+  const memberId = uuidField(body, 'memberId')
+  await requireOwnMember(userId, memberId)
+  const payload = multiTeamTradePayload(body, memberId)
+
+  const { data: newTradeId, error } = await supabase.rpc(action.rpc, {
+    p_trade_id: tradeId,
+    p_member_id: memberId,
+    p_user_id: userId,
+    p_participant_member_ids: payload.participantMemberIds,
+    p_items: multiTeamTradeItemsJson(payload.items),
+    p_notes: payload.notes ?? undefined,
+    p_expires_at: payload.expiresAt ?? undefined,
+  })
+  if (error || !newTradeId) {
+    if (error) throwDb(error)
+    throw new ValidationError('This trade offer has expired.')
+  }
+
+  return { tradeId: String(newTradeId) }
+}
+
+async function vetoTrade(
+  userId: string,
+  tradeId: string,
+  body: Record<string, unknown>,
+): Promise<TradeVetoResult> {
   const memberId = uuidField(body, 'memberId')
   const { leagueId } = await requireOwnMember(userId, memberId)
   const { data: trade, error: tradeError } = await supabase
@@ -521,25 +405,6 @@ async function vetoTrade(userId: string, tradeId: string, body: Record<string, u
   if (error) throwDb(error)
 
   const result = parseTradeVetoResult(data)
-  if (result.vetoed) {
-    Promise.all([
-      notifyMember(
-        result.proposerMemberId,
-        'Trade Vetoed',
-        'An accepted trade was vetoed before completion.',
-        { tradeId },
-        'trade',
-      ),
-      notifyMember(
-        result.recipientMemberId,
-        'Trade Vetoed',
-        'An accepted trade was vetoed before completion.',
-        { tradeId },
-        'trade',
-      ),
-    ]).catch((error) => console.error('[api/trades] veto notification failed', error))
-  }
-
   return {
     vetoed: result.vetoed,
     vetoCount: result.vetoCount,
@@ -558,7 +423,7 @@ async function addTradeBlockItem(userId: string, body: Record<string, unknown>):
     p_league_id: requestedLeagueId,
     p_player_id: optionalUuidField(body, 'playerId') ?? undefined,
     p_pick_id: optionalUuidField(body, 'pickId') ?? undefined,
-    p_note: optionalStringField(body, 'note') ?? undefined,
+    p_note: optionalStringField(body, 'note', { maxLength: 500 }) ?? undefined,
     p_user_id: userId,
   })
   if (error || !itemId) {
@@ -628,6 +493,12 @@ export async function handleTradeRoute(req: Request, path: string): Promise<Resp
   }
   if (action.action === 'edit') {
     return json({ ok: true, ...await editTrade(userId, action.tradeId, body) })
+  }
+  if (action.action === 'counter-multi') {
+    return json({ ok: true, ...await counterMultiTeamTrade(userId, action.tradeId, body) })
+  }
+  if (action.action === 'edit-multi') {
+    return json({ ok: true, ...await editMultiTeamTrade(userId, action.tradeId, body) })
   }
   if (action.action === 'veto') {
     return json({ ok: true, ...await vetoTrade(userId, action.tradeId, body) })

@@ -6,6 +6,7 @@ import {
   localSupabaseStatus,
   writeMarkdownReport,
 } from './env.mjs'
+import { validInternalEdgeAuthProbe } from './production-readiness-contract.mjs'
 
 const ROOT = process.cwd()
 const REPORT_PATH = path.join(ROOT, 'tests/edge-internal-auth-report.md')
@@ -85,7 +86,7 @@ for (const target of targets) {
       addRow(
         target,
         'verify accepts dedicated internal token header',
-        isAuthFailure(result.status) || result.status >= 500 ? 'BLOCKED' : 'PASS',
+        validInternalEdgeAuthProbe(result) ? 'PASS' : 'BLOCKED',
         `HTTP ${result.status}; ${cleanMessage(result.text)}`,
       )
     }

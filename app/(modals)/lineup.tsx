@@ -2,7 +2,6 @@ import { AutoSetModal } from '@/components/AutoSetModal'
 import { Avatar } from '@/components/Avatar'
 import { DaySelector } from '@/components/DaySelector'
 import { PosTag } from '@/components/PosTag'
-import { getPositionColor } from "@/constants/positions"
 import { colors, fontSize, fontWeight, radii, scrim, spacing, uiColors } from '@/constants/tokens'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useAuth } from '@/hooks/use-auth'
@@ -185,6 +184,8 @@ export default function LineupScreen() {
     const [lineupRefreshing, setLineupRefreshing] = useState(false)
     const [lineupError, setLineupError] = useState<string | null>(null)
     const lineupLoadSeqRef = useRef(0)
+    const ownerKey = current?.id && currentLeague?.id ? `${current.id}:${currentLeague.id}` : null
+    const [dataOwnerKey, setDataOwnerKey] = useState(ownerKey)
 
     const { startedTeams, liveTeams, teamMatchups } = useLiveStats(selectedDate)
     // Wrap in a ref so memoized row components read the latest value without re-rendering on poll updates
@@ -215,6 +216,7 @@ export default function LineupScreen() {
         setLineupLoading(true)
         setLineupError(null)
         if (!current || !user || !currentLeague) {
+            setDataOwnerKey(ownerKey)
             setCtx(null)
             setWeekDays([])
             setStarters([])
@@ -226,6 +228,7 @@ export default function LineupScreen() {
             const lineupCtx = await getLineupContext(currentLeague.id)
             if (lineupLoadSeqRef.current !== requestId) return
             if (!lineupCtx) {
+                setDataOwnerKey(ownerKey)
                 setCtx(null)
                 setWeekDays([])
                 setStarters([])
@@ -245,6 +248,7 @@ export default function LineupScreen() {
                 selected,
             )
             if (lineupLoadSeqRef.current !== requestId) return
+            setDataOwnerKey(ownerKey)
             setCtx(lineupCtx)
             setSelectedDate(selected)
             setWeekDays(days)
@@ -260,23 +264,27 @@ export default function LineupScreen() {
         } finally {
             if (lineupLoadSeqRef.current === requestId) setLineupLoading(false)
         }
-    }, [current, currentLeague, user])
+    }, [current, currentLeague, ownerKey, user])
 
     useEffect(() => { load() }, [load])
 
-    const actionContext = current && ctx && currentLeague ? {
+    const ownsLineup = dataOwnerKey === ownerKey
+    const visibleCtx = ownsLineup ? ctx : null
+    const visibleStarters = ownsLineup ? starters : []
+    const visibleBench = ownsLineup ? bench : []
+    const actionContext = current && visibleCtx && currentLeague ? {
         memberId: current.id,
         leagueId: currentLeague.id,
-        seasonId: ctx.seasonId,
-        weekNumber: ctx.weekNumber,
-        seasonYear: ctx.seasonYear,
+        seasonId: visibleCtx.seasonId,
+        weekNumber: visibleCtx.weekNumber,
+        seasonYear: visibleCtx.seasonYear,
     } : null
-    const lineupForActions = ctx ? { starters, bench } : null
+    const lineupForActions = visibleCtx ? { starters: visibleStarters, bench: visibleBench } : null
     const reloadLineupForActions = useCallback(async (date: string) => {
-        if (!ctx || !currentLeague) return
+        if (!visibleCtx || !currentLeague) return
         setLineupError(null)
-        await loadLineup(ctx, currentLeague, date)
-    }, [ctx, currentLeague, loadLineup])
+        await loadLineup(visibleCtx, currentLeague, date)
+    }, [visibleCtx, currentLeague, loadLineup])
     const {
         selected,
         setSelected,
@@ -297,14 +305,14 @@ export default function LineupScreen() {
     })
 
     async function handleDaySelect(date: string) {
-        if (!ctx || !currentLeague) return
+        if (!visibleCtx || !currentLeague) return
         const requestId = ++lineupLoadSeqRef.current
         setSelectedDate(date)
         setSelected(null)
         setLineupRefreshing(true)
         setLineupError(null)
         try {
-            await loadLineup(ctx, currentLeague, date, requestId)
+            await loadLineup(visibleCtx, currentLeague, date, requestId)
         } catch (e) {
             console.error(e)
             if (lineupLoadSeqRef.current === requestId) {
@@ -350,12 +358,12 @@ export default function LineupScreen() {
 
     const selectedPlayer =
         selected?.kind === 'starter'
-            ? starters[selected.index]?.player
+            ? visibleStarters[selected.index]?.player
             : selected?.kind === 'bench'
-              ? bench[selected.index]
+              ? visibleBench[selected.index]
               : null
 
-    if (!ctx) {
+    if (!visibleCtx) {
         const emptyMessage = lineupLoading
             ? 'Loading lineup...'
             : lineupError
@@ -382,7 +390,7 @@ export default function LineupScreen() {
         )
     }
 
-    const rosterEmpty = starters.every((s) => !s.player) && bench.length === 0
+    const rosterEmpty = visibleStarters.every((s) => !s.player) && visibleBench.length === 0
 
     return (
         <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
@@ -403,7 +411,7 @@ export default function LineupScreen() {
                     aria-level={2}
                     accessibilityRole="header"
                 >
-                    Week {ctx.weekNumber} Lineup
+                    Week {visibleCtx.weekNumber} Lineup
                 </Text>
                 <MotionPressable
                     style={[styles.autoSetButton, rosterEmpty && styles.autoSetButtonDisabled]}
@@ -450,7 +458,7 @@ export default function LineupScreen() {
                     <Text style={styles.hintText}>
                         {selectedPlayer
                             ? `${selectedPlayer.displayName} selected — tap a slot to move`
-                            : `Empty ${selected.kind === 'starter' ? starters[selected.index]?.slotType : ''} slot selected — tap a player`}
+                            : `Empty ${selected.kind === 'starter' ? visibleStarters[selected.index]?.slotType : ''} slot selected — tap a player`}
                     </Text>
                 </MotionView>
             )}
@@ -459,7 +467,7 @@ export default function LineupScreen() {
                 {rosterEmpty ? (
                     <View style={styles.preDraftHint}>
                         <Text style={styles.preDraftHintText}>
-                            No players yet — your roster fills as you draft. Draft players to set your Week {ctx.weekNumber} lineup.
+                            No players yet — your roster fills as you draft. Draft players to set your Week {visibleCtx.weekNumber} lineup.
                         </Text>
                     </View>
                 ) : null}
@@ -474,7 +482,7 @@ export default function LineupScreen() {
                     STARTERS
                 </Text>
                 <MotionView style={styles.card} preset="rise">
-                    {starters.map((slot, i) => (
+                    {visibleStarters.map((slot, i) => (
                         <StarterRow
                             key={`starter-${i}`}
                             slot={slot}
@@ -483,7 +491,7 @@ export default function LineupScreen() {
                             liveTeamsRef={liveTeamsRef}
                             teamMatchups={teamMatchups}
                             onPress={() => handleTap({ kind: 'starter', index: i })}
-                            disabled={saving || lineupRefreshing}
+                            disabled={saving || lineupRefreshing || lineupLoading}
                         />
                     ))}
                 </MotionView>
@@ -499,10 +507,10 @@ export default function LineupScreen() {
                     BENCH
                 </Text>
                 <MotionView style={styles.card} preset="rise" delay={90}>
-                    {bench.length === 0 ? (
+                    {visibleBench.length === 0 ? (
                         <Text style={styles.benchEmpty}>{rosterEmpty ? 'Your bench fills after the draft' : 'All players are in the starting lineup'}</Text>
                     ) : (
-                        bench.map((player, i) => (
+                        visibleBench.map((player, i) => (
                             <BenchRow
                                 key={player.playerId}
                                 player={player}
@@ -511,7 +519,7 @@ export default function LineupScreen() {
                                 liveTeamsRef={liveTeamsRef}
                                 teamMatchups={teamMatchups}
                                 onPress={() => handleTap({ kind: 'bench', index: i })}
-                                disabled={saving || lineupRefreshing}
+                                disabled={saving || lineupRefreshing || lineupLoading}
                             />
                         ))
                     )}
@@ -531,6 +539,8 @@ export default function LineupScreen() {
         </SafeAreaView>
     )
 }
+
+export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFallback'
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgSubtle },

@@ -1,3 +1,4 @@
+import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { View, Text, Pressable, StyleSheet } from 'react-native'
 import { Avatar } from '@/components/Avatar'
 import { Badge } from '@/components/Badge'
@@ -15,13 +16,17 @@ function PlayerRow({
     avgFpts,
     avgMinutes,
     selected,
+    destinationLabel,
     onToggle,
+    testID,
 }: {
     player: RosterPlayer
     avgFpts?: number
     avgMinutes?: number | null
     selected: boolean
+    destinationLabel?: string | null
     onToggle: () => void
+    testID?: string
 }) {
     const p = player.players
     const positions = getEligiblePositions(p)
@@ -38,6 +43,8 @@ function PlayerRow({
             onPress={onToggle}
             accessibilityRole="button"
             accessibilityLabel={`${action} ${p.display_name} for trade`}
+            testID={testID}
+            id={testID}
         >
             <Avatar
                 name={p.display_name}
@@ -64,10 +71,15 @@ function PlayerRow({
                 <Text style={styles.playerContext} numberOfLines={1}>
                     {statText}
                 </Text>
+                {selected && destinationLabel ? (
+                    <Text style={styles.routeMeta} numberOfLines={1}>
+                        To {destinationLabel}
+                    </Text>
+                ) : null}
             </View>
             {selected && (
-                <View style={styles.checkBadge}>
-                    <Text style={styles.checkBadgeText}>+</Text>
+                <View style={styles.removeBadge} aria-hidden>
+                    <MaterialIcons name="remove" size={18} color={colors.textWhite} />
                 </View>
             )}
         </Pressable>
@@ -77,11 +89,15 @@ function PlayerRow({
 function PickRow({
     pick,
     selected,
+    destinationLabel,
     onToggle,
+    testID,
 }: {
     pick: TradePickItem
     selected: boolean
+    destinationLabel?: string | null
     onToggle: () => void
+    testID?: string
 }) {
     const action = selected ? 'Remove' : 'Select'
     return (
@@ -90,6 +106,8 @@ function PickRow({
             onPress={onToggle}
             accessibilityRole="button"
             accessibilityLabel={`${action} ${pick.seasonYear} round ${pick.round} pick via ${pick.originalTeamName} for trade`}
+            testID={testID}
+            id={testID}
         >
             <View style={[styles.pickCircle, selected && styles.pickCircleSelected]}>
                 <Text style={styles.pickCircleText}>{yearShort(pick.seasonYear)}</Text>
@@ -99,10 +117,15 @@ function PickRow({
                     {pick.seasonYear} Round {pick.round}
                 </Text>
                 <Text style={styles.playerMeta}>via {pick.originalTeamName}</Text>
+                {selected && destinationLabel ? (
+                    <Text style={styles.routeMeta} numberOfLines={1}>
+                        To {destinationLabel}
+                    </Text>
+                ) : null}
             </View>
             {selected && (
-                <View style={styles.checkBadge}>
-                    <Text style={styles.checkBadgeText}>+</Text>
+                <View style={styles.removeBadge} aria-hidden>
+                    <MaterialIcons name="remove" size={18} color={colors.textWhite} />
                 </View>
             )}
         </Pressable>
@@ -120,9 +143,12 @@ export function TradeAssetColumn({
     avgStatsMap,
     selectedPlayerIds,
     selectedPickIds,
+    playerDestinationLabel,
+    pickDestinationLabel,
     onTogglePlayer,
     onTogglePick,
     emptyText,
+    testIdPrefix,
 }: {
     title: string
     subtitle: string
@@ -134,9 +160,12 @@ export function TradeAssetColumn({
     avgStatsMap: Map<string, { avg_minutes_played: number | null }>
     selectedPlayerIds: Set<string>
     selectedPickIds: Set<string>
+    playerDestinationLabel?: (id: string) => string | null
+    pickDestinationLabel?: (id: string) => string | null
     onTogglePlayer: (id: string) => void
     onTogglePick: (id: string) => void
     emptyText: string
+    testIdPrefix?: string
 }) {
     const selectedCount =
         roster.filter((rp) => selectedPlayerIds.has(rp.players.id)).length +
@@ -166,7 +195,9 @@ export function TradeAssetColumn({
                         avgFpts={avgMap.get(rp.players.id)}
                         avgMinutes={avgStatsMap.get(rp.players.id)?.avg_minutes_played}
                         selected={selectedPlayerIds.has(rp.players.id)}
+                        destinationLabel={playerDestinationLabel?.(rp.players.id)}
                         onToggle={() => onTogglePlayer(rp.players.id)}
+                        testID={testIdPrefix ? `${testIdPrefix}-player-${rp.players.id}` : undefined}
                     />
                 ))
             )}
@@ -179,7 +210,9 @@ export function TradeAssetColumn({
                             key={pick.pickId}
                             pick={pick}
                             selected={selectedPickIds.has(pick.pickId)}
+                            destinationLabel={pickDestinationLabel?.(pick.pickId)}
                             onToggle={() => onTogglePick(pick.pickId)}
+                            testID={testIdPrefix ? `${testIdPrefix}-pick-${pick.pickId}` : undefined}
                         />
                     ))}
                 </>
@@ -250,7 +283,8 @@ const styles = StyleSheet.create({
     playerMetaRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 4 },
     playerMeta: { fontSize: 12, color: colors.textMuted },
     playerContext: { fontSize: 11, color: colors.primaryDark, fontWeight: fontWeight.bold },
-    checkBadge: {
+    routeMeta: { fontSize: 11, color: colors.textSecondary, fontWeight: fontWeight.semibold },
+    removeBadge: {
         width: 24,
         height: 24,
         borderRadius: 12,
@@ -259,7 +293,6 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
-    checkBadgeText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.lg, lineHeight: 22 },
     emptyRowText: {
         paddingHorizontal: spacing.xl,
         paddingVertical: spacing.lg,

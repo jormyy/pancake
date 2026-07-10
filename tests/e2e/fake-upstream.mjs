@@ -23,6 +23,8 @@ const isoDuration = (minutes) => {
 }
 
 export function createFakeUpstreamServer() {
+  /** @type {{ receivedAt: string, body: any }[]} */
+  const pushes = []
   const state = {
     now: '2026-10-20T12:00:00.000Z',
     seasonYear: 2027,
@@ -33,7 +35,8 @@ export function createFakeUpstreamServer() {
       ['1003', { player_id: '1003', first_name: 'Cy', last_name: 'Oak', full_name: 'Cy Oak', team: 'LAL', position: 'F', age: 21, status: 'Active', injury_status: null, injury_notes: null, active: true, sport: 'nba', years_exp: 0 }],
     ]),
     games: new Map(),
-    pushes: [],
+    pushes,
+    hits: { nbaCdn: 0, sleeper: 0, push: 0 },
   }
 
   const seedGame = (id, gameDate, awayTeam, homeTeam) => {
@@ -125,6 +128,9 @@ export function createFakeUpstreamServer() {
   const server = http.createServer(async (req, res) => {
     try {
       const url = new URL(req.url ?? '/', 'http://127.0.0.1')
+      if (req.method === 'GET' && (url.pathname.includes('/liveData/') || url.pathname.includes('/staticData/'))) {
+        state.hits.nbaCdn += 1
+      }
 
       if (req.method === 'GET' && url.pathname.endsWith('/liveData/scoreboard/todaysScoreboard_00.json')) {
         const today = state.now.slice(0, 10)
@@ -185,10 +191,12 @@ export function createFakeUpstreamServer() {
       }
 
       if (req.method === 'GET' && url.pathname === '/v1/players/nba') {
+        state.hits.sleeper += 1
         return json(res, 200, Object.fromEntries(state.players))
       }
 
       if (req.method === 'POST' && url.pathname === '/--/api/v2/push/send') {
+        state.hits.push += 1
         const body = await readJson(req)
         const message = {
           receivedAt: new Date().toISOString(),
@@ -202,6 +210,10 @@ export function createFakeUpstreamServer() {
         const body = await readJson(req)
         state.now = new Date(body.now).toISOString()
         return json(res, 200, { ok: true, now: state.now })
+      }
+
+      if (req.method === 'GET' && url.pathname === '/admin/status') {
+        return json(res, 200, { hits: state.hits, pushes: state.pushes.length })
       }
 
       if (req.method === 'POST' && url.pathname === '/admin/game') {
@@ -263,11 +275,13 @@ export function createFakeUpstreamServer() {
 
   return {
     state,
+    /** @returns {Promise<http.Server>} */
     listen(port = 4555) {
       return new Promise((resolve) => {
         server.listen(port, () => resolve(server))
       })
     },
+    /** @returns {Promise<void>} */
     close() {
       return new Promise((resolve, reject) => {
         server.close((error) => error ? reject(error) : resolve())

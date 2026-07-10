@@ -24,6 +24,7 @@ import {
     type PlayerSearchParams,
 } from '@/lib/player-search-state'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
+import { AppState, type AppStateStatus } from 'react-native'
 
 export type SortMode = PlayerSearchSortMode
 type SortDir = PlayerSearchSortDir
@@ -37,14 +38,17 @@ type CachedPage = {
     players: PlayerRow[]
     hasMore: boolean
     offset: number
+    savedAt?: number
 }
 const PLAYER_SEARCH_CACHE_PREFIX = 'pancake:player-search:v1:'
 const ROOKIE_SEARCH_MAX_PAGES = 20
+const MAX_MEMORY_PAGES = 12
+const MEMORY_PAGE_STALE_MS = 30_000
 const EMPTY_TEAMS: string[] = []
 
 const playerSearchCacheKey = (key: string) => `${PLAYER_SEARCH_CACHE_PREFIX}${key}`
 
-function useWeeklyAvailability(enabled: boolean) {
+export function useWeeklyAvailability(enabled: boolean) {
     const [weekDays, setWeekDays] = useState<WeekDay[]>([])
     const [startedTeams, setStartedTeams] = useState<Set<string>>(new Set())
 
@@ -55,18 +59,43 @@ function useWeeklyAvailability(enabled: boolean) {
             return
         }
         let cancelled = false
-        const seasonYear = currentSeasonYear()
-        const today = todayET()
-        getCurrentWeekNumber(seasonYear).then((weekNum) => {
-            if (cancelled) return
-            return getWeekDays(weekNum ?? 1, seasonYear)
-        }).then((days) => {
-            if (!cancelled && days) setWeekDays(days)
-        }).catch(console.error)
-        getStartedTeams(today).then((teams) => {
-            if (!cancelled) setStartedTeams(teams)
-        }).catch(console.error)
-        return () => { cancelled = true }
+        let appState: AppStateStatus = AppState.currentState
+        let loadedDate: string | null = null
+        let requestSequence = 0
+        const load = async (includeSchedule: boolean) => {
+            const requestId = ++requestSequence
+            const seasonYear = currentSeasonYear()
+            const today = todayET()
+            try {
+                const [teams, days] = await Promise.all([
+                    getStartedTeams(today),
+                    includeSchedule || loadedDate !== today
+                        ? getCurrentWeekNumber(seasonYear).then((weekNum) => getWeekDays(weekNum ?? 1, seasonYear))
+                        : Promise.resolve(null),
+                ])
+                if (cancelled || requestSequence !== requestId) return
+                loadedDate = today
+                setStartedTeams(teams)
+                if (days) setWeekDays(days)
+            } catch (error) {
+                if (!cancelled && requestSequence === requestId) console.error(error)
+            }
+        }
+        void load(true)
+        const poll = setInterval(() => {
+            if (appState === 'active') void load(false)
+        }, 15_000)
+        const subscription = AppState.addEventListener('change', (nextState) => {
+            const becameActive = appState !== 'active' && nextState === 'active'
+            appState = nextState
+            if (becameActive) void load(true)
+        })
+        return () => {
+            cancelled = true
+            requestSequence += 1
+            clearInterval(poll)
+            subscription.remove()
+        }
     }, [enabled])
 
     const gamesLeft = useMemo(() => {
@@ -107,6 +136,8 @@ export function usePlayerSearch(
     const [refreshing, setRefreshing] = useState(false)
     const [loadingMore, setLoadingMore] = useState(false)
     const [hasMore, setHasMore] = useState(false)
+    const [error, setError] = useState<Error | null>(null)
+    const [retryToken, setRetryToken] = useState(0)
     const searchParamsRef = useRef<PlayerSearchParams>(DEFAULT_PLAYER_SEARCH_PARAMS)
     const offsetRef = useRef(0)
     const listRef = useRef<FlashListRef<PlayerRow>>(null)
@@ -118,6 +149,16 @@ export function usePlayerSearch(
     const playersRef = useRef<PlayerRow[]>([])
     const pageCacheRef = useRef(new Map<string, CachedPage>())
     const debouncedQuery = useDebouncedValue(query, 300)
+
+    const cachePage = useCallback((key: string, page: CachedPage) => {
+        pageCacheRef.current.delete(key)
+        pageCacheRef.current.set(key, page)
+        while (pageCacheRef.current.size > MAX_MEMORY_PAGES) {
+            const oldestKey = pageCacheRef.current.keys().next().value
+            if (oldestKey == null) break
+            pageCacheRef.current.delete(oldestKey)
+        }
+    }, [])
 
     const weeklyAvailability = useWeeklyAvailability(enabled)
     const todayTeams = useMemo(() => {
@@ -235,6 +276,7 @@ export function usePlayerSearch(
             setLoading(false)
             setRefreshing(false)
             setLoadingMore(false)
+            setError(null)
             return
         }
 
@@ -243,6 +285,7 @@ export function usePlayerSearch(
         offsetRef.current = 0
         setLoadingMore(false)
         setHasMore(false)
+        setError(null)
         pendingScrollTopRef.current = true
         listRef.current?.scrollToOffset({ offset: 0, animated: false })
 
@@ -262,12 +305,12 @@ export function usePlayerSearch(
             offsetRef.current = cached.offset
             setLoading(false)
             setRefreshing(false)
-            return
+            if (cached.savedAt != null && Date.now() - cached.savedAt < MEMORY_PAGE_STALE_MS) return
         }
 
-        const persisted = readPersistentCache<CachedPage>(playerSearchCacheKey(searchParamsKey))
+        const persisted = cached ? null : readPersistentCache<CachedPage>(playerSearchCacheKey(searchParamsKey))
         if (persisted) {
-            pageCacheRef.current.set(searchParamsKey, persisted)
+            cachePage(searchParamsKey, persisted)
             setPlayers(persisted.players)
             playersRef.current = persisted.players
             setHasMore(persisted.hasMore)
@@ -282,26 +325,31 @@ export function usePlayerSearch(
 
         const requestId = ++requestSeqRef.current
         setRefreshing(true)
-        setLoading(!persisted && playersRef.current.length === 0)
+        setLoading(!cached && !persisted && playersRef.current.length === 0)
 
         fetchCompleteResults(searchParams)
             .then((results) => {
                 if (requestSeqRef.current !== requestId || currentKeyRef.current !== searchParamsKey) return
                 const hasNext = !searchParams.rookiesOnly && results.length === PLAYER_SEARCH_PAGE_SIZE
-                const page = { players: results, hasMore: hasNext, offset: 0 }
-                pageCacheRef.current.set(searchParamsKey, page)
+                const page = { players: results, hasMore: hasNext, offset: 0, savedAt: Date.now() }
+                cachePage(searchParamsKey, page)
                 writePersistentCache(playerSearchCacheKey(searchParamsKey), page)
                 playersRef.current = results
                 setPlayers(results)
                 setHasMore(hasNext)
             })
-            .catch(console.error)
+            .catch((cause) => {
+                if (requestSeqRef.current !== requestId || currentKeyRef.current !== searchParamsKey) return
+                const nextError = cause instanceof Error ? cause : new Error(String(cause))
+                setError(nextError)
+                console.error(nextError)
+            })
             .finally(() => {
                 if (requestSeqRef.current !== requestId || currentKeyRef.current !== searchParamsKey) return
                 setLoading(false)
                 setRefreshing(false)
             })
-    }, [enabled, leagueId, searchParams, searchParamsKey, fetchCompleteResults])
+    }, [cachePage, enabled, leagueId, retryToken, searchParams, searchParamsKey, fetchCompleteResults])
 
     const loadMore = useCallback(async () => {
         if (!enabled || loadingMore || !hasMore) return
@@ -322,8 +370,9 @@ export function usePlayerSearch(
                         players: merged,
                         hasMore: results.length === PLAYER_SEARCH_PAGE_SIZE,
                         offset: nextOffset,
+                        savedAt: Date.now(),
                     }
-                    pageCacheRef.current.set(paramsKey, page)
+                    cachePage(paramsKey, page)
                     writePersistentCache(playerSearchCacheKey(paramsKey), page)
                     return merged
                 })
@@ -336,7 +385,9 @@ export function usePlayerSearch(
                 setLoadingMore(false)
             }
         }
-    }, [enabled, loadingMore, hasMore, fetchPage])
+    }, [cachePage, enabled, loadingMore, hasMore, fetchPage])
+
+    const retry = useCallback(() => setRetryToken((token) => token + 1), [])
 
     const clearAllFilters = useCallback(() => {
         setQuery('')
@@ -377,7 +428,7 @@ export function usePlayerSearch(
         health: { value: health, setValue: setHealth },
         availabilityFilter: { value: availabilityFilter, setValue: setAvailabilityFilter },
         toggles: { rookiesOnly, setRookiesOnly },
-        results: { players, loading, refreshing, loadingMore, listRef, loadMore },
+        results: { players, loading, refreshing, loadingMore, error, listRef, loadMore, retry },
         activeFilterCount,
         clearAllFilters,
     }

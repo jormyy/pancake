@@ -1,7 +1,6 @@
 import {
     View,
     Text,
-    TextInput,
     StyleSheet,
     ScrollView,
     KeyboardAvoidingView,
@@ -9,39 +8,19 @@ import {
     Pressable,
     useWindowDimensions,
 } from 'react-native'
-import { FlashList } from '@shopify/flash-list'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useLeagueContext } from '@/contexts/league-context'
-import { NOMINATION_ORDER_MODE_LABELS } from '@/lib/draft'
-import { breakpoints, colors, fontFamily, fontSize, fontWeight, layout, radii, spacing, tints } from '@/constants/tokens'
-import { getPositionColor } from '@/constants/positions'
-import { Avatar } from '@/components/Avatar'
-import { playerHeadshotUrl } from '@/lib/format'
-import { MotionPressable, MotionView } from '@/components/Motion'
+import { breakpoints, colors, fontSize, fontWeight, layout, radii, spacing } from '@/constants/tokens'
+import { MotionPressable } from '@/components/Motion'
 import { DraftAdminBar } from '@/components/league/draft-room/DraftAdminBar'
 import { DraftScreenHeader } from '@/components/league/draft-room/DraftScreenHeader'
+import { AuctionDraftSidePanel } from '@/components/league/draft-room/AuctionDraftSidePanel'
+import { AuctionIdlePanel } from '@/components/league/draft-room/AuctionIdlePanel'
+import { AuctionLivePanel } from '@/components/league/draft-room/AuctionLivePanel'
 import { useDraftAdminControls } from '@/components/league/draft-room/useDraftAdminControls'
-import { useAuctionDraftRoomController, type DraftTab } from '@/hooks/useAuctionDraftRoomController'
+import { useAuctionDraftRoomController } from '@/hooks/useAuctionDraftRoomController'
 
-function ageLabel(age: number | null | undefined): string | null {
-    if (age == null || !Number.isFinite(age)) return null
-    return `Age ${Number(age).toFixed(1)}`
-}
-
-function playerMeta(parts: (string | null | undefined)[]): string {
-    return parts.filter(Boolean).join(' · ') || '—'
-}
-
-function auctionEventTime(value: string | null | undefined): string | null {
-    if (!value) return null
-    return new Date(value).toLocaleTimeString(undefined, {
-        hour: 'numeric',
-        minute: '2-digit',
-    })
-}
-
-// Approximate height of a two-line history row (padding + name + meta lines).
 const HISTORY_ROW_HEIGHT = 54
 
 export default function DraftRoomScreen() {
@@ -50,41 +29,12 @@ export default function DraftRoomScreen() {
     const router = useRouter()
     const { width, height } = useWindowDimensions()
     const compactLandscape = width >= 600 && height < 500
-    // Two-column auction floor on desktop: block card + bid controls left,
-    // budgets/history right. Compact landscape keeps its own dense layout.
     const isDesktop = width >= breakpoints.desktop && !compactLandscape
 
     const myMemberId = current?.id
 
-    const {
-        state,
-        tab,
-        setTab,
-        loadError,
-        bidText,
-        setBidText,
-        bidding,
-        withdrawing,
-        nominating,
-        setNominating,
-        searchQuery,
-        setSearchQuery,
-        searchResults,
-        searchLoading,
-        searchError,
-        submittingNom,
-        timeLeft,
-        closedNominations,
-        budgetByMember,
-        wonCountByMember,
-        allMembersPresent,
-        absentMembers,
-        refresh,
-        handleBid,
-        handleWithdraw,
-        handleNominate,
-        cancelNominating,
-    } = useAuctionDraftRoomController({ draftId, memberId: myMemberId })
+    const controller = useAuctionDraftRoomController({ draftId, memberId: myMemberId })
+    const { state, loadError, refresh, budgetByMember } = controller
 
     const { handleStopDraft, handleResetDraft, handlePauseDraft, handleResumeDraft } =
         useDraftAdminControls({
@@ -128,34 +78,12 @@ export default function DraftRoomScreen() {
         )
     }
 
-    const { draft, order, budgets, activeBids, openNomination, currentNominatorMemberId } = state
-    const isMyTurn = currentNominatorMemberId === myMemberId
+    const { draft } = state
     const isPaused = draft.status === 'paused'
-    const currentNominatorTeam =
-        order.find((o) => o.memberId === currentNominatorMemberId)?.teamName ?? 'Unknown'
-
     const myBudget = myMemberId ? budgetByMember.get(myMemberId) : undefined
-    const iAmLeading = openNomination?.currentBidderId === myMemberId
-    const leadingTeam = openNomination?.currentBidderId
-        ? budgetByMember.get(openNomination.currentBidderId)?.teamName
-        : undefined
-
-    const iAmBankrupt = (myBudget?.remaining ?? 0) < 1
-    // Hot final seconds — the clock and the nomination card shift to the danger
-    // accent together so the whole block reads as "going once, going twice".
-    // timeLeft > 0 so a nomination with no countdown never shows as permanently
-    // urgent; the 1-10s window is the real urgency band.
-    const clockUrgent = !isPaused && openNomination != null && timeLeft > 0 && timeLeft <= 10
-    // Min bid is current + 1, floored at 1
-    const minBid = Math.max(1, (openNomination?.currentBidAmount ?? 0) + 1)
-    const remainingBudget = myBudget?.remaining ?? Infinity
-    const bidValue = parseInt(bidText, 10) // NaN while the field is empty/partial
-    const bidValid = !isNaN(bidValue) && bidValue >= minBid && bidValue <= remainingBudget
     const draftTitle = draft.isMock ? 'Mock Auction Draft' : 'Auction Draft'
-    // Grows with content but stays within the viewport so long histories scroll
-    // inside the panel rather than stretching the page.
     const historyListHeight = Math.min(
-        closedNominations.length * HISTORY_ROW_HEIGHT,
+        controller.closedNominations.length * HISTORY_ROW_HEIGHT,
         Math.max(360, height - 300),
     )
 
@@ -182,138 +110,6 @@ export default function DraftRoomScreen() {
                         </MotionPressable>
                     </View>
                 </SafeAreaView>
-            </>
-        )
-    }
-
-    function renderNominationSearch() {
-        return (
-            <>
-                <TextInput
-                    style={styles.searchInput}
-                    value={searchQuery}
-                    onChangeText={setSearchQuery}
-                    placeholder="Search player name..."
-                    autoFocus
-                    accessibilityLabel="Search player name"
-                />
-                <FlashList
-                    data={searchResults}
-                    keyExtractor={(p) => p.id}
-                    scrollEnabled={false}
-                    renderItem={({ item }) => (
-                        <MotionPressable
-                            style={styles.playerResult}
-                            onPress={() => handleNominate(item.id)}
-                            disabled={submittingNom}
-                            pressedScale={0.975}
-                            accessibilityRole="button"
-                            accessibilityLabel={`Nominate ${item.display_name ?? 'player'}`}
-                        >
-                            <Avatar
-                                name={item.display_name ?? 'Player'}
-                                color={colors.bgMuted}
-                                uri={playerHeadshotUrl(item.nba_id)}
-                                size={36}
-                            />
-                            <View style={styles.flex1}>
-                                <Text style={styles.playerResultName}>
-                                    {item.display_name}
-                                </Text>
-                                <Text style={styles.playerResultMeta}>
-                                    {playerMeta([
-                                        item.dynasty_rank != null ? `#${item.dynasty_rank}` : null,
-                                        item.nba_team,
-                                        item.position,
-                                        ageLabel(item.age),
-                                    ])}
-                                </Text>
-                            </View>
-                            <Text style={styles.nominateLabel}>
-                                Nominate
-                            </Text>
-                        </MotionPressable>
-                    )}
-                    ListEmptyComponent={
-                        searchError ? (
-                            <Text style={styles.emptySearch}>
-                                Search failed. Keep typing or try again.
-                            </Text>
-                        ) : searchQuery.length > 0 && !searchLoading ? (
-                            <Text style={styles.emptySearch}>
-                                No players found
-                            </Text>
-                        ) : null
-                    }
-                />
-                <MotionPressable
-                    style={styles.cancelNomButton}
-                    onPress={cancelNominating}
-                    pressedScale={0.94}
-                    accessibilityRole="button"
-                    accessibilityLabel="Cancel nomination search"
-                >
-                    <Text style={styles.cancelNomText}>Cancel</Text>
-                </MotionPressable>
-            </>
-        )
-    }
-
-    function renderIdleCardBody() {
-        if (isPaused) {
-            const absentNames = absentMembers.map((o) => o.teamName).join(', ')
-            return (
-                <View style={styles.waitingRow}>
-                    <Text style={styles.waitingTeam}>Draft paused</Text>
-                    {draft.pauseReason === 'member_absent' && absentNames ? (
-                        <Text style={styles.waitingText}>
-                            Waiting for {absentNames} to rejoin...
-                        </Text>
-                    ) : (
-                        <Text style={styles.waitingText}>Commissioner will resume the clock.</Text>
-                    )}
-                </View>
-            )
-        }
-        if (!allMembersPresent) {
-            const absentNames = absentMembers.map((o) => o.teamName).join(', ')
-            return (
-                <View style={styles.waitingRow}>
-                    <Text style={styles.waitingTeam}>Waiting for everyone to join</Text>
-                    <Text style={styles.waitingText}>{absentNames} hasn&apos;t joined the draft room yet.</Text>
-                </View>
-            )
-        }
-        if (!isMyTurn) {
-            return (
-                <View style={styles.waitingRow}>
-                    <Text style={styles.waitingText}>Waiting for</Text>
-                    <Text style={styles.waitingTeam}>{currentNominatorTeam}</Text>
-                    <Text style={styles.waitingText}>to nominate...</Text>
-                </View>
-            )
-        }
-        return (
-            <>
-                <Text style={styles.yourTurnBanner}>Your turn to nominate!</Text>
-                <Text style={styles.nominationModeHint}>
-                    Nomination order: {NOMINATION_ORDER_MODE_LABELS[draft.nominationOrderMode]}
-                </Text>
-                {nominating ? (
-                    renderNominationSearch()
-                ) : (
-                    <MotionPressable
-                        style={styles.nominateButton}
-                        onPress={() => setNominating(true)}
-                        pressedScale={0.965}
-                        accessibilityRole="button"
-                        accessibilityLabel="Search and nominate a player"
-                    >
-                        <Text style={styles.nominateButtonText}>
-                            Search & Nominate a Player
-                        </Text>
-                    </MotionPressable>
-                )}
             </>
         )
     }
@@ -361,297 +157,23 @@ export default function DraftRoomScreen() {
             >
                 <View style={[styles.columns, compactLandscape && styles.columnsCompact, isDesktop && styles.columnsDesktop]}>
                     <View style={[styles.column, compactLandscape && styles.columnCompact, isDesktop && styles.columnMainDesktop]}>
-                        {/* Nomination on the clock */}
-                        {openNomination ? (
-                            <View style={[styles.card, compactLandscape && styles.cardCompact, clockUrgent && styles.cardUrgent]}>
-                                <View style={[styles.liveAuctionLayout, compactLandscape && styles.liveAuctionLayoutCompact]}>
-                                    <View style={styles.livePlayerInfo}>
-                                        <Text style={styles.cardLabel}>ON THE BLOCK</Text>
-                                        {/* Headshot when the player has an nba_id;
-                                            position-colored initials otherwise. */}
-                                        <View style={styles.livePlayerRow}>
-                                            <Avatar
-                                                name={openNomination.player?.displayName ?? 'Unknown Player'}
-                                                color={colors.bgMuted}
-                                                uri={playerHeadshotUrl(openNomination.player?.nbaId)}
-                                                size={compactLandscape ? 44 : 64}
-                                            />
-                                            <View style={styles.livePlayerText}>
-                                                <Text style={styles.playerName} numberOfLines={compactLandscape ? 2 : undefined}>
-                                                    {openNomination.player?.displayName ?? 'Unknown Player'}
-                                                </Text>
-                                                <Text style={styles.playerMeta} numberOfLines={compactLandscape ? 1 : undefined}>
-                                                    {playerMeta([
-                                                        openNomination.player?.nbaTeam,
-                                                        openNomination.player?.position,
-                                                        ageLabel(openNomination.player?.age),
-                                                    ])}
-                                                </Text>
-                                            </View>
-                                        </View>
-                                    </View>
-
-                                    <View style={[styles.liveBidPanel, compactLandscape && styles.liveBidPanelCompact]}>
-                                        <View style={[styles.bidRow, compactLandscape && styles.bidRowCompact]}>
-                                            <View style={styles.bidInfo}>
-                                                <Text style={[styles.bidAmount, iAmLeading && styles.bidAmountLeading]}>
-                                                    {openNomination.currentBidAmount > 0
-                                                        ? `$${openNomination.currentBidAmount}`
-                                                        : '—'}
-                                                </Text>
-                                                <Text style={[styles.bidLeader, iAmLeading && styles.bidLeaderLeading]}>
-                                                    {openNomination.currentBidderId == null
-                                                        ? 'No bids yet'
-                                                        : iAmLeading
-                                                          ? "You're leading"
-                                                          : `${leadingTeam} leads`}
-                                                </Text>
-                                            </View>
-                                            <View style={[styles.countdown, clockUrgent && styles.countdownUrgent]}>
-                                                <Text
-                                                    style={[
-                                                        styles.countdownText,
-                                                        isPaused && styles.countdownTextPaused,
-                                                        clockUrgent && styles.countdownTextUrgent,
-                                                    ]}
-                                                >
-                                                    {isPaused ? 'Paused' : `0:${String(timeLeft).padStart(2, '0')}`}
-                                                </Text>
-                                            </View>
-                                        </View>
-
-                                        {!iAmLeading && !iAmBankrupt && !isPaused && (
-                                            <View style={[styles.bidInputRow, compactLandscape && styles.bidInputRowCompact]}>
-                                                {/* Non-wrapping group: the row may wrap between this
-                                                    group and the Bid button, never inside −/amount/+. */}
-                                                <View style={styles.bidStepGroup}>
-                                                    <MotionPressable
-                                                        style={styles.bidStep}
-                                                        onPress={() =>
-                                                            setBidText((t) => String(Math.max(minBid, (parseInt(t, 10) || minBid) - 1)))
-                                                        }
-                                                        accessibilityRole="button"
-                                                        accessibilityLabel="Decrease bid"
-                                                        hitSlop={8}
-                                                        pressedScale={0.88}
-                                                    >
-                                                        <Text style={styles.bidStepText}>−</Text>
-                                                    </MotionPressable>
-                                                    <TextInput
-                                                        style={[styles.bidAmountInput, compactLandscape && styles.bidAmountInputCompact]}
-                                                        value={bidText}
-                                                        onChangeText={(v) => setBidText(v.replace(/[^0-9]/g, ''))}
-                                                        keyboardType="number-pad"
-                                                        selectTextOnFocus
-                                                        accessibilityLabel="Bid amount"
-                                                    />
-                                                    <MotionPressable
-                                                        style={styles.bidStep}
-                                                        onPress={() =>
-                                                            setBidText((t) =>
-                                                                String(Math.min(remainingBudget, (parseInt(t, 10) || minBid - 1) + 1)),
-                                                            )
-                                                        }
-                                                        accessibilityRole="button"
-                                                        accessibilityLabel="Increase bid"
-                                                        hitSlop={8}
-                                                        pressedScale={0.88}
-                                                    >
-                                                        <Text style={styles.bidStepText}>+</Text>
-                                                    </MotionPressable>
-                                                </View>
-                                                <MotionPressable
-                                                    style={[
-                                                        styles.bidButton,
-                                                        compactLandscape && styles.bidButtonCompact,
-                                                        (bidding || !bidValid) && styles.bidButtonDisabled,
-                                                    ]}
-                                                    onPress={handleBid}
-                                                    accessibilityRole="button"
-                                                    accessibilityLabel={`Bid $${(bidValid ? bidValue : minBid).toLocaleString()}`}
-                                                    disabled={bidding || !bidValid || iAmLeading || timeLeft === 0}
-                                                    pressedScale={0.965}
-                                                >
-                                                    <Text style={styles.bidButtonText}>
-                                                        Bid ${(bidValid ? bidValue : minBid).toLocaleString()}
-                                                    </Text>
-                                                </MotionPressable>
-                                            </View>
-                                        )}
-                                    </View>
-                                </View>
-
-                                {openNomination.nominatingMemberId === myMemberId &&
-                                    !isPaused &&
-                                    openNomination.currentBidderId == null && (
-                                        <MotionPressable
-                                            style={styles.withdrawButton}
-                                            onPress={handleWithdraw}
-                                            disabled={withdrawing}
-                                            accessibilityRole="button"
-                                            accessibilityLabel="Withdraw nomination"
-                                            pressedScale={0.96}
-                                        >
-                                            <Text style={styles.withdrawButtonText}>Withdraw nomination</Text>
-                                        </MotionPressable>
-                                    )}
-                            </View>
-                        ) : (
-                            /* No open nomination — show whose turn it is */
-                            <View style={[styles.card, compactLandscape && styles.cardCompact]}>
-                                {renderIdleCardBody()}
-                            </View>
-                        )}
-
-                        {/* The live area focuses on the active nomination's bid history;
-                            completed hammer results live in the History tab. */}
-                        {openNomination ? (
-                            <View style={styles.bidHistoryPanel}>
-                                <View style={styles.bidHistoryHeader}>
-                                    <Text style={styles.bidHistoryLabel}>Bid history</Text>
-                                    <Text style={styles.bidHistoryCount}>
-                                        {activeBids.length === 0 ? 'No bids' : `${activeBids.length} bid${activeBids.length === 1 ? '' : 's'}`}
-                                    </Text>
-                                </View>
-                                {activeBids.length === 0 ? (
-                                    <Text style={styles.bidHistoryEmpty}>
-                                        No bids yet. Minimum bid is ${minBid}.
-                                    </Text>
-                                ) : (
-                                    <View style={styles.bidHistoryItems}>
-                                        {activeBids.slice(0, 6).map((bid, index) => {
-                                            const isHighBid = bid.memberId === openNomination.currentBidderId && index === 0
-                                            return (
-                                                <View key={bid.id} style={styles.bidHistoryItem}>
-                                                    <View style={[styles.bidOrderPill, isHighBid && styles.bidOrderPillHigh]}>
-                                                        <Text style={[styles.bidOrderText, isHighBid && styles.bidOrderTextHigh]}>
-                                                            {isHighBid ? 'High' : `#${activeBids.length - index}`}
-                                                        </Text>
-                                                    </View>
-                                                    <View style={styles.bidHistoryInfo}>
-                                                        <Text style={styles.bidHistoryTeam} numberOfLines={1}>{bid.teamName}</Text>
-                                                        <Text style={styles.bidHistoryMeta}>{auctionEventTime(bid.placedAt) ?? 'Just now'}</Text>
-                                                    </View>
-                                                    <Text style={[styles.bidHistoryAmount, isHighBid && styles.bidHistoryAmountHigh]}>
-                                                        ${bid.amount}
-                                                    </Text>
-                                                </View>
-                                            )
-                                        })}
-                                    </View>
-                                )}
-                            </View>
-                        ) : null}
-
+                        {state.openNomination
+                            ? <AuctionLivePanel controller={controller} memberId={myMemberId} compact={compactLandscape} />
+                            : <AuctionIdlePanel controller={controller} memberId={myMemberId} compact={compactLandscape} />}
                     </View>
 
-                    <View style={[styles.column, compactLandscape && styles.columnCompact, isDesktop && styles.columnSideDesktop]}>
-                        {/* Tab switcher */}
-                        <View style={styles.tabRow}>
-                            {(['budgets', 'history'] as DraftTab[]).map((t) => (
-                                <MotionPressable
-                                    key={t}
-                                    style={[styles.tabChip, tab === t && styles.tabChipActive]}
-                                    onPress={() => setTab(t)}
-                                    pressedScale={0.94}
-                                >
-                                    <Text
-                                        style={[styles.tabChipText, tab === t && styles.tabChipTextActive]}
-                                    >
-                                        {t === 'budgets'
-                                            ? 'Budgets'
-                                            : `History (${closedNominations.length})`}
-                                    </Text>
-                                </MotionPressable>
-                            ))}
-                        </View>
-
-                        {tab === 'budgets' ? (
-                            <MotionView style={[styles.card, compactLandscape && styles.cardCompact]} preset="rise" delay={80}>
-                                {budgets
-                                    .slice()
-                                    .sort((a, b) => b.remaining - a.remaining)
-                                    .map((b, i) => (
-                                        <View
-                                            key={b.memberId}
-                                            style={[styles.budgetRow, i > 0 && styles.budgetDivider]}
-                                        >
-                                            <Text
-                                                style={[
-                                                    styles.budgetTeam,
-                                                    b.memberId === myMemberId && styles.meAccent,
-                                                ]}
-                                                numberOfLines={1}
-                                            >
-                                                {b.teamName}
-                                                {b.memberId === myMemberId ? ' (you)' : ''}
-                                            </Text>
-                                            <Text style={styles.budgetWon}>
-                                                {wonCountByMember.get(b.memberId) ?? 0} won
-                                            </Text>
-                                            <Text
-                                                style={[
-                                                    styles.budgetAmount,
-                                                    b.memberId === myMemberId && styles.meAccent,
-                                                ]}
-                                            >
-                                                ${b.remaining}
-                                            </Text>
-                                        </View>
-                                    ))}
-                            </MotionView>
-                        ) : closedNominations.length === 0 ? (
-                            <View style={styles.empty}>
-                                <Text style={styles.emptyText}>No players sold yet.</Text>
-                            </View>
-                        ) : (
-                            <MotionView style={[styles.card, compactLandscape && styles.cardCompact]} preset="rise" delay={80}>
-                                {/* Bounded height so the list virtualizes instead of laying
-                                    out every closed nomination inside the page ScrollView. */}
-                                <View style={{ height: historyListHeight }}>
-                                    <FlashList
-                                        data={closedNominations}
-                                        keyExtractor={(n) => n.id}
-                                        nestedScrollEnabled
-                                        renderItem={({ item, index }) => {
-                                            const winnerTeam = item.winningMemberId
-                                                ? budgetByMember.get(item.winningMemberId)?.teamName
-                                                : undefined
-                                            return (
-                                                <View style={[styles.historyRow, index > 0 && styles.budgetDivider]}>
-                                                    <Avatar
-                                                        name={item.player?.displayName ?? 'Player'}
-                                                        color={colors.bgMuted}
-                                                        uri={playerHeadshotUrl(item.player?.nbaId)}
-                                                        size={34}
-                                                    />
-                                                    <View style={styles.flex1}>
-                                                        <Text style={styles.historyPlayer}>
-                                                            {item.player?.displayName ?? 'Unknown'}
-                                                        </Text>
-                                                        <Text style={styles.historyMeta}>
-                                                            {playerMeta([
-                                                                `#${item.nominationOrder}`,
-                                                                auctionEventTime(item.nominatedAt),
-                                                                item.status === 'sold' ? (winnerTeam ?? '—') : 'No bid',
-                                                                ageLabel(item.player?.age),
-                                                            ])}
-                                                        </Text>
-                                                    </View>
-                                                    {item.status === 'sold' && (
-                                                        <Text style={styles.historyPrice}>${item.finalPrice}</Text>
-                                                    )}
-                                                    {item.status === 'no_bid' && (
-                                                        <Text style={styles.historyNoBid}>FA</Text>
-                                                    )}
-                                                </View>
-                                            )
-                                        }}
-                                    />
-                                </View>
-                            </MotionView>
-                        )}
-                    </View>
+                    <AuctionDraftSidePanel
+                        tab={controller.tab}
+                        onTabChange={controller.setTab}
+                        budgets={state.budgets}
+                        closedNominations={controller.closedNominations}
+                        budgetByMember={budgetByMember}
+                        wonCountByMember={controller.wonCountByMember}
+                        myMemberId={myMemberId}
+                        compact={compactLandscape}
+                        desktop={isDesktop}
+                        historyListHeight={historyListHeight}
+                    />
                 </View>
             </ScrollView>
             </KeyboardAvoidingView>
@@ -659,6 +181,8 @@ export default function DraftRoomScreen() {
         </>
     )
 }
+
+export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFallback'
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgSubtle },
@@ -688,7 +212,6 @@ const styles = StyleSheet.create({
     column: { gap: spacing.lg },
     columnCompact: { gap: spacing.sm },
     columnMainDesktop: { flex: 3, minWidth: 0 },
-    columnSideDesktop: { flex: 2, minWidth: 0 },
 
     budgetChip: {
         backgroundColor: colors.primaryLight,
@@ -711,191 +234,6 @@ const styles = StyleSheet.create({
     },
     refreshWarningText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.dangerDark },
 
-    card: {
-        backgroundColor: colors.bgScreen,
-        borderRadius: radii.md,
-        borderCurve: 'continuous' as const,
-        borderWidth: 1,
-        borderColor: colors.borderLight,
-        padding: spacing.xl,
-        gap: spacing.md,
-    },
-    cardCompact: {
-        padding: spacing.md,
-        gap: spacing.sm,
-    },
-    cardLabel: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.textPlaceholder, letterSpacing: 0 },
-
-    playerName: {
-        fontSize: fontSize['2xl'],
-        fontFamily: fontFamily.display,
-        fontWeight: fontWeight.bold,
-        color: colors.textPrimary,
-    },
-    playerMeta: { fontSize: fontSize.sm, color: colors.textMuted },
-
-    liveAuctionLayout: { gap: spacing.md },
-    liveAuctionLayoutCompact: {
-        flexDirection: 'row',
-        alignItems: 'flex-start',
-        gap: spacing.md,
-    },
-    livePlayerInfo: { flex: 1, minWidth: 0, gap: spacing.xs },
-    livePlayerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg, marginTop: spacing.xs },
-    livePlayerText: { flex: 1, minWidth: 0, gap: spacing.xs },
-    liveBidPanel: { gap: spacing.md },
-    liveBidPanelCompact: { width: 318, maxWidth: '100%', gap: spacing.sm },
-
-    bidRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        marginTop: spacing.xs,
-    },
-    bidRowCompact: { marginTop: 0 },
-    bidInfo: { gap: spacing.xs },
-    bidAmount: {
-        fontSize: fontSize['4xl'],
-        fontFamily: fontFamily.display,
-        fontWeight: fontWeight.bold,
-        color: colors.primaryDark,
-        letterSpacing: 0,
-    },
-    bidAmountLeading: { color: colors.successDark },
-    bidLeader: { fontSize: fontSize.sm, color: colors.textMuted },
-    bidLeaderLeading: {
-        color: colors.successDark,
-        fontWeight: fontWeight.bold,
-        backgroundColor: colors.successLight,
-        paddingHorizontal: spacing.md,
-        paddingVertical: 2,
-        borderRadius: radii.full,
-        overflow: 'hidden' as const,
-        alignSelf: 'flex-start' as const,
-    },
-
-    countdown: {
-        width: 60,
-        height: 60,
-        borderRadius: 30,
-        borderCurve: 'continuous' as const,
-        backgroundColor: colors.bgMuted,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    countdownUrgent: {
-        backgroundColor: colors.dangerLight,
-        borderWidth: 2,
-        borderColor: colors.danger,
-    },
-    countdownText: {
-        fontSize: fontSize['2lg'],
-        fontFamily: fontFamily.display,
-        fontWeight: fontWeight.bold,
-        color: colors.textSecondary,
-    },
-    countdownTextPaused: { fontSize: fontSize.sm },
-    countdownTextUrgent: { color: colors.dangerDark },
-    cardUrgent: {
-        borderColor: colors.danger,
-        borderWidth: 1.5,
-        boxShadow: `0 0 0 3px ${tints.dangerFocusRing}`,
-    },
-
-
-    bidHistoryPanel: {
-        gap: spacing.md,
-        paddingHorizontal: spacing.lg,
-        paddingVertical: spacing.md,
-        borderRadius: radii.md,
-        borderCurve: 'continuous' as const,
-        backgroundColor: colors.bgMuted,
-    },
-    bidHistoryHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md },
-    bidHistoryLabel: {
-        fontSize: fontSize['2xs'],
-        fontWeight: fontWeight.extrabold,
-        letterSpacing: 0,
-        textTransform: 'uppercase' as const,
-        color: colors.textMuted,
-    },
-    bidHistoryCount: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.textMuted },
-    bidHistoryEmpty: { fontSize: fontSize.sm, color: colors.textSecondary },
-    bidHistoryItems: { gap: spacing.xs },
-    bidHistoryItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: spacing.sm,
-        minHeight: 38,
-    },
-    bidOrderPill: {
-        minWidth: 44,
-        minHeight: 26,
-        borderRadius: radii.full,
-        borderCurve: 'continuous' as const,
-        backgroundColor: colors.bgScreen,
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingHorizontal: spacing.sm,
-    },
-    bidOrderPillHigh: { backgroundColor: colors.successLight },
-    bidOrderText: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.textMuted },
-    bidOrderTextHigh: { color: colors.successDark },
-    bidHistoryInfo: { flex: 1, minWidth: 0 },
-    bidHistoryTeam: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.textPrimary },
-    bidHistoryMeta: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: 1 },
-    bidHistoryAmount: {
-        fontSize: fontSize.sm,
-        fontFamily: fontFamily.display,
-        fontWeight: fontWeight.bold,
-        color: colors.primaryDark,
-    },
-    bidHistoryAmountHigh: { color: colors.successDark },
-
-    bidInputRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.md, marginTop: spacing.xs },
-    // flexShrink 0 keeps the −/amount/+ trio intact; the Bid button (flex:1) wraps
-    // to its own line at narrow widths instead of pushing "+" off the card edge.
-    bidStepGroup: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, flexShrink: 0 },
-    bidInputRowCompact: { gap: spacing.sm, marginTop: 0 },
-    bidStep: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
-        borderCurve: 'continuous' as const,
-        backgroundColor: colors.bgMuted,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    bidStepText: { fontSize: fontSize.xl, fontWeight: fontWeight.semibold, color: colors.textSecondary },
-    bidAmountInput: {
-        fontSize: fontSize['2lg'],
-        fontWeight: fontWeight.extrabold,
-        width: 84,
-        height: 44,
-        textAlign: 'center',
-        backgroundColor: colors.bgMuted,
-        borderRadius: radii.md,
-        borderCurve: 'continuous' as const,
-        paddingHorizontal: 10,
-        paddingVertical: spacing.sm,
-    },
-    bidAmountInputCompact: { width: 70, minWidth: 70 },
-    bidButton: {
-        flex: 1,
-        minWidth: 112,
-        height: 44,
-        backgroundColor: colors.primary,
-        borderRadius: radii.md,
-        borderCurve: 'continuous' as const,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    bidButtonCompact: { minWidth: 96 },
-    bidButtonDisabled: { opacity: 0.5 },
-    bidButtonText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.md },
-
-    yourTurnBanner: { fontSize: fontSize.lg, fontWeight: fontWeight.extrabold, color: colors.primaryDark, textAlign: 'center' },
-    nominationModeHint: { fontSize: fontSize.sm, color: colors.textMuted, textAlign: 'center', marginTop: spacing.xs },
     nominateButton: {
         marginTop: spacing.xs,
         height: 48,
@@ -906,87 +244,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     nominateButtonText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.md },
-
-    searchInput: {
-        height: 44,
-        backgroundColor: colors.bgMuted,
-        borderRadius: radii.md,
-        borderCurve: 'continuous' as const,
-        paddingHorizontal: 14,
-        fontSize: fontSize.lg,
-        marginTop: spacing.xs,
-    },
-
-    playerResult: {
-        minHeight: 52,
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: spacing.sm,
-        borderTopWidth: 1,
-        borderTopColor: colors.separator,
-        gap: spacing.md,
-    },
-    playerResultName: { fontSize: fontSize.md, fontWeight: fontWeight.semibold },
-    playerResultMeta: { fontSize: fontSize['2sm'], color: colors.textMuted, marginTop: 1 },
-    nominateLabel: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.primaryDark },
-    emptySearch: { fontSize: fontSize.sm, color: colors.textPlaceholder, textAlign: 'center', marginTop: spacing.md },
-    cancelNomButton: { minHeight: 44, marginTop: spacing.sm, alignItems: 'center', justifyContent: 'center' },
-    cancelNomText: { fontSize: fontSize.md, color: colors.textMuted, fontWeight: fontWeight.semibold },
-    withdrawButton: {
-        minHeight: 46,
-        marginTop: spacing.md,
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingVertical: spacing.sm,
-        borderRadius: radii.md,
-        borderWidth: 1,
-        borderColor: colors.border,
-    },
-    withdrawButtonText: { fontSize: fontSize.md, color: colors.textMuted, fontWeight: fontWeight.semibold },
-
-    waitingRow: { alignItems: 'center', gap: spacing.xs, paddingVertical: spacing.md },
-    waitingText: { fontSize: fontSize.md, color: colors.textMuted },
-    waitingTeam: { fontSize: fontSize['2lg'], fontWeight: fontWeight.extrabold, color: colors.textPrimary },
-
-    tabRow: { flexDirection: 'row', gap: spacing.md },
-    tabChip: {
-        flex: 1,
-        minHeight: 44,
-        justifyContent: 'center',
-        alignItems: 'center',
-        paddingHorizontal: 14,
-        borderRadius: radii.md,
-        borderCurve: 'continuous' as const,
-        backgroundColor: colors.bgMuted,
-    },
-    tabChipActive: { backgroundColor: colors.primary },
-    tabChipText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textSecondary },
-    tabChipTextActive: { color: colors.textWhite },
-
-    budgetRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10 },
-    budgetDivider: { borderTopWidth: 1, borderTopColor: colors.separator },
-    budgetTeam: { flex: 1, fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textPrimary },
-    budgetAmount: { fontSize: fontSize.lg, fontWeight: fontWeight.extrabold, color: colors.textPrimary },
-    budgetWon: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textMuted, marginRight: spacing.lg },
-    meAccent: { color: colors.primaryDark },
-
-    historyRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, gap: spacing.md },
-    historyPlayer: { fontSize: fontSize.md, fontWeight: fontWeight.semibold },
-    historyMeta: { fontSize: fontSize['2sm'], color: colors.textMuted, marginTop: 1 },
-    historyPrice: { fontSize: fontSize.md, fontWeight: fontWeight.extrabold, color: colors.textPrimary },
-    historyNoBid: {
-        fontSize: fontSize['2sm'],
-        fontWeight: fontWeight.bold,
-        color: colors.textPlaceholder,
-        backgroundColor: colors.bgMuted,
-        paddingHorizontal: spacing.md,
-        paddingVertical: 3,
-        borderRadius: radii.sm,
-        borderCurve: 'continuous' as const,
-    },
-
-    empty: { alignItems: 'center', paddingVertical: spacing['3xl'] },
-    emptyText: { fontSize: fontSize.sm, color: colors.textPlaceholder },
 
     draftEndedContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: spacing['4xl'], gap: spacing.lg },
     draftEndedTitle: { fontSize: fontSize['2xl'], fontWeight: fontWeight.extrabold, color: colors.textPrimary },

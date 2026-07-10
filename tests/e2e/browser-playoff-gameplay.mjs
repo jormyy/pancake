@@ -5,6 +5,7 @@ import { createClient } from '@supabase/supabase-js'
 import { resolvedEnv, requireEnv, describeEndpoint } from './env.mjs'
 import { installRuntimeOverrides, normalizeBrowserErrors } from './browser-runtime-overrides.mjs'
 import { clickButtonByName, createBrowser, fillSignInCredentials, listBrowserSessions } from './browser-agent.mjs'
+import { createFixtureResourceOwner } from './trade-fixture.mjs'
 
 const ROOT = process.cwd()
 const ARTIFACT_ROOT = path.join(ROOT, 'tests/artifacts')
@@ -137,6 +138,43 @@ const finalizeMatchupsWithHomeWins = async (admin, rows, label) => {
   }
 }
 
+const ensurePlayoffSeasonWeeks = async (admin, resources, seasonYear, playoffStartWeek) => {
+  const requiredWeeks = Array.from({ length: 3 }, (_, index) => playoffStartWeek + index)
+  const { data: existing, error: lookupError } = await admin
+    .from('season_weeks')
+    .select('week_number')
+    .eq('season_year', seasonYear)
+    .in('week_number', requiredWeeks)
+  if (lookupError) throw new Error(`playoff season-week lookup: ${lookupError.message}`)
+
+  const existingWeeks = new Set((existing ?? []).map((row) => row.week_number))
+  const missingWeeks = requiredWeeks.filter((weekNumber) => !existingWeeks.has(weekNumber))
+  if (missingWeeks.length === 0) return
+
+  const rows = missingWeeks.map((weekNumber) => {
+    const start = new Date(Date.UTC(seasonYear, 0, 1 + (weekNumber - 1) * 7))
+    const end = new Date(start)
+    end.setUTCDate(end.getUTCDate() + 6)
+    return {
+      season_year: seasonYear,
+      week_number: weekNumber,
+      week_start: start.toISOString().slice(0, 10),
+      week_end: end.toISOString().slice(0, 10),
+    }
+  })
+  const { error: insertError } = await admin.from('season_weeks').insert(rows)
+  if (insertError) throw new Error(`playoff season-week insert: ${insertError.message}`)
+
+  resources.registerCleanup(`playoff season weeks ${seasonYear}`, async () => {
+    const { error } = await admin
+      .from('season_weeks')
+      .delete()
+      .eq('season_year', seasonYear)
+      .in('week_number', missingWeeks)
+    if (error) throw new Error(error.message)
+  })
+}
+
 const setupBrowserPlayoffFixture = async (env, season) => {
   const runId = `${new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)}-${process.pid}-${season}`
   const password = `Pancake-playoff-${runId}!`
@@ -152,8 +190,13 @@ const setupBrowserPlayoffFixture = async (env, season) => {
   })
 
   const admin = createClient(env.supabaseUrl, env.serviceRoleKey, { auth: { persistSession: false } })
+  const resources = createFixtureResourceOwner(admin)
   const createdUsers = []
-  for (const user of users) createdUsers.push(await createConfirmedUser(admin, user))
+  for (const user of users) {
+    const createdUser = await createConfirmedUser(admin, user)
+    resources.registerUser(createdUser.id)
+    createdUsers.push(createdUser)
+  }
 
   const { error: profileError } = await admin.from('profiles').upsert(
     createdUsers.map((user) => ({
@@ -172,6 +215,7 @@ const setupBrowserPlayoffFixture = async (env, season) => {
     p_auction_budget: 200,
   })
   if (createError) throw new Error(`create_league: ${createError.message}`)
+  resources.registerLeague(league.id)
   if (!commissionerAuth.accessToken) throw new Error('commissioner sign-in returned no access token')
 
   for (const user of createdUsers.slice(1)) {
@@ -184,6 +228,18 @@ const setupBrowserPlayoffFixture = async (env, season) => {
   }
 
   const currentSeason = await fetchCurrentSeason(admin, league.id)
+  const { data: leagueSettings, error: settingsError } = await admin
+    .from('leagues')
+    .select('playoff_start_week')
+    .eq('id', league.id)
+    .single()
+  if (settingsError) throw new Error(`league playoff settings lookup: ${settingsError.message}`)
+  await ensurePlayoffSeasonWeeks(
+    admin,
+    resources,
+    currentSeason.season_year,
+    leagueSettings.playoff_start_week ?? 20,
+  )
   const { data: members, error: membersError } = await admin
     .from('league_members')
     .select('id, user_id, team_name, joined_at')
@@ -290,12 +346,13 @@ const setupBrowserPlayoffFixture = async (env, season) => {
     championUser,
     advanceBeforeFinalized,
     semifinalAdvanceBeforeFinalized,
+    dispose: resources.dispose,
   }
 }
 
 export async function runBrowserPlayoffChampionScenario({
   season = 0,
-  sessionName,
+  sessionName = undefined,
 } = {}) {
   const env = resolvedEnv()
   requireEnv(env, ['supabaseUrl', 'serviceRoleKey', 'anonKey', 'apiBaseUrl'])
@@ -315,7 +372,7 @@ export async function runBrowserPlayoffChampionScenario({
 
   try {
     await signInBrowser(session, env, fixture.championUser, fixture.password)
-    await browser(session, ['set', 'viewport', '390', '844']).catch(() => {})
+    await browser(session, ['set', 'viewport', '390', '844'])
     await browser(session, ['open', joinUrl(env.frontendUrl, '/bracket')])
     await browser(session, ['wait', '2500'])
     await assertPageText(
@@ -385,15 +442,15 @@ export async function runBrowserPlayoffChampionScenario({
     }
     await writeFile(REPORT_PATH, `${JSON.stringify(report, null, 2)}\n`).catch(() => {})
     throw error
-  } finally {
-    await browser(session, ['close']).catch(() => {})
   }
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const seasonArg = process.argv.find((arg) => arg.startsWith('--season='))
   const season = seasonArg ? Number(seasonArg.split('=')[1]) : 0
-  runBrowserPlayoffChampionScenario({ season }).catch((error) => {
+  import('./browser-scenario-registry.mjs').then(({ browserScenarioById }) => (
+    browserScenarioById('playoffs').run({ args: { browserFullSweep: false }, season })
+  )).catch((error) => {
     console.error(error)
     process.exitCode = 1
   })

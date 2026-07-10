@@ -8,7 +8,6 @@ import {
 } from 'react-native'
 import type { RosterPlayer } from '@/lib/roster'
 import { getEligiblePositions } from '@/lib/players'
-import { getPositionColor } from '@/constants/positions'
 import { colors, fontSize, fontWeight, radii, scrim, spacing } from '@/constants/tokens'
 import { Avatar } from '@/components/Avatar'
 import { PosTag } from '@/components/PosTag'
@@ -56,6 +55,8 @@ export function DropPlayerPickerModal({ visible, title, subtitle, roster, droppi
                                         disabled={dropping !== null}
                                         accessibilityRole="button"
                                         accessibilityLabel={`Drop ${p.display_name}`}
+                                        testID={`drop-roster-player-${rp.id}`}
+                                        id={`drop-roster-player-${rp.id}`}
                                     >
                                         <Text style={styles.dropBtnText}>Drop</Text>
                                     </Pressable>
@@ -118,7 +119,9 @@ const styles = StyleSheet.create({
         borderRadius: radii.md,
         borderCurve: 'continuous' as const,
         minWidth: 60,
+        minHeight: 44,
         alignItems: 'center',
+        justifyContent: 'center',
     },
     dropBtnText: { color: colors.textWhite, fontSize: fontSize.sm, fontWeight: fontWeight.bold },
     cancel: {

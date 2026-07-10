@@ -6,6 +6,8 @@ export type { StatLine, ScoringSettings } from './scoring/types'
 export { currentSeasonYear } from './season/year'
 export { isRegularSeasonGameId } from './season/gameId'
 export { calculateWeekNumberFromDate } from './season/week'
+export { resolveSeasonWeekNumber } from './season/weekPolicy'
+export type { SeasonWeekRange, SeasonWeekResolutionMode } from './season/weekPolicy'
 export {
     assertScheduleFresh,
     buildScheduleSyncPlan,
@@ -39,10 +41,38 @@ export { isIREligible, isDTD, isTaxiEligible } from './roster/eligibility'
 export { isRosterFull, hasTaxiSpace } from './roster/limits'
 
 // Positions
-export { canPlaySlot, SLOT_TYPES } from './positions'
-export type { SlotType } from './positions'
+export {
+    canOccupyRosterSlot,
+    canPlayLineupSlot,
+    LINEUP_SLOT_ALLOWED_POSITIONS,
+    LINEUP_SLOT_TYPES,
+    SLOT_TYPES,
+} from './positions'
+export type { LineupSlotType, SlotType } from './positions'
+
+// Trades
+export {
+    MAX_TRADE_EXPIRATION_DAYS,
+    MAX_TRADE_FAAB_AMOUNT,
+    MAX_TRADE_ITEMS,
+    MAX_TRADE_NOTES_BYTES,
+    MAX_TRADE_PARTICIPANTS,
+    utf8ByteLength,
+} from './trades/limits'
 
 // Types
+export {
+    LEAGUE_STATUSES,
+    DRAFT_STATUSES,
+    DRAFT_TYPES,
+    NOMINATION_STATUSES,
+    TRADE_STATUSES,
+    TRADE_SIDES,
+    MATCHUP_TYPES,
+    WAIVER_CLAIM_STATUSES,
+    ROSTER_SLOT_TYPES,
+    NBA_POSITIONS,
+} from './types/enums'
 export type {
     LeagueStatus,
     DraftStatus,

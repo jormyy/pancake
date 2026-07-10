@@ -395,6 +395,8 @@ export default function RookieDraftRoomScreen() {
     )
 }
 
+export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFallback'
+
 function ProspectRow({
     player,
     isDone,

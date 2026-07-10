@@ -1,12 +1,19 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Alert } from 'react-native'
-import { setPlayerSlotMoves, autoSetLineup, canPlaySlot, LineupSlot, LineupPlayer } from '@/lib/lineup'
-import { activateRosterPlayerWithLineup, isIREligible, toggleIR, toggleTaxi } from '@/lib/roster'
+import {
+    setPlayerSlotMoves,
+    autoSetLineup,
+    planLineupMove,
+    type LineupSlot,
+    type LineupPlayer,
+    type LineupSelection,
+} from '@/lib/lineup'
+import { activateRosterPlayerWithLineup, toggleIR, toggleTaxi } from '@/lib/roster'
 import { todayET } from '@/lib/shared/dates'
 import { getErrorMessage } from '@/lib/alert'
 
 type LineupData = { starters: LineupSlot[]; bench: LineupPlayer[]; ir?: LineupPlayer[]; taxi?: LineupPlayer[] }
-type Sel = { kind: 'starter'; index: number } | { kind: 'bench'; index: number } | { kind: 'ir'; index: number } | { kind: 'taxi'; index: number }
+type Sel = LineupSelection
 type PendingActivation = { rosterPlayerId: string; source: 'ir' | 'taxi'; slotType: string | null }
 export type LineupActionContext = {
     memberId: string
@@ -37,6 +44,32 @@ export function useLineupActions({
     const [autoSetModalVisible, setAutoSetModalVisible] = useState(false)
     const [activationOverflowPending, setActivationOverflowPending] = useState<PendingActivation | null>(null)
     const [activationOverflowSaving, setActivationOverflowSaving] = useState(false)
+    const ownerIdentity = actionContext
+        ? `${actionContext.memberId}:${actionContext.leagueId}:${actionContext.seasonId}:${selectedDate}`
+        : null
+    const renderedOwnerRef = useRef(ownerIdentity)
+    const activeOwnerRef = useRef(ownerIdentity)
+    const mutationGenerationRef = useRef(0)
+    const [stateOwnerIdentity, setStateOwnerIdentity] = useState(ownerIdentity)
+    activeOwnerRef.current = ownerIdentity
+    if (renderedOwnerRef.current !== ownerIdentity) {
+        renderedOwnerRef.current = ownerIdentity
+        mutationGenerationRef.current += 1
+    }
+    const ownsActionState = stateOwnerIdentity === ownerIdentity
+    const mutationIsCurrent = (generation: number, identity: string | null) =>
+        mutationGenerationRef.current === generation && activeOwnerRef.current === identity
+
+    useEffect(() => {
+        mutationGenerationRef.current += 1
+        setStateOwnerIdentity(ownerIdentity)
+        setSelected(null)
+        setSaving(false)
+        setAutoSetting(false)
+        setAutoSetModalVisible(false)
+        setActivationOverflowPending(null)
+        setActivationOverflowSaving(false)
+    }, [ownerIdentity])
 
     const handleTap = useCallback(async (newSel: Sel) => {
         if (selectedDate < todayET()) {
@@ -52,184 +85,68 @@ export function useLineupActions({
         setSelected(null)
         if (!actionContext || !myLineup || !league) return
 
-        const starters = myLineup.starters
-        const bench = myLineup.bench
-        const ir = myLineup.ir ?? []
-        const taxi = myLineup.taxi ?? []
+        const plan = planLineupMove({
+            lineup: myLineup,
+            league,
+            startedTeams,
+            from: selected,
+            to: newSel,
+        })
 
-        const getPlayer = (s: Sel): LineupPlayer | null =>
-            s.kind === 'starter' ? starters[s.index]?.player ?? null
-            : s.kind === 'bench' ? bench[s.index] ?? null
-            : s.kind === 'ir' ? ir[s.index] ?? null
-            : taxi[s.index] ?? null
-        const getSlot = (s: Sel): string =>
-            s.kind === 'starter' ? starters[s.index]?.slotType ?? 'BE'
-            : s.kind === 'bench' ? 'BE'
-            : s.kind === 'ir' ? 'IR'
-            : 'TX'
-        const getActivationSlotType = (target: Sel, player: LineupPlayer | null): string | null => {
-            if (!player || target.kind !== 'starter') return null
-            const slotType = starters[target.index]?.slotType
-            return slotType && canPlaySlot(player.eligiblePositions, slotType) ? slotType : null
-        }
-
-        const aPlayer = getPlayer(selected)
-        const bPlayer = getPlayer(newSel)
-        const aSlot = getSlot(selected)
-        const bSlot = getSlot(newSel)
-        const isLocked = (player: LineupPlayer | null) => !!(player?.nbaTeam && startedTeams.has(player.nbaTeam))
-        const lockedPlayer = isLocked(aPlayer) ? aPlayer : isLocked(bPlayer) ? bPlayer : null
-        if (lockedPlayer) {
-            Alert.alert('Lineup locked', `${lockedPlayer.displayName}'s game has already started. No lineup changes are allowed once a game begins.`)
+        if (plan.kind === 'invalid') {
+            Alert.alert(plan.title, plan.message)
             return
         }
 
-        // Disallow direct IR ↔ taxi swaps
-        if ((aSlot === 'IR' && bSlot === 'TX') || (aSlot === 'TX' && bSlot === 'IR')) {
-            Alert.alert('Invalid move', 'Cannot swap directly between IR and Taxi Squad.')
+        if (plan.kind === 'overflow') {
+            setActivationOverflowPending({
+                rosterPlayerId: plan.rosterPlayerId,
+                source: plan.source,
+                slotType: plan.slotType,
+            })
             return
-        }
-
-        if (aSlot === 'IR' || bSlot === 'IR') {
-            const irSel   = aSlot === 'IR' ? selected : newSel
-            const actSel  = aSlot === 'IR' ? newSel   : selected
-            const irPlayer  = getPlayer(irSel)
-            const actPlayer = getPlayer(actSel)
-
-            if (actPlayer && !isIREligible(actPlayer.injuryStatus)) {
-                Alert.alert('Not eligible', `${actPlayer.displayName} must be OUT or IR-designated to be placed on Injured Reserve.`)
-                return
-            }
-
-            if (irPlayer && !actPlayer) {
-                const rosterSize: number = league?.roster_size ?? 20
-                const activeCount = starters.filter(s => s.player !== null).length + bench.length
-                if (activeCount >= rosterSize) {
-                    setActivationOverflowPending({
-                        rosterPlayerId: irPlayer.rosterPlayerId,
-                        source: 'ir',
-                        slotType: getActivationSlotType(actSel, irPlayer),
-                    })
-                    return
-                }
-            }
-
-            setSaving(true)
-            try {
-                if (irPlayer) {
-                    await activateRosterPlayerWithLineup({
-                        activateRosterPlayerId: irPlayer.rosterPlayerId,
-                        activateSource: 'ir',
-                        freeRosterPlayerId: actPlayer?.rosterPlayerId ?? null,
-                        freeAction: actPlayer ? 'ir' : null,
-                        memberId: actionContext.memberId,
-                        leagueId: actionContext.leagueId,
-                        seasonId: actionContext.seasonId,
-                        gameDate: selectedDate,
-                        weekNumber: actionContext.weekNumber,
-                        slotType: getActivationSlotType(actSel, irPlayer),
-                    })
-                } else if (actPlayer) {
-                    await toggleIR(actPlayer.rosterPlayerId, true)
-                }
-                await reloadLineup(selectedDate)
-            } catch (e) {
-                Alert.alert('Error', getErrorMessage(e))
-            } finally {
-                setSaving(false)
-            }
-            return
-        }
-
-        if (aSlot === 'TX' || bSlot === 'TX') {
-            const taxiSel  = aSlot === 'TX' ? selected : newSel
-            const actSel   = aSlot === 'TX' ? newSel   : selected
-            const taxiPlayer = getPlayer(taxiSel)
-            const actPlayer  = getPlayer(actSel)
-
-            if (actPlayer && !taxiPlayer) {
-                // Moving active → taxi: check taxi slot availability
-                const taxiLimit: number = league?.taxi_slots ?? 0
-                if (taxiLimit === 0) {
-                    Alert.alert('Taxi squad disabled', 'This league has no taxi squad slots configured.')
-                    return
-                }
-                if (taxi.length >= taxiLimit) {
-                    Alert.alert('Taxi squad full', `Your taxi squad is full (${taxiLimit} slots).`)
-                    return
-                }
-            }
-
-            if (taxiPlayer && !actPlayer) {
-                // Activating a taxi player: check active roster space
-                const rosterSize: number = league?.roster_size ?? 20
-                const activeCount = starters.filter(s => s.player !== null).length + bench.length
-                if (activeCount >= rosterSize) {
-                    setActivationOverflowPending({
-                        rosterPlayerId: taxiPlayer.rosterPlayerId,
-                        source: 'taxi',
-                        slotType: getActivationSlotType(actSel, taxiPlayer),
-                    })
-                    return
-                }
-            }
-
-            setSaving(true)
-            try {
-                if (taxiPlayer) {
-                    await activateRosterPlayerWithLineup({
-                        activateRosterPlayerId: taxiPlayer.rosterPlayerId,
-                        activateSource: 'taxi',
-                        freeRosterPlayerId: actPlayer?.rosterPlayerId ?? null,
-                        freeAction: actPlayer ? 'taxi' : null,
-                        memberId: actionContext.memberId,
-                        leagueId: actionContext.leagueId,
-                        seasonId: actionContext.seasonId,
-                        gameDate: selectedDate,
-                        weekNumber: actionContext.weekNumber,
-                        slotType: getActivationSlotType(actSel, taxiPlayer),
-                    })
-                } else if (actPlayer) {
-                    await toggleTaxi(actPlayer.rosterPlayerId, true)
-                }
-                await reloadLineup(selectedDate)
-            } catch (e) {
-                Alert.alert('Error', getErrorMessage(e))
-            } finally {
-                setSaving(false)
-            }
-            return
-        }
-
-        if (aPlayer && bSlot !== 'BE' && !canPlaySlot(aPlayer.eligiblePositions, bSlot)) {
-            Alert.alert('Invalid move', `${aPlayer.displayName} can't play ${bSlot}`); return
-        }
-        if (bPlayer && aSlot !== 'BE' && !canPlaySlot(bPlayer.eligiblePositions, aSlot)) {
-            Alert.alert('Invalid move', `${bPlayer.displayName} can't play ${aSlot}`); return
         }
 
         setSaving(true)
+        const mutationGeneration = mutationGenerationRef.current
+        const mutationOwner = ownerIdentity
         try {
-            await setPlayerSlotMoves(
-                {
+            if (plan.kind === 'activate') {
+                await activateRosterPlayerWithLineup({
+                    activateRosterPlayerId: plan.activateRosterPlayerId,
+                    activateSource: plan.activateSource,
+                    freeRosterPlayerId: plan.freeRosterPlayerId,
+                    freeAction: plan.freeAction,
                     memberId: actionContext.memberId,
                     leagueId: actionContext.leagueId,
                     seasonId: actionContext.seasonId,
-                    weekNumber: actionContext.weekNumber,
                     gameDate: selectedDate,
-                },
-                [
-                    ...(aPlayer ? [{ playerId: aPlayer.playerId, slotType: bSlot }] : []),
-                    ...(bPlayer ? [{ playerId: bPlayer.playerId, slotType: aSlot }] : []),
-                ],
-            )
-            await reloadLineup(selectedDate)
+                    weekNumber: actionContext.weekNumber,
+                    slotType: plan.slotType,
+                })
+            } else if (plan.kind === 'toggle-ir') {
+                await toggleIR(plan.rosterPlayerId, true)
+            } else if (plan.kind === 'toggle-taxi') {
+                await toggleTaxi(plan.rosterPlayerId, true)
+            } else {
+                await setPlayerSlotMoves(
+                    {
+                        memberId: actionContext.memberId,
+                        leagueId: actionContext.leagueId,
+                        seasonId: actionContext.seasonId,
+                        weekNumber: actionContext.weekNumber,
+                        gameDate: selectedDate,
+                    },
+                    plan.moves,
+                )
+            }
+            if (mutationIsCurrent(mutationGeneration, mutationOwner)) await reloadLineup(selectedDate)
         } catch (e) {
-            Alert.alert('Error', getErrorMessage(e))
+            if (mutationIsCurrent(mutationGeneration, mutationOwner)) Alert.alert('Error', getErrorMessage(e))
         } finally {
-            setSaving(false)
+            if (mutationIsCurrent(mutationGeneration, mutationOwner)) setSaving(false)
         }
-    }, [selectedDate, selected, actionContext, myLineup, league, startedTeams, reloadLineup])
+    }, [selectedDate, selected, actionContext, myLineup, league, startedTeams, reloadLineup, ownerIdentity])
 
     async function resolveOverflow(freeAction: 'drop' | 'ir' | 'taxi', rosterPlayerId: string) {
         if (!activationOverflowPending || !actionContext) return
@@ -253,6 +170,8 @@ export function useLineupActions({
             return
         }
         setActivationOverflowSaving(true)
+        const mutationGeneration = mutationGenerationRef.current
+        const mutationOwner = ownerIdentity
         try {
             await activateRosterPlayerWithLineup({
                 activateRosterPlayerId: activationOverflowPending.rosterPlayerId,
@@ -266,12 +185,13 @@ export function useLineupActions({
                 weekNumber: actionContext.weekNumber,
                 slotType: activationOverflowPending.slotType,
             })
+            if (!mutationIsCurrent(mutationGeneration, mutationOwner)) return
             setActivationOverflowPending(null)
             await reloadLineup(selectedDate)
         } catch (e) {
-            Alert.alert('Error', getErrorMessage(e))
+            if (mutationIsCurrent(mutationGeneration, mutationOwner)) Alert.alert('Error', getErrorMessage(e))
         } finally {
-            setActivationOverflowSaving(false)
+            if (mutationIsCurrent(mutationGeneration, mutationOwner)) setActivationOverflowSaving(false)
         }
     }
 
@@ -282,19 +202,33 @@ export function useLineupActions({
     async function doAutoSet(date: string | null, restOfSeason?: boolean) {
         if (!actionContext || !league) return
         setAutoSetting(true)
+        const mutationGeneration = mutationGenerationRef.current
+        const mutationOwner = ownerIdentity
         try {
-            await autoSetLineup(
+            const result = await autoSetLineup(
                 actionContext.memberId, actionContext.leagueId, actionContext.seasonId,
                 actionContext.weekNumber, actionContext.seasonYear, date, restOfSeason,
             )
+            if (!mutationIsCurrent(mutationGeneration, mutationOwner)) return
             await reloadLineup(selectedDate)
-            if (restOfSeason) {
+            if (restOfSeason && result?.failed) {
+                Alert.alert(
+                    'Lineup partly optimized',
+                    `Optimized ${result.optimized} of ${result.dates} dates; ${result.failed} failed.`,
+                    [
+                        { text: 'Close', style: 'cancel' },
+                        { text: 'Retry failed dates', onPress: () => { void doAutoSet(null, true) } },
+                    ],
+                )
+            } else if (restOfSeason) {
                 Alert.alert('Done', 'Lineup set for the rest of the season.')
             }
         } catch (e) {
-            Alert.alert('Auto-set failed', getErrorMessage(e) ?? String(e))
+            if (mutationIsCurrent(mutationGeneration, mutationOwner)) {
+                Alert.alert('Auto-set failed', getErrorMessage(e) ?? String(e))
+            }
         } finally {
-            setAutoSetting(false)
+            if (mutationIsCurrent(mutationGeneration, mutationOwner)) setAutoSetting(false)
         }
     }
 
@@ -303,15 +237,15 @@ export function useLineupActions({
     }
 
     return {
-        selected,
+        selected: ownsActionState ? selected : null,
         setSelected,
-        saving,
-        autoSetting,
-        autoSetModalVisible,
+        saving: ownsActionState ? saving : false,
+        autoSetting: ownsActionState ? autoSetting : false,
+        autoSetModalVisible: ownsActionState ? autoSetModalVisible : false,
         setAutoSetModalVisible,
-        activationOverflowPending,
+        activationOverflowPending: ownsActionState ? activationOverflowPending : null,
         setActivationOverflowPending,
-        activationOverflowSaving,
+        activationOverflowSaving: ownsActionState ? activationOverflowSaving : false,
         handleTap,
         handleOverflowDrop,
         handleOverflowMoveToIR,

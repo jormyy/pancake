@@ -654,5 +654,4 @@ const styles = StyleSheet.create({
     footerRetryText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.primaryDark },
 })
 
-// Contain a render crash to this screen instead of blanking the whole app.
 export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFallback'

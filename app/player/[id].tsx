@@ -14,7 +14,7 @@ import { dropAndAddFreeAgent, dropPlayer, getPlayerRosterStatus, type PlayerRost
 import { addFreeAgentOrRequestDrop, loadRosterAddGate, resolveRosterAddIRConflict } from '@/lib/roster-add-flow'
 import { showAlert, confirmAction, getErrorMessage } from '@/lib/alert'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
     ScrollView,
     StyleSheet,
@@ -29,6 +29,17 @@ export default function PlayerDetailScreen() {
     const { push } = useRouter()
 
     const leagueId = currentLeague?.id ?? null
+    const ownerIdentity = current?.id && leagueId ? `${current.id}:${leagueId}:${id}` : null
+    const renderedOwnerRef = useRef(ownerIdentity)
+    const activeOwnerRef = useRef(ownerIdentity)
+    const generationRef = useRef(0)
+    activeOwnerRef.current = ownerIdentity
+    if (renderedOwnerRef.current !== ownerIdentity) {
+        renderedOwnerRef.current = ownerIdentity
+        generationRef.current += 1
+    }
+    const isCurrent = (generation: number, identity: string | null) =>
+        generationRef.current === generation && activeOwnerRef.current === identity
 
     const {
         player, loading, playedToday,
@@ -42,8 +53,14 @@ export default function PlayerDetailScreen() {
     } = usePlayerScreenData(id, leagueId)
 
     // Roster status
-    const [rosterStatus, setRosterStatus] = useState<PlayerRosterStatus | null>(null)
-    const [rosterStatusError, setRosterStatusError] = useState<string | null>(null)
+    const [rosterStatusResource, setRosterStatusResource] = useState<{
+        ownerIdentity: string | null
+        status: PlayerRosterStatus | null
+        error: string | null
+    }>({ ownerIdentity, status: null, error: null })
+    const ownsRosterStatus = rosterStatusResource.ownerIdentity === ownerIdentity
+    const rosterStatus = ownsRosterStatus ? rosterStatusResource.status : null
+    const rosterStatusError = ownsRosterStatus ? rosterStatusResource.error : null
     const [actionLoading, setActionLoading] = useState(false)
 
     // Drop picker + IR resolution state
@@ -57,28 +74,35 @@ export default function PlayerDetailScreen() {
         // action once IR is resolved (add a free agent vs. submit a waiver claim).
         action: 'add' | 'claim'
     } | null>(null)
+    const [actionStateOwner, setActionStateOwner] = useState(ownerIdentity)
+    const ownsActionState = actionStateOwner === ownerIdentity
 
-    // Resume the originating flow after the IR conflict is cleared.
-    const continueAfterIR = useCallback(
-        (action: 'add' | 'claim') => {
-            if (action === 'claim') push(`/(modals)/claim-player?playerId=${id}`)
-            else tryAddFreeAgent()
-        },
-        // tryAddFreeAgent/push/id are stable enough for this modal flow
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-        [id],
-    )
+    useEffect(() => {
+        generationRef.current += 1
+        setActionStateOwner(ownerIdentity)
+        setActionLoading(false)
+        setDropPickerVisible(false)
+        setMyRoster([])
+        setDropping(null)
+        setIrModal(null)
+    }, [ownerIdentity])
 
     const loadRosterStatus = useCallback(async () => {
-        if (!current || !leagueId) return
+        const generation = generationRef.current
+        const requestedOwner = ownerIdentity
+        setRosterStatusResource({ ownerIdentity: requestedOwner, status: null, error: null })
+        if (!current || !leagueId || !requestedOwner) return
         try {
             const status = await getPlayerRosterStatus(id, current.id, leagueId)
-            setRosterStatus(status)
-            setRosterStatusError(null)
+            if (isCurrent(generation, requestedOwner)) {
+                setRosterStatusResource({ ownerIdentity: requestedOwner, status, error: null })
+            }
         } catch (e) {
-            setRosterStatusError(getErrorMessage(e))
+            if (isCurrent(generation, requestedOwner)) {
+                setRosterStatusResource({ ownerIdentity: requestedOwner, status: null, error: getErrorMessage(e) })
+            }
         }
-    }, [current, id, leagueId])
+    }, [current, id, leagueId, ownerIdentity])
 
     useEffect(() => {
         loadRosterStatus()
@@ -86,9 +110,12 @@ export default function PlayerDetailScreen() {
 
     async function handleAdd() {
         if (!current || !leagueId) return
+        const generation = generationRef.current
+        const requestedOwner = ownerIdentity
         setActionLoading(true)
         try {
             const { roster, ineligible } = await loadRosterAddGate(current.id, leagueId)
+            if (!isCurrent(generation, requestedOwner)) return
 
             if (ineligible.length > 0) {
                 setActionLoading(false)
@@ -98,17 +125,20 @@ export default function PlayerDetailScreen() {
 
             await tryAddFreeAgent()
         } catch (e) {
-            showAlert('Error', getErrorMessage(e))
+            if (isCurrent(generation, requestedOwner)) showAlert('Error', getErrorMessage(e))
         } finally {
-            setActionLoading(false)
+            if (isCurrent(generation, requestedOwner)) setActionLoading(false)
         }
     }
 
     async function tryAddFreeAgent() {
         if (!current || !leagueId) return
+        const generation = generationRef.current
+        const requestedOwner = ownerIdentity
         setActionLoading(true)
         try {
             const result = await addFreeAgentOrRequestDrop(current.id, leagueId, id)
+            if (!isCurrent(generation, requestedOwner)) return
             if (result.status === 'roster_full') {
                 setMyRoster(result.activeRoster)
                 setDropPickerVisible(true)
@@ -116,34 +146,47 @@ export default function PlayerDetailScreen() {
                 await loadRosterStatus()
             }
         } catch (e) {
-            showAlert('Error', getErrorMessage(e))
+            if (isCurrent(generation, requestedOwner)) showAlert('Error', getErrorMessage(e))
         } finally {
-            setActionLoading(false)
+            if (isCurrent(generation, requestedOwner)) setActionLoading(false)
         }
+    }
+
+    // This intentionally uses the current render's mutation function. The route
+    // can stay mounted while the selected league changes.
+    function continueAfterIR(action: 'add' | 'claim') {
+        if (action === 'claim') push(`/(modals)/claim-player?playerId=${id}`)
+        else void tryAddFreeAgent()
     }
 
     async function handleDropAndAdd(rosterPlayer: RosterPlayer) {
         if (!current || !leagueId) return
+        const generation = generationRef.current
+        const requestedOwner = ownerIdentity
         setDropping(rosterPlayer.id)
         try {
             await dropAndAddFreeAgent(rosterPlayer.id, current.id, leagueId, id)
+            if (!isCurrent(generation, requestedOwner)) return
             setDropPickerVisible(false)
             await loadRosterStatus()
         } catch (e) {
-            showAlert('Error', getErrorMessage(e))
+            if (isCurrent(generation, requestedOwner)) showAlert('Error', getErrorMessage(e))
         } finally {
-            setDropping(null)
+            if (isCurrent(generation, requestedOwner)) setDropping(null)
         }
     }
 
     async function handleIRActivate(rp: RosterPlayer) {
         if (!current || !leagueId) return
+        const generation = generationRef.current
+        const requestedOwner = ownerIdentity
         try {
             const result = await resolveRosterAddIRConflict({
                 memberId: current.id,
                 leagueId,
                 activatePlayer: rp,
             })
+            if (!isCurrent(generation, requestedOwner)) return
             if (result.status === 'locked') {
                 showAlert('Roster locked', result.message)
                 return
@@ -157,20 +200,27 @@ export default function PlayerDetailScreen() {
                 continueAfterIR(action)
             }
         } catch (e) {
+            if (!isCurrent(generation, requestedOwner)) return
             // Keep modal open so user can retry — but refresh its state in case
             // the failure left the roster in an unexpected shape.
             showAlert('Could not activate from IR', getErrorMessage(e) ?? 'Unknown error')
             try {
                 const { roster, ineligible } = await loadRosterAddGate(current.id, leagueId)
-                setIrModal((prev) => prev ? { ...prev, ineligible, roster } : null)
+                if (isCurrent(generation, requestedOwner)) {
+                    setIrModal((prev) => prev ? { ...prev, ineligible, roster } : null)
+                }
             } catch (refreshError) {
-                setRosterStatusError(getErrorMessage(refreshError))
+                if (isCurrent(generation, requestedOwner)) {
+                    setRosterStatusResource({ ownerIdentity: requestedOwner, status: null, error: getErrorMessage(refreshError) })
+                }
             }
         }
     }
 
     async function handleDropAndIRActivate(toDrop: RosterPlayer, activatePlayer: RosterPlayer) {
         if (!current || !leagueId) return
+        const generation = generationRef.current
+        const requestedOwner = ownerIdentity
         try {
             const result = await resolveRosterAddIRConflict({
                 memberId: current.id,
@@ -178,6 +228,7 @@ export default function PlayerDetailScreen() {
                 activatePlayer,
                 dropPlayer: toDrop,
             })
+            if (!isCurrent(generation, requestedOwner)) return
             if (result.status === 'locked') {
                 showAlert('Roster locked', result.message)
                 return
@@ -191,14 +242,19 @@ export default function PlayerDetailScreen() {
                 continueAfterIR(action)
             }
         } catch (e) {
+            if (!isCurrent(generation, requestedOwner)) return
             const underlying = getErrorMessage(e) ?? 'Unknown error'
             showAlert('Could not update roster', underlying)
             // Refresh modal state to reflect actual roster after the failed transaction.
             try {
                 const { roster, ineligible } = await loadRosterAddGate(current.id, leagueId)
-                setIrModal((prev) => prev ? { ...prev, ineligible, roster } : null)
+                if (isCurrent(generation, requestedOwner)) {
+                    setIrModal((prev) => prev ? { ...prev, ineligible, roster } : null)
+                }
             } catch (refreshError) {
-                setRosterStatusError(getErrorMessage(refreshError))
+                if (isCurrent(generation, requestedOwner)) {
+                    setRosterStatusResource({ ownerIdentity: requestedOwner, status: null, error: getErrorMessage(refreshError) })
+                }
             }
         }
     }
@@ -206,17 +262,22 @@ export default function PlayerDetailScreen() {
     function handleDrop() {
         if (rosterStatus?.status !== 'mine') return
         const rosterPlayerId = rosterStatus.rosterPlayerId
+        const generation = generationRef.current
+        const requestedOwner = ownerIdentity
         confirmAction(
             `Drop ${player?.display_name ?? 'this player'}?`,
             'They will be placed on waivers for 48 hours.',
             async () => {
+                if (!isCurrent(generation, requestedOwner)) return
                 setActionLoading(true)
                 try {
                     await dropPlayer(rosterPlayerId)
-                    push('/(tabs)/roster')
+                    if (isCurrent(generation, requestedOwner)) push('/(tabs)/roster')
                 } catch (e) {
-                    showAlert('Error', getErrorMessage(e))
-                    setActionLoading(false)
+                    if (isCurrent(generation, requestedOwner)) {
+                        showAlert('Error', getErrorMessage(e))
+                        setActionLoading(false)
+                    }
                 }
             },
             'Drop',
@@ -225,8 +286,11 @@ export default function PlayerDetailScreen() {
 
     async function handleClaim() {
         if (!current || !leagueId) return
+        const generation = generationRef.current
+        const requestedOwner = ownerIdentity
         // Check for ineligible IR players before allowing waiver claim
         const { roster, ineligible } = await loadRosterAddGate(current.id, leagueId)
+        if (!isCurrent(generation, requestedOwner)) return
 
         if (ineligible.length > 0) {
             setIrModal({ ineligible, roster, action: 'claim' })
@@ -267,7 +331,7 @@ export default function PlayerDetailScreen() {
                         player={player}
                         rosterStatus={rosterStatus}
                         leagueActive={!!current}
-                        actionLoading={actionLoading}
+                        actionLoading={ownsActionState ? actionLoading : false}
                         playedToday={playedToday}
                         onAdd={handleAdd}
                         onDrop={handleDrop}
@@ -335,20 +399,20 @@ export default function PlayerDetailScreen() {
             </SafeAreaView>
 
             <DropPlayerPickerModal
-                visible={dropPickerVisible}
+                visible={ownsActionState && dropPickerVisible}
                 title={`Drop a player to add\n${player?.display_name ?? ''}`}
                 subtitle="Your roster is full. Pick someone to release."
-                roster={myRoster}
-                dropping={dropping}
+                roster={ownsActionState ? myRoster : []}
+                dropping={ownsActionState ? dropping : null}
                 onDrop={handleDropAndAdd}
                 onCancel={() => setDropPickerVisible(false)}
             />
 
             {/* IR resolution modal */}
             <IRResolutionModal
-                visible={irModal !== null}
-                ineligibleIR={irModal?.ineligible ?? []}
-                activeRoster={(irModal?.roster ?? []).filter((r) => !r.is_on_ir && !r.is_on_taxi)}
+                visible={ownsActionState && irModal !== null}
+                ineligibleIR={ownsActionState ? irModal?.ineligible ?? [] : []}
+                activeRoster={(ownsActionState ? irModal?.roster ?? [] : []).filter((r) => !r.is_on_ir && !r.is_on_taxi)}
                 rosterSize={currentLeague?.roster_size ?? 20}
                 pendingPlayerName={player?.display_name ?? ''}
                 onActivate={handleIRActivate}
@@ -358,6 +422,8 @@ export default function PlayerDetailScreen() {
         </>
     )
 }
+
+export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFallback'
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgScreen },

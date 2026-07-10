@@ -1,13 +1,13 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { StackRouter } from '@react-navigation/native'
-import { ComponentProps, ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
-import { Image, Modal, Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native'
+import { ComponentProps, ReactNode, useEffect, useMemo, useState } from 'react'
+import { Image, Modal, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native'
 import { Link, Navigator, usePathname, useRouter } from 'expo-router'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useAuth } from '@/hooks/use-auth'
 import { usePendingTradeCount } from '@/hooks/use-pending-trade-count'
-import { getJoinableDraft } from '@/lib/draft'
 import { getProfile } from '@/lib/auth'
+import { useDraftRoomLauncher } from '@/hooks/use-draft-room-launcher'
 import { Avatar } from '@/components/Avatar'
 import { brand, breakpoints, colors, WEB_THEME_VARS } from '@/constants/tokens'
 import { styles } from './webTabShellStyles'
@@ -19,7 +19,7 @@ type RouteHref = '/' | '/players' | '/dynasty' | '/roster' | '/trades' | '/leagu
 const PRIMARY_NAV: { label: string; href: RouteHref; icon: IconName }[] = [
     { label: 'Matchup', href: '/', icon: 'home' },
     { label: 'Players', href: '/players', icon: 'groups' },
-{ label: 'Dynasty', href: '/dynasty', icon: 'auto-awesome' },
+    { label: 'Dynasty', href: '/dynasty', icon: 'auto-awesome' },
     { label: 'Roster', href: '/roster', icon: 'assignment' },
     { label: 'Trades', href: '/trades', icon: 'swap-horiz' },
 ]
@@ -41,7 +41,7 @@ const MOBILE_NAV: { label: string; href: RouteHref; icon: IconName }[] = [
 const MOBILE_LABELS: Record<RouteHref, string> = {
     '/': 'Match',
     '/players': 'Players',
-'/dynasty': 'Dyn',
+    '/dynasty': 'Dyn',
     '/roster': 'Roster',
     '/trades': 'Trades',
     '/league': 'League',
@@ -248,20 +248,25 @@ function SidebarNavButton({
     badge?: number
     accessibilityLabel?: string
 }) {
-    const router = useRouter()
-
-    return (
+    // Expo Router's asChild slot flattens styles before Pressable can evaluate a style callback.
+    const [hovered, setHovered] = useState(false)
+    const [pressed, setPressed] = useState(false)
+    const button = (
         <Pressable
-            onPress={onPress ?? (href ? () => router.push(href) : undefined)}
+            onPress={onPress}
+            onHoverIn={() => setHovered(true)}
+            onHoverOut={() => setHovered(false)}
+            onPressIn={() => setPressed(true)}
+            onPressOut={() => setPressed(false)}
             disabled={disabled || loading}
-            style={({ hovered, pressed }: PressableState) => [
+            style={StyleSheet.flatten([
                 styles.sideNavItem,
                 active && styles.sideNavItemActive,
                 hovered && !active && styles.sideNavItemHover,
                 pressed && styles.pressed,
                 (disabled || loading) && styles.sideNavItemDisabled,
-            ]}
-            accessibilityRole="button"
+            ])}
+            accessibilityRole={href ? 'link' : 'button'}
             accessibilityLabel={accessibilityLabel ?? label}
             accessibilityState={{ selected: active, disabled: disabled || loading }}
             {...(active ? ARIA_CURRENT_PAGE : null)}
@@ -275,52 +280,32 @@ function SidebarNavButton({
             ) : null}
         </Pressable>
     )
-}
-
-
-function useDraftRoomLauncher() {
-    const router = useRouter()
-    const { currentLeague } = useLeagueContext()
-    const [draftLoading, setDraftLoading] = useState(false)
-
-    const openDraftRoom = useCallback(async () => {
-        if (!currentLeague?.id || draftLoading) {
-            router.push('/draft-room')
-            return
-        }
-        setDraftLoading(true)
-        try {
-            const draft = await getJoinableDraft(currentLeague.id, {
-                includeCompletedRookie: true,
-            })
-            if (!draft) {
-                router.push('/draft-room')
-            } else if (draft.draftType === 'snake') {
-                router.push({ pathname: '/(modals)/rookie-draft-room', params: { draftId: draft.id } })
-            } else {
-                router.push({ pathname: '/(modals)/draft-room', params: { draftId: draft.id } })
-            }
-        } finally {
-            setDraftLoading(false)
-        }
-    }, [currentLeague?.id, draftLoading, router])
-
-    return { openDraftRoom, draftLoading }
+    return href ? <Link href={href} asChild>{button}</Link> : button
 }
 
 function WebSidebar() {
     const pathname = usePathname()
     const router = useRouter()
-    const { current, isCommissioner } = useLeagueContext()
+    const { current, currentLeague, isCommissioner } = useLeagueContext()
     const { user } = useAuth()
-    const { openDraftRoom, draftLoading } = useDraftRoomLauncher()
+    const { openDraftRoom, draftLoading } = useDraftRoomLauncher(currentLeague?.id, { notifyOnError: true })
     const pendingTradeCount = usePendingTradeCount()
     const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
 
     useEffect(() => {
         if (!user) return
-        getProfile(user.id).then((p) => setAvatarUrl(p.avatar_url ?? null)).catch(() => {})
-    }, [user, pathname])
+        let cancelled = false
+        getProfile(user.id)
+            .then((profile) => {
+                if (!cancelled) setAvatarUrl(profile.avatar_url ?? null)
+            })
+            .catch((error) => {
+                if (!cancelled) console.error('Could not load sidebar profile', error)
+            })
+        return () => {
+            cancelled = true
+        }
+    }, [user])
 
     return (
         <View style={styles.sidebar} role="navigation" aria-label="Primary">
@@ -455,8 +440,8 @@ function MobileBottomNav() {
 
 function MobileMenuSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
     const router = useRouter()
-    const { isCommissioner } = useLeagueContext()
-    const { openDraftRoom, draftLoading } = useDraftRoomLauncher()
+    const { currentLeague, isCommissioner } = useLeagueContext()
+    const { openDraftRoom, draftLoading } = useDraftRoomLauncher(currentLeague?.id, { notifyOnError: true })
     const menuItems = useMemo(
         () => [
             ...LEAGUE_NAV.map((item) => ({

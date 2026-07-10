@@ -2,9 +2,12 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
 import { createClient } from '@supabase/supabase-js'
-import { resolvedEnv, describeEndpoint } from './env.mjs'
-import { installRuntimeOverrides, normalizeBrowserErrors } from './browser-runtime-overrides.mjs'
+import { resolvedEnv, requireEnv, describeEndpoint } from './env.mjs'
+import { browserDiagnosticFailures, installRuntimeOverrides } from './browser-runtime-overrides.mjs'
 import { captureBrowserScreenshot, createBrowser, listBrowserSessions } from './browser-agent.mjs'
+import { combineNavigationPhases, measureJavaScriptDelivery, measureNavigationTiming, measureWorkflowFeedback, recordWorkflowMeasurement } from './browser-performance-evidence.mjs'
+import { ensureSyntheticSeasonWeeks } from './soak-fixtures.mjs'
+import { resolveReleaseProvenance } from './release-provenance.mjs'
 
 const ROOT = process.cwd()
 const STATE_PATH = path.join(ROOT, 'tests/e2e-state.json')
@@ -22,7 +25,6 @@ const safeName = (value) => value.replace(/[^a-zA-Z0-9._-]/g, '-')
 const joinUrl = (base, pathname) => new URL(pathname, base.endsWith('/') ? base : `${base}/`).toString()
 
 const routeWorkflowIds = new Map([
-  ['home', 'home-live-lineup'],
   ['players', 'player-search-filter'],
   ['roster', 'roster-review-manage'],
   ['trades', 'trade-review-act'],
@@ -31,53 +33,21 @@ const routeWorkflowIds = new Map([
   ['claim-player', 'waiver-add-claim'],
   ['player-detail', 'player-detail-open'],
   ['propose-trade', 'trade-review-act'],
-  ['draft-room', 'auction-draft-room'],
   ['rookie-draft-room', 'rookie-draft-room'],
 ])
 
-const parseEvalJson = (output) => {
-  const line = output.split('\n').filter(Boolean).at(-1)
-  const value = JSON.parse(line)
-  return typeof value === 'string' ? JSON.parse(value) : value
-}
+export const REQUIRED_FULL_SWEEP_LABELS = [
+  'auth-sign-in', 'auth-sign-up',
+  'home', 'players', 'roster', 'trades', 'league', 'dynasty',
+  'create-league', 'join-league', 'commissioner-settings', 'lineup', 'bracket',
+  'claim-player', 'player-detail', 'propose-trade', 'team-roster',
+  'draft-room', 'rookie-draft-room',
+]
 
-const browserNavigationTiming = async (session) => {
-  const output = await browser(session, [
-    'eval',
-    `(() => {
-      const nav = performance.getEntriesByType('navigation')[0];
-      if (!nav) return JSON.stringify(null);
-      return JSON.stringify({
-        fullLoadMs: Math.round(nav.loadEventEnd || nav.domContentLoadedEventEnd || nav.responseEnd || 0),
-        domContentLoadedMs: Math.round(nav.domContentLoadedEventEnd || 0),
-        responseEndMs: Math.round(nav.responseEnd || 0),
-        transferSize: Math.round(nav.transferSize || 0),
-        encodedBodySize: Math.round(nav.encodedBodySize || 0)
-      });
-    })()`,
-  ])
-  return parseEvalJson(output)
-}
-
-const playerSearchFeedbackTiming = async (session) => {
-  const output = await browser(session, [
-    'eval',
-    `(async () => {
-      const input = document.querySelector('input[placeholder="Search players..."], input');
-      if (!input) return JSON.stringify(null);
-      const descriptor = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value');
-      const previousValue = input.value;
-      const started = performance.now();
-      descriptor?.set?.call(input, 'e2e');
-      input.dispatchEvent(new Event('input', { bubbles: true }));
-      await new Promise((resolve) => requestAnimationFrame(resolve));
-      const feedbackMs = Math.round((performance.now() - started) * 10) / 10;
-      descriptor?.set?.call(input, previousValue);
-      input.dispatchEvent(new Event('input', { bubbles: true }));
-      return JSON.stringify({ feedbackMs });
-    })()`,
-  ])
-  return parseEvalJson(output)
+export const assertFullSweepRoutes = (visited) => {
+  const visitedSet = new Set(visited)
+  const missing = REQUIRED_FULL_SWEEP_LABELS.filter((label) => !visitedSet.has(label))
+  if (missing.length > 0) throw new Error(`Full sweep omitted required routes: ${missing.join(', ')}`)
 }
 
 const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -276,7 +246,7 @@ const ensureSweepDrafts = async (supabase, state, members) => {
 
 const fetchSweepContext = async (env, state, user) => {
   if (!env.serviceRoleKey || !state.leagueId) {
-    return { routes: [], notes: ['Full sweep skipped DB-param routes: missing service role key or seeded league id.'] }
+    throw new Error('Full sweep requires a service role key and seeded league id')
   }
 
   const supabase = createClient(env.supabaseUrl, env.serviceRoleKey, { auth: { persistSession: false } })
@@ -292,8 +262,23 @@ const fetchSweepContext = async (env, state, user) => {
   const myMember = members?.find((member) => member.user_id === user.id) ?? members?.[0]
   const otherMember = members?.find((member) => member.id !== myMember?.id) ?? members?.[0]
   const { auctionDraft, rookieDraft } = await ensureSweepDrafts(supabase, state, members)
+  const { data: currentSeason, error: seasonError } = await supabase
+    .from('league_seasons')
+    .select('id, season_year')
+    .eq('league_id', state.leagueId)
+    .eq('is_current', true)
+    .single()
+  if (seasonError) throw new Error(`UI sweep current season lookup: ${seasonError.message}`)
+  const { count: seasonWeekCount, error: seasonWeekError } = await supabase
+    .from('season_weeks')
+    .select('week_number', { count: 'exact', head: true })
+    .eq('season_year', currentSeason.season_year)
+  if (seasonWeekError) throw new Error(`UI sweep season week lookup: ${seasonWeekError.message}`)
+  if (seasonWeekCount === 0) {
+    await ensureSyntheticSeasonWeeks(supabase, currentSeason.season_year, 1, 'UI sweep')
+  }
 
-  const { data: rosterRow } = myMember
+  let { data: rosterRow } = myMember
     ? await supabase
       .from('roster_players')
       .select('player_id')
@@ -309,6 +294,18 @@ const fetchSweepContext = async (env, state, user) => {
     .order('display_name', { ascending: true })
     .limit(1)
     .maybeSingle()
+  if (!rosterRow && myMember && firstPlayer) {
+    const { error: rosterInsertError } = await supabase.from('roster_players').insert({
+      league_id: state.leagueId,
+      league_season_id: currentSeason.id,
+      member_id: myMember.id,
+      player_id: firstPlayer.id,
+      acquired_via: 'e2e_ui_sweep',
+      acquisition_cost: 1,
+    })
+    if (rosterInsertError) throw new Error(`UI sweep roster fixture insert: ${rosterInsertError.message}`)
+    rosterRow = { player_id: firstPlayer.id }
+  }
   const playerId = rosterRow?.player_id ?? firstPlayer?.id ?? null
 
   const routes = [
@@ -322,7 +319,7 @@ const fetchSweepContext = async (env, state, user) => {
     routes.push(['claim-player', encodeQuery('/claim-player', { playerId })])
     routes.push(['player-detail', `/player/${playerId}`])
   } else {
-    notes.push('Full sweep skipped player detail and claim-player: no player id found.')
+    throw new Error('Full sweep requires a player for player-detail and claim-player routes')
   }
   if (otherMember) {
     routes.push(['propose-trade', encodeQuery('/propose-trade', { recipientMemberId: otherMember.id })])
@@ -331,17 +328,17 @@ const fetchSweepContext = async (env, state, user) => {
       teamName: otherMember.team_name ?? 'Team',
     })])
   } else {
-    notes.push('Full sweep skipped propose-trade/team-roster: no league member found.')
+    throw new Error('Full sweep requires another league member for propose-trade and team-roster routes')
   }
   if (auctionDraft?.id) {
     routes.push(['draft-room', encodeQuery('/draft-room', { draftId: auctionDraft.id })])
   } else {
-    notes.push('Full sweep skipped draft-room: no auction draft found.')
+    throw new Error('Full sweep requires an auction draft')
   }
   if (rookieDraft?.id) {
     routes.push(['rookie-draft-room', encodeQuery('/rookie-draft-room', { draftId: rookieDraft.id })])
   } else {
-    notes.push('Full sweep skipped rookie-draft-room: no rookie draft found.')
+    throw new Error('Full sweep requires a rookie draft')
   }
 
   return { routes, notes }
@@ -351,10 +348,10 @@ export async function runBrowserSmoke({
   season = 0,
   scenario = 'smoke',
   userIndex = 0,
-  sessionName,
+  sessionName = undefined,
   fullSweep = process.env.E2E_BROWSER_FULL_SWEEP === '1',
 } = {}) {
-  const env = resolvedEnv()
+  const env = requireEnv(resolvedEnv(), ['supabaseUrl', 'anonKey', 'apiBaseUrl'])
   const state = await readState()
   const user = state.users[userIndex]
   if (!user) throw new Error(`No seeded user at index ${userIndex}`)
@@ -364,6 +361,7 @@ export async function runBrowserSmoke({
   const artifactDir = path.join(ARTIFACT_ROOT, `season-${season}`, scenario)
   await mkdir(artifactDir, { recursive: true })
   const sessionList = await listSessions().catch((error) => `session list unavailable: ${error.message}`)
+  const provenance = await resolveReleaseProvenance()
 
   const visited = []
   const workflowMeasurements = []
@@ -377,6 +375,8 @@ export async function runBrowserSmoke({
 
   try {
     await installRuntimeOverrides(browser, session, env)
+    const initialJavaScriptDelivery = await measureJavaScriptDelivery(browser, session)
+    const sharedScriptUrls = initialJavaScriptDelivery.scriptUrls ?? []
     if (fullSweep) {
       const authRoutes = [
         ['auth-sign-in', '/sign-in'],
@@ -414,35 +414,47 @@ export async function runBrowserSmoke({
 
     for (const [label, route] of routes) {
       await browser(session, ['open', joinUrl(env.frontendUrl, route)])
-      await browser(session, ['wait', '1500'])
       const workflowId = routeWorkflowIds.get(label)
       if (workflowId) {
-        const timing = await browserNavigationTiming(session).catch(() => null)
-        const feedback = label === 'players'
-          ? await playerSearchFeedbackTiming(session).catch(() => null)
-          : null
-        if (timing) {
-          workflowMeasurements.push({
+        const routeTiming = await measureNavigationTiming(browser, session, { workflowId, label, sharedScriptUrls })
+        await browser(session, ['open', joinUrl(env.frontendUrl, route)])
+        const cachedTiming = await measureNavigationTiming(browser, session, { workflowId, label, sharedScriptUrls })
+        const feedback = await measureWorkflowFeedback(browser, session, { workflowId, label })
+        if (cachedTiming && feedback?.observed && feedback.feedbackMs != null) {
+          recordWorkflowMeasurement(workflowMeasurements, {
             id: workflowId,
             label,
             route,
-            ...timing,
-            ...(feedback?.feedbackMs != null ? { feedbackMs: feedback.feedbackMs } : {}),
+            ...combineNavigationPhases(routeTiming, cachedTiming),
+            feedbackMs: feedback.feedbackMs,
+            feedbackObserved: true,
+            feedbackInteraction: feedback.interaction,
+            routeWebJsKb: routeTiming?.webJsTransferKb,
+            routeJsEncodedKb: routeTiming?.routeJsEncodedKb,
+            routeJsCacheHit: routeTiming?.routeJsCacheHit,
+            routeJsDecodedKb: routeTiming?.routeJsDecodedKb,
+            routeJsLedger: routeTiming?.routeJsLedger,
+            routeJsEntryCount: routeTiming?.routeJsEntryCount,
+            routeJsNetworkEntryCount: routeTiming?.routeJsNetworkEntryCount,
           })
+        } else {
+          throw new Error(`Observed performance feedback missing for ${workflowId}`)
         }
+      } else {
+        await browser(session, ['wait', '1500'])
       }
       await captureBrowserScreenshot(browser, session, artifactDir, `${label}.png`)
       visited.push(label)
     }
+    if (fullSweep) assertFullSweepRoutes(visited)
 
     const consoleOutput = await browser(session, ['console']).catch((error) => `console unavailable: ${error.message}`)
     const errorOutput = await browser(session, ['errors']).catch((error) => `errors unavailable: ${error.message}`)
-    const normalizedErrors = normalizeBrowserErrors(errorOutput)
-
     await writeFile(path.join(artifactDir, 'console.txt'), `${consoleOutput}\n`)
     await writeFile(path.join(artifactDir, 'errors.txt'), `${errorOutput}\n`)
-    if (normalizedErrors) {
-      throw new Error(`Browser reported uncaught errors. See ${path.join(artifactDir, 'errors.txt')}`)
+    const diagnosticFailures = browserDiagnosticFailures({ consoleOutput, errorOutput })
+    if (diagnosticFailures.length > 0) {
+      throw new Error(`Browser diagnostics failed: ${diagnosticFailures.join('; ')}`)
     }
 
     const report = {
@@ -453,10 +465,13 @@ export async function runBrowserSmoke({
       user: user.email,
       visited,
       workflowMeasurements,
+      initialJavaScriptDelivery,
+      provenance,
       artifactDir,
       notes,
     }
     await writeFile(REPORT_PATH, `${JSON.stringify(report, null, 2)}\n`)
+    await writeFile(path.join(artifactDir, 'summary.json'), `${JSON.stringify(report, null, 2)}\n`)
     return report
   } catch (error) {
     const report = {
@@ -467,20 +482,22 @@ export async function runBrowserSmoke({
       user: user.email,
       visited,
       artifactDir,
+      provenance,
       error: error instanceof Error ? error.message : String(error),
       notes,
     }
     await writeFile(REPORT_PATH, `${JSON.stringify(report, null, 2)}\n`)
+    await writeFile(path.join(artifactDir, 'summary.json'), `${JSON.stringify(report, null, 2)}\n`)
     throw error
-  } finally {
-    await browser(session, ['close']).catch(() => {})
   }
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const seasonArg = process.argv.find((arg) => arg.startsWith('--season='))
   const season = seasonArg ? Number(seasonArg.split('=')[1]) : 0
-  runBrowserSmoke({ season }).catch((error) => {
+  import('./browser-scenario-registry.mjs').then(({ browserScenarioById }) => (
+    browserScenarioById('smoke').run({ args: { browserFullSweep: process.env.E2E_BROWSER_FULL_SWEEP === '1' }, season })
+  )).catch((error) => {
     console.error(error)
     process.exitCode = 1
   })

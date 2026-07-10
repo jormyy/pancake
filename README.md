@@ -109,9 +109,21 @@ npm run check:edge-shared          # generated Edge scoring/sync parity
 deno check supabase/functions/api/index.ts
 npm test                           # root + frontend lib + cross-cutting guards
 npm run perf:budget                # top workflow performance budget contract
-npx expo export --platform web     # web/PWA build
+npm run build:web:release          # web/PWA build + immutable provenance marker
 npm audit --audit-level=high       # dependency audit
 ```
+
+Production releases run through the protected `Deploy production` workflow. It resolves the
+exact ordered production migration history plus independently attested frontend and Edge releases,
+then soaks the complete pending migration range. Before production changes, it runs the deployed
+frontend against candidate Edge and the candidate frontend against deployed Edge on the upgraded
+schema. The deploy bakes the release SHA and an independent Edge source digest into the Edge
+artifact, builds an unpromoted Vercel candidate, and promotes the frontend only after hosted
+readiness verifies both artifact digests. Automatic Vercel deploys
+from `main` are disabled in `vercel.json`. The production environment must provide the Vercel,
+Supabase, frontend URL/host, API, modern key, and Edge internal-token secrets referenced by the
+workflow. `production_deployed` repository dispatch and manual hosted readiness are retained as
+post-deployment audit/recovery paths.
 
 Cross-cutting guard tests: `tests/scoring-parity.test.ts` (scoring drift),
 `tests/rls-grants.test.ts` (service-role-only RPCs never granted to client roles, default
@@ -120,17 +132,18 @@ PUBLIC EXECUTE revoked, service-role read grants preserved),
 stay RLS-gated, invite-join error stays generic, invite-code generation stays server-only,
 no anon writes on gameplay tables — each checks the current effective state so a later
 migration can't silently reopen the hole),
-`tests/performance-budget-static.test.ts` (instant-loading workflow and budget
-contract), and Edge/API static guards.
+`tests/performance-budget.test.ts` (instant-loading workflow and budget
+contract), plus behavioral Edge/API checks.
 
 Deterministic-core battery: `supabase/functions/api/matchups.test.ts` (round-robin
 invariants over team counts 2–14 + a mutation-proof), `tests/lib/standings-tiebreak.test.ts`
 (6-key precedence + shuffle stability), `core/tests/scoring-properties.test.ts`
-(DNP⇒0, additivity, per-stat monotonicity), `tests/waiver-auction-logic-static.test.ts`
-(auction/waiver SQL inequality + resolution ORDER BY guards), and `tests/no-llm-guard.test.ts`
+(DNP⇒0, additivity, per-stat monotonicity), the database integration suite
+(auction/waiver ordering and atomicity), and `tests/no-llm-guard.test.ts`
 (no model SDK in runtime logic).
 Browser E2E flows live in `tests/e2e/` (see [tests/e2e/README.md](./tests/e2e/README.md));
-the multi-season soak is `npm run e2e:soak`. E2E reports, screenshots,
+the exploratory multi-season soak is `npm run e2e:soak`; the coverage-enforcing release run is
+`npm run e2e:soak:release`. E2E reports, screenshots,
 snapshots, loop logs, and web export output are generated artifacts and are
 ignored; regenerate them for the run you are validating instead of committing
 stale outputs.
@@ -140,7 +153,7 @@ Dynasty transaction release gates:
 ```bash
 npm run e2e:dynasty-release-final-gate
 npm run e2e:browser-waiver
-npm run e2e:browser-trade-post-deadline
+npm run e2e:browser-trade -- --scenario=post-deadline
 ```
 
 ## Security posture (summary)

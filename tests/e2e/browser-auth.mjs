@@ -70,7 +70,7 @@ const waitForEmailPlaceholder = async (session, label) => {
       await browser(session, ['wait', '1000']).catch(() => {})
     }
   }
-  throw new Error(`${label}: Email textbox did not appear: ${lastError?.message ?? 'unknown error'}`)
+  throw new Error(`${label}: Email textbox did not appear: ${lastError instanceof Error ? lastError.message : 'unknown error'}`)
 }
 
 const openPage = async (session, url, label, attempts = 3) => {
@@ -84,38 +84,7 @@ const openPage = async (session, url, label, attempts = 3) => {
       await browser(session, ['wait', '1000']).catch(() => {})
     }
   }
-  throw new Error(`${label}: navigation failed after ${attempts} attempts: ${lastError?.message ?? 'unknown error'}`)
-}
-
-const clickExactText = async (session, text, label) => {
-  const result = await browser(session, [
-    'eval',
-    `(() => {
-      const target = [...document.querySelectorAll('*')]
-        .reverse()
-        .find((element) => (element.textContent || '').trim() === ${JSON.stringify(text)});
-      if (!target) return JSON.stringify({ ok: false });
-      target.click();
-      return JSON.stringify({
-        ok: true,
-        tagName: target.tagName,
-        role: target.getAttribute('role') || null,
-        text: target.textContent
-      });
-    })()`,
-  ])
-  const parsed = parseEvalJson(result)
-  if (!parsed.ok) throw new Error(`${label}: text not found: ${text}`)
-}
-
-const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-
-const clickLastButtonByName = async (session, name, label) => {
-  const snapshot = await browser(session, ['snapshot'])
-  const matches = [...snapshot.matchAll(new RegExp(`button "${escapeRegExp(name)}" \\[ref=([^\\]]+)\\]`, 'g'))]
-  const ref = matches.at(-1)?.[1]
-  if (!ref) throw new Error(`${label}: button not found: ${name}`)
-  await browser(session, ['click', ref])
+  throw new Error(`${label}: navigation failed after ${attempts} attempts: ${lastError instanceof Error ? lastError.message : 'unknown error'}`)
 }
 
 const pressLastDomButtonByName = async (session, name, label) => {
@@ -256,8 +225,6 @@ const runOneAuthUser = async ({ state, env, season, userIndex, sessionList }) =>
       error: error instanceof Error ? error.message : String(error),
       notes,
     }
-  } finally {
-    await browser(session, ['close'], { timeout: 10_000 }).catch(() => {})
   }
 }
 
@@ -303,6 +270,10 @@ export async function runBrowserAuthScenario({
     reports: completedReports,
   }
   await writeFile(REPORT_PATH, `${JSON.stringify(report, null, 2)}\n`)
+  await writeFile(
+    path.join(ARTIFACT_ROOT, `season-${season}`, 'auth', 'summary.json'),
+    `${JSON.stringify(report, null, 2)}\n`,
+  )
   if (report.status !== 'PASS') {
     const failures = reports
       .filter((row) => row.status !== 'PASS')
@@ -316,10 +287,11 @@ export async function runBrowserAuthScenario({
 if (import.meta.url === `file://${process.argv[1]}`) {
   const seasonArg = process.argv.find((arg) => arg.startsWith('--season='))
   const usersArg = process.argv.find((arg) => arg.startsWith('--users='))
-  runBrowserAuthScenario({
-    season: seasonArg ? Number(seasonArg.split('=')[1]) : 0,
-    userCount: usersArg ? Number(usersArg.split('=')[1]) : undefined,
-  }).catch((error) => {
+  const season = seasonArg ? Number(seasonArg.split('=')[1]) : 0
+  if (usersArg) process.env.E2E_BROWSER_AUTH_USERS = usersArg.split('=')[1]
+  import('./browser-scenario-registry.mjs').then(({ browserScenarioById }) => (
+    browserScenarioById('auth').run({ args: { browserFullSweep: false }, season })
+  )).catch((error) => {
     console.error(error)
     process.exitCode = 1
   })

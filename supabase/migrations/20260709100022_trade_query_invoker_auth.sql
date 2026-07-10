@@ -1,0 +1,109 @@
+SET lock_timeout = '5s';
+SET statement_timeout = '2min';
+
+CREATE OR REPLACE FUNCTION public.get_trades_for_member(
+  p_member_id uuid,
+  p_league_id uuid,
+  p_limit int DEFAULT 40,
+  p_offset int DEFAULT 0
+)
+RETURNS SETOF public.trades
+LANGUAGE sql
+STABLE
+SECURITY INVOKER
+SET search_path = public
+AS $$
+  WITH authorized AS (
+    SELECT EXISTS (
+       SELECT 1
+         FROM public.league_members AS own_member
+        WHERE own_member.id = p_member_id
+          AND own_member.league_id = p_league_id
+          AND own_member.user_id = (SELECT auth.uid())
+     ) AS allowed
+  ), visible AS (
+    SELECT trade AS trade_row,
+      (
+       trade.proposer_member_id = p_member_id
+       OR trade.recipient_member_id = p_member_id
+       OR EXISTS (
+         SELECT 1
+           FROM public.trade_participants AS participant
+          WHERE participant.trade_id = trade.id
+            AND participant.member_id = p_member_id
+       )
+      ) AS is_participant
+    FROM public.trades AS trade
+    CROSS JOIN authorized
+    WHERE authorized.allowed
+      AND trade.league_id = p_league_id
+      AND (
+       trade.proposer_member_id = p_member_id
+       OR trade.recipient_member_id = p_member_id
+       OR EXISTS (
+         SELECT 1
+           FROM public.trade_participants AS participant
+          WHERE participant.trade_id = trade.id
+            AND participant.member_id = p_member_id
+       )
+       OR (
+         trade.status = 'accepted'::public.trade_status
+         AND trade.veto_window_expires_at > now()
+       )
+      )
+  ), member_page AS (
+    SELECT visible.*
+      FROM visible
+     WHERE visible.is_participant
+     ORDER BY (visible.trade_row).proposed_at DESC, (visible.trade_row).id DESC
+     LIMIT LEAST(GREATEST(p_limit, 1), 100)
+    OFFSET GREATEST(p_offset, 0)
+  )
+  SELECT (visible.trade_row).*
+    FROM visible
+   WHERE NOT visible.is_participant
+  UNION ALL
+  SELECT (member_page.trade_row).*
+    FROM member_page
+   ORDER BY proposed_at DESC, id DESC;
+$$;
+
+CREATE INDEX IF NOT EXISTS idx_trades_member_proposed
+  ON public.trades(league_id, proposer_member_id, proposed_at DESC, id DESC);
+CREATE INDEX IF NOT EXISTS idx_trades_recipient_proposed
+  ON public.trades(league_id, recipient_member_id, proposed_at DESC, id DESC);
+
+CREATE OR REPLACE FUNCTION public.get_pending_trade_count(
+  p_member_id uuid,
+  p_league_id uuid
+)
+RETURNS bigint
+LANGUAGE sql
+STABLE
+SECURITY INVOKER
+SET search_path = public
+AS $$
+  SELECT count(*)
+    FROM public.trades AS trade
+    JOIN public.trade_participants AS participant
+      ON participant.trade_id = trade.id
+     AND participant.member_id = p_member_id
+     AND participant.accepted_at IS NULL
+   WHERE trade.league_id = p_league_id
+     AND trade.status = 'pending'::public.trade_status
+     AND EXISTS (
+       SELECT 1
+         FROM public.league_members AS own_member
+        WHERE own_member.id = p_member_id
+          AND own_member.league_id = p_league_id
+          AND own_member.user_id = (SELECT auth.uid())
+     );
+$$;
+
+REVOKE ALL ON FUNCTION public.get_trades_for_member(uuid, uuid, int, int) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.get_trades_for_member(uuid, uuid, int, int) TO authenticated, service_role;
+REVOKE ALL ON FUNCTION public.get_pending_trade_count(uuid, uuid) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.get_pending_trade_count(uuid, uuid) TO authenticated, service_role;
+
+RESET statement_timeout;
+RESET lock_timeout;

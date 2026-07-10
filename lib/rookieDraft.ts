@@ -2,6 +2,7 @@ import { supabase } from '@/lib/supabase'
 import { RealtimeChannel } from '@supabase/supabase-js'
 import { apiPost as sharedApiPost } from '@/lib/shared/api'
 import type { RookieTimerExpiryBehavior } from '@/lib/draft'
+import { subscribeToTableChanges, unsubscribeFromTableChanges } from '@/lib/realtime'
 
 
 export type SnakePick = {
@@ -91,7 +92,7 @@ export async function activateRookieDraftLeague(draftId: string): Promise<boolea
 }
 
 export async function getRookieDraftState(draftId: string): Promise<RookieDraftState | null> {
-    const [draftResult, { data: picks }, { data: orders }] = await Promise.all([
+    const [draftResult, picksResult, ordersResult] = await Promise.all([
         supabase
             .from('drafts')
             .select('id, league_id, status, is_mock, pick_timer_seconds, timer_expiry_behavior, rounds, started_at, completed_at, pause_reason, paused_at, timer_paused_remaining_seconds')
@@ -113,8 +114,14 @@ export async function getRookieDraftState(draftId: string): Promise<RookieDraftS
             .order('position'),
     ])
 
+    if (draftResult.error) throw draftResult.error
+    if (picksResult.error) throw picksResult.error
+    if (ordersResult.error) throw ordersResult.error
+
     const draft = draftResult.data
     if (!draft) return null
+    const picks = picksResult.data
+    const orders = ordersResult.data
 
     const mappedPicks: SnakePick[] = (picks ?? []).map((p) => ({
         overallPick: p.overall_pick,
@@ -162,6 +169,28 @@ export async function getRookieDraftState(draftId: string): Promise<RookieDraftS
     }
 }
 
+export async function getRookieDraftPollRevision(draftId: string): Promise<string> {
+    const [draftResult, pickResult] = await Promise.all([
+        supabase
+            .from('drafts')
+            .select('status, pause_reason, paused_at, timer_paused_remaining_seconds, completed_at')
+            .eq('id', draftId)
+            .single(),
+        supabase
+            .from('snake_draft_picks')
+            .select('overall_pick, player_id, picked_at, skipped_at, timer_expires_at')
+            .eq('draft_id', draftId)
+            .is('player_id', null)
+            .is('skipped_at', null)
+            .order('overall_pick', { ascending: true })
+            .limit(1)
+            .maybeSingle(),
+    ])
+    if (draftResult.error) throw draftResult.error
+    if (pickResult.error) throw pickResult.error
+    return JSON.stringify([draftResult.data, pickResult.data])
+}
+
 export async function getAllLeaguePicks(leagueId: string): Promise<LeaguePickItem[]> {
     const { data, error } = await supabase
         .from('draft_picks')
@@ -195,11 +224,13 @@ export async function getAllLeaguePicks(leagueId: string): Promise<LeaguePickIte
 }
 
 export async function getRookiePlayers(draftId: string, query?: string): Promise<RookieProspect[]> {
-    const { data: picked } = await supabase
+    const { data: picked, error: pickedError } = await supabase
         .from('snake_draft_picks')
         .select('player_id')
         .eq('draft_id', draftId)
         .not('player_id', 'is', null)
+
+    if (pickedError) throw pickedError
 
     const pickedIds = new Set((picked ?? []).map((p) => p.player_id))
 
@@ -217,20 +248,7 @@ export async function getRookiePlayers(draftId: string, query?: string): Promise
     }
 
     const { data, error } = await q
-    if (error) {
-        console.error('[getRookiePlayers] query error:', error.message)
-        let fallback = supabase
-            .from('players')
-            .select('id, display_name, nba_team, position, nba_id, nba_draft_number')
-            .not('nba_draft_number', 'is', null)
-            .eq('years_exp', 0)
-            .order('nba_draft_number', { ascending: true })
-            .order('id', { ascending: true })
-            .limit(100)
-        if (query?.trim()) fallback = fallback.ilike('display_name', `%${query.trim()}%`)
-        const { data: fbData } = await fallback
-        return (fbData ?? []).filter((p) => !pickedIds.has(p.id)) as RookieProspect[]
-    }
+    if (error) throw error
     return (data ?? []).filter((p) => !pickedIds.has(p.id)) as RookieProspect[]
 }
 
@@ -267,26 +285,16 @@ export async function advanceSeason(leagueId: string) {
 
 
 export function subscribeToRookieDraft(draftId: string, onChange: () => void): RealtimeChannel {
-    return supabase
-        .channel(`rookie-draft:${draftId}`, { config: { private: true } })
-        .on(
-            'postgres_changes',
-            {
-                event: '*',
-                schema: 'public',
-                table: 'snake_draft_picks',
-                filter: `draft_id=eq.${draftId}`,
-            },
-            onChange,
-        )
-        .on(
-            'postgres_changes',
-            { event: 'UPDATE', schema: 'public', table: 'drafts', filter: `id=eq.${draftId}` },
-            onChange,
-        )
-        .subscribe()
+    return subscribeToTableChanges(`rookie-draft:${draftId}`, {
+        mode: 'fallback',
+        watches: [
+            { table: 'snake_draft_picks', filter: `draft_id=eq.${draftId}` },
+            { table: 'drafts', event: 'UPDATE', filter: `id=eq.${draftId}` },
+        ],
+        onChange,
+    })
 }
 
-export function unsubscribeFromRookieDraft(channel: RealtimeChannel) {
-    supabase.removeChannel(channel)
+export async function unsubscribeFromRookieDraft(channel: RealtimeChannel): Promise<void> {
+    await unsubscribeFromTableChanges(channel)
 }

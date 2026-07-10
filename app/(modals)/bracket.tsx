@@ -9,7 +9,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { Stack, useRouter } from 'expo-router'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
 import { getPlayoffBracket, PlayoffBracket, BracketMatchup } from '@/lib/bracket'
 import { EmptyState } from '@/components/EmptyState'
@@ -19,7 +19,13 @@ import { colors, fontSize, fontWeight, radii, spacing, uiColors } from '@/consta
 export default function BracketScreen() {
     const { current, currentLeague } = useLeagueContext()
     const router = useRouter()
-    const [bracket, setBracket] = useState<PlayoffBracket | null>(null)
+    const resourceKey = current?.id && currentLeague?.id ? `${current.id}:${currentLeague.id}` : null
+    const [resource, setResource] = useState<{ key: string | null; bracket: PlayoffBracket | null }>({
+        key: resourceKey,
+        bracket: null,
+    })
+    const requestRef = useRef(0)
+    const bracket = resource.key === resourceKey ? resource.bracket : null
     const { width, height } = useWindowDimensions()
 
     const myMemberId = current?.id
@@ -31,17 +37,20 @@ export default function BracketScreen() {
     const showSemisFirst = !showFinalFirst && Boolean(bracket?.semifinals.some((m) => !m.isFinalized))
 
     useEffect(() => {
+        const requestId = ++requestRef.current
+        setResource({ key: resourceKey, bracket: null })
         async function load() {
             if (!currentId || !currentLeagueId) return
             try {
                 const data = await getPlayoffBracket(currentLeagueId)
-                setBracket(data)
+                if (requestRef.current === requestId) setResource({ key: resourceKey, bracket: data })
             } catch (e) {
-                console.error(e)
+                if (requestRef.current === requestId) console.error(e)
             }
         }
         load()
-    }, [currentId, currentLeagueId])
+        return () => { requestRef.current += 1 }
+    }, [currentId, currentLeagueId, resourceKey])
 
     return (
         <>

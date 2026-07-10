@@ -35,27 +35,40 @@ export type PlayerRosterStatus =
     | { status: 'free_agent' }
 
 export async function getRoster(memberId: string, leagueId: string): Promise<RosterPlayer[]> {
+    const rosters = await getRostersForMembers([memberId], leagueId)
+    return rosters[memberId] ?? []
+}
+
+export async function getRostersForMembers(
+    memberIds: string[],
+    leagueId: string,
+): Promise<Record<string, RosterPlayer[]>> {
+    const uniqueMemberIds = [...new Set(memberIds)]
+    const rosters = Object.fromEntries(uniqueMemberIds.map((memberId) => [memberId, [] as RosterPlayer[]]))
+    if (uniqueMemberIds.length === 0) return rosters
     const seasonId = await getActiveSeasonId(leagueId)
-    if (!seasonId) return []
+    if (!seasonId) return rosters
 
     const { data, error } = await supabase
         .from('roster_players')
         .select(
             `
-      id, is_on_ir, is_on_taxi, acquired_via,
+      id, member_id, is_on_ir, is_on_taxi, acquired_via,
       players ( id, display_name, nba_team, position, eligible_positions, injury_status, nba_id, nba_draft_number, years_exp )
     `,
         )
-        .eq('member_id', memberId)
+        .in('member_id', uniqueMemberIds)
         .eq('league_season_id', seasonId)
         .order('is_on_taxi')
         .order('is_on_ir')
 
     if (error) throw error
-    // A roster_players row whose player was merged/deleted comes back with
-    // players: null (the embed isn't !inner). Drop those so downstream sorts and
-    // rows — which assume player.players is present — can't throw.
-    return ((data ?? []) as unknown as RosterPlayer[]).filter((row) => row.players != null)
+    for (const row of data ?? []) {
+        if (!row.players) continue
+        const { member_id: memberId, ...rosterPlayer } = row
+        rosters[memberId]?.push(rosterPlayer as RosterPlayer)
+    }
+    return rosters
 }
 
 export async function toggleIR(rosterPlayerId: string, isOnIR: boolean): Promise<void> {

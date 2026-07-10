@@ -1,15 +1,17 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { getRoster, type RosterPlayer } from '@/lib/roster'
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
+import { getRostersForMembers, type RosterPlayer } from '@/lib/roster'
 import { EMPTY_AVG_MAP, EMPTY_STATS_MAP, getRosterStatsMaps } from '@/lib/roster-stats'
-import { getPicksForMember, type MultiTeamTradeItemPayload, type TradePickItem } from '@/lib/trades'
+import { getPicksForMembers, type Trade, type TradePickItem } from '@/lib/trades'
 import { getErrorMessage } from '@/lib/alert'
-
-export type TradeComposerMember = {
-    id: string
-    team_name: string | null
-}
-
-export const isTradeableRosterPlayer = (player: RosterPlayer) => !player.is_on_ir && !player.is_on_taxi
+import {
+    buildMultiTeamTradeItems,
+    createMultiTeamTradeState,
+    multiTeamTradeReducer,
+    multiTeamTradeStateFromTrade,
+    resolvedDestination,
+} from '@/lib/multi-team-trade-state'
+import { isTradeableRosterPlayer } from '@/lib/trade-assets'
+import type { TradeComposerMember, TradeParticipantView } from '@/lib/trade-ui-model'
 
 type UseMultiTeamTradeComposerArgs = {
     enabled: boolean
@@ -28,71 +30,111 @@ export function useMultiTeamTradeComposer({
     members,
     faabEnabled,
 }: UseMultiTeamTradeComposerArgs) {
-    const [selectedParticipantIds, setSelectedParticipantIds] = useState<Set<string>>(new Set())
-    const [participantRosters, setParticipantRosters] = useState<Record<string, RosterPlayer[]>>({})
-    const [participantPicks, setParticipantPicks] = useState<Record<string, TradePickItem[]>>({})
-    const [participantPlayerIds, setParticipantPlayerIds] = useState<Record<string, Set<string>>>({})
-    const [participantPickIds, setParticipantPickIds] = useState<Record<string, Set<string>>>({})
-    const [participantFaabInputs, setParticipantFaabInputs] = useState<Record<string, string>>({})
+    const [composerState, dispatch] = useReducer(multiTeamTradeReducer, myMemberId, createMultiTeamTradeState)
+    const [participantAssets, setParticipantAssets] = useState<{
+        rosters: Record<string, RosterPlayer[]>
+        picks: Record<string, TradePickItem[]>
+    }>({ rosters: {}, picks: {} })
+    const participantRosters = participantAssets.rosters
+    const participantPicks = participantAssets.picks
     const [avgMap, setAvgMap] = useState(EMPTY_AVG_MAP)
     const [avgStatsMap, setAvgStatsMap] = useState(EMPTY_STATS_MAP)
     const [rosterLoading, setRosterLoading] = useState(false)
     const [rosterError, setRosterError] = useState<string | null>(null)
+    const [loadedParticipantKey, setLoadedParticipantKey] = useState('')
     const [retryToken, setRetryToken] = useState(0)
     const rosterLoadSeqRef = useRef(0)
+    const statsLoadSeqRef = useRef(0)
 
-    const selectedParticipantKey = useMemo(
-        () => [...selectedParticipantIds].sort().join(','),
-        [selectedParticipantIds],
+    const participantIds = composerState.participantOrder
+    const selectedParticipantIds = useMemo(
+        () => new Set(participantIds.filter((memberId) => memberId !== myMemberId)),
+        [myMemberId, participantIds],
     )
-    const participantIds = useMemo(
-        () => [myMemberId, ...members.filter((member) => selectedParticipantIds.has(member.id)).map((member) => member.id)].filter(Boolean),
-        [members, myMemberId, selectedParticipantIds],
-    )
+    const selectedParticipantKey = participantIds.join(',')
+    const participantViews = useMemo<TradeParticipantView[]>(() => participantIds.map((memberId) => {
+        const participant = composerState.participants[memberId]
+        const selectedPlayerIds = new Set(Object.keys(participant.playerDestinations))
+        const selectedPickIds = new Set(Object.keys(participant.pickDestinations))
+        return {
+            memberId,
+            destinationIds: participantIds.filter((participantId) => participantId !== memberId),
+            defaultDestinationId: participant.defaultDestinationId,
+            roster: participantRosters[memberId] ?? [],
+            picks: participantPicks[memberId] ?? [],
+            selectedPlayerIds,
+            selectedPickIds,
+            playerDestinationIds: Object.fromEntries([...selectedPlayerIds].map((playerId) => [
+                playerId,
+                resolvedDestination(composerState, memberId, 'player', playerId),
+            ])),
+            pickDestinationIds: Object.fromEntries([...selectedPickIds].map((pickId) => [
+                pickId,
+                resolvedDestination(composerState, memberId, 'pick', pickId),
+            ])),
+            faabInputs: participant.faabInputs,
+        }
+    }), [composerState, participantIds, participantPicks, participantRosters])
 
     const reset = useCallback(() => {
-        setSelectedParticipantIds(new Set())
-        setParticipantRosters({})
-        setParticipantPicks({})
-        setParticipantPlayerIds({})
-        setParticipantPickIds({})
-        setParticipantFaabInputs({})
+        rosterLoadSeqRef.current += 1
+        statsLoadSeqRef.current += 1
+        dispatch({ type: 'reset', actorMemberId: myMemberId })
+        setParticipantAssets({ rosters: {}, picks: {} })
         setAvgMap(EMPTY_AVG_MAP)
         setAvgStatsMap(EMPTY_STATS_MAP)
         setRosterError(null)
+        setLoadedParticipantKey('')
         setRosterLoading(false)
-    }, [])
+    }, [myMemberId])
 
     const toggleParticipant = useCallback((memberId: string) => {
-        setSelectedParticipantIds((prev) => {
-            const next = new Set(prev)
-            if (next.has(memberId)) next.delete(memberId)
-            else next.add(memberId)
-            return next
+        dispatch({
+            type: 'toggle-participant',
+            memberId,
+            actorMemberId: myMemberId,
+            availableMemberIds: members.map((member) => member.id),
         })
-    }, [])
+    }, [members, myMemberId])
+
+    const setParticipantIds = useCallback((participantIds: string[]) => {
+        dispatch({ type: 'set-participants', actorMemberId: myMemberId, participantIds })
+    }, [myMemberId])
 
     const toggleParticipantPlayer = useCallback((memberId: string, playerId: string) => {
-        setParticipantPlayerIds((prev) => {
-            const current = new Set(prev[memberId] ?? [])
-            if (current.has(playerId)) current.delete(playerId)
-            else current.add(playerId)
-            return { ...prev, [memberId]: current }
-        })
+        dispatch({ type: 'toggle-asset', asset: 'player', memberId, assetId: playerId })
     }, [])
 
     const toggleParticipantPick = useCallback((memberId: string, pickId: string) => {
-        setParticipantPickIds((prev) => {
-            const current = new Set(prev[memberId] ?? [])
-            if (current.has(pickId)) current.delete(pickId)
-            else current.add(pickId)
-            return { ...prev, [memberId]: current }
-        })
+        dispatch({ type: 'toggle-asset', asset: 'pick', memberId, assetId: pickId })
     }, [])
 
-    const setParticipantFaab = useCallback((memberId: string, value: string) => {
-        if (!/^\d*$/.test(value)) return
-        setParticipantFaabInputs((prev) => ({ ...prev, [memberId]: value }))
+    const selectParticipantAsset = useCallback((
+        memberId: string,
+        asset: 'player' | 'pick',
+        assetId: string,
+    ) => {
+        dispatch({ type: 'select-asset', asset, memberId, assetId })
+    }, [])
+
+    const setParticipantFaab = useCallback((memberId: string, toMemberId: string, value: string) => {
+        dispatch({ type: 'set-faab', memberId, toMemberId, value })
+    }, [])
+
+    const prefillFromTrade = useCallback((trade: Trade, actorMemberId = myMemberId) => {
+        dispatch({ type: 'prefill', state: multiTeamTradeStateFromTrade(trade, actorMemberId) })
+    }, [myMemberId])
+
+    const setParticipantDestination = useCallback((memberId: string, toMemberId: string) => {
+        dispatch({ type: 'set-default-destination', memberId, toMemberId })
+    }, [])
+
+    const setParticipantPlayerDestination = useCallback((memberId: string, playerId: string, toMemberId: string) => {
+        dispatch({ type: 'set-asset-destination', asset: 'player', memberId, assetId: playerId, toMemberId })
+    }, [])
+
+    const setParticipantPickDestination = useCallback((memberId: string, pickId: string, toMemberId: string) => {
+        dispatch({ type: 'set-asset-destination', asset: 'pick', memberId, assetId: pickId, toMemberId })
     }, [])
 
     const participantName = useCallback((memberId: string): string => {
@@ -100,71 +142,72 @@ export function useMultiTeamTradeComposer({
         return members.find((member) => member.id === memberId)?.team_name ?? 'Unnamed'
     }, [members, myMemberId, myTeamName])
 
-    const buildMultiTeamItems = useCallback((ids = participantIds): MultiTeamTradeItemPayload[] => (
-        ids.flatMap((memberId, index) => {
-            const toMemberId = ids[(index + 1) % ids.length]
-            if (!toMemberId) return []
+    const buildMultiTeamItems = useCallback(
+        () => buildMultiTeamTradeItems(composerState, faabEnabled),
+        [composerState, faabEnabled],
+    )
 
-            const playerItems = [...(participantPlayerIds[memberId] ?? new Set<string>())].map((playerId) => ({
-                fromMemberId: memberId,
-                toMemberId,
-                playerId,
-            }))
-            const pickItems = [...(participantPickIds[memberId] ?? new Set<string>())].map((pickId) => ({
-                fromMemberId: memberId,
-                toMemberId,
-                pickId,
-            }))
-            const faabAmount = parseInt(participantFaabInputs[memberId] || '0', 10) || 0
-            const faabItems = faabEnabled && faabAmount > 0
-                ? [{ fromMemberId: memberId, toMemberId, faabAmount }]
-                : []
-            return [...playerItems, ...pickItems, ...faabItems]
-        })
-    ), [faabEnabled, participantFaabInputs, participantIds, participantPickIds, participantPlayerIds])
-
-    const retry = useCallback(() => setRetryToken((value) => value + 1), [])
+    const retry = useCallback(() => {
+        rosterLoadSeqRef.current += 1
+        statsLoadSeqRef.current += 1
+        setParticipantAssets({ rosters: {}, picks: {} })
+        setAvgMap(EMPTY_AVG_MAP)
+        setAvgStatsMap(EMPTY_STATS_MAP)
+        setRetryToken((value) => value + 1)
+    }, [])
 
     useEffect(() => {
-        if (!enabled || !leagueId || !myMemberId) {
-            if (!enabled) setRosterLoading(false)
+        reset()
+    }, [leagueId, myMemberId, reset])
+
+    useEffect(() => {
+        const activeParticipants = new Set(participantIds)
+        setParticipantAssets((current) => ({
+            rosters: Object.fromEntries(
+                Object.entries(current.rosters).filter(([memberId]) => activeParticipants.has(memberId)),
+            ),
+            picks: Object.fromEntries(
+                Object.entries(current.picks).filter(([memberId]) => activeParticipants.has(memberId)),
+            ),
+        }))
+    }, [participantIds])
+
+    useEffect(() => {
+        const requestId = ++rosterLoadSeqRef.current
+        if (!enabled || !leagueId || !myMemberId || participantIds[0] !== myMemberId) {
+            setRosterLoading(false)
             return
         }
 
-        const requestId = ++rosterLoadSeqRef.current
+        const missingParticipantIds = participantIds.filter((memberId) =>
+            !(memberId in participantRosters) || !(memberId in participantPicks))
+        if (missingParticipantIds.length === 0) {
+            setLoadedParticipantKey(selectedParticipantKey)
+            setRosterLoading(false)
+            return
+        }
+
         setRosterLoading(true)
         setRosterError(null)
 
         async function loadParticipantAssets() {
             try {
-                const rows = await Promise.all(participantIds.map(async (memberId) => {
-                    const [roster, picks] = await Promise.all([
-                        getRoster(memberId, leagueId),
-                        getPicksForMember(memberId, leagueId),
-                    ])
-                    return {
-                        memberId,
-                        roster: roster.filter(isTradeableRosterPlayer),
-                        picks,
-                    }
-                }))
+                const [rosters, picks] = await Promise.all([
+                    getRostersForMembers(missingParticipantIds, leagueId),
+                    getPicksForMembers(missingParticipantIds, leagueId),
+                ])
                 if (rosterLoadSeqRef.current !== requestId) return
 
-                const nextRosters: Record<string, RosterPlayer[]> = {}
-                const nextPicks: Record<string, TradePickItem[]> = {}
-                for (const row of rows) {
-                    nextRosters[row.memberId] = row.roster
-                    nextPicks[row.memberId] = row.picks
-                }
-                const stats = await getRosterStatsMaps(
-                    rows.flatMap((row) => row.roster.map((player) => player.players.id)),
-                    leagueId,
-                )
-                if (rosterLoadSeqRef.current !== requestId) return
-                setParticipantRosters(nextRosters)
-                setParticipantPicks(nextPicks)
-                setAvgMap(stats.avgMap)
-                setAvgStatsMap(stats.avgStatsMap)
+                const nextRosters = Object.fromEntries(missingParticipantIds.map((memberId) => [
+                    memberId,
+                    (rosters[memberId] ?? []).filter(isTradeableRosterPlayer),
+                ]))
+                setParticipantAssets((current) => ({
+                    rosters: { ...current.rosters, ...nextRosters },
+                    picks: { ...current.picks, ...picks },
+                }))
+                setLoadedParticipantKey(selectedParticipantKey)
+                setRosterLoading(false)
             } catch (error) {
                 if (rosterLoadSeqRef.current !== requestId) return
                 console.error(error)
@@ -175,25 +218,72 @@ export function useMultiTeamTradeComposer({
         }
 
         loadParticipantAssets()
-    }, [enabled, leagueId, myMemberId, participantIds, retryToken, selectedParticipantKey])
+        return () => {
+            if (rosterLoadSeqRef.current === requestId) rosterLoadSeqRef.current += 1
+        }
+    }, [enabled, leagueId, myMemberId, participantIds, participantPicks, participantRosters, retryToken, selectedParticipantKey])
+
+    useEffect(() => {
+        const requestId = ++statsLoadSeqRef.current
+        setAvgMap(EMPTY_AVG_MAP)
+        setAvgStatsMap(EMPTY_STATS_MAP)
+
+        const ownsCompleteSnapshot = enabled && leagueId && myMemberId &&
+            participantIds[0] === myMemberId && loadedParticipantKey === selectedParticipantKey &&
+            participantIds.every((memberId) => memberId in participantRosters && memberId in participantPicks)
+        if (!ownsCompleteSnapshot) return
+
+        async function loadParticipantStats() {
+            try {
+                const stats = await getRosterStatsMaps(
+                    participantIds.flatMap((memberId) =>
+                        (participantRosters[memberId] ?? []).map((player) => player.players.id)),
+                    leagueId,
+                )
+                if (statsLoadSeqRef.current !== requestId) return
+                setAvgMap(stats.avgMap)
+                setAvgStatsMap(stats.avgStatsMap)
+            } catch (error) {
+                if (statsLoadSeqRef.current === requestId) {
+                    console.warn('Could not load optional trade player averages.', error)
+                }
+            }
+        }
+
+        void loadParticipantStats()
+        return () => {
+            if (statsLoadSeqRef.current === requestId) statsLoadSeqRef.current += 1
+        }
+    }, [enabled, leagueId, loadedParticipantKey, myMemberId, participantIds, participantPicks,
+        participantRosters, selectedParticipantKey])
+
+    const assetsReady = enabled && !rosterLoading && !rosterError &&
+        loadedParticipantKey === selectedParticipantKey &&
+        participantIds.every((memberId) => memberId in participantRosters && memberId in participantPicks)
 
     return {
         selectedParticipantIds,
         participantIds,
         participantRosters,
         participantPicks,
-        participantPlayerIds,
-        participantPickIds,
-        participantFaabInputs,
+        participantViews,
         avgMap,
         avgStatsMap,
         rosterLoading,
         rosterError,
+        loadedParticipantKey,
+        assetsReady,
         reset,
+        prefillFromTrade,
         retry,
         toggleParticipant,
+        setParticipantIds,
         toggleParticipantPlayer,
         toggleParticipantPick,
+        selectParticipantAsset,
+        setParticipantDestination,
+        setParticipantPlayerDestination,
+        setParticipantPickDestination,
         setParticipantFaab,
         participantName,
         buildMultiTeamItems,

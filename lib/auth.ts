@@ -1,5 +1,7 @@
 import { supabase } from '@/lib/supabase'
 import type { Profile } from '@/types/database'
+import { unregisterCurrentDevicePushToken } from '@/lib/push-token'
+import { clearPersistentCaches } from '@/lib/persistent-cache'
 
 export async function signUp(
     email: string,
@@ -7,32 +9,12 @@ export async function signUp(
     username: string,
     displayName: string,
 ) {
-    const { data, error } = await supabase.auth.signUp({ email, password })
-    if (error) throw error
-
-    const { error: profileError } = await supabase.from('profiles').insert({
-        id: data.user!.id,
-        username,
-        display_name: displayName,
+    const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { data: { username, display_name: displayName } },
     })
-
-    if (profileError) {
-        // Profile insert failed AFTER auth.users was created (RLS denial, race
-        // on username, network hiccup). We can't delete auth.users from the
-        // client, but we CAN sign the user back out so the client is in a clean
-        // state and the UI doesn't get stuck on a profile-less session. The
-        // orphaned auth.users row will be cleaned up server-side (or the user
-        // can retry with a different email after confirmation timeout).
-        try {
-            await supabase.auth.signOut()
-        } catch {
-            // best-effort; surface the original profile error regardless
-        }
-        throw new Error(
-            `Could not create your profile (${profileError.message}). Please try again with a different username or email.`,
-        )
-    }
-
+    if (error) throw error
     return data
 }
 
@@ -43,12 +25,23 @@ export async function signIn(email: string, password: string) {
 }
 
 export async function signOut() {
-    const { error } = await supabase.auth.signOut()
-    if (error) {
-        // Server sign-out failed (network error, unexpected server error, etc.).
-        // Fall back to local-only sign-out so the user can always sign out on their device.
-        await supabase.auth.signOut({ scope: 'local' })
+    try {
+        await unregisterCurrentDevicePushToken()
+    } catch (error) {
+        console.warn('Push-token revocation was queued for retry.', error)
     }
+
+    try {
+        const { error } = await supabase.auth.signOut()
+        if (!error) return
+    } catch (error) {
+        console.warn('Server sign-out failed; clearing the local session.', error)
+    } finally {
+        clearPersistentCaches()
+    }
+
+    const { error: localError } = await supabase.auth.signOut({ scope: 'local' })
+    if (localError) throw localError
 }
 
 export async function changePassword(currentPassword: string, newPassword: string) {
@@ -86,17 +79,34 @@ export async function updateProfile(userId: string, updates: { display_name?: st
     if (error) throw error
 }
 
-export async function uploadAvatar(userId: string, imageUri: string): Promise<string> {
-    const response = await fetch(imageUri)
-    const blob = await response.blob()
+type AvatarAsset = {
+    uri: string
+    mimeType?: string | null
+    fileSize?: number | null
+}
 
-    // Fixed path per user so upsert replaces the previous avatar
-    const ext = imageUri.split('.').pop()?.split('?')[0]?.toLowerCase() ?? 'jpg'
-    const path = `${userId}/avatar.${ext}`
+const AVATAR_TYPES = new Map([
+    ['image/jpeg', 'jpg'],
+    ['image/png', 'png'],
+    ['image/webp', 'webp'],
+])
+const MAX_AVATAR_BYTES = 5 * 1024 * 1024
+
+export async function uploadAvatar(userId: string, asset: AvatarAsset): Promise<string> {
+    const response = await fetch(asset.uri)
+    if (!response.ok) throw new Error('Could not read the selected image.')
+    const blob = await response.blob()
+    const contentType = (blob.type || asset.mimeType || '').toLowerCase()
+    const extension = AVATAR_TYPES.get(contentType)
+    if (!extension) throw new Error('Choose a JPEG, PNG, or WebP image.')
+    const byteLength = blob.size || asset.fileSize || 0
+    if (byteLength > MAX_AVATAR_BYTES) throw new Error('Choose an image smaller than 5 MB.')
+
+    const path = `${userId}/avatar.${extension}`
 
     const { error } = await supabase.storage
         .from('avatars')
-        .upload(path, blob, { upsert: true, contentType: blob.type || 'image/jpeg' })
+        .upload(path, blob, { upsert: true, contentType })
     if (error) throw error
 
     const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(path)

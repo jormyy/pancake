@@ -77,7 +77,7 @@ export async function generateMatchups(
 export async function generateAllMatchups(force = false, leagueId?: string): Promise<void> {
   let query = supabase
     .from('league_seasons')
-    .select('id, league_id, leagues ( playoff_start_week )')
+    .select('id, league_id, leagues!league_seasons_league_id_fkey ( playoff_start_week )')
     .eq('is_current', true)
   if (leagueId) query = query.eq('league_id', leagueId)
 

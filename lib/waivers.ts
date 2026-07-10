@@ -215,7 +215,7 @@ export async function getMyWaiverPriority(
         .select('priority')
         .eq('member_id', memberId)
         .eq('league_season_id', seasonId)
-        .single()
-    if (error) return null
+        .maybeSingle()
+    if (error) throw error
     return data?.priority ?? null
 }
