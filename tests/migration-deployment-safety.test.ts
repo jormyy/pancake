@@ -129,12 +129,13 @@ const pushTokenCredentialUpgradeContract = (source: string) => {
     const addHash = source.indexOf('ADD COLUMN push_token_revocation_hash text')
     const compatibilityTrigger = source.indexOf('CREATE TRIGGER normalize_legacy_push_token_write')
     const credentialBackfill = source.indexOf('SET push_token_revocation_hash = encode(extensions.gen_random_bytes(32)')
-    const uniqueIndex = source.indexOf('CREATE UNIQUE INDEX profiles_push_token_unique')
     const pairConstraint = source.indexOf('ADD CONSTRAINT profiles_push_token_revocation_pair')
+    const pairValidation = source.indexOf('VALIDATE CONSTRAINT profiles_push_token_revocation_pair')
     return addHash >= 0 && compatibilityTrigger > addHash && credentialBackfill > compatibilityTrigger &&
-        uniqueIndex > credentialBackfill && pairConstraint > uniqueIndex &&
+        pairConstraint > credentialBackfill && pairValidation > pairConstraint &&
         source.includes('GROUP BY push_token\n  HAVING count(*) > 1') &&
         source.includes('WHERE profile.push_token = duplicate.push_token') &&
+        !source.includes('CREATE UNIQUE INDEX profiles_push_token_unique') &&
         !source.includes('row_number() OVER (PARTITION BY push_token')
 }
 
@@ -189,7 +190,7 @@ describe('branch migration deployment safety', () => {
         expect(unclassifiedStatements('VACUUM public.example;')).toEqual(['VACUUM public.example'])
     })
 
-    it('preserves legacy push tokens through a paired-state compatibility trigger', () => {
+    it('preserves legacy push tokens without a blocking unique-index build', () => {
         const migration = read('20260709100035_push_token_revocation_credentials.sql')
         expect(pushTokenCredentialUpgradeContract(migration)).toBe(true)
         expect(pushTokenCredentialUpgradeContract(
