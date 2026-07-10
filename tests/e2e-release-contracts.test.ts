@@ -129,6 +129,8 @@ describe('release E2E contracts', () => {
     expect(workflow).toContain('environment: production')
     expect(workflow).toContain('test "${GITHUB_REF}" = "refs/heads/main"')
     expect(workflow).toContain('release_sha:')
+    expect(workflow).toContain('frontend_sha:')
+    expect(workflow).toContain('edge_sha:')
     expect(workflow).toContain('frontend_bundle_digest:')
     expect(workflow).toContain('edge_artifact_digest:')
     expect(workflow).toContain('repository_dispatch:')
@@ -154,18 +156,32 @@ describe('release E2E contracts', () => {
     expect(workflow).toContain('if-no-files-found: error')
   })
 
-  it('promotes only a repository-built candidate that passed protected readiness', async () => {
+  it('promotes only after every phased production pairing passes protected readiness', async () => {
     const workflow = await readFile(path.join(process.cwd(), '.github/workflows/production-deploy.yml'), 'utf8')
     expect(workflow).toContain('npx --yes vercel@55.0.0 build')
     expect(workflow).toContain('node tests/e2e/validate-production-target.mjs')
     expect(workflow).toContain('supabase db push --linked --yes')
     expect(workflow).toContain('supabase functions deploy --project-ref "$SUPABASE_PROJECT_REF"')
-    expect(workflow).toContain('Bake Edge artifact provenance')
+    expect(workflow).toContain('Bake candidate Edge artifact provenance')
     expect(workflow).not.toContain('PANCAKE_RELEASE_BUNDLE_DIGEST=')
-    expect(workflow.indexOf('node tests/e2e/validate-production-target.mjs')).toBeLessThan(workflow.indexOf('supabase db push --linked --yes'))
+    const candidateCurrent = workflow.indexOf('Verify candidate frontend with current backend')
+    const migrate = workflow.indexOf('Apply compatibility-proven database phase')
+    const currentAfterMigration = workflow.indexOf('Verify current release after database phase')
+    const deployEdge = workflow.indexOf('Deploy candidate Edge phase')
+    const currentNewEdge = workflow.indexOf('Verify current frontend with new Edge')
+    const candidateNewEdge = workflow.indexOf('Verify candidate frontend with new Edge')
+    const promote = workflow.indexOf('Promote verified candidate')
+    expect(candidateCurrent).toBeGreaterThan(-1)
+    expect(candidateCurrent).toBeLessThan(migrate)
+    expect(migrate).toBeLessThan(currentAfterMigration)
+    expect(currentAfterMigration).toBeLessThan(deployEdge)
+    expect(deployEdge).toBeLessThan(currentNewEdge)
+    expect(deployEdge).toBeLessThan(candidateNewEdge)
+    expect(currentNewEdge).toBeLessThan(promote)
+    expect(candidateNewEdge).toBeLessThan(promote)
     expect(workflow).toContain('uses: ./.github/workflows/production-readiness.yml')
-    expect(workflow).toContain('needs: [deploy-candidate, verify-candidate]')
-    expect(workflow.indexOf('Require candidate readiness')).toBeLessThan(workflow.indexOf('Promote verified candidate'))
+    expect(workflow).toContain('Restore baseline Edge after failed Edge phase')
+    expect(workflow).toContain("needs.deploy-edge.result == 'failure'")
     expect(workflow).toContain('npx --yes vercel@55.0.0 promote')
     expect(workflow).toContain('Verify promoted production')
     expect(workflow).toContain('Require deployed-to-HEAD release soak')
@@ -250,7 +266,7 @@ describe('release E2E contracts', () => {
     })).toContain('deployed Edge edgeArtifactDigest is invalid')
   })
 
-  it('blocks removed-column and removed-route cross-version incompatibilities', () => {
+  it('blocks removed-column and removed-route cross-version incompatibilities', async () => {
     const candidateSha = 'a'.repeat(40)
     const deployedFrontendSha = 'b'.repeat(40)
     const deployedEdgeSha = 'c'.repeat(40)
@@ -270,7 +286,17 @@ describe('release E2E contracts', () => {
         browserEvidenceId: 'browser.smoke',
       },
     ]
-    const input = { candidateSha, deployedFrontendSha, deployedEdgeSha, pairs: passingPairs }
+    const input = {
+      candidateSha,
+      deployedFrontendSha,
+      deployedEdgeSha,
+      deployedFrontendRebuild: {
+        exactProductionRebuildVerified: true,
+        liveBundleDigest: '1'.repeat(64),
+        compatibilityBundleDigest: 'd'.repeat(64),
+      },
+      pairs: passingPairs,
+    }
     expect(validateReleaseCompatibilityEvidence(input)).toEqual([])
     expect(validateReleaseCompatibilityEvidence({
       ...input,
@@ -284,6 +310,14 @@ describe('release E2E contracts', () => {
         ? { ...pair, status: 'FAIL', error: 'removed route /league/legacy-summary' }
         : pair),
     })).toContain('deployed-frontend-candidate-edge browser contract failed: removed route /league/legacy-summary')
+    expect(validateReleaseCompatibilityEvidence({
+      ...input,
+      deployedFrontendRebuild: { ...input.deployedFrontendRebuild, exactProductionRebuildVerified: false },
+    })).toContain('deployed frontend exact production rebuild was not verified')
+
+    const soakWorkflow = await readFile(path.join(process.cwd(), '.github/workflows/release-soak.yml'), 'utf8')
+    expect(soakWorkflow).toContain('test "$marker_digest" = "$E2E_DEPLOYED_FRONTEND_DIGEST"')
+    expect(soakWorkflow).toContain('E2E_DEPLOYED_FRONTEND_COMPATIBILITY_DIGEST')
   })
 
   it('does not claim measured production performance from a clean checkout', async () => {

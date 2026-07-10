@@ -23,8 +23,8 @@ jobs:
       release_sha: ${{ inputs.release_sha }}
     secrets: inherit
 
-  deploy-candidate:
-    name: Build and deploy candidate
+  build-candidate:
+    name: Build unpromoted candidate
     needs: release-soak
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -33,17 +33,20 @@ jobs:
       frontend_bundle_digest: ${{ steps.release.outputs.bundle_digest }}
       edge_artifact_digest: ${{ steps.edge-release.outputs.edge_artifact_digest }}
       candidate_url: ${{ steps.deploy.outputs.candidate_url }}
+      deployed_frontend_sha: ${{ steps.baseline.outputs.frontend_sha }}
+      deployed_frontend_digest: ${{ steps.baseline.outputs.frontend_digest }}
+      deployed_edge_sha: ${{ steps.baseline.outputs.edge_sha }}
+      deployed_edge_digest: ${{ steps.baseline.outputs.edge_digest }}
     env:
-      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
-      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
       E2E_PRODUCTION_SUPABASE_REF: ceeytbfmwsnzalxlkalc
-      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      E2E_PRODUCTION_FRONTEND_URL: ${{ secrets.PANCAKE_FRONTEND_URL }}
+      E2E_EXPECTED_FRONTEND_HOST: ${{ secrets.PANCAKE_PRODUCTION_FRONTEND_HOST }}
       EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
       EXPO_PUBLIC_API_URL: ${{ secrets.PANCAKE_API_URL }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
@@ -55,25 +58,39 @@ jobs:
           node-version: 22
           cache: npm
 
-      - uses: supabase/setup-cli@ab058987d8d6c725971f6cf9d0b5c98467e30bd1 # v1.7.1
-        with:
-          version: 2.109.1
-
-      - name: Verify protected deployment inputs
+      - name: Verify protected candidate inputs
         shell: bash
         run: |
           [[ "${{ inputs.release_sha }}" =~ ^[0-9a-f]{40}$ ]]
           test "$(git rev-parse HEAD)" = "${{ inputs.release_sha }}"
           git merge-base --is-ancestor HEAD origin/main
-          test "$SUPABASE_PROJECT_REF" = 'ceeytbfmwsnzalxlkalc'
-          for name in SUPABASE_ACCESS_TOKEN SUPABASE_DB_PASSWORD VERCEL_ORG_ID VERCEL_PROJECT_ID VERCEL_TOKEN \
-            EXPO_PUBLIC_SUPABASE_URL EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY EXPO_PUBLIC_API_URL; do
-            test -n "${!name:-}" || { echo "Missing protected deployment credential: $name"; exit 1; }
+          for name in E2E_PRODUCTION_FRONTEND_URL E2E_EXPECTED_FRONTEND_HOST \
+            EXPO_PUBLIC_SUPABASE_URL EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY EXPO_PUBLIC_API_URL \
+            VERCEL_ORG_ID VERCEL_PROJECT_ID VERCEL_TOKEN; do
+            test -n "${!name:-}" || { echo "Missing protected candidate input: $name"; exit 1; }
           done
           node tests/e2e/validate-production-target.mjs
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Capture immutable deployed baseline
+        id: baseline
+        shell: bash
+        run: |
+          node tests/e2e/release-baseline-provenance.mjs > /tmp/deployed-release.json
+          frontend_sha="$(node -e 'process.stdout.write(require("/tmp/deployed-release.json").frontend.commitSha)')"
+          frontend_digest="$(node -e 'process.stdout.write(require("/tmp/deployed-release.json").frontend.bundleDigest)')"
+          edge_sha="$(node -e 'process.stdout.write(require("/tmp/deployed-release.json").edge.commitSha)')"
+          edge_digest="$(node -e 'process.stdout.write(require("/tmp/deployed-release.json").edge.edgeArtifactDigest)')"
+          for deployed_sha in "$frontend_sha" "$edge_sha"; do
+            git cat-file -e "$deployed_sha^{commit}"
+            git merge-base --is-ancestor "$deployed_sha" "${{ inputs.release_sha }}"
+          done
+          echo "frontend_sha=$frontend_sha" >> "$GITHUB_OUTPUT"
+          echo "frontend_digest=$frontend_digest" >> "$GITHUB_OUTPUT"
+          echo "edge_sha=$edge_sha" >> "$GITHUB_OUTPUT"
+          echo "edge_digest=$edge_digest" >> "$GITHUB_OUTPUT"
 
       - name: Build immutable Vercel candidate
         shell: bash
@@ -94,18 +111,11 @@ jobs:
           [[ "$digest" =~ ^[0-9a-f]{64}$ ]]
           echo "bundle_digest=$digest" >> "$GITHUB_OUTPUT"
 
-      - name: Bake Edge artifact provenance
+      - name: Bake candidate Edge artifact provenance
         id: edge-release
         env:
           PANCAKE_RELEASE_SHA: ${{ inputs.release_sha }}
         run: node scripts/stamp-edge-release-provenance.mjs
-
-      - name: Deploy Edge release candidate
-        shell: bash
-        run: |
-          supabase link --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
-          supabase db push --linked --yes
-          supabase functions deploy --project-ref "$SUPABASE_PROJECT_REF"
 
       - name: Deploy unpromoted frontend candidate
         id: deploy
@@ -115,21 +125,161 @@ jobs:
           [[ "$candidate_url" =~ ^https://[^/]+$ ]]
           echo "candidate_url=$candidate_url" >> "$GITHUB_OUTPUT"
 
-  verify-candidate:
-    name: Require candidate readiness
-    needs: deploy-candidate
+  verify-candidate-current-backend:
+    name: Verify candidate frontend with current backend
+    needs: build-candidate
     uses: ./.github/workflows/production-readiness.yml
     with:
       release_sha: ${{ inputs.release_sha }}
-      frontend_bundle_digest: ${{ needs.deploy-candidate.outputs.frontend_bundle_digest }}
-      edge_artifact_digest: ${{ needs.deploy-candidate.outputs.edge_artifact_digest }}
-      frontend_url: ${{ needs.deploy-candidate.outputs.candidate_url }}
+      frontend_sha: ${{ inputs.release_sha }}
+      edge_sha: ${{ needs.build-candidate.outputs.deployed_edge_sha }}
+      frontend_bundle_digest: ${{ needs.build-candidate.outputs.frontend_bundle_digest }}
+      edge_artifact_digest: ${{ needs.build-candidate.outputs.deployed_edge_digest }}
+      frontend_url: ${{ needs.build-candidate.outputs.candidate_url }}
       candidate_frontend: true
+      rebuild_frontend: true
+      rebuild_edge: false
     secrets: inherit
+
+  migrate-production:
+    name: Apply compatibility-proven database phase
+    needs: verify-candidate-current-backend
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ inputs.release_sha }}
+      - uses: supabase/setup-cli@ab058987d8d6c725971f6cf9d0b5c98467e30bd1 # v1.7.1
+        with:
+          version: 2.109.1
+      - name: Apply soaked migration range
+        shell: bash
+        run: |
+          test "$SUPABASE_PROJECT_REF" = 'ceeytbfmwsnzalxlkalc'
+          supabase link --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
+          supabase db push --linked --yes
+
+  verify-current-after-migration:
+    name: Verify current release after database phase
+    needs: [build-candidate, migrate-production]
+    uses: ./.github/workflows/production-readiness.yml
+    with:
+      release_sha: ${{ inputs.release_sha }}
+      frontend_sha: ${{ needs.build-candidate.outputs.deployed_frontend_sha }}
+      edge_sha: ${{ needs.build-candidate.outputs.deployed_edge_sha }}
+      frontend_bundle_digest: ${{ needs.build-candidate.outputs.deployed_frontend_digest }}
+      edge_artifact_digest: ${{ needs.build-candidate.outputs.deployed_edge_digest }}
+      rebuild_frontend: false
+      rebuild_edge: false
+    secrets: inherit
+
+  deploy-edge:
+    name: Deploy candidate Edge phase
+    needs: [build-candidate, verify-current-after-migration]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ inputs.release_sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - uses: supabase/setup-cli@ab058987d8d6c725971f6cf9d0b5c98467e30bd1 # v1.7.1
+        with:
+          version: 2.109.1
+      - name: Deploy attested Edge artifact
+        shell: bash
+        run: |
+          marker="$(PANCAKE_RELEASE_SHA="${{ inputs.release_sha }}" node scripts/stamp-edge-release-provenance.mjs)"
+          digest="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).edgeArtifactDigest)' "$marker")"
+          test "$digest" = "${{ needs.build-candidate.outputs.edge_artifact_digest }}"
+          supabase functions deploy --project-ref "$SUPABASE_PROJECT_REF"
+
+  verify-current-new-edge:
+    name: Verify current frontend with new Edge
+    needs: [build-candidate, deploy-edge]
+    uses: ./.github/workflows/production-readiness.yml
+    with:
+      release_sha: ${{ inputs.release_sha }}
+      frontend_sha: ${{ needs.build-candidate.outputs.deployed_frontend_sha }}
+      edge_sha: ${{ inputs.release_sha }}
+      frontend_bundle_digest: ${{ needs.build-candidate.outputs.deployed_frontend_digest }}
+      edge_artifact_digest: ${{ needs.build-candidate.outputs.edge_artifact_digest }}
+      rebuild_frontend: false
+      rebuild_edge: true
+    secrets: inherit
+
+  verify-candidate-new-edge:
+    name: Verify candidate frontend with new Edge
+    needs: [build-candidate, deploy-edge]
+    uses: ./.github/workflows/production-readiness.yml
+    with:
+      release_sha: ${{ inputs.release_sha }}
+      frontend_sha: ${{ inputs.release_sha }}
+      edge_sha: ${{ inputs.release_sha }}
+      frontend_bundle_digest: ${{ needs.build-candidate.outputs.frontend_bundle_digest }}
+      edge_artifact_digest: ${{ needs.build-candidate.outputs.edge_artifact_digest }}
+      frontend_url: ${{ needs.build-candidate.outputs.candidate_url }}
+      candidate_frontend: true
+      rebuild_frontend: true
+      rebuild_edge: true
+    secrets: inherit
+
+  rollback-edge:
+    name: Restore baseline Edge after failed Edge phase
+    if: ${{ always() && (needs.deploy-edge.result == 'failure' || (needs.deploy-edge.result == 'success' && (needs.verify-current-new-edge.result != 'success' || needs.verify-candidate-new-edge.result != 'success'))) }}
+    needs: [build-candidate, deploy-edge, verify-current-new-edge, verify-candidate-new-edge]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+      EXPO_PUBLIC_API_URL: ${{ secrets.PANCAKE_API_URL }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ needs.build-candidate.outputs.deployed_edge_sha }}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - uses: supabase/setup-cli@ab058987d8d6c725971f6cf9d0b5c98467e30bd1 # v1.7.1
+        with:
+          version: 2.109.1
+      - name: Redeploy and verify baseline Edge
+        shell: bash
+        run: |
+          marker="$(PANCAKE_RELEASE_SHA="${{ needs.build-candidate.outputs.deployed_edge_sha }}" node scripts/stamp-edge-release-provenance.mjs)"
+          digest="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).edgeArtifactDigest)' "$marker")"
+          test "$digest" = "${{ needs.build-candidate.outputs.deployed_edge_digest }}"
+          supabase functions deploy --project-ref "$SUPABASE_PROJECT_REF"
+          for attempt in {1..30}; do
+            health="$(curl --fail --silent "$EXPO_PUBLIC_API_URL/health" 2>/dev/null || true)"
+            if node -e '
+              const health = JSON.parse(process.argv[1])
+              process.exit(health.commitSha === process.argv[2] && health.edgeArtifactDigest === process.argv[3] ? 0 : 1)
+            ' "$health" "${{ needs.build-candidate.outputs.deployed_edge_sha }}" "${{ needs.build-candidate.outputs.deployed_edge_digest }}" 2>/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          exit 1
 
   promote:
     name: Promote verified candidate
-    needs: [deploy-candidate, verify-candidate]
+    needs: [build-candidate, verify-current-new-edge, verify-candidate-new-edge]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: production
@@ -140,14 +290,18 @@ jobs:
       - name: Promote candidate to production
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        run: npx --yes vercel@55.0.0 promote "${{ needs.deploy-candidate.outputs.candidate_url }}" --yes --token "$VERCEL_TOKEN"
+        run: npx --yes vercel@55.0.0 promote "${{ needs.build-candidate.outputs.candidate_url }}" --yes --token "$VERCEL_TOKEN"
 
   verify-production:
     name: Verify promoted production
-    needs: [deploy-candidate, promote]
+    needs: [build-candidate, promote]
     uses: ./.github/workflows/production-readiness.yml
     with:
       release_sha: ${{ inputs.release_sha }}
-      frontend_bundle_digest: ${{ needs.deploy-candidate.outputs.frontend_bundle_digest }}
-      edge_artifact_digest: ${{ needs.deploy-candidate.outputs.edge_artifact_digest }}
+      frontend_sha: ${{ inputs.release_sha }}
+      edge_sha: ${{ inputs.release_sha }}
+      frontend_bundle_digest: ${{ needs.build-candidate.outputs.frontend_bundle_digest }}
+      edge_artifact_digest: ${{ needs.build-candidate.outputs.edge_artifact_digest }}
+      rebuild_frontend: true
+      rebuild_edge: true
     secrets: inherit

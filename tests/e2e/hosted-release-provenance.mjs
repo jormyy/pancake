@@ -19,7 +19,7 @@ const fetchJson = async (fetchImpl, url, label) => {
 }
 
 /**
- * @param {{ expected: { commitSha: string, frontendBundleDigest: string, edgeArtifactDigest: string }, edgeApiUrl: string, frontendUrl: string, fetchImpl?: typeof fetch }} input
+ * @param {{ expected: { frontendCommitSha: string, edgeCommitSha: string, frontendBundleDigest: string, edgeArtifactDigest: string }, edgeApiUrl: string, frontendUrl: string, fetchImpl?: typeof fetch }} input
  */
 export const probeHostedReleaseProvenance = async ({ expected, edgeApiUrl, frontendUrl, fetchImpl = fetch }) => {
   const edgeHealthUrl = `${edgeApiUrl.replace(/\/$/, '')}/health`
@@ -105,7 +105,8 @@ export const runHostedReleaseProvenance = async ({
 
 const main = async () => {
   const expected = {
-    commitSha: envValue('E2E_EXPECTED_RELEASE_SHA') ?? '',
+    frontendCommitSha: envValue('E2E_EXPECTED_FRONTEND_SHA') ?? '',
+    edgeCommitSha: envValue('E2E_EXPECTED_EDGE_SHA') ?? '',
     frontendBundleDigest: envValue('E2E_EXPECTED_FRONTEND_BUNDLE_DIGEST') ?? '',
     edgeArtifactDigest: envValue('E2E_EXPECTED_EDGE_ARTIFACT_DIGEST') ?? '',
   }

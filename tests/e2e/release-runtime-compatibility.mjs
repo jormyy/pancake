@@ -5,7 +5,13 @@ import process from 'node:process'
 const fullSha = (value) => typeof value === 'string' && /^[a-f0-9]{40}$/i.test(value)
 const digest = (value) => typeof value === 'string' && /^[a-f0-9]{64}$/i.test(value)
 
-export const validateReleaseCompatibilityEvidence = ({ candidateSha, deployedFrontendSha, deployedEdgeSha, pairs }) => {
+export const validateReleaseCompatibilityEvidence = ({
+  candidateSha,
+  deployedFrontendSha,
+  deployedEdgeSha,
+  deployedFrontendRebuild,
+  pairs,
+}) => {
   const failures = []
   const expected = new Map([
     ['deployed-frontend-candidate-edge', { frontendSha: deployedFrontendSha, edgeSha: candidateSha }],
@@ -27,6 +33,16 @@ export const validateReleaseCompatibilityEvidence = ({ candidateSha, deployedFro
   for (const [label, sha] of [['candidate', candidateSha], ['deployed frontend', deployedFrontendSha], ['deployed Edge', deployedEdgeSha]]) {
     if (!fullSha(sha)) failures.push(`${label} SHA is invalid`)
   }
+  const deployedPair = pairs?.find((candidate) => candidate?.id === 'deployed-frontend-candidate-edge')
+  if (deployedFrontendRebuild?.exactProductionRebuildVerified !== true) {
+    failures.push('deployed frontend exact production rebuild was not verified')
+  }
+  if (!digest(deployedFrontendRebuild?.liveBundleDigest)) {
+    failures.push('deployed frontend live bundle digest is invalid')
+  }
+  if (deployedFrontendRebuild?.compatibilityBundleDigest !== deployedPair?.frontend?.bundleDigest) {
+    failures.push('deployed frontend compatibility digest does not identify the browser-tested bundle')
+  }
   return failures
 }
 
@@ -45,16 +61,26 @@ const main = async () => {
   const candidateSha = required('E2E_RELEASE_SHA', process.env.E2E_RELEASE_SHA)
   const deployedFrontendSha = required('E2E_DEPLOYED_FRONTEND_SHA', process.env.E2E_DEPLOYED_FRONTEND_SHA)
   const deployedFrontendDigest = required('E2E_DEPLOYED_FRONTEND_DIGEST', process.env.E2E_DEPLOYED_FRONTEND_DIGEST)
+  const deployedFrontendCompatibilityDigest = required(
+    'E2E_DEPLOYED_FRONTEND_COMPATIBILITY_DIGEST',
+    process.env.E2E_DEPLOYED_FRONTEND_COMPATIBILITY_DIGEST,
+  )
   const deployedEdgeSha = required('E2E_DEPLOYED_EDGE_SHA', process.env.E2E_DEPLOYED_EDGE_SHA)
   const deployedEdgeDigest = required('E2E_DEPLOYED_EDGE_DIGEST', process.env.E2E_DEPLOYED_EDGE_DIGEST)
   const candidateEdgeDigest = required('E2E_CANDIDATE_EDGE_DIGEST', process.env.E2E_CANDIDATE_EDGE_DIGEST)
   const candidateFrontendDigest = required('E2E_CANDIDATE_FRONTEND_DIGEST', process.env.E2E_CANDIDATE_FRONTEND_DIGEST)
+  const deployedFrontendRebuild = {
+    commitSha: deployedFrontendSha,
+    liveBundleDigest: deployedFrontendDigest,
+    exactProductionRebuildVerified: true,
+    compatibilityBundleDigest: deployedFrontendCompatibilityDigest,
+  }
   const pairs = [
     {
       id: 'deployed-frontend-candidate-edge',
       status: oldFrontendReport.status,
       error: oldFrontendReport.error,
-      frontend: { commitSha: deployedFrontendSha, bundleDigest: deployedFrontendDigest },
+      frontend: { commitSha: deployedFrontendSha, bundleDigest: deployedFrontendCompatibilityDigest },
       edge: { commitSha: candidateSha, edgeArtifactDigest: candidateEdgeDigest },
       browserEvidenceId: oldFrontendReport.evidenceId,
     },
@@ -67,8 +93,20 @@ const main = async () => {
       browserEvidenceId: oldEdgeReport.evidenceId,
     },
   ]
-  const failures = validateReleaseCompatibilityEvidence({ candidateSha, deployedFrontendSha, deployedEdgeSha, pairs })
-  const report = { status: failures.length === 0 ? 'PASS' : 'FAIL', candidateSha, pairs, failures }
+  const failures = validateReleaseCompatibilityEvidence({
+    candidateSha,
+    deployedFrontendSha,
+    deployedEdgeSha,
+    deployedFrontendRebuild,
+    pairs,
+  })
+  const report = {
+    status: failures.length === 0 ? 'PASS' : 'FAIL',
+    candidateSha,
+    deployedFrontendRebuild,
+    pairs,
+    failures,
+  }
   const artifactRoot = path.join(process.cwd(), 'tests/artifacts/compatibility')
   await mkdir(artifactRoot, { recursive: true })
   await writeFile(path.join(artifactRoot, 'release-runtime-compatibility.json'), `${JSON.stringify(report, null, 2)}\n`)

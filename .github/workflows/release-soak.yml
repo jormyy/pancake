@@ -35,6 +35,7 @@ jobs:
       SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
       E2E_PRODUCTION_SUPABASE_REF: ceeytbfmwsnzalxlkalc
       EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
       EXPO_PUBLIC_API_URL: ${{ secrets.PANCAKE_API_URL }}
       E2E_PRODUCTION_FRONTEND_URL: ${{ secrets.PANCAKE_FRONTEND_URL }}
       E2E_EXPECTED_FRONTEND_HOST: ${{ secrets.PANCAKE_PRODUCTION_FRONTEND_HOST }}
@@ -58,7 +59,8 @@ jobs:
           test "$(git rev-parse HEAD)" = "$E2E_RELEASE_SHA"
           git merge-base --is-ancestor HEAD origin/main
           for name in SUPABASE_ACCESS_TOKEN SUPABASE_DB_PASSWORD SUPABASE_PROJECT_REF \
-            EXPO_PUBLIC_SUPABASE_URL EXPO_PUBLIC_API_URL E2E_PRODUCTION_FRONTEND_URL E2E_EXPECTED_FRONTEND_HOST; do
+            EXPO_PUBLIC_SUPABASE_URL EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY EXPO_PUBLIC_API_URL \
+            E2E_PRODUCTION_FRONTEND_URL E2E_EXPECTED_FRONTEND_HOST; do
             test -n "${!name:-}" || { echo "Missing protected release-soak credential: $name"; exit 1; }
           done
           node tests/e2e/validate-production-target.mjs
@@ -190,11 +192,23 @@ jobs:
           (
             cd "$deployed_frontend_worktree"
             PANCAKE_RELEASE_SHA="$E2E_DEPLOYED_FRONTEND_SHA" \
+              EXPO_PUBLIC_SUPABASE_URL="$EXPO_PUBLIC_SUPABASE_URL" \
+              EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY" \
+              EXPO_PUBLIC_API_URL="$EXPO_PUBLIC_API_URL" \
+              EXPO_UNSTABLE_METRO_OPTIMIZE_GRAPH=1 \
+              npm run build:web:release
+            marker_sha="$(node -e "process.stdout.write(require('./dist/release-provenance.json').commitSha)")"
+            marker_digest="$(node -e "process.stdout.write(require('./dist/release-provenance.json').bundleDigest)")"
+            test "$marker_sha" = "$E2E_DEPLOYED_FRONTEND_SHA"
+            test "$marker_digest" = "$E2E_DEPLOYED_FRONTEND_DIGEST"
+            PANCAKE_RELEASE_SHA="$E2E_DEPLOYED_FRONTEND_SHA" \
               EXPO_PUBLIC_SUPABASE_URL="$E2E_SUPABASE_URL" \
               EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$E2E_SUPABASE_PUBLISHABLE_KEY" \
               EXPO_PUBLIC_API_URL="$E2E_API_BASE_URL" \
               EXPO_UNSTABLE_METRO_OPTIMIZE_GRAPH=1 \
               npm run build:web:release
+            compatibility_digest="$(node -e "process.stdout.write(require('./dist/release-provenance.json').bundleDigest)")"
+            printf 'E2E_DEPLOYED_FRONTEND_COMPATIBILITY_DIGEST=%s\n' "$compatibility_digest" >> "$GITHUB_ENV"
           ) > tests/artifacts/stack/deployed-frontend-build.log 2>&1
           node tests/e2e/static-web-server.mjs \
             --root="$deployed_frontend_worktree/dist" --port=8083 \

@@ -97,13 +97,15 @@ export const validInternalEdgeAuthProbe = (result) => {
 /** @param {any} expected @param {any} edge @param {any} frontend */
 export const validateHostedReleaseProvenance = (expected, edge, frontend) => {
   const failures = []
-  if (!fullSha(expected?.commitSha)) failures.push('expected commitSha must be a full Git SHA')
+  if (!fullSha(expected?.frontendCommitSha)) failures.push('expected frontendCommitSha must be a full Git SHA')
+  if (!fullSha(expected?.edgeCommitSha)) failures.push('expected edgeCommitSha must be a full Git SHA')
   if (!digest(expected?.frontendBundleDigest)) failures.push('expected frontendBundleDigest must be a SHA-256 digest')
   if (!digest(expected?.edgeArtifactDigest)) failures.push('expected edgeArtifactDigest must be a SHA-256 digest')
-  for (const [label, actual] of [['Edge', edge], ['frontend', frontend]]) {
-    if (actual?.commitSha !== expected?.commitSha) {
-      failures.push(`${label} commitSha ${actual?.commitSha ?? 'missing'} does not match ${expected?.commitSha ?? 'missing'}`)
-    }
+  if (edge?.commitSha !== expected?.edgeCommitSha) {
+    failures.push(`Edge commitSha ${edge?.commitSha ?? 'missing'} does not match ${expected?.edgeCommitSha ?? 'missing'}`)
+  }
+  if (frontend?.commitSha !== expected?.frontendCommitSha) {
+    failures.push(`frontend commitSha ${frontend?.commitSha ?? 'missing'} does not match ${expected?.frontendCommitSha ?? 'missing'}`)
   }
   if (edge?.edgeArtifactDigest !== expected?.edgeArtifactDigest) {
     failures.push(`Edge edgeArtifactDigest ${edge?.edgeArtifactDigest ?? 'missing'} does not match ${expected?.edgeArtifactDigest ?? 'missing'}`)

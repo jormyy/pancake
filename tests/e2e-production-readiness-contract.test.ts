@@ -34,16 +34,17 @@ describe('production readiness contracts', () => {
 
     it('requires both deployed surfaces to match the intended release', () => {
         const expected = {
-            commitSha: 'a'.repeat(40),
+            frontendCommitSha: 'a'.repeat(40),
+            edgeCommitSha: 'd'.repeat(40),
             frontendBundleDigest: 'b'.repeat(64),
             edgeArtifactDigest: 'c'.repeat(64),
         }
-        const edge = { commitSha: expected.commitSha, edgeArtifactDigest: expected.edgeArtifactDigest }
-        const frontend = { commitSha: expected.commitSha, bundleDigest: expected.frontendBundleDigest }
+        const edge = { commitSha: expected.edgeCommitSha, edgeArtifactDigest: expected.edgeArtifactDigest }
+        const frontend = { commitSha: expected.frontendCommitSha, bundleDigest: expected.frontendBundleDigest }
         expect(validateHostedReleaseProvenance(expected, edge, frontend)).toEqual([])
         expect(validateHostedReleaseProvenance(
             expected,
-            { ...edge, commitSha: 'd'.repeat(40) },
+            { ...edge, commitSha: 'e'.repeat(40) },
             { ...frontend, bundleDigest: 'e'.repeat(64) },
         )).toEqual(expect.arrayContaining([
             expect.stringContaining('Edge commitSha'),
@@ -53,11 +54,12 @@ describe('production readiness contracts', () => {
 
     it('rejects malformed or missing expected release identifiers', () => {
         expect(validateHostedReleaseProvenance(
-            { commitSha: 'main', frontendBundleDigest: '', edgeArtifactDigest: '' },
+            { frontendCommitSha: 'main', edgeCommitSha: '', frontendBundleDigest: '', edgeArtifactDigest: '' },
             {},
             {},
         )).toEqual(expect.arrayContaining([
-            'expected commitSha must be a full Git SHA',
+            'expected frontendCommitSha must be a full Git SHA',
+            'expected edgeCommitSha must be a full Git SHA',
             'expected frontendBundleDigest must be a SHA-256 digest',
             'expected edgeArtifactDigest must be a SHA-256 digest',
         ]))
@@ -65,7 +67,8 @@ describe('production readiness contracts', () => {
 
     it('fails a stale Edge artifact even when mutable environment values claim the new release', async () => {
         const expected = {
-            commitSha: 'a'.repeat(40),
+            frontendCommitSha: 'a'.repeat(40),
+            edgeCommitSha: 'a'.repeat(40),
             frontendBundleDigest: 'b'.repeat(64),
             edgeArtifactDigest: 'c'.repeat(64),
         }
@@ -75,11 +78,11 @@ describe('production readiness contracts', () => {
                     ok: true,
                     service: 'pancake-supabase-api',
                     runtime: 'supabase-edge',
-                    commitSha: expected.commitSha,
+                    commitSha: expected.edgeCommitSha,
                     edgeArtifactDigest: 'd'.repeat(64),
-                    environmentReleaseSha: expected.commitSha,
+                    environmentReleaseSha: expected.edgeCommitSha,
                 }
-                : { commitSha: expected.commitSha, bundleDigest: expected.frontendBundleDigest },
+                : { commitSha: expected.frontendCommitSha, bundleDigest: expected.frontendBundleDigest },
         ))
 
         const result = await probeHostedReleaseProvenance({
@@ -132,7 +135,8 @@ describe('production readiness contracts', () => {
         try {
             const result = await runHostedReleaseProvenance({
                 expected: {
-                    commitSha: 'a'.repeat(40),
+                    frontendCommitSha: 'a'.repeat(40),
+                    edgeCommitSha: 'a'.repeat(40),
                     frontendBundleDigest: 'b'.repeat(64),
                     edgeArtifactDigest: 'c'.repeat(64),
                 },

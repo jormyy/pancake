@@ -4,7 +4,15 @@ on:
   workflow_call:
     inputs:
       release_sha:
-        description: Full Git SHA deployed by the caller
+        description: Full Git SHA whose readiness harness is executed
+        required: true
+        type: string
+      frontend_sha:
+        description: Full Git SHA served by the frontend under test
+        required: true
+        type: string
+      edge_sha:
+        description: Full Git SHA served by the Edge API under test
         required: true
         type: string
       frontend_bundle_digest:
@@ -23,6 +31,16 @@ on:
         description: Allow a Vercel candidate URL from the repository-owned deploy job
         required: false
         default: false
+        type: boolean
+      rebuild_frontend:
+        description: Rebuild and compare the checked-out frontend artifact
+        required: false
+        default: true
+        type: boolean
+      rebuild_edge:
+        description: Rebuild and compare the checked-out Edge artifact
+        required: false
+        default: true
         type: boolean
   workflow_dispatch:
     inputs:
@@ -72,6 +90,8 @@ jobs:
       E2E_ALLOW_CANDIDATE_FRONTEND: ${{ inputs.candidate_frontend && '1' || '0' }}
       E2E_PRODUCTION_SUPABASE_REF: ceeytbfmwsnzalxlkalc
       E2E_EXPECTED_RELEASE_SHA: ${{ github.event_name == 'repository_dispatch' && github.event.client_payload.release_sha || inputs.release_sha }}
+      E2E_EXPECTED_FRONTEND_SHA: ${{ github.event_name == 'repository_dispatch' && (github.event.client_payload.frontend_sha || github.event.client_payload.release_sha) || (inputs.frontend_sha || inputs.release_sha) }}
+      E2E_EXPECTED_EDGE_SHA: ${{ github.event_name == 'repository_dispatch' && (github.event.client_payload.edge_sha || github.event.client_payload.release_sha) || (inputs.edge_sha || inputs.release_sha) }}
       E2E_EXPECTED_FRONTEND_BUNDLE_DIGEST: ${{ github.event_name == 'repository_dispatch' && github.event.client_payload.frontend_bundle_digest || inputs.frontend_bundle_digest }}
       E2E_EXPECTED_EDGE_ARTIFACT_DIGEST: ${{ github.event_name == 'repository_dispatch' && github.event.client_payload.edge_artifact_digest || inputs.edge_artifact_digest }}
     steps:
@@ -105,6 +125,8 @@ jobs:
           test "$SUPABASE_PROJECT_REF" = "$E2E_PRODUCTION_SUPABASE_REF"
           test "$PANCAKE_LEGACY_SUPABASE_JWT_ROTATED" = '1'
           [[ "$E2E_EXPECTED_RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$E2E_EXPECTED_FRONTEND_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$E2E_EXPECTED_EDGE_SHA" =~ ^[0-9a-f]{40}$ ]]
           [[ "$E2E_EXPECTED_FRONTEND_BUNDLE_DIGEST" =~ ^[0-9a-f]{64}$ ]]
           [[ "$E2E_EXPECTED_EDGE_ARTIFACT_DIGEST" =~ ^[0-9a-f]{64}$ ]]
           test "$(git rev-parse HEAD)" = "$E2E_EXPECTED_RELEASE_SHA"
@@ -114,6 +136,7 @@ jobs:
         run: npm ci
 
       - name: Rebuild intended frontend release
+        if: github.event_name != 'workflow_call' || inputs.rebuild_frontend
         shell: bash
         run: |
           EXPO_UNSTABLE_METRO_OPTIMIZE_GRAPH=1 npm run build:web:release
@@ -124,6 +147,7 @@ jobs:
           }
 
       - name: Rebuild intended Edge artifact provenance
+        if: github.event_name != 'workflow_call' || inputs.rebuild_edge
         shell: bash
         run: |
           marker="$(PANCAKE_RELEASE_SHA="$E2E_EXPECTED_RELEASE_SHA" node scripts/stamp-edge-release-provenance.mjs)"
