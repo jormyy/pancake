@@ -20,6 +20,13 @@ afterEach(async () => {
 })
 
 describe('release E2E contracts', () => {
+  it('clears Metro transforms before stamping a release bundle', async () => {
+    const packageJson = JSON.parse(await readFile(path.join(process.cwd(), 'package.json'), 'utf8'))
+    expect(packageJson.scripts['build:web:release']).toBe(
+      'expo export --platform web --clear && node scripts/stamp-release-provenance.mjs',
+    )
+  })
+
   it('derives the mid-life migration probe from sorted repository head', async () => {
     const workflow = await readFile(path.join(process.cwd(), '.github/workflows/release-soak.yml'), 'utf8')
     expect(workflow).toContain("head_name=\"$(find supabase/migrations -maxdepth 1 -name '*.sql' -exec basename {} \\; | sort | tail -1)\"")

@@ -7,7 +7,7 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
-    "build:web:release": "expo export --platform web && node scripts/stamp-release-provenance.mjs",
+    "build:web:release": "expo export --platform web --clear && node scripts/stamp-release-provenance.mjs",
     "lint": "expo lint",
     "lint:all": "eslint app components constants contexts hooks lib types core/src core/tests scripts tests --max-warnings=0",
     "typecheck": "tsc -p tsconfig.json --noEmit",
