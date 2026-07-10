@@ -1,7 +1,7 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { StackRouter } from '@react-navigation/native'
 import { ComponentProps, ReactNode, useEffect, useMemo, useState } from 'react'
-import { Image, Modal, Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native'
+import { Image, Modal, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native'
 import { Link, Navigator, usePathname, useRouter } from 'expo-router'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useAuth } from '@/hooks/use-auth'
@@ -248,17 +248,24 @@ function SidebarNavButton({
     badge?: number
     accessibilityLabel?: string
 }) {
+    // Expo Router's asChild slot flattens styles before Pressable can evaluate a style callback.
+    const [hovered, setHovered] = useState(false)
+    const [pressed, setPressed] = useState(false)
     const button = (
         <Pressable
             onPress={onPress}
+            onHoverIn={() => setHovered(true)}
+            onHoverOut={() => setHovered(false)}
+            onPressIn={() => setPressed(true)}
+            onPressOut={() => setPressed(false)}
             disabled={disabled || loading}
-            style={({ hovered, pressed }: PressableState) => [
+            style={StyleSheet.flatten([
                 styles.sideNavItem,
                 active && styles.sideNavItemActive,
                 hovered && !active && styles.sideNavItemHover,
                 pressed && styles.pressed,
                 (disabled || loading) && styles.sideNavItemDisabled,
-            ]}
+            ])}
             accessibilityRole={href ? 'link' : 'button'}
             accessibilityLabel={accessibilityLabel ?? label}
             accessibilityState={{ selected: active, disabled: disabled || loading }}
