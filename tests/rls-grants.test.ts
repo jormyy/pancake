@@ -189,6 +189,20 @@ describe('profile privacy and invite capacity policies', () => {
             'REVOKE ALL ON FUNCTION public.handle_new_auth_user() FROM PUBLIC, anon, authenticated, service_role',
         )
     })
+
+    it('keeps the legacy push-token compatibility trigger owner-scoped and non-executable', () => {
+        const definition = latestFunctionDefinition('normalize_legacy_push_token_write', 'private')
+        const privileges = functionPrivilegeStatements('normalize_legacy_push_token_write', 'private')
+            .join('\n')
+            .replace(/\s+/g, ' ')
+
+        expect(definition).toContain('SECURITY DEFINER')
+        expect(definition).toContain("SET search_path = ''")
+        expect(definition).toContain('UPDATE public.profiles')
+        expect(privileges).toContain(
+            'REVOKE ALL ON FUNCTION private.normalize_legacy_push_token_write() FROM PUBLIC, anon, authenticated, service_role',
+        )
+    })
 })
 
 describe('waiver intent oracle closure', () => {

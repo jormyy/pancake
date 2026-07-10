@@ -7,7 +7,8 @@ ALTER TABLE public.profiles
 CREATE OR REPLACE FUNCTION private.normalize_legacy_push_token_write()
 RETURNS trigger
 LANGUAGE plpgsql
-SET search_path = public
+SECURITY DEFINER
+SET search_path = ''
 AS $$
 BEGIN
   IF NEW.push_token IS NULL THEN
@@ -17,7 +18,7 @@ BEGIN
 
   IF TG_OP = 'INSERT' OR NEW.push_token IS DISTINCT FROM OLD.push_token THEN
     PERFORM pg_advisory_xact_lock(hashtext('push-token'), hashtext(NEW.push_token));
-    UPDATE profiles
+    UPDATE public.profiles
        SET push_token = NULL,
            push_token_revocation_hash = NULL
      WHERE push_token = NEW.push_token
@@ -31,11 +32,14 @@ BEGIN
   ) THEN
     -- Old Edge versions write only push_token. Give those registrations an
     -- unexposed credential so paired state remains valid until the new RPC rotates it.
-    NEW.push_token_revocation_hash := encode(extensions.gen_random_bytes(32), 'hex');
+    NEW.push_token_revocation_hash := pg_catalog.encode(extensions.gen_random_bytes(32), 'hex');
   END IF;
   RETURN NEW;
 END;
 $$;
+
+REVOKE ALL ON FUNCTION private.normalize_legacy_push_token_write()
+  FROM PUBLIC, anon, authenticated, service_role;
 
 CREATE TRIGGER normalize_legacy_push_token_write
   BEFORE INSERT OR UPDATE OF push_token, push_token_revocation_hash ON public.profiles

@@ -49,6 +49,34 @@ BEGIN
 END;
 $$;
 
+-- Reproduce the token-only write used by already-released clients. The
+-- compatibility trigger must be able to normalize paired state under client
+-- grants and RLS without making its function directly callable.
+SET LOCAL ROLE authenticated;
+SELECT set_config(
+  'request.jwt.claim.sub',
+  '00000000-0000-0000-0000-000000090001',
+  true
+);
+UPDATE public.profiles
+   SET push_token = 'ExponentPushToken[legacy-authenticated-client]'
+ WHERE id = '00000000-0000-0000-0000-000000090001';
+RESET ROLE;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+      FROM public.profiles
+     WHERE id = '00000000-0000-0000-0000-000000090001'
+       AND push_token = 'ExponentPushToken[legacy-authenticated-client]'
+       AND push_token_revocation_hash ~ '^[0-9a-f]{64}$'
+  ) THEN
+    RAISE EXCEPTION 'Authenticated legacy token registration did not preserve paired state.';
+  END IF;
+END;
+$$;
+
 SELECT public.register_push_token_atomic(
   '00000000-0000-0000-0000-000000090001',
   'ExponentPushToken[credential-test]',
