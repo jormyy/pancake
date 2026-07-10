@@ -6,7 +6,7 @@ import { createClient } from '@supabase/supabase-js'
 import { resolvedEnv, requireEnv, describeEndpoint } from './env.mjs'
 import { browserDiagnosticFailures, installRuntimeOverrides } from './browser-runtime-overrides.mjs'
 import { clickButtonByName, createBrowser, fillSignInCredentials, listBrowserSessions } from './browser-agent.mjs'
-import { combineNavigationPhases, measureJavaScriptDelivery, measureNavigationTiming, measureWorkflowFeedback } from './browser-performance-evidence.mjs'
+import { combineNavigationPhases, hasRequestTimingEvidence, measureJavaScriptDelivery, measureNavigationTiming, measureWorkflowFeedback } from './browser-performance-evidence.mjs'
 import { createDisposableLeagueFromSeedUsers } from './soak-fixtures.mjs'
 import { resolveReleaseProvenance } from './release-provenance.mjs'
 
@@ -500,8 +500,8 @@ export async function runBrowserPerfSmoke({
     if (draftLoad.durationMs > MAX_SCRIPT_MS) failures.push(`draft mutation loop took ${draftLoad.durationMs}ms exceeded ${MAX_SCRIPT_MS}ms`)
     if (homeLoad.durationMs > MAX_SCRIPT_MS) failures.push(`home mutation loop took ${homeLoad.durationMs}ms exceeded ${MAX_SCRIPT_MS}ms`)
     if (draftFeedback?.feedbackMs == null || !draftFeedback.observed) failures.push(`observed draft bid feedback measurement missing${draftFeedback?.error ? `: ${draftFeedback.error}` : ''}`)
-    if (!Number.isFinite(draftLoadTiming?.cachedRequestMs) || !Number.isFinite(draftLoadTiming?.fullLoadMs)) failures.push('draft navigation timing measurement missing')
-    if (!homeFeedback?.observed || !Number.isFinite(homeFeedback?.feedbackMs) || !Number.isFinite(homeLoadTiming?.cachedRequestMs) || !Number.isFinite(homeLoadTiming?.fullLoadMs)) failures.push('observed home workflow timing measurement missing')
+    if (!hasRequestTimingEvidence(draftLoadTiming) || !Number.isFinite(draftLoadTiming?.fullLoadMs)) failures.push('draft navigation timing measurement missing')
+    if (!homeFeedback?.observed || !Number.isFinite(homeFeedback?.feedbackMs) || !hasRequestTimingEvidence(homeLoadTiming) || !Number.isFinite(homeLoadTiming?.fullLoadMs)) failures.push('observed home workflow timing measurement missing')
     if (draftFeedback?.feedbackMs > MAX_FEEDBACK_MS) failures.push(`draft bid feedback ${draftFeedback.feedbackMs}ms exceeded ${MAX_FEEDBACK_MS}ms`)
     if (homeFeedback?.feedbackMs > MAX_FEEDBACK_MS) failures.push(`home feedback ${homeFeedback.feedbackMs}ms exceeded ${MAX_FEEDBACK_MS}ms`)
     if (draftPerf.maxLongTaskMs > MAX_LONG_TASK_MS) failures.push(`draft long task ${draftPerf.maxLongTaskMs}ms exceeded ${MAX_LONG_TASK_MS}ms`)

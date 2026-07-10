@@ -454,12 +454,13 @@ describe('release E2E contracts', () => {
     expect(validateWorkflowReportKeys(manifest, {
       status: 'PASS',
       workflowMeasurements: [{ id: 'workflow', feedbackMs: 1, coldFullLoadMs: 2 }],
-    }, 'report.json')).toContain('workflow: report.json is missing numeric warmCachedRequestMs')
+    }, 'report.json')).toContain('workflow: report.json is missing explicit warm request evidence')
 
     expect(validateWorkflowReportKeys(manifest, {
       status: 'PASS',
       workflowMeasurements: [{
-        id: 'workflow', feedbackMs: 1, warmCachedRequestMs: 2, coldFullLoadMs: 3,
+        id: 'workflow', feedbackMs: 1, warmCachedRequestMs: 2, warmRequestCount: 1,
+        warmRequestEvidence: 'fetch-or-xhr-duration', coldFullLoadMs: 3,
         feedbackObserved: true, feedbackInteraction: 'real-action', routeWebJsKb: 0,
       }],
     }, 'report.json')).toContain('workflow: report.json is missing route JS transfer or cache-hit evidence')
@@ -467,7 +468,8 @@ describe('release E2E contracts', () => {
     expect(validateWorkflowReportKeys(manifest, {
       status: 'PASS',
       workflowMeasurements: [{
-        id: 'workflow', feedbackMs: 1, warmCachedRequestMs: 2, coldFullLoadMs: 3,
+        id: 'workflow', feedbackMs: 1, warmCachedRequestMs: null, warmRequestCount: 0,
+        warmRequestEvidence: 'no-fetch-or-xhr-observed', coldFullLoadMs: 3,
         feedbackObserved: true, feedbackInteraction: 'real-action', routeWebJsKb: 0,
         routeJsCacheHit: true, routeJsEntryCount: 1, routeJsNetworkEntryCount: 0,
         routeJsDecodedKb: 42, routeJsEncodedKb: 42,
@@ -488,7 +490,8 @@ describe('release E2E contracts', () => {
     const routeFailures = validateWorkflowReportKeys(manifest, {
       status: 'PASS',
       workflowMeasurements: [{
-        id: 'workflow', feedbackMs: 1, warmCachedRequestMs: 2, coldFullLoadMs: 3,
+        id: 'workflow', feedbackMs: 1, warmCachedRequestMs: 2, warmRequestCount: 1,
+        warmRequestEvidence: 'fetch-or-xhr-duration', coldFullLoadMs: 3,
         feedbackObserved: true, feedbackInteraction: 'real-action', routeWebJsKb: 0,
         routeJsCacheHit: true, routeJsEntryCount: 1, routeJsNetworkEntryCount: 0,
         routeJsDecodedKb: 500, routeJsEncodedKb: 500,
@@ -505,11 +508,11 @@ describe('release E2E contracts', () => {
     }
     expect(validateWorkflowReportKeys(manifest, {
       status: 'PASS',
-      workflowMeasurements: [{ ...measuredRoute, warmCachedRequestMs: 2, coldFullLoadMs: 1500 }],
+      workflowMeasurements: [{ ...measuredRoute, warmCachedRequestMs: 2, warmRequestCount: 1, warmRequestEvidence: 'fetch-or-xhr-duration', coldFullLoadMs: 1500 }],
     }, 'report.json')).toContain('workflow: report.json cold full load 1500ms exceeds 1000ms')
     expect(validateWorkflowReportKeys(manifest, {
       status: 'PASS',
-      workflowMeasurements: [{ ...measuredRoute, warmCachedRequestMs: 400, coldFullLoadMs: 3 }],
+      workflowMeasurements: [{ ...measuredRoute, warmCachedRequestMs: 400, warmRequestCount: 1, warmRequestEvidence: 'fetch-or-xhr-duration', coldFullLoadMs: 3 }],
     }, 'report.json')).toContain('workflow: report.json warmed cached request 400ms exceeds 300ms')
 
     const dataFailures = validateDataLatencyReport(manifest, {

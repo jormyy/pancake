@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import {
   combineNavigationPhases,
+  hasRequestTimingEvidence,
   measureNavigationTiming,
   measureWorkflowFeedback,
   recordWorkflowMeasurement,
@@ -96,6 +97,8 @@ describe('browser performance evidence', () => {
       routeJsCacheHit: false, routeJsDecodedKb: 40, routeJsEntryCount: 1, routeJsNetworkEntryCount: 1,
       routeJsLedger: [{ url: '/trades.js', encodedBodySize: 40960, decodedBodySize: 40960 }],
       feedbackMs: 5, cachedRequestMs: 10, fullLoadMs: 100,
+      warmCachedRequestMs: 10, warmRequestCount: 1, warmRequestEvidence: 'fetch-or-xhr-duration',
+      coldFullLoadMs: 100,
       feedbackObserved: true, feedbackInteraction: 'history',
     }]
     recordWorkflowMeasurement(measurements, {
@@ -106,6 +109,8 @@ describe('browser performance evidence', () => {
         { url: '/propose-trade-b.js', encodedBodySize: 40960, decodedBodySize: 40960 },
       ],
       feedbackMs: 8, cachedRequestMs: 20, fullLoadMs: 200,
+      warmCachedRequestMs: 20, warmRequestCount: 2, warmRequestEvidence: 'fetch-or-xhr-duration',
+      coldFullLoadMs: 200,
       feedbackObserved: true, feedbackInteraction: 'mode',
     })
 
@@ -117,6 +122,9 @@ describe('browser performance evidence', () => {
       routeJsEntryCount: 2,
       routeJsNetworkEntryCount: 0,
       routeEvidenceRoute: '/propose-trade',
+      warmCachedRequestMs: 20,
+      warmRequestCount: 2,
+      coldFullLoadMs: 200,
       routeJsLedger: [
         { url: '/propose-trade-a.js', encodedBodySize: 40960, decodedBodySize: 40960 },
         { url: '/propose-trade-b.js', encodedBodySize: 40960, decodedBodySize: 40960 },
@@ -174,7 +182,22 @@ describe('browser performance evidence', () => {
       workflowId: 'dynasty-hub',
       label: 'dynasty',
     })).resolves.toMatchObject({ fullLoadMs: 432, navigationLoadMs: 25, readyState: true })
-    expect(timingSource).toContain('requests.length > 0 ? Math.round(Math.max(...requests)) : 0')
+    expect(timingSource).toContain('requests.length > 0 ? Math.round(Math.max(...requests)) : null')
+    expect(timingSource).toContain("requestEvidence: requests.length > 0 ? 'fetch-or-xhr-duration' : 'no-fetch-or-xhr-observed'")
+  })
+
+  it('distinguishes timed requests from an explicitly observed request-free navigation', () => {
+    expect(hasRequestTimingEvidence({
+      requestCount: 2,
+      cachedRequestMs: 42,
+      requestEvidence: 'fetch-or-xhr-duration',
+    })).toBe(true)
+    expect(hasRequestTimingEvidence({
+      requestCount: 0,
+      cachedRequestMs: null,
+      requestEvidence: 'no-fetch-or-xhr-observed',
+    })).toBe(true)
+    expect(hasRequestTimingEvidence({ requestCount: 0, cachedRequestMs: 0 })).toBe(false)
   })
 
   it('accepts the commissioner pause control as active auction readiness', async () => {

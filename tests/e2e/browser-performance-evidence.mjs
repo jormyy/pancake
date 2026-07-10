@@ -36,6 +36,7 @@ export const WORKFLOW_FEEDBACK_IDS = Object.freeze([
 
 const worstCaseMeasurementKeys = [
   'feedbackMs',
+  'coldFullLoadMs',
   'cachedRequestMs',
   'fullLoadMs',
   'initialWebJsKb',
@@ -66,6 +67,15 @@ export const recordWorkflowMeasurement = (measurements, next) => {
   for (const key of worstCaseMeasurementKeys) {
     if (Number.isFinite(next[key])) existing[key] = Math.max(Number(existing[key] ?? 0), next[key])
   }
+  const existingTimedRequest = Number.isInteger(existing.warmRequestCount) && existing.warmRequestCount > 0 &&
+    Number.isFinite(existing.warmCachedRequestMs)
+  const nextTimedRequest = Number.isInteger(next.warmRequestCount) && next.warmRequestCount > 0 &&
+    Number.isFinite(next.warmCachedRequestMs)
+  if (nextTimedRequest && (!existingTimedRequest || next.warmCachedRequestMs > existing.warmCachedRequestMs)) {
+    existing.warmCachedRequestMs = next.warmCachedRequestMs
+    existing.warmRequestCount = next.warmRequestCount
+    existing.warmRequestEvidence = next.warmRequestEvidence
+  }
   if (replaceRouteEvidence) {
     for (const key of routeEvidenceKeys) existing[key] = next[key]
     existing.routeEvidenceRoute = next.route
@@ -79,9 +89,19 @@ export const combineNavigationPhases = (cold, warm) => ({
   ...warm,
   coldFullLoadMs: cold?.fullLoadMs,
   warmCachedRequestMs: warm?.cachedRequestMs,
+  warmRequestCount: warm?.requestCount,
+  warmRequestEvidence: warm?.requestEvidence,
   fullLoadMs: cold?.fullLoadMs,
   cachedRequestMs: warm?.cachedRequestMs,
 })
+
+export const hasRequestTimingEvidence = (timing) => (
+  Number.isInteger(timing?.requestCount) && timing.requestCount > 0 &&
+    Number.isFinite(timing.cachedRequestMs) && timing.cachedRequestMs >= 0
+) || (
+  timing?.requestCount === 0 && timing.cachedRequestMs == null &&
+    timing.requestEvidence === 'no-fetch-or-xhr-observed'
+)
 
 const browserJson = async (browser, session, source) => parseEvalJson(await browser(session, ['eval', source]))
 
@@ -176,7 +196,9 @@ export const measureNavigationTiming = async (browser, session, { workflowId, la
     const delivery = ${javascriptDeliveryExpression(sharedScriptUrls)};
     return JSON.stringify({
       navigationLoadMs: Math.round(nav.loadEventEnd || nav.domContentLoadedEventEnd || nav.responseEnd || 0),
-      cachedRequestMs: requests.length > 0 ? Math.round(Math.max(...requests)) : 0,
+      cachedRequestMs: requests.length > 0 ? Math.round(Math.max(...requests)) : null,
+      requestCount: requests.length,
+      requestEvidence: requests.length > 0 ? 'fetch-or-xhr-duration' : 'no-fetch-or-xhr-observed',
       domContentLoadedMs: Math.round(nav.domContentLoadedEventEnd || 0),
       responseEndMs: Math.round(nav.responseEnd || 0),
       transferSize: Math.round(nav.transferSize || 0),

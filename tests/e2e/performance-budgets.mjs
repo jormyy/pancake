@@ -110,7 +110,6 @@ export const validateBrowserPerfReport = (manifest, report, expectedProvenance =
 
 const budgetMeasurementKeys = {
   feedbackMs: 'feedbackMs',
-  cachedRequestMs: 'warmCachedRequestMs',
   fullLoadMs: 'coldFullLoadMs',
 }
 
@@ -143,6 +142,13 @@ export const validateWorkflowReportKeys = (manifest, report, reportPath, expecte
       if (workflow.budgets?.[budgetKey] != null && !Number.isFinite(measurement[measurementKey])) {
         failures.push(`${workflow.id}: ${reportPath} is missing numeric ${measurementKey}`)
       }
+    }
+    const timedWarmRequest = Number.isInteger(measurement.warmRequestCount) && measurement.warmRequestCount > 0 &&
+      Number.isFinite(measurement.warmCachedRequestMs) && measurement.warmCachedRequestMs >= 0
+    const explicitNoWarmRequest = measurement.warmRequestCount === 0 && measurement.warmCachedRequestMs == null &&
+      measurement.warmRequestEvidence === 'no-fetch-or-xhr-observed'
+    if (!timedWarmRequest && !explicitNoWarmRequest) {
+      failures.push(`${workflow.id}: ${reportPath} is missing explicit warm request evidence`)
     }
     if (measurement.feedbackObserved !== true || !measurement.feedbackInteraction) failures.push(`${workflow.id}: ${reportPath} is missing observed interaction feedback`)
     if (workflow.id === 'home-live-lineup') {
