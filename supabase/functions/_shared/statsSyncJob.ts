@@ -1,35 +1,43 @@
-const STATS_SYNC_BATCH_SIZE = 3
+const MAX_EMPTY_DATE_SCANS = 31
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
 export type StatsSyncJobMetadata = {
   startDate: string
   endDate: string
   nextDate: string
-  claimedAt?: string
-}
-
-type StatsSyncCheckpoint = {
-  completedItems: number
-  metadata: StatsSyncJobMetadata
-  completed: boolean
+  afterGameId?: string
 }
 
 type StatsSyncJobDependencies = {
-  syncDate: (date: string) => Promise<void>
-  checkpoint: (checkpoint: StatsSyncCheckpoint) => Promise<void>
-  enqueueContinuation: () => Promise<void>
+  findNextGame: (date: string, afterGameId?: string) => Promise<string | null>
+  syncGame: (gameId: string) => Promise<void>
+  checkpoint: (completedItems: number, metadata: StatsSyncJobMetadata) => Promise<void>
+  release: (completedItems: number, metadata: StatsSyncJobMetadata) => Promise<void>
+  complete: (completedItems: number, metadata: StatsSyncJobMetadata) => Promise<void>
 }
 
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
+export type StatsSyncJobUnitResult = {
+  completedItems: number
+  completed: boolean
+  processedGame: boolean
+  metadata: StatsSyncJobMetadata
+}
 
-function addStatsSyncDays(dateKey: string, days: number): string {
+export function addStatsSyncDays(dateKey: string, days: number): string {
   const [year, month, day] = dateKey.split('-').map(Number)
   return new Date(Date.UTC(year, month - 1, day + days, 12)).toISOString().slice(0, 10)
 }
 
+function isIsoDate(value: string): boolean {
+  if (!DATE_RE.test(value)) return false
+  const [year, month, day] = value.split('-').map(Number)
+  const parsed = new Date(Date.UTC(year, month - 1, day, 12))
+  return parsed.getUTCFullYear() === year && parsed.getUTCMonth() === month - 1 && parsed.getUTCDate() === day
+}
+
 export function statsSyncRange(today: string, days: number): StatsSyncJobMetadata {
-  if (!DATE_RE.test(today) || Number.isNaN(Date.parse(`${today}T12:00:00Z`))) {
-    throw new RangeError('today must be an ISO date')
-  }
+  if (!isIsoDate(today)) throw new RangeError('today must be an ISO date')
   if (!Number.isInteger(days) || days < 1 || days > 365) {
     throw new RangeError('days must be an integer between 1 and 365')
   }
@@ -45,47 +53,68 @@ export function parseStatsSyncJobMetadata(value: unknown): StatsSyncJobMetadata 
   const startDate = metadata.startDate
   const endDate = metadata.endDate
   const nextDate = metadata.nextDate
-  if (typeof startDate !== 'string' || !DATE_RE.test(startDate)) {
+  const afterGameId = metadata.afterGameId
+  if (typeof startDate !== 'string' || !isIsoDate(startDate)) {
     throw new Error('Stats sync job startDate is invalid')
   }
-  if (typeof endDate !== 'string' || !DATE_RE.test(endDate)) {
+  if (typeof endDate !== 'string' || !isIsoDate(endDate)) {
     throw new Error('Stats sync job endDate is invalid')
   }
-  if (typeof nextDate !== 'string' || !DATE_RE.test(nextDate)) {
+  if (typeof nextDate !== 'string' || !isIsoDate(nextDate)) {
     throw new Error('Stats sync job nextDate is invalid')
   }
-  if (startDate > nextDate || nextDate > endDate) {
+  if (startDate > endDate || startDate > nextDate || nextDate > addStatsSyncDays(endDate, 1)) {
     throw new Error('Stats sync job cursor is outside its date range')
+  }
+  if (afterGameId !== undefined && (typeof afterGameId !== 'string' || !UUID_RE.test(afterGameId))) {
+    throw new Error('Stats sync job afterGameId is invalid')
+  }
+  if (nextDate > endDate && afterGameId !== undefined) {
+    throw new Error('Completed stats sync cursor cannot retain a game id')
   }
   return {
     startDate,
     endDate,
     nextDate,
-    ...(typeof metadata.claimedAt === 'string' ? { claimedAt: metadata.claimedAt } : {}),
+    ...(typeof afterGameId === 'string' ? { afterGameId } : {}),
   }
 }
 
-export async function runStatsSyncJobBatch(
-  metadata: StatsSyncJobMetadata,
+export async function runStatsSyncJobUnit(
+  initialMetadata: StatsSyncJobMetadata,
   completedItems: number,
   dependencies: StatsSyncJobDependencies,
-): Promise<{ completedItems: number; completed: boolean; nextDate: string }> {
-  let nextDate = metadata.nextDate
-  let completed = completedItems
+): Promise<StatsSyncJobUnitResult> {
+  let metadata = parseStatsSyncJobMetadata(initialMetadata)
 
-  for (let processed = 0; processed < STATS_SYNC_BATCH_SIZE && nextDate <= metadata.endDate; processed += 1) {
-    await dependencies.syncDate(nextDate)
-    completed += 1
-    nextDate = addStatsSyncDays(nextDate, 1)
-    const jobCompleted = nextDate > metadata.endDate
-    await dependencies.checkpoint({
-      completedItems: completed,
-      metadata: { ...metadata, nextDate, claimedAt: metadata.claimedAt },
-      completed: jobCompleted,
-    })
-    if (jobCompleted) return { completedItems: completed, completed: true, nextDate }
+  for (let scanned = 0; scanned < MAX_EMPTY_DATE_SCANS; scanned += 1) {
+    if (metadata.nextDate > metadata.endDate) {
+      await dependencies.complete(completedItems, metadata)
+      return { completedItems, completed: true, processedGame: false, metadata }
+    }
+
+    const gameId = await dependencies.findNextGame(metadata.nextDate, metadata.afterGameId)
+    if (gameId) {
+      await dependencies.syncGame(gameId)
+      completedItems += 1
+      metadata = { ...metadata, afterGameId: gameId }
+      await dependencies.checkpoint(completedItems, metadata)
+      await dependencies.release(completedItems, metadata)
+      return { completedItems, completed: false, processedGame: true, metadata }
+    }
+
+    metadata = {
+      startDate: metadata.startDate,
+      endDate: metadata.endDate,
+      nextDate: addStatsSyncDays(metadata.nextDate, 1),
+    }
   }
 
-  await dependencies.enqueueContinuation()
-  return { completedItems: completed, completed: false, nextDate }
+  if (metadata.nextDate > metadata.endDate) {
+    await dependencies.complete(completedItems, metadata)
+    return { completedItems, completed: true, processedGame: false, metadata }
+  }
+
+  await dependencies.release(completedItems, metadata)
+  return { completedItems, completed: false, processedGame: false, metadata }
 }

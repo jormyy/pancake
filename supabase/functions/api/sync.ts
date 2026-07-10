@@ -15,7 +15,7 @@ import {
 import { supabase } from '../_shared/supabase.ts'
 import { generateAllMatchups } from './matchups.ts'
 import { todayET } from '../_shared/date.ts'
-import { parseStatsSyncJobMetadata, statsSyncRange } from '../_shared/statsSyncJob.ts'
+import { statsSyncRange } from '../_shared/statsSyncJob.ts'
 
 async function requireAdminUser(req: Request): Promise<void> {
   const userId = await requireUser(req)
@@ -25,51 +25,12 @@ async function requireAdminUser(req: Request): Promise<void> {
 async function syncStats(body: Record<string, unknown>): Promise<Record<string, unknown>> {
   const days = optionalIntegerField(body, 'days', { min: 1, max: 365 }) ?? 1
   const range = statsSyncRange(todayET(), days)
-  const jobType = `sync_stats_range:${range.startDate}:${range.endDate}`
-  const { data: existingJobs, error: existingError } = await supabase
-    .from('sync_jobs')
-    .select('id, status, metadata')
-    .eq('job_type', jobType)
-    .in('status', ['pending', 'running', 'failed'])
-    .order('created_at', { ascending: false })
-    .limit(1)
-  if (existingError) throwDb(existingError)
-
-  let jobId = existingJobs?.[0]?.id
-  if (jobId) {
-    const existing = existingJobs[0]
-    const metadata = parseStatsSyncJobMetadata(existing.metadata)
-    const claimedAt = metadata.claimedAt ? Date.parse(metadata.claimedAt) : Number.NaN
-    const staleRunningJob = existing.status === 'running' &&
-      (!Number.isFinite(claimedAt) || claimedAt < Date.now() - 2 * 60_000)
-    if (existing.status === 'failed' || staleRunningJob) {
-      const { claimedAt: _claimedAt, ...releasedMetadata } = metadata
-      const { error } = await supabase
-        .from('sync_jobs')
-        .update({ status: 'pending', completed_at: null, metadata: releasedMetadata })
-        .eq('id', jobId)
-        .eq('status', existing.status)
-        .contains('metadata', metadata.claimedAt ? { claimedAt: metadata.claimedAt } : {})
-      if (error) throwDb(error)
-    }
-  } else {
-    const { data: created, error } = await supabase
-      .from('sync_jobs')
-      .insert({
-        job_type: jobType,
-        status: 'pending',
-        total_items: days,
-        completed_items: 0,
-        failed_items: 0,
-        error_log: [],
-        metadata: range,
-        started_at: new Date().toISOString(),
-      })
-      .select('id')
-      .single()
-    if (error) throwDb(error)
-    jobId = created.id
-  }
+  const { data: jobId, error } = await supabase.rpc('create_or_resume_stats_sync_job_atomic', {
+    p_start_date: range.startDate,
+    p_end_date: range.endDate,
+  })
+  if (error) throwDb(error)
+  if (!jobId) throw new Error('Stats sync job creation returned no id')
 
   const result = await invokeInternalFunction('sync-stats', { jobId })
   return {
