@@ -4,7 +4,7 @@ const PUSH_TIMEOUT_MS = 8000
 const EXPO_BATCH_SIZE = 100
 const EXPO_BATCH_CONCURRENCY = 2
 
-export type NotificationCategory = 'trade' | 'waiver' | 'draft' | 'activity'
+type NotificationCategory = 'trade' | 'waiver' | 'draft' | 'activity'
 type NotificationPreferenceColumn = 'trade_enabled' | 'waiver_enabled' | 'draft_enabled' | 'activity_enabled'
 type NotificationPreferences = Record<NotificationPreferenceColumn, boolean>
 type LookupError = { message: string; code?: string }
@@ -19,7 +19,7 @@ export type NotificationDeliveryFailureCode =
   | 'expo_response'
   | 'expo_status'
 
-export type NotificationDeliveryResult =
+type NotificationDeliveryResult =
   | { status: 'sent' }
   | { status: 'skipped'; reason: 'preferences_disabled' | 'missing_push_token' }
 
@@ -31,7 +31,7 @@ export type NotificationMessage = {
   category?: NotificationCategory
 }
 
-export type NotificationBatchResult = NotificationDeliveryResult & { memberId: string }
+type NotificationBatchResult = NotificationDeliveryResult & { memberId: string }
 
 export class NotificationDeliveryError extends Error {
   readonly code: NotificationDeliveryFailureCode
@@ -59,7 +59,7 @@ export class NotificationDeliveryError extends Error {
   }
 }
 
-export class NotificationBatchDeliveryError extends Error {
+class NotificationBatchDeliveryError extends Error {
   readonly code: NotificationDeliveryFailureCode
   readonly memberIds: string[]
 
