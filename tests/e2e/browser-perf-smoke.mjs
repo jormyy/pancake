@@ -392,7 +392,7 @@ export async function runBrowserPerfSmoke({
     await browser(session, ['set', 'viewport', '390', '844'])
 
     await browser(session, ['open', joinUrl(env.frontendUrl, `/draft-room?draftId=${auction.draftId}`)])
-    const draftRouteTiming = await measureNavigationTiming(browser, session, { workflowId: 'auction-draft-room', label: 'draft-room' })
+    const draftRouteTiming = await measureNavigationTiming(browser, session, { workflowId: 'auction-draft-room', label: 'draft-room-initial' })
     await signIn(peerSession, env, state, peerUser)
     await browser(peerSession, ['set', 'viewport', '390', '844'])
     await browser(peerSession, ['open', joinUrl(env.frontendUrl, `/draft-room?draftId=${auction.draftId}`)])
