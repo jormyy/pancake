@@ -352,9 +352,11 @@ export const measureWorkflowFeedback = async (browser, session, { workflowId, la
 
   if (workflowId === 'waiver-add-claim') {
     const selector = '[aria-label="FAAB bid amount"]'
+    const current = await browserJson(browser, session, `(() => JSON.stringify({ value: document.querySelector(${JSON.stringify(selector)})?.value ?? '' }))()`)
+    const value = current.value === '1' ? '2' : '1'
     const result = await typeMeasuredTarget(browser, session, {
-      selector, value: '1',
-      expected: `document.querySelector(${JSON.stringify(selector)})?.value === '01'`,
+      selector, value,
+      expected: `document.querySelector(${JSON.stringify(selector)})?.value === ${JSON.stringify(value)}`,
       interaction: 'waiver-faab-input', target: 'FAAB bid amount',
     })
     await browser(session, ['fill', selector, '0'])

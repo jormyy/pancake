@@ -203,6 +203,22 @@ describe('browser performance evidence', () => {
     expect(browser).toHaveBeenCalledWith('session', ['click', '[role="tab"][aria-label^="History"]'])
   })
 
+  it('changes the default FAAB value before measuring input feedback', async () => {
+    const browser = vi.fn(async (_session: string, args: string[]) => {
+      if (args[0] === 'type' || args[0] === 'fill') return ''
+      const source = args[1]
+      if (source.includes("value: document.querySelector")) return JSON.stringify({ value: '1' })
+      if (source.includes('expectedBeforeAction')) return JSON.stringify({ ok: true, expectedBeforeAction: false })
+      if (source.includes('const deadline')) return JSON.stringify({ feedbackMs: 7.1, observed: true })
+      throw new Error(`Unexpected browser command: ${args.join(' ')}`)
+    })
+
+    await expect(measureWorkflowFeedback(browser, 'session', { workflowId: 'waiver-add-claim' }))
+      .resolves.toMatchObject({ feedbackMs: 7.1, observed: true, interaction: 'waiver-faab-input' })
+    expect(browser).toHaveBeenCalledWith('session', ['type', '[aria-label="FAAB bid amount"]', '2'])
+    expect(browser).toHaveBeenCalledWith('session', ['fill', '[aria-label="FAAB bid amount"]', '0'])
+  })
+
   it('keeps the lineup feedback target inside the selected day row', async () => {
     let targetSource = ''
     const browser = vi.fn(async (_session: string, args: string[]) => {
