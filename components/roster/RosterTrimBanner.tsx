@@ -31,7 +31,7 @@ export function RosterTrimBanner({
             <Text style={styles.detail}>Lineup changes are locked. Drop players or move eligible players to an open reserve slot.</Text>
             <ScrollView style={styles.list} nestedScrollEnabled>
                 {players.map((player) => {
-                    const busy = busyId === player.id
+                    const busy = busyId !== null
                     return (
                         <View key={player.id} style={styles.row}>
                             <Avatar

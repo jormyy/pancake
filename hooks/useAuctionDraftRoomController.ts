@@ -42,6 +42,7 @@ export function useAuctionDraftRoomController({
     const [presenceOwnerKey, setPresenceOwnerKey] = useState<string | null>(null)
     const resumeDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const activePresenceKeyRef = useRef<string | null>(null)
+    const activeDraftIdRef = useRef<string | undefined>(draftId)
 
     // Nomination / player search
     const [nominating, setNominating] = useState(false)
@@ -75,6 +76,7 @@ export function useAuctionDraftRoomController({
     const countdownNomination = state?.openNomination
     const draftLeagueId = state?.draft.leagueId ?? null
     const presenceKey = draftId && memberId ? `${draftId}:${memberId}` : null
+    activeDraftIdRef.current = draftId
     activePresenceKeyRef.current = presenceKey
 
     useEffect(() => {
@@ -83,9 +85,15 @@ export function useAuctionDraftRoomController({
         setState(null)
         setLoadError(null)
         setBidText('1')
+        setBidding(false)
+        setWithdrawing(false)
         setNominating(false)
         setSearchQuery('')
         setSearchResults([])
+        setSearchLoading(false)
+        setSearchError(null)
+        setSubmittingNom(false)
+        setTimeLeft(0)
         lastNomIdRef.current = null
         closeTriggeredForNomRef.current = null
         return () => {
@@ -106,11 +114,13 @@ export function useAuctionDraftRoomController({
 
     const load = useCallback(async () => {
         if (!draftId) return
+        const requestedDraftId = draftId
+        if (activeDraftIdRef.current !== requestedDraftId) return
         const seq = ++loadSeqRef.current
         try {
-            const s = await getDraftState(draftId)
+            const s = await getDraftState(requestedDraftId)
             // Ignore a stale, out-of-order result once a newer load has started.
-            if (seq !== loadSeqRef.current) return
+            if (seq !== loadSeqRef.current || activeDraftIdRef.current !== requestedDraftId) return
             setLoadError(null)
             // Only commit a DEFINITE state. getDraftState() returns null (not a
             // throw) on a transient fetch failure; committing null would blank the
@@ -140,7 +150,9 @@ export function useAuctionDraftRoomController({
                 }
             }
         } catch (e) {
-            if (seq === loadSeqRef.current) setLoadError(getErrorMessage(e))
+            if (seq === loadSeqRef.current && activeDraftIdRef.current === requestedDraftId) {
+                setLoadError(getErrorMessage(e))
+            }
         }
     }, [draftId])
 
@@ -185,15 +197,18 @@ export function useAuctionDraftRoomController({
             setTimeLeft(diff)
             // When the clock hits zero, trigger server-side close once per nomination.
             if (diff === 0 && draftId && closeTriggeredForNomRef.current !== countdownNomination.id) {
+                const requestedDraftId = draftId
                 closeTriggeredForNomRef.current = countdownNomination.id
-                closeExpiredNominations(draftId)
+                closeExpiredNominations(requestedDraftId)
                     .then(({ closed }) => {
+                        if (activeDraftIdRef.current !== requestedDraftId) return
                         // If the server closed nothing (clock skew — client hit 0 before
                         // the server expiry), reset so the next tick retries.
                         if (closed === 0) closeTriggeredForNomRef.current = null
                         else load()
                     })
                     .catch(() => {
+                        if (activeDraftIdRef.current !== requestedDraftId) return
                         // Network/auth failure — reset so the next tick can retry.
                         closeTriggeredForNomRef.current = null
                     })
@@ -275,6 +290,7 @@ export function useAuctionDraftRoomController({
 
     async function handleBid() {
         if (!state?.openNomination || !memberId || !draftId) return
+        const ownerKey = `${draftId}:${memberId}`
         // Guard the typed bid only at submit time: must be a whole-dollar amount
         // at least the minimum and within remaining budget.
         const min = Math.max(1, (state.openNomination.currentBidAmount ?? 0) + 1)
@@ -292,29 +308,33 @@ export function useAuctionDraftRoomController({
         setBidding(true)
         try {
             await placeBid(draftId, memberId, state.openNomination.id, amount)
+            if (activePresenceKeyRef.current !== ownerKey) return
             load()
         } catch (e) {
-            showAlert('Bid failed', getErrorMessage(e))
+            if (activePresenceKeyRef.current === ownerKey) showAlert('Bid failed', getErrorMessage(e))
         } finally {
-            setBidding(false)
+            if (activePresenceKeyRef.current === ownerKey) setBidding(false)
         }
     }
 
     async function handleWithdraw() {
         if (!state?.openNomination || !memberId || !draftId) return
+        const ownerKey = `${draftId}:${memberId}`
         setWithdrawing(true)
         try {
             await withdrawNomination(draftId, memberId, state.openNomination.id)
+            if (activePresenceKeyRef.current !== ownerKey) return
             load()
         } catch (e) {
-            showAlert('Could not withdraw', getErrorMessage(e))
+            if (activePresenceKeyRef.current === ownerKey) showAlert('Could not withdraw', getErrorMessage(e))
         } finally {
-            setWithdrawing(false)
+            if (activePresenceKeyRef.current === ownerKey) setWithdrawing(false)
         }
     }
 
     async function handleNominate(playerId: string) {
         if (!memberId || !draftId) return
+        const ownerKey = `${draftId}:${memberId}`
         if (presenceSynced && state?.draft.draftType === 'auction') {
             const presentSet = new Set(presentMemberIds)
             const missing = (state?.order ?? []).filter((o) => !presentSet.has(o.memberId))
@@ -327,15 +347,16 @@ export function useAuctionDraftRoomController({
         setSubmittingNom(true)
         try {
             await nominatePlayer(draftId, memberId, playerId)
+            if (activePresenceKeyRef.current !== ownerKey) return
             setNominating(false)
             setSearchQuery('')
             setSearchResults([])
             searchSeqRef.current += 1
             load()
         } catch (e) {
-            showAlert('Nomination failed', getErrorMessage(e))
+            if (activePresenceKeyRef.current === ownerKey) showAlert('Nomination failed', getErrorMessage(e))
         } finally {
-            setSubmittingNom(false)
+            if (activePresenceKeyRef.current === ownerKey) setSubmittingNom(false)
         }
     }
 

@@ -6,6 +6,7 @@ import type { DraftState } from '@/lib/draft'
 
 const mocks = vi.hoisted(() => ({
     getDraftState: vi.fn(),
+    placeBid: vi.fn(),
     resumeIfAbsent: vi.fn(),
     presenceCallback: null as ((ids: string[]) => void) | null,
     unsubscribeFromDraft: vi.fn(),
@@ -16,7 +17,7 @@ vi.mock('@/lib/draft', () => ({
     getDraftState: mocks.getDraftState,
     nominatePlayer: vi.fn(),
     pauseForAbsence: vi.fn(async () => undefined),
-    placeBid: vi.fn(),
+    placeBid: mocks.placeBid,
     resumeIfAbsent: mocks.resumeIfAbsent,
     searchPlayers: vi.fn(async () => []),
     subscribeToDraft: vi.fn(() => ({ topic: 'draft' })),
@@ -62,6 +63,24 @@ function state(draftId: string): DraftState {
     }
 }
 
+function liveState(draftId: string): DraftState {
+    const base = state(draftId)
+    const openNomination = {
+        id: `nomination-${draftId}`,
+        status: 'open' as const,
+        nominatingMemberId: 'member',
+        currentBidAmount: 1,
+        currentBidderId: null,
+        countdownExpiresAt: new Date(Date.now() + 60_000).toISOString(),
+        winningMemberId: null,
+        finalPrice: null,
+        nominatedAt: new Date().toISOString(),
+        nominationOrder: 1,
+        player: { displayName: 'Player', nbaTeam: 'LAL', position: 'PG', nbaId: null, age: 22 },
+    }
+    return { ...base, openNomination, nominations: [openNomination], draft: { ...base.draft, status: 'in_progress' } }
+}
+
 afterEach(() => {
     vi.useRealTimers()
     vi.clearAllMocks()
@@ -102,6 +121,31 @@ describe('auction draft resource identity', () => {
         expect(latest.state).toBeNull()
         await act(async () => { resolveNext(state('draft-b')); await next })
         expect(latest.state?.draft.id).toBe('draft-b')
+        await act(async () => { renderer.unmount() })
+    })
+
+    it('does not let an old draft mutation re-enter the loader after identity changes', async () => {
+        let resolveBid!: () => void
+        const bid = new Promise<void>((resolve) => { resolveBid = resolve })
+        mocks.placeBid.mockReturnValue(bid)
+        mocks.getDraftState.mockImplementation(async (draftId: string) =>
+            draftId === 'draft-a' ? liveState(draftId) : state(draftId))
+        let latest!: ReturnType<typeof useAuctionDraftRoomController>
+        const Probe = ({ draftId }: { draftId: string }) => {
+            latest = useAuctionDraftRoomController({ draftId, memberId: 'member' })
+            return null
+        }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe, { draftId: 'draft-a' })); await Promise.resolve() })
+        let pending!: Promise<void>
+        await act(async () => { pending = latest.handleBid(); await Promise.resolve() })
+        await act(async () => { renderer.update(React.createElement(Probe, { draftId: 'draft-b' })); await Promise.resolve() })
+        const readsAfterSwitch = mocks.getDraftState.mock.calls.length
+        await act(async () => { resolveBid(); await pending })
+
+        expect(mocks.getDraftState).toHaveBeenCalledTimes(readsAfterSwitch)
+        expect(latest.state?.draft.id).toBe('draft-b')
+        expect(latest.bidding).toBe(false)
         await act(async () => { renderer.unmount() })
     })
 })

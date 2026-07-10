@@ -171,7 +171,7 @@ export default function TradesScreen() {
             case 'trade':
                 return <TradeOfferRow item={item} myMemberId={myMemberId} tab={tab}
                     tradeVetoMode={currentLeague?.trade_veto_mode ?? 'member_vote'}
-                    isCommissioner={isCommissioner} acting={tradeActions.busyTradeId === item.trade.id}
+                    isCommissioner={isCommissioner} acting={tradeActions.busyTradeId !== null}
                     onAccept={tradeActions.accept} onReject={tradeActions.reject}
                     onVeto={tradeActions.veto} onWithdraw={tradeActions.withdraw} />
         }

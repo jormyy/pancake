@@ -1,6 +1,6 @@
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useTradeActions } from '@/hooks/use-trade-actions'
 import type { Trade } from '@/lib/trades'
 
@@ -21,6 +21,10 @@ vi.mock('@/lib/alert', () => ({
 }))
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+
+beforeEach(() => {
+    vi.clearAllMocks()
+})
 
 const deferred = <Value,>() => {
     let resolve!: (value: Value) => void
@@ -95,6 +99,30 @@ describe('useTradeActions', () => {
         await act(async () => { acceptance.resolve(); await pending })
 
         expect(onAction).not.toHaveBeenCalled()
+        expect(latest.busyTradeId).toBeNull()
+        await act(async () => { renderer.unmount() })
+    })
+
+    it('serializes mutations so another trade cannot supersede or re-enable the first', async () => {
+        const first = deferred<void>()
+        acceptTrade.mockReturnValueOnce(first.promise)
+        const onAction = vi.fn()
+        let latest!: ReturnType<typeof useTradeActions>
+        const Probe = () => {
+            latest = useTradeActions({ memberId: 'member-a', leagueId: 'league-a', onAction })
+            return null
+        }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe)) })
+        let pending!: Promise<void>
+        await act(async () => {
+            pending = latest.accept(trade('trade-a'))
+            await latest.accept(trade('trade-b'))
+        })
+        expect(acceptTrade).toHaveBeenCalledTimes(1)
+        expect(latest.busyTradeId).toBe('trade-a')
+        await act(async () => { first.resolve(); await pending })
+        expect(onAction).toHaveBeenCalledOnce()
         expect(latest.busyTradeId).toBeNull()
         await act(async () => { renderer.unmount() })
     })

@@ -161,6 +161,16 @@ export function useMultiTeamTradeComposer({
     }, [leagueId, myMemberId, reset])
 
     useEffect(() => {
+        const activeParticipants = new Set(participantIds)
+        setParticipantRosters((current) => Object.fromEntries(
+            Object.entries(current).filter(([memberId]) => activeParticipants.has(memberId)),
+        ))
+        setParticipantPicks((current) => Object.fromEntries(
+            Object.entries(current).filter(([memberId]) => activeParticipants.has(memberId)),
+        ))
+    }, [participantIds])
+
+    useEffect(() => {
         const requestId = ++rosterLoadSeqRef.current
         if (!enabled || !leagueId || !myMemberId || participantIds[0] !== myMemberId) {
             setRosterLoading(false)

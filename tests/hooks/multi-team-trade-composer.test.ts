@@ -89,4 +89,29 @@ describe('useMultiTeamTradeComposer', () => {
         expect(latest.assetsReady).toBe(true)
         await act(async () => { renderer.unmount() })
     })
+
+    it('invalidates a removed participant snapshot before that participant is re-added', async () => {
+        let latest!: ReturnType<typeof useMultiTeamTradeComposer>
+        const Probe = () => {
+            latest = useMultiTeamTradeComposer({
+                enabled: true,
+                leagueId: 'league',
+                myMemberId: 'member-a',
+                myTeamName: 'A',
+                members: [{ id: 'member-b', team_name: 'B' }],
+                faabEnabled: true,
+            })
+            return null
+        }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe)); await Promise.resolve(); await Promise.resolve() })
+        await act(async () => { latest.setParticipantIds(['member-a', 'member-b']); await Promise.resolve(); await Promise.resolve() })
+        const loadsBeforeRemoval = getRostersForMembers.mock.calls.filter(([memberIds]) => memberIds.includes('member-b')).length
+        await act(async () => { latest.setParticipantIds(['member-a']); await Promise.resolve() })
+        await act(async () => { latest.setParticipantIds(['member-a', 'member-b']); await Promise.resolve(); await Promise.resolve() })
+
+        const loadsContainingB = getRostersForMembers.mock.calls.filter(([memberIds]) => memberIds.includes('member-b'))
+        expect(loadsContainingB.length).toBeGreaterThan(loadsBeforeRemoval)
+        await act(async () => { renderer.unmount() })
+    })
 })

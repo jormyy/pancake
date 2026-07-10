@@ -1,13 +1,17 @@
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useLeagues } from '@/hooks/use-leagues'
 
-const mocks = vi.hoisted(() => ({ fetchUserLeagues: vi.fn() }))
-vi.mock('@/hooks/use-auth', () => ({ useAuth: () => ({ user: { id: 'user' } }) }))
+const mocks = vi.hoisted(() => ({
+    fetchUserLeagues: vi.fn(),
+    userId: 'user' as string | null,
+    cache: new Map<string, unknown>(),
+}))
+vi.mock('@/hooks/use-auth', () => ({ useAuth: () => ({ user: mocks.userId ? { id: mocks.userId } : null }) }))
 vi.mock('@/lib/league', () => ({ fetchUserLeagues: mocks.fetchUserLeagues }))
 vi.mock('@/lib/persistent-cache', () => ({
-    readPersistentCache: vi.fn(() => undefined),
+    readPersistentCache: vi.fn((key: string) => mocks.cache.get(key)),
     removePersistentCache: vi.fn(),
     writePersistentCache: vi.fn(),
 }))
@@ -19,6 +23,12 @@ vi.mock('@/lib/realtime', () => ({
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
 describe('league refresh contract', () => {
+    beforeEach(() => {
+        mocks.userId = 'user'
+        mocks.cache.clear()
+        mocks.fetchUserLeagues.mockReset()
+    })
+
     it('returns the authoritative load promise', async () => {
         let resolveRefresh!: (rows: never[]) => void
         const pending = new Promise<never[]>((resolve) => { resolveRefresh = resolve })
@@ -37,6 +47,24 @@ describe('league refresh contract', () => {
         expect(settled).toBe(false)
         await act(async () => { resolveRefresh([]); await refresh })
         expect(settled).toBe(true)
+        await act(async () => { renderer.unmount() })
+    })
+
+    it('never returns memberships owned by the previous authenticated user', async () => {
+        const membership = (id: string) => ({ id, role: 'manager', team_name: id, leagues: { id: `league-${id}` } })
+        mocks.cache.set('pancake:league-memberships:v1:user-a', [membership('member-a')])
+        mocks.cache.set('pancake:league-memberships:v1:user-b', [membership('member-b')])
+        mocks.fetchUserLeagues.mockImplementation(async (userId: string) => [membership(`server-${userId}`)])
+        let latest!: ReturnType<typeof useLeagues>
+        const Probe = ({ userId }: { userId: string | null }) => {
+            mocks.userId = userId
+            latest = useLeagues()
+            return null
+        }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe, { userId: 'user-a' })); await Promise.resolve() })
+        await act(async () => { renderer.update(React.createElement(Probe, { userId: 'user-b' })) })
+        expect(latest.memberships.every((row) => !row.id.includes('user-a'))).toBe(true)
         await act(async () => { renderer.unmount() })
     })
 })

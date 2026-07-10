@@ -15,10 +15,12 @@ export function useTradeActions({
     const identityRef = useRef(identity)
     identityRef.current = identity
     const requestSequence = useRef(0)
+    const mutationInFlight = useRef(false)
     const [busyTradeId, setBusyTradeId] = useState<string | null>(null)
 
     useEffect(() => {
         requestSequence.current += 1
+        mutationInFlight.current = false
         setBusyTradeId(null)
     }, [identity])
 
@@ -28,7 +30,8 @@ export function useTradeActions({
     }, [onAction])
 
     const accept = useCallback(async (trade: Trade) => {
-        if (!memberId || !leagueId) return
+        if (!memberId || !leagueId || mutationInFlight.current) return
+        mutationInFlight.current = true
         const requestId = ++requestSequence.current
         const ownerIdentity = identity
         setBusyTradeId(trade.id)
@@ -40,7 +43,10 @@ export function useTradeActions({
                 showAlert('Error', getErrorMessage(error) ?? 'Could not accept trade.')
             }
         } finally {
-            if (requestSequence.current === requestId) setBusyTradeId(null)
+            if (requestSequence.current === requestId) {
+                mutationInFlight.current = false
+                setBusyTradeId(null)
+            }
         }
     }, [finishAction, identity, leagueId, memberId])
 
@@ -49,7 +55,8 @@ export function useTradeActions({
         operation: (tradeId: string, memberId: string) => Promise<void>,
         fallbackMessage: string,
     ) => {
-        if (!memberId) return
+        if (!memberId || mutationInFlight.current) return
+        mutationInFlight.current = true
         const requestId = ++requestSequence.current
         const ownerIdentity = identity
         setBusyTradeId(tradeId)
@@ -61,7 +68,10 @@ export function useTradeActions({
                 showAlert('Error', getErrorMessage(error) ?? fallbackMessage)
             }
         } finally {
-            if (requestSequence.current === requestId) setBusyTradeId(null)
+            if (requestSequence.current === requestId) {
+                mutationInFlight.current = false
+                setBusyTradeId(null)
+            }
         }
     }, [finishAction, identity, memberId])
 
