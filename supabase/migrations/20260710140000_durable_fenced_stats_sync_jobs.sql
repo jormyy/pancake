@@ -172,6 +172,21 @@ BEGIN
   DO UPDATE
      SET status = CASE WHEN public.sync_jobs.status = 'failed' THEN 'pending' ELSE public.sync_jobs.status END,
          failed_items = CASE WHEN public.sync_jobs.status = 'failed' THEN 0 ELSE public.sync_jobs.failed_items END,
+         completed_items = CASE
+           WHEN public.sync_jobs.status = 'failed'
+             AND NOT private.is_valid_stats_sync_metadata(public.sync_jobs.metadata) THEN 0
+           ELSE public.sync_jobs.completed_items
+         END,
+         total_items = CASE
+           WHEN public.sync_jobs.status = 'failed'
+             AND NOT private.is_valid_stats_sync_metadata(public.sync_jobs.metadata) THEN excluded.total_items
+           ELSE public.sync_jobs.total_items
+         END,
+         metadata = CASE
+           WHEN public.sync_jobs.status = 'failed'
+             AND NOT private.is_valid_stats_sync_metadata(public.sync_jobs.metadata) THEN excluded.metadata
+           ELSE public.sync_jobs.metadata
+         END,
          completed_at = CASE WHEN public.sync_jobs.status = 'failed' THEN NULL ELSE public.sync_jobs.completed_at END,
          claimed_at = CASE WHEN public.sync_jobs.status = 'failed' THEN NULL ELSE public.sync_jobs.claimed_at END,
          claim_token = CASE WHEN public.sync_jobs.status = 'failed' THEN NULL ELSE public.sync_jobs.claim_token END

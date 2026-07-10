@@ -457,7 +457,55 @@ try {
     'terminal malformed job exceeded the retry cap',
   )
 
-  console.log('PASS stats sync jobs: rollout rescue, fencing, dispatcher backoff/recovery, terminal cap, manual resume, and malformed Edge metadata')
+  const resumedMalformedId = await rpc('create_or_resume_stats_sync_job_atomic', {
+    p_start_date: MALFORMED_RANGE.startDate,
+    p_end_date: MALFORMED_RANGE.endDate,
+  })
+  assert.equal(resumedMalformedId, malformedJobId, 'malformed manual resume created a second job')
+  const { data: resumedMalformed, error: resumedMalformedError } = await admin
+    .from('sync_jobs')
+    .select('status, completed_items, failed_items, error_log, metadata, claim_token, claimed_at')
+    .eq('id', malformedJobId)
+    .single()
+  if (resumedMalformedError) throw resumedMalformedError
+  const repairedMetadata = { ...MALFORMED_RANGE, nextDate: MALFORMED_RANGE.startDate }
+  assert.equal(resumedMalformed.status, 'pending')
+  assert.equal(resumedMalformed.completed_items, 0, 'malformed manual resume retained poisoned progress')
+  assert.equal(resumedMalformed.failed_items, 0, 'malformed manual resume did not reset the retry budget')
+  assert.equal(resumedMalformed.error_log.length, 3, 'malformed manual resume discarded failure history')
+  assert.deepEqual(resumedMalformed.metadata, repairedMetadata)
+  assert.equal(resumedMalformed.claim_token, null)
+  assert.equal(resumedMalformed.claimed_at, null)
+
+  const repairedClaims = await rpc('claim_stats_sync_job_atomic', {
+    p_job_id: malformedJobId,
+    p_stale_after_seconds: 60,
+  })
+  assert.equal(repairedClaims.length, 1, 'repaired malformed job could not be claimed')
+  assert.deepEqual(repairedClaims[0].metadata, repairedMetadata)
+  assert.equal(await rpc('release_stats_sync_job_atomic', {
+    p_job_id: malformedJobId,
+    p_claim_token: repairedClaims[0].claim_token,
+    p_completed_items: 0,
+    p_metadata: repairedMetadata,
+  }), true, 'repaired malformed job metadata did not pass durable validation')
+
+  const repairedResult = await invokeStatsWorker(malformedJobId)
+  assert.equal(repairedResult.status, 200, 'repaired malformed job did not complete through the Edge worker')
+  assert.equal(repairedResult.body?.status, 'completed')
+  const { data: repairedJob, error: repairedJobError } = await admin
+    .from('sync_jobs')
+    .select('status, failed_items, error_log, claim_token, claimed_at')
+    .eq('id', malformedJobId)
+    .single()
+  if (repairedJobError) throw repairedJobError
+  assert.equal(repairedJob.status, 'completed')
+  assert.equal(repairedJob.failed_items, 0)
+  assert.equal(repairedJob.error_log.length, 3, 'successful malformed recovery discarded failure history')
+  assert.equal(repairedJob.claim_token, null)
+  assert.equal(repairedJob.claimed_at, null)
+
+  console.log('PASS stats sync jobs: rollout rescue, fencing, dispatcher recovery, terminal cap, and malformed-job repair')
 } finally {
   await cleanup()
 }
