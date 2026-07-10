@@ -113,6 +113,7 @@ Deno.env.set('EXPO_PUSH_URL', `http://127.0.0.1:${(expo.addr as Deno.NetAddr).po
 
 const { handleApiRoute } = await import('./router.ts')
 const { assertUuid } = await import('../_shared/apiRuntime.ts')
+const { EDGE_ARTIFACT_DIGEST, RELEASE_COMMIT_SHA } = await import('../_shared/releaseMetadata.ts')
 
 const API = 'http://localhost/functions/v1/api'
 const UUID = '11111111-1111-4111-8111-111111111111'
@@ -143,19 +144,11 @@ Deno.test({
       if (removed.status !== 404) throw new Error(`removed presence authority route ${action} returned ${removed.status}`)
     }
 
-    const previousSha = Deno.env.get('PANCAKE_RELEASE_SHA')
-    const previousDigest = Deno.env.get('PANCAKE_RELEASE_BUNDLE_DIGEST')
-    Deno.env.set('PANCAKE_RELEASE_SHA', 'a'.repeat(40))
-    Deno.env.set('PANCAKE_RELEASE_BUNDLE_DIGEST', 'b'.repeat(64))
     const res = await handleApiRoute(request('GET', '/health'))
     const body = await res.json()
-    if (previousSha == null) Deno.env.delete('PANCAKE_RELEASE_SHA')
-    else Deno.env.set('PANCAKE_RELEASE_SHA', previousSha)
-    if (previousDigest == null) Deno.env.delete('PANCAKE_RELEASE_BUNDLE_DIGEST')
-    else Deno.env.set('PANCAKE_RELEASE_BUNDLE_DIGEST', previousDigest)
 
     if (res.status !== 200 || body.runtime !== 'supabase-edge' ||
-      body.commitSha !== 'a'.repeat(40) || body.bundleDigest !== 'b'.repeat(64)) {
+      body.commitSha !== RELEASE_COMMIT_SHA || body.edgeArtifactDigest !== EDGE_ARTIFACT_DIGEST) {
       throw new Error(`expected health 200, got ${res.status}: ${JSON.stringify(body)}`)
     }
   },

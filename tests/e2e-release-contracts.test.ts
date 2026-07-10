@@ -11,8 +11,11 @@ import { BROWSER_SCENARIO_MANIFEST, fastBrowserScenarioMatrix } from './e2e/brow
 import { validateDataLatencyReport, validateManifest, validateRetainedSeasonReports, validateWorkflowReportKeys } from './e2e/performance-budgets.mjs'
 import { readAppliedSchemaVersion } from './e2e/schema-provenance.mjs'
 import { digestReleaseBundle } from './e2e/release-provenance.mjs'
-import { planReleaseMigrations, validateAppliedMigrationDelta } from './e2e/release-soak-migration-plan.mjs'
+import { planReleaseMigrations, planReleaseMigrationsFromHistory, validateAppliedMigrationDelta } from './e2e/release-soak-migration-plan.mjs'
 import { stampReleaseProvenance } from '../scripts/stamp-release-provenance.mjs'
+import { digestEdgeArtifact, stampEdgeReleaseProvenance } from '../scripts/stamp-edge-release-provenance.mjs'
+import { validateReleaseBaselineProvenance } from './e2e/release-baseline-provenance.mjs'
+import { validateReleaseCompatibilityEvidence } from './e2e/release-runtime-compatibility.mjs'
 
 const tempDirs: string[] = []
 
@@ -54,12 +57,36 @@ describe('release E2E contracts', () => {
       expectedVersions: ['20260709100002', '20260709100003'],
     }).failures).not.toEqual([])
 
+    const filenames = ['1_initial.sql', '2_add_lineups.sql', '3_add_trades.sql']
+    expect(planReleaseMigrationsFromHistory(filenames, [
+      { version: '1', name: 'initial' },
+      { version: '2', name: 'add_lineups' },
+    ])).toMatchObject({
+      deployedVersion: '2',
+      pendingFiles: ['3_add_trades.sql'],
+    })
+    expect(() => planReleaseMigrationsFromHistory(filenames, [
+      { version: '1', name: 'initial' },
+      { version: '3', name: 'add_trades' },
+    ])).toThrow('diverges at row 2')
+    expect(() => planReleaseMigrationsFromHistory(filenames, [
+      { version: '1', name: 'renamed_initial' },
+    ])).toThrow('diverges at row 1')
+    expect(() => planReleaseMigrationsFromHistory(filenames, [
+      { version: '1', name: 'initial' },
+      { version: '2', name: 'add_lineups' },
+      { version: '3', name: 'add_trades' },
+      { version: '4', name: 'unknown' },
+    ])).toThrow('not present in the repository')
+
     const workflow = await readFile(path.join(process.cwd(), '.github/workflows/release-soak.yml'), 'utf8')
     expect(workflow).toContain('E2E_DEPLOYED_SCHEMA_VERSION')
     expect(workflow).toContain('release-soak-migration-plan.mjs')
     expect(workflow).toContain('E2E_MIDLIFE_EXPECTED_VERSIONS')
-    expect(workflow).toContain('Verify deployed code against upgraded schema')
-    expect(workflow).toContain('npm run test:db')
+    expect(workflow).toContain('Verify cross-version runtime compatibility against upgraded schema')
+    expect(workflow).toContain('release-runtime-compatibility.mjs')
+    expect(workflow).toContain('select version::text, name::text')
+    expect(workflow).toContain('--history-file /tmp/deployed-schema-history.json')
   })
 
   it('runs the full measured smoke sweep and enforces its workflow budgets in PR CI', async () => {
@@ -102,16 +129,19 @@ describe('release E2E contracts', () => {
     expect(workflow).toContain('environment: production')
     expect(workflow).toContain('test "${GITHUB_REF}" = "refs/heads/main"')
     expect(workflow).toContain('release_sha:')
-    expect(workflow).toContain('bundle_digest:')
+    expect(workflow).toContain('frontend_bundle_digest:')
+    expect(workflow).toContain('edge_artifact_digest:')
     expect(workflow).toContain('repository_dispatch:')
     expect(workflow).toContain('types: [production_deployed]')
     expect(workflow).toContain("github.event_name == 'repository_dispatch' && github.event.client_payload.release_sha || inputs.release_sha")
-    expect(workflow).toContain("github.event_name == 'repository_dispatch' && github.event.client_payload.bundle_digest || inputs.bundle_digest")
+    expect(workflow).toContain("github.event_name == 'repository_dispatch' && github.event.client_payload.frontend_bundle_digest || inputs.frontend_bundle_digest")
+    expect(workflow).toContain("github.event_name == 'repository_dispatch' && github.event.client_payload.edge_artifact_digest || inputs.edge_artifact_digest")
     expect(workflow).toContain('E2E_FRONTEND_URL: ${{ inputs.frontend_url || secrets.PANCAKE_FRONTEND_URL }}')
     expect(workflow).toContain('E2E_EXPECTED_FRONTEND_HOST: ${{ secrets.PANCAKE_PRODUCTION_FRONTEND_HOST }}')
     expect(workflow).toContain('EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}')
     expect(workflow).toContain('EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}')
     expect(workflow).toContain('node tests/e2e/hosted-release-provenance.mjs')
+    expect(workflow).toContain('node scripts/stamp-edge-release-provenance.mjs')
     expect(workflow).toContain('npm run e2e:web-hydration')
     expect(workflow).toContain('PANCAKE_LEGACY_SUPABASE_JWT_ROTATED: ${{ secrets.PANCAKE_LEGACY_SUPABASE_JWT_ROTATED }}')
     expect(workflow).not.toContain("PANCAKE_LEGACY_SUPABASE_JWT_ROTATED: '1'")
@@ -130,6 +160,8 @@ describe('release E2E contracts', () => {
     expect(workflow).toContain('node tests/e2e/validate-production-target.mjs')
     expect(workflow).toContain('supabase db push --linked --yes')
     expect(workflow).toContain('supabase functions deploy --project-ref "$SUPABASE_PROJECT_REF"')
+    expect(workflow).toContain('Bake Edge artifact provenance')
+    expect(workflow).not.toContain('PANCAKE_RELEASE_BUNDLE_DIGEST=')
     expect(workflow.indexOf('node tests/e2e/validate-production-target.mjs')).toBeLessThan(workflow.indexOf('supabase db push --linked --yes'))
     expect(workflow).toContain('uses: ./.github/workflows/production-readiness.yml')
     expect(workflow).toContain('needs: [deploy-candidate, verify-candidate]')
@@ -150,6 +182,83 @@ describe('release E2E contracts', () => {
     expect(marker).toEqual({ commitSha: 'a'.repeat(40), bundleDigest: expect.stringMatching(/^[a-f0-9]{64}$/) })
     expect(await digestReleaseBundle(root)).toBe(marker.bundleDigest)
     expect(JSON.parse(await readFile(path.join(root, 'dist', 'release-provenance.json'), 'utf8'))).toEqual(marker)
+  })
+
+  it('bakes Edge provenance from source rather than mutable environment values', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'pancake-edge-release-'))
+    tempDirs.push(root)
+    const functionsRoot = path.join(root, 'functions')
+    const metadataPath = path.join(functionsRoot, '_shared/releaseMetadata.ts')
+    await mkdir(path.dirname(metadataPath), { recursive: true })
+    await writeFile(path.join(functionsRoot, 'api.ts'), 'export const api = true\n')
+    await writeFile(path.join(functionsRoot, 'api.test.ts'), 'throw new Error("not deployed")\n')
+    await writeFile(metadataPath, 'placeholder\n')
+
+    const first = await stampEdgeReleaseProvenance({
+      commitSha: 'a'.repeat(40),
+      functionsRoot,
+      metadataPath,
+    })
+    expect(first.edgeArtifactDigest).toBe(await digestEdgeArtifact({ functionsRoot, metadataPath }))
+    expect(await readFile(metadataPath, 'utf8')).toContain(`RELEASE_COMMIT_SHA = '${'a'.repeat(40)}'`)
+
+    process.env.PANCAKE_RELEASE_SHA = 'b'.repeat(40)
+    expect(await digestEdgeArtifact({ functionsRoot, metadataPath })).toBe(first.edgeArtifactDigest)
+    expect(await readFile(metadataPath, 'utf8')).toContain(`RELEASE_COMMIT_SHA = '${'a'.repeat(40)}'`)
+    delete process.env.PANCAKE_RELEASE_SHA
+  })
+
+  it('requires independent deployed frontend and Edge attestations', () => {
+    expect(validateReleaseBaselineProvenance({
+      frontend: { commitSha: 'a'.repeat(40), bundleDigest: 'b'.repeat(64) },
+      edge: {
+        ok: true,
+        service: 'pancake-supabase-api',
+        runtime: 'supabase-edge',
+        commitSha: 'c'.repeat(40),
+        edgeArtifactDigest: 'd'.repeat(64),
+      },
+    })).toEqual([])
+    expect(validateReleaseBaselineProvenance({
+      frontend: { commitSha: 'a'.repeat(40), bundleDigest: 'b'.repeat(64) },
+      edge: { ok: true, service: 'pancake-supabase-api', runtime: 'supabase-edge', commitSha: 'c'.repeat(40) },
+    })).toContain('deployed Edge edgeArtifactDigest is invalid')
+  })
+
+  it('blocks removed-column and removed-route cross-version incompatibilities', () => {
+    const candidateSha = 'a'.repeat(40)
+    const deployedFrontendSha = 'b'.repeat(40)
+    const deployedEdgeSha = 'c'.repeat(40)
+    const passingPairs = [
+      {
+        id: 'deployed-frontend-candidate-edge',
+        status: 'PASS',
+        frontend: { commitSha: deployedFrontendSha, bundleDigest: 'd'.repeat(64) },
+        edge: { commitSha: candidateSha, edgeArtifactDigest: 'e'.repeat(64) },
+        browserEvidenceId: 'browser.smoke',
+      },
+      {
+        id: 'candidate-frontend-deployed-edge',
+        status: 'PASS',
+        frontend: { commitSha: candidateSha, bundleDigest: 'f'.repeat(64) },
+        edge: { commitSha: deployedEdgeSha, edgeArtifactDigest: '0'.repeat(64) },
+        browserEvidenceId: 'browser.smoke',
+      },
+    ]
+    const input = { candidateSha, deployedFrontendSha, deployedEdgeSha, pairs: passingPairs }
+    expect(validateReleaseCompatibilityEvidence(input)).toEqual([])
+    expect(validateReleaseCompatibilityEvidence({
+      ...input,
+      pairs: passingPairs.map((pair) => pair.id === 'candidate-frontend-deployed-edge'
+        ? { ...pair, status: 'FAIL', error: 'removed column current_roster_id' }
+        : pair),
+    })).toContain('candidate-frontend-deployed-edge browser contract failed: removed column current_roster_id')
+    expect(validateReleaseCompatibilityEvidence({
+      ...input,
+      pairs: passingPairs.map((pair) => pair.id === 'deployed-frontend-candidate-edge'
+        ? { ...pair, status: 'FAIL', error: 'removed route /league/legacy-summary' }
+        : pair),
+    })).toContain('deployed-frontend-candidate-edge browser contract failed: removed route /league/legacy-summary')
   })
 
   it('does not claim measured production performance from a clean checkout', async () => {

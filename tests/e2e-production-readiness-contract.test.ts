@@ -33,12 +33,18 @@ describe('production readiness contracts', () => {
     })
 
     it('requires both deployed surfaces to match the intended release', () => {
-        const expected = { commitSha: 'a'.repeat(40), bundleDigest: 'b'.repeat(64) }
-        expect(validateHostedReleaseProvenance(expected, expected, expected)).toEqual([])
+        const expected = {
+            commitSha: 'a'.repeat(40),
+            frontendBundleDigest: 'b'.repeat(64),
+            edgeArtifactDigest: 'c'.repeat(64),
+        }
+        const edge = { commitSha: expected.commitSha, edgeArtifactDigest: expected.edgeArtifactDigest }
+        const frontend = { commitSha: expected.commitSha, bundleDigest: expected.frontendBundleDigest }
+        expect(validateHostedReleaseProvenance(expected, edge, frontend)).toEqual([])
         expect(validateHostedReleaseProvenance(
             expected,
-            { ...expected, commitSha: 'c'.repeat(40) },
-            { ...expected, bundleDigest: 'd'.repeat(64) },
+            { ...edge, commitSha: 'd'.repeat(40) },
+            { ...frontend, bundleDigest: 'e'.repeat(64) },
         )).toEqual(expect.arrayContaining([
             expect.stringContaining('Edge commitSha'),
             expect.stringContaining('frontend bundleDigest'),
@@ -47,21 +53,33 @@ describe('production readiness contracts', () => {
 
     it('rejects malformed or missing expected release identifiers', () => {
         expect(validateHostedReleaseProvenance(
-            { commitSha: 'main', bundleDigest: '' },
+            { commitSha: 'main', frontendBundleDigest: '', edgeArtifactDigest: '' },
             {},
             {},
         )).toEqual(expect.arrayContaining([
             'expected commitSha must be a full Git SHA',
-            'expected bundleDigest must be a SHA-256 digest',
+            'expected frontendBundleDigest must be a SHA-256 digest',
+            'expected edgeArtifactDigest must be a SHA-256 digest',
         ]))
     })
 
-    it('fails a stale deployed Edge response even when the frontend is current', async () => {
-        const expected = { commitSha: 'a'.repeat(40), bundleDigest: 'b'.repeat(64) }
+    it('fails a stale Edge artifact even when mutable environment values claim the new release', async () => {
+        const expected = {
+            commitSha: 'a'.repeat(40),
+            frontendBundleDigest: 'b'.repeat(64),
+            edgeArtifactDigest: 'c'.repeat(64),
+        }
         const fetchImpl = async (url: string | URL | Request) => new Response(JSON.stringify(
             String(url).includes('/health')
-                ? { ok: true, service: 'pancake-supabase-api', runtime: 'supabase-edge', ...expected, commitSha: 'c'.repeat(40) }
-                : expected,
+                ? {
+                    ok: true,
+                    service: 'pancake-supabase-api',
+                    runtime: 'supabase-edge',
+                    commitSha: expected.commitSha,
+                    edgeArtifactDigest: 'd'.repeat(64),
+                    environmentReleaseSha: expected.commitSha,
+                }
+                : { commitSha: expected.commitSha, bundleDigest: expected.frontendBundleDigest },
         ))
 
         const result = await probeHostedReleaseProvenance({
@@ -71,7 +89,7 @@ describe('production readiness contracts', () => {
             fetchImpl: fetchImpl as typeof fetch,
         })
 
-        expect(result.failures).toContain(`Edge commitSha ${'c'.repeat(40)} does not match ${'a'.repeat(40)}`)
+        expect(result.failures).toContain(`Edge edgeArtifactDigest ${'d'.repeat(64)} does not match ${'c'.repeat(64)}`)
     })
 
     it('binds every hosted surface to the pinned production identity', () => {
@@ -113,7 +131,11 @@ describe('production readiness contracts', () => {
         const projectRef = 'ceeytbfmwsnzalxlkalc'
         try {
             const result = await runHostedReleaseProvenance({
-                expected: { commitSha: 'a'.repeat(40), bundleDigest: 'b'.repeat(64) },
+                expected: {
+                    commitSha: 'a'.repeat(40),
+                    frontendBundleDigest: 'b'.repeat(64),
+                    edgeArtifactDigest: 'c'.repeat(64),
+                },
                 edgeApiUrl: `https://${projectRef}.supabase.co/functions/v1/api`,
                 frontendUrl: 'https://pancake.example.com',
                 target: {

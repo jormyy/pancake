@@ -19,7 +19,7 @@ const fetchJson = async (fetchImpl, url, label) => {
 }
 
 /**
- * @param {{ expected: { commitSha: string, bundleDigest: string }, edgeApiUrl: string, frontendUrl: string, fetchImpl?: typeof fetch }} input
+ * @param {{ expected: { commitSha: string, frontendBundleDigest: string, edgeArtifactDigest: string }, edgeApiUrl: string, frontendUrl: string, fetchImpl?: typeof fetch }} input
  */
 export const probeHostedReleaseProvenance = async ({ expected, edgeApiUrl, frontendUrl, fetchImpl = fetch }) => {
   const edgeHealthUrl = `${edgeApiUrl.replace(/\/$/, '')}/health`
@@ -74,7 +74,7 @@ export const runHostedReleaseProvenance = async ({
     {
       surface: 'Edge',
       status: result.failures.some((failure) => failure.startsWith('Edge ')) ? 'BLOCKED' : 'PASS',
-      evidence: `${result.edgeHealthUrl}; commit=${result.edge?.commitSha ?? 'missing'}; bundle=${result.edge?.bundleDigest ?? 'missing'}`,
+      evidence: `${result.edgeHealthUrl}; commit=${result.edge?.commitSha ?? 'missing'}; edge_artifact=${result.edge?.edgeArtifactDigest ?? 'missing'}`,
     },
     {
       surface: 'Frontend',
@@ -106,7 +106,8 @@ export const runHostedReleaseProvenance = async ({
 const main = async () => {
   const expected = {
     commitSha: envValue('E2E_EXPECTED_RELEASE_SHA') ?? '',
-    bundleDigest: envValue('E2E_EXPECTED_BUNDLE_DIGEST') ?? '',
+    frontendBundleDigest: envValue('E2E_EXPECTED_FRONTEND_BUNDLE_DIGEST') ?? '',
+    edgeArtifactDigest: envValue('E2E_EXPECTED_EDGE_ARTIFACT_DIGEST') ?? '',
   }
   const edgeApiUrl = envValue('E2E_REMOTE_API_URL', 'EXPO_PUBLIC_API_URL')
   const frontendUrl = envValue('E2E_FRONTEND_URL')

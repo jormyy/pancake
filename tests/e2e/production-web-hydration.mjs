@@ -13,7 +13,7 @@ const browser = createBrowser()
 
 const hydrationProvenance = async () => {
   const commitSha = process.env.E2E_EXPECTED_RELEASE_SHA
-  const bundleDigest = process.env.E2E_EXPECTED_BUNDLE_DIGEST
+  const bundleDigest = process.env.E2E_EXPECTED_FRONTEND_BUNDLE_DIGEST
   if (commitSha || bundleDigest) {
     if (!commitSha || !bundleDigest) throw new Error('Hosted hydration requires both expected release SHA and bundle digest')
     return { commitSha, bundleDigest, runId: process.env.GITHUB_RUN_ID ?? 'hosted-readiness' }

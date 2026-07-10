@@ -9,6 +9,7 @@ import { handleProfileRoute } from './profile.ts'
 import { handleSyncRoute } from './sync.ts'
 import { handleTradeRoute } from './trades.ts'
 import { handleWaiverRoute } from './waivers.ts'
+import { EDGE_ARTIFACT_DIGEST, RELEASE_COMMIT_SHA } from '../_shared/releaseMetadata.ts'
 
 export function handleApiRoute(req: Request): Promise<Response> {
   return handleApiRequest(req, 'api', async () => {
@@ -19,8 +20,8 @@ export function handleApiRoute(req: Request): Promise<Response> {
         ok: true,
         service: 'pancake-supabase-api',
         runtime: 'supabase-edge',
-        commitSha: Deno.env.get('PANCAKE_RELEASE_SHA') ?? null,
-        bundleDigest: Deno.env.get('PANCAKE_RELEASE_BUNDLE_DIGEST') ?? null,
+        commitSha: RELEASE_COMMIT_SHA,
+        edgeArtifactDigest: EDGE_ARTIFACT_DIGEST,
       })
     }
 

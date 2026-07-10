@@ -30,7 +30,8 @@ jobs:
     timeout-minutes: 45
     environment: production
     outputs:
-      bundle_digest: ${{ steps.release.outputs.bundle_digest }}
+      frontend_bundle_digest: ${{ steps.release.outputs.bundle_digest }}
+      edge_artifact_digest: ${{ steps.edge-release.outputs.edge_artifact_digest }}
       candidate_url: ${{ steps.deploy.outputs.candidate_url }}
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
@@ -93,14 +94,17 @@ jobs:
           [[ "$digest" =~ ^[0-9a-f]{64}$ ]]
           echo "bundle_digest=$digest" >> "$GITHUB_OUTPUT"
 
+      - name: Bake Edge artifact provenance
+        id: edge-release
+        env:
+          PANCAKE_RELEASE_SHA: ${{ inputs.release_sha }}
+        run: node scripts/stamp-edge-release-provenance.mjs
+
       - name: Deploy Edge release candidate
         shell: bash
         run: |
           supabase link --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
           supabase db push --linked --yes
-          supabase secrets set --project-ref "$SUPABASE_PROJECT_REF" \
-            PANCAKE_RELEASE_SHA="${{ inputs.release_sha }}" \
-            PANCAKE_RELEASE_BUNDLE_DIGEST="${{ steps.release.outputs.bundle_digest }}"
           supabase functions deploy --project-ref "$SUPABASE_PROJECT_REF"
 
       - name: Deploy unpromoted frontend candidate
@@ -117,7 +121,8 @@ jobs:
     uses: ./.github/workflows/production-readiness.yml
     with:
       release_sha: ${{ inputs.release_sha }}
-      bundle_digest: ${{ needs.deploy-candidate.outputs.bundle_digest }}
+      frontend_bundle_digest: ${{ needs.deploy-candidate.outputs.frontend_bundle_digest }}
+      edge_artifact_digest: ${{ needs.deploy-candidate.outputs.edge_artifact_digest }}
       frontend_url: ${{ needs.deploy-candidate.outputs.candidate_url }}
       candidate_frontend: true
     secrets: inherit
@@ -143,5 +148,6 @@ jobs:
     uses: ./.github/workflows/production-readiness.yml
     with:
       release_sha: ${{ inputs.release_sha }}
-      bundle_digest: ${{ needs.deploy-candidate.outputs.bundle_digest }}
+      frontend_bundle_digest: ${{ needs.deploy-candidate.outputs.frontend_bundle_digest }}
+      edge_artifact_digest: ${{ needs.deploy-candidate.outputs.edge_artifact_digest }}
     secrets: inherit
