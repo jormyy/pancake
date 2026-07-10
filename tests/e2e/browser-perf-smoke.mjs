@@ -48,10 +48,14 @@ const browserNavigationTiming = async (session) => {
     `(() => {
       const nav = performance.getEntriesByType('navigation')[0];
       if (!nav) return JSON.stringify(null);
+      const requests = performance.getEntriesByType('resource')
+        .filter((entry) => entry.initiatorType === 'fetch' || entry.initiatorType === 'xmlhttprequest')
+        .map((entry) => entry.duration)
+        .filter((duration) => Number.isFinite(duration) && duration >= 0);
       const fullLoadMs = Math.round(nav.loadEventEnd || nav.domContentLoadedEventEnd || nav.responseEnd || 0);
       return JSON.stringify({
         fullLoadMs,
-        cachedRequestMs: Math.round(Math.max(0, nav.responseEnd - nav.requestStart)),
+        cachedRequestMs: requests.length > 0 ? Math.round(Math.max(...requests)) : null,
         domContentLoadedMs: Math.round(nav.domContentLoadedEventEnd || 0),
         responseEndMs: Math.round(nav.responseEnd || 0),
         transferSize: Math.round(nav.transferSize || 0),
@@ -174,8 +178,8 @@ const ensurePerfAuction = async (supabase, state) => {
     'id',
     { league_id: state.leagueId, is_current: true },
   )
-  const members = await sortedLeagueMembers(supabase, state.leagueId)
-  if (members.length < 2) throw new Error('D.X.4: browser perf auction requires at least two league members')
+  const members = (await sortedLeagueMembers(supabase, state.leagueId)).slice(0, 2)
+  if (members.length !== 2) throw new Error('D.X.4: browser perf auction requires two league members')
   const player = await findAvailablePlayer(supabase, state.leagueId, currentSeason.id)
   const now = new Date().toISOString()
 
@@ -185,7 +189,7 @@ const ensurePerfAuction = async (supabase, state) => {
     .eq('league_id', state.leagueId)
     .eq('league_season_id', currentSeason.id)
     .eq('draft_type', 'auction')
-    .eq('status', 'in_progress')
+    .in('status', ['pending', 'in_progress', 'paused'])
   if (cleanupError) throw new Error(`D.X.4 stale auction draft cleanup failed: ${cleanupError.message}`)
 
   const { data: draft, error: draftError } = await supabase
@@ -242,6 +246,16 @@ const ensurePerfAuction = async (supabase, state) => {
     members,
     player,
   }
+}
+
+const waitForDraftInProgress = async (supabase, draftId) => {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const { data, error } = await supabase.from('drafts').select('status').eq('id', draftId).single()
+    if (error) throw new Error(`D.X.4 draft status lookup failed: ${error.message}`)
+    if (data.status === 'in_progress') return
+    await new Promise((resolve) => setTimeout(resolve, 500))
+  }
+  throw new Error('D.X.4 two-manager presence did not resume the auction draft')
 }
 
 const ensurePerfMatchup = async (supabase, state, leagueSeasonId, members) => {
@@ -355,7 +369,7 @@ const runLoadMutations = async ({ supabase, auction, matchup }) => {
     let amount = null
     let bidderId = null
     if (auction?.nominationId) {
-      const bidder = auction.members[(index % (auction.members.length - 1)) + 1]
+      const bidder = auction.members[(index + 1) % auction.members.length]
       amount = startAmount + index
       bidderId = bidder.id
       const { error: bidError } = await supabase.rpc('place_auction_bid_atomic', {
@@ -409,7 +423,9 @@ export async function runBrowserPerfSmoke({
   const env = requireEnv(resolvedEnv(), ['supabaseUrl', 'serviceRoleKey'])
   const state = await readState()
   const user = state.users?.[0]
+  const peerUser = state.users?.[1]
   if (!user) throw new Error('D.X.4: no seeded user found for browser perf smoke')
+  if (!peerUser) throw new Error('D.X.4: no second seeded user found for browser perf presence')
   if (!state.password) throw new Error('D.X.4: tests/e2e-state.json is missing the seeded user password')
   const supabase = createClient(env.supabaseUrl, env.serviceRoleKey, { auth: { persistSession: false } })
   const auction = await ensurePerfAuction(supabase, state)
@@ -424,6 +440,7 @@ export async function runBrowserPerfSmoke({
   const matchup = await ensurePerfMatchup(supabase, state, auction.leagueSeasonId, auction.members)
   const sessionList = await listSessions().catch((error) => `session list unavailable: ${error.message}`)
   const session = sessionName ?? safeName(`pancake-perf-${state.runId ?? 'run'}-s${season}-${process.pid}`)
+  const peerSession = `${session}-peer`
   const artifactDir = path.join(ARTIFACT_ROOT, `season-${season}`, 'browser-perf')
   await mkdir(artifactDir, { recursive: true })
 
@@ -431,6 +448,7 @@ export async function runBrowserPerfSmoke({
     `Frontend: ${describeEndpoint(env.frontendUrl)}`,
     `Session: ${session}`,
     `User: ${user.email}`,
+    `Presence peer: ${peerUser.email}`,
     `Mutation count: ${MUTATION_COUNT}`,
     sessionList,
   ]
@@ -441,6 +459,17 @@ export async function runBrowserPerfSmoke({
 
     await browser(session, ['open', joinUrl(env.frontendUrl, `/draft-room?draftId=${auction.draftId}`)])
     await browser(session, ['wait', String(BROWSER_SETTLE_MS)])
+    await signIn(peerSession, env, state, peerUser)
+    await browser(peerSession, ['set', 'viewport', '390', '844'])
+    await browser(peerSession, ['open', joinUrl(env.frontendUrl, `/draft-room?draftId=${auction.draftId}`)])
+    await browser(peerSession, ['wait', '3000'])
+    await waitForDraftInProgress(supabase, auction.draftId)
+    await browser(session, ['open', joinUrl(env.frontendUrl, `/draft-room?draftId=${auction.draftId}`)])
+    await browser(session, ['wait', String(BROWSER_SETTLE_MS)])
+    await waitForDraftInProgress(supabase, auction.draftId)
+    await browser(session, ['open', joinUrl(env.frontendUrl, `/draft-room?draftId=${auction.draftId}`)])
+    await browser(session, ['wait', String(BROWSER_SETTLE_MS)])
+    await waitForDraftInProgress(supabase, auction.draftId)
     const draftLoadTiming = await browserNavigationTiming(session).catch(() => null)
     const draftFeedback = await bidPressFeedbackTiming(session).catch((error) => ({ error: error.message }))
     await installHeartbeat(session)
@@ -451,6 +480,8 @@ export async function runBrowserPerfSmoke({
     const draftPerf = await collectHeartbeat(session)
     await browser(session, ['screenshot', path.join(artifactDir, 'draft-after-load.png')], { timeout: 60_000 })
 
+    await browser(session, ['open', joinUrl(env.frontendUrl, '/')])
+    await browser(session, ['wait', String(BROWSER_SETTLE_MS)])
     await browser(session, ['open', joinUrl(env.frontendUrl, '/')])
     await browser(session, ['wait', String(BROWSER_SETTLE_MS)])
     const homeLoadTiming = await browserNavigationTiming(session).catch(() => null)

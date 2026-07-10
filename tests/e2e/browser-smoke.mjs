@@ -61,9 +61,13 @@ const browserNavigationTiming = async (session) => {
     `(() => {
       const nav = performance.getEntriesByType('navigation')[0];
       if (!nav) return JSON.stringify(null);
+      const requests = performance.getEntriesByType('resource')
+        .filter((entry) => entry.initiatorType === 'fetch' || entry.initiatorType === 'xmlhttprequest')
+        .map((entry) => entry.duration)
+        .filter((duration) => Number.isFinite(duration) && duration >= 0);
       return JSON.stringify({
         fullLoadMs: Math.round(nav.loadEventEnd || nav.domContentLoadedEventEnd || nav.responseEnd || 0),
-        cachedRequestMs: Math.round(Math.max(0, nav.responseEnd - nav.requestStart)),
+        cachedRequestMs: requests.length > 0 ? Math.round(Math.max(...requests)) : null,
         domContentLoadedMs: Math.round(nav.domContentLoadedEventEnd || 0),
         responseEndMs: Math.round(nav.responseEnd || 0),
         transferSize: Math.round(nav.transferSize || 0),
