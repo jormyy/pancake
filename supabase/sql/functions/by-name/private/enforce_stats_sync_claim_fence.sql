@@ -16,10 +16,9 @@ BEGIN
         USING ERRCODE = '55000';
     END IF;
 
-    IF OLD.status = 'pending'
-       AND NEW.status = 'running'
+    IF NEW.status = 'running'
        AND NEW.claim_token IS NULL THEN
-      NEW.claimed_at := COALESCE(NEW.claimed_at, now());
+      NEW.claimed_at := now();
     END IF;
   END IF;
 

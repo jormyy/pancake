@@ -58,7 +58,12 @@ try {
     .eq('id', LEGACY_JOB_ID)
   assert.equal(legacyDrainError, null, 'tokenless predeploy worker could not drain before fenced takeover')
 
-  scalar(`UPDATE public.sync_jobs SET claimed_at = now() - interval '16 minutes' WHERE id = '${LEGACY_JOB_ID}';`)
+  scalar(`
+    BEGIN;
+    SET LOCAL app.stats_sync_fenced_transition = 'on';
+    UPDATE public.sync_jobs SET claimed_at = now() - interval '16 minutes' WHERE id = '${LEGACY_JOB_ID}';
+    COMMIT;
+  `)
   const legacyTakeoverClaims = await rpc('claim_stats_sync_job_atomic', {
     p_job_id: LEGACY_JOB_ID,
     p_stale_after_seconds: 60,
@@ -113,10 +118,71 @@ try {
   assert.equal(livePostMigrationLegacyClaims.length, 0, 'post-migration legacy worker was reclaimed before its drain window elapsed')
 
   scalar(`
+    BEGIN;
+    SET LOCAL app.stats_sync_fenced_transition = 'on';
+    UPDATE public.sync_jobs
+       SET claimed_at = now() - interval '16 minutes'
+     WHERE id = '${POST_MIGRATION_LEGACY_JOB_ID}';
+    COMMIT;
+  `)
+  const { error: postMigrationLegacyReleaseError } = await admin
+    .from('sync_jobs')
+    .update({ status: 'pending' })
+    .eq('id', POST_MIGRATION_LEGACY_JOB_ID)
+  assert.equal(postMigrationLegacyReleaseError, null, 'post-migration legacy worker could not requeue its continuation')
+  const { error: postMigrationLegacyContinuationError } = await admin
+    .from('sync_jobs')
+    .update({
+      status: 'running',
+      metadata: {
+        ...POST_MIGRATION_LEGACY_RANGE,
+        nextDate: POST_MIGRATION_LEGACY_RANGE.endDate,
+        claimedAt: new Date().toISOString(),
+      },
+    })
+    .eq('id', POST_MIGRATION_LEGACY_JOB_ID)
+  assert.equal(postMigrationLegacyContinuationError, null, 'post-migration legacy continuation could not start')
+  assert.equal(
+    scalar(`SELECT claimed_at > now() - interval '1 minute' FROM public.sync_jobs WHERE id = '${POST_MIGRATION_LEGACY_JOB_ID}';`),
+    't',
+    'post-migration legacy continuation retained its expired prior lease',
+  )
+  assert.equal((await rpc('claim_stats_sync_job_atomic', {
+    p_job_id: POST_MIGRATION_LEGACY_JOB_ID,
+    p_stale_after_seconds: 60,
+  })).length, 0, 'live post-migration legacy continuation was reclaimed from its retained prior lease')
+
+  scalar(`
+    BEGIN;
+    SET LOCAL app.stats_sync_fenced_transition = 'on';
+    UPDATE public.sync_jobs
+       SET claimed_at = now() - interval '16 minutes'
+     WHERE id = '${POST_MIGRATION_LEGACY_JOB_ID}';
+    COMMIT;
+  `)
+  const { error: postMigrationLegacyHeartbeatError } = await admin
+    .from('sync_jobs')
+    .update({ completed_items: 1 })
+    .eq('id', POST_MIGRATION_LEGACY_JOB_ID)
+  assert.equal(postMigrationLegacyHeartbeatError, null, 'post-migration legacy checkpoint could not heartbeat')
+  assert.equal(
+    scalar(`SELECT claimed_at > now() - interval '1 minute' FROM public.sync_jobs WHERE id = '${POST_MIGRATION_LEGACY_JOB_ID}';`),
+    't',
+    'post-migration legacy checkpoint did not refresh its rollout lease',
+  )
+  assert.equal((await rpc('claim_stats_sync_job_atomic', {
+    p_job_id: POST_MIGRATION_LEGACY_JOB_ID,
+    p_stale_after_seconds: 60,
+  })).length, 0, 'heartbeating post-migration legacy worker was reclaimed')
+
+  scalar(`
+    BEGIN;
+    SET LOCAL app.stats_sync_fenced_transition = 'on';
     UPDATE public.sync_jobs
        SET claimed_at = NULL,
            created_at = now() - interval '16 minutes'
      WHERE id = '${POST_MIGRATION_LEGACY_JOB_ID}';
+    COMMIT;
   `)
   const crashedPostMigrationLegacyClaims = await rpc('claim_stats_sync_job_atomic', {
     p_job_id: POST_MIGRATION_LEGACY_JOB_ID,
