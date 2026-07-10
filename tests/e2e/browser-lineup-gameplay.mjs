@@ -5,7 +5,6 @@ import { resolvedEnv, requireEnv, describeEndpoint } from './env.mjs'
 import { installRuntimeOverrides } from './browser-runtime-overrides.mjs'
 import { captureBrowserScreenshot, clickButtonByName, createBrowser, fillSignInCredentials, listBrowserSessions } from './browser-agent.mjs'
 import { createFixtureResourceOwner } from './trade-fixture.mjs'
-import { ownScenarioResource } from './scenario-resource-owner.mjs'
 import { runBrowserScenarioLifecycle } from './browser-scenario-lifecycle.mjs'
 
 const ROOT = process.cwd()
@@ -241,17 +240,10 @@ const setupLineupFixture = async (env, season) => {
     .eq('id', league.id)
   if (statusError) throw new Error(`lineup fixture status flip: ${statusError.message}`)
 
-  const dispose = async () => {
-    const cleanup = await Promise.allSettled([
-      resources.dispose(),
-      admin.from('season_weeks').delete().eq('season_year', syntheticSeason.season_year).then(({ error }) => {
-        if (error) throw new Error(error.message)
-      }),
-    ])
-    const failures = cleanup.flatMap((result) => result.status === 'rejected' ? [result.reason] : [])
-    if (failures.length > 0) throw new AggregateError(failures, 'Lineup fixture cleanup failed')
-  }
-  ownScenarioResource(`lineup-fixture:${runId}`, `lineup fixture ${runId}`, dispose)
+  resources.registerCleanup(`lineup season week ${syntheticSeason.season_year}`, async () => {
+    const { error } = await admin.from('season_weeks').delete().eq('season_year', syntheticSeason.season_year)
+    if (error) throw new Error(error.message)
+  })
   return {
     admin,
     runId,
@@ -263,7 +255,7 @@ const setupLineupFixture = async (env, season) => {
     week,
     player,
     rosterRow,
-    dispose,
+    dispose: resources.dispose,
   }
 }
 
@@ -657,7 +649,6 @@ export async function runBrowserLineupScenario({
     artifactDir,
     reportPath: REPORT_PATH,
     season,
-    fixture,
     fixtureSummary: () => ({
         runId: fixture.runId,
         leagueId: fixture.league.id,
@@ -711,7 +702,6 @@ export async function runBrowserLineupLockedScenario({
     artifactDir,
     reportPath: REPORT_PATH,
     season,
-    fixture,
     fixtureSummary: () => ({
       runId: fixture.runId,
       leagueId: fixture.league.id,
@@ -779,7 +769,6 @@ export async function runBrowserLineupAutoSetScenario({
     artifactDir,
     reportPath: REPORT_PATH,
     season,
-    fixture,
     fixtureSummary: () => ({
       runId: fixture.runId,
       leagueId: fixture.league.id,

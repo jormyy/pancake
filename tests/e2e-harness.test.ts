@@ -64,10 +64,10 @@ describe('e2e browser scenario registry', () => {
 
   it('gates every browser flow by the shared season policy', async () => {
     vi.resetModules()
-    const smoke = vi.fn(async () => ({ ok: 'smoke' }))
-    const auth = vi.fn(async () => ({ ok: 'auth' }))
-    const perf = vi.fn(async () => ({ ok: 'perf' }))
-    const trade = vi.fn(async () => ({ ok: 'trade' }))
+    const smoke = vi.fn(async () => ({ status: 'PASS', ok: 'smoke' }))
+    const auth = vi.fn(async () => ({ status: 'PASS', ok: 'auth' }))
+    const perf = vi.fn(async () => ({ status: 'PASS', ok: 'perf' }))
+    const trade = vi.fn(async () => ({ status: 'PASS', ok: 'trade' }))
 
     mockBrowserScenarioModules({ smoke, auth, perf, trade })
     const { runBrowserScenarios } = await import('./e2e/harness/browser-scenarios.mjs')
@@ -98,8 +98,8 @@ describe('e2e browser scenario registry', () => {
     expect(auth).toHaveBeenCalledWith({ season: 1 })
     expect(perf).toHaveBeenCalledWith({ season: 1 })
     expect(trade).toHaveBeenCalledWith({ season: 1 })
-    expect(completed.browserPerfCheck).toEqual({ ok: 'perf' })
-    expect(completed.browserTradeCheck).toEqual({ ok: 'trade' })
+    expect(completed.browserPerfCheck).toEqual({ status: 'PASS', ok: 'perf' })
+    expect(completed.browserTradeCheck).toEqual({ status: 'PASS', ok: 'trade' })
     expect(completed.browserWaiverCheck).toBeNull()
   })
 })
@@ -229,7 +229,7 @@ type ScenarioMocks = {
   trade: ReturnType<typeof vi.fn>
 }
 
-const noopScenario = vi.fn(async () => ({ ok: 'unused' }))
+const noopScenario = vi.fn(async () => ({ status: 'PASS', ok: 'unused' }))
 
 const mockBrowserScenarioModules = ({ auth, perf, smoke, trade }: ScenarioMocks) => {
   vi.doMock('./e2e/browser-smoke.mjs', () => ({ runBrowserSmoke: smoke }))

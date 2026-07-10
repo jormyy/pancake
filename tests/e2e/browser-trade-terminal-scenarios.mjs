@@ -51,7 +51,7 @@ export async function runBrowserTradeVetoScenario({
 
   try {
     await signInBrowser(session, env, fixture.users[2], fixture.password)
-    await browser(session, ['set', 'viewport', '390', '844']).catch(() => {})
+    await browser(session, ['set', 'viewport', '390', '844'])
     await openOffersTab(session, env)
     await assertPageText(
       session,
@@ -170,7 +170,7 @@ export async function runBrowserTradeTerminalScenario({
 
   try {
     await signInBrowser(rejectSession, env, rejectFixture.users[1], rejectFixture.password)
-    await browser(rejectSession, ['set', 'viewport', '390', '844']).catch(() => {})
+    await browser(rejectSession, ['set', 'viewport', '390', '844'])
     await openOffersTab(rejectSession, env)
     await assertPageText(
       rejectSession,
@@ -197,7 +197,7 @@ export async function runBrowserTradeTerminalScenario({
     await browser(rejectSession, ['screenshot', path.join(artifactDir, 'trade-reject-after.png')], { timeout: 60_000 })
 
     await signInBrowser(withdrawSession, env, withdrawFixture.users[0], withdrawFixture.password)
-    await browser(withdrawSession, ['set', 'viewport', '390', '844']).catch(() => {})
+    await browser(withdrawSession, ['set', 'viewport', '390', '844'])
     await openOffersTab(withdrawSession, env)
     await assertPageText(
       withdrawSession,

@@ -28,13 +28,17 @@ const REGISTRY_ARTIFACT_ROOT = path.join(process.cwd(), 'tests/artifacts/registr
 
 export const writeRegisteredScenarioReport = async (scenario, context, { outcome, primaryError, cleanupError }) => {
   const result = outcome.ok ? outcome.value : null
+  const resultPassed = result != null && typeof result === 'object' && Reflect.get(result, 'status') === 'PASS'
+  const contractError = outcome.ok && !resultPassed
+    ? `Scenario returned ${result && typeof result === 'object' && 'status' in result ? String(result.status) : 'no status'} instead of PASS`
+    : null
   const report = {
-    status: primaryError || cleanupError ? 'FAIL' : result?.status ?? 'PASS',
+    status: primaryError || cleanupError || contractError ? 'FAIL' : 'PASS',
     scenario: scenario.id,
     evidenceId: scenario.evidenceId,
     evidence: scenario.evidence,
     season: context.season,
-    error: errorText(primaryError),
+    error: errorText(primaryError) ?? contractError,
     cleanupError: errorText(cleanupError),
     result,
   }
@@ -75,11 +79,17 @@ const runners = new Map(Object.entries({ ...standardRunners, ...tradeRunners }))
 export const BROWSER_SCENARIOS = bindBrowserScenarioRunners(BROWSER_SCENARIO_MANIFEST, runners)
   .map((scenario) => ({
     ...scenario,
-    run: (context) => runWithScenarioResourceOwner(
-      `browser ${scenario.id}`,
-      () => scenario.run(context),
-      { onComplete: (result) => writeRegisteredScenarioReport(scenario, context, result) },
-    ),
+    run: async (context) => {
+      const result = await runWithScenarioResourceOwner(
+        `browser ${scenario.id}`,
+        () => scenario.run(context),
+        { onComplete: (completion) => writeRegisteredScenarioReport(scenario, context, completion) },
+      )
+      if (!result || typeof result !== 'object' || Reflect.get(result, 'status') !== 'PASS') {
+        throw new Error(`Browser scenario ${scenario.id} did not return PASS`)
+      }
+      return result
+    },
   }))
 
 export const browserScenarioById = (id) => {

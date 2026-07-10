@@ -75,6 +75,7 @@ import {
   assertWeeklyScoringFinalizationScenario,
 } from './soak-scoring-reset.mjs'
 import { BROWSER_SCENARIO_MANIFEST, browserEvidenceIds, browserPassNotes } from './browser-scenario-manifest.mjs'
+import { runWithScenarioResourceOwner } from './scenario-resource-owner.mjs'
 
 const main = async () => {
   const args = parseArgs()
@@ -372,13 +373,14 @@ const main = async () => {
         } = backendScenarioResults
         let realtimeCheck = false
         if (args.realtime) {
-          await assertRealtimeDelivery({
+          await runWithScenarioResourceOwner(`realtime season ${season}`, (resourceOwner) => assertRealtimeDelivery({
             supabase,
             env,
             state,
             leagueId: targetLeagueId,
             season,
-          })
+            resourceOwner,
+          }))
           realtimeCheck = true
         }
         let pushCheck = false

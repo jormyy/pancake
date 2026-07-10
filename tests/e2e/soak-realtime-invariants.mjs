@@ -162,7 +162,27 @@ const insertRealtimeAuctionTarget = async (supabase, leagueId, season) => {
   }
 }
 
-export const assertRealtimeDelivery = async ({ supabase, env, state, leagueId, season }) => {
+const cleanupRealtimeClients = async (clients, channels) => {
+  const results = await Promise.allSettled(clients.map(async (client, index) => {
+    const failures = []
+    try {
+      if (typeof client.removeAllChannels === 'function') await client.removeAllChannels()
+      else if (channels[index]) await client.removeChannel(channels[index].channel)
+    } catch (error) { failures.push(error) }
+    try {
+      const { error } = await client.auth.signOut()
+      if (error) failures.push(error)
+    } catch (error) { failures.push(error) }
+    try {
+      if (typeof client.realtime?.disconnect === 'function') client.realtime.disconnect()
+    } catch (error) { failures.push(error) }
+    if (failures.length > 0) throw new AggregateError(failures, `realtime client ${index + 1} cleanup failed`)
+  }))
+  const failures = results.flatMap((result) => result.status === 'rejected' ? [result.reason] : [])
+  if (failures.length > 0) throw new AggregateError(failures, 'D.X.2 realtime client cleanup failed')
+}
+
+export const assertRealtimeDelivery = async ({ supabase, env, state, leagueId, season, resourceOwner }) => {
   if (!state?.password || !Array.isArray(state.users) || state.users.length === 0) {
     throw new Error('D.X.2: realtime scenario requires tests/e2e-state.json from npm run e2e:seed')
   }
@@ -184,8 +204,26 @@ export const assertRealtimeDelivery = async ({ supabase, env, state, leagueId, s
     throw new Error(`D.X.2: invalid E2E_REALTIME_WARMUP_ATTEMPTS ${process.env.E2E_REALTIME_WARMUP_ATTEMPTS}`)
   }
 
+  let bidSucceeded = false
   const target = await insertRealtimeTargetMatchup(supabase, leagueId, season, season)
+  resourceOwner.register(`realtime matchup ${target.id}`, async () => {
+    const { error } = await supabase.from('matchups').delete().eq('id', target.id)
+    if (error) throw new Error(`D.X.2 realtime matchup cleanup: ${error.message}`)
+  })
   const bidTarget = await insertRealtimeAuctionTarget(supabase, leagueId, season)
+  resourceOwner.register(`realtime auction ${bidTarget.draftId}`, async () => {
+    const failures = []
+    const closedAt = new Date().toISOString()
+    const { error: nominationError } = await supabase.from('nominations').update(bidSucceeded ? {
+      status: 'sold', winning_member_id: bidTarget.bidderTwo, final_price: 2,
+      countdown_expires_at: null, closed_at: closedAt,
+    } : { status: 'no_bid', countdown_expires_at: null, closed_at: closedAt })
+      .eq('id', bidTarget.nominationId).eq('status', 'open')
+    if (nominationError) failures.push(new Error(`nomination: ${nominationError.message}`))
+    const { error: draftError } = await supabase.from('drafts').delete().eq('id', bidTarget.draftId)
+    if (draftError) failures.push(new Error(`draft: ${draftError.message}`))
+    if (failures.length > 0) throw new AggregateError(failures, 'D.X.2 realtime auction cleanup failed')
+  })
   const clients = []
   const channels = []
   const warmupDeliveries = []
@@ -197,7 +235,6 @@ export const assertRealtimeDelivery = async ({ supabase, env, state, leagueId, s
   const expectedAwayPoints = 900 + season
   const expectedBidAmount = 2
   const warmupSeen = new Set()
-  let bidSucceeded = false
   const realtimeAccessToken = await signInForAccessToken(
     env,
     state.users[0].email,
@@ -205,183 +242,148 @@ export const assertRealtimeDelivery = async ({ supabase, env, state, leagueId, s
     'D.X.2 realtime sign-in',
   )
 
-  try {
-    const setups = Array.from({ length: REALTIME_CLIENTS }, (_, index) => {
-      const client = createClient(env.supabaseUrl, env.anonKey, {
-        auth: { persistSession: false },
-        realtime: { transport: WebSocket, timeout: REALTIME_SUBSCRIBE_TIMEOUT_MS },
-      })
-      client.realtime.setAuth(realtimeAccessToken)
-
-      let resolveWarmup
-      const warmupDelivery = new Promise((resolve) => {
-        resolveWarmup = resolve
-      })
-      const channel = client.channel(`e2e_realtime_${season}_${index}`)
-      const delivery = new Promise((resolve) => {
-        channel.on('postgres_changes', {
-            event: 'UPDATE',
-            schema: 'public',
-            table: 'matchups',
-            filter: `id=eq.${target.id}`,
-          }, (payload) => {
-            const homePoints = Number(payload.new?.home_points)
-            const awayPoints = Number(payload.new?.away_points)
-            const warmupAttempt = homePoints - warmupHomePoints
-            if (
-              warmupAttempt >= 0 &&
-              warmupAttempt < REALTIME_WARMUP_ATTEMPTS &&
-              awayPoints === warmupAwayPoints + warmupAttempt
-            ) {
-              warmupSeen.add(index)
-              resolveWarmup({ clientIndex: index, receivedAtMs: nowMs() })
-            }
-            if (
-              homePoints === expectedHomePoints &&
-              awayPoints === expectedAwayPoints
-            ) {
-              resolve({ clientIndex: index, receivedAtMs: nowMs() })
-            }
-          })
-      })
-      const bidDelivery = new Promise((resolve) => {
-        channel.on('postgres_changes', {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'nominations',
-          filter: `id=eq.${bidTarget.nominationId}`,
-        }, (payload) => {
-          if (
-            Number(payload.new?.current_bid_amount) === expectedBidAmount &&
-            payload.new?.current_bidder_id === bidTarget.bidderTwo
-          ) {
-            resolve({ clientIndex: index, receivedAtMs: nowMs() })
-          }
-        })
-      })
-      return { client, channel, warmupDelivery, delivery, bidDelivery }
+  const setups = Array.from({ length: REALTIME_CLIENTS }, (_, index) => {
+    const client = createClient(env.supabaseUrl, env.anonKey, {
+      auth: { persistSession: false },
+      realtime: { transport: WebSocket, timeout: REALTIME_SUBSCRIBE_TIMEOUT_MS },
     })
-    clients.push(...setups.map(({ client }) => client))
-    channels.push(...setups.map(({ client, channel }) => ({ client, channel })))
-    warmupDeliveries.push(...setups.map(({ warmupDelivery }) => warmupDelivery))
-    deliveries.push(...setups.map(({ delivery }) => delivery))
-    bidDeliveries.push(...setups.map(({ bidDelivery }) => bidDelivery))
+    client.realtime.setAuth(realtimeAccessToken)
 
-    await Promise.all(channels.map(({ channel }, index) => waitForRealtimeSubscribe(channel, `client ${index + 1}`)))
-    await sleep(REALTIME_SETTLE_MS)
-    for (let attempt = 0; attempt < REALTIME_WARMUP_ATTEMPTS && warmupSeen.size < REALTIME_CLIENTS; attempt += 1) {
-      const { error: warmupError } = await supabase
-        .from('matchups')
-        .update({
-          home_points: warmupHomePoints + attempt,
-          away_points: warmupAwayPoints + attempt,
-        })
-        .eq('id', target.id)
-      if (warmupError) throw new Error(`D.X.2 realtime warmup update ${attempt + 1}: ${warmupError.message}`)
-      await sleep(Math.min(REALTIME_LATENCY_LIMIT_MS, 2000))
-    }
-    await withTimeout(
-      Promise.all(warmupDeliveries),
-      1000,
-      `D.X.2: realtime warmup update reached ${warmupSeen.size}/${REALTIME_CLIENTS} clients after ${REALTIME_WARMUP_ATTEMPTS} attempts`,
-    )
+    let resolveWarmup
+    const warmupDelivery = new Promise((resolve) => {
+      resolveWarmup = resolve
+    })
+    const channel = client.channel(`e2e_realtime_${season}_${index}`)
+    const delivery = new Promise((resolve) => {
+      channel.on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'matchups',
+        filter: `id=eq.${target.id}`,
+      }, (payload) => {
+        const homePoints = Number(payload.new?.home_points)
+        const awayPoints = Number(payload.new?.away_points)
+        const warmupAttempt = homePoints - warmupHomePoints
+        if (
+          warmupAttempt >= 0 &&
+          warmupAttempt < REALTIME_WARMUP_ATTEMPTS &&
+          awayPoints === warmupAwayPoints + warmupAttempt
+        ) {
+          warmupSeen.add(index)
+          resolveWarmup({ clientIndex: index, receivedAtMs: nowMs() })
+        }
+        if (
+          homePoints === expectedHomePoints &&
+          awayPoints === expectedAwayPoints
+        ) {
+          resolve({ clientIndex: index, receivedAtMs: nowMs() })
+        }
+      })
+    })
+    const bidDelivery = new Promise((resolve) => {
+      channel.on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'nominations',
+        filter: `id=eq.${bidTarget.nominationId}`,
+      }, (payload) => {
+        if (
+          Number(payload.new?.current_bid_amount) === expectedBidAmount &&
+          payload.new?.current_bidder_id === bidTarget.bidderTwo
+        ) {
+          resolve({ clientIndex: index, receivedAtMs: nowMs() })
+        }
+      })
+    })
+    return { client, channel, warmupDelivery, delivery, bidDelivery }
+  })
+  clients.push(...setups.map(({ client }) => client))
+  channels.push(...setups.map(({ client, channel }) => ({ client, channel })))
+  warmupDeliveries.push(...setups.map(({ warmupDelivery }) => warmupDelivery))
+  deliveries.push(...setups.map(({ delivery }) => delivery))
+  bidDeliveries.push(...setups.map(({ bidDelivery }) => bidDelivery))
+  resourceOwner.register('realtime clients', () => cleanupRealtimeClients(clients, channels))
 
-    const updateStartedMs = nowMs()
-    const { error: updateError } = await supabase
+  await Promise.all(channels.map(({ channel }, index) => waitForRealtimeSubscribe(channel, `client ${index + 1}`)))
+  await sleep(REALTIME_SETTLE_MS)
+  for (let attempt = 0; attempt < REALTIME_WARMUP_ATTEMPTS && warmupSeen.size < REALTIME_CLIENTS; attempt += 1) {
+    const { error: warmupError } = await supabase
       .from('matchups')
       .update({
-        home_points: expectedHomePoints,
-        away_points: expectedAwayPoints,
+        home_points: warmupHomePoints + attempt,
+        away_points: warmupAwayPoints + attempt,
       })
       .eq('id', target.id)
-    if (updateError) throw new Error(`D.X.2 realtime matchup update: ${updateError.message}`)
-    const updateCommittedMs = nowMs()
-
-    const results = await withTimeout(
-      Promise.all(deliveries),
-      REALTIME_LATENCY_LIMIT_MS,
-      `D.X.2: realtime update did not reach all ${REALTIME_CLIENTS} clients within ${REALTIME_LATENCY_LIMIT_MS}ms`,
-    )
-    const latenciesMs = results.map((result) => Math.max(0, result.receivedAtMs - updateCommittedMs))
-    const maxLatencyMs = Math.max(...latenciesMs)
-    if (maxLatencyMs > REALTIME_LATENCY_LIMIT_MS) {
-      throw new Error(`D.X.2: realtime max latency ${roundedMs(maxLatencyMs)}ms exceeded ${REALTIME_LATENCY_LIMIT_MS}ms`)
-    }
-
-    const bidStartedMs = nowMs()
-    const { error: bidError } = await supabase.rpc('place_auction_bid_atomic', {
-      p_draft_id: bidTarget.draftId,
-      p_member_id: bidTarget.bidderTwo,
-      p_nomination_id: bidTarget.nominationId,
-      p_amount: expectedBidAmount,
-      p_user_id: bidTarget.bidderTwoUserId,
-    })
-    if (bidError) throw new Error(`D.X.2 realtime auction bid RPC: ${bidError.message}`)
-    bidSucceeded = true
-    const bidCommittedMs = nowMs()
-
-    const bidResults = await withTimeout(
-      Promise.all(bidDeliveries),
-      REALTIME_LATENCY_LIMIT_MS,
-      `D.X.2: realtime bid update did not reach all ${REALTIME_CLIENTS} clients within ${REALTIME_LATENCY_LIMIT_MS}ms`,
-    )
-    const bidLatenciesMs = bidResults.map((result) => Math.max(0, result.receivedAtMs - bidCommittedMs))
-    const maxBidLatencyMs = Math.max(...bidLatenciesMs)
-    if (maxBidLatencyMs > REALTIME_LATENCY_LIMIT_MS) {
-      throw new Error(`D.X.2: realtime bid max latency ${roundedMs(maxBidLatencyMs)}ms exceeded ${REALTIME_LATENCY_LIMIT_MS}ms`)
-    }
-
-    await writeFile(
-      path.join(ARTIFACT_ROOT, `season-${season}`, 'realtime-latency.json'),
-      `${JSON.stringify({
-        season,
-        matchupId: target.id,
-        draftId: bidTarget.draftId,
-        nominationId: bidTarget.nominationId,
-        clients: REALTIME_CLIENTS,
-        updateRoundTripMs: roundedMs(updateCommittedMs - updateStartedMs),
-        maxLatencyMs: roundedMs(maxLatencyMs),
-        latenciesMs: latenciesMs.map((latency) => roundedMs(latency)),
-        bidRoundTripMs: roundedMs(bidCommittedMs - bidStartedMs),
-        maxBidLatencyMs: roundedMs(maxBidLatencyMs),
-        bidLatenciesMs: bidLatenciesMs.map((latency) => roundedMs(latency)),
-      }, null, 2)}\n`,
-    )
-  } finally {
-    const closedAt = new Date().toISOString()
-    await supabase
-      .from('nominations')
-      .update(bidSucceeded
-        ? {
-            status: 'sold',
-            winning_member_id: bidTarget.bidderTwo,
-            final_price: expectedBidAmount,
-            countdown_expires_at: null,
-            closed_at: closedAt,
-          }
-        : {
-            status: 'no_bid',
-            countdown_expires_at: null,
-            closed_at: closedAt,
-          })
-      .eq('id', bidTarget.nominationId)
-      .eq('status', 'open')
-    await supabase
-      .from('drafts')
-      .update({ status: 'completed', completed_at: closedAt })
-      .eq('id', bidTarget.draftId)
-    await Promise.allSettled(channels.map(({ client, channel }) => client.removeChannel(channel)))
-    await Promise.allSettled(clients.map(async (client) => {
-      if (typeof client.removeAllChannels === 'function') {
-        await client.removeAllChannels()
-      }
-      await client.auth.signOut()
-      if (typeof client.realtime?.disconnect === 'function') {
-        client.realtime.disconnect()
-      }
-    }))
-    await sleep(100)
+    if (warmupError) throw new Error(`D.X.2 realtime warmup update ${attempt + 1}: ${warmupError.message}`)
+    await sleep(Math.min(REALTIME_LATENCY_LIMIT_MS, 2000))
   }
+  await withTimeout(
+    Promise.all(warmupDeliveries),
+    1000,
+    `D.X.2: realtime warmup update reached ${warmupSeen.size}/${REALTIME_CLIENTS} clients after ${REALTIME_WARMUP_ATTEMPTS} attempts`,
+  )
+
+  const updateStartedMs = nowMs()
+  const { error: updateError } = await supabase
+    .from('matchups')
+    .update({
+      home_points: expectedHomePoints,
+      away_points: expectedAwayPoints,
+    })
+    .eq('id', target.id)
+  if (updateError) throw new Error(`D.X.2 realtime matchup update: ${updateError.message}`)
+  const updateCommittedMs = nowMs()
+
+  const results = await withTimeout(
+    Promise.all(deliveries),
+    REALTIME_LATENCY_LIMIT_MS,
+    `D.X.2: realtime update did not reach all ${REALTIME_CLIENTS} clients within ${REALTIME_LATENCY_LIMIT_MS}ms`,
+  )
+  const latenciesMs = results.map((result) => Math.max(0, result.receivedAtMs - updateCommittedMs))
+  const maxLatencyMs = Math.max(...latenciesMs)
+  if (maxLatencyMs > REALTIME_LATENCY_LIMIT_MS) {
+    throw new Error(`D.X.2: realtime max latency ${roundedMs(maxLatencyMs)}ms exceeded ${REALTIME_LATENCY_LIMIT_MS}ms`)
+  }
+
+  const bidStartedMs = nowMs()
+  const { error: bidError } = await supabase.rpc('place_auction_bid_atomic', {
+    p_draft_id: bidTarget.draftId,
+    p_member_id: bidTarget.bidderTwo,
+    p_nomination_id: bidTarget.nominationId,
+    p_amount: expectedBidAmount,
+    p_user_id: bidTarget.bidderTwoUserId,
+  })
+  if (bidError) throw new Error(`D.X.2 realtime auction bid RPC: ${bidError.message}`)
+  bidSucceeded = true
+  const bidCommittedMs = nowMs()
+
+  const bidResults = await withTimeout(
+    Promise.all(bidDeliveries),
+    REALTIME_LATENCY_LIMIT_MS,
+    `D.X.2: realtime bid update did not reach all ${REALTIME_CLIENTS} clients within ${REALTIME_LATENCY_LIMIT_MS}ms`,
+  )
+  const bidLatenciesMs = bidResults.map((result) => Math.max(0, result.receivedAtMs - bidCommittedMs))
+  const maxBidLatencyMs = Math.max(...bidLatenciesMs)
+  if (maxBidLatencyMs > REALTIME_LATENCY_LIMIT_MS) {
+    throw new Error(`D.X.2: realtime bid max latency ${roundedMs(maxBidLatencyMs)}ms exceeded ${REALTIME_LATENCY_LIMIT_MS}ms`)
+  }
+
+  await writeFile(
+    path.join(ARTIFACT_ROOT, `season-${season}`, 'realtime-latency.json'),
+    `${JSON.stringify({
+      season,
+      matchupId: target.id,
+      draftId: bidTarget.draftId,
+      nominationId: bidTarget.nominationId,
+      clients: REALTIME_CLIENTS,
+      updateRoundTripMs: roundedMs(updateCommittedMs - updateStartedMs),
+      maxLatencyMs: roundedMs(maxLatencyMs),
+      latenciesMs: latenciesMs.map((latency) => roundedMs(latency)),
+      bidRoundTripMs: roundedMs(bidCommittedMs - bidStartedMs),
+      maxBidLatencyMs: roundedMs(maxBidLatencyMs),
+      bidLatenciesMs: bidLatenciesMs.map((latency) => roundedMs(latency)),
+    }, null, 2)}\n`,
+  )
 }
 
 export const applyMidlifeMigration = async (season) => {

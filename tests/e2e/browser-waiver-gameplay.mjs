@@ -5,7 +5,6 @@ import { resolvedEnv, requireEnv, describeEndpoint } from './env.mjs'
 import { installRuntimeOverrides } from './browser-runtime-overrides.mjs'
 import { clickButtonByName, createBrowser, fillSignInCredentials, listBrowserSessions } from './browser-agent.mjs'
 import { createFixtureResourceOwner } from './trade-fixture.mjs'
-import { ownScenarioResource } from './scenario-resource-owner.mjs'
 import { runBrowserScenarioLifecycle } from './browser-scenario-lifecycle.mjs'
 
 const ROOT = process.cwd()
@@ -61,7 +60,14 @@ const fetchCurrentSeason = async (admin, leagueId) => {
   return data
 }
 
-const findAvailablePlayers = async (admin, leagueId, leagueSeasonId, count = 1, runId = 'manual') => {
+const findAvailablePlayers = async (
+  admin,
+  leagueId,
+  leagueSeasonId,
+  count = 1,
+  runId = 'manual',
+  registerCreatedPlayer = /** @type {(id: string) => void} */ (() => {}),
+) => {
   const [{ data: rosterRows, error: rosterError }, { data: players, error: playersError }] = await Promise.all([
     admin
       .from('roster_players')
@@ -95,6 +101,7 @@ const findAvailablePlayers = async (admin, leagueId, leagueSeasonId, count = 1, 
     .insert(fallbackRows)
     .select('id, display_name, sportsdata_id')
   if (fallbackError) throw new Error(`waiver fallback player insert: ${fallbackError.message}`)
+  for (const player of fallbackPlayers ?? []) registerCreatedPlayer(player.id)
   return [...available, ...(fallbackPlayers ?? [])].slice(0, count)
 }
 
@@ -164,7 +171,14 @@ const setupWaiverGameplayFixture = async (env, season, { requiresDrop = false, h
   }
 
   const requiredPlayerCount = 1 + (requiresDrop ? 1 : 0) + (hasIneligibleIR ? 1 : 0)
-  const availablePlayers = await findAvailablePlayers(admin, league.id, currentSeason.id, requiredPlayerCount, runId)
+  const availablePlayers = await findAvailablePlayers(
+    admin,
+    league.id,
+    currentSeason.id,
+    requiredPlayerCount,
+    runId,
+    resources.registerPlayer,
+  )
   const player = availablePlayers[0]
   const dropPlayer = requiresDrop ? availablePlayers[1] : null
   const irPlayer = hasIneligibleIR ? availablePlayers[requiresDrop ? 2 : 1] : null
@@ -229,22 +243,12 @@ const setupWaiverGameplayFixture = async (env, season, { requiresDrop = false, h
     .single()
   if (waiverLogError) throw new Error(`waiver log insert: ${waiverLogError.message}`)
 
-  const dispose = async () => {
-    const cleanup = await Promise.allSettled([
-      resources.dispose(),
-      irPlayer
-        ? admin.from('players').update({ injury_status: null }).eq('id', irPlayer.id).then(({ error }) => {
-            if (error) throw new Error(error.message)
-          })
-        : Promise.resolve(),
-      admin.from('players').delete().like('sportsdata_id', `e2e-waiver-${runId}-%`).then(({ error }) => {
-        if (error) throw new Error(error.message)
-      }),
-    ])
-    const failures = cleanup.flatMap((result) => result.status === 'rejected' ? [result.reason] : [])
-    if (failures.length > 0) throw new AggregateError(failures, 'Waiver fixture cleanup failed')
+  if (irPlayer) {
+    resources.registerCleanup(`waiver IR player ${irPlayer.id}`, async () => {
+      const { error } = await admin.from('players').update({ injury_status: null }).eq('id', irPlayer.id)
+      if (error) throw new Error(error.message)
+    })
   }
-  ownScenarioResource(`waiver-fixture:${runId}`, `waiver fixture ${runId}`, dispose)
   return {
     admin,
     runId,
@@ -259,7 +263,7 @@ const setupWaiverGameplayFixture = async (env, season, { requiresDrop = false, h
     irPlayer: irPlayer ?? null,
     irRosterPlayer,
     waiverLog,
-    dispose,
+    dispose: resources.dispose,
   }
 }
 
@@ -391,7 +395,6 @@ export async function runBrowserWaiverScenario({
     artifactDir,
     reportPath: REPORT_PATH,
     season,
-    fixture,
     fixtureSummary: () => ({
       runId: fixture.runId,
       leagueId: fixture.league.id,
@@ -444,7 +447,6 @@ export async function runBrowserWaiverDropScenario({
     artifactDir,
     reportPath: DROP_REPORT_PATH,
     season,
-    fixture,
     fixtureSummary: () => ({
       runId: fixture.runId,
       leagueId: fixture.league.id,
@@ -504,7 +506,6 @@ export async function runBrowserWaiverIrBlockScenario({
     artifactDir,
     reportPath: IR_BLOCK_REPORT_PATH,
     season,
-    fixture,
     fixtureSummary: () => ({
       runId: fixture.runId,
       leagueId: fixture.league.id,

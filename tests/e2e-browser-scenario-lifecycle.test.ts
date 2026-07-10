@@ -27,15 +27,12 @@ describe('browser scenario lifecycle', () => {
     it('writes identical scenario-detail reports for the registry owner', async () => {
         const { artifactDir, reportPath } = await createTempPaths()
         const browser = vi.fn(async (_session: string, command: string[]) => browserOutput(command))
-        const dispose = vi.fn(async () => undefined)
-
         const report = await runBrowserScenarioLifecycle({
             browser,
             session: 'session',
             artifactDir,
             reportPath,
             season: 4,
-            fixture: { dispose },
             fixtureSummary: () => ({ leagueId: 'league' }),
             notes: ['test'],
             failureLabel: 'scenario failed',
@@ -50,7 +47,6 @@ describe('browser scenario lifecycle', () => {
         expect(JSON.parse(await readFile(reportPath, 'utf8'))).toEqual(report)
         expect(JSON.parse(await readFile(path.join(artifactDir, 'summary.json'), 'utf8'))).toEqual(report)
         expect(browser).not.toHaveBeenCalledWith('session', ['close'], expect.anything())
-        expect(dispose).not.toHaveBeenCalled()
     })
 
     it('preserves the primary scenario failure in both detail reports', async () => {
@@ -63,7 +59,6 @@ describe('browser scenario lifecycle', () => {
             artifactDir,
             reportPath,
             season: 1,
-            fixture: { dispose: vi.fn(async () => undefined) },
             fixtureSummary: () => ({}),
             notes: [],
             failureLabel: 'scenario failed',

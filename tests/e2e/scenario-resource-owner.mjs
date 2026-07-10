@@ -54,18 +54,22 @@ export const createScenarioResourceOwner = (label) => {
 
 /** @param {string} key @param {string} name @param {() => Promise<void>} dispose */
 export const ownScenarioResource = (key, name, dispose) => {
-  activeScenarioOwner.getStore()?.registerOnce(key, name, dispose)
+  const owner = activeScenarioOwner.getStore()
+  if (!owner) throw new Error(`Cannot own ${name} without an active scenario resource owner`)
+  owner.registerOnce(key, name, dispose)
 }
 
 /** @param {string} key */
 export const releaseScenarioResource = (key) => {
-  activeScenarioOwner.getStore()?.release(key)
+  const owner = activeScenarioOwner.getStore()
+  if (!owner) throw new Error(`Cannot release ${key} without an active scenario resource owner`)
+  owner.release(key)
 }
 
 /**
  * @template Result
  * @param {string} label
- * @param {() => Promise<Result>} run
+ * @param {(owner: ReturnType<typeof createScenarioResourceOwner>) => Promise<Result>} run
  * @param {{ onComplete?: (result: { outcome: { ok: false } | { ok: true, value: Result }, primaryError: unknown, cleanupError: unknown }) => Promise<void> }} [options]
  * @returns {Promise<Result>}
  */
@@ -76,7 +80,7 @@ export const runWithScenarioResourceOwner = async (label, run, options = {}) => 
     let outcome = { ok: false }
     let primaryError = null
     try {
-      outcome = { ok: true, value: await run() }
+      outcome = { ok: true, value: await run(owner) }
     } catch (error) {
       primaryError = error
     }

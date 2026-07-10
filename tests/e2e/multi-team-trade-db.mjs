@@ -4,6 +4,7 @@ import process from 'node:process'
 import { createClient } from '@supabase/supabase-js'
 import { resolvedEnv, requireEnv } from './env.mjs'
 import { findAvailablePlayers, setupMultiTeamTradeGameplayFixture } from './trade-fixture.mjs'
+import { runWithScenarioResourceOwner } from './scenario-resource-owner.mjs'
 
 const env = requireEnv(resolvedEnv(), ['supabaseUrl', 'dbUrl', 'serviceRoleKey', 'anonKey'])
 
@@ -667,23 +668,19 @@ const assertVetoRowsSurviveMemberHistoryPagination = async (fixture) => {
 
 const run = async () => {
   const fixture = await setupMultiTeamTradeGameplayFixture(env, 0)
-  try {
-    await assertMultiTeamPayloadBounds(fixture)
-    await assertAggregateFaabRejectionIsAtomic(fixture)
-    await assertExpiredAcceptanceCommits(fixture)
-    await assertLazyRosterEnforcement(fixture)
-    await assertConcurrentAcceptanceCompletesOnce(fixture)
-    await assertCompetingStandardAndMultiTeamTradesSerialize(fixture)
-    await assertTwoTeamUsesCanonicalRoutes(fixture)
-    await assertVetoRowsSurviveMemberHistoryPagination(fixture)
-    await assertCompletionFailureIsTerminal(fixture)
-    console.log('PASS multi-team trade DB: lazy roster limits, canonical routes, keyset pages, mixed-trade races, and terminal failures')
-  } finally {
-    await fixture.dispose()
-  }
+  await assertMultiTeamPayloadBounds(fixture)
+  await assertAggregateFaabRejectionIsAtomic(fixture)
+  await assertExpiredAcceptanceCommits(fixture)
+  await assertLazyRosterEnforcement(fixture)
+  await assertConcurrentAcceptanceCompletesOnce(fixture)
+  await assertCompetingStandardAndMultiTeamTradesSerialize(fixture)
+  await assertTwoTeamUsesCanonicalRoutes(fixture)
+  await assertVetoRowsSurviveMemberHistoryPagination(fixture)
+  await assertCompletionFailureIsTerminal(fixture)
+  console.log('PASS multi-team trade DB: lazy roster limits, canonical routes, keyset pages, mixed-trade races, and terminal failures')
 }
 
-run().catch((error) => {
+runWithScenarioResourceOwner('multi-team trade DB', run).catch((error) => {
   console.error(error)
   process.exitCode = 1
 })

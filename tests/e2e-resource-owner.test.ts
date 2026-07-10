@@ -7,6 +7,11 @@ import {
 import { createDisposableLeagueFromSeedUsers } from './e2e/soak-fixtures.mjs'
 
 describe('scenario resource ownership', () => {
+    it('rejects ambient registration when no scenario owner is active', () => {
+        expect(() => ownScenarioResource('resource', 'unowned resource', async () => undefined))
+            .toThrow('without an active scenario resource owner')
+    })
+
     it('disposes in reverse acquisition order and aggregates every failure', async () => {
         const calls: string[] = []
         const owner = createScenarioResourceOwner('scenario')

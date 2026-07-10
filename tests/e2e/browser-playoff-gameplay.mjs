@@ -323,7 +323,7 @@ export async function runBrowserPlayoffChampionScenario({
 
   try {
     await signInBrowser(session, env, fixture.championUser, fixture.password)
-    await browser(session, ['set', 'viewport', '390', '844']).catch(() => {})
+    await browser(session, ['set', 'viewport', '390', '844'])
     await browser(session, ['open', joinUrl(env.frontendUrl, '/bracket')])
     await browser(session, ['wait', '2500'])
     await assertPageText(

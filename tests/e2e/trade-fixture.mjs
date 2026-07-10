@@ -7,7 +7,7 @@ const fixtureCreatedPlayerIds = new Set()
 /** @typedef {import('@supabase/supabase-js').SupabaseClient<import('../../types/database.js').Database>} AdminClient */
 /** @typedef {{ supabaseUrl: string, serviceRoleKey: string, anonKey: string, frontendUrl?: string, apiBaseUrl?: string }} FixtureEnv */
 /** @typedef {{ id?: string, email: string, password: string, username: string, displayName: string, teamName: string }} FixtureUser */
-/** @typedef {{ registerLeague: (id: string) => void, registerUser: (id: string) => void, registerPlayer: (id: string) => void, dispose: () => Promise<void> }} FixtureResourceOwner */
+/** @typedef {{ registerLeague: (id: string) => void, registerUser: (id: string) => void, registerPlayer: (id: string) => void, registerCleanup: (name: string, dispose: () => Promise<void>) => void, dispose: () => Promise<void> }} FixtureResourceOwner */
 
 let fixtureSequence = 0
 let fixtureOwnerSequence = 0
@@ -126,8 +126,8 @@ const findFuturePickForMember = async (admin, leagueId, memberId, seasonYear, ro
   }
 }
 
-/** @param {AdminClient} admin @returns {FixtureResourceOwner} */
-export const createFixtureResourceOwner = (admin) => {
+/** @param {AdminClient} admin @param {{ ambient?: boolean }} [options] @returns {FixtureResourceOwner} */
+export const createFixtureResourceOwner = (admin, { ambient = true } = {}) => {
   fixtureOwnerSequence += 1
   /** @type {string | null} */
   let leagueId = null
@@ -135,6 +135,8 @@ export const createFixtureResourceOwner = (admin) => {
   const userIds = new Set()
   /** @type {Set<string>} */
   const playerIds = new Set()
+  /** @type {{ name: string, dispose: () => Promise<void> }[]} */
+  const cleanups = []
   let disposed = false
   const owner = {
     /** @param {string} id */
@@ -143,9 +145,21 @@ export const createFixtureResourceOwner = (admin) => {
     registerUser: (id) => { userIds.add(id) },
     /** @param {string} id */
     registerPlayer: (id) => { playerIds.add(id) },
+    /** @param {string} name @param {() => Promise<void>} dispose */
+    registerCleanup: (name, dispose) => { cleanups.push({ name, dispose }) },
     dispose: async () => {
       if (disposed) return
       const failures = []
+      const remainingCleanups = []
+      for (const cleanup of [...cleanups].reverse()) {
+        try {
+          await cleanup.dispose()
+        } catch (error) {
+          remainingCleanups.unshift(cleanup)
+          failures.push(new Error(`${cleanup.name}: ${error instanceof Error ? error.message : String(error)}`))
+        }
+      }
+      cleanups.splice(0, cleanups.length, ...remainingCleanups)
       if (leagueId) {
         const { error: terminalError } = await admin
           .from('trades')
@@ -167,18 +181,18 @@ export const createFixtureResourceOwner = (admin) => {
       }
       for (const playerId of [...playerIds]) {
         const { error: playerError } = await admin.from('players').delete().eq('id', playerId)
-        if (playerError && playerError.code !== '23503') {
+        if (playerError) {
           failures.push(new Error(`fixture player cleanup ${playerId}: ${playerError.message}`))
           continue
         }
-        if (!playerError) fixtureCreatedPlayerIds.delete(playerId)
+        fixtureCreatedPlayerIds.delete(playerId)
         playerIds.delete(playerId)
       }
-      disposed = leagueId === null && userIds.size === 0 && playerIds.size === 0
+      disposed = cleanups.length === 0 && leagueId === null && userIds.size === 0 && playerIds.size === 0
       if (failures.length > 0) throw new AggregateError(failures, 'Fixture cleanup failed')
     },
   }
-  ownScenarioResource(`fixture:${fixtureOwnerSequence}`, `fixture ${fixtureOwnerSequence}`, owner.dispose)
+  if (ambient) ownScenarioResource(`fixture:${fixtureOwnerSequence}`, `fixture ${fixtureOwnerSequence}`, owner.dispose)
   return owner
 }
 

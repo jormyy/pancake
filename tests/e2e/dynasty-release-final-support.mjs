@@ -342,6 +342,18 @@ export async function fetchTrade(admin, tradeId) {
   return data
 }
 
+const disposeFixtureResources = async (resources, sessions) => {
+  const failures = []
+  try {
+    await resources.dispose()
+  } catch (error) {
+    failures.push(error)
+  }
+  const signOuts = await Promise.allSettled(sessions.map((session) => session.client.auth.signOut()))
+  failures.push(...signOuts.flatMap((result) => result.status === 'rejected' ? [result.reason] : []))
+  if (failures.length > 0) throw new AggregateError(failures, 'Release fixture cleanup failed')
+}
+
 export async function setupFixture(env, admin) {
   const runId = `${new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)}-${process.pid}`
   const password = `Pancake-release-${runId}!`
@@ -353,87 +365,88 @@ export async function setupFixture(env, admin) {
     teamName: label,
   }))
 
-  const resources = createFixtureResourceOwner(admin)
-  try {
-  const users = []
-  for (const user of baseUsers) {
-    const createdUser = await createConfirmedUser(admin, user)
-    users.push(createdUser)
-    resources.registerUser(createdUser.id)
-  }
-  const { error: profileError } = await admin.from('profiles').upsert(
-    users.map((user) => ({
-      id: user.id,
-      username: user.username,
-      display_name: user.displayName,
-    })),
-    { onConflict: 'id' },
-  )
-  if (profileError) throw new Error(`profiles upsert: ${profileError.message}`)
-
+  const resources = createFixtureResourceOwner(admin, { ambient: false })
   const sessions = []
-  for (const user of users) sessions.push(await signIn(env, user.email, password))
+  try {
+    const users = []
+    for (const user of baseUsers) {
+      const createdUser = await createConfirmedUser(admin, user)
+      users.push(createdUser)
+      resources.registerUser(createdUser.id)
+    }
+    const { error: profileError } = await admin.from('profiles').upsert(
+      users.map((user) => ({
+        id: user.id,
+        username: user.username,
+        display_name: user.displayName,
+      })),
+      { onConflict: 'id' },
+    )
+    if (profileError) throw new Error(`profiles upsert: ${profileError.message}`)
 
-  const { data: league, error: createError } = await sessions[0].client.rpc('create_league', {
-    p_name: `Pancake Release Gate ${runId}`,
-    p_team_name: users[0].teamName,
-    p_auction_budget: 200,
-  })
-  if (createError) throw new Error(`create_league: ${createError.message}`)
-  resources.registerLeague(league.id)
+    for (const user of users) sessions.push(await signIn(env, user.email, password))
 
-  const { error: settingsError } = await sessions[0].client.rpc('update_league_settings_atomic', {
-    p_league_id: league.id,
-    p_settings: {
-      roster_size: 8,
-      weekly_add_limit: 1,
-      waiver_mode: 'faab',
-      faab_starting_budget: 100,
-    },
-  })
-  if (settingsError) throw new Error(`initial settings update: ${settingsError.message}`)
-
-  for (const [index, session] of sessions.slice(1).entries()) {
-    const { error } = await session.client.rpc('join_league_by_invite_code', {
-      p_invite_code: league.invite_code,
-      p_team_name: users[index + 1].teamName,
+    const { data: league, error: createError } = await sessions[0].client.rpc('create_league', {
+      p_name: `Pancake Release Gate ${runId}`,
+      p_team_name: users[0].teamName,
+      p_auction_budget: 200,
     })
-    if (error) throw new Error(`join_league_by_invite_code ${users[index + 1].email}: ${error.message}`)
-  }
+    if (createError) throw new Error(`create_league: ${createError.message}`)
+    resources.registerLeague(league.id)
 
-  const { error: activeError } = await admin
-    .from('leagues')
-    .update({ status: 'active' })
-    .eq('id', league.id)
-  if (activeError) throw new Error(`league activation: ${activeError.message}`)
+    const { error: settingsError } = await sessions[0].client.rpc('update_league_settings_atomic', {
+      p_league_id: league.id,
+      p_settings: {
+        roster_size: 8,
+        weekly_add_limit: 1,
+        waiver_mode: 'faab',
+        faab_starting_budget: 100,
+      },
+    })
+    if (settingsError) throw new Error(`initial settings update: ${settingsError.message}`)
 
-  const season = await fetchCurrentSeason(admin, league.id)
-  const members = await fetchMembers(admin, league.id)
-  if (members.length !== 4) throw new Error(`expected 4 league members, got ${members.length}`)
-  await ensureWaiverPriority(admin, league.id, season.id, members)
-  await ensureFaabBalances(admin, league.id, season.id, members)
+    for (const [index, session] of sessions.slice(1).entries()) {
+      const { error } = await session.client.rpc('join_league_by_invite_code', {
+        p_invite_code: league.invite_code,
+        p_team_name: users[index + 1].teamName,
+      })
+      if (error) throw new Error(`join_league_by_invite_code ${users[index + 1].email}: ${error.message}`)
+    }
 
-  const players = await seedPlayerFixtures(admin)
-  return {
-    runId,
-    password,
-    users,
-    sessions,
-    league,
-    season,
-    members: members.map((member) => ({
-      ...member,
-      session: sessions.find((_, index) => users[index].id === member.user_id),
-      user: users.find((user) => user.id === member.user_id),
-    })),
-    players,
-    dispose: async () => {
-      await Promise.all(sessions.map((session) => session.client.auth.signOut()))
-      await resources.dispose()
-    },
-  }
+    const { error: activeError } = await admin
+      .from('leagues')
+      .update({ status: 'active' })
+      .eq('id', league.id)
+    if (activeError) throw new Error(`league activation: ${activeError.message}`)
+
+    const season = await fetchCurrentSeason(admin, league.id)
+    const members = await fetchMembers(admin, league.id)
+    if (members.length !== 4) throw new Error(`expected 4 league members, got ${members.length}`)
+    await ensureWaiverPriority(admin, league.id, season.id, members)
+    await ensureFaabBalances(admin, league.id, season.id, members)
+
+    const players = await seedPlayerFixtures(admin)
+    return {
+      runId,
+      password,
+      users,
+      sessions,
+      league,
+      season,
+      members: members.map((member) => ({
+        ...member,
+        session: sessions.find((_, index) => users[index].id === member.user_id),
+        user: users.find((user) => user.id === member.user_id),
+      })),
+      players,
+      dispose: () => disposeFixtureResources(resources, sessions),
+    }
   } catch (error) {
-    await resources.dispose().catch(() => {})
+    try {
+      await disposeFixtureResources(resources, sessions)
+    } catch (cleanupError) {
+      throw new AggregateError([error, cleanupError], 'Release fixture setup and cleanup failed')
+    }
     throw error
   }
 }

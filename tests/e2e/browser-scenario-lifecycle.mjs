@@ -6,7 +6,6 @@ const ROOT = process.cwd()
 
 /** @typedef {{ timeout?: number, maxBuffer?: number }} BrowserOptions */
 /** @typedef {(session: string, command: string[], options?: BrowserOptions) => Promise<string>} Browser */
-/** @typedef {{ dispose: () => Promise<void> }} DisposableFixture */
 /** @typedef {{ fields: Record<string, unknown>, failures: string[] }} ScenarioResult */
 
 /** @param {unknown} error @returns {string} */
@@ -51,7 +50,6 @@ const captureDiagnostics = async ({ browser, session, artifactDir, screenshot })
  *   artifactDir: string,
  *   reportPath: string,
  *   season: number,
- *   fixture: DisposableFixture,
  *   fixtureSummary: () => Record<string, unknown>,
  *   notes: string[],
  *   failureLabel: string,
@@ -65,7 +63,6 @@ export async function runBrowserScenarioLifecycle({
   artifactDir,
   reportPath,
   season,
-  fixture,
   fixtureSummary,
   notes,
   failureLabel,

@@ -54,7 +54,7 @@ export async function runBrowserTradeScenario({
 
   try {
     await signInBrowser(session, env, fixture.users[0], fixture.password)
-    await browser(session, ['set', 'viewport', '390', '844']).catch(() => {})
+    await browser(session, ['set', 'viewport', '390', '844'])
     await browser(session, ['open', joinUrl(env.frontendUrl, `/propose-trade?recipientMemberId=${fixture.recipient.id}`)])
     await browser(session, ['wait', '3500'])
     await assertPageText(
@@ -225,7 +225,7 @@ export async function runBrowserTradePostDeadlineScenario({
 
   try {
     await signInBrowser(session, env, fixture.users[0], fixture.password)
-    await browser(session, ['set', 'viewport', '390', '844']).catch(() => {})
+    await browser(session, ['set', 'viewport', '390', '844'])
     await browser(session, ['open', joinUrl(env.frontendUrl, `/propose-trade?recipientMemberId=${fixture.recipient.id}`)])
     await installBrowserHooks(session, env)
     await browser(session, ['wait', '3500'])

@@ -115,7 +115,7 @@ export async function runBrowserTradeAcceptScenario({
 
   try {
     await signInBrowser(session, env, fixture.users[1], fixture.password)
-    await browser(session, ['set', 'viewport', '390', '844']).catch(() => {})
+    await browser(session, ['set', 'viewport', '390', '844'])
     await openOffersTab(session, env)
     await assertPageText(
       session,
@@ -236,7 +236,7 @@ export async function runBrowserTradeFuturePickScenario({
 
   try {
     await signInBrowser(session, env, fixture.users[0], fixture.password)
-    await browser(session, ['set', 'viewport', '390', '844']).catch(() => {})
+    await browser(session, ['set', 'viewport', '390', '844'])
     await browser(session, ['open', joinUrl(env.frontendUrl, `/propose-trade?recipientMemberId=${fixture.recipient.id}`)])
     await installBrowserHooks(session, env)
     await browser(session, ['wait', '3500'])
@@ -357,7 +357,7 @@ export async function runBrowserTradeFuturePickAcceptScenario({
 
   try {
     await signInBrowser(session, env, fixture.users[1], fixture.password)
-    await browser(session, ['set', 'viewport', '390', '844']).catch(() => {})
+    await browser(session, ['set', 'viewport', '390', '844'])
     await openOffersTab(session, env)
     await assertPageText(
       session,
@@ -474,7 +474,7 @@ export async function runBrowserTradeOverflowAcceptScenario({
 
   try {
     await signInBrowser(session, env, fixture.users[1], fixture.password)
-    await browser(session, ['set', 'viewport', '390', '844']).catch(() => {})
+    await browser(session, ['set', 'viewport', '390', '844'])
     await openOffersTab(session, env)
     await assertPageText(
       session,

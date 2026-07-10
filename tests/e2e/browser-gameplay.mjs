@@ -356,7 +356,7 @@ export async function runBrowserGameplayScenario({
 
   try {
     await signInBrowser(session, env, fixture.users[1], fixture.password)
-    await browser(session, ['set', 'viewport', '390', '844']).catch(() => {})
+    await browser(session, ['set', 'viewport', '390', '844'])
     await browser(session, ['open', joinUrl(env.frontendUrl, `/draft-room?draftId=${fixture.draft.id}`)])
     await browser(session, ['wait', '2500'])
     await assertPageText(session, ['Auction Draft', fixture.player.display_name, 'Bid $2'], 'auction draft room before bid')

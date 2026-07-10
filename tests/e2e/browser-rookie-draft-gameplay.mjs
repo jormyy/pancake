@@ -322,7 +322,7 @@ export async function runBrowserRookieDraftAutoPickScenario({
 
   try {
     await signInBrowser(session, env, fixture.activeUser, fixture.password)
-    await browser(session, ['set', 'viewport', '390', '844']).catch(() => {})
+    await browser(session, ['set', 'viewport', '390', '844'])
     const fastTimerExpiresAt = new Date(Date.now() + 3_000).toISOString()
     const { error: draftClockError } = await fixture.admin
       .from('snake_draft_picks')
