@@ -32,14 +32,6 @@ const listSessions = () => listBrowserSessions({ cwd: ROOT })
 const safeName = (value) => value.replace(/[^a-zA-Z0-9._-]/g, '-')
 const joinUrl = (base, pathname) => new URL(pathname, base.endsWith('/') ? base : `${base}/`).toString()
 
-const parseOptionalEvalJson = (output) => {
-  try {
-    return parseEvalJson(output)
-  } catch {
-    return null
-  }
-}
-
 const parseEvalJson = (output) => {
   const line = output.split('\n').filter(Boolean).at(-1)
   const value = JSON.parse(line)

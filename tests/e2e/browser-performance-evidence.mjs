@@ -15,10 +15,10 @@ const readyPredicates = {
   'waiver-add-claim': `body.includes('Waiver Claim') && document.querySelector('[aria-label="Submit waiver claim"]') && !body.includes('Loading')`,
   'trade-review-act': `label === 'propose-trade'
     ? document.querySelector('[aria-label="Send trade proposal"]') && !body.includes('Loading trade assets')
-    : document.querySelector('h1')?.textContent?.trim() === 'Trades' && document.querySelector('[role="tablist"]') && !body.includes('Loading trades')`,
+    : document.querySelector('[role="heading"][aria-level="1"]')?.textContent?.trim() === 'Trades' && document.querySelector('[role="tablist"]') && !body.includes('Loading trades')`,
   'auction-draft-room': `body.includes('Auction Draft') && (document.querySelector('[aria-label="Increase bid"]') || document.querySelector('[aria-label="Search and nominate a player"]'))`,
   'rookie-draft-room': `document.querySelector('[aria-label="Show prospects"]') && document.querySelector('[aria-label="Show pick board"]') && !body.includes('Loading prospects')`,
-  'dynasty-hub': `document.querySelector('h1')?.textContent?.trim() === 'Dynasty Hub' && /\\d+ rows? loaded/.test(body)`,
+  'dynasty-hub': `document.querySelector('[role="heading"][aria-level="1"]')?.textContent?.trim() === 'Dynasty Hub' && /\\d+ rows? loaded/.test(body)`,
 }
 export const WORKFLOW_READY_IDS = Object.freeze(Object.keys(readyPredicates))
 export const WORKFLOW_FEEDBACK_IDS = Object.freeze([
@@ -246,7 +246,7 @@ export const measureWorkflowFeedback = async (browser, session, { workflowId, la
 
   if (workflowId === 'player-detail-open') {
     const target = await markDynamicTarget(browser, session,
-      `[...document.querySelectorAll('[role="button"], button')].find((node) => /^\\d{4}.\\d{2}$/.test(node.textContent?.trim() || '') && !document.body.innerText.includes((node.textContent?.trim() || '') + ' Averages'))`,
+      `[...document.querySelectorAll('[role="button"], button, [tabindex="0"]')].find((node) => /^\\d{4}.\\d{2}$/.test(node.textContent?.trim() || '') && !document.body.innerText.includes((node.textContent?.trim() || '') + ' Averages'))`,
       'data-e2e-feedback-target')
     return clickMeasuredTarget(browser, session, {
       selector: '[data-e2e-feedback-target="true"]',
