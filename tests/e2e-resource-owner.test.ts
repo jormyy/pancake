@@ -5,7 +5,7 @@ import {
     releaseScenarioResource,
     runWithScenarioResourceOwner,
 } from './e2e/scenario-resource-owner.mjs'
-import { createDisposableLeagueFromSeedUsers } from './e2e/soak-fixtures.mjs'
+import { createDisposableLeagueFromSeedUsers, disposeDisposableLeague } from './e2e/soak-fixtures.mjs'
 
 describe('scenario resource ownership', () => {
     it('rejects ambient registration when no scenario owner is active', () => {
@@ -66,5 +66,28 @@ describe('scenario resource ownership', () => {
         })
 
         expect(calls).toEqual(['close manager'])
+    })
+
+    it('deletes draft dependencies before disposing a league', async () => {
+        const calls: string[] = []
+        const query = (table: string, operation: string) => {
+            const builder = {
+                eq: () => builder,
+                then: (resolve: (value: { error: null }) => void) => {
+                    calls.push(`${table}:${operation}`)
+                    resolve({ error: null })
+                },
+            }
+            return builder
+        }
+        const supabase = {
+            from: (table: string) => ({
+                update: () => query(table, 'update'),
+                delete: () => query(table, 'delete'),
+            }),
+        }
+
+        await disposeDisposableLeague(supabase, 'league-id', 'fixture')
+        expect(calls).toEqual(['trades:update', 'drafts:delete', 'leagues:delete'])
     })
 })

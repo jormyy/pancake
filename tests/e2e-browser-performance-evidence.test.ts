@@ -118,6 +118,21 @@ describe('browser performance evidence', () => {
     })).resolves.toMatchObject({ fullLoadMs: 432, navigationLoadMs: 25, readyState: true })
   })
 
+  it('accepts the commissioner pause control as active auction readiness', async () => {
+    let readinessSource = ''
+    const browser = vi.fn(async (_session: string, args: string[]) => {
+      const source = args[1]
+      if (source.includes('const deadline')) {
+        readinessSource = source
+        return JSON.stringify({ readyAtMs: 100 })
+      }
+      return JSON.stringify({ navigationLoadMs: 25, cachedRequestMs: 12 })
+    })
+
+    await measureNavigationTiming(browser, 'session', { workflowId: 'auction-draft-room', label: 'draft-room-initial' })
+    expect(readinessSource).toContain('[aria-label="Pause draft"]')
+  })
+
   it('uses a browser click and requires the workflow-specific selected state', async () => {
     const browser = vi.fn(async (_session: string, args: string[]) => {
       if (args[0] === 'click') return ''

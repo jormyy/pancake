@@ -8,6 +8,16 @@ export const currentSeasonYear = (now = new Date()) => (
   now.getUTCMonth() >= 9 ? now.getUTCFullYear() + 1 : now.getUTCFullYear()
 )
 
+export const disposeDisposableLeague = async (supabase, leagueId, label) => {
+  const { error: tradeError } = await supabase.from('trades')
+    .update({ status: 'vetoed', vetoed_at: new Date().toISOString() })
+    .eq('league_id', leagueId).eq('status', 'accepted')
+  const { error: draftError } = await supabase.from('drafts').delete().eq('league_id', leagueId)
+  const { error: deleteError } = await supabase.from('leagues').delete().eq('id', leagueId)
+  const failures = [tradeError, draftError, deleteError].filter(Boolean).map((error) => new Error(error.message))
+  if (failures.length > 0) throw new AggregateError(failures, `${label}: league disposal failed`)
+}
+
 export const ensureSyntheticSeasonWeeks = async (supabase, seasonYear, throughWeek, label) => {
   const rows = Array.from({ length: throughWeek }, (_, index) => ({
     season_year: seasonYear,
@@ -37,14 +47,7 @@ export const createDisposableLeagueFromSeedUsers = async ({
   }).select('id, playoff_start_week, status').single()
   if (leagueError) throw new Error(`${label} league insert: ${leagueError.message}`)
 
-  resourceOwner.register(`league ${league.id}`, async () => {
-    const { error: tradeError } = await supabase.from('trades')
-      .update({ status: 'vetoed', vetoed_at: new Date().toISOString() })
-      .eq('league_id', league.id).eq('status', 'accepted')
-    const { error: deleteError } = await supabase.from('leagues').delete().eq('id', league.id)
-    const failures = [tradeError, deleteError].filter(Boolean).map((error) => new Error(error.message))
-    if (failures.length > 0) throw new AggregateError(failures, `${label}: league disposal failed`)
-  })
+  resourceOwner.register(`league ${league.id}`, () => disposeDisposableLeague(supabase, league.id, label))
 
   const { data: leagueSeason, error: seasonError } = await supabase.from('league_seasons').insert({
     league_id: league.id, season_year: seasonYear ?? 3000 + season, is_current: true,

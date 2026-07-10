@@ -32,6 +32,19 @@ const listSessions = () => listBrowserSessions({ cwd: ROOT })
 const safeName = (value) => value.replace(/[^a-zA-Z0-9._-]/g, '-')
 const joinUrl = (base, pathname) => new URL(pathname, base.endsWith('/') ? base : `${base}/`).toString()
 
+const postDraftLifecycle = async (env, user, password, draftId, action) => {
+  const client = createClient(env.supabaseUrl, env.anonKey, { auth: { persistSession: false } })
+  const { data, error } = await client.auth.signInWithPassword({ email: user.email, password })
+  if (error || !data.session?.access_token) throw new Error(`D.X.4 ${action} sign-in failed: ${error?.message ?? 'missing access token'}`)
+  const response = await fetch(joinUrl(env.apiBaseUrl, `draft/${draftId}/${action}`), {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${data.session.access_token}`, 'Content-Type': 'application/json' },
+    body: '{}',
+  })
+  const body = await response.json().catch(() => null)
+  return { status: response.status, body }
+}
+
 const parseEvalJson = (output) => {
   const line = output.split('\n').filter(Boolean).at(-1)
   const value = JSON.parse(line)
@@ -99,9 +112,12 @@ const ensurePerfAuction = async (supabase, state) => {
       league_id: state.leagueId,
       league_season_id: currentSeason.id,
       draft_type: 'auction',
-      status: 'in_progress',
+      status: 'paused',
       budget_per_team: 1000,
       started_at: now,
+      paused_at: now,
+      pause_reason: 'manual',
+      timer_paused_remaining_seconds: 600,
       current_nomination_order: 1,
     })
     .select('id')
@@ -128,7 +144,7 @@ const ensurePerfAuction = async (supabase, state) => {
     .from('nominations')
     .insert({
       draft_id: draft.id,
-      nominating_member_id: members[0].id,
+      nominating_member_id: members[1].id,
       player_id: player.id,
       nomination_order: 1,
       status: 'open',
@@ -156,7 +172,7 @@ const waitForDraftInProgress = async (supabase, draftId) => {
     if (data.status === 'in_progress') return
     await new Promise((resolve) => setTimeout(resolve, 500))
   }
-  throw new Error('D.X.4 two-manager presence did not resume the auction draft')
+  throw new Error('D.X.4 commissioner resume did not put the auction draft in progress')
 }
 
 const ensurePerfMatchup = async (supabase, state, leagueSeasonId, members) => {
@@ -333,7 +349,7 @@ export async function runBrowserPerfSmoke({
   sessionName = undefined,
   resourceOwner = undefined,
 } = {}) {
-  const env = requireEnv(resolvedEnv(), ['supabaseUrl', 'serviceRoleKey', 'anonKey'])
+  const env = requireEnv(resolvedEnv(), ['supabaseUrl', 'serviceRoleKey', 'anonKey', 'apiBaseUrl'])
   const state = await readState()
   const user = state.users?.[0]
   const peerUser = state.users?.[1]
@@ -352,6 +368,15 @@ export async function runBrowserPerfSmoke({
   const perfState = { ...state, leagueId: fixture.league.id }
   const auction = await ensurePerfAuction(supabase, perfState)
   const matchup = await ensurePerfMatchup(supabase, perfState, auction.leagueSeasonId, auction.members)
+  const managerResume = await postDraftLifecycle(env, peerUser, state.password, auction.draftId, 'resume')
+  if (managerResume.status !== 403) {
+    throw new Error(`D.X.4 noncommissioner resume returned ${managerResume.status}; expected 403`)
+  }
+  const commissionerResume = await postDraftLifecycle(env, user, state.password, auction.draftId, 'resume')
+  if (commissionerResume.status !== 200 || commissionerResume.body?.ok !== true) {
+    throw new Error(`D.X.4 commissioner resume returned ${commissionerResume.status}`)
+  }
+  await waitForDraftInProgress(supabase, auction.draftId)
   const sessionList = await listSessions().catch((error) => `session list unavailable: ${error.message}`)
   const session = sessionName ?? safeName(`pancake-perf-${state.runId ?? 'run'}-s${season}-${process.pid}`)
   const peerSession = `${session}-peer`
@@ -376,7 +401,7 @@ export async function runBrowserPerfSmoke({
     const activeOpenWallMs = Date.now() - activeOpenStartedAt
     const activeOpenPageState = parseEvalJson(await browser(session, ['eval', `(() => {
       const body = document.body?.innerText || '';
-      const activeReady = body.includes('Auction Draft') && Boolean(document.querySelector('[aria-label="Increase bid"]') || document.querySelector('[aria-label="Search and nominate a player"]'));
+      const activeReady = body.includes('Auction Draft') && Boolean(document.querySelector('[aria-label="Increase bid"]') || document.querySelector('[aria-label="Search and nominate a player"]') || document.querySelector('[aria-label="Pause draft"]'));
       return JSON.stringify({
         performanceNow: Math.round(performance.now()),
         pageReady: activeReady || (body.includes('Auction Draft') && Boolean(document.querySelector('[aria-label="Resume draft"]'))),

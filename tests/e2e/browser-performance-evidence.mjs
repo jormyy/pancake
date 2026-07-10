@@ -16,7 +16,7 @@ const readyPredicates = {
   'trade-review-act': `label === 'propose-trade'
     ? document.querySelector('[aria-label="Send trade proposal"]') && !body.includes('Loading trade assets')
     : document.querySelector('[role="heading"][aria-level="1"]')?.textContent?.trim() === 'Trades' && document.querySelector('[role="tablist"]') && !body.includes('Loading trades')`,
-  'auction-draft-room': `body.includes('Auction Draft') && (document.querySelector('[aria-label="Increase bid"]') || document.querySelector('[aria-label="Search and nominate a player"]') || (label === 'draft-room-initial' && document.querySelector('[aria-label="Resume draft"]')))`,
+  'auction-draft-room': `body.includes('Auction Draft') && (document.querySelector('[aria-label="Increase bid"]') || document.querySelector('[aria-label="Search and nominate a player"]') || document.querySelector('[aria-label="Pause draft"]') || (label === 'draft-room-initial' && document.querySelector('[aria-label="Resume draft"]')))`,
   'rookie-draft-room': `document.querySelector('[aria-label="Show prospects"]') && document.querySelector('[aria-label="Show pick board"]') && !body.includes('Loading prospects')`,
   'dynasty-hub': `document.querySelector('[role="heading"][aria-level="1"]')?.textContent?.trim() === 'Dynasty Hub' && /\\d+ rows? loaded/.test(body)`,
 }
