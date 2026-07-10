@@ -88,13 +88,37 @@ const errorText = (error) => error instanceof AggregateError
   ? `${error.message}: ${error.errors.map(errorText).join('; ')}`
   : error instanceof Error ? error.message : String(error)
 
+const LEAGUE_MEMBER_DEPENDENT_TABLES = [
+  'bids',
+  'trades',
+  'drafts',
+  'draft_picks',
+  'matchups',
+  'roster_transactions',
+  'roster_players',
+  'rps_challenges',
+  'standings',
+  'waiver_claims',
+  'waiver_priorities',
+  'waiver_wire_log',
+  'weekly_lineups',
+]
+
 const deleteLeague = async (admin, leagueId, label) => {
   const { error: terminalError } = await admin.from('trades')
     .update({ status: 'vetoed', vetoed_at: new Date().toISOString() })
     .eq('league_id', leagueId)
     .eq('status', 'accepted')
+  const childFailures = []
+  for (const table of LEAGUE_MEMBER_DEPENDENT_TABLES) {
+    const { error } = await admin.from(table).delete().eq('league_id', leagueId)
+    if (error) childFailures.push(new Error(`${table}: ${error.message}`))
+  }
   const { error: deleteError } = await admin.from('leagues').delete().eq('id', leagueId)
-  const failures = [terminalError, deleteError].filter(Boolean).map((error) => new Error(error.message))
+  const failures = [
+    ...[terminalError, deleteError].filter(Boolean).map((error) => new Error(error.message)),
+    ...childFailures,
+  ]
   if (failures.length > 0) throw new AggregateError(failures, `${label} league cleanup failed`)
 }
 

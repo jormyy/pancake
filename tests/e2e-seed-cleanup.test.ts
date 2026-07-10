@@ -26,12 +26,10 @@ const createAdmin = (userFailure: { message: string } | null = null) => {
         update: vi.fn(() => ({
           eq: vi.fn(() => ({ eq: vi.fn(async () => ({ error: null })) })),
         })),
+        delete: vi.fn(() => ({ eq: vi.fn(async () => ({ error: null })) })),
       }
     }
-    if (table === 'leagues') {
-      return { delete: vi.fn(() => ({ eq: vi.fn(async () => ({ error: null })) })) }
-    }
-    throw new Error(`unexpected table ${table}`)
+    return { delete: vi.fn(() => ({ eq: vi.fn(async () => ({ error: null })) })) }
   })
   return { admin: { auth: { admin: { deleteUser } }, from }, deleteUser, from }
 }
