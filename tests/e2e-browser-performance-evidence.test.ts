@@ -3,12 +3,45 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   measureNavigationTiming,
   measureWorkflowFeedback,
+  summarizeJavaScriptDelivery,
   WORKFLOW_FEEDBACK_IDS,
   WORKFLOW_READY_IDS,
 } from './e2e/browser-performance-evidence.mjs'
 import budgets from './e2e/performance-budgets.json'
 
 describe('browser performance evidence', () => {
+  it('summarizes transferred route bytes and cached route evidence executable in Node', () => {
+    const common = {
+      name: 'http://localhost/_expo/static/js/web/__common-hash.js',
+      initiatorType: 'script', transferSize: 310390, encodedBodySize: 310090, decodedBodySize: 1626236,
+    }
+    const route = {
+      name: 'http://localhost/_expo/static/js/web/players-hash.js',
+      initiatorType: 'script', transferSize: 12300, encodedBodySize: 12000, decodedBodySize: 40000,
+    }
+
+    expect(summarizeJavaScriptDelivery([common, route])).toMatchObject({
+      networkEntryCount: 2,
+      webJsEncodedKb: 314.5,
+      webJsTransferKb: 11.7,
+      routeJsEntryCount: 1,
+      routeJsNetworkEntryCount: 1,
+      routeJsCacheHit: false,
+    })
+    expect(summarizeJavaScriptDelivery([
+      { ...common, transferSize: 0, encodedBodySize: common.decodedBodySize },
+      { ...route, transferSize: 0, encodedBodySize: route.decodedBodySize },
+    ])).toMatchObject({
+      networkEntryCount: 0,
+      webJsEncodedKb: 0,
+      webJsTransferKb: 0,
+      routeJsDecodedKb: 39.1,
+      routeJsEntryCount: 1,
+      routeJsNetworkEntryCount: 0,
+      routeJsCacheHit: true,
+    })
+  })
+
   it('owns a ready and trusted feedback probe for every ranked workflow', () => {
     const workflowIds = budgets.workflows.map((workflow) => workflow.id).sort()
     expect([...WORKFLOW_READY_IDS].sort()).toEqual(workflowIds)

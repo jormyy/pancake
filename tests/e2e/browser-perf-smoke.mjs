@@ -7,7 +7,7 @@ import { resolvedEnv, requireEnv, describeEndpoint } from './env.mjs'
 import { installRuntimeOverrides, normalizeBrowserErrors } from './browser-runtime-overrides.mjs'
 import { clickButtonByName, createBrowser, fillSignInCredentials, listBrowserSessions } from './browser-agent.mjs'
 import { ownScenarioResource, releaseScenarioResource } from './scenario-resource-owner.mjs'
-import { measureNavigationTiming, measureWorkflowFeedback } from './browser-performance-evidence.mjs'
+import { measureJavaScriptDelivery, measureNavigationTiming, measureWorkflowFeedback } from './browser-performance-evidence.mjs'
 
 const ROOT = process.cwd()
 const STATE_PATH = path.join(ROOT, 'tests/e2e-state.json')
@@ -220,12 +220,35 @@ const ensurePerfMatchup = async (supabase, state, leagueSeasonId, members) => {
   return created
 }
 
-const signIn = async (session, env, state, user) => {
-  await installRuntimeOverrides(browser, session, env)
+const signIn = async (session, env, state, user, { captureInitialDelivery = false } = {}) => {
+  await installRuntimeOverrides(browser, session, env, { reloadAfterSet: false })
+  const initialJavaScriptDelivery = captureInitialDelivery
+    ? await measureJavaScriptDelivery(browser, session)
+    : null
   await browser(session, ['wait', '1500'])
   await fillSignInCredentials(browser, session, user.email, state.password)
   await clickButtonByName(browser, session, 'Sign In')
   await browser(session, ['wait', '4000'])
+  return initialJavaScriptDelivery
+}
+
+const navigateForMeasurement = async (session, url) => {
+  const startedAt = Date.now()
+  await browser(session, ['eval', `(() => {
+    setTimeout(() => location.assign(${JSON.stringify(url)}), 0);
+    return JSON.stringify({ scheduled: true });
+  })()`])
+  await browser(session, ['wait', '100'])
+  const firstPageState = parseEvalJson(await browser(session, ['eval', `(() => {
+    const body = document.body?.innerText || '';
+    return JSON.stringify({
+      url: location.href,
+      performanceNow: Math.round(performance.now()),
+      auctionReady: body.includes('Auction Draft') && Boolean(document.querySelector('[aria-label="Increase bid"]') || document.querySelector('[aria-label="Search and nominate a player"]')),
+      homeReady: body.includes('Lineup') && Boolean(document.querySelector('[aria-current="date"]')),
+    });
+  })()`]))
+  return { wallMs: Date.now() - startedAt, firstPageState }
 }
 
 const installHeartbeat = async (session) => {
@@ -388,10 +411,21 @@ export async function runBrowserPerfSmoke({
   ]
 
   try {
-    await signIn(session, env, state, user)
+    const initialJavaScriptDelivery = await signIn(session, env, state, user, { captureInitialDelivery: true })
     await browser(session, ['set', 'viewport', '390', '844'])
 
+    const activeOpenStartedAt = Date.now()
     await browser(session, ['open', joinUrl(env.frontendUrl, `/draft-room?draftId=${auction.draftId}`)])
+    const activeOpenWallMs = Date.now() - activeOpenStartedAt
+    const activeOpenPageState = parseEvalJson(await browser(session, ['eval', `(() => {
+      const body = document.body?.innerText || '';
+      const activeReady = body.includes('Auction Draft') && Boolean(document.querySelector('[aria-label="Increase bid"]') || document.querySelector('[aria-label="Search and nominate a player"]'));
+      return JSON.stringify({
+        performanceNow: Math.round(performance.now()),
+        pageReady: activeReady || (body.includes('Auction Draft') && Boolean(document.querySelector('[aria-label="Resume draft"]'))),
+        activeReady,
+      });
+    })()`]))
     const draftRouteTiming = await measureNavigationTiming(browser, session, { workflowId: 'auction-draft-room', label: 'draft-room-initial' })
     await signIn(peerSession, env, state, peerUser)
     await browser(peerSession, ['set', 'viewport', '390', '844'])
@@ -401,7 +435,9 @@ export async function runBrowserPerfSmoke({
     await browser(session, ['open', joinUrl(env.frontendUrl, `/draft-room?draftId=${auction.draftId}`)])
     await browser(session, ['wait', String(BROWSER_SETTLE_MS)])
     await waitForDraftInProgress(supabase, auction.draftId)
-    await browser(session, ['open', joinUrl(env.frontendUrl, `/draft-room?draftId=${auction.draftId}`)])
+    const measuredDraftUrl = new URL(joinUrl(env.frontendUrl, `/draft-room?draftId=${auction.draftId}`))
+    measuredDraftUrl.searchParams.set('e2e_perf_nav', `${Date.now()}`)
+    const draftNavigationDiagnostic = await navigateForMeasurement(session, measuredDraftUrl.toString())
     await waitForDraftInProgress(supabase, auction.draftId)
     const draftLoadTiming = await measureNavigationTiming(browser, session, { workflowId: 'auction-draft-room', label: 'draft-room' })
     const draftFeedback = await measureWorkflowFeedback(browser, session, { workflowId: 'auction-draft-room', label: 'draft-room' })
@@ -414,9 +450,9 @@ export async function runBrowserPerfSmoke({
     const draftPerf = await collectHeartbeat(session)
     await browser(session, ['screenshot', path.join(artifactDir, 'draft-after-load.png')], { timeout: 60_000 })
 
-    await browser(session, ['open', joinUrl(env.frontendUrl, '/')])
-    const homeRouteTiming = await measureNavigationTiming(browser, session, { workflowId: 'home-live-lineup', label: 'home' })
-    await browser(session, ['open', joinUrl(env.frontendUrl, '/')])
+    const measuredHomeUrl = new URL(joinUrl(env.frontendUrl, '/'))
+    measuredHomeUrl.searchParams.set('e2e_perf_nav', `${Date.now()}`)
+    const homeNavigationDiagnostic = await navigateForMeasurement(session, measuredHomeUrl.toString())
     const homeLoadTiming = await measureNavigationTiming(browser, session, { workflowId: 'home-live-lineup', label: 'home' })
     const homeFeedback = await measureWorkflowFeedback(browser, session, { workflowId: 'home-live-lineup', label: 'home' })
     await installHeartbeat(session)
@@ -461,6 +497,12 @@ export async function runBrowserPerfSmoke({
       draftFeedback,
       draftPerf,
       homePerf,
+      initialJavaScriptDelivery,
+      navigationDiagnostics: {
+        activeAuctionOpen: { wallMs: activeOpenWallMs, pageState: activeOpenPageState },
+        measuredAuction: draftNavigationDiagnostic,
+        measuredHome: homeNavigationDiagnostic,
+      },
       workflowMeasurements: [
         {
           id: 'auction-draft-room',
@@ -469,8 +511,11 @@ export async function runBrowserPerfSmoke({
           ...draftLoadTiming,
           feedbackObserved: draftFeedback?.observed === true,
           feedbackInteraction: draftFeedback?.interaction,
-          initialWebJsKb: draftRouteTiming?.webJsEncodedKb,
           routeWebJsKb: draftRouteTiming?.webJsTransferKb,
+          routeJsCacheHit: draftRouteTiming?.routeJsCacheHit,
+          routeJsDecodedKb: draftRouteTiming?.routeJsDecodedKb,
+          routeJsEntryCount: draftRouteTiming?.routeJsEntryCount,
+          routeJsNetworkEntryCount: draftRouteTiming?.routeJsNetworkEntryCount,
         },
         {
           id: 'home-live-lineup',
@@ -479,8 +524,7 @@ export async function runBrowserPerfSmoke({
           ...homeLoadTiming,
           feedbackObserved: homeFeedback?.observed === true,
           feedbackInteraction: homeFeedback?.interaction,
-          initialWebJsKb: homeRouteTiming?.webJsEncodedKb,
-          routeWebJsKb: homeRouteTiming?.webJsTransferKb,
+          initialWebJsKb: initialJavaScriptDelivery?.webJsEncodedKb,
         },
       ],
       thresholds: {

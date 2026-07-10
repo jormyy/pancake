@@ -36,6 +36,47 @@ export const WORKFLOW_FEEDBACK_IDS = Object.freeze([
 
 const browserJson = async (browser, session, source) => parseEvalJson(await browser(session, ['eval', source]))
 
+export const summarizeJavaScriptDelivery = (resources) => {
+  const scripts = resources.filter((entry) =>
+    entry.initiatorType === 'script' || /(?:^|\/)index(?:[.-][^/?]+)?\.js(?:$|[?#])/.test(entry.name));
+  const entries = scripts.map((entry) => {
+    const name = new URL(entry.name).pathname.split('/').at(-1) || entry.name;
+    return {
+      name,
+      initiator: entry.initiatorType,
+      transferSize: Math.round(entry.transferSize || 0),
+      encodedBodySize: Math.round(entry.encodedBodySize || 0),
+      decodedBodySize: Math.round(entry.decodedBodySize || 0),
+    };
+  });
+  const isShared = (entry) => /^(?:__expo-metro-runtime|__common|entry|_layout)-/.test(entry.name);
+  const networkEntries = entries.filter((entry) => entry.transferSize > 0 && entry.encodedBodySize > 0);
+  const routeEntries = entries.filter((entry) => !isShared(entry));
+  const routeNetworkEntries = routeEntries.filter((entry) => entry.transferSize > 0 && entry.encodedBodySize > 0);
+  const routeCacheHit = routeEntries.length > 0 && routeNetworkEntries.length === 0
+    && routeEntries.every((entry) => entry.transferSize === 0 && entry.decodedBodySize > 0);
+  const kb = (bytes) => Math.round(bytes / 1024 * 10) / 10;
+  return {
+    scriptCount: entries.length,
+    scriptEntries: entries,
+    networkEntryCount: networkEntries.length,
+    webJsEncodedKb: kb(networkEntries.reduce((sum, entry) => sum + entry.encodedBodySize, 0)),
+    webJsWireKb: kb(networkEntries.reduce((sum, entry) => sum + entry.transferSize, 0)),
+    webJsTransferKb: kb(routeNetworkEntries.reduce((sum, entry) => sum + entry.encodedBodySize, 0)),
+    routeJsWireKb: kb(routeNetworkEntries.reduce((sum, entry) => sum + entry.transferSize, 0)),
+    routeJsDecodedKb: kb(routeEntries.reduce((sum, entry) => sum + entry.decodedBodySize, 0)),
+    routeJsEntryCount: routeEntries.length,
+    routeJsNetworkEntryCount: routeNetworkEntries.length,
+    routeJsCacheHit: routeCacheHit,
+  };
+}
+
+const javascriptDeliveryExpression = `(${summarizeJavaScriptDelivery.toString()})(performance.getEntriesByType('resource'))`
+
+/** Captures the current page's actual network-delivered JS and cache evidence. */
+export const measureJavaScriptDelivery = (browser, session) =>
+  browserJson(browser, session, `(() => JSON.stringify(${javascriptDeliveryExpression}))()`)
+
 /**
  * @param {(session: string, args: string[]) => Promise<string>} browser
  * @param {string} session
@@ -76,12 +117,7 @@ export const measureNavigationTiming = async (browser, session, { workflowId, la
       .filter((entry) => entry.initiatorType === 'fetch' || entry.initiatorType === 'xmlhttprequest')
       .map((entry) => entry.duration)
       .filter((duration) => Number.isFinite(duration) && duration >= 0);
-    const scripts = resources.filter((entry) =>
-      entry.initiatorType === 'script' || /(?:^|\\/)index(?:[.-][^/?]+)?\\.js(?:$|[?#])/.test(entry.name));
-    const encodedBytes = scripts.reduce((sum, entry) => sum + Math.max(0, entry.encodedBodySize || 0), 0);
-    const transferredScripts = scripts.filter((entry) => entry.transferSize > 0);
-    const transferredEncodedBytes = transferredScripts.reduce((sum, entry) => sum + Math.max(0, entry.encodedBodySize || 0), 0);
-    const wireBytes = transferredScripts.reduce((sum, entry) => sum + Math.max(0, entry.transferSize || 0), 0);
+    const delivery = ${javascriptDeliveryExpression};
     return JSON.stringify({
       navigationLoadMs: Math.round(nav.loadEventEnd || nav.domContentLoadedEventEnd || nav.responseEnd || 0),
       cachedRequestMs: requests.length > 0 ? Math.round(Math.max(...requests)) : null,
@@ -89,10 +125,7 @@ export const measureNavigationTiming = async (browser, session, { workflowId, la
       responseEndMs: Math.round(nav.responseEnd || 0),
       transferSize: Math.round(nav.transferSize || 0),
       encodedBodySize: Math.round(nav.encodedBodySize || 0),
-      scriptCount: scripts.length,
-      webJsEncodedKb: Math.round(encodedBytes / 1024 * 10) / 10,
-      webJsTransferKb: Math.round(transferredEncodedBytes / 1024 * 10) / 10,
-      webJsWireKb: Math.round(wireBytes / 1024 * 10) / 10,
+      ...delivery,
     });
   })()`)
   return { ...timing, fullLoadMs: Math.round(ready.readyAtMs), readyState: true }

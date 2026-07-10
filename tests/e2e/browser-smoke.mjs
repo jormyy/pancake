@@ -439,8 +439,11 @@ export async function runBrowserSmoke({
             feedbackMs: feedback.feedbackMs,
             feedbackObserved: true,
             feedbackInteraction: feedback.interaction,
-            initialWebJsKb: routeTiming?.webJsEncodedKb,
             routeWebJsKb: routeTiming?.webJsTransferKb,
+            routeJsCacheHit: routeTiming?.routeJsCacheHit,
+            routeJsDecodedKb: routeTiming?.routeJsDecodedKb,
+            routeJsEntryCount: routeTiming?.routeJsEntryCount,
+            routeJsNetworkEntryCount: routeTiming?.routeJsNetworkEntryCount,
           })
         } else {
           throw new Error(`Observed performance feedback missing for ${workflowId}`)

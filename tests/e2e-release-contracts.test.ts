@@ -99,7 +99,17 @@ describe('release E2E contracts', () => {
         id: 'workflow', feedbackMs: 1, cachedRequestMs: 2, fullLoadMs: 3,
         feedbackObserved: true, feedbackInteraction: 'real-action', routeWebJsKb: 0,
       }],
-    }, 'report.json')).toContain('workflow: report.json is missing positive routeWebJsKb')
+    }, 'report.json')).toContain('workflow: report.json is missing route JS transfer or cache-hit evidence')
+
+    expect(validateWorkflowReportKeys(manifest, {
+      status: 'PASS',
+      workflowMeasurements: [{
+        id: 'workflow', feedbackMs: 1, cachedRequestMs: 2, fullLoadMs: 3,
+        feedbackObserved: true, feedbackInteraction: 'real-action', routeWebJsKb: 0,
+        routeJsCacheHit: true, routeJsEntryCount: 1, routeJsNetworkEntryCount: 0,
+        routeJsDecodedKb: 42,
+      }],
+    }, 'report.json')).toEqual([])
   })
 
   it('rejects any missing route from a full browser sweep', () => {

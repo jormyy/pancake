@@ -143,8 +143,16 @@ export const validateWorkflowReportKeys = (manifest, report, reportPath) => {
     if (workflow.id === 'home-live-lineup') {
       if (!Number.isFinite(measurement.initialWebJsKb) || measurement.initialWebJsKb <= 0) failures.push(`${workflow.id}: ${reportPath} is missing positive initialWebJsKb`)
       else if (measurement.initialWebJsKb > manifest.globalBudgets.maxInitialWebJsKb) failures.push(`${workflow.id}: initial JS ${measurement.initialWebJsKb}KB exceeds ${manifest.globalBudgets.maxInitialWebJsKb}KB`)
-    } else if (!Number.isFinite(measurement.routeWebJsKb) || measurement.routeWebJsKb <= 0) failures.push(`${workflow.id}: ${reportPath} is missing positive routeWebJsKb`)
-    else if (measurement.routeWebJsKb > manifest.globalBudgets.maxRouteWebJsKb) failures.push(`${workflow.id}: route JS ${measurement.routeWebJsKb}KB exceeds ${manifest.globalBudgets.maxRouteWebJsKb}KB`)
+    } else {
+      const transferredRouteBytes = Number.isFinite(measurement.routeWebJsKb) && measurement.routeWebJsKb > 0
+        && Number.isInteger(measurement.routeJsNetworkEntryCount) && measurement.routeJsNetworkEntryCount > 0
+      const provenRouteCacheHit = measurement.routeJsCacheHit === true
+        && measurement.routeJsNetworkEntryCount === 0
+        && Number.isInteger(measurement.routeJsEntryCount) && measurement.routeJsEntryCount > 0
+        && Number.isFinite(measurement.routeJsDecodedKb) && measurement.routeJsDecodedKb > 0
+      if (!transferredRouteBytes && !provenRouteCacheHit) failures.push(`${workflow.id}: ${reportPath} is missing route JS transfer or cache-hit evidence`)
+      else if (transferredRouteBytes && measurement.routeWebJsKb > manifest.globalBudgets.maxRouteWebJsKb) failures.push(`${workflow.id}: route JS ${measurement.routeWebJsKb}KB exceeds ${manifest.globalBudgets.maxRouteWebJsKb}KB`)
+    }
 
     if (measurement.feedbackMs != null && measurement.feedbackMs > workflow.budgets.feedbackMs) {
       failures.push(`${workflow.id}: ${reportPath} feedback ${measurement.feedbackMs}ms exceeds ${workflow.budgets.feedbackMs}ms`)
