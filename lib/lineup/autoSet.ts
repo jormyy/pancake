@@ -59,6 +59,19 @@ type AssignmentResult = {
     score: AssignmentScore
 }
 
+export type AutoSetSeasonResult = {
+    dates: number
+    optimized: number
+    skipped: number
+    failed: number
+    results: {
+        date: string
+        status: 'optimized' | 'skipped' | 'failed'
+        reason?: string
+    }[]
+    metadataUpdated?: boolean
+}
+
 // Auto-set lineup for a single day or the full week.
 // For each day: players who have an NBA game that day are prioritized as starters,
 // then filled in by projected points. Players without games land on bench.
@@ -70,14 +83,13 @@ export async function autoSetLineup(
     seasonYear: number,
     gameDate: string | null, // null = whole week
     restOfSeason?: boolean,
-): Promise<void> {
+): Promise<AutoSetSeasonResult | null> {
     if (restOfSeason) {
-        await apiPost('/league/lineup/auto-set-season', {
+        return apiPost<AutoSetSeasonResult>('/league/lineup/auto-set-season', {
             memberId,
             leagueId,
             leagueSeasonId: seasonId,
         })
-        return
     }
 
     const [{ data: roster, error: rosterErr }, { data: templates, error: templatesErr }] = await Promise.all([
@@ -146,6 +158,7 @@ export async function autoSetLineup(
             ),
         )
     }
+    return null
 }
 
 async function autoSetForDate(

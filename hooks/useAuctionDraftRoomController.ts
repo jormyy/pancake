@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
     closeExpiredNominations,
+    getDraftPollRevision,
     getDraftState,
     nominatePlayer,
     placeBid,
@@ -63,6 +64,8 @@ export function useAuctionDraftRoomController({
     // fire load() concurrently, so drop any result that a newer load supersedes.
     const loadSeqRef = useRef(0)
     const searchSeqRef = useRef(0)
+    const pollRevisionRef = useRef<string | null>(null)
+    const pollInFlightRef = useRef(false)
 
     // Keep bidTextRef in sync so load() can read current typed value without a dep.
     useEffect(() => { bidTextRef.current = bidText }, [bidText])
@@ -89,6 +92,8 @@ export function useAuctionDraftRoomController({
         setRealtimeStatus('CONNECTING')
         lastNomIdRef.current = null
         closeTriggeredForNomRef.current = null
+        pollRevisionRef.current = null
+        pollInFlightRef.current = false
         return () => {
             loadSeqRef.current += 1
             searchSeqRef.current += 1
@@ -153,10 +158,27 @@ export function useAuctionDraftRoomController({
         }
     }, [draftId, draftLeagueId, load])
 
-    // Realtime is primary. Poll slowly while connected and faster while degraded.
+    // Realtime is primary. The fallback probes only current mutable rows and
+    // reloads history/ages when their revision actually changes.
     useEffect(() => {
         if (!draftId) return
-        const poll = setInterval(load, realtimeStatus === 'SUBSCRIBED' ? 15_000 : 5_000)
+        const poll = setInterval(async () => {
+            if (pollInFlightRef.current) return
+            pollInFlightRef.current = true
+            try {
+                const revision = await getDraftPollRevision(draftId)
+                if (activeDraftIdRef.current !== draftId) return
+                if (pollRevisionRef.current === revision) return
+                pollRevisionRef.current = revision
+                await load()
+            } catch (error) {
+                if (activeDraftIdRef.current === draftId) {
+                    console.error('Could not poll the live draft revision.', error)
+                }
+            } finally {
+                pollInFlightRef.current = false
+            }
+        }, realtimeStatus === 'SUBSCRIBED' ? 60_000 : 5_000)
         return () => clearInterval(poll)
     }, [draftId, load, realtimeStatus])
 

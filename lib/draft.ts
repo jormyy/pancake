@@ -102,6 +102,22 @@ export type DraftState = {
     currentNominatorMemberId: string | null
 }
 
+type DraftPollRow = {
+    status: string
+    current_nomination_order: number
+    pause_reason: string | null
+    paused_at: string | null
+}
+
+type NominationPollRow = {
+    id: string
+    status: string
+    current_bid_amount: number
+    current_bidder_id: string | null
+    countdown_expires_at: string | null
+    closed_at: string | null
+}
+
 export type DraftSearchPlayer = {
     id: string
     display_name: string | null
@@ -349,6 +365,29 @@ export async function getDraftState(draftId: string): Promise<DraftState | null>
         openNomination,
         currentNominatorMemberId,
     }
+}
+
+export async function getDraftPollRevision(draftId: string): Promise<string | null> {
+    const [draftResult, nominationResult] = await Promise.all([
+        supabase
+            .from('drafts')
+            .select('status, current_nomination_order, pause_reason, paused_at')
+            .eq('id', draftId)
+            .maybeSingle(),
+        supabase
+            .from('nominations')
+            .select('id, status, current_bid_amount, current_bidder_id, countdown_expires_at, closed_at')
+            .eq('draft_id', draftId)
+            .order('nomination_order', { ascending: false })
+            .limit(1)
+            .maybeSingle(),
+    ])
+    if (draftResult.error) throw draftResult.error
+    if (nominationResult.error) throw nominationResult.error
+    if (!draftResult.data) return null
+    const draft = draftResult.data as DraftPollRow
+    const nomination = nominationResult.data as NominationPollRow | null
+    return JSON.stringify({ draft, nomination })
 }
 
 

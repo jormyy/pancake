@@ -6,6 +6,7 @@ import type { DraftState } from '@/lib/draft'
 
 const mocks = vi.hoisted(() => ({
     getDraftState: vi.fn(),
+    getDraftPollRevision: vi.fn(async () => 'revision-1'),
     placeBid: vi.fn(),
     statusCallback: null as ((status: 'SUBSCRIBED' | 'TIMED_OUT' | 'CLOSED' | 'CHANNEL_ERROR') => void) | null,
     unsubscribeFromDraft: vi.fn(async () => undefined),
@@ -14,6 +15,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/lib/draft', () => ({
     closeExpiredNominations: vi.fn(),
     getDraftState: mocks.getDraftState,
+    getDraftPollRevision: mocks.getDraftPollRevision,
     nominatePlayer: vi.fn(),
     placeBid: mocks.placeBid,
     searchPlayers: vi.fn(async () => []),

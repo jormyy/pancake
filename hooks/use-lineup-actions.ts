@@ -177,12 +177,21 @@ export function useLineupActions({
         if (!actionContext || !league) return
         setAutoSetting(true)
         try {
-            await autoSetLineup(
+            const result = await autoSetLineup(
                 actionContext.memberId, actionContext.leagueId, actionContext.seasonId,
                 actionContext.weekNumber, actionContext.seasonYear, date, restOfSeason,
             )
             await reloadLineup(selectedDate)
-            if (restOfSeason) {
+            if (restOfSeason && result?.failed) {
+                Alert.alert(
+                    'Lineup partly optimized',
+                    `Optimized ${result.optimized} of ${result.dates} dates; ${result.failed} failed.`,
+                    [
+                        { text: 'Close', style: 'cancel' },
+                        { text: 'Retry failed dates', onPress: () => { void doAutoSet(null, true) } },
+                    ],
+                )
+            } else if (restOfSeason) {
                 Alert.alert('Done', 'Lineup set for the rest of the season.')
             }
         } catch (e) {
