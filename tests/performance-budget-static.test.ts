@@ -90,6 +90,7 @@ describe('instant-loading performance budget contract', () => {
         const readme = read('README.md')
         const e2eReadme = read('tests/e2e/README.md')
         const productionReadiness = read('tests/e2e/production-readiness.mjs')
+        const seedLeague = read('tests/e2e/seed-league.mjs')
         const releaseWorkflow = read('.github/workflows/release-soak.yml')
         const testWorkflow = read('.github/workflows/test.yml')
 
@@ -98,6 +99,9 @@ describe('instant-loading performance budget contract', () => {
         expect(readme).toContain('npm run perf:budget')
         expect(e2eReadme).toContain('performance-budgets.json')
         expect(productionReadiness).toContain("run('npm', ['run', 'perf:budget']")
+        expect(seedLeague).toContain('seedLatencyFixtures')
+        expect(seedLeague).toContain("admin.from('matchups').insert")
+        expect(seedLeague).toContain("admin.from('snake_draft_picks').insert")
         expect(releaseWorkflow).toContain('npm run e2e:data-latency')
         expect(releaseWorkflow).toContain('npm run perf:budget -- --require-report --require-data-report --require-workflow-reports')
         expect(releaseWorkflow).toContain('tests/snapshots/')

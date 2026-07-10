@@ -122,6 +122,87 @@ const signInClient = async (env, email, password) => {
   return client
 }
 
+const seedLatencyFixtures = async (admin, leagueId, members) => {
+  const { data: season, error: seasonError } = await admin
+    .from('league_seasons')
+    .select('id')
+    .eq('league_id', leagueId)
+    .eq('is_current', true)
+    .single()
+  if (seasonError) throw new Error(`latency fixture season: ${seasonError.message}`)
+
+  const { error: matchupError } = await admin.from('matchups').insert({
+    league_id: leagueId,
+    league_season_id: season.id,
+    week_number: 1,
+    home_member_id: members[0].id,
+    away_member_id: members[1].id,
+    home_points: 0,
+    away_points: 0,
+  })
+  if (matchupError) throw new Error(`latency fixture matchup: ${matchupError.message}`)
+
+  const startedAt = new Date().toISOString()
+  const { data: drafts, error: draftError } = await admin
+    .from('drafts')
+    .insert([
+      {
+        league_id: leagueId,
+        league_season_id: season.id,
+        draft_type: 'auction',
+        status: 'in_progress',
+        budget_per_team: 200,
+        started_at: startedAt,
+      },
+      {
+        league_id: leagueId,
+        league_season_id: season.id,
+        draft_type: 'snake',
+        status: 'in_progress',
+        started_at: startedAt,
+      },
+    ])
+    .select('id, draft_type')
+  if (draftError) throw new Error(`latency fixture drafts: ${draftError.message}`)
+
+  const auctionDraft = drafts?.find((draft) => draft.draft_type === 'auction')
+  const rookieDraft = drafts?.find((draft) => draft.draft_type === 'snake')
+  if (!auctionDraft || !rookieDraft) throw new Error('latency fixture drafts were not returned')
+
+  const orderRows = [auctionDraft, rookieDraft].flatMap((draft) => members.map((member, index) => ({
+    draft_id: draft.id,
+    member_id: member.id,
+    position: index + 1,
+  })))
+  const budgetRows = members.map((member) => ({
+    draft_id: auctionDraft.id,
+    member_id: member.id,
+    initial_budget: 200,
+    remaining: 200,
+  }))
+  const pickRows = Array.from({ length: 3 }, (_, roundIndex) => {
+    const round = roundIndex + 1
+    const order = round % 2 === 0 ? [...members].reverse() : members
+    return order.map((member, index) => ({
+      draft_id: rookieDraft.id,
+      overall_pick: roundIndex * members.length + index + 1,
+      round,
+      pick_in_round: index + 1,
+      member_id: member.id,
+    }))
+  }).flat()
+  const [{ error: orderError }, { error: budgetError }, { error: pickError }] = await Promise.all([
+    admin.from('draft_orders').insert(orderRows),
+    admin.from('draft_budgets').insert(budgetRows),
+    admin.from('snake_draft_picks').insert(pickRows),
+  ])
+  if (orderError) throw new Error(`latency fixture draft orders: ${orderError.message}`)
+  if (budgetError) throw new Error(`latency fixture draft budgets: ${budgetError.message}`)
+  if (pickError) throw new Error(`latency fixture rookie picks: ${pickError.message}`)
+
+  return { matchups: 1, drafts: drafts.length, draftOrders: orderRows.length, rookiePicks: pickRows.length }
+}
+
 const main = async () => {
   const env = requireEnv(resolvedEnv(), ['supabaseUrl', 'serviceRoleKey', 'anonKey'])
 
@@ -196,6 +277,13 @@ const main = async () => {
       name: 'league_members',
       status: members?.length === 10 ? 'PASS' : 'FAIL',
       detail: `${members?.length ?? 0} rows`,
+    })
+
+    const latencyFixtures = await seedLatencyFixtures(admin, league.id, members)
+    checks.push({
+      name: 'ranked_workflow_latency_fixtures',
+      status: latencyFixtures.drafts === 2 && latencyFixtures.rookiePicks === 30 ? 'PASS' : 'FAIL',
+      detail: `${latencyFixtures.matchups} matchup, ${latencyFixtures.drafts} drafts, ${latencyFixtures.draftOrders} orders, ${latencyFixtures.rookiePicks} rookie picks`,
     })
 
     const seasonYear = currentSeasonYear()
