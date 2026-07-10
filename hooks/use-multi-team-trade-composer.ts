@@ -58,8 +58,11 @@ export function useMultiTeamTradeComposer({
     const [retryToken, setRetryToken] = useState(0)
     const rosterLoadSeqRef = useRef(0)
 
-    const selectedParticipantIds = composerState.selectedParticipantIds
     const participantIds = composerState.participantOrder
+    const selectedParticipantIds = useMemo(
+        () => new Set(participantIds.filter((memberId) => memberId !== myMemberId)),
+        [myMemberId, participantIds],
+    )
     const selectedParticipantKey = participantIds.join(',')
     const participantViews = useMemo<TradeParticipantView[]>(() => participantIds.map((memberId) => {
         const participant = composerState.participants[memberId]

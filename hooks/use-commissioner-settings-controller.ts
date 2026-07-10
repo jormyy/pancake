@@ -23,6 +23,7 @@ import {
 import {
     EMPTY_COMMISSIONER_SETTINGS_DRAFT,
     buildCommissionerSettingsChange,
+    commissionerHydrationDecision,
     tradeVetoModeFromValue,
     waiverModeFromValue,
     type CommissionerSettingsDraft,
@@ -67,9 +68,27 @@ export function useCommissionerSettingsController() {
     const [initialDraft, setInitialDraft] = useState<CommissionerSettingsDraft>(EMPTY_COMMISSIONER_SETTINGS_DRAFT)
     const draftRef = useRef(draft)
     const initialDraftRef = useRef(initialDraft)
+    const hydratedLeagueIdRef = useRef<string | null>(null)
+    const leagueRef = useRef(league)
     const forceHydrate = useRef(false)
     draftRef.current = draft
     initialDraftRef.current = initialDraft
+    leagueRef.current = league
+    const leagueSettingsRevision = league ? JSON.stringify([
+        league.id,
+        league.roster_size,
+        league.ir_slots,
+        league.taxi_slots,
+        league.auction_budget,
+        league.playoff_start_week,
+        league.weekly_add_limit,
+        league.waiver_mode,
+        league.faab_starting_budget,
+        league.trade_veto_mode,
+        league.trade_veto_window_hours,
+        league.trade_veto_threshold_percent,
+        league.scoring_settings,
+    ]) : ''
     const [members, setMembers] = useState<{ id: string; team_name: string | null }[]>([])
     const [overrideMemberId, setOverrideMemberId] = useState<string | null>(null)
     const [overrideFaab, setOverrideFaab] = useState('')
@@ -89,7 +108,8 @@ export function useCommissionerSettingsController() {
                 setLoadError(null)
                 return
             }
-            if (!league) {
+            const targetLeague = leagueRef.current
+            if (!targetLeague) {
                 setLoadState('loading')
                 return
             }
@@ -97,42 +117,55 @@ export function useCommissionerSettingsController() {
             setLoadError(null)
             try {
                 const [slotData, memberData] = await Promise.all([
-                    getLineupSlots(league.id),
-                    getLeagueMembers(league.id),
+                    getLineupSlots(targetLeague.id),
+                    getLeagueMembers(targetLeague.id),
                 ])
                 if (cancelled) return
                 const slots = Object.fromEntries(slotData.map((slot) => [slot.slot_type, slot.slot_count]))
-                const source = league.scoring_settings && typeof league.scoring_settings === 'object' &&
-                    !Array.isArray(league.scoring_settings) ? league.scoring_settings : {}
+                const source = targetLeague.scoring_settings && typeof targetLeague.scoring_settings === 'object' &&
+                    !Array.isArray(targetLeague.scoring_settings) ? targetLeague.scoring_settings : {}
                 const scoring = Object.fromEntries(COMMISSIONER_SCORING_FIELDS.map(({ key }) => [
                     key,
                     source[key] != null ? String(source[key]) : '0',
                 ]))
                 const nextDraft: CommissionerSettingsDraft = {
-                    rosterSize: String(league.roster_size ?? 20),
-                    irSlots: String(league.ir_slots ?? 2),
-                    taxiSlots: String(league.taxi_slots ?? 0),
-                    auctionBudget: String(league.auction_budget ?? 200),
-                    playoffWeek: String(league.playoff_start_week ?? 20),
-                    weeklyAddLimit: String(league.weekly_add_limit ?? 0),
-                    waiverMode: waiverModeFromValue(league.waiver_mode),
-                    faabBudget: String(league.faab_starting_budget ?? 100),
-                    tradeVetoMode: tradeVetoModeFromValue(league.trade_veto_mode),
-                    tradeVetoWindowHours: String(league.trade_veto_window_hours ?? 24),
-                    tradeVetoThresholdPercent: String(league.trade_veto_threshold_percent ?? 50),
+                    rosterSize: String(targetLeague.roster_size ?? 20),
+                    irSlots: String(targetLeague.ir_slots ?? 2),
+                    taxiSlots: String(targetLeague.taxi_slots ?? 0),
+                    auctionBudget: String(targetLeague.auction_budget ?? 200),
+                    playoffWeek: String(targetLeague.playoff_start_week ?? 20),
+                    weeklyAddLimit: String(targetLeague.weekly_add_limit ?? 0),
+                    waiverMode: waiverModeFromValue(targetLeague.waiver_mode),
+                    faabBudget: String(targetLeague.faab_starting_budget ?? 100),
+                    tradeVetoMode: tradeVetoModeFromValue(targetLeague.trade_veto_mode),
+                    tradeVetoWindowHours: String(targetLeague.trade_veto_window_hours ?? 24),
+                    tradeVetoThresholdPercent: String(targetLeague.trade_veto_threshold_percent ?? 50),
                     scoring,
                     slots,
                 }
                 setMembers(memberData)
-                setOverrideMemberId(memberData[0]?.id ?? null)
-                const localDirty = JSON.stringify(draftRef.current) !== JSON.stringify(initialDraftRef.current)
-                const remoteChanged = JSON.stringify(nextDraft) !== JSON.stringify(initialDraftRef.current)
-                if (!forceHydrate.current && localDirty && remoteChanged) {
+                const hydration = commissionerHydrationDecision({
+                    incomingLeagueId: targetLeague.id,
+                    hydratedLeagueId: hydratedLeagueIdRef.current,
+                    draft: draftRef.current,
+                    baseline: initialDraftRef.current,
+                    remote: nextDraft,
+                    force: forceHydrate.current,
+                })
+                forceHydrate.current = false
+                if (hydration === 'conflict') {
                     setLoadError('League settings changed while you were editing. Reload before making more changes.')
                     setLoadState('error')
                     return
                 }
-                forceHydrate.current = false
+                if (hydration === 'preserve') {
+                    setLoadState('ready')
+                    return
+                }
+                if (hydratedLeagueIdRef.current !== targetLeague.id) {
+                    setOverrideMemberId(memberData[0]?.id ?? null)
+                }
+                hydratedLeagueIdRef.current = targetLeague.id
                 setDraft(nextDraft)
                 setInitialDraft(nextDraft)
                 setLoadState('ready')
@@ -145,7 +178,7 @@ export function useCommissionerSettingsController() {
         }
         void load()
         return () => { cancelled = true }
-    }, [isCommissioner, league, loadAttempt])
+    }, [isCommissioner, leagueSettingsRevision, loadAttempt])
 
     const updateField = <Key extends keyof CommissionerSettingsDraft>(
         key: Key,

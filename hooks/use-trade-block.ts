@@ -19,6 +19,7 @@ const tradeBlockCacheKey = (memberId: string, leagueId: string) =>
     `${TRADE_BLOCK_CACHE_PREFIX}${leagueId}:${memberId}`
 
 export function useTradeBlock(memberId: string, leagueId: string) {
+    const resourceKey = memberId && leagueId ? tradeBlockCacheKey(memberId, leagueId) : null
     const cached = useMemo(
         () => memberId && leagueId
             ? readPersistentCache<TradeBlockCache>(tradeBlockCacheKey(memberId, leagueId))
@@ -35,6 +36,7 @@ export function useTradeBlock(memberId: string, leagueId: string) {
     const loadSequence = useRef(0)
     const mutationGeneration = useRef(0)
     const mutationQueue = useRef<Promise<void>>(Promise.resolve())
+    const [dataKey, setDataKey] = useState<string | null>(resourceKey)
 
     const refresh = useCallback(async () => {
         const requestId = ++loadSequence.current
@@ -45,6 +47,7 @@ export function useTradeBlock(memberId: string, leagueId: string) {
             setAvgStatsMap(EMPTY_STATS_MAP)
             setError(null)
             setLoading(false)
+            setDataKey(null)
             return
         }
         setLoading(true)
@@ -62,6 +65,7 @@ export function useTradeBlock(memberId: string, leagueId: string) {
             setRoster(nextRoster)
             setAvgMap(stats.avgMap)
             setAvgStatsMap(stats.avgStatsMap)
+            setDataKey(resourceKey)
             writePersistentCache(tradeBlockCacheKey(memberId, leagueId), { items: nextItems, roster: nextRoster })
         } catch (cause) {
             if (loadSequence.current !== requestId) return
@@ -70,7 +74,7 @@ export function useTradeBlock(memberId: string, leagueId: string) {
         } finally {
             if (loadSequence.current === requestId) setLoading(false)
         }
-    }, [memberId, leagueId])
+    }, [leagueId, memberId, resourceKey])
 
     useEffect(() => {
         loadSequence.current += 1
@@ -83,9 +87,14 @@ export function useTradeBlock(memberId: string, leagueId: string) {
         setError(null)
         setBusyId(null)
         setLoading(!cached)
-    }, [cached, leagueId, memberId])
+        setDataKey(resourceKey)
+    }, [cached, resourceKey])
 
-    useEffect(() => () => { loadSequence.current += 1 }, [])
+    useEffect(() => () => {
+        loadSequence.current += 1
+        mutationGeneration.current += 1
+        mutationQueue.current = Promise.resolve()
+    }, [])
 
     const mutate = useCallback(async (id: string, operation: () => Promise<unknown>) => {
         const generation = mutationGeneration.current
@@ -126,5 +135,18 @@ export function useTradeBlock(memberId: string, leagueId: string) {
         return mutate(item.id, () => removeTradeBlockItem(item.id, memberId))
     }, [memberId, mutate])
 
-    return { items, roster, avgMap, avgStatsMap, loading, error, busyId, refresh, addPlayer, addPick, removeItem }
+    const ownsResource = dataKey === resourceKey
+    return {
+        items: ownsResource ? items : cached?.items ?? [],
+        roster: ownsResource ? roster : cached?.roster ?? [],
+        avgMap: ownsResource ? avgMap : EMPTY_AVG_MAP,
+        avgStatsMap: ownsResource ? avgStatsMap : EMPTY_STATS_MAP,
+        loading: ownsResource ? loading : !cached,
+        error: ownsResource ? error : null,
+        busyId: ownsResource ? busyId : null,
+        refresh,
+        addPlayer,
+        addPick,
+        removeItem,
+    }
 }

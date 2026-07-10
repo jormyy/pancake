@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/supabase', () => ({ supabase: {} }))
 import { isTradeVisibleOnScreen, type Trade, type TradePickItem } from '@/lib/trades'
-import { buildTradeList, tradeScreenResource } from '@/lib/trades-screen-model'
+import { buildTradeList, selectTradeScreenSections, tradeScreenResource } from '@/lib/trades-screen-model'
 
 const NOW = Date.parse('2026-07-09T12:00:00Z')
 
@@ -78,6 +78,21 @@ describe('trade screen read model', () => {
         expect(rows.map((row) => row._type === 'trade' ? row.trade.id : row._type === 'header' ? row.label : row._type)).toEqual([
             'Veto Window', 'veto', 'Incoming', 'incoming', 'Outgoing', 'outgoing',
         ])
+    })
+
+    it('classifies trades and owned block items in one read-model pass', () => {
+        const sections = selectTradeScreenSections([
+            trade({ id: 'incoming' }),
+            trade({ id: 'outgoing', proposerMemberId: 'recipient', recipientMemberId: 'other' }),
+            trade({ id: 'history', status: 'completed' }),
+        ], [{
+            id: 'block', memberId: 'recipient', teamName: 'Recipient', note: null,
+            updatedAt: '2026-07-09T10:00:00Z', asset: { kind: 'faab', amount: 1 },
+        }], 'recipient')
+        expect(sections.incomingTrades.map((item) => item.id)).toEqual(['incoming'])
+        expect(sections.outgoingTrades.map((item) => item.id)).toEqual(['outgoing'])
+        expect(sections.historyTrades.map((item) => item.id)).toEqual(['history'])
+        expect(sections.myBlockItems.map((item) => item.id)).toEqual(['block'])
     })
 
     it('sorts and groups picks by season', () => {

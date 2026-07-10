@@ -39,7 +39,10 @@ describe('league resource identity', () => {
         }
         let renderer!: ReactTestRenderer
         await act(async () => { renderer = create(React.createElement(Probe, { memberId: 'member-a' })) })
-        await act(async () => { renderer.update(React.createElement(Probe, { memberId: 'member-b' })) })
+        await act(async () => {
+            renderer.update(React.createElement(Probe, { memberId: 'member-b' }))
+            expect(latest.mockRooms).toEqual([])
+        })
         await act(async () => { first.resolve([{ id: 'stale' }]); await first.promise })
         expect(latest.mockRooms).toEqual([])
         await act(async () => { second.resolve([{ id: 'current' }]); await second.promise })

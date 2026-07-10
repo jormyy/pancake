@@ -10,7 +10,6 @@ type ParticipantTradeDraft = {
 }
 
 export type MultiTeamTradeState = {
-    selectedParticipantIds: Set<string>
     participantOrder: string[]
     participants: Record<string, ParticipantTradeDraft>
 }
@@ -36,7 +35,6 @@ const emptyParticipant = (memberId: string, participantIds: string[]): Participa
 export function createMultiTeamTradeState(actorMemberId: string): MultiTeamTradeState {
     const participantOrder = actorMemberId ? [actorMemberId] : []
     return {
-        selectedParticipantIds: new Set(),
         participantOrder,
         participants: actorMemberId ? { [actorMemberId]: emptyParticipant(actorMemberId, participantOrder) } : {},
     }
@@ -98,24 +96,21 @@ export function multiTeamTradeReducer(
 ): MultiTeamTradeState {
     switch (action.type) {
         case 'toggle-participant': {
-            const selectedParticipantIds = new Set(state.selectedParticipantIds)
+            const selectedParticipantIds = new Set(state.participantOrder.filter((memberId) => memberId !== action.actorMemberId))
             if (selectedParticipantIds.has(action.memberId)) selectedParticipantIds.delete(action.memberId)
             else selectedParticipantIds.add(action.memberId)
             const participantOrder = [
                 action.actorMemberId,
                 ...action.availableMemberIds.filter((memberId) => selectedParticipantIds.has(memberId)),
             ].filter(Boolean)
-            return reconcileParticipants({ ...state, selectedParticipantIds }, participantOrder)
+            return reconcileParticipants(state, participantOrder)
         }
         case 'set-participants': {
             const participantOrder = [
                 action.actorMemberId,
                 ...action.participantIds.filter((memberId) => memberId !== action.actorMemberId),
             ].filter(Boolean)
-            return reconcileParticipants({
-                ...state,
-                selectedParticipantIds: new Set(participantOrder.filter((memberId) => memberId !== action.actorMemberId)),
-            }, participantOrder)
+            return reconcileParticipants(state, participantOrder)
         }
         case 'toggle-asset': {
             return updateParticipant(state, action.memberId, (participant) => {
@@ -207,7 +202,6 @@ export function multiTeamTradeStateFromTrade(trade: Trade, actorMemberId: string
         : [trade.proposerMemberId, trade.recipientMemberId].filter(Boolean)
     const participantOrder = [actorMemberId, ...tradeParticipantIds.filter((memberId) => memberId !== actorMemberId)]
     const state: MultiTeamTradeState = {
-        selectedParticipantIds: new Set(participantOrder.filter((memberId) => memberId !== actorMemberId)),
         participantOrder,
         participants: Object.fromEntries(participantOrder.map((memberId) => [memberId, {
             ...emptyParticipant(memberId, participantOrder),

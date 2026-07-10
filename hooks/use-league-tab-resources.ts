@@ -14,6 +14,8 @@ export function useLeagueTabResources(
     memberId: string | undefined,
     activeTab: LeagueTab,
 ) {
+    const resourceKey = `${leagueId ?? ''}:${memberId ?? ''}`
+    const [dataKey, setDataKey] = useState(resourceKey)
     const [standings, setStandings] = useState<StandingRow[]>([])
     const [transactions, setTransactions] = useState<TransactionRow[]>([])
     const [waiverOrder, setWaiverOrder] = useState<WaiverPriorityRow[]>([])
@@ -56,7 +58,8 @@ export function useLeagueTabResources(
         setActivityLoadMoreError(null)
         setTabError({})
         setTabLoading({ results: true })
-    }, [leagueId, memberId])
+        setDataKey(resourceKey)
+    }, [leagueId, memberId, resourceKey])
 
     const runTabFetch = useCallback(async (nextTab: LeagueTab, lid: string) => {
         const requestedMemberId = memberId
@@ -181,22 +184,23 @@ export function useLeagueTabResources(
         await refreshTab('mockRooms')
     }, [leagueId, memberId, refreshTab])
 
+    const ownsResource = dataKey === resourceKey
     return {
-        activityHasMore,
-        activityLoadMoreError,
-        activityLoadingMore,
-        currentLeaguePicks,
+        activityHasMore: ownsResource && activityHasMore,
+        activityLoadMoreError: ownsResource ? activityLoadMoreError : null,
+        activityLoadingMore: ownsResource && activityLoadingMore,
+        currentLeaguePicks: ownsResource ? currentLeaguePicks : [],
         ensureTab,
         fetchTab,
         invalidateTab,
-        isTabLoading: tabLoading[activeTab] === true,
+        isTabLoading: ownsResource ? tabLoading[activeTab] === true : true,
         loadMoreActivity,
-        mockRooms,
+        mockRooms: ownsResource ? mockRooms : [],
         refreshTab,
         refreshMockRooms,
-        standings,
-        tabError: tabError[activeTab],
-        transactions,
-        waiverOrder,
+        standings: ownsResource ? standings : [],
+        tabError: ownsResource ? tabError[activeTab] : undefined,
+        transactions: ownsResource ? transactions : [],
+        waiverOrder: ownsResource ? waiverOrder : [],
     }
 }

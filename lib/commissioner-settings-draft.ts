@@ -43,6 +43,23 @@ export function tradeVetoModeFromValue(value: string | null | undefined): TradeV
     return 'member_vote'
 }
 
+type CommissionerHydrationInput = {
+    incomingLeagueId: string
+    hydratedLeagueId: string | null
+    draft: CommissionerSettingsDraft
+    baseline: CommissionerSettingsDraft
+    remote: CommissionerSettingsDraft
+    force: boolean
+}
+
+export function commissionerHydrationDecision(input: CommissionerHydrationInput): 'hydrate' | 'preserve' | 'conflict' {
+    if (input.force || input.hydratedLeagueId !== input.incomingLeagueId) return 'hydrate'
+    const dirty = JSON.stringify(input.draft) !== JSON.stringify(input.baseline)
+    const remoteChanged = JSON.stringify(input.remote) !== JSON.stringify(input.baseline)
+    if (!remoteChanged) return dirty ? 'preserve' : 'hydrate'
+    return dirty ? 'conflict' : 'hydrate'
+}
+
 type SettingsChange = {
     updates: LeagueSettingsUpdate
     slotsChanged: boolean

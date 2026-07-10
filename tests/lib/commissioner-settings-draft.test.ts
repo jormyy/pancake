@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
     EMPTY_COMMISSIONER_SETTINGS_DRAFT,
     buildCommissionerSettingsChange,
+    commissionerHydrationDecision,
     tradeVetoModeFromValue,
     waiverModeFromValue,
     type CommissionerSettingsDraft,
@@ -58,5 +59,22 @@ describe('commissioner settings draft', () => {
         expect(buildCommissionerSettingsChange(
             draft({ slots: { PG: 2 } }), baseline, 'active', ['points'], ['PG'],
         )).toEqual({ error: 'Lineup slots can only be changed during league setup.' })
+    })
+
+    it('preserves same-league edits and only conflicts on a changed remote baseline', () => {
+        const baseline = draft()
+        const local = draft({ rosterSize: '21' })
+        expect(commissionerHydrationDecision({
+            incomingLeagueId: 'league-a', hydratedLeagueId: 'league-a', draft: local,
+            baseline, remote: draft(), force: false,
+        })).toBe('preserve')
+        expect(commissionerHydrationDecision({
+            incomingLeagueId: 'league-a', hydratedLeagueId: 'league-a', draft: local,
+            baseline, remote: draft({ irSlots: '3' }), force: false,
+        })).toBe('conflict')
+        expect(commissionerHydrationDecision({
+            incomingLeagueId: 'league-b', hydratedLeagueId: 'league-a', draft: local,
+            baseline, remote: draft({ irSlots: '3' }), force: false,
+        })).toBe('hydrate')
     })
 })

@@ -9,10 +9,6 @@ import { EmptyState } from '@/components/EmptyState'
 import { isTradingClosed } from '@/lib/league'
 import {
     getPicksForMember,
-    isIncomingTradeForMember,
-    isOutgoingTradeForMember,
-    isTradeHistoryForMember,
-    isVetoableTradeForMember,
     type TradePickItem,
 } from '@/lib/trades'
 import { colors, fontSize, fontWeight, layout, radii, spacing } from '@/constants/tokens'
@@ -32,7 +28,7 @@ import { tradeScreenWatches } from '@/lib/trades-realtime'
 import { useTradesFeed } from '@/hooks/use-trades-feed'
 import { useTradeBlock } from '@/hooks/use-trade-block'
 import {
-    buildTradeList,
+    buildTradeScreenModel,
     tradeListItemType,
     tradeListKey,
     tradeLoadingMessage,
@@ -113,25 +109,19 @@ export default function TradesScreen() {
         if (tab === 'block' || tab === 'leagueBlock') void loadBlock()
     }, [loadBlock, tab])
 
-    const incomingTrades = useMemo(() => trades.filter((trade) => isIncomingTradeForMember(trade, myMemberId)), [myMemberId, trades])
-    const outgoingTrades = useMemo(() => trades.filter((trade) => isOutgoingTradeForMember(trade, myMemberId)), [myMemberId, trades])
-    const vetoableTrades = useMemo(() => trades.filter((trade) => isVetoableTradeForMember(trade, myMemberId)), [myMemberId, trades])
-    const historyTrades = useMemo(() => trades.filter((trade) => isTradeHistoryForMember(trade, myMemberId)), [myMemberId, trades])
     const picksList = useMemo(() => picks ?? [], [picks])
-    const myBlockItems = useMemo(() => blockItems.filter((item) => item.memberId === myMemberId), [blockItems, myMemberId])
-    const listData = useMemo(() => buildTradeList({
+    const screenModel = useMemo(() => buildTradeScreenModel({
         tab,
-        vetoableTrades,
-        incomingTrades,
-        outgoingTrades,
-        historyTrades,
+        trades,
+        blockItems,
+        memberId: myMemberId,
         picks: picksList,
         tradesLoading: loading,
-        myBlockItems,
         blockLoading,
         blockRoster,
         leagueBlockItems: blockItems,
-    }), [blockItems, blockLoading, blockRoster, historyTrades, incomingTrades, loading, myBlockItems, outgoingTrades, picksList, tab, vetoableTrades])
+    }), [blockItems, blockLoading, blockRoster, loading, myMemberId, picksList, tab, trades])
+    const { historyTrades, listData, pendingInboxCount } = screenModel
     const renderItem = useCallback(({ item }: { item: TradeListItem }) => (
         <TradeListRow item={item} myTeamName={myTeamName} myMemberId={myMemberId} leagueId={leagueId}
             rosterSize={rosterSize} tab={tab} tradeVetoMode={currentLeague?.trade_veto_mode ?? 'member_vote'}
@@ -143,7 +133,6 @@ export default function TradesScreen() {
         handleRemoveBlockItem, isCommissioner, leagueId, listedPickIds, listedPlayerIds, load, myMemberId,
         myTeamName, rosterSize, tab])
 
-    const pendingInboxCount = incomingTrades.length
     const activeTabLoading = tab === 'picks' ? picksLoading && picksList.length === 0
         : tab === 'block' ? blockLoading && blockItems.length === 0 && blockRoster.length === 0 && picksList.length === 0
             : tab === 'leagueBlock' ? blockLoading && blockItems.length === 0

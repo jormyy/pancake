@@ -4,9 +4,11 @@ import { MultiTeamTradeOverview, type TradeFlowItem } from '@/components/trades/
 import { ParticipantTradePanel } from '@/components/trades/ParticipantTradePanel'
 import { breakpoints, colors, fontSize, fontWeight, radii, spacing, uiColors } from '@/constants/tokens'
 import type { TradeParticipantView } from '@/hooks/use-multi-team-trade-composer'
+import type { MultiTeamTradeItemPayload } from '@/lib/trades'
 
 type MultiTeamTradeBuilderProps = {
     participants: TradeParticipantView[]
+    items: MultiTeamTradeItemPayload[]
     myMemberId: string
     faabEnabled: boolean
     notes: string
@@ -28,6 +30,7 @@ type MultiTeamTradeBuilderProps = {
 
 export function MultiTeamTradeBuilder({
     participants,
+    items,
     myMemberId,
     faabEnabled,
     notes,
@@ -56,34 +59,24 @@ export function MultiTeamTradeBuilder({
         }
     }, [activeParticipantId, participants])
 
-    const overviewItems = useMemo<TradeFlowItem[]>(() => participants.flatMap((participant) => {
-        const players = participant.roster
-            .filter((player) => participant.selectedPlayerIds.has(player.players.id))
-            .map((player) => ({
-                key: `player:${participant.memberId}:${player.players.id}`,
-                fromMemberId: participant.memberId,
-                toMemberId: participant.playerDestinationIds[player.players.id],
-                label: player.players.display_name,
-            }))
-        const picks = participant.picks
-            .filter((pick) => participant.selectedPickIds.has(pick.pickId))
-            .map((pick) => ({
-                key: `pick:${participant.memberId}:${pick.pickId}`,
-                fromMemberId: participant.memberId,
-                toMemberId: participant.pickDestinationIds[pick.pickId],
-                label: `${pick.seasonYear} Round ${pick.round}`,
-            }))
-        const faabAmount = parseInt(participant.faabInput || '0', 10) || 0
-        const faab = faabEnabled && faabAmount > 0 && participant.defaultDestinationId
-            ? [{
-                key: `faab:${participant.memberId}`,
-                fromMemberId: participant.memberId,
-                toMemberId: participant.defaultDestinationId,
-                label: `$${faabAmount} FAAB`,
-            }]
-            : []
-        return [...players, ...picks, ...faab]
-    }), [faabEnabled, participants])
+    const overviewItems = useMemo<TradeFlowItem[]>(() => items.map((item) => {
+        const participant = participants.find((entry) => entry.memberId === item.fromMemberId)
+        const player = item.playerId
+            ? participant?.roster.find((entry) => entry.players.id === item.playerId)
+            : null
+        const pick = item.pickId
+            ? participant?.picks.find((entry) => entry.pickId === item.pickId)
+            : null
+        const label = player?.players.display_name ??
+            (pick ? `${pick.seasonYear} Round ${pick.round}` : `$${item.faabAmount ?? 0} FAAB`)
+        const assetKey = item.playerId ? `player:${item.playerId}` : item.pickId ? `pick:${item.pickId}` : 'faab'
+        return {
+            key: `${assetKey}:${item.fromMemberId}:${item.toMemberId}`,
+            fromMemberId: item.fromMemberId,
+            toMemberId: item.toMemberId,
+            label,
+        }
+    }), [items, participants])
 
     if (rosterError) {
         return (

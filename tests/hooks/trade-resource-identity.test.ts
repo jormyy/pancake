@@ -17,6 +17,7 @@ vi.mock('@/lib/trades', () => ({
     getTradeBlockItems,
     getTradesForScreen,
     removeTradeBlockItem: vi.fn(),
+    tradePageCursor: vi.fn(() => ({ actionable: false, participant: true, proposedAt: '2026-07-09T10:00:00Z', id: 'cursor' })),
 }))
 vi.mock('@/lib/alert', () => ({ getErrorMessage: (error: unknown) => error instanceof Error ? error.message : String(error) }))
 vi.mock('@/lib/roster', () => ({ getRoster }))
@@ -81,13 +82,45 @@ describe('trade resource identity', () => {
         }
         let renderer!: ReactTestRenderer
         await act(async () => { renderer = create(React.createElement(Probe, { memberId: 'member-a', leagueId: 'league-a' })) })
-        await act(async () => { renderer.update(React.createElement(Probe, { memberId: 'member-b', leagueId: 'league-b' })) })
+        await act(async () => {
+            renderer.update(React.createElement(Probe, { memberId: 'member-b', leagueId: 'league-b' }))
+            expect(latest.trades).toEqual([])
+        })
         expect(latest.trades).toEqual([])
         await act(async () => { first.resolve([trade('stale')]); await first.promise })
         expect(latest.trades).toEqual([])
         await act(async () => { second.resolve([trade('current')]); await second.promise })
         expect(latest.trades.map((item) => item.id)).toEqual(['current'])
         renderer.unmount()
+    })
+
+    it('cancels pagination on refresh and synchronously rejects duplicate page requests', async () => {
+        const page = deferred<Trade[]>()
+        const refreshed = deferred<Trade[]>()
+        const initial = Array.from({ length: 40 }, (_, index) => trade(`initial-${index}`))
+        getTradesForScreen.mockResolvedValueOnce(initial).mockReturnValueOnce(page.promise).mockReturnValueOnce(refreshed.promise)
+        let latest!: ReturnType<typeof useTradesFeed>
+        const Probe = () => {
+            latest = useTradesFeed('member-a', 'league-a')
+            return null
+        }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe)); await Promise.resolve() })
+        let firstPage!: Promise<void>
+        await act(async () => {
+            firstPage = latest.loadMore()
+            void latest.loadMore()
+            await Promise.resolve()
+        })
+        expect(getTradesForScreen).toHaveBeenCalledTimes(2)
+        let refresh!: Promise<void>
+        await act(async () => { refresh = latest.refresh(); await Promise.resolve() })
+        expect(latest.loadingMore).toBe(false)
+        await act(async () => { page.resolve([trade('stale-page')]); await firstPage })
+        expect(latest.trades.some((item) => item.id === 'stale-page')).toBe(false)
+        await act(async () => { refreshed.resolve([trade('fresh')]); await refresh })
+        expect(latest.trades.map((item) => item.id)).toEqual(['fresh'])
+        await act(async () => { renderer.unmount() })
     })
 
     it('clears loaded trade-block state when both identities have no cache entry', async () => {
@@ -152,5 +185,30 @@ describe('trade resource identity', () => {
         await act(async () => { second.resolve(); await secondMutation })
         expect(latest.busyId).toBeNull()
         await act(async () => { renderer.unmount() })
+    })
+
+    it('does not refresh after an in-flight trade-block mutation outlives the owner', async () => {
+        const mutation = deferred<void>()
+        addTradeBlockItem.mockReturnValue(mutation.promise)
+        getTradeBlockItems.mockResolvedValue([])
+        getRoster.mockResolvedValue([])
+        let latest!: ReturnType<typeof useTradeBlock>
+        const Probe = () => {
+            latest = useTradeBlock('member', 'league')
+            return null
+        }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe)); await Promise.resolve() })
+        const readsBeforeMutation = getTradeBlockItems.mock.calls.length
+        const player = {
+            id: 'roster-player', member_id: 'member', is_on_ir: false, is_on_taxi: false, acquired_via: 'draft',
+            players: { id: 'player', display_name: 'Player', nba_team: null, position: 'PG' as const,
+                eligible_positions: ['PG'], injury_status: null, nba_id: null, nba_draft_number: null, years_exp: 1 },
+        }
+        let pending!: Promise<void>
+        await act(async () => { pending = latest.addPlayer(player); await Promise.resolve() })
+        await act(async () => { renderer.unmount() })
+        await act(async () => { mutation.resolve(); await pending })
+        expect(getTradeBlockItems).toHaveBeenCalledTimes(readsBeforeMutation)
     })
 })

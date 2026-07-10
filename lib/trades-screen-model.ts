@@ -1,6 +1,12 @@
 import type { RosterPlayer } from '@/lib/roster'
 import type { Trade, TradeBlockItem, TradePickItem } from '@/lib/trades'
 import type { TabKey } from '@/components/trades/TradeCard'
+import {
+    isIncomingTradeForMember,
+    isOutgoingTradeForMember,
+    isTradeHistoryForMember,
+    isVetoableTradeForMember,
+} from '@/lib/trade-perspective'
 
 export type TradeListItem =
     | { _type: 'trade'; trade: Trade }
@@ -23,6 +29,48 @@ type TradeListInput = {
     blockLoading: boolean
     blockRoster: RosterPlayer[]
     leagueBlockItems: TradeBlockItem[]
+}
+
+export type TradeScreenSections = Pick<TradeListInput,
+    'vetoableTrades' | 'incomingTrades' | 'outgoingTrades' | 'historyTrades' | 'myBlockItems'>
+
+export function selectTradeScreenSections(
+    trades: Trade[],
+    blockItems: TradeBlockItem[],
+    memberId: string,
+): TradeScreenSections {
+    const sections: TradeScreenSections = {
+        vetoableTrades: [],
+        incomingTrades: [],
+        outgoingTrades: [],
+        historyTrades: [],
+        myBlockItems: [],
+    }
+    for (const trade of trades) {
+        if (isVetoableTradeForMember(trade, memberId)) sections.vetoableTrades.push(trade)
+        if (isIncomingTradeForMember(trade, memberId)) sections.incomingTrades.push(trade)
+        if (isOutgoingTradeForMember(trade, memberId)) sections.outgoingTrades.push(trade)
+        if (isTradeHistoryForMember(trade, memberId)) sections.historyTrades.push(trade)
+    }
+    for (const item of blockItems) {
+        if (item.memberId === memberId) sections.myBlockItems.push(item)
+    }
+    return sections
+}
+
+type TradeScreenModelInput = Omit<TradeListInput, keyof TradeScreenSections> & {
+    trades: Trade[]
+    blockItems: TradeBlockItem[]
+    memberId: string
+}
+
+export function buildTradeScreenModel(input: TradeScreenModelInput) {
+    const sections = selectTradeScreenSections(input.trades, input.blockItems, input.memberId)
+    return {
+        ...sections,
+        listData: buildTradeList({ ...input, ...sections }),
+        pendingInboxCount: sections.incomingTrades.length,
+    }
 }
 
 export function tradeListKey(item: TradeListItem, index: number): string {

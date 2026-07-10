@@ -6,23 +6,32 @@ import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cach
 const TRADES_CACHE_PREFIX = 'pancake:trades:v2:'
 const TRADES_PAGE_SIZE = 40
 const tradesCacheKey = (memberId: string, leagueId: string) => `${TRADES_CACHE_PREFIX}${leagueId}:${memberId}`
+type TradesResource = { key: string | null; trades: Trade[] }
 
 export function useTradesFeed(memberId: string, leagueId: string) {
+    const resourceKey = memberId && leagueId ? tradesCacheKey(memberId, leagueId) : null
     const cached = useMemo(
         () => memberId && leagueId ? readPersistentCache<Trade[]>(tradesCacheKey(memberId, leagueId)) : null,
         [memberId, leagueId],
     )
-    const [trades, setTrades] = useState<Trade[]>(cached ?? [])
+    const [resource, setResource] = useState<TradesResource>({ key: resourceKey, trades: cached ?? [] })
+    const trades = useMemo(
+        () => resource.key === resourceKey ? resource.trades : cached ?? [],
+        [cached, resource, resourceKey],
+    )
     const [loading, setLoading] = useState(!cached)
     const [error, setError] = useState<string | null>(null)
     const [hasMore, setHasMore] = useState((cached?.length ?? 0) >= TRADES_PAGE_SIZE)
     const [loadingMore, setLoadingMore] = useState(false)
     const loadSequence = useRef(0)
+    const paginationRequest = useRef<symbol | null>(null)
 
     const refresh = useCallback(async () => {
         const requestId = ++loadSequence.current
+        paginationRequest.current = null
+        setLoadingMore(false)
         if (!memberId || !leagueId) {
-            setTrades([])
+            setResource({ key: null, trades: [] })
             setError(null)
             setLoading(false)
             setHasMore(false)
@@ -32,7 +41,7 @@ export function useTradesFeed(memberId: string, leagueId: string) {
         try {
             const result = await getTradesForScreen(memberId, leagueId, TRADES_PAGE_SIZE)
             if (loadSequence.current !== requestId) return
-            setTrades(result)
+            setResource({ key: resourceKey, trades: result })
             setHasMore(result.length === TRADES_PAGE_SIZE)
             writePersistentCache(tradesCacheKey(memberId, leagueId), result)
         } catch (cause) {
@@ -42,16 +51,17 @@ export function useTradesFeed(memberId: string, leagueId: string) {
         } finally {
             if (loadSequence.current === requestId) setLoading(false)
         }
-    }, [memberId, leagueId])
+    }, [leagueId, memberId, resourceKey])
 
     useEffect(() => {
         loadSequence.current += 1
-        setTrades(cached ?? [])
+        paginationRequest.current = null
+        setResource({ key: resourceKey, trades: cached ?? [] })
         setError(null)
         setLoading(!cached)
         setHasMore((cached?.length ?? 0) >= TRADES_PAGE_SIZE)
         setLoadingMore(false)
-    }, [cached, leagueId, memberId])
+    }, [cached, resourceKey])
 
     useEffect(() => {
         void refresh()
@@ -59,8 +69,10 @@ export function useTradesFeed(memberId: string, leagueId: string) {
     }, [refresh])
 
     const loadMore = useCallback(async () => {
-        if (!memberId || !leagueId || loadingMore || !hasMore) return
+        if (!memberId || !leagueId || paginationRequest.current || !hasMore) return
         const requestId = loadSequence.current
+        const paginationToken = Symbol('trade-page')
+        paginationRequest.current = paginationToken
         setLoadingMore(true)
         try {
             const lastTrade = trades.at(-1)
@@ -72,11 +84,12 @@ export function useTradesFeed(memberId: string, leagueId: string) {
                 tradePageCursor(lastTrade, memberId),
             )
             if (loadSequence.current !== requestId) return
-            setTrades((current) => {
-                const known = new Set(current.map((trade) => trade.id))
-                const next = [...current, ...result.filter((trade) => !known.has(trade.id))]
+            setResource((current) => {
+                if (current.key !== resourceKey) return current
+                const known = new Set(current.trades.map((trade) => trade.id))
+                const next = [...current.trades, ...result.filter((trade) => !known.has(trade.id))]
                 writePersistentCache(tradesCacheKey(memberId, leagueId), next)
-                return next
+                return { key: resourceKey, trades: next }
             })
             setHasMore(result.length === TRADES_PAGE_SIZE)
         } catch (cause) {
@@ -84,9 +97,21 @@ export function useTradesFeed(memberId: string, leagueId: string) {
                 setError(getErrorMessage(cause) ?? 'Could not load more trades.')
             }
         } finally {
-            if (loadSequence.current === requestId) setLoadingMore(false)
+            if (paginationRequest.current === paginationToken) {
+                paginationRequest.current = null
+                if (loadSequence.current === requestId) setLoadingMore(false)
+            }
         }
-    }, [hasMore, leagueId, loadingMore, memberId, trades])
+    }, [hasMore, leagueId, memberId, resourceKey, trades])
 
-    return { trades, loading, loadingMore, hasMore, error, refresh, loadMore }
+    const ownsResource = resource.key === resourceKey
+    return {
+        trades,
+        loading: ownsResource ? loading : !cached,
+        loadingMore: ownsResource && loadingMore,
+        hasMore: ownsResource ? hasMore : (cached?.length ?? 0) >= TRADES_PAGE_SIZE,
+        error: ownsResource ? error : null,
+        refresh,
+        loadMore,
+    }
 }

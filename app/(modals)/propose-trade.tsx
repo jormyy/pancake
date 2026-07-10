@@ -312,6 +312,7 @@ export default function ProposeTradeScreen() {
                 ) : composer.participantViews.length >= 2 ? (
                     <MultiTeamTradeBuilder
                         participants={composer.participantViews}
+                        items={items}
                         myMemberId={myMemberId}
                         faabEnabled={faabEnabled}
                         notes={notes}
