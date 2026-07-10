@@ -62,6 +62,7 @@ describe('release E2E contracts', () => {
     const registrySource = await readFile(path.join(process.cwd(), 'tests/e2e/browser-scenario-registry.mjs'), 'utf8')
     expect(perfSource).toContain('createDisposableLeagueFromSeedUsers({')
     expect(perfSource).toContain('resourceOwner,')
+    expect(perfSource).toContain('managerResume.status !== 404')
     expect(perfSource).not.toContain('stale auction draft cleanup')
     expect(registrySource).toContain('(resourceOwner) => scenario.run({ ...context, resourceOwner })')
   })

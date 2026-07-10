@@ -369,8 +369,8 @@ export async function runBrowserPerfSmoke({
   const auction = await ensurePerfAuction(supabase, perfState)
   const matchup = await ensurePerfMatchup(supabase, perfState, auction.leagueSeasonId, auction.members)
   const managerResume = await postDraftLifecycle(env, peerUser, state.password, auction.draftId, 'resume')
-  if (managerResume.status !== 403) {
-    throw new Error(`D.X.4 noncommissioner resume returned ${managerResume.status}; expected 403`)
+  if (managerResume.status !== 404) {
+    throw new Error(`D.X.4 noncommissioner resume returned ${managerResume.status}; expected hidden draft 404`)
   }
   const commissionerResume = await postDraftLifecycle(env, user, state.password, auction.draftId, 'resume')
   if (commissionerResume.status !== 200 || commissionerResume.body?.ok !== true) {
