@@ -1,6 +1,6 @@
 {
-  "installCommand": "npm install",
-  "buildCommand": "npx expo export --platform web",
+  "installCommand": "npm ci",
+  "buildCommand": "npm run build:web:release",
   "outputDirectory": "dist",
   "framework": null,
   "rewrites": [

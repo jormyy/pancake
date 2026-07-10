@@ -25,6 +25,9 @@ describe('release E2E contracts', () => {
     expect(packageJson.scripts['build:web:release']).toBe(
       'expo export --platform web --clear && node scripts/stamp-release-provenance.mjs',
     )
+    const vercel = JSON.parse(await readFile(path.join(process.cwd(), 'vercel.json'), 'utf8'))
+    expect(vercel.installCommand).toBe('npm ci')
+    expect(vercel.buildCommand).toBe('npm run build:web:release')
   })
 
   it('derives the mid-life migration probe from sorted repository head', async () => {
@@ -53,6 +56,7 @@ describe('release E2E contracts', () => {
       '.github/workflows/test.yml',
       '.github/workflows/release-soak.yml',
       '.github/workflows/production-readiness.yml',
+      '.github/workflows/production-deploy.yml',
     ]
     for (const file of workflowFiles) {
       const source = await readFile(path.join(process.cwd(), file), 'utf8')
@@ -79,7 +83,8 @@ describe('release E2E contracts', () => {
     expect(workflow).toContain('types: [production_deployed]')
     expect(workflow).toContain("github.event_name == 'repository_dispatch' && github.event.client_payload.release_sha || inputs.release_sha")
     expect(workflow).toContain("github.event_name == 'repository_dispatch' && github.event.client_payload.bundle_digest || inputs.bundle_digest")
-    expect(workflow).toContain('E2E_FRONTEND_URL: ${{ secrets.PANCAKE_FRONTEND_URL }}')
+    expect(workflow).toContain('E2E_FRONTEND_URL: ${{ inputs.frontend_url || secrets.PANCAKE_FRONTEND_URL }}')
+    expect(workflow).toContain('E2E_EXPECTED_FRONTEND_HOST: ${{ secrets.PANCAKE_PRODUCTION_FRONTEND_HOST }}')
     expect(workflow).toContain('EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}')
     expect(workflow).toContain('EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}')
     expect(workflow).toContain('node tests/e2e/hosted-release-provenance.mjs')
@@ -89,10 +94,21 @@ describe('release E2E contracts', () => {
     for (const command of [
       'npm run prod:check',
       'npm run prod:data-health -- --linked --allow-prod-writes',
-      'npm run security:edge-auth:linked',
+      'npm run security:edge-auth:linked -- --positive',
       'npm run security:db-catalog -- --linked',
     ]) expect(workflow).toContain(command)
     expect(workflow).toContain('if-no-files-found: error')
+  })
+
+  it('promotes only a repository-built candidate that passed protected readiness', async () => {
+    const workflow = await readFile(path.join(process.cwd(), '.github/workflows/production-deploy.yml'), 'utf8')
+    expect(workflow).toContain('npx --yes vercel@55.0.0 build')
+    expect(workflow).toContain('supabase functions deploy --project-ref "$SUPABASE_PROJECT_REF"')
+    expect(workflow).toContain('uses: ./.github/workflows/production-readiness.yml')
+    expect(workflow).toContain('needs: [deploy-candidate, verify-candidate]')
+    expect(workflow.indexOf('Require candidate readiness')).toBeLessThan(workflow.indexOf('Promote verified candidate'))
+    expect(workflow).toContain('npx --yes vercel@55.0.0 promote')
+    expect(workflow).toContain('Verify promoted production')
   })
 
   it('stamps a self-consistent release marker without changing the bundle digest', async () => {

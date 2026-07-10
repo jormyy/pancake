@@ -1,7 +1,7 @@
 import path from 'node:path'
 import process from 'node:process'
 import { envValue, writeMarkdownReport } from './env.mjs'
-import { validateHostedReleaseProvenance } from './production-readiness-contract.mjs'
+import { validateHostedReleaseProvenance, validateHostedTargetIdentity } from './production-readiness-contract.mjs'
 
 const REPORT_PATH = path.join(process.cwd(), 'tests/hosted-release-provenance-report.md')
 
@@ -23,27 +23,53 @@ const fetchJson = async (fetchImpl, url, label) => {
  */
 export const probeHostedReleaseProvenance = async ({ expected, edgeApiUrl, frontendUrl, fetchImpl = fetch }) => {
   const edgeHealthUrl = `${edgeApiUrl.replace(/\/$/, '')}/health`
-  const frontendMarkerUrl = new URL('release-provenance.json', `${frontendUrl.replace(/\/$/, '')}/`).toString()
-  const [edge, frontend] = await Promise.all([
+  let frontendMarkerUrl
+  try {
+    frontendMarkerUrl = new URL('release-provenance.json', `${frontendUrl.replace(/\/$/, '')}/`).toString()
+  } catch {
+    return {
+      edgeHealthUrl,
+      frontendMarkerUrl: 'unavailable',
+      edge: null,
+      frontend: null,
+      failures: ['frontend probe failed: frontend URL is invalid'],
+    }
+  }
+  const [edgeResult, frontendResult] = await Promise.allSettled([
     fetchJson(fetchImpl, edgeHealthUrl, 'Edge health'),
     fetchJson(fetchImpl, frontendMarkerUrl, 'frontend provenance'),
   ])
-  const failures = validateHostedReleaseProvenance(expected, edge, frontend)
+  const edge = edgeResult.status === 'fulfilled' ? edgeResult.value : null
+  const frontend = frontendResult.status === 'fulfilled' ? frontendResult.value : null
+  const failures = []
+  if (edgeResult.status === 'rejected') failures.push(`Edge probe failed: ${edgeResult.reason instanceof Error ? edgeResult.reason.message : String(edgeResult.reason)}`)
+  if (frontendResult.status === 'rejected') failures.push(`frontend probe failed: ${frontendResult.reason instanceof Error ? frontendResult.reason.message : String(frontendResult.reason)}`)
+  failures.push(...validateHostedReleaseProvenance(expected, edge, frontend))
   if (edge?.ok !== true || edge?.service !== 'pancake-supabase-api' || edge?.runtime !== 'supabase-edge') {
     failures.push('Edge health response does not identify the Pancake Supabase Edge runtime')
   }
   return { edgeHealthUrl, frontendMarkerUrl, edge, frontend, failures }
 }
 
-const main = async () => {
-  const expected = {
-    commitSha: envValue('E2E_EXPECTED_RELEASE_SHA') ?? '',
-    bundleDigest: envValue('E2E_EXPECTED_BUNDLE_DIGEST') ?? '',
-  }
-  const edgeApiUrl = envValue('E2E_REMOTE_API_URL', 'EXPO_PUBLIC_API_URL')
-  const frontendUrl = envValue('E2E_FRONTEND_URL')
-  if (!edgeApiUrl || !frontendUrl) throw new Error('Hosted provenance requires E2E_REMOTE_API_URL and E2E_FRONTEND_URL')
-  const result = await probeHostedReleaseProvenance({ expected, edgeApiUrl, frontendUrl })
+export const runHostedReleaseProvenance = async ({
+  expected,
+  edgeApiUrl,
+  frontendUrl,
+  target,
+  fetchImpl = fetch,
+  reportPath = REPORT_PATH,
+}) => {
+  const targetFailures = validateHostedTargetIdentity(target)
+  const result = edgeApiUrl && frontendUrl
+    ? await probeHostedReleaseProvenance({ expected, edgeApiUrl, frontendUrl, fetchImpl })
+    : {
+        edgeHealthUrl: edgeApiUrl ? `${edgeApiUrl.replace(/\/$/, '')}/health` : 'unavailable',
+        frontendMarkerUrl: frontendUrl ? new URL('release-provenance.json', `${frontendUrl.replace(/\/$/, '')}/`).toString() : 'unavailable',
+        edge: null,
+        frontend: null,
+        failures: ['Hosted provenance requires E2E_REMOTE_API_URL and E2E_FRONTEND_URL'],
+      }
+  result.failures.push(...targetFailures.map((failure) => `Target identity: ${failure}`))
   const rows = [
     {
       surface: 'Edge',
@@ -55,12 +81,17 @@ const main = async () => {
       status: result.failures.some((failure) => failure.startsWith('frontend ')) ? 'BLOCKED' : 'PASS',
       evidence: `${result.frontendMarkerUrl}; commit=${result.frontend?.commitSha ?? 'missing'}; bundle=${result.frontend?.bundleDigest ?? 'missing'}`,
     },
+    {
+      surface: 'Target identity',
+      status: targetFailures.length === 0 ? 'PASS' : 'BLOCKED',
+      evidence: targetFailures.join('; ') || 'Supabase, Edge, and frontend targets match protected production identity.',
+    },
   ]
   if (result.failures.length > 0 && rows.every((row) => row.status === 'PASS')) {
     rows.push({ surface: 'Contract', status: 'BLOCKED', evidence: result.failures.join('; ') })
   }
   await writeMarkdownReport({
-    reportPath: REPORT_PATH,
+    reportPath,
     title: 'Hosted Release Provenance',
     rows,
     columns: [
@@ -68,6 +99,30 @@ const main = async () => {
       { header: 'Status', value: (row) => row.status },
       { header: 'Evidence', value: (row) => row.evidence },
     ],
+  })
+  return { ...result, rows }
+}
+
+const main = async () => {
+  const expected = {
+    commitSha: envValue('E2E_EXPECTED_RELEASE_SHA') ?? '',
+    bundleDigest: envValue('E2E_EXPECTED_BUNDLE_DIGEST') ?? '',
+  }
+  const edgeApiUrl = envValue('E2E_REMOTE_API_URL', 'EXPO_PUBLIC_API_URL')
+  const frontendUrl = envValue('E2E_FRONTEND_URL')
+  const result = await runHostedReleaseProvenance({
+    expected,
+    edgeApiUrl,
+    frontendUrl,
+    target: {
+      expectedProjectRef: envValue('E2E_PRODUCTION_SUPABASE_REF') ?? '',
+      linkedProjectRef: envValue('SUPABASE_PROJECT_REF') ?? '',
+      supabaseUrl: envValue('E2E_SUPABASE_URL', 'SUPABASE_URL', 'EXPO_PUBLIC_SUPABASE_URL') ?? '',
+      edgeApiUrl: edgeApiUrl ?? '',
+      frontendUrl: frontendUrl ?? '',
+      expectedFrontendHost: envValue('E2E_EXPECTED_FRONTEND_HOST'),
+      allowCandidateFrontend: envValue('E2E_ALLOW_CANDIDATE_FRONTEND') === '1',
+    },
   })
   if (result.failures.length > 0) {
     console.error(result.failures.join('\n'))

@@ -1,6 +1,25 @@
 name: Hosted production readiness
 
 on:
+  workflow_call:
+    inputs:
+      release_sha:
+        description: Full Git SHA deployed by the caller
+        required: true
+        type: string
+      bundle_digest:
+        description: SHA-256 digest emitted by build:web:release
+        required: true
+        type: string
+      frontend_url:
+        description: Candidate frontend URL; omitted for the pinned production hostname
+        required: false
+        type: string
+      candidate_frontend:
+        description: Allow a Vercel candidate URL from the repository-owned deploy job
+        required: false
+        default: false
+        type: boolean
   workflow_dispatch:
     inputs:
       release_sha:
@@ -40,7 +59,10 @@ jobs:
       EXPO_PUBLIC_API_URL: ${{ secrets.PANCAKE_API_URL }}
       PANCAKE_EDGE_INTERNAL_TOKEN: ${{ secrets.PANCAKE_EDGE_INTERNAL_TOKEN }}
       PANCAKE_LEGACY_SUPABASE_JWT_ROTATED: ${{ secrets.PANCAKE_LEGACY_SUPABASE_JWT_ROTATED }}
-      E2E_FRONTEND_URL: ${{ secrets.PANCAKE_FRONTEND_URL }}
+      E2E_FRONTEND_URL: ${{ inputs.frontend_url || secrets.PANCAKE_FRONTEND_URL }}
+      E2E_EXPECTED_FRONTEND_HOST: ${{ secrets.PANCAKE_PRODUCTION_FRONTEND_HOST }}
+      E2E_ALLOW_CANDIDATE_FRONTEND: ${{ inputs.candidate_frontend && '1' || '0' }}
+      E2E_PRODUCTION_SUPABASE_REF: ceeytbfmwsnzalxlkalc
       E2E_EXPECTED_RELEASE_SHA: ${{ github.event_name == 'repository_dispatch' && github.event.client_payload.release_sha || inputs.release_sha }}
       E2E_EXPECTED_BUNDLE_DIGEST: ${{ github.event_name == 'repository_dispatch' && github.event.client_payload.bundle_digest || inputs.bundle_digest }}
     steps:
@@ -68,6 +90,10 @@ jobs:
             test -n "${!name:-}" || { echo "Missing protected production credential: $name"; exit 1; }
           done
           test -n "$E2E_FRONTEND_URL" || { echo "Missing protected production credential: E2E_FRONTEND_URL"; exit 1; }
+          if test "$E2E_ALLOW_CANDIDATE_FRONTEND" != '1'; then
+            test -n "$E2E_EXPECTED_FRONTEND_HOST" || { echo "Missing protected production credential: E2E_EXPECTED_FRONTEND_HOST"; exit 1; }
+          fi
+          test "$SUPABASE_PROJECT_REF" = "$E2E_PRODUCTION_SUPABASE_REF"
           test "$PANCAKE_LEGACY_SUPABASE_JWT_ROTATED" = '1'
           [[ "$E2E_EXPECTED_RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]]
           [[ "$E2E_EXPECTED_BUNDLE_DIGEST" =~ ^[0-9a-f]{64}$ ]]
@@ -103,7 +129,7 @@ jobs:
         run: npm run prod:data-health -- --linked --allow-prod-writes
 
       - name: Verify linked Edge authentication
-        run: npm run security:edge-auth:linked
+        run: npm run security:edge-auth:linked -- --positive
 
       - name: Verify linked database security catalog
         run: npm run security:db-catalog -- --linked

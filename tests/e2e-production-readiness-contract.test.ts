@@ -1,9 +1,14 @@
 import { describe, expect, it } from 'vitest'
+import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
 import {
     evaluateLegacyKeyReadiness,
+    validInternalEdgeAuthProbe,
     validateHostedReleaseProvenance,
+    validateHostedTargetIdentity,
 } from './e2e/production-readiness-contract.mjs'
-import { probeHostedReleaseProvenance } from './e2e/hosted-release-provenance.mjs'
+import { probeHostedReleaseProvenance, runHostedReleaseProvenance } from './e2e/hosted-release-provenance.mjs'
 
 describe('production readiness contracts', () => {
     it('never lets manual legacy-key evidence override an authoritative enabled state', () => {
@@ -67,5 +72,68 @@ describe('production readiness contracts', () => {
         })
 
         expect(result.failures).toContain(`Edge commitSha ${'c'.repeat(40)} does not match ${'a'.repeat(40)}`)
+    })
+
+    it('binds every hosted surface to the pinned production identity', () => {
+        const projectRef = 'ceeytbfmwsnzalxlkalc'
+        const valid = {
+            expectedProjectRef: projectRef,
+            linkedProjectRef: projectRef,
+            supabaseUrl: `https://${projectRef}.supabase.co`,
+            edgeApiUrl: `https://${projectRef}.supabase.co/functions/v1/api`,
+            frontendUrl: 'https://pancake.example.com',
+            expectedFrontendHost: 'pancake.example.com',
+        }
+        expect(validateHostedTargetIdentity(valid)).toEqual([])
+        expect(validateHostedTargetIdentity({ ...valid, linkedProjectRef: 'a'.repeat(20) })).toContain(
+            'linked Supabase project does not match the pinned production project',
+        )
+        expect(validateHostedTargetIdentity({ ...valid, edgeApiUrl: 'https://staging.supabase.co/functions/v1/api' })).toContain(
+            'Edge API URL does not match the pinned production project',
+        )
+        expect(validateHostedTargetIdentity({ ...valid, frontendUrl: 'https://preview.example.com' })).toContain(
+            'frontend URL does not match the pinned production host',
+        )
+        expect(validateHostedTargetIdentity({ ...valid, frontendUrl: 'https://preview.example.com', allowCandidateFrontend: true })).toEqual([])
+    })
+
+    it('requires the positive Edge auth probe response contract', () => {
+        expect(validInternalEdgeAuthProbe({
+            status: 200,
+            text: JSON.stringify({ ok: true, action: '__edge_auth_probe__' }),
+        })).toBe(true)
+        expect(validInternalEdgeAuthProbe({ status: 404, text: '{}' })).toBe(false)
+        expect(validInternalEdgeAuthProbe({ status: 200, text: JSON.stringify({ ok: true }) })).toBe(false)
+        expect(validInternalEdgeAuthProbe({ status: 200, text: 'not-json' })).toBe(false)
+    })
+
+    it('retains a BLOCKED hosted report when probes fail', async () => {
+        const root = await mkdtemp(path.join(os.tmpdir(), 'pancake-hosted-provenance-'))
+        const reportPath = path.join(root, 'report.md')
+        const projectRef = 'ceeytbfmwsnzalxlkalc'
+        try {
+            const result = await runHostedReleaseProvenance({
+                expected: { commitSha: 'a'.repeat(40), bundleDigest: 'b'.repeat(64) },
+                edgeApiUrl: `https://${projectRef}.supabase.co/functions/v1/api`,
+                frontendUrl: 'https://pancake.example.com',
+                target: {
+                    expectedProjectRef: projectRef,
+                    linkedProjectRef: projectRef,
+                    supabaseUrl: `https://${projectRef}.supabase.co`,
+                    edgeApiUrl: `https://${projectRef}.supabase.co/functions/v1/api`,
+                    frontendUrl: 'https://pancake.example.com',
+                    expectedFrontendHost: 'pancake.example.com',
+                },
+                fetchImpl: async () => { throw new Error('connection refused') },
+                reportPath,
+            })
+            expect(result.failures).toEqual(expect.arrayContaining([
+                expect.stringContaining('Edge probe failed'),
+                expect.stringContaining('frontend probe failed'),
+            ]))
+            expect(await readFile(reportPath, 'utf8')).toContain('| Edge | BLOCKED |')
+        } finally {
+            await rm(root, { recursive: true, force: true })
+        }
     })
 })
