@@ -17,6 +17,31 @@ import {
 } from './browser-waiver-gameplay.mjs'
 import { TRADE_SCENARIOS } from './trade-scenario-registry.mjs'
 import { BROWSER_SCENARIO_MANIFEST } from './browser-scenario-manifest.mjs'
+import { runWithScenarioResourceOwner } from './scenario-resource-owner.mjs'
+import { writeFile } from 'node:fs/promises'
+import path from 'node:path'
+import { bindBrowserScenarioRunners } from './browser-scenario-contract.mjs'
+
+/** @param {unknown} error */
+const errorText = (error) => error instanceof Error ? error.message : error == null ? null : String(error)
+
+const writeRegisteredScenarioReport = async (scenario, { outcome, primaryError, cleanupError }) => {
+  const result = outcome.ok ? outcome.value : null
+  if (!result?.artifactDir) return
+  const report = {
+    status: primaryError || cleanupError ? 'FAIL' : result?.status ?? 'PASS',
+    scenario: scenario.id,
+    evidenceId: scenario.evidenceId,
+    evidence: scenario.evidence,
+    error: errorText(primaryError),
+    cleanupError: errorText(cleanupError),
+    result,
+  }
+  await writeFile(
+    path.join(result.artifactDir, 'registry-summary.json'),
+    `${JSON.stringify(report, null, 2)}\n`,
+  )
+}
 
 const standardRunners = {
   smoke: ({ args, season }) => runBrowserSmoke({ season, fullSweep: args.browserFullSweep }),
@@ -37,13 +62,17 @@ const tradeRunners = Object.fromEntries(TRADE_SCENARIOS.map((scenario) => [
   `trade-${scenario.id}`,
   ({ season }) => scenario.run({ season }),
 ]))
-const runners = { ...standardRunners, ...tradeRunners }
+const runners = new Map(Object.entries({ ...standardRunners, ...tradeRunners }))
 
-export const BROWSER_SCENARIOS = BROWSER_SCENARIO_MANIFEST.map((scenario) => {
-  const run = runners[scenario.id]
-  if (!run) throw new Error(`Browser scenario ${scenario.id} has no runner`)
-  return { ...scenario, run }
-})
+export const BROWSER_SCENARIOS = bindBrowserScenarioRunners(BROWSER_SCENARIO_MANIFEST, runners)
+  .map((scenario) => ({
+    ...scenario,
+    run: (context) => runWithScenarioResourceOwner(
+      `browser ${scenario.id}`,
+      () => scenario.run(context),
+      { onComplete: (result) => writeRegisteredScenarioReport(scenario, result) },
+    ),
+  }))
 
 export const browserScenarioById = (id) => {
   const scenario = BROWSER_SCENARIOS.find((candidate) => candidate.id === id)

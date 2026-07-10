@@ -2,6 +2,7 @@ import { writeFile } from 'node:fs/promises'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import path from 'node:path'
+import { ownScenarioResource, releaseScenarioResource } from './scenario-resource-owner.mjs'
 
 const execFileAsync = promisify(execFile)
 const DEFAULT_COMMAND_TIMEOUT_MS = 30_000
@@ -75,18 +76,30 @@ export const createBrowser = ({
   defaultTimeout = DEFAULT_COMMAND_TIMEOUT_MS,
   maxBuffer = DEFAULT_MAX_BUFFER,
 } = {}) => async (session, args, options = {}) => {
+  const resourceKey = `browser:${session}`
+  ownScenarioResource(resourceKey, `browser session ${session}`, async () => {
+    await runAgentBrowser({
+      cwd,
+      timeout: 10_000,
+      maxBuffer,
+      session,
+      args: ['close'],
+    })
+  })
   const isScreenshot = args[0] === 'screenshot' && typeof args[1] === 'string'
   const effectiveMaxBuffer = options.maxBuffer ?? maxBuffer
   if (isScreenshot) {
     return runScreenshot({ cwd, maxBuffer: effectiveMaxBuffer, session, args, timeout: options.timeout })
   }
-  return runAgentBrowser({
+  const output = await runAgentBrowser({
     cwd,
     timeout: options.timeout ?? defaultTimeout,
     maxBuffer: effectiveMaxBuffer,
     session,
     args,
   })
+  if (args[0] === 'close') releaseScenarioResource(resourceKey)
+  return output
 }
 
 /** @param {{ cwd?: string, timeout?: number, maxBuffer?: number }} [config] */

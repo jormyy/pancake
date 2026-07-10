@@ -1,5 +1,6 @@
 import process from 'node:process'
 import { createClient } from '@supabase/supabase-js'
+import { ownScenarioResource } from './scenario-resource-owner.mjs'
 
 const fixtureCreatedPlayerIds = new Set()
 
@@ -9,6 +10,7 @@ const fixtureCreatedPlayerIds = new Set()
 /** @typedef {{ registerLeague: (id: string) => void, registerUser: (id: string) => void, registerPlayer: (id: string) => void, dispose: () => Promise<void> }} FixtureResourceOwner */
 
 let fixtureSequence = 0
+let fixtureOwnerSequence = 0
 
 /** @param {AdminClient} admin @param {FixtureUser} user */
 const createConfirmedUser = async (admin, user) => {
@@ -126,6 +128,7 @@ const findFuturePickForMember = async (admin, leagueId, memberId, seasonYear, ro
 
 /** @param {AdminClient} admin @returns {FixtureResourceOwner} */
 export const createFixtureResourceOwner = (admin) => {
+  fixtureOwnerSequence += 1
   /** @type {string | null} */
   let leagueId = null
   /** @type {Set<string>} */
@@ -133,9 +136,12 @@ export const createFixtureResourceOwner = (admin) => {
   /** @type {Set<string>} */
   const playerIds = new Set()
   let disposed = false
-  return {
+  const owner = {
+    /** @param {string} id */
     registerLeague: (id) => { leagueId = id },
+    /** @param {string} id */
     registerUser: (id) => { userIds.add(id) },
+    /** @param {string} id */
     registerPlayer: (id) => { playerIds.add(id) },
     dispose: async () => {
       if (disposed) return
@@ -172,6 +178,8 @@ export const createFixtureResourceOwner = (admin) => {
       if (failures.length > 0) throw new AggregateError(failures, 'Fixture cleanup failed')
     },
   }
+  ownScenarioResource(`fixture:${fixtureOwnerSequence}`, `fixture ${fixtureOwnerSequence}`, owner.dispose)
+  return owner
 }
 
 /**

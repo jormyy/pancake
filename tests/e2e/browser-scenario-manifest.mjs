@@ -18,6 +18,7 @@ import process from 'node:process'
  * @property {boolean} weekly
  */
 
+/** @type {Record<string, string>} */
 const evidenceByScenarioId = {
   smoke: 'Visits the configured route sweep and retains screenshots plus console, error, and network diagnostics.',
   auth: 'Exercises browser sign-in, session persistence, sign-out, and protected-route behavior.',

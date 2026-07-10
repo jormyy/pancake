@@ -73,6 +73,10 @@ describe('browser scenario lifecycle', () => {
             run: async () => ({ fields: {}, failures: [] }),
             verifyFailure: async () => ({}),
         })).rejects.toThrow('cleanup was not clean')
+        expect(JSON.parse(await readFile(reportPath, 'utf8'))).toMatchObject({
+            status: 'FAIL',
+            cleanupError: expect.stringContaining('session still owned'),
+        })
     })
 
     it('still disposes the fixture when browser close fails', async () => {

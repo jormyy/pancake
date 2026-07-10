@@ -179,6 +179,25 @@ describe('e2e backend scenario registry', () => {
   })
 })
 
+describe('scenario resource ownership', () => {
+  it('retries only resources whose cleanup failed', async () => {
+    const { createScenarioResourceOwner } = await import('./e2e/scenario-resource-owner.mjs')
+    const owner = createScenarioResourceOwner('retryable')
+    const released = vi.fn(async () => undefined)
+    const retryable = vi.fn()
+      .mockRejectedValueOnce(new Error('busy'))
+      .mockResolvedValueOnce(undefined)
+    owner.register('released', released)
+    owner.register('retryable', retryable)
+
+    await expect(owner.dispose()).rejects.toThrow('resource cleanup failed')
+    await expect(owner.dispose()).resolves.toBeUndefined()
+
+    expect(released).toHaveBeenCalledOnce()
+    expect(retryable).toHaveBeenCalledTimes(2)
+  })
+})
+
 describe('e2e harness reporting', () => {
   it('exports report writers for the soak runner', async () => {
     const reporting = await import('./e2e/harness/reporting.mjs')

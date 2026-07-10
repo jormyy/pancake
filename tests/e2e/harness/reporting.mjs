@@ -101,6 +101,7 @@ export const writeCoverageReport = async ({ status, startedAt, finishedAt, seaso
     scenario.id,
     evidenceStatus(Boolean(args[scenario.flag]), scenario.evidenceId),
   ]))
+  /** @param {string} id */
   const browserScenarioStatus = (id) => browserStatusById.get(id) ?? 'PENDING'
   const browserSmokeStatus = browserScenarioStatus('smoke')
   const browserAuthStatus = browserScenarioStatus('auth')

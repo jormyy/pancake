@@ -9,8 +9,10 @@ const ROOT = process.cwd()
 /** @typedef {{ dispose: () => Promise<void> }} DisposableFixture */
 /** @typedef {{ fields: Record<string, unknown>, failures: string[] }} ScenarioResult */
 
-/** @param {unknown} error */
-const errorText = (error) => error instanceof Error ? error.message : String(error)
+/** @param {unknown} error @returns {string} */
+const errorText = (error) => error instanceof AggregateError
+  ? `${error.message}: ${error.errors.map(errorText).join('; ')}`
+  : error instanceof Error ? error.message : String(error)
 
 /** @param {Browser} browser @param {string} session @param {string[]} command @param {string} label */
 const browserOutput = async (browser, session, command, label) => {
@@ -136,30 +138,39 @@ export async function runBrowserScenarioLifecycle({
     }
   }
 
-  try {
-    const serialized = `${JSON.stringify(report, null, 2)}\n`
-    await Promise.all([
-      writeFile(reportPath, serialized),
-      writeFile(path.join(artifactDir, 'summary.json'), serialized),
-    ])
-  } catch (writeError) {
-    primaryError = primaryError
-      ? new AggregateError([primaryError, writeError], `${failureLabel} and evidence writing failed`)
-      : writeError
-  }
-
   let cleanupError = null
   try {
     await cleanupBrowserResources({ browser, sessions: [session], disposers: [fixture.dispose] })
   } catch (error) {
     cleanupError = error
   }
-  if (primaryError || cleanupError) {
-    if (primaryError && !cleanupError) throw primaryError
-    throw new AggregateError(
-      [...(primaryError ? [primaryError] : []), ...(cleanupError ? [cleanupError] : [])],
-      `${failureLabel}${primaryError ? ' failed' : ''}; cleanup was not clean`,
-    )
+
+  if (cleanupError) {
+    report = {
+      ...report,
+      status: 'FAIL',
+      cleanupError: errorText(cleanupError),
+    }
+  }
+
+  let writeError = null
+  try {
+    const serialized = `${JSON.stringify(report, null, 2)}\n`
+    await Promise.all([
+      writeFile(reportPath, serialized),
+      writeFile(path.join(artifactDir, 'summary.json'), serialized),
+    ])
+  } catch (error) {
+    writeError = error
+  }
+
+  const errors = [primaryError, cleanupError, writeError].filter((error) => error != null)
+  if (errors.length === 1) {
+    if (cleanupError) throw new AggregateError(errors, `${failureLabel}; cleanup was not clean`)
+    throw errors[0]
+  }
+  if (errors.length > 1) {
+    throw new AggregateError(errors, `${failureLabel}; ${cleanupError ? 'cleanup was not clean' : 'evidence writing failed'}`)
   }
   return report
 }
