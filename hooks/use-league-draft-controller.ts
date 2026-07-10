@@ -19,11 +19,17 @@ const OPEN_DRAFT_STATUSES = new Set(['pending', 'in_progress', 'paused'])
 export function useLeagueDraftController(leagueId: string | undefined) {
     const { push } = useRouter()
     const activeLeagueIdRef = useRef(leagueId)
+    const renderedLeagueIdRef = useRef(leagueId)
+    const mutationGenerationRef = useRef(0)
     const requestSequence = useRef(0)
     const inFlightRequest = useRef<{ leagueId: string; promise: Promise<void> } | null>(null)
     const refreshQueued = useRef(false)
     activeLeagueIdRef.current = leagueId
-    const [draftLoading, setDraftLoading] = useState(false)
+    if (renderedLeagueIdRef.current !== leagueId) {
+        renderedLeagueIdRef.current = leagueId
+        mutationGenerationRef.current += 1
+    }
+    const [draftLoadingOwner, setDraftLoadingOwner] = useState<string | null>(null)
     const [nominationMode, setNominationMode] = useState<NominationOrderMode>('user_nominated')
     const [draftTimerSeconds, setDraftTimerSecondsState] = useState<DraftTimerOption>(30)
     const [rookieRounds, setRookieRounds] = useState<RookieRoundOption>(3)
@@ -40,7 +46,12 @@ export function useLeagueDraftController(leagueId: string | undefined) {
         setActiveDraft(null)
         setActiveDraftError(null)
         setActiveDraftLoading(Boolean(leagueId))
+        setDraftLoadingOwner(null)
     }, [leagueId])
+
+    const ownsAction = useCallback((capturedLeagueId: string, generation: number) => (
+        activeLeagueIdRef.current === capturedLeagueId && mutationGenerationRef.current === generation
+    ), [])
 
     const fetchActiveDraft = useCallback((lid: string): Promise<void> => {
         const existing = inFlightRequest.current
@@ -89,21 +100,26 @@ export function useLeagueDraftController(leagueId: string | undefined) {
 
     const handleStartDraft = async () => {
         if (!leagueId) return
+        const capturedLeagueId = leagueId
+        const generation = mutationGenerationRef.current
         confirmAction(
             'Start Auction Draft?',
             `This will begin the auction draft for all teams with a ${draftTimerSeconds}-second timer and ${NOMINATION_ORDER_MODE_LABELS[nominationMode].toLowerCase()} nomination order. This cannot be undone.`,
             async () => {
-                setDraftLoading(true)
+                if (!ownsAction(capturedLeagueId, generation)) return
+                setDraftLoadingOwner(capturedLeagueId)
                 try {
-                    const draft = await startDraft(leagueId, nominationMode, {
+                    const draft = await startDraft(capturedLeagueId, nominationMode, {
                         isMock: false,
                         timerSeconds: draftTimerSeconds,
                     })
-                    openDraftRoom(draft.id, draft.draftType)
+                    if (ownsAction(capturedLeagueId, generation)) openDraftRoom(draft.id, draft.draftType)
                 } catch (error) {
-                    showAlert('Could not start draft', error instanceof Error ? error.message : undefined)
+                    if (ownsAction(capturedLeagueId, generation)) {
+                        showAlert('Could not start draft', error instanceof Error ? error.message : undefined)
+                    }
                 } finally {
-                    setDraftLoading(false)
+                    if (ownsAction(capturedLeagueId, generation)) setDraftLoadingOwner(null)
                 }
             },
             'Start Auction',
@@ -112,9 +128,14 @@ export function useLeagueDraftController(leagueId: string | undefined) {
 
     const handleJoinDraftRoom = async () => {
         if (!leagueId) return
-        setDraftLoading(true)
+        const capturedLeagueId = leagueId
+        const generation = mutationGenerationRef.current
+        setDraftLoadingOwner(capturedLeagueId)
         try {
-            const draft = activeDraft ?? await getJoinableDraft(leagueId, { includeCompletedRookie: true })
+            const draft = activeDraft?.leagueId === capturedLeagueId
+                ? activeDraft
+                : await getJoinableDraft(capturedLeagueId, { includeCompletedRookie: true })
+            if (!ownsAction(capturedLeagueId, generation)) return
             if (!draft || (!OPEN_DRAFT_STATUSES.has(draft.status) && draft.status !== 'completed')) {
                 setActiveDraft(null)
                 showAlert('No active draft found')
@@ -122,31 +143,40 @@ export function useLeagueDraftController(leagueId: string | undefined) {
             }
             openDraftRoom(draft.id, draft.draftType)
         } catch (error) {
-            showAlert('Error', error instanceof Error ? error.message : undefined)
+            if (ownsAction(capturedLeagueId, generation)) {
+                showAlert('Error', error instanceof Error ? error.message : undefined)
+            }
         } finally {
-            setDraftLoading(false)
+            if (ownsAction(capturedLeagueId, generation)) setDraftLoadingOwner(null)
         }
     }
 
     const handleStartRookieDraft = async () => {
         if (!leagueId) return
+        const capturedLeagueId = leagueId
+        const generation = mutationGenerationRef.current
         confirmAction(
             'Start Rookie Draft?',
             `This will begin the rookie snake draft for ${rookieRounds} rounds with a ${draftTimerSeconds}-second timer and ${ROOKIE_TIMER_EXPIRY_BEHAVIOR_LABELS[rookieTimerExpiryBehavior].toLowerCase()} timeout behavior. This cannot be undone.`,
             async () => {
-                setDraftLoading(true)
+                if (!ownsAction(capturedLeagueId, generation)) return
+                setDraftLoadingOwner(capturedLeagueId)
                 try {
-                    const result = await startRookieDraft(leagueId, {
+                    const result = await startRookieDraft(capturedLeagueId, {
                         isMock: false,
                         timerSeconds: draftTimerSeconds,
                         rounds: rookieRounds,
                         timerExpiryBehavior: rookieTimerExpiryBehavior,
                     })
-                    openDraftRoom(result.draft.id, result.draft.draftType)
+                    if (ownsAction(capturedLeagueId, generation)) {
+                        openDraftRoom(result.draft.id, result.draft.draftType)
+                    }
                 } catch (error) {
-                    showAlert('Could not start rookie draft', error instanceof Error ? error.message : undefined)
+                    if (ownsAction(capturedLeagueId, generation)) {
+                        showAlert('Could not start rookie draft', error instanceof Error ? error.message : undefined)
+                    }
                 } finally {
-                    setDraftLoading(false)
+                    if (ownsAction(capturedLeagueId, generation)) setDraftLoadingOwner(null)
                 }
             },
             'Start Rookie',
@@ -155,19 +185,26 @@ export function useLeagueDraftController(leagueId: string | undefined) {
 
     const handleReseedRookiePicks = async () => {
         if (!leagueId) return
-        setDraftLoading(true)
+        const capturedLeagueId = leagueId
+        const generation = mutationGenerationRef.current
+        setDraftLoadingOwner(capturedLeagueId)
         try {
-            const draft = await getActiveRookieDraft(leagueId)
+            const draft = await getActiveRookieDraft(capturedLeagueId)
+            if (!ownsAction(capturedLeagueId, generation)) return
             if (!draft) {
                 showAlert('No active rookie draft found')
                 return
             }
             await reseedRookieDraftPicks(draft.id)
-            showAlert('Done', 'Pick slots updated to reflect traded picks.')
+            if (ownsAction(capturedLeagueId, generation)) {
+                showAlert('Done', 'Pick slots updated to reflect traded picks.')
+            }
         } catch (error) {
-            showAlert('Error', error instanceof Error ? error.message : undefined)
+            if (ownsAction(capturedLeagueId, generation)) {
+                showAlert('Error', error instanceof Error ? error.message : undefined)
+            }
         } finally {
-            setDraftLoading(false)
+            if (ownsAction(capturedLeagueId, generation)) setDraftLoadingOwner(null)
         }
     }
 
@@ -175,7 +212,7 @@ export function useLeagueDraftController(leagueId: string | undefined) {
         activeDraft,
         activeDraftError,
         activeDraftLoading,
-        draftLoading,
+        draftLoading: draftLoadingOwner === leagueId,
         draftTimerSeconds,
         fetchActiveDraft,
         handleJoinDraftRoom,

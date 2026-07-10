@@ -238,6 +238,25 @@ export default function RosterScreen() {
     const [cancellingId, setCancellingId] = useState<string | null>(null)
     const [droppingId, setDroppingId] = useState<string | null>(null)
     const rosterRecoveryRunnerRef = useRef(createRosterRecoveryRunner())
+    const ownerIdentity = current?.id && leagueId ? `${current.id}:${leagueId}` : null
+    const activeOwnerRef = useRef(ownerIdentity)
+    const renderedOwnerRef = useRef(ownerIdentity)
+    const actionGenerationRef = useRef(0)
+    activeOwnerRef.current = ownerIdentity
+    if (renderedOwnerRef.current !== ownerIdentity) {
+        renderedOwnerRef.current = ownerIdentity
+        actionGenerationRef.current += 1
+    }
+    const isCurrentAction = (generation: number, identity: string | null) =>
+        actionGenerationRef.current === generation && activeOwnerRef.current === identity
+
+    useEffect(() => {
+        rosterRecoveryRunnerRef.current = createRosterRecoveryRunner()
+        setTogglingId(null)
+        setTaxiingId(null)
+        setCancellingId(null)
+        setDroppingId(null)
+    }, [ownerIdentity])
 
     const { data, loading, error, refresh } = useFocusAsyncData<RosterScreenData | null>(async () => {
         if (!current || !user) return null
@@ -324,7 +343,11 @@ export default function RosterScreen() {
     }
 
     async function handleToggleIR(item: RosterPlayer) {
+        const generation = actionGenerationRef.current
+        const identity = ownerIdentity
+        if (!identity) return
         const lockMessage = await getRosterStatusChangeLockMessage(item)
+        if (!isCurrentAction(generation, identity)) return
         if (lockMessage) {
             showAlert('Roster locked', lockMessage)
             return
@@ -358,22 +381,28 @@ export default function RosterScreen() {
             : `Move ${name} to the injured reserve slot?`
 
         confirmAction(title, message, async () => {
+            if (!isCurrentAction(generation, identity)) return
             await rosterRecoveryRunnerRef.current(async () => {
+                if (!isCurrentAction(generation, identity)) return
                 setTogglingId(item.id)
                 try {
                     await toggleIR(item.id, !item.is_on_ir)
-                    await load()
+                    if (isCurrentAction(generation, identity)) await load()
                 } catch (e) {
-                    showAlert('Error', getErrorMessage(e))
+                    if (isCurrentAction(generation, identity)) showAlert('Error', getErrorMessage(e))
                 } finally {
-                    setTogglingId(null)
+                    if (isCurrentAction(generation, identity)) setTogglingId(null)
                 }
             })
         })
     }
 
     async function handleToggleTaxi(item: RosterPlayer) {
+        const generation = actionGenerationRef.current
+        const identity = ownerIdentity
+        if (!identity) return
         const lockMessage = await getRosterStatusChangeLockMessage(item)
+        if (!isCurrentAction(generation, identity)) return
         if (lockMessage) {
             showAlert('Roster locked', lockMessage)
             return
@@ -407,35 +436,42 @@ export default function RosterScreen() {
             : `Move ${name} to the taxi squad?`
 
         confirmAction(title, message, async () => {
+            if (!isCurrentAction(generation, identity)) return
             await rosterRecoveryRunnerRef.current(async () => {
+                if (!isCurrentAction(generation, identity)) return
                 setTaxiingId(item.id)
                 try {
                     await toggleTaxi(item.id, !item.is_on_taxi)
-                    await load()
+                    if (isCurrentAction(generation, identity)) await load()
                 } catch (e) {
-                    showAlert('Error', getErrorMessage(e))
+                    if (isCurrentAction(generation, identity)) showAlert('Error', getErrorMessage(e))
                 } finally {
-                    setTaxiingId(null)
+                    if (isCurrentAction(generation, identity)) setTaxiingId(null)
                 }
             })
         })
     }
 
     function handleDropPrompt(item: RosterPlayer) {
+        const generation = actionGenerationRef.current
+        const identity = ownerIdentity
+        if (!identity) return
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
         confirmAction(
             `Drop ${item.players.display_name}?`,
             'They will be placed on waivers for 48 hours.',
             async () => {
+                if (!isCurrentAction(generation, identity)) return
                 await rosterRecoveryRunnerRef.current(async () => {
+                    if (!isCurrentAction(generation, identity)) return
                     setDroppingId(item.id)
                     try {
                         await dropPlayer(item.id)
-                        await load()
+                        if (isCurrentAction(generation, identity)) await load()
                     } catch (e) {
-                        showAlert('Error', getErrorMessage(e))
+                        if (isCurrentAction(generation, identity)) showAlert('Error', getErrorMessage(e))
                     } finally {
-                        setDroppingId(null)
+                        if (isCurrentAction(generation, identity)) setDroppingId(null)
                     }
                 })
             },
@@ -445,38 +481,47 @@ export default function RosterScreen() {
 
     async function handleCancelClaim(claimId: string) {
         if (!current) return
+        const generation = actionGenerationRef.current
+        const identity = ownerIdentity
+        if (!identity) return
         setCancellingId(claimId)
         try {
             await cancelWaiverClaim(claimId, current.id)
-            await load()
+            if (isCurrentAction(generation, identity)) await load()
         } catch (e) {
-            showAlert('Error', getErrorMessage(e))
+            if (isCurrentAction(generation, identity)) showAlert('Error', getErrorMessage(e))
         } finally {
-            setCancellingId(null)
+            if (isCurrentAction(generation, identity)) setCancellingId(null)
         }
     }
 
     async function handleEditClaimBid(claim: WaiverClaim, bidAmount: number) {
         if (!current) return
+        const generation = actionGenerationRef.current
+        const identity = ownerIdentity
+        if (!identity) return
         try {
             await editWaiverClaim(claim.id, current.id, {
                 dropPlayerId: claim.dropPlayerId,
                 bidAmount,
                 claimOrder: claim.claimOrder,
             })
-            await load()
+            if (isCurrentAction(generation, identity)) await load()
         } catch (e) {
-            showAlert('Error', getErrorMessage(e))
+            if (isCurrentAction(generation, identity)) showAlert('Error', getErrorMessage(e))
         }
     }
 
     async function handleReorderClaim(claimId: string, direction: 'up' | 'down') {
         if (!current) return
+        const generation = actionGenerationRef.current
+        const identity = ownerIdentity
+        if (!identity) return
         try {
             await reorderWaiverClaim(claimId, current.id, direction)
-            await load()
+            if (isCurrentAction(generation, identity)) await load()
         } catch (e) {
-            showAlert('Error', getErrorMessage(e))
+            if (isCurrentAction(generation, identity)) showAlert('Error', getErrorMessage(e))
         }
     }
 

@@ -12,6 +12,14 @@ describe('route resource ownership contracts', () => {
         expect(lineup).toContain('disabled={saving || lineupRefreshing || lineupLoading}')
     })
 
+    it('cancels roster confirmations and action effects when membership changes', () => {
+        const roster = source('app/(tabs)/roster.tsx')
+        expect(roster).toContain("const ownerIdentity = current?.id && leagueId ? `${current.id}:${leagueId}` : null")
+        expect(roster).toContain('actionGenerationRef.current += 1')
+        expect(roster.match(/if \(!isCurrentAction\(generation, identity\)\) return/g)?.length).toBeGreaterThanOrEqual(5)
+        expect(roster).toContain('rosterRecoveryRunnerRef.current = createRosterRecoveryRunner()')
+    })
+
     it('keys player roster status and destructive action state to the route owner', () => {
         const player = source('app/player/[id].tsx')
         expect(player).toContain('rosterStatusResource.ownerIdentity === ownerIdentity')
