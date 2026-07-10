@@ -44,6 +44,7 @@ export function useMultiTeamTradeComposer({
     const [loadedParticipantKey, setLoadedParticipantKey] = useState('')
     const [retryToken, setRetryToken] = useState(0)
     const rosterLoadSeqRef = useRef(0)
+    const statsLoadSeqRef = useRef(0)
 
     const participantIds = composerState.participantOrder
     const selectedParticipantIds = useMemo(
@@ -77,6 +78,7 @@ export function useMultiTeamTradeComposer({
 
     const reset = useCallback(() => {
         rosterLoadSeqRef.current += 1
+        statsLoadSeqRef.current += 1
         dispatch({ type: 'reset', actorMemberId: myMemberId })
         setParticipantAssets({ rosters: {}, picks: {} })
         setAvgMap(EMPTY_AVG_MAP)
@@ -147,6 +149,7 @@ export function useMultiTeamTradeComposer({
 
     const retry = useCallback(() => {
         rosterLoadSeqRef.current += 1
+        statsLoadSeqRef.current += 1
         setParticipantAssets({ rosters: {}, picks: {} })
         setAvgMap(EMPTY_AVG_MAP)
         setAvgStatsMap(EMPTY_STATS_MAP)
@@ -205,20 +208,6 @@ export function useMultiTeamTradeComposer({
                 }))
                 setLoadedParticipantKey(selectedParticipantKey)
                 setRosterLoading(false)
-
-                try {
-                    const stats = await getRosterStatsMaps(
-                        Object.values(nextRosters).flatMap((roster) => roster.map((player) => player.players.id)),
-                        leagueId,
-                    )
-                    if (rosterLoadSeqRef.current !== requestId) return
-                    setAvgMap((current) => new Map([...current, ...stats.avgMap]))
-                    setAvgStatsMap((current) => new Map([...current, ...stats.avgStatsMap]))
-                } catch (error) {
-                    if (rosterLoadSeqRef.current === requestId) {
-                        console.warn('Could not load optional trade player averages.', error)
-                    }
-                }
             } catch (error) {
                 if (rosterLoadSeqRef.current !== requestId) return
                 console.error(error)
@@ -233,6 +222,40 @@ export function useMultiTeamTradeComposer({
             if (rosterLoadSeqRef.current === requestId) rosterLoadSeqRef.current += 1
         }
     }, [enabled, leagueId, myMemberId, participantIds, participantPicks, participantRosters, retryToken, selectedParticipantKey])
+
+    useEffect(() => {
+        const requestId = ++statsLoadSeqRef.current
+        setAvgMap(EMPTY_AVG_MAP)
+        setAvgStatsMap(EMPTY_STATS_MAP)
+
+        const ownsCompleteSnapshot = enabled && leagueId && myMemberId &&
+            participantIds[0] === myMemberId && loadedParticipantKey === selectedParticipantKey &&
+            participantIds.every((memberId) => memberId in participantRosters && memberId in participantPicks)
+        if (!ownsCompleteSnapshot) return
+
+        async function loadParticipantStats() {
+            try {
+                const stats = await getRosterStatsMaps(
+                    participantIds.flatMap((memberId) =>
+                        (participantRosters[memberId] ?? []).map((player) => player.players.id)),
+                    leagueId,
+                )
+                if (statsLoadSeqRef.current !== requestId) return
+                setAvgMap(stats.avgMap)
+                setAvgStatsMap(stats.avgStatsMap)
+            } catch (error) {
+                if (statsLoadSeqRef.current === requestId) {
+                    console.warn('Could not load optional trade player averages.', error)
+                }
+            }
+        }
+
+        void loadParticipantStats()
+        return () => {
+            if (statsLoadSeqRef.current === requestId) statsLoadSeqRef.current += 1
+        }
+    }, [enabled, leagueId, loadedParticipantKey, myMemberId, participantIds, participantPicks,
+        participantRosters, selectedParticipantKey])
 
     const assetsReady = enabled && !rosterLoading && !rosterError &&
         loadedParticipantKey === selectedParticipantKey &&
