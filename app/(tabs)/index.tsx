@@ -39,20 +39,9 @@ function shouldShowScoreboard(selectedDate: string, today: string): boolean {
 type LineupData = { starters: LineupSlot[]; bench: LineupPlayer[]; ir: LineupPlayer[]; taxi: LineupPlayer[] }
 type Sel = { kind: 'starter'; index: number } | { kind: 'bench'; index: number } | { kind: 'ir'; index: number } | { kind: 'taxi'; index: number }
 
-function MatchupLoadingSurface() {
-    return (
-        <View style={styles.playSurface}>
-            <EmptyState
-                fullScreen={false}
-                framed
-                icon="sports-basketball"
-                message="Loading matchup"
-                description="Scores, lineups, and league matchups update here as soon as they hydrate."
-            />
-        </View>
-    )
-}
-
+// Mirrors the loaded lineup chrome exactly (header, AUTO control, day
+// selector) so nothing moves when rows hydrate — the rows area stays blank
+// rather than showing a placeholder that differs from the final UI.
 function MatchupLineupLoadingState({
     compact,
     daySelector,
@@ -83,17 +72,12 @@ function MatchupLineupLoadingState({
                 </View>
             </View>
             {daySelector}
-            <EmptyState
-                fullScreen={false}
-                message="Loading lineups"
-                description="Your lineup stays visible from cache when available; fresh slot data updates in place."
-            />
         </View>
     )
 }
 
 export default function HomeScreen() {
-    const { memberships, current, currentLeague: league, setCurrent } = useLeagueContext()
+    const { memberships, current, currentLeague: league, setCurrent, loading: leagueLoading } = useLeagueContext()
     const { user, loading: authLoading } = useAuth()
     const router = useRouter()
     const { width, height } = useWindowDimensions()
@@ -186,7 +170,13 @@ export default function HomeScreen() {
 
     const today = todayET()
 
-    if (authLoading || !user) return <NoLeagueState />
+    // Stay blank while auth/league context loads — flashing the NoLeagueState
+    // welcome (or any placeholder) and then swapping it for the real screen is
+    // exactly the layout jump this screen must avoid.
+    if (authLoading || (leagueLoading && memberships.length === 0)) {
+        return <View style={styles.container} />
+    }
+    if (!user) return <NoLeagueState />
     if (memberships.length === 0) return <NoLeagueState />
 
     return (
@@ -282,7 +272,7 @@ export default function HomeScreen() {
                     )}
                 </View>
             ) : matchupLoading ? (
-                <MatchupLoadingSurface />
+                <View style={styles.playSurface} />
             ) : (
                 <View style={styles.playSurface}>
                     {league?.status === 'drafting' ? (

@@ -122,9 +122,13 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null) {
     const [avgFantasyPoints, setAvgFantasyPoints] = useState(initialSeason?.avgFantasyPoints ?? 0)
     const [nextProjection, setNextProjection] = useState<LeagueProjectionRow | null>(initialCache?.nextProjection ?? null)
     const [projectionError, setProjectionError] = useState<string | null>(null)
+    // "Settled" = the first fetch finished (or cache answered), so the screen
+    // can hold off rendering until every card's presence is known at once.
+    const [projectionSettled, setProjectionSettled] = useState(initialCache !== undefined || leagueId == null)
 
     const [transactions, setTransactions] = useState<TransactionHistoryEntry[]>(initialCache?.transactions ?? [])
     const [transactionsError, setTransactionsError] = useState<string | null>(null)
+    const [transactionsSettled, setTransactionsSettled] = useState(initialCache !== undefined || leagueId == null)
     const [dataOwnerKey, setDataOwnerKey] = useState(resourceKey)
     const cacheStateRef = useRef<PlayerScreenCacheState>({
         player: initialCache?.player ?? null,
@@ -181,8 +185,10 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null) {
         setAvgFantasyPoints(nextSeason?.avgFantasyPoints ?? 0)
         setNextProjection(cache?.nextProjection ?? null)
         setProjectionError(null)
+        setProjectionSettled(cache !== undefined)
         setTransactions(cache?.transactions ?? [])
         setTransactionsError(null)
+        setTransactionsSettled(cache !== undefined)
     }, [playerId, leagueId])
 
     useEffect(() => {
@@ -322,6 +328,7 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null) {
         if (!leagueId) {
             setTransactions([])
             setTransactionsError(null)
+            setTransactionsSettled(true)
             cacheStateRef.current = { ...cacheStateRef.current, transactions: [] }
             return
         }
@@ -336,6 +343,8 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null) {
             } catch (e) {
                 if (transactionRequestRef.current !== requestId) return
                 setTransactionsError(errorMessage(e))
+            } finally {
+                if (transactionRequestRef.current === requestId) setTransactionsSettled(true)
             }
         }
         loadTransactions()
@@ -347,6 +356,7 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null) {
             setNextProjection(null)
         }
         if (!leagueId) {
+            setProjectionSettled(true)
             cacheStateRef.current = { ...cacheStateRef.current, nextProjection: null }
             return
         }
@@ -362,6 +372,9 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null) {
             })
             .catch((error) => {
                 if (!cancelled) setProjectionError(errorMessage(error))
+            })
+            .finally(() => {
+                if (!cancelled) setProjectionSettled(true)
             })
 
         return () => { cancelled = true }
@@ -434,7 +447,9 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null) {
         avgFantasyPoints: ownsResource ? avgFantasyPoints : 0,
         nextProjection: ownsResource ? nextProjection : null,
         projectionError: ownsResource ? projectionError : null,
+        projectionSettled: ownsResource ? projectionSettled : false,
         transactions: ownsResource ? transactions : EMPTY_TRANSACTIONS,
         transactionsError: ownsResource ? transactionsError : null,
+        transactionsSettled: ownsResource ? transactionsSettled : false,
     }
 }

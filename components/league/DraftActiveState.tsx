@@ -28,29 +28,6 @@ function activeDraftButtonLabel(draft: Draft) {
     return `${draft.status === 'paused' ? 'Resume' : 'Join'} ${mock}${kind}`
 }
 
-function ActiveDraftLoadingNotice({
-    compact,
-}: {
-    compact: boolean
-    filterType?: 'auction' | 'snake'
-}) {
-    const accessibilityLabel = 'Draft status updating.'
-    const body = 'Checking whether an auction or rookie draft is ready to join.'
-    return (
-        <View
-            style={[styles.draftLoadingNotice, compact && styles.draftLoadingNoticeCompact]}
-            role="status"
-            aria-label={accessibilityLabel}
-            aria-busy
-            accessibilityLabel={accessibilityLabel}
-            accessibilityState={{ busy: true }}
-        >
-            <Text style={styles.draftLoadingTitle} numberOfLines={1}>Draft status updating</Text>
-            {compact ? null : <Text style={styles.draftLoadingText}>{body}</Text>}
-        </View>
-    )
-}
-
 export function ActiveDraftEntry({
     activeDraft,
     activeDraftLoading,
@@ -63,8 +40,10 @@ export function ActiveDraftEntry({
     const { height } = useWindowDimensions()
     const compactActiveDraft = height < 500
 
+    // No loading placeholder — the card renders only once the draft status is
+    // known, so nothing collapses or shifts when the fetch resolves.
     if (activeDraftLoading) {
-        return <ActiveDraftLoadingNotice compact={compactActiveDraft} filterType={filterType} />
+        return null
     }
 
     if (!activeDraft || (filterType && activeDraft.draftType !== filterType)) {
@@ -236,30 +215,6 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     errorNoticeText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.dangerDark },
-    draftLoadingNotice: {
-        backgroundColor: colors.bgCard,
-        borderWidth: 1,
-        borderColor: colors.borderLight,
-        borderRadius: radii.lg,
-        borderCurve: 'continuous' as const,
-        padding: spacing.lg,
-        gap: spacing.xs,
-    },
-    draftLoadingNoticeCompact: {
-        minHeight: 44,
-        justifyContent: 'center',
-        paddingVertical: spacing.sm,
-    },
-    draftLoadingTitle: {
-        color: colors.textPrimary,
-        fontSize: fontSize.md,
-        fontWeight: fontWeight.extrabold,
-    },
-    draftLoadingText: {
-        color: colors.textSecondary,
-        fontSize: fontSize.sm,
-        lineHeight: 18,
-    },
     activeDraftCompactRow: {
         flexDirection: 'row',
         alignItems: 'stretch',

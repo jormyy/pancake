@@ -125,46 +125,6 @@ function PlayerTableHeader({
     )
 }
 
-function PlayersLoadingState({
-    showStatTable,
-}: {
-    showStatTable: boolean
-}) {
-    return (
-        <SafeAreaView style={styles.container}>
-            <View style={styles.contentWrap}>
-                <Text style={styles.hiddenHeading} role="heading" aria-level={1} accessibilityRole="header">
-                    Players
-                </Text>
-                <View style={styles.filterCard}>
-                    <View style={styles.filterCardTop}>
-                        <TextInput
-                            style={styles.searchInput}
-                            placeholder="Search players..."
-                            placeholderTextColor={colors.textPlaceholder}
-                            editable={false}
-                        />
-                        <Text style={styles.resultCountText}>— players</Text>
-                    </View>
-                    <View style={styles.filterCardHeader}>
-                        <Text style={styles.filterCardTitle} role="heading" aria-level={2}>Filters</Text>
-                    </View>
-                    <View style={localStyles.transactionBar}>
-                        <Text style={localStyles.transactionBarText}>Adds: —/— this week</Text>
-                        <Text style={localStyles.transactionBarText}>Waivers: —</Text>
-                    </View>
-                </View>
-                {showStatTable ? <PlayerTableHeader /> : null}
-                <EmptyState
-                    fullScreen={false}
-                    message="Loading players"
-                    description="Roster ownership, waiver status, and player rows update here as soon as they hydrate."
-                />
-            </View>
-        </SafeAreaView>
-    )
-}
-
 export default function PlayersScreen() {
     const { push } = useRouter()
     const { user, loading: authLoading } = useAuth()
@@ -281,8 +241,10 @@ export default function PlayersScreen() {
     const showInitialShell = authLoading || (leagueLoading && memberships.length === 0)
     const listIsInitialLoading = playerSupportLoading || (search.results.loading && search.results.players.length === 0)
 
+    // No placeholder shell while auth/league context loads — the screen stays
+    // blank and the real UI appears fully formed, with no reflow.
     if (showInitialShell) {
-        return <PlayersLoadingState showStatTable={showStatTable} />
+        return <SafeAreaView style={styles.container} />
     }
     if (!user) return <NoLeagueState />
     if (memberships.length === 0 || !current || !leagueId) return <NoLeagueState />
@@ -454,7 +416,7 @@ export default function PlayersScreen() {
                     )}
                     ListEmptyComponent={
                         listIsInitialLoading
-                            ? <EmptyState message="Loading players" description="Refreshing availability, waivers, and fantasy averages." fullScreen={false} />
+                            ? null
                             : search.results.error
                               ? <EmptyState message="Players could not load." description={search.results.error.message} actionLabel="Retry" onAction={search.results.retry} fullScreen={false} />
                             : playerSupportError && playerSupportForLeague == null

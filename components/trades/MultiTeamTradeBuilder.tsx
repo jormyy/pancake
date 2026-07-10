@@ -1,6 +1,6 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { useEffect, useMemo, useState } from 'react'
-import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native'
+import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native'
 import { MAX_TRADE_EXPIRATION_DAYS, MAX_TRADE_NOTES_BYTES, utf8ByteLength } from '@pancake/core'
 import { MultiTeamTradeOverview, type TradeFlowItem } from '@/components/trades/MultiTeamTradeOverview'
 import { ParticipantTradePanel } from '@/components/trades/ParticipantTradePanel'
@@ -106,13 +106,10 @@ export function MultiTeamTradeBuilder({
         )
     }
 
+    // Blank while rosters load — the builder appears fully formed instead of
+    // swapping a spinner row for participant panels.
     if (rosterLoading) {
-        return (
-            <View style={styles.rosterLoadingRow} accessibilityRole="progressbar" accessibilityLabel="Loading trade assets">
-                <ActivityIndicator color={colors.primary} />
-                <Text style={styles.rosterLoadingText}>Loading rosters and picks...</Text>
-            </View>
-        )
+        return null
     }
 
     const panels = participants.map((participant) => (
@@ -463,6 +460,4 @@ const styles = StyleSheet.create({
     termError: { color: colors.dangerDark, fontSize: fontSize.sm, fontWeight: fontWeight.semibold },
     rosterErrorRow: { paddingHorizontal: spacing.xl, paddingVertical: spacing.lg, minHeight: 44, alignItems: 'center' },
     rosterErrorText: { color: colors.dangerDark, fontSize: fontSize.md, fontWeight: fontWeight.semibold, textAlign: 'center' },
-    rosterLoadingRow: { minHeight: 120, alignItems: 'center', justifyContent: 'center', gap: spacing.sm },
-    rosterLoadingText: { color: colors.textMuted, fontSize: fontSize.md, fontWeight: fontWeight.semibold },
 })

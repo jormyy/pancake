@@ -205,7 +205,7 @@ export function DraftBoardPanel({
     const hasActiveRookieDraft = activeDraftReady && activeDraft?.draftType === 'snake'
     const canStartRookieDraft = activeDraftReady && currentLeagueStatus === 'offseason' && isCommissioner
     const showRookiePrepNotice = !picksLoading && activeDraftReady && activeDraft?.draftType !== 'snake' && picks.length === 0
-    const showBoardTop = activeDraftLoading || Boolean(activeDraftError) || hasActiveRookieDraft || canStartRookieDraft || showRookiePrepNotice
+    const showBoardTop = Boolean(activeDraftError) || hasActiveRookieDraft || canStartRookieDraft || showRookiePrepNotice
     const startRookieAccessibilityLabel = rookieStartButtonLabel(rookieRounds, draftTimerSeconds, rookieTimerExpiryBehavior)
 
     const startRookieButton = (

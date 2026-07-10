@@ -526,13 +526,10 @@ export default function RosterScreen() {
     }
 
     if (!current) {
+        // No loading placeholder — stay blank until the league context is
+        // known so the real screen appears fully formed without reflow.
         if (leagueLoading) {
-            return (
-                <EmptyState
-                    message="Loading roster"
-                    description="Your team appears here as soon as the league context is ready."
-                />
-            )
+            return <View style={styles.container} />
         }
         return <EmptyState message="Join or create a league first." />
     }
@@ -604,19 +601,19 @@ export default function RosterScreen() {
             />
 
             {roster.length === 0 ? (
-                <EmptyState
-                    fullScreen={false}
-                    framed
-                    icon={loading ? undefined : 'groups'}
-                    message={loading ? 'Loading roster' : 'Your roster is empty'}
-                    description={loading
-                        ? 'Refreshing players, picks, waiver claims, and roster limits.'
-                        : currentLeague?.status === 'drafting'
-                        ? 'Your roster fills up as you draft — the auction is live now.'
-                        : 'Players you draft, add, or acquire in a trade will show up here. Browse the player pool to get started.'}
-                    actionLabel={!loading ? currentLeague?.status === 'drafting' ? 'Go to Draft Room' : 'Browse Players' : undefined}
-                    onAction={!loading ? () => push(currentLeague?.status === 'drafting' ? '/league' : '/players') : undefined}
-                />
+                loading ? null : (
+                    <EmptyState
+                        fullScreen={false}
+                        framed
+                        icon="groups"
+                        message="Your roster is empty"
+                        description={currentLeague?.status === 'drafting'
+                            ? 'Your roster fills up as you draft — the auction is live now.'
+                            : 'Players you draft, add, or acquire in a trade will show up here. Browse the player pool to get started.'}
+                        actionLabel={currentLeague?.status === 'drafting' ? 'Go to Draft Room' : 'Browse Players'}
+                        onAction={() => push(currentLeague?.status === 'drafting' ? '/league' : '/players')}
+                    />
+                )
             ) : (
                 <FlashList
                     ref={listRef}

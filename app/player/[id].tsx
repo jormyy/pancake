@@ -48,8 +48,8 @@ export default function PlayerDetailScreen() {
         seasonAverages, seasonLoading, seasonError,
         gameLog, hasMoreGames, gameLogLoading, loadMoreGames, gameLogError,
         fantasyPointsMap, avgFantasyPoints,
-        nextProjection, projectionError,
-        transactions, transactionsError,
+        nextProjection, projectionError, projectionSettled,
+        transactions, transactionsError, transactionsSettled,
     } = usePlayerScreenData(id, leagueId)
 
     // Roster status
@@ -311,6 +311,9 @@ export default function PlayerDetailScreen() {
 
     const showFantasy = leagueId != null && fantasyPointsMap !== null && fantasyPointsMap.size > 0
     const showTransactions = leagueId != null && transactions.length > 0
+    // Hold the body until every card's presence is known, so the page appears
+    // fully formed instead of cards popping in one by one and shifting layout.
+    const contentReady = !loading && !seasonLoading && projectionSettled && transactionsSettled
     const dataWarnings = [
         playerError ? 'Player details could not refresh.' : null,
         rosterStatusError ? 'Roster status could not refresh.' : null,
@@ -338,62 +341,64 @@ export default function PlayerDetailScreen() {
                         onClaim={handleClaim}
                     />
 
-                    {dataWarnings.map((message) => (
-                        <View key={message} style={styles.warningBanner}>
-                            <Text style={styles.warningText}>{message}</Text>
-                        </View>
-                    ))}
+                    {contentReady ? (
+                        <>
+                            {dataWarnings.map((message) => (
+                                <View key={message} style={styles.warningBanner}>
+                                    <Text style={styles.warningText}>{message}</Text>
+                                </View>
+                            ))}
 
-                    {nextProjection ? <NextProjectionCard projection={nextProjection} /> : null}
+                            {nextProjection ? <NextProjectionCard projection={nextProjection} /> : null}
 
-                    {/* Season selector */}
-                    <SeasonSelector
-                        seasons={availableSeasons}
-                        selectedSeason={selectedSeason}
-                        onSelect={handleSeasonSelect}
-                    />
-                    {/* Season averages */}
-                    {seasonAverages ? (
-                        <StatsOverview
-                            averages={seasonAverages}
-                            seasonYear={selectedSeason}
-                        />
-                    ) : seasonLoading ? null : (
-                        <View style={styles.section}>
-                            <Text style={styles.sectionTitle}>
-                                {selectedSeason - 1}–{String(selectedSeason).slice(2)} Averages
-                            </Text>
-                            <Text style={styles.noData}>No stats available.</Text>
-                        </View>
-                    )}
+                            {/* Season selector */}
+                            <SeasonSelector
+                                seasons={availableSeasons}
+                                selectedSeason={selectedSeason}
+                                onSelect={handleSeasonSelect}
+                            />
+                            {/* Season averages */}
+                            {seasonAverages ? (
+                                <StatsOverview
+                                    averages={seasonAverages}
+                                    seasonYear={selectedSeason}
+                                />
+                            ) : (
+                                <View style={styles.section}>
+                                    <Text style={styles.sectionTitle}>
+                                        {selectedSeason - 1}–{String(selectedSeason).slice(2)} Averages
+                                    </Text>
+                                    <Text style={styles.noData}>No stats available.</Text>
+                                </View>
+                            )}
 
-                    {/* Fantasy context */}
-                    {showFantasy && (
-                        <FantasyCard
-                            avgFantasyPoints={avgFantasyPoints}
-                            gamesCount={fantasyPointsMap!.size}
-                        />
-                    )}
+                            {/* Fantasy context */}
+                            {showFantasy && (
+                                <FantasyCard
+                                    avgFantasyPoints={avgFantasyPoints}
+                                    gamesCount={fantasyPointsMap!.size}
+                                />
+                            )}
 
-                    {/* Game log */}
-                    {!seasonLoading ? (
-                        <GameLogTable
-                            games={gameLog}
-                            fantasyPointsMap={showFantasy ? fantasyPointsMap : null}
-                            hasMore={hasMoreGames}
-                            loadingMore={gameLogLoading}
-                            onLoadMore={loadMoreGames}
-                        />
+                            {/* Game log */}
+                            <GameLogTable
+                                games={gameLog}
+                                fantasyPointsMap={showFantasy ? fantasyPointsMap : null}
+                                hasMore={hasMoreGames}
+                                loadingMore={gameLogLoading}
+                                onLoadMore={loadMoreGames}
+                            />
+
+                            {/* Transaction history — always shown regardless of season */}
+                            {showTransactions && (
+                                <TransactionHistory
+                                    playerId={id}
+                                    leagueId={leagueId!}
+                                    transactions={transactions}
+                                />
+                            )}
+                        </>
                     ) : null}
-
-                    {/* Transaction history — always shown regardless of season */}
-                    {showTransactions && (
-                        <TransactionHistory
-                            playerId={id}
-                            leagueId={leagueId!}
-                            transactions={transactions}
-                        />
-                    )}
 
                 </ScrollView>
             </SafeAreaView>

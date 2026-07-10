@@ -96,14 +96,6 @@ export function tradeScreenResource(tab: TradeTabKey): TradeScreenResource {
     return 'trades'
 }
 
-export function tradeLoadingMessage(tab: TradeTabKey): string {
-    if (tab === 'picks') return 'Loading draft picks'
-    if (tab === 'block') return 'Loading your trade block'
-    if (tab === 'leagueBlock') return 'Loading league trade block'
-    if (tab === 'history') return 'Loading trade history'
-    return 'Loading trade offers'
-}
-
 export function buildTradeList(input: TradeListInput): TradeListItem[] {
     const result: TradeListItem[] = []
     if (input.tab === 'picks') {

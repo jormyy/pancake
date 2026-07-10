@@ -54,14 +54,18 @@ export default function CommissionerSettingsScreen() {
     )
 
     if (loadState !== 'ready') {
+        // While loading, only the header (identical to the loaded chrome)
+        // renders — no placeholder card that would swap for the settings form.
         return <>
             <Stack.Screen options={{ title: 'League Settings', presentation: 'modal', headerShown: false }} />
             <SafeAreaView style={styles.container} edges={['bottom']}>
                 {screenHeader}
                 {loadState === 'error' ? <ErrorBanner message={loadError ?? 'Could not load league settings.'} onRetry={retryLoad} /> : null}
-                <EmptyState fullScreen={false}
-                    message={loadState === 'unauthorized' ? 'Commissioner access required' : loadState === 'error' ? 'Settings unavailable' : 'Loading league settings'}
-                    description={loadState === 'unauthorized' ? 'Only league commissioners can manage these settings.' : 'League controls will appear when the current configuration is ready.'} />
+                {loadState === 'unauthorized' || loadState === 'error' ? (
+                    <EmptyState fullScreen={false}
+                        message={loadState === 'unauthorized' ? 'Commissioner access required' : 'Settings unavailable'}
+                        description={loadState === 'unauthorized' ? 'Only league commissioners can manage these settings.' : 'League controls will appear when the current configuration is ready.'} />
+                ) : null}
             </SafeAreaView>
         </>
     }
