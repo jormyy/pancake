@@ -42,7 +42,7 @@ const browserJson = async (browser, session, source) => parseEvalJson(await brow
  * @param {string} workflowId
  * @param {string} label
  */
-export const waitForWorkflowReady = async (browser, session, workflowId, label = '') => {
+const waitForWorkflowReady = async (browser, session, workflowId, label = '') => {
   const predicate = readyPredicates[workflowId]
   if (!predicate) throw new Error(`No workflow-ready predicate for ${workflowId}`)
   return browserJson(browser, session, `(async () => {
@@ -99,12 +99,18 @@ export const measureNavigationTiming = async (browser, session, { workflowId, la
 }
 
 const markDynamicTarget = async (browser, session, expression, attribute) => {
-  const result = await browserJson(browser, session, `(() => {
+  const result = await browserJson(browser, session, `(async () => {
     document.querySelectorAll('[${attribute}]').forEach((node) => node.removeAttribute('${attribute}'));
-    const target = ${expression};
-    if (!target) return JSON.stringify({ ok: false });
-    target.setAttribute('${attribute}', 'true');
-    return JSON.stringify({ ok: true, label: target.getAttribute('aria-label') || target.textContent?.trim() || target.tagName });
+    const deadline = performance.now() + 5000;
+    while (performance.now() < deadline) {
+      const target = ${expression};
+      if (target) {
+        target.setAttribute('${attribute}', 'true');
+        return JSON.stringify({ ok: true, label: target.getAttribute('aria-label') || target.textContent?.trim() || target.tagName });
+      }
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    return JSON.stringify({ ok: false });
   })()`)
   if (!result.ok) throw new Error(`Workflow feedback target was unavailable: ${expression}`)
   return result.label
@@ -169,7 +175,7 @@ export const measureWorkflowFeedback = async (browser, session, { workflowId, la
   if (!WORKFLOW_FEEDBACK_IDS.includes(workflowId)) throw new Error(`No workflow feedback probe for ${workflowId}`)
   if (workflowId === 'home-live-lineup' || workflowId === 'lineup-day-change') {
     await markDynamicTarget(browser, session,
-      `document.querySelector('[aria-current="date"]')?.parentElement?.querySelector('[role="button"]:not([aria-current="date"])')`,
+      `[...document.querySelectorAll('[role="button"][aria-label]')].find((node) => !node.hasAttribute('aria-current') && /^(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday),/.test(node.getAttribute('aria-label') || ''))`,
       'data-e2e-feedback-target')
     const result = await clickMeasuredTarget(browser, session, {
       selector: '[data-e2e-feedback-target="true"]',
@@ -184,7 +190,7 @@ export const measureWorkflowFeedback = async (browser, session, { workflowId, la
     const option = current.label === 'Availability: Free agents' ? 'Rostered' : 'Free agents'
     await browser(session, ['click', '[aria-label^="Availability:"]'])
     await markDynamicTarget(browser, session,
-      `[...document.querySelectorAll('*')].find((node) => node.textContent?.trim() === ${JSON.stringify(option)})?.closest('[role="button"]')`,
+      `[...document.querySelectorAll('*')].find((node) => node.textContent?.trim() === ${JSON.stringify(option)})?.closest('[role="button"], [tabindex="0"], button')`,
       'data-e2e-feedback-target')
     return clickMeasuredTarget(browser, session, {
       selector: '[data-e2e-feedback-target="true"]',

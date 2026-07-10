@@ -275,7 +275,7 @@ const fetchSweepContext = async (env, state, user) => {
   const otherMember = members?.find((member) => member.id !== myMember?.id) ?? members?.[0]
   const { auctionDraft, rookieDraft } = await ensureSweepDrafts(supabase, state, members)
 
-  const { data: rosterRow } = myMember
+  let { data: rosterRow } = myMember
     ? await supabase
       .from('roster_players')
       .select('player_id')
@@ -291,6 +291,25 @@ const fetchSweepContext = async (env, state, user) => {
     .order('display_name', { ascending: true })
     .limit(1)
     .maybeSingle()
+  if (!rosterRow && myMember && firstPlayer) {
+    const { data: currentSeason, error: seasonError } = await supabase
+      .from('league_seasons')
+      .select('id')
+      .eq('league_id', state.leagueId)
+      .eq('is_current', true)
+      .single()
+    if (seasonError) throw new Error(`UI sweep current season lookup: ${seasonError.message}`)
+    const { error: rosterInsertError } = await supabase.from('roster_players').insert({
+      league_id: state.leagueId,
+      league_season_id: currentSeason.id,
+      member_id: myMember.id,
+      player_id: firstPlayer.id,
+      acquired_via: 'e2e_ui_sweep',
+      acquisition_cost: 1,
+    })
+    if (rosterInsertError) throw new Error(`UI sweep roster fixture insert: ${rosterInsertError.message}`)
+    rosterRow = { player_id: firstPlayer.id }
+  }
   const playerId = rosterRow?.player_id ?? firstPlayer?.id ?? null
 
   const routes = [
