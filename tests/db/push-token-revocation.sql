@@ -16,13 +16,19 @@ DO $$
 BEGIN
   IF NOT EXISTS (
     SELECT 1
-      FROM pg_catalog.pg_indexes
-     WHERE schemaname = 'public'
-       AND tablename = 'profiles'
-       AND indexname = 'profiles_push_token_lookup'
-       AND indexdef LIKE '%(push_token) WHERE (push_token IS NOT NULL)'
+      FROM pg_catalog.pg_class AS index_class
+      JOIN pg_catalog.pg_namespace AS index_namespace
+        ON index_namespace.oid = index_class.relnamespace
+      JOIN pg_catalog.pg_index AS index_state
+        ON index_state.indexrelid = index_class.oid
+     WHERE index_namespace.nspname = 'public'
+       AND index_class.relname = 'profiles_push_token_lookup'
+       AND index_state.indisvalid
+       AND index_state.indisready
+       AND pg_catalog.pg_get_indexdef(index_class.oid)
+         LIKE '%(push_token) WHERE (push_token IS NOT NULL)'
   ) THEN
-    RAISE EXCEPTION 'Push-token lookup index is missing or not partial.';
+    RAISE EXCEPTION 'Push-token lookup index is missing, invalid, not ready, or not partial.';
   END IF;
 END;
 $$;

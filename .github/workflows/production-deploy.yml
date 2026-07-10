@@ -165,6 +165,15 @@ jobs:
         run: |
           test "$SUPABASE_PROJECT_REF" = 'ceeytbfmwsnzalxlkalc'
           supabase link --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
+          # A failed concurrent build leaves an invalid same-name index that
+          # CREATE INDEX IF NOT EXISTS will not repair. Clear any prior
+          # quarantine, quarantine an invalid main index, then drop it online.
+          supabase db query --linked --agent=no \
+            -f supabase/predeploy/20260710130000_profiles_push_token_lookup_drop_invalid.sql
+          supabase db query --linked --agent=no \
+            -f supabase/predeploy/20260710130000_profiles_push_token_lookup_quarantine_invalid.sql
+          supabase db query --linked --agent=no \
+            -f supabase/predeploy/20260710130000_profiles_push_token_lookup_drop_invalid.sql
           supabase db query --linked --agent=no \
             -f supabase/predeploy/20260710130000_profiles_push_token_lookup.sql
           supabase db push --linked --yes

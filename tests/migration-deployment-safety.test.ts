@@ -203,7 +203,11 @@ describe('branch migration deployment safety', () => {
 
     it('builds the push-token lookup index online before the production migration transaction', () => {
         const filename = '20260710130000_profiles_push_token_lookup.sql'
+        const dropInvalidFilename = '20260710130000_profiles_push_token_lookup_drop_invalid.sql'
+        const quarantineInvalidFilename = '20260710130000_profiles_push_token_lookup_quarantine_invalid.sql'
         const predeploy = readPredeploy(filename).replace(/\s+/g, ' ')
+        const dropInvalid = readPredeploy(dropInvalidFilename).trim().replace(/\s+/g, ' ')
+        const quarantineInvalid = readPredeploy(quarantineInvalidFilename).trim().replace(/\s+/g, ' ')
         const migration = read(filename).replace(/\s+/g, ' ')
         const workflow = readFileSync(productionDeployWorkflow, 'utf8')
         const predeployCommand = 'supabase db query --linked --agent=no'
@@ -212,14 +216,33 @@ describe('branch migration deployment safety', () => {
         expect(predeploy).toContain(
             'CREATE INDEX CONCURRENTLY IF NOT EXISTS profiles_push_token_lookup ON public.profiles (push_token) WHERE push_token IS NOT NULL;',
         )
+        expect(dropInvalid).toBe(
+            'DROP INDEX CONCURRENTLY IF EXISTS public.profiles_push_token_lookup_invalid;',
+        )
+        expect(quarantineInvalid).toContain("index_namespace.nspname = 'public'")
+        expect(quarantineInvalid).toContain("index_class.relname = 'profiles_push_token_lookup'")
+        expect(quarantineInvalid).toContain(
+            '(NOT index_state.indisvalid OR NOT index_state.indisready)',
+        )
+        expect(quarantineInvalid).toContain(
+            'ALTER INDEX public.profiles_push_token_lookup RENAME TO profiles_push_token_lookup_invalid;',
+        )
         expect(migration).toContain(
             'CREATE INDEX IF NOT EXISTS profiles_push_token_lookup ON public.profiles (push_token) WHERE push_token IS NOT NULL;',
         )
         expect(migration).not.toContain('CREATE INDEX CONCURRENTLY')
         expect(bounded(read(filename))).toBe(true)
-        expect(workflow).toContain(`-f supabase/predeploy/${filename}`)
+        const firstDrop = workflow.indexOf(`-f supabase/predeploy/${dropInvalidFilename}`)
+        const quarantine = workflow.indexOf(`-f supabase/predeploy/${quarantineInvalidFilename}`)
+        const secondDrop = workflow.indexOf(`-f supabase/predeploy/${dropInvalidFilename}`, firstDrop + 1)
+        const build = workflow.indexOf(`-f supabase/predeploy/${filename}`)
+        expect(firstDrop).toBeGreaterThanOrEqual(0)
+        expect(quarantine).toBeGreaterThan(firstDrop)
+        expect(secondDrop).toBeGreaterThan(quarantine)
+        expect(build).toBeGreaterThan(secondDrop)
         expect(workflow.indexOf(predeployCommand)).toBeGreaterThanOrEqual(0)
         expect(workflow.indexOf(predeployCommand)).toBeLessThan(workflow.indexOf(migrationCommand))
+        expect(build).toBeLessThan(workflow.indexOf(migrationCommand))
     })
 
     it.each(['from', 'to'] as const)(
