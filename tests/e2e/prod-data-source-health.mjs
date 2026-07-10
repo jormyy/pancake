@@ -1,6 +1,7 @@
 import path from 'node:path'
 import process from 'node:process'
 import { cleanMessage, envValue, isProductionSupabaseUrl, querySupabaseDb, requireEnv, writeMarkdownReport } from './env.mjs'
+import { evaluateCrudReadiness, evaluateProductionDataHealth } from './prod-data-health-contract.mjs'
 
 const ROOT = process.cwd()
 const REPORT_PATH = path.join(ROOT, 'tests/prod-data-source-health-report.md')
@@ -138,6 +139,8 @@ SELECT
   (SELECT count(*) FROM public.nba_games g, season s WHERE g.season_year = s.season_year AND g.nba_game_id IS NULL) AS games_missing_nba_game_id,
   (SELECT count(*) FROM public.players WHERE nba_id IS NULL) AS players_without_nba_id,
   (SELECT count(*) FROM public.players WHERE sleeper_id IS NULL) AS players_without_sleeper_id,
+  (SELECT count(*) FROM public.players) AS players,
+  (SELECT count(*) FROM public.player_projections) AS projections,
   (SELECT max(fetched_at) FROM public.player_projections) AS latest_projection_fetch,
   (SELECT count(*) FROM public.sync_jobs WHERE status NOT IN ('completed', 'failed')) AS open_sync_jobs;
 `
@@ -280,30 +283,27 @@ try {
   )
 
   const [sourceHealth] = queryDb('source health aggregates', sourceHealthSql)
+  const dataReadiness = evaluateProductionDataHealth(sourceHealth)
   addRow(
     'DB source-health aggregates',
-    Number(sourceHealth?.final_games_without_stats ?? 1) === 0 &&
-      Number(sourceHealth?.final_missing_stats_rpc ?? 1) === 0 &&
-      Number(sourceHealth?.open_sync_jobs ?? 1) === 0
-      ? 'PASS'
-      : 'BLOCKED',
-    `season=${sourceHealth?.season_year}, games=${sourceHealth?.nba_games}, final=${sourceHealth?.final_games}, final_missing_stats=${sourceHealth?.final_games_without_stats}, missing_nba_id_games=${sourceHealth?.games_missing_nba_game_id}, players_without_nba_id=${sourceHealth?.players_without_nba_id}, players_without_sleeper_id=${sourceHealth?.players_without_sleeper_id}, latest_projection_fetch=${sourceHealth?.latest_projection_fetch}, open_sync_jobs=${sourceHealth?.open_sync_jobs}.`,
+    dataReadiness.failures.length === 0 ? 'PASS' : 'BLOCKED',
+    `season=${sourceHealth?.season_year}, games=${sourceHealth?.nba_games}, final=${sourceHealth?.final_games}, final_missing_stats=${sourceHealth?.final_games_without_stats}, missing_nba_id_games=${sourceHealth?.games_missing_nba_game_id}, players=${sourceHealth?.players}, players_without_nba_id=${sourceHealth?.players_without_nba_id}, players_without_sleeper_id=${sourceHealth?.players_without_sleeper_id}, projections=${sourceHealth?.projections}, latest_projection_fetch=${sourceHealth?.latest_projection_fetch}, open_sync_jobs=${sourceHealth?.open_sync_jobs}; ${dataReadiness.failures.join('; ') || 'thresholds passed'}.`,
   )
 
   if (allowWrites) {
     const [crud] = queryDb('CRUD smoke', crudSmokeSql)
+    const crudReadiness = evaluateCrudReadiness(true, crud)
     addRow(
       'Opt-in CRUD smoke',
-      Number(crud?.inserted) === 1 && Number(crud?.updated) === 1 && Number(crud?.deleted) === 1 && Number(crud?.residue) === 0
-        ? 'PASS'
-        : 'BLOCKED',
-      `${dbTarget} live_poll_leases inserted=${crud?.inserted}, updated=${crud?.updated}, deleted=${crud?.deleted}, residue=${crud?.residue}.`,
+      crudReadiness.pass ? 'PASS' : 'BLOCKED',
+      `${dbTarget} live_poll_leases ${crudReadiness.evidence}.`,
     )
   } else {
+    const crudReadiness = evaluateCrudReadiness(false, null)
     addRow(
       'Opt-in CRUD smoke',
-      'PASS',
-      `Skipped write smoke against ${dbTarget}; pass --allow-prod-writes or set E2E_ALLOW_PROD_WRITES=1 for intentional cleanup-backed writes.`,
+      'BLOCKED',
+      `${crudReadiness.evidence} Pass --allow-prod-writes or set E2E_ALLOW_PROD_WRITES=1 for intentional cleanup-backed writes against ${dbTarget}.`,
     )
   }
 
