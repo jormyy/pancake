@@ -311,3 +311,99 @@ jobs:
       rebuild_edge: true
       evidence_label: promoted-production
     secrets: inherit
+
+  rollback-after-promotion:
+    name: Restore baseline release after failed promotion
+    if: ${{ always() && needs.build-candidate.result == 'success' && (needs.promote.result != 'success' || needs.verify-production.result != 'success') }}
+    needs: [build-candidate, promote, verify-production]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: production
+    env:
+      E2E_PRODUCTION_FRONTEND_URL: ${{ secrets.PANCAKE_FRONTEND_URL }}
+      EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+      EXPO_PUBLIC_API_URL: ${{ secrets.PANCAKE_API_URL }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ needs.build-candidate.outputs.deployed_frontend_sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: supabase/setup-cli@ab058987d8d6c725971f6cf9d0b5c98467e30bd1 # v1.7.1
+        with:
+          version: 2.109.1
+      - name: Restore and attest baseline frontend
+        shell: bash
+        run: |
+          npm ci
+          npx --yes vercel@55.0.0 pull --yes --environment=preview --token "$VERCEL_TOKEN"
+          PANCAKE_RELEASE_SHA="${{ needs.build-candidate.outputs.deployed_frontend_sha }}" \
+            EXPO_UNSTABLE_METRO_OPTIMIZE_GRAPH=1 \
+            npx --yes vercel@55.0.0 build --token "$VERCEL_TOKEN"
+          marker=.vercel/output/static/release-provenance.json
+          test "$(node -e "process.stdout.write(require('./$marker').commitSha)")" = \
+            "${{ needs.build-candidate.outputs.deployed_frontend_sha }}"
+          test "$(node -e "process.stdout.write(require('./$marker').bundleDigest)")" = \
+            "${{ needs.build-candidate.outputs.deployed_frontend_digest }}"
+          rollback_url="$(npx --yes vercel@55.0.0 deploy --prebuilt --token "$VERCEL_TOKEN")"
+          [[ "$rollback_url" =~ ^https://[^/]+$ ]]
+          npx --yes vercel@55.0.0 promote "$rollback_url" --yes --token "$VERCEL_TOKEN"
+      - name: Restore baseline Edge
+        shell: bash
+        run: |
+          git checkout --detach "${{ needs.build-candidate.outputs.deployed_edge_sha }}"
+          marker="$(PANCAKE_RELEASE_SHA="${{ needs.build-candidate.outputs.deployed_edge_sha }}" node scripts/stamp-edge-release-provenance.mjs)"
+          digest="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).edgeArtifactDigest)' "$marker")"
+          test "$digest" = "${{ needs.build-candidate.outputs.deployed_edge_digest }}"
+          supabase functions deploy --project-ref "$SUPABASE_PROJECT_REF"
+      - name: Verify restored immutable release
+        shell: bash
+        run: |
+          for attempt in {1..45}; do
+            nonce="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${attempt}"
+            frontend="$(curl --fail --silent --header 'Cache-Control: no-cache' \
+              "${E2E_PRODUCTION_FRONTEND_URL%/}/release-provenance.json?rollback=$nonce" 2>/dev/null || true)"
+            edge="$(curl --fail --silent --header 'Cache-Control: no-cache' \
+              "${EXPO_PUBLIC_API_URL%/}/health?rollback=$nonce" 2>/dev/null || true)"
+            if node -e '
+              const [frontend, edge, frontendSha, frontendDigest, edgeSha, edgeDigest] = process.argv.slice(1)
+              const f = JSON.parse(frontend)
+              const e = JSON.parse(edge)
+              process.exit(
+                f.commitSha === frontendSha && f.bundleDigest === frontendDigest &&
+                e.commitSha === edgeSha && e.edgeArtifactDigest === edgeDigest ? 0 : 1
+              )
+            ' "$frontend" "$edge" \
+              "${{ needs.build-candidate.outputs.deployed_frontend_sha }}" \
+              "${{ needs.build-candidate.outputs.deployed_frontend_digest }}" \
+              "${{ needs.build-candidate.outputs.deployed_edge_sha }}" \
+              "${{ needs.build-candidate.outputs.deployed_edge_digest }}" 2>/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          exit 1
+
+  verify-post-promotion-rollback:
+    name: Verify restored baseline after failed promotion
+    if: ${{ always() && needs.rollback-after-promotion.result == 'success' }}
+    needs: [build-candidate, rollback-after-promotion]
+    uses: ./.github/workflows/production-readiness.yml
+    with:
+      release_sha: ${{ inputs.release_sha }}
+      frontend_sha: ${{ needs.build-candidate.outputs.deployed_frontend_sha }}
+      edge_sha: ${{ needs.build-candidate.outputs.deployed_edge_sha }}
+      frontend_bundle_digest: ${{ needs.build-candidate.outputs.deployed_frontend_digest }}
+      edge_artifact_digest: ${{ needs.build-candidate.outputs.deployed_edge_digest }}
+      rebuild_frontend: false
+      rebuild_edge: false
+      evidence_label: post-promotion-rollback
+    secrets: inherit
