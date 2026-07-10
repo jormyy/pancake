@@ -2,7 +2,7 @@ import { appendFile, writeFile } from 'node:fs/promises'
 import { execFileSync } from 'node:child_process'
 import path from 'node:path'
 import process from 'node:process'
-import { digestReleaseBundle } from '../tests/e2e/release-provenance.mjs'
+import { digestReleaseBundle, FRONTEND_DEPLOYMENT_INPUTS } from '../tests/e2e/release-provenance.mjs'
 
 const fullSha = (value) => typeof value === 'string' && /^[a-f0-9]{40}$/i.test(value)
 
@@ -20,6 +20,7 @@ export const stampReleaseProvenance = async ({
   const marker = {
     commitSha: commitSha.toLowerCase(),
     bundleDigest: await digestReleaseBundle(root),
+    deploymentInputs: FRONTEND_DEPLOYMENT_INPUTS,
   }
   await writeFile(path.join(root, 'dist', 'release-provenance.json'), `${JSON.stringify(marker, null, 2)}\n`)
   return marker

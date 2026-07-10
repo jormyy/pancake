@@ -193,11 +193,27 @@ describe('release E2E contracts', () => {
     tempDirs.push(root)
     await mkdir(path.join(root, 'dist'), { recursive: true })
     await writeFile(path.join(root, 'dist', 'app.js'), 'console.log("release")\n')
+    await Promise.all([
+      writeFile(path.join(root, 'app.json'), '{}\n'),
+      writeFile(path.join(root, 'package.json'), '{}\n'),
+      writeFile(path.join(root, 'package-lock.json'), '{}\n'),
+      writeFile(path.join(root, 'vercel.json'), '{}\n'),
+    ])
 
     const marker = await stampReleaseProvenance({ root, commitSha: 'a'.repeat(40) })
-    expect(marker).toEqual({ commitSha: 'a'.repeat(40), bundleDigest: expect.stringMatching(/^[a-f0-9]{64}$/) })
+    expect(marker).toEqual({
+      commitSha: 'a'.repeat(40),
+      bundleDigest: expect.stringMatching(/^[a-f0-9]{64}$/),
+      deploymentInputs: ['app.json', 'package.json', 'package-lock.json', 'vercel.json'],
+    })
     expect(await digestReleaseBundle(root)).toBe(marker.bundleDigest)
     expect(JSON.parse(await readFile(path.join(root, 'dist', 'release-provenance.json'), 'utf8'))).toEqual(marker)
+
+    await writeFile(path.join(root, 'vercel.json'), '{"rewrites":[]}\n')
+    const routingDigest = await digestReleaseBundle(root)
+    expect(routingDigest).not.toBe(marker.bundleDigest)
+    await writeFile(path.join(root, 'package-lock.json'), '{"lockfileVersion":3}\n')
+    expect(await digestReleaseBundle(root)).not.toBe(routingDigest)
   })
 
   it('bakes Edge provenance from source rather than mutable environment values', async () => {

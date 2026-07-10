@@ -6,6 +6,12 @@ import process from 'node:process'
 
 const provenanceCache = new Map()
 const RELEASE_MARKER = 'release-provenance.json'
+export const FRONTEND_DEPLOYMENT_INPUTS = Object.freeze([
+  'app.json',
+  'package.json',
+  'package-lock.json',
+  'vercel.json',
+])
 
 /** @typedef {{ commitSha: string, runId: string, bundleDigest: string }} ReleaseProvenance */
 
@@ -37,9 +43,22 @@ export const digestReleaseBundle = async (root) => {
   if (files.length === 0) throw new Error('Release provenance requires a non-empty production bundle')
   const hash = createHash('sha256')
   for (const file of files) {
-    hash.update(path.relative(distRoot, file))
+    hash.update(`output:${path.relative(distRoot, file).split(path.sep).join('/')}`)
     hash.update('\0')
     hash.update(await readFile(file))
+    hash.update('\0')
+  }
+  for (const relativePath of FRONTEND_DEPLOYMENT_INPUTS) {
+    const inputPath = path.join(root, relativePath)
+    let contents
+    try {
+      contents = await readFile(inputPath)
+    } catch (error) {
+      throw new Error(`Release provenance could not read deployment input ${relativePath}: ${error instanceof Error ? error.message : String(error)}`)
+    }
+    hash.update(`input:${relativePath}`)
+    hash.update('\0')
+    hash.update(contents)
     hash.update('\0')
   }
   return hash.digest('hex')
