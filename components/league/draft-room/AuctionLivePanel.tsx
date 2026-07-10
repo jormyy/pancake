@@ -27,6 +27,13 @@ export function AuctionLivePanel({
     const leadingTeam = nomination.currentBidderId
         ? controller.budgetByMember.get(nomination.currentBidderId)?.teamName
         : undefined
+    const leaderText = nomination.currentBidderId == null
+        ? 'No bids yet'
+        : leading ? "You're leading" : `${leadingTeam} leads`
+    const bidLabel = activeBids.length === 0
+        ? 'No bids'
+        : `${activeBids.length} bid${activeBids.length === 1 ? '' : 's'}`
+    const liveStateLabel = `${nomination.currentBidAmount > 0 ? `$${nomination.currentBidAmount}` : '—'} | ${leaderText} | ${bidLabel}`
     const urgent = !paused && controller.timeLeft > 0 && controller.timeLeft <= 10
     const minimumBid = Math.max(1, nomination.currentBidAmount + 1)
     const remainingBudget = budget?.remaining ?? Infinity
@@ -51,14 +58,15 @@ export function AuctionLivePanel({
                         </View>
                     </View>
                 </View>
-                <View style={[styles.bidPanel, compact && styles.bidPanelCompact]}>
+                <View style={[styles.bidPanel, compact && styles.bidPanelCompact]}
+                    testID="auction-live-state" accessibilityLabel={liveStateLabel}>
                     <View style={styles.bidRow}>
                         <View style={styles.bidInfo}>
                             <Text style={[styles.bidAmount, leading && styles.bidAmountLeading]}>
                                 {nomination.currentBidAmount > 0 ? `$${nomination.currentBidAmount}` : '—'}
                             </Text>
                             <Text style={[styles.bidLeader, leading && styles.bidLeaderLeading]}>
-                                {nomination.currentBidderId == null ? 'No bids yet' : leading ? "You're leading" : `${leadingTeam} leads`}
+                                {leaderText}
                             </Text>
                         </View>
                         <View style={[styles.countdown, urgent && styles.countdownUrgent]}>
@@ -105,8 +113,7 @@ export function AuctionLivePanel({
         <View style={styles.historyPanel}>
             <View style={styles.historyHeader}>
                 <Text style={styles.historyLabel}>Bid history</Text>
-                <Text style={styles.historyCount}>{activeBids.length === 0
-                    ? 'No bids' : `${activeBids.length} bid${activeBids.length === 1 ? '' : 's'}`}</Text>
+                <Text style={styles.historyCount}>{bidLabel}</Text>
             </View>
             {activeBids.length === 0
                 ? <Text style={styles.historyEmpty}>No bids yet. Minimum bid is ${minimumBid}.</Text>

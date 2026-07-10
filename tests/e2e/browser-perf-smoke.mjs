@@ -58,6 +58,15 @@ const parseEvalJson = (output) => {
   return typeof value === 'string' ? JSON.parse(value) : value
 }
 
+export const buildDraftVisibleObservationScript = (expected) => {
+  const expectedText = `$${expected.amount} | ${expected.leaderText} | ${expected.bidLabel}`
+  return `(() => {
+    const liveState = document.querySelector('[data-testid="auction-live-state"]');
+    const observedText = liveState?.getAttribute('aria-label') || '';
+    return JSON.stringify({ observed: observedText === ${JSON.stringify(expectedText)}, observedText });
+  })()`
+}
+
 const ensurePerfSeasonWeek = async (supabase, seasonYear, resourceOwner) => {
   const start = new Date(Date.now() - 24 * 60 * 60 * 1000)
   const end = new Date(start)
@@ -419,30 +428,27 @@ const waitForVisibleUpdate = async ({ session, surface, load, matchup, auction, 
         awayPoints: finalMutation.awayPoints.toFixed(1),
         weekNumber: matchup.week_number,
       }
+  let lastObservedText = ''
   for (let attempt = 0; attempt < 20; attempt += 1) {
-    const output = parseEvalJson(await browser(session, ['eval', `(() => {
-      const surface = ${JSON.stringify(surface)};
+    const script = surface === 'draft'
+      ? buildDraftVisibleObservationScript(expected)
+      : `(() => {
       const expected = ${JSON.stringify(expected)};
-      if (surface === 'draft') {
-        const text = document.body?.innerText || '';
-        return JSON.stringify({
-          observed: text.includes('$' + expected.amount) && text.includes(expected.leaderText) &&
-            text.includes(expected.bidLabel),
-        });
-      }
       const heading = document.querySelector('[aria-label="Week ' + expected.weekNumber + ' matchup"]');
       const text = heading?.parentElement?.parentElement?.innerText || '';
       return JSON.stringify({
         observed: text.includes(expected.homePoints) && text.includes(expected.awayPoints),
       });
-    })()`]))
+    })()`
+    const output = parseEvalJson(await browser(session, ['eval', script]))
+    if (surface === 'draft') lastObservedText = output.observedText
     if (output.observed) {
       return surface === 'draft'
         ? {
             kind: 'auction-bid', entityId: finalMutation.nominationId,
             bidAmount: finalMutation.bidAmount, bidderId: finalMutation.bidderId,
             leaderText, observed: true,
-            observedText: `$${finalMutation.bidAmount} | ${leaderText} | ${bidLabel}`,
+            observedText: output.observedText,
           }
         : {
             kind: 'matchup-score', entityId: finalMutation.matchupId,
@@ -457,7 +463,7 @@ const waitForVisibleUpdate = async ({ session, surface, load, matchup, auction, 
     ? {
         kind: 'auction-bid', entityId: finalMutation.nominationId,
         bidAmount: finalMutation.bidAmount, bidderId: finalMutation.bidderId,
-        leaderText, observed: false, observedText: '',
+        leaderText, observed: false, observedText: lastObservedText,
       }
     : {
         kind: 'matchup-score', entityId: finalMutation.matchupId,

@@ -1,10 +1,11 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import { runInNewContext } from 'node:vm'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { assertFullSweepRoutes, REQUIRED_FULL_SWEEP_LABELS } from './e2e/browser-smoke.mjs'
-import { requireAffectedMatchup } from './e2e/browser-perf-smoke.mjs'
+import { buildDraftVisibleObservationScript, requireAffectedMatchup } from './e2e/browser-perf-smoke.mjs'
 import { productionBrowserFailures } from './e2e/production-web-hydration.mjs'
 import { writeRegisteredScenarioReport } from './e2e/browser-scenario-registry.mjs'
 import { browserCiContext } from './e2e/browser-ci-scenario.mjs'
@@ -638,10 +639,61 @@ describe('release E2E contracts', () => {
     })).toContain('home visible update text does not match the final mutation')
   })
 
+  it('rejects draft visibility assembled from final history and stale live state', () => {
+    const expected = { amount: 25, leaderText: "You're leading", bidLabel: '24 bids' }
+    const liveStateLabel = "$23 | You're leading | 23 bids"
+    const bodyText = `$25\n24 bids\n${liveStateLabel}`
+    const observe = (label: string) => {
+      const querySelector = (selector: string) => {
+        expect(selector).toBe('[data-testid="auction-live-state"]')
+        return { getAttribute: (name: string) => name === 'aria-label' ? label : null }
+      }
+      return JSON.parse(runInNewContext(buildDraftVisibleObservationScript(expected), {
+        document: { body: { innerText: bodyText }, querySelector },
+      }))
+    }
+    const output = observe(liveStateLabel)
+
+    expect(output).toEqual({ observed: false, observedText: liveStateLabel })
+    expect(observe("$25 | You're leading | 24 bids")).toEqual({
+      observed: true,
+      observedText: "$25 | You're leading | 24 bids",
+    })
+
+    const load = {
+      count: 24,
+      durationMs: 1,
+      mutations: Array.from({ length: 24 }, (_, index) => ({
+        awayPoints: 2,
+        bidAmount: index + 2,
+        bidderId: '11111111-1111-4111-8111-111111111111',
+        homePoints: 1,
+        matchupId: '22222222-2222-4222-8222-222222222222',
+        nominationId: '33333333-3333-4333-8333-333333333333',
+      })),
+      visibleUpdate: {
+        kind: 'auction-bid',
+        entityId: '33333333-3333-4333-8333-333333333333',
+        bidAmount: 25,
+        bidderId: '11111111-1111-4111-8111-111111111111',
+        leaderText: "You're leading",
+        observed: output.observed,
+        observedText: output.observedText,
+      },
+    }
+    expect(validateBrowserMutationLoad('draft', load)).toEqual(expect.arrayContaining([
+      'draft visible update was not observed',
+      'draft visible update text does not match the final mutation',
+    ]))
+  })
+
   it('uses the exact semantic mutation contract in the browser producer', async () => {
     const producer = await readFile(path.join(process.cwd(), 'tests/e2e/browser-perf-smoke.mjs'), 'utf8')
+    const livePanel = await readFile(path.join(process.cwd(), 'components/league/draft-room/AuctionLivePanel.tsx'), 'utf8')
     expect(producer).toContain("validateBrowserMutationLoad('draft', draftLoad)")
     expect(producer).toContain("validateBrowserMutationLoad('home', homeLoad)")
+    expect(producer).not.toContain("text.includes('$' + expected.amount)")
+    expect(livePanel).toContain('testID="auction-live-state" accessibilityLabel={liveStateLabel}')
   })
 
   it('rejects skeletal complete data-latency PASS evidence', async () => {
