@@ -87,17 +87,6 @@ export default function PlayerDetailScreen() {
         setIrModal(null)
     }, [ownerIdentity])
 
-    // Resume the originating flow after the IR conflict is cleared.
-    const continueAfterIR = useCallback(
-        (action: 'add' | 'claim') => {
-            if (action === 'claim') push(`/(modals)/claim-player?playerId=${id}`)
-            else tryAddFreeAgent()
-        },
-        // tryAddFreeAgent/push/id are stable enough for this modal flow
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-        [id],
-    )
-
     const loadRosterStatus = useCallback(async () => {
         const generation = generationRef.current
         const requestedOwner = ownerIdentity
@@ -161,6 +150,13 @@ export default function PlayerDetailScreen() {
         } finally {
             if (isCurrent(generation, requestedOwner)) setActionLoading(false)
         }
+    }
+
+    // This intentionally uses the current render's mutation function. The route
+    // can stay mounted while the selected league changes.
+    function continueAfterIR(action: 'add' | 'claim') {
+        if (action === 'claim') push(`/(modals)/claim-player?playerId=${id}`)
+        else void tryAddFreeAgent()
     }
 
     async function handleDropAndAdd(rosterPlayer: RosterPlayer) {

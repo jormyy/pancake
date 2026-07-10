@@ -17,6 +17,16 @@ describe('route resource ownership contracts', () => {
         expect(player).toContain('rosterStatusResource.ownerIdentity === ownerIdentity')
         expect(player).toContain('if (!isCurrent(generation, requestedOwner)) return')
         expect(player).toContain('visible={ownsActionState && dropPickerVisible}')
+        expect(player).toContain("function continueAfterIR(action: 'add' | 'claim')")
+        expect(player).not.toContain('tryAddFreeAgent/push/id are stable enough')
+    })
+
+    it('preserves waiver form state across same-owner membership refreshes', () => {
+        const claim = source('app/(modals)/claim-player.tsx')
+        expect(claim).toContain('const memberId = current?.id')
+        expect(claim).toContain('const userId = user?.id')
+        expect(claim).toContain('}, [leagueId, memberId, playerId, userId])')
+        expect(claim).not.toContain('[playerId, current, user, leagueId]')
     })
 
     it('keys playoff bracket data to the selected member and league', () => {

@@ -53,6 +53,8 @@ export default function ClaimPlayerScreen() {
 
     const rosterSize = currentLeague?.roster_size ?? 20
     const leagueId = currentLeague?.id
+    const memberId = current?.id
+    const userId = user?.id
 
     useEffect(() => {
         const requestId = ++claimLoadSeqRef.current
@@ -64,11 +66,10 @@ export default function ClaimPlayerScreen() {
         setSelectedDrop(null)
         setBidInput('0')
         async function load() {
-            if (!current || !user || !playerId || !leagueId) {
+            if (!memberId || !userId || !playerId || !leagueId) {
                 if (claimLoadSeqRef.current === requestId) setLoading(false)
                 return
             }
-            const memberId = current.id
             const requestedPlayerId = playerId
             const requestedLeagueId = leagueId
             try {
@@ -91,7 +92,7 @@ export default function ClaimPlayerScreen() {
             }
         }
         load()
-    }, [playerId, current, user, leagueId])
+    }, [leagueId, memberId, playerId, userId])
 
     const activeRoster = myRoster.filter((p) => !p.is_on_ir && !p.is_on_taxi)
     const ineligibleIR = myRoster.filter((r) => isIneligibleIR(r))
