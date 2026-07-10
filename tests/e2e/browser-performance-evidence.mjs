@@ -175,7 +175,7 @@ export const measureWorkflowFeedback = async (browser, session, { workflowId, la
   if (!WORKFLOW_FEEDBACK_IDS.includes(workflowId)) throw new Error(`No workflow feedback probe for ${workflowId}`)
   if (workflowId === 'home-live-lineup' || workflowId === 'lineup-day-change') {
     await markDynamicTarget(browser, session,
-      `[...document.querySelectorAll('[role="button"][aria-label]')].find((node) => !node.hasAttribute('aria-current') && /^(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday),/.test(node.getAttribute('aria-label') || ''))`,
+      `document.querySelector('[aria-current="date"]')?.parentElement?.querySelector('[tabindex="0"]:not([aria-current])')`,
       'data-e2e-feedback-target')
     const result = await clickMeasuredTarget(browser, session, {
       selector: '[data-e2e-feedback-target="true"]',
