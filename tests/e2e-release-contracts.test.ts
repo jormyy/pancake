@@ -154,6 +154,7 @@ describe('release E2E contracts', () => {
       'npm run security:db-catalog -- --linked',
     ]) expect(workflow).toContain(command)
     expect(workflow).toContain('if-no-files-found: error')
+    expect(workflow).toContain("inputs.evidence_label || 'production'")
   })
 
   it('promotes only after every phased production pairing passes protected readiness', async () => {
@@ -182,6 +183,13 @@ describe('release E2E contracts', () => {
     expect(workflow).toContain('uses: ./.github/workflows/production-readiness.yml')
     expect(workflow).toContain('Restore baseline Edge after failed Edge phase')
     expect(workflow).toContain("needs.deploy-edge.result == 'failure'")
+    for (const label of [
+      'candidate-current-backend',
+      'current-after-migration',
+      'current-new-edge',
+      'candidate-new-edge',
+      'promoted-production',
+    ]) expect(workflow).toContain(`evidence_label: ${label}`)
     expect(workflow).toContain('npx --yes vercel@55.0.0 promote')
     expect(workflow).toContain('Verify promoted production')
     expect(workflow).toContain('Require deployed-to-HEAD release soak')

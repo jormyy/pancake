@@ -42,6 +42,11 @@ on:
         required: false
         default: true
         type: boolean
+      evidence_label:
+        description: Unique artifact label for this readiness phase
+        required: false
+        default: production
+        type: string
   workflow_dispatch:
     inputs:
       release_sha:
@@ -182,7 +187,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: hosted-production-readiness-${{ github.run_id }}
+          name: hosted-readiness-${{ inputs.evidence_label || 'production' }}-${{ github.run_id }}
           path: |
             tests/production-readiness-report.md
             tests/prod-data-source-health-report.md

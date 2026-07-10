@@ -39,6 +39,7 @@ jobs:
       deployed_edge_digest: ${{ steps.baseline.outputs.edge_digest }}
     env:
       E2E_PRODUCTION_SUPABASE_REF: ceeytbfmwsnzalxlkalc
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
       E2E_PRODUCTION_FRONTEND_URL: ${{ secrets.PANCAKE_FRONTEND_URL }}
       E2E_EXPECTED_FRONTEND_HOST: ${{ secrets.PANCAKE_PRODUCTION_FRONTEND_HOST }}
       EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -64,7 +65,7 @@ jobs:
           [[ "${{ inputs.release_sha }}" =~ ^[0-9a-f]{40}$ ]]
           test "$(git rev-parse HEAD)" = "${{ inputs.release_sha }}"
           git merge-base --is-ancestor HEAD origin/main
-          for name in E2E_PRODUCTION_FRONTEND_URL E2E_EXPECTED_FRONTEND_HOST \
+          for name in SUPABASE_PROJECT_REF E2E_PRODUCTION_FRONTEND_URL E2E_EXPECTED_FRONTEND_HOST \
             EXPO_PUBLIC_SUPABASE_URL EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY EXPO_PUBLIC_API_URL \
             VERCEL_ORG_ID VERCEL_PROJECT_ID VERCEL_TOKEN; do
             test -n "${!name:-}" || { echo "Missing protected candidate input: $name"; exit 1; }
@@ -139,6 +140,7 @@ jobs:
       candidate_frontend: true
       rebuild_frontend: true
       rebuild_edge: false
+      evidence_label: candidate-current-backend
     secrets: inherit
 
   migrate-production:
@@ -177,6 +179,7 @@ jobs:
       edge_artifact_digest: ${{ needs.build-candidate.outputs.deployed_edge_digest }}
       rebuild_frontend: false
       rebuild_edge: false
+      evidence_label: current-after-migration
     secrets: inherit
 
   deploy-edge:
@@ -219,6 +222,7 @@ jobs:
       edge_artifact_digest: ${{ needs.build-candidate.outputs.edge_artifact_digest }}
       rebuild_frontend: false
       rebuild_edge: true
+      evidence_label: current-new-edge
     secrets: inherit
 
   verify-candidate-new-edge:
@@ -235,6 +239,7 @@ jobs:
       candidate_frontend: true
       rebuild_frontend: true
       rebuild_edge: true
+      evidence_label: candidate-new-edge
     secrets: inherit
 
   rollback-edge:
@@ -304,4 +309,5 @@ jobs:
       edge_artifact_digest: ${{ needs.build-candidate.outputs.edge_artifact_digest }}
       rebuild_frontend: true
       rebuild_edge: true
+      evidence_label: promoted-production
     secrets: inherit
