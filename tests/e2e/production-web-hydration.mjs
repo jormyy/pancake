@@ -11,6 +11,16 @@ const artifactPath = path.join(process.cwd(), 'tests/artifacts/stack/production-
 const session = `pancake-production-hydration-${process.pid}`
 const browser = createBrowser()
 
+const hydrationProvenance = async () => {
+  const commitSha = process.env.E2E_EXPECTED_RELEASE_SHA
+  const bundleDigest = process.env.E2E_EXPECTED_BUNDLE_DIGEST
+  if (commitSha || bundleDigest) {
+    if (!commitSha || !bundleDigest) throw new Error('Hosted hydration requires both expected release SHA and bundle digest')
+    return { commitSha, bundleDigest, runId: process.env.GITHUB_RUN_ID ?? 'hosted-readiness' }
+  }
+  return resolveReleaseProvenance()
+}
+
 export const productionBrowserFailures = browserDiagnosticFailures
 
 const waitForPath = async (pathname) => {
@@ -46,7 +56,7 @@ const verifyHydration = async (provenance) => runWithScenarioResourceOwner('prod
 
 const main = async () => {
   await mkdir(path.dirname(artifactPath), { recursive: true })
-  const provenance = await resolveReleaseProvenance()
+  const provenance = await hydrationProvenance()
   try {
     const result = await verifyHydration(provenance)
     await writeFile(artifactPath, `${JSON.stringify(result, null, 2)}\n`)

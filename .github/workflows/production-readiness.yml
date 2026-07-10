@@ -2,6 +2,15 @@ name: Hosted production readiness
 
 on:
   workflow_dispatch:
+    inputs:
+      release_sha:
+        description: Full Git SHA deployed to production
+        required: true
+        type: string
+      bundle_digest:
+        description: SHA-256 digest emitted by build:web:release
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -27,8 +36,14 @@ jobs:
       EXPO_PUBLIC_API_URL: ${{ secrets.PANCAKE_API_URL }}
       PANCAKE_EDGE_INTERNAL_TOKEN: ${{ secrets.PANCAKE_EDGE_INTERNAL_TOKEN }}
       PANCAKE_LEGACY_SUPABASE_JWT_ROTATED: ${{ secrets.PANCAKE_LEGACY_SUPABASE_JWT_ROTATED }}
+      E2E_FRONTEND_URL: ${{ secrets.PANCAKE_FRONTEND_URL }}
+      E2E_EXPECTED_RELEASE_SHA: ${{ inputs.release_sha }}
+      E2E_EXPECTED_BUNDLE_DIGEST: ${{ inputs.bundle_digest }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ inputs.release_sha }}
+          fetch-depth: 0
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
@@ -48,19 +63,40 @@ jobs:
             E2E_REMOTE_API_URL PANCAKE_EDGE_INTERNAL_TOKEN PANCAKE_LEGACY_SUPABASE_JWT_ROTATED; do
             test -n "${!name:-}" || { echo "Missing protected production credential: $name"; exit 1; }
           done
+          test -n "$E2E_FRONTEND_URL" || { echo "Missing protected production credential: E2E_FRONTEND_URL"; exit 1; }
           test "$PANCAKE_LEGACY_SUPABASE_JWT_ROTATED" = '1'
+          [[ "$E2E_EXPECTED_RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$E2E_EXPECTED_BUNDLE_DIGEST" =~ ^[0-9a-f]{64}$ ]]
+          test "$(git rev-parse HEAD)" = "$E2E_EXPECTED_RELEASE_SHA"
+          git merge-base --is-ancestor HEAD origin/main
 
       - name: Install dependencies
         run: npm ci
 
+      - name: Rebuild intended frontend release
+        shell: bash
+        run: |
+          EXPO_UNSTABLE_METRO_OPTIMIZE_GRAPH=1 npm run build:web:release
+          actual_digest="$(node -e "process.stdout.write(require('./dist/release-provenance.json').bundleDigest)")"
+          test "$actual_digest" = "$E2E_EXPECTED_BUNDLE_DIGEST" || {
+            echo "Rebuilt bundle digest $actual_digest does not match intended $E2E_EXPECTED_BUNDLE_DIGEST"
+            exit 1
+          }
+
       - name: Link protected production project
         run: supabase link --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
+
+      - name: Verify deployed Edge and frontend provenance
+        run: node tests/e2e/hosted-release-provenance.mjs
+
+      - name: Verify hosted frontend hydration
+        run: npm run e2e:web-hydration
 
       - name: Verify production configuration and deployment
         run: npm run prod:check
 
       - name: Verify production data sources and schema
-        run: npm run prod:data-health -- --linked
+        run: npm run prod:data-health -- --linked --allow-prod-writes
 
       - name: Verify linked Edge authentication
         run: npm run security:edge-auth:linked
@@ -78,5 +114,10 @@ jobs:
             tests/prod-data-source-health-report.md
             tests/edge-internal-auth-report.md
             tests/db-security-catalog-report.md
+            tests/hosted-release-provenance-report.md
+            tests/artifacts/stack/production-hydration.json
+            tests/artifacts/stack/production-hydration-console.txt
+            tests/artifacts/stack/production-hydration-errors.txt
+            dist/release-provenance.json
           if-no-files-found: error
           retention-days: 30

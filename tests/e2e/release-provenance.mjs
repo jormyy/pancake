@@ -5,6 +5,7 @@ import path from 'node:path'
 import process from 'node:process'
 
 const provenanceCache = new Map()
+const RELEASE_MARKER = 'release-provenance.json'
 
 /** @typedef {{ commitSha: string, runId: string, bundleDigest: string }} ReleaseProvenance */
 
@@ -28,11 +29,11 @@ const repositoryCommit = (root) => {
   return commit.toLowerCase()
 }
 
-const digestBundle = async (root) => {
+export const digestReleaseBundle = async (root) => {
   const distRoot = path.join(root, 'dist')
-  const files = await listFiles(distRoot).catch((error) => {
+  const files = (await listFiles(distRoot).catch((error) => {
     throw new Error(`Release provenance could not read production bundle: ${error instanceof Error ? error.message : String(error)}`)
-  })
+  })).filter((file) => path.relative(distRoot, file) !== RELEASE_MARKER)
   if (files.length === 0) throw new Error('Release provenance requires a non-empty production bundle')
   const hash = createHash('sha256')
   for (const file of files) {
@@ -49,7 +50,7 @@ export const resolveReleaseProvenance = async ({ root = process.cwd() } = {}) =>
   if (!pending) {
     pending = (async () => {
       const commitSha = repositoryCommit(root)
-      const bundleDigest = await digestBundle(root)
+      const bundleDigest = await digestReleaseBundle(root)
       return {
         commitSha,
         bundleDigest,

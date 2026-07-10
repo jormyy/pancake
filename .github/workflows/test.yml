@@ -178,7 +178,7 @@ jobs:
           mkdir -p tests/artifacts/stack
           printf 'E2E_ADMIN_SECRET=local-browser-ci-secret\n' > /tmp/pancake-edge.env
           supabase functions serve --env-file /tmp/pancake-edge.env > tests/artifacts/stack/edge.log 2>&1 &
-          EXPO_UNSTABLE_METRO_OPTIMIZE_GRAPH=1 npx expo export --platform web > tests/artifacts/stack/web-build.log 2>&1
+          EXPO_UNSTABLE_METRO_OPTIMIZE_GRAPH=1 npm run build:web:release > tests/artifacts/stack/web-build.log 2>&1
           node tests/e2e/static-web-server.mjs --root=dist --port=8082 > tests/artifacts/stack/web.log 2>&1 &
           for attempt in {1..60}; do
             if curl --fail --silent http://127.0.0.1:8082 >/dev/null &&

@@ -98,7 +98,7 @@ describe('instant-loading performance budget contract', () => {
         expect(packageJson.scripts['e2e:data-latency']).toBe('node tests/e2e/data-latency-bench.mjs')
         expect(readme).toContain('npm run perf:budget')
         expect(e2eReadme).toContain('performance-budgets.json')
-        expect(productionReadiness).toContain("run('npm', ['run', 'perf:budget']")
+        expect(productionReadiness).not.toContain("run('npm', ['run', 'perf:budget']")
         expect(seedLeague).toContain('seedLatencyFixtures')
         expect(seedLeague).toContain("admin.from('matchups').insert")
         expect(seedLeague).toContain("admin.from('snake_draft_picks').insert")

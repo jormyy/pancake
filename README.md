@@ -109,9 +109,13 @@ npm run check:edge-shared          # generated Edge scoring/sync parity
 deno check supabase/functions/api/index.ts
 npm test                           # root + frontend lib + cross-cutting guards
 npm run perf:budget                # top workflow performance budget contract
-npx expo export --platform web     # web/PWA build
+npm run build:web:release          # web/PWA build + immutable provenance marker
 npm audit --audit-level=high       # dependency audit
 ```
+
+Production deploys must publish `dist/release-provenance.json` and configure the Edge
+`PANCAKE_RELEASE_SHA` and `PANCAKE_RELEASE_BUNDLE_DIGEST` values from the same build. Dispatch
+the protected hosted-readiness workflow with that full SHA and bundle digest after deployment.
 
 Cross-cutting guard tests: `tests/scoring-parity.test.ts` (scoring drift),
 `tests/rls-grants.test.ts` (service-role-only RPCs never granted to client roles, default

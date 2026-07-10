@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -10,6 +10,8 @@ import { browserCiContext } from './e2e/browser-ci-scenario.mjs'
 import { BROWSER_SCENARIO_MANIFEST, fastBrowserScenarioMatrix } from './e2e/browser-scenario-manifest.mjs'
 import { validateDataLatencyReport, validateManifest, validateRetainedSeasonReports, validateWorkflowReportKeys } from './e2e/performance-budgets.mjs'
 import { readAppliedSchemaVersion } from './e2e/schema-provenance.mjs'
+import { digestReleaseBundle } from './e2e/release-provenance.mjs'
+import { stampReleaseProvenance } from '../scripts/stamp-release-provenance.mjs'
 
 const tempDirs: string[] = []
 
@@ -64,15 +66,33 @@ describe('release E2E contracts', () => {
     const workflow = await readFile(path.join(process.cwd(), '.github/workflows/production-readiness.yml'), 'utf8')
     expect(workflow).toContain('environment: production')
     expect(workflow).toContain('test "${GITHUB_REF}" = "refs/heads/main"')
+    expect(workflow).toContain('release_sha:')
+    expect(workflow).toContain('bundle_digest:')
+    expect(workflow).toContain('ref: ${{ inputs.release_sha }}')
+    expect(workflow).toContain('E2E_FRONTEND_URL: ${{ secrets.PANCAKE_FRONTEND_URL }}')
+    expect(workflow).toContain('node tests/e2e/hosted-release-provenance.mjs')
+    expect(workflow).toContain('npm run e2e:web-hydration')
     expect(workflow).toContain('PANCAKE_LEGACY_SUPABASE_JWT_ROTATED: ${{ secrets.PANCAKE_LEGACY_SUPABASE_JWT_ROTATED }}')
     expect(workflow).not.toContain("PANCAKE_LEGACY_SUPABASE_JWT_ROTATED: '1'")
     for (const command of [
       'npm run prod:check',
-      'npm run prod:data-health -- --linked',
+      'npm run prod:data-health -- --linked --allow-prod-writes',
       'npm run security:edge-auth:linked',
       'npm run security:db-catalog -- --linked',
     ]) expect(workflow).toContain(command)
     expect(workflow).toContain('if-no-files-found: error')
+  })
+
+  it('stamps a self-consistent release marker without changing the bundle digest', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'pancake-release-bundle-'))
+    tempDirs.push(root)
+    await mkdir(path.join(root, 'dist'), { recursive: true })
+    await writeFile(path.join(root, 'dist', 'app.js'), 'console.log("release")\n')
+
+    const marker = await stampReleaseProvenance({ root, commitSha: 'a'.repeat(40) })
+    expect(marker).toEqual({ commitSha: 'a'.repeat(40), bundleDigest: expect.stringMatching(/^[a-f0-9]{64}$/) })
+    expect(await digestReleaseBundle(root)).toBe(marker.bundleDigest)
+    expect(JSON.parse(await readFile(path.join(root, 'dist', 'release-provenance.json'), 'utf8'))).toEqual(marker)
   })
 
   it('does not claim measured production performance from a clean checkout', async () => {
