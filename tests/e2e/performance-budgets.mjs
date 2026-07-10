@@ -34,7 +34,7 @@ const isFiniteNonnegativeNumber = (value) => Number.isFinite(value) && value >= 
 const isPositiveInteger = (value) => Number.isInteger(value) && value > 0
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const MUTATION_ENTRY_KEYS = ['awayPoints', 'bidAmount', 'bidderId', 'homePoints', 'matchupId', 'nominationId']
-const DRAFT_VISIBLE_UPDATE_KEYS = ['bidAmount', 'bidderId', 'entityId', 'kind', 'observed', 'observedText']
+const DRAFT_VISIBLE_UPDATE_KEYS = ['bidAmount', 'bidderId', 'entityId', 'kind', 'leaderText', 'observed', 'observedText']
 const HOME_VISIBLE_UPDATE_KEYS = ['awayPoints', 'entityId', 'homePoints', 'kind', 'observed', 'observedText']
 
 const hasExactKeys = (value, keys) => value && typeof value === 'object' && !Array.isArray(value) &&
@@ -83,11 +83,27 @@ export const validateBrowserMutationLoad = (surface, load) => {
           visible.bidderId !== finalMutation?.bidderId) {
         failures.push('draft visible update does not match the final mutation')
       }
+      if (typeof visible.leaderText !== 'string' ||
+          (visible.leaderText !== "You're leading" && !visible.leaderText.endsWith(' leads'))) {
+        failures.push('draft visible update leader text is invalid')
+      }
+      const bidLabel = `${load.count} ${load.count === 1 ? 'bid' : 'bids'}`
+      const expectedText = `$${finalMutation?.bidAmount} | ${visible.leaderText} | ${bidLabel}`
+      if (visible.observedText !== expectedText) {
+        failures.push('draft visible update text does not match the final mutation')
+      }
     } else {
       if (visible.kind !== 'matchup-score') failures.push('home visible update kind must be matchup-score')
       if (visible.entityId !== finalMutation?.matchupId || visible.homePoints !== finalMutation?.homePoints ||
           visible.awayPoints !== finalMutation?.awayPoints) {
         failures.push('home visible update does not match the final mutation')
+      }
+      if (isFiniteNonnegativeNumber(finalMutation?.homePoints) &&
+          isFiniteNonnegativeNumber(finalMutation?.awayPoints)) {
+        const expectedText = `${finalMutation.homePoints.toFixed(1)} vs ${finalMutation.awayPoints.toFixed(1)}`
+        if (visible.observedText !== expectedText) {
+          failures.push('home visible update text does not match the final mutation')
+        }
       }
     }
   }

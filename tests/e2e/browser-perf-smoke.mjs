@@ -400,52 +400,55 @@ const runLoadMutations = async ({ supabase, auction, matchup }) => {
 const waitForVisibleUpdate = async ({ session, surface, load, matchup, auction, viewerUserId }) => {
   const finalMutation = load.mutations.at(-1)
   if (!finalMutation) throw new Error(`D.X.4 ${surface} visible update has no final mutation`)
+  const leader = surface === 'draft'
+    ? auction.members.find((member) => member.id === finalMutation.bidderId)
+    : null
+  if (surface === 'draft' && !leader) throw new Error('D.X.4 draft visible update has no final bidder')
+  const leaderText = leader
+    ? (leader.user_id === viewerUserId ? "You're leading" : `${leader.team_name} leads`)
+    : ''
+  const bidLabel = `${load.count} ${load.count === 1 ? 'bid' : 'bids'}`
   const expected = surface === 'draft'
     ? {
         amount: finalMutation.bidAmount,
-        bidCount: load.count,
-        leader: auction.members.find((member) => member.id === finalMutation.bidderId),
+        bidLabel,
+        leaderText,
       }
     : {
         homePoints: finalMutation.homePoints.toFixed(1),
         awayPoints: finalMutation.awayPoints.toFixed(1),
         weekNumber: matchup.week_number,
       }
-  let lastText = ''
   for (let attempt = 0; attempt < 20; attempt += 1) {
     const output = parseEvalJson(await browser(session, ['eval', `(() => {
       const surface = ${JSON.stringify(surface)};
       const expected = ${JSON.stringify(expected)};
       if (surface === 'draft') {
         const text = document.body?.innerText || '';
-        const leader = expected.leader?.user_id === ${JSON.stringify(viewerUserId)}
-          ? "You're leading"
-          : expected.leader?.team_name + ' leads';
         return JSON.stringify({
-          observed: text.includes('$' + expected.amount) && text.includes(leader) &&
-            text.includes(expected.bidCount + ' bids'),
-          text: text.slice(0, 1000),
+          observed: text.includes('$' + expected.amount) && text.includes(expected.leaderText) &&
+            text.includes(expected.bidLabel),
         });
       }
       const heading = document.querySelector('[aria-label="Week ' + expected.weekNumber + ' matchup"]');
       const text = heading?.parentElement?.parentElement?.innerText || '';
       return JSON.stringify({
         observed: text.includes(expected.homePoints) && text.includes(expected.awayPoints),
-        text: text.slice(0, 1000),
       });
     })()`]))
-    lastText = output.text
     if (output.observed) {
       return surface === 'draft'
         ? {
             kind: 'auction-bid', entityId: finalMutation.nominationId,
             bidAmount: finalMutation.bidAmount, bidderId: finalMutation.bidderId,
-            observed: true, observedText: lastText,
+            leaderText, observed: true,
+            observedText: `$${finalMutation.bidAmount} | ${leaderText} | ${bidLabel}`,
           }
         : {
             kind: 'matchup-score', entityId: finalMutation.matchupId,
             homePoints: finalMutation.homePoints, awayPoints: finalMutation.awayPoints,
-            observed: true, observedText: lastText,
+            observed: true,
+            observedText: `${finalMutation.homePoints.toFixed(1)} vs ${finalMutation.awayPoints.toFixed(1)}`,
           }
     }
     await browser(session, ['wait', '250'])
@@ -454,12 +457,12 @@ const waitForVisibleUpdate = async ({ session, surface, load, matchup, auction, 
     ? {
         kind: 'auction-bid', entityId: finalMutation.nominationId,
         bidAmount: finalMutation.bidAmount, bidderId: finalMutation.bidderId,
-        observed: false, observedText: lastText,
+        leaderText, observed: false, observedText: '',
       }
     : {
         kind: 'matchup-score', entityId: finalMutation.matchupId,
         homePoints: finalMutation.homePoints, awayPoints: finalMutation.awayPoints,
-        observed: false, observedText: lastText,
+        observed: false, observedText: '',
       }
 }
 

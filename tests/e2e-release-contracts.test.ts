@@ -524,7 +524,8 @@ describe('release E2E contracts', () => {
           visibleUpdate: {
             kind: 'auction-bid', entityId: draftMutation.nominationId,
             bidAmount: draftMutation.bidAmount, bidderId: draftMutation.bidderId,
-            observed: true, observedText: '$1 You\'re leading 2 bids',
+            leaderText: "You're leading", observed: true,
+            observedText: '$1 | You\'re leading | 2 bids',
           },
         },
         home: {
@@ -542,12 +543,8 @@ describe('release E2E contracts', () => {
     }
     expect(validateBrowserPerfReport(manifest, report)).toEqual([])
 
-    expect(validateBrowserMutationLoad('draft', {
-      count: 1, durationMs: 0, mutations: [draftMutation], visibleUpdate: report.load.draft.visibleUpdate,
-    })).toEqual([])
-    expect(validateBrowserMutationLoad('home', {
-      count: 1, durationMs: 0, mutations: [homeMutation], visibleUpdate: report.load.home.visibleUpdate,
-    })).toEqual([])
+    expect(validateBrowserMutationLoad('draft', report.load.draft)).toEqual([])
+    expect(validateBrowserMutationLoad('home', report.load.home)).toEqual([])
     for (const mutation of [
       {},
       { ...draftMutation, bidAmount: '1' },
@@ -556,7 +553,7 @@ describe('release E2E contracts', () => {
       { ...draftMutation, homePoints: Number.NaN },
     ]) {
       expect(validateBrowserMutationLoad('draft', {
-        count: 1, durationMs: 1, mutations: [mutation], visibleUpdate: report.load.draft.visibleUpdate,
+        count: 2, durationMs: 1, mutations: [mutation, mutation], visibleUpdate: report.load.draft.visibleUpdate,
       }).length)
         .toBeGreaterThan(0)
     }
@@ -568,7 +565,7 @@ describe('release E2E contracts', () => {
       { ...homeMutation, awayPoints: Number.NaN },
     ]) {
       expect(validateBrowserMutationLoad('home', {
-        count: 1, durationMs: 1, mutations: [mutation], visibleUpdate: report.load.home.visibleUpdate,
+        count: 2, durationMs: 1, mutations: [mutation, mutation], visibleUpdate: report.load.home.visibleUpdate,
       }).length)
         .toBeGreaterThan(0)
     }
@@ -627,6 +624,18 @@ describe('release E2E contracts', () => {
       ...report.load.home,
       visibleUpdate: { ...report.load.home.visibleUpdate, observed: false },
     })).toContain('home visible update was not observed')
+    expect(validateBrowserMutationLoad('draft', {
+      ...report.load.draft,
+      visibleUpdate: { ...report.load.draft.visibleUpdate, observedText: 'unrelated page text' },
+    })).toContain('draft visible update text does not match the final mutation')
+    expect(validateBrowserMutationLoad('draft', {
+      ...report.load.draft,
+      visibleUpdate: { ...report.load.draft.visibleUpdate, observedText: '$2 | You\'re leading | 2 bids' },
+    })).toContain('draft visible update text does not match the final mutation')
+    expect(validateBrowserMutationLoad('home', {
+      ...report.load.home,
+      visibleUpdate: { ...report.load.home.visibleUpdate, observedText: '1.0 vs 3.0' },
+    })).toContain('home visible update text does not match the final mutation')
   })
 
   it('uses the exact semantic mutation contract in the browser producer', async () => {
@@ -1018,7 +1027,8 @@ describe('release E2E contracts', () => {
           }], visibleUpdate: {
             kind: 'auction-bid', entityId: '33333333-3333-4333-8333-333333333333',
             bidAmount: 1, bidderId: '11111111-1111-4111-8111-111111111111',
-            observed: true, observedText: '$1 You\'re leading 1 bid',
+            leaderText: "You're leading", observed: true,
+            observedText: '$1 | You\'re leading | 1 bid',
           } },
           home: { count: 1, durationMs: 1, mutations: [{
             awayPoints: 2,
