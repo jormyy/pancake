@@ -114,9 +114,12 @@ npm audit --audit-level=high       # dependency audit
 ```
 
 Production releases run through the protected `Deploy production` workflow. It resolves the
-currently deployed schema and release, soaks the complete pending migration range in both rolling
-compatibility directions, builds an unpromoted Vercel candidate, applies migrations, deploys Edge
-provenance, and promotes the frontend only after hosted readiness passes. Automatic Vercel deploys
+exact ordered production migration history plus independently attested frontend and Edge releases,
+then soaks the complete pending migration range. Before production changes, it runs the deployed
+frontend against candidate Edge and the candidate frontend against deployed Edge on the upgraded
+schema. The deploy bakes the release SHA and an independent Edge source digest into the Edge
+artifact, builds an unpromoted Vercel candidate, and promotes the frontend only after hosted
+readiness verifies both artifact digests. Automatic Vercel deploys
 from `main` are disabled in `vercel.json`. The production environment must provide the Vercel,
 Supabase, frontend URL/host, API, modern key, and Edge internal-token secrets referenced by the
 workflow. `production_deployed` repository dispatch and manual hosted readiness are retained as
