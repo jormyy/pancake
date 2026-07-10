@@ -316,7 +316,7 @@ jobs:
 
   rollback-after-promotion:
     name: Restore baseline release after failed promotion
-    if: ${{ always() && needs.build-candidate.result == 'success' && (needs.promote.result != 'success' || needs.verify-production.result != 'success') }}
+    if: ${{ always() && needs.build-candidate.result == 'success' && (needs.promote.result == 'failure' || (needs.promote.result == 'success' && needs.verify-production.result != 'success')) }}
     needs: [build-candidate, promote, verify-production]
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -362,6 +362,7 @@ jobs:
         shell: bash
         run: |
           git checkout --detach "${{ needs.build-candidate.outputs.deployed_edge_sha }}"
+          npm ci
           marker="$(PANCAKE_RELEASE_SHA="${{ needs.build-candidate.outputs.deployed_edge_sha }}" node scripts/stamp-edge-release-provenance.mjs)"
           digest="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).edgeArtifactDigest)' "$marker")"
           test "$digest" = "${{ needs.build-candidate.outputs.deployed_edge_digest }}"
