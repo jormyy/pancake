@@ -6,6 +6,7 @@ import { apiPost } from '@/lib/shared/api'
 
 const PERSIST_RETRY_DELAYS_MS = [250, 1_000]
 const REGISTERED_PUSH_TOKEN_KEY = 'pancake.registered-push-token.v1'
+const PENDING_PUSH_TOKEN_REVOCATION_KEY = 'pancake.pending-push-token-revocation.v1'
 
 let mutationQueue: Promise<void> = Promise.resolve()
 
@@ -46,23 +47,46 @@ async function readRegisteredPushToken(): Promise<string | null> {
     return SecureStore.getItemAsync(REGISTERED_PUSH_TOKEN_KEY)
 }
 
-async function storeRegisteredPushToken(token: string): Promise<void> {
+async function readStoredValue(key: string): Promise<string | null> {
+    if (Platform.OS === 'web' && typeof localStorage !== 'undefined') return localStorage.getItem(key)
+    return SecureStore.getItemAsync(key)
+}
+
+async function storeValue(key: string, value: string): Promise<void> {
     if (Platform.OS === 'web' && typeof localStorage !== 'undefined') {
-        localStorage.setItem(REGISTERED_PUSH_TOKEN_KEY, token)
+        localStorage.setItem(key, value)
         return
     }
-    await SecureStore.setItemAsync(REGISTERED_PUSH_TOKEN_KEY, token)
+    await SecureStore.setItemAsync(key, value)
+}
+
+async function clearStoredValue(key: string): Promise<void> {
+    if (Platform.OS === 'web' && typeof localStorage !== 'undefined') {
+        localStorage.removeItem(key)
+        return
+    }
+    await SecureStore.deleteItemAsync(key)
+}
+
+async function storeRegisteredPushToken(token: string): Promise<void> {
+    await storeValue(REGISTERED_PUSH_TOKEN_KEY, token)
 }
 
 async function clearRegisteredPushToken(): Promise<void> {
-    if (Platform.OS === 'web' && typeof localStorage !== 'undefined') {
-        localStorage.removeItem(REGISTERED_PUSH_TOKEN_KEY)
-        return
-    }
-    await SecureStore.deleteItemAsync(REGISTERED_PUSH_TOKEN_KEY)
+    await clearStoredValue(REGISTERED_PUSH_TOKEN_KEY)
 }
 
 export async function registerPushToken(token: string, ownsRequest: () => boolean): Promise<void> {
+    const pendingRevocation = await readStoredValue(PENDING_PUSH_TOKEN_REVOCATION_KEY)
+    if (pendingRevocation && ownsRequest()) {
+        try {
+            await persistToken(pendingRevocation, false, ownsRequest)
+            if (ownsRequest()) await clearStoredValue(PENDING_PUSH_TOKEN_REVOCATION_KEY)
+        } catch {
+            // Registering the current token transfers ownership server-side, so a
+            // failed best-effort cleanup must not block the current signed-in user.
+        }
+    }
     await persistToken(token, true, ownsRequest)
     if (ownsRequest()) await storeRegisteredPushToken(token)
 }
@@ -77,6 +101,13 @@ export async function unregisterCurrentDevicePushToken(): Promise<void> {
             throw new Error('Could not identify this device push token for revocation.', { cause: error })
         }
     }
-    await persistToken(token, false, () => true)
-    await clearRegisteredPushToken()
+    try {
+        await persistToken(token, false, () => true)
+        await clearStoredValue(PENDING_PUSH_TOKEN_REVOCATION_KEY)
+    } catch (error) {
+        await storeValue(PENDING_PUSH_TOKEN_REVOCATION_KEY, token)
+        throw error
+    } finally {
+        await clearRegisteredPushToken()
+    }
 }

@@ -16,16 +16,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const [loading, setLoading] = useState(true)
 
     useEffect(() => {
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            setSession(session)
+        let active = true
+        let authEventSequence = 0
+
+        const commitSession = (nextSession: Session | null) => {
+            if (!active) return
+            setSession(nextSession)
             setLoading(false)
-        })
+        }
 
         const {
             data: { subscription },
         } = supabase.auth.onAuthStateChange((_event, session) => {
-            setSession(session)
+            authEventSequence += 1
+            commitSession(session)
         })
+
+        const bootstrapSequence = authEventSequence
+        void supabase.auth.getSession()
+            .then(({ data: { session }, error }) => {
+                if (error) throw error
+                if (authEventSequence === bootstrapSequence) commitSession(session)
+            })
+            .catch((error) => {
+                if (!active || authEventSequence !== bootstrapSequence) return
+                console.error('Could not restore the authenticated session.', error)
+                commitSession(null)
+            })
 
         // Restart auto-refresh when the app returns from background so the
         // JWT is always valid when the user resumes the app.
@@ -38,6 +55,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         })
 
         return () => {
+            active = false
             subscription.unsubscribe()
             appStateSub.remove()
         }

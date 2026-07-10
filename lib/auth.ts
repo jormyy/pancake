@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase'
 import type { Profile } from '@/types/database'
 import { unregisterCurrentDevicePushToken } from '@/lib/push-token'
+import { clearPersistentCaches } from '@/lib/persistent-cache'
 
 export async function signUp(
     email: string,
@@ -44,13 +45,23 @@ export async function signIn(email: string, password: string) {
 }
 
 export async function signOut() {
-    await unregisterCurrentDevicePushToken()
-    const { error } = await supabase.auth.signOut()
-    if (error) {
-        // Server sign-out failed (network error, unexpected server error, etc.).
-        // Fall back to local-only sign-out so the user can always sign out on their device.
-        await supabase.auth.signOut({ scope: 'local' })
+    try {
+        await unregisterCurrentDevicePushToken()
+    } catch (error) {
+        console.warn('Push-token revocation was queued for retry.', error)
     }
+
+    try {
+        const { error } = await supabase.auth.signOut()
+        if (!error) return
+    } catch (error) {
+        console.warn('Server sign-out failed; clearing the local session.', error)
+    } finally {
+        clearPersistentCaches()
+    }
+
+    const { error: localError } = await supabase.auth.signOut({ scope: 'local' })
+    if (localError) throw localError
 }
 
 export async function changePassword(currentPassword: string, newPassword: string) {

@@ -10,10 +10,12 @@ vi.mock('@/lib/supabase', () => ({
     },
 }))
 vi.mock('@/lib/push-token', () => ({ unregisterCurrentDevicePushToken: vi.fn() }))
+vi.mock('@/lib/persistent-cache', () => ({ clearPersistentCaches: vi.fn() }))
 
 import { signOut, signUp } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 import { unregisterCurrentDevicePushToken } from '@/lib/push-token'
+import { clearPersistentCaches } from '@/lib/persistent-cache'
 
 const mockAuth = vi.mocked(supabase.auth)
 const mockFrom = vi.mocked(supabase.from)
@@ -44,13 +46,15 @@ describe('signOut', () => {
         expect(unregisterCurrentDevicePushToken).toHaveBeenCalledOnce()
     })
 
-    it('keeps the authenticated session when push-token cleanup fails', async () => {
+    it('clears the authenticated session and caches when push-token cleanup fails', async () => {
         vi.mocked(unregisterCurrentDevicePushToken).mockRejectedValueOnce(new Error('offline'))
         mockAuth.signOut.mockResolvedValueOnce({ error: null } as never)
+        vi.spyOn(console, 'warn').mockImplementation(() => undefined)
 
-        await expect(signOut()).rejects.toThrow('offline')
+        await signOut()
 
-        expect(mockAuth.signOut).not.toHaveBeenCalled()
+        expect(mockAuth.signOut).toHaveBeenCalledOnce()
+        expect(clearPersistentCaches).toHaveBeenCalledOnce()
     })
 })
 
