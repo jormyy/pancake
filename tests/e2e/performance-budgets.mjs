@@ -11,6 +11,8 @@ const REPORT_PATH = path.join(ROOT, 'tests/performance-budget-report.md')
 
 const args = new Set(process.argv.slice(2))
 const requireReport = args.has('--require-report')
+const requireDataReport = args.has('--require-data-report')
+const requireWorkflowReports = args.has('--require-workflow-reports')
 
 const readJsonFile = (filePath) => JSON.parse(readFileSync(filePath, 'utf8'))
 
@@ -131,7 +133,7 @@ const validateWorkflowReportKeys = (manifest, report, reportPath) => {
   return failures
 }
 
-const validateDataLatencyReport = (manifest, report) => {
+const validateDataLatencyReport = (manifest, report, requireComplete) => {
   const failures = []
   const byWorkflow = new Map((report.workflows ?? []).map((workflow) => [workflow.id, workflow]))
   const workflows = manifest.workflows ?? []
@@ -150,7 +152,10 @@ const validateDataLatencyReport = (manifest, report) => {
       failures.push(`${workflow.id}: data latency total ${measured.totalMedianMs}ms exceeds ${workflowBudget}ms`)
     }
     for (const step of measured.steps ?? []) {
-      if (step.status === 'SKIP') continue
+      if (step.status === 'SKIP') {
+        if (requireComplete) failures.push(`${workflow.id}: data step ${step.label} was skipped`)
+        continue
+      }
       if (step.status !== 'PASS') {
         failures.push(`${workflow.id}: data step ${step.label} status ${step.status}${step.error ? ` (${step.error})` : ''}`)
       } else if (step.medianMs > requestBudget) {
@@ -216,11 +221,14 @@ const main = async () => {
   if (!reportPresent && requireReport) {
     reportFailures.push(`required browser perf report is missing: ${path.relative(ROOT, PERF_REPORT_PATH)}`)
   }
+  if (!dataReportPresent && requireDataReport) {
+    reportFailures.push(`required data latency report is missing: ${path.relative(ROOT, DATA_LATENCY_REPORT_PATH)}`)
+  }
   if (reportPresent) {
     reportFailures.push(...validateBrowserPerfReport(manifest, readJsonFile(PERF_REPORT_PATH)))
   }
   if (dataReportPresent) {
-    reportFailures.push(...validateDataLatencyReport(manifest, readJsonFile(DATA_LATENCY_REPORT_PATH)))
+    reportFailures.push(...validateDataLatencyReport(manifest, readJsonFile(DATA_LATENCY_REPORT_PATH), requireDataReport))
   }
   const optionalReports = Array.from(new Set(
     manifest.workflows
@@ -229,7 +237,10 @@ const main = async () => {
   ))
   for (const reportPath of optionalReports) {
     const absoluteReportPath = path.join(ROOT, reportPath)
-    if (!existsSync(absoluteReportPath)) continue
+    if (!existsSync(absoluteReportPath)) {
+      if (requireWorkflowReports) reportFailures.push(`required workflow report is missing: ${reportPath}`)
+      continue
+    }
     reportFailures.push(...validateWorkflowReportKeys(manifest, readJsonFile(absoluteReportPath), reportPath))
   }
 

@@ -77,6 +77,8 @@ seeded browser user and records read-only Supabase/PostgREST/RPC request
 latency for the same workflow ids in `tests/e2e-data-latency-report.md`; when
 that report exists, `npm run perf:budget` also enforces its request and
 workflow-total budgets.
+The release gate requires the browser performance report, a complete data-latency
+report with no skipped steps, and every workflow-specific browser report.
 
 League lifecycle checks are available with `E2E_ENABLE_LEAGUE_LIFECYCLE=1` or `--league-lifecycle=true`. The runner signs in as the seeded users through Supabase Auth, calls the real authenticated `create_league` RPC for user 1, joins users 2-10 through the real `join_league_by_invite_code` RPC, and verifies the invite code, 10 league members with roles, one current season, default lineup slot templates, and five years of three-round draft picks for every member. Artifacts are written to `tests/artifacts/season-<N>/league-lifecycle.json`. This covers the D.SET.2 create/join/pick-bank slice through real anon clients; browser form entry remains separate.
 

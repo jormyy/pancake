@@ -191,6 +191,10 @@ jobs:
       - name: Run browser scenario
         run: node tests/e2e/browser-ci-scenario.mjs --scenario=${{ matrix.scenario }}
 
+      - name: Enforce measured browser performance budgets
+        if: matrix.scenario == 'performance'
+        run: npm run perf:budget -- --require-report
+
       - name: Retain browser diagnostics
         if: always()
         uses: actions/upload-artifact@v4
@@ -199,5 +203,6 @@ jobs:
           path: |
             tests/e2e-browser-*-report.md
             tests/e2e-browser-*-report.json
+            tests/performance-budget-report.md
             tests/artifacts/
           if-no-files-found: ignore

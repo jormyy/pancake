@@ -68,8 +68,12 @@ jobs:
           exit 1
       - name: Seed release fixture
         run: npm run e2e:seed
+      - name: Measure ranked workflow data latency
+        run: npm run e2e:data-latency
       - name: Run coverage-enforcing soak
         run: npm run e2e:soak:release
+      - name: Enforce browser and data performance budgets
+        run: npm run perf:budget -- --require-report --require-data-report --require-workflow-reports
       - name: Retain soak evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -80,4 +84,9 @@ jobs:
             tests/e2e-coverage.md
             tests/e2e-browser-*-report.md
             tests/e2e-browser-*-report.json
+            tests/e2e-data-latency-report.md
+            tests/performance-budget-report.md
             tests/artifacts/
+            tests/snapshots/
+          if-no-files-found: error
+          retention-days: 30

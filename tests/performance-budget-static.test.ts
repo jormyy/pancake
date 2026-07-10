@@ -90,12 +90,18 @@ describe('instant-loading performance budget contract', () => {
         const readme = read('README.md')
         const e2eReadme = read('tests/e2e/README.md')
         const productionReadiness = read('tests/e2e/production-readiness.mjs')
+        const releaseWorkflow = read('.github/workflows/release-soak.yml')
+        const testWorkflow = read('.github/workflows/test.yml')
 
         expect(packageJson.scripts['perf:budget']).toBe('node tests/e2e/performance-budgets.mjs')
         expect(packageJson.scripts['e2e:data-latency']).toBe('node tests/e2e/data-latency-bench.mjs')
         expect(readme).toContain('npm run perf:budget')
         expect(e2eReadme).toContain('performance-budgets.json')
         expect(productionReadiness).toContain("run('npm', ['run', 'perf:budget']")
+        expect(releaseWorkflow).toContain('npm run e2e:data-latency')
+        expect(releaseWorkflow).toContain('npm run perf:budget -- --require-report --require-data-report --require-workflow-reports')
+        expect(releaseWorkflow).toContain('tests/snapshots/')
+        expect(testWorkflow).toContain('npm run perf:budget -- --require-report')
     })
 
     it('keeps major app screens free of generic skeleton loading surfaces', () => {
