@@ -140,13 +140,13 @@ describe('release E2E contracts', () => {
     )
     expect(validateWorkflowReportKeys(manifest, {
       status: 'PASS',
-      workflowMeasurements: [{ id: 'workflow', feedbackMs: 1, fullLoadMs: 2 }],
-    }, 'report.json')).toContain('workflow: report.json is missing numeric cachedRequestMs')
+      workflowMeasurements: [{ id: 'workflow', feedbackMs: 1, coldFullLoadMs: 2 }],
+    }, 'report.json')).toContain('workflow: report.json is missing numeric warmCachedRequestMs')
 
     expect(validateWorkflowReportKeys(manifest, {
       status: 'PASS',
       workflowMeasurements: [{
-        id: 'workflow', feedbackMs: 1, cachedRequestMs: 2, fullLoadMs: 3,
+        id: 'workflow', feedbackMs: 1, warmCachedRequestMs: 2, coldFullLoadMs: 3,
         feedbackObserved: true, feedbackInteraction: 'real-action', routeWebJsKb: 0,
       }],
     }, 'report.json')).toContain('workflow: report.json is missing route JS transfer or cache-hit evidence')
@@ -154,12 +154,46 @@ describe('release E2E contracts', () => {
     expect(validateWorkflowReportKeys(manifest, {
       status: 'PASS',
       workflowMeasurements: [{
-        id: 'workflow', feedbackMs: 1, cachedRequestMs: 2, fullLoadMs: 3,
+        id: 'workflow', feedbackMs: 1, warmCachedRequestMs: 2, coldFullLoadMs: 3,
         feedbackObserved: true, feedbackInteraction: 'real-action', routeWebJsKb: 0,
         routeJsCacheHit: true, routeJsEntryCount: 1, routeJsNetworkEntryCount: 0,
-        routeJsDecodedKb: 42,
+        routeJsDecodedKb: 42, routeJsEncodedKb: 42,
+        routeJsLedger: [{ url: 'https://app.test/route.js', encodedBodySize: 43008, decodedBodySize: 43008 }],
       }],
     }, 'report.json')).toEqual([])
+  })
+
+  it('rejects oversized cached chunks and report-controlled data budgets', () => {
+    const workflow = {
+      id: 'workflow', budgets: { feedbackMs: 100, cachedRequestMs: 300, fullLoadMs: 1000 },
+      measurement: { report: 'report.json' },
+    }
+    const manifest = {
+      globalBudgets: { maxInitialWebJsKb: 350, maxRouteWebJsKb: 220, maxDbQueryMs: 100, fullWorkflowMs: 1000 },
+      workflows: [workflow],
+    }
+    const routeFailures = validateWorkflowReportKeys(manifest, {
+      status: 'PASS',
+      workflowMeasurements: [{
+        id: 'workflow', feedbackMs: 1, warmCachedRequestMs: 2, coldFullLoadMs: 3,
+        feedbackObserved: true, feedbackInteraction: 'real-action', routeWebJsKb: 0,
+        routeJsCacheHit: true, routeJsEntryCount: 1, routeJsNetworkEntryCount: 0,
+        routeJsDecodedKb: 500, routeJsEncodedKb: 500,
+        routeJsLedger: [{ url: 'https://app.test/huge.js', encodedBodySize: 512000, decodedBodySize: 512000 }],
+      }],
+    }, 'report.json')
+    expect(routeFailures).toContain('workflow: route JS 500KB exceeds 220KB')
+
+    const dataFailures = validateDataLatencyReport(manifest, {
+      status: 'PASS', schemaVersion: '1', repositorySchemaVersion: '1',
+      budgets: { dataRequestMs: 999999, workflowTotalMs: 999999 },
+      workflows: [{ id: 'workflow', totalMedianMs: 1500, steps: [{ label: 'query', status: 'PASS', medianMs: 100, maxMs: 100 }] }],
+    }, true)
+    expect(dataFailures).toEqual(expect.arrayContaining([
+      'data latency request budget 999999 does not match manifest 100',
+      'data latency workflow budget 999999 does not match manifest 1000',
+      'workflow: data latency total 1500ms exceeds 1000ms',
+    ]))
   })
 
   it('rejects any missing route from a full browser sweep', () => {

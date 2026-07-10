@@ -11,8 +11,8 @@ const STATE_PATH = path.join(ROOT, 'tests/e2e-state.json')
 const REPORT_PATH = path.join(ROOT, 'tests/e2e-data-latency-report.md')
 const PERFORMANCE_BUDGETS = JSON.parse(readFileSync(path.join(ROOT, 'tests/e2e/performance-budgets.json'), 'utf8')).globalBudgets
 
-const DATA_REQUEST_BUDGET_MS = Number(process.env.E2E_DATA_REQUEST_BUDGET_MS ?? PERFORMANCE_BUDGETS.maxDbQueryMs)
-const WORKFLOW_TOTAL_BUDGET_MS = Number(process.env.E2E_WORKFLOW_DATA_BUDGET_MS ?? 1000)
+const DATA_REQUEST_BUDGET_MS = PERFORMANCE_BUDGETS.maxDbQueryMs
+const WORKFLOW_TOTAL_BUDGET_MS = PERFORMANCE_BUDGETS.fullWorkflowMs
 const SAMPLE_COUNT = Math.max(1, Number(process.env.E2E_DATA_LATENCY_SAMPLES ?? 3))
 const PLAYER_SEARCH_PAGE_SIZE = 20
 

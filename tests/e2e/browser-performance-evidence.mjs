@@ -40,6 +40,7 @@ const worstCaseMeasurementKeys = [
   'fullLoadMs',
   'initialWebJsKb',
   'routeWebJsKb',
+  'routeJsEncodedKb',
   'routeJsDecodedKb',
   'routeJsEntryCount',
   'routeJsNetworkEntryCount',
@@ -59,6 +60,14 @@ export const recordWorkflowMeasurement = (measurements, next) => {
   existing.feedbackInteraction = `${existing.feedbackInteraction},${next.feedbackInteraction}`
   existing.routes = [...new Set([...(existing.routes ?? [existing.route]), next.route])]
 }
+
+export const combineNavigationPhases = (cold, warm) => ({
+  ...warm,
+  coldFullLoadMs: cold?.fullLoadMs,
+  warmCachedRequestMs: warm?.cachedRequestMs,
+  fullLoadMs: cold?.fullLoadMs,
+  cachedRequestMs: warm?.cachedRequestMs,
+})
 
 const browserJson = async (browser, session, source) => parseEvalJson(await browser(session, ['eval', source]))
 
@@ -92,7 +101,11 @@ export const summarizeJavaScriptDelivery = (resources, sharedScriptUrls = []) =>
     webJsWireKb: kb(networkEntries.reduce((sum, entry) => sum + entry.transferSize, 0)),
     webJsTransferKb: kb(routeNetworkEntries.reduce((sum, entry) => sum + entry.encodedBodySize, 0)),
     routeJsWireKb: kb(routeNetworkEntries.reduce((sum, entry) => sum + entry.transferSize, 0)),
+    routeJsEncodedKb: kb(routeEntries.reduce((sum, entry) => sum + entry.encodedBodySize, 0)),
     routeJsDecodedKb: kb(routeEntries.reduce((sum, entry) => sum + entry.decodedBodySize, 0)),
+    routeJsLedger: routeEntries.map(({ url, name, transferSize, encodedBodySize, decodedBodySize }) => ({
+      url, name, transferSize, encodedBodySize, decodedBodySize,
+    })),
     routeJsEntryCount: routeEntries.length,
     routeJsNetworkEntryCount: routeNetworkEntries.length,
     routeJsCacheHit: routeCacheHit,

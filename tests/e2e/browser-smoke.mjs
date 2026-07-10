@@ -5,7 +5,7 @@ import { createClient } from '@supabase/supabase-js'
 import { resolvedEnv, requireEnv, describeEndpoint } from './env.mjs'
 import { browserDiagnosticFailures, installRuntimeOverrides } from './browser-runtime-overrides.mjs'
 import { captureBrowserScreenshot, createBrowser, listBrowserSessions } from './browser-agent.mjs'
-import { measureJavaScriptDelivery, measureNavigationTiming, measureWorkflowFeedback, recordWorkflowMeasurement } from './browser-performance-evidence.mjs'
+import { combineNavigationPhases, measureJavaScriptDelivery, measureNavigationTiming, measureWorkflowFeedback, recordWorkflowMeasurement } from './browser-performance-evidence.mjs'
 import { ensureSyntheticSeasonWeeks } from './soak-fixtures.mjs'
 
 const ROOT = process.cwd()
@@ -423,13 +423,15 @@ export async function runBrowserSmoke({
             id: workflowId,
             label,
             route,
-            ...cachedTiming,
+            ...combineNavigationPhases(routeTiming, cachedTiming),
             feedbackMs: feedback.feedbackMs,
             feedbackObserved: true,
             feedbackInteraction: feedback.interaction,
             routeWebJsKb: routeTiming?.webJsTransferKb,
+            routeJsEncodedKb: routeTiming?.routeJsEncodedKb,
             routeJsCacheHit: routeTiming?.routeJsCacheHit,
             routeJsDecodedKb: routeTiming?.routeJsDecodedKb,
+            routeJsLedger: routeTiming?.routeJsLedger,
             routeJsEntryCount: routeTiming?.routeJsEntryCount,
             routeJsNetworkEntryCount: routeTiming?.routeJsNetworkEntryCount,
           })

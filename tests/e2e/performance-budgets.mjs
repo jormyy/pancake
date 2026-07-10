@@ -107,8 +107,8 @@ export const validateBrowserPerfReport = (manifest, report) => {
 
 const budgetMeasurementKeys = {
   feedbackMs: 'feedbackMs',
-  cachedRequestMs: 'cachedRequestMs',
-  fullLoadMs: 'fullLoadMs',
+  cachedRequestMs: 'warmCachedRequestMs',
+  fullLoadMs: 'coldFullLoadMs',
 }
 
 export const validateWorkflowReportKeys = (manifest, report, reportPath) => {
@@ -151,17 +151,29 @@ export const validateWorkflowReportKeys = (manifest, report, reportPath) => {
         && Number.isInteger(measurement.routeJsEntryCount) && measurement.routeJsEntryCount > 0
         && Number.isFinite(measurement.routeJsDecodedKb) && measurement.routeJsDecodedKb > 0
       if (!transferredRouteBytes && !provenRouteCacheHit) failures.push(`${workflow.id}: ${reportPath} is missing route JS transfer or cache-hit evidence`)
-      else if (transferredRouteBytes && measurement.routeWebJsKb > manifest.globalBudgets.maxRouteWebJsKb) failures.push(`${workflow.id}: route JS ${measurement.routeWebJsKb}KB exceeds ${manifest.globalBudgets.maxRouteWebJsKb}KB`)
+      const ledger = Array.isArray(measurement.routeJsLedger) ? measurement.routeJsLedger : []
+      const ledgerIsValid = ledger.length === measurement.routeJsEntryCount && ledger.every((entry) => (
+        typeof entry?.url === 'string' && entry.url.length > 0 &&
+        Number.isFinite(entry.encodedBodySize) && entry.encodedBodySize > 0 &&
+        Number.isFinite(entry.decodedBodySize) && entry.decodedBodySize > 0
+      ))
+      if (!ledgerIsValid) failures.push(`${workflow.id}: ${reportPath} is missing a valid route JS provenance ledger`)
+      const ledgerEncodedKb = Math.round(ledger.reduce((sum, entry) => sum + Number(entry.encodedBodySize || 0), 0) / 1024 * 10) / 10
+      if (!Number.isFinite(measurement.routeJsEncodedKb) || Math.abs(ledgerEncodedKb - measurement.routeJsEncodedKb) > 0.1) {
+        failures.push(`${workflow.id}: ${reportPath} route JS encoded total does not match its provenance ledger`)
+      } else if (measurement.routeJsEncodedKb > manifest.globalBudgets.maxRouteWebJsKb) {
+        failures.push(`${workflow.id}: route JS ${measurement.routeJsEncodedKb}KB exceeds ${manifest.globalBudgets.maxRouteWebJsKb}KB`)
+      }
     }
 
     if (measurement.feedbackMs != null && measurement.feedbackMs > workflow.budgets.feedbackMs) {
       failures.push(`${workflow.id}: ${reportPath} feedback ${measurement.feedbackMs}ms exceeds ${workflow.budgets.feedbackMs}ms`)
     }
-    if (measurement.cachedRequestMs != null && measurement.cachedRequestMs > workflow.budgets.cachedRequestMs) {
-      failures.push(`${workflow.id}: ${reportPath} cached request ${measurement.cachedRequestMs}ms exceeds ${workflow.budgets.cachedRequestMs}ms`)
+    if (measurement.warmCachedRequestMs != null && measurement.warmCachedRequestMs > workflow.budgets.cachedRequestMs) {
+      failures.push(`${workflow.id}: ${reportPath} warmed cached request ${measurement.warmCachedRequestMs}ms exceeds ${workflow.budgets.cachedRequestMs}ms`)
     }
-    if (measurement.fullLoadMs != null && measurement.fullLoadMs > workflow.budgets.fullLoadMs) {
-      failures.push(`${workflow.id}: ${reportPath} full load ${measurement.fullLoadMs}ms exceeds ${workflow.budgets.fullLoadMs}ms`)
+    if (measurement.coldFullLoadMs != null && measurement.coldFullLoadMs > workflow.budgets.fullLoadMs) {
+      failures.push(`${workflow.id}: ${reportPath} cold full load ${measurement.coldFullLoadMs}ms exceeds ${workflow.budgets.fullLoadMs}ms`)
     }
   }
 
@@ -172,11 +184,13 @@ export const validateDataLatencyReport = (manifest, report, requireComplete) => 
   const failures = []
   const byWorkflow = new Map((report.workflows ?? []).map((workflow) => [workflow.id, workflow]))
   const workflows = manifest.workflows ?? []
-  const requestBudget = report.budgets?.dataRequestMs ?? manifest.globalBudgets.maxDbQueryMs
-  const workflowBudget = report.budgets?.workflowTotalMs ?? manifest.globalBudgets.fullWorkflowMs
+  const requestBudget = manifest.globalBudgets.maxDbQueryMs
+  const workflowBudget = manifest.globalBudgets.fullWorkflowMs
 
   if (report.status !== 'PASS') failures.push(`data latency report status is ${report.status ?? 'missing'}`)
   if (requireComplete) {
+    if (report.budgets?.dataRequestMs !== requestBudget) failures.push(`data latency request budget ${report.budgets?.dataRequestMs ?? 'missing'} does not match manifest ${requestBudget}`)
+    if (report.budgets?.workflowTotalMs !== workflowBudget) failures.push(`data latency workflow budget ${report.budgets?.workflowTotalMs ?? 'missing'} does not match manifest ${workflowBudget}`)
     if (typeof report.schemaVersion !== 'string' || !/^\d+$/.test(report.schemaVersion)) {
       failures.push('data latency report is missing applied schema version')
     }

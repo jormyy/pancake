@@ -6,7 +6,7 @@ import { createClient } from '@supabase/supabase-js'
 import { resolvedEnv, requireEnv, describeEndpoint } from './env.mjs'
 import { browserDiagnosticFailures, installRuntimeOverrides } from './browser-runtime-overrides.mjs'
 import { clickButtonByName, createBrowser, fillSignInCredentials, listBrowserSessions } from './browser-agent.mjs'
-import { measureJavaScriptDelivery, measureNavigationTiming, measureWorkflowFeedback } from './browser-performance-evidence.mjs'
+import { combineNavigationPhases, measureJavaScriptDelivery, measureNavigationTiming, measureWorkflowFeedback } from './browser-performance-evidence.mjs'
 import { createDisposableLeagueFromSeedUsers } from './soak-fixtures.mjs'
 
 const ROOT = process.cwd()
@@ -422,6 +422,15 @@ export async function runBrowserPerfSmoke({
     await selectPerfLeague(session, fixture.league.name)
     await browser(session, ['set', 'viewport', '390', '844'])
 
+    const coldHomeUrl = new URL(joinUrl(env.frontendUrl, '/'))
+    coldHomeUrl.searchParams.set('e2e_perf_cold', `${Date.now()}`)
+    const coldHomeNavigationDiagnostic = await navigateForMeasurement(session, coldHomeUrl.toString())
+    const homeColdTiming = await measureNavigationTiming(browser, session, {
+      workflowId: 'home-live-lineup',
+      label: 'home-cold',
+      sharedScriptUrls: initialJavaScriptDelivery?.scriptUrls ?? [],
+    })
+
     const activeOpenStartedAt = Date.now()
     await browser(session, ['open', joinUrl(env.frontendUrl, `/draft-room?draftId=${auction.draftId}`)])
     const activeOpenWallMs = Date.now() - activeOpenStartedAt
@@ -514,6 +523,7 @@ export async function runBrowserPerfSmoke({
       initialJavaScriptDelivery,
       navigationDiagnostics: {
         activeAuctionOpen: { wallMs: activeOpenWallMs, pageState: activeOpenPageState },
+        coldHome: coldHomeNavigationDiagnostic,
         measuredAuction: draftNavigationDiagnostic,
         measuredHome: homeNavigationDiagnostic,
       },
@@ -522,12 +532,14 @@ export async function runBrowserPerfSmoke({
           id: 'auction-draft-room',
           route: `/draft-room?draftId=${auction.draftId}`,
           ...(draftFeedback?.feedbackMs != null ? { feedbackMs: draftFeedback.feedbackMs } : {}),
-          ...draftLoadTiming,
+          ...combineNavigationPhases(draftRouteTiming, draftLoadTiming),
           feedbackObserved: draftFeedback?.observed === true,
           feedbackInteraction: draftFeedback?.interaction,
           routeWebJsKb: draftRouteTiming?.webJsTransferKb,
+          routeJsEncodedKb: draftRouteTiming?.routeJsEncodedKb,
           routeJsCacheHit: draftRouteTiming?.routeJsCacheHit,
           routeJsDecodedKb: draftRouteTiming?.routeJsDecodedKb,
+          routeJsLedger: draftRouteTiming?.routeJsLedger,
           routeJsEntryCount: draftRouteTiming?.routeJsEntryCount,
           routeJsNetworkEntryCount: draftRouteTiming?.routeJsNetworkEntryCount,
         },
@@ -535,7 +547,7 @@ export async function runBrowserPerfSmoke({
           id: 'home-live-lineup',
           route: '/',
           feedbackMs: homeFeedback?.feedbackMs,
-          ...homeLoadTiming,
+          ...combineNavigationPhases(homeColdTiming, homeLoadTiming),
           feedbackObserved: homeFeedback?.observed === true,
           feedbackInteraction: homeFeedback?.interaction,
           initialWebJsKb: initialJavaScriptDelivery?.webJsEncodedKb,

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import {
+  combineNavigationPhases,
   measureNavigationTiming,
   measureWorkflowFeedback,
   recordWorkflowMeasurement,
@@ -26,6 +27,7 @@ describe('browser performance evidence', () => {
       networkEntryCount: 2,
       webJsEncodedKb: 314.5,
       webJsTransferKb: 11.7,
+      routeJsEncodedKb: 11.7,
       routeJsEntryCount: 1,
       routeJsNetworkEntryCount: 1,
       routeJsCacheHit: false,
@@ -37,10 +39,23 @@ describe('browser performance evidence', () => {
       networkEntryCount: 0,
       webJsEncodedKb: 0,
       webJsTransferKb: 0,
+      routeJsEncodedKb: 39.1,
       routeJsDecodedKb: 39.1,
       routeJsEntryCount: 1,
       routeJsNetworkEntryCount: 0,
       routeJsCacheHit: true,
+    })
+  })
+
+  it('keeps cold readiness separate from warmed request latency', () => {
+    expect(combineNavigationPhases(
+      { fullLoadMs: 1400, cachedRequestMs: 800 },
+      { fullLoadMs: 200, cachedRequestMs: 25 },
+    )).toMatchObject({
+      coldFullLoadMs: 1400,
+      warmCachedRequestMs: 25,
+      fullLoadMs: 1400,
+      cachedRequestMs: 25,
     })
   })
 
