@@ -1,0 +1,329 @@
+-- Make ranged stats synchronization a database-owned durable queue:
+-- - one active job per exact date range,
+-- - immutable per-claim fencing tokens,
+-- - atomic state transitions,
+-- - periodic rescue of pending and stale work.
+
+ALTER TABLE public.sync_jobs
+  ADD COLUMN claimed_at timestamptz,
+  ADD COLUMN claim_token uuid;
+
+-- The previous Edge-only implementation stored its lease timestamp in metadata.
+-- Release those jobs so the fenced worker can claim them after rollout.
+UPDATE public.sync_jobs
+   SET status = 'pending',
+       metadata = metadata - 'claimedAt',
+       claimed_at = NULL,
+       claim_token = NULL
+ WHERE job_type LIKE 'sync_stats_range:%'
+   AND status = 'running';
+
+-- Preserve the newest active job if duplicate jobs were created before this
+-- migration installed database-enforced deduplication.
+WITH ranked AS (
+  SELECT id,
+         row_number() OVER (PARTITION BY job_type ORDER BY created_at DESC, id DESC) AS position
+    FROM public.sync_jobs
+   WHERE job_type LIKE 'sync_stats_range:%'
+     AND status IN ('pending', 'running', 'failed')
+)
+UPDATE public.sync_jobs AS job
+   SET status = 'completed',
+       completed_at = now(),
+       error_log = COALESCE(job.error_log, '[]'::jsonb) ||
+         jsonb_build_array('Superseded while installing atomic stats sync deduplication')
+  FROM ranked
+ WHERE job.id = ranked.id
+   AND ranked.position > 1;
+
+CREATE UNIQUE INDEX sync_jobs_one_active_stats_range_idx
+  ON public.sync_jobs (job_type)
+  WHERE job_type LIKE 'sync_stats_range:%'
+    AND status IN ('pending', 'running', 'failed');
+
+CREATE INDEX sync_jobs_dispatchable_stats_idx
+  ON public.sync_jobs (status, claimed_at, created_at, id)
+  WHERE job_type LIKE 'sync_stats_range:%'
+    AND status IN ('pending', 'running');
+
+CREATE OR REPLACE FUNCTION public.create_or_resume_stats_sync_job_atomic(
+  p_start_date date,
+  p_end_date date
+)
+RETURNS uuid
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_job_id uuid;
+  v_job_type text;
+  v_total_items integer;
+BEGIN
+  IF p_start_date IS NULL OR p_end_date IS NULL OR p_start_date > p_end_date THEN
+    RAISE EXCEPTION 'Stats sync date range is invalid.';
+  END IF;
+  IF p_end_date - p_start_date + 1 > 365 THEN
+    RAISE EXCEPTION 'Stats sync date range cannot exceed 365 days.';
+  END IF;
+
+  v_job_type := format('sync_stats_range:%s:%s', p_start_date, p_end_date);
+  SELECT count(*)::integer
+    INTO v_total_items
+    FROM public.nba_games AS game
+   WHERE game.game_date BETWEEN p_start_date AND p_end_date
+     AND game.nba_game_id LIKE '002%'
+     AND (
+       game.game_date < (now() AT TIME ZONE 'America/New_York')::date
+       OR game.status <> 'Scheduled'
+     );
+
+  INSERT INTO public.sync_jobs (
+    job_type,
+    status,
+    total_items,
+    completed_items,
+    failed_items,
+    error_log,
+    metadata,
+    started_at
+  )
+  VALUES (
+    v_job_type,
+    'pending',
+    v_total_items,
+    0,
+    0,
+    '[]'::jsonb,
+    jsonb_build_object(
+      'startDate', p_start_date::text,
+      'endDate', p_end_date::text,
+      'nextDate', p_start_date::text
+    ),
+    now()
+  )
+  ON CONFLICT (job_type)
+    WHERE job_type LIKE 'sync_stats_range:%'
+      AND status IN ('pending', 'running', 'failed')
+  DO UPDATE
+     SET status = CASE WHEN public.sync_jobs.status = 'failed' THEN 'pending' ELSE public.sync_jobs.status END,
+         completed_at = CASE WHEN public.sync_jobs.status = 'failed' THEN NULL ELSE public.sync_jobs.completed_at END,
+         claimed_at = CASE WHEN public.sync_jobs.status = 'failed' THEN NULL ELSE public.sync_jobs.claimed_at END,
+         claim_token = CASE WHEN public.sync_jobs.status = 'failed' THEN NULL ELSE public.sync_jobs.claim_token END
+  RETURNING id INTO v_job_id;
+
+  RETURN v_job_id;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.claim_stats_sync_job_atomic(
+  p_job_id uuid DEFAULT NULL,
+  p_stale_after_seconds integer DEFAULT 120
+)
+RETURNS TABLE (
+  id uuid,
+  claim_token uuid,
+  job_type text,
+  completed_items integer,
+  total_items integer,
+  metadata jsonb
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_stale_after_seconds integer := LEAST(GREATEST(COALESCE(p_stale_after_seconds, 120), 60), 900);
+BEGIN
+  RETURN QUERY
+  WITH candidate AS (
+    SELECT job.id
+      FROM public.sync_jobs AS job
+     WHERE job.job_type LIKE 'sync_stats_range:%'
+       AND (p_job_id IS NULL OR job.id = p_job_id)
+       AND (
+         job.status = 'pending'
+         OR (
+         job.status = 'running'
+           AND (
+             job.claimed_at IS NULL
+             OR job.claimed_at <= now() - make_interval(secs => v_stale_after_seconds)
+           )
+         )
+       )
+     ORDER BY job.created_at, job.id
+     LIMIT 1
+     FOR UPDATE SKIP LOCKED
+  ), claimed AS (
+    UPDATE public.sync_jobs AS job
+       SET status = 'running',
+           claimed_at = now(),
+           claim_token = gen_random_uuid(),
+           completed_at = NULL
+      FROM candidate
+     WHERE job.id = candidate.id
+     RETURNING job.id, job.claim_token, job.job_type, job.completed_items,
+       job.total_items, job.metadata
+  )
+  SELECT claimed.id, claimed.claim_token, claimed.job_type, claimed.completed_items,
+    claimed.total_items, claimed.metadata
+  FROM claimed;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.checkpoint_stats_sync_job_atomic(
+  p_job_id uuid,
+  p_claim_token uuid,
+  p_completed_items integer,
+  p_metadata jsonb
+)
+RETURNS boolean
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+  IF p_completed_items < 0 OR jsonb_typeof(p_metadata) <> 'object' THEN
+    RAISE EXCEPTION 'Stats sync checkpoint is invalid.';
+  END IF;
+
+  UPDATE public.sync_jobs
+     SET completed_items = p_completed_items,
+         metadata = p_metadata,
+         claimed_at = now()
+   WHERE id = p_job_id
+     AND status = 'running'
+     AND claim_token = p_claim_token;
+  RETURN FOUND;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.release_stats_sync_job_atomic(
+  p_job_id uuid,
+  p_claim_token uuid,
+  p_completed_items integer,
+  p_metadata jsonb
+)
+RETURNS boolean
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+  IF p_completed_items < 0 OR jsonb_typeof(p_metadata) <> 'object' THEN
+    RAISE EXCEPTION 'Stats sync release is invalid.';
+  END IF;
+
+  UPDATE public.sync_jobs
+     SET status = 'pending',
+         completed_items = p_completed_items,
+         metadata = p_metadata,
+         claimed_at = NULL,
+         claim_token = NULL
+   WHERE id = p_job_id
+     AND status = 'running'
+     AND claim_token = p_claim_token;
+  RETURN FOUND;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.complete_stats_sync_job_atomic(
+  p_job_id uuid,
+  p_claim_token uuid,
+  p_completed_items integer,
+  p_metadata jsonb
+)
+RETURNS boolean
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+  IF p_completed_items < 0 OR jsonb_typeof(p_metadata) <> 'object' THEN
+    RAISE EXCEPTION 'Stats sync completion is invalid.';
+  END IF;
+
+  UPDATE public.sync_jobs
+     SET status = 'completed',
+         completed_items = p_completed_items,
+         metadata = p_metadata,
+         completed_at = now(),
+         claimed_at = NULL,
+         claim_token = NULL
+   WHERE id = p_job_id
+     AND status = 'running'
+     AND claim_token = p_claim_token;
+  RETURN FOUND;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.fail_stats_sync_job_atomic(
+  p_job_id uuid,
+  p_claim_token uuid,
+  p_completed_items integer,
+  p_metadata jsonb,
+  p_error text
+)
+RETURNS boolean
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+  IF p_completed_items < 0 OR jsonb_typeof(p_metadata) <> 'object' THEN
+    RAISE EXCEPTION 'Stats sync failure checkpoint is invalid.';
+  END IF;
+
+  UPDATE public.sync_jobs
+     SET status = 'failed',
+         completed_items = p_completed_items,
+         failed_items = failed_items + 1,
+         error_log = CASE
+           WHEN jsonb_array_length(COALESCE(error_log, '[]'::jsonb)) >= 100
+             THEN (COALESCE(error_log, '[]'::jsonb) #- '{0}') || jsonb_build_array(left(COALESCE(p_error, 'Unknown stats sync failure'), 4000))
+           ELSE COALESCE(error_log, '[]'::jsonb) || jsonb_build_array(left(COALESCE(p_error, 'Unknown stats sync failure'), 4000))
+         END,
+         metadata = p_metadata,
+         completed_at = now(),
+         claimed_at = NULL,
+         claim_token = NULL
+   WHERE id = p_job_id
+     AND status = 'running'
+     AND claim_token = p_claim_token;
+  RETURN FOUND;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.create_or_resume_stats_sync_job_atomic(date, date) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.create_or_resume_stats_sync_job_atomic(date, date) TO service_role;
+REVOKE ALL ON FUNCTION public.claim_stats_sync_job_atomic(uuid, integer) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.claim_stats_sync_job_atomic(uuid, integer) TO service_role;
+REVOKE ALL ON FUNCTION public.checkpoint_stats_sync_job_atomic(uuid, uuid, integer, jsonb) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.checkpoint_stats_sync_job_atomic(uuid, uuid, integer, jsonb) TO service_role;
+REVOKE ALL ON FUNCTION public.release_stats_sync_job_atomic(uuid, uuid, integer, jsonb) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.release_stats_sync_job_atomic(uuid, uuid, integer, jsonb) TO service_role;
+REVOKE ALL ON FUNCTION public.complete_stats_sync_job_atomic(uuid, uuid, integer, jsonb) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.complete_stats_sync_job_atomic(uuid, uuid, integer, jsonb) TO service_role;
+REVOKE ALL ON FUNCTION public.fail_stats_sync_job_atomic(uuid, uuid, integer, jsonb, text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.fail_stats_sync_job_atomic(uuid, uuid, integer, jsonb, text) TO service_role;
+
+DO $cron$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_cron') THEN
+    PERFORM cron.unschedule('nba-dispatch-stats-sync-jobs') WHERE EXISTS (
+      SELECT 1 FROM cron.job WHERE jobname = 'nba-dispatch-stats-sync-jobs'
+    );
+    PERFORM cron.schedule(
+      'nba-dispatch-stats-sync-jobs',
+      '* * * * *',
+      $$SELECT public.invoke_edge_function(
+        'sync-stats',
+        '{"dispatch":true,"jobId":"00000000-0000-4000-8000-000000000000"}'::jsonb
+      )$$
+    );
+  END IF;
+END
+$cron$;
+
+COMMENT ON INDEX public.sync_jobs_one_active_stats_range_idx IS
+  'Enforces one pending, running, or retryable failed stats range job per exact date range.';

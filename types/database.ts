@@ -2412,6 +2412,8 @@ export type Database = {
       }
       sync_jobs: {
         Row: {
+          claim_token: string | null
+          claimed_at: string | null
           completed_at: string | null
           completed_items: number
           created_at: string
@@ -2425,6 +2427,8 @@ export type Database = {
           total_items: number | null
         }
         Insert: {
+          claim_token?: string | null
+          claimed_at?: string | null
           completed_at?: string | null
           completed_items?: number
           created_at?: string
@@ -2438,6 +2442,8 @@ export type Database = {
           total_items?: number | null
         }
         Update: {
+          claim_token?: string | null
+          claimed_at?: string | null
           completed_at?: string | null
           completed_items?: number
           created_at?: string
@@ -3506,6 +3512,15 @@ export type Database = {
         Args: { p_claim_id: string; p_member_id: string; p_user_id?: string }
         Returns: undefined
       }
+      checkpoint_stats_sync_job_atomic: {
+        Args: {
+          p_claim_token: string
+          p_completed_items: number
+          p_job_id: string
+          p_metadata: Json
+        }
+        Returns: boolean
+      }
       claim_notification_outbox_atomic: {
         Args: { p_lease_seconds?: number; p_limit?: number }
         Returns: {
@@ -3526,6 +3541,17 @@ export type Database = {
           id: string
           member_id: string
           push_token: string
+        }[]
+      }
+      claim_stats_sync_job_atomic: {
+        Args: { p_job_id?: string; p_stale_after_seconds?: number }
+        Returns: {
+          claim_token: string
+          completed_items: number
+          id: string
+          job_type: string
+          metadata: Json
+          total_items: number
         }[]
       }
       clear_ineligible_taxi_players: { Args: never; Returns: number }
@@ -3569,6 +3595,15 @@ export type Database = {
       }
       complete_notification_outbox_atomic: {
         Args: { p_claim_token: string; p_id: string }
+        Returns: boolean
+      }
+      complete_stats_sync_job_atomic: {
+        Args: {
+          p_claim_token: string
+          p_completed_items: number
+          p_job_id: string
+          p_metadata: Json
+        }
         Returns: boolean
       }
       compute_fantasy_points: {
@@ -3685,6 +3720,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      create_or_resume_stats_sync_job_atomic: {
+        Args: { p_end_date: string; p_start_date: string }
+        Returns: string
+      }
       create_waiver_claim_atomic: {
         Args: {
           p_bid_amount?: number
@@ -3790,6 +3829,16 @@ export type Database = {
       expire_waiver_wire_logs: { Args: never; Returns: number }
       fail_notification_outbox_atomic: {
         Args: { p_claim_token: string; p_error: string; p_id: string }
+        Returns: boolean
+      }
+      fail_stats_sync_job_atomic: {
+        Args: {
+          p_claim_token: string
+          p_completed_items: number
+          p_error: string
+          p_job_id: string
+          p_metadata: Json
+        }
         Returns: boolean
       }
       finalize_score_week_atomic: {
@@ -4088,6 +4137,15 @@ export type Database = {
         Returns: boolean
       }
       release_live_poll_lock: { Args: never; Returns: boolean }
+      release_stats_sync_job_atomic: {
+        Args: {
+          p_claim_token: string
+          p_completed_items: number
+          p_job_id: string
+          p_metadata: Json
+        }
+        Returns: boolean
+      }
       remove_trade_block_item_atomic: {
         Args: { p_item_id: string; p_member_id: string; p_user_id?: string }
         Returns: undefined
