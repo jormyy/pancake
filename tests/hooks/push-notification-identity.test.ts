@@ -106,13 +106,32 @@ describe('push notification identity ownership', () => {
         const Probe = () => { usePushNotifications(); return null }
         let renderer!: ReactTestRenderer
         await act(async () => { renderer = create(React.createElement(Probe)); await Promise.resolve() })
-        await act(async () => { vi.runAllTimers(); await Promise.resolve() })
+        await act(async () => { vi.advanceTimersByTime(1_000); await Promise.resolve() })
+        await act(async () => { vi.advanceTimersByTime(5_000); await Promise.resolve() })
 
         expect(mocks.getExpoPushTokenAsync).toHaveBeenCalledOnce()
         expect(console.warn).toHaveBeenCalledWith(
             'Push notifications are not configured for this build.',
             expect.any(Error),
         )
+        await act(async () => { renderer.unmount() })
+    })
+
+    it('stops after the bounded transient retry schedule', async () => {
+        vi.useFakeTimers()
+        vi.spyOn(console, 'error').mockImplementation(() => undefined)
+        mocks.getExpoPushTokenAsync.mockRejectedValue(new Error('Push service unavailable'))
+        const Probe = () => { usePushNotifications(); return null }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe)); await Promise.resolve() })
+
+        await act(async () => { vi.advanceTimersByTime(1_000); await Promise.resolve() })
+        await act(async () => { vi.advanceTimersByTime(5_000); await Promise.resolve() })
+        expect(mocks.getExpoPushTokenAsync).toHaveBeenCalledTimes(3)
+        expect(vi.mocked(console.error).mock.calls.filter(
+            ([message]) => message === 'Could not acquire an Expo push token.',
+        )).toHaveLength(3)
+        expect(vi.getTimerCount()).toBe(0)
         await act(async () => { renderer.unmount() })
     })
 })
