@@ -93,10 +93,10 @@ describe('prefillTradeComposerFromTrade', () => {
 describe('buildTradeComposerPayload', () => {
     it('derives a two-team payload from the canonical routed model', () => {
         const draft = buildTwoTeamTradeComposerPayload([
-            { fromMemberId: 'me', toMemberId: 'them', playerId: 'player-1' },
-            { fromMemberId: 'me', toMemberId: 'them', faabAmount: 7 },
-            { fromMemberId: 'them', toMemberId: 'me', pickId: 'pick-1' },
-            { fromMemberId: 'them', toMemberId: 'me', faabAmount: 3 },
+            { kind: 'player', fromMemberId: 'me', toMemberId: 'them', playerId: 'player-1' },
+            { kind: 'faab', fromMemberId: 'me', toMemberId: 'them', faabAmount: 7 },
+            { kind: 'pick', fromMemberId: 'them', toMemberId: 'me', pickId: 'pick-1' },
+            { kind: 'faab', fromMemberId: 'them', toMemberId: 'me', faabAmount: 3 },
         ], 'me', 'them', {
             notes: ' routed ',
             expirationDaysInput: '3',
@@ -276,8 +276,8 @@ describe('submitMultiTeamTradeComposer', () => {
         const editMultiTeamTrade = vi.fn()
         const deadline = '2026-01-02'
         const items = [
-            { fromMemberId: 'me', toMemberId: 'them', playerId: 'player-1' },
-            { fromMemberId: 'third', toMemberId: 'me', faabAmount: 12 },
+            { kind: 'player' as const, fromMemberId: 'me', toMemberId: 'them', playerId: 'player-1' },
+            { kind: 'faab' as const, fromMemberId: 'third', toMemberId: 'me', faabAmount: 12 },
         ]
 
         await submitMultiTeamTradeComposer({
@@ -317,8 +317,11 @@ describe('submitMultiTeamTradeComposer', () => {
             counterTradeId: null,
             myMemberId: 'me',
             leagueId: 'league-1',
-            participantMemberIds: ['me', 'them'],
-            items: [{ fromMemberId: 'me', toMemberId: 'them', pickId: 'pick-1' }],
+            participantMemberIds: ['me', 'them', 'third'],
+            items: [
+                { kind: 'pick', fromMemberId: 'me', toMemberId: 'them', pickId: 'pick-1' },
+                { kind: 'faab', fromMemberId: 'third', toMemberId: 'me', faabAmount: 1 },
+            ],
             notes: '',
             expirationDays: '3',
         }, { getCurrentSeasonId, proposeMultiTeamTrade, counterMultiTeamTrade, editMultiTeamTrade })).rejects.toThrow('No active season found.')
@@ -335,7 +338,10 @@ describe('submitMultiTeamTradeComposer', () => {
         const proposeMultiTeamTrade = vi.fn()
         const counterMultiTeamTrade = vi.fn().mockResolvedValue('counter-2')
         const editMultiTeamTrade = vi.fn().mockResolvedValue('edit-2')
-        const items = [{ fromMemberId: 'me', toMemberId: 'them', playerId: 'player-1' }]
+        const items = [
+            { kind: 'player' as const, fromMemberId: 'me', toMemberId: 'them', playerId: 'player-1' },
+            { kind: 'faab' as const, fromMemberId: 'third', toMemberId: 'me', faabAmount: 1 },
+        ]
 
         await submitMultiTeamTradeComposer({
             mode: 'counter',
@@ -343,7 +349,7 @@ describe('submitMultiTeamTradeComposer', () => {
             counterTradeId: 'trade-1',
             myMemberId: 'me',
             leagueId: 'league-1',
-            participantMemberIds: ['me', 'them'],
+            participantMemberIds: ['me', 'them', 'third'],
             items,
             notes: ' counter ',
             expirationDays: '3',
@@ -355,7 +361,7 @@ describe('submitMultiTeamTradeComposer', () => {
             counterTradeId: null,
             myMemberId: 'me',
             leagueId: 'league-1',
-            participantMemberIds: ['me', 'them'],
+            participantMemberIds: ['me', 'them', 'third'],
             items,
             notes: ' edit ',
             expirationDays: '3',
@@ -364,13 +370,13 @@ describe('submitMultiTeamTradeComposer', () => {
         expect(getCurrentSeasonId).not.toHaveBeenCalled()
         expect(proposeMultiTeamTrade).not.toHaveBeenCalled()
         expect(counterMultiTeamTrade).toHaveBeenCalledWith('trade-1', 'me', {
-            participantMemberIds: ['me', 'them'],
+            participantMemberIds: ['me', 'them', 'third'],
             items,
             notes: 'counter',
             expiresAt: new Date(NOW_MS + 3 * 24 * 60 * 60 * 1000).toISOString(),
         })
         expect(editMultiTeamTrade).toHaveBeenCalledWith('trade-2', 'me', {
-            participantMemberIds: ['me', 'them'],
+            participantMemberIds: ['me', 'them', 'third'],
             items,
             notes: 'edit',
             expiresAt: new Date(NOW_MS + 3 * 24 * 60 * 60 * 1000).toISOString(),

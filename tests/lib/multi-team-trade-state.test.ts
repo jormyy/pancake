@@ -57,12 +57,28 @@ function routedTrade(items: RoutedTradeItem[]): Trade {
 describe('multi-team trade state', () => {
     it('requires every selected participant to send or receive an asset before submission', () => {
         expect(isMultiTeamTradeSubmittable(['A', 'B', 'C'], [
-            { fromMemberId: 'A', toMemberId: 'B', playerId: 'player-1' },
+            { kind: 'player', fromMemberId: 'A', toMemberId: 'B', playerId: 'player-1' },
         ])).toBe(false)
         expect(isMultiTeamTradeSubmittable(['A', 'B', 'C'], [
-            { fromMemberId: 'A', toMemberId: 'B', playerId: 'player-1' },
-            { fromMemberId: 'C', toMemberId: 'A', pickId: 'pick-1' },
+            { kind: 'player', fromMemberId: 'A', toMemberId: 'B', playerId: 'player-1' },
+            { kind: 'pick', fromMemberId: 'C', toMemberId: 'A', pickId: 'pick-1' },
         ])).toBe(true)
+    })
+
+    it('rejects malformed assetless, mixed, and non-positive routes at runtime', () => {
+        const valid = { kind: 'pick', fromMemberId: 'C', toMemberId: 'A', pickId: 'pick-1' }
+        expect(isMultiTeamTradeSubmittable(['A', 'B', 'C'], [
+            { kind: 'player', fromMemberId: 'A', toMemberId: 'B' },
+            valid,
+        ])).toBe(false)
+        expect(isMultiTeamTradeSubmittable(['A', 'B', 'C'], [
+            { kind: 'player', fromMemberId: 'A', toMemberId: 'B', playerId: 'player-1', pickId: 'pick-2' },
+            valid,
+        ])).toBe(false)
+        expect(isMultiTeamTradeSubmittable(['A', 'B', 'C'], [
+            { kind: 'faab', fromMemberId: 'A', toMemberId: 'B', faabAmount: 0 },
+            valid,
+        ])).toBe(false)
     })
 
     it('sets an exact two-team specialization without discarding selected assets', () => {
@@ -80,7 +96,7 @@ describe('multi-team trade state', () => {
 
         expect(state.participantOrder).toEqual(['A', 'B'])
         expect(buildMultiTeamTradeItems(state, false)).toEqual([
-            { fromMemberId: 'A', toMemberId: 'B', playerId: 'player-1' },
+            { kind: 'player', fromMemberId: 'A', toMemberId: 'B', playerId: 'player-1' },
         ])
     })
     it('keeps selected assets on the current default route until explicitly overridden', () => {
@@ -173,8 +189,8 @@ describe('multi-team trade state', () => {
         ]), 'A')
 
         expect(buildMultiTeamTradeItems(state, true)).toEqual(expect.arrayContaining([
-            { fromMemberId: 'A', toMemberId: 'B', faabAmount: 5 },
-            { fromMemberId: 'A', toMemberId: 'C', faabAmount: 7 },
+            { kind: 'faab', fromMemberId: 'A', toMemberId: 'B', faabAmount: 5 },
+            { kind: 'faab', fromMemberId: 'A', toMemberId: 'C', faabAmount: 7 },
         ]))
         expect(buildMultiTeamTradeItems(state, true)).toHaveLength(2)
     })

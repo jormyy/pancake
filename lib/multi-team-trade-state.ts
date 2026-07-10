@@ -185,11 +185,13 @@ export function buildMultiTeamTradeItems(
         const participant = state.participants[memberId]
         if (!participant?.defaultDestinationId) return []
         const players = Object.keys(participant.playerDestinations).map((playerId) => ({
+            kind: 'player' as const,
             fromMemberId: memberId,
             toMemberId: resolvedDestination(state, memberId, 'player', playerId),
             playerId,
         }))
         const picks = Object.keys(participant.pickDestinations).map((pickId) => ({
+            kind: 'pick' as const,
             fromMemberId: memberId,
             toMemberId: resolvedDestination(state, memberId, 'pick', pickId),
             pickId,
@@ -197,6 +199,7 @@ export function buildMultiTeamTradeItems(
         const faab = faabEnabled ? Object.entries(participant.faabInputs).flatMap(([toMemberId, value]) => {
             const faabAmount = parseInt(value || '0', 10) || 0
             return faabAmount > 0 ? [{
+                kind: 'faab' as const,
                 fromMemberId: memberId,
                 toMemberId,
                 faabAmount,
@@ -206,14 +209,35 @@ export function buildMultiTeamTradeItems(
     })
 }
 
+export function isMultiTeamTradeItemPayload(value: unknown): value is MultiTeamTradeItemPayload {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
+    const item = value as Record<string, unknown>
+    if (typeof item.fromMemberId !== 'string' || item.fromMemberId.length === 0 ||
+        typeof item.toMemberId !== 'string' || item.toMemberId.length === 0) return false
+    if (item.kind === 'player') {
+        return typeof item.playerId === 'string' && item.playerId.length > 0 &&
+            item.pickId === undefined && item.faabAmount === undefined
+    }
+    if (item.kind === 'pick') {
+        return typeof item.pickId === 'string' && item.pickId.length > 0 &&
+            item.playerId === undefined && item.faabAmount === undefined
+    }
+    if (item.kind === 'faab') {
+        return Number.isInteger(item.faabAmount) && (item.faabAmount as number) > 0 &&
+            item.playerId === undefined && item.pickId === undefined
+    }
+    return false
+}
+
 export function isMultiTeamTradeSubmittable(
     participantIds: readonly string[],
-    items: readonly MultiTeamTradeItemPayload[],
+    items: readonly unknown[],
 ): boolean {
     const participants = new Set(participantIds.filter(Boolean))
     if (participants.size < 3 || items.length === 0) return false
     const involved = new Set<string>()
     for (const item of items) {
+        if (!isMultiTeamTradeItemPayload(item)) return false
         if (!participants.has(item.fromMemberId) || !participants.has(item.toMemberId) ||
             item.fromMemberId === item.toMemberId) return false
         involved.add(item.fromMemberId)

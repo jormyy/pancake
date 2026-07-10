@@ -45,8 +45,8 @@ vi.mock('@/hooks/use-multi-team-trade-composer', () => ({
         avgMap: new Map(),
         avgStatsMap: new Map(),
         buildMultiTeamItems: () => [
-            { fromMemberId: 'member-a', toMemberId: 'member-b', playerId: 'player-a' },
-            { fromMemberId: 'member-b', toMemberId: 'member-a', playerId: 'player-b' },
+            { kind: 'player', fromMemberId: 'member-a', toMemberId: 'member-b', playerId: 'player-a' },
+            { kind: 'player', fromMemberId: 'member-b', toMemberId: 'member-a', playerId: 'player-b' },
         ],
         loadedParticipantKey: 'member-a,member-b',
         participantIds: ['member-a', 'member-b'],

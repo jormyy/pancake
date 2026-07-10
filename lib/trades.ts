@@ -188,18 +188,30 @@ export type TradeProposalPayload = {
     requestPickIds: string[]
 } & TradeProposalOptions
 
-export type MultiTeamTradeItemPayload = {
+type MultiTeamTradeRoute = {
     fromMemberId: string
     toMemberId: string
-    playerId?: string | null
-    pickId?: string | null
-    faabAmount?: number
 }
+
+export type MultiTeamTradeItemPayload = MultiTeamTradeRoute & (
+    | { kind: 'player'; playerId: string }
+    | { kind: 'pick'; pickId: string }
+    | { kind: 'faab'; faabAmount: number }
+)
 
 export type MultiTeamTradeProposalPayload = {
     participantMemberIds: string[]
     items: MultiTeamTradeItemPayload[]
 } & Pick<TradeProposalOptions, 'notes' | 'expiresAt'>
+
+function multiTeamTradeWireItems(items: MultiTeamTradeItemPayload[]) {
+    return items.map((item) => {
+        const route = { fromMemberId: item.fromMemberId, toMemberId: item.toMemberId }
+        if (item.kind === 'player') return { ...route, playerId: item.playerId }
+        if (item.kind === 'pick') return { ...route, pickId: item.pickId }
+        return { ...route, faabAmount: item.faabAmount }
+    })
+}
 
 export type TradeBlockItem = {
     id: string
@@ -292,7 +304,7 @@ export async function proposeMultiTeamTrade(
         leagueId,
         leagueSeasonId: seasonId,
         participantMemberIds: payload.participantMemberIds,
-        items: payload.items,
+        items: multiTeamTradeWireItems(payload.items),
         notes: payload.notes ?? '',
         expiresAt: payload.expiresAt ?? null,
     })
@@ -308,7 +320,7 @@ export async function counterMultiTeamTrade(
     const result = await apiPost<{ tradeId: string }>(`/trades/${tradeId}/counter-multi`, {
         memberId,
         participantMemberIds: payload.participantMemberIds,
-        items: payload.items,
+        items: multiTeamTradeWireItems(payload.items),
         notes: payload.notes ?? '',
         expiresAt: payload.expiresAt ?? null,
     })
@@ -324,7 +336,7 @@ export async function editMultiTeamTrade(
     const result = await apiPost<{ tradeId: string }>(`/trades/${tradeId}/edit-multi`, {
         memberId,
         participantMemberIds: payload.participantMemberIds,
-        items: payload.items,
+        items: multiTeamTradeWireItems(payload.items),
         notes: payload.notes ?? '',
         expiresAt: payload.expiresAt ?? null,
     })

@@ -63,15 +63,16 @@ export function MultiTeamTradeBuilder({
 
     const overviewItems = useMemo<TradeFlowItem[]>(() => items.map((item) => {
         const participant = participants.find((entry) => entry.memberId === item.fromMemberId)
-        const player = item.playerId
+        const player = item.kind === 'player'
             ? participant?.roster.find((entry) => entry.players.id === item.playerId)
             : null
-        const pick = item.pickId
+        const pick = item.kind === 'pick'
             ? participant?.picks.find((entry) => entry.pickId === item.pickId)
             : null
         const label = player?.players.display_name ??
-            (pick ? `${pick.seasonYear} Round ${pick.round}` : `$${item.faabAmount ?? 0} FAAB`)
-        const assetKey = item.playerId ? `player:${item.playerId}` : item.pickId ? `pick:${item.pickId}` : 'faab'
+            (pick ? `${pick.seasonYear} Round ${pick.round}` : `$${item.kind === 'faab' ? item.faabAmount : 0} FAAB`)
+        const assetKey = item.kind === 'player' ? `player:${item.playerId}`
+            : item.kind === 'pick' ? `pick:${item.pickId}` : 'faab'
         return {
             key: `${assetKey}:${item.fromMemberId}:${item.toMemberId}`,
             fromMemberId: item.fromMemberId,

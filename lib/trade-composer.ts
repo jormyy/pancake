@@ -1,6 +1,7 @@
 import type { MultiTeamTradeItemPayload, Trade, TradeItem, TradeProposalPayload } from '@/lib/trades'
 import { endOfETDayUTC } from '@/lib/shared/dates'
 import type { LeagueStatus } from '@/types/database'
+import { isMultiTeamTradeSubmittable } from '@/lib/multi-team-trade-state'
 
 export type TradeComposerMode = 'propose' | 'edit' | 'counter'
 
@@ -243,13 +244,13 @@ export function buildTwoTeamTradeComposerPayload(
     const fromMe = items.filter((item) => item.fromMemberId === myMemberId && item.toMemberId === recipientMemberId)
     const fromRecipient = items.filter((item) => item.fromMemberId === recipientMemberId && item.toMemberId === myMemberId)
     return buildTradeComposerPayload({
-        offerPlayerIds: fromMe.flatMap((item) => item.playerId ? [item.playerId] : []),
-        requestPlayerIds: fromRecipient.flatMap((item) => item.playerId ? [item.playerId] : []),
-        offerPickIds: fromMe.flatMap((item) => item.pickId ? [item.pickId] : []),
-        requestPickIds: fromRecipient.flatMap((item) => item.pickId ? [item.pickId] : []),
+        offerPlayerIds: fromMe.flatMap((item) => item.kind === 'player' ? [item.playerId] : []),
+        requestPlayerIds: fromRecipient.flatMap((item) => item.kind === 'player' ? [item.playerId] : []),
+        offerPickIds: fromMe.flatMap((item) => item.kind === 'pick' ? [item.pickId] : []),
+        requestPickIds: fromRecipient.flatMap((item) => item.kind === 'pick' ? [item.pickId] : []),
         notes: terms.notes,
-        offerFaabInput: String(fromMe.reduce((total, item) => total + (item.faabAmount ?? 0), 0)),
-        requestFaabInput: String(fromRecipient.reduce((total, item) => total + (item.faabAmount ?? 0), 0)),
+        offerFaabInput: String(fromMe.reduce((total, item) => total + (item.kind === 'faab' ? item.faabAmount : 0), 0)),
+        requestFaabInput: String(fromRecipient.reduce((total, item) => total + (item.kind === 'faab' ? item.faabAmount : 0), 0)),
         expirationDaysInput: terms.expirationDaysInput,
         leagueStatus: terms.leagueStatus,
         tradeDeadline: terms.tradeDeadline,
@@ -295,6 +296,9 @@ export async function submitMultiTeamTradeComposer(
     input: SubmitMultiTeamComposerInput,
     deps: SubmitMultiTeamComposerDeps,
 ): Promise<void> {
+    if (!isMultiTeamTradeSubmittable(input.participantMemberIds, input.items)) {
+        throw new Error('Multi-team trades require exactly one valid asset per route and involvement from every participant.')
+    }
     const draft = buildTradeComposerPayload({
         offerPlayerIds: [],
         requestPlayerIds: [],
