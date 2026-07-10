@@ -4,16 +4,17 @@ import { describe, expect, it } from 'vitest'
 
 const migrationsDirectory = path.join(process.cwd(), 'supabase/migrations')
 const read = (filename: string) => readFileSync(path.join(migrationsDirectory, filename), 'utf8')
-const blocking = /\b(?:ALTER TABLE|DROP TABLE|DROP TRIGGER|DROP INDEX|UPDATE public\.)\b/gi
+const blocking = /\b(?:ALTER TABLE|DROP TABLE|DROP TRIGGER|CREATE TRIGGER|DROP INDEX|CREATE (?:UNIQUE )?INDEX|DROP POLICY|CREATE POLICY|UPDATE public\.)\b/gi
 const bounded = (source: string) => {
-    const blockingOffsets = [...source.matchAll(blocking)].map((match) => match.index)
+    const executable = source.replace(/--[^\n]*/g, '')
+    const blockingOffsets = [...executable.matchAll(blocking)].map((match) => match.index)
     if (blockingOffsets.length === 0) return false
     const firstBlocking = blockingOffsets[0]
     const lastBlocking = blockingOffsets.at(-1)!
-    const lockTimeout = source.indexOf("SET lock_timeout = '5s';")
-    const statementTimeout = source.indexOf("SET statement_timeout = '2min';")
-    const statementReset = source.lastIndexOf('RESET statement_timeout;')
-    const lockReset = source.lastIndexOf('RESET lock_timeout;')
+    const lockTimeout = executable.indexOf("SET lock_timeout = '5s';")
+    const statementTimeout = executable.search(/SET statement_timeout = '(?:[1-9]\d*(?:ms|s|min|h))';/)
+    const statementReset = executable.lastIndexOf('RESET statement_timeout;')
+    const lockReset = executable.lastIndexOf('RESET lock_timeout;')
     return lockTimeout >= 0 && statementTimeout >= 0 &&
         lockTimeout < firstBlocking && statementTimeout < firstBlocking &&
         statementReset > lastBlocking && lockReset > lastBlocking
@@ -47,9 +48,9 @@ const canonicalAssetTriggerContract = (source: string) => source.includes(
 )
 
 describe('branch migration deployment safety', () => {
-    it('bounds every blocking migration from the trade hardening series onward', () => {
+    it('bounds every lock-taking migration in the unpublished 20260709 series', () => {
         const migrations = readdirSync(migrationsDirectory)
-            .filter((filename) => filename.endsWith('.sql') && filename >= '20260709100024_')
+            .filter((filename) => filename.endsWith('.sql') && filename.startsWith('20260709'))
             .filter((filename) => new RegExp(blocking.source, 'i').test(read(filename)))
 
         expect(migrations).not.toEqual([])
@@ -63,6 +64,14 @@ describe('branch migration deployment safety', () => {
                 "SET statement_timeout = '2min';\nRESET statement_timeout;\nRESET lock_timeout;",
             )
         expect(bounded(mutation)).toBe(false)
+
+        for (const migration of [
+            '20260709100001_waiver_submission_policy_and_index.sql',
+            '20260709100019_catalog_and_lifecycle_guards.sql',
+            '20260709100022_trade_query_invoker_auth.sql',
+        ]) {
+            expect(bounded(read(migration).replace("SET lock_timeout = '5s';", '')), migration).toBe(false)
+        }
     })
 
     it.each(['from', 'to'] as const)(

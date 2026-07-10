@@ -1,3 +1,6 @@
+SET lock_timeout = '5s';
+SET statement_timeout = '2min';
+
 CREATE OR REPLACE FUNCTION public.get_trades_for_member(
   p_member_id uuid,
   p_league_id uuid,
@@ -101,3 +104,6 @@ REVOKE ALL ON FUNCTION public.get_trades_for_member(uuid, uuid, int, int) FROM P
 GRANT EXECUTE ON FUNCTION public.get_trades_for_member(uuid, uuid, int, int) TO authenticated, service_role;
 REVOKE ALL ON FUNCTION public.get_pending_trade_count(uuid, uuid) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.get_pending_trade_count(uuid, uuid) TO authenticated, service_role;
+
+RESET statement_timeout;
+RESET lock_timeout;

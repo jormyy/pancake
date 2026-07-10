@@ -1,3 +1,6 @@
+SET lock_timeout = '5s';
+SET statement_timeout = '2min';
+
 -- Restore avatar policies removed by the production reconciliation snapshot.
 DROP POLICY IF EXISTS "avatars_read_public" ON storage.objects;
 CREATE POLICY "avatars_read_public" ON storage.objects
@@ -90,4 +93,6 @@ CREATE INDEX IF NOT EXISTS idx_trades_due_accepted_queue
 
 DROP INDEX IF EXISTS public.idx_trade_vetos_trade_member;
 
+RESET statement_timeout;
+RESET lock_timeout;
 RESET check_function_bodies;

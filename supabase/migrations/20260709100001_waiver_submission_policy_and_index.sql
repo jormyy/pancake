@@ -1,3 +1,6 @@
+SET lock_timeout = '5s';
+SET statement_timeout = '2min';
+
 CREATE OR REPLACE FUNCTION private.ineligible_ir_player_names(
   p_league_id uuid,
   p_league_season_id uuid,
@@ -69,3 +72,6 @@ CREATE INDEX IF NOT EXISTS idx_waiver_claims_pending_due_processing
     member_id
   )
   WHERE status = 'pending'::public.waiver_claim_status;
+
+RESET statement_timeout;
+RESET lock_timeout;
