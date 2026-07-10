@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
     authCallback: null as null | ((event: string, session: unknown) => void),
     unsubscribe: vi.fn(),
     removeAppState: vi.fn(),
+    clearPersistentCaches: vi.fn(),
 }))
 
 vi.mock('react-native', () => ({
@@ -27,6 +28,7 @@ vi.mock('@/lib/supabase', () => ({
         },
     },
 }))
+vi.mock('@/lib/persistent-cache', () => ({ clearPersistentCaches: mocks.clearPersistentCaches }))
 
 import { AuthProvider, useAuth } from '@/hooks/use-auth'
 
@@ -93,6 +95,26 @@ describe('AuthProvider bootstrap ownership', () => {
         })
 
         expect(snapshots.at(-1)).toEqual({ userId: null, loading: false })
+        await act(async () => { renderer.unmount() })
+    })
+
+    it('purges private caches on sign-out and cross-user transitions', async () => {
+        mocks.getSession.mockResolvedValue({
+            data: { session: { user: { id: 'user-a' } } },
+            error: null,
+        })
+        let renderer!: ReactTestRenderer
+        await act(async () => {
+            renderer = create(React.createElement(AuthProvider, null, React.createElement(Probe)))
+            await Promise.resolve()
+        })
+
+        await act(async () => { mocks.authCallback?.('TOKEN_REFRESHED', { user: { id: 'user-a' } }) })
+        expect(mocks.clearPersistentCaches).not.toHaveBeenCalled()
+        await act(async () => { mocks.authCallback?.('SIGNED_IN', { user: { id: 'user-b' } }) })
+        expect(mocks.clearPersistentCaches).toHaveBeenCalledOnce()
+        await act(async () => { mocks.authCallback?.('SIGNED_OUT', null) })
+        expect(mocks.clearPersistentCaches).toHaveBeenCalledTimes(2)
         await act(async () => { renderer.unmount() })
     })
 })

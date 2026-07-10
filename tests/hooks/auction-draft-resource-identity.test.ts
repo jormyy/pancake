@@ -7,30 +7,24 @@ import type { DraftState } from '@/lib/draft'
 const mocks = vi.hoisted(() => ({
     getDraftState: vi.fn(),
     placeBid: vi.fn(),
-    resumeIfAbsent: vi.fn(),
-    presenceCallback: null as ((snapshot: { memberIds: string[]; claims: string[] }) => void) | null,
-    presenceErrorCallback: null as ((error: unknown) => void) | null,
+    statusCallback: null as ((status: 'SUBSCRIBED' | 'TIMED_OUT' | 'CLOSED' | 'CHANNEL_ERROR') => void) | null,
     unsubscribeFromDraft: vi.fn(async () => undefined),
-    disposePresence: vi.fn(async () => undefined),
 }))
 
 vi.mock('@/lib/draft', () => ({
     closeExpiredNominations: vi.fn(),
     getDraftState: mocks.getDraftState,
     nominatePlayer: vi.fn(),
-    pauseForAbsence: vi.fn(async () => undefined),
     placeBid: mocks.placeBid,
-    resumeIfAbsent: mocks.resumeIfAbsent,
     searchPlayers: vi.fn(async () => []),
-    subscribeToDraft: vi.fn(() => ({ topic: 'draft' })),
-    subscribeToPresence: vi.fn(async (
+    subscribeToDraft: vi.fn((
         _draftId: string,
-        callback: (snapshot: { memberIds: string[]; claims: string[] }) => void,
-        onError: (error: unknown) => void,
+        _leagueId: string | null,
+        _onChange: () => void,
+        onStatus: typeof mocks.statusCallback,
     ) => {
-        mocks.presenceCallback = callback
-        mocks.presenceErrorCallback = onError
-        return { channel: { topic: 'presence' }, dispose: mocks.disposePresence }
+        mocks.statusCallback = onStatus
+        return { topic: 'draft' }
     }),
     unsubscribeFromDraft: mocks.unsubscribeFromDraft,
     withdrawNomination: vi.fn(),
@@ -92,37 +86,30 @@ function liveState(draftId: string): DraftState {
 afterEach(() => {
     vi.useRealTimers()
     vi.clearAllMocks()
-    mocks.presenceCallback = null
-    mocks.presenceErrorCallback = null
+    mocks.statusCallback = null
 })
 
 describe('auction draft resource identity', () => {
-    it('resumes immediately with signed claims and ignores completion after unmount', async () => {
-        let resolveResume!: (value: { resumed: boolean }) => void
-        const resume = new Promise<{ resumed: boolean }>((resolve) => { resolveResume = resolve })
+    it('fails closed on channel failure and recovers only after subscription', async () => {
         mocks.getDraftState.mockResolvedValue(state('draft-a'))
-        mocks.resumeIfAbsent.mockReturnValue(resume)
+        let latest!: ReturnType<typeof useAuctionDraftRoomController>
         const Probe = () => {
-            useAuctionDraftRoomController({ draftId: 'draft-a', memberId: 'member' })
+            latest = useAuctionDraftRoomController({ draftId: 'draft-a', memberId: 'member' })
             return null
         }
         let renderer!: ReactTestRenderer
         await act(async () => { renderer = create(React.createElement(Probe)); await Promise.resolve() })
         await act(async () => {
-            mocks.presenceCallback?.({ memberIds: ['member'], claims: ['signed-member-claim'] })
-            await Promise.resolve()
+            mocks.statusCallback?.('CHANNEL_ERROR')
         })
-        expect(mocks.resumeIfAbsent).toHaveBeenCalledWith('draft-a', ['signed-member-claim'])
+        expect(latest.realtimeConnected).toBe(false)
+        expect(latest.loadError).toBe('Live draft connection lost. Tap to retry.')
         await act(async () => {
-            mocks.presenceCallback?.({ memberIds: ['member'], claims: ['signed-member-claim'] })
-            await Promise.resolve()
+            mocks.statusCallback?.('SUBSCRIBED')
         })
-        expect(mocks.resumeIfAbsent).toHaveBeenCalledOnce()
-        const readsBeforeUnmount = mocks.getDraftState.mock.calls.length
+        expect(latest.realtimeConnected).toBe(true)
+        expect(latest.loadError).toBeNull()
         await act(async () => { renderer.unmount() })
-        await act(async () => { resolveResume({ resumed: true }); await resume })
-
-        expect(mocks.getDraftState).toHaveBeenCalledTimes(readsBeforeUnmount)
     })
 
     it('clears the previous draft while the next draft is loading', async () => {
@@ -158,8 +145,7 @@ describe('auction draft resource identity', () => {
         let renderer!: ReactTestRenderer
         await act(async () => { renderer = create(React.createElement(Probe, { draftId: 'draft-a' })); await Promise.resolve() })
         await act(async () => {
-            mocks.presenceCallback?.({ memberIds: ['member'], claims: ['signed-member-claim'] })
-            await Promise.resolve()
+            mocks.statusCallback?.('SUBSCRIBED')
         })
         let pending!: Promise<void>
         await act(async () => { pending = latest.handleBid(); await Promise.resolve() })
@@ -173,8 +159,7 @@ describe('auction draft resource identity', () => {
         await act(async () => { renderer.unmount() })
     })
 
-    it('fails closed until authenticated presence has synchronized', async () => {
-        const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    it('fails closed until the draft subscription is live', async () => {
         mocks.getDraftState.mockResolvedValue(liveState('draft-a'))
         const Probe = () => {
             latest = useAuctionDraftRoomController({ draftId: 'draft-a', memberId: 'member' })
@@ -186,17 +171,15 @@ describe('auction draft resource identity', () => {
 
         await act(async () => { await latest.handleBid() })
         expect(mocks.placeBid).not.toHaveBeenCalled()
-        expect(latest.allMembersPresent).toBe(false)
+        expect(latest.realtimeConnected).toBe(false)
 
         await act(async () => {
-            mocks.presenceCallback?.({ memberIds: ['member'], claims: ['signed-member-claim'] })
-            await Promise.resolve()
+            mocks.statusCallback?.('SUBSCRIBED')
         })
-        expect(latest.allMembersPresent).toBe(true)
-        await act(async () => { mocks.presenceErrorCallback?.(new Error('presence offline')); await Promise.resolve() })
-        expect(latest.allMembersPresent).toBe(false)
-        expect(latest.loadError).toBe('Could not verify who is present in the draft room.')
-        expect(consoleError).toHaveBeenCalledWith('Could not verify auction presence.', expect.any(Error))
+        expect(latest.realtimeConnected).toBe(true)
+        await act(async () => { mocks.statusCallback?.('TIMED_OUT') })
+        expect(latest.realtimeConnected).toBe(false)
+        expect(latest.loadError).toBe('Live draft connection lost. Tap to retry.')
         await act(async () => { renderer.unmount() })
     })
 })

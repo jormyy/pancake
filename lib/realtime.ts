@@ -7,9 +7,14 @@ type TableChangeSubscription =
     | { mode: 'per-watch'; watches: TableChangeWatch[] }
     | { mode: 'fallback'; watches: FallbackTableChangeWatch[]; onChange: () => void }
 
+export type RealtimeSubscriptionStatus = 'SUBSCRIBED' | 'TIMED_OUT' | 'CLOSED' | 'CHANNEL_ERROR'
+type SubscriptionWithStatus = TableChangeSubscription & {
+    onStatus?: (status: RealtimeSubscriptionStatus) => void
+}
+
 export function subscribeToTableChanges(
     channelName: string,
-    subscription: TableChangeSubscription,
+    subscription: SubscriptionWithStatus,
 ): RealtimeChannel {
     const channel = supabase.channel(channelName, { config: { private: true } })
     const register = (watch: FallbackTableChangeWatch, onChange: TableChangeWatch['onChange']) => {
@@ -29,7 +34,7 @@ export function subscribeToTableChanges(
     } else {
         for (const watch of subscription.watches) register(watch, subscription.onChange)
     }
-    return channel.subscribe()
+    return channel.subscribe((status) => subscription.onStatus?.(status))
 }
 
 export function debounceRealtimeRefresh(onChange: () => void, delayMs = 250) {

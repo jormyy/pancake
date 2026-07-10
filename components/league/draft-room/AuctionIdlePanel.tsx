@@ -28,22 +28,14 @@ export function AuctionIdlePanel({
 
     let content
     if (isPaused) {
-        const absentNames = controller.absentMembers.map((member) => member.teamName).join(', ')
         content = <View style={styles.waitingRow}>
             <Text style={styles.waitingTeam}>Draft paused</Text>
-            <Text style={styles.waitingText}>
-                {draft.pauseReason === 'member_absent' && absentNames
-                    ? `Waiting for ${absentNames} to rejoin...`
-                    : 'Commissioner will resume the clock.'}
-            </Text>
+            <Text style={styles.waitingText}>Commissioner will resume the clock.</Text>
         </View>
-    } else if (!controller.allMembersPresent) {
-        const absentNames = controller.absentMembers.map((member) => member.teamName).join(', ')
+    } else if (!controller.realtimeConnected) {
         content = <View style={styles.waitingRow}>
-            <Text style={styles.waitingTeam}>Waiting for everyone to join</Text>
-            <Text style={styles.waitingText}>{absentNames
-                ? `${absentNames} hasn't joined the draft room yet.`
-                : 'Verifying manager presence...'}</Text>
+            <Text style={styles.waitingTeam}>Reconnecting live draft</Text>
+            <Text style={styles.waitingText}>Nominations stay disabled until the connection recovers.</Text>
         </View>
     } else if (!isMyTurn) {
         content = <View style={styles.waitingRow}>

@@ -67,7 +67,7 @@ export function AuctionLivePanel({
                             </Text>
                         </View>
                     </View>
-                    {!leading && (budget?.remaining ?? 0) >= 1 && !paused && controller.allMembersPresent ? <View style={styles.bidInputRow}>
+                    {!leading && (budget?.remaining ?? 0) >= 1 && !paused && controller.realtimeConnected ? <View style={styles.bidInputRow}>
                         <View style={styles.bidStepGroup}>
                             <MotionPressable style={styles.bidStep}
                                 onPress={() => controller.setBidText((value) => String(Math.max(minimumBid, (parseInt(value, 10) || minimumBid) - 1)))}
@@ -91,8 +91,8 @@ export function AuctionLivePanel({
                             disabled={controller.bidding || !bidValid || leading || controller.timeLeft === 0} pressedScale={0.965}>
                             <Text style={styles.bidButtonText}>Bid ${(bidValid ? bidValue : minimumBid).toLocaleString()}</Text>
                         </MotionPressable>
-                    </View> : !paused && !controller.allMembersPresent ? (
-                        <Text style={styles.presencePending}>Bidding unlocks after every manager is verified.</Text>
+                    </View> : !paused && !controller.realtimeConnected ? (
+                        <Text style={styles.presencePending}>Bidding unlocks after the live connection recovers.</Text>
                     ) : null}
                 </View>
             </View>

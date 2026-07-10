@@ -24,6 +24,16 @@ const listenersByDate = new Map<string, Set<Listener>>()
 const inFlightByDate = new Map<string, Promise<void>>()
 const silentRefreshListeners = new Set<() => void>()
 let todayPoll: ReturnType<typeof setInterval> | null = null
+const MAX_SNAPSHOT_DATES = 14
+
+function evictSnapshots() {
+    if (snapshots.size <= MAX_SNAPSHOT_DATES) return
+    for (const date of snapshots.keys()) {
+        if (listenersByDate.has(date)) continue
+        snapshots.delete(date)
+        if (snapshots.size <= MAX_SNAPSHOT_DATES) return
+    }
+}
 
 function notify(date: string, snapshot: Snapshot) {
     for (const listener of listenersByDate.get(date) ?? []) listener(snapshot)
@@ -44,7 +54,9 @@ async function loadSnapshot(date: string): Promise<void> {
         ])
 
         const snapshot = { todaysGames, liveStats, startedTeams, teamMatchups }
+        snapshots.delete(date)
         snapshots.set(date, snapshot)
+        evictSnapshots()
         notify(date, snapshot)
     })().finally(() => {
         inFlightByDate.delete(date)
@@ -107,6 +119,7 @@ export function useLiveStats(selectedDate: string, onSilentRefresh?: () => void)
         return () => {
             listeners?.delete(setSnapshot)
             if (listeners?.size === 0) listenersByDate.delete(selectedDate)
+            evictSnapshots()
         }
     }, [selectedDate])
 

@@ -15,6 +15,7 @@ import {
 import { dropPlayer, getRoster, toggleTaxi, type RosterPlayer } from '@/lib/roster'
 import { getErrorMessage } from '@/lib/alert'
 import { getRosterStatusChangeLockMessage } from '@/lib/roster-locks'
+import { reportRealtimeCleanup } from '@/lib/realtime'
 
 type ActiveTab = 'prospects' | 'board'
 type RosterOverflow = {
@@ -118,7 +119,10 @@ export function useRookieDraftRoomController({
         // a transient null can't leave the room stale on your own clock.
         const poll = setInterval(load, 5000)
         return () => {
-            if (channelRef.current) unsubscribeFromRookieDraft(channelRef.current)
+            if (channelRef.current) {
+                reportRealtimeCleanup('rookie draft', unsubscribeFromRookieDraft(channelRef.current))
+                channelRef.current = null
+            }
             clearInterval(poll)
         }
     }, [draftId, load, loadProspects])

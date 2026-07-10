@@ -3,12 +3,9 @@ import {
     closeExpiredNominations,
     getDraftState,
     nominatePlayer,
-    pauseForAbsence,
     placeBid,
-    resumeIfAbsent,
     searchPlayers,
     subscribeToDraft,
-    subscribeToPresence,
     unsubscribeFromDraft,
     withdrawNomination,
     type DraftSearchPlayer,
@@ -16,7 +13,7 @@ import {
     type NominationOrderMode,
 } from '@/lib/draft'
 import { getErrorMessage, showAlert } from '@/lib/alert'
-import { reportRealtimeCleanup } from '@/lib/realtime'
+import { reportRealtimeCleanup, type RealtimeSubscriptionStatus } from '@/lib/realtime'
 
 export type DraftTab = 'budgets' | 'history'
 
@@ -37,15 +34,8 @@ export function useAuctionDraftRoomController({
     const [bidding, setBidding] = useState(false)
     const [withdrawing, setWithdrawing] = useState(false)
 
-    // Presence — who is currently in the draft room
-    const [presentMemberIds, setPresentMemberIds] = useState<string[]>([])
-    const [presenceClaims, setPresenceClaims] = useState<string[]>([])
-    const [presenceSynced, setPresenceSynced] = useState(false)
-    const [presenceError, setPresenceError] = useState<string | null>(null)
-    const [presenceOwnerKey, setPresenceOwnerKey] = useState<string | null>(null)
-    const resumeRequestRef = useRef<{ ownerKey: string; requestId: number } | null>(null)
-    const resumeSequenceRef = useRef(0)
-    const activePresenceKeyRef = useRef<string | null>(null)
+    const [realtimeStatus, setRealtimeStatus] =
+        useState<RealtimeSubscriptionStatus | 'CONNECTING'>('CONNECTING')
     const activeDraftIdRef = useRef<string | undefined>(draftId)
 
     // Nomination / player search
@@ -79,9 +69,7 @@ export function useAuctionDraftRoomController({
 
     const countdownNomination = state?.openNomination
     const draftLeagueId = state?.draft.leagueId ?? null
-    const presenceKey = draftId && memberId ? `${draftId}:${memberId}` : null
     activeDraftIdRef.current = draftId
-    activePresenceKeyRef.current = presenceKey
 
     useEffect(() => {
         loadSeqRef.current += 1
@@ -98,6 +86,7 @@ export function useAuctionDraftRoomController({
         setSearchError(null)
         setSubmittingNom(false)
         setTimeLeft(0)
+        setRealtimeStatus('CONNECTING')
         lastNomIdRef.current = null
         closeTriggeredForNomRef.current = null
         return () => {
@@ -105,15 +94,6 @@ export function useAuctionDraftRoomController({
             searchSeqRef.current += 1
         }
     }, [draftId])
-
-    useEffect(() => {
-        setPresentMemberIds([])
-        setPresenceClaims([])
-        setPresenceSynced(false)
-        setPresenceError(null)
-        setPresenceOwnerKey(null)
-        resumeRequestRef.current = null
-    }, [presenceKey])
 
     const load = useCallback(async () => {
         if (!draftId) return
@@ -159,60 +139,26 @@ export function useAuctionDraftRoomController({
         }
     }, [draftId])
 
-    // Load + subscribe + poll fallback
+    // Load + subscribe. Mutations fail closed unless this channel is live.
     useEffect(() => {
         if (!draftId) return
+        let active = true
         load()
-        const channel = subscribeToDraft(draftId, draftLeagueId, load)
-        const poll = setInterval(load, 5000)
+        const channel = subscribeToDraft(draftId, draftLeagueId, load, (status) => {
+            if (active) setRealtimeStatus(status)
+        })
         return () => {
+            active = false
             reportRealtimeCleanup('auction draft', unsubscribeFromDraft(channel))
-            clearInterval(poll)
         }
     }, [draftId, draftLeagueId, load])
 
-    // Presence — separate public channel so it works without realtime.messages RLS
+    // Realtime is primary. Poll slowly while connected and faster while degraded.
     useEffect(() => {
-        if (!draftId || !memberId || !presenceKey) return
-        const ownerKey = presenceKey
-        let disposed = false
-        let subscription: Awaited<ReturnType<typeof subscribeToPresence>> | null = null
-        void subscribeToPresence(draftId, ({ memberIds: ids, claims }) => {
-            if (disposed || activePresenceKeyRef.current !== ownerKey) return
-            setPresentMemberIds(ids)
-            setPresenceClaims(claims)
-            setPresenceSynced(true)
-            setPresenceError(null)
-            setPresenceOwnerKey(ownerKey)
-        }, (error) => {
-            if (disposed || activePresenceKeyRef.current !== ownerKey) return
-            console.error('Could not verify auction presence.', error)
-            setPresenceSynced(false)
-            setPresentMemberIds([])
-            setPresenceClaims([])
-            setPresenceError('Could not verify who is present in the draft room.')
-        }).then((nextSubscription) => {
-            if (disposed || activePresenceKeyRef.current !== ownerKey) {
-                void nextSubscription.dispose().catch((error) => console.error('Could not clean up stale auction presence.', error))
-                return
-            }
-            subscription = nextSubscription
-        }).catch((error) => {
-            if (disposed || activePresenceKeyRef.current !== ownerKey) return
-            console.error('Could not start auction presence.', error)
-            setPresenceSynced(false)
-            setPresentMemberIds([])
-            setPresenceClaims([])
-            setPresenceError('Could not verify who is present in the draft room.')
-        })
-        return () => {
-            disposed = true
-            if (activePresenceKeyRef.current === ownerKey) activePresenceKeyRef.current = null
-            if (subscription) {
-                void subscription.dispose().catch((error) => console.error('Could not clean up auction presence.', error))
-            }
-        }
-    }, [draftId, memberId, presenceKey])
+        if (!draftId) return
+        const poll = setInterval(load, realtimeStatus === 'SUBSCRIBED' ? 15_000 : 5_000)
+        return () => clearInterval(poll)
+    }, [draftId, load, realtimeStatus])
 
     // Countdown tick
     useEffect(() => {
@@ -253,44 +199,6 @@ export function useAuctionDraftRoomController({
         }
     }, [countdownNomination, draftId, load])
 
-    // Presence: auto-pause when a member leaves, auto-resume when all are back.
-    // Only auction drafts; only after presence has synced at least once so the
-    // initial empty-state doesn't trigger a spurious pause on mount.
-    useEffect(() => {
-        if (!presenceSynced || presenceOwnerKey !== presenceKey || !state || !draftId || !memberId) return
-        if (state.draft.draftType !== 'auction') return
-
-        const requiredIds = state.order.map((o) => o.memberId)
-        const presentSet = new Set(presentMemberIds)
-        const allPresent = requiredIds.every((id) => presentSet.has(id))
-
-        if (!allPresent && state.draft.status === 'in_progress') {
-            // Multiple clients will race here — the RPC no-ops after the first wins.
-            pauseForAbsence(draftId).catch(() => {/* already paused or transient error */})
-        }
-
-        if (allPresent && state.draft.status === 'paused' && state.draft.pauseReason === 'member_absent') {
-            const ownerKey = presenceKey
-            if (!ownerKey || resumeRequestRef.current?.ownerKey === ownerKey) return
-            const request = { ownerKey, requestId: ++resumeSequenceRef.current }
-            resumeRequestRef.current = request
-            void resumeIfAbsent(draftId, presenceClaims)
-                .then(() => {
-                    if (activePresenceKeyRef.current === ownerKey) return load()
-                })
-                .catch((error) => {
-                    if (activePresenceKeyRef.current === ownerKey) {
-                        console.error('Could not resume auction after presence verification.', error)
-                    }
-                })
-                .finally(() => {
-                    if (resumeRequestRef.current?.requestId === request.requestId) {
-                        resumeRequestRef.current = null
-                    }
-                })
-        }
-    }, [presenceClaims, presenceKey, presenceOwnerKey, presenceSynced, presentMemberIds, state?.draft.status, state?.draft.pauseReason, state?.order, draftId, memberId]) // eslint-disable-line react-hooks/exhaustive-deps
-
     // Player search
     useEffect(() => {
         if (!nominating || !draftId) {
@@ -323,11 +231,11 @@ export function useAuctionDraftRoomController({
 
     async function handleBid() {
         if (!state?.openNomination || !memberId || !draftId) return
-        if (state.draft.draftType === 'auction' && !allMembersPresent) {
-            showAlert('Presence not verified', 'Wait until every manager is verified in the draft room before bidding.')
+        if (!realtimeConnected) {
+            showAlert('Live connection unavailable', 'Reconnect to the live draft before bidding.')
             return
         }
-        const ownerKey = `${draftId}:${memberId}`
+        const requestedDraftId = draftId
         // Guard the typed bid only at submit time: must be a whole-dollar amount
         // at least the minimum and within remaining budget.
         const min = Math.max(1, (state.openNomination.currentBidAmount ?? 0) + 1)
@@ -345,55 +253,50 @@ export function useAuctionDraftRoomController({
         setBidding(true)
         try {
             await placeBid(draftId, memberId, state.openNomination.id, amount)
-            if (activePresenceKeyRef.current !== ownerKey) return
+            if (activeDraftIdRef.current !== requestedDraftId) return
             load()
         } catch (e) {
-            if (activePresenceKeyRef.current === ownerKey) showAlert('Bid failed', getErrorMessage(e))
+            if (activeDraftIdRef.current === requestedDraftId) showAlert('Bid failed', getErrorMessage(e))
         } finally {
-            if (activePresenceKeyRef.current === ownerKey) setBidding(false)
+            if (activeDraftIdRef.current === requestedDraftId) setBidding(false)
         }
     }
 
     async function handleWithdraw() {
         if (!state?.openNomination || !memberId || !draftId) return
-        const ownerKey = `${draftId}:${memberId}`
+        const requestedDraftId = draftId
         setWithdrawing(true)
         try {
             await withdrawNomination(draftId, memberId, state.openNomination.id)
-            if (activePresenceKeyRef.current !== ownerKey) return
+            if (activeDraftIdRef.current !== requestedDraftId) return
             load()
         } catch (e) {
-            if (activePresenceKeyRef.current === ownerKey) showAlert('Could not withdraw', getErrorMessage(e))
+            if (activeDraftIdRef.current === requestedDraftId) showAlert('Could not withdraw', getErrorMessage(e))
         } finally {
-            if (activePresenceKeyRef.current === ownerKey) setWithdrawing(false)
+            if (activeDraftIdRef.current === requestedDraftId) setWithdrawing(false)
         }
     }
 
     async function handleNominate(playerId: string) {
         if (!memberId || !draftId) return
-        const ownerKey = `${draftId}:${memberId}`
-        if (state?.draft.draftType === 'auction' && !allMembersPresent) {
-            const presentSet = new Set(presentMemberIds)
-            const missing = (state?.order ?? []).filter((o) => !presentSet.has(o.memberId))
-            const names = missing.map((o) => o.teamName).join(', ')
-            showAlert('Not everyone is here', names
-                ? `${names} hasn't joined the draft room yet.`
-                : 'Manager presence is still being verified.')
+        const requestedDraftId = draftId
+        if (!realtimeConnected) {
+            showAlert('Live connection unavailable', 'Reconnect to the live draft before nominating a player.')
             return
         }
         setSubmittingNom(true)
         try {
             await nominatePlayer(draftId, memberId, playerId)
-            if (activePresenceKeyRef.current !== ownerKey) return
+            if (activeDraftIdRef.current !== requestedDraftId) return
             setNominating(false)
             setSearchQuery('')
             setSearchResults([])
             searchSeqRef.current += 1
             load()
         } catch (e) {
-            if (activePresenceKeyRef.current === ownerKey) showAlert('Nomination failed', getErrorMessage(e))
+            if (activeDraftIdRef.current === requestedDraftId) showAlert('Nomination failed', getErrorMessage(e))
         } finally {
-            if (activePresenceKeyRef.current === ownerKey) setSubmittingNom(false)
+            if (activeDraftIdRef.current === requestedDraftId) setSubmittingNom(false)
         }
     }
 
@@ -404,14 +307,7 @@ export function useAuctionDraftRoomController({
         searchSeqRef.current += 1
     }
 
-    // Presence-derived values
-    const absentMembers = useMemo(() => {
-        if (!state || !presenceSynced || presenceOwnerKey !== presenceKey) return []
-        const presentSet = new Set(presentMemberIds)
-        return state.order.filter((o) => !presentSet.has(o.memberId))
-    }, [presenceKey, presenceOwnerKey, state, presentMemberIds, presenceSynced])
-
-    const allMembersPresent = presenceSynced && presenceOwnerKey === presenceKey && absentMembers.length === 0
+    const realtimeConnected = realtimeStatus === 'SUBSCRIBED'
 
     // Memoize O(N) derivations from state so we don't recompute them every render
     // (poll fires every 5s; without memos every parent re-render rebuilds these arrays/maps).
@@ -439,7 +335,9 @@ export function useAuctionDraftRoomController({
         state,
         tab,
         setTab,
-        loadError: loadError ?? presenceError,
+        loadError: loadError ?? (realtimeStatus !== 'SUBSCRIBED' && realtimeStatus !== 'CONNECTING'
+            ? 'Live draft connection lost. Tap to retry.'
+            : null),
         bidText,
         setBidText,
         bidding,
@@ -456,8 +354,7 @@ export function useAuctionDraftRoomController({
         closedNominations,
         budgetByMember,
         wonCountByMember,
-        allMembersPresent,
-        absentMembers,
+        realtimeConnected,
         refresh: load,
         handleBid,
         handleWithdraw,

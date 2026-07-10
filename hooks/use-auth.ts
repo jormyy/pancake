@@ -2,6 +2,7 @@ import { createContext, createElement, ReactNode, useContext, useEffect, useMemo
 import { AppState, AppStateStatus } from 'react-native'
 import { Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
+import { clearPersistentCaches } from '@/lib/persistent-cache'
 
 type AuthContextValue = {
     session: Session | null
@@ -18,18 +19,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     useEffect(() => {
         let active = true
         let authEventSequence = 0
+        let cacheOwnerId: string | null = null
 
-        const commitSession = (nextSession: Session | null) => {
+        const commitSession = (nextSession: Session | null, forceCacheClear = false) => {
             if (!active) return
+            const nextOwnerId = nextSession?.user.id ?? null
+            if (forceCacheClear || (cacheOwnerId !== null && cacheOwnerId !== nextOwnerId)) {
+                clearPersistentCaches()
+            }
+            cacheOwnerId = nextOwnerId
             setSession(nextSession)
             setLoading(false)
         }
 
         const {
             data: { subscription },
-        } = supabase.auth.onAuthStateChange((_event, session) => {
+        } = supabase.auth.onAuthStateChange((event, session) => {
             authEventSequence += 1
-            commitSession(session)
+            commitSession(session, event === 'SIGNED_OUT')
         })
 
         const bootstrapSequence = authEventSequence

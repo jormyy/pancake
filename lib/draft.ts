@@ -2,6 +2,7 @@ import { supabase } from '@/lib/supabase'
 import { RealtimeChannel } from '@supabase/supabase-js'
 import { apiPost as sharedApiPost } from '@/lib/shared/api'
 import { subscribeToTableChanges } from '@/lib/realtime'
+import type { RealtimeSubscriptionStatus } from '@/lib/realtime'
 
 type DraftOrderEntry = {
     position: number
@@ -235,7 +236,8 @@ export async function getDraftState(draftId: string): Promise<DraftState | null>
       `,
                 )
                 .eq('draft_id', draftId)
-                .order('nomination_order'),
+                .order('nomination_order', { ascending: false })
+                .limit(500),
         ])
     if (draftResult.error) throw draftResult.error
     if (ordersResult.error) throw ordersResult.error
@@ -246,7 +248,7 @@ export async function getDraftState(draftId: string): Promise<DraftState | null>
     if (!draft) return null
     const orders = ordersResult.data ?? []
     const budgets = budgetsResult.data ?? []
-    const nominations = nominationsResult.data ?? []
+    const nominations = [...(nominationsResult.data ?? [])].reverse()
 
     const mappedDraft: Draft = {
         id: draft.id,
@@ -318,6 +320,7 @@ export async function getDraftState(draftId: string): Promise<DraftState | null>
             .select('id, nomination_id, member_id, amount, placed_at, league_members(team_name)')
             .eq('nomination_id', openNomination.id)
             .order('placed_at', { ascending: false })
+            .limit(100)
 
         if (bidsError) throw bidsError
         activeBids = (bids ?? []).map((bid) => ({
@@ -498,15 +501,12 @@ export async function closeExpiredNominations(draftId: string): Promise<{ closed
     return { closed: res?.closed ?? 0 }
 }
 
-export async function pauseForAbsence(draftId: string): Promise<void> {
-    await sharedApiPost(`/draft/${draftId}/pause-for-absence`, {})
-}
-
-export async function resumeIfAbsent(draftId: string, claims: string[]): Promise<{ resumed: boolean }> {
-    return sharedApiPost<{ resumed: boolean }>(`/draft/${draftId}/resume-if-absent`, { claims })
-}
-
-export function subscribeToDraft(draftId: string, leagueId: string | null | undefined, onChange: () => void): RealtimeChannel {
+export function subscribeToDraft(
+    draftId: string,
+    leagueId: string | null | undefined,
+    onChange: () => void,
+    onStatus?: (status: RealtimeSubscriptionStatus) => void,
+): RealtimeChannel {
     return subscribeToTableChanges(`draft:${draftId}`, {
         mode: 'fallback',
         watches: [
@@ -516,79 +516,8 @@ export function subscribeToDraft(draftId: string, leagueId: string | null | unde
             ...(leagueId ? [{ table: 'bids', filter: `league_id=eq.${leagueId}` }] : []),
         ],
         onChange,
+        onStatus,
     })
-}
-
-// Presence uses a separate public channel because private channels require
-// additional RLS setup on realtime.messages for broadcast/presence to work.
-// postgres_changes (handled by subscribeToDraft) works fine on private channels.
-export type DraftPresenceSubscription = {
-    channel: RealtimeChannel
-    dispose: () => Promise<void>
-}
-
-export type DraftPresenceSnapshot = {
-    memberIds: string[]
-    claims: string[]
-}
-
-const PRESENCE_CLAIM_REFRESH_MS = 4 * 60 * 1000
-
-export async function subscribeToPresence(
-    draftId: string,
-    onSync: (snapshot: DraftPresenceSnapshot) => void,
-    onError: (error: unknown) => void,
-): Promise<DraftPresenceSubscription> {
-    let claim = (await sharedApiPost<{ claim: string }>(`/draft/${draftId}/presence-claim`, {})).claim
-    const channel = supabase.channel(`draft-presence:${draftId}`)
-    let disposed = false
-    let snapshotSequence = 0
-
-    const snapshot = async () => {
-        const sequence = ++snapshotSequence
-        const state = channel.presenceState<{ claim?: string }>()
-        const claims = [...new Set(Object.values(state).flat().flatMap((entry) =>
-            typeof entry.claim === 'string' ? [entry.claim] : []))]
-        try {
-            const result = await sharedApiPost<{ memberIds: string[] }>(`/draft/${draftId}/resolve-presence`, { claims })
-            if (!disposed && sequence === snapshotSequence) onSync({ memberIds: result.memberIds, claims })
-        } catch (error) {
-            if (!disposed && sequence === snapshotSequence) onError(error)
-        }
-    }
-
-    // Listen to both 'sync' and 'join' so that rejoining members are detected
-    // reliably. 'sync' fires for the initial state and after leaves; 'join' fires
-    // specifically when new presences are added, which is the event we need for
-    // auto-resume to work.
-    channel.on('presence', { event: 'sync' }, () => { void snapshot() })
-    channel.on('presence', { event: 'join' }, () => { void snapshot() })
-
-    channel.subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-            void channel.track({ claim }).catch(onError)
-        }
-    })
-
-    const refresh = setInterval(() => {
-        void sharedApiPost<{ claim: string }>(`/draft/${draftId}/presence-claim`, {})
-            .then((result) => {
-                if (disposed) return
-                claim = result.claim
-                return channel.track({ claim })
-            })
-            .catch((error) => { if (!disposed) onError(error) })
-    }, PRESENCE_CLAIM_REFRESH_MS)
-
-    return {
-        channel,
-        dispose: async () => {
-            disposed = true
-            snapshotSequence += 1
-            clearInterval(refresh)
-            await supabase.removeChannel(channel)
-        },
-    }
 }
 
 export async function unsubscribeFromDraft(channel: RealtimeChannel): Promise<void> {

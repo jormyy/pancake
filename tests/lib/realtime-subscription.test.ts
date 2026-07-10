@@ -2,18 +2,23 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const realtime = vi.hoisted(() => {
     const callbacks: { config: Record<string, unknown>; callback: (payload: unknown) => void }[] = []
+    let statusCallback: ((status: 'SUBSCRIBED' | 'TIMED_OUT' | 'CLOSED' | 'CHANNEL_ERROR') => void) | undefined
     const channel = {
         on: vi.fn((_kind, config, callback) => {
             callbacks.push({ config, callback })
             return channel
         }),
-        subscribe: vi.fn(() => channel),
+        subscribe: vi.fn((callback) => {
+            statusCallback = callback
+            return channel
+        }),
     }
     return {
         callbacks,
         channel,
         channelFactory: vi.fn(() => channel),
         removeChannel: vi.fn(),
+        emitStatus: (status: 'SUBSCRIBED' | 'TIMED_OUT' | 'CLOSED' | 'CHANNEL_ERROR') => statusCallback?.(status),
     }
 })
 
@@ -68,6 +73,21 @@ describe('realtime subscriptions', () => {
 
         realtime.callbacks.forEach((entry) => entry.callback({}))
         expect(refresh).toHaveBeenCalledTimes(2)
+    })
+
+    it('surfaces subscription lifecycle status', () => {
+        const onStatus = vi.fn()
+        subscribeToTableChanges('status-test', {
+            mode: 'fallback',
+            watches: [],
+            onChange: vi.fn(),
+            onStatus,
+        })
+
+        realtime.emitStatus('SUBSCRIBED')
+        realtime.emitStatus('CHANNEL_ERROR')
+
+        expect(onStatus.mock.calls).toEqual([['SUBSCRIBED'], ['CHANNEL_ERROR']])
     })
 
     it('debounces refreshes and cancels pending work during disposal', async () => {
