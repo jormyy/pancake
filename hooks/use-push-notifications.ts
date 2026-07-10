@@ -16,6 +16,13 @@ Notifications.setNotificationHandler({
     }),
 })
 
+const PUSH_TOKEN_RETRY_DELAYS_MS = [1_000, 5_000]
+
+export function classifyPushTokenError(error: unknown): 'configuration' | 'retryable' {
+    const message = error instanceof Error ? error.message : String(error)
+    return /project\s*id|projectid|experienceid|eas project/i.test(message) ? 'configuration' : 'retryable'
+}
+
 export function usePushNotifications() {
     const { user } = useAuth()
     const userId = user?.id
@@ -24,6 +31,35 @@ export function usePushNotifications() {
         if (!userId) return
         const registeredUserId = userId
         let active = true
+        let retryTimer: ReturnType<typeof setTimeout> | null = null
+
+        async function acquireAndSaveToken(attempt: number): Promise<void> {
+            let token: string
+            try {
+                const tokenData = await Notifications.getExpoPushTokenAsync()
+                token = tokenData.data
+            } catch (error) {
+                if (classifyPushTokenError(error) === 'configuration') {
+                    console.warn('Push notifications are not configured for this build.', error)
+                    return
+                }
+                console.error('Could not acquire an Expo push token.', error)
+                const delay = PUSH_TOKEN_RETRY_DELAYS_MS[attempt]
+                if (!active || delay == null) return
+                retryTimer = setTimeout(() => {
+                    retryTimer = null
+                    void acquireAndSaveToken(attempt + 1).catch(console.error)
+                }, delay)
+                return
+            }
+
+            if (!active) return
+            const { error } = await supabase
+                .from('profiles')
+                .update({ push_token: token })
+                .eq('id', registeredUserId)
+            if (error) throw error
+        }
 
         async function register() {
             // Push notifications only work on physical devices
@@ -48,25 +84,13 @@ export function usePushNotifications() {
                 })
             }
 
-            let token: string
-            try {
-                const tokenData = await Notifications.getExpoPushTokenAsync()
-                token = tokenData.data
-            } catch {
-                // No EAS project ID — push tokens unavailable in dev builds without EAS
-                return
-            }
-
-            // Save to Supabase profile
-            if (!active) return
-            const { error } = await supabase
-                .from('profiles')
-                .update({ push_token: token })
-                .eq('id', registeredUserId)
-            if (error) throw error
+            await acquireAndSaveToken(0)
         }
 
         register().catch(console.error)
-        return () => { active = false }
+        return () => {
+            active = false
+            if (retryTimer) clearTimeout(retryTimer)
+        }
     }, [userId])
 }

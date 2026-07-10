@@ -61,6 +61,19 @@ describe('commissioner settings draft', () => {
         )).toEqual({ error: 'Lineup slots can only be changed during league setup.' })
     })
 
+    it('rejects partial integers and malformed decimals instead of truncating or zeroing them', () => {
+        const baseline = draft()
+        expect(buildCommissionerSettingsChange(
+            draft({ rosterSize: '20.5' }), baseline, 'setup', ['points'], ['PG'],
+        )).toEqual({ error: 'Roster size must be at least 1.' })
+        expect(buildCommissionerSettingsChange(
+            draft({ scoring: { points: '1.5points' } }), baseline, 'setup', ['points'], ['PG'],
+        )).toEqual({ error: 'Scoring value for points must be a valid number.' })
+        expect(buildCommissionerSettingsChange(
+            draft({ scoring: { points: '-1.25' } }), baseline, 'setup', ['points'], ['PG'],
+        )).toMatchObject({ updates: { scoring_settings: { points: -1.25 } } })
+    })
+
     it('preserves same-league edits and only conflicts on a changed remote baseline', () => {
         const baseline = draft()
         const local = draft({ rosterSize: '21' })

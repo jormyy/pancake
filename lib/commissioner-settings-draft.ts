@@ -94,6 +94,20 @@ type SettingsChange = {
     slotUpdates: { slot_type: string; slot_count: number }[] | null
 }
 
+function parseStrictInteger(value: string): number | null {
+    const normalized = value.trim()
+    if (!/^-?\d+$/.test(normalized)) return null
+    const parsed = Number(normalized)
+    return Number.isSafeInteger(parsed) ? parsed : null
+}
+
+function parseStrictDecimal(value: string): number | null {
+    const normalized = value.trim()
+    if (!/^-?(?:\d+(?:\.\d*)?|\.\d+)$/.test(normalized)) return null
+    const parsed = Number(normalized)
+    return Number.isFinite(parsed) ? parsed : null
+}
+
 export function buildCommissionerSettingsChange(
     draft: CommissionerSettingsDraft,
     baseline: CommissionerSettingsDraft,
@@ -113,11 +127,17 @@ export function buildCommissionerSettingsChange(
             `Veto window must be between ${draft.tradeVetoMode === 'disabled' ? 0 : 1} and 168 hours.`],
         ['tradeVetoThresholdPercent', 1, 100, 'Member veto threshold must be between 1% and 100%.'],
     ] as const
-    const parsed = {} as Record<(typeof integerFields)[number][0], number>
+    type IntegerField = (typeof integerFields)[number][0]
+    const parsed = new Map<IntegerField, number>()
     for (const [field, min, max, message] of integerFields) {
-        const value = Number.parseInt(draft[field], 10)
-        if (!Number.isFinite(value) || value < min || value > max) return { error: message }
-        parsed[field] = value
+        const value = parseStrictInteger(draft[field])
+        if (value == null || value < min || value > max) return { error: message }
+        parsed.set(field, value)
+    }
+    const integerValue = (field: IntegerField) => {
+        const value = parsed.get(field)
+        if (value == null) throw new Error(`Missing validated commissioner setting: ${field}`)
+        return value
     }
 
     const slotsChanged = slotTypes.some((type) => (draft.slots[type] ?? 0) !== (baseline.slots[type] ?? 0))
@@ -127,28 +147,32 @@ export function buildCommissionerSettingsChange(
 
     const updates: LeagueSettingsUpdate = {}
     if (scoringKeys.some((key) => draft.scoring[key] !== baseline.scoring[key])) {
-        updates.scoring_settings = Object.fromEntries(scoringKeys.map((key) => {
-            const value = Number.parseFloat(draft.scoring[key] ?? '0')
-            return [key, Number.isFinite(value) ? value : 0]
-        }))
+        const scoringEntries: [string, number][] = []
+        for (const key of scoringKeys) {
+            const value = parseStrictDecimal(draft.scoring[key] ?? '')
+            if (value == null) return { error: `Scoring value for ${key} must be a valid number.` }
+            scoringEntries.push([key, value])
+        }
+        updates.scoring_settings = Object.fromEntries(scoringEntries)
     }
-    if (draft.rosterSize !== baseline.rosterSize) updates.roster_size = parsed.rosterSize
-    if (draft.irSlots !== baseline.irSlots) updates.ir_slots = parsed.irSlots
-    if (draft.taxiSlots !== baseline.taxiSlots) updates.taxi_slots = parsed.taxiSlots
-    if (draft.auctionBudget !== baseline.auctionBudget) updates.auction_budget = parsed.auctionBudget
-    if (draft.playoffWeek !== baseline.playoffWeek) updates.playoff_start_week = parsed.playoffWeek
+    if (draft.rosterSize !== baseline.rosterSize) updates.roster_size = integerValue('rosterSize')
+    if (draft.irSlots !== baseline.irSlots) updates.ir_slots = integerValue('irSlots')
+    if (draft.taxiSlots !== baseline.taxiSlots) updates.taxi_slots = integerValue('taxiSlots')
+    if (draft.auctionBudget !== baseline.auctionBudget) updates.auction_budget = integerValue('auctionBudget')
+    if (draft.playoffWeek !== baseline.playoffWeek) updates.playoff_start_week = integerValue('playoffWeek')
     if (draft.weeklyAddLimit !== baseline.weeklyAddLimit) {
-        updates.weekly_add_unlimited = parsed.weeklyAddLimit === 0
-        if (parsed.weeklyAddLimit > 0) updates.weekly_add_limit = parsed.weeklyAddLimit
+        const weeklyAddLimit = integerValue('weeklyAddLimit')
+        updates.weekly_add_unlimited = weeklyAddLimit === 0
+        if (weeklyAddLimit > 0) updates.weekly_add_limit = weeklyAddLimit
     }
     if (draft.waiverMode !== baseline.waiverMode) updates.waiver_mode = draft.waiverMode
-    if (draft.faabBudget !== baseline.faabBudget) updates.faab_starting_budget = parsed.faabBudget
+    if (draft.faabBudget !== baseline.faabBudget) updates.faab_starting_budget = integerValue('faabBudget')
     if (draft.tradeVetoMode !== baseline.tradeVetoMode) updates.trade_veto_mode = draft.tradeVetoMode
     if (draft.tradeVetoWindowHours !== baseline.tradeVetoWindowHours) {
-        updates.trade_veto_window_hours = parsed.tradeVetoWindowHours
+        updates.trade_veto_window_hours = integerValue('tradeVetoWindowHours')
     }
     if (draft.tradeVetoThresholdPercent !== baseline.tradeVetoThresholdPercent) {
-        updates.trade_veto_threshold_percent = parsed.tradeVetoThresholdPercent
+        updates.trade_veto_threshold_percent = integerValue('tradeVetoThresholdPercent')
     }
     return {
         updates,

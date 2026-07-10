@@ -1,7 +1,7 @@
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
-import { describe, expect, it, vi } from 'vitest'
-import { usePushNotifications } from '@/hooks/use-push-notifications'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { classifyPushTokenError, usePushNotifications } from '@/hooks/use-push-notifications'
 
 const mocks = vi.hoisted(() => ({
     userId: 'user-a' as string | null,
@@ -37,6 +37,17 @@ vi.mock('@/lib/supabase', () => ({
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
+beforeEach(() => {
+    mocks.userId = 'user-a'
+    mocks.updates.length = 0
+    mocks.getExpoPushTokenAsync.mockReset()
+})
+
+afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+})
+
 const deferred = <Value,>() => {
     let resolve!: (value: Value) => void
     const promise = new Promise<Value>((done) => { resolve = done })
@@ -45,7 +56,6 @@ const deferred = <Value,>() => {
 
 describe('push notification identity ownership', () => {
     it('does not write a token resolved for a previous signed-in user', async () => {
-        mocks.updates.length = 0
         const first = deferred<{ data: string }>()
         const second = deferred<{ data: string }>()
         mocks.getExpoPushTokenAsync.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise)
@@ -61,5 +71,48 @@ describe('push notification identity ownership', () => {
 
         expect(mocks.updates).not.toContainEqual({ userId: 'user-a', token: 'token-a' })
         await act(async () => { renderer.unmount(); second.resolve({ data: 'token-b' }); await second.promise })
+    })
+
+    it('classifies build configuration separately from retryable acquisition failures', () => {
+        expect(classifyPushTokenError(new Error('No projectId found for this EAS project'))).toBe('configuration')
+        expect(classifyPushTokenError(new Error('Push service temporarily unavailable'))).toBe('retryable')
+    })
+
+    it('reports and retries a transient token acquisition failure', async () => {
+        vi.useFakeTimers()
+        vi.spyOn(console, 'error').mockImplementation(() => undefined)
+        mocks.getExpoPushTokenAsync
+            .mockRejectedValueOnce(new Error('Push service temporarily unavailable'))
+            .mockResolvedValueOnce({ data: 'token-a' })
+        const Probe = () => { usePushNotifications(); return null }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe)); await Promise.resolve() })
+        expect(mocks.getExpoPushTokenAsync).toHaveBeenCalledOnce()
+        expect(console.error).toHaveBeenCalledWith(
+            'Could not acquire an Expo push token.',
+            expect.any(Error),
+        )
+
+        await act(async () => { vi.advanceTimersByTime(1_000); await Promise.resolve() })
+        expect(mocks.getExpoPushTokenAsync).toHaveBeenCalledTimes(2)
+        expect(mocks.updates).toContainEqual({ userId: 'user-a', token: 'token-a' })
+        await act(async () => { renderer.unmount() })
+    })
+
+    it('reports configuration errors without retrying them', async () => {
+        vi.useFakeTimers()
+        vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+        mocks.getExpoPushTokenAsync.mockRejectedValue(new Error('No projectId configured'))
+        const Probe = () => { usePushNotifications(); return null }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe)); await Promise.resolve() })
+        await act(async () => { vi.runAllTimers(); await Promise.resolve() })
+
+        expect(mocks.getExpoPushTokenAsync).toHaveBeenCalledOnce()
+        expect(console.warn).toHaveBeenCalledWith(
+            'Push notifications are not configured for this build.',
+            expect.any(Error),
+        )
+        await act(async () => { renderer.unmount() })
     })
 })
