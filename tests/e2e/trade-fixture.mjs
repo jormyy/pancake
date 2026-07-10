@@ -72,17 +72,12 @@ export const findAvailablePlayers = async (admin, leagueId, leagueSeasonId, coun
   if (rosterError) throw new Error(`roster lookup: ${rosterError.message}`)
   if (playersError) throw new Error(`players lookup: ${playersError.message}`)
   const rosteredIds = new Set((rosterRows ?? []).map((row) => row.player_id))
-  const available = (players ?? []).filter((player) => player.display_name && !rosteredIds.has(player.id))
-  if (available.length >= count) {
-    const selected = available.slice(0, count)
-    for (const player of selected) {
-      if (fixtureCreatedPlayerIds.has(player.id)) registerCreatedPlayer(player.id)
-    }
-    return selected
-  }
-  for (const player of available) {
-    if (fixtureCreatedPlayerIds.has(player.id)) registerCreatedPlayer(player.id)
-  }
+  const available = (players ?? []).filter((player) => (
+    player.display_name &&
+    !rosteredIds.has(player.id) &&
+    !fixtureCreatedPlayerIds.has(player.id)
+  ))
+  if (available.length >= count) return available.slice(0, count)
 
   /** @type {('PG' | 'SG' | 'SF' | 'PF' | 'C')[]} */
   const positions = ['PG', 'SG', 'SF', 'PF', 'C']

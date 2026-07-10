@@ -6,6 +6,7 @@ import { ownScenarioResource, releaseScenarioResource } from './scenario-resourc
 
 const execFileAsync = promisify(execFile)
 const DEFAULT_COMMAND_TIMEOUT_MS = 30_000
+const DEFAULT_OPEN_TIMEOUT_MS = 60_000
 const DEFAULT_LIST_TIMEOUT_MS = 10_000
 const DEFAULT_MAX_BUFFER = 1024 * 1024 * 4
 const DEFAULT_LIST_MAX_BUFFER = 1024 * 1024
@@ -94,7 +95,7 @@ export const createBrowser = ({
   }
   const output = await runAgentBrowser({
     cwd,
-    timeout: options.timeout ?? defaultTimeout,
+    timeout: options.timeout ?? (args[0] === 'open' ? DEFAULT_OPEN_TIMEOUT_MS : defaultTimeout),
     maxBuffer: effectiveMaxBuffer,
     session,
     args,
