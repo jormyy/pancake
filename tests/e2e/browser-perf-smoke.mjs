@@ -51,6 +51,24 @@ const parseEvalJson = (output) => {
   return typeof value === 'string' ? JSON.parse(value) : value
 }
 
+const ensurePerfSeasonWeek = async (supabase, seasonYear, resourceOwner) => {
+  const start = new Date(Date.now() - 24 * 60 * 60 * 1000)
+  const end = new Date(start)
+  end.setUTCDate(end.getUTCDate() + 6)
+  const { error } = await supabase.from('season_weeks').insert({
+    season_year: seasonYear,
+    week_number: 1,
+    week_start: start.toISOString().slice(0, 10),
+    week_end: end.toISOString().slice(0, 10),
+  })
+  if (error) throw new Error(`D.X.4 perf season week insert failed: ${error.message}`)
+  resourceOwner.register(`perf season week ${seasonYear}`, async () => {
+    const { error: deleteError } = await supabase.from('season_weeks').delete()
+      .eq('season_year', seasonYear).eq('week_number', 1)
+    if (deleteError) throw new Error(`D.X.4 perf season week cleanup failed: ${deleteError.message}`)
+  })
+}
+
 const fetchSingle = async (supabase, table, select, filters) => {
   let query = supabase.from(table).select(select)
   for (const [key, value] of Object.entries(filters)) {
@@ -193,7 +211,7 @@ const ensurePerfMatchup = async (supabase, state, leagueSeasonId, members) => {
     .upsert({
       league_id: state.leagueId,
       league_season_id: leagueSeasonId,
-      week_number: 99,
+      week_number: 1,
       matchup_type: 'regular_season',
       home_member_id: members[0].id,
       away_member_id: members[1].id,
@@ -369,7 +387,9 @@ export async function runBrowserPerfSmoke({
     label: 'browser performance',
     userCount: 2,
     resourceOwner,
+    seasonYear: 5000 + (process.pid % 4000),
   })
+  await ensurePerfSeasonWeek(supabase, fixture.leagueSeason.season_year, resourceOwner)
   const perfState = { ...state, leagueId: fixture.league.id }
   const auction = await ensurePerfAuction(supabase, perfState)
   const matchup = await ensurePerfMatchup(supabase, perfState, auction.leagueSeasonId, auction.members)
