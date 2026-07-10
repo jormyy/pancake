@@ -9,6 +9,7 @@ describe('instant-loading performance budget contract', () => {
     it('ranks exactly 10 workflows with budgets matching the instant-loading goal', () => {
         expect(manifest.version).toBe(1)
         expect(manifest.workflows).toHaveLength(10)
+        expect(manifest.globalBudgets.minHeartbeatSamples).toBe(10)
 
         const ranks = manifest.workflows.map((workflow: any) => workflow.rank).sort((a: number, b: number) => a - b)
         expect(ranks).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])

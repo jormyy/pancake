@@ -83,6 +83,9 @@ export const validateManifest = (manifest) => {
       failures.push(`globalBudgets.${key} must be a positive number`)
     }
   }
+  if (!isPositiveInteger(budgets.minHeartbeatSamples)) {
+    failures.push('globalBudgets.minHeartbeatSamples must be a positive integer')
+  }
 
   return failures
 }
@@ -91,6 +94,11 @@ export const validateManifest = (manifest) => {
 export const validateBrowserPerfReport = (manifest, report, expectedProvenance = undefined) => {
   const failures = []
   const budgets = manifest.globalBudgets
+  const minHeartbeatSamples = budgets.minHeartbeatSamples
+
+  if (!isPositiveInteger(minHeartbeatSamples)) {
+    failures.push('globalBudgets.minHeartbeatSamples must be a positive integer')
+  }
 
   if (report.status !== 'PASS') failures.push(`browser perf report status is ${report.status ?? 'missing'}`)
 
@@ -98,6 +106,8 @@ export const validateBrowserPerfReport = (manifest, report, expectedProvenance =
   for (const [surface, measurement] of [['draft', report.draftPerf], ['home', report.homePerf]]) {
     if (!isPositiveInteger(measurement?.ticks)) {
       failures.push(`${surface} heartbeat ticks must be a positive integer`)
+    } else if (isPositiveInteger(minHeartbeatSamples) && measurement.ticks < minHeartbeatSamples) {
+      failures.push(`${surface} heartbeat ticks ${measurement.ticks} are below minimum ${minHeartbeatSamples}`)
     }
     if (!isFiniteNonnegativeNumber(measurement?.maxLagMs)) {
       failures.push(`${surface} heartbeat lag must be a finite nonnegative number`)

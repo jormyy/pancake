@@ -6,6 +6,7 @@
     "cachedRequestMs": 300,
     "fullWorkflowMs": 1000,
     "longTaskMs": 50,
+    "minHeartbeatSamples": 10,
     "maxHeartbeatLagMs": 600,
     "maxMutationLoopMs": 30000,
     "maxInitialWebJsKb": 700,

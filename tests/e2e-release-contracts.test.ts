@@ -416,6 +416,7 @@ describe('release E2E contracts', () => {
     for (const key of ['longTaskMs', 'maxInitialWebJsKb', 'maxRouteWebJsKb', 'maxDbQueryMs']) {
       expect(failures).toContain(`globalBudgets.${key} must be a positive number`)
     }
+    expect(failures).toContain('globalBudgets.minHeartbeatSamples must be a positive integer')
   })
 
   it('requires every per-workflow performance budget', () => {
@@ -439,6 +440,7 @@ describe('release E2E contracts', () => {
   it('rejects browser performance PASS evidence without numeric long-task and load measurements', () => {
     const manifest = {
       globalBudgets: {
+        minHeartbeatSamples: 10,
         maxHeartbeatLagMs: 600,
         longTaskMs: 50,
         maxMutationLoopMs: 30000,
@@ -463,6 +465,7 @@ describe('release E2E contracts', () => {
   it('rejects missing, nonnumeric, and negative browser heartbeat evidence', () => {
     const manifest = {
       globalBudgets: {
+        minHeartbeatSamples: 10,
         maxHeartbeatLagMs: 600,
         longTaskMs: 50,
         maxMutationLoopMs: 30000,
@@ -489,6 +492,7 @@ describe('release E2E contracts', () => {
   it('requires complete and internally consistent browser heartbeat and mutation evidence', () => {
     const manifest = {
       globalBudgets: {
+        minHeartbeatSamples: 10,
         maxHeartbeatLagMs: 600,
         longTaskMs: 50,
         maxMutationLoopMs: 30000,
@@ -509,6 +513,17 @@ describe('release E2E contracts', () => {
       workflowMeasurements: [],
     }
     expect(validateBrowserPerfReport(manifest, report)).toEqual([])
+
+    for (const ticks of [1, 9]) {
+      expect(validateBrowserPerfReport(manifest, {
+        ...report,
+        draftPerf: { ...report.draftPerf, ticks },
+        homePerf: { ...report.homePerf, ticks },
+      })).toEqual(expect.arrayContaining([
+        `draft heartbeat ticks ${ticks} are below minimum 10`,
+        `home heartbeat ticks ${ticks} are below minimum 10`,
+      ]))
+    }
 
     for (const value of [undefined, 0, '1', Number.NaN, -1]) {
       expect(validateBrowserPerfReport(manifest, {
@@ -909,13 +924,13 @@ describe('release E2E contracts', () => {
   })
 
   it('requires smoke and performance timing evidence for every retained season', () => {
-    const manifest = { globalBudgets: {}, workflows: [] }
+    const manifest = { globalBudgets: { minHeartbeatSamples: 10 }, workflows: [] }
     const reports = [
       { scenario: 'smoke', season: 1, status: 'PASS', result: { status: 'PASS', workflowMeasurements: [] } },
       { scenario: 'performance', season: 1, status: 'PASS', result: {
         status: 'PASS',
-        draftPerf: { ticks: 1, maxLagMs: 0, maxLongTaskMs: 0, longTaskSupported: true },
-        homePerf: { ticks: 1, maxLagMs: 0, maxLongTaskMs: 0, longTaskSupported: true },
+        draftPerf: { ticks: 10, maxLagMs: 0, maxLongTaskMs: 0, longTaskSupported: true },
+        homePerf: { ticks: 10, maxLagMs: 0, maxLongTaskMs: 0, longTaskSupported: true },
         load: {
           durationMs: 1,
           draft: { count: 1, durationMs: 1, mutations: [{}] },
@@ -925,6 +940,13 @@ describe('release E2E contracts', () => {
       } },
     ]
     expect(validateRetainedSeasonReports(manifest, reports, 1)).toEqual([])
+    const undersampled = structuredClone(reports)
+    undersampled[1]!.result.draftPerf!.ticks = 1
+    undersampled[1]!.result.homePerf!.ticks = 1
+    expect(validateRetainedSeasonReports(manifest, undersampled, 1)).toEqual(expect.arrayContaining([
+      'season 1: draft heartbeat ticks 1 are below minimum 10',
+      'season 1: home heartbeat ticks 1 are below minimum 10',
+    ]))
     expect(validateRetainedSeasonReports(manifest, reports, 2)).toContain('season 2: retained smoke report is missing')
   })
 })

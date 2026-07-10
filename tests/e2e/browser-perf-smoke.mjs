@@ -23,6 +23,11 @@ const MAX_SCRIPT_MS = Number(process.env.E2E_BROWSER_PERF_MAX_SCRIPT_MS ?? 30000
 const MAX_FEEDBACK_MS = Number(process.env.E2E_BROWSER_PERF_MAX_FEEDBACK_MS ?? 100)
 const MAX_LONG_TASK_MS = Number(process.env.E2E_BROWSER_PERF_MAX_LONG_TASK_MS ?? PERFORMANCE_BUDGETS.longTaskMs)
 const BROWSER_COMMAND_TIMEOUT_MS = Number(process.env.E2E_BROWSER_PERF_COMMAND_TIMEOUT_MS ?? 90_000)
+const MIN_HEARTBEAT_SAMPLES = PERFORMANCE_BUDGETS.minHeartbeatSamples
+
+if (!Number.isInteger(MIN_HEARTBEAT_SAMPLES) || MIN_HEARTBEAT_SAMPLES < 1) {
+  throw new Error('globalBudgets.minHeartbeatSamples must be a positive integer')
+}
 
 const readState = async () => JSON.parse(await readFile(STATE_PATH, 'utf8'))
 
@@ -514,7 +519,9 @@ export async function runBrowserPerfSmoke({
     if (homeFeedback?.feedbackMs > MAX_FEEDBACK_MS) failures.push(`home feedback ${homeFeedback.feedbackMs}ms exceeded ${MAX_FEEDBACK_MS}ms`)
     if (draftPerf.maxLongTaskMs > MAX_LONG_TASK_MS) failures.push(`draft long task ${draftPerf.maxLongTaskMs}ms exceeded ${MAX_LONG_TASK_MS}ms`)
     if (homePerf.maxLongTaskMs > MAX_LONG_TASK_MS) failures.push(`home long task ${homePerf.maxLongTaskMs}ms exceeded ${MAX_LONG_TASK_MS}ms`)
-    if (draftPerf.ticks < 10 || homePerf.ticks < 10) failures.push('browser heartbeat did not collect enough samples')
+    if (draftPerf.ticks < MIN_HEARTBEAT_SAMPLES || homePerf.ticks < MIN_HEARTBEAT_SAMPLES) {
+      failures.push(`browser heartbeat did not collect ${MIN_HEARTBEAT_SAMPLES} samples per surface`)
+    }
     const report = {
       status: failures.length === 0 ? 'PASS' : 'FAIL',
       season,
