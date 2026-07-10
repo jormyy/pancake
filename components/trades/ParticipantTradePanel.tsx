@@ -180,7 +180,7 @@ export function ParticipantTradePanel({
                                             onFaabChange(participant.memberId, destinationId, nextValue)
                                         }
                                     }}
-                                    maxLength={MAX_TRADE_FAAB_DIGITS}
+                                    maxLength={Math.max(MAX_TRADE_FAAB_DIGITS, value.length)}
                                     keyboardType="numeric"
                                     accessibilityLabel={error
                                         ? `FAAB sent by ${participantName(participant.memberId)} to ${participantName(destinationId)}. ${error}`
