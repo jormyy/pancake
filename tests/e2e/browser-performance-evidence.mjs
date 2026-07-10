@@ -112,7 +112,14 @@ const markDynamicTarget = async (browser, session, expression, attribute) => {
     }
     return JSON.stringify({ ok: false });
   })()`)
-  if (!result.ok) throw new Error(`Workflow feedback target was unavailable: ${expression}`)
+  if (!result.ok) {
+    const [snapshot, pageState] = await Promise.all([
+      browser(session, ['snapshot']).catch((error) => `snapshot unavailable: ${error.message}`),
+      browserJson(browser, session, `(() => JSON.stringify({ url: location.href, body: document.body?.innerText ?? '' }))()`)
+        .catch((error) => ({ pageStateUnavailable: error.message })),
+    ])
+    throw new Error(`Workflow feedback target was unavailable: ${expression}\nPage state: ${JSON.stringify(pageState)}\nSnapshot:\n${snapshot}`)
+  }
   return result.label
 }
 
@@ -151,8 +158,18 @@ const collectFeedback = async (browser, session, interaction, target) => {
       await new Promise((resolve) => setTimeout(resolve, 16));
     }
     const state = window.__pancakeWorkflowFeedback;
-    throw new Error('Trusted workflow action produced no expected application state change: ' + JSON.stringify(state));
+    window.__pancakeWorkflowFeedbackObserver?.disconnect?.();
+    return JSON.stringify({
+      observed: false,
+      state,
+      url: location.href,
+      body: document.body?.innerText ?? '',
+    });
   })()`)
+  if (!result.observed) {
+    const snapshot = await browser(session, ['snapshot']).catch((error) => `snapshot unavailable: ${error.message}`)
+    throw new Error(`${interaction} on ${target} produced no expected application state change\nPage state: ${JSON.stringify(result)}\nSnapshot:\n${snapshot}`)
+  }
   return { ...result, interaction, target }
 }
 
@@ -219,7 +236,7 @@ export const measureWorkflowFeedback = async (browser, session, { workflowId, la
   if (workflowId === 'trade-review-act' && label === 'propose-trade') {
     const result = await clickMeasuredTarget(browser, session, {
       selector: '[aria-label="Use multi-team trade mode"]',
-      expected: `document.querySelector('[aria-label="Use multi-team trade mode"]')?.getAttribute('aria-selected') === 'true'`,
+      expected: `document.body.innerText.includes('Pick at least two more teams') && document.querySelectorAll('[aria-label^="Trade with "]').length > 1`,
       interaction: 'trade-mode-change', target: 'Multi-Team',
     })
     await clickUnmeasured(browser, session, '[aria-label="Use 2-team trade mode"]')
@@ -257,7 +274,7 @@ export const measureWorkflowFeedback = async (browser, session, { workflowId, la
 
   if (workflowId === 'player-detail-open') {
     const target = await markDynamicTarget(browser, session,
-      `[...document.querySelectorAll('*')].find((node) => node.textContent?.trim() === 'Drop')?.closest('button, [role="button"], [tabindex="0"]')`,
+      `[...document.querySelectorAll('button, [role="button"], [tabindex="0"]')].find((node) => node.textContent?.trim() === 'Drop')`,
       'data-e2e-feedback-target')
     const result = await clickMeasuredTarget(browser, session, {
       selector: '[data-e2e-feedback-target="true"]',
