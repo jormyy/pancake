@@ -23,7 +23,7 @@ DELETE FROM public.players
  WHERE id IN (
   '00000000-0000-0000-0000-000000050401',
   '00000000-0000-0000-0000-000000050402'
- );
+ ) OR id IN (SELECT md5('waiver-backlog-player-' || series)::uuid FROM generate_series(1, 130) AS series);
 DELETE FROM auth.users WHERE id = '00000000-0000-0000-0000-000000050001';
 `
 
@@ -47,12 +47,17 @@ const waitForLock = async (child) => {
       '--tuples-only',
       '--no-align',
       '--command',
-      "SELECT count(*) FROM pg_locks WHERE locktype = 'advisory' AND granted",
+      String.raw`SELECT count(*) FROM pg_locks
+        WHERE locktype = 'advisory'
+          AND granted
+          AND classid::bigint = (hashtext('00000000-0000-0000-0000-000000050101')::bigint & 4294967295)
+          AND objid::bigint = (hashtext('00000000-0000-0000-0000-000000050301')::bigint & 4294967295)
+          AND objsubid = 2`,
     ])
-    if (Number(result.stdout.trim()) > 0) return
+    if (Number(result.stdout.trim()) === 1) return
     await new Promise((resolve) => setTimeout(resolve, 100))
   }
-  throw new Error('Timed out waiting for advisory lock')
+  throw new Error('Timed out waiting for exact advisory lock')
 }
 
 const lockHolder = spawn(

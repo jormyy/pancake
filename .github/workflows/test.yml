@@ -108,6 +108,7 @@ jobs:
         shell: bash
         run: |
           source <(supabase status -o env)
+          SUPABASE_DB_URL="$DB_URL" npm run check:db-function-catalog
           find supabase/migrations -maxdepth 1 -name '*.sql' -exec basename {} .sql \; | sort > /tmp/expected-migrations
           psql "$DB_URL" -Atc "select version || '_' || name from supabase_migrations.schema_migrations order by version" > /tmp/applied-migrations
           diff -u /tmp/expected-migrations /tmp/applied-migrations

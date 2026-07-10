@@ -7,7 +7,7 @@ DELETE FROM public.players
  WHERE id IN (
   '00000000-0000-0000-0000-000000050401',
   '00000000-0000-0000-0000-000000050402'
- );
+ ) OR id IN (SELECT md5('waiver-backlog-player-' || series)::uuid FROM generate_series(1, 130) AS series);
 DELETE FROM auth.users WHERE id = '00000000-0000-0000-0000-000000050001';
 
 INSERT INTO auth.users (
@@ -44,6 +44,11 @@ VALUES
   ('00000000-0000-0000-0000-000000050401', 'Locked', 'Target', 'FA', 'PG', 1, ARRAY['PG']),
   ('00000000-0000-0000-0000-000000050402', 'Open', 'Target', 'FA', 'SG', 1, ARRAY['SG']);
 
+INSERT INTO public.players (id, first_name, last_name, nba_team, position, years_exp, eligible_positions)
+SELECT md5('waiver-backlog-player-' || series)::uuid,
+  'LockedBacklog', series::text, 'FA', 'PG', 1, ARRAY['PG']
+FROM generate_series(1, 130) AS series;
+
 INSERT INTO public.waiver_priorities (league_id, league_season_id, member_id, priority)
 VALUES
   ('00000000-0000-0000-0000-000000050101', '00000000-0000-0000-0000-000000050301', '00000000-0000-0000-0000-000000050201', 1),
@@ -54,8 +59,18 @@ INSERT INTO public.waiver_wire_log (
   id, league_id, league_season_id, player_id, dropped_by_member_id, placed_on_waivers_at, clears_at
 )
 VALUES
-  ('00000000-0000-0000-0000-000000050501', '00000000-0000-0000-0000-000000050101', '00000000-0000-0000-0000-000000050301', '00000000-0000-0000-0000-000000050401', '00000000-0000-0000-0000-000000050201', now() - interval '3 days', now() - interval '1 minute'),
   ('00000000-0000-0000-0000-000000050502', '00000000-0000-0000-0000-000000050102', '00000000-0000-0000-0000-000000050302', '00000000-0000-0000-0000-000000050402', '00000000-0000-0000-0000-000000050202', now() - interval '3 days', now() - interval '1 minute');
+
+INSERT INTO public.waiver_wire_log (
+  id, league_id, league_season_id, player_id, dropped_by_member_id, placed_on_waivers_at, clears_at
+)
+SELECT md5('waiver-backlog-log-' || series)::uuid,
+  '00000000-0000-0000-0000-000000050101',
+  '00000000-0000-0000-0000-000000050301',
+  md5('waiver-backlog-player-' || series)::uuid,
+  '00000000-0000-0000-0000-000000050201',
+  now() - interval '3 days', now() - interval '1 minute'
+FROM generate_series(1, 130) AS series;
 
 INSERT INTO public.waiver_claims (
   league_id, league_season_id, member_id, player_id,
@@ -65,9 +80,9 @@ SELECT
   '00000000-0000-0000-0000-000000050101',
   '00000000-0000-0000-0000-000000050301',
   '00000000-0000-0000-0000-000000050201',
-  '00000000-0000-0000-0000-000000050401',
+  md5('waiver-backlog-player-' || series)::uuid,
   1, current_date - 2, 0, series
-FROM generate_series(1, 200) AS series;
+FROM generate_series(1, 130) AS series;
 
 INSERT INTO public.waiver_claims (
   id, league_id, league_season_id, member_id, player_id,
@@ -93,8 +108,8 @@ DECLARE
 BEGIN
   SELECT pg_get_functiondef('public.process_next_waiver_claim_atomic(date)'::regprocedure)
     INTO v_definition;
-  IF v_definition !~ '(?is)GROUP BY\s+candidate\.league_id.*candidate\.league_season_id.*candidate\.player_id\s+ORDER BY.*LIMIT 128' THEN
-    RAISE EXCEPTION 'Waiver candidate scan is not grouped and bounded';
+  IF v_definition !~ '(?is)DISTINCT ON\s*\(candidate_groups\.league_id, candidate_groups\.league_season_id\).*LIMIT 128' THEN
+    RAISE EXCEPTION 'Waiver candidate scan is not fair by lock key and bounded';
   END IF;
 
   SELECT * INTO v_result FROM waiver_backlog_result WHERE processed LIMIT 1;
@@ -106,7 +121,7 @@ BEGIN
     FROM public.waiver_claims
    WHERE league_id = '00000000-0000-0000-0000-000000050101'
      AND status = 'pending';
-  IF v_locked_pending <> 200 THEN
+  IF v_locked_pending <> 130 THEN
     RAISE EXCEPTION 'Contended duplicate group was mutated: % pending', v_locked_pending;
   END IF;
 

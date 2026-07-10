@@ -614,6 +614,7 @@ const assertVetoRowsSurviveMemberHistoryPagination = async (fixture) => {
   assert.equal(nextRows.some((trade) => rows.some((firstPage) => firstPage.id === trade.id)), false)
   assert([...rows, ...nextRows].some((trade) => trade.notes?.startsWith('pagination history ')))
 
+  executeRecoverySql('ANALYZE public.trades; ANALYZE public.trade_participants;')
   const explain = queryRecoveryJson(`
     SELECT set_config('request.jwt.claim.sub', '${observerUser.id}', false);
     EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)

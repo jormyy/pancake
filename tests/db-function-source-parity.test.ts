@@ -53,4 +53,23 @@ describe('canonical database function sources', () => {
         expect(checkFunctionSourceText('public.repeated(integer)', definitions.get('public.repeated(integer)')!, integerDefinition)).toEqual([])
         expect(checkFunctionSourceText('public.repeated(text)', definitions.get('public.repeated(text)')!, textDefinition)).toEqual([])
     })
+
+    it('moves canonical ownership through ALTER FUNCTION rename chains', async () => {
+        const { latestFunctionDefinitionsInSource } = await import('../scripts/check-db-function-sources.mjs')
+        const definitions = latestFunctionDefinitionsInSource(`
+            CREATE FUNCTION public.original(value uuid) RETURNS uuid AS $$ SELECT value $$ LANGUAGE sql;
+            ALTER FUNCTION public.original(uuid) RENAME TO intermediate;
+            ALTER FUNCTION public.intermediate(uuid) SET search_path = public;
+            DO $$ BEGIN
+              ALTER FUNCTION public.intermediate(uuid) RENAME TO final_name;
+            END $$;
+            CREATE FUNCTION public.original(value uuid) RETURNS uuid AS $$ SELECT NULL::uuid $$ LANGUAGE sql;
+        `)
+
+        expect([...definitions.keys()]).toEqual(['public.final_name', 'public.original'])
+        expect(definitions.get('public.final_name')).toContain('FUNCTION public.final_name(')
+        expect(definitions.get('public.final_name')).toContain('SELECT value')
+        expect(definitions.get('public.final_name')).toContain('SET search_path = public')
+        expect(definitions.get('public.original')).toContain('SELECT NULL::uuid')
+    })
 })

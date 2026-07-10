@@ -11,8 +11,8 @@ CREATE OR REPLACE FUNCTION public.get_trade_page_refs(
 RETURNS TABLE (trade_id uuid, cursor_token text)
 LANGUAGE plpgsql
 STABLE
-SECURITY INVOKER
-SET search_path = public
+SECURITY DEFINER
+SET search_path = ''
 AS $$
 DECLARE
   v_cursor jsonb;
@@ -21,6 +21,16 @@ DECLARE
   v_cursor_id uuid;
   v_limit int := LEAST(GREATEST(p_limit, 1), 100);
 BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+      FROM public.league_members AS own_member
+     WHERE own_member.id = p_member_id
+       AND own_member.league_id = p_league_id
+       AND own_member.user_id = (SELECT auth.uid())
+  ) THEN
+    RETURN;
+  END IF;
+
   IF p_cursor IS NOT NULL THEN
     BEGIN
       v_cursor := convert_from(decode(p_cursor, 'base64'), 'UTF8')::jsonb;
@@ -36,20 +46,10 @@ BEGIN
   END IF;
 
   RETURN QUERY
-  WITH authorized AS (
-    SELECT EXISTS (
-      SELECT 1
-        FROM public.league_members AS own_member
-       WHERE own_member.id = p_member_id
-         AND own_member.league_id = p_league_id
-         AND own_member.user_id = (SELECT auth.uid())
-    ) AS allowed
-  ), observer_actions AS (
+  WITH observer_actions AS (
     SELECT trade.id, 2 AS tier, trade.proposed_at
       FROM public.trades AS trade
-      CROSS JOIN authorized
-     WHERE authorized.allowed
-       AND trade.league_id = p_league_id
+     WHERE trade.league_id = p_league_id
        AND trade.status = 'accepted'::public.trade_status
        AND trade.veto_window_expires_at > now()
        AND NOT EXISTS (
@@ -68,9 +68,7 @@ BEGIN
     SELECT trade.id, 3 AS tier, trade.proposed_at
       FROM public.trade_participants AS participant
       JOIN public.trades AS trade ON trade.id = participant.trade_id
-      CROSS JOIN authorized
-     WHERE authorized.allowed
-       AND participant.league_id = p_league_id
+     WHERE participant.league_id = p_league_id
        AND participant.member_id = p_member_id
        AND participant.accepted_at IS NULL
        AND trade.status = 'pending'::public.trade_status
@@ -84,9 +82,7 @@ BEGIN
     SELECT trade.id, 1 AS tier, trade.proposed_at
       FROM public.trade_participants AS participant
       JOIN public.trades AS trade ON trade.id = participant.trade_id
-      CROSS JOIN authorized
-     WHERE authorized.allowed
-       AND participant.league_id = p_league_id
+     WHERE participant.league_id = p_league_id
        AND participant.member_id = p_member_id
        AND NOT (trade.status = 'pending'::public.trade_status AND participant.accepted_at IS NULL)
        AND (

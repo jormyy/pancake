@@ -1,5 +1,8 @@
 -- Bounded trade-page references and participant-owned routes.
 
+SET lock_timeout = '5s';
+SET statement_timeout = '2min';
+
 ALTER TABLE public.trade_participants
   ADD COLUMN proposed_at timestamptz;
 
@@ -9,7 +12,15 @@ UPDATE public.trade_participants AS participant
  WHERE trade.id = participant.trade_id;
 
 ALTER TABLE public.trade_participants
-  ALTER COLUMN proposed_at SET NOT NULL;
+  ADD CONSTRAINT trade_participants_proposed_at_present
+  CHECK (proposed_at IS NOT NULL) NOT VALID;
+
+ALTER TABLE public.trade_participants
+  VALIDATE CONSTRAINT trade_participants_proposed_at_present;
+
+ALTER TABLE public.trade_participants
+  ALTER COLUMN proposed_at SET NOT NULL,
+  DROP CONSTRAINT trade_participants_proposed_at_present;
 
 CREATE INDEX idx_trade_participants_member_proposed
   ON public.trade_participants(league_id, member_id, proposed_at DESC, trade_id DESC);
@@ -18,11 +29,11 @@ ALTER TABLE public.trade_items
   ADD CONSTRAINT trade_items_from_participant_fkey
     FOREIGN KEY (trade_id, from_member_id)
     REFERENCES public.trade_participants(trade_id, member_id)
-    DEFERRABLE INITIALLY DEFERRED,
+    DEFERRABLE INITIALLY DEFERRED NOT VALID,
   ADD CONSTRAINT trade_items_to_participant_fkey
     FOREIGN KEY (trade_id, to_member_id)
     REFERENCES public.trade_participants(trade_id, member_id)
-    DEFERRABLE INITIALLY DEFERRED;
+    DEFERRABLE INITIALLY DEFERRED NOT VALID;
 
 CREATE OR REPLACE FUNCTION private.set_trade_child_league_id()
 RETURNS trigger
@@ -782,8 +793,8 @@ CREATE OR REPLACE FUNCTION public.get_trade_page_refs(
 RETURNS TABLE (trade_id uuid, cursor_token text)
 LANGUAGE plpgsql
 STABLE
-SECURITY INVOKER
-SET search_path = public
+SECURITY DEFINER
+SET search_path = ''
 AS $$
 DECLARE
   v_cursor jsonb;
@@ -792,6 +803,16 @@ DECLARE
   v_cursor_id uuid;
   v_limit int := LEAST(GREATEST(p_limit, 1), 100);
 BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+      FROM public.league_members AS own_member
+     WHERE own_member.id = p_member_id
+       AND own_member.league_id = p_league_id
+       AND own_member.user_id = (SELECT auth.uid())
+  ) THEN
+    RETURN;
+  END IF;
+
   IF p_cursor IS NOT NULL THEN
     BEGIN
       v_cursor := convert_from(decode(p_cursor, 'base64'), 'UTF8')::jsonb;
@@ -807,20 +828,10 @@ BEGIN
   END IF;
 
   RETURN QUERY
-  WITH authorized AS (
-    SELECT EXISTS (
-      SELECT 1
-        FROM public.league_members AS own_member
-       WHERE own_member.id = p_member_id
-         AND own_member.league_id = p_league_id
-         AND own_member.user_id = (SELECT auth.uid())
-    ) AS allowed
-  ), observer_actions AS (
+  WITH observer_actions AS (
     SELECT trade.id, 2 AS tier, trade.proposed_at
       FROM public.trades AS trade
-      CROSS JOIN authorized
-     WHERE authorized.allowed
-       AND trade.league_id = p_league_id
+     WHERE trade.league_id = p_league_id
        AND trade.status = 'accepted'::public.trade_status
        AND trade.veto_window_expires_at > now()
        AND NOT EXISTS (
@@ -839,9 +850,7 @@ BEGIN
     SELECT trade.id, 3 AS tier, trade.proposed_at
       FROM public.trade_participants AS participant
       JOIN public.trades AS trade ON trade.id = participant.trade_id
-      CROSS JOIN authorized
-     WHERE authorized.allowed
-       AND participant.league_id = p_league_id
+     WHERE participant.league_id = p_league_id
        AND participant.member_id = p_member_id
        AND participant.accepted_at IS NULL
        AND trade.status = 'pending'::public.trade_status
@@ -855,9 +864,7 @@ BEGIN
     SELECT trade.id, 1 AS tier, trade.proposed_at
       FROM public.trade_participants AS participant
       JOIN public.trades AS trade ON trade.id = participant.trade_id
-      CROSS JOIN authorized
-     WHERE authorized.allowed
-       AND participant.league_id = p_league_id
+     WHERE participant.league_id = p_league_id
        AND participant.member_id = p_member_id
        AND NOT (trade.status = 'pending'::public.trade_status AND participant.accepted_at IS NULL)
        AND (
@@ -892,3 +899,6 @@ REVOKE ALL ON FUNCTION public.get_trade_page_refs(uuid, uuid, int, text) FROM PU
 GRANT EXECUTE ON FUNCTION public.get_trade_page_refs(uuid, uuid, int, text) TO authenticated, service_role;
 REVOKE ALL ON FUNCTION private.parse_multi_team_trade_items(jsonb) FROM PUBLIC, anon, authenticated, service_role;
 REVOKE ALL ON FUNCTION private.create_multi_team_trade_offer(uuid, uuid, uuid, uuid[], jsonb, text, timestamptz) FROM PUBLIC, anon, authenticated, service_role;
+
+RESET statement_timeout;
+RESET lock_timeout;

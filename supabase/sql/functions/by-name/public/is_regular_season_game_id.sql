@@ -6,6 +6,7 @@ CREATE OR REPLACE FUNCTION public.is_regular_season_game_id(p_game_id text)
 RETURNS boolean
 LANGUAGE sql
 IMMUTABLE
+SET search_path = public
 AS $$
   SELECT CASE
     WHEN p_game_id IS NULL OR btrim(p_game_id) = '' THEN false

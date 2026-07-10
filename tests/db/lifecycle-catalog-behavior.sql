@@ -190,6 +190,21 @@ BEGIN
   IF to_regclass('public.idx_trade_vetos_trade_member') IS NOT NULL THEN
     RAISE EXCEPTION 'Duplicate trade veto index still exists';
   END IF;
+  IF to_regclass('public.idx_trades_veto_feed') IS NULL THEN
+    RAISE EXCEPTION 'Bounded veto feed index is missing';
+  END IF;
+  IF EXISTS (
+    SELECT 1
+      FROM pg_constraint
+     WHERE conname IN (
+       'trade_items_league_id_fkey', 'trade_items_from_participant_fkey',
+       'trade_items_to_participant_fkey', 'trade_participants_league_id_fkey',
+       'trade_vetos_league_id_fkey', 'bids_league_id_fkey'
+     )
+       AND NOT convalidated
+  ) THEN
+    RAISE EXCEPTION 'Staged trade route constraints were not validated';
+  END IF;
 END $$;
 
 DO $$
@@ -221,9 +236,12 @@ BEGIN
     SELECT 1
       FROM pg_proc
      WHERE oid = v_page_oid
-       AND (prosecdef OR NOT proconfig @> ARRAY['search_path=public'])
+       AND (NOT prosecdef OR NOT proconfig @> ARRAY['search_path=""'])
   ) THEN
-    RAISE EXCEPTION 'Trade feed must remain invoker security with an explicit search path';
+    RAISE EXCEPTION 'Trade feed must use owner execution with an empty search path';
+  END IF;
+  IF pg_get_functiondef(v_page_oid) !~ '(?is)own_member\.user_id\s*=\s*\(SELECT auth\.uid\(\)\)' THEN
+    RAISE EXCEPTION 'Trade feed owner execution is missing explicit caller authorization';
   END IF;
   IF has_function_privilege('anon', 'private.parse_multi_team_trade_items(jsonb)', 'EXECUTE')
      OR has_function_privilege('authenticated', 'private.parse_multi_team_trade_items(jsonb)', 'EXECUTE')

@@ -35,34 +35,39 @@ DECLARE
   v_candidate record;
 BEGIN
   FOR v_candidate IN
-    SELECT
-      candidate.league_id,
-      candidate.league_season_id,
-      candidate.player_id
-      FROM waiver_claims AS candidate
-      JOIN waiver_wire_log AS due_wwl
-        ON due_wwl.league_id = candidate.league_id
-       AND due_wwl.league_season_id = candidate.league_season_id
-       AND due_wwl.player_id = candidate.player_id
-       AND due_wwl.cleared_at IS NULL
-       AND due_wwl.clears_at <= now()
-      JOIN leagues AS claim_league
-        ON claim_league.id = candidate.league_id
-       AND claim_league.status IN ('active'::league_status, 'playoffs'::league_status)
-      JOIN league_seasons AS claim_season
-        ON claim_season.id = candidate.league_season_id
-       AND claim_season.is_current = true
-     WHERE candidate.status = 'pending'
-       AND candidate.process_date <= p_process_date
-     GROUP BY
-       candidate.league_id,
-       candidate.league_season_id,
-       candidate.player_id
-     ORDER BY
-       min(candidate.process_date),
-       candidate.league_id,
-       candidate.league_season_id,
-       candidate.player_id
+    WITH candidate_groups AS (
+      SELECT
+        candidate.league_id,
+        candidate.league_season_id,
+        candidate.player_id,
+        min(candidate.process_date) AS process_date
+        FROM waiver_claims AS candidate
+        JOIN waiver_wire_log AS due_wwl
+          ON due_wwl.league_id = candidate.league_id
+         AND due_wwl.league_season_id = candidate.league_season_id
+         AND due_wwl.player_id = candidate.player_id
+         AND due_wwl.cleared_at IS NULL
+         AND due_wwl.clears_at <= now()
+        JOIN leagues AS claim_league
+          ON claim_league.id = candidate.league_id
+         AND claim_league.status IN ('active'::league_status, 'playoffs'::league_status)
+        JOIN league_seasons AS claim_season
+          ON claim_season.id = candidate.league_season_id
+         AND claim_season.is_current = true
+       WHERE candidate.status = 'pending'
+         AND candidate.process_date <= p_process_date
+       GROUP BY candidate.league_id, candidate.league_season_id, candidate.player_id
+    ), league_candidates AS (
+      SELECT DISTINCT ON (candidate_groups.league_id, candidate_groups.league_season_id)
+        candidate_groups.*
+        FROM candidate_groups
+       ORDER BY candidate_groups.league_id, candidate_groups.league_season_id,
+         candidate_groups.process_date, candidate_groups.player_id
+    )
+    SELECT league_candidates.league_id, league_candidates.league_season_id, league_candidates.player_id
+      FROM league_candidates
+     ORDER BY league_candidates.process_date, league_candidates.league_id,
+       league_candidates.league_season_id, league_candidates.player_id
      LIMIT 128
   LOOP
     IF pg_try_advisory_xact_lock(hashtext(v_candidate.league_id::text), hashtext(v_candidate.league_season_id::text)) THEN

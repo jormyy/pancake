@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process'
 import { mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -43,7 +44,7 @@ export const sourcePathForFunctionKey = (key, root = FUNCTION_SOURCES_DIR) => {
 }
 
 /** @param {string} source */
-export const maskSqlNonCode = (source) => {
+export const maskSqlNonCode = (source, { dollarQuotes = true } = {}) => {
   const chars = [...source]
   /** @param {number} index */
   const mask = (index) => { if (chars[index] !== '\n') chars[index] = ' ' }
@@ -79,7 +80,7 @@ export const maskSqlNonCode = (source) => {
       }
       continue
     }
-    if (source[index] === '$') {
+    if (dollarQuotes && source[index] === '$') {
       const delimiter = /^\$[A-Za-z0-9_]*\$/.exec(source.slice(index))?.[0]
       if (delimiter) {
         const end = source.indexOf(delimiter, index + delimiter.length)
@@ -162,6 +163,73 @@ export const functionIdentityArguments = (source, openIndex, maskedSource) => {
   })
 }
 
+/** @param {string} source */
+const functionAlterEventsInSource = (source) => {
+  const searchable = maskSqlNonCode(source, { dollarQuotes: false })
+  const pattern = new RegExp(`\\bALTER\\s+FUNCTION\\s+(?:IF\\s+EXISTS\\s+)?(?:(${IDENTIFIER})\\s*\\.\\s*)?(${IDENTIFIER})\\s*\\(`, 'gi')
+  const events = []
+  let match
+
+  while ((match = pattern.exec(searchable)) !== null) {
+    let depth = 1
+    let closeIndex = pattern.lastIndex
+    while (closeIndex < searchable.length && depth > 0) {
+      if (searchable[closeIndex] === '(') depth += 1
+      else if (searchable[closeIndex] === ')') depth -= 1
+      closeIndex += 1
+    }
+    if (depth !== 0) continue
+    const renamePattern = new RegExp(`^\\s*RENAME\\s+TO\\s+(${IDENTIFIER})`, 'i')
+    const renameMatch = renamePattern.exec(searchable.slice(closeIndex))
+    const key = functionKey(match[1], match[2])
+    const identityArguments = functionIdentityArguments(source, pattern.lastIndex - 1, searchable)
+    const identityKey = `${key}(${identityArguments.join(',')})`
+    if (renameMatch) {
+      const schema = key.slice(0, key.indexOf('.'))
+      const renamedKey = `${schema}.${unquoteIdentifier(renameMatch[1])}`
+      events.push({
+        type: 'rename',
+        key,
+        identityKey,
+        renamedKey,
+        renamedIdentityKey: `${renamedKey}(${identityArguments.join(',')})`,
+        start: match.index,
+        end: closeIndex + renameMatch[0].length,
+      })
+      continue
+    }
+    const searchPathMatch = /^\s*SET\s+search_path\s*(?:=|TO)\s*([^;]+)/i.exec(searchable.slice(closeIndex))
+    if (searchPathMatch) {
+      events.push({
+        type: 'set_search_path',
+        key,
+        identityKey,
+        searchPath: source.slice(closeIndex + searchPathMatch.index, closeIndex + searchPathMatch[0].length)
+          .replace(/^\s*SET\s+search_path\s*(?:=|TO)\s*/i, '')
+          .trim(),
+        start: match.index,
+        end: closeIndex + searchPathMatch[0].length,
+      })
+    }
+  }
+  return events
+}
+
+/** @param {string} definition @param {string} renamedKey */
+const renameFunctionDefinition = (definition, renamedKey) => {
+  const pattern = new RegExp(`(CREATE\\s+(?:OR\\s+REPLACE\\s+)?FUNCTION\\s+)(?:${IDENTIFIER}\\s*\\.\\s*)?${IDENTIFIER}`, 'i')
+  return definition.replace(pattern, `$1${renamedKey}`)
+}
+
+/** @param {string} definition @param {string} searchPath */
+const setFunctionSearchPath = (definition, searchPath) => {
+  const clause = `SET search_path = ${searchPath}`
+  if (/\bSET\s+search_path\s*(?:=|TO)\s*[^\n]+/i.test(definition)) {
+    return definition.replace(/\bSET\s+search_path\s*(?:=|TO)\s*[^\n]+/i, clause)
+  }
+  return definition.replace(/(AS\s+\$[A-Za-z0-9_]*\$)/i, `${clause}\n$1`)
+}
+
 const migrationFiles = async () =>
   (await readdir(MIGRATIONS_DIR))
     .filter((file) => /^\d+_.+\.sql$/.test(file))
@@ -222,7 +290,7 @@ export const functionLifecycleEventsInSource = (source) => {
     }
   }
 
-  return events
+  return [...events, ...functionAlterEventsInSource(source)].sort((left, right) => left.start - right.start)
 }
 
 /** @param {string} migrations @returns {Map<string, string>} */
@@ -230,7 +298,23 @@ export const latestFunctionDefinitionsInSource = (migrations) => {
   const definitions = new Map()
   for (const event of functionLifecycleEventsInSource(migrations)) {
     if (event.type === 'create') definitions.set(event.identityKey, { key: event.key, definition: event.definition })
-    else definitions.delete(event.identityKey)
+    else if (event.type === 'drop') definitions.delete(event.identityKey)
+    else if (event.type === 'rename') {
+      const entry = definitions.get(event.identityKey)
+      if (!entry) continue
+      definitions.delete(event.identityKey)
+      definitions.set(event.renamedIdentityKey, {
+        key: event.renamedKey,
+        definition: renameFunctionDefinition(entry.definition, event.renamedKey),
+      })
+    } else {
+      const entry = definitions.get(event.identityKey)
+      if (!entry) continue
+      definitions.set(event.identityKey, {
+        ...entry,
+        definition: setFunctionSearchPath(entry.definition, event.searchPath),
+      })
+    }
   }
   const definitionCounts = new Map()
   for (const entry of definitions.values()) {
@@ -374,14 +458,147 @@ export const checkFunctionSources = async () => {
   return failures
 }
 
+const sqlLiteral = (value) => `'${value.replaceAll("'", "''")}'`
+
+const functionFingerprintSql = (alias) => `jsonb_build_object(
+  'language', ${alias}.language,
+  'body', ${alias}.prosrc,
+  'binary', ${alias}.probin,
+  'kind', ${alias}.prokind,
+  'security_definer', ${alias}.prosecdef,
+  'leakproof', ${alias}.proleakproof,
+  'strict', ${alias}.proisstrict,
+  'returns_set', ${alias}.proretset,
+  'volatility', ${alias}.provolatile,
+  'parallel', ${alias}.proparallel,
+  'return_type', ${alias}.return_type,
+  'all_arg_types', ${alias}.all_arg_types,
+  'arg_modes', ${alias}.proargmodes,
+  'arg_names', ${alias}.proargnames,
+  'defaults', ${alias}.defaults,
+  'config', ${alias}.proconfig,
+  'cost', ${alias}.procost,
+  'rows', ${alias}.prorows
+)`
+
+/** @param {string} definition @param {string} scratchName */
+const scratchFunctionDefinition = (definition, scratchName) => {
+  const pattern = new RegExp(`(CREATE\\s+(?:OR\\s+REPLACE\\s+)?FUNCTION\\s+)(?:${IDENTIFIER}\\s*\\.\\s*)?${IDENTIFIER}`, 'i')
+  return definition.replace(pattern, `$1db_source_check.${scratchName}`)
+}
+
+export const checkFunctionCatalog = async () => {
+  const files = await sqlFilesUnder(FUNCTION_SOURCES_DIR)
+  const sources = []
+  for (const [index, file] of files.sort().entries()) {
+    const source = await readFile(file, 'utf8')
+    const definitions = functionLifecycleEventsInSource(source).filter((event) => event.type === 'create')
+    if (definitions.length !== 1) continue
+    const event = definitions[0]
+    const dot = event.key.indexOf('.')
+    sources.push({
+      scratchName: `function_${index}`,
+      schema: event.key.slice(0, dot),
+      name: event.key.slice(dot + 1),
+      identityArguments: event.identityKey.slice(event.identityKey.indexOf('(') + 1, -1),
+      definition: scratchFunctionDefinition(event.definition, `function_${index}`),
+    })
+  }
+
+  const values = sources.map((source) => `(
+    ${sqlLiteral(source.scratchName)}, ${sqlLiteral(source.schema)},
+    ${sqlLiteral(source.name)}, ${sqlLiteral(source.identityArguments)}
+  )`).join(',\n')
+  const definitions = sources.map((source) => source.definition).join('\n\n')
+  const catalogCte = (schemaPredicate) => `SELECT
+      namespace.nspname AS schema_name,
+      procedure.proname,
+      replace(pg_catalog.oidvectortypes(procedure.proargtypes), ', ', ',') AS identity_arguments,
+      language.lanname AS language,
+      procedure.prosrc,
+      procedure.probin,
+      procedure.prokind,
+      procedure.prosecdef,
+      procedure.proleakproof,
+      procedure.proisstrict,
+      procedure.proretset,
+      procedure.provolatile,
+      procedure.proparallel,
+      procedure.prorettype::regtype::text AS return_type,
+      procedure.proallargtypes::regtype[]::text AS all_arg_types,
+      procedure.proargmodes,
+      procedure.proargnames,
+      pg_get_expr(procedure.proargdefaults, 0) AS defaults,
+      procedure.proconfig,
+      procedure.procost,
+      procedure.prorows
+    FROM pg_proc AS procedure
+    JOIN pg_namespace AS namespace ON namespace.oid = procedure.pronamespace
+    JOIN pg_language AS language ON language.oid = procedure.prolang
+    WHERE procedure.prokind = 'f' AND ${schemaPredicate}`
+  const sql = `
+BEGIN;
+SET LOCAL check_function_bodies = off;
+CREATE SCHEMA db_source_check;
+${definitions}
+WITH expected(scratch_name, schema_name, function_name, identity_arguments) AS (VALUES ${values}),
+live AS (${catalogCte("namespace.nspname IN ('public', 'private', 'analytics')")}),
+scratch AS (${catalogCte("namespace.nspname = 'db_source_check'")}),
+comparison AS (
+  SELECT expected.schema_name || '.' || expected.function_name || '(' || expected.identity_arguments || ')' AS function_key,
+    ${functionFingerprintSql('live')} AS live_fingerprint,
+    ${functionFingerprintSql('scratch')} AS source_fingerprint
+  FROM expected
+  LEFT JOIN live ON live.schema_name = expected.schema_name
+    AND live.proname = expected.function_name
+    AND live.identity_arguments = expected.identity_arguments
+  LEFT JOIN scratch ON scratch.proname = expected.scratch_name
+), extras AS (
+  SELECT live.schema_name || '.' || live.proname || '(' || live.identity_arguments || ')' AS function_key
+  FROM live
+  LEFT JOIN expected ON expected.schema_name = live.schema_name
+    AND expected.function_name = live.proname
+    AND expected.identity_arguments = live.identity_arguments
+  WHERE expected.function_name IS NULL
+)
+SELECT COALESCE(jsonb_agg(issue ORDER BY issue->>'functionKey'), '[]'::jsonb)
+FROM (
+  SELECT jsonb_build_object(
+    'functionKey', comparison.function_key,
+    'problem', CASE WHEN comparison.live_fingerprint IS NULL THEN 'missing from live catalog' ELSE 'definition differs from canonical source' END
+  ) AS issue
+  FROM comparison
+  WHERE comparison.live_fingerprint IS NULL OR comparison.live_fingerprint <> comparison.source_fingerprint
+  UNION ALL
+  SELECT jsonb_build_object('functionKey', extras.function_key, 'problem', 'missing canonical source') FROM extras
+) AS issues;
+ROLLBACK;
+`
+  const databaseUrl = process.env.SUPABASE_DB_URL
+  if (!databaseUrl) throw new Error('SUPABASE_DB_URL is required for --check-catalog')
+  const output = execFileSync('psql', [databaseUrl, '--quiet', '--tuples-only', '--no-align', '--set', 'ON_ERROR_STOP=1'], {
+    encoding: 'utf8',
+    input: sql,
+  })
+  return JSON.parse(output.trim().split('\n').find((line) => line.startsWith('[')) ?? '[]')
+}
+
 const runCli = async () => {
   const command = process.argv[2] ?? '--check'
   if (command === '--write') {
     await writeFunctionSources()
     return
   }
+  if (command === '--check-catalog') {
+    const failures = await checkFunctionCatalog()
+    if (failures.length > 0) {
+      for (const failure of failures) console.error(`- ${failure.functionKey}: ${failure.problem}`)
+      process.exitCode = 1
+    }
+    return
+  }
   if (command !== '--check') {
-    throw new Error(`Unknown command ${command}. Use --check or --write.`)
+    throw new Error(`Unknown command ${command}. Use --check, --check-catalog, or --write.`)
   }
 
   const failures = await checkFunctionSources()
