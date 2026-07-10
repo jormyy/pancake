@@ -29,6 +29,8 @@ import { getRosterStatusChangeLockMessage } from '@/lib/roster-locks'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 import { Avatar } from '@/components/Avatar'
 import { subscribeToTableChanges, unsubscribeFromTableChanges } from '@/lib/realtime'
+import { RosterTrimBanner } from '@/components/roster/RosterTrimBanner'
+import { activeRosterOverflow } from '@/lib/roster-overflow'
 
 type RosterListItem =
     | { _isHeader: true; _section: string }
@@ -272,6 +274,8 @@ export default function RosterScreen() {
     }, [roster])
     const ir = useMemo(() => [...roster.filter((p) => p.is_on_ir)].sort(compareRosterBySlot), [roster])
     const taxi = useMemo(() => [...roster.filter((p) => p.is_on_taxi)].sort(compareRosterBySlot), [roster])
+    const rosterSize = currentLeague?.roster_size ?? 20
+    const rosterOverflow = activeRosterOverflow(active.length, rosterSize)
 
     const listData = useMemo<RosterListItem[]>(() => {
         const result: RosterListItem[] = []
@@ -471,6 +475,7 @@ export default function RosterScreen() {
 
     const league = currentLeague
     const taxiSlots = league?.taxi_slots ?? 3
+    const trimBusyId = droppingId ?? togglingId ?? taxiingId
 
     return (
         <SafeAreaView style={styles.container}>
@@ -487,7 +492,7 @@ export default function RosterScreen() {
                     </Text>
                     <Text style={styles.teamName}>{current.team_name}</Text>
                     <Text style={styles.rosterCount}>
-                        {active.length}/{league?.roster_size ?? 20} active · {ir.length}/{league?.ir_slots ?? 2} IR · {taxi.length}/{taxiSlots} taxi
+                        {active.length}/{rosterSize} active · {ir.length}/{league?.ir_slots ?? 2} IR · {taxi.length}/{taxiSlots} taxi
                     </Text>
                     {claims.length > 0 ? (
                         <Pressable
@@ -504,10 +509,16 @@ export default function RosterScreen() {
                 </View>
                 {roster.length > 0 ? (
                     <Pressable
-                        style={styles.lineupButton}
-                        onPress={() => push('/(modals)/lineup')}
+                        style={[styles.lineupButton, rosterOverflow > 0 && styles.lineupButtonDisabled]}
+                        onPress={rosterOverflow > 0 ? undefined : () => push('/(modals)/lineup')}
+                        disabled={rosterOverflow > 0}
+                        accessibilityRole="button"
+                        accessibilityLabel={rosterOverflow > 0 ? 'Trim roster before setting lineup' : 'Set lineup'}
+                        accessibilityState={{ disabled: rosterOverflow > 0 }}
                     >
-                        <Text style={styles.lineupButtonText}>Set Lineup</Text>
+                        <Text style={[styles.lineupButtonText, rosterOverflow > 0 && styles.lineupButtonTextDisabled]}>
+                            {rosterOverflow > 0 ? 'Trim Roster First' : 'Set Lineup'}
+                        </Text>
                     </Pressable>
                 ) : null}
             </View>
@@ -516,6 +527,17 @@ export default function RosterScreen() {
             {error ? (
                 <ErrorBanner message="Failed to load roster. Tap to retry." onRetry={refresh} />
             ) : null}
+
+            <RosterTrimBanner
+                players={active}
+                excess={rosterOverflow}
+                irAvailable={ir.length < (league?.ir_slots ?? 2)}
+                taxiAvailable={taxi.length < taxiSlots}
+                busyId={trimBusyId}
+                onDrop={handleDropPrompt}
+                onMoveToIR={(player) => { void handleToggleIR(player) }}
+                onMoveToTaxi={(player) => { void handleToggleTaxi(player) }}
+            />
 
             {roster.length === 0 ? (
                 <EmptyState
@@ -772,6 +794,8 @@ const styles = StyleSheet.create({
         marginLeft: spacing.lg,
     },
     lineupButtonText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.sm },
+    lineupButtonDisabled: { backgroundColor: colors.bgMuted, borderWidth: 1, borderColor: colors.borderLight },
+    lineupButtonTextDisabled: { color: colors.textMuted },
     leagueName: { fontSize: fontSize['2lg'], fontWeight: fontWeight.extrabold, color: colors.textPrimary },
     teamName: { fontSize: fontSize.md, color: colors.textSecondary },
     rosterCount: { fontSize: fontSize['2sm'], color: colors.textPlaceholder, marginTop: spacing.xs },
