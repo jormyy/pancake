@@ -31,6 +31,7 @@ const getPath = (value, dottedPath) => dottedPath
   }, value)
 
 const isFiniteNonnegativeNumber = (value) => Number.isFinite(value) && value >= 0
+const isPositiveInteger = (value) => Number.isInteger(value) && value > 0
 
 export const validateManifest = (manifest) => {
   const failures = []
@@ -95,6 +96,9 @@ export const validateBrowserPerfReport = (manifest, report, expectedProvenance =
 
   if (report.draftPerf?.longTaskSupported !== true || report.homePerf?.longTaskSupported !== true) failures.push('browser long-task observation was unavailable')
   for (const [surface, measurement] of [['draft', report.draftPerf], ['home', report.homePerf]]) {
+    if (!isPositiveInteger(measurement?.ticks)) {
+      failures.push(`${surface} heartbeat ticks must be a positive integer`)
+    }
     if (!isFiniteNonnegativeNumber(measurement?.maxLagMs)) {
       failures.push(`${surface} heartbeat lag must be a finite nonnegative number`)
     } else if (measurement.maxLagMs > budgets.maxHeartbeatLagMs) {
@@ -110,6 +114,27 @@ export const validateBrowserPerfReport = (manifest, report, expectedProvenance =
     failures.push('mutation loop duration must be a finite nonnegative number')
   } else if (report.load.durationMs > budgets.maxMutationLoopMs) {
     failures.push(`mutation loop ${report.load.durationMs}ms exceeds ${budgets.maxMutationLoopMs}ms`)
+  }
+  for (const [surface, load] of [['draft', report.load?.draft], ['home', report.load?.home]]) {
+    if (!isPositiveInteger(load?.count)) {
+      failures.push(`${surface} mutation count must be a positive integer`)
+    }
+    if (!isFiniteNonnegativeNumber(load?.durationMs)) {
+      failures.push(`${surface} mutation duration must be a finite nonnegative number`)
+    }
+    if (!Array.isArray(load?.mutations) || load.mutations.length !== load.count) {
+      failures.push(`${surface} mutation ledger must match its count`)
+    }
+  }
+  if (isPositiveInteger(report.load?.draft?.count) && isPositiveInteger(report.load?.home?.count) &&
+      report.load.draft.count !== report.load.home.count) {
+    failures.push('draft and home mutation counts must match')
+  }
+  if (isFiniteNonnegativeNumber(report.load?.durationMs) &&
+      isFiniteNonnegativeNumber(report.load?.draft?.durationMs) &&
+      isFiniteNonnegativeNumber(report.load?.home?.durationMs) &&
+      report.load.durationMs !== Math.max(report.load.draft.durationMs, report.load.home.durationMs)) {
+    failures.push('mutation loop duration must equal the slowest surface')
   }
 
   failures.push(...validateWorkflowReportKeys(manifest, report, 'tests/e2e-browser-perf-report.md', expectedProvenance))

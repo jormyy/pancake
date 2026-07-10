@@ -486,6 +486,65 @@ describe('release E2E contracts', () => {
     }
   })
 
+  it('requires complete and internally consistent browser heartbeat and mutation evidence', () => {
+    const manifest = {
+      globalBudgets: {
+        maxHeartbeatLagMs: 600,
+        longTaskMs: 50,
+        maxMutationLoopMs: 30000,
+        maxInitialWebJsKb: 700,
+        maxRouteWebJsKb: 220,
+      },
+      workflows: [],
+    }
+    const report = {
+      status: 'PASS',
+      draftPerf: { ticks: 10, maxLagMs: 1, maxLongTaskMs: 1, longTaskSupported: true },
+      homePerf: { ticks: 10, maxLagMs: 1, maxLongTaskMs: 1, longTaskSupported: true },
+      load: {
+        durationMs: 3,
+        draft: { count: 2, durationMs: 3, mutations: [{}, {}] },
+        home: { count: 2, durationMs: 2, mutations: [{}, {}] },
+      },
+      workflowMeasurements: [],
+    }
+    expect(validateBrowserPerfReport(manifest, report)).toEqual([])
+
+    for (const value of [undefined, 0, '1', Number.NaN, -1]) {
+      expect(validateBrowserPerfReport(manifest, {
+        ...report,
+        draftPerf: { ...report.draftPerf, ticks: value },
+        homePerf: { ...report.homePerf, ticks: value },
+      })).toEqual(expect.arrayContaining([
+        'draft heartbeat ticks must be a positive integer',
+        'home heartbeat ticks must be a positive integer',
+      ]))
+      expect(validateBrowserPerfReport(manifest, {
+        ...report,
+        load: {
+          ...report.load,
+          draft: { ...report.load.draft, count: value },
+          home: { ...report.load.home, count: value },
+        },
+      })).toEqual(expect.arrayContaining([
+        'draft mutation count must be a positive integer',
+        'home mutation count must be a positive integer',
+      ]))
+    }
+
+    expect(validateBrowserPerfReport(manifest, {
+      ...report,
+      load: { ...report.load, home: { ...report.load.home, count: 1 } },
+    })).toEqual(expect.arrayContaining([
+      'home mutation ledger must match its count',
+      'draft and home mutation counts must match',
+    ]))
+    expect(validateBrowserPerfReport(manifest, {
+      ...report,
+      load: { ...report.load, durationMs: 2 },
+    })).toContain('mutation loop duration must equal the slowest surface')
+  })
+
   it('rejects skeletal complete data-latency PASS evidence', async () => {
     const manifest = JSON.parse(await readFile(path.join(process.cwd(), 'tests/e2e/performance-budgets.json'), 'utf8'))
     const skeletal = {
@@ -853,7 +912,17 @@ describe('release E2E contracts', () => {
     const manifest = { globalBudgets: {}, workflows: [] }
     const reports = [
       { scenario: 'smoke', season: 1, status: 'PASS', result: { status: 'PASS', workflowMeasurements: [] } },
-      { scenario: 'performance', season: 1, status: 'PASS', result: { status: 'PASS', draftPerf: { maxLagMs: 0, maxLongTaskMs: 0, longTaskSupported: true }, homePerf: { maxLagMs: 0, maxLongTaskMs: 0, longTaskSupported: true }, load: { durationMs: 1 }, workflowMeasurements: [] } },
+      { scenario: 'performance', season: 1, status: 'PASS', result: {
+        status: 'PASS',
+        draftPerf: { ticks: 1, maxLagMs: 0, maxLongTaskMs: 0, longTaskSupported: true },
+        homePerf: { ticks: 1, maxLagMs: 0, maxLongTaskMs: 0, longTaskSupported: true },
+        load: {
+          durationMs: 1,
+          draft: { count: 1, durationMs: 1, mutations: [{}] },
+          home: { count: 1, durationMs: 1, mutations: [{}] },
+        },
+        workflowMeasurements: [],
+      } },
     ]
     expect(validateRetainedSeasonReports(manifest, reports, 1)).toEqual([])
     expect(validateRetainedSeasonReports(manifest, reports, 2)).toContain('season 2: retained smoke report is missing')
