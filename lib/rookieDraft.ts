@@ -278,6 +278,6 @@ export function subscribeToRookieDraft(draftId: string, onChange: () => void): R
     })
 }
 
-export function unsubscribeFromRookieDraft(channel: RealtimeChannel) {
-    unsubscribeFromTableChanges(channel)
+export async function unsubscribeFromRookieDraft(channel: RealtimeChannel): Promise<void> {
+    await unsubscribeFromTableChanges(channel)
 }

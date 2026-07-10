@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { usePathname } from 'expo-router'
 import { useLeagueContext } from '@/contexts/league-context'
-import { subscribeToTableChanges, unsubscribeFromTableChanges } from '@/lib/realtime'
+import { reportRealtimeCleanup, subscribeToTableChanges, unsubscribeFromTableChanges } from '@/lib/realtime'
 import { getPendingIncomingTradeCount } from '@/lib/trades'
 
 /**
@@ -50,12 +50,12 @@ export function usePendingTradeCount(): number {
             return () => {
                 requestRef.current += 1
                 window.removeEventListener('focus', fetchCount)
-                unsubscribeFromTableChanges(channel)
+                reportRealtimeCleanup('pending trade count', unsubscribeFromTableChanges(channel))
             }
         }
         return () => {
             requestRef.current += 1
-            unsubscribeFromTableChanges(channel)
+            reportRealtimeCleanup('pending trade count', unsubscribeFromTableChanges(channel))
         }
     }, [fetchCount, memberId, leagueId])
 

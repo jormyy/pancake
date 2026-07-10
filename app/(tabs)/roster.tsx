@@ -28,7 +28,7 @@ import { RosterClaimItem, RosterPickItem, RosterPlayerItem, TaxiPlayerItem } fro
 import { getRosterStatusChangeLockMessage } from '@/lib/roster-locks'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 import { Avatar } from '@/components/Avatar'
-import { subscribeToTableChanges, unsubscribeFromTableChanges } from '@/lib/realtime'
+import { reportRealtimeCleanup, subscribeToTableChanges, unsubscribeFromTableChanges } from '@/lib/realtime'
 import { RosterTrimBanner } from '@/components/roster/RosterTrimBanner'
 import { activeRosterOverflow, createRosterRecoveryRunner } from '@/lib/roster-overflow'
 
@@ -256,7 +256,7 @@ export default function RosterScreen() {
             ], onChange: () => { void refresh() } },
         )
 
-        return () => unsubscribeFromTableChanges(channel)
+        return () => reportRealtimeCleanup('roster', unsubscribeFromTableChanges(channel))
     }, [current?.id, leagueId, refresh])
 
     const roster = useMemo(() => data?.roster ?? EMPTY_ROSTER, [data?.roster])

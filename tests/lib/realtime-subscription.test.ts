@@ -27,7 +27,9 @@ vi.mock('@/lib/supabase', () => ({
 import {
     debounceRealtimeRefresh,
     disposeTableChangeSubscription,
+    reportRealtimeCleanup,
     subscribeToTableChanges,
+    unsubscribeFromTableChanges,
 } from '@/lib/realtime'
 
 afterEach(() => {
@@ -68,7 +70,7 @@ describe('realtime subscriptions', () => {
         expect(refresh).toHaveBeenCalledTimes(2)
     })
 
-    it('debounces refreshes and cancels pending work during disposal', () => {
+    it('debounces refreshes and cancels pending work during disposal', async () => {
         vi.useFakeTimers()
         const refresh = vi.fn()
         const debounced = debounceRealtimeRefresh(refresh, 100)
@@ -85,9 +87,24 @@ describe('realtime subscriptions', () => {
         expect(refresh).toHaveBeenCalledTimes(1)
 
         debounced.trigger()
-        disposeTableChangeSubscription(channel, [debounced])
+        await disposeTableChangeSubscription(channel, [debounced])
         vi.runAllTimers()
         expect(refresh).toHaveBeenCalledTimes(1)
         expect(realtime.removeChannel).toHaveBeenCalledWith(channel)
+    })
+
+    it('surfaces asynchronous channel removal failures', async () => {
+        const error = new Error('remove failed')
+        realtime.removeChannel.mockRejectedValueOnce(error)
+        const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+        reportRealtimeCleanup('test', unsubscribeFromTableChanges(realtime.channel as never))
+        await Promise.resolve()
+        await Promise.resolve()
+
+        expect(consoleError).toHaveBeenCalledWith(
+            'Could not clean up test realtime subscription.',
+            error,
+        )
     })
 })

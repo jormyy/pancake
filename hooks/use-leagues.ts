@@ -2,7 +2,7 @@ import { fetchUserLeagues } from '@/lib/league'
 import { useAuth } from '@/hooks/use-auth'
 import type { LeagueMembership } from '@/types/app'
 import { readPersistentCache, removePersistentCache, writePersistentCache } from '@/lib/persistent-cache'
-import { subscribeToTableChanges, unsubscribeFromTableChanges } from '@/lib/realtime'
+import { reportRealtimeCleanup, subscribeToTableChanges, unsubscribeFromTableChanges } from '@/lib/realtime'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 export type { LeagueMembership }
@@ -106,7 +106,7 @@ export function useLeagues() {
             ], onChange: () => { void refresh() } },
         )
 
-        return () => unsubscribeFromTableChanges(channel)
+        return () => reportRealtimeCleanup('league context', unsubscribeFromTableChanges(channel))
     }, [leagueRealtimeKey, refresh, user?.id])
 
     return { memberships, loading, error, refresh }

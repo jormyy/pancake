@@ -31,7 +31,12 @@ import { getMemberTransactionState } from '@/lib/league'
 import { PlayerRow } from '@/lib/players'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { getPlayerAvailabilitySnapshot } from '@/lib/player-availability'
-import { debounceRealtimeRefresh, subscribeToTableChanges, unsubscribeFromTableChanges } from '@/lib/realtime'
+import {
+    debounceRealtimeRefresh,
+    reportRealtimeCleanup,
+    subscribeToTableChanges,
+    unsubscribeFromTableChanges,
+} from '@/lib/realtime'
 
 const POSITIONS = [
     { key: 'ALL', label: 'All' },
@@ -229,7 +234,7 @@ export default function PlayersScreen() {
 
         return () => {
             refreshSupport.cancel()
-            unsubscribeFromTableChanges(channel)
+            reportRealtimeCleanup('players', unsubscribeFromTableChanges(channel))
         }
     }, [leagueId, refreshPlayerSupport])
 

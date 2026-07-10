@@ -6,6 +6,7 @@ import { parseLeagueTab, type LeagueTab } from '@/lib/league/tabs'
 import {
     debounceRealtimeRefresh,
     disposeTableChangeSubscription,
+    reportRealtimeCleanup,
     subscribeToTableChanges,
     type TableChangeWatch,
 } from '@/lib/realtime'
@@ -82,14 +83,17 @@ export function useLeagueScreenState() {
             mode: 'per-watch',
             watches: [...leagueWatches, ...draftWatches],
         })
-        return () => disposeTableChangeSubscription(channel, [
-            refreshResults,
-            refreshHistory,
-            refreshSettings,
-            refreshDraftBoard,
-            refreshMockRooms,
-            refreshDraftState,
-        ])
+        return () => reportRealtimeCleanup(
+            'league screen',
+            disposeTableChangeSubscription(channel, [
+                refreshResults,
+                refreshHistory,
+                refreshSettings,
+                refreshDraftBoard,
+                refreshMockRooms,
+                refreshDraftState,
+            ]),
+        )
     }, [currentDraftKey, currentLeague?.id, fetchActiveDraft, invalidateTab])
 
     const handleTabChange = (nextTab: LeagueTab) => {

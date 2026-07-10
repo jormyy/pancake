@@ -30,6 +30,7 @@ import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cach
 import {
     debounceRealtimeRefresh,
     disposeTableChangeSubscription,
+    reportRealtimeCleanup,
     subscribeToTableChanges,
 } from '@/lib/realtime'
 import { tradeScreenWatches } from '@/lib/trades-realtime'
@@ -130,7 +131,10 @@ export default function TradesScreen() {
                 draftPicks: refreshDraftPicks.trigger,
             }),
         })
-        return () => disposeTableChangeSubscription(channel, [refreshTrades, refreshHistory, refreshTradeBlock, refreshDraftPicks])
+        return () => reportRealtimeCleanup(
+            'trades',
+            disposeTableChangeSubscription(channel, [refreshTrades, refreshHistory, refreshTradeBlock, refreshDraftPicks]),
+        )
     }, [leagueId, load, loadBlock, myMemberId, refreshHistoryFeed, refreshPicks, tab])
 
     useEffect(() => {

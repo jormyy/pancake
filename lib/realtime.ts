@@ -49,14 +49,20 @@ export function debounceRealtimeRefresh(onChange: () => void, delayMs = 250) {
     return { trigger, cancel }
 }
 
-export function unsubscribeFromTableChanges(channel: RealtimeChannel) {
-    supabase.removeChannel(channel)
+export async function unsubscribeFromTableChanges(channel: RealtimeChannel): Promise<void> {
+    await supabase.removeChannel(channel)
 }
 
-export function disposeTableChangeSubscription(
+export async function disposeTableChangeSubscription(
     channel: RealtimeChannel,
     refreshes: { cancel: () => void }[],
-) {
+): Promise<void> {
     for (const refresh of refreshes) refresh.cancel()
-    unsubscribeFromTableChanges(channel)
+    await unsubscribeFromTableChanges(channel)
+}
+
+export function reportRealtimeCleanup(label: string, cleanup: Promise<void>): void {
+    void cleanup.catch((error) => {
+        console.error(`Could not clean up ${label} realtime subscription.`, error)
+    })
 }
