@@ -196,6 +196,21 @@ describe('scenario resource ownership', () => {
     expect(released).toHaveBeenCalledOnce()
     expect(retryable).toHaveBeenCalledTimes(2)
   })
+
+  it('releases keyed resources independently of unkeyed acquisition order', async () => {
+    const { createScenarioResourceOwner } = await import('./e2e/scenario-resource-owner.mjs')
+    const owner = createScenarioResourceOwner('mixed')
+    const fixtureDispose = vi.fn(async () => undefined)
+    const browserClose = vi.fn(async () => undefined)
+    owner.register('fixture', fixtureDispose)
+    owner.registerOnce('browser:session', 'browser session', browserClose)
+
+    owner.release('browser:session')
+    await owner.dispose()
+
+    expect(fixtureDispose).toHaveBeenCalledOnce()
+    expect(browserClose).not.toHaveBeenCalled()
+  })
 })
 
 describe('e2e harness reporting', () => {

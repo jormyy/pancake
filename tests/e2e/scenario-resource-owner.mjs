@@ -1,3 +1,7 @@
+import { AsyncLocalStorage } from 'node:async_hooks'
+
+const activeScenarioOwner = new AsyncLocalStorage()
+
 /** @param {unknown} error */
 const errorText = (error) => error instanceof Error ? error.message : String(error)
 
@@ -5,25 +9,30 @@ const errorText = (error) => error instanceof Error ? error.message : String(err
 export const createScenarioResourceOwner = (label) => {
   /** @type {{ name: string, dispose: () => Promise<void>, released: boolean }[]} */
   const resources = []
-  const resourceKeys = new Set()
+  /** @type {Map<string, { name: string, dispose: () => Promise<void>, released: boolean }>} */
+  const keyedResources = new Map()
   let disposed = false
+  /** @param {string} name @param {() => Promise<void>} dispose */
+  const registerResource = (name, dispose) => {
+    if (disposed) throw new Error(`${label}: cannot register ${name} after disposal`)
+    const resource = { name, dispose, released: false }
+    resources.push(resource)
+    return resource
+  }
   return {
     /** @param {string} name @param {() => Promise<void>} dispose */
     register(name, dispose) {
-      if (disposed) throw new Error(`${label}: cannot register ${name} after disposal`)
-      resources.push({ name, dispose, released: false })
+      registerResource(name, dispose)
     },
     /** @param {string} key @param {string} name @param {() => Promise<void>} dispose */
     registerOnce(key, name, dispose) {
-      if (resourceKeys.has(key)) return
-      resourceKeys.add(key)
-      this.register(name, dispose)
+      if (keyedResources.has(key)) return
+      keyedResources.set(key, registerResource(name, dispose))
     },
     /** @param {string} key */
     release(key) {
-      const index = [...resourceKeys].indexOf(key)
-      if (index < 0) return
-      resources[index].released = true
+      const resource = keyedResources.get(key)
+      if (resource) resource.released = true
     },
     async dispose() {
       if (disposed) return
@@ -100,6 +109,3 @@ export const throwWithCleanup = (primaryError, cleanupError, label) => {
   if (primaryError) throw primaryError
   if (cleanupError) throw cleanupError
 }
-import { AsyncLocalStorage } from 'node:async_hooks'
-
-const activeScenarioOwner = new AsyncLocalStorage()
