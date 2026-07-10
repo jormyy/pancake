@@ -5,6 +5,7 @@ import { advanceSeason } from '@/lib/rookieDraft'
 import { deleteLeague } from '@/lib/league'
 import { confirmAction, getErrorMessage, showAlert, showSuccess } from '@/lib/alert'
 import {
+    ARCHIVE_LEAGUE_DESCRIPTION,
     commissionerLifecyclePolicy,
     type CommissionerAction,
     type CommissionerActionId,
@@ -16,7 +17,7 @@ export function useCommissionerAdminActions({
     onDeleted,
 }: {
     league: LeagueInfo | null
-    refresh: () => void | Promise<void>
+    refresh: () => Promise<void>
     onDeleted: () => void
 }) {
     const [busyAction, setBusyAction] = useState<CommissionerActionId | null>(null)
@@ -114,14 +115,14 @@ export function useCommissionerAdminActions({
     const handleDeleteLeague = () => {
         if (!league) return
         confirmAction(
-            'Delete League',
-            `This will archive ${league.name}, cancel any active drafts, and remove it from normal navigation. Global player and ranking data will not be deleted.`,
+            'Archive League',
+            `${ARCHIVE_LEAGUE_DESCRIPTION} Archive ${league.name}?`,
             async () => {
                 setBusyAction('delete-league')
                 try {
                     await deleteLeague(league.id)
                     await refresh()
-                    showSuccess('League deleted', 'The league has been archived and hidden from your league list.')
+                    showSuccess('League archived', 'The league has been archived and hidden from your league list.')
                     onDeleted()
                 } catch (error) {
                     showAlert('Error', getErrorMessage(error))
@@ -129,7 +130,7 @@ export function useCommissionerAdminActions({
                     setBusyAction(null)
                 }
             },
-            'Delete League',
+            'Archive League',
             true,
         )
     }

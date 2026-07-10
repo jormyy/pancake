@@ -10,7 +10,7 @@ type LeagueContextType = {
     isCommissioner: boolean
     setCurrent: (m: LeagueMembership) => void
     loading: boolean
-    refresh: () => void
+    refresh: () => Promise<void>
 }
 
 const LeagueContext = createContext<LeagueContextType | null>(null)

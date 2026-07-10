@@ -50,7 +50,7 @@ export function useCommissionerSettingsResource({
 }: {
     league: LeagueInfo | null
     isCommissioner: boolean
-    refresh: () => void | Promise<void>
+    refresh: () => Promise<void>
     onSaved: () => void
 }) {
     const [draft, setDraft] = useState<CommissionerSettingsDraft>(EMPTY_COMMISSIONER_SETTINGS_DRAFT)

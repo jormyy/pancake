@@ -31,6 +31,11 @@ type ActionGroups = {
     utilityActions: CommissionerAction[]
 }
 
+export const ARCHIVE_LEAGUE_DESCRIPTION =
+    'Archives the league, cancels active drafts, and hides it from normal navigation. League history and global player data are retained.'
+
+const canAdvanceSeason = (status: LeagueStatus) => status === 'playoffs' || status === 'archived'
+
 export function commissionerLifecyclePolicy(status: LeagueStatus, groups: ActionGroups) {
     const lifecycle = (() => {
         switch (status) {
@@ -42,14 +47,19 @@ export function commissionerLifecyclePolicy(status: LeagueStatus, groups: Action
                 }
             case 'offseason':
                 return {
+                    label: 'Schedule Controls',
+                    detail: 'Build or reset the schedule when the next season is ready for matchups.',
+                    actions: groups.scheduleActions,
+                }
+            case 'archived':
+                return {
                     label: 'Annual Cycle',
-                    detail: 'Create the next season when rosters and results are ready to roll forward.',
+                    detail: 'Create the next season from the archived league year.',
                     actions: groups.annualCycleActions,
                 }
             case 'setup':
             case 'drafting':
             case 'active':
-            case 'archived':
                 return {
                     label: 'Schedule Controls',
                     detail: 'Build or reset the regular-season schedule before managers rely on matchups.',
@@ -60,8 +70,8 @@ export function commissionerLifecyclePolicy(status: LeagueStatus, groups: Action
 
     const lowerPriorityActions = [...groups.utilityActions]
     if (status !== 'playoffs') lowerPriorityActions.push(...groups.playoffActions)
-    if (status !== 'offseason') lowerPriorityActions.push(...groups.annualCycleActions)
-    if (status === 'playoffs' || status === 'offseason') lowerPriorityActions.push(...groups.scheduleActions)
+    if (canAdvanceSeason(status) && status !== 'archived') lowerPriorityActions.push(...groups.annualCycleActions)
+    if (status === 'playoffs' || status === 'archived') lowerPriorityActions.push(...groups.scheduleActions)
 
     return { lifecycle, lowerPriorityActions }
 }

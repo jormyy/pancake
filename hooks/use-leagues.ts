@@ -65,9 +65,7 @@ export function useLeagues() {
         void load()
     }, [load])
 
-    const refresh = useCallback(() => {
-        void load({ force: true })
-    }, [load])
+    const refresh = useCallback(() => load({ force: true }), [load])
 
     const leagueRealtimeKey = useMemo(
         () => memberships.map((membership) => membership.leagues.id).sort().join(':'),
@@ -87,7 +85,7 @@ export function useLeagues() {
                     { table: 'leagues', filter: `id=eq.${leagueId}` },
                     { table: 'league_members', filter: `league_id=eq.${leagueId}` },
                 ]),
-            ], onChange: refresh },
+            ], onChange: () => { void refresh() } },
         )
 
         return () => unsubscribeFromTableChanges(channel)

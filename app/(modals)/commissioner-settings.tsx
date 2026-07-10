@@ -11,7 +11,10 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { Stack } from 'expo-router'
 import type { TradeVetoMode, WaiverMode } from '@/lib/league'
 import { colors } from '@/constants/tokens'
-import type { CommissionerAction } from '@/lib/commissioner-settings-policy'
+import {
+    ARCHIVE_LEAGUE_DESCRIPTION,
+    type CommissionerAction,
+} from '@/lib/commissioner-settings-policy'
 import { LINEUP_SLOT_TYPES } from '@pancake/core'
 import { styles } from '@/components/commissioner/settings-styles'
 import { EmptyState } from '@/components/EmptyState'
@@ -343,10 +346,10 @@ export default function CommissionerSettingsScreen() {
                             <Text style={styles.sectionTitle}>DANGER ZONE</Text>
                             {renderAction({
                                 id: 'delete-league',
-                                label: 'Delete League',
+                                label: 'Archive League',
                                 intent: 'danger',
                                 onPress: handleDeleteLeague,
-                                description: 'Permanently removes the league, all rosters, history, and picks for every manager. This cannot be undone.',
+                                description: ARCHIVE_LEAGUE_DESCRIPTION,
                             })}
                         </>
                     ) : null}
