@@ -22,6 +22,7 @@ BEGIN
   UPDATE public.sync_jobs
      SET status = 'pending',
          completed_items = p_completed_items,
+         failed_items = 0,
          metadata = p_metadata,
          claimed_at = NULL,
          claim_token = NULL

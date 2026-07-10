@@ -22,6 +22,7 @@ BEGIN
   UPDATE public.sync_jobs
      SET status = 'completed',
          completed_items = p_completed_items,
+         failed_items = 0,
          metadata = p_metadata,
          completed_at = now(),
          claimed_at = NULL,

@@ -11,6 +11,8 @@ const LEGACY_JOB_ID = '00000000-0000-4000-8000-00000000000f'
 const POST_MIGRATION_LEGACY_RANGE = { startDate: '1947-05-01', endDate: '1947-05-03' }
 const POST_MIGRATION_LEGACY_JOB_TYPE = `sync_stats_range:${POST_MIGRATION_LEGACY_RANGE.startDate}:${POST_MIGRATION_LEGACY_RANGE.endDate}`
 const POST_MIGRATION_LEGACY_JOB_ID = '00000000-0000-4000-8000-00000000001f'
+const TERMINAL_RANGE = { startDate: '1947-06-01', endDate: '1947-06-02' }
+const TERMINAL_JOB_TYPE = `sync_stats_range:${TERMINAL_RANGE.startDate}:${TERMINAL_RANGE.endDate}`
 const env = requireEnv(resolvedEnv(), ['supabaseUrl', 'serviceRoleKey', 'dbUrl'])
 const admin = createClient(env.supabaseUrl, env.serviceRoleKey, { auth: { persistSession: false } })
 
@@ -30,7 +32,7 @@ async function rpc(name, args) {
 }
 
 async function cleanup() {
-  scalar(`DELETE FROM public.sync_jobs WHERE job_type IN ('${JOB_TYPE}', '${LEGACY_JOB_TYPE}', '${POST_MIGRATION_LEGACY_JOB_TYPE}');`)
+  scalar(`DELETE FROM public.sync_jobs WHERE job_type IN ('${JOB_TYPE}', '${LEGACY_JOB_TYPE}', '${POST_MIGRATION_LEGACY_JOB_TYPE}', '${TERMINAL_JOB_TYPE}');`)
 }
 
 try {
@@ -290,26 +292,97 @@ try {
     p_metadata: currentMetadata,
     p_error: 'injected upstream failure',
   }), true, 'fenced failure transition was not persisted')
-  const resumedId = await rpc('create_or_resume_stats_sync_job_atomic', {
-    p_start_date: RANGE.startDate,
-    p_end_date: RANGE.endDate,
-  })
-  assert.equal(resumedId, jobId, 'retry created a second job instead of resuming the failed cursor')
 
-  const { data: resumed, error: resumedError } = await admin
+  assert.equal((await rpc('claim_stats_sync_job_atomic', {
+    p_job_id: jobId,
+    p_stale_after_seconds: 60,
+  })).length, 0, 'failed continuation retried without its durable backoff')
+  scalar(`UPDATE public.sync_jobs SET completed_at = now() - interval '2 minutes' WHERE id = '${jobId}';`)
+  const retryClaims = await rpc('claim_stats_sync_job_atomic', {
+    p_stale_after_seconds: 60,
+  })
+  const retryClaim = retryClaims.find((claim) => claim.id === jobId)
+  assert.ok(retryClaim, 'dispatcher did not retry an eligible failed continuation')
+  assert.equal(await rpc('complete_stats_sync_job_atomic', {
+    p_job_id: jobId,
+    p_claim_token: retryClaim.claim_token,
+    p_completed_items: 1,
+    p_metadata: { ...RANGE, nextDate: '1947-03-04' },
+  }), true, 'dispatcher retry could not complete the failed continuation')
+
+  const { data: recovered, error: recoveredError } = await admin
     .from('sync_jobs')
     .select('status, completed_items, failed_items, error_log, claim_token, claimed_at')
     .eq('id', jobId)
     .single()
+  if (recoveredError) throw recoveredError
+  assert.equal(recovered.status, 'completed')
+  assert.equal(recovered.completed_items, 1)
+  assert.equal(recovered.failed_items, 0, 'successful dispatcher retry did not reset consecutive failures')
+  assert.deepEqual(recovered.error_log, ['injected upstream failure'])
+  assert.equal(recovered.claim_token, null)
+  assert.equal(recovered.claimed_at, null)
+
+  const terminalJobId = await rpc('create_or_resume_stats_sync_job_atomic', {
+    p_start_date: TERMINAL_RANGE.startDate,
+    p_end_date: TERMINAL_RANGE.endDate,
+  })
+  let terminalClaim = (await rpc('claim_stats_sync_job_atomic', {
+    p_job_id: terminalJobId,
+    p_stale_after_seconds: 60,
+  }))[0]
+  assert.ok(terminalClaim, 'terminal retry fixture could not claim its initial attempt')
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    assert.equal(await rpc('fail_stats_sync_job_atomic', {
+      p_job_id: terminalJobId,
+      p_claim_token: terminalClaim.claim_token,
+      p_completed_items: 0,
+      p_metadata: { ...TERMINAL_RANGE, nextDate: TERMINAL_RANGE.startDate },
+      p_error: `injected terminal failure ${attempt}`,
+    }), true, `terminal retry attempt ${attempt} was not persisted`)
+    scalar(`UPDATE public.sync_jobs SET completed_at = now() - interval '10 minutes' WHERE id = '${terminalJobId}';`)
+    const nextClaims = await rpc('claim_stats_sync_job_atomic', {
+      p_job_id: terminalJobId,
+      p_stale_after_seconds: 60,
+    })
+    if (attempt < 3) {
+      assert.equal(nextClaims.length, 1, `dispatcher did not claim retry attempt ${attempt + 1}`)
+      terminalClaim = nextClaims[0]
+    } else {
+      assert.equal(nextClaims.length, 0, 'dispatcher exceeded the stats retry attempt cap')
+    }
+  }
+
+  const { data: terminal, error: terminalError } = await admin
+    .from('sync_jobs')
+    .select('status, failed_items, error_log, claim_token, claimed_at')
+    .eq('id', terminalJobId)
+    .single()
+  if (terminalError) throw terminalError
+  assert.equal(terminal.status, 'failed', 'attempt-capped job lost its visible terminal failure state')
+  assert.equal(terminal.failed_items, 3)
+  assert.equal(terminal.error_log.length, 3)
+  assert.equal(terminal.claim_token, null)
+  assert.equal(terminal.claimed_at, null)
+
+  const resumedId = await rpc('create_or_resume_stats_sync_job_atomic', {
+    p_start_date: TERMINAL_RANGE.startDate,
+    p_end_date: TERMINAL_RANGE.endDate,
+  })
+  assert.equal(resumedId, terminalJobId, 'manual resume created a second terminal job')
+  const { data: resumed, error: resumedError } = await admin
+    .from('sync_jobs')
+    .select('status, failed_items, error_log, claim_token, claimed_at')
+    .eq('id', terminalJobId)
+    .single()
   if (resumedError) throw resumedError
   assert.equal(resumed.status, 'pending')
-  assert.equal(resumed.completed_items, 1)
-  assert.equal(resumed.failed_items, 1)
-  assert.deepEqual(resumed.error_log, ['injected upstream failure'])
+  assert.equal(resumed.failed_items, 0, 'manual resume did not reset the bounded retry budget')
+  assert.equal(resumed.error_log.length, 3, 'manual resume discarded terminal failure history')
   assert.equal(resumed.claim_token, null)
   assert.equal(resumed.claimed_at, null)
 
-  console.log('PASS stats sync jobs: rollout drain/crash rescue, concurrent dedupe, fencing, dispatcher rescue, and failure resume')
+  console.log('PASS stats sync jobs: rollout drain/crash rescue, fencing, dispatcher backoff/recovery, terminal cap, and manual resume')
 } finally {
   await cleanup()
 }

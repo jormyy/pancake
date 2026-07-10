@@ -20,6 +20,7 @@ SET search_path = ''
 AS $$
 DECLARE
   v_stale_after_seconds integer := LEAST(GREATEST(COALESCE(p_stale_after_seconds, 120), 60), 900);
+  v_max_failed_attempts constant integer := 3;
 BEGIN
   PERFORM set_config('app.stats_sync_fenced_transition', 'on', true);
   RETURN QUERY
@@ -30,6 +31,13 @@ BEGIN
        AND (p_job_id IS NULL OR job.id = p_job_id)
        AND (
          job.status = 'pending'
+         OR (
+           job.status = 'failed'
+           AND job.failed_items < v_max_failed_attempts
+           AND COALESCE(job.completed_at, job.created_at) <= now() - make_interval(
+             secs => CASE WHEN job.failed_items <= 1 THEN 60 ELSE 300 END
+           )
+         )
          OR (
          job.status = 'running'
            AND (

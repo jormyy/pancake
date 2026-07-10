@@ -21,6 +21,7 @@ BEGIN
   PERFORM set_config('app.stats_sync_fenced_transition', 'on', true);
   UPDATE public.sync_jobs
      SET completed_items = p_completed_items,
+         failed_items = 0,
          metadata = p_metadata,
          claimed_at = now()
    WHERE id = p_job_id

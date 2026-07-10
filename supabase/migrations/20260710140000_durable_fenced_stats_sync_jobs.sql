@@ -42,9 +42,9 @@ CREATE UNIQUE INDEX sync_jobs_one_active_stats_range_idx
     AND status IN ('pending', 'running', 'failed');
 
 CREATE INDEX sync_jobs_dispatchable_stats_idx
-  ON public.sync_jobs (status, claimed_at, created_at, id)
+  ON public.sync_jobs (status, completed_at, claimed_at, created_at, id)
   WHERE job_type LIKE 'sync_stats_range:%'
-    AND status IN ('pending', 'running');
+    AND status IN ('pending', 'running', 'failed');
 
 CREATE OR REPLACE FUNCTION public.create_or_resume_stats_sync_job_atomic(
   p_start_date date,
@@ -108,6 +108,7 @@ BEGIN
       AND status IN ('pending', 'running', 'failed')
   DO UPDATE
      SET status = CASE WHEN public.sync_jobs.status = 'failed' THEN 'pending' ELSE public.sync_jobs.status END,
+         failed_items = CASE WHEN public.sync_jobs.status = 'failed' THEN 0 ELSE public.sync_jobs.failed_items END,
          completed_at = CASE WHEN public.sync_jobs.status = 'failed' THEN NULL ELSE public.sync_jobs.completed_at END,
          claimed_at = CASE WHEN public.sync_jobs.status = 'failed' THEN NULL ELSE public.sync_jobs.claimed_at END,
          claim_token = CASE WHEN public.sync_jobs.status = 'failed' THEN NULL ELSE public.sync_jobs.claim_token END
@@ -135,6 +136,7 @@ SET search_path = ''
 AS $$
 DECLARE
   v_stale_after_seconds integer := LEAST(GREATEST(COALESCE(p_stale_after_seconds, 120), 60), 900);
+  v_max_failed_attempts constant integer := 3;
 BEGIN
   PERFORM set_config('app.stats_sync_fenced_transition', 'on', true);
   RETURN QUERY
@@ -145,6 +147,13 @@ BEGIN
        AND (p_job_id IS NULL OR job.id = p_job_id)
        AND (
          job.status = 'pending'
+         OR (
+           job.status = 'failed'
+           AND job.failed_items < v_max_failed_attempts
+           AND COALESCE(job.completed_at, job.created_at) <= now() - make_interval(
+             secs => CASE WHEN job.failed_items <= 1 THEN 60 ELSE 300 END
+           )
+         )
          OR (
          job.status = 'running'
            AND (
@@ -201,6 +210,7 @@ BEGIN
   PERFORM set_config('app.stats_sync_fenced_transition', 'on', true);
   UPDATE public.sync_jobs
      SET completed_items = p_completed_items,
+         failed_items = 0,
          metadata = p_metadata,
          claimed_at = now()
    WHERE id = p_job_id
@@ -230,6 +240,7 @@ BEGIN
   UPDATE public.sync_jobs
      SET status = 'pending',
          completed_items = p_completed_items,
+         failed_items = 0,
          metadata = p_metadata,
          claimed_at = NULL,
          claim_token = NULL
@@ -260,6 +271,7 @@ BEGIN
   UPDATE public.sync_jobs
      SET status = 'completed',
          completed_items = p_completed_items,
+         failed_items = 0,
          metadata = p_metadata,
          completed_at = now(),
          claimed_at = NULL,

@@ -64,6 +64,7 @@ BEGIN
       AND status IN ('pending', 'running', 'failed')
   DO UPDATE
      SET status = CASE WHEN public.sync_jobs.status = 'failed' THEN 'pending' ELSE public.sync_jobs.status END,
+         failed_items = CASE WHEN public.sync_jobs.status = 'failed' THEN 0 ELSE public.sync_jobs.failed_items END,
          completed_at = CASE WHEN public.sync_jobs.status = 'failed' THEN NULL ELSE public.sync_jobs.completed_at END,
          claimed_at = CASE WHEN public.sync_jobs.status = 'failed' THEN NULL ELSE public.sync_jobs.claimed_at END,
          claim_token = CASE WHEN public.sync_jobs.status = 'failed' THEN NULL ELSE public.sync_jobs.claim_token END
