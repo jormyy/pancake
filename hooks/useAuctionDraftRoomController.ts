@@ -15,7 +15,6 @@ import {
     type DraftState,
     type NominationOrderMode,
 } from '@/lib/draft'
-import type { RealtimeChannel } from '@supabase/supabase-js'
 import { getErrorMessage, showAlert } from '@/lib/alert'
 
 export type DraftTab = 'budgets' | 'history'
@@ -40,7 +39,9 @@ export function useAuctionDraftRoomController({
     // Presence — who is currently in the draft room
     const [presentMemberIds, setPresentMemberIds] = useState<string[]>([])
     const [presenceSynced, setPresenceSynced] = useState(false)
+    const [presenceOwnerKey, setPresenceOwnerKey] = useState<string | null>(null)
     const resumeDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const activePresenceKeyRef = useRef<string | null>(null)
 
     // Nomination / player search
     const [nominating, setNominating] = useState(false)
@@ -71,10 +72,37 @@ export function useAuctionDraftRoomController({
     // Keep bidTextRef in sync so load() can read current typed value without a dep.
     useEffect(() => { bidTextRef.current = bidText }, [bidText])
 
-    const channelRef = useRef<RealtimeChannel | null>(null)
-    const presenceChannelRef = useRef<RealtimeChannel | null>(null)
     const countdownNomination = state?.openNomination
     const draftLeagueId = state?.draft.leagueId ?? null
+    const presenceKey = draftId && memberId ? `${draftId}:${memberId}` : null
+    activePresenceKeyRef.current = presenceKey
+
+    useEffect(() => {
+        loadSeqRef.current += 1
+        searchSeqRef.current += 1
+        setState(null)
+        setLoadError(null)
+        setBidText('1')
+        setNominating(false)
+        setSearchQuery('')
+        setSearchResults([])
+        lastNomIdRef.current = null
+        closeTriggeredForNomRef.current = null
+        return () => {
+            loadSeqRef.current += 1
+            searchSeqRef.current += 1
+        }
+    }, [draftId])
+
+    useEffect(() => {
+        setPresentMemberIds([])
+        setPresenceSynced(false)
+        setPresenceOwnerKey(null)
+        return () => {
+            if (resumeDebounceRef.current) clearTimeout(resumeDebounceRef.current)
+            resumeDebounceRef.current = null
+        }
+    }, [presenceKey])
 
     const load = useCallback(async () => {
         if (!draftId) return
@@ -120,26 +148,30 @@ export function useAuctionDraftRoomController({
     useEffect(() => {
         if (!draftId) return
         load()
-        channelRef.current = subscribeToDraft(draftId, draftLeagueId, load)
+        const channel = subscribeToDraft(draftId, draftLeagueId, load)
         const poll = setInterval(load, 5000)
         return () => {
-            if (channelRef.current) unsubscribeFromDraft(channelRef.current)
+            unsubscribeFromDraft(channel)
             clearInterval(poll)
         }
     }, [draftId, draftLeagueId, load])
 
     // Presence — separate public channel so it works without realtime.messages RLS
     useEffect(() => {
-        if (!draftId || !memberId) return
-        presenceChannelRef.current = subscribeToPresence(draftId, memberId, (ids) => {
+        if (!draftId || !memberId || !presenceKey) return
+        const ownerKey = presenceKey
+        const channel = subscribeToPresence(draftId, memberId, (ids) => {
+            if (activePresenceKeyRef.current !== ownerKey) return
+            if (resumeDebounceRef.current) clearTimeout(resumeDebounceRef.current)
+            resumeDebounceRef.current = null
             setPresentMemberIds(ids)
             setPresenceSynced(true)
+            setPresenceOwnerKey(ownerKey)
         })
         return () => {
-            if (presenceChannelRef.current) unsubscribeFromDraft(presenceChannelRef.current)
-            presenceChannelRef.current = null
+            unsubscribeFromDraft(channel)
         }
-    }, [draftId, memberId])
+    }, [draftId, memberId, presenceKey])
 
     // Countdown tick
     useEffect(() => {
@@ -181,7 +213,7 @@ export function useAuctionDraftRoomController({
     // Only auction drafts; only after presence has synced at least once so the
     // initial empty-state doesn't trigger a spurious pause on mount.
     useEffect(() => {
-        if (!presenceSynced || !state || !draftId || !memberId) return
+        if (!presenceSynced || presenceOwnerKey !== presenceKey || !state || !draftId || !memberId) return
         if (state.draft.draftType !== 'auction') return
 
         const requiredIds = state.order.map((o) => o.memberId)
@@ -198,8 +230,10 @@ export function useAuctionDraftRoomController({
             // poll-driven re-run. Clearing only happens if conditions stop being met
             // (another member leaves), which is handled in the else branch below.
             if (!resumeDebounceRef.current) {
+                const ownerKey = presenceKey
                 resumeDebounceRef.current = setTimeout(() => {
                     resumeDebounceRef.current = null
+                    if (!ownerKey || activePresenceKeyRef.current !== ownerKey) return
                     resumeIfAbsent(draftId).catch(() => {/* ignore */}).then(() => load())
                 }, 2000)
             }
@@ -207,7 +241,7 @@ export function useAuctionDraftRoomController({
             clearTimeout(resumeDebounceRef.current)
             resumeDebounceRef.current = null
         }
-    }, [presenceSynced, presentMemberIds, state?.draft.status, state?.draft.pauseReason, state?.order, draftId, memberId]) // eslint-disable-line react-hooks/exhaustive-deps
+    }, [presenceKey, presenceOwnerKey, presenceSynced, presentMemberIds, state?.draft.status, state?.draft.pauseReason, state?.order, draftId, memberId]) // eslint-disable-line react-hooks/exhaustive-deps
 
     // Player search
     useEffect(() => {
@@ -314,12 +348,12 @@ export function useAuctionDraftRoomController({
 
     // Presence-derived values
     const absentMembers = useMemo(() => {
-        if (!state || !presenceSynced) return []
+        if (!state || !presenceSynced || presenceOwnerKey !== presenceKey) return []
         const presentSet = new Set(presentMemberIds)
         return state.order.filter((o) => !presentSet.has(o.memberId))
-    }, [state, presentMemberIds, presenceSynced])
+    }, [presenceKey, presenceOwnerKey, state, presentMemberIds, presenceSynced])
 
-    const allMembersPresent = presenceSynced ? absentMembers.length === 0 : true
+    const allMembersPresent = presenceSynced && presenceOwnerKey === presenceKey ? absentMembers.length === 0 : true
 
     // Memoize O(N) derivations from state so we don't recompute them every render
     // (poll fires every 5s; without memos every parent re-render rebuilds these arrays/maps).

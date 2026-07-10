@@ -106,6 +106,8 @@ export function useMatchupData(
             isFirstRunRef.current = false
             return
         }
+        loadSeqRef.current += 1
+        lineupSeqRef.current += 1
         const cached = readMatchupCache(current?.id, leagueId)
         setMatchup(cached?.matchup ?? undefined)
         setWeekDays(cached?.weekDays ?? [])
@@ -114,6 +116,8 @@ export function useMatchupData(
         setOppLineup(cached?.oppLineup ?? null)
         setSelectedDate(cached?.selectedDate ?? todayET())
         setMatchupLoading(!cached)
+        setLineupLoading(false)
+        setError(null)
         matchupRef.current = cached?.matchup ?? null
     }, [current?.id, leagueId, setSelectedDate])
 

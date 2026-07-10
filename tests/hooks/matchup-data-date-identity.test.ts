@@ -1,19 +1,22 @@
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useMatchupData } from '@/hooks/use-matchup-data'
 import type { Matchup } from '@/lib/scoring'
 
-const { getWeeklyLineup, readPersistentCache } = vi.hoisted(() => ({
+const { getLeagueWeekMatchups, getMyMatchup, getWeekDays, getWeeklyLineup, readPersistentCache } = vi.hoisted(() => ({
+    getLeagueWeekMatchups: vi.fn(),
+    getMyMatchup: vi.fn(),
+    getWeekDays: vi.fn(),
     getWeeklyLineup: vi.fn(),
     readPersistentCache: vi.fn(),
 }))
 
 vi.mock('@react-navigation/native', () => ({ useFocusEffect: vi.fn() }))
-vi.mock('@/lib/scoring', () => ({ getLeagueWeekMatchups: vi.fn(), getMyMatchup: vi.fn() }))
+vi.mock('@/lib/scoring', () => ({ getLeagueWeekMatchups, getMyMatchup }))
 vi.mock('@/lib/lineup', () => ({
-    clampDateToWeek: vi.fn(),
-    getWeekDays: vi.fn(),
+    clampDateToWeek: (_date: string, days: { date: string }[]) => days[0]?.date ?? '2026-07-09',
+    getWeekDays,
     getWeeklyLineup,
 }))
 vi.mock('@/lib/shared/dates', () => ({ todayET: () => '2026-07-09' }))
@@ -43,6 +46,13 @@ const lineup = (id: string) => ({
         rosterPlayerId: `roster-${id}`, playerId: id, displayName: id, position: 'PG',
         eligiblePositions: ['PG'], nbaTeam: 'LAL', injuryStatus: null, nbaId: null,
     }], ir: [], taxi: [],
+})
+
+beforeEach(() => {
+    vi.clearAllMocks()
+    readPersistentCache.mockReturnValue(undefined)
+    getLeagueWeekMatchups.mockResolvedValue([])
+    getWeekDays.mockResolvedValue([{ date: '2026-07-09' }])
 })
 
 describe('useMatchupData date ownership', () => {
@@ -80,6 +90,30 @@ describe('useMatchupData date ownership', () => {
         expect(latest.selectedDate).toBe('2026-07-10')
         expect(latest.myLineup?.bench[0]?.playerId).toBe('new-mine')
         expect(latest.oppLineup?.bench[0]?.playerId).toBe('new-opp')
+        await act(async () => { renderer.unmount() })
+    })
+
+    it('invalidates an in-flight matchup read when the resource identity becomes empty', async () => {
+        const pending = deferred<Matchup | null>()
+        getMyMatchup.mockReturnValue(pending.promise)
+        let latest!: ReturnType<typeof useMatchupData>
+        const Probe = ({ active }: { active: boolean }) => {
+            latest = useMatchupData(
+                active ? { id: 'member-a' } : null,
+                active ? { id: 'user' } : null,
+                active ? { id: 'league' } : null,
+            )
+            return null
+        }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe, { active: true })) })
+        let request!: Promise<void>
+        await act(async () => { request = latest.refresh(); await Promise.resolve() })
+        await act(async () => { renderer.update(React.createElement(Probe, { active: false })) })
+        await act(async () => { pending.resolve(matchup); await request })
+
+        expect(latest.matchup).toBeUndefined()
+        expect(getWeekDays).not.toHaveBeenCalled()
         await act(async () => { renderer.unmount() })
     })
 })

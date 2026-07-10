@@ -23,6 +23,7 @@ export function usePushNotifications() {
     useEffect(() => {
         if (!userId) return
         const registeredUserId = userId
+        let active = true
 
         async function register() {
             // Push notifications only work on physical devices
@@ -57,12 +58,15 @@ export function usePushNotifications() {
             }
 
             // Save to Supabase profile
-            await supabase
+            if (!active) return
+            const { error } = await supabase
                 .from('profiles')
                 .update({ push_token: token })
                 .eq('id', registeredUserId)
+            if (error) throw error
         }
 
         register().catch(console.error)
+        return () => { active = false }
     }, [userId])
 }
