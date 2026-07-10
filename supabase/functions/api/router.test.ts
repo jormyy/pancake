@@ -397,6 +397,30 @@ Deno.test({
 })
 
 Deno.test({
+  name: 'non-commissioners cannot generate a league schedule',
+  sanitizeOps: false,
+  sanitizeResources: false,
+  fn: async () => {
+    Deno.env.delete('ADMIN_USER_IDS')
+    commissionerRole = 'member'
+    postgrestRequests.length = 0
+    const res = await handleApiRoute(authedRequest('POST', '/sync/matchups', {
+      leagueId: LEAGUE_ID,
+      force: true,
+    }))
+    commissionerRole = 'commissioner'
+    const body = await res.json()
+
+    if (res.status !== 403 || body.error !== 'Commissioner access required') {
+      throw new Error(`expected non-commissioner rejection, got ${res.status}: ${JSON.stringify(body)}`)
+    }
+    if (postgrestRequests.some((entry) => entry.includes('/rest/v1/league_seasons'))) {
+      throw new Error('non-commissioner request reached schedule generation')
+    }
+  },
+})
+
+Deno.test({
   name: 'schedule generation rejects missing league scope',
   sanitizeOps: false,
   sanitizeResources: false,

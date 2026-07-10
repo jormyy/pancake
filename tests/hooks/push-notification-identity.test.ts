@@ -70,6 +70,37 @@ describe('push notification identity ownership', () => {
         await act(async () => { renderer.unmount() })
     })
 
+    it('serializes an in-flight old-owner write before the new-owner transfer', async () => {
+        const oldWrite = deferred<unknown>()
+        mocks.getExpoPushTokenAsync
+            .mockResolvedValueOnce({ data: 'token-a' })
+            .mockResolvedValueOnce({ data: 'token-b' })
+        mocks.apiPost.mockReturnValueOnce(oldWrite.promise).mockResolvedValueOnce({ ok: true })
+        const Probe = ({ userId }: { userId: string }) => {
+            mocks.userId = userId
+            usePushNotifications()
+            return null
+        }
+        let renderer!: ReactTestRenderer
+        await act(async () => {
+            renderer = create(React.createElement(Probe, { userId: 'user-a' }))
+            await Promise.resolve()
+        })
+        expect(mocks.apiPost).toHaveBeenCalledOnce()
+
+        await act(async () => {
+            renderer.update(React.createElement(Probe, { userId: 'user-b' }))
+            await Promise.resolve()
+        })
+        expect(mocks.apiPost).toHaveBeenCalledOnce()
+        await act(async () => { oldWrite.resolve({ ok: true }); await oldWrite.promise; await Promise.resolve() })
+        expect(mocks.apiPost).toHaveBeenNthCalledWith(2, '/profile/push-token', {
+            token: 'token-b',
+            active: true,
+        })
+        await act(async () => { renderer.unmount() })
+    })
+
     it('classifies build configuration separately from retryable acquisition failures', () => {
         expect(classifyPushTokenError(new Error('No projectId found for this EAS project'))).toBe('configuration')
         expect(classifyPushTokenError(new Error('Push service temporarily unavailable'))).toBe('retryable')
