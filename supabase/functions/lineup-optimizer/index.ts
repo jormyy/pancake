@@ -1,6 +1,7 @@
 import { serveInternal } from '../_shared/serve.ts'
 import { supabase } from '../_shared/supabase.ts'
 import { toETDate } from '../_shared/date.ts'
+import { runBounded } from '../_shared/runBounded.ts'
 import { SLOT_ELIGIBLE } from '../../../constants/slots.ts'
 
 type OptimizerSetting = {
@@ -85,13 +86,74 @@ type MemberRoster = {
 }
 
 const FILL_ORDER = ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F', 'UTIL']
+const MANUAL_DATE_LIMIT = 180
+const MANUAL_DATE_CONCURRENCY = 4
+const SCHEDULE_PAGE_SIZE = 1000
+
+type ManualRequest = {
+  mode: 'rest_of_season'
+  leagueId: string
+  leagueSeasonId: string
+  memberId: string
+}
 
 serveInternal('lineup-optimizer', async (req) => {
-  const body = req.method === 'POST' ? await req.json().catch(() => ({})) : {}
+  const body: Record<string, unknown> = req.method === 'POST' ? await req.json().catch(() => ({})) : {}
+  const manual = manualRequest(body)
+  if (manual) {
+    return Response.json({ ok: true, ...await processManualRestOfSeason(manual) })
+  }
   const requestedDate = typeof body.date === 'string' ? body.date : null
   const result = await processEnabledLineupOptimizers(requestedDate)
   return Response.json({ ok: true, ...result })
 })
+
+function manualRequest(body: Record<string, unknown>): ManualRequest | null {
+  if (body.mode !== 'rest_of_season') return null
+  for (const key of ['leagueId', 'leagueSeasonId', 'memberId'] as const) {
+    if (typeof body[key] !== 'string' || !body[key]) throw new TypeError(`${key} is required`)
+  }
+  return {
+    mode: 'rest_of_season',
+    leagueId: body.leagueId as string,
+    leagueSeasonId: body.leagueSeasonId as string,
+    memberId: body.memberId as string,
+  }
+}
+
+async function processManualRestOfSeason(request: ManualRequest): Promise<{
+  dates: number
+  optimized: number
+  skipped: number
+}> {
+  const [league, season] = await Promise.all([
+    loadLeague(request.leagueId),
+    loadSeason(request.leagueId, request.leagueSeasonId),
+  ])
+  if (!season?.is_current || !['active', 'playoffs'].includes(league?.status ?? '')) {
+    throw new Error('Lineups can only be optimized for the current active or playoff season.')
+  }
+
+  const contexts = await loadRemainingSeasonDateContexts(season.season_year)
+  const setting: OptimizerSetting = {
+    league_id: request.leagueId,
+    league_season_id: request.leagueSeasonId,
+    member_id: request.memberId,
+  }
+  const roster = await loadMemberRoster(setting)
+  let optimized = 0
+  let skipped = 0
+  await runBounded(contexts.map((context) => async () => {
+    if (context.seasonYear !== season.season_year) {
+      skipped++
+      return
+    }
+    await autoSetMemberDate(setting, context, roster)
+    optimized++
+  }), MANUAL_DATE_CONCURRENCY)
+
+  return { dates: contexts.length, optimized, skipped }
+}
 
 async function processEnabledLineupOptimizers(requestedDate: string | null): Promise<{
   settings: number
@@ -193,6 +255,47 @@ async function loadDateContexts(requestedDate: string | null): Promise<DateConte
     )?.week_number ?? null
     if (weekNumber == null) continue
     contexts.push({ date, seasonYear, weekNumber, games })
+  }
+  return contexts
+}
+
+async function loadRemainingSeasonDateContexts(seasonYear: number): Promise<DateContext[]> {
+  const today = toETDate(new Date())
+  const games: GameRow[] = []
+  for (let from = 0; games.length <= 3000; from += SCHEDULE_PAGE_SIZE) {
+    const { data, error } = await supabase
+      .from('nba_games')
+      .select('season_year, game_date, home_team, away_team, status, game_time')
+      .eq('season_year', seasonYear)
+      .gte('game_date', today)
+      .order('game_date', { ascending: true })
+      .order('game_time', { ascending: true })
+      .range(from, from + SCHEDULE_PAGE_SIZE - 1)
+    if (error) throw error
+    const page = (data ?? []) as GameRow[]
+    games.push(...page)
+    if (page.length < SCHEDULE_PAGE_SIZE) break
+  }
+
+  const byDate = new Map<string, GameRow[]>()
+  for (const game of games) {
+    const dateGames = byDate.get(game.game_date) ?? []
+    dateGames.push(game)
+    byDate.set(game.game_date, dateGames)
+  }
+  const dates = [...byDate.keys()].sort()
+  if (dates.length > MANUAL_DATE_LIMIT) {
+    throw new RangeError(`Remaining season exceeds the ${MANUAL_DATE_LIMIT}-date optimizer limit.`)
+  }
+  if (dates.length === 0) return []
+
+  const weeks = await loadSeasonWeeks(dates)
+  const contexts: DateContext[] = []
+  for (const date of dates) {
+    const weekNumber = weeks.find(
+      (week) => week.season_year === seasonYear && week.week_start <= date && date <= week.week_end,
+    )?.week_number
+    if (weekNumber != null) contexts.push({ date, seasonYear, weekNumber, games: byDate.get(date) ?? [] })
   }
   return contexts
 }

@@ -8,6 +8,7 @@ const LEAGUE_ID = '66666666-6666-4666-8666-666666666666'
 
 const postgrestRequests: string[] = []
 const profileMutations: { query: string; body: unknown }[] = []
+const optimizerRequests: { internalToken: string | null; body: unknown }[] = []
 let commissionerRole: string | null = 'commissioner'
 let authenticatedUserId = USER_ID
 let pushGate: { promise: Promise<void>; resolve: () => void } | null = null
@@ -38,9 +39,13 @@ const postgrest = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, 
       email: 'mock-snake-pick@example.com',
     }
   } else if (url.pathname === '/rest/v1/league_members' && url.searchParams.get('select') === 'league_id') {
-    body = { league_id: LEAGUE_ID }
+    body = url.searchParams.has('role')
+      ? commissionerRole ? [{ league_id: LEAGUE_ID }] : []
+      : { league_id: LEAGUE_ID }
   } else if (url.pathname === '/rest/v1/drafts' && url.searchParams.get('select') === 'league_id') {
     body = { league_id: LEAGUE_ID }
+  } else if (url.pathname === '/rest/v1/drafts' && url.searchParams.get('select') === 'id') {
+    body = { id: DRAFT_ID }
   } else if (url.pathname === '/rest/v1/league_members' && url.searchParams.get('select') === 'id') {
     body = { id: authenticatedUserId === USER_ID ? MEMBER_ID : OTHER_MEMBER_ID }
   } else if (url.pathname === '/rest/v1/league_members' && url.searchParams.get('select') === 'user_id') {
@@ -55,6 +60,12 @@ const postgrest = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, 
     body = { push_token: 'ExponentPushToken[route-lifecycle]' }
   } else if (url.pathname === '/rest/v1/notification_preferences') {
     body = []
+  } else if (url.pathname === '/functions/v1/lineup-optimizer') {
+    optimizerRequests.push({
+      internalToken: req.headers.get('x-internal-function-token'),
+      body: await req.json(),
+    })
+    body = { ok: true, dates: 42, optimized: 42, skipped: 0 }
   } else if (url.pathname === '/rest/v1/rpc/propose_trade_atomic') {
     body = UUID
   } else if (url.pathname === '/rest/v1/rpc/make_snake_pick_atomic') {
@@ -84,6 +95,7 @@ const postgrest = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, 
 Deno.env.set('SUPABASE_URL', `http://127.0.0.1:${(postgrest.addr as Deno.NetAddr).port}`)
 Deno.env.set('PANCAKE_SUPABASE_SECRET_KEY', 'sb_secret_test')
 Deno.env.set('E2E_ADMIN_SECRET', 'e2e-test-secret')
+Deno.env.set('PANCAKE_EDGE_INTERNAL_TOKEN', 'edge-internal-test')
 Deno.env.set('EXPO_PUSH_URL', `http://127.0.0.1:${(expo.addr as Deno.NetAddr).port}`)
 
 const { handleApiRoute } = await import('./router.ts')
@@ -111,11 +123,45 @@ Deno.test({
   sanitizeOps: false,
   sanitizeResources: false,
   fn: async () => {
+    for (const action of ['presence-claim', 'resolve-presence']) {
+      const removed = await handleApiRoute(authedRequest('POST', `/draft/${DRAFT_ID}/${action}`, {
+        claims: ['replayed-public-channel-claim'],
+      }))
+      if (removed.status !== 404) throw new Error(`removed presence authority route ${action} returned ${removed.status}`)
+    }
+
     const res = await handleApiRoute(request('GET', '/health'))
     const body = await res.json()
 
     if (res.status !== 200 || body.runtime !== 'supabase-edge') {
       throw new Error(`expected health 200, got ${res.status}: ${JSON.stringify(body)}`)
+    }
+  },
+})
+
+Deno.test({
+  name: 'rest-of-season lineup optimization is ownership-scoped and invokes one bounded server job',
+  sanitizeOps: false,
+  sanitizeResources: false,
+  fn: async () => {
+    optimizerRequests.length = 0
+    const response = await handleApiRoute(authedRequest('POST', '/league/lineup/auto-set-season', {
+      memberId: MEMBER_ID,
+      leagueId: LEAGUE_ID,
+      leagueSeasonId: '88888888-8888-4888-8888-888888888888',
+    }))
+    const body = await response.json()
+    if (response.status !== 200 || body.optimized !== 42 || optimizerRequests.length !== 1) {
+      throw new Error(`expected one optimizer job, got ${response.status}: ${JSON.stringify(body)} ${JSON.stringify(optimizerRequests)}`)
+    }
+    if (optimizerRequests[0].internalToken !== 'edge-internal-test' ||
+        JSON.stringify(optimizerRequests[0].body) !== JSON.stringify({
+          mode: 'rest_of_season',
+          memberId: MEMBER_ID,
+          leagueId: LEAGUE_ID,
+          leagueSeasonId: '88888888-8888-4888-8888-888888888888',
+        })) {
+      throw new Error(`optimizer request was not scoped/authenticated: ${JSON.stringify(optimizerRequests[0])}`)
     }
   },
 })
@@ -149,6 +195,7 @@ Deno.test({
       ['POST', '/profile/push-token'],
       ['POST', '/league/roster/ir'],
       ['POST', '/league/roster/taxi'],
+      ['POST', '/league/lineup/auto-set-season'],
       ['POST', '/league/advance-season'],
       ['POST', '/waivers/claims'],
       ['POST', `/waivers/claims/${UUID}/cancel`],
@@ -171,8 +218,8 @@ Deno.test({
       ['POST', `/draft/${UUID}/process-expired-pick`],
       ['POST', `/draft/${UUID}/activate-rookie-league`],
       ['POST', `/draft/${UUID}/reseed-picks`],
-      ['POST', `/draft/${UUID}/presence-claim`],
-      ['POST', `/draft/${UUID}/resolve-presence`],
+      ['POST', `/draft/${UUID}/pause-for-absence`],
+      ['POST', `/draft/${UUID}/resume-if-absent`],
       ['POST', '/playoffs/generate'],
       ['POST', '/playoffs/advance'],
       ['POST', '/sync/stats'],
@@ -207,75 +254,30 @@ Deno.test({
 })
 
 Deno.test({
-  name: 'draft presence claims derive membership server-side and reject forged identities',
+  name: 'auction absence lifecycle rejects participant claims and requires commissioner authority',
   sanitizeOps: false,
   sanitizeResources: false,
   fn: async () => {
-    authenticatedUserId = USER_ID
-    const claimResponse = await handleApiRoute(authedRequest(
-      'POST',
-      `/draft/${DRAFT_ID}/presence-claim`,
-      { memberId: OTHER_MEMBER_ID },
-    ))
-    const claimBody = await claimResponse.json()
-    if (claimResponse.status !== 200 || typeof claimBody.claim !== 'string') {
-      throw new Error(`expected presence claim, got ${claimResponse.status}: ${JSON.stringify(claimBody)}`)
+    commissionerRole = null
+    for (const action of ['pause-for-absence', 'resume-if-absent']) {
+      postgrestRequests.length = 0
+      const response = await handleApiRoute(authedRequest('POST', `/draft/${DRAFT_ID}/${action}`, {
+        claims: ['replayed-public-channel-claim'],
+      }))
+      const lifecycleRpcs = postgrestRequests.filter((entry) => entry.includes(`/rpc/${action.startsWith('pause') ? 'pause' : 'resume'}_draft_`))
+      if (response.status !== 404 || lifecycleRpcs.length !== 0) {
+        throw new Error(`ordinary member reached ${action}: ${response.status} ${JSON.stringify(lifecycleRpcs)}`)
+      }
     }
+    commissionerRole = 'commissioner'
 
-    const [payload, signature] = claimBody.claim.split('.')
-    const forgedPayload = btoa(JSON.stringify({
-      v: 1,
-      draftId: DRAFT_ID,
-      memberId: OTHER_MEMBER_ID,
-      expiresAt: Math.floor(Date.now() / 1000) + 600,
-    })).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')
-    const resolvedResponse = await handleApiRoute(authedRequest(
-      'POST',
-      `/draft/${DRAFT_ID}/resolve-presence`,
-      { claims: [claimBody.claim, `${forgedPayload}.${signature}`, `${payload}.invalid`] },
-    ))
-    const resolvedBody = await resolvedResponse.json()
-    if (resolvedResponse.status !== 200 || JSON.stringify(resolvedBody.memberIds) !== JSON.stringify([MEMBER_ID])) {
-      throw new Error(`expected only authenticated membership, got ${resolvedResponse.status}: ${JSON.stringify(resolvedBody)}`)
-    }
-  },
-})
-
-Deno.test({
-  name: 'auction resume requires signed presence for every ordered member',
-  sanitizeOps: false,
-  sanitizeResources: false,
-  fn: async () => {
-    authenticatedUserId = USER_ID
-    const firstResponse = await handleApiRoute(authedRequest('POST', `/draft/${DRAFT_ID}/presence-claim`))
-    const first = await firstResponse.json()
-    authenticatedUserId = OTHER_USER_ID
-    const secondResponse = await handleApiRoute(authedRequest('POST', `/draft/${DRAFT_ID}/presence-claim`))
-    const second = await secondResponse.json()
-    authenticatedUserId = USER_ID
-    postgrestRequests.length = 0
-
-    const partialResponse = await handleApiRoute(authedRequest(
-      'POST',
-      `/draft/${DRAFT_ID}/resume-if-absent`,
-      { claims: [first.claim] },
-    ))
-    const partial = await partialResponse.json()
-    const partialResumeRpcs = postgrestRequests.filter((entry) => entry.includes('/rpc/resume_draft_if_absent_atomic'))
-    if (partialResponse.status !== 200 || partial.resumed !== false || partialResumeRpcs.length !== 0) {
-      throw new Error(`partial presence resumed draft: ${partialResponse.status} ${JSON.stringify(partial)}`)
-    }
-
-    postgrestRequests.length = 0
-    const fullResponse = await handleApiRoute(authedRequest(
-      'POST',
-      `/draft/${DRAFT_ID}/resume-if-absent`,
-      { claims: [first.claim, second.claim] },
-    ))
-    const full = await fullResponse.json()
-    const fullResumeRpcs = postgrestRequests.filter((entry) => entry.includes('/rpc/resume_draft_if_absent_atomic'))
-    if (fullResponse.status !== 200 || full.resumed !== true || fullResumeRpcs.length !== 1) {
-      throw new Error(`full presence did not resume draft: ${fullResponse.status} ${JSON.stringify(full)}`)
+    for (const action of ['pause-for-absence', 'resume-if-absent']) {
+      postgrestRequests.length = 0
+      const response = await handleApiRoute(authedRequest('POST', `/draft/${DRAFT_ID}/${action}`))
+      const rpcName = action.startsWith('pause') ? 'pause_draft_for_absence_atomic' : 'resume_draft_if_absent_atomic'
+      if (response.status !== 200 || !postgrestRequests.some((entry) => entry.includes(`/rpc/${rpcName}`))) {
+        throw new Error(`commissioner could not ${action}: ${response.status} ${JSON.stringify(postgrestRequests)}`)
+      }
     }
   },
 })

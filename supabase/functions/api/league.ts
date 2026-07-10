@@ -2,10 +2,12 @@ import { todayET } from '../_shared/date.ts'
 import { supabase } from '../_shared/supabase.ts'
 import {
   booleanField,
+  invokeInternalFunction,
   json,
   NotFoundError,
   readJsonObject,
   requireCommissioner,
+  requireOwnMember,
   requireUser,
   throwDb,
   uuidField,
@@ -15,6 +17,24 @@ import {
 function addDaysToETDate(dateKey: string, days: number): string {
   const [year, month, day] = dateKey.split('-').map(Number)
   return new Date(Date.UTC(year, month - 1, day + days, 12, 0, 0)).toISOString().slice(0, 10)
+}
+
+async function autoSetRestOfSeason(
+  userId: string,
+  body: Record<string, unknown>,
+): Promise<unknown> {
+  const memberId = uuidField(body, 'memberId')
+  const leagueId = uuidField(body, 'leagueId')
+  const leagueSeasonId = uuidField(body, 'leagueSeasonId')
+  const membership = await requireOwnMember(userId, memberId)
+  if (membership.leagueId !== leagueId) throw new ValidationError('Access denied')
+
+  return invokeInternalFunction('lineup-optimizer', {
+    mode: 'rest_of_season',
+    memberId,
+    leagueId,
+    leagueSeasonId,
+  })
 }
 
 function isRosterToggleLockedGame(
@@ -120,6 +140,12 @@ export async function handleLeagueRoute(req: Request, path: string): Promise<Res
     const userId = await requireUser(req)
     await toggleRosterFlag(uuidField(body, 'rosterPlayerId'), userId, 'toggle_taxi_atomic', booleanField(body, 'isOnTaxi'))
     return json({ ok: true })
+  }
+
+  if (path === '/league/lineup/auto-set-season') {
+    const body = await readJsonObject(req)
+    const userId = await requireUser(req)
+    return json(await autoSetRestOfSeason(userId, body))
   }
 
   return null
