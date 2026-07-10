@@ -191,7 +191,7 @@ const styles = StyleSheet.create({
     routePickerLabel: { fontSize: 10, fontWeight: fontWeight.bold, color: colors.textMuted, letterSpacing: 0 },
     routeOptions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
     routeOption: {
-        minHeight: 36,
+        minHeight: 44,
         maxWidth: 180,
         borderWidth: 1,
         borderColor: uiColors.borderNeutral,

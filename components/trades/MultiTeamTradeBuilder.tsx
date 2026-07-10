@@ -207,7 +207,7 @@ const styles = StyleSheet.create({
     senderTab: {
         minWidth: 112,
         maxWidth: 200,
-        minHeight: 40,
+        minHeight: 44,
         paddingHorizontal: spacing.md,
         borderBottomWidth: 2,
         borderBottomColor: colors.borderLight,
