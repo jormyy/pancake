@@ -156,9 +156,11 @@ describe('browser performance evidence', () => {
   })
 
   it('gates fullLoadMs on workflow readiness rather than the navigation load event', async () => {
+    let timingSource = ''
     const browser = vi.fn(async (_session: string, args: string[]) => {
       const source = args[1]
       if (source.includes('const deadline')) return JSON.stringify({ readyAtMs: 432.4 })
+      timingSource = source
       return JSON.stringify({
         navigationLoadMs: 25,
         cachedRequestMs: 12,
@@ -172,6 +174,7 @@ describe('browser performance evidence', () => {
       workflowId: 'dynasty-hub',
       label: 'dynasty',
     })).resolves.toMatchObject({ fullLoadMs: 432, navigationLoadMs: 25, readyState: true })
+    expect(timingSource).toContain('requests.length > 0 ? Math.round(Math.max(...requests)) : 0')
   })
 
   it('accepts the commissioner pause control as active auction readiness', async () => {

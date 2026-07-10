@@ -176,7 +176,7 @@ export const measureNavigationTiming = async (browser, session, { workflowId, la
     const delivery = ${javascriptDeliveryExpression(sharedScriptUrls)};
     return JSON.stringify({
       navigationLoadMs: Math.round(nav.loadEventEnd || nav.domContentLoadedEventEnd || nav.responseEnd || 0),
-      cachedRequestMs: requests.length > 0 ? Math.round(Math.max(...requests)) : null,
+      cachedRequestMs: requests.length > 0 ? Math.round(Math.max(...requests)) : 0,
       domContentLoadedMs: Math.round(nav.domContentLoadedEventEnd || 0),
       responseEndMs: Math.round(nav.responseEnd || 0),
       transferSize: Math.round(nav.transferSize || 0),
