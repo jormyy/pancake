@@ -1,5 +1,8 @@
 -- Align trade lifecycle eligibility and return every routed participant.
 
+SET lock_timeout = '5s';
+SET statement_timeout = '2min';
+
 DROP FUNCTION IF EXISTS public.process_due_accepted_trades_atomic(int);
 DROP FUNCTION IF EXISTS public.expire_pending_trades_atomic(int);
 
@@ -419,3 +422,6 @@ REVOKE ALL ON FUNCTION public.process_due_accepted_trades_atomic(int) FROM PUBLI
 GRANT EXECUTE ON FUNCTION public.process_due_accepted_trades_atomic(int) TO service_role;
 REVOKE ALL ON FUNCTION public.expire_pending_trades_atomic(int) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.expire_pending_trades_atomic(int) TO service_role;
+
+RESET statement_timeout;
+RESET lock_timeout;

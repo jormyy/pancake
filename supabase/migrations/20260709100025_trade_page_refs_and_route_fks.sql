@@ -3,6 +3,12 @@
 SET lock_timeout = '5s';
 SET statement_timeout = '2min';
 
+-- The canonical producer below owns route creation after this transaction.
+DROP TRIGGER IF EXISTS seed_legacy_standard_trade_routes ON public.trades;
+DROP TRIGGER IF EXISTS route_legacy_standard_trade_item ON public.trade_items;
+DROP FUNCTION IF EXISTS private.seed_legacy_standard_trade_routes();
+DROP FUNCTION IF EXISTS private.route_legacy_standard_trade_item();
+
 ALTER TABLE public.trade_participants
   ADD COLUMN proposed_at timestamptz;
 
