@@ -39,23 +39,37 @@ const worstCaseMeasurementKeys = [
   'cachedRequestMs',
   'fullLoadMs',
   'initialWebJsKb',
+]
+
+const routeEvidenceKeys = [
   'routeWebJsKb',
   'routeJsEncodedKb',
   'routeJsDecodedKb',
+  'routeJsLedger',
   'routeJsEntryCount',
   'routeJsNetworkEntryCount',
+  'routeJsCacheHit',
 ]
 
 export const recordWorkflowMeasurement = (measurements, next) => {
   const existing = measurements.find((measurement) => measurement.id === next.id)
   if (!existing) {
-    measurements.push(next)
+    measurements.push({
+      ...next,
+      ...(Number.isFinite(next.routeJsEncodedKb) ? { routeEvidenceRoute: next.route } : {}),
+    })
     return
   }
+  const replaceRouteEvidence = Number.isFinite(next.routeJsEncodedKb) && (
+    !Number.isFinite(existing.routeJsEncodedKb) || next.routeJsEncodedKb > existing.routeJsEncodedKb
+  )
   for (const key of worstCaseMeasurementKeys) {
     if (Number.isFinite(next[key])) existing[key] = Math.max(Number(existing[key] ?? 0), next[key])
   }
-  existing.routeJsCacheHit = existing.routeJsCacheHit === true && next.routeJsCacheHit === true
+  if (replaceRouteEvidence) {
+    for (const key of routeEvidenceKeys) existing[key] = next[key]
+    existing.routeEvidenceRoute = next.route
+  }
   existing.feedbackObserved = existing.feedbackObserved === true && next.feedbackObserved === true
   existing.feedbackInteraction = `${existing.feedbackInteraction},${next.feedbackInteraction}`
   existing.routes = [...new Set([...(existing.routes ?? [existing.route]), next.route])]

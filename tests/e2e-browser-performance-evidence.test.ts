@@ -90,28 +90,69 @@ describe('browser performance evidence', () => {
     expect([...WORKFLOW_FEEDBACK_IDS].sort()).toEqual(workflowIds)
   })
 
-  it('merges repeated workflow routes using worst-case network and cache evidence', () => {
+  it('keeps repeated-route provenance from the largest encoded route', () => {
     const measurements = [{
-      id: 'trade-review-act', route: '/trades', routeWebJsKb: 0,
-      routeJsCacheHit: true, routeJsDecodedKb: 40, routeJsEntryCount: 1, routeJsNetworkEntryCount: 0,
+      id: 'trade-review-act', route: '/trades', routeWebJsKb: 30, routeJsEncodedKb: 40,
+      routeJsCacheHit: false, routeJsDecodedKb: 40, routeJsEntryCount: 1, routeJsNetworkEntryCount: 1,
+      routeJsLedger: [{ url: '/trades.js', encodedBodySize: 40960, decodedBodySize: 40960 }],
       feedbackMs: 5, cachedRequestMs: 10, fullLoadMs: 100,
       feedbackObserved: true, feedbackInteraction: 'history',
     }]
     recordWorkflowMeasurement(measurements, {
-      id: 'trade-review-act', route: '/propose-trade', routeWebJsKb: 240,
-      routeJsCacheHit: false, routeJsDecodedKb: 80, routeJsEntryCount: 2, routeJsNetworkEntryCount: 1,
+      id: 'trade-review-act', route: '/propose-trade', routeWebJsKb: 0, routeJsEncodedKb: 80,
+      routeJsCacheHit: true, routeJsDecodedKb: 80, routeJsEntryCount: 2, routeJsNetworkEntryCount: 0,
+      routeJsLedger: [
+        { url: '/propose-trade-a.js', encodedBodySize: 40960, decodedBodySize: 40960 },
+        { url: '/propose-trade-b.js', encodedBodySize: 40960, decodedBodySize: 40960 },
+      ],
       feedbackMs: 8, cachedRequestMs: 20, fullLoadMs: 200,
       feedbackObserved: true, feedbackInteraction: 'mode',
     })
 
     expect(measurements).toEqual([expect.objectContaining({
-      routeWebJsKb: 240,
-      routeJsCacheHit: false,
+      routeWebJsKb: 0,
+      routeJsEncodedKb: 80,
+      routeJsCacheHit: true,
       routeJsDecodedKb: 80,
       routeJsEntryCount: 2,
-      routeJsNetworkEntryCount: 1,
+      routeJsNetworkEntryCount: 0,
+      routeEvidenceRoute: '/propose-trade',
+      routeJsLedger: [
+        { url: '/propose-trade-a.js', encodedBodySize: 40960, decodedBodySize: 40960 },
+        { url: '/propose-trade-b.js', encodedBodySize: 40960, decodedBodySize: 40960 },
+      ],
       routes: ['/trades', '/propose-trade'],
     })])
+  })
+
+  it('retains the first atomic route evidence record on an encoded-size tie', () => {
+    const firstLedger = [{ url: '/trades.js', encodedBodySize: 40960, decodedBodySize: 40960 }]
+    const measurements = [{
+      id: 'trade-review-act', route: '/trades', routeWebJsKb: 0, routeJsEncodedKb: 40,
+      routeJsCacheHit: true, routeJsDecodedKb: 40, routeJsEntryCount: 1, routeJsNetworkEntryCount: 0,
+      routeJsLedger: firstLedger, feedbackObserved: true, feedbackInteraction: 'history',
+    }]
+
+    recordWorkflowMeasurement(measurements, {
+      id: 'trade-review-act', route: '/propose-trade', routeWebJsKb: 40, routeJsEncodedKb: 40,
+      routeJsCacheHit: false, routeJsDecodedKb: 90, routeJsEntryCount: 2, routeJsNetworkEntryCount: 2,
+      routeJsLedger: [
+        { url: '/propose-a.js', encodedBodySize: 20480, decodedBodySize: 46080 },
+        { url: '/propose-b.js', encodedBodySize: 20480, decodedBodySize: 46080 },
+      ],
+      feedbackObserved: true, feedbackInteraction: 'mode',
+    })
+
+    expect(measurements[0]).toMatchObject({
+      routeWebJsKb: 0,
+      routeJsEncodedKb: 40,
+      routeJsDecodedKb: 40,
+      routeJsEntryCount: 1,
+      routeJsNetworkEntryCount: 0,
+      routeJsCacheHit: true,
+      routeJsLedger: firstLedger,
+      routes: ['/trades', '/propose-trade'],
+    })
   })
 
   it('gates fullLoadMs on workflow readiness rather than the navigation load event', async () => {
