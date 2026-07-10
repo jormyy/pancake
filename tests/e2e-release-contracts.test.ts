@@ -8,7 +8,8 @@ import { productionBrowserFailures } from './e2e/production-web-hydration.mjs'
 import { writeRegisteredScenarioReport } from './e2e/browser-scenario-registry.mjs'
 import { browserCiContext } from './e2e/browser-ci-scenario.mjs'
 import { BROWSER_SCENARIO_MANIFEST, fastBrowserScenarioMatrix } from './e2e/browser-scenario-manifest.mjs'
-import { validateDataLatencyReport, validateManifest, validateRetainedSeasonReports, validateWorkflowReportKeys } from './e2e/performance-budgets.mjs'
+import { DATA_LATENCY_STEP_KEYS } from './e2e/data-latency-contract.mjs'
+import { validateBrowserPerfReport, validateDataLatencyReport, validateManifest, validateRetainedSeasonReports, validateWorkflowReportKeys } from './e2e/performance-budgets.mjs'
 import { readAppliedSchemaVersion } from './e2e/schema-provenance.mjs'
 import { digestReleaseBundle, selectRepositoryCommit } from './e2e/release-provenance.mjs'
 import { planReleaseMigrations, planReleaseMigrationsFromHistory, validateAppliedMigrationDelta } from './e2e/release-soak-migration-plan.mjs'
@@ -432,6 +433,90 @@ describe('release E2E contracts', () => {
       delete mutated.workflows[0].budgets[key as keyof typeof workflow.budgets]
       expect(validateManifest(mutated)).toContain(`workflow: budgets.${key} must be a positive number`)
     }
+  })
+
+  it('rejects browser performance PASS evidence without numeric long-task and load measurements', () => {
+    const manifest = {
+      globalBudgets: {
+        maxHeartbeatLagMs: 600,
+        longTaskMs: 50,
+        maxMutationLoopMs: 30000,
+        maxInitialWebJsKb: 700,
+        maxRouteWebJsKb: 220,
+      },
+      workflows: [],
+    }
+    const failures = validateBrowserPerfReport(manifest, {
+      status: 'PASS',
+      draftPerf: { maxLagMs: 1, longTaskSupported: true },
+      homePerf: { maxLagMs: 1, longTaskSupported: true, maxLongTaskMs: Number.NaN },
+      workflowMeasurements: [],
+    })
+    expect(failures).toEqual(expect.arrayContaining([
+      'draft max long task must be a finite nonnegative number',
+      'home max long task must be a finite nonnegative number',
+      'mutation loop duration must be a finite nonnegative number',
+    ]))
+  })
+
+  it('rejects skeletal complete data-latency PASS evidence', async () => {
+    const manifest = JSON.parse(await readFile(path.join(process.cwd(), 'tests/e2e/performance-budgets.json'), 'utf8'))
+    const skeletal = {
+      status: 'PASS',
+      schemaVersion: '20260710140000',
+      repositorySchemaVersion: '20260710140000',
+      budgets: {
+        dataRequestMs: manifest.globalBudgets.maxDbQueryMs,
+        workflowTotalMs: manifest.globalBudgets.fullWorkflowMs,
+      },
+      workflows: manifest.workflows.map((workflow: { id: string }) => ({ id: workflow.id, status: 'PASS' })),
+    }
+    const failures = validateDataLatencyReport(manifest, skeletal, true)
+    expect(failures).toEqual(expect.arrayContaining([
+      'home-live-lineup: data latency total must be a finite nonnegative number',
+      'home-live-lineup: data latency steps do not match the canonical ordered contract',
+      'home-live-lineup: data latency steps are missing',
+    ]))
+  })
+
+  it('rejects nonnumeric and reordered complete data-latency steps', () => {
+    const workflow = { id: 'dynasty-hub' as const }
+    const manifest = {
+      workflows: [workflow],
+      globalBudgets: { maxDbQueryMs: 100, fullWorkflowMs: 1000 },
+    }
+    const steps = DATA_LATENCY_STEP_KEYS[workflow.id].map((key) => ({
+      workflowId: workflow.id,
+      key,
+      label: key,
+      samples: 3,
+      medianMs: 1,
+      maxMs: 1,
+      rowCount: 0,
+      status: 'PASS',
+    }))
+    const report = {
+      status: 'PASS',
+      schemaVersion: '1',
+      repositorySchemaVersion: '1',
+      budgets: { dataRequestMs: 100, workflowTotalMs: 1000 },
+      workflows: [{ id: workflow.id, status: 'PASS', totalMedianMs: 3, steps }],
+    }
+    expect(validateDataLatencyReport(manifest, report, true)).toEqual([])
+
+    const failures = validateDataLatencyReport(manifest, {
+      ...report,
+      workflows: [{
+        ...report.workflows[0],
+        totalMedianMs: Number.NaN,
+        steps: [{ ...steps[2], medianMs: Number.NaN }, steps[1], steps[0]],
+      }],
+    }, true)
+    expect(failures).toEqual(expect.arrayContaining([
+      'dynasty-hub: data latency total must be a finite nonnegative number',
+      'dynasty-hub: data latency steps do not match the canonical ordered contract',
+      'dynasty-hub: data step roster-news-scope median must be a finite nonnegative number',
+    ]))
   })
 
   it('fails responsive scenarios when viewport setup fails', async () => {

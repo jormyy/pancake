@@ -6,6 +6,7 @@ import { createClient } from '@supabase/supabase-js'
 import { describeEndpoint, resolvedEnv, requireEnv } from './env.mjs'
 import { resolveSchemaProvenance } from './schema-provenance.mjs'
 import { resolveReleaseProvenance } from './release-provenance.mjs'
+import { DATA_LATENCY_STEP_KEYS } from './data-latency-contract.mjs'
 
 const ROOT = process.cwd()
 const STATE_PATH = path.join(ROOT, 'tests/e2e-state.json')
@@ -89,13 +90,18 @@ const skipStep = (workflowId, label, reason) => ({
 })
 
 const runWorkflow = async (id, steps) => {
+  const stepKeys = DATA_LATENCY_STEP_KEYS[id]
+  if (!stepKeys || stepKeys.length !== steps.length) {
+    throw new Error(`${id} executable steps do not match the canonical data latency contract`)
+  }
   const results = []
-  for (const step of steps) {
+  for (const [index, step] of steps.entries()) {
     try {
-      results.push(await step())
+      results.push({ ...await step(), key: stepKeys[index] })
     } catch (error) {
       results.push({
         workflowId: id,
+        key: stepKeys[index],
         label: step.label ?? 'unnamed step',
         samples: 0,
         medianMs: 0,

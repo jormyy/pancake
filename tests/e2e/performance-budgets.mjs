@@ -3,6 +3,7 @@ import { writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
 import { resolveReleaseProvenance, validateReleaseProvenance } from './release-provenance.mjs'
+import { DATA_LATENCY_STEP_KEYS } from './data-latency-contract.mjs'
 
 const ROOT = process.cwd()
 const MANIFEST_PATH = path.join(ROOT, 'tests/e2e/performance-budgets.json')
@@ -96,12 +97,19 @@ export const validateBrowserPerfReport = (manifest, report, expectedProvenance =
   if (report.homePerf?.maxLagMs > budgets.maxHeartbeatLagMs) {
     failures.push(`home heartbeat lag ${report.homePerf.maxLagMs}ms exceeds ${budgets.maxHeartbeatLagMs}ms`)
   }
-  if (report.load?.durationMs > budgets.maxMutationLoopMs) {
+  if (report.draftPerf?.longTaskSupported !== true || report.homePerf?.longTaskSupported !== true) failures.push('browser long-task observation was unavailable')
+  for (const [surface, measurement] of [['draft', report.draftPerf], ['home', report.homePerf]]) {
+    if (!Number.isFinite(measurement?.maxLongTaskMs) || measurement.maxLongTaskMs < 0) {
+      failures.push(`${surface} max long task must be a finite nonnegative number`)
+    } else if (measurement.maxLongTaskMs > budgets.longTaskMs) {
+      failures.push(`${surface} long task ${measurement.maxLongTaskMs}ms exceeds ${budgets.longTaskMs}ms`)
+    }
+  }
+  if (!Number.isFinite(report.load?.durationMs) || report.load.durationMs < 0) {
+    failures.push('mutation loop duration must be a finite nonnegative number')
+  } else if (report.load.durationMs > budgets.maxMutationLoopMs) {
     failures.push(`mutation loop ${report.load.durationMs}ms exceeds ${budgets.maxMutationLoopMs}ms`)
   }
-  if (report.draftPerf?.longTaskSupported !== true || report.homePerf?.longTaskSupported !== true) failures.push('browser long-task observation was unavailable')
-  if (report.draftPerf?.maxLongTaskMs > budgets.longTaskMs) failures.push(`draft long task ${report.draftPerf.maxLongTaskMs}ms exceeds ${budgets.longTaskMs}ms`)
-  if (report.homePerf?.maxLongTaskMs > budgets.longTaskMs) failures.push(`home long task ${report.homePerf.maxLongTaskMs}ms exceeds ${budgets.longTaskMs}ms`)
 
   failures.push(...validateWorkflowReportKeys(manifest, report, 'tests/e2e-browser-perf-report.md', expectedProvenance))
 
@@ -195,13 +203,18 @@ export const validateWorkflowReportKeys = (manifest, report, reportPath, expecte
 export const validateDataLatencyReport = (manifest, report, requireComplete, expectedProvenance = undefined) => {
   const failures = []
   failures.push(...validateReleaseProvenance(report, expectedProvenance, 'data latency report'))
-  const byWorkflow = new Map((report.workflows ?? []).map((workflow) => [workflow.id, workflow]))
+  const reportedWorkflows = Array.isArray(report.workflows) ? report.workflows : []
+  const byWorkflow = new Map(reportedWorkflows.map((workflow) => [workflow.id, workflow]))
   const workflows = manifest.workflows ?? []
   const requestBudget = manifest.globalBudgets.maxDbQueryMs
   const workflowBudget = manifest.globalBudgets.fullWorkflowMs
 
   if (report.status !== 'PASS') failures.push(`data latency report status is ${report.status ?? 'missing'}`)
   if (requireComplete) {
+    if (byWorkflow.size !== reportedWorkflows.length) failures.push('data latency report contains duplicate workflow ids')
+    if (JSON.stringify(reportedWorkflows.map((workflow) => workflow?.id)) !== JSON.stringify(workflows.map((workflow) => workflow.id))) {
+      failures.push('data latency workflows do not match the canonical ordered contract')
+    }
     if (report.budgets?.dataRequestMs !== requestBudget) failures.push(`data latency request budget ${report.budgets?.dataRequestMs ?? 'missing'} does not match manifest ${requestBudget}`)
     if (report.budgets?.workflowTotalMs !== workflowBudget) failures.push(`data latency workflow budget ${report.budgets?.workflowTotalMs ?? 'missing'} does not match manifest ${workflowBudget}`)
     if (typeof report.schemaVersion !== 'string' || !/^\d+$/.test(report.schemaVersion)) {
@@ -221,20 +234,59 @@ export const validateDataLatencyReport = (manifest, report, requireComplete, exp
       failures.push(`${workflow.id}: data latency report is missing workflow`)
       continue
     }
-    if (measured.totalMedianMs > workflowBudget) {
+    if (requireComplete && measured.status !== 'PASS') {
+      failures.push(`${workflow.id}: data latency workflow status is ${measured.status ?? 'missing'}`)
+    }
+    if (!Number.isFinite(measured.totalMedianMs) || measured.totalMedianMs < 0) {
+      failures.push(`${workflow.id}: data latency total must be a finite nonnegative number`)
+    } else if (measured.totalMedianMs > workflowBudget) {
       failures.push(`${workflow.id}: data latency total ${measured.totalMedianMs}ms exceeds ${workflowBudget}ms`)
     }
-    for (const step of measured.steps ?? []) {
+    const steps = Array.isArray(measured.steps) ? measured.steps : []
+    if (requireComplete) {
+      const expectedKeys = DATA_LATENCY_STEP_KEYS[workflow.id]
+      if (!expectedKeys) {
+        failures.push(`${workflow.id}: no canonical data latency step contract exists`)
+      } else if (JSON.stringify(steps.map((step) => step?.key)) !== JSON.stringify(expectedKeys)) {
+        failures.push(`${workflow.id}: data latency steps do not match the canonical ordered contract`)
+      }
+      if (steps.length === 0) failures.push(`${workflow.id}: data latency steps are missing`)
+    }
+    for (const step of steps) {
+      if (requireComplete && step.workflowId !== workflow.id) {
+        failures.push(`${workflow.id}: data step ${step.label ?? '<missing>'} has mismatched workflowId ${step.workflowId ?? 'missing'}`)
+      }
+      if (requireComplete && (!Number.isInteger(step.samples) || step.samples < 1)) {
+        failures.push(`${workflow.id}: data step ${step.label ?? '<missing>'} samples must be a positive integer`)
+      }
+      if (requireComplete && (!Number.isInteger(step.rowCount) || step.rowCount < 0)) {
+        failures.push(`${workflow.id}: data step ${step.label ?? '<missing>'} rowCount must be a nonnegative integer`)
+      }
       if (step.status === 'SKIP') {
         if (requireComplete) failures.push(`${workflow.id}: data step ${step.label} was skipped`)
         continue
       }
       if (step.status !== 'PASS') {
         failures.push(`${workflow.id}: data step ${step.label} status ${step.status}${step.error ? ` (${step.error})` : ''}`)
+      } else if (!Number.isFinite(step.medianMs) || step.medianMs < 0) {
+        failures.push(`${workflow.id}: data step ${step.label} median must be a finite nonnegative number`)
       } else if (step.medianMs > requestBudget) {
         failures.push(`${workflow.id}: data step ${step.label} ${step.medianMs}ms exceeds ${requestBudget}ms`)
       }
-      if (step.status === 'PASS' && (!Number.isFinite(step.maxMs) || step.maxMs > manifest.globalBudgets.maxDbQueryMs)) failures.push(`${workflow.id}: data step ${step.label} max ${step.maxMs ?? 'missing'}ms exceeds ${manifest.globalBudgets.maxDbQueryMs}ms`)
+      if (step.status === 'PASS' && (!Number.isFinite(step.maxMs) || step.maxMs < 0)) {
+        failures.push(`${workflow.id}: data step ${step.label} max must be a finite nonnegative number`)
+      } else if (step.status === 'PASS' && step.maxMs > manifest.globalBudgets.maxDbQueryMs) {
+        failures.push(`${workflow.id}: data step ${step.label} max ${step.maxMs}ms exceeds ${manifest.globalBudgets.maxDbQueryMs}ms`)
+      }
+      if (step.status === 'PASS' && Number.isFinite(step.medianMs) && Number.isFinite(step.maxMs) && step.maxMs < step.medianMs) {
+        failures.push(`${workflow.id}: data step ${step.label} max is below its median`)
+      }
+    }
+    if (requireComplete && Number.isFinite(measured.totalMedianMs) && steps.every((step) => Number.isFinite(step?.medianMs))) {
+      const summedMedianMs = Math.round(steps.reduce((sum, step) => sum + step.medianMs, 0) * 10) / 10
+      if (measured.totalMedianMs !== summedMedianMs) {
+        failures.push(`${workflow.id}: data latency total ${measured.totalMedianMs}ms does not equal step medians ${summedMedianMs}ms`)
+      }
     }
   }
 
