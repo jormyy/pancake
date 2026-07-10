@@ -107,6 +107,25 @@ describe('useTradeActions', () => {
         await act(async () => { renderer.unmount() })
     })
 
+    it('does not refresh after an in-flight acceptance outlives the screen', async () => {
+        const acceptance = deferred<void>()
+        mocks.acceptTrade.mockReturnValue(acceptance.promise)
+        const onAction = vi.fn()
+        let latest!: ReturnType<typeof useTradeActions>
+        const Probe = () => {
+            latest = useTradeActions({ memberId: 'member-a', leagueId: 'league-a', onAction })
+            return null
+        }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe)) })
+        let pending!: Promise<void>
+        await act(async () => { pending = latest.accept(trade('trade-a')); await Promise.resolve() })
+        await act(async () => { renderer.unmount() })
+        await act(async () => { acceptance.resolve(); await pending })
+
+        expect(onAction).not.toHaveBeenCalled()
+    })
+
     it('serializes mutations so another trade cannot supersede or re-enable the first', async () => {
         const first = deferred<void>()
         mocks.acceptTrade.mockReturnValueOnce(first.promise)
@@ -152,5 +171,23 @@ describe('useTradeActions', () => {
 
         expect(mocks.rejectTrade).not.toHaveBeenCalled()
         await act(async () => { renderer.unmount() })
+    })
+
+    it('cancels a terminal confirmation after the screen unmounts', async () => {
+        let confirm!: () => Promise<void>
+        mocks.confirmAction.mockImplementation((_title, _message, onConfirm) => { confirm = onConfirm })
+        mocks.rejectTrade.mockResolvedValue(undefined)
+        let latest!: ReturnType<typeof useTradeActions>
+        const Probe = () => {
+            latest = useTradeActions({ memberId: 'member-a', leagueId: 'league-a', onAction: vi.fn() })
+            return null
+        }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe)) })
+        await act(async () => { latest.reject('trade-a') })
+        await act(async () => { renderer.unmount() })
+        await act(async () => { await confirm() })
+
+        expect(mocks.rejectTrade).not.toHaveBeenCalled()
     })
 })

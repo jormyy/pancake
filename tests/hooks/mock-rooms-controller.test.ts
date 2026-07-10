@@ -66,6 +66,34 @@ describe('mock room action ownership', () => {
         await act(async () => { renderer.unmount() })
     })
 
+    it('does not navigate after an in-flight start outlives the controller', async () => {
+        const start = deferred<{ id: string }>()
+        mocks.startMockDraftRoom.mockReturnValue(start.promise)
+        const openDraftRoom = vi.fn()
+        let latest!: ReturnType<typeof useMockRoomsController>
+        const Probe = () => {
+            latest = useMockRoomsController({
+                leagueId: 'league-a',
+                memberId: 'member-a',
+                nominationMode: 'user_nominated',
+                draftTimerSeconds: 30,
+                rookieRounds: 3,
+                rookieTimerExpiryBehavior: 'auto_pick',
+                refreshRooms: vi.fn(async () => undefined),
+                openDraftRoom,
+            })
+            return null
+        }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe)) })
+        let pending!: Promise<void>
+        await act(async () => { pending = latest.handleStartMockRoom(room); await Promise.resolve() })
+        await act(async () => { renderer.unmount() })
+        await act(async () => { start.resolve({ id: 'draft-a' }); await pending })
+
+        expect(openDraftRoom).not.toHaveBeenCalled()
+    })
+
     it('preserves the replacement owner form and serializes room actions', async () => {
         const createRequest = deferred<void>()
         const join = deferred<void>()

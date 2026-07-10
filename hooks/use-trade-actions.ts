@@ -14,23 +14,30 @@ export function useTradeActions({
     const identity = `${leagueId}:${memberId}`
     const identityRef = useRef(identity)
     identityRef.current = identity
+    const mountedRef = useRef(false)
     const requestSequence = useRef(0)
     const mutationInFlight = useRef(false)
     const [busyTradeId, setBusyTradeId] = useState<string | null>(null)
 
     useEffect(() => {
+        mountedRef.current = true
         requestSequence.current += 1
         mutationInFlight.current = false
         setBusyTradeId(null)
+        return () => {
+            mountedRef.current = false
+            requestSequence.current += 1
+            mutationInFlight.current = false
+        }
     }, [identity])
 
     const finishAction = useCallback(async (requestId: number, ownerIdentity: string) => {
-        if (requestSequence.current !== requestId || identityRef.current !== ownerIdentity) return
+        if (!mountedRef.current || requestSequence.current !== requestId || identityRef.current !== ownerIdentity) return
         await onAction()
     }, [onAction])
 
     const accept = useCallback(async (trade: Trade) => {
-        if (!memberId || !leagueId || mutationInFlight.current) return
+        if (!mountedRef.current || !memberId || !leagueId || mutationInFlight.current) return
         mutationInFlight.current = true
         const requestId = ++requestSequence.current
         const ownerIdentity = identity
@@ -39,11 +46,11 @@ export function useTradeActions({
             await acceptTrade(trade.id, memberId)
             await finishAction(requestId, ownerIdentity)
         } catch (error) {
-            if (requestSequence.current === requestId && identityRef.current === ownerIdentity) {
+            if (mountedRef.current && requestSequence.current === requestId && identityRef.current === ownerIdentity) {
                 showAlert('Error', getErrorMessage(error) ?? 'Could not accept trade.')
             }
         } finally {
-            if (requestSequence.current === requestId) {
+            if (mountedRef.current && requestSequence.current === requestId) {
                 mutationInFlight.current = false
                 setBusyTradeId(null)
             }
@@ -55,7 +62,7 @@ export function useTradeActions({
         operation: (tradeId: string, memberId: string) => Promise<void>,
         fallbackMessage: string,
     ) => {
-        if (!memberId || identityRef.current !== identity || mutationInFlight.current) return
+        if (!mountedRef.current || !memberId || identityRef.current !== identity || mutationInFlight.current) return
         mutationInFlight.current = true
         const requestId = ++requestSequence.current
         const ownerIdentity = identity
@@ -64,11 +71,11 @@ export function useTradeActions({
             await operation(tradeId, memberId)
             await finishAction(requestId, ownerIdentity)
         } catch (error) {
-            if (requestSequence.current === requestId && identityRef.current === ownerIdentity) {
+            if (mountedRef.current && requestSequence.current === requestId && identityRef.current === ownerIdentity) {
                 showAlert('Error', getErrorMessage(error) ?? fallbackMessage)
             }
         } finally {
-            if (requestSequence.current === requestId) {
+            if (mountedRef.current && requestSequence.current === requestId) {
                 mutationInFlight.current = false
                 setBusyTradeId(null)
             }

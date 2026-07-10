@@ -62,6 +62,10 @@ export function useMockRoomsController(options: MockRoomControllerOptions) {
         setRoomName('')
         setRoomDraftType('auction')
         setRoomScheduledAt(defaultRoomDateInput())
+        return () => {
+            generationRef.current += 1
+            activeActionRef.current = null
+        }
     }, [ownerKey])
 
     const beginAction = (kind: Action['kind']): Action | null => {
