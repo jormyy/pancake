@@ -218,6 +218,11 @@ const signIn = async (session, env, state, user, { captureInitialDelivery = fals
   return initialJavaScriptDelivery
 }
 
+const selectPerfLeague = async (session, leagueName) => {
+  await clickButtonByName(browser, session, `Switch to ${leagueName}`)
+  await browser(session, ['wait', '1000'])
+}
+
 const navigateForMeasurement = async (session, url) => {
   const startedAt = Date.now()
   await browser(session, ['eval', `(() => {
@@ -394,6 +399,7 @@ export async function runBrowserPerfSmoke({
 
   try {
     const initialJavaScriptDelivery = await signIn(session, env, state, user, { captureInitialDelivery: true })
+    await selectPerfLeague(session, fixture.league.name)
     await browser(session, ['set', 'viewport', '390', '844'])
 
     const activeOpenStartedAt = Date.now()
@@ -413,6 +419,7 @@ export async function runBrowserPerfSmoke({
       workflowId: 'auction-draft-room', label: 'draft-room-initial', sharedScriptUrls,
     })
     await signIn(peerSession, env, state, peerUser)
+    await selectPerfLeague(peerSession, fixture.league.name)
     await browser(peerSession, ['set', 'viewport', '390', '844'])
     await browser(peerSession, ['open', joinUrl(env.frontendUrl, `/draft-room?draftId=${auction.draftId}`)])
     await browser(peerSession, ['wait', '3000'])

@@ -63,6 +63,7 @@ describe('release E2E contracts', () => {
     expect(perfSource).toContain('createDisposableLeagueFromSeedUsers({')
     expect(perfSource).toContain('resourceOwner,')
     expect(perfSource).toContain('managerResume.status !== 404')
+    expect(perfSource).toContain('await selectPerfLeague(session, fixture.league.name)')
     expect(perfSource).not.toContain('stale auction draft cleanup')
     expect(registrySource).toContain('(resourceOwner) => scenario.run({ ...context, resourceOwner })')
   })

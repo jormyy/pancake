@@ -44,7 +44,7 @@ export const createDisposableLeagueFromSeedUsers = async ({
     name: `Pancake E2E ${label.replace(/[^A-Z0-9]+/gi, ' ')} ${unique}`,
     slug: `pancake-e2e-${label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${unique}`,
     invite_code: e2eCode(), commissioner_id: state.users[0].id, status, playoff_start_week: playoffStartWeek,
-  }).select('id, playoff_start_week, status').single()
+  }).select('id, name, playoff_start_week, status').single()
   if (leagueError) throw new Error(`${label} league insert: ${leagueError.message}`)
 
   resourceOwner.register(`league ${league.id}`, () => disposeDisposableLeague(supabase, league.id, label))
