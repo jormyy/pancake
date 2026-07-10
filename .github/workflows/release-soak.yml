@@ -5,17 +5,24 @@ on:
   schedule:
     - cron: '17 9 * * 1'
 
+permissions:
+  contents: read
+
+concurrency:
+  group: release-soak-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   release-soak:
     runs-on: ubuntu-latest
     timeout-minutes: 180
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: npm
-      - uses: supabase/setup-cli@v1
+      - uses: supabase/setup-cli@ab058987d8d6c725971f6cf9d0b5c98467e30bd1 # v1.7.1
         with:
           version: 2.109.1
       - run: npm ci
@@ -82,7 +89,7 @@ jobs:
         run: npm run perf:budget -- --require-report --require-data-report --require-workflow-reports --require-season-reports=20
       - name: Retain soak evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: release-soak-evidence
           path: |

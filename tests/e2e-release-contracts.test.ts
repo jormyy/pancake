@@ -7,6 +7,7 @@ import { assertFullSweepRoutes, REQUIRED_FULL_SWEEP_LABELS } from './e2e/browser
 import { productionBrowserFailures } from './e2e/production-web-hydration.mjs'
 import { writeRegisteredScenarioReport } from './e2e/browser-scenario-registry.mjs'
 import { browserCiContext } from './e2e/browser-ci-scenario.mjs'
+import { BROWSER_SCENARIO_MANIFEST, fastBrowserScenarioMatrix } from './e2e/browser-scenario-manifest.mjs'
 import { validateDataLatencyReport, validateManifest, validateRetainedSeasonReports, validateWorkflowReportKeys } from './e2e/performance-budgets.mjs'
 import { readAppliedSchemaVersion } from './e2e/schema-provenance.mjs'
 
@@ -31,6 +32,45 @@ describe('release E2E contracts', () => {
     const workflow = await readFile(path.join(process.cwd(), '.github/workflows/test.yml'), 'utf8')
     expect(workflow).toContain("if: matrix.scenario == 'smoke'")
     expect(workflow).toContain('npm run perf:budget -- --require-workflow-reports')
+  })
+
+  it('runs every registered browser scenario as a required PR matrix entry', () => {
+    expect(fastBrowserScenarioMatrix().include.map(({ scenario }) => scenario).sort())
+      .toEqual(BROWSER_SCENARIO_MANIFEST.map(({ id }) => id).sort())
+  })
+
+  it('pins workflow dependencies and bounds every job with least privilege', async () => {
+    const workflowFiles = [
+      '.github/workflows/test.yml',
+      '.github/workflows/release-soak.yml',
+      '.github/workflows/production-readiness.yml',
+    ]
+    for (const file of workflowFiles) {
+      const source = await readFile(path.join(process.cwd(), file), 'utf8')
+      expect(source, file).toMatch(/permissions:\n\s+contents: read/)
+      expect(source, file).toContain('concurrency:')
+      const actionRefs = [...source.matchAll(/^\s*-?\s*uses:\s+[^@\s]+@([^\s#]+)/gm)].map((match) => match[1])
+      expect(actionRefs.length, file).toBeGreaterThan(0)
+      expect(actionRefs, file).toEqual(actionRefs.map(() => expect.stringMatching(/^[a-f0-9]{40}$/)))
+    }
+
+    const testWorkflow = await readFile(path.join(process.cwd(), '.github/workflows/test.yml'), 'utf8')
+    expect(testWorkflow.match(/^\s{4}timeout-minutes:/gm)).toHaveLength(5)
+    expect(testWorkflow).toContain('deno-version: 2.7.14')
+    expect(testWorkflow).not.toMatch(/deno-version:\s*v?\d+\.x/)
+  })
+
+  it('provides a protected fail-closed hosted production gate', async () => {
+    const workflow = await readFile(path.join(process.cwd(), '.github/workflows/production-readiness.yml'), 'utf8')
+    expect(workflow).toContain('environment: production')
+    expect(workflow).toContain('test "${GITHUB_REF}" = "refs/heads/main"')
+    for (const command of [
+      'npm run prod:check',
+      'npm run prod:data-health -- --linked',
+      'npm run security:edge-auth:linked',
+      'npm run security:db-catalog -- --linked',
+    ]) expect(workflow).toContain(command)
+    expect(workflow).toContain('if-no-files-found: error')
   })
 
   it('requires every declared global performance budget', () => {

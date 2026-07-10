@@ -1,0 +1,81 @@
+name: Hosted production readiness
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hosted-production-readiness
+  cancel-in-progress: false
+
+jobs:
+  verify-production:
+    name: Verify hosted production
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: production
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+      E2E_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      E2E_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+      E2E_PANCAKE_SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+      E2E_REMOTE_API_URL: ${{ secrets.PANCAKE_API_URL }}
+      EXPO_PUBLIC_API_URL: ${{ secrets.PANCAKE_API_URL }}
+      PANCAKE_EDGE_INTERNAL_TOKEN: ${{ secrets.PANCAKE_EDGE_INTERNAL_TOKEN }}
+      PANCAKE_LEGACY_SUPABASE_JWT_ROTATED: '1'
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: supabase/setup-cli@ab058987d8d6c725971f6cf9d0b5c98467e30bd1 # v1.7.1
+        with:
+          version: 2.109.1
+
+      - name: Require protected production credentials
+        shell: bash
+        run: |
+          test "${GITHUB_REF}" = "refs/heads/main"
+          for name in SUPABASE_ACCESS_TOKEN SUPABASE_DB_PASSWORD SUPABASE_PROJECT_REF \
+            E2E_SUPABASE_URL E2E_SUPABASE_PUBLISHABLE_KEY E2E_PANCAKE_SUPABASE_SECRET_KEY \
+            E2E_REMOTE_API_URL PANCAKE_EDGE_INTERNAL_TOKEN; do
+            test -n "${!name:-}" || { echo "Missing protected production credential: $name"; exit 1; }
+          done
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Link protected production project
+        run: supabase link --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
+
+      - name: Verify production configuration and deployment
+        run: npm run prod:check
+
+      - name: Verify production data sources and schema
+        run: npm run prod:data-health -- --linked
+
+      - name: Verify linked Edge authentication
+        run: npm run security:edge-auth:linked
+
+      - name: Verify linked database security catalog
+        run: npm run security:db-catalog -- --linked
+
+      - name: Retain production readiness evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: hosted-production-readiness-${{ github.run_id }}
+          path: |
+            tests/production-readiness-report.md
+            tests/prod-data-source-health-report.md
+            tests/edge-internal-auth-report.md
+            tests/db-security-catalog-report.md
+          if-no-files-found: error
+          retention-days: 30

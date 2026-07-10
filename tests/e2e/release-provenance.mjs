@@ -6,6 +6,8 @@ import process from 'node:process'
 
 const provenanceCache = new Map()
 
+/** @typedef {{ commitSha: string, runId: string, bundleDigest: string }} ReleaseProvenance */
+
 const listFiles = async (directory) => {
   const entries = await readdir(directory, { withFileTypes: true })
   const files = await Promise.all(entries.map(async (entry) => {
@@ -60,13 +62,14 @@ export const resolveReleaseProvenance = async ({ root = process.cwd() } = {}) =>
   return pending
 }
 
+/** @param {unknown} report @param {ReleaseProvenance | undefined} expected @param {string} label */
 export const validateReleaseProvenance = (report, expected, label) => {
   if (!expected) return []
-  const actual = report?.provenance
+  const actual = report && typeof report === 'object' ? Reflect.get(report, 'provenance') : null
   if (!actual || typeof actual !== 'object') return [`${label} is missing release provenance`]
   return ['commitSha', 'runId', 'bundleDigest'].flatMap((field) => (
-    actual[field] === expected[field]
+    Reflect.get(actual, field) === expected[field]
       ? []
-      : [`${label} provenance ${field} ${actual[field] ?? 'missing'} does not match ${expected[field]}`]
+      : [`${label} provenance ${field} ${Reflect.get(actual, field) ?? 'missing'} does not match ${expected[field]}`]
   ))
 }

@@ -98,7 +98,6 @@ export const browserPassNotes = (results) => BROWSER_SCENARIO_MANIFEST
 
 export const fastBrowserScenarioMatrix = () => ({
   include: BROWSER_SCENARIO_MANIFEST
-    .filter(({ ciTier }) => ciTier === 'fast')
     .map(({ id, requiresSeed }) => ({ scenario: id, seed: requiresSeed })),
 })
 

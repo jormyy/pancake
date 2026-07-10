@@ -19,6 +19,8 @@ const requiredSeasonReports = Number(cliArgs.find((arg) => arg.startsWith('--req
 
 const readJsonFile = (filePath) => JSON.parse(readFileSync(filePath, 'utf8'))
 
+/** @typedef {{ commitSha: string, runId: string, bundleDigest: string }} ReleaseProvenance */
+
 const getPath = (value, dottedPath) => dottedPath
   .split('.')
   .reduce((current, key) => {
@@ -82,6 +84,7 @@ export const validateManifest = (manifest) => {
   return failures
 }
 
+/** @param {any} manifest @param {any} report @param {ReleaseProvenance} [expectedProvenance] */
 export const validateBrowserPerfReport = (manifest, report, expectedProvenance = undefined) => {
   const failures = []
   const budgets = manifest.globalBudgets
@@ -112,6 +115,7 @@ const budgetMeasurementKeys = {
   fullLoadMs: 'coldFullLoadMs',
 }
 
+/** @param {any} manifest @param {any} report @param {string} reportPath @param {ReleaseProvenance} [expectedProvenance] */
 export const validateWorkflowReportKeys = (manifest, report, reportPath, expectedProvenance = undefined) => {
   const failures = []
   failures.push(...validateReleaseProvenance(report, expectedProvenance, reportPath))
@@ -182,6 +186,7 @@ export const validateWorkflowReportKeys = (manifest, report, reportPath, expecte
   return failures
 }
 
+/** @param {any} manifest @param {any} report @param {boolean} requireComplete @param {ReleaseProvenance} [expectedProvenance] */
 export const validateDataLatencyReport = (manifest, report, requireComplete, expectedProvenance = undefined) => {
   const failures = []
   failures.push(...validateReleaseProvenance(report, expectedProvenance, 'data latency report'))
@@ -231,6 +236,7 @@ export const validateDataLatencyReport = (manifest, report, requireComplete, exp
   return failures
 }
 
+/** @param {any} manifest @param {any[]} reports @param {number} expectedSeasons @param {ReleaseProvenance} [expectedProvenance] */
 export const validateRetainedSeasonReports = (manifest, reports, expectedSeasons, expectedProvenance = undefined) => {
   const failures = []
   const byKey = new Map(reports.map((report) => [`${report.scenario}:${report.season}`, report]))
