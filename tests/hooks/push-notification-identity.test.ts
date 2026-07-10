@@ -36,7 +36,10 @@ beforeEach(() => {
     mocks.userId = 'user-a'
     mocks.secureValues.clear()
     mocks.getExpoPushTokenAsync.mockReset()
-    mocks.apiPost.mockReset().mockResolvedValue({ ok: true })
+    mocks.apiPost.mockReset().mockImplementation(async (path: string, body: { active?: boolean }) =>
+        path === '/profile/push-token' && body.active
+            ? { ok: true, revocationCredential: 'credential-a' }
+            : { ok: true })
 })
 
 afterEach(() => {
@@ -180,7 +183,7 @@ describe('push notification identity ownership', () => {
         mocks.apiPost
             .mockRejectedValueOnce(new Error('database unavailable'))
             .mockRejectedValueOnce(new Error('database unavailable'))
-            .mockResolvedValueOnce({ ok: true })
+            .mockResolvedValueOnce({ ok: true, revocationCredential: 'credential-a' })
         const Probe = () => { usePushNotifications(); return null }
         let renderer!: ReactTestRenderer
         await act(async () => { renderer = create(React.createElement(Probe)); await Promise.resolve() })
@@ -191,6 +194,25 @@ describe('push notification identity ownership', () => {
         await act(async () => { vi.advanceTimersByTime(1_000); await Promise.resolve() })
         expect(mocks.apiPost).toHaveBeenCalledTimes(3)
         expect(mocks.getExpoPushTokenAsync).toHaveBeenCalledOnce()
+        expect(vi.getTimerCount()).toBe(0)
+        await act(async () => { renderer.unmount() })
+    })
+
+    it('keeps retrying a rollout fallback until registration is credential-backed', async () => {
+        vi.useFakeTimers()
+        mocks.getExpoPushTokenAsync.mockResolvedValue({ data: 'token-a' })
+        mocks.apiPost
+            .mockResolvedValueOnce({ ok: true })
+            .mockResolvedValueOnce({ ok: true, revocationCredential: 'credential-a' })
+        const Probe = () => { usePushNotifications(); return null }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe)); await Promise.resolve() })
+        expect(mocks.apiPost).toHaveBeenCalledOnce()
+        expect(vi.getTimerCount()).toBe(1)
+
+        await act(async () => { vi.advanceTimersByTime(60_000); await Promise.resolve() })
+        expect(mocks.apiPost).toHaveBeenCalledTimes(2)
+        expect(mocks.getExpoPushTokenAsync).toHaveBeenCalledTimes(2)
         expect(vi.getTimerCount()).toBe(0)
         await act(async () => { renderer.unmount() })
     })

@@ -67,7 +67,13 @@ export function usePushNotifications() {
             }
 
             if (!active) return
-            await registerPushToken(token, () => active)
+            const credentialBacked = await registerPushToken(token, () => active)
+            if (active && !credentialBacked) {
+                retryTimer = setTimeout(() => {
+                    retryTimer = null
+                    void acquireAndSaveToken(0).catch(console.error)
+                }, 60_000)
+            }
         }
 
         async function register() {

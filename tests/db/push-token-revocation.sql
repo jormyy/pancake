@@ -12,6 +12,43 @@ VALUES
   ('00000000-0000-0000-0000-000000090002', 'push_revoke_b', 'Push Revoke B')
 ON CONFLICT (id) DO UPDATE SET username = EXCLUDED.username, display_name = EXCLUDED.display_name;
 
+-- Simulate the previous Edge implementation against the upgraded schema.
+UPDATE public.profiles
+   SET push_token = 'ExponentPushToken[legacy-edge]'
+ WHERE id = '00000000-0000-0000-0000-000000090001';
+
+DO $$
+DECLARE
+  v_hash text;
+BEGIN
+  SELECT push_token_revocation_hash INTO v_hash
+    FROM public.profiles
+   WHERE id = '00000000-0000-0000-0000-000000090001';
+  IF v_hash !~ '^[0-9a-f]{64}$' THEN
+    RAISE EXCEPTION 'Legacy token-only registration did not receive an unknown credential.';
+  END IF;
+
+  UPDATE public.profiles
+     SET push_token = 'ExponentPushToken[legacy-edge-rotated]'
+   WHERE id = '00000000-0000-0000-0000-000000090001';
+  IF (SELECT push_token_revocation_hash FROM public.profiles
+       WHERE id = '00000000-0000-0000-0000-000000090001') = v_hash THEN
+    RAISE EXCEPTION 'Legacy token rotation retained a stale credential.';
+  END IF;
+
+  UPDATE public.profiles
+     SET push_token = NULL
+   WHERE id = '00000000-0000-0000-0000-000000090001';
+  IF EXISTS (
+    SELECT 1 FROM public.profiles
+     WHERE id = '00000000-0000-0000-0000-000000090001'
+       AND (push_token IS NOT NULL OR push_token_revocation_hash IS NOT NULL)
+  ) THEN
+    RAISE EXCEPTION 'Legacy token clear did not clear the paired credential.';
+  END IF;
+END;
+$$;
+
 SELECT public.register_push_token_atomic(
   '00000000-0000-0000-0000-000000090001',
   'ExponentPushToken[credential-test]',

@@ -95,7 +95,7 @@ async function clearRegisteredPushToken(): Promise<void> {
     await clearStoredValue(REGISTERED_PUSH_TOKEN_KEY)
 }
 
-export async function registerPushToken(token: string, ownsRequest: () => boolean): Promise<void> {
+export async function registerPushToken(token: string, ownsRequest: () => boolean): Promise<boolean> {
     await retryPendingPushTokenRevocation()
     const result = await persistMutation(
         () => apiPost<{ revocationCredential?: string }>('/profile/push-token', { token, active: true }),
@@ -107,6 +107,7 @@ export async function registerPushToken(token: string, ownsRequest: () => boolea
             revocationCredential: result?.revocationCredential ?? null,
         })
     }
+    return typeof result?.revocationCredential === 'string'
 }
 
 export async function unregisterCurrentDevicePushToken(): Promise<void> {

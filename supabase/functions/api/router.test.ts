@@ -8,11 +8,13 @@ const LEAGUE_ID = '66666666-6666-4666-8666-666666666666'
 
 const postgrestRequests: string[] = []
 const pushRpcRequests: { path: string; body: unknown }[] = []
+const legacyPushMutations: { query: string; body: unknown }[] = []
 const optimizerRequests: { internalToken: string | null; body: unknown }[] = []
 let commissionerRole: string | null = 'commissioner'
 let authenticatedUserId = USER_ID
 let pushGate: { promise: Promise<void>; resolve: () => void } | null = null
 let pushStarted = false
+let pushCredentialRpcMissing = false
 
 const deferred = () => {
   let resolve!: () => void
@@ -56,7 +58,13 @@ const postgrest = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, 
     body = [{ member_id: MEMBER_ID }, { member_id: OTHER_MEMBER_ID }]
   } else if (url.pathname.startsWith('/rest/v1/rpc/') && url.pathname.includes('push_token')) {
     pushRpcRequests.push({ path: url.pathname, body: await req.json() })
+    if (pushCredentialRpcMissing) {
+      return Response.json({ code: 'PGRST202', message: 'Could not find the function' }, { status: 404 })
+    }
     body = url.pathname.endsWith('/register_push_token_atomic') ? null : true
+  } else if (url.pathname === '/rest/v1/profiles' && req.method === 'PATCH') {
+    legacyPushMutations.push({ query: url.searchParams.toString(), body: await req.json() })
+    body = []
   } else if (url.pathname === '/rest/v1/profiles' && url.searchParams.get('select') === 'push_token') {
     body = { push_token: 'ExponentPushToken[route-lifecycle]' }
   } else if (url.pathname === '/rest/v1/notification_preferences') {
@@ -148,6 +156,34 @@ Deno.test({
 
     if (res.status !== 200 || body.runtime !== 'supabase-edge') {
       throw new Error(`expected health 200, got ${res.status}: ${JSON.stringify(body)}`)
+    }
+  },
+})
+
+Deno.test({
+  name: 'new push route falls back safely while credential RPCs are not deployed',
+  sanitizeOps: false,
+  sanitizeResources: false,
+  fn: async () => {
+    pushRpcRequests.length = 0
+    legacyPushMutations.length = 0
+    pushCredentialRpcMissing = true
+    try {
+      const response = await handleApiRoute(authedRequest('POST', '/profile/push-token', {
+        token: 'ExponentPushToken[rolling-deploy]',
+        active: true,
+      }))
+      const body = await response.json()
+      if (response.status !== 200 || body.revocationCredential !== undefined || legacyPushMutations.length !== 2) {
+        throw new Error(`legacy push fallback failed: ${JSON.stringify({ body, legacyPushMutations })}`)
+      }
+      const clearBody = legacyPushMutations[0].body as { push_token?: string | null }
+      const setBody = legacyPushMutations[1].body as { push_token?: string | null }
+      if (clearBody.push_token !== null || setBody.push_token !== 'ExponentPushToken[rolling-deploy]') {
+        throw new Error(`legacy push fallback wrote unexpected values: ${JSON.stringify(legacyPushMutations)}`)
+      }
+    } finally {
+      pushCredentialRpcMissing = false
     }
   },
 })

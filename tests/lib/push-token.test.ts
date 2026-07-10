@@ -32,7 +32,7 @@ beforeEach(() => {
 
 describe('push token lifecycle', () => {
     it('persists the registered token and revokes that exact token before clearing it', async () => {
-        await registerPushToken('ExponentPushToken[registered]', () => true)
+        await expect(registerPushToken('ExponentPushToken[registered]', () => true)).resolves.toBe(true)
         expect(JSON.parse(mocks.secureValues.get('pancake.registered-push-token.v1') ?? '')).toEqual({
             token: 'ExponentPushToken[registered]',
             revocationCredential: 'credential-a',
@@ -47,6 +47,16 @@ describe('push token lifecycle', () => {
             revocationCredential: 'credential-a',
         })
         expect(mocks.secureValues.has('pancake.registered-push-token.v1')).toBe(false)
+    })
+
+    it('reports legacy fallback registrations as not credential-backed', async () => {
+        mocks.apiPost.mockResolvedValue({ ok: true })
+
+        await expect(registerPushToken('ExponentPushToken[legacy-rollout]', () => true)).resolves.toBe(false)
+        expect(JSON.parse(mocks.secureValues.get('pancake.registered-push-token.v1') ?? '')).toEqual({
+            token: 'ExponentPushToken[legacy-rollout]',
+            revocationCredential: null,
+        })
     })
 
     it('fails closed when no durable token can be identified for revocation', async () => {

@@ -4,11 +4,50 @@ SET statement_timeout = '2min';
 ALTER TABLE public.profiles
   ADD COLUMN push_token_revocation_hash text;
 
--- Existing installations cannot reconstruct a device-only credential. Force each
--- device through authenticated registration before enforcing the paired state.
-UPDATE public.profiles
+CREATE OR REPLACE FUNCTION private.normalize_legacy_push_token_write()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
+BEGIN
+  IF NEW.push_token IS NULL THEN
+    NEW.push_token_revocation_hash := NULL;
+  ELSIF NEW.push_token_revocation_hash IS NULL OR (
+    TG_OP = 'UPDATE'
+    AND NEW.push_token IS DISTINCT FROM OLD.push_token
+    AND NEW.push_token_revocation_hash IS NOT DISTINCT FROM OLD.push_token_revocation_hash
+  ) THEN
+    -- Old Edge versions write only push_token. Give those registrations an
+    -- unexposed credential so paired state remains valid until the new RPC rotates it.
+    NEW.push_token_revocation_hash := encode(extensions.gen_random_bytes(32), 'hex');
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER normalize_legacy_push_token_write
+  BEFORE INSERT OR UPDATE OF push_token, push_token_revocation_hash ON public.profiles
+  FOR EACH ROW
+  EXECUTE FUNCTION private.normalize_legacy_push_token_write();
+
+WITH ranked_tokens AS (
+  SELECT
+    id,
+    row_number() OVER (PARTITION BY push_token ORDER BY id) AS owner_rank
+  FROM public.profiles
+  WHERE push_token IS NOT NULL
+)
+UPDATE public.profiles AS profile
    SET push_token = NULL
- WHERE push_token IS NOT NULL;
+  FROM ranked_tokens AS ranked
+ WHERE profile.id = ranked.id
+   AND ranked.owner_rank > 1;
+
+-- Preserve existing registrations without inventing a client-visible credential.
+UPDATE public.profiles
+   SET push_token_revocation_hash = encode(extensions.gen_random_bytes(32), 'hex')
+ WHERE push_token IS NOT NULL
+   AND push_token_revocation_hash IS NULL;
 
 CREATE UNIQUE INDEX profiles_push_token_unique
   ON public.profiles (push_token)

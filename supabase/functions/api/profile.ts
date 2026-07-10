@@ -38,6 +38,37 @@ async function credentialHash(credential: string): Promise<string> {
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('')
 }
 
+type RpcError = { code?: string; message?: string }
+
+function missingCredentialRpc(error: RpcError): boolean {
+  return error.code === 'PGRST202'
+}
+
+async function updatePushTokenLegacy(userId: string, token: string, active: boolean): Promise<void> {
+  if (active) {
+    const { error: clearError } = await supabase
+      .from('profiles')
+      .update({ push_token: null })
+      .eq('push_token', token)
+      .neq('id', userId)
+    if (clearError) throwDb(clearError)
+
+    const { error: setError } = await supabase
+      .from('profiles')
+      .update({ push_token: token })
+      .eq('id', userId)
+    if (setError) throwDb(setError)
+    return
+  }
+
+  const { error } = await supabase
+    .from('profiles')
+    .update({ push_token: null })
+    .eq('id', userId)
+    .eq('push_token', token)
+  if (error) throwDb(error)
+}
+
 async function updatePushToken(userId: string, token: string, active: boolean): Promise<string | null> {
   if (active) {
     const credential = createRevocationCredential()
@@ -46,7 +77,11 @@ async function updatePushToken(userId: string, token: string, active: boolean): 
       p_token: token,
       p_revocation_hash: await credentialHash(credential),
     })
-    if (error) throwDb(error)
+    if (error) {
+      if (!missingCredentialRpc(error)) throwDb(error)
+      await updatePushTokenLegacy(userId, token, true)
+      return null
+    }
     return credential
   }
 
@@ -54,7 +89,10 @@ async function updatePushToken(userId: string, token: string, active: boolean): 
     p_user_id: userId,
     p_token: token,
   })
-  if (error) throwDb(error)
+  if (error) {
+    if (!missingCredentialRpc(error)) throwDb(error)
+    await updatePushTokenLegacy(userId, token, false)
+  }
   return null
 }
 
@@ -63,7 +101,7 @@ async function revokePushToken(token: string, credential: string): Promise<void>
     p_token: token,
     p_revocation_hash: await credentialHash(credential),
   })
-  if (error) throwDb(error)
+  if (error && !missingCredentialRpc(error)) throwDb(error)
 }
 
 export async function handleProfileRoute(req: Request, path: string): Promise<Response | null> {
