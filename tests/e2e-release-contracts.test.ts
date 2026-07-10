@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -17,10 +17,12 @@ afterEach(async () => {
 })
 
 describe('release E2E contracts', () => {
-  it('keeps the configured mid-life migration probe at repository head', async () => {
-    const configured = JSON.parse(await readFile(path.join(process.cwd(), 'tests/e2e/midlife-migration.json'), 'utf8'))
-    const migrations = (await readdir(path.join(process.cwd(), 'supabase/migrations'))).filter((name) => name.endsWith('.sql')).sort()
-    expect(configured.filename).toBe(migrations.at(-1))
+  it('derives the mid-life migration probe from sorted repository head', async () => {
+    const workflow = await readFile(path.join(process.cwd(), '.github/workflows/release-soak.yml'), 'utf8')
+    expect(workflow).toContain("head_name=\"$(find supabase/migrations -maxdepth 1 -name '*.sql' -exec basename {} \\; | sort | tail -1)\"")
+    expect(workflow).toContain('probe_name="$head_name"')
+    expect(workflow).toContain('tail -2 | head -1')
+    expect(workflow).not.toContain('midlife-migration.json')
   })
 
   it('runs the full measured smoke sweep and enforces its workflow budgets in PR CI', async () => {

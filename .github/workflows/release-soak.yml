@@ -22,12 +22,8 @@ jobs:
       - name: Start release stack
         shell: bash
         run: |
-          probe_name="$(node -p "require('./tests/e2e/midlife-migration.json').filename")"
           head_name="$(find supabase/migrations -maxdepth 1 -name '*.sql' -exec basename {} \; | sort | tail -1)"
-          test "$probe_name" = "$head_name" || {
-            echo "Mid-life probe $probe_name is not repository head $head_name"
-            exit 1
-          }
+          probe_name="$head_name"
           probe_version="${probe_name%%_*}"
           base_name="$(find supabase/migrations -maxdepth 1 -name '*.sql' -exec basename {} \; | sort | tail -2 | head -1)"
           base_version="${base_name%%_*}"
