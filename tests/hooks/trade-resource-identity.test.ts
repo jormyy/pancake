@@ -1,13 +1,14 @@
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useTradeBlock } from '@/hooks/use-trade-block'
 import { useTradesFeed } from '@/hooks/use-trades-feed'
 import { useTradeHistoryFeed } from '@/hooks/use-trade-history-feed'
 import type { Trade, TradeBlockItem, TradePage } from '@/lib/trades'
 
-const { addTradeBlockItem, getTradeHistoryForScreen, getTradesForScreen, getTradeBlockItems, getRoster } = vi.hoisted(() => ({
+const { addTradeBlockItem, getRosterStatsMaps, getTradeHistoryForScreen, getTradesForScreen, getTradeBlockItems, getRoster } = vi.hoisted(() => ({
     addTradeBlockItem: vi.fn(),
+    getRosterStatsMaps: vi.fn(),
     getTradeHistoryForScreen: vi.fn(),
     getTradesForScreen: vi.fn(),
     getTradeBlockItems: vi.fn(),
@@ -26,7 +27,7 @@ vi.mock('@/lib/roster', () => ({ getRoster }))
 vi.mock('@/lib/roster-stats', () => ({
     EMPTY_AVG_MAP: new Map(),
     EMPTY_STATS_MAP: new Map(),
-    getRosterStatsMaps: vi.fn(async () => ({ avgMap: new Map(), avgStatsMap: new Map() })),
+    getRosterStatsMaps,
 }))
 vi.mock('@/lib/persistent-cache', () => ({
     readPersistentCache: vi.fn(() => null),
@@ -68,8 +69,32 @@ const trade = (id: string): Trade => ({
     routedItems: [],
 })
 
+const rosterPlayer = (id: string) => ({
+    id: `roster-${id}`,
+    member_id: 'member',
+    is_on_ir: false,
+    is_on_taxi: false,
+    acquired_via: 'draft',
+    players: {
+        id,
+        display_name: id,
+        nba_team: null,
+        position: 'PG' as const,
+        eligible_positions: ['PG'],
+        injury_status: null,
+        nba_id: null,
+        nba_draft_number: null,
+        years_exp: 1,
+    },
+})
+
 beforeEach(() => {
     vi.clearAllMocks()
+    getRosterStatsMaps.mockResolvedValue({ avgMap: new Map(), avgStatsMap: new Map() })
+})
+
+afterEach(() => {
+    vi.restoreAllMocks()
 })
 
 describe('trade resource identity', () => {
@@ -207,6 +232,53 @@ describe('trade resource identity', () => {
         renderer.unmount()
     })
 
+    it('keeps authoritative trade-block listings and roster assets when optional averages fail', async () => {
+        const blockItem = {
+            id: 'block-a', memberId: 'member', teamName: 'A', note: null,
+            updatedAt: '2026-07-09T10:00:00Z',
+            asset: { kind: 'faab', amount: 5 },
+        } satisfies TradeBlockItem
+        getTradeBlockItems.mockResolvedValue([blockItem])
+        getRoster.mockResolvedValue([rosterPlayer('player-a')])
+        getRosterStatsMaps.mockRejectedValue(new Error('averages offline'))
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+        let latest!: ReturnType<typeof useTradeBlock>
+        const Probe = () => { latest = useTradeBlock('member', 'league'); return null }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe)) })
+
+        await act(async () => { await latest.refresh() })
+
+        expect(latest.items.map((item) => item.id)).toEqual(['block-a'])
+        expect(latest.roster.map((item) => item.players.id)).toEqual(['player-a'])
+        expect(latest.avgMap.size).toBe(0)
+        expect(latest.avgStatsMap.size).toBe(0)
+        expect(latest.error).toBeNull()
+        expect(warn).toHaveBeenCalledWith('Could not load optional trade-block player averages.', expect.any(Error))
+        await act(async () => { renderer.unmount() })
+    })
+
+    it('retains a successful trade-block mutation when its refresh cannot enrich averages', async () => {
+        const player = rosterPlayer('player-a')
+        addTradeBlockItem.mockResolvedValue(undefined)
+        getTradeBlockItems.mockResolvedValue([])
+        getRoster.mockResolvedValue([player])
+        getRosterStatsMaps.mockRejectedValue(new Error('averages offline'))
+        vi.spyOn(console, 'warn').mockImplementation(() => {})
+        let latest!: ReturnType<typeof useTradeBlock>
+        const Probe = () => { latest = useTradeBlock('member', 'league'); return null }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe)) })
+
+        await act(async () => { await latest.addPlayer(player) })
+
+        expect(addTradeBlockItem).toHaveBeenCalledTimes(1)
+        expect(latest.roster.map((item) => item.players.id)).toEqual(['player-a'])
+        expect(latest.error).toBeNull()
+        expect(latest.busyId).toBeNull()
+        await act(async () => { renderer.unmount() })
+    })
+
     it('serializes trade-block mutations so later writes cannot invalidate earlier refreshes', async () => {
         const first = deferred<void>()
         const second = deferred<void>()
@@ -220,23 +292,11 @@ describe('trade resource identity', () => {
         }
         let renderer!: ReactTestRenderer
         await act(async () => { renderer = create(React.createElement(Probe)) })
-        const player = (id: string) => ({
-            id: `roster-${id}`,
-            member_id: 'member',
-            is_on_ir: false,
-            is_on_taxi: false,
-            acquired_via: 'draft',
-            players: {
-                id, display_name: id, nba_team: null, position: 'PG' as const,
-                eligible_positions: ['PG'], injury_status: null, nba_id: null,
-                nba_draft_number: null, years_exp: 1,
-            },
-        })
         let firstMutation!: Promise<void>
         let secondMutation!: Promise<void>
         await act(async () => {
-            firstMutation = latest.addPlayer(player('one'))
-            secondMutation = latest.addPlayer(player('two'))
+            firstMutation = latest.addPlayer(rosterPlayer('one'))
+            secondMutation = latest.addPlayer(rosterPlayer('two'))
             await Promise.resolve()
         })
         expect(addTradeBlockItem).toHaveBeenCalledTimes(1)

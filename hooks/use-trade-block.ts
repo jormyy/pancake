@@ -59,14 +59,23 @@ export function useTradeBlock(memberId: string, leagueId: string) {
             ])
             if (loadSequence.current !== requestId) return
             const nextRoster = memberRoster.filter(isTradeableRosterPlayer)
-            const stats = await getRosterStatsMaps(nextRoster.map((player) => player.players.id), leagueId)
-            if (loadSequence.current !== requestId) return
             setItems(nextItems)
             setRoster(nextRoster)
-            setAvgMap(stats.avgMap)
-            setAvgStatsMap(stats.avgStatsMap)
+            setAvgMap(EMPTY_AVG_MAP)
+            setAvgStatsMap(EMPTY_STATS_MAP)
             setDataKey(resourceKey)
             writePersistentCache(tradeBlockCacheKey(memberId, leagueId), { items: nextItems, roster: nextRoster })
+
+            try {
+                const stats = await getRosterStatsMaps(nextRoster.map((player) => player.players.id), leagueId)
+                if (loadSequence.current !== requestId) return
+                setAvgMap(stats.avgMap)
+                setAvgStatsMap(stats.avgStatsMap)
+            } catch (statsError) {
+                if (loadSequence.current === requestId) {
+                    console.warn('Could not load optional trade-block player averages.', statsError)
+                }
+            }
         } catch (cause) {
             if (loadSequence.current !== requestId) return
             console.error(cause)
