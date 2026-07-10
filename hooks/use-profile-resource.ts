@@ -6,7 +6,7 @@ import {
 } from '@/lib/notification-preferences'
 import type { Profile } from '@/types/database'
 
-export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
+const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
     tradeEnabled: true,
     waiverEnabled: true,
     draftEnabled: true,

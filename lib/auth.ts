@@ -9,32 +9,12 @@ export async function signUp(
     username: string,
     displayName: string,
 ) {
-    const { data, error } = await supabase.auth.signUp({ email, password })
-    if (error) throw error
-
-    const { error: profileError } = await supabase.from('profiles').insert({
-        id: data.user!.id,
-        username,
-        display_name: displayName,
+    const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { data: { username, display_name: displayName } },
     })
-
-    if (profileError) {
-        // Profile insert failed AFTER auth.users was created (RLS denial, race
-        // on username, network hiccup). We can't delete auth.users from the
-        // client, but we CAN sign the user back out so the client is in a clean
-        // state and the UI doesn't get stuck on a profile-less session. The
-        // orphaned auth.users row will be cleaned up server-side (or the user
-        // can retry with a different email after confirmation timeout).
-        try {
-            await supabase.auth.signOut()
-        } catch {
-            // best-effort; surface the original profile error regardless
-        }
-        throw new Error(
-            `Could not create your profile (${profileError.message}). Please try again with a different username or email.`,
-        )
-    }
-
+    if (error) throw error
     return data
 }
 

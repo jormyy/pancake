@@ -63,26 +63,20 @@ describe('signUp', () => {
         vi.clearAllMocks()
     })
 
-    it('signs the user back out and surfaces the profile error when profile creation fails', async () => {
+    it('delegates profile creation to the auth trigger with the requested metadata', async () => {
         mockAuth.signUp.mockResolvedValueOnce({
             data: { user: { id: 'user-1' } },
             error: null,
         } as never)
-        mockAuth.signOut.mockResolvedValueOnce({ error: null } as never)
-        const insert = vi.fn().mockResolvedValue({
-            error: { message: 'duplicate username' },
-        })
-        mockFrom.mockReturnValue({ insert } as never)
 
-        await expect(signUp('new@example.test', 'password-1', 'taken', 'Taken User'))
-            .rejects.toThrow('Could not create your profile (duplicate username).')
+        await signUp('new@example.test', 'password-1', 'new_manager', 'New Manager')
 
-        expect(mockFrom).toHaveBeenCalledWith('profiles')
-        expect(insert).toHaveBeenCalledWith({
-            id: 'user-1',
-            username: 'taken',
-            display_name: 'Taken User',
+        expect(mockAuth.signUp).toHaveBeenCalledWith({
+            email: 'new@example.test',
+            password: 'password-1',
+            options: { data: { username: 'new_manager', display_name: 'New Manager' } },
         })
-        expect(mockAuth.signOut).toHaveBeenCalledOnce()
+        expect(mockFrom).not.toHaveBeenCalled()
+        expect(mockAuth.signOut).not.toHaveBeenCalled()
     })
 })
