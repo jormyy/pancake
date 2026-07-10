@@ -294,10 +294,11 @@ export default function ProposeTradeScreen() {
                                 onPress={() => selectTeam(member.id)}
                                 accessibilityRole="button"
                                 accessibilityLabel={`${active ? 'Remove' : 'Trade with'} ${member.team_name ?? 'Unnamed team'}`}
+                                accessibilityState={{ selected: active }}
                                 testID={`trade-participant-${member.id}`}
                                 id={`trade-participant-${member.id}`}
                             >
-                                <Text style={[styles.teamChipText, active && styles.teamChipTextActive]}>
+                                <Text style={[styles.teamChipText, active && styles.teamChipTextActive]} numberOfLines={2}>
                                     {member.team_name ?? 'Unnamed'}
                                 </Text>
                             </Pressable>
@@ -358,6 +359,7 @@ function ModeButton({ label, active, onPress }: { label: string; active: boolean
             onPress={onPress}
             accessibilityRole="button"
             accessibilityLabel={`Use ${label.toLowerCase()} trade mode`}
+            accessibilityState={{ selected: active }}
             testID={label === 'Multi-Team' ? 'trade-mode-multi' : 'trade-mode-two'}
             id={label === 'Multi-Team' ? 'trade-mode-multi' : 'trade-mode-two'}
         >
@@ -440,6 +442,8 @@ const styles = StyleSheet.create({
     teamChip: {
         paddingHorizontal: 14,
         minHeight: 44,
+        maxWidth: '100%',
+        flexShrink: 1,
         borderRadius: radii['3xl'],
         borderCurve: 'continuous' as const,
         backgroundColor: colors.bgMuted,
@@ -447,7 +451,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     teamChipActive: { backgroundColor: colors.primary },
-    teamChipText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textSecondary },
+    teamChipText: { flexShrink: 1, fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textSecondary, textAlign: 'center' },
     teamChipTextActive: { color: colors.textWhite },
     lockBanner: {
         marginHorizontal: spacing.xl,

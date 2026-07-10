@@ -47,6 +47,7 @@ function RouteOptions({
                         onPress={() => onChange(destinationId)}
                         accessibilityRole="button"
                         accessibilityLabel={accessibilityLabel(destinationId)}
+                        accessibilityState={{ selected: active }}
                         testID={testID?.(destinationId)}
                         id={testID?.(destinationId)}
                     >
@@ -169,6 +170,7 @@ export function ParticipantTradePanel({
                         value={participant.faabInput}
                         onChangeText={(value) => onFaabChange(participant.memberId, value)}
                         keyboardType="numeric"
+                        accessibilityLabel={`FAAB sent by ${participantName(participant.memberId)} to ${destinationName}`}
                     />
                 </View>
             ) : null}

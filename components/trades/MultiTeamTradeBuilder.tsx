@@ -183,6 +183,7 @@ export function MultiTeamTradeBuilder({
                             if (/^\d*$/.test(value)) onExpirationDaysChange(value)
                         }}
                         keyboardType="numeric"
+                        accessibilityLabel="Trade offer expiration in days"
                     />
                 </View>
             </View>
