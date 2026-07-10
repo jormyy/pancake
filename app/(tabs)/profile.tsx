@@ -26,7 +26,7 @@ import { useProfileResource } from '@/hooks/use-profile-resource'
 import { useLeagueContext } from '@/contexts/league-context'
 import { colors, fontFamily, fontSize, fontWeight, radii, shadows, spacing } from '@/constants/tokens'
 import { Avatar } from '@/components/Avatar'
-import { Button } from '@/components/ui'
+import { Button, ErrorBanner } from '@/components/ui'
 import { showAlert, confirmAction, getErrorMessage } from '@/lib/alert'
 
 export default function ProfileScreen() {
@@ -46,7 +46,7 @@ export default function ProfileScreen() {
     const preferenceUserId = user?.id
     const activeUserIdRef = useRef(preferenceUserId)
     activeUserIdRef.current = preferenceUserId
-    const { profile, profileLoaded, preferences, setProfile, setPreferences } =
+    const { profile, profileLoaded, profileError, preferences, retryProfile, setProfile, setPreferences } =
         useProfileResource(preferenceUserId)
     const preferencesRef = useRef(preferences)
     preferencesRef.current = preferences
@@ -174,6 +174,12 @@ export default function ProfileScreen() {
 
     return (
         <SafeAreaView style={styles.container}>
+            {profileError ? (
+                <ErrorBanner
+                    message={`${profileError} Tap to retry.`}
+                    onRetry={() => { void retryProfile() }}
+                />
+            ) : null}
             <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
                 <View style={styles.avatarSection}>
                     <Pressable
