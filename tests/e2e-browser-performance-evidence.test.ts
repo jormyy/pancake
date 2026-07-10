@@ -161,4 +161,26 @@ describe('browser performance evidence', () => {
       .resolves.toMatchObject({ feedbackMs: 18.2, observed: true, interaction: 'trade-history-tab' })
     expect(browser).toHaveBeenCalledWith('session', ['click', '[role="tab"][aria-label^="History"]'])
   })
+
+  it('keeps the lineup feedback target inside the selected day row', async () => {
+    let targetSource = ''
+    const browser = vi.fn(async (_session: string, args: string[]) => {
+      if (args[0] === 'click') return ''
+      const source = args[1]
+      if (source.includes('target.setAttribute')) {
+        targetSource = source
+        return JSON.stringify({ ok: true, label: 'Monday, July 6, no games' })
+      }
+      if (source.includes('expectedBeforeAction')) return JSON.stringify({ ok: true, expectedBeforeAction: false })
+      if (source.includes('const deadline')) return JSON.stringify({ feedbackMs: 12.4, observed: true })
+      throw new Error(`Unexpected browser command: ${args.join(' ')}`)
+    })
+
+    await expect(measureWorkflowFeedback(browser, 'session', { workflowId: 'home-live-lineup', label: 'home' }))
+      .resolves.toMatchObject({ feedbackMs: 12.4, observed: true, interaction: 'lineup-day-select' })
+    expect(targetSource).toContain(".parentElement?.querySelector(':scope > button[aria-label]:not([aria-current])')")
+    expect(targetSource).not.toContain('.parentElement?.parentElement')
+    expect(targetSource).not.toContain('Open auto-set lineup options')
+    expect(browser).toHaveBeenCalledWith('session', ['click', '[data-e2e-feedback-target="true"]'])
+  })
 })
