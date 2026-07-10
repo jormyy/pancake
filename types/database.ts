@@ -3382,14 +3382,6 @@ export type Database = {
       }
     }
     Functions: {
-      accept_multi_team_trade_atomic: {
-        Args: {
-          p_accepting_member_id: string
-          p_drop_roster_player_ids?: string[]
-          p_trade_id: string
-        }
-        Returns: Json
-      }
       accept_trade_atomic: {
         Args: {
           p_accepting_member_id: string

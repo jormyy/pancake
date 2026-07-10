@@ -63,14 +63,9 @@ const MAX_TRADE_NOTES_LENGTH = 2_000
 
 type JsonObject = { [key: string]: Json | undefined }
 
-type PendingTradeForAccept = {
-  proposer_member_id: string
-  recipient_member_id: string
-  is_multi_team: boolean
-}
-
 type MultiTeamAcceptResult = {
   expired: boolean
+  isMultiTeam: boolean
   allAccepted: boolean
   proposerMemberId: string
   recipientMemberId: string
@@ -174,6 +169,7 @@ function parseMultiTeamAcceptResult(value: Json | null): MultiTeamAcceptResult {
   const result = jsonObject(value ?? undefined, 'Multi-team trade accept result')
   return {
     expired: jsonBoolean(result.expired, 'expired'),
+    isMultiTeam: jsonBoolean(result.isMultiTeam, 'isMultiTeam'),
     allAccepted: jsonBoolean(result.allAccepted, 'allAccepted'),
     proposerMemberId: jsonString(result.proposerMemberId, 'proposerMemberId'),
     recipientMemberId: jsonString(result.recipientMemberId, 'recipientMemberId'),
@@ -377,65 +373,9 @@ async function fetchPendingTradeForAction(
   return data
 }
 
-async function fetchPendingTradeForAccept(tradeId: string, memberId: string): Promise<PendingTradeForAccept> {
-  const { data, error } = await supabase
-    .from('trades')
-    .select('id, proposer_member_id, recipient_member_id, status, is_multi_team')
-    .eq('id', tradeId)
-    .maybeSingle()
-
-  if (error) throwDb(error)
-  if (!data) throw new NotFoundError('Trade not found.')
-  if (data.status !== 'pending') throw new ValidationError('This trade is no longer pending.')
-
-  if (data.is_multi_team) {
-    const { data: participant, error: participantError } = await supabase
-      .from('trade_participants')
-      .select('member_id')
-      .eq('trade_id', tradeId)
-      .eq('member_id', memberId)
-      .maybeSingle()
-    if (participantError) throwDb(participantError)
-    if (!participant) throw new NotFoundError('Trade not found.')
-  } else if (data.recipient_member_id !== memberId) {
-    throw new NotFoundError('Trade not found.')
-  }
-
-  return data as PendingTradeForAccept
-}
-
 async function acceptTrade(userId: string, tradeId: string, body: Record<string, unknown>): Promise<void> {
   const memberId = uuidField(body, 'memberId')
   await requireOwnMember(userId, memberId)
-  const trade = await fetchPendingTradeForAccept(tradeId, memberId)
-
-  if (trade.is_multi_team) {
-    const { data, error } = await supabase.rpc('accept_multi_team_trade_atomic', {
-      p_trade_id: tradeId,
-      p_accepting_member_id: memberId,
-      p_drop_roster_player_ids: optionalUuidArrayField(body, 'dropRosterPlayerIds'),
-    })
-    if (error) throwDb(error)
-    const result = parseMultiTeamAcceptResult(data)
-    if (result.expired) throw new ValidationError('This trade offer has expired.')
-    const notifyTargets = result.allAccepted
-      ? result.participantMemberIds
-      : [result.proposerMemberId]
-    Promise.all(
-      notifyTargets.filter((targetMemberId) => targetMemberId !== memberId).map((targetMemberId) =>
-        notifyMember(
-          targetMemberId,
-          result.allAccepted ? 'Multi-Team Trade Accepted' : 'Trade Participant Accepted',
-          result.allAccepted
-            ? 'Every participant accepted the multi-team trade. Completion will follow your league veto settings.'
-            : 'A participant accepted the multi-team trade offer.',
-          { tradeId },
-          'trade',
-        ),
-      ),
-    ).catch((notifyError) => console.error('[api/trades] multi-team acceptance notification failed', notifyError))
-    return
-  }
 
   const { data, error } = await supabase.rpc('accept_trade_atomic', {
     p_trade_id: tradeId,
@@ -445,16 +385,21 @@ async function acceptTrade(userId: string, tradeId: string, body: Record<string,
   if (error) throwDb(error)
   const result = parseMultiTeamAcceptResult(data)
   if (result.expired) throw new ValidationError('This trade offer has expired.')
-
-  Promise.all(
-    result.participantMemberIds.map((participantMemberId) => notifyMember(
-      participantMemberId,
-      'Trade Accepted',
-      'The trade was accepted. Completion will follow your league veto settings.',
-      { tradeId },
-      'trade',
-    )),
-  ).catch((error) => console.error('[api/trades] acceptance notification failed', error))
+  const notifyTargets = result.isMultiTeam && !result.allAccepted
+    ? [result.proposerMemberId]
+    : result.participantMemberIds
+  const title = result.isMultiTeam
+    ? result.allAccepted ? 'Multi-Team Trade Accepted' : 'Trade Participant Accepted'
+    : 'Trade Accepted'
+  const message = result.isMultiTeam
+    ? result.allAccepted
+      ? 'Every participant accepted the multi-team trade. Completion will follow your league veto settings.'
+      : 'A participant accepted the multi-team trade offer.'
+    : 'The trade was accepted. Completion will follow your league veto settings.'
+  Promise.all(notifyTargets
+    .filter((targetMemberId) => targetMemberId !== memberId)
+    .map((targetMemberId) => notifyMember(targetMemberId, title, message, { tradeId }, 'trade')),
+  ).catch((notifyError) => console.error('[api/trades] acceptance notification failed', notifyError))
 }
 
 async function rejectTrade(userId: string, tradeId: string, body: Record<string, unknown>): Promise<void> {

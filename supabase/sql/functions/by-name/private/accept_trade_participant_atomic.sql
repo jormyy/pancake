@@ -5,8 +5,7 @@
 CREATE OR REPLACE FUNCTION private.accept_trade_participant_atomic(
   p_trade_id uuid,
   p_accepting_member_id uuid,
-  p_drop_roster_player_ids uuid[],
-  p_expected_multi_team boolean
+  p_drop_roster_player_ids uuid[]
 )
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -42,11 +41,6 @@ BEGIN
       USING ERRCODE = 'P0002';
   END IF;
 
-  IF COALESCE(v_trade.is_multi_team, false) IS DISTINCT FROM p_expected_multi_team THEN
-    RAISE EXCEPTION 'Trade type does not match this acceptance route.'
-      USING ERRCODE = 'P0001';
-  END IF;
-
   IF v_trade.status <> 'pending'::trade_status THEN
     RAISE EXCEPTION 'This trade is no longer pending.'
       USING ERRCODE = 'P0001';
@@ -56,6 +50,7 @@ BEGIN
     UPDATE trades SET status = 'expired'::trade_status WHERE id = p_trade_id;
     RETURN jsonb_build_object(
       'expired', true,
+      'isMultiTeam', COALESCE(v_trade.is_multi_team, false),
       'allAccepted', false,
       'proposerMemberId', v_trade.proposer_member_id,
       'recipientMemberId', v_trade.recipient_member_id,
@@ -421,6 +416,7 @@ BEGIN
 
   RETURN jsonb_build_object(
     'expired', false,
+    'isMultiTeam', COALESCE(v_trade.is_multi_team, false),
     'allAccepted', v_all_accepted,
     'proposerMemberId', v_trade.proposer_member_id,
     'recipientMemberId', v_trade.recipient_member_id,

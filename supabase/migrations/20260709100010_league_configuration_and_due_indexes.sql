@@ -47,4 +47,3 @@ RESET lock_timeout;
 
 REVOKE ALL ON FUNCTION public.update_league_configuration_atomic(uuid, jsonb, jsonb) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.update_league_configuration_atomic(uuid, jsonb, jsonb) TO authenticated, service_role;
-

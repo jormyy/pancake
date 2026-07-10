@@ -233,8 +233,12 @@ BEGIN
      OR has_function_privilege('service_role', 'private.multi_team_trade_participants(uuid,uuid[])', 'EXECUTE') THEN
     RAISE EXCEPTION 'Private trade parsing helpers are client executable';
   END IF;
+  IF to_regprocedure('public.accept_multi_team_trade_atomic(uuid,uuid,uuid[])') IS NOT NULL
+     OR to_regprocedure('private.accept_trade_participant_atomic(uuid,uuid,uuid[],boolean)') IS NOT NULL THEN
+    RAISE EXCEPTION 'Superseded trade acceptance entrypoint still exists';
+  END IF;
 
-  SELECT pg_get_functiondef('private.accept_trade_participant_atomic(uuid,uuid,uuid[],boolean)'::regprocedure)
+  SELECT pg_get_functiondef('private.accept_trade_participant_atomic(uuid,uuid,uuid[])'::regprocedure)
     INTO v_accept_definition;
   SELECT pg_get_functiondef('public.complete_accepted_trade_atomic(uuid)'::regprocedure)
     INTO v_complete_definition;
@@ -288,7 +292,7 @@ BEGIN
       JOIN pg_namespace AS namespace ON namespace.oid = procedure.pronamespace
      WHERE namespace.nspname = 'public'
        AND procedure.proname = ANY(ARRAY[
-         'propose_trade_atomic', 'accept_trade_atomic', 'accept_multi_team_trade_atomic',
+         'propose_trade_atomic', 'accept_trade_atomic',
          'reject_trade_atomic', 'withdraw_trade_atomic', 'complete_accepted_trade_atomic',
          'veto_trade_atomic', 'expire_trade_completion_failure_atomic', 'process_due_accepted_trades_atomic',
          'add_trade_block_item_atomic', 'remove_trade_block_item_atomic', 'create_waiver_claim_atomic',

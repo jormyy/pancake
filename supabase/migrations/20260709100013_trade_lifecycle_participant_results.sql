@@ -75,7 +75,6 @@ BEGIN
 END;
 $$;
 
--- Intermediate public.accept_multi_team_trade_atomic definition removed; the final canonical definition is applied later in this branch.
 
 
 CREATE OR REPLACE FUNCTION public.process_due_accepted_trades_atomic(

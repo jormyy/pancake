@@ -890,3 +890,5 @@ DROP FUNCTION IF EXISTS public.get_trades_for_member_page(uuid, uuid, int, boole
 
 REVOKE ALL ON FUNCTION public.get_trade_page_refs(uuid, uuid, int, text) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.get_trade_page_refs(uuid, uuid, int, text) TO authenticated, service_role;
+REVOKE ALL ON FUNCTION private.parse_multi_team_trade_items(jsonb) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION private.create_multi_team_trade_offer(uuid, uuid, uuid, uuid[], jsonb, text, timestamptz) FROM PUBLIC, anon, authenticated, service_role;

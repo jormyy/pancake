@@ -1,3 +1,365 @@
+CREATE OR REPLACE FUNCTION public.complete_accepted_trade_atomic(
+  p_trade_id uuid
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_trade trades%ROWTYPE;
+  v_item trade_items%ROWTYPE;
+  v_drop trade_drop_reservations%ROWTYPE;
+  v_league leagues%ROWTYPE;
+  v_from_member uuid;
+  v_to_member uuid;
+  v_member_lock uuid;
+  v_lock_player_id uuid;
+  v_clear_player_id uuid;
+  v_rows int;
+  v_active_count int;
+  v_balance int;
+  v_item_faab_amount int;
+BEGIN
+  SELECT *
+    INTO v_trade
+    FROM trades
+   WHERE id = p_trade_id
+   FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Trade not found';
+  END IF;
+
+  IF v_trade.status <> 'accepted' THEN
+    RAISE EXCEPTION 'Trade is not ready to complete';
+  END IF;
+
+  IF v_trade.veto_window_expires_at IS NULL OR v_trade.veto_window_expires_at > now() THEN
+    RAISE EXCEPTION 'Trade veto window is still open';
+  END IF;
+
+  FOR v_member_lock IN
+    SELECT member_id
+      FROM (
+        VALUES (v_trade.proposer_member_id), (v_trade.recipient_member_id)
+        UNION
+        SELECT participant.member_id
+          FROM trade_participants AS participant
+         WHERE participant.trade_id = p_trade_id
+      ) AS members(member_id)
+     ORDER BY member_id ASC
+  LOOP
+    PERFORM pg_advisory_xact_lock(hashtext(v_trade.league_id::text), hashtext(v_member_lock::text));
+  END LOOP;
+
+  FOR v_lock_player_id IN
+    SELECT DISTINCT player_id
+      FROM (
+        SELECT player_id
+          FROM trade_items
+         WHERE trade_id = p_trade_id
+           AND player_id IS NOT NULL
+        UNION ALL
+        SELECT player_id
+          FROM trade_drop_reservations
+         WHERE trade_id = p_trade_id
+      ) AS touched
+     WHERE player_id IS NOT NULL
+     ORDER BY player_id ASC
+  LOOP
+    PERFORM pg_advisory_xact_lock(hashtext(v_trade.league_id::text), hashtext(v_lock_player_id::text));
+  END LOOP;
+
+  SELECT *
+    INTO v_league
+    FROM leagues
+   WHERE id = v_trade.league_id
+   FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'League not found.';
+  END IF;
+
+  IF v_league.status = 'archived'::league_status THEN
+    RAISE EXCEPTION 'Archived leagues are read-only.'
+      USING ERRCODE = 'P0001';
+  END IF;
+
+  PERFORM 1
+    FROM league_seasons AS season
+   WHERE season.id = v_trade.league_season_id
+     AND season.is_current = true
+   FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Trades require the current season.'
+      USING ERRCODE = 'P0001';
+  END IF;
+
+  FOR v_from_member, v_item_faab_amount IN
+    SELECT
+      item.from_member_id,
+      sum(item.faab_amount)::int
+      FROM trade_items AS item
+     WHERE item.trade_id = p_trade_id
+       AND item.faab_amount > 0
+     GROUP BY 1
+  LOOP
+    v_balance := private.ensure_faab_balance(v_trade.league_id, v_trade.league_season_id, v_from_member);
+    IF v_balance < v_item_faab_amount THEN
+      RAISE EXCEPTION 'Trade participant no longer has enough FAAB for this trade.'
+        USING ERRCODE = 'PT001';
+    END IF;
+  END LOOP;
+
+  FOR v_item IN
+    SELECT * FROM trade_items WHERE trade_id = p_trade_id ORDER BY created_at, id
+  LOOP
+    v_from_member := v_item.from_member_id;
+
+    IF v_item.player_id IS NOT NULL THEN
+      PERFORM 1
+        FROM roster_players
+       WHERE league_id = v_trade.league_id
+         AND league_season_id = v_trade.league_season_id
+         AND member_id = v_from_member
+         AND player_id = v_item.player_id
+         AND is_on_ir = false
+         AND is_on_taxi = false
+       FOR UPDATE;
+
+      IF NOT FOUND THEN
+        RAISE EXCEPTION 'Player asset is no longer owned by the expected active roster side'
+          USING ERRCODE = 'PT001';
+      END IF;
+    ELSIF v_item.pick_id IS NOT NULL THEN
+      PERFORM 1
+        FROM draft_picks
+       WHERE id = v_item.pick_id
+         AND league_id = v_trade.league_id
+         AND current_owner_id = v_from_member
+         AND is_used = false
+       FOR UPDATE;
+
+      IF NOT FOUND THEN
+        RAISE EXCEPTION 'Draft-pick asset is no longer owned by the expected trade side'
+          USING ERRCODE = 'PT001';
+      END IF;
+    ELSE
+      v_item_faab_amount := COALESCE(v_item.faab_amount, 0);
+      IF v_item_faab_amount <= 0 THEN
+        RAISE EXCEPTION 'Trade item must include a player, pick, or positive FAAB amount'
+          USING ERRCODE = 'PT001';
+      END IF;
+
+    END IF;
+  END LOOP;
+
+  FOR v_drop IN
+    SELECT *
+      FROM trade_drop_reservations
+     WHERE trade_id = p_trade_id
+     ORDER BY player_id ASC
+     FOR UPDATE
+  LOOP
+    DELETE FROM trade_drop_reservations
+     WHERE id = v_drop.id;
+
+    PERFORM private.release_roster_player_to_waivers(
+      v_drop.roster_player_id,
+      v_trade.league_id,
+      v_trade.league_season_id,
+      v_drop.member_id,
+      v_drop.player_id,
+      'fa_drop',
+      NULL,
+      NULL,
+      'Reserved drop player is no longer on the expected roster.'
+    );
+  END LOOP;
+
+  FOR v_clear_player_id IN
+    SELECT DISTINCT player_id
+      FROM trade_items
+     WHERE trade_id = p_trade_id
+       AND player_id IS NOT NULL
+     ORDER BY player_id
+  LOOP
+    PERFORM private.clear_future_unlocked_lineups(
+      v_trade.league_id,
+      v_trade.league_season_id,
+      v_clear_player_id
+    );
+  END LOOP;
+
+  FOR v_from_member, v_item_faab_amount IN
+    SELECT
+      item.from_member_id,
+      sum(item.faab_amount)::int
+      FROM trade_items AS item
+     WHERE item.trade_id = p_trade_id
+       AND item.faab_amount > 0
+     GROUP BY 1
+  LOOP
+    UPDATE faab_balances
+       SET balance = balance - v_item_faab_amount,
+           updated_at = now()
+     WHERE league_id = v_trade.league_id
+       AND league_season_id = v_trade.league_season_id
+       AND member_id = v_from_member
+       AND balance >= v_item_faab_amount;
+
+    GET DIAGNOSTICS v_rows = ROW_COUNT;
+    IF v_rows <> 1 THEN
+      RAISE EXCEPTION 'Trade participant no longer has enough FAAB for this trade.'
+        USING ERRCODE = 'PT001';
+    END IF;
+  END LOOP;
+
+  FOR v_item IN
+    SELECT * FROM trade_items WHERE trade_id = p_trade_id ORDER BY created_at, id
+  LOOP
+    v_from_member := v_item.from_member_id;
+    v_to_member := v_item.to_member_id;
+
+    IF v_item.player_id IS NOT NULL THEN
+      UPDATE roster_players
+         SET member_id = v_to_member,
+             acquired_via = 'trade'
+       WHERE league_id = v_trade.league_id
+         AND league_season_id = v_trade.league_season_id
+         AND member_id = v_from_member
+         AND player_id = v_item.player_id
+         AND is_on_ir = false
+         AND is_on_taxi = false;
+
+      GET DIAGNOSTICS v_rows = ROW_COUNT;
+      IF v_rows <> 1 THEN
+        RAISE EXCEPTION 'Failed to move player asset atomically'
+          USING ERRCODE = 'PT001';
+      END IF;
+
+      PERFORM private.clear_trade_block_listing_for_asset(
+        v_trade.league_id,
+        v_from_member,
+        v_item.player_id
+      );
+
+      INSERT INTO roster_transactions (
+        league_id,
+        league_season_id,
+        member_id,
+        player_id,
+        transaction_type,
+        related_trade_id
+      )
+      VALUES
+        (v_trade.league_id, v_trade.league_season_id, v_from_member, v_item.player_id, 'trade_out', p_trade_id),
+        (v_trade.league_id, v_trade.league_season_id, v_to_member, v_item.player_id, 'trade_in', p_trade_id);
+    ELSIF v_item.pick_id IS NOT NULL THEN
+      UPDATE draft_picks
+         SET current_owner_id = v_to_member
+       WHERE id = v_item.pick_id
+         AND league_id = v_trade.league_id
+         AND current_owner_id = v_from_member
+         AND is_used = false;
+
+      GET DIAGNOSTICS v_rows = ROW_COUNT;
+      IF v_rows <> 1 THEN
+        RAISE EXCEPTION 'Failed to move draft-pick asset atomically'
+          USING ERRCODE = 'PT001';
+      END IF;
+
+      PERFORM private.clear_trade_block_listing_for_asset(
+        v_trade.league_id,
+        v_from_member,
+        NULL,
+        v_item.pick_id
+      );
+    ELSE
+      v_item_faab_amount := COALESCE(v_item.faab_amount, 0);
+      IF v_item_faab_amount <= 0 THEN
+        RAISE EXCEPTION 'Trade item must include a player, pick, or positive FAAB amount'
+          USING ERRCODE = 'PT001';
+      END IF;
+
+      INSERT INTO faab_balances (
+        league_id,
+        league_season_id,
+        member_id,
+        balance
+      )
+      VALUES (
+        v_trade.league_id,
+        v_trade.league_season_id,
+        v_to_member,
+        v_item_faab_amount
+      )
+      ON CONFLICT (league_id, league_season_id, member_id) DO UPDATE
+         SET balance = faab_balances.balance + EXCLUDED.balance,
+             updated_at = now();
+    END IF;
+  END LOOP;
+
+  FOR v_to_member IN
+    SELECT v_trade.proposer_member_id
+    UNION
+    SELECT v_trade.recipient_member_id
+    UNION
+    SELECT participant.member_id
+      FROM trade_participants AS participant
+     WHERE participant.trade_id = p_trade_id
+  LOOP
+    SELECT count(*)
+      INTO v_active_count
+      FROM roster_players
+     WHERE league_id = v_trade.league_id
+       AND league_season_id = v_trade.league_season_id
+       AND member_id = v_to_member
+       AND is_on_ir = false
+       AND is_on_taxi = false;
+
+    IF v_active_count > COALESCE(v_league.roster_size, 0) THEN
+      RAISE EXCEPTION 'Trade completion would overfill a roster.'
+        USING ERRCODE = 'PT001';
+    END IF;
+  END LOOP;
+
+  DELETE FROM trade_drop_reservations WHERE trade_id = p_trade_id;
+
+  UPDATE trades
+     SET status = 'completed',
+         completed_at = now(),
+         completion_failure_reason = NULL
+   WHERE id = p_trade_id
+     AND status = 'accepted';
+
+  GET DIAGNOSTICS v_rows = ROW_COUNT;
+  IF v_rows <> 1 THEN
+    RAISE EXCEPTION 'Failed to complete trade atomically';
+  END IF;
+
+  PERFORM private.log_league_activity(
+    v_trade.league_id,
+    v_trade.league_season_id,
+    'trade_completed',
+    'Trade completed',
+    NULL,
+    v_trade.proposer_member_id,
+    v_trade.recipient_member_id,
+    NULL,
+    p_trade_id,
+    NULL,
+    jsonb_build_object(
+      'proposer_faab_amount', v_trade.proposer_faab_amount,
+      'recipient_faab_amount', v_trade.recipient_faab_amount,
+      'is_multi_team', COALESCE(v_trade.is_multi_team, false)
+    )
+  );
+END;
+$$;
+
 -- Additive trade hardening: canonical routes, bounded parsing, and keyset pagination.
 
 UPDATE public.trade_items AS item
@@ -12,29 +374,6 @@ ALTER TABLE public.trade_items
   ALTER COLUMN to_member_id SET NOT NULL,
   DROP CONSTRAINT IF EXISTS trade_items_route_distinct_check,
   ADD CONSTRAINT trade_items_route_distinct_check CHECK (from_member_id <> to_member_id);
-
-CREATE OR REPLACE FUNCTION private.parse_multi_team_trade_items(p_items jsonb)
-RETURNS TABLE (
-  sort_order int,
-  from_member_id uuid,
-  to_member_id uuid,
-  player_id uuid,
-  pick_id uuid,
-  faab_amount int
-)
-LANGUAGE sql
-IMMUTABLE
-SET search_path = public
-AS $$
-  SELECT
-    ordinality::int,
-    NULLIF(item->>'fromMemberId', '')::uuid,
-    NULLIF(item->>'toMemberId', '')::uuid,
-    NULLIF(item->>'playerId', '')::uuid,
-    NULLIF(item->>'pickId', '')::uuid,
-    COALESCE(NULLIF(item->>'faabAmount', '')::int, 0)
-    FROM jsonb_array_elements(p_items) WITH ORDINALITY AS entry(item, ordinality);
-$$;
 
 CREATE OR REPLACE FUNCTION private.multi_team_trade_participants(
   p_proposer_member_id uuid,
@@ -63,358 +402,12 @@ AS $$
    ORDER BY retained.sort_order, retained.member_id;
 $$;
 
-CREATE OR REPLACE FUNCTION private.create_multi_team_trade_offer(
-  p_league_id uuid,
-  p_league_season_id uuid,
-  p_proposer_member_id uuid,
-  p_participant_member_ids uuid[],
-  p_items jsonb,
-  p_notes text DEFAULT NULL,
-  p_expires_at timestamptz DEFAULT NULL
-)
-RETURNS uuid
-LANGUAGE plpgsql
-SET search_path = public
-AS $$
-DECLARE
-  v_trade_id uuid;
-  v_league leagues%ROWTYPE;
-  v_rows int;
-  v_participant_count int;
-  v_first_recipient_member_id uuid;
-  v_balance int;
-  v_faab record;
-  v_champion_finalized boolean := false;
-  v_proposer_active_count int;
-  v_proposer_incoming_players int;
-  v_proposer_outgoing_players int;
-  v_proposer_required_drops int := 0;
-BEGIN
-  IF p_items IS NULL OR jsonb_typeof(p_items) <> 'array' THEN
-    RAISE EXCEPTION 'Multi-team trade items must be a JSON array.'
-      USING ERRCODE = '22023';
-  END IF;
-
-  IF jsonb_array_length(p_items) = 0 OR jsonb_array_length(p_items) > 100 THEN
-    RAISE EXCEPTION 'A multi-team trade must include between 1 and 100 items.'
-      USING ERRCODE = '22023';
-  END IF;
-
-  SELECT count(*)
-    INTO v_participant_count
-    FROM private.multi_team_trade_participants(p_proposer_member_id, p_participant_member_ids);
-  IF v_participant_count < 2 THEN
-    RAISE EXCEPTION 'A multi-team trade requires at least two participating teams.'
-      USING ERRCODE = '22023';
-  END IF;
-
-  IF v_participant_count > 12 THEN
-    RAISE EXCEPTION 'A multi-team trade cannot include more than 12 teams.'
-      USING ERRCODE = '22023';
-  END IF;
-
-  IF EXISTS (
-    SELECT 1
-      FROM private.parse_multi_team_trade_items(p_items)
-     WHERE from_member_id = to_member_id
-        OR faab_amount < 0
-        OR ((player_id IS NOT NULL)::int + (pick_id IS NOT NULL)::int + (faab_amount > 0)::int) <> 1
-  ) THEN
-    RAISE EXCEPTION 'Each multi-team trade item must route exactly one player, pick, or positive FAAB amount between two different teams.'
-      USING ERRCODE = '22023';
-  END IF;
-
-  IF EXISTS (
-    SELECT 1
-      FROM private.parse_multi_team_trade_items(p_items) AS item
-     WHERE NOT EXISTS (
-       SELECT 1 FROM private.multi_team_trade_participants(p_proposer_member_id, p_participant_member_ids) AS participant WHERE participant.member_id = item.from_member_id
-     )
-        OR NOT EXISTS (
-       SELECT 1 FROM private.multi_team_trade_participants(p_proposer_member_id, p_participant_member_ids) AS participant WHERE participant.member_id = item.to_member_id
-     )
-  ) THEN
-    RAISE EXCEPTION 'Every item source and destination must be a trade participant.'
-      USING ERRCODE = '22023';
-  END IF;
-
-  IF EXISTS (
-    SELECT 1
-      FROM private.multi_team_trade_participants(p_proposer_member_id, p_participant_member_ids) AS participant
-     WHERE NOT EXISTS (
-       SELECT 1
-         FROM private.parse_multi_team_trade_items(p_items) AS item
-        WHERE item.from_member_id = participant.member_id
-           OR item.to_member_id = participant.member_id
-     )
-  ) THEN
-    RAISE EXCEPTION 'Every participating team must send or receive at least one asset.'
-      USING ERRCODE = '22023';
-  END IF;
-
-  IF (SELECT count(player_id) FROM private.parse_multi_team_trade_items(p_items) WHERE player_id IS NOT NULL) <>
-     (SELECT count(DISTINCT player_id) FROM private.parse_multi_team_trade_items(p_items) WHERE player_id IS NOT NULL) THEN
-    RAISE EXCEPTION 'Duplicate traded players are not allowed.';
-  END IF;
-
-  IF (SELECT count(pick_id) FROM private.parse_multi_team_trade_items(p_items) WHERE pick_id IS NOT NULL) <>
-     (SELECT count(DISTINCT pick_id) FROM private.parse_multi_team_trade_items(p_items) WHERE pick_id IS NOT NULL) THEN
-    RAISE EXCEPTION 'Duplicate traded picks are not allowed.';
-  END IF;
-
-  SELECT *
-    INTO v_league
-    FROM leagues
-   WHERE id = p_league_id
-   FOR UPDATE;
-
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'League not found.';
-  END IF;
-
-  SELECT EXISTS (
-    SELECT 1
-      FROM matchups AS matchup
-      JOIN league_seasons AS season
-        ON season.id = matchup.league_season_id
-       AND season.is_current = true
-     WHERE matchup.league_id = p_league_id
-       AND matchup.matchup_type = 'playoff_final'::matchup_type
-       AND matchup.is_finalized = true
-       AND matchup.winner_member_id IS NOT NULL
-  )
-    INTO v_champion_finalized;
-
-  IF v_league.status = 'archived'::league_status THEN
-    RAISE EXCEPTION 'Archived leagues are read-only.';
-  END IF;
-
-  IF v_league.status NOT IN (
-    'setup'::league_status,
-    'drafting'::league_status,
-    'active'::league_status,
-    'playoffs'::league_status,
-    'offseason'::league_status
-  ) THEN
-    RAISE EXCEPTION 'Trades are not allowed for this league right now.';
-  END IF;
-
-  IF v_league.trade_deadline IS NOT NULL
-     AND v_league.trade_deadline < (now() AT TIME ZONE 'America/New_York')::date THEN
-    IF v_league.status = 'active'::league_status
-       OR (v_league.status = 'playoffs'::league_status AND NOT v_champion_finalized) THEN
-      RAISE EXCEPTION 'Trades are locked from the trade deadline until the champion is finalized.';
-    END IF;
-  END IF;
-
-  IF p_expires_at IS NOT NULL THEN
-    IF p_expires_at <= now() THEN
-      RAISE EXCEPTION 'Trade expiration must be in the future.'
-        USING ERRCODE = '22023';
-    END IF;
-
-    IF (v_league.status = 'active'::league_status
-        OR (v_league.status = 'playoffs'::league_status AND NOT v_champion_finalized))
-       AND v_league.trade_deadline IS NOT NULL
-       AND (p_expires_at AT TIME ZONE 'America/New_York')::date > v_league.trade_deadline THEN
-      RAISE EXCEPTION 'Trade expiration must be before the trade deadline.'
-        USING ERRCODE = '22023';
-    END IF;
-  END IF;
-
-  IF EXISTS (SELECT 1 FROM private.parse_multi_team_trade_items(p_items) WHERE faab_amount > 0)
-     AND v_league.waiver_mode <> 'faab' THEN
-    RAISE EXCEPTION 'FAAB can only be traded in FAAB waiver leagues.'
-      USING ERRCODE = 'P0001';
-  END IF;
-
-  PERFORM 1
-    FROM league_seasons
-   WHERE id = p_league_season_id
-     AND league_id = p_league_id
-     AND is_current = true
-   FOR SHARE;
-
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'No active season found.';
-  END IF;
-
-  SELECT count(*)
-    INTO v_rows
-    FROM league_members AS member
-    JOIN private.multi_team_trade_participants(p_proposer_member_id, p_participant_member_ids) AS participant
-      ON participant.member_id = member.id
-   WHERE member.league_id = p_league_id;
-
-  IF v_rows <> v_participant_count THEN
-    RAISE EXCEPTION 'Every trade participant must be a member of this league.';
-  END IF;
-
-  WITH locked AS (
-    SELECT item.player_id
-      FROM private.parse_multi_team_trade_items(p_items) AS item
-      JOIN roster_players AS roster
-        ON roster.league_id = p_league_id
-       AND roster.league_season_id = p_league_season_id
-       AND roster.member_id = item.from_member_id
-       AND roster.player_id = item.player_id
-       AND roster.is_on_ir = false
-       AND roster.is_on_taxi = false
-     WHERE item.player_id IS NOT NULL
-     FOR SHARE OF roster
-  )
-  SELECT count(*) INTO v_rows FROM locked;
-  IF v_rows <> (SELECT count(*) FROM private.parse_multi_team_trade_items(p_items) WHERE player_id IS NOT NULL) THEN
-    RAISE EXCEPTION 'A player asset is no longer owned by the expected active roster side.';
-  END IF;
-
-  WITH locked AS (
-    SELECT item.pick_id
-      FROM private.parse_multi_team_trade_items(p_items) AS item
-      JOIN draft_picks AS pick
-        ON pick.id = item.pick_id
-       AND pick.league_id = p_league_id
-       AND pick.current_owner_id = item.from_member_id
-       AND pick.is_used = false
-     WHERE item.pick_id IS NOT NULL
-     FOR SHARE OF pick
-  )
-  SELECT count(*) INTO v_rows FROM locked;
-  IF v_rows <> (SELECT count(*) FROM private.parse_multi_team_trade_items(p_items) WHERE pick_id IS NOT NULL) THEN
-    RAISE EXCEPTION 'A draft pick asset is no longer owned by the expected team.';
-  END IF;
-
-  FOR v_faab IN
-    SELECT from_member_id, sum(faab_amount)::int AS amount
-      FROM private.parse_multi_team_trade_items(p_items)
-     WHERE faab_amount > 0
-     GROUP BY from_member_id
-  LOOP
-    v_balance := private.ensure_faab_balance(p_league_id, p_league_season_id, v_faab.from_member_id);
-    IF v_balance < v_faab.amount THEN
-      RAISE EXCEPTION 'Offered FAAB exceeds a participant''s available balance.'
-        USING ERRCODE = 'P0001';
-    END IF;
-  END LOOP;
-
-  SELECT count(*)
-    INTO v_proposer_active_count
-    FROM roster_players
-   WHERE league_id = p_league_id
-     AND league_season_id = p_league_season_id
-     AND member_id = p_proposer_member_id
-     AND is_on_ir = false
-     AND is_on_taxi = false;
-
-  SELECT count(*)
-    INTO v_proposer_incoming_players
-    FROM private.parse_multi_team_trade_items(p_items)
-   WHERE to_member_id = p_proposer_member_id
-     AND player_id IS NOT NULL;
-
-  SELECT count(*)
-    INTO v_proposer_outgoing_players
-    FROM private.parse_multi_team_trade_items(p_items)
-   WHERE from_member_id = p_proposer_member_id
-     AND player_id IS NOT NULL;
-
-  v_proposer_required_drops := GREATEST(
-    v_proposer_active_count - v_proposer_outgoing_players + v_proposer_incoming_players - COALESCE(v_league.roster_size, 0),
-    0
-  );
-
-  SELECT member_id
-    INTO v_first_recipient_member_id
-    FROM private.multi_team_trade_participants(p_proposer_member_id, p_participant_member_ids)
-   WHERE member_id <> p_proposer_member_id
-   ORDER BY sort_order, member_id
-   LIMIT 1;
-
-  INSERT INTO trades (
-    league_id,
-    league_season_id,
-    proposer_member_id,
-    recipient_member_id,
-    notes,
-    status,
-    expires_at,
-    is_multi_team
-  )
-  VALUES (
-    p_league_id,
-    p_league_season_id,
-    p_proposer_member_id,
-    v_first_recipient_member_id,
-    NULLIF(BTRIM(COALESCE(p_notes, '')), ''),
-    'pending',
-    p_expires_at,
-    true
-  )
-  RETURNING id INTO v_trade_id;
-
-  INSERT INTO trade_participants (
-    trade_id,
-    member_id,
-    sort_order,
-    is_initiator,
-    accepted_at
-  )
-  SELECT
-    v_trade_id,
-    member_id,
-    sort_order,
-    member_id = p_proposer_member_id,
-    CASE WHEN member_id = p_proposer_member_id AND v_proposer_required_drops = 0 THEN now() ELSE NULL END
-  FROM private.multi_team_trade_participants(p_proposer_member_id, p_participant_member_ids)
-  ORDER BY sort_order, member_id;
-
-  INSERT INTO trade_items (
-    trade_id,
-    side,
-    player_id,
-    pick_id,
-    from_member_id,
-    to_member_id,
-    faab_amount
-  )
-  SELECT
-    v_trade_id,
-    CASE WHEN from_member_id = p_proposer_member_id THEN 'proposer'::trade_side ELSE 'recipient'::trade_side END,
-    player_id,
-    pick_id,
-    from_member_id,
-    to_member_id,
-    faab_amount
-  FROM private.parse_multi_team_trade_items(p_items)
-  ORDER BY sort_order;
-
-  PERFORM private.log_league_activity(
-    p_league_id,
-    p_league_season_id,
-    'trade_offered',
-    'Multi-team trade offer sent',
-    NULL,
-    p_proposer_member_id,
-    v_first_recipient_member_id,
-    NULL,
-    v_trade_id,
-    NULL,
-    jsonb_build_object(
-      'is_multi_team', true,
-      'participant_count', v_participant_count,
-      'item_count', jsonb_array_length(p_items)
-    )
-  );
-
-  RETURN v_trade_id;
-END;
-$$;
+DROP FUNCTION IF EXISTS private.accept_trade_participant_atomic(uuid, uuid, uuid[], boolean);
 
 CREATE OR REPLACE FUNCTION private.accept_trade_participant_atomic(
   p_trade_id uuid,
   p_accepting_member_id uuid,
-  p_drop_roster_player_ids uuid[],
-  p_expected_multi_team boolean
+  p_drop_roster_player_ids uuid[]
 )
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -450,11 +443,6 @@ BEGIN
       USING ERRCODE = 'P0002';
   END IF;
 
-  IF COALESCE(v_trade.is_multi_team, false) IS DISTINCT FROM p_expected_multi_team THEN
-    RAISE EXCEPTION 'Trade type does not match this acceptance route.'
-      USING ERRCODE = 'P0001';
-  END IF;
-
   IF v_trade.status <> 'pending'::trade_status THEN
     RAISE EXCEPTION 'This trade is no longer pending.'
       USING ERRCODE = 'P0001';
@@ -464,6 +452,7 @@ BEGIN
     UPDATE trades SET status = 'expired'::trade_status WHERE id = p_trade_id;
     RETURN jsonb_build_object(
       'expired', true,
+      'isMultiTeam', COALESCE(v_trade.is_multi_team, false),
       'allAccepted', false,
       'proposerMemberId', v_trade.proposer_member_id,
       'recipientMemberId', v_trade.recipient_member_id,
@@ -829,6 +818,7 @@ BEGIN
 
   RETURN jsonb_build_object(
     'expired', false,
+    'isMultiTeam', COALESCE(v_trade.is_multi_team, false),
     'allAccepted', v_all_accepted,
     'proposerMemberId', v_trade.proposer_member_id,
     'recipientMemberId', v_trade.recipient_member_id,
@@ -836,368 +826,6 @@ BEGIN
       SELECT jsonb_agg(participant.member_id ORDER BY participant.sort_order, participant.member_id)
         FROM trade_participants AS participant
        WHERE participant.trade_id = p_trade_id
-    )
-  );
-END;
-$$;
-
-CREATE OR REPLACE FUNCTION public.complete_accepted_trade_atomic(
-  p_trade_id uuid
-)
-RETURNS void
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-DECLARE
-  v_trade trades%ROWTYPE;
-  v_item trade_items%ROWTYPE;
-  v_drop trade_drop_reservations%ROWTYPE;
-  v_league leagues%ROWTYPE;
-  v_from_member uuid;
-  v_to_member uuid;
-  v_member_lock uuid;
-  v_lock_player_id uuid;
-  v_clear_player_id uuid;
-  v_rows int;
-  v_active_count int;
-  v_balance int;
-  v_item_faab_amount int;
-BEGIN
-  SELECT *
-    INTO v_trade
-    FROM trades
-   WHERE id = p_trade_id
-   FOR UPDATE;
-
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'Trade not found';
-  END IF;
-
-  IF v_trade.status <> 'accepted' THEN
-    RAISE EXCEPTION 'Trade is not ready to complete';
-  END IF;
-
-  IF v_trade.veto_window_expires_at IS NULL OR v_trade.veto_window_expires_at > now() THEN
-    RAISE EXCEPTION 'Trade veto window is still open';
-  END IF;
-
-  FOR v_member_lock IN
-    SELECT member_id
-      FROM (
-        VALUES (v_trade.proposer_member_id), (v_trade.recipient_member_id)
-        UNION
-        SELECT participant.member_id
-          FROM trade_participants AS participant
-         WHERE participant.trade_id = p_trade_id
-      ) AS members(member_id)
-     ORDER BY member_id ASC
-  LOOP
-    PERFORM pg_advisory_xact_lock(hashtext(v_trade.league_id::text), hashtext(v_member_lock::text));
-  END LOOP;
-
-  FOR v_lock_player_id IN
-    SELECT DISTINCT player_id
-      FROM (
-        SELECT player_id
-          FROM trade_items
-         WHERE trade_id = p_trade_id
-           AND player_id IS NOT NULL
-        UNION ALL
-        SELECT player_id
-          FROM trade_drop_reservations
-         WHERE trade_id = p_trade_id
-      ) AS touched
-     WHERE player_id IS NOT NULL
-     ORDER BY player_id ASC
-  LOOP
-    PERFORM pg_advisory_xact_lock(hashtext(v_trade.league_id::text), hashtext(v_lock_player_id::text));
-  END LOOP;
-
-  SELECT *
-    INTO v_league
-    FROM leagues
-   WHERE id = v_trade.league_id
-   FOR UPDATE;
-
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'League not found.';
-  END IF;
-
-  IF v_league.status = 'archived'::league_status THEN
-    RAISE EXCEPTION 'Archived leagues are read-only.'
-      USING ERRCODE = 'P0001';
-  END IF;
-
-  PERFORM 1
-    FROM league_seasons AS season
-   WHERE season.id = v_trade.league_season_id
-     AND season.is_current = true
-   FOR UPDATE;
-
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'Trades require the current season.'
-      USING ERRCODE = 'P0001';
-  END IF;
-
-  FOR v_from_member, v_item_faab_amount IN
-    SELECT
-      item.from_member_id,
-      sum(item.faab_amount)::int
-      FROM trade_items AS item
-     WHERE item.trade_id = p_trade_id
-       AND item.faab_amount > 0
-     GROUP BY 1
-  LOOP
-    v_balance := private.ensure_faab_balance(v_trade.league_id, v_trade.league_season_id, v_from_member);
-    IF v_balance < v_item_faab_amount THEN
-      RAISE EXCEPTION 'Trade participant no longer has enough FAAB for this trade.'
-        USING ERRCODE = 'PT001';
-    END IF;
-  END LOOP;
-
-  FOR v_item IN
-    SELECT * FROM trade_items WHERE trade_id = p_trade_id ORDER BY created_at, id
-  LOOP
-    v_from_member := v_item.from_member_id;
-
-    IF v_item.player_id IS NOT NULL THEN
-      PERFORM 1
-        FROM roster_players
-       WHERE league_id = v_trade.league_id
-         AND league_season_id = v_trade.league_season_id
-         AND member_id = v_from_member
-         AND player_id = v_item.player_id
-         AND is_on_ir = false
-         AND is_on_taxi = false
-       FOR UPDATE;
-
-      IF NOT FOUND THEN
-        RAISE EXCEPTION 'Player asset is no longer owned by the expected active roster side'
-          USING ERRCODE = 'PT001';
-      END IF;
-    ELSIF v_item.pick_id IS NOT NULL THEN
-      PERFORM 1
-        FROM draft_picks
-       WHERE id = v_item.pick_id
-         AND league_id = v_trade.league_id
-         AND current_owner_id = v_from_member
-         AND is_used = false
-       FOR UPDATE;
-
-      IF NOT FOUND THEN
-        RAISE EXCEPTION 'Draft-pick asset is no longer owned by the expected trade side'
-          USING ERRCODE = 'PT001';
-      END IF;
-    ELSE
-      v_item_faab_amount := COALESCE(v_item.faab_amount, 0);
-      IF v_item_faab_amount <= 0 THEN
-        RAISE EXCEPTION 'Trade item must include a player, pick, or positive FAAB amount'
-          USING ERRCODE = 'PT001';
-      END IF;
-
-    END IF;
-  END LOOP;
-
-  FOR v_drop IN
-    SELECT *
-      FROM trade_drop_reservations
-     WHERE trade_id = p_trade_id
-     ORDER BY player_id ASC
-     FOR UPDATE
-  LOOP
-    DELETE FROM trade_drop_reservations
-     WHERE id = v_drop.id;
-
-    PERFORM private.release_roster_player_to_waivers(
-      v_drop.roster_player_id,
-      v_trade.league_id,
-      v_trade.league_season_id,
-      v_drop.member_id,
-      v_drop.player_id,
-      'fa_drop',
-      NULL,
-      NULL,
-      'Reserved drop player is no longer on the expected roster.'
-    );
-  END LOOP;
-
-  FOR v_clear_player_id IN
-    SELECT DISTINCT player_id
-      FROM trade_items
-     WHERE trade_id = p_trade_id
-       AND player_id IS NOT NULL
-     ORDER BY player_id
-  LOOP
-    PERFORM private.clear_future_unlocked_lineups(
-      v_trade.league_id,
-      v_trade.league_season_id,
-      v_clear_player_id
-    );
-  END LOOP;
-
-  FOR v_from_member, v_item_faab_amount IN
-    SELECT
-      item.from_member_id,
-      sum(item.faab_amount)::int
-      FROM trade_items AS item
-     WHERE item.trade_id = p_trade_id
-       AND item.faab_amount > 0
-     GROUP BY 1
-  LOOP
-    UPDATE faab_balances
-       SET balance = balance - v_item_faab_amount,
-           updated_at = now()
-     WHERE league_id = v_trade.league_id
-       AND league_season_id = v_trade.league_season_id
-       AND member_id = v_from_member
-       AND balance >= v_item_faab_amount;
-
-    GET DIAGNOSTICS v_rows = ROW_COUNT;
-    IF v_rows <> 1 THEN
-      RAISE EXCEPTION 'Trade participant no longer has enough FAAB for this trade.'
-        USING ERRCODE = 'PT001';
-    END IF;
-  END LOOP;
-
-  FOR v_item IN
-    SELECT * FROM trade_items WHERE trade_id = p_trade_id ORDER BY created_at, id
-  LOOP
-    v_from_member := v_item.from_member_id;
-    v_to_member := v_item.to_member_id;
-
-    IF v_item.player_id IS NOT NULL THEN
-      UPDATE roster_players
-         SET member_id = v_to_member,
-             acquired_via = 'trade'
-       WHERE league_id = v_trade.league_id
-         AND league_season_id = v_trade.league_season_id
-         AND member_id = v_from_member
-         AND player_id = v_item.player_id
-         AND is_on_ir = false
-         AND is_on_taxi = false;
-
-      GET DIAGNOSTICS v_rows = ROW_COUNT;
-      IF v_rows <> 1 THEN
-        RAISE EXCEPTION 'Failed to move player asset atomically'
-          USING ERRCODE = 'PT001';
-      END IF;
-
-      PERFORM private.clear_trade_block_listing_for_asset(
-        v_trade.league_id,
-        v_from_member,
-        v_item.player_id
-      );
-
-      INSERT INTO roster_transactions (
-        league_id,
-        league_season_id,
-        member_id,
-        player_id,
-        transaction_type,
-        related_trade_id
-      )
-      VALUES
-        (v_trade.league_id, v_trade.league_season_id, v_from_member, v_item.player_id, 'trade_out', p_trade_id),
-        (v_trade.league_id, v_trade.league_season_id, v_to_member, v_item.player_id, 'trade_in', p_trade_id);
-    ELSIF v_item.pick_id IS NOT NULL THEN
-      UPDATE draft_picks
-         SET current_owner_id = v_to_member
-       WHERE id = v_item.pick_id
-         AND league_id = v_trade.league_id
-         AND current_owner_id = v_from_member
-         AND is_used = false;
-
-      GET DIAGNOSTICS v_rows = ROW_COUNT;
-      IF v_rows <> 1 THEN
-        RAISE EXCEPTION 'Failed to move draft-pick asset atomically'
-          USING ERRCODE = 'PT001';
-      END IF;
-
-      PERFORM private.clear_trade_block_listing_for_asset(
-        v_trade.league_id,
-        v_from_member,
-        NULL,
-        v_item.pick_id
-      );
-    ELSE
-      v_item_faab_amount := COALESCE(v_item.faab_amount, 0);
-      IF v_item_faab_amount <= 0 THEN
-        RAISE EXCEPTION 'Trade item must include a player, pick, or positive FAAB amount'
-          USING ERRCODE = 'PT001';
-      END IF;
-
-      INSERT INTO faab_balances (
-        league_id,
-        league_season_id,
-        member_id,
-        balance
-      )
-      VALUES (
-        v_trade.league_id,
-        v_trade.league_season_id,
-        v_to_member,
-        v_item_faab_amount
-      )
-      ON CONFLICT (league_id, league_season_id, member_id) DO UPDATE
-         SET balance = faab_balances.balance + EXCLUDED.balance,
-             updated_at = now();
-    END IF;
-  END LOOP;
-
-  FOR v_to_member IN
-    SELECT v_trade.proposer_member_id
-    UNION
-    SELECT v_trade.recipient_member_id
-    UNION
-    SELECT participant.member_id
-      FROM trade_participants AS participant
-     WHERE participant.trade_id = p_trade_id
-  LOOP
-    SELECT count(*)
-      INTO v_active_count
-      FROM roster_players
-     WHERE league_id = v_trade.league_id
-       AND league_season_id = v_trade.league_season_id
-       AND member_id = v_to_member
-       AND is_on_ir = false
-       AND is_on_taxi = false;
-
-    IF v_active_count > COALESCE(v_league.roster_size, 0) THEN
-      RAISE EXCEPTION 'Trade completion would overfill a roster.'
-        USING ERRCODE = 'PT001';
-    END IF;
-  END LOOP;
-
-  DELETE FROM trade_drop_reservations WHERE trade_id = p_trade_id;
-
-  UPDATE trades
-     SET status = 'completed',
-         completed_at = now(),
-         completion_failure_reason = NULL
-   WHERE id = p_trade_id
-     AND status = 'accepted';
-
-  GET DIAGNOSTICS v_rows = ROW_COUNT;
-  IF v_rows <> 1 THEN
-    RAISE EXCEPTION 'Failed to complete trade atomically';
-  END IF;
-
-  PERFORM private.log_league_activity(
-    v_trade.league_id,
-    v_trade.league_season_id,
-    'trade_completed',
-    'Trade completed',
-    NULL,
-    v_trade.proposer_member_id,
-    v_trade.recipient_member_id,
-    NULL,
-    p_trade_id,
-    NULL,
-    jsonb_build_object(
-      'proposer_faab_amount', v_trade.proposer_faab_amount,
-      'recipient_faab_amount', v_trade.recipient_faab_amount,
-      'is_multi_team', COALESCE(v_trade.is_multi_team, false)
     )
   );
 END;
@@ -1301,9 +929,7 @@ $$;
 
 DROP FUNCTION IF EXISTS public.get_trades_for_member(uuid, uuid, int, int);
 
-REVOKE ALL ON FUNCTION private.parse_multi_team_trade_items(jsonb) FROM PUBLIC, anon, authenticated, service_role;
 REVOKE ALL ON FUNCTION private.multi_team_trade_participants(uuid, uuid[]) FROM PUBLIC, anon, authenticated, service_role;
-REVOKE ALL ON FUNCTION private.create_multi_team_trade_offer(uuid, uuid, uuid, uuid[], jsonb, text, timestamptz) FROM PUBLIC, anon, authenticated, service_role;
-REVOKE ALL ON FUNCTION private.accept_trade_participant_atomic(uuid, uuid, uuid[], boolean) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION private.accept_trade_participant_atomic(uuid, uuid, uuid[]) FROM PUBLIC, anon, authenticated, service_role;
 REVOKE ALL ON FUNCTION public.get_trades_for_member_page(uuid, uuid, int, boolean, boolean, timestamptz, uuid) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.get_trades_for_member_page(uuid, uuid, int, boolean, boolean, timestamptz, uuid) TO authenticated, service_role;

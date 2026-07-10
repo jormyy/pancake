@@ -84,7 +84,7 @@ const propose = (fixture, items, notes) => rpc(fixture.admin, 'propose_multi_tea
 
 const accept = (fixture, tradeId, memberId, dropRosterPlayerIds = []) => rpc(
   fixture.admin,
-  'accept_multi_team_trade_atomic',
+  'accept_trade_atomic',
   {
     p_trade_id: tradeId,
     p_accepting_member_id: memberId,
@@ -124,7 +124,7 @@ const assertAggregateFaabRejectionIsAtomic = async (fixture) => {
   const tradeId = await propose(fixture, faabRoutes(fixture), 'DB aggregate FAAB acceptance guard')
   await setBalances(fixture, [[fixture.proposer.id, 60]])
 
-  await expectRpcError(fixture.admin, 'accept_multi_team_trade_atomic', {
+  await expectRpcError(fixture.admin, 'accept_trade_atomic', {
     p_trade_id: tradeId,
     p_accepting_member_id: fixture.recipient.id,
     p_drop_roster_player_ids: [],

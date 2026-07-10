@@ -34,11 +34,11 @@ DECLARE
   v_player_name text;
   v_candidate record;
 BEGIN
-  -- Try-lock-and-skip, matching the trade/nomination batch processors: a
-  -- league whose advisory lock is held elsewhere is skipped this pass instead
-  -- of blocking the cron.
   FOR v_candidate IN
-    SELECT candidate.league_id, candidate.league_season_id, candidate.player_id
+    SELECT
+      candidate.league_id,
+      candidate.league_season_id,
+      candidate.player_id
       FROM waiver_claims AS candidate
       JOIN waiver_wire_log AS due_wwl
         ON due_wwl.league_id = candidate.league_id
@@ -54,11 +54,16 @@ BEGIN
        AND claim_season.is_current = true
      WHERE candidate.status = 'pending'
        AND candidate.process_date <= p_process_date
-     ORDER BY
-       candidate.process_date,
+     GROUP BY
        candidate.league_id,
        candidate.league_season_id,
        candidate.player_id
+     ORDER BY
+       min(candidate.process_date),
+       candidate.league_id,
+       candidate.league_season_id,
+       candidate.player_id
+     LIMIT 128
   LOOP
     IF pg_try_advisory_xact_lock(hashtext(v_candidate.league_id::text), hashtext(v_candidate.league_season_id::text)) THEN
       v_target_league_id := v_candidate.league_id;
@@ -504,5 +509,3 @@ BEGIN
     FROM failed;
 END;
 $$;
-
-
