@@ -3,6 +3,11 @@
   "buildCommand": "npm run build:web:release",
   "outputDirectory": "dist",
   "framework": null,
+  "git": {
+    "deploymentEnabled": {
+      "main": false
+    }
+  },
   "rewrites": [
     { "source": "/player/(.*)", "destination": "/player/[id].html" },
     { "source": "/(.*)", "destination": "/+not-found.html" }

@@ -113,12 +113,14 @@ npm run build:web:release          # web/PWA build + immutable provenance marker
 npm audit --audit-level=high       # dependency audit
 ```
 
-Production deploys must publish `dist/release-provenance.json` and configure the Edge
-`PANCAKE_RELEASE_SHA` and `PANCAKE_RELEASE_BUNDLE_DIGEST` values from the same build. Dispatch
-the protected hosted-readiness workflow with that full SHA and bundle digest after deployment.
-External deployment automation must emit the `production_deployed` repository dispatch with
-`client_payload.release_sha` and `client_payload.bundle_digest`; `workflow_dispatch` remains the
-manual recovery path.
+Production releases run through the protected `Deploy production` workflow. It resolves the
+currently deployed schema and release, soaks the complete pending migration range in both rolling
+compatibility directions, builds an unpromoted Vercel candidate, applies migrations, deploys Edge
+provenance, and promotes the frontend only after hosted readiness passes. Automatic Vercel deploys
+from `main` are disabled in `vercel.json`. The production environment must provide the Vercel,
+Supabase, frontend URL/host, API, modern key, and Edge internal-token secrets referenced by the
+workflow. `production_deployed` repository dispatch and manual hosted readiness are retained as
+post-deployment audit/recovery paths.
 
 Cross-cutting guard tests: `tests/scoring-parity.test.ts` (scoring drift),
 `tests/rls-grants.test.ts` (service-role-only RPCs never granted to client roles, default

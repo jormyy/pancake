@@ -16,8 +16,16 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  release-soak:
+    name: Require deployed-to-HEAD release soak
+    uses: ./.github/workflows/release-soak.yml
+    with:
+      release_sha: ${{ inputs.release_sha }}
+    secrets: inherit
+
   deploy-candidate:
     name: Build and deploy candidate
+    needs: release-soak
     runs-on: ubuntu-latest
     timeout-minutes: 45
     environment: production
@@ -26,7 +34,9 @@ jobs:
       candidate_url: ${{ steps.deploy.outputs.candidate_url }}
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
       SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+      E2E_PRODUCTION_SUPABASE_REF: ceeytbfmwsnzalxlkalc
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
@@ -55,10 +65,11 @@ jobs:
           test "$(git rev-parse HEAD)" = "${{ inputs.release_sha }}"
           git merge-base --is-ancestor HEAD origin/main
           test "$SUPABASE_PROJECT_REF" = 'ceeytbfmwsnzalxlkalc'
-          for name in SUPABASE_ACCESS_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID VERCEL_TOKEN \
+          for name in SUPABASE_ACCESS_TOKEN SUPABASE_DB_PASSWORD VERCEL_ORG_ID VERCEL_PROJECT_ID VERCEL_TOKEN \
             EXPO_PUBLIC_SUPABASE_URL EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY EXPO_PUBLIC_API_URL; do
             test -n "${!name:-}" || { echo "Missing protected deployment credential: $name"; exit 1; }
           done
+          node tests/e2e/validate-production-target.mjs
 
       - name: Install dependencies
         run: npm ci
@@ -85,6 +96,8 @@ jobs:
       - name: Deploy Edge release candidate
         shell: bash
         run: |
+          supabase link --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
+          supabase db push --linked --yes
           supabase secrets set --project-ref "$SUPABASE_PROJECT_REF" \
             PANCAKE_RELEASE_SHA="${{ inputs.release_sha }}" \
             PANCAKE_RELEASE_BUNDLE_DIGEST="${{ steps.release.outputs.bundle_digest }}"

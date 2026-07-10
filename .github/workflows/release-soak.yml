@@ -1,7 +1,18 @@
 name: Release soak
 
 on:
+  workflow_call:
+    inputs:
+      release_sha:
+        description: Full main-branch Git SHA to soak
+        required: true
+        type: string
   workflow_dispatch:
+    inputs:
+      release_sha:
+        description: Full main-branch Git SHA to soak
+        required: true
+        type: string
   schedule:
     - cron: '17 9 * * 1'
 
@@ -16,8 +27,22 @@ jobs:
   release-soak:
     runs-on: ubuntu-latest
     timeout-minutes: 180
+    environment: production
+    env:
+      E2E_RELEASE_SHA: ${{ inputs.release_sha || github.sha }}
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+      E2E_PRODUCTION_SUPABASE_REF: ceeytbfmwsnzalxlkalc
+      EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      EXPO_PUBLIC_API_URL: ${{ secrets.PANCAKE_API_URL }}
+      E2E_PRODUCTION_FRONTEND_URL: ${{ secrets.PANCAKE_FRONTEND_URL }}
+      E2E_EXPECTED_FRONTEND_HOST: ${{ secrets.PANCAKE_PRODUCTION_FRONTEND_HOST }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ inputs.release_sha || github.sha }}
+          fetch-depth: 0
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
@@ -26,23 +51,62 @@ jobs:
         with:
           version: 2.109.1
       - run: npm ci
+      - name: Resolve deployed production baseline
+        shell: bash
+        run: |
+          [[ "$E2E_RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$E2E_RELEASE_SHA"
+          git merge-base --is-ancestor HEAD origin/main
+          for name in SUPABASE_ACCESS_TOKEN SUPABASE_DB_PASSWORD SUPABASE_PROJECT_REF \
+            EXPO_PUBLIC_SUPABASE_URL EXPO_PUBLIC_API_URL E2E_PRODUCTION_FRONTEND_URL E2E_EXPECTED_FRONTEND_HOST; do
+            test -n "${!name:-}" || { echo "Missing protected release-soak credential: $name"; exit 1; }
+          done
+          node tests/e2e/validate-production-target.mjs
+          node -e '
+            const [value, expected] = process.argv.slice(1)
+            const url = new URL(value)
+            if (url.protocol !== "https:" || url.hostname !== expected) process.exit(1)
+          ' "$E2E_PRODUCTION_FRONTEND_URL" "$E2E_EXPECTED_FRONTEND_HOST"
+          supabase link --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
+          deployed_schema_json="$(supabase db query --linked -o json \
+            'select max(version)::text as version from supabase_migrations.schema_migrations')"
+          deployed_schema_version="$(node -e '
+            const payload = JSON.parse(process.argv[1])
+            const version = payload?.rows?.[0]?.version
+            if (typeof version !== "string" || !/^\d+$/.test(version)) process.exit(1)
+            process.stdout.write(version)
+          ' "$deployed_schema_json")"
+          curl --fail --silent --show-error --max-time 20 \
+            "${E2E_PRODUCTION_FRONTEND_URL%/}/release-provenance.json" > /tmp/deployed-release.json
+          deployed_release_sha="$(node -e '
+            const marker = require("/tmp/deployed-release.json")
+            if (typeof marker.commitSha !== "string" || !/^[0-9a-f]{40}$/.test(marker.commitSha)) process.exit(1)
+            process.stdout.write(marker.commitSha)
+          ')"
+          git cat-file -e "$deployed_release_sha^{commit}"
+          git merge-base --is-ancestor "$deployed_release_sha" "$E2E_RELEASE_SHA"
+          printf 'E2E_DEPLOYED_SCHEMA_VERSION=%s\n' "$deployed_schema_version" >> "$GITHUB_ENV"
+          printf 'E2E_DEPLOYED_RELEASE_SHA=%s\n' "$deployed_release_sha" >> "$GITHUB_ENV"
       - name: Start release stack
         shell: bash
         run: |
-          head_name="$(find supabase/migrations -maxdepth 1 -name '*.sql' -exec basename {} \; | sort | tail -1)"
-          probe_name="$head_name"
-          probe_version="${probe_name%%_*}"
-          base_name="$(find supabase/migrations -maxdepth 1 -name '*.sql' -exec basename {} \; | sort | tail -2 | head -1)"
-          base_version="${base_name%%_*}"
-          test "$base_version" \< "$probe_version" || {
-            echo "Mid-life base $base_name does not precede probe $probe_name"
-            exit 1
+          mapfile -t migration_names < <(find supabase/migrations -maxdepth 1 -name '*.sql' -exec basename {} \; | sort)
+          plan="$(node tests/e2e/release-soak-migration-plan.mjs "$E2E_DEPLOYED_SCHEMA_VERSION" "${migration_names[@]}")"
+          mapfile -t pending_names < <(node -e 'for (const value of JSON.parse(process.argv[1]).pendingFiles) console.log(value)' "$plan")
+          pending_versions="$(node -e 'process.stdout.write(JSON.stringify(JSON.parse(process.argv[1]).pendingVersions))' "$plan")"
+          repository_head="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).repositoryHead)' "$plan")"
+          mkdir -p /tmp/pancake-pending-migrations
+          restore_pending() {
+            for name in "${pending_names[@]}"; do
+              test ! -f "/tmp/pancake-pending-migrations/$name" || mv "/tmp/pancake-pending-migrations/$name" "supabase/migrations/$name"
+            done
           }
-          probe_migration="supabase/migrations/$probe_name"
-          mv "$probe_migration" "/tmp/$probe_name"
-          trap 'mv "/tmp/$probe_name" "$probe_migration"' EXIT
+          for name in "${pending_names[@]}"; do
+            mv "supabase/migrations/$name" "/tmp/pancake-pending-migrations/$name"
+          done
+          trap restore_pending EXIT
           supabase start
-          mv "/tmp/$probe_name" "$probe_migration"
+          restore_pending
           trap - EXIT
           source <(supabase status -o env)
           export EXPO_PUBLIC_SUPABASE_URL="$API_URL"
@@ -56,8 +120,10 @@ jobs:
           printf 'E2E_API_BASE_URL=%s/functions/v1/api\n' "$API_URL" >> "$GITHUB_ENV"
           printf 'E2E_FRONTEND_URL=http://127.0.0.1:8082\n' >> "$GITHUB_ENV"
           printf 'E2E_ADMIN_SECRET=local-release-soak-secret\n' >> "$GITHUB_ENV"
-          printf 'E2E_MIDLIFE_EXPECTED_VERSION=%s\n' "$probe_version" >> "$GITHUB_ENV"
-          printf 'E2E_MIDLIFE_EXPECTED_BASE_VERSION=%s\n' "$base_version" >> "$GITHUB_ENV"
+          printf 'E2E_MIDLIFE_EXPECTED_VERSION=%s\n' "$repository_head" >> "$GITHUB_ENV"
+          printf 'E2E_MIDLIFE_EXPECTED_BASE_VERSION=%s\n' "$E2E_DEPLOYED_SCHEMA_VERSION" >> "$GITHUB_ENV"
+          printf 'E2E_MIDLIFE_EXPECTED_VERSIONS=%s\n' "$pending_versions" >> "$GITHUB_ENV"
+          printf 'E2E_ENABLE_MIDLIFE_MIGRATION=1\n' >> "$GITHUB_ENV"
           printf 'FAKE_UPSTREAM_PORT=4555\n' >> "$GITHUB_ENV"
           cat > /tmp/pancake-edge.env <<'EOF'
           E2E_ADMIN_SECRET=local-release-soak-secret
@@ -83,6 +149,18 @@ jobs:
         run: npm run e2e:seed
       - name: Run coverage-enforcing soak
         run: npm run e2e:soak:release
+      - name: Verify deployed code against upgraded schema
+        shell: bash
+        run: |
+          set -o pipefail
+          deployed_worktree=/tmp/pancake-deployed-release
+          git worktree add --detach "$deployed_worktree" "$E2E_DEPLOYED_RELEASE_SHA"
+          trap 'git worktree remove --force "$deployed_worktree"' EXIT
+          npm ci --prefix "$deployed_worktree"
+          (
+            cd "$deployed_worktree"
+            npm run test:db
+          ) 2>&1 | tee tests/artifacts/stack/deployed-code-upgraded-schema.log
       - name: Measure post-migration ranked workflow data latency
         run: npm run e2e:data-latency
       - name: Enforce browser and data performance budgets

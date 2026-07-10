@@ -11,6 +11,7 @@ import { BROWSER_SCENARIO_MANIFEST, fastBrowserScenarioMatrix } from './e2e/brow
 import { validateDataLatencyReport, validateManifest, validateRetainedSeasonReports, validateWorkflowReportKeys } from './e2e/performance-budgets.mjs'
 import { readAppliedSchemaVersion } from './e2e/schema-provenance.mjs'
 import { digestReleaseBundle } from './e2e/release-provenance.mjs'
+import { planReleaseMigrations, validateAppliedMigrationDelta } from './e2e/release-soak-migration-plan.mjs'
 import { stampReleaseProvenance } from '../scripts/stamp-release-provenance.mjs'
 
 const tempDirs: string[] = []
@@ -28,14 +29,37 @@ describe('release E2E contracts', () => {
     const vercel = JSON.parse(await readFile(path.join(process.cwd(), 'vercel.json'), 'utf8'))
     expect(vercel.installCommand).toBe('npm ci')
     expect(vercel.buildCommand).toBe('npm run build:web:release')
+    expect(vercel.git.deploymentEnabled.main).toBe(false)
   })
 
-  it('derives the mid-life migration probe from sorted repository head', async () => {
+  it('derives the full deployed-to-HEAD migration range', async () => {
+    expect(planReleaseMigrations([
+      '20260709100003_c.sql',
+      '20260709100001_a.sql',
+      '20260709100002_b.sql',
+    ], '20260709100001')).toEqual({
+      deployedVersion: '20260709100001',
+      repositoryHead: '20260709100003',
+      pendingFiles: ['20260709100002_b.sql', '20260709100003_c.sql'],
+      pendingVersions: ['20260709100002', '20260709100003'],
+    })
+    expect(validateAppliedMigrationDelta({
+      beforeVersions: ['20260709100001'],
+      afterVersions: ['20260709100001', '20260709100002', '20260709100003'],
+      expectedVersions: ['20260709100002', '20260709100003'],
+    })).toEqual({ appliedVersions: ['20260709100002', '20260709100003'], failures: [] })
+    expect(validateAppliedMigrationDelta({
+      beforeVersions: ['20260709100001'],
+      afterVersions: ['20260709100001', '20260709100003'],
+      expectedVersions: ['20260709100002', '20260709100003'],
+    }).failures).not.toEqual([])
+
     const workflow = await readFile(path.join(process.cwd(), '.github/workflows/release-soak.yml'), 'utf8')
-    expect(workflow).toContain("head_name=\"$(find supabase/migrations -maxdepth 1 -name '*.sql' -exec basename {} \\; | sort | tail -1)\"")
-    expect(workflow).toContain('probe_name="$head_name"')
-    expect(workflow).toContain('tail -2 | head -1')
-    expect(workflow).not.toContain('midlife-migration.json')
+    expect(workflow).toContain('E2E_DEPLOYED_SCHEMA_VERSION')
+    expect(workflow).toContain('release-soak-migration-plan.mjs')
+    expect(workflow).toContain('E2E_MIDLIFE_EXPECTED_VERSIONS')
+    expect(workflow).toContain('Verify deployed code against upgraded schema')
+    expect(workflow).toContain('npm run test:db')
   })
 
   it('runs the full measured smoke sweep and enforces its workflow budgets in PR CI', async () => {
@@ -103,12 +127,17 @@ describe('release E2E contracts', () => {
   it('promotes only a repository-built candidate that passed protected readiness', async () => {
     const workflow = await readFile(path.join(process.cwd(), '.github/workflows/production-deploy.yml'), 'utf8')
     expect(workflow).toContain('npx --yes vercel@55.0.0 build')
+    expect(workflow).toContain('node tests/e2e/validate-production-target.mjs')
+    expect(workflow).toContain('supabase db push --linked --yes')
     expect(workflow).toContain('supabase functions deploy --project-ref "$SUPABASE_PROJECT_REF"')
+    expect(workflow.indexOf('node tests/e2e/validate-production-target.mjs')).toBeLessThan(workflow.indexOf('supabase db push --linked --yes'))
     expect(workflow).toContain('uses: ./.github/workflows/production-readiness.yml')
     expect(workflow).toContain('needs: [deploy-candidate, verify-candidate]')
     expect(workflow.indexOf('Require candidate readiness')).toBeLessThan(workflow.indexOf('Promote verified candidate'))
     expect(workflow).toContain('npx --yes vercel@55.0.0 promote')
     expect(workflow).toContain('Verify promoted production')
+    expect(workflow).toContain('Require deployed-to-HEAD release soak')
+    expect(workflow).toContain('needs: release-soak')
   })
 
   it('stamps a self-consistent release marker without changing the bundle digest', async () => {
@@ -133,6 +162,24 @@ describe('release E2E contracts', () => {
     const failures = validateManifest({ version: 1, workflows: [], globalBudgets: {} })
     for (const key of ['longTaskMs', 'maxInitialWebJsKb', 'maxRouteWebJsKb', 'maxDbQueryMs']) {
       expect(failures).toContain(`globalBudgets.${key} must be a positive number`)
+    }
+  })
+
+  it('requires every per-workflow performance budget', () => {
+    const workflow = {
+      id: 'workflow', rank: 1, name: 'Workflow', route: '/', frequency: 'daily', pain: 'slow', owner: 'team',
+      criticalPath: ['a', 'b', 'c'], measurement: { primary: 'browser', report: 'report.json' },
+      budgets: { feedbackMs: 100, cachedRequestMs: 300, fullLoadMs: 1000 },
+    }
+    const manifest = {
+      version: 1,
+      workflows: [workflow],
+      globalBudgets: { instantFeedbackMs: 100, cachedRequestMs: 300, fullWorkflowMs: 1000 },
+    }
+    for (const key of ['feedbackMs', 'cachedRequestMs', 'fullLoadMs']) {
+      const mutated = structuredClone(manifest)
+      delete mutated.workflows[0].budgets[key as keyof typeof workflow.budgets]
+      expect(validateManifest(mutated)).toContain(`workflow: budgets.${key} must be a positive number`)
     }
   })
 

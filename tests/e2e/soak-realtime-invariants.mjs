@@ -27,6 +27,7 @@ import {
   findAvailablePlayer,
   signInForAccessToken,
 } from './soak-backend-support.mjs'
+import { validateAppliedMigrationDelta } from './release-soak-migration-plan.mjs'
 
 const withTimeout = (promise, timeoutMs, message) => {
   let timeout
@@ -395,9 +396,13 @@ export const applyMidlifeMigration = async (season) => {
   const dbUrl = process.env.E2E_MIDLIFE_MIGRATION_DB_URL ?? env.dbUrl
   const expectedVersion = process.env.E2E_MIDLIFE_EXPECTED_VERSION
   const expectedBaseVersion = process.env.E2E_MIDLIFE_EXPECTED_BASE_VERSION
+  const expectedVersions = JSON.parse(process.env.E2E_MIDLIFE_EXPECTED_VERSIONS ?? '[]')
   if (!dbUrl) throw new Error('D.LONG.5 requires E2E_MIDLIFE_MIGRATION_DB_URL or SUPABASE_DB_URL for migration evidence')
   if (!expectedVersion) throw new Error('D.LONG.5 requires E2E_MIDLIFE_EXPECTED_VERSION')
   if (!expectedBaseVersion) throw new Error('D.LONG.5 requires E2E_MIDLIFE_EXPECTED_BASE_VERSION')
+  if (!Array.isArray(expectedVersions) || expectedVersions.some((version) => typeof version !== 'string')) {
+    throw new Error('D.LONG.5 requires a JSON E2E_MIDLIFE_EXPECTED_VERSIONS array')
+  }
   const isLocalSupabase = /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/i.test(env.supabaseUrl ?? '')
   const command = process.env.E2E_MIDLIFE_MIGRATION_DB_URL
     ? ['db', 'push', '--db-url', process.env.E2E_MIDLIFE_MIGRATION_DB_URL, '--yes']
@@ -420,6 +425,7 @@ export const applyMidlifeMigration = async (season) => {
     target: process.env.E2E_MIDLIFE_MIGRATION_DB_URL ? 'db-url' : target || (isLocalSupabase ? 'local' : 'linked'),
     expectedVersion,
     expectedBaseVersion,
+    expectedVersions,
     beforeVersions,
     afterVersions: /** @type {string[]} */ ([]),
     appliedVersions: /** @type {string[]} */ ([]),
@@ -431,6 +437,14 @@ export const applyMidlifeMigration = async (season) => {
   }
 
   try {
+    if (expectedVersions.length === 0) {
+      if (beforeVersions.at(-1) !== expectedBaseVersion || expectedVersion !== expectedBaseVersion) {
+        throw new Error('no-op migration boundary did not match the deployed and repository schema head')
+      }
+      report.afterVersions = beforeVersions
+      report.status = 'CURRENT'
+      return report
+    }
     if (beforeVersions.includes(expectedVersion)) {
       throw new Error(`expected migration ${expectedVersion} was already applied before the mid-life boundary`)
     }
@@ -445,11 +459,13 @@ export const applyMidlifeMigration = async (season) => {
     report.stdout = stdout
     report.stderr = stderr
     report.afterVersions = await readVersions()
-    report.appliedVersions = report.afterVersions.filter((version) => !beforeVersions.includes(version))
+    const delta = validateAppliedMigrationDelta({ beforeVersions, afterVersions: report.afterVersions, expectedVersions })
+    report.appliedVersions = delta.appliedVersions
     if (report.appliedVersions.length === 0) throw new Error('database applied no migrations at the mid-life boundary')
     if (!report.appliedVersions.includes(expectedVersion)) {
       throw new Error(`mid-life migration delta did not include expected version ${expectedVersion}`)
     }
+    if (delta.failures.length > 0) throw new Error(delta.failures.join('; '))
     if (report.afterVersions.at(-1) !== expectedVersion) {
       throw new Error(`mid-life final head ${report.afterVersions.at(-1) ?? '<empty>'} did not match expected ${expectedVersion}`)
     }

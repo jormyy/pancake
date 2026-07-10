@@ -60,15 +60,14 @@ export const validateManifest = (manifest) => {
     }
 
     const workflowBudgets = workflow.budgets ?? {}
-    if (workflowBudgets.feedbackMs > budgets.instantFeedbackMs) {
-      failures.push(`${workflow.id}: feedback budget exceeds ${budgets.instantFeedbackMs}ms`)
+    for (const key of ['feedbackMs', 'cachedRequestMs', 'fullLoadMs']) {
+      if (!Number.isFinite(workflowBudgets[key]) || workflowBudgets[key] <= 0) {
+        failures.push(`${workflow.id}: budgets.${key} must be a positive number`)
+      }
     }
-    if (workflowBudgets.cachedRequestMs > budgets.cachedRequestMs) {
-      failures.push(`${workflow.id}: cached request budget exceeds ${budgets.cachedRequestMs}ms`)
-    }
-    if (workflowBudgets.fullLoadMs > budgets.fullWorkflowMs) {
-      failures.push(`${workflow.id}: full-load budget exceeds ${budgets.fullWorkflowMs}ms`)
-    }
+    if (Number.isFinite(workflowBudgets.feedbackMs) && workflowBudgets.feedbackMs > budgets.instantFeedbackMs) failures.push(`${workflow.id}: feedback budget exceeds ${budgets.instantFeedbackMs}ms`)
+    if (Number.isFinite(workflowBudgets.cachedRequestMs) && workflowBudgets.cachedRequestMs > budgets.cachedRequestMs) failures.push(`${workflow.id}: cached request budget exceeds ${budgets.cachedRequestMs}ms`)
+    if (Number.isFinite(workflowBudgets.fullLoadMs) && workflowBudgets.fullLoadMs > budgets.fullWorkflowMs) failures.push(`${workflow.id}: full-load budget exceeds ${budgets.fullWorkflowMs}ms`)
   }
 
   for (let rank = 1; rank <= 10; rank += 1) {

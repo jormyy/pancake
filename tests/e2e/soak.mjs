@@ -508,6 +508,7 @@ const main = async () => {
               realtimeCheck ? 'realtime.delivery' : null,
               pushCheck ? 'push.trade_waiver' : null,
               draftPushCheck ? 'push.draft' : null,
+              midlifeMigrationReport?.status === 'CURRENT' ||
               midlifeMigrationReport?.status === 'APPLIED' && midlifeMigrationReport.appliedVersions.length > 0
                 ? 'migration.midlife'
                 : null,

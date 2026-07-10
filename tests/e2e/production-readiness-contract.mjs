@@ -41,17 +41,9 @@ const hostname = (value) => {
 }
 
 /**
- * @param {{ expectedProjectRef: string, linkedProjectRef: string, supabaseUrl: string, edgeApiUrl: string, frontendUrl: string, expectedFrontendHost?: string, allowCandidateFrontend?: boolean }} input
+ * @param {{ expectedProjectRef: string, linkedProjectRef: string, supabaseUrl: string, edgeApiUrl: string }} input
  */
-export const validateHostedTargetIdentity = ({
-  expectedProjectRef,
-  linkedProjectRef,
-  supabaseUrl,
-  edgeApiUrl,
-  frontendUrl,
-  expectedFrontendHost,
-  allowCandidateFrontend = false,
-}) => {
+export const validateProductionBackendIdentity = ({ expectedProjectRef, linkedProjectRef, supabaseUrl, edgeApiUrl }) => {
   const failures = []
   if (!/^[a-z0-9]{20}$/.test(expectedProjectRef)) failures.push('expected production Supabase project ref is invalid')
   if (linkedProjectRef !== expectedProjectRef) failures.push('linked Supabase project does not match the pinned production project')
@@ -65,6 +57,22 @@ export const validateHostedTargetIdentity = ({
   } catch {
     if (!failures.includes('Edge API URL does not match the pinned production project')) failures.push('Edge API URL is invalid')
   }
+  return failures
+}
+
+/**
+ * @param {{ expectedProjectRef: string, linkedProjectRef: string, supabaseUrl: string, edgeApiUrl: string, frontendUrl: string, expectedFrontendHost?: string, allowCandidateFrontend?: boolean }} input
+ */
+export const validateHostedTargetIdentity = ({
+  expectedProjectRef,
+  linkedProjectRef,
+  supabaseUrl,
+  edgeApiUrl,
+  frontendUrl,
+  expectedFrontendHost,
+  allowCandidateFrontend = false,
+}) => {
+  const failures = validateProductionBackendIdentity({ expectedProjectRef, linkedProjectRef, supabaseUrl, edgeApiUrl })
 
   const frontendHost = hostname(frontendUrl)
   if (!frontendHost || !frontendUrl.startsWith('https://')) failures.push('frontend URL must be HTTPS')
