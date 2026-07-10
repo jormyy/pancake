@@ -78,4 +78,6 @@ jobs:
           path: |
             tests/e2e-report.md
             tests/e2e-coverage.md
+            tests/e2e-browser-*-report.md
+            tests/e2e-browser-*-report.json
             tests/artifacts/

@@ -11,9 +11,9 @@
     "target": "ES2022"
   },
   "include": [
-    "scripts/check-db-function-sources.mjs",
-    "scripts/generate-database-types.mjs",
-    "tests/e2e/browser-scenario-manifest.mjs"
+    "tests/e2e/browser-scenario-manifest.mjs",
+    "tests/e2e/browser-scenario-lifecycle.mjs",
+    "tests/e2e/scenario-resource-owner.mjs"
   ],
   "exclude": [
     "node_modules"
