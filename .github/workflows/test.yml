@@ -217,7 +217,7 @@ jobs:
         run: npm run e2e:seed
 
       - name: Run browser scenario
-        run: node tests/e2e/browser-ci-scenario.mjs --scenario=${{ matrix.scenario }}
+        run: npm exec -- node tests/e2e/browser-ci-scenario.mjs --scenario=${{ matrix.scenario }}
 
       - name: Enforce measured browser performance budgets
         if: matrix.scenario == 'performance'

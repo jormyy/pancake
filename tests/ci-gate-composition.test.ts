@@ -30,4 +30,11 @@ describe('comprehensive repository gates', () => {
         )
         expect(workflow.match(/PANCAKE_EDGE_INTERNAL_TOKEN=local-database-ci-token/g)).toHaveLength(2)
     })
+
+    it('runs browser scenarios with project-local executables on PATH', () => {
+        const workflow = read('.github/workflows/test.yml')
+        expect(workflow).toContain(
+            'npm exec -- node tests/e2e/browser-ci-scenario.mjs --scenario=${{ matrix.scenario }}',
+        )
+    })
 })
