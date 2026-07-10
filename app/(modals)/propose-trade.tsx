@@ -423,7 +423,7 @@ const styles = StyleSheet.create({
     },
     modeSwitch: { flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.xl, paddingBottom: spacing.sm },
     modeButton: {
-        minHeight: 40,
+        minHeight: 44,
         paddingHorizontal: spacing.lg,
         borderRadius: radii.md,
         borderCurve: 'continuous' as const,
