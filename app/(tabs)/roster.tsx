@@ -30,7 +30,7 @@ import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cach
 import { Avatar } from '@/components/Avatar'
 import { subscribeToTableChanges, unsubscribeFromTableChanges } from '@/lib/realtime'
 import { RosterTrimBanner } from '@/components/roster/RosterTrimBanner'
-import { activeRosterOverflow } from '@/lib/roster-overflow'
+import { activeRosterOverflow, createRosterRecoveryRunner } from '@/lib/roster-overflow'
 
 type RosterListItem =
     | { _isHeader: true; _section: string }
@@ -225,6 +225,7 @@ export default function RosterScreen() {
     const [taxiingId, setTaxiingId] = useState<string | null>(null)
     const [cancellingId, setCancellingId] = useState<string | null>(null)
     const [droppingId, setDroppingId] = useState<string | null>(null)
+    const rosterRecoveryRunnerRef = useRef(createRosterRecoveryRunner())
 
     const { data, loading, error, refresh } = useFocusAsyncData<RosterScreenData | null>(async () => {
         if (!current || !user) return null
@@ -345,15 +346,17 @@ export default function RosterScreen() {
             : `Move ${name} to the injured reserve slot?`
 
         confirmAction(title, message, async () => {
-            setTogglingId(item.id)
-            try {
-                await toggleIR(item.id, !item.is_on_ir)
-                await load()
-            } catch (e) {
-                showAlert('Error', getErrorMessage(e))
-            } finally {
-                setTogglingId(null)
-            }
+            await rosterRecoveryRunnerRef.current(async () => {
+                setTogglingId(item.id)
+                try {
+                    await toggleIR(item.id, !item.is_on_ir)
+                    await load()
+                } catch (e) {
+                    showAlert('Error', getErrorMessage(e))
+                } finally {
+                    setTogglingId(null)
+                }
+            })
         })
     }
 
@@ -392,15 +395,17 @@ export default function RosterScreen() {
             : `Move ${name} to the taxi squad?`
 
         confirmAction(title, message, async () => {
-            setTaxiingId(item.id)
-            try {
-                await toggleTaxi(item.id, !item.is_on_taxi)
-                await load()
-            } catch (e) {
-                showAlert('Error', getErrorMessage(e))
-            } finally {
-                setTaxiingId(null)
-            }
+            await rosterRecoveryRunnerRef.current(async () => {
+                setTaxiingId(item.id)
+                try {
+                    await toggleTaxi(item.id, !item.is_on_taxi)
+                    await load()
+                } catch (e) {
+                    showAlert('Error', getErrorMessage(e))
+                } finally {
+                    setTaxiingId(null)
+                }
+            })
         })
     }
 
@@ -410,15 +415,17 @@ export default function RosterScreen() {
             `Drop ${item.players.display_name}?`,
             'They will be placed on waivers for 48 hours.',
             async () => {
-                setDroppingId(item.id)
-                try {
-                    await dropPlayer(item.id)
-                    await load()
-                } catch (e) {
-                    showAlert('Error', getErrorMessage(e))
-                } finally {
-                    setDroppingId(null)
-                }
+                await rosterRecoveryRunnerRef.current(async () => {
+                    setDroppingId(item.id)
+                    try {
+                        await dropPlayer(item.id)
+                        await load()
+                    } catch (e) {
+                        showAlert('Error', getErrorMessage(e))
+                    } finally {
+                        setDroppingId(null)
+                    }
+                })
             },
             'Drop',
         )
