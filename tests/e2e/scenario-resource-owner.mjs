@@ -32,7 +32,9 @@ export const createScenarioResourceOwner = (label) => {
     /** @param {string} key */
     release(key) {
       const resource = keyedResources.get(key)
-      if (resource) resource.released = true
+      if (!resource) return
+      resource.released = true
+      keyedResources.delete(key)
     },
     async dispose() {
       if (disposed) return

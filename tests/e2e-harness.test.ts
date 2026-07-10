@@ -211,6 +211,21 @@ describe('scenario resource ownership', () => {
     expect(fixtureDispose).toHaveBeenCalledOnce()
     expect(browserClose).not.toHaveBeenCalled()
   })
+
+  it('owns a new resource when a released key is acquired again', async () => {
+    const { createScenarioResourceOwner } = await import('./e2e/scenario-resource-owner.mjs')
+    const owner = createScenarioResourceOwner('reacquire')
+    const firstClose = vi.fn(async () => undefined)
+    const secondClose = vi.fn(async () => undefined)
+    owner.registerOnce('browser:session', 'first browser session', firstClose)
+    owner.release('browser:session')
+    owner.registerOnce('browser:session', 'second browser session', secondClose)
+
+    await owner.dispose()
+
+    expect(firstClose).not.toHaveBeenCalled()
+    expect(secondClose).toHaveBeenCalledOnce()
+  })
 })
 
 describe('e2e harness reporting', () => {

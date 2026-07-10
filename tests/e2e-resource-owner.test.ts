@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
     createScenarioResourceOwner,
     ownScenarioResource,
+    releaseScenarioResource,
     runWithScenarioResourceOwner,
 } from './e2e/scenario-resource-owner.mjs'
 import { createDisposableLeagueFromSeedUsers } from './e2e/soak-fixtures.mjs'
@@ -53,5 +54,17 @@ describe('scenario resource ownership', () => {
         })
 
         expect(calls).toEqual(['owned fixture dispose', 'owned browser close'])
+    })
+
+    it('reacquires a browser session after an explicit lifecycle close', async () => {
+        const calls: string[] = []
+        await runWithScenarioResourceOwner('league lifecycle', async () => {
+            ownScenarioResource('browser:league', 'commissioner browser', async () => { calls.push('close commissioner') })
+            releaseScenarioResource('browser:league')
+            ownScenarioResource('browser:league', 'manager browser', async () => { calls.push('close manager') })
+            return { status: 'PASS' }
+        })
+
+        expect(calls).toEqual(['close manager'])
     })
 })
