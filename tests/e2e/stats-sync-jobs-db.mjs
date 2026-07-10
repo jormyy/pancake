@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { createClient } from '@supabase/supabase-js'
-import { requireEnv, resolvedEnv } from './env.mjs'
+import { envValue, requireEnv, resolvedEnv } from './env.mjs'
 
 const RANGE = { startDate: '1947-03-01', endDate: '1947-03-03' }
 const JOB_TYPE = `sync_stats_range:${RANGE.startDate}:${RANGE.endDate}`
@@ -13,8 +13,25 @@ const POST_MIGRATION_LEGACY_JOB_TYPE = `sync_stats_range:${POST_MIGRATION_LEGACY
 const POST_MIGRATION_LEGACY_JOB_ID = '00000000-0000-4000-8000-00000000001f'
 const TERMINAL_RANGE = { startDate: '1947-06-01', endDate: '1947-06-02' }
 const TERMINAL_JOB_TYPE = `sync_stats_range:${TERMINAL_RANGE.startDate}:${TERMINAL_RANGE.endDate}`
-const env = requireEnv(resolvedEnv(), ['supabaseUrl', 'serviceRoleKey', 'dbUrl'])
-const admin = createClient(env.supabaseUrl, env.serviceRoleKey, { auth: { persistSession: false } })
+const MALFORMED_RANGE = { startDate: '1947-07-01', endDate: '1947-07-02' }
+const MALFORMED_JOB_TYPE = `sync_stats_range:${MALFORMED_RANGE.startDate}:${MALFORMED_RANGE.endDate}`
+const configured = resolvedEnv()
+const internalToken = envValue('PANCAKE_EDGE_INTERNAL_TOKEN', 'EDGE_FUNCTION_INTERNAL_TOKEN') ??
+  (configured.supabaseUrl && ['127.0.0.1', 'localhost'].includes(new URL(configured.supabaseUrl).hostname)
+    ? 'pancake-local-edge-auth-probe-token'
+    : undefined)
+const env = requireEnv({ ...configured, internalToken }, ['supabaseUrl', 'serviceRoleKey', 'dbUrl', 'internalToken'])
+const REQUEST_TIMEOUT_MS = 15_000
+const boundedFetch = (input, init = {}) => fetch(input, {
+  ...init,
+  signal: init.signal
+    ? AbortSignal.any([init.signal, AbortSignal.timeout(REQUEST_TIMEOUT_MS)])
+    : AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+})
+const admin = createClient(env.supabaseUrl, env.serviceRoleKey, {
+  auth: { persistSession: false },
+  global: { fetch: boundedFetch },
+})
 
 function scalar(sql) {
   const result = spawnSync('psql', [env.dbUrl, '--set', 'ON_ERROR_STOP=1', '--tuples-only', '--no-align', '--command', sql], {
@@ -31,8 +48,23 @@ async function rpc(name, args) {
   return data
 }
 
+async function invokeStatsWorker(jobId) {
+  const response = await fetch(`${env.supabaseUrl.replace(/\/$/, '')}/functions/v1/sync-stats`, {
+    method: 'POST',
+    headers: {
+      apikey: env.serviceRoleKey,
+      Authorization: `Bearer ${env.serviceRoleKey}`,
+      'Content-Type': 'application/json',
+      'x-internal-function-token': env.internalToken,
+    },
+    body: JSON.stringify({ jobId }),
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  })
+  return { status: response.status, body: await response.json().catch(() => null) }
+}
+
 async function cleanup() {
-  scalar(`DELETE FROM public.sync_jobs WHERE job_type IN ('${JOB_TYPE}', '${LEGACY_JOB_TYPE}', '${POST_MIGRATION_LEGACY_JOB_TYPE}', '${TERMINAL_JOB_TYPE}');`)
+  scalar(`DELETE FROM public.sync_jobs WHERE job_type IN ('${JOB_TYPE}', '${LEGACY_JOB_TYPE}', '${POST_MIGRATION_LEGACY_JOB_TYPE}', '${TERMINAL_JOB_TYPE}', '${MALFORMED_JOB_TYPE}');`)
 }
 
 try {
@@ -228,6 +260,14 @@ try {
   })
   assert.equal(firstClaims.length, 1, 'first worker did not claim the pending job')
   const firstClaim = firstClaims[0]
+  const { error: invalidCheckpointError } = await admin.rpc('checkpoint_stats_sync_job_atomic', {
+    p_job_id: jobId,
+    p_claim_token: firstClaim.claim_token,
+    p_completed_items: 1,
+    p_metadata: { broken: true },
+  })
+  assert.ok(invalidCheckpointError, 'checkpoint accepted malformed durable stats metadata')
+  assert.match(invalidCheckpointError.message, /checkpoint is invalid/)
   assert.equal(await rpc('create_or_resume_stats_sync_job_atomic', {
     p_start_date: RANGE.startDate,
     p_end_date: RANGE.endDate,
@@ -382,7 +422,42 @@ try {
   assert.equal(resumed.claim_token, null)
   assert.equal(resumed.claimed_at, null)
 
-  console.log('PASS stats sync jobs: rollout drain/crash rescue, fencing, dispatcher backoff/recovery, terminal cap, and manual resume')
+  const malformedJobId = await rpc('create_or_resume_stats_sync_job_atomic', {
+    p_start_date: MALFORMED_RANGE.startDate,
+    p_end_date: MALFORMED_RANGE.endDate,
+  })
+  scalar(`UPDATE public.sync_jobs SET metadata = '{"broken":true}'::jsonb WHERE id = '${malformedJobId}';`)
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    if (attempt > 1) {
+      scalar(`UPDATE public.sync_jobs SET completed_at = now() - interval '10 minutes' WHERE id = '${malformedJobId}';`)
+    }
+    const result = await invokeStatsWorker(malformedJobId)
+    assert.equal(result.status, 500, `malformed Edge attempt ${attempt} did not surface worker failure`)
+    const { data: malformedAttempt, error: malformedAttemptError } = await admin
+      .from('sync_jobs')
+      .select('status, failed_items, error_log, claim_token, claimed_at')
+      .eq('id', malformedJobId)
+      .single()
+    if (malformedAttemptError) throw malformedAttemptError
+    assert.equal(malformedAttempt.status, 'failed')
+    assert.equal(malformedAttempt.failed_items, attempt, `malformed Edge attempt ${attempt} did not increment its retry count`)
+    assert.equal(malformedAttempt.error_log.length, attempt)
+    assert.match(malformedAttempt.error_log.at(-1), /Stats sync job .* is invalid/)
+    assert.equal(malformedAttempt.claim_token, null)
+    assert.equal(malformedAttempt.claimed_at, null)
+  }
+
+  scalar(`UPDATE public.sync_jobs SET completed_at = now() - interval '10 minutes' WHERE id = '${malformedJobId}';`)
+  const terminalMalformedResult = await invokeStatsWorker(malformedJobId)
+  assert.equal(terminalMalformedResult.status, 200, 'terminal malformed job did not return its durable state')
+  assert.equal(terminalMalformedResult.body?.status, 'failed')
+  assert.equal(
+    scalar(`SELECT failed_items FROM public.sync_jobs WHERE id = '${malformedJobId}';`),
+    '3',
+    'terminal malformed job exceeded the retry cap',
+  )
+
+  console.log('PASS stats sync jobs: rollout rescue, fencing, dispatcher backoff/recovery, terminal cap, manual resume, and malformed Edge metadata')
 } finally {
   await cleanup()
 }

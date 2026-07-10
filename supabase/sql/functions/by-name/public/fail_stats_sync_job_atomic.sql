@@ -15,7 +15,8 @@ SECURITY DEFINER
 SET search_path = ''
 AS $$
 BEGIN
-  IF p_completed_items < 0 OR jsonb_typeof(p_metadata) <> 'object' THEN
+  IF p_completed_items IS NULL OR p_completed_items < 0
+     OR p_metadata IS NULL OR jsonb_typeof(p_metadata) IS DISTINCT FROM 'object' THEN
     RAISE EXCEPTION 'Stats sync failure checkpoint is invalid.';
   END IF;
 

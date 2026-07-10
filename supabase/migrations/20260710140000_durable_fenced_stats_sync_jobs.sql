@@ -46,6 +46,69 @@ CREATE INDEX sync_jobs_dispatchable_stats_idx
   WHERE job_type LIKE 'sync_stats_range:%'
     AND status IN ('pending', 'running', 'failed');
 
+CREATE OR REPLACE FUNCTION private.is_valid_stats_sync_metadata(p_metadata jsonb)
+RETURNS boolean
+LANGUAGE plpgsql
+IMMUTABLE
+SET search_path = ''
+AS $$
+DECLARE
+  v_start_date date;
+  v_end_date date;
+  v_next_date date;
+BEGIN
+  IF p_metadata IS NULL
+     OR jsonb_typeof(p_metadata) IS DISTINCT FROM 'object'
+     OR jsonb_typeof(p_metadata -> 'startDate') IS DISTINCT FROM 'string'
+     OR jsonb_typeof(p_metadata -> 'endDate') IS DISTINCT FROM 'string'
+     OR jsonb_typeof(p_metadata -> 'nextDate') IS DISTINCT FROM 'string'
+     OR (p_metadata ->> 'startDate') !~ '^\d{4}-\d{2}-\d{2}$'
+     OR (p_metadata ->> 'endDate') !~ '^\d{4}-\d{2}-\d{2}$'
+     OR (p_metadata ->> 'nextDate') !~ '^\d{4}-\d{2}-\d{2}$' THEN
+    RETURN false;
+  END IF;
+
+  BEGIN
+    v_start_date := make_date(
+      substring(p_metadata ->> 'startDate', 1, 4)::integer,
+      substring(p_metadata ->> 'startDate', 6, 2)::integer,
+      substring(p_metadata ->> 'startDate', 9, 2)::integer
+    );
+    v_end_date := make_date(
+      substring(p_metadata ->> 'endDate', 1, 4)::integer,
+      substring(p_metadata ->> 'endDate', 6, 2)::integer,
+      substring(p_metadata ->> 'endDate', 9, 2)::integer
+    );
+    v_next_date := make_date(
+      substring(p_metadata ->> 'nextDate', 1, 4)::integer,
+      substring(p_metadata ->> 'nextDate', 6, 2)::integer,
+      substring(p_metadata ->> 'nextDate', 9, 2)::integer
+    );
+  EXCEPTION WHEN datetime_field_overflow THEN
+    RETURN false;
+  END;
+
+  IF v_start_date > v_end_date
+     OR v_end_date - v_start_date + 1 > 365
+     OR v_next_date < v_start_date
+     OR v_next_date > v_end_date + 1 THEN
+    RETURN false;
+  END IF;
+
+  IF p_metadata ? 'afterGameId' AND (
+       jsonb_typeof(p_metadata -> 'afterGameId') IS DISTINCT FROM 'string'
+       OR (p_metadata ->> 'afterGameId') !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+       OR v_next_date > v_end_date
+     ) THEN
+    RETURN false;
+  END IF;
+
+  RETURN true;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION private.is_valid_stats_sync_metadata(jsonb) FROM PUBLIC, anon, authenticated, service_role;
+
 CREATE OR REPLACE FUNCTION public.create_or_resume_stats_sync_job_atomic(
   p_start_date date,
   p_end_date date
@@ -203,7 +266,8 @@ SECURITY DEFINER
 SET search_path = ''
 AS $$
 BEGIN
-  IF p_completed_items < 0 OR jsonb_typeof(p_metadata) <> 'object' THEN
+  IF p_completed_items IS NULL OR p_completed_items < 0
+     OR NOT private.is_valid_stats_sync_metadata(p_metadata) THEN
     RAISE EXCEPTION 'Stats sync checkpoint is invalid.';
   END IF;
 
@@ -232,7 +296,8 @@ SECURITY DEFINER
 SET search_path = ''
 AS $$
 BEGIN
-  IF p_completed_items < 0 OR jsonb_typeof(p_metadata) <> 'object' THEN
+  IF p_completed_items IS NULL OR p_completed_items < 0
+     OR NOT private.is_valid_stats_sync_metadata(p_metadata) THEN
     RAISE EXCEPTION 'Stats sync release is invalid.';
   END IF;
 
@@ -263,7 +328,8 @@ SECURITY DEFINER
 SET search_path = ''
 AS $$
 BEGIN
-  IF p_completed_items < 0 OR jsonb_typeof(p_metadata) <> 'object' THEN
+  IF p_completed_items IS NULL OR p_completed_items < 0
+     OR NOT private.is_valid_stats_sync_metadata(p_metadata) THEN
     RAISE EXCEPTION 'Stats sync completion is invalid.';
   END IF;
 
@@ -296,7 +362,8 @@ SECURITY DEFINER
 SET search_path = ''
 AS $$
 BEGIN
-  IF p_completed_items < 0 OR jsonb_typeof(p_metadata) <> 'object' THEN
+  IF p_completed_items IS NULL OR p_completed_items < 0
+     OR p_metadata IS NULL OR jsonb_typeof(p_metadata) IS DISTINCT FROM 'object' THEN
     RAISE EXCEPTION 'Stats sync failure checkpoint is invalid.';
   END IF;
 

@@ -28,6 +28,12 @@ function metadataJson(metadata: StatsSyncJobMetadata): Json {
   }
 }
 
+function failureMetadataJson(metadata: Json): Json {
+  return metadata !== null && typeof metadata === 'object' && !Array.isArray(metadata)
+    ? metadata
+    : { invalidMetadata: metadata }
+}
+
 async function claimRangeJob(jobId?: string): Promise<StatsSyncClaim | null> {
   const { data, error } = await supabase.rpc('claim_stats_sync_job_atomic', {
     p_job_id: jobId,
@@ -47,13 +53,14 @@ async function requireFencedTransition(
 }
 
 async function runClaimedRangeJob(claim: StatsSyncClaim): Promise<Record<string, unknown>> {
-  const metadata = parseStatsSyncJobMetadata(claim.metadata)
-  let currentMetadata = metadata
+  let currentMetadata: StatsSyncJobMetadata | null = null
   let currentCompletedItems = claim.completed_items
   let statLines = 0
   let selectedGame: StatsSyncGame | null = null
 
   try {
+    const metadata = parseStatsSyncJobMetadata(claim.metadata)
+    currentMetadata = metadata
     const result = await recordSyncRun('sync-stats-range', async () => {
       const unit = await runStatsSyncJobUnit(metadata, claim.completed_items, {
         findNextGame: async (dateKey, afterGameId) => {
@@ -127,14 +134,19 @@ async function runClaimedRangeJob(claim: StatsSyncClaim): Promise<Record<string,
         statLines,
       }
     }
-    await failRangeJob(claim, currentMetadata, currentCompletedItems, error)
+    await failRangeJob(
+      claim,
+      currentMetadata ? metadataJson(currentMetadata) : failureMetadataJson(claim.metadata),
+      currentCompletedItems,
+      error,
+    )
     throw error
   }
 }
 
 async function failRangeJob(
   claim: StatsSyncClaim,
-  metadata: StatsSyncJobMetadata,
+  metadata: Json,
   completedItems: number,
   error: unknown,
 ): Promise<void> {
@@ -142,7 +154,7 @@ async function failRangeJob(
     p_job_id: claim.id,
     p_claim_token: claim.claim_token,
     p_completed_items: completedItems,
-    p_metadata: metadataJson(metadata),
+    p_metadata: metadata,
     p_error: errorMessage(error),
   })
   if (updateError) {
