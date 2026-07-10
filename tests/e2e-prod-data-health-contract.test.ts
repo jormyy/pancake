@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { readFileSync } from 'node:fs'
 import {
     evaluateCrudReadiness,
     evaluateProductionDataHealth,
@@ -17,6 +18,11 @@ const healthy = (fetchedAt: string) => ({
 })
 
 describe('production data health contract', () => {
+    it('scopes projection count and freshness to the computed current season', () => {
+        const source = readFileSync('tests/e2e/prod-data-source-health.mjs', 'utf8')
+        expect(source).toContain('player_projections p, season s WHERE p.season_year = s.season_year')
+    })
+
     it('blocks empty and null production datasets', () => {
         const result = evaluateProductionDataHealth({
             nba_games: 0,

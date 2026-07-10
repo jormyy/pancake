@@ -140,8 +140,8 @@ SELECT
   (SELECT count(*) FROM public.players WHERE nba_id IS NULL) AS players_without_nba_id,
   (SELECT count(*) FROM public.players WHERE sleeper_id IS NULL) AS players_without_sleeper_id,
   (SELECT count(*) FROM public.players) AS players,
-  (SELECT count(*) FROM public.player_projections) AS projections,
-  (SELECT max(fetched_at) FROM public.player_projections) AS latest_projection_fetch,
+  (SELECT count(*) FROM public.player_projections p, season s WHERE p.season_year = s.season_year) AS projections,
+  (SELECT max(p.fetched_at) FROM public.player_projections p, season s WHERE p.season_year = s.season_year) AS latest_projection_fetch,
   (SELECT count(*) FROM public.sync_jobs WHERE status NOT IN ('completed', 'failed')) AS open_sync_jobs;
 `
 
