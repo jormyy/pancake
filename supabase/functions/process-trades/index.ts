@@ -3,7 +3,7 @@ import { notifyMember } from '../_shared/notifications.ts'
 import { serveInternal } from '../_shared/serve.ts'
 import { supabase } from '../_shared/supabase.ts'
 import { partitionTradeResults, tradeFailureMessage } from './results.ts'
-import { notifyCompletedTrades } from './notifications.ts'
+import { notifyCompletedTrades, notifyExpiredTrades } from './notifications.ts'
 
 const PROCESS_BATCH_LIMIT = 50
 const NOTIFICATION_CONCURRENCY = 10
@@ -23,7 +23,7 @@ serveInternal('process-trades', async () => {
 
 async function processAcceptedTrades(): Promise<{ processed: number; failed: number; failures: string[] }> {
   const expired = await expirePendingTrades()
-  await notifyExpiredTrades(expired)
+  await notifyExpiredTradeResults(expired)
 
   const { data, error } = await supabase.rpc('process_due_accepted_trades_atomic', {
     p_limit: PROCESS_BATCH_LIMIT,
@@ -33,12 +33,8 @@ async function processAcceptedTrades(): Promise<{ processed: number; failed: num
   const results: ProcessedTradeRow[] = data ?? []
   const partitioned = partitionTradeResults(results)
 
-  await notifyCompletedTrades(
-    partitioned.completed,
-    notifyMember,
-    NOTIFICATION_CONCURRENCY,
-    (notifyError) => console.error('[process-trades] notification failed', notifyError),
-  )
+  await notifyCompletedTrades(partitioned.completed, notifyMember, NOTIFICATION_CONCURRENCY)
+    .catch((notifyError) => console.error('[process-trades] notification failed', notifyError))
 
   if (partitioned.retryableFailures.length > 0) {
     throw new Error(`Retryable trade processing failures: ${partitioned.retryableFailures.map(tradeFailureMessage).join('; ')}`)
@@ -59,15 +55,8 @@ async function expirePendingTrades(): Promise<ExpiredTradeRow[]> {
   return data ?? []
 }
 
-async function notifyExpiredTrades(rows: ExpiredTradeRow[]): Promise<void> {
+async function notifyExpiredTradeResults(rows: ExpiredTradeRow[]): Promise<void> {
   if (rows.length === 0) return
-  await Promise.all(rows.flatMap((row) => row.participant_member_ids.map((participantMemberId) =>
-    notifyMember(
-      participantMemberId,
-      'Trade Expired',
-      'One of your pending trade offers expired.',
-      { tradeId: row.trade_id },
-      'trade',
-    ),
-  ))).catch((notifyError) => console.error('[process-trades] expiration notification failed', notifyError))
+  await notifyExpiredTrades(rows, notifyMember, NOTIFICATION_CONCURRENCY)
+    .catch((notifyError) => console.error('[process-trades] expiration notification failed', notifyError))
 }

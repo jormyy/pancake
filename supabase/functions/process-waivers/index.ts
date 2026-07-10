@@ -41,7 +41,9 @@ function notificationJob(row: WaiverProcessRow, names: Map<string, string>): Asy
   const name = names.get(playerId) ?? 'Unknown'
 
   if (row.status === 'succeeded') {
-    return () => notifyMember(memberId, 'Waiver Claim Succeeded', `${name} has been added to your roster.`, undefined, 'waiver')
+    return async () => {
+      await notifyMember(memberId, 'Waiver Claim Succeeded', `${name} has been added to your roster.`, undefined, 'waiver')
+    }
   }
 
   if (row.status !== 'failed_priority' && row.status !== 'failed_roster') {
@@ -49,7 +51,9 @@ function notificationJob(row: WaiverProcessRow, names: Map<string, string>): Asy
   }
 
   const reason = row.failure_reason ?? 'The claim could not be completed.'
-  return () => notifyMember(memberId, 'Waiver Claim Failed', `Your claim for ${name} failed: ${reason}`, undefined, 'waiver')
+  return async () => {
+    await notifyMember(memberId, 'Waiver Claim Failed', `Your claim for ${name} failed: ${reason}`, undefined, 'waiver')
+  }
 }
 
 async function notifyClaimResults(rows: WaiverProcessRow[]): Promise<void> {

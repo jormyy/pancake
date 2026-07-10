@@ -1,4 +1,4 @@
-import { notifyCompletedTrades } from './notifications.ts'
+import { notifyCompletedTrades, notifyExpiredTrades } from './notifications.ts'
 
 const deferred = () => {
   let resolve!: () => void
@@ -35,7 +35,8 @@ Deno.test('completed trade notifications use bounded concurrency and await every
     await gates[index].promise
     active -= 1
     completed.push(memberId)
-  }, 2, () => { throw new Error('unexpected notification failure') })
+    return { status: 'sent' }
+  }, 2)
 
   await waitFor(() => started.length === 2, 'initial notifications did not start')
   assertCount(started.length, 2, 'initial notification concurrency')
@@ -54,19 +55,54 @@ Deno.test('completed trade notifications use bounded concurrency and await every
   assertCount(maxActive, 2, 'maximum notification concurrency')
 })
 
-Deno.test('completed trade notification failures are observable after remaining jobs run', async () => {
-  const attempted: string[] = []
-  const observed: unknown[] = []
-  await notifyCompletedTrades([{
-    trade_id: 'trade-a',
+Deno.test('expired trade notifications use bounded concurrency and await every recipient', async () => {
+  const gates = Array.from({ length: 3 }, deferred)
+  const started: string[] = []
+  let active = 0
+  let maxActive = 0
+  const pending = notifyExpiredTrades([{
+    trade_id: 'trade-expired',
     participant_member_ids: ['member-1', 'member-2', 'member-3'],
-  }], async (memberId) => {
-    attempted.push(memberId)
-    if (memberId === 'member-2') throw new Error('push failed')
-  }, 2, (error) => observed.push(error))
+  }], async (memberId, title) => {
+    if (title !== 'Trade Expired') throw new Error(`unexpected title ${title}`)
+    const index = Number(memberId.at(-1)) - 1
+    started.push(memberId)
+    active += 1
+    maxActive = Math.max(maxActive, active)
+    await gates[index].promise
+    active -= 1
+    return { status: 'sent' }
+  }, 2)
+
+  await waitFor(() => started.length === 2, 'initial expiration notifications did not start')
+  assertCount(maxActive, 2, 'maximum expiration notification concurrency')
+  gates[0].resolve()
+  await waitFor(() => started.length === 3, 'final expiration notification did not start')
+  gates[1].resolve()
+  gates[2].resolve()
+  await pending
+  assertCount(started.length, 3, 'expiration notifications attempted')
+  assertCount(maxActive, 2, 'maximum expiration notification concurrency')
+})
+
+Deno.test('expired trade notification failures are observable after remaining jobs run', async () => {
+  const attempted: string[] = []
+  let observed: unknown = null
+  try {
+    await notifyExpiredTrades([{
+      trade_id: 'trade-a',
+      participant_member_ids: ['member-1', 'member-2', 'member-3'],
+    }], async (memberId) => {
+      attempted.push(memberId)
+      if (memberId === 'member-2') throw new Error('push failed')
+      return { status: 'sent' }
+    }, 2)
+  } catch (error) {
+    observed = error
+  }
 
   if (attempted.length !== 3) throw new Error('a failed notification prevented later jobs from running')
-  if (observed.length !== 1 || !(observed[0] instanceof AggregateError)) {
+  if (!(observed instanceof AggregateError)) {
     throw new Error('notification failure was not surfaced as an aggregate')
   }
 })
