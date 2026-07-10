@@ -1,8 +1,9 @@
-import { writeFile } from 'node:fs/promises'
+import { readFile, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
 import { createClient } from '@supabase/supabase-js'
 import { resolvedEnv, requireEnv } from './env.mjs'
+import { createScenarioResourceOwner } from './scenario-resource-owner.mjs'
 
 const ROOT = process.cwd()
 const REPORT_PATH = path.join(ROOT, 'tests/e2e-seed-report.md')
@@ -64,7 +65,7 @@ const seedPlayerFixtures = async (admin) => {
   return count ?? 0
 }
 
-const writeReport = async ({ runId, league, users, checks }) => {
+const writeReport = async ({ runId, league, users, checks, cleanupError = null }) => {
   const lines = [
     '# E2E Seed Report',
     '',
@@ -72,6 +73,7 @@ const writeReport = async ({ runId, league, users, checks }) => {
     `- League ID: ${league?.id ?? '<not-created>'}`,
     `- Invite Code: ${league?.invite_code ?? '<not-created>'}`,
     `- Users: ${users.length}`,
+    `- Cleanup: ${cleanupError ?? 'clean'}`,
     '',
     '## Checks',
     '',
@@ -80,6 +82,56 @@ const writeReport = async ({ runId, league, users, checks }) => {
     ...checks.map((check) => `| ${check.name} | ${check.status} | ${check.detail} |`),
   ]
   await writeFile(REPORT_PATH, `${lines.join('\n')}\n`)
+}
+
+const errorText = (error) => error instanceof AggregateError
+  ? `${error.message}: ${error.errors.map(errorText).join('; ')}`
+  : error instanceof Error ? error.message : String(error)
+
+const deleteLeague = async (admin, leagueId, label) => {
+  const { error: terminalError } = await admin.from('trades')
+    .update({ status: 'vetoed', vetoed_at: new Date().toISOString() })
+    .eq('league_id', leagueId)
+    .eq('status', 'accepted')
+  const { error: deleteError } = await admin.from('leagues').delete().eq('id', leagueId)
+  const failures = [terminalError, deleteError].filter(Boolean).map((error) => new Error(error.message))
+  if (failures.length > 0) throw new AggregateError(failures, `${label} league cleanup failed`)
+}
+
+const deleteUser = async (admin, userId, label) => {
+  const { error } = await admin.auth.admin.deleteUser(userId)
+  if (error && !/not found/i.test(error.message)) throw new Error(`${label} user cleanup ${userId}: ${error.message}`)
+}
+
+const readPreviousState = async (statePath) => {
+  try {
+    return JSON.parse(await readFile(statePath, 'utf8'))
+  } catch (error) {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') return null
+    throw error
+  }
+}
+
+export const cleanupPreviousSeed = async (admin, statePath = STATE_PATH) => {
+  const previous = await readPreviousState(statePath)
+  if (!previous) return
+  const failures = []
+  if (previous.leagueId) {
+    try {
+      await deleteLeague(admin, previous.leagueId, 'previous seed')
+    } catch (error) {
+      failures.push(error)
+    }
+  }
+  for (const user of previous.users ?? []) {
+    try {
+      await deleteUser(admin, user.id, 'previous seed')
+    } catch (error) {
+      failures.push(error)
+    }
+  }
+  if (failures.length > 0) throw new AggregateError(failures, 'Previous E2E seed cleanup failed')
+  await rm(statePath, { force: true })
 }
 
 const writeState = async ({ runId, league, users, password }) => {
@@ -220,13 +272,21 @@ const main = async () => {
   })
 
   const admin = createClient(env.supabaseUrl, env.serviceRoleKey, { auth: { persistSession: false } })
+  const resources = createScenarioResourceOwner(`E2E seed ${runId}`)
+  const resourceKeys = []
   const checks = []
   let league = null
+  let previousSeedCleaned = false
 
   try {
+    await cleanupPreviousSeed(admin)
+    previousSeedCleaned = true
     const createdUsers = []
     for (const user of users) {
       const authUser = await createConfirmedUser(admin, user)
+      const resourceKey = `user:${authUser.id}`
+      resources.registerOnce(resourceKey, `seed user ${authUser.id}`, () => deleteUser(admin, authUser.id, 'failed seed'))
+      resourceKeys.push(resourceKey)
       createdUsers.push({ ...user, id: authUser.id })
     }
 
@@ -253,6 +313,9 @@ const main = async () => {
     })
     if (createError) throw new Error(`create_league: ${createError.message}`)
     league = createdLeague
+    const leagueResourceKey = `league:${league.id}`
+    resources.registerOnce(leagueResourceKey, `seed league ${league.id}`, () => deleteLeague(admin, league.id, 'failed seed'))
+    resourceKeys.push(leagueResourceKey)
     checks.push({
       name: 'invite_code',
       status: /^[A-Z0-9]{16}$/.test(league?.invite_code ?? '') ? 'PASS' : 'FAIL',
@@ -320,19 +383,28 @@ const main = async () => {
     })
 
     const failures = checks.filter((check) => check.status !== 'PASS')
+    if (failures.length > 0) throw new Error(`Seed validation failed: ${failures.map((failure) => failure.name).join(', ')}`)
+    await writeState({ runId, league, users: createdUsers, password })
     await writeReport({ runId, league, users: createdUsers, checks })
-    if (failures.length === 0) {
-      await writeState({ runId, league, users: createdUsers, password })
-    }
-    if (failures.length > 0) process.exitCode = 1
+    for (const resourceKey of resourceKeys) resources.release(resourceKey)
   } catch (error) {
-    checks.push({ name: 'seed', status: 'ERROR', detail: error instanceof Error ? error.message : String(error) })
-    await writeReport({ runId, league, users, checks })
+    checks.push({ name: 'seed', status: 'ERROR', detail: errorText(error) })
+    let cleanupError = null
+    try {
+      await resources.dispose()
+    } catch (resourceError) {
+      cleanupError = resourceError
+    }
+    if (previousSeedCleaned) await rm(STATE_PATH, { force: true })
+    await writeReport({ runId, league, users, checks, cleanupError: cleanupError ? errorText(cleanupError) : null })
+    if (cleanupError) throw new AggregateError([error, cleanupError], 'E2E seed and rollback failed')
     throw error
   }
 }
 
-main().catch((error) => {
-  console.error(error)
-  process.exitCode = 1
-})
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main().catch((error) => {
+    console.error(error)
+    process.exitCode = 1
+  })
+}
