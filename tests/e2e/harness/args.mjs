@@ -1,4 +1,5 @@
 import { browserScenarioArgs } from '../browser-scenario-manifest.mjs'
+import { backendScenarioArgs } from '../backend-scenario-manifest.mjs'
 
 export const parseArgs = () => {
   const args = new Map()
@@ -14,24 +15,12 @@ export const parseArgs = () => {
     fakePort: Number(args.get('fake-port') ?? process.env.FAKE_UPSTREAM_PORT ?? 4555),
     browserFullSweep: args.get('browser-full-sweep') === 'true' || process.env.E2E_BROWSER_FULL_SWEEP === '1',
     ...browserScenarioArgs(args, { releaseEnabled: releaseGate }),
-    leagueLifecycle: args.get('league-lifecycle') === 'true' || process.env.E2E_ENABLE_LEAGUE_LIFECYCLE === '1',
+    ...backendScenarioArgs(args, { releaseEnabled: releaseGate }),
     pickChain: args.get('pick-chain') === 'true' || process.env.E2E_ENABLE_PICK_CHAIN === '1',
     push: args.get('push') === 'true' || process.env.E2E_ENABLE_PUSH === '1',
-    draftPush: args.get('draft-push') === 'true' || process.env.E2E_ENABLE_DRAFT_PUSH === '1',
     history: args.get('history') === 'true' || process.env.E2E_ENABLE_HISTORY === '1',
     realtime: args.get('realtime') === 'true' || process.env.E2E_ENABLE_REALTIME === '1',
     midlifeMigration: args.get('midlife-migration') === 'true' || process.env.E2E_ENABLE_MIDLIFE_MIGRATION === '1',
-    auction: args.get('auction') === 'true' || process.env.E2E_ENABLE_AUCTION === '1',
-    playoffs: args.get('playoffs') === 'true' || process.env.E2E_ENABLE_PLAYOFFS === '1',
-    tiebreakers: args.get('tiebreakers') === 'true' || process.env.E2E_ENABLE_TIEBREAKERS === '1',
-    settings: args.get('settings') === 'true' || process.env.E2E_ENABLE_SETTINGS === '1',
-    scoring: args.get('scoring') === 'true' || process.env.E2E_ENABLE_SCORING === '1',
-    waiverProcessing: args.get('waiver-processing') === 'true' || process.env.E2E_ENABLE_WAIVER_PROCESSING === '1',
-    injuryFilter: args.get('injury-filter') === 'true' || process.env.E2E_ENABLE_INJURY_FILTER === '1',
-    tradeAccept: args.get('trade-accept') === 'true' || process.env.E2E_ENABLE_TRADE_ACCEPT === '1',
-    tradeVeto: args.get('trade-veto') === 'true' || process.env.E2E_ENABLE_TRADE_VETO === '1',
-    rookieDraft: args.get('rookie-draft') === 'true' || process.env.E2E_ENABLE_ROOKIE_DRAFT === '1',
-    seasonReset: args.get('season-reset') === 'true' || process.env.E2E_ENABLE_SEASON_RESET === '1',
     releaseGate,
   }
 }

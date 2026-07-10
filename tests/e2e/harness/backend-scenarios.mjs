@@ -1,87 +1,30 @@
 import { createScenarioResourceOwner, throwWithCleanup } from '../scenario-resource-owner.mjs'
+import { BACKEND_SCENARIO_MANIFEST } from '../backend-scenario-manifest.mjs'
 
-const BACKEND_SCENARIOS = [
-  {
-    flag: 'leagueLifecycle',
-    resultKey: 'leagueLifecycleCheck',
-    failuresKey: 'leagueLifecycleFailures',
-    run: ({ runners, context }) => runners.assertLeagueLifecycleScenario(context),
-  },
-  {
-    flag: 'auction',
-    resultKey: 'auctionValidation',
-    run: ({ runners, context }) => runners.assertAuctionBidValidation({
+const runnerById = {
+  'league-lifecycle': ({ runners, context }) => runners.assertLeagueLifecycleScenario(context),
+  auction: ({ runners, context }) => runners.assertAuctionBidValidation({
       supabase: context.supabase,
       leagueId: context.leagueId,
       season: context.season,
       resourceOwner: context.resourceOwner,
     }),
-  },
-  {
-    flag: 'playoffs',
-    resultKey: 'playoffCheck',
-    failuresKey: 'playoffFailures',
-    run: ({ runners, context }) => runners.assertPlayoffBracketScenario(context),
-  },
-  {
-    flag: 'tiebreakers',
-    resultKey: 'tiebreakerCheck',
-    failuresKey: 'tiebreakerFailures',
-    run: ({ runners, context }) => runners.assertStandingsTiebreakerScenario(context),
-  },
-  {
-    flag: 'settings',
-    resultKey: 'settingsCheck',
-    failuresKey: 'settingsFailures',
-    run: ({ runners, context }) => runners.assertCommissionerSettingsScenario(context),
-  },
-  {
-    flag: 'scoring',
-    resultKey: 'scoringCheck',
-    failuresKey: 'scoringFailures',
-    run: ({ runners, context }) => runners.assertWeeklyScoringFinalizationScenario(context),
-  },
-  {
-    flag: 'waiverProcessing',
-    resultKey: 'waiverProcessingCheck',
-    failuresKey: 'waiverProcessingFailures',
-    run: ({ runners, context }) => runners.assertWaiverProcessingScenario(context),
-  },
-  {
-    flag: 'injuryFilter',
-    resultKey: 'injuryFilterCheck',
-    failuresKey: 'injuryFilterFailures',
-    run: ({ runners, context }) => runners.assertInjuryStatusFilterScenario({
+  playoffs: ({ runners, context }) => runners.assertPlayoffBracketScenario(context),
+  tiebreakers: ({ runners, context }) => runners.assertStandingsTiebreakerScenario(context),
+  settings: ({ runners, context }) => runners.assertCommissionerSettingsScenario(context),
+  scoring: ({ runners, context }) => runners.assertWeeklyScoringFinalizationScenario(context),
+  'waiver-processing': ({ runners, context }) => runners.assertWaiverProcessingScenario(context),
+  'injury-filter': ({ runners, context }) => runners.assertInjuryStatusFilterScenario({
       supabase: context.supabase,
       env: context.env,
       season: context.season,
       fakePort: context.fakePort,
       resourceOwner: context.resourceOwner,
     }),
-  },
-  {
-    flag: 'tradeAccept',
-    resultKey: 'tradeAcceptCheck',
-    failuresKey: 'tradeAcceptFailures',
-    run: ({ runners, context }) => runners.assertTradeAcceptanceAtomicityScenario(context),
-  },
-  {
-    flag: 'tradeVeto',
-    resultKey: 'tradeVetoCheck',
-    failuresKey: 'tradeVetoFailures',
-    run: ({ runners, context }) => runners.assertTradeVetoScenario(context),
-  },
-  {
-    flag: 'rookieDraft',
-    resultKey: 'rookieDraftCheck',
-    failuresKey: 'rookieDraftFailures',
-    run: ({ runners, context }) => runners.assertRookieDraftAutoPickScenario(context),
-  },
-  {
-    flag: 'draftPush',
-    resultKey: 'draftPushCheck',
-    failuresKey: 'draftPushFailures',
-    run: ({ runners, context }) => runners.assertDraftPushNotification({
+  'trade-accept': ({ runners, context }) => runners.assertTradeAcceptanceAtomicityScenario(context),
+  'trade-veto': ({ runners, context }) => runners.assertTradeVetoScenario(context),
+  'rookie-draft': ({ runners, context }) => runners.assertRookieDraftAutoPickScenario(context),
+  'draft-push': ({ runners, context }) => runners.assertDraftPushNotification({
       supabase: context.supabase,
       env: context.env,
       state: context.state,
@@ -89,14 +32,18 @@ const BACKEND_SCENARIOS = [
       fakePort: context.fakePort,
       resourceOwner: context.resourceOwner,
     }),
-  },
-  {
-    flag: 'seasonReset',
-    resultKey: 'seasonResetCheck',
-    failuresKey: 'seasonResetFailures',
-    run: ({ runners, context }) => runners.assertSeasonResetScenario(context),
-  },
-]
+  'season-reset': ({ runners, context }) => runners.assertSeasonResetScenario(context),
+}
+
+const BACKEND_SCENARIOS = BACKEND_SCENARIO_MANIFEST.map((scenario) => ({
+  ...scenario,
+  run: runnerById[scenario.id],
+}))
+
+if (BACKEND_SCENARIOS.some((scenario) => typeof scenario.run !== 'function') ||
+  Object.keys(runnerById).length !== BACKEND_SCENARIOS.length) {
+  throw new Error('Backend scenario manifest and runners are out of sync')
+}
 
 export async function runBackendScenarios({ args, context, runners, shouldRun }) {
   const results = Object.fromEntries(

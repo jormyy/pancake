@@ -1,6 +1,7 @@
 import { readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { BROWSER_SCENARIO_MANIFEST as BROWSER_SCENARIOS } from '../browser-scenario-manifest.mjs'
+import { BACKEND_SCENARIO_MANIFEST as BACKEND_SCENARIOS } from '../backend-scenario-manifest.mjs'
 
 const ROOT = process.cwd()
 const REPORT_PATH = path.join(ROOT, 'tests/e2e-report.md')
@@ -103,6 +104,12 @@ export const writeCoverageReport = async ({ status, startedAt, finishedAt, seaso
   ]))
   /** @param {string} id */
   const browserScenarioStatus = (id) => browserStatusById.get(id) ?? 'PENDING'
+  const backendStatusById = new Map(BACKEND_SCENARIOS.map((scenario) => [
+    scenario.id,
+    evidenceStatus(Boolean(args[scenario.flag]), scenario.evidenceId),
+  ]))
+  /** @param {string} id */
+  const backendScenarioStatus = (id) => backendStatusById.get(id) ?? 'PENDING'
   const browserSmokeStatus = browserScenarioStatus('smoke')
   const browserAuthStatus = browserScenarioStatus('auth')
   const fakeUpstreamStatus = evidenceStatus(env.backendTicksEnabled, 'environment.fake_upstream')
@@ -112,7 +119,7 @@ export const writeCoverageReport = async ({ status, startedAt, finishedAt, seaso
     : args.browser || args.browserAuth ? runFailed ? 'FAIL' : 'PARTIAL' : 'PENDING'
   const browserPerfStatus = browserScenarioStatus('performance')
   const browserTradeMultiTeamStatus = browserScenarioStatus('trade-multi-team')
-  const leagueLifecyclePassed = hasEvidence(rows, 'backend.league_lifecycle')
+  const leagueLifecyclePassed = backendScenarioStatus('league-lifecycle') === 'PASS'
   const browserLeagueLifecyclePassed = hasEvidence(rows, 'browser.league_lifecycle')
   const leagueLifecycleStatus = args.leagueLifecycle || args.browserLeagueLifecycle
     ? leagueLifecyclePassed && browserLeagueLifecyclePassed
@@ -133,22 +140,22 @@ export const writeCoverageReport = async ({ status, startedAt, finishedAt, seaso
   const historyStatus = evidenceStatus(args.history, 'history.retained')
   const realtimeStatus = evidenceStatus(args.realtime, 'realtime.delivery')
   const midlifeMigrationStatus = evidenceStatus(args.midlifeMigration, 'migration.midlife')
-  const auctionBackendStatus = evidenceStatus(args.auction, 'backend.auction')
+  const auctionBackendStatus = backendScenarioStatus('auction')
   const auctionBrowserStatus = evidenceStatus(args.browserGameplay, 'browser.auction')
   const auctionStatus = args.auction || args.browserGameplay
     ? args.auction && args.browserGameplay && auctionBackendStatus === 'PASS' && auctionBrowserStatus === 'PASS'
       ? 'PASS' : auctionBackendStatus === 'PASS' || auctionBrowserStatus === 'PASS' ? 'PARTIAL' : runFailed ? 'FAIL' : 'PENDING'
     : 'PENDING'
-  const playoffsStatus = evidenceStatus(args.playoffs, 'backend.playoffs')
+  const playoffsStatus = backendScenarioStatus('playoffs')
   const browserPlayoffStatus = browserScenarioStatus('playoffs')
-  const tiebreakerStatus = evidenceStatus(args.tiebreakers, 'backend.tiebreakers')
-  const settingsStatus = evidenceStatus(args.settings, 'backend.settings')
-  const scoringStatus = evidenceStatus(args.scoring, 'backend.scoring')
-  const waiverProcessingStatus = evidenceStatus(args.waiverProcessing, 'backend.waiver_processing')
-  const injuryFilterStatus = evidenceStatus(args.injuryFilter, 'backend.injury_filter')
-  const tradeAcceptStatus = evidenceStatus(args.tradeAccept, 'backend.trade_accept')
-  const tradeVetoStatus = evidenceStatus(args.tradeVeto, 'backend.trade_veto')
-  const rookieDraftStatus = args.rookieDraft ? evidenceStatus(true, 'backend.rookie_draft') : pickChainStatus
+  const tiebreakerStatus = backendScenarioStatus('tiebreakers')
+  const settingsStatus = backendScenarioStatus('settings')
+  const scoringStatus = backendScenarioStatus('scoring')
+  const waiverProcessingStatus = backendScenarioStatus('waiver-processing')
+  const injuryFilterStatus = backendScenarioStatus('injury-filter')
+  const tradeAcceptStatus = backendScenarioStatus('trade-accept')
+  const tradeVetoStatus = backendScenarioStatus('trade-veto')
+  const rookieDraftStatus = args.rookieDraft ? backendScenarioStatus('rookie-draft') : pickChainStatus
   const browserRookieDraftStatus = browserScenarioStatus('rookie-draft')
 
   const weeklyLoopStatus = allEnabledEvidencePass([

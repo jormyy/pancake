@@ -11,6 +11,7 @@ import { resolvedEnv, describeEndpoint } from './env.mjs'
 import { parseArgs } from './harness/args.mjs'
 import { runBrowserScenarios } from './harness/browser-scenarios.mjs'
 import { backendScenarioFailures, runBackendScenarios } from './harness/backend-scenarios.mjs'
+import { backendEvidenceIds } from './backend-scenario-manifest.mjs'
 import { writeCoverageReport, writeReport } from './harness/reporting.mjs'
 import { backendJson, withSupabaseRetry } from './soak-network.mjs'
 import {
@@ -36,6 +37,7 @@ export {
   parseArgs,
   runBrowserScenarios,
   backendScenarioFailures,
+  backendEvidenceIds,
   runBackendScenarios,
   writeCoverageReport,
   writeReport,

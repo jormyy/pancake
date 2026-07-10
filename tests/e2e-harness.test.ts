@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { readFileSync } from 'node:fs'
 
 import { parseArgs } from './e2e/harness/args.mjs'
 import {
@@ -7,6 +8,7 @@ import {
   browserPassNotes,
   fastBrowserScenarioMatrix,
 } from './e2e/browser-scenario-manifest.mjs'
+import { BACKEND_SCENARIO_MANIFEST, backendEvidenceIds } from './e2e/backend-scenario-manifest.mjs'
 
 const originalArgv = process.argv
 
@@ -108,6 +110,24 @@ describe('e2e browser scenario registry', () => {
 })
 
 describe('e2e backend scenario registry', () => {
+  it('owns backend enablement, results, failures, and release evidence in one manifest', () => {
+    expect(new Set(BACKEND_SCENARIO_MANIFEST.map(({ id }) => id)).size).toBe(BACKEND_SCENARIO_MANIFEST.length)
+    expect(new Set(BACKEND_SCENARIO_MANIFEST.map(({ flag }) => flag)).size).toBe(BACKEND_SCENARIO_MANIFEST.length)
+    expect(new Set(BACKEND_SCENARIO_MANIFEST.map(({ resultKey }) => resultKey)).size).toBe(BACKEND_SCENARIO_MANIFEST.length)
+    expect(new Set(BACKEND_SCENARIO_MANIFEST.map(({ envFlag }) => envFlag)).size).toBe(BACKEND_SCENARIO_MANIFEST.length)
+    expect(new Set(BACKEND_SCENARIO_MANIFEST.map(({ evidenceId }) => evidenceId)).size).toBe(BACKEND_SCENARIO_MANIFEST.length)
+
+    process.argv = ['node', 'tests/e2e/soak.mjs', '--release-gate=true']
+    const args = parseArgs()
+    for (const scenario of BACKEND_SCENARIO_MANIFEST) expect(args[scenario.flag]).toBe(true)
+
+    const results = Object.fromEntries(BACKEND_SCENARIO_MANIFEST.map(({ resultKey }) => [resultKey, { ok: true }]))
+    expect(backendEvidenceIds(results)).toEqual(BACKEND_SCENARIO_MANIFEST.map(({ evidenceId }) => evidenceId))
+
+    const releaseScript = JSON.parse(readFileSync('package.json', 'utf8')).scripts['e2e:soak:release']
+    for (const scenario of BACKEND_SCENARIO_MANIFEST) expect(releaseScript).not.toContain(`${scenario.envFlag}=`)
+  })
+
   it('runs enabled scenarios through shared context and collects failures', async () => {
     const { backendScenarioFailures, runBackendScenarios } = await import('./e2e/harness/backend-scenarios.mjs')
     const context = {
