@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
     createMockDraftRoom,
     joinMockDraftRoom,
@@ -36,20 +36,62 @@ type MockRoomControllerOptions = {
 }
 
 export function useMockRoomsController(options: MockRoomControllerOptions) {
+    const ownerKey = options.leagueId && options.memberId
+        ? `${options.leagueId}:${options.memberId}`
+        : null
+    const activeOwnerKeyRef = useRef(ownerKey)
+    const renderedOwnerKeyRef = useRef(ownerKey)
+    const generationRef = useRef(0)
+    activeOwnerKeyRef.current = ownerKey
+    if (renderedOwnerKeyRef.current !== ownerKey) {
+        renderedOwnerKeyRef.current = ownerKey
+        generationRef.current += 1
+    }
+    type Action = { ownerKey: string; generation: number; token: symbol; kind: 'create' | 'room' }
+    const activeActionRef = useRef<Action | null>(null)
+    const [busy, setBusy] = useState<Action | null>(null)
+    const [stateOwnerKey, setStateOwnerKey] = useState(ownerKey)
     const [roomName, setRoomName] = useState('')
     const [roomDraftType, setRoomDraftType] = useState<MockDraftRoomKind>('auction')
     const [roomScheduledAt, setRoomScheduledAt] = useState(defaultRoomDateInput)
-    const [roomSubmitting, setRoomSubmitting] = useState(false)
-    const [roomActionLoading, setRoomActionLoading] = useState(false)
+
+    useEffect(() => {
+        activeActionRef.current = null
+        setBusy(null)
+        setStateOwnerKey(ownerKey)
+        setRoomName('')
+        setRoomDraftType('auction')
+        setRoomScheduledAt(defaultRoomDateInput())
+    }, [ownerKey])
+
+    const beginAction = (kind: Action['kind']): Action | null => {
+        if (!ownerKey || activeOwnerKeyRef.current !== ownerKey) return null
+        if (activeActionRef.current?.ownerKey === ownerKey) return null
+        const action = { ownerKey, generation: generationRef.current, token: Symbol(kind), kind }
+        activeActionRef.current = action
+        setBusy(action)
+        return action
+    }
+    const ownsAction = (action: Action) => (
+        activeOwnerKeyRef.current === action.ownerKey
+        && generationRef.current === action.generation
+        && activeActionRef.current?.token === action.token
+    )
+    const finishAction = (action: Action) => {
+        if (activeActionRef.current?.token !== action.token) return
+        activeActionRef.current = null
+        setBusy((current) => current?.token === action.token ? null : current)
+    }
 
     const handleCreateMockRoom = async () => {
-        if (!options.leagueId || !options.memberId) return
+        if (!options.leagueId || !options.memberId || stateOwnerKey !== ownerKey) return
         const scheduledAt = parseRoomDateInput(roomScheduledAt)
         if (!scheduledAt) {
             showAlert('Invalid start time', 'Use a date and time like 2026-07-01 19:30.')
             return
         }
-        setRoomSubmitting(true)
+        const action = beginAction('create')
+        if (!action) return
         try {
             await createMockDraftRoom({
                 leagueId: options.leagueId,
@@ -62,49 +104,59 @@ export function useMockRoomsController(options: MockRoomControllerOptions) {
                 rounds: options.rookieRounds,
                 timerExpiryBehavior: options.rookieTimerExpiryBehavior,
             })
+            if (!ownsAction(action)) return
             setRoomName('')
             setRoomScheduledAt(defaultRoomDateInput())
             await options.refreshRooms()
         } catch (error) {
-            showAlert('Could not create room', error instanceof Error ? error.message : undefined)
+            if (ownsAction(action)) {
+                showAlert('Could not create room', error instanceof Error ? error.message : undefined)
+            }
         } finally {
-            setRoomSubmitting(false)
+            finishAction(action)
         }
     }
 
-    const runRoomAction = async (action: () => Promise<void>, errorTitle: string) => {
-        setRoomActionLoading(true)
+    const runRoomAction = async (
+        operation: (isCurrent: () => boolean) => Promise<void>,
+        errorTitle: string,
+    ) => {
+        const action = beginAction('room')
+        if (!action) return
         try {
-            await action()
+            await operation(() => ownsAction(action))
         } catch (error) {
-            showAlert(errorTitle, error instanceof Error ? error.message : undefined)
+            if (ownsAction(action)) showAlert(errorTitle, error instanceof Error ? error.message : undefined)
         } finally {
-            setRoomActionLoading(false)
+            finishAction(action)
         }
     }
+
+    const ownsState = stateOwnerKey === ownerKey
+    const ownsBusy = busy?.ownerKey === ownerKey
 
     return {
         handleCreateMockRoom,
-        handleJoinMockRoom: (room: MockDraftRoom) => runRoomAction(async () => {
+        handleJoinMockRoom: (room: MockDraftRoom) => runRoomAction(async (isCurrent) => {
             if (!options.memberId) return
             await joinMockDraftRoom(room.id, options.memberId)
-            await options.refreshRooms()
+            if (isCurrent()) await options.refreshRooms()
         }, 'Could not join room'),
-        handleLeaveMockRoom: (room: MockDraftRoom) => runRoomAction(async () => {
+        handleLeaveMockRoom: (room: MockDraftRoom) => runRoomAction(async (isCurrent) => {
             if (!options.memberId) return
             await leaveMockDraftRoom(room.id, options.memberId)
-            await options.refreshRooms()
+            if (isCurrent()) await options.refreshRooms()
         }, 'Could not leave room'),
-        handleStartMockRoom: (room: MockDraftRoom) => runRoomAction(async () => {
+        handleStartMockRoom: (room: MockDraftRoom) => runRoomAction(async (isCurrent) => {
             if (!options.memberId) return
             const draft = await startMockDraftRoom(room.id, options.memberId)
-            options.openDraftRoom(draft.id, room.draftType)
+            if (isCurrent()) options.openDraftRoom(draft.id, room.draftType)
         }, 'Could not start room'),
-        roomActionLoading,
-        roomDraftType,
-        roomName,
-        roomScheduledAt,
-        roomSubmitting,
+        roomActionLoading: Boolean(ownsBusy && busy?.kind === 'room'),
+        roomDraftType: ownsState ? roomDraftType : 'auction',
+        roomName: ownsState ? roomName : '',
+        roomScheduledAt: ownsState ? roomScheduledAt : '',
+        roomSubmitting: Boolean(ownsBusy && busy?.kind === 'create'),
         setRoomDraftType,
         setRoomName,
         setRoomScheduledAt,
