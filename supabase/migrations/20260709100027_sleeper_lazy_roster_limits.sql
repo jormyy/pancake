@@ -2,6 +2,9 @@
 -- Trades may complete above the active cap; acquisition and lineup mutations stay
 -- locked until the owner drops or moves enough eligible players to IR/taxi.
 
+SET lock_timeout = '5s';
+SET statement_timeout = '2min';
+
 DROP FUNCTION IF EXISTS public.accept_trade_atomic(uuid, uuid, uuid[]);
 DROP FUNCTION IF EXISTS private.accept_trade_participant_atomic(uuid, uuid, uuid[]);
 
@@ -834,10 +837,7 @@ BEGIN
            AND accepted_trade.id <> p_trade_id
            AND accepted_trade.league_id = v_trade.league_id
            AND accepted_trade.league_season_id = v_trade.league_season_id
-           AND COALESCE(
-             accepted_item.from_member_id,
-             CASE WHEN accepted_item.side = 'proposer' THEN accepted_trade.proposer_member_id ELSE accepted_trade.recipient_member_id END
-           ) = v_from_member
+           AND accepted_item.from_member_id = v_from_member
       ) THEN
         RAISE EXCEPTION 'Player asset is reserved for another accepted trade';
       END IF;
@@ -2115,3 +2115,6 @@ REVOKE ALL ON FUNCTION private.accept_trade_participant_atomic(uuid, uuid)
 REVOKE ALL ON FUNCTION public.accept_trade_atomic(uuid, uuid)
   FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.accept_trade_atomic(uuid, uuid) TO service_role;
+
+RESET statement_timeout;
+RESET lock_timeout;

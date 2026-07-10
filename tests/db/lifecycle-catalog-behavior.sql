@@ -132,6 +132,54 @@ RESET ROLE;
 
 DO $$
 DECLARE
+  v_accept_definition text;
+  v_missing text[];
+  v_superseded text[];
+BEGIN
+  SELECT pg_get_functiondef('private.accept_trade_participant_atomic(uuid,uuid)'::regprocedure)
+    INTO v_accept_definition;
+  IF v_accept_definition NOT ILIKE '%accepted_item.from_member_id = v_from_member%'
+     OR v_accept_definition ILIKE '%accepted_item.side%' THEN
+    RAISE EXCEPTION 'Trade acceptance does not exclusively use canonical participant-owned routes';
+  END IF;
+
+  SELECT array_agg(expected.index_name ORDER BY expected.index_name)
+    INTO v_missing
+    FROM (VALUES
+      ('idx_trade_participants_member_proposed'),
+      ('idx_trade_participants_pending_feed'),
+      ('idx_trades_due_accepted_queue'),
+      ('idx_trades_pending_expires'),
+      ('idx_trades_veto_feed')
+    ) AS expected(index_name)
+   WHERE NOT EXISTS (
+     SELECT 1
+       FROM pg_indexes AS catalog
+      WHERE catalog.schemaname = 'public'
+        AND catalog.indexname = expected.index_name
+   );
+  IF v_missing IS NOT NULL THEN
+    RAISE EXCEPTION 'Canonical trade indexes are missing: %', v_missing;
+  END IF;
+
+  SELECT array_agg(catalog.indexname ORDER BY catalog.indexname)
+    INTO v_superseded
+    FROM pg_indexes AS catalog
+   WHERE catalog.schemaname = 'public'
+     AND catalog.indexname IN (
+       'idx_trades_league_proposer_recent',
+       'idx_trades_league_recipient_recent',
+       'idx_trades_member_proposed',
+       'idx_trades_recipient_proposed',
+       'idx_trades_vetoable_recent'
+     );
+  IF v_superseded IS NOT NULL THEN
+    RAISE EXCEPTION 'Superseded trade indexes remain: %', v_superseded;
+  END IF;
+END $$;
+
+DO $$
+DECLARE
   v_complete_definition text;
   v_trade_id uuid;
   v_retry record;

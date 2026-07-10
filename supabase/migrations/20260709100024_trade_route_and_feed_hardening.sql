@@ -1,3 +1,6 @@
+SET lock_timeout = '5s';
+SET statement_timeout = '2min';
+
 CREATE OR REPLACE FUNCTION public.complete_accepted_trade_atomic(
   p_trade_id uuid
 )
@@ -370,8 +373,18 @@ UPDATE public.trade_items AS item
    AND (item.from_member_id IS NULL OR item.to_member_id IS NULL);
 
 ALTER TABLE public.trade_items
+  ADD CONSTRAINT trade_items_from_member_present CHECK (from_member_id IS NOT NULL) NOT VALID,
+  ADD CONSTRAINT trade_items_to_member_present CHECK (to_member_id IS NOT NULL) NOT VALID;
+
+ALTER TABLE public.trade_items
+  VALIDATE CONSTRAINT trade_items_from_member_present,
+  VALIDATE CONSTRAINT trade_items_to_member_present;
+
+ALTER TABLE public.trade_items
   ALTER COLUMN from_member_id SET NOT NULL,
   ALTER COLUMN to_member_id SET NOT NULL,
+  DROP CONSTRAINT trade_items_from_member_present,
+  DROP CONSTRAINT trade_items_to_member_present,
   DROP CONSTRAINT IF EXISTS trade_items_route_distinct_check,
   ADD CONSTRAINT trade_items_route_distinct_check CHECK (from_member_id <> to_member_id);
 
@@ -933,3 +946,6 @@ REVOKE ALL ON FUNCTION private.multi_team_trade_participants(uuid, uuid[]) FROM 
 REVOKE ALL ON FUNCTION private.accept_trade_participant_atomic(uuid, uuid, uuid[]) FROM PUBLIC, anon, authenticated, service_role;
 REVOKE ALL ON FUNCTION public.get_trades_for_member_page(uuid, uuid, int, boolean, boolean, timestamptz, uuid) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.get_trades_for_member_page(uuid, uuid, int, boolean, boolean, timestamptz, uuid) TO authenticated, service_role;
+
+RESET statement_timeout;
+RESET lock_timeout;

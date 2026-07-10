@@ -1,3 +1,6 @@
+SET lock_timeout = '5s';
+SET statement_timeout = '2min';
+
 -- Canonical SQL source for private.accept_trade_participant_atomic.
 -- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
 -- npm run check:db-function-sources verifies every latest migration function has exact source parity.
@@ -275,3 +278,15 @@ BEGIN
   );
 END;
 $$;
+
+REVOKE ALL ON FUNCTION private.accept_trade_participant_atomic(uuid, uuid)
+  FROM PUBLIC, anon, authenticated, service_role;
+
+DROP INDEX IF EXISTS public.idx_trades_league_proposer_recent;
+DROP INDEX IF EXISTS public.idx_trades_league_recipient_recent;
+DROP INDEX IF EXISTS public.idx_trades_member_proposed;
+DROP INDEX IF EXISTS public.idx_trades_recipient_proposed;
+DROP INDEX IF EXISTS public.idx_trades_vetoable_recent;
+
+RESET statement_timeout;
+RESET lock_timeout;
