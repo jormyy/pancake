@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Alert } from 'react-native'
 import {
     setPlayerSlotMoves,
@@ -44,6 +44,11 @@ export function useLineupActions({
     const [autoSetModalVisible, setAutoSetModalVisible] = useState(false)
     const [activationOverflowPending, setActivationOverflowPending] = useState<PendingActivation | null>(null)
     const [activationOverflowSaving, setActivationOverflowSaving] = useState(false)
+
+    useEffect(() => {
+        setSelected(null)
+        setActivationOverflowPending(null)
+    }, [actionContext?.leagueId, actionContext?.memberId, actionContext?.seasonId, selectedDate])
 
     const handleTap = useCallback(async (newSel: Sel) => {
         if (selectedDate < todayET()) {

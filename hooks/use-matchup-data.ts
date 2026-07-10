@@ -84,7 +84,12 @@ export function useMatchupData(
     // selectedDate flows into getWeeklyLineup queries that compare against
     // weekly_lineups.game_date (ET-keyed). Use todayET so non-ET clients
     // don't query against the wrong date.
-    const [selectedDate, setSelectedDate] = useState<string>(() => initialCache?.selectedDate ?? todayET())
+    const [selectedDate, setSelectedDateState] = useState<string>(() => initialCache?.selectedDate ?? todayET())
+    const selectedDateRef = useRef(selectedDate)
+    const setSelectedDate = useCallback((date: string) => {
+        selectedDateRef.current = date
+        setSelectedDateState(date)
+    }, [])
     const [leagueMatchups, setLeagueMatchups] = useState<LeagueWeekMatchup[]>(initialCache?.leagueMatchups ?? [])
     const [myLineup, setMyLineup] = useState<LineupData | null>(initialCache?.myLineup ?? null)
     const [oppLineup, setOppLineup] = useState<LineupData | null>(initialCache?.oppLineup ?? null)
@@ -110,7 +115,7 @@ export function useMatchupData(
         setSelectedDate(cached?.selectedDate ?? todayET())
         setMatchupLoading(!cached)
         matchupRef.current = cached?.matchup ?? null
-    }, [current?.id, leagueId])
+    }, [current?.id, leagueId, setSelectedDate])
 
     const fetchLineups = useCallback(
         async (m: Matchup, date: string, currentLeagueId: string): Promise<LineupPair> => {
@@ -125,13 +130,14 @@ export function useMatchupData(
 
     const loadLineups = useCallback(
         async (m: Matchup, date: string): Promise<LineupPair | null> => {
-            if (!leagueId) return null
+            if (!leagueId || date !== selectedDateRef.current) return null
             const seq = ++lineupSeqRef.current
             const currentLeagueId = leagueId
             setLineupLoading(true)
             try {
                 const lineups = await fetchLineups(m, date, currentLeagueId)
-                if (seq !== lineupSeqRef.current || currentLeagueId !== leagueId) return null
+                if (seq !== lineupSeqRef.current || currentLeagueId !== leagueId ||
+                    date !== selectedDateRef.current) return null
                 setMyLineup(lineups.mine)
                 setOppLineup(lineups.opp)
                 return lineups
@@ -144,11 +150,12 @@ export function useMatchupData(
 
     const loadMyLineup = useCallback(
         async (m: Matchup, date: string) => {
-            if (!leagueId) return
+            if (!leagueId || date !== selectedDateRef.current) return
             const seq = ++lineupSeqRef.current
             const currentLeagueId = leagueId
             const data = await getWeeklyLineup(m.myMemberId, currentLeagueId, m.seasonId, m.weekNumber, date)
-            if (seq !== lineupSeqRef.current || currentLeagueId !== leagueId) return
+            if (seq !== lineupSeqRef.current || currentLeagueId !== leagueId ||
+                date !== selectedDateRef.current) return
             setMyLineup(data)
         },
         [leagueId],
@@ -165,7 +172,8 @@ export function useMatchupData(
                 getWeeklyLineup(m.myMemberId, currentLeagueId, m.seasonId, m.weekNumber, date),
                 getWeeklyLineup(m.opponentMemberId, currentLeagueId, m.seasonId, m.weekNumber, date),
             ])
-            if (seq !== lineupSeqRef.current || currentLeagueId !== leagueId || date !== selectedDate) return
+            if (seq !== lineupSeqRef.current || currentLeagueId !== leagueId ||
+                date !== selectedDateRef.current) return
             setMyLineup(mine)
             setOppLineup(opp)
         },
@@ -238,7 +246,7 @@ export function useMatchupData(
         } finally {
             if (seq === loadSeqRef.current) setMatchupLoading(false)
         }
-    }, [current, user, leagueId, fetchLineups])
+    }, [current, user, leagueId, fetchLineups, setSelectedDate])
 
     useFocusEffect(useCallback(() => { load() }, [load]))
 
