@@ -1,5 +1,6 @@
 import { supabase } from './supabase.ts'
 import { errorMessage } from './responses.ts'
+import { utf8ByteLength } from './tradeLimits.ts'
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -154,13 +155,16 @@ export function stringField(body: Record<string, unknown>, key: string): string 
 export function optionalStringField(
   body: Record<string, unknown>,
   key: string,
-  { maxLength }: { maxLength?: number } = {},
+  { maxLength, maxUtf8Bytes }: { maxLength?: number; maxUtf8Bytes?: number } = {},
 ): string | null {
   const value = body[key]
   if (value == null || value === '') return null
   if (typeof value !== 'string') throw new ValidationError(`${key} must be a string`)
   if (maxLength != null && value.length > maxLength) {
     throw new ValidationError(`${key} must contain at most ${maxLength} characters`)
+  }
+  if (maxUtf8Bytes != null && utf8ByteLength(value) > maxUtf8Bytes) {
+    throw new ValidationError(`${key} must contain at most ${maxUtf8Bytes} UTF-8 bytes`)
   }
   return value
 }

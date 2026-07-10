@@ -7,7 +7,7 @@ import {
     multiTeamTradeStateFromTrade,
 } from '@/lib/multi-team-trade-state'
 import type { RoutedTradeItem, Trade } from '@/lib/trades'
-import { MAX_TRADE_ITEMS } from '@pancake/core'
+import { MAX_TRADE_ITEMS, MAX_TRADE_PARTICIPANTS } from '@pancake/core'
 
 const members = ['B', 'C']
 
@@ -20,7 +20,7 @@ function addParticipant(state: ReturnType<typeof createMultiTeamTradeState>, mem
     })
 }
 
-function routedTrade(items: RoutedTradeItem[]): Trade {
+function routedTrade(items: RoutedTradeItem[], participantIds = ['A', 'B', 'C']): Trade {
     return {
         id: 'trade',
         status: 'pending',
@@ -36,7 +36,7 @@ function routedTrade(items: RoutedTradeItem[]): Trade {
         recipientMemberId: 'B',
         recipientTeamName: 'B Team',
         isMultiTeam: true,
-        participants: ['A', 'B', 'C'].map((memberId, sortOrder) => ({
+        participants: participantIds.map((memberId, sortOrder) => ({
             memberId,
             teamName: `${memberId} Team`,
             sortOrder,
@@ -56,6 +56,57 @@ function routedTrade(items: RoutedTradeItem[]): Trade {
 }
 
 describe('multi-team trade state', () => {
+    it('accepts 12 participants, prevents a 13th selection, and fails closed on oversized prefills', () => {
+        const participantIds = Array.from({ length: MAX_TRADE_PARTICIPANTS + 1 }, (_, index) => `member-${index}`)
+        const routedItems = participantIds.map((memberId, index) => ({
+            kind: 'player' as const,
+            fromMemberId: memberId,
+            toMemberId: participantIds[(index + 1) % participantIds.length],
+            playerId: `player-${index}`,
+        }))
+        expect(isMultiTeamTradeSubmittable(
+            participantIds.slice(0, MAX_TRADE_PARTICIPANTS),
+            routedItems.slice(0, MAX_TRADE_PARTICIPANTS - 1).concat({
+                ...routedItems[MAX_TRADE_PARTICIPANTS - 1],
+                toMemberId: participantIds[0],
+            }),
+        )).toBe(true)
+        expect(isMultiTeamTradeSubmittable(participantIds, routedItems)).toBe(false)
+
+        const legacyItems: RoutedTradeItem[] = routedItems.map((item, index) => ({
+            kind: 'player',
+            playerId: item.playerId,
+            playerName: `Player ${index}`,
+            position: 'PG',
+            eligiblePositions: ['PG'],
+            nbaTeam: null,
+            nbaId: null,
+            injuryStatus: null,
+            yearsExp: 1,
+            fromMemberId: item.fromMemberId,
+            toMemberId: item.toMemberId,
+        }))
+        const prefilled = multiTeamTradeStateFromTrade(routedTrade(legacyItems, participantIds), participantIds[0])
+        expect(prefilled.participantOrder).toHaveLength(MAX_TRADE_PARTICIPANTS + 1)
+        expect(isMultiTeamTradeSubmittable(
+            prefilled.participantOrder,
+            buildMultiTeamTradeItems(prefilled, false),
+        )).toBe(false)
+
+        let state = multiTeamTradeReducer(createMultiTeamTradeState(participantIds[0]), {
+            type: 'set-participants',
+            actorMemberId: participantIds[0],
+            participantIds: participantIds.slice(0, MAX_TRADE_PARTICIPANTS),
+        })
+        state = multiTeamTradeReducer(state, {
+            type: 'toggle-participant',
+            actorMemberId: participantIds[0],
+            memberId: participantIds[MAX_TRADE_PARTICIPANTS],
+            availableMemberIds: participantIds.slice(1),
+        })
+        expect(state.participantOrder).toHaveLength(MAX_TRADE_PARTICIPANTS)
+    })
+
     it('accepts 100 items, rejects 101, and prevents the 101st composer selection', () => {
         const participantIds = ['A', 'B', 'C']
         const items = Array.from({ length: MAX_TRADE_ITEMS + 1 }, (_, index) => ({

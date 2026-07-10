@@ -2,6 +2,7 @@ import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import ProposeTradeScreen from '@/app/(modals)/propose-trade'
+import { MAX_TRADE_PARTICIPANTS } from '@pancake/core'
 
 const mocks = vi.hoisted(() => ({
     back: vi.fn(),
@@ -17,6 +18,7 @@ const mocks = vi.hoisted(() => ({
     getLeagueMembers: vi.fn(),
     getTradeById: vi.fn(),
     params: {} as Record<string, string | undefined>,
+    participantIds: ['member-a', 'member-b'],
     prefillFromTrade: vi.fn(),
     showAlert: vi.fn(),
     showSuccess: vi.fn(),
@@ -47,16 +49,16 @@ vi.mock('@/hooks/use-multi-team-trade-composer', () => ({
         avgStatsMap: new Map(),
         buildMultiTeamItems: () => mocks.tradeItems,
         loadedParticipantKey: 'member-a,member-b',
-        participantIds: ['member-a', 'member-b'],
+        participantIds: mocks.participantIds,
         participantName: vi.fn(),
-        participantViews: [{ memberId: 'member-a' }, { memberId: 'member-b' }],
+        participantViews: mocks.participantIds.map((memberId) => ({ memberId })),
         prefillFromTrade: mocks.prefillFromTrade,
         reset: vi.fn(),
         retry: vi.fn(),
         rosterError: null,
         rosterLoading: false,
         selectParticipantAsset: vi.fn(),
-        selectedParticipantIds: new Set(),
+        selectedParticipantIds: new Set(mocks.participantIds.slice(1)),
         setParticipantDestination: vi.fn(),
         setParticipantFaab: vi.fn(),
         setParticipantIds: vi.fn(),
@@ -89,7 +91,9 @@ vi.mock('@/lib/trade-composer', () => ({
         error: null,
     }),
     validateTradeNotes: (value: string) => ({
-        error: value.length > 2_000 ? 'Notes must contain at most 2000 characters.' : null,
+        error: new TextEncoder().encode(value).length > 2_000
+            ? 'Notes must contain at most 2000 UTF-8 bytes.'
+            : null,
     }),
 }))
 vi.mock('@/lib/trades', () => ({
@@ -138,6 +142,7 @@ beforeEach(() => {
     }
     mocks.getLeagueMembers.mockResolvedValue([{ id: 'member-b', team_name: 'Team B' }])
     mocks.getTradeById.mockResolvedValue(null)
+    mocks.participantIds = ['member-a', 'member-b']
     mocks.submitTradeComposer.mockResolvedValue(undefined)
     mocks.tradeItems = [
         { kind: 'player', fromMemberId: 'member-a', toMemberId: 'member-b', playerId: 'player-a' },
@@ -146,6 +151,26 @@ beforeEach(() => {
 })
 
 describe('propose trade async ownership', () => {
+    it('disables a 13th participant selection at the 12-team boundary', async () => {
+        mocks.participantIds = Array.from(
+            { length: MAX_TRADE_PARTICIPANTS },
+            (_, index) => index === 0 ? 'member-a' : `member-${index}`,
+        )
+        const candidateId = `member-${MAX_TRADE_PARTICIPANTS}`
+        mocks.getLeagueMembers.mockResolvedValue([
+            ...mocks.participantIds.slice(1).map((id) => ({ id, team_name: id })),
+            { id: candidateId, team_name: candidateId },
+        ])
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(ProposeTradeScreen)); await Promise.resolve() })
+        await act(async () => { renderer.root.findByProps({ testID: 'trade-mode-multi' }).props.onPress() })
+
+        const candidate = renderer.root.findByProps({ testID: `trade-participant-${candidateId}` })
+        expect(candidate.props.disabled).toBe(true)
+        expect(candidate.props.accessibilityState).toEqual({ selected: false, disabled: true })
+        await act(async () => { renderer.unmount() })
+    })
+
     it.each([
         [2_000, false],
         [2_001, true],

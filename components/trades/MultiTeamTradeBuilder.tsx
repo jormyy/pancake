@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native'
-import { MAX_TRADE_EXPIRATION_DAYS, MAX_TRADE_NOTES_LENGTH } from '@pancake/core'
+import { MAX_TRADE_EXPIRATION_DAYS, MAX_TRADE_NOTES_BYTES, utf8ByteLength } from '@pancake/core'
 import { MultiTeamTradeOverview, type TradeFlowItem } from '@/components/trades/MultiTeamTradeOverview'
 import { ParticipantTradePanel } from '@/components/trades/ParticipantTradePanel'
 import { breakpoints, colors, fontSize, fontWeight, radii, spacing, uiColors } from '@/constants/tokens'
@@ -59,6 +59,7 @@ export function MultiTeamTradeBuilder({
     const { width } = useWindowDimensions()
     const useColumns = width >= breakpoints.roster
     const [activeParticipantId, setActiveParticipantId] = useState(participants[0]?.memberId ?? '')
+    const notesBytes = utf8ByteLength(notes)
 
     useEffect(() => {
         if (!participants.some((participant) => participant.memberId === activeParticipantId)) {
@@ -185,13 +186,15 @@ export function MultiTeamTradeBuilder({
                 placeholder="Add a message to your trade offer..."
                 placeholderTextColor={colors.textPlaceholder}
                 value={notes}
-                onChangeText={onNotesChange}
-                maxLength={MAX_TRADE_NOTES_LENGTH}
+                onChangeText={(value) => {
+                    const nextBytes = utf8ByteLength(value)
+                    if (nextBytes <= MAX_TRADE_NOTES_BYTES || nextBytes < notesBytes) onNotesChange(value)
+                }}
                 multiline
                 numberOfLines={3}
                 accessibilityLabel={notesError
                     ? `Trade notes. ${notesError}`
-                    : `Trade notes. ${notes.length} of ${MAX_TRADE_NOTES_LENGTH} characters.`
+                    : `Trade notes. ${notesBytes} of ${MAX_TRADE_NOTES_BYTES} UTF-8 bytes.`
                 }
                 aria-invalid={Boolean(notesError)}
                 testID="trade-notes-input"
@@ -209,10 +212,10 @@ export function MultiTeamTradeBuilder({
                 ) : null}
                 <Text
                     style={[styles.notesCount, notesError && styles.notesCountInvalid]}
-                    accessibilityLabel={`Trade notes character count: ${notes.length} of ${MAX_TRADE_NOTES_LENGTH}`}
+                    accessibilityLabel={`Trade notes byte count: ${notesBytes} of ${MAX_TRADE_NOTES_BYTES}`}
                     testID="trade-notes-count"
                 >
-                    {notes.length} / {MAX_TRADE_NOTES_LENGTH}
+                    {notesBytes} / {MAX_TRADE_NOTES_BYTES} bytes
                 </Text>
             </View>
             <Text style={styles.sectionLabel}>TERMS</Text>

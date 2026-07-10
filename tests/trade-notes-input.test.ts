@@ -3,7 +3,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { describe, expect, it, vi } from 'vitest'
 import { MultiTeamTradeBuilder } from '@/components/trades/MultiTeamTradeBuilder'
 import { validateTradeNotes } from '@/lib/trade-composer'
-import { MAX_TRADE_NOTES_LENGTH } from '@pancake/core'
+import { MAX_TRADE_NOTES_BYTES } from '@pancake/core'
 import type { TradeParticipantView } from '@/lib/trade-ui-model'
 
 vi.mock('react-native', () => ({
@@ -37,6 +37,7 @@ const participant = (memberId: string, destinationId: string): TradeParticipantV
 
 const renderBuilder = async (notes: string) => {
     let renderer!: ReactTestRenderer
+    const onNotesChange = vi.fn()
     await act(async () => {
         renderer = create(React.createElement(MultiTeamTradeBuilder, {
             participants: [participant('me', 'them'), participant('them', 'me')],
@@ -59,35 +60,39 @@ const renderBuilder = async (notes: string) => {
             onPlayerDestinationChange: vi.fn(),
             onPickDestinationChange: vi.fn(),
             onFaabChange: vi.fn(),
-            onNotesChange: vi.fn(),
+            onNotesChange,
             onExpirationDaysChange: vi.fn(),
         }))
     })
-    return renderer
+    return { renderer, onNotesChange }
 }
 
 describe('trade notes input', () => {
-    it('accepts and counts the 2,000-character boundary', async () => {
-        const renderer = await renderBuilder('n'.repeat(MAX_TRADE_NOTES_LENGTH))
+    it('accepts and counts the 2,000-byte boundary', async () => {
+        const { renderer, onNotesChange } = await renderBuilder('é'.repeat(1_000))
         const input = renderer.root.findByProps({ testID: 'trade-notes-input' })
         const count = renderer.root.findByProps({ testID: 'trade-notes-count' })
 
-        expect(input.props.maxLength).toBe(MAX_TRADE_NOTES_LENGTH)
+        expect(input.props.maxLength).toBeUndefined()
         expect(input.props['aria-invalid']).toBe(false)
-        expect(count.props.children).toEqual([MAX_TRADE_NOTES_LENGTH, ' / ', MAX_TRADE_NOTES_LENGTH])
+        expect(count.props.children).toEqual([MAX_TRADE_NOTES_BYTES, ' / ', MAX_TRADE_NOTES_BYTES, ' bytes'])
+        await act(async () => { input.props.onChangeText('é'.repeat(1_001)) })
+        expect(onNotesChange).not.toHaveBeenCalled()
         await act(async () => { renderer.unmount() })
     })
 
     it('announces and counts an oversized edit or counter prefill', async () => {
-        const renderer = await renderBuilder('n'.repeat(MAX_TRADE_NOTES_LENGTH + 1))
+        const { renderer, onNotesChange } = await renderBuilder('😀'.repeat(501))
         const input = renderer.root.findByProps({ testID: 'trade-notes-input' })
         const count = renderer.root.findByProps({ testID: 'trade-notes-count' })
         const error = renderer.root.findByProps({ testID: 'trade-notes-error' })
 
         expect(input.props['aria-invalid']).toBe(true)
-        expect(input.props.accessibilityLabel).toContain('Notes must contain at most 2000 characters.')
-        expect(count.props.children).toEqual([MAX_TRADE_NOTES_LENGTH + 1, ' / ', MAX_TRADE_NOTES_LENGTH])
+        expect(input.props.accessibilityLabel).toContain('Notes must contain at most 2000 UTF-8 bytes.')
+        expect(count.props.children).toEqual([2_004, ' / ', MAX_TRADE_NOTES_BYTES, ' bytes'])
         expect(error.props.accessibilityRole).toBe('alert')
+        await act(async () => { input.props.onChangeText('😀'.repeat(500)) })
+        expect(onNotesChange).toHaveBeenCalledWith('😀'.repeat(500))
         await act(async () => { renderer.unmount() })
     })
 })

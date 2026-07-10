@@ -3,7 +3,8 @@ import { supabase } from '../_shared/supabase.ts'
 import {
   MAX_TRADE_EXPIRATION_DAYS,
   MAX_TRADE_ITEMS,
-  MAX_TRADE_NOTES_LENGTH,
+  MAX_TRADE_NOTES_BYTES,
+  MAX_TRADE_PARTICIPANTS,
 } from '../_shared/tradeLimits.ts'
 import {
   json,
@@ -153,7 +154,7 @@ function tradeAssetPayload(body: Record<string, unknown>): TradeAssetPayload {
     requestPlayerIds: optionalUuidArrayField(body, 'requestPlayerIds'),
     offerPickIds: optionalUuidArrayField(body, 'offerPickIds'),
     requestPickIds: optionalUuidArrayField(body, 'requestPickIds'),
-    notes: optionalStringField(body, 'notes', { maxLength: MAX_TRADE_NOTES_LENGTH }),
+    notes: optionalStringField(body, 'notes', { maxUtf8Bytes: MAX_TRADE_NOTES_BYTES }),
     expiresAt: optionalTradeExpirationField(body, 'expiresAt'),
     offerFaabAmount: optionalIntegerField(body, 'offerFaabAmount', { min: 0, max: MAX_TRADE_FAAB }) ?? 0,
     requestFaabAmount: optionalIntegerField(body, 'requestFaabAmount', { min: 0, max: MAX_TRADE_FAAB }) ?? 0,
@@ -199,14 +200,14 @@ function multiTeamTradePayload(body: Record<string, unknown>, proposerMemberId: 
   if (participantCount < 3) {
     throw new ValidationError('A multi-team trade requires at least 3 teams.')
   }
-  if (participantCount > 12) {
-    throw new ValidationError('A trade cannot include more than 12 teams.')
+  if (participantCount > MAX_TRADE_PARTICIPANTS) {
+    throw new ValidationError(`A trade cannot include more than ${MAX_TRADE_PARTICIPANTS} teams.`)
   }
 
   return {
     participantMemberIds,
     items,
-    notes: optionalStringField(body, 'notes', { maxLength: MAX_TRADE_NOTES_LENGTH }),
+    notes: optionalStringField(body, 'notes', { maxUtf8Bytes: MAX_TRADE_NOTES_BYTES }),
     expiresAt: optionalTradeExpirationField(body, 'expiresAt'),
   }
 }

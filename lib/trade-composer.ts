@@ -8,7 +8,7 @@ import type {
 import { endOfETDayUTC } from '@/lib/shared/dates'
 import type { LeagueStatus } from '@/types/database'
 import { isMultiTeamTradeSubmittable } from '@/lib/multi-team-trade-state'
-import { MAX_TRADE_EXPIRATION_DAYS, MAX_TRADE_NOTES_LENGTH } from '@pancake/core'
+import { MAX_TRADE_EXPIRATION_DAYS, MAX_TRADE_NOTES_BYTES, utf8ByteLength } from '@pancake/core'
 
 export type TradeComposerMode = 'propose' | 'edit' | 'counter'
 
@@ -127,7 +127,7 @@ const DEFAULT_EXPIRATION_DAYS = 3
 const DAY_MS = 24 * 60 * 60 * 1000
 const MAX_DATE_MS = 8_640_000_000_000_000
 const EXPIRATION_ERROR = `Expiration must be between 1 and ${MAX_TRADE_EXPIRATION_DAYS} days.`
-const NOTES_ERROR = `Notes must contain at most ${MAX_TRADE_NOTES_LENGTH} characters.`
+const NOTES_ERROR = `Notes must contain at most ${MAX_TRADE_NOTES_BYTES} UTF-8 bytes.`
 
 export function getTradeComposerMode(input: TradeComposerModeInput): TradeComposerModeState {
     const editTradeId = input.editTradeId ?? null
@@ -199,7 +199,7 @@ export function validateTradeExpirationDays(value: string): { days: number | nul
 }
 
 export function validateTradeNotes(value: string): { error: string | null } {
-    return { error: value.length > MAX_TRADE_NOTES_LENGTH ? NOTES_ERROR : null }
+    return { error: utf8ByteLength(value) > MAX_TRADE_NOTES_BYTES ? NOTES_ERROR : null }
 }
 
 function generatedExpirationMs(

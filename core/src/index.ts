@@ -54,7 +54,9 @@ export type { LineupSlotType, SlotType } from './positions'
 export {
     MAX_TRADE_EXPIRATION_DAYS,
     MAX_TRADE_ITEMS,
-    MAX_TRADE_NOTES_LENGTH,
+    MAX_TRADE_NOTES_BYTES,
+    MAX_TRADE_PARTICIPANTS,
+    utf8ByteLength,
 } from './trades/limits'
 
 // Types

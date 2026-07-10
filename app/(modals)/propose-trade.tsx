@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { MAX_TRADE_ITEMS } from '@pancake/core'
+import { MAX_TRADE_ITEMS, MAX_TRADE_PARTICIPANTS } from '@pancake/core'
 import { EmptyState } from '@/components/EmptyState'
 import { ErrorBanner } from '@/components/ui'
 import { MultiTeamTradeBuilder } from '@/components/trades/MultiTeamTradeBuilder'
@@ -210,6 +210,11 @@ export default function ProposeTradeScreen() {
         : items.length === MAX_TRADE_ITEMS
             ? 'Trade item limit reached. Remove an item before selecting another.'
             : null
+    const participantLimitMessage = multiTeamMode && participantIds.length >= MAX_TRADE_PARTICIPANTS
+        ? participantIds.length > MAX_TRADE_PARTICIPANTS
+            ? `This trade has ${participantIds.length} teams. Remove ${participantIds.length - MAX_TRADE_PARTICIPANTS} to meet the ${MAX_TRADE_PARTICIPANTS}-team limit.`
+            : 'Trade team limit reached. Remove a team before selecting another.'
+        : null
     const canSubmit = !tradingClosed && !submitting && composer.assetsReady && withinItemLimit &&
         !notesError && !expirationError && (
         multiTeamMode
@@ -328,6 +333,16 @@ export default function ProposeTradeScreen() {
                         <Text style={styles.lockBannerText}>{itemLimitMessage}</Text>
                     </View>
                 ) : null}
+                {participantLimitMessage ? (
+                    <View
+                        style={styles.lockBanner}
+                        accessibilityRole="alert"
+                        accessibilityLiveRegion="polite"
+                        testID="trade-participant-limit"
+                    >
+                        <Text style={styles.lockBannerText}>{participantLimitMessage}</Text>
+                    </View>
+                ) : null}
                 <Text style={styles.sectionLabel}>TRADE WITH</Text>
                 {canUseMultiTeamMode ? (
                     <View style={styles.modeSwitch}>
@@ -340,14 +355,18 @@ export default function ProposeTradeScreen() {
                         const active = multiTeamMode
                             ? composer.selectedParticipantIds.has(member.id)
                             : selectedRecipientId === member.id
+                        const participantDisabled = multiTeamMode && !active &&
+                            participantIds.length >= MAX_TRADE_PARTICIPANTS
                         return (
                             <Pressable
                                 key={member.id}
-                                style={[styles.teamChip, active && styles.teamChipActive]}
+                                style={[styles.teamChip, active && styles.teamChipActive,
+                                    participantDisabled && styles.teamChipDisabled]}
                                 onPress={() => selectTeam(member.id)}
+                                disabled={participantDisabled}
                                 accessibilityRole="button"
                                 accessibilityLabel={`${active ? 'Remove' : 'Trade with'} ${member.team_name ?? 'Unnamed team'}`}
-                                accessibilityState={{ selected: active }}
+                                accessibilityState={{ selected: active, disabled: participantDisabled }}
                                 testID={`trade-participant-${member.id}`}
                                 id={`trade-participant-${member.id}`}
                             >
@@ -509,6 +528,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     teamChipActive: { backgroundColor: colors.primary },
+    teamChipDisabled: { opacity: 0.45 },
     teamChipText: { flexShrink: 1, fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textSecondary, textAlign: 'center' },
     teamChipTextActive: { color: colors.textWhite },
     lockBanner: {

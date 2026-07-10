@@ -1,5 +1,5 @@
 import type { MultiTeamTradeItemPayload, Trade } from '@/lib/trades'
-import { MAX_TRADE_ITEMS } from '@pancake/core'
+import { MAX_TRADE_ITEMS, MAX_TRADE_PARTICIPANTS } from '@pancake/core'
 
 type AssetDestinations = Record<string, string | null>
 
@@ -109,7 +109,10 @@ export function multiTeamTradeReducer(
         case 'toggle-participant': {
             const selectedParticipantIds = new Set(state.participantOrder.filter((memberId) => memberId !== action.actorMemberId))
             if (selectedParticipantIds.has(action.memberId)) selectedParticipantIds.delete(action.memberId)
-            else selectedParticipantIds.add(action.memberId)
+            else {
+                if (state.participantOrder.length >= MAX_TRADE_PARTICIPANTS) return state
+                selectedParticipantIds.add(action.memberId)
+            }
             const participantOrder = [
                 action.actorMemberId,
                 ...action.availableMemberIds.filter((memberId) => selectedParticipantIds.has(memberId)),
@@ -254,7 +257,8 @@ export function isMultiTeamTradeSubmittable(
     items: readonly unknown[],
 ): boolean {
     const participants = new Set(participantIds.filter(Boolean))
-    if (participants.size < 3 || items.length === 0 || items.length > MAX_TRADE_ITEMS) return false
+    if (participants.size < 3 || participants.size > MAX_TRADE_PARTICIPANTS ||
+        items.length === 0 || items.length > MAX_TRADE_ITEMS) return false
     const involved = new Set<string>()
     for (const item of items) {
         if (!isMultiTeamTradeItemPayload(item)) return false

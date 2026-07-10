@@ -114,7 +114,11 @@ Deno.env.set('EXPO_PUSH_URL', `http://127.0.0.1:${(expo.addr as Deno.NetAddr).po
 const { handleApiRoute } = await import('./router.ts')
 const { assertUuid } = await import('../_shared/apiRuntime.ts')
 const { EDGE_ARTIFACT_DIGEST, RELEASE_COMMIT_SHA } = await import('../_shared/releaseMetadata.ts')
-const { MAX_TRADE_EXPIRATION_DAYS, MAX_TRADE_NOTES_LENGTH } = await import('../_shared/tradeLimits.ts')
+const {
+  MAX_TRADE_EXPIRATION_DAYS,
+  MAX_TRADE_NOTES_BYTES,
+  MAX_TRADE_PARTICIPANTS,
+} = await import('../_shared/tradeLimits.ts')
 
 const API = 'http://localhost/functions/v1/api'
 const UUID = '11111111-1111-4111-8111-111111111111'
@@ -420,22 +424,35 @@ Deno.test({
       throw new Error(`expected trade item cap rejection, got ${oversizedItems.status}: ${JSON.stringify(oversizedItemsBody)}`)
     }
 
-    const participantMemberIds = Array.from(
-      { length: 13 },
+    const participantMemberIds = [MEMBER_ID, ...Array.from(
+      { length: MAX_TRADE_PARTICIPANTS - 1 },
       (_, index) => `aaaaaaaa-aaaa-4aaa-8aaa-${String(index + 1).padStart(12, '0')}`,
-    )
-    const oversizedParticipants = await handleApiRoute(authedRequest('POST', '/trades/propose-multi', {
+    )]
+    const boundaryParticipants = await handleApiRoute(authedRequest('POST', '/trades/propose-multi', {
       ...baseBody,
       participantMemberIds,
       items: [item],
     }))
+    if (boundaryParticipants.status !== 200) {
+      throw new Error(`expected ${MAX_TRADE_PARTICIPANTS} participants to reach RPC execution, got ${boundaryParticipants.status}: ${await boundaryParticipants.text()}`)
+    }
+
+    const oversizedParticipants = await handleApiRoute(authedRequest('POST', '/trades/propose-multi', {
+      ...baseBody,
+      participantMemberIds: [
+        ...participantMemberIds,
+        'aaaaaaaa-aaaa-4aaa-8aaa-999999999999',
+      ],
+      items: [item],
+    }))
     const oversizedParticipantsBody = await oversizedParticipants.json()
-    if (oversizedParticipants.status !== 400 || oversizedParticipantsBody.error !== 'A trade cannot include more than 12 teams.') {
+    if (oversizedParticipants.status !== 400 ||
+        oversizedParticipantsBody.error !== `A trade cannot include more than ${MAX_TRADE_PARTICIPANTS} teams.`) {
       throw new Error(`expected trade participant cap rejection, got ${oversizedParticipants.status}: ${JSON.stringify(oversizedParticipantsBody)}`)
     }
 
     for (const [field, value, expected] of [
-      ['notes', 'x'.repeat(2001), 'notes must contain at most 2000 characters'],
+      ['notes', 'é'.repeat(1001), 'notes must contain at most 2000 UTF-8 bytes'],
       ['offerFaabAmount', 1_000_001, 'offerFaabAmount must be at most 1000000'],
     ] as const) {
       const response = await handleApiRoute(authedRequest('POST', '/trades/propose', {
@@ -497,22 +514,24 @@ Deno.test({
     ]
 
     for (const { path, body } of routeBodies) {
-      const notesBoundary = await handleApiRoute(authedRequest('POST', path, {
-        ...body,
-        notes: 'n'.repeat(MAX_TRADE_NOTES_LENGTH),
-      }))
-      if (notesBoundary.status !== 200) {
-        throw new Error(`expected ${path} to accept maximum notes, got ${notesBoundary.status}: ${await notesBoundary.text()}`)
+      for (const notes of [
+        'n'.repeat(MAX_TRADE_NOTES_BYTES),
+        'é'.repeat(1_000),
+        '😀'.repeat(500),
+      ]) {
+        const notesBoundary = await handleApiRoute(authedRequest('POST', path, { ...body, notes }))
+        if (notesBoundary.status !== 200) {
+          throw new Error(`expected ${path} to accept maximum notes, got ${notesBoundary.status}: ${await notesBoundary.text()}`)
+        }
       }
 
-      const oversizedNotes = await handleApiRoute(authedRequest('POST', path, {
-        ...body,
-        notes: 'n'.repeat(MAX_TRADE_NOTES_LENGTH + 1),
-      }))
-      const oversizedNotesBody = await oversizedNotes.json()
-      const expectedNotes = `notes must contain at most ${MAX_TRADE_NOTES_LENGTH} characters`
-      if (oversizedNotes.status !== 400 || oversizedNotesBody.error !== expectedNotes) {
-        throw new Error(`expected ${path} notes cap rejection, got ${oversizedNotes.status}: ${JSON.stringify(oversizedNotesBody)}`)
+      for (const notes of ['n'.repeat(MAX_TRADE_NOTES_BYTES + 1), 'é'.repeat(1_001), '😀'.repeat(501)]) {
+        const oversizedNotes = await handleApiRoute(authedRequest('POST', path, { ...body, notes }))
+        const oversizedNotesBody = await oversizedNotes.json()
+        const expectedNotes = `notes must contain at most ${MAX_TRADE_NOTES_BYTES} UTF-8 bytes`
+        if (oversizedNotes.status !== 400 || oversizedNotesBody.error !== expectedNotes) {
+          throw new Error(`expected ${path} notes cap rejection, got ${oversizedNotes.status}: ${JSON.stringify(oversizedNotesBody)}`)
+        }
       }
 
       const boundary = await handleApiRoute(authedRequest('POST', path, {
