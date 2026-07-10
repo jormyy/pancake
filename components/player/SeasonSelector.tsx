@@ -23,6 +23,9 @@ export function SeasonSelector({ seasons, selectedSeason, onSelect }: Props) {
                         key={year}
                         style={[styles.pill, active && styles.pillActive]}
                         onPress={() => onSelect(year)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Show ${seasonLabel(year)} season`}
+                        accessibilityState={{ selected: active }}
                     >
                         <Text style={[styles.pillText, active && styles.pillTextActive]}>
                             {seasonLabel(year)}

@@ -194,6 +194,9 @@ export default function ProfileScreen() {
                         onPress={handlePickAvatar}
                         disabled={avatarUploading || !profileLoaded}
                         style={styles.avatarWrapper}
+                        accessibilityRole="button"
+                        accessibilityLabel="Change profile photo"
+                        accessibilityState={{ disabled: avatarUploading || !profileLoaded, busy: avatarUploading }}
                     >
                         <Avatar
                             name={profile?.display_name ?? profile?.username ?? '?'}

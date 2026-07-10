@@ -163,6 +163,9 @@ function RosterTablePlayerItem({
             onPress={onPress}
             onLongPress={onLongPress}
             disabled={isBusy}
+            accessibilityRole="button"
+            accessibilityLabel={`Open ${item.players.display_name}`}
+            accessibilityState={{ disabled: isBusy }}
         >
             <Text style={styles.rosterTableSlot}>{slot}</Text>
             <View style={styles.rosterTablePlayerCell}>
@@ -192,15 +195,22 @@ function RosterTablePlayerItem({
             <Text style={styles.rosterTableStat}>{fmtStat(stats?.games_played, true)}</Text>
             <View style={styles.rosterTableActions}>
                 {section === 'taxi' ? (
-                    <Pressable style={styles.tableActionButton} onPress={() => onToggleTaxi(item)} disabled={isBusy}>
+                    <Pressable style={styles.tableActionButton} onPress={() => onToggleTaxi(item)} disabled={isBusy}
+                        accessibilityRole="button" accessibilityLabel={`Activate ${item.players.display_name}`}
+                        accessibilityState={{ disabled: isBusy }}>
                         <Text style={styles.tableActionText}>Activate</Text>
                     </Pressable>
                 ) : canIR ? (
-                    <Pressable style={styles.tableActionButton} onPress={() => onToggleIR(item)} disabled={isBusy}>
+                    <Pressable style={styles.tableActionButton} onPress={() => onToggleIR(item)} disabled={isBusy}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${item.is_on_ir ? 'Activate' : 'Move to IR'} ${item.players.display_name}`}
+                        accessibilityState={{ disabled: isBusy }}>
                         <Text style={styles.tableActionText}>{item.is_on_ir ? 'Active' : 'IR'}</Text>
                     </Pressable>
                 ) : canTaxi ? (
-                    <Pressable style={styles.tableActionButton} onPress={() => onToggleTaxi(item)} disabled={isBusy}>
+                    <Pressable style={styles.tableActionButton} onPress={() => onToggleTaxi(item)} disabled={isBusy}
+                        accessibilityRole="button" accessibilityLabel={`Move ${item.players.display_name} to taxi`}
+                        accessibilityState={{ disabled: isBusy }}>
                         <Text style={styles.tableActionText}>Taxi</Text>
                     </Pressable>
                 ) : null}
