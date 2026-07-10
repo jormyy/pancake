@@ -24,8 +24,7 @@ type MultiTeamTradeBuilderProps = {
     onDestinationChange: (memberId: string, toMemberId: string) => void
     onPlayerDestinationChange: (memberId: string, playerId: string, toMemberId: string) => void
     onPickDestinationChange: (memberId: string, pickId: string, toMemberId: string) => void
-    onFaabChange: (memberId: string, value: string) => void
-    onFaabDestinationChange: (memberId: string, toMemberId: string) => void
+    onFaabChange: (memberId: string, toMemberId: string, value: string) => void
     onNotesChange: (value: string) => void
     onExpirationDaysChange: (value: string) => void
 }
@@ -49,7 +48,6 @@ export function MultiTeamTradeBuilder({
     onPlayerDestinationChange,
     onPickDestinationChange,
     onFaabChange,
-    onFaabDestinationChange,
     onNotesChange,
     onExpirationDaysChange,
 }: MultiTeamTradeBuilderProps) {
@@ -120,7 +118,6 @@ export function MultiTeamTradeBuilder({
             onPlayerDestinationChange={onPlayerDestinationChange}
             onPickDestinationChange={onPickDestinationChange}
             onFaabChange={onFaabChange}
-            onFaabDestinationChange={onFaabDestinationChange}
         />
     ))
 

@@ -16,8 +16,7 @@ type ParticipantTradePanelProps = {
     onDestinationChange: (memberId: string, toMemberId: string) => void
     onPlayerDestinationChange: (memberId: string, playerId: string, toMemberId: string) => void
     onPickDestinationChange: (memberId: string, pickId: string, toMemberId: string) => void
-    onFaabChange: (memberId: string, value: string) => void
-    onFaabDestinationChange: (memberId: string, toMemberId: string) => void
+    onFaabChange: (memberId: string, toMemberId: string, value: string) => void
 }
 
 type RouteOptionsProps = {
@@ -76,7 +75,6 @@ export function ParticipantTradePanel({
     onPlayerDestinationChange,
     onPickDestinationChange,
     onFaabChange,
-    onFaabDestinationChange,
 }: ParticipantTradePanelProps) {
     const selectedPlayers = participant.roster.filter((player) => participant.selectedPlayerIds.has(player.players.id))
     const selectedPicks = participant.picks.filter((pick) => participant.selectedPickIds.has(pick.pickId))
@@ -166,26 +164,21 @@ export function ParticipantTradePanel({
             ) : null}
             {faabEnabled ? (
                 <View style={styles.faabRow}>
-                    <Text style={styles.termLabel}>FAAB to {participantName(participant.faabDestinationId)}</Text>
-                    <TextInput
-                        style={styles.termInput}
-                        value={participant.faabInput}
-                        onChangeText={(value) => onFaabChange(participant.memberId, value)}
-                        keyboardType="numeric"
-                        accessibilityLabel={`FAAB sent by ${participantName(participant.memberId)} to ${participantName(participant.faabDestinationId)}`}
-                    />
-                    {participant.destinationIds.length > 1 && (parseInt(participant.faabInput, 10) || 0) > 0 ? (
-                        <RouteOptions
-                            destinationIds={participant.destinationIds}
-                            selectedId={participant.faabDestinationId}
-                            participantName={participantName}
-                            accessibilityLabel={(destinationId) =>
-                                `Route FAAB from ${participantName(participant.memberId)} to ${participantName(destinationId)}`
-                            }
-                            testID={(destinationId) => `trade-faab-route-${participant.memberId}-${destinationId}`}
-                            onChange={(destinationId) => onFaabDestinationChange(participant.memberId, destinationId)}
-                        />
-                    ) : null}
+                    <Text style={styles.routePickerLabel}>FAAB ROUTES</Text>
+                    {participant.destinationIds.map((destinationId) => (
+                        <View key={destinationId} style={styles.faabDestinationRow}>
+                            <Text style={styles.termLabel}>To {participantName(destinationId)}</Text>
+                            <TextInput
+                                style={styles.termInput}
+                                value={participant.faabInputs[destinationId] ?? '0'}
+                                onChangeText={(value) => onFaabChange(participant.memberId, destinationId, value)}
+                                keyboardType="numeric"
+                                accessibilityLabel={`FAAB sent by ${participantName(participant.memberId)} to ${participantName(destinationId)}`}
+                                testID={`trade-faab-${participant.memberId}-${destinationId}`}
+                                id={`trade-faab-${participant.memberId}-${destinationId}`}
+                            />
+                        </View>
+                    ))}
                 </View>
             ) : null}
         </View>
@@ -223,7 +216,8 @@ const styles = StyleSheet.create({
     selectedRoutes: { paddingHorizontal: spacing.xl, paddingTop: spacing.md, paddingBottom: spacing.sm, gap: spacing.sm },
     selectedRouteRow: { gap: spacing.xs },
     selectedRouteName: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textPrimary },
-    faabRow: { marginHorizontal: spacing.xl, marginBottom: spacing.lg, gap: spacing.xs, maxWidth: 220 },
+    faabRow: { marginHorizontal: spacing.xl, marginBottom: spacing.lg, gap: spacing.sm },
+    faabDestinationRow: { gap: spacing.xs, maxWidth: 220 },
     termLabel: { fontSize: 10, fontWeight: fontWeight.bold, color: colors.textMuted, letterSpacing: 0 },
     termInput: {
         minHeight: 44,

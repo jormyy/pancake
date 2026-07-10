@@ -18,6 +18,5 @@ export type TradeParticipantView = {
     selectedPickIds: Set<string>
     playerDestinationIds: Record<string, string>
     pickDestinationIds: Record<string, string>
-    faabInput: string
-    faabDestinationId: string
+    faabInputs: Record<string, string>
 }

@@ -66,8 +66,11 @@ export default function TradesScreen() {
     const {
         trades,
         loading,
+        loadingMore: offersLoadingMore,
+        hasMore: offersHaveMore,
         error: tradesError,
         refresh: load,
+        loadMore: loadMoreOffers,
     } = useTradesFeed(myMemberId, leagueId)
     const {
         trades: historyTrades,
@@ -222,7 +225,9 @@ export default function TradesScreen() {
                 : tab === 'picks' && picksList.length === 0 ? <View style={styles.emptyState}><Text style={styles.emptyStateText}>No draft picks</Text></View>
                     : <FlashList data={listData} keyExtractor={tradeListKey} getItemType={tradeListItemType}
                         ItemSeparatorComponent={ItemSeparator} renderItem={renderItem}
-                        onEndReached={tab === 'history' && historyHasMore ? loadMoreHistory : undefined}
+                        onEndReached={tab === 'history' && historyHasMore
+                            ? loadMoreHistory
+                            : tab === 'offers' && offersHaveMore && !offersLoadingMore ? loadMoreOffers : undefined}
                         onEndReachedThreshold={0.4} />}
     </View></SafeAreaView>
 }

@@ -31,8 +31,12 @@ export function useMultiTeamTradeComposer({
     faabEnabled,
 }: UseMultiTeamTradeComposerArgs) {
     const [composerState, dispatch] = useReducer(multiTeamTradeReducer, myMemberId, createMultiTeamTradeState)
-    const [participantRosters, setParticipantRosters] = useState<Record<string, RosterPlayer[]>>({})
-    const [participantPicks, setParticipantPicks] = useState<Record<string, TradePickItem[]>>({})
+    const [participantAssets, setParticipantAssets] = useState<{
+        rosters: Record<string, RosterPlayer[]>
+        picks: Record<string, TradePickItem[]>
+    }>({ rosters: {}, picks: {} })
+    const participantRosters = participantAssets.rosters
+    const participantPicks = participantAssets.picks
     const [avgMap, setAvgMap] = useState(EMPTY_AVG_MAP)
     const [avgStatsMap, setAvgStatsMap] = useState(EMPTY_STATS_MAP)
     const [rosterLoading, setRosterLoading] = useState(false)
@@ -67,16 +71,14 @@ export function useMultiTeamTradeComposer({
                 pickId,
                 resolvedDestination(composerState, memberId, 'pick', pickId),
             ])),
-            faabInput: participant.faabInput,
-            faabDestinationId: participant.faabDestinationId ?? participant.defaultDestinationId,
+            faabInputs: participant.faabInputs,
         }
     }), [composerState, participantIds, participantPicks, participantRosters])
 
     const reset = useCallback(() => {
         rosterLoadSeqRef.current += 1
         dispatch({ type: 'reset', actorMemberId: myMemberId })
-        setParticipantRosters({})
-        setParticipantPicks({})
+        setParticipantAssets({ rosters: {}, picks: {} })
         setAvgMap(EMPTY_AVG_MAP)
         setAvgStatsMap(EMPTY_STATS_MAP)
         setRosterError(null)
@@ -113,12 +115,8 @@ export function useMultiTeamTradeComposer({
         dispatch({ type: 'select-asset', asset, memberId, assetId })
     }, [])
 
-    const setParticipantFaab = useCallback((memberId: string, value: string) => {
-        dispatch({ type: 'set-faab', memberId, value })
-    }, [])
-
-    const setParticipantFaabDestination = useCallback((memberId: string, toMemberId: string) => {
-        dispatch({ type: 'set-faab-destination', memberId, toMemberId })
+    const setParticipantFaab = useCallback((memberId: string, toMemberId: string, value: string) => {
+        dispatch({ type: 'set-faab', memberId, toMemberId, value })
     }, [])
 
     const prefillFromTrade = useCallback((trade: Trade, actorMemberId = myMemberId) => {
@@ -149,8 +147,7 @@ export function useMultiTeamTradeComposer({
 
     const retry = useCallback(() => {
         rosterLoadSeqRef.current += 1
-        setParticipantRosters({})
-        setParticipantPicks({})
+        setParticipantAssets({ rosters: {}, picks: {} })
         setAvgMap(EMPTY_AVG_MAP)
         setAvgStatsMap(EMPTY_STATS_MAP)
         setRetryToken((value) => value + 1)
@@ -162,12 +159,14 @@ export function useMultiTeamTradeComposer({
 
     useEffect(() => {
         const activeParticipants = new Set(participantIds)
-        setParticipantRosters((current) => Object.fromEntries(
-            Object.entries(current).filter(([memberId]) => activeParticipants.has(memberId)),
-        ))
-        setParticipantPicks((current) => Object.fromEntries(
-            Object.entries(current).filter(([memberId]) => activeParticipants.has(memberId)),
-        ))
+        setParticipantAssets((current) => ({
+            rosters: Object.fromEntries(
+                Object.entries(current.rosters).filter(([memberId]) => activeParticipants.has(memberId)),
+            ),
+            picks: Object.fromEntries(
+                Object.entries(current.picks).filter(([memberId]) => activeParticipants.has(memberId)),
+            ),
+        }))
     }, [participantIds])
 
     useEffect(() => {
@@ -205,8 +204,10 @@ export function useMultiTeamTradeComposer({
                     leagueId,
                 )
                 if (rosterLoadSeqRef.current !== requestId) return
-                setParticipantRosters((current) => ({ ...current, ...nextRosters }))
-                setParticipantPicks((current) => ({ ...current, ...picks }))
+                setParticipantAssets((current) => ({
+                    rosters: { ...current.rosters, ...nextRosters },
+                    picks: { ...current.picks, ...picks },
+                }))
                 setAvgMap((current) => new Map([...current, ...stats.avgMap]))
                 setAvgStatsMap((current) => new Map([...current, ...stats.avgStatsMap]))
                 setLoadedParticipantKey(selectedParticipantKey)
@@ -253,7 +254,6 @@ export function useMultiTeamTradeComposer({
         setParticipantPlayerDestination,
         setParticipantPickDestination,
         setParticipantFaab,
-        setParticipantFaabDestination,
         participantName,
         buildMultiTeamItems,
     }

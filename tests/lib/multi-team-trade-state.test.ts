@@ -165,4 +165,17 @@ describe('multi-team trade state', () => {
             expect.objectContaining({ faabAmount: 9, fromMemberId: 'A', toMemberId: 'B' }),
         ]))
     })
+
+    it('round-trips multiple FAAB destinations from the same sender without merging routes', () => {
+        const state = multiTeamTradeStateFromTrade(routedTrade([
+            { kind: 'faab', amount: 5, fromMemberId: 'A', toMemberId: 'B' },
+            { kind: 'faab', amount: 7, fromMemberId: 'A', toMemberId: 'C' },
+        ]), 'A')
+
+        expect(buildMultiTeamTradeItems(state, true)).toEqual(expect.arrayContaining([
+            { fromMemberId: 'A', toMemberId: 'B', faabAmount: 5 },
+            { fromMemberId: 'A', toMemberId: 'C', faabAmount: 7 },
+        ]))
+        expect(buildMultiTeamTradeItems(state, true)).toHaveLength(2)
+    })
 })

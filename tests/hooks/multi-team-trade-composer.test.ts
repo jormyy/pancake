@@ -48,7 +48,7 @@ describe('useMultiTeamTradeComposer', () => {
         await act(async () => {
             latest.setParticipantIds(['member-a', 'member-other'])
             latest.selectParticipantAsset('member-a', 'player', 'player-a')
-            latest.setParticipantFaab('member-a', '25')
+            latest.setParticipantFaab('member-a', 'member-other', '25')
         })
         expect(latest.participantIds).toEqual(['member-a', 'member-other'])
         expect(latest.buildMultiTeamItems()).toHaveLength(2)

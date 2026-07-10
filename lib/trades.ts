@@ -82,6 +82,30 @@ export type TradePageCursor = {
     token: string
 }
 
+type TradeHistoryCursor = { proposedAt: string; tradeId: string }
+
+export function tradeHistoryCursorToken(cursor: TradeHistoryCursor): string {
+    return encodeURIComponent(JSON.stringify(cursor))
+}
+
+export function parseTradeHistoryCursor(cursor: TradePageCursor | null): TradeHistoryCursor | null {
+    if (!cursor) return null
+    try {
+        const parsed = JSON.parse(decodeURIComponent(cursor.token)) as Partial<TradeHistoryCursor>
+        if (typeof parsed.proposedAt !== 'string' || !Number.isFinite(Date.parse(parsed.proposedAt)) ||
+            typeof parsed.tradeId !== 'string' || parsed.tradeId.length === 0) {
+            throw new Error('invalid fields')
+        }
+        return { proposedAt: parsed.proposedAt, tradeId: parsed.tradeId }
+    } catch {
+        throw new Error('Trade history cursor is invalid.')
+    }
+}
+
+export function tradeHistoryCursorFilter(cursor: TradeHistoryCursor): string {
+    return `proposed_at.lt.${cursor.proposedAt},and(proposed_at.eq.${cursor.proposedAt},trade_id.lt.${cursor.tradeId})`
+}
+
 export type TradePage = { trades: Trade[]; nextCursor: TradePageCursor | null }
 
 type TeamNameRow = { team_name: string | null } | null
@@ -567,18 +591,19 @@ export async function getTradeHistoryForScreen(
     limit = 40,
     cursor: TradePageCursor | null = null,
 ): Promise<TradePage> {
-    const parsedOffset = Number.parseInt(cursor?.token ?? '0', 10)
-    const offset = Number.isFinite(parsedOffset) && parsedOffset >= 0 ? parsedOffset : 0
-    const { data: refs, error: refsError } = await supabase
+    const parsedCursor = parseTradeHistoryCursor(cursor)
+    let query = supabase
         .from('trade_participants')
-        .select('trade_id, trades!inner(status)')
+        .select('trade_id, proposed_at, trades!inner(status)')
         .eq('league_id', leagueId)
         .eq('member_id', memberId)
         .neq('trades.status', 'pending')
+    if (parsedCursor) query = query.or(tradeHistoryCursorFilter(parsedCursor))
+    const { data: refs, error: refsError } = await query
         .order('proposed_at', { ascending: false })
         .order('trade_id', { ascending: false })
-        .range(offset, offset + limit - 1)
-        .overrideTypes<{ trade_id: string }[]>()
+        .limit(limit)
+        .overrideTypes<{ trade_id: string; proposed_at: string }[]>()
 
     if (refsError) throw refsError
     if (!refs || refs.length === 0) return { trades: [], nextCursor: null }
@@ -600,7 +625,12 @@ export async function getTradeHistoryForScreen(
 
     return {
         trades: await enrichTradesWithStats(history, leagueId),
-        nextCursor: refs.length === limit ? { token: String(offset + refs.length) } : null,
+        nextCursor: refs.length === limit ? {
+            token: tradeHistoryCursorToken({
+                proposedAt: refs.at(-1)!.proposed_at,
+                tradeId: refs.at(-1)!.trade_id,
+            }),
+        } : null,
     }
 }
 

@@ -332,7 +332,6 @@ export default function ProposeTradeScreen() {
                         onPlayerDestinationChange={composer.setParticipantPlayerDestination}
                         onPickDestinationChange={composer.setParticipantPickDestination}
                         onFaabChange={composer.setParticipantFaab}
-                        onFaabDestinationChange={composer.setParticipantFaabDestination}
                         onNotesChange={setNotes}
                         onExpirationDaysChange={setExpirationDays}
                     />
