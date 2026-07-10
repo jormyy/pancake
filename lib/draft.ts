@@ -502,8 +502,8 @@ export async function pauseForAbsence(draftId: string): Promise<void> {
     await sharedApiPost(`/draft/${draftId}/pause-for-absence`, {})
 }
 
-export async function resumeIfAbsent(draftId: string): Promise<void> {
-    await sharedApiPost(`/draft/${draftId}/resume-if-absent`, {})
+export async function resumeIfAbsent(draftId: string, claims: string[]): Promise<{ resumed: boolean }> {
+    return sharedApiPost<{ resumed: boolean }>(`/draft/${draftId}/resume-if-absent`, { claims })
 }
 
 export function subscribeToDraft(draftId: string, leagueId: string | null | undefined, onChange: () => void): RealtimeChannel {
@@ -527,11 +527,16 @@ export type DraftPresenceSubscription = {
     dispose: () => Promise<void>
 }
 
+export type DraftPresenceSnapshot = {
+    memberIds: string[]
+    claims: string[]
+}
+
 const PRESENCE_CLAIM_REFRESH_MS = 4 * 60 * 1000
 
 export async function subscribeToPresence(
     draftId: string,
-    onSync: (presentMemberIds: string[]) => void,
+    onSync: (snapshot: DraftPresenceSnapshot) => void,
     onError: (error: unknown) => void,
 ): Promise<DraftPresenceSubscription> {
     let claim = (await sharedApiPost<{ claim: string }>(`/draft/${draftId}/presence-claim`, {})).claim
@@ -546,7 +551,7 @@ export async function subscribeToPresence(
             typeof entry.claim === 'string' ? [entry.claim] : []))]
         try {
             const result = await sharedApiPost<{ memberIds: string[] }>(`/draft/${draftId}/resolve-presence`, { claims })
-            if (!disposed && sequence === snapshotSequence) onSync(result.memberIds)
+            if (!disposed && sequence === snapshotSequence) onSync({ memberIds: result.memberIds, claims })
         } catch (error) {
             if (!disposed && sequence === snapshotSequence) onError(error)
         }

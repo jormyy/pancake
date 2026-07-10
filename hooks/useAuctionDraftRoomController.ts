@@ -39,10 +39,12 @@ export function useAuctionDraftRoomController({
 
     // Presence — who is currently in the draft room
     const [presentMemberIds, setPresentMemberIds] = useState<string[]>([])
+    const [presenceClaims, setPresenceClaims] = useState<string[]>([])
     const [presenceSynced, setPresenceSynced] = useState(false)
     const [presenceError, setPresenceError] = useState<string | null>(null)
     const [presenceOwnerKey, setPresenceOwnerKey] = useState<string | null>(null)
-    const resumeDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const resumeRequestRef = useRef<{ ownerKey: string; requestId: number } | null>(null)
+    const resumeSequenceRef = useRef(0)
     const activePresenceKeyRef = useRef<string | null>(null)
     const activeDraftIdRef = useRef<string | undefined>(draftId)
 
@@ -106,13 +108,11 @@ export function useAuctionDraftRoomController({
 
     useEffect(() => {
         setPresentMemberIds([])
+        setPresenceClaims([])
         setPresenceSynced(false)
         setPresenceError(null)
         setPresenceOwnerKey(null)
-        return () => {
-            if (resumeDebounceRef.current) clearTimeout(resumeDebounceRef.current)
-            resumeDebounceRef.current = null
-        }
+        resumeRequestRef.current = null
     }, [presenceKey])
 
     const load = useCallback(async () => {
@@ -177,11 +177,10 @@ export function useAuctionDraftRoomController({
         const ownerKey = presenceKey
         let disposed = false
         let subscription: Awaited<ReturnType<typeof subscribeToPresence>> | null = null
-        void subscribeToPresence(draftId, (ids) => {
+        void subscribeToPresence(draftId, ({ memberIds: ids, claims }) => {
             if (disposed || activePresenceKeyRef.current !== ownerKey) return
-            if (resumeDebounceRef.current) clearTimeout(resumeDebounceRef.current)
-            resumeDebounceRef.current = null
             setPresentMemberIds(ids)
+            setPresenceClaims(claims)
             setPresenceSynced(true)
             setPresenceError(null)
             setPresenceOwnerKey(ownerKey)
@@ -189,6 +188,8 @@ export function useAuctionDraftRoomController({
             if (disposed || activePresenceKeyRef.current !== ownerKey) return
             console.error('Could not verify auction presence.', error)
             setPresenceSynced(false)
+            setPresentMemberIds([])
+            setPresenceClaims([])
             setPresenceError('Could not verify who is present in the draft room.')
         }).then((nextSubscription) => {
             if (disposed || activePresenceKeyRef.current !== ownerKey) {
@@ -200,10 +201,13 @@ export function useAuctionDraftRoomController({
             if (disposed || activePresenceKeyRef.current !== ownerKey) return
             console.error('Could not start auction presence.', error)
             setPresenceSynced(false)
+            setPresentMemberIds([])
+            setPresenceClaims([])
             setPresenceError('Could not verify who is present in the draft room.')
         })
         return () => {
             disposed = true
+            if (activePresenceKeyRef.current === ownerKey) activePresenceKeyRef.current = null
             if (subscription) {
                 void subscription.dispose().catch((error) => console.error('Could not clean up auction presence.', error))
             }
@@ -266,22 +270,26 @@ export function useAuctionDraftRoomController({
         }
 
         if (allPresent && state.draft.status === 'paused' && state.draft.pauseReason === 'member_absent') {
-            // Start the 2-second debounce only once — don't reset it on every
-            // poll-driven re-run. Clearing only happens if conditions stop being met
-            // (another member leaves), which is handled in the else branch below.
-            if (!resumeDebounceRef.current) {
-                const ownerKey = presenceKey
-                resumeDebounceRef.current = setTimeout(() => {
-                    resumeDebounceRef.current = null
-                    if (!ownerKey || activePresenceKeyRef.current !== ownerKey) return
-                    resumeIfAbsent(draftId).catch(() => {/* ignore */}).then(() => load())
-                }, 2000)
-            }
-        } else if (resumeDebounceRef.current) {
-            clearTimeout(resumeDebounceRef.current)
-            resumeDebounceRef.current = null
+            const ownerKey = presenceKey
+            if (!ownerKey || resumeRequestRef.current?.ownerKey === ownerKey) return
+            const request = { ownerKey, requestId: ++resumeSequenceRef.current }
+            resumeRequestRef.current = request
+            void resumeIfAbsent(draftId, presenceClaims)
+                .then(() => {
+                    if (activePresenceKeyRef.current === ownerKey) return load()
+                })
+                .catch((error) => {
+                    if (activePresenceKeyRef.current === ownerKey) {
+                        console.error('Could not resume auction after presence verification.', error)
+                    }
+                })
+                .finally(() => {
+                    if (resumeRequestRef.current?.requestId === request.requestId) {
+                        resumeRequestRef.current = null
+                    }
+                })
         }
-    }, [presenceKey, presenceOwnerKey, presenceSynced, presentMemberIds, state?.draft.status, state?.draft.pauseReason, state?.order, draftId, memberId]) // eslint-disable-line react-hooks/exhaustive-deps
+    }, [presenceClaims, presenceKey, presenceOwnerKey, presenceSynced, presentMemberIds, state?.draft.status, state?.draft.pauseReason, state?.order, draftId, memberId]) // eslint-disable-line react-hooks/exhaustive-deps
 
     // Player search
     useEffect(() => {

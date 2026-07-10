@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({
     getDraftState: vi.fn(),
     placeBid: vi.fn(),
     resumeIfAbsent: vi.fn(),
-    presenceCallback: null as ((ids: string[]) => void) | null,
+    presenceCallback: null as ((snapshot: { memberIds: string[]; claims: string[] }) => void) | null,
     presenceErrorCallback: null as ((error: unknown) => void) | null,
     unsubscribeFromDraft: vi.fn(async () => undefined),
     disposePresence: vi.fn(async () => undefined),
@@ -25,7 +25,7 @@ vi.mock('@/lib/draft', () => ({
     subscribeToDraft: vi.fn(() => ({ topic: 'draft' })),
     subscribeToPresence: vi.fn(async (
         _draftId: string,
-        callback: (ids: string[]) => void,
+        callback: (snapshot: { memberIds: string[]; claims: string[] }) => void,
         onError: (error: unknown) => void,
     ) => {
         mocks.presenceCallback = callback
@@ -97,21 +97,32 @@ afterEach(() => {
 })
 
 describe('auction draft resource identity', () => {
-    it('cancels a pending automatic resume when the room owner unmounts', async () => {
-        vi.useFakeTimers()
+    it('resumes immediately with signed claims and ignores completion after unmount', async () => {
+        let resolveResume!: (value: { resumed: boolean }) => void
+        const resume = new Promise<{ resumed: boolean }>((resolve) => { resolveResume = resolve })
         mocks.getDraftState.mockResolvedValue(state('draft-a'))
-        mocks.resumeIfAbsent.mockResolvedValue(undefined)
+        mocks.resumeIfAbsent.mockReturnValue(resume)
         const Probe = () => {
             useAuctionDraftRoomController({ draftId: 'draft-a', memberId: 'member' })
             return null
         }
         let renderer!: ReactTestRenderer
         await act(async () => { renderer = create(React.createElement(Probe)); await Promise.resolve() })
-        await act(async () => { mocks.presenceCallback?.(['member']); await Promise.resolve() })
+        await act(async () => {
+            mocks.presenceCallback?.({ memberIds: ['member'], claims: ['signed-member-claim'] })
+            await Promise.resolve()
+        })
+        expect(mocks.resumeIfAbsent).toHaveBeenCalledWith('draft-a', ['signed-member-claim'])
+        await act(async () => {
+            mocks.presenceCallback?.({ memberIds: ['member'], claims: ['signed-member-claim'] })
+            await Promise.resolve()
+        })
+        expect(mocks.resumeIfAbsent).toHaveBeenCalledOnce()
+        const readsBeforeUnmount = mocks.getDraftState.mock.calls.length
         await act(async () => { renderer.unmount() })
-        await act(async () => { vi.advanceTimersByTime(2_000); await Promise.resolve() })
+        await act(async () => { resolveResume({ resumed: true }); await resume })
 
-        expect(mocks.resumeIfAbsent).not.toHaveBeenCalled()
+        expect(mocks.getDraftState).toHaveBeenCalledTimes(readsBeforeUnmount)
     })
 
     it('clears the previous draft while the next draft is loading', async () => {
@@ -146,7 +157,10 @@ describe('auction draft resource identity', () => {
         }
         let renderer!: ReactTestRenderer
         await act(async () => { renderer = create(React.createElement(Probe, { draftId: 'draft-a' })); await Promise.resolve() })
-        await act(async () => { mocks.presenceCallback?.(['member']); await Promise.resolve() })
+        await act(async () => {
+            mocks.presenceCallback?.({ memberIds: ['member'], claims: ['signed-member-claim'] })
+            await Promise.resolve()
+        })
         let pending!: Promise<void>
         await act(async () => { pending = latest.handleBid(); await Promise.resolve() })
         await act(async () => { renderer.update(React.createElement(Probe, { draftId: 'draft-b' })); await Promise.resolve() })
@@ -174,7 +188,10 @@ describe('auction draft resource identity', () => {
         expect(mocks.placeBid).not.toHaveBeenCalled()
         expect(latest.allMembersPresent).toBe(false)
 
-        await act(async () => { mocks.presenceCallback?.(['member']); await Promise.resolve() })
+        await act(async () => {
+            mocks.presenceCallback?.({ memberIds: ['member'], claims: ['signed-member-claim'] })
+            await Promise.resolve()
+        })
         expect(latest.allMembersPresent).toBe(true)
         await act(async () => { mocks.presenceErrorCallback?.(new Error('presence offline')); await Promise.resolve() })
         expect(latest.allMembersPresent).toBe(false)

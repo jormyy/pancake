@@ -47,6 +47,8 @@ const postgrest = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, 
     body = { user_id: OTHER_USER_ID }
   } else if (url.pathname === '/rest/v1/league_members' && url.searchParams.get('select') === 'role') {
     body = commissionerRole ? { role: commissionerRole } : null
+  } else if (url.pathname === '/rest/v1/draft_orders' && url.searchParams.get('select') === 'member_id') {
+    body = [{ member_id: MEMBER_ID }, { member_id: OTHER_MEMBER_ID }]
   } else if (url.pathname === '/rest/v1/profiles' && req.method === 'PATCH') {
     profileMutations.push({ query: url.searchParams.toString(), body: await req.json() })
   } else if (url.pathname === '/rest/v1/profiles' && url.searchParams.get('select') === 'push_token') {
@@ -235,6 +237,45 @@ Deno.test({
     const resolvedBody = await resolvedResponse.json()
     if (resolvedResponse.status !== 200 || JSON.stringify(resolvedBody.memberIds) !== JSON.stringify([MEMBER_ID])) {
       throw new Error(`expected only authenticated membership, got ${resolvedResponse.status}: ${JSON.stringify(resolvedBody)}`)
+    }
+  },
+})
+
+Deno.test({
+  name: 'auction resume requires signed presence for every ordered member',
+  sanitizeOps: false,
+  sanitizeResources: false,
+  fn: async () => {
+    authenticatedUserId = USER_ID
+    const firstResponse = await handleApiRoute(authedRequest('POST', `/draft/${DRAFT_ID}/presence-claim`))
+    const first = await firstResponse.json()
+    authenticatedUserId = OTHER_USER_ID
+    const secondResponse = await handleApiRoute(authedRequest('POST', `/draft/${DRAFT_ID}/presence-claim`))
+    const second = await secondResponse.json()
+    authenticatedUserId = USER_ID
+    postgrestRequests.length = 0
+
+    const partialResponse = await handleApiRoute(authedRequest(
+      'POST',
+      `/draft/${DRAFT_ID}/resume-if-absent`,
+      { claims: [first.claim] },
+    ))
+    const partial = await partialResponse.json()
+    const partialResumeRpcs = postgrestRequests.filter((entry) => entry.includes('/rpc/resume_draft_if_absent_atomic'))
+    if (partialResponse.status !== 200 || partial.resumed !== false || partialResumeRpcs.length !== 0) {
+      throw new Error(`partial presence resumed draft: ${partialResponse.status} ${JSON.stringify(partial)}`)
+    }
+
+    postgrestRequests.length = 0
+    const fullResponse = await handleApiRoute(authedRequest(
+      'POST',
+      `/draft/${DRAFT_ID}/resume-if-absent`,
+      { claims: [first.claim, second.claim] },
+    ))
+    const full = await fullResponse.json()
+    const fullResumeRpcs = postgrestRequests.filter((entry) => entry.includes('/rpc/resume_draft_if_absent_atomic'))
+    if (fullResponse.status !== 200 || full.resumed !== true || fullResumeRpcs.length !== 1) {
+      throw new Error(`full presence did not resume draft: ${fullResponse.status} ${JSON.stringify(full)}`)
     }
   },
 })

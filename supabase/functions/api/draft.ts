@@ -786,12 +786,22 @@ export async function handleDraftRoute(req: Request, path: string): Promise<Resp
 
   if (action.action === 'resume-if-absent') {
     await requireDraftLeagueMember(userId, draftId)
+    const presentMemberIds = new Set(await resolvePresenceClaims(draftId, body.claims))
+    const { data: order, error: orderError } = await supabase
+      .from('draft_orders')
+      .select('member_id')
+      .eq('draft_id', draftId)
+    if (orderError) throwDb(orderError)
+    const requiredMemberIds = (order ?? []).map((entry) => entry.member_id)
+    if (requiredMemberIds.length === 0 || requiredMemberIds.some((id) => !presentMemberIds.has(id))) {
+      return json({ ok: true, resumed: false })
+    }
     const { error } = await supabase.rpc('resume_draft_if_absent_atomic', {
       p_draft_id: draftId,
       p_actor_user_id: userId,
     })
     if (error) throwDb(error)
-    return json({ ok: true })
+    return json({ ok: true, resumed: true })
   }
 
   return null
