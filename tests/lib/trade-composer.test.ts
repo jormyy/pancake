@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 import {
     buildTradeComposerPayload,
     buildTwoTeamTradeComposerPayload,
@@ -7,7 +7,7 @@ import {
     submitMultiTeamTradeComposer,
     submitTradeComposer,
 } from '@/lib/trade-composer'
-import type { Trade } from '@/lib/trades'
+import type { MultiTeamTradeProposalPayload, Trade } from '@/lib/trades'
 import { endOfETDayUTC } from '@/lib/shared/dates'
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -267,6 +267,17 @@ describe('submitTradeComposer', () => {
 })
 
 describe('submitMultiTeamTradeComposer', () => {
+    it('uses the canonical multi-team payload contract for every mutation', () => {
+        type Deps = Parameters<typeof submitMultiTeamTradeComposer>[1]
+
+        expectTypeOf<Parameters<Deps['proposeMultiTeamTrade']>[3]>()
+            .toEqualTypeOf<MultiTeamTradeProposalPayload>()
+        expectTypeOf<Parameters<Deps['counterMultiTeamTrade']>[2]>()
+            .toEqualTypeOf<MultiTeamTradeProposalPayload>()
+        expectTypeOf<Parameters<Deps['editMultiTeamTrade']>[2]>()
+            .toEqualTypeOf<MultiTeamTradeProposalPayload>()
+    })
+
     it('loads the current season and submits routed assets with a deadline-clamped expiration', async () => {
         vi.useFakeTimers()
         vi.setSystemTime(new Date(NOW_MS))

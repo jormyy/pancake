@@ -1,4 +1,10 @@
-import type { MultiTeamTradeItemPayload, Trade, TradeItem, TradeProposalPayload } from '@/lib/trades'
+import type {
+    MultiTeamTradeItemPayload,
+    MultiTeamTradeProposalPayload,
+    Trade,
+    TradeItem,
+    TradeProposalPayload,
+} from '@/lib/trades'
 import { endOfETDayUTC } from '@/lib/shared/dates'
 import type { LeagueStatus } from '@/types/database'
 import { isMultiTeamTradeSubmittable } from '@/lib/multi-team-trade-state'
@@ -100,32 +106,17 @@ type SubmitMultiTeamComposerDeps = {
         memberId: string,
         leagueId: string,
         seasonId: string,
-        payload: {
-            participantMemberIds: string[]
-            items: MultiTeamTradeItemPayload[]
-            notes?: string | null
-            expiresAt?: string | null
-        },
+        payload: MultiTeamTradeProposalPayload,
     ) => Promise<string>
     counterMultiTeamTrade: (
         tradeId: string,
         memberId: string,
-        payload: {
-            participantMemberIds: string[]
-            items: MultiTeamTradeItemPayload[]
-            notes?: string | null
-            expiresAt?: string | null
-        },
+        payload: MultiTeamTradeProposalPayload,
     ) => Promise<string>
     editMultiTeamTrade: (
         tradeId: string,
         memberId: string,
-        payload: {
-            participantMemberIds: string[]
-            items: MultiTeamTradeItemPayload[]
-            notes?: string | null
-            expiresAt?: string | null
-        },
+        payload: MultiTeamTradeProposalPayload,
     ) => Promise<string>
 }
 
