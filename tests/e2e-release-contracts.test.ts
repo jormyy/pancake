@@ -16,6 +16,7 @@ import { stampReleaseProvenance } from '../scripts/stamp-release-provenance.mjs'
 import { digestEdgeArtifact, stampEdgeReleaseProvenance } from '../scripts/stamp-edge-release-provenance.mjs'
 import { validateReleaseBaselineProvenance } from './e2e/release-baseline-provenance.mjs'
 import { validateReleaseCompatibilityEvidence } from './e2e/release-runtime-compatibility.mjs'
+import { REQUIRED_MUTATION_SCENARIOS, runMutationScenarios } from './e2e/release-mutation-compatibility.mjs'
 
 const tempDirs: string[] = []
 
@@ -319,14 +320,14 @@ describe('release E2E contracts', () => {
         status: 'PASS',
         frontend: { commitSha: deployedFrontendSha, bundleDigest: 'd'.repeat(64) },
         edge: { commitSha: candidateSha, edgeArtifactDigest: 'e'.repeat(64) },
-        browserEvidenceId: 'browser.smoke',
+        mutationEvidenceIds: [...REQUIRED_MUTATION_SCENARIOS],
       },
       {
         id: 'candidate-frontend-deployed-edge',
         status: 'PASS',
         frontend: { commitSha: candidateSha, bundleDigest: 'f'.repeat(64) },
         edge: { commitSha: deployedEdgeSha, edgeArtifactDigest: '0'.repeat(64) },
-        browserEvidenceId: 'browser.smoke',
+        mutationEvidenceIds: [...REQUIRED_MUTATION_SCENARIOS],
       },
     ]
     const input = {
@@ -346,13 +347,13 @@ describe('release E2E contracts', () => {
       pairs: passingPairs.map((pair) => pair.id === 'candidate-frontend-deployed-edge'
         ? { ...pair, status: 'FAIL', error: 'removed column current_roster_id' }
         : pair),
-    })).toContain('candidate-frontend-deployed-edge browser contract failed: removed column current_roster_id')
+    })).toContain('candidate-frontend-deployed-edge mutation contract failed: removed column current_roster_id')
     expect(validateReleaseCompatibilityEvidence({
       ...input,
       pairs: passingPairs.map((pair) => pair.id === 'deployed-frontend-candidate-edge'
         ? { ...pair, status: 'FAIL', error: 'removed route /league/legacy-summary' }
         : pair),
-    })).toContain('deployed-frontend-candidate-edge browser contract failed: removed route /league/legacy-summary')
+    })).toContain('deployed-frontend-candidate-edge mutation contract failed: removed route /league/legacy-summary')
     expect(validateReleaseCompatibilityEvidence({
       ...input,
       deployedFrontendRebuild: { ...input.deployedFrontendRebuild, exactProductionRebuildVerified: false },
@@ -362,6 +363,23 @@ describe('release E2E contracts', () => {
     expect(soakWorkflow).toContain('test "$marker_digest" = "$E2E_DEPLOYED_FRONTEND_DIGEST"')
     expect(soakWorkflow).toContain('export E2E_DEPLOYED_FRONTEND_COMPATIBILITY_DIGEST=')
     expect(soakWorkflow).not.toContain("printf 'E2E_DEPLOYED_FRONTEND_COMPATIBILITY_DIGEST=%s")
+    expect(soakWorkflow.match(/release-mutation-compatibility\.mjs/g)).toHaveLength(2)
+    expect(soakWorkflow).not.toContain('browser-ci-scenario.mjs --scenario=smoke')
+  })
+
+  it('fails mixed-version evidence when a real mutation runner observes a removed route', async () => {
+    const scenarios = await runMutationScenarios({
+      runScenario: async (id: string) => {
+        if (id === 'trade-proposal') throw new Error('POST /trades/propose returned HTTP 404')
+        return { status: 'PASS' }
+      },
+    })
+    expect(scenarios.find((scenario) => scenario.id === 'trade-proposal')).toEqual({
+      id: 'trade-proposal',
+      status: 'FAIL',
+      error: 'POST /trades/propose returned HTTP 404',
+    })
+    expect(scenarios.filter((scenario) => scenario.status === 'PASS')).toHaveLength(REQUIRED_MUTATION_SCENARIOS.length - 1)
   })
 
   it('does not claim measured production performance from a clean checkout', async () => {

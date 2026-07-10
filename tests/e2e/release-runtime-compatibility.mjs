@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
+import { REQUIRED_MUTATION_SCENARIOS, validateMutationCompatibilityReport } from './release-mutation-compatibility.mjs'
 
 const fullSha = (value) => typeof value === 'string' && /^[a-f0-9]{40}$/i.test(value)
 const digest = (value) => typeof value === 'string' && /^[a-f0-9]{64}$/i.test(value)
@@ -23,12 +24,14 @@ export const validateReleaseCompatibilityEvidence = ({
       failures.push(`${id} evidence is missing`)
       continue
     }
-    if (pair.status !== 'PASS') failures.push(`${id} browser contract failed: ${pair.error ?? 'unknown error'}`)
+    if (pair.status !== 'PASS') failures.push(`${id} mutation contract failed: ${pair.error ?? 'unknown error'}`)
     if (pair.frontend?.commitSha !== identity.frontendSha) failures.push(`${id} frontend commit does not match the intended pairing`)
     if (pair.edge?.commitSha !== identity.edgeSha) failures.push(`${id} Edge commit does not match the intended pairing`)
     if (!digest(pair.frontend?.bundleDigest)) failures.push(`${id} frontend artifact digest is invalid`)
     if (!digest(pair.edge?.edgeArtifactDigest)) failures.push(`${id} Edge artifact digest is invalid`)
-    if (pair.browserEvidenceId !== 'browser.smoke') failures.push(`${id} did not retain full browser smoke evidence`)
+    for (const scenarioId of REQUIRED_MUTATION_SCENARIOS) {
+      if (!pair.mutationEvidenceIds?.includes(scenarioId)) failures.push(`${id} did not retain ${scenarioId} mutation evidence`)
+    }
   }
   for (const [label, sha] of [['candidate', candidateSha], ['deployed frontend', deployedFrontendSha], ['deployed Edge', deployedEdgeSha]]) {
     if (!fullSha(sha)) failures.push(`${label} SHA is invalid`)
@@ -58,6 +61,10 @@ const main = async () => {
     readFile(oldFrontendReportPath, 'utf8').then(JSON.parse),
     readFile(oldEdgeReportPath, 'utf8').then(JSON.parse),
   ])
+  for (const [label, report] of [['deployed-frontend-candidate-edge', oldFrontendReport], ['candidate-frontend-deployed-edge', oldEdgeReport]]) {
+    const reportFailures = validateMutationCompatibilityReport(report)
+    if (reportFailures.length > 0) throw new Error(`${label}: ${reportFailures.join('; ')}`)
+  }
   const candidateSha = required('E2E_RELEASE_SHA', process.env.E2E_RELEASE_SHA)
   const deployedFrontendSha = required('E2E_DEPLOYED_FRONTEND_SHA', process.env.E2E_DEPLOYED_FRONTEND_SHA)
   const deployedFrontendDigest = required('E2E_DEPLOYED_FRONTEND_DIGEST', process.env.E2E_DEPLOYED_FRONTEND_DIGEST)
@@ -79,18 +86,18 @@ const main = async () => {
     {
       id: 'deployed-frontend-candidate-edge',
       status: oldFrontendReport.status,
-      error: oldFrontendReport.error,
+      error: oldFrontendReport.failures?.join('; '),
       frontend: { commitSha: deployedFrontendSha, bundleDigest: deployedFrontendCompatibilityDigest },
       edge: { commitSha: candidateSha, edgeArtifactDigest: candidateEdgeDigest },
-      browserEvidenceId: oldFrontendReport.evidenceId,
+      mutationEvidenceIds: oldFrontendReport.scenarios.filter((scenario) => scenario.status === 'PASS').map((scenario) => scenario.id),
     },
     {
       id: 'candidate-frontend-deployed-edge',
       status: oldEdgeReport.status,
-      error: oldEdgeReport.error,
+      error: oldEdgeReport.failures?.join('; '),
       frontend: { commitSha: candidateSha, bundleDigest: candidateFrontendDigest },
       edge: { commitSha: deployedEdgeSha, edgeArtifactDigest: deployedEdgeDigest },
-      browserEvidenceId: oldEdgeReport.evidenceId,
+      mutationEvidenceIds: oldEdgeReport.scenarios.filter((scenario) => scenario.status === 'PASS').map((scenario) => scenario.id),
     },
   ]
   const failures = validateReleaseCompatibilityEvidence({

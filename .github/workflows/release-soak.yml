@@ -225,10 +225,12 @@ jobs:
           done
 
           E2E_FRONTEND_URL=http://127.0.0.1:8083 \
-            node tests/e2e/browser-ci-scenario.mjs --scenario=smoke
-          mkdir -p tests/artifacts/compatibility
-          cp tests/artifacts/registry/smoke-season-0.json \
-            tests/artifacts/compatibility/deployed-frontend-candidate-edge.json
+            E2E_COMPAT_FRONTEND_SHA="$E2E_DEPLOYED_FRONTEND_SHA" \
+            E2E_COMPAT_FRONTEND_DIGEST="$E2E_DEPLOYED_FRONTEND_COMPATIBILITY_DIGEST" \
+            E2E_COMPAT_EDGE_SHA="$E2E_RELEASE_SHA" \
+            E2E_COMPAT_EDGE_DIGEST="$E2E_CANDIDATE_EDGE_DIGEST" \
+            node tests/e2e/release-mutation-compatibility.mjs \
+              --pair=deployed-frontend-candidate-edge
 
           stop_edge
           (
@@ -251,13 +253,16 @@ jobs:
             sleep 2
           done
           E2E_FRONTEND_URL=http://127.0.0.1:8082 \
-            node tests/e2e/browser-ci-scenario.mjs --scenario=smoke
-          cp tests/artifacts/registry/smoke-season-0.json \
-            tests/artifacts/compatibility/candidate-frontend-deployed-edge.json
+            E2E_COMPAT_FRONTEND_SHA="$E2E_RELEASE_SHA" \
+            E2E_COMPAT_FRONTEND_DIGEST="$E2E_CANDIDATE_FRONTEND_DIGEST" \
+            E2E_COMPAT_EDGE_SHA="$E2E_DEPLOYED_EDGE_SHA" \
+            E2E_COMPAT_EDGE_DIGEST="$E2E_DEPLOYED_EDGE_DIGEST" \
+            node tests/e2e/release-mutation-compatibility.mjs \
+              --pair=candidate-frontend-deployed-edge
 
           node tests/e2e/release-runtime-compatibility.mjs \
-            tests/artifacts/compatibility/deployed-frontend-candidate-edge.json \
-            tests/artifacts/compatibility/candidate-frontend-deployed-edge.json
+            tests/artifacts/compatibility/deployed-frontend-candidate-edge/mutation-compatibility.json \
+            tests/artifacts/compatibility/candidate-frontend-deployed-edge/mutation-compatibility.json
 
           stop_edge
           stop_deployed_frontend
