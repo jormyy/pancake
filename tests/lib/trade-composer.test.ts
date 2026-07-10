@@ -297,6 +297,16 @@ describe('buildTradeComposerPayload', () => {
         expect(oversized.faabError).toBe('FAAB amount cannot exceed 1,000,000.')
     })
 
+    it('rejects a long FAAB digit paste without coercing it to zero', () => {
+        const draft = buildTradeComposerPayload({
+            offerPlayerIds: ['p1'], requestPlayerIds: ['p2'], offerPickIds: [], requestPickIds: [],
+            notes: '', offerFaabInput: '9'.repeat(100_000), requestFaabInput: '0', expirationDaysInput: '3',
+        }, NOW_MS)
+
+        expect(draft.faabError).toBe('FAAB amount cannot exceed 1,000,000.')
+        expect(draft.payload.offerFaabAmount).toBe(MAX_TRADE_FAAB_AMOUNT + 1)
+    })
+
     it.each([
         ['ASCII boundary', 'n'.repeat(2_000), null],
         ['accented boundary', 'é'.repeat(1_000), null],

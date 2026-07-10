@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
 import { TradeAssetColumn } from '@/components/trades/TradeAssetColumn'
 import { colors, fontSize, fontWeight, radii, spacing, uiColors } from '@/constants/tokens'
-import { canUpdateTradeFaabInput, validateTradeFaabInput } from '@/lib/multi-team-trade-state'
+import { canUpdateTradeFaabInput, MAX_TRADE_FAAB_DIGITS, validateTradeFaabInput } from '@/lib/multi-team-trade-state'
 import type { TradeParticipantView } from '@/lib/trade-ui-model'
 
 type ParticipantTradePanelProps = {
@@ -176,10 +176,11 @@ export function ParticipantTradePanel({
                                     style={[styles.termInput, error && styles.termInputInvalid]}
                                     value={value}
                                     onChangeText={(nextValue) => {
-                                        if (canUpdateTradeFaabInput(value, nextValue)) {
+                                        if (canUpdateTradeFaabInput(nextValue)) {
                                             onFaabChange(participant.memberId, destinationId, nextValue)
                                         }
                                     }}
+                                    maxLength={MAX_TRADE_FAAB_DIGITS}
                                     keyboardType="numeric"
                                     accessibilityLabel={error
                                         ? `FAAB sent by ${participantName(participant.memberId)} to ${participantName(destinationId)}. ${error}`

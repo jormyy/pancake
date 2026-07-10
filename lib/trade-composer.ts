@@ -178,11 +178,6 @@ export function prefillTradeComposerFromTrade(
     }
 }
 
-function parseNonNegativeInt(value: string, fallback = 0): number {
-    const parsed = parseInt(value || String(fallback), 10)
-    return Math.max(0, Number.isFinite(parsed) ? parsed : fallback)
-}
-
 export function validateTradeExpirationDays(value: string): { days: number | null; error: string | null } {
     const trimmed = value.trim()
     if (trimmed === '') return { days: null, error: null }
@@ -237,8 +232,8 @@ export function buildTradeComposerPayload(input: ComposerPayloadInput, nowMs = D
     const requestPickIds = Array.from(input.requestPickIds)
     const offerFaab = validateTradeFaabInput(input.offerFaabInput)
     const requestFaab = validateTradeFaabInput(input.requestFaabInput)
-    const offerFaabAmount = offerFaab.error ? parseNonNegativeInt(input.offerFaabInput) : offerFaab.amount
-    const requestFaabAmount = requestFaab.error ? parseNonNegativeInt(input.requestFaabInput) : requestFaab.amount
+    const offerFaabAmount = offerFaab.amount
+    const requestFaabAmount = requestFaab.amount
     const faabError = offerFaab.error ?? requestFaab.error
     const notesError = validateTradeNotes(input.notes).error
     const expiration = generatedExpirationMs(input, nowMs)

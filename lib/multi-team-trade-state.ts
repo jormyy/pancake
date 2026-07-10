@@ -1,5 +1,9 @@
 import type { MultiTeamTradeItemPayload, Trade } from '@/lib/trades'
-import { MAX_TRADE_FAAB_AMOUNT, MAX_TRADE_ITEMS, MAX_TRADE_PARTICIPANTS } from '@pancake/core'
+import {
+    MAX_TRADE_FAAB_AMOUNT,
+    MAX_TRADE_ITEMS,
+    MAX_TRADE_PARTICIPANTS,
+} from '@pancake/core'
 
 type AssetDestinations = Record<string, string | null>
 
@@ -11,20 +15,21 @@ type ParticipantTradeDraft = {
 }
 
 const FAAB_ERROR = `FAAB amount cannot exceed ${MAX_TRADE_FAAB_AMOUNT.toLocaleString('en-US')}.`
+export const MAX_TRADE_FAAB_DIGITS = String(MAX_TRADE_FAAB_AMOUNT).length
 
 export function validateTradeFaabInput(value: string): { amount: number; error: string | null } {
     if (value === '') return { amount: 0, error: null }
+    if (value.length > MAX_TRADE_FAAB_DIGITS) {
+        return { amount: MAX_TRADE_FAAB_AMOUNT + 1, error: FAAB_ERROR }
+    }
     if (!/^\d+$/.test(value)) return { amount: 0, error: 'FAAB amount must be a whole number.' }
-    const amount = BigInt(value)
-    if (amount > BigInt(MAX_TRADE_FAAB_AMOUNT)) return { amount: 0, error: FAAB_ERROR }
-    return { amount: Number(amount), error: null }
+    const amount = Number(value)
+    if (amount > MAX_TRADE_FAAB_AMOUNT) return { amount: MAX_TRADE_FAAB_AMOUNT + 1, error: FAAB_ERROR }
+    return { amount, error: null }
 }
 
-export function canUpdateTradeFaabInput(currentValue: string, nextValue: string): boolean {
-    if (!/^\d*$/.test(nextValue)) return false
-    if (!validateTradeFaabInput(nextValue).error) return true
-    if (!/^\d+$/.test(currentValue) || nextValue === '') return false
-    return BigInt(nextValue) < BigInt(currentValue)
+export function canUpdateTradeFaabInput(nextValue: string): boolean {
+    return nextValue.length <= MAX_TRADE_FAAB_DIGITS && !validateTradeFaabInput(nextValue).error
 }
 
 export type MultiTeamTradeState = {
@@ -114,7 +119,7 @@ function draftItemCount(state: MultiTeamTradeState): number {
     return Object.values(state.participants).reduce((count, participant) => (
         count + Object.keys(participant.playerDestinations).length +
         Object.keys(participant.pickDestinations).length +
-        Object.values(participant.faabInputs).filter((value) => (parseInt(value || '0', 10) || 0) > 0).length
+        Object.values(participant.faabInputs).filter((value) => validateTradeFaabInput(value).amount > 0).length
     ), 0)
 }
 
@@ -189,8 +194,8 @@ export function multiTeamTradeReducer(
                 !state.participantOrder.includes(action.toMemberId)) return state
             return updateParticipant(state, action.memberId, (participant) => {
                 const currentValue = participant.faabInputs[action.toMemberId] ?? '0'
-                if (!canUpdateTradeFaabInput(currentValue, action.value)) return participant
-                const currentAmount = parseInt(participant.faabInputs[action.toMemberId] || '0', 10) || 0
+                if (!canUpdateTradeFaabInput(action.value)) return participant
+                const currentAmount = validateTradeFaabInput(currentValue).amount
                 const nextAmount = validateTradeFaabInput(action.value).amount
                 if (currentAmount <= 0 && nextAmount > 0 && draftItemCount(state) >= MAX_TRADE_ITEMS) {
                     return participant
@@ -239,7 +244,7 @@ export function buildMultiTeamTradeItems(
             pickId,
         }))
         const faab = faabEnabled ? Object.entries(participant.faabInputs).flatMap(([toMemberId, value]) => {
-            const faabAmount = parseInt(value || '0', 10) || 0
+            const faabAmount = validateTradeFaabInput(value).amount
             return faabAmount > 0 ? [{
                 kind: 'faab' as const,
                 fromMemberId: memberId,
@@ -311,9 +316,11 @@ export function multiTeamTradeStateFromTrade(trade: Trade, actorMemberId: string
         if (item.kind === 'player') participant.playerDestinations[item.playerId] = item.toMemberId
         else if (item.kind === 'pick') participant.pickDestinations[item.pickId] = item.toMemberId
         else {
-            participant.faabInputs[item.toMemberId] = String(
-                (parseInt(participant.faabInputs[item.toMemberId] ?? '0', 10) || 0) + item.amount,
-            )
+            const currentAmount = validateTradeFaabInput(participant.faabInputs[item.toMemberId] ?? '0').amount
+            participant.faabInputs[item.toMemberId] = String(Math.min(
+                currentAmount + item.amount,
+                MAX_TRADE_FAAB_AMOUNT + 1,
+            ))
         }
     }
 

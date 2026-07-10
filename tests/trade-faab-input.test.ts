@@ -2,6 +2,7 @@ import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { describe, expect, it, vi } from 'vitest'
 import { ParticipantTradePanel } from '@/components/trades/ParticipantTradePanel'
+import { MAX_TRADE_FAAB_DIGITS } from '@/lib/multi-team-trade-state'
 import { MAX_TRADE_FAAB_AMOUNT } from '@pancake/core'
 import type { TradeParticipantView } from '@/lib/trade-ui-model'
 
@@ -57,7 +58,10 @@ describe('trade FAAB input', () => {
         const input = renderer.root.findByProps({ testID: 'trade-faab-me-them' })
 
         expect(input.props['aria-invalid']).toBe(false)
+        expect(input.props.maxLength).toBe(MAX_TRADE_FAAB_DIGITS)
         await act(async () => { input.props.onChangeText(String(MAX_TRADE_FAAB_AMOUNT + 1)) })
+        expect(onFaabChange).not.toHaveBeenCalled()
+        await act(async () => { input.props.onChangeText('9'.repeat(100_000)) })
         expect(onFaabChange).not.toHaveBeenCalled()
         await act(async () => { renderer.unmount() })
     })

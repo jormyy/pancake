@@ -4,6 +4,7 @@ import {
     createMultiTeamTradeState,
     canUpdateTradeFaabInput,
     isMultiTeamTradeSubmittable,
+    MAX_TRADE_FAAB_DIGITS,
     multiTeamTradeReducer,
     multiTeamTradeStateFromTrade,
     validateTradeFaabInput,
@@ -160,6 +161,14 @@ describe('multi-team trade state', () => {
     })
 
     it('accepts maximum FAAB, prevents overflow, and lets oversized prefills be reduced', () => {
+        const longPaste = '9'.repeat(100_000)
+        expect(validateTradeFaabInput(longPaste)).toEqual({
+            amount: MAX_TRADE_FAAB_AMOUNT + 1,
+            error: 'FAAB amount cannot exceed 1,000,000.',
+        })
+        expect(canUpdateTradeFaabInput(longPaste)).toBe(false)
+        expect(MAX_TRADE_FAAB_DIGITS).toBe(String(MAX_TRADE_FAAB_AMOUNT).length)
+
         let state = multiTeamTradeReducer(createMultiTeamTradeState('A'), {
             type: 'set-participants',
             actorMemberId: 'A',
@@ -174,7 +183,7 @@ describe('multi-team trade state', () => {
             type: 'set-faab', memberId: 'A', toMemberId: 'B', value: String(MAX_TRADE_FAAB_AMOUNT + 1),
         })
         expect(state.participants.A.faabInputs.B).toBe(String(MAX_TRADE_FAAB_AMOUNT))
-        expect(canUpdateTradeFaabInput(String(MAX_TRADE_FAAB_AMOUNT), String(MAX_TRADE_FAAB_AMOUNT + 1))).toBe(false)
+        expect(canUpdateTradeFaabInput(String(MAX_TRADE_FAAB_AMOUNT + 1))).toBe(false)
 
         const prefilled = multiTeamTradeStateFromTrade(routedTrade([
             { kind: 'faab', amount: MAX_TRADE_FAAB_AMOUNT + 1, fromMemberId: 'A', toMemberId: 'B' },
