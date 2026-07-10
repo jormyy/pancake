@@ -31,6 +31,11 @@ async function register(userId, token, hash) {
   if (error) throw error
 }
 
+async function legacyRegister(userId, token) {
+  const { error } = await admin.from('profiles').update({ push_token: token }).eq('id', userId)
+  if (error) throw error
+}
+
 try {
   const [firstUserId, secondUserId] = await Promise.all([createUser('a'), createUser('b')])
 
@@ -61,6 +66,20 @@ try {
     assert.equal(loser?.push_token, null, `iteration ${iteration} retained the losing owner token`)
     assert.equal(loser?.push_token_revocation_hash, null, `iteration ${iteration} retained the losing credential`)
   }
+
+  const legacyToken = `ExponentPushToken[concurrent-legacy-${Date.now()}]`
+  await Promise.all([
+    legacyRegister(firstUserId, legacyToken),
+    legacyRegister(secondUserId, legacyToken),
+  ])
+  const { data: legacyProfiles, error: legacyError } = await admin
+    .from('profiles')
+    .select('id, push_token, push_token_revocation_hash')
+    .in('id', [firstUserId, secondUserId])
+  if (legacyError) throw legacyError
+  const legacyOwners = (legacyProfiles ?? []).filter((profile) => profile.push_token === legacyToken)
+  assert.equal(legacyOwners.length, 1, 'concurrent legacy writes did not converge to one token owner')
+  assert.match(legacyOwners[0].push_token_revocation_hash, /^[0-9a-f]{64}$/)
 
   console.log(`PASS push token concurrency: ${ITERATIONS} atomic ownership transfers`)
 } finally {

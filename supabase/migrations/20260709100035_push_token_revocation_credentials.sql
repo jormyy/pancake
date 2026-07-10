@@ -12,7 +12,19 @@ AS $$
 BEGIN
   IF NEW.push_token IS NULL THEN
     NEW.push_token_revocation_hash := NULL;
-  ELSIF NEW.push_token_revocation_hash IS NULL OR (
+    RETURN NEW;
+  END IF;
+
+  IF TG_OP = 'INSERT' OR NEW.push_token IS DISTINCT FROM OLD.push_token THEN
+    PERFORM pg_advisory_xact_lock(hashtext('push-token'), hashtext(NEW.push_token));
+    UPDATE profiles
+       SET push_token = NULL,
+           push_token_revocation_hash = NULL
+     WHERE push_token = NEW.push_token
+       AND id <> NEW.id;
+  END IF;
+
+  IF NEW.push_token_revocation_hash IS NULL OR (
     TG_OP = 'UPDATE'
     AND NEW.push_token IS DISTINCT FROM OLD.push_token
     AND NEW.push_token_revocation_hash IS NOT DISTINCT FROM OLD.push_token_revocation_hash
@@ -48,17 +60,17 @@ UPDATE public.profiles
  WHERE push_token IS NOT NULL
    AND push_token_revocation_hash IS NULL;
 
-CREATE UNIQUE INDEX profiles_push_token_unique
-  ON public.profiles (push_token)
-  WHERE push_token IS NOT NULL;
-
 ALTER TABLE public.profiles
   ADD CONSTRAINT profiles_push_token_revocation_pair CHECK (
     (push_token IS NULL) = (push_token_revocation_hash IS NULL)
-  ),
+  ) NOT VALID,
   ADD CONSTRAINT profiles_push_token_revocation_hash_format CHECK (
     push_token_revocation_hash IS NULL OR push_token_revocation_hash ~ '^[0-9a-f]{64}$'
-  );
+  ) NOT VALID;
+
+ALTER TABLE public.profiles
+  VALIDATE CONSTRAINT profiles_push_token_revocation_pair,
+  VALIDATE CONSTRAINT profiles_push_token_revocation_hash_format;
 
 REVOKE SELECT (push_token_revocation_hash) ON public.profiles FROM PUBLIC, anon, authenticated;
 REVOKE UPDATE (push_token_revocation_hash) ON public.profiles FROM PUBLIC, anon, authenticated;
