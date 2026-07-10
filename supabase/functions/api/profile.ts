@@ -3,6 +3,7 @@ import {
   json,
   readJsonObject,
   requireUser,
+  ServiceUnavailableError,
   stringField,
   throwDb,
   ValidationError,
@@ -44,23 +45,7 @@ function missingCredentialRpc(error: RpcError): boolean {
   return error.code === 'PGRST202'
 }
 
-async function updatePushTokenLegacy(userId: string, token: string, active: boolean): Promise<void> {
-  if (active) {
-    const { error: clearError } = await supabase
-      .from('profiles')
-      .update({ push_token: null })
-      .eq('push_token', token)
-      .neq('id', userId)
-    if (clearError) throwDb(clearError)
-
-    const { error: setError } = await supabase
-      .from('profiles')
-      .update({ push_token: token })
-      .eq('id', userId)
-    if (setError) throwDb(setError)
-    return
-  }
-
+async function clearPushTokenLegacy(userId: string, token: string): Promise<void> {
   const { error } = await supabase
     .from('profiles')
     .update({ push_token: null })
@@ -79,8 +64,7 @@ async function updatePushToken(userId: string, token: string, active: boolean): 
     })
     if (error) {
       if (!missingCredentialRpc(error)) throwDb(error)
-      await updatePushTokenLegacy(userId, token, true)
-      return null
+      throw new ServiceUnavailableError('Push registration is temporarily unavailable. Please retry.')
     }
     return credential
   }
@@ -91,7 +75,7 @@ async function updatePushToken(userId: string, token: string, active: boolean): 
   })
   if (error) {
     if (!missingCredentialRpc(error)) throwDb(error)
-    await updatePushTokenLegacy(userId, token, false)
+    await clearPushTokenLegacy(userId, token)
   }
   return null
 }

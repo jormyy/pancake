@@ -170,7 +170,7 @@ Deno.test({
 })
 
 Deno.test({
-  name: 'new push route falls back safely while credential RPCs are not deployed',
+  name: 'concurrent push registrations fail closed while credential RPCs are not deployed',
   sanitizeOps: false,
   sanitizeResources: false,
   fn: async () => {
@@ -178,18 +178,19 @@ Deno.test({
     legacyPushMutations.length = 0
     pushCredentialRpcMissing = true
     try {
-      const response = await handleApiRoute(authedRequest('POST', '/profile/push-token', {
-        token: 'ExponentPushToken[rolling-deploy]',
-        active: true,
-      }))
-      const body = await response.json()
-      if (response.status !== 200 || body.revocationCredential !== undefined || legacyPushMutations.length !== 2) {
-        throw new Error(`legacy push fallback failed: ${JSON.stringify({ body, legacyPushMutations })}`)
-      }
-      const clearBody = legacyPushMutations[0].body as { push_token?: string | null }
-      const setBody = legacyPushMutations[1].body as { push_token?: string | null }
-      if (clearBody.push_token !== null || setBody.push_token !== 'ExponentPushToken[rolling-deploy]') {
-        throw new Error(`legacy push fallback wrote unexpected values: ${JSON.stringify(legacyPushMutations)}`)
+      const responses = await Promise.all(['a', 'b'].map((suffix) =>
+        handleApiRoute(authedRequest('POST', '/profile/push-token', {
+          token: `ExponentPushToken[rolling-deploy-${suffix}]`,
+          active: true,
+        }))))
+      const bodies = await Promise.all(responses.map((response) => response.json()))
+      if (responses.some((response) => response.status !== 503) ||
+          bodies.some((body) => body.ok !== false) || legacyPushMutations.length !== 0) {
+        throw new Error(`pre-schema push registration did not fail closed: ${JSON.stringify({
+          statuses: responses.map((response) => response.status),
+          bodies,
+          legacyPushMutations,
+        })}`)
       }
     } finally {
       pushCredentialRpcMissing = false
