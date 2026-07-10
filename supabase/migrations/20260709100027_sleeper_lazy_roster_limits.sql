@@ -2115,4 +2115,3 @@ REVOKE ALL ON FUNCTION private.accept_trade_participant_atomic(uuid, uuid)
 REVOKE ALL ON FUNCTION public.accept_trade_atomic(uuid, uuid)
   FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.accept_trade_atomic(uuid, uuid) TO service_role;
-
