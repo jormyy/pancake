@@ -23,7 +23,7 @@ Deno.test('receipt settlement completes success and clears only an invalid devic
     complete: async (entry) => { completed.push(entry.id) },
     invalidate: async (entry) => { invalidated.push(`${entry.member_id}:${entry.push_token}`) },
     retry: async () => {},
-    defer: async () => {},
+    defer: async () => 'deferred',
     deadLetter: async () => {},
   })
 
@@ -53,7 +53,7 @@ Deno.test('receipt settlement retries credentials and rate failures but dead-let
     complete: async () => {},
     invalidate: async () => {},
     retry: async (entry) => { retried.push(entry.id) },
-    defer: async () => {},
+    defer: async () => 'deferred',
     deadLetter: async (entry) => { deadLettered.push(entry.id) },
   })
 
@@ -75,7 +75,7 @@ Deno.test('receipt settlement retains a ticket while its receipt or token cleanu
       if (entry.id === 'cleanup') throw new Error('database unavailable')
     },
     retry: async () => {},
-    defer: async (entry) => { deferred.push(entry.id) },
+    defer: async (entry) => { deferred.push(entry.id); return 'deferred' },
     deadLetter: async () => {},
   })
 
@@ -85,22 +85,24 @@ Deno.test('receipt settlement retains a ticket while its receipt or token cleanu
   }
 })
 
-Deno.test('global receipt failure releases 200 leases with bounded mutation concurrency', async () => {
+Deno.test('global receipt failure releases 200 leases with bounded mutation concurrency and accurate outcomes', async () => {
   const rows = Array.from({ length: 200 }, (_, index) => row(`global-${index}`))
   let active = 0
   let maximum = 0
   const released: string[] = []
 
-  await deferTradeNotificationReceipts(rows, async (entry) => {
+  const result = await deferTradeNotificationReceipts(rows, async (entry) => {
     active += 1
     maximum = Math.max(maximum, active)
     await new Promise((resolve) => setTimeout(resolve, 1))
     released.push(entry.id)
     active -= 1
+    return Number(entry.id.slice('global-'.length)) % 10 === 0 ? 'dead_lettered' : 'deferred'
   })
 
-  if (maximum > 10 || released.length !== rows.length || new Set(released).size !== rows.length) {
-    throw new Error(`global receipt deferral was not bounded/complete: ${JSON.stringify({ maximum, released: released.length })}`)
+  if (maximum > 10 || released.length !== rows.length || new Set(released).size !== rows.length ||
+      JSON.stringify(result) !== JSON.stringify({ deferred: 180, deadLettered: 20 })) {
+    throw new Error(`global receipt deferral was not bounded/complete: ${JSON.stringify({ maximum, released: released.length, result })}`)
   }
 })
 
@@ -121,7 +123,7 @@ Deno.test('every transactional trade action routes receipt errors to durable ret
     complete: async () => {},
     invalidate: async () => {},
     retry: async (entry) => { retried.push(entry.id) },
-    defer: async () => {},
+    defer: async () => 'deferred',
     deadLetter: async () => {},
   })
 

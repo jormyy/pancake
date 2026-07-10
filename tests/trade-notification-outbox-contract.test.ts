@@ -17,4 +17,14 @@ describe('transactional trade notification coverage', () => {
             expect(participantTrigger).toContain(`'${event}'`)
         }
     })
+
+    it('separates global receipt releases from per-ticket attempt accounting', () => {
+        const edge = read('supabase/functions/process-trades/index.ts')
+
+        expect(edge).toContain('releaseReceipt')
+        expect(edge).toContain('deferReceiptState(row, receiptError, false)')
+        expect(edge).toContain('deferReceiptState(row, receiptError, true)')
+        expect(edge).toContain('p_increment_attempt: incrementAttempt')
+        expect(edge).toContain("case 'dead_lettered'")
+    })
 })

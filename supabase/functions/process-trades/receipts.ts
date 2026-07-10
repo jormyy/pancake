@@ -20,15 +20,25 @@ type ReceiptActions = {
   complete: (row: TradeNotificationReceiptRow) => Promise<void>
   invalidate: (row: TradeNotificationReceiptRow) => Promise<void>
   retry: (row: TradeNotificationReceiptRow, error: string) => Promise<void>
-  defer: (row: TradeNotificationReceiptRow, error: string) => Promise<void>
+  defer: (row: TradeNotificationReceiptRow, error: string) => Promise<ReceiptDeferralState>
   deadLetter: (row: TradeNotificationReceiptRow, error: string) => Promise<void>
 }
 
+export type ReceiptDeferralState = 'deferred' | 'dead_lettered'
+export type ReceiptDeferralCounts = { deferred: number; deadLettered: number }
+
 export async function deferTradeNotificationReceipts(
   rows: TradeNotificationReceiptRow[],
-  defer: (row: TradeNotificationReceiptRow) => Promise<void>,
-): Promise<void> {
-  await runBounded(rows.map((row) => () => defer(row)), RECEIPT_MUTATION_CONCURRENCY)
+  defer: (row: TradeNotificationReceiptRow) => Promise<ReceiptDeferralState>,
+): Promise<ReceiptDeferralCounts> {
+  let deferred = 0
+  let deadLettered = 0
+  await runBounded(rows.map((row) => async () => {
+    const state = await defer(row)
+    if (state === 'deferred') deferred += 1
+    else deadLettered += 1
+  }), RECEIPT_MUTATION_CONCURRENCY)
+  return { deferred, deadLettered }
 }
 
 const record = (value: unknown): Record<string, unknown> | null =>
@@ -59,8 +69,9 @@ export async function settleTradeNotificationReceipts(
   await runBounded(rows.map((row) => async () => {
     const receipt = receipts[row.expo_ticket_id]
     if (!receipt) {
-      await actions.defer(row, 'Expo receipt is not available yet')
-      deferred += 1
+      const state = await actions.defer(row, 'Expo receipt is not available yet')
+      if (state === 'deferred') deferred += 1
+      else deadLettered += 1
       return
     }
     if (receipt.status === 'ok') {
@@ -71,8 +82,9 @@ export async function settleTradeNotificationReceipts(
 
     const failure = receiptError(receipt)
     if (receipt.status !== 'error' || !failure.code) {
-      await actions.defer(row, failure.message)
-      deferred += 1
+      const state = await actions.defer(row, failure.message)
+      if (state === 'deferred') deferred += 1
+      else deadLettered += 1
       return
     }
     if (failure.code === 'DeviceNotRegistered') {
@@ -80,8 +92,9 @@ export async function settleTradeNotificationReceipts(
         await actions.invalidate(row)
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error)
-        await actions.defer(row, `Invalid token cleanup failed: ${message}`)
-        deferred += 1
+        const state = await actions.defer(row, `Invalid token cleanup failed: ${message}`)
+        if (state === 'deferred') deferred += 1
+        else deadLettered += 1
         return
       }
       await actions.complete(row)

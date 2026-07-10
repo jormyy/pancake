@@ -8,6 +8,7 @@ import {
   deferTradeNotificationReceipts,
   settleTradeNotificationReceipts,
   type ExpoPushReceipt,
+  type ReceiptDeferralState,
   type TradeNotificationReceiptRow,
 } from './receipts.ts'
 
@@ -144,8 +145,8 @@ async function drainNotificationReceipts(): Promise<{
     receipts = await fetchExpoReceipts(rows.map((row) => row.expo_ticket_id))
   } catch (receiptError) {
     const message = receiptError instanceof Error ? receiptError.message : String(receiptError)
-    await deferTradeNotificationReceipts(rows, (row) => deferReceipt(row, message))
-    return { delivered: 0, retried: 0, deferred: rows.length, discarded: 0, deadLettered: 0 }
+    const released = await deferTradeNotificationReceipts(rows, (row) => releaseReceipt(row, message))
+    return { delivered: 0, retried: 0, ...released, discarded: 0 }
   }
 
   const memberIds = [...new Set(rows.map((row) => row.member_id))]
@@ -154,11 +155,11 @@ async function drainNotificationReceipts(): Promise<{
     .select('id, user_id')
     .in('id', memberIds)
   if (memberError) {
-    await deferTradeNotificationReceipts(
+    const released = await deferTradeNotificationReceipts(
       rows,
-      (row) => deferReceipt(row, `Receipt member lookup failed: ${memberError.message}`),
+      (row) => releaseReceipt(row, `Receipt member lookup failed: ${memberError.message}`),
     )
-    return { delivered: 0, retried: 0, deferred: rows.length, discarded: 0, deadLettered: 0 }
+    return { delivered: 0, retried: 0, ...released, discarded: 0 }
   }
   const userByMemberId = new Map((members ?? []).map((member) => [member.id, member.user_id]))
 
@@ -215,15 +216,34 @@ async function failReceipt(row: TradeNotificationReceiptRow, receiptError: strin
   if (!data) throw new Error(`Notification receipt lease ${row.id} was lost before retry scheduling`)
 }
 
-async function deferReceipt(row: TradeNotificationReceiptRow, receiptError: string): Promise<void> {
-  const { data, error } = await supabase.rpc('defer_notification_receipt_atomic', {
+async function releaseReceipt(row: TradeNotificationReceiptRow, receiptError: string): Promise<ReceiptDeferralState> {
+  return deferReceiptState(row, receiptError, false)
+}
+
+async function deferReceipt(row: TradeNotificationReceiptRow, receiptError: string): Promise<ReceiptDeferralState> {
+  return deferReceiptState(row, receiptError, true)
+}
+
+async function deferReceiptState(
+  row: TradeNotificationReceiptRow,
+  receiptError: string,
+  incrementAttempt: boolean,
+): Promise<ReceiptDeferralState> {
+  const { data, error } = await supabase.rpc('defer_notification_receipt_state_atomic', {
     p_id: row.id,
     p_claim_token: row.claim_token,
     p_error: receiptError,
     p_retry_delay_seconds: 60,
+    p_increment_attempt: incrementAttempt,
   })
   if (error) throw error
-  if (!data) throw new Error(`Notification receipt lease ${row.id} was lost before deferral`)
+  switch (data) {
+    case 'deferred':
+    case 'dead_lettered':
+      return data
+    default:
+      throw new Error(`Notification receipt lease ${row.id} was lost before deferral`)
+  }
 }
 
 async function deadLetterReceipt(row: TradeNotificationReceiptRow, receiptError: string): Promise<void> {
