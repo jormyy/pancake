@@ -73,6 +73,8 @@ describe('release E2E contracts', () => {
     expect(workflow).toContain("github.event_name == 'repository_dispatch' && github.event.client_payload.release_sha || inputs.release_sha")
     expect(workflow).toContain("github.event_name == 'repository_dispatch' && github.event.client_payload.bundle_digest || inputs.bundle_digest")
     expect(workflow).toContain('E2E_FRONTEND_URL: ${{ secrets.PANCAKE_FRONTEND_URL }}')
+    expect(workflow).toContain('EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}')
+    expect(workflow).toContain('EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}')
     expect(workflow).toContain('node tests/e2e/hosted-release-provenance.mjs')
     expect(workflow).toContain('npm run e2e:web-hydration')
     expect(workflow).toContain('PANCAKE_LEGACY_SUPABASE_JWT_ROTATED: ${{ secrets.PANCAKE_LEGACY_SUPABASE_JWT_ROTATED }}')
