@@ -3,14 +3,17 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useLeagueTabResources } from '@/hooks/use-league-tab-resources'
 
-const { getMockDraftRooms } = vi.hoisted(() => ({ getMockDraftRooms: vi.fn() }))
+const { getLeagueTransactions, getMockDraftRooms } = vi.hoisted(() => ({
+    getLeagueTransactions: vi.fn(),
+    getMockDraftRooms: vi.fn(),
+}))
 vi.mock('@react-navigation/native', async () => {
     const ReactModule = await import('react')
     return { useFocusEffect: (callback: React.EffectCallback) => ReactModule.useEffect(callback, [callback]) }
 })
 vi.mock('@/lib/scoring', () => ({ getLeagueStandings: vi.fn(async () => []) }))
 vi.mock('@/lib/waivers', () => ({ getWaiverPriorityOrder: vi.fn(async () => []) }))
-vi.mock('@/lib/transactions', () => ({ getLeagueTransactions: vi.fn(async () => []) }))
+vi.mock('@/lib/transactions', () => ({ getLeagueTransactions }))
 vi.mock('@/lib/rookieDraft', () => ({ getAllLeaguePicks: vi.fn(async () => []) }))
 vi.mock('@/lib/mockDraftRooms', () => ({ getMockDraftRooms }))
 
@@ -24,6 +27,7 @@ const deferred = <Value,>() => {
 
 beforeEach(() => {
     vi.clearAllMocks()
+    getLeagueTransactions.mockResolvedValue([])
 })
 
 describe('league resource identity', () => {
@@ -68,6 +72,36 @@ describe('league resource identity', () => {
         expect(getMockDraftRooms).toHaveBeenCalledTimes(2)
         await act(async () => { second.resolve([{ id: 'fresh' }]); await refresh })
         expect(latest.mockRooms.map((room) => room.id)).toEqual(['fresh'])
+        await act(async () => { renderer.unmount() })
+    })
+
+    it('keeps resource operations stable and resets history pagination on refresh', async () => {
+        const page = (prefix: string) => Array.from({ length: 50 }, (_, index) => ({ id: `${prefix}-${index}` }))
+        getLeagueTransactions
+            .mockResolvedValueOnce(page('initial'))
+            .mockResolvedValueOnce(page('page-two'))
+            .mockResolvedValueOnce(page('refreshed'))
+            .mockResolvedValueOnce(page('page-two-again'))
+        let latest!: ReturnType<typeof useLeagueTabResources>
+        const Probe = () => {
+            latest = useLeagueTabResources('league', 'member', 'history')
+            return null
+        }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe)); await Promise.resolve() })
+        const invalidateTab = latest.invalidateTab
+
+        await act(async () => { await latest.loadMoreActivity() })
+        await act(async () => { await latest.refreshTab('history') })
+        await act(async () => { await latest.loadMoreActivity() })
+
+        expect(latest.invalidateTab).toBe(invalidateTab)
+        expect(getLeagueTransactions.mock.calls.map((call) => call.slice(1))).toEqual([
+            [50, 0],
+            [50, 50],
+            [50, 0],
+            [50, 50],
+        ])
         await act(async () => { renderer.unmount() })
     })
 })

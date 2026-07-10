@@ -79,16 +79,21 @@ export function useKeyedResource<Value>(
         else if (reload) void load()
     }, [load])
 
+    const ensure = useCallback(() => load(), [load])
+    const refresh = useCallback(() => load(true), [load])
+    const setData = useCallback((update: (current: Value) => Value) => {
+        setState((current) => current.key === activeKey.current
+            ? { ...current, data: update(current.data) }
+            : current)
+    }, [])
     const ownsKey = state.key === key
     return {
         data: ownsKey ? state.data : initialValue,
         error: ownsKey ? state.error : null,
         loading: ownsKey ? state.loading : Boolean(key),
-        ensure: () => load(),
-        refresh: () => load(true),
+        ensure,
+        refresh,
         invalidate,
-        setData: (update: (current: Value) => Value) => {
-            setState((current) => current.key === key ? { ...current, data: update(current.data) } : current)
-        },
+        setData,
     }
 }

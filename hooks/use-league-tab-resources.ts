@@ -54,37 +54,48 @@ export function useLeagueTabResources(
         draftBoard: picks,
         mockRooms,
     }), [history, mockRooms, picks, standings, waiverOrder])
+    const resourcesRef = useRef(resources)
+    resourcesRef.current = resources
     const activeResource = activeTab === 'auctions' ? null : resources[activeTab]
     const [activityOffset, setActivityOffset] = useState(0)
     const [activityHasMore, setActivityHasMore] = useState(false)
     const [activityLoadingMore, setActivityLoadingMore] = useState(false)
     const [activityLoadMoreError, setActivityLoadMoreError] = useState<string | null>(null)
     const activityRequest = useRef<symbol | null>(null)
+    const activeTabRef = useRef(activeTab)
+    activeTabRef.current = activeTab
 
-    useEffect(() => {
+    const resetActivityPagination = useCallback(() => {
+        activityRequest.current = null
         setActivityOffset(0)
         setActivityHasMore(false)
         setActivityLoadingMore(false)
         setActivityLoadMoreError(null)
-        activityRequest.current = null
-    }, [leagueKey])
+    }, [])
+
+    useEffect(() => {
+        resetActivityPagination()
+    }, [leagueKey, resetActivityPagination])
 
     useEffect(() => {
         if (activityOffset === 0) setActivityHasMore(history.data.length === ACTIVITY_LIMIT)
     }, [activityOffset, history.data.length])
 
-    useFocusEffect(useCallback(() => {
-        void activeResource?.ensure()
-    }, [activeResource]))
-
     const ensureTab = useCallback((tab: LeagueTab) => {
-        if (tab !== 'auctions') void resources[tab].ensure()
-    }, [resources])
+        if (tab !== 'auctions') void resourcesRef.current[tab].ensure()
+    }, [])
     const invalidateTab = useCallback((tab: LeagueTab) => {
-        if (tab !== 'auctions') resources[tab].invalidate(activeTab === tab)
-    }, [activeTab, resources])
-    const refreshTab = useCallback((tab: LeagueTab) =>
-        tab === 'auctions' ? Promise.resolve() : resources[tab].refresh(), [resources])
+        if (tab === 'history') resetActivityPagination()
+        if (tab !== 'auctions') resourcesRef.current[tab].invalidate(activeTabRef.current === tab)
+    }, [resetActivityPagination])
+    const refreshTab = useCallback((tab: LeagueTab) => {
+        if (tab === 'history') resetActivityPagination()
+        return tab === 'auctions' ? Promise.resolve() : resourcesRef.current[tab].refresh()
+    }, [resetActivityPagination])
+
+    useFocusEffect(useCallback(() => {
+        ensureTab(activeTab)
+    }, [activeTab, ensureTab]))
 
     const loadMoreActivity = useCallback(async () => {
         if (!leagueId || activityRequest.current) return
@@ -95,7 +106,7 @@ export function useLeagueTabResources(
             const nextOffset = activityOffset + ACTIVITY_LIMIT
             const data = await getLeagueTransactions(leagueId, ACTIVITY_LIMIT, nextOffset)
             if (activityRequest.current !== request) return
-            history.setData((current) => [...current, ...data])
+            resourcesRef.current.history.setData((current) => [...current, ...data])
             setActivityOffset(nextOffset)
             setActivityHasMore(data.length === ACTIVITY_LIMIT)
             setActivityLoadMoreError(null)
@@ -109,7 +120,7 @@ export function useLeagueTabResources(
                 setActivityLoadingMore(false)
             }
         }
-    }, [activityOffset, history, leagueId])
+    }, [activityOffset, leagueId])
 
     return {
         activityHasMore,
