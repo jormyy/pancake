@@ -181,6 +181,14 @@ describe('profile privacy and invite capacity policies', () => {
         expect(() => latestFunctionDefinition('is_username_available')).toThrow(/dropped after its latest definition/)
         expect(authSource).not.toContain('is_username_available')
     })
+
+    it('keeps the auth profile trigger function non-executable outside its trigger', () => {
+        const privileges = functionPrivilegeStatements('handle_new_auth_user').join('\n').replace(/\s+/g, ' ')
+
+        expect(privileges).toContain(
+            'REVOKE ALL ON FUNCTION public.handle_new_auth_user() FROM PUBLIC, anon, authenticated, service_role',
+        )
+    })
 })
 
 describe('waiver intent oracle closure', () => {

@@ -14,6 +14,9 @@ AS $$
 BEGIN
   UPDATE notification_outbox
      SET delivered_at = now(),
+         expo_ticket_id = NULL,
+         push_token = NULL,
+         ticketed_at = NULL,
          claimed_at = NULL,
          claim_token = NULL,
          last_error = NULL

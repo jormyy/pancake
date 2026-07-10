@@ -15,6 +15,9 @@ AS $$
 BEGIN
   UPDATE notification_outbox
      SET dead_lettered_at = now(),
+         expo_ticket_id = NULL,
+         push_token = NULL,
+         ticketed_at = NULL,
          claimed_at = NULL,
          claim_token = NULL,
          last_error = left(COALESCE(p_error, 'Permanent notification delivery failure'), 2000)

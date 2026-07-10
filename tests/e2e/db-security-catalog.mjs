@@ -113,6 +113,12 @@ cron_wrapper AS (
     has_function_privilege('authenticated', 'public.invoke_edge_function_at_et_time(text,int,int)', 'EXECUTE') AS cron_auth_exec,
     has_function_privilege('service_role', 'public.invoke_edge_function_at_et_time(text,int,int)', 'EXECUTE') AS cron_service_exec
 ),
+auth_trigger AS (
+  SELECT
+    has_function_privilege('anon', 'public.handle_new_auth_user()', 'EXECUTE') AS anon_exec,
+    has_function_privilege('authenticated', 'public.handle_new_auth_user()', 'EXECUTE') AS auth_exec,
+    has_function_privilege('service_role', 'public.handle_new_auth_user()', 'EXECUTE') AS service_exec
+),
 waiver_policy AS (
   SELECT
     count(*) FILTER (WHERE policyname = 'waiver_wire_log_select_visible_league_rows') AS waiver_policy_count,
@@ -149,6 +155,9 @@ SELECT
   cron_wrapper.cron_anon_exec,
   cron_wrapper.cron_auth_exec,
   cron_wrapper.cron_service_exec,
+  auth_trigger.anon_exec AS auth_trigger_anon_exec,
+  auth_trigger.auth_exec AS auth_trigger_auth_exec,
+  auth_trigger.service_exec AS auth_trigger_service_exec,
   waiver_policy.waiver_policy_count,
   waiver_policy.waiver_policy_qual,
   waiver_policy.waiver_policy_qual ILIKE '%cleared_at IS NOT NULL%' AS waiver_policy_allows_cleared,
@@ -165,7 +174,7 @@ SELECT
   edge_invoker.function_def NOT ILIKE '%Authorization%' AS edge_invoker_drops_authorization_header,
   rookie_activation.function_def ILIKE '%private.is_commissioner(v_draft.league_id)%' AS rookie_activation_checks_commissioner,
   service_role_reads.missing_read_count AS service_role_missing_read_count
-FROM expected, migration, cron_wrapper, waiver_policy, drop_player, edge_invoker, rookie_activation, service_role_reads;
+FROM expected, migration, cron_wrapper, auth_trigger, waiver_policy, drop_player, edge_invoker, rookie_activation, service_role_reads;
 `
 
 const rows = []
@@ -185,6 +194,9 @@ for (const target of targets) {
     const cronLocked = catalog?.cron_anon_exec === false &&
       catalog?.cron_auth_exec === false &&
       catalog?.cron_service_exec === true
+    const authTriggerLocked = catalog?.auth_trigger_anon_exec === false &&
+      catalog?.auth_trigger_auth_exec === false &&
+      catalog?.auth_trigger_service_exec === false
     const waiverPolicySafe = Number(catalog?.waiver_policy_count ?? 0) === 1 &&
       catalog?.waiver_policy_allows_cleared === true &&
       catalog?.waiver_policy_allows_future === true
@@ -212,6 +224,12 @@ for (const target of targets) {
       'ET cron wrapper is service-role-only',
       cronLocked ? 'PASS' : 'BLOCKED',
       `anon=${catalog?.cron_anon_exec}; authenticated=${catalog?.cron_auth_exec}; service_role=${catalog?.cron_service_exec}.`,
+    )
+    addRow(
+      target,
+      'Auth profile trigger function is not externally executable',
+      authTriggerLocked ? 'PASS' : 'BLOCKED',
+      `anon=${catalog?.auth_trigger_anon_exec}; authenticated=${catalog?.auth_trigger_auth_exec}; service_role=${catalog?.auth_trigger_service_exec}.`,
     )
     addRow(
       target,

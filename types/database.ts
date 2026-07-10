@@ -3711,6 +3711,16 @@ export type Database = {
         }
         Returns: boolean
       }
+      defer_notification_receipt_state_atomic: {
+        Args: {
+          p_claim_token: string
+          p_error: string
+          p_id: string
+          p_increment_attempt?: boolean
+          p_retry_delay_seconds?: number
+        }
+        Returns: string
+      }
       delete_league_atomic: { Args: { p_league_id: string }; Returns: Json }
       drop_and_add_free_agent_atomic: {
         Args: {
