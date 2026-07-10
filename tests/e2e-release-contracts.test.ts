@@ -75,6 +75,12 @@ describe('release E2E contracts', () => {
     expect(workflow).toContain('if-no-files-found: error')
   })
 
+  it('does not claim measured production performance from a clean checkout', async () => {
+    const readiness = await readFile(path.join(process.cwd(), 'tests/e2e/production-readiness.mjs'), 'utf8')
+    expect(readiness).not.toContain("run('npm', ['run', 'perf:budget']")
+    expect(readiness).not.toContain("requirement: 'Instant-loading performance budgets pass'")
+  })
+
   it('requires every declared global performance budget', () => {
     const failures = validateManifest({ version: 1, workflows: [], globalBudgets: {} })
     for (const key of ['longTaskMs', 'maxInitialWebJsKb', 'maxRouteWebJsKb', 'maxDbQueryMs']) {

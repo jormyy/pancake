@@ -19,6 +19,8 @@ export function handleApiRoute(req: Request): Promise<Response> {
         ok: true,
         service: 'pancake-supabase-api',
         runtime: 'supabase-edge',
+        commitSha: Deno.env.get('PANCAKE_RELEASE_SHA') ?? null,
+        bundleDigest: Deno.env.get('PANCAKE_RELEASE_BUNDLE_DIGEST') ?? null,
       })
     }
 

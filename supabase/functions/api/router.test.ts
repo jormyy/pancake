@@ -151,10 +151,19 @@ Deno.test({
       if (removed.status !== 404) throw new Error(`removed presence authority route ${action} returned ${removed.status}`)
     }
 
+    const previousSha = Deno.env.get('PANCAKE_RELEASE_SHA')
+    const previousDigest = Deno.env.get('PANCAKE_RELEASE_BUNDLE_DIGEST')
+    Deno.env.set('PANCAKE_RELEASE_SHA', 'a'.repeat(40))
+    Deno.env.set('PANCAKE_RELEASE_BUNDLE_DIGEST', 'b'.repeat(64))
     const res = await handleApiRoute(request('GET', '/health'))
     const body = await res.json()
+    if (previousSha == null) Deno.env.delete('PANCAKE_RELEASE_SHA')
+    else Deno.env.set('PANCAKE_RELEASE_SHA', previousSha)
+    if (previousDigest == null) Deno.env.delete('PANCAKE_RELEASE_BUNDLE_DIGEST')
+    else Deno.env.set('PANCAKE_RELEASE_BUNDLE_DIGEST', previousDigest)
 
-    if (res.status !== 200 || body.runtime !== 'supabase-edge') {
+    if (res.status !== 200 || body.runtime !== 'supabase-edge' ||
+      body.commitSha !== 'a'.repeat(40) || body.bundleDigest !== 'b'.repeat(64)) {
       throw new Error(`expected health 200, got ${res.status}: ${JSON.stringify(body)}`)
     }
   },
