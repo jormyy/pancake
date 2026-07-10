@@ -57,6 +57,9 @@ export function useLeagueTabResources(
     const resourcesRef = useRef(resources)
     resourcesRef.current = resources
     const activeResource = activeTab === 'auctions' ? null : resources[activeTab]
+    const activeResourceKey = activeTab === 'auctions'
+        ? null
+        : activeTab === 'mockRooms' ? memberKey : leagueKey
     const [activityOffset, setActivityOffset] = useState(0)
     const [activityHasMore, setActivityHasMore] = useState(false)
     const [activityLoadingMore, setActivityLoadingMore] = useState(false)
@@ -94,8 +97,8 @@ export function useLeagueTabResources(
     }, [resetActivityPagination])
 
     useFocusEffect(useCallback(() => {
-        ensureTab(activeTab)
-    }, [activeTab, ensureTab]))
+        if (activeResourceKey) ensureTab(activeTab)
+    }, [activeResourceKey, activeTab, ensureTab]))
 
     const loadMoreActivity = useCallback(async () => {
         if (!leagueId || activityRequest.current) return
