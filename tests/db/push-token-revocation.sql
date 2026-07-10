@@ -12,6 +12,21 @@ VALUES
   ('00000000-0000-0000-0000-000000090002', 'push_revoke_b', 'Push Revoke B')
 ON CONFLICT (id) DO UPDATE SET username = EXCLUDED.username, display_name = EXCLUDED.display_name;
 
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+      FROM pg_catalog.pg_indexes
+     WHERE schemaname = 'public'
+       AND tablename = 'profiles'
+       AND indexname = 'profiles_push_token_lookup'
+       AND indexdef LIKE '%(push_token) WHERE (push_token IS NOT NULL)'
+  ) THEN
+    RAISE EXCEPTION 'Push-token lookup index is missing or not partial.';
+  END IF;
+END;
+$$;
+
 -- Simulate the previous Edge implementation against the upgraded schema.
 UPDATE public.profiles
    SET push_token = 'ExponentPushToken[legacy-edge]'

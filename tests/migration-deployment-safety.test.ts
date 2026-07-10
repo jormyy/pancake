@@ -3,7 +3,10 @@ import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 const migrationsDirectory = path.join(process.cwd(), 'supabase/migrations')
+const predeployDirectory = path.join(process.cwd(), 'supabase/predeploy')
+const productionDeployWorkflow = path.join(process.cwd(), '.github/workflows/production-deploy.yml')
 const read = (filename: string) => readFileSync(path.join(migrationsDirectory, filename), 'utf8')
+const readPredeploy = (filename: string) => readFileSync(path.join(predeployDirectory, filename), 'utf8')
 const topLevelStatements = (source: string): string[] => {
     const statements: string[] = []
     let current = ''
@@ -196,6 +199,27 @@ describe('branch migration deployment safety', () => {
         expect(pushTokenCredentialUpgradeContract(
             migration.replace('CREATE TRIGGER normalize_legacy_push_token_write', 'CREATE TRIGGER removed_compatibility'),
         )).toBe(false)
+    })
+
+    it('builds the push-token lookup index online before the production migration transaction', () => {
+        const filename = '20260710130000_profiles_push_token_lookup.sql'
+        const predeploy = readPredeploy(filename).replace(/\s+/g, ' ')
+        const migration = read(filename).replace(/\s+/g, ' ')
+        const workflow = readFileSync(productionDeployWorkflow, 'utf8')
+        const predeployCommand = 'supabase db query --linked --agent=no'
+        const migrationCommand = 'supabase db push --linked --yes'
+
+        expect(predeploy).toContain(
+            'CREATE INDEX CONCURRENTLY IF NOT EXISTS profiles_push_token_lookup ON public.profiles (push_token) WHERE push_token IS NOT NULL;',
+        )
+        expect(migration).toContain(
+            'CREATE INDEX IF NOT EXISTS profiles_push_token_lookup ON public.profiles (push_token) WHERE push_token IS NOT NULL;',
+        )
+        expect(migration).not.toContain('CREATE INDEX CONCURRENTLY')
+        expect(bounded(read(filename))).toBe(true)
+        expect(workflow).toContain(`-f supabase/predeploy/${filename}`)
+        expect(workflow.indexOf(predeployCommand)).toBeGreaterThanOrEqual(0)
+        expect(workflow.indexOf(predeployCommand)).toBeLessThan(workflow.indexOf(migrationCommand))
     })
 
     it.each(['from', 'to'] as const)(

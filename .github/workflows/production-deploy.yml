@@ -165,6 +165,8 @@ jobs:
         run: |
           test "$SUPABASE_PROJECT_REF" = 'ceeytbfmwsnzalxlkalc'
           supabase link --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
+          supabase db query --linked --agent=no \
+            -f supabase/predeploy/20260710130000_profiles_push_token_lookup.sql
           supabase db push --linked --yes
 
   verify-current-after-migration:
