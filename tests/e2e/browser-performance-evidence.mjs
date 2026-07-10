@@ -163,6 +163,13 @@ const clickMeasuredTarget = async (browser, session, { selector, expected, inter
   return collectFeedback(browser, session, interaction, target)
 }
 
+const fillMeasuredTarget = async (browser, session, { selector, value, expected, interaction, target }) => {
+  const prepared = await prepareFeedbackObserver(browser, session, expected)
+  if (prepared.expectedBeforeAction) throw new Error(`${interaction} expected state was already active`)
+  await browser(session, ['fill', selector, value])
+  return collectFeedback(browser, session, interaction, target)
+}
+
 const clickUnmeasured = (browser, session, selector) => browser(session, ['click', selector]).catch(() => {})
 
 /**
@@ -238,15 +245,13 @@ export const measureWorkflowFeedback = async (browser, session, { workflowId, la
   }
 
   if (workflowId === 'waiver-add-claim') {
-    const target = await markDynamicTarget(browser, session,
-      `[...document.querySelectorAll('[role="button"][aria-label^="Select "]')].find((node) => node.getAttribute('aria-label')?.endsWith(' to drop'))`,
-      'data-e2e-feedback-target')
-    const result = await clickMeasuredTarget(browser, session, {
-      selector: '[data-e2e-feedback-target="true"]',
-      expected: `document.querySelector('[data-e2e-feedback-target="true"]')?.getAttribute('aria-selected') === 'true'`,
-      interaction: 'waiver-drop-selection', target,
+    const selector = '[aria-label="FAAB bid amount"]'
+    const result = await fillMeasuredTarget(browser, session, {
+      selector, value: '1',
+      expected: `document.querySelector(${JSON.stringify(selector)})?.value === '1'`,
+      interaction: 'waiver-faab-input', target: 'FAAB bid amount',
     })
-    await clickUnmeasured(browser, session, '[data-e2e-feedback-target="true"]')
+    await browser(session, ['fill', selector, '0'])
     return result
   }
 
