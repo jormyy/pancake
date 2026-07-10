@@ -66,14 +66,21 @@ describe('trade FAAB input', () => {
         await act(async () => { renderer.unmount() })
     })
 
-    it('announces an oversized prefill and allows reducing it to the maximum', async () => {
-        const { renderer, onFaabChange } = await renderPanel(String(MAX_TRADE_FAAB_AMOUNT + 1))
+    it('announces a historical oversized prefill and allows monotonic recovery', async () => {
+        const historicalPrefill = '2147483647'
+        const { renderer, onFaabChange } = await renderPanel(historicalPrefill)
         const input = renderer.root.findByProps({ testID: 'trade-faab-me-them' })
         const error = renderer.root.findByProps({ testID: 'trade-faab-error-me-them' })
 
         expect(input.props['aria-invalid']).toBe(true)
         expect(input.props.accessibilityLabel).toContain('FAAB amount cannot exceed 1,000,000.')
         expect(error.props.accessibilityRole).toBe('alert')
+        await act(async () => { input.props.onChangeText('214748364') })
+        expect(onFaabChange).toHaveBeenCalledWith('me', 'them', '214748364')
+        onFaabChange.mockClear()
+        await act(async () => { input.props.onChangeText('3147483647') })
+        await act(async () => { input.props.onChangeText('9'.repeat(100_000)) })
+        expect(onFaabChange).not.toHaveBeenCalled()
         await act(async () => { input.props.onChangeText(String(MAX_TRADE_FAAB_AMOUNT)) })
         expect(onFaabChange).toHaveBeenCalledWith('me', 'them', String(MAX_TRADE_FAAB_AMOUNT))
         await act(async () => { renderer.unmount() })

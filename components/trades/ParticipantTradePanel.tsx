@@ -176,7 +176,7 @@ export function ParticipantTradePanel({
                                     style={[styles.termInput, error && styles.termInputInvalid]}
                                     value={value}
                                     onChangeText={(nextValue) => {
-                                        if (canUpdateTradeFaabInput(nextValue)) {
+                                        if (canUpdateTradeFaabInput(value, nextValue)) {
                                             onFaabChange(participant.memberId, destinationId, nextValue)
                                         }
                                     }}

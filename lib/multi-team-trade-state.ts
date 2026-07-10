@@ -28,8 +28,23 @@ export function validateTradeFaabInput(value: string): { amount: number; error: 
     return { amount, error: null }
 }
 
-export function canUpdateTradeFaabInput(nextValue: string): boolean {
-    return nextValue.length <= MAX_TRADE_FAAB_DIGITS && !validateTradeFaabInput(nextValue).error
+function normalizedDecimal(value: string): string | null {
+    if (!/^\d+$/.test(value)) return null
+    return value.replace(/^0+/, '') || '0'
+}
+
+function isSmallerDecimal(left: string, right: string): boolean {
+    if (left.length !== right.length) return left.length < right.length
+    return left < right
+}
+
+export function canUpdateTradeFaabInput(currentValue: string, nextValue: string): boolean {
+    if (!validateTradeFaabInput(nextValue).error) return true
+
+    const currentDecimal = normalizedDecimal(currentValue)
+    const nextDecimal = normalizedDecimal(nextValue)
+    return currentDecimal !== null && nextDecimal !== null &&
+        isSmallerDecimal(nextDecimal, currentDecimal)
 }
 
 export type MultiTeamTradeState = {
@@ -194,7 +209,7 @@ export function multiTeamTradeReducer(
                 !state.participantOrder.includes(action.toMemberId)) return state
             return updateParticipant(state, action.memberId, (participant) => {
                 const currentValue = participant.faabInputs[action.toMemberId] ?? '0'
-                if (!canUpdateTradeFaabInput(action.value)) return participant
+                if (!canUpdateTradeFaabInput(currentValue, action.value)) return participant
                 const currentAmount = validateTradeFaabInput(currentValue).amount
                 const nextAmount = validateTradeFaabInput(action.value).amount
                 if (currentAmount <= 0 && nextAmount > 0 && draftItemCount(state) >= MAX_TRADE_ITEMS) {
