@@ -137,7 +137,7 @@ export function useCommissionerAdminActions({
         }]
         const utilityActions: CommissionerAction[] = [
             { id: 'process-waivers', label: 'Process Waiver Claims', onPress: () => runAdmin('/waivers/process', 'Waiver claims processed.', 'process-waivers') },
-            { id: 'sync-stats', label: 'Sync Player Stats', onPress: () => runAdmin('/sync/stats', 'Stats synced (last 7 days).', 'sync-stats', { days: 7 }) },
+            { id: 'sync-stats', label: 'Sync Player Stats', onPress: () => runAdmin('/sync/stats', 'Stats sync started for the last 7 days.', 'sync-stats', { days: 7 }) },
             { id: 'sync-scores', label: 'Sync Scores Now', onPress: () => runAdmin('/sync/scores', 'Scores synced.', 'sync-scores') },
             { id: 'sync-rankings', label: 'Sync Dynasty Rankings', onPress: () => runAdmin('/sync/rankings', 'Dynasty rankings synced.', 'sync-rankings') },
             { id: 'sync-projections', label: 'Sync Projections', onPress: () => runAdmin('/sync/projections', 'Projections synced.', 'sync-projections') },

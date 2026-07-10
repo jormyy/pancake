@@ -14,22 +14,68 @@ import {
 } from '../_shared/apiRuntime.ts'
 import { supabase } from '../_shared/supabase.ts'
 import { generateAllMatchups } from './matchups.ts'
-
-function dateStringForDaysAgo(daysAgo: number): string {
-  const date = new Date()
-  date.setDate(date.getDate() - daysAgo)
-  return date.toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
-}
+import { todayET } from '../_shared/date.ts'
+import { parseStatsSyncJobMetadata, statsSyncRange } from '../_shared/statsSyncJob.ts'
 
 async function requireAdminUser(req: Request): Promise<void> {
   const userId = await requireUser(req)
   requireAdmin(userId)
 }
 
-async function syncStats(body: Record<string, unknown>): Promise<void> {
+async function syncStats(body: Record<string, unknown>): Promise<Record<string, unknown>> {
   const days = optionalIntegerField(body, 'days', { min: 1, max: 365 }) ?? 1
-  for (let i = days - 1; i >= 0; i -= 1) {
-    await invokeInternalFunction('sync-stats', { date: dateStringForDaysAgo(i) })
+  const range = statsSyncRange(todayET(), days)
+  const jobType = `sync_stats_range:${range.startDate}:${range.endDate}`
+  const { data: existingJobs, error: existingError } = await supabase
+    .from('sync_jobs')
+    .select('id, status, metadata')
+    .eq('job_type', jobType)
+    .in('status', ['pending', 'running', 'failed'])
+    .order('created_at', { ascending: false })
+    .limit(1)
+  if (existingError) throwDb(existingError)
+
+  let jobId = existingJobs?.[0]?.id
+  if (jobId) {
+    const existing = existingJobs[0]
+    const metadata = parseStatsSyncJobMetadata(existing.metadata)
+    const claimedAt = metadata.claimedAt ? Date.parse(metadata.claimedAt) : Number.NaN
+    const staleRunningJob = existing.status === 'running' &&
+      (!Number.isFinite(claimedAt) || claimedAt < Date.now() - 2 * 60_000)
+    if (existing.status === 'failed' || staleRunningJob) {
+      const { claimedAt: _claimedAt, ...releasedMetadata } = metadata
+      const { error } = await supabase
+        .from('sync_jobs')
+        .update({ status: 'pending', completed_at: null, metadata: releasedMetadata })
+        .eq('id', jobId)
+        .eq('status', existing.status)
+        .contains('metadata', metadata.claimedAt ? { claimedAt: metadata.claimedAt } : {})
+      if (error) throwDb(error)
+    }
+  } else {
+    const { data: created, error } = await supabase
+      .from('sync_jobs')
+      .insert({
+        job_type: jobType,
+        status: 'pending',
+        total_items: days,
+        completed_items: 0,
+        failed_items: 0,
+        error_log: [],
+        metadata: range,
+        started_at: new Date().toISOString(),
+      })
+      .select('id')
+      .single()
+    if (error) throwDb(error)
+    jobId = created.id
+  }
+
+  const result = await invokeInternalFunction('sync-stats', { jobId })
+  return {
+    jobId,
+    days,
+    ...(result && typeof result === 'object' && !Array.isArray(result) ? result : {}),
   }
 }
 
@@ -92,8 +138,7 @@ export async function handleSyncRoute(req: Request, path: string): Promise<Respo
   const body = await readJsonObject(req)
 
   if (path === '/sync/stats') {
-    await syncStats(body)
-    return json({ ok: true })
+    return json({ ok: true, ...await syncStats(body) })
   }
   if (path === '/sync/scores') return json(await invokeInternalFunction('sync-scores'))
   if (path === '/sync/schedule') return json(await invokeInternalFunction('sync-schedule'))

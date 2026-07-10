@@ -44,6 +44,12 @@ export class ServiceUnavailableError extends ApiError {
   }
 }
 
+class GatewayTimeoutError extends ApiError {
+  constructor(message: string) {
+    super(message, 504)
+  }
+}
+
 export function withCors(response: Response): Response {
   const headers = new Headers(response.headers)
   for (const [key, value] of Object.entries(CORS_HEADERS)) headers.set(key, value)
@@ -352,7 +358,11 @@ function serviceKey(): string | null {
 export async function invokeInternalFunction(
   functionName: string,
   body: Record<string, unknown> = {},
-  options: { method?: 'GET' | 'POST'; query?: Record<string, string | number | null | undefined> } = {},
+  options: {
+    method?: 'GET' | 'POST'
+    query?: Record<string, string | number | null | undefined>
+    timeoutMs?: number
+  } = {},
 ): Promise<unknown> {
   const baseUrl = Deno.env.get('SUPABASE_URL')
   if (!baseUrl) throw new ApiError('SUPABASE_URL is not configured', 500)
@@ -364,17 +374,35 @@ export async function invokeInternalFunction(
 
   const method = options.method ?? 'POST'
   const key = serviceKey()
-  const response = await fetch(url, {
-    method,
-    headers: {
-      'Content-Type': 'application/json',
-      'x-internal-function-token': internalToken(),
-      ...(key ? { Authorization: `Bearer ${key}`, apikey: key } : {}),
-    },
-    body: method === 'POST' ? JSON.stringify(body) : undefined,
-  })
+  const timeoutMs = options.timeoutMs ?? 30_000
+  if (!Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 120_000) {
+    throw new RangeError('Internal function timeout must be an integer between 1 and 120000 milliseconds')
+  }
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), timeoutMs)
+  let response: Response
+  let text: string
+  try {
+    response = await fetch(url, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        'x-internal-function-token': internalToken(),
+        ...(key ? { Authorization: `Bearer ${key}`, apikey: key } : {}),
+      },
+      body: method === 'POST' ? JSON.stringify(body) : undefined,
+      signal: controller.signal,
+    })
+    text = await response.text()
+  } catch (error) {
+    if (controller.signal.aborted) {
+      throw new GatewayTimeoutError(`Internal function ${functionName} timed out after ${timeoutMs}ms`)
+    }
+    throw error
+  } finally {
+    clearTimeout(timeout)
+  }
 
-  const text = await response.text()
   let payload: unknown = null
   if (text.trim()) {
     try {
