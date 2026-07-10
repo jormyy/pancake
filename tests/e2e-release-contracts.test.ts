@@ -460,6 +460,32 @@ describe('release E2E contracts', () => {
     ]))
   })
 
+  it('rejects missing, nonnumeric, and negative browser heartbeat evidence', () => {
+    const manifest = {
+      globalBudgets: {
+        maxHeartbeatLagMs: 600,
+        longTaskMs: 50,
+        maxMutationLoopMs: 30000,
+        maxInitialWebJsKb: 700,
+        maxRouteWebJsKb: 220,
+      },
+      workflows: [],
+    }
+    for (const maxLagMs of [undefined, '1', Number.NaN, -1]) {
+      const failures = validateBrowserPerfReport(manifest, {
+        status: 'PASS',
+        draftPerf: { maxLagMs, maxLongTaskMs: 1, longTaskSupported: true },
+        homePerf: { maxLagMs, maxLongTaskMs: 1, longTaskSupported: true },
+        load: { durationMs: 1 },
+        workflowMeasurements: [],
+      })
+      expect(failures).toEqual(expect.arrayContaining([
+        'draft heartbeat lag must be a finite nonnegative number',
+        'home heartbeat lag must be a finite nonnegative number',
+      ]))
+    }
+  })
+
   it('rejects skeletal complete data-latency PASS evidence', async () => {
     const manifest = JSON.parse(await readFile(path.join(process.cwd(), 'tests/e2e/performance-budgets.json'), 'utf8'))
     const skeletal = {

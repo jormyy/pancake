@@ -91,14 +91,13 @@ export const validateBrowserPerfReport = (manifest, report, expectedProvenance =
 
   if (report.status !== 'PASS') failures.push(`browser perf report status is ${report.status ?? 'missing'}`)
 
-  if (report.draftPerf?.maxLagMs > budgets.maxHeartbeatLagMs) {
-    failures.push(`draft heartbeat lag ${report.draftPerf.maxLagMs}ms exceeds ${budgets.maxHeartbeatLagMs}ms`)
-  }
-  if (report.homePerf?.maxLagMs > budgets.maxHeartbeatLagMs) {
-    failures.push(`home heartbeat lag ${report.homePerf.maxLagMs}ms exceeds ${budgets.maxHeartbeatLagMs}ms`)
-  }
   if (report.draftPerf?.longTaskSupported !== true || report.homePerf?.longTaskSupported !== true) failures.push('browser long-task observation was unavailable')
   for (const [surface, measurement] of [['draft', report.draftPerf], ['home', report.homePerf]]) {
+    if (!Number.isFinite(measurement?.maxLagMs) || measurement.maxLagMs < 0) {
+      failures.push(`${surface} heartbeat lag must be a finite nonnegative number`)
+    } else if (measurement.maxLagMs > budgets.maxHeartbeatLagMs) {
+      failures.push(`${surface} heartbeat lag ${measurement.maxLagMs}ms exceeds ${budgets.maxHeartbeatLagMs}ms`)
+    }
     if (!Number.isFinite(measurement?.maxLongTaskMs) || measurement.maxLongTaskMs < 0) {
       failures.push(`${surface} max long task must be a finite nonnegative number`)
     } else if (measurement.maxLongTaskMs > budgets.longTaskMs) {
